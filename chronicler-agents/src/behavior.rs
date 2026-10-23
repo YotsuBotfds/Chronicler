@@ -48,6 +48,16 @@ const HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT: f32 = 1.20;
 const HOUSEHOLD_MIGRATION_MARRIED_FACTOR: f32 = 0.88;
 /// M59b: Maximum penalty applied to adjacent migration target from a threat packet.
 const MAX_THREAT_PENALTY: f32 = 0.20;
+/// Deferred-backlog religious_signal consumer: maximum sect-based bias on an
+/// adjacent migration target the agent has heard religious news about. Added
+/// when the agent shares the target's majority faith (revival / pilgrimage
+/// pull), subtracted when it does not (conversion or persecution pressure).
+/// Half the threat penalty: religious news should steer, not dominate. [CALIBRATE]
+pub const RELIGIOUS_SIGNAL_MIGRATION_WEIGHT: f32 = 0.10;
+/// Deferred-backlog loyalty coupling: news that the agent's own civ took or
+/// held a distant region damps loyalty drift away from it by up to this
+/// fraction (scaled by packet strength). Never creates drift, never flips. [CALIBRATE]
+pub const LOYALTY_RALLY_DRIFT_DAMPING: f32 = 0.50;
 
 // ---------------------------------------------------------------------------
 // Helpers — smoothstep, gumbel_argmax
@@ -139,15 +149,17 @@ fn region_population_count(stats: &RegionStats, region_id: usize) -> usize {
     stats.occupation_supply[region_id].iter().sum()
 }
 
-/// Returns (best_target, migration_opportunity, choices_changed_by_threat).
+/// Returns (best_target, migration_opportunity, choices_changed_by_threat,
+/// choices_changed_by_religion).
 fn best_migration_target_for_agent(
     pool: &AgentPool,
     regions: &[RegionState],
     stats: &RegionStats,
     region_id: usize,
     slot: usize,
-) -> (u16, f32, bool) {
+) -> (u16, f32, bool, bool) {
     let civ = pool.civ_affinity(slot);
+    let belief = pool.beliefs[slot];
     let own_pop = region_population_count(stats, region_id);
     let own_cap = regions[region_id].carrying_capacity.max(1) as f32;
     let own_pop_ratio = own_pop as f32 / own_cap;
@@ -159,6 +171,10 @@ fn best_migration_target_for_agent(
     let mut best_adj_id = region_id as u16;
     let mut baseline_best_adj_id = region_id as u16;
     let mut baseline_best_adj_score = own_score;
+    // Best after the threat penalty only, so each packet consumer's diagnostic
+    // isolates its own effect (threat vs. religion).
+    let mut threat_best_adj_id = region_id as u16;
+    let mut threat_best_adj_score = own_score;
     for bit in 0..32u32 {
         if regions[region_id].adjacency_mask & (1 << bit) == 0 {
             continue;
@@ -207,6 +223,26 @@ fn best_migration_target_for_agent(
         if threat_strength > 0.0 {
             adj_score -= MAX_THREAT_PENALTY * threat_strength;
         }
+        if adj_score > threat_best_adj_score {
+            threat_best_adj_score = adj_score;
+            threat_best_adj_id = adj as u16;
+        }
+
+        // Deferred backlog: religious_signal packets bias adjacent targets by
+        // faith (strongest packet only; agents without a faith are unaffected).
+        if belief != crate::agent::BELIEF_NONE {
+            let religious_strength = crate::knowledge::strongest_religious_signal_for_region(
+                pool, slot, adj as u16, region_id as u16,
+            );
+            if religious_strength > 0.0 {
+                let bias = RELIGIOUS_SIGNAL_MIGRATION_WEIGHT * religious_strength;
+                if regions[adj].majority_belief == belief {
+                    adj_score += bias;
+                } else {
+                    adj_score -= bias;
+                }
+            }
+        }
 
         if adj_score > best_adj_score {
             best_adj_score = adj_score;
@@ -214,8 +250,9 @@ fn best_migration_target_for_agent(
         }
     }
 
-    let threat_changed = best_adj_id != baseline_best_adj_id;
-    (best_adj_id, (best_adj_score - own_score).max(0.0), threat_changed)
+    let threat_changed = threat_best_adj_id != baseline_best_adj_id;
+    let religion_changed = best_adj_id != threat_best_adj_id;
+    (best_adj_id, (best_adj_score - own_score).max(0.0), threat_changed, religion_changed)
 }
 
 fn switch_utility(
@@ -454,6 +491,10 @@ pub struct PendingDecisions {
     pub loyalty_flips: Vec<(usize, u8)>,
     /// (slot, delta) — positive = recovery, negative = drift.
     pub loyalty_drifts: Vec<(usize, f32)>,
+    /// Diagnostics: migration targets changed by religious_signal packets.
+    pub migration_changed_by_religion: u32,
+    /// Diagnostics: drift-away steps damped by own-civ threat packets.
+    pub loyalty_drifts_damped_by_rally: u32,
 }
 
 impl PendingDecisions {
@@ -464,6 +505,8 @@ impl PendingDecisions {
             occupation_switches: Vec::new(),
             loyalty_flips: Vec::new(),
             loyalty_drifts: Vec::new(),
+            migration_changed_by_religion: 0,
+            loyalty_drifts_damped_by_rally: 0,
         }
     }
 }
@@ -509,13 +552,17 @@ pub fn evaluate_region_decisions(
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
-        let (best_migration_target, migration_opportunity, threat_changed) = if is_displaced {
-            (region_id as u16, 0.0, false)
-        } else {
-            best_migration_target_for_agent(pool, regions, stats, region_id, slot)
-        };
+        let (best_migration_target, migration_opportunity, threat_changed, religion_changed) =
+            if is_displaced {
+                (region_id as u16, 0.0, false, false)
+            } else {
+                best_migration_target_for_agent(pool, regions, stats, region_id, slot)
+            };
         if threat_changed {
             threat_changed_count += 1;
+        }
+        if religion_changed {
+            pending.migration_changed_by_religion += 1;
         }
 
         // Compute utilities: utility fn -> personality modifier -> NEG_INFINITY gate
@@ -655,9 +702,19 @@ pub fn evaluate_region_decisions(
                 let autonomy_deficit = (crate::agent::AUTONOMY_THRESHOLD
                     - pool.need_autonomy[slot]).max(0.0);
                 let autonomy_factor = 1.0 + autonomy_deficit * crate::agent::AUTONOMY_DRIFT_WEIGHT;
-                let effective_drift = LOYALTY_DRIFT_RATE
+                let mut effective_drift = LOYALTY_DRIFT_RATE
                     * personality_modifier(-ltrait, LOYALTY_TRAIT_WEIGHT)
                     * autonomy_factor;
+                // Deferred backlog: loyalty coupling. News (threat packet with
+                // source_civ provenance) that the agent's own civ took or held
+                // a distant region damps drift away; strongest packet only.
+                let rally = crate::knowledge::strongest_own_civ_threat(
+                    pool, slot, region_id as u16, civ,
+                );
+                if rally > 0.0 {
+                    effective_drift *= 1.0 - LOYALTY_RALLY_DRIFT_DAMPING * rally;
+                    pending.loyalty_drifts_damped_by_rally += 1;
+                }
                 if loy - effective_drift < LOYALTY_FLIP_THRESHOLD {
                     // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
@@ -1237,7 +1294,7 @@ mod tests {
             "region-level targeting should still favor the slightly happier foreign-ruled region",
         );
 
-        let (target, opportunity, _threat_changed) =
+        let (target, opportunity, _threat_changed, _religion_changed) =
             best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
         assert_eq!(
             target, 1,
@@ -1801,6 +1858,161 @@ mod river_tests {
         let stats = compute_region_stats(&pool, &regions, &signals);
         assert_eq!(stats.best_migration_target[0], 1,
             "River-connected region should be preferred migration target");
+    }
+}
+
+/// Deferred-backlog packet consumers: religious_signal migration bias and
+/// threat-packet loyalty rally (requires `pkt_source_civ` provenance).
+#[cfg(test)]
+mod packet_consumer_tests {
+    use super::*;
+    use crate::agent::Occupation;
+    use crate::knowledge::{admit_packet, admit_packet_from_civ, InfoType, PacketCandidate};
+    use crate::pool::AgentPool;
+    use crate::region::RegionState;
+    use crate::signals::TickSignals;
+    use rand::SeedableRng;
+
+    const FAITH: u8 = 3;
+    const OTHER_FAITH: u8 = 5;
+
+    fn signals(n: usize) -> TickSignals {
+        TickSignals { civs: vec![], contested_regions: vec![false; n] }
+    }
+
+    fn packet(info_type: InfoType, source_region: u16) -> PacketCandidate {
+        PacketCandidate {
+            info_type: info_type as u8,
+            source_region,
+            source_turn: 1,
+            intensity: 255,
+            hop_count: 1,
+        }
+    }
+
+    /// Region 0 (unhappy) is adjacent to identical regions 1 and 2. Without
+    /// packets the tie resolves to region 1. Returns (pool, regions, slot).
+    fn migration_world(agent_belief: u8) -> (AgentPool, Vec<RegionState>, usize) {
+        let mut regions: Vec<RegionState> = (0..3).map(RegionState::new).collect();
+        regions[0].adjacency_mask = 0b110;
+        regions[1].adjacency_mask = 0b001;
+        regions[2].adjacency_mask = 0b001;
+        for r in &mut regions {
+            r.carrying_capacity = 60;
+            r.controller_civ = 0;
+        }
+        regions[1].majority_belief = OTHER_FAITH;
+        regions[2].majority_belief = FAITH;
+        let mut pool = AgentPool::new(64);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, agent_belief);
+        pool.set_satisfaction(slot, 0.1);
+        for region in 1..3u16 {
+            for _ in 0..10 {
+                let s = pool.spawn(region, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, FAITH);
+                pool.set_satisfaction(s, 0.6);
+            }
+        }
+        (pool, regions, slot)
+    }
+
+    fn target(pool: &AgentPool, regions: &[RegionState], slot: usize) -> (u16, bool, bool) {
+        let stats = compute_region_stats(pool, regions, &signals(regions.len()));
+        let (t, _, threat, religion) = best_migration_target_for_agent(pool, regions, &stats, 0, slot);
+        (t, threat, religion)
+    }
+
+    #[test]
+    fn baseline_tie_resolves_to_first_neighbor() {
+        let (pool, regions, slot) = migration_world(FAITH);
+        assert_eq!(target(&pool, &regions, slot), (1, false, false));
+    }
+
+    #[test]
+    fn shared_faith_religious_signal_pulls_migration() {
+        let (mut pool, regions, slot) = migration_world(FAITH);
+        admit_packet(&mut pool, slot, &packet(InfoType::ReligiousSignal, 2));
+        assert_eq!(target(&pool, &regions, slot), (2, false, true));
+    }
+
+    #[test]
+    fn foreign_faith_religious_signal_pushes_migration_away() {
+        let (mut pool, regions, slot) = migration_world(FAITH);
+        admit_packet(&mut pool, slot, &packet(InfoType::ReligiousSignal, 1));
+        assert_eq!(target(&pool, &regions, slot), (2, false, true));
+    }
+
+    #[test]
+    fn faithless_agents_ignore_religious_signals() {
+        let (mut pool, regions, slot) = migration_world(crate::agent::BELIEF_NONE);
+        admit_packet(&mut pool, slot, &packet(InfoType::ReligiousSignal, 2));
+        assert_eq!(target(&pool, &regions, slot), (1, false, false));
+    }
+
+    #[test]
+    fn own_region_religious_signal_is_ignored() {
+        let (mut pool, regions, slot) = migration_world(FAITH);
+        admit_packet(&mut pool, slot, &packet(InfoType::ReligiousSignal, 0));
+        assert_eq!(target(&pool, &regions, slot), (1, false, false));
+    }
+
+    #[test]
+    fn threat_diagnostic_is_isolated_from_religion_diagnostic() {
+        let (mut pool, regions, slot) = migration_world(FAITH);
+        admit_packet(&mut pool, slot, &packet(InfoType::ThreatWarning, 1));
+        assert_eq!(target(&pool, &regions, slot), (2, true, false));
+    }
+
+    /// Three civ-0 agents (one control, one hearing own-civ news, one hearing
+    /// foreign news) in a region where civ-1 agents are happier, so all three
+    /// drift away from civ 0.
+    #[test]
+    fn own_civ_threat_news_damps_loyalty_drift() {
+        let regions = vec![{
+            let mut r = RegionState::new(0);
+            r.controller_civ = 0;
+            r
+        }];
+        let mut pool = AgentPool::new(16);
+        let mut civ0 = Vec::new();
+        for _ in 0..3 {
+            let s = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_loyalty(s, 0.6);
+            pool.set_satisfaction(s, 0.5);
+            civ0.push(s);
+        }
+        for _ in 0..3 {
+            let s = pool.spawn(0, 1, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_loyalty(s, 0.6);
+            pool.set_satisfaction(s, 0.8);
+        }
+        let (control, rallied, foreign) = (civ0[0], civ0[1], civ0[2]);
+        admit_packet_from_civ(&mut pool, rallied, &packet(InfoType::ThreatWarning, 4), 0);
+        admit_packet_from_civ(&mut pool, foreign, &packet(InfoType::ThreatWarning, 4), 1);
+
+        let stats = compute_region_stats(&pool, &regions, &signals(1));
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([0u8; 32]);
+        let (pending, _) = evaluate_region_decisions(
+            &pool, &civ0, &regions, &regions[0], &stats, 0, &mut rng,
+            &std::collections::HashMap::new(),
+        );
+        let drift = |slot: usize| {
+            pending.loyalty_drifts.iter().find(|(s, _)| *s == slot).map(|(_, d)| *d).unwrap()
+        };
+        assert!(drift(control) < 0.0);
+        assert!((drift(foreign) - drift(control)).abs() < 1e-6, "foreign news must not rally");
+        let expected = drift(control) * (1.0 - LOYALTY_RALLY_DRIFT_DAMPING);
+        assert!((drift(rallied) - expected).abs() < 1e-6, "{} vs {}", drift(rallied), expected);
+        assert_eq!(pending.loyalty_drifts_damped_by_rally, 1);
+        assert!(pending.loyalty_flips.is_empty());
+    }
+
+    #[test]
+    fn packets_without_provenance_never_rally() {
+        let mut pool = AgentPool::new(4);
+        let s = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        admit_packet(&mut pool, s, &packet(InfoType::ThreatWarning, 4));
+        assert_eq!(crate::knowledge::strongest_own_civ_threat(&pool, s, 0, 0), 0.0);
+        assert_eq!(pool.pkt_source_civ[s][0], crate::knowledge::PKT_CIV_NONE);
     }
 }
 

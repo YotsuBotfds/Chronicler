@@ -10,6 +10,7 @@ import pyarrow as pa
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID
 from chronicler.great_persons import _append_deed
+from chronicler.history_index import history_index
 from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
 from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
 from chronicler.resources import get_season_step, get_season_id
@@ -304,10 +305,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         adj_masks.append(mask)
 
     contested_regions_set = set()
-    for attacker, defender in world.active_wars:
-        for r in world.regions:
-            if r.controller == defender:
-                contested_regions_set.add(r.name)
+    if getattr(world, "campaigns_enabled", False):
+        # M60: only regions that actually see armies, battles or occupation.
+        from chronicler.war.runtime import contested_region_names
+        contested_regions_set = contested_region_names(world)
+    else:
+        for attacker, defender in world.active_wars:
+            for r in world.regions:
+                if r.controller == defender:
+                    contested_regions_set.add(r.name)
 
     def _controller_values(region):
         """Denormalize controller civ's cultural values into per-region columns."""
@@ -1124,6 +1130,8 @@ class AgentBridge:
                 "merchant_plans_bootstrap",
                 "merchant_no_usable_packets",
                 "migration_choices_changed_by_threat",
+                "migration_choices_changed_by_religion",
+                "loyalty_drifts_damped_by_rally",
             }
             normalized_k_stats = {}
             for key, value in k_stats.items():
@@ -1530,36 +1538,69 @@ class AgentBridge:
         })
 
     def _convert_events(self, batch, turn):
-        """Convert Arrow events RecordBatch to AgentEventRecord list."""
-        records = []
-        belief_col = batch.column("belief") if "belief" in batch.schema.names else None
-        target_agent_id_col = batch.column("target_agent_id") if "target_agent_id" in batch.schema.names else None
-        formed_turn_col = batch.column("formed_turn") if "formed_turn" in batch.schema.names else None
-        for i in range(batch.num_rows):
-            event_type_code = batch.column("event_type")[i].as_py()
-            records.append(AgentEventRecord(
+        """Convert Arrow events RecordBatch to AgentEventRecord list.
+
+        Reads each column once (``to_pylist`` yields the same Python values
+        as per-row ``as_py()``) and builds records in row order.
+        """
+        num_rows = batch.num_rows
+        if num_rows == 0:
+            return []
+        names = batch.schema.names
+
+        def column(name):
+            return batch.column(name).to_pylist()
+
+        def optional_column(name, default):
+            return column(name) if name in names else [default] * num_rows
+
+        event_type_codes = column("event_type")
+        type_map = EVENT_TYPE_MAP
+        return [
+            AgentEventRecord(
                 turn=turn,
-                agent_id=batch.column("agent_id")[i].as_py(),
-                event_type=EVENT_TYPE_MAP.get(event_type_code, f"unknown_{event_type_code}"),
-                region=batch.column("region")[i].as_py(),
-                target_region=batch.column("target_region")[i].as_py(),
-                civ_affinity=batch.column("civ_affinity")[i].as_py(),
-                occupation=batch.column("occupation")[i].as_py(),
-                belief=belief_col[i].as_py() if belief_col is not None else None,
-                target_agent_id=target_agent_id_col[i].as_py() if target_agent_id_col is not None else 0,
-                formed_turn=formed_turn_col[i].as_py() if formed_turn_col is not None else 0,
-            ))
-        return records
+                agent_id=agent_id,
+                event_type=type_map.get(code, f"unknown_{code}"),
+                region=region,
+                target_region=target_region,
+                civ_affinity=civ_affinity,
+                occupation=occupation,
+                belief=belief,
+                target_agent_id=target_agent_id,
+                formed_turn=formed_turn,
+            )
+            for (code, agent_id, region, target_region, civ_affinity, occupation,
+                 belief, target_agent_id, formed_turn) in zip(
+                event_type_codes,
+                column("agent_id"),
+                column("region"),
+                column("target_region"),
+                column("civ_affinity"),
+                column("occupation"),
+                optional_column("belief", None),
+                optional_column("target_agent_id", 0),
+                optional_column("formed_turn", 0),
+            )
+        ]
 
     def _process_promotions(self, batch, world) -> list:
         """Process promotion RecordBatch → create GreatPerson instances.
 
-        Also checks Python-side bypass triggers that Rust cannot evaluate:
-        - Long displacement (50+ turns away from origin) → Exile
-        - Serial migrant (3+ region changes) → Merchant
+        Rust (``NamedCharacterRegistry::find_candidates``) is the only
+        promotion gate. For skill-gated candidates (trigger 0) Python then
+        relabels the role from the agent's full event history, which the Rust
+        pool does not keep (it has life-event bits and a short displacement
+        cooldown, not lifetime counts):
+        - Serial migrant (3+ migrations) → Merchant
         - Occupation versatility (3+ switches) → Scientist
-        These are checked against agent_events_raw history when the Rust-side
-        trigger is 0 (skill-based), to see if a more specific role applies.
+
+        Agent promotions never produce the ``exile`` role. On a GreatPerson
+        ``exile`` means a deposed-leader pretender (``succession.py``: it
+        drains its origin civ's stability and can be restored to the throne).
+        The former "long displacement → exile" relabel could never fire (it
+        read state tracked only for already-promoted agents) and would have
+        turned displaced commoners into throne claimants, so it was removed;
+        role id 4 from Rust is rejected for the same reason.
         """
         import random
         from chronicler.models import GreatPerson
@@ -1573,27 +1614,17 @@ class AgentBridge:
             trigger = batch.column("trigger")[i].as_py()
             origin_region = batch.column("origin_region")[i].as_py()
             role = ROLE_MAP.get(role_id)
-            if role is None:
+            if role is None or role == "exile":
                 logger.warning("Unknown role_id %d for agent %d, skipping promotion", role_id, agent_id)
                 continue
 
-            # Python-side bypass: check event history for displacement / migrant / versatility
-            if trigger == 0:  # skill-based — check if a bypass applies
-                migration_events = [
-                    e for e in world.agent_events_raw
-                    if e.agent_id == agent_id and e.event_type == "migration"
-                ]
-                switch_count = sum(
-                    1 for e in world.agent_events_raw
-                    if e.agent_id == agent_id and e.event_type == "occupation_switch"
+            # Python-side role relabels from event history (skill-gated only)
+            if trigger == 0:
+                # Counts over agent_events_raw, served incrementally by the index.
+                migration_count, switch_count = history_index(world).agent_event_counts(
+                    world, agent_id,
                 )
-                # Long displacement: 50+ turns since first migration away from origin
-                if (migration_events
-                        and agent_id in self._origin_regions
-                        and agent_id in self._departure_turns
-                        and (world.turn - self._departure_turns[agent_id]) >= 50):
-                    role = "exile"
-                elif len(migration_events) >= 3:
+                if migration_count >= 3:
                     role = "merchant"
                 elif switch_count >= 3:
                     role = "scientist"

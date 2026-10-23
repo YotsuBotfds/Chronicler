@@ -98,6 +98,9 @@ pub struct AgentPool {
     pub pkt_source_region: Vec<[u16; 4]>,
     pub pkt_source_turn: Vec<[u16; 4]>,
     pub pkt_intensity: Vec<[u8; 4]>,
+    // Deferred-backlog M59b layout expansion: civ controlling the packet's
+    // source region when it was observed (255 = uncontrolled / empty slot).
+    pub pkt_source_civ: Vec<[u8; 4]>,
     // M59a: Merchant arrival transient (set by 0.9 merchant mobility, cleared by 0.95 knowledge phase)
     pub arrived_this_turn: Vec<bool>,
     // Liveness
@@ -173,6 +176,7 @@ impl AgentPool {
             pkt_source_region: Vec::with_capacity(capacity),
             pkt_source_turn: Vec::with_capacity(capacity),
             pkt_intensity: Vec::with_capacity(capacity),
+            pkt_source_civ: Vec::with_capacity(capacity),
             arrived_this_turn: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
@@ -267,6 +271,7 @@ impl AgentPool {
             self.pkt_source_region[slot] = [0; 4];
             self.pkt_source_turn[slot] = [0; 4];
             self.pkt_intensity[slot] = [0; 4];
+            self.pkt_source_civ[slot] = [crate::knowledge::PKT_CIV_NONE; 4];
             self.arrived_this_turn[slot] = false;
             self.alive[slot] = true;
             self.count += 1;
@@ -335,6 +340,7 @@ impl AgentPool {
             self.pkt_source_region.push([0; 4]);
             self.pkt_source_turn.push([0; 4]);
             self.pkt_intensity.push([0; 4]);
+            self.pkt_source_civ.push([crate::knowledge::PKT_CIV_NONE; 4]);
             self.arrived_this_turn.push(false);
             self.alive.push(true);
             self.count += 1;

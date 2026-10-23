@@ -1116,3 +1116,68 @@ fn test_usable_trade_packets_slot_order_independent() {
     assert_eq!(sorted[2].0, 3);
     assert_eq!(sorted[3].0, 4);
 }
+
+// ---------------------------------------------------------------------------
+// Deferred backlog: packet source-civ provenance (layout expansion)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_spawn_packet_provenance_is_none() {
+    let mut pool = AgentPool::new(2);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    assert_eq!(pool.pkt_source_civ[slot], [chronicler_agents::knowledge::PKT_CIV_NONE; 4]);
+}
+
+#[test]
+fn test_observation_records_source_region_controller() {
+    let mut pool = AgentPool::new(4);
+    let slot = pool.spawn(0, 2, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let mut regions = vec![RegionState::new(0)];
+    regions[0].controller_changed_this_turn = true;
+    regions[0].controller_civ = 7; // the conqueror, after the change of hands
+    observe_packets(&mut pool, &regions, &[slot], 5);
+    assert_eq!(unpack_type(pool.pkt_type_and_hops[slot][0]), InfoType::ThreatWarning as u8);
+    assert_eq!(pool.pkt_source_civ[slot][0], 7);
+}
+
+#[test]
+fn test_propagation_carries_provenance_and_expiry_clears_it() {
+    use chronicler_agents::knowledge::{admit_packet_from_civ, PKT_CIV_NONE};
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let (a_id, b_id) = (pool.ids[a], pool.ids[b]);
+    admit_packet_from_civ(&mut pool, a, &PacketCandidate {
+        info_type: 1, source_region: 0, source_turn: 5, intensity: 200, hop_count: 0,
+    }, 4);
+    set_bond(&mut pool, a, b_id, 5, 127); // Kin, max sentiment
+    let lookup: std::collections::HashMap<u32, usize> =
+        vec![(a_id, a), (b_id, b)].into_iter().collect();
+    let (buffer, transmitted, _, _, _) = propagate_packets(&pool, &[a, b], &[0u8; 32], 6, &lookup);
+    assert!(transmitted > 0);
+    commit_buffered(&mut pool, buffer);
+    let idx = (0..4).find(|&i| unpack_type(pool.pkt_type_and_hops[b][i]) == 1).unwrap();
+    assert_eq!(pool.pkt_source_civ[b][idx], 4, "receiver keeps the observed provenance");
+
+    // Decay until the packet expires: the cleared slot drops its provenance.
+    for _ in 0..20 {
+        decay_packets(&mut pool, &[b]);
+    }
+    assert!(is_empty_slot(pool.pkt_type_and_hops[b][idx]));
+    assert_eq!(pool.pkt_source_civ[b][idx], PKT_CIV_NONE);
+}
+
+#[test]
+fn test_newer_refresh_updates_provenance() {
+    use chronicler_agents::knowledge::admit_packet_from_civ;
+    let mut pool = AgentPool::new(2);
+    let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let older = PacketCandidate { info_type: 1, source_region: 3, source_turn: 5, intensity: 150, hop_count: 1 };
+    let newer = PacketCandidate { source_turn: 6, ..older.clone() };
+    assert_eq!(admit_packet_from_civ(&mut pool, slot, &older, 1), AdmitResult::Inserted);
+    assert_eq!(admit_packet_from_civ(&mut pool, slot, &newer, 2), AdmitResult::Refreshed);
+    assert_eq!(pool.pkt_source_civ[slot][0], 2);
+    // An older duplicate is dropped and does not rewrite provenance.
+    assert_eq!(admit_packet_from_civ(&mut pool, slot, &older, 9), AdmitResult::Dropped);
+    assert_eq!(pool.pkt_source_civ[slot][0], 2);
+}

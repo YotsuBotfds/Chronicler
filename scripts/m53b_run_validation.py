@@ -74,8 +74,24 @@ def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 
+def _feature_flags(args: argparse.Namespace) -> list[str]:
+    """Optional simulation feature switches forwarded to every run."""
+    campaigns = getattr(args, "campaigns", None)
+    if campaigns is None:
+        return []
+    return ["--campaigns" if campaigns else "--no-campaigns"]
+
+
 def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
+
+
+def _governance_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit Phase 8 governance switch; omitted keeps the CLI default."""
+    governance = getattr(args, "governance", None)
+    if governance is None:
+        return []
+    return ["--governance" if governance else "--no-governance"]
 
 
 def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
@@ -96,6 +112,8 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_feature_flags(args),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -119,6 +137,8 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_feature_flags(args),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -148,6 +168,8 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         ]
         if agents == "hybrid":
             cmd.insert(-4, "--validation-sidecar")
+        cmd.extend(_feature_flags(args))
+        cmd.extend(_governance_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -409,6 +431,18 @@ def main() -> None:
     parser.add_argument("--turns", type=int, default=None)
     parser.add_argument("--parallel", type=int, default=12)
     parser.add_argument(
+        "--campaigns",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --campaigns/--no-campaigns (M60 war layer) to every simulation run.",
+    )
+    parser.add_argument(
+        "--governance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --governance/--no-governance to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -492,6 +526,7 @@ def main() -> None:
         "seeds": args.seeds,
         "turns": args.turns,
         "parallel": args.parallel,
+        "campaigns": args.campaigns,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

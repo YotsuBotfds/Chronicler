@@ -1,6 +1,7 @@
 """Event counting, traditions, and folk heroes."""
 from __future__ import annotations
 
+from chronicler.history_index import history_index
 from chronicler.models import WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition
 from chronicler.utils import stable_hash_int
 
@@ -9,7 +10,7 @@ from chronicler.utils import stable_hash_int
 
 def update_event_counts(world: WorldState) -> None:
     """Update event_counts and war_win_turns for all civs based on this turn's events."""
-    turn_events = [e for e in world.events_timeline if e.turn == world.turn]
+    turn_events = history_index(world).events_for_turn(world, world.turn)
     for event in turn_events:
         if not event.actors:
             continue

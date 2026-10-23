@@ -451,22 +451,6 @@ class TestFeedbackLoops:
         self._run_turns(w, ClimatePhase.DROUGHT, 10)
         assert r.ecology.water < 0.3
 
-
-def test_rewilding_counter_increments_on_plains(make_world):
-    """M-AF1 #13: plains rewilding counter should increment when conditions are met."""
-    world = make_world(2)
-    region = world.regions[0]
-    region.terrain = "plains"
-    region.ecology.forest_cover = 0.38  # Below plains cap of 0.40, above threshold
-    region.population = 2  # Below threshold of 5
-    region.forest_regrowth_turns = 0
-
-    from chronicler.ecology import _update_ecology_counters
-    _update_ecology_counters(world)
-
-    assert region.forest_regrowth_turns > 0, \
-        f"Rewilding counter should have incremented, got {region.forest_regrowth_turns}"
-
     def test_mining_collapse_and_recovery(self):
         from chronicler.models import Leader, Civilization
         r = Region(
@@ -486,6 +470,22 @@ def test_rewilding_counter_increments_on_plains(make_world):
         w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
         self._run_turns(w, ClimatePhase.TEMPERATE, 20)
         assert r.ecology.soil <= 0.10
+
+
+def test_rewilding_counter_increments_on_plains(make_world):
+    """M-AF1 #13: plains rewilding counter should increment when conditions are met."""
+    world = make_world(2)
+    region = world.regions[0]
+    region.terrain = "plains"
+    region.ecology.forest_cover = 0.38  # Below plains cap of 0.40, above threshold
+    region.population = 2  # Below threshold of 5
+    region.forest_regrowth_turns = 0
+
+    from chronicler.ecology import _update_ecology_counters
+    _update_ecology_counters(world)
+
+    assert region.forest_regrowth_turns > 0, \
+        f"Rewilding counter should have incremented, got {region.forest_regrowth_turns}"
 
 
 # --- Season/Climate modifier tables ---

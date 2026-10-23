@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Collection
 
+from chronicler.history_index import history_index
 from chronicler.models import Civilization, TechEra, WorldState
 from chronicler.utils import stable_hash_int
 
@@ -64,7 +66,7 @@ def generate_battle_name(region: str, era: TechEra, world: WorldState, seed: int
         prefixes = BATTLE_PREFIXES["late"]
     prefix = rng.choice(prefixes)
     name = f"{prefix} {region}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -73,7 +75,7 @@ def generate_treaty_name(civ1_name: str, civ2_name: str, world: WorldState, seed
     adj = rng.choice(TREATY_ADJECTIVES)
     noun = rng.choice(TREATY_NOUNS)
     name = f"The {adj} {noun}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -83,7 +85,7 @@ def generate_cultural_work(civ: Civilization, world: WorldState, seed: int) -> s
     theme = rng.choice(WORK_THEMES)
     civ_adj = civ.name.split()[0]
     name = f"The {work_type} of {civ_adj} {theme}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -114,7 +116,7 @@ def generate_movement_name(civ, world, seed: int) -> str:
     prefix = rng.choice(MOVEMENT_PREFIXES)
     theme = rng.choice(MOVEMENT_THEMES)
     name = f"{prefix} {theme}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -122,7 +124,7 @@ def generate_schism_name(actors: list[str], world, seed: int) -> str:
     rng = _seed_rng(seed, world.turn, "".join(sorted(actors)))
     prefix = rng.choice(SCHISM_PREFIXES)
     name = f"{prefix} of {actors[0]} and {actors[1]}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -147,7 +149,7 @@ def generate_propaganda_name(civ, region, world, seed: int) -> str:
     adj = rng.choice(PROPAGANDA_ADJECTIVES)
     noun = rng.choice(PROPAGANDA_NOUNS)
     name = f"The {adj} {noun} of {region.name}"
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
@@ -156,11 +158,16 @@ def generate_cultural_milestone_name(civ, milestone_type: str, world, seed: int)
     prefixes = MILESTONE_PREFIXES.get(milestone_type, ["The Rise of"])
     prefix = rng.choice(prefixes)
     name = f"{prefix} {civ.name}" if milestone_type == "hegemony" else prefix
-    existing = [ne.name for ne in world.named_events]
+    existing = history_index(world).named_event_names(world)
     return deduplicate_name(name, existing)
 
 
-def deduplicate_name(name: str, existing: list[str]) -> str:
+def deduplicate_name(name: str, existing: "Collection[str]") -> str:
+    """Return name, or its first unused ordinal variant.
+
+    ``existing`` needs only ``in`` and ``len`` (a list of names or the
+    history index's equivalent view).
+    """
     if name not in existing:
         return name
     for ordinal in _ORDINALS:

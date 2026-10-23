@@ -559,7 +559,10 @@ def compute_persecution(
 
             minority_ratio = minority_count / total
             from chronicler.tuning import get_multiplier as _gm, K_RELIGION_INTENSITY as _KRI
-            intensity = minority_ratio * (_gm(world, _KRI) if world else 1.0)
+            # Clamp to [0, 1]: Rust consumers (satisfaction penalty, rebel/migrate
+            # utility, threat-packet intensity) treat 1.0 as maximum persecution,
+            # and multiplier.religion_intensity > 1 must not push past it.
+            intensity = min(1.0, minority_ratio * (_gm(world, _KRI) if world else 1.0))
             region.persecution_intensity = intensity
 
             # One-shot "Persecution" event per region

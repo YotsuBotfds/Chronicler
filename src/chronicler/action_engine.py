@@ -292,6 +292,14 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
                 worst_disp = d
                 worst_name = other_name
 
+    if (worst_name and world.campaigns_enabled
+            and ((civ.name, worst_name) in world.active_wars
+                 or (worst_name, civ.name) in world.active_wars)):
+        # M60: diplomacy with a war enemy is a peace offer on war-score terms.
+        from chronicler.war.peace import sue_for_peace
+        offer = sue_for_peace(civ, world.civ_map[worst_name], world, acc=acc)
+        if offer is not None:
+            return offer
     if worst_name and civ.culture >= 30:
         # Improve relationship in both directions
         rel_out = world.relationships[civ.name][worst_name]
@@ -364,6 +372,10 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         return _resolve_develop(civ, world, acc=acc)
 
     defender = get_civ(world, target_name)
+    if defender and world.campaigns_enabled:
+        # M60: wars are fought by armies over subsequent turns, not resolved here.
+        from chronicler.war.runtime import declare_or_press_war
+        return declare_or_press_war(civ, defender, world, acc=acc)
     if defender:
         war_seed = stable_hash_int("war", world.seed, world.turn, civ.name, defender.name)
         result = resolve_war(civ, defender, world, seed=war_seed, acc=acc)
@@ -513,6 +525,94 @@ def _resolve_invest_culture(civ: Civilization, world: WorldState, acc=None) -> E
 
 # --- Combat resolution (simplified Lanchester) ---
 
+def apply_region_conquest(
+    attacker: Civilization,
+    defender: Civilization,
+    contested,
+    world: WorldState,
+    seed: int,
+) -> None:
+    """Transfer ``contested`` from defender to attacker with every conquest side effect.
+
+    Shared by aggregate WAR resolution and campaign annexation (M60b).
+    """
+    contested.controller = attacker.name
+    contested.pending_build = None
+    # M48: Transient memory signals — conquest and victory
+    contested._controller_changed_this_turn = True
+    contested._war_won_this_turn = True
+    # M43a: Conquest stockpile destruction — 50% of each good lost
+    from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
+    for _good in list(contested.stockpile.goods.keys()):
+        contested.stockpile.goods[_good] *= CONQUEST_STOCKPILE_SURVIVAL
+    contested.last_conquered_turn = world.turn
+    attacker.regions.append(contested.name)
+    defender.regions = [r for r in defender.regions if r != contested.name]
+    if len(defender.regions) == 0:
+        from chronicler.simulation import reset_war_frequency_on_extinction
+        reset_war_frequency_on_extinction(defender)
+    bridge = getattr(world, "_agent_bridge", None)
+    if bridge is not None:
+        try:
+            attacker_idx = world.civilizations.index(attacker)
+            defender_idx = world.civilizations.index(defender)
+            bridge.realign_region_agents_to_civ(
+                world=world,
+                region_names={contested.name},
+                old_civ_id=defender_idx,
+                new_civ_id=attacker_idx,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to realign region agents after conquest (region=%s, attacker=%s, defender=%s)",
+                contested.name if contested else None,
+                attacker.name,
+                defender.name,
+            )
+    if not hasattr(world, '_conquered_this_turn'):
+        world._conquered_this_turn = set()
+    world._conquered_this_turn.add(world.civilizations.index(attacker))
+    # Scorched earth check
+    reaction = REACTION_REGISTRY.get("region_lost")
+    scorch_events = []
+    if reaction:
+        scorch_events = reaction(world, defender, contested, seed)
+        world.events_timeline.extend(scorch_events)
+    # M52: Artifact lifecycle intent
+    from chronicler.artifacts import emit_conquest_lifecycle_intent
+    _scorched = bool(scorch_events)
+    _was_capital = (contested.name == defender.capital_region)
+    emit_conquest_lifecycle_intent(
+        world, losing_civ=defender.name, gaining_civ=attacker.name,
+        region=contested.name, is_capital=_was_capital,
+        is_destructive=_scorched,
+    )
+    # Fog: reveal conquered region adjacencies
+    if world.fog_of_war and attacker.known_regions is not None:
+        known_set = set(attacker.known_regions)
+        known_set.add(contested.name)
+        for adj in contested.adjacencies:
+            known_set.add(adj)
+        attacker.known_regions = sorted(known_set)
+    # M37: Conquest conversion
+    if (world.belief_registry
+        and hasattr(attacker, 'civ_majority_faith')
+        and hasattr(defender, 'civ_majority_faith')
+        and attacker.civ_majority_faith != defender.civ_majority_faith):
+        attacker_belief = next(
+            (b for b in world.belief_registry if b.faith_id == attacker.civ_majority_faith), None
+        )
+        is_militant = attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1
+        if is_militant:
+            contested.conquest_conversion_active = True
+            # M38a: militant holy war destroys temple
+            from chronicler.infrastructure import destroy_temple_on_conquest
+            temple_evt = destroy_temple_on_conquest(contested, attacker, world)
+            if temple_evt:
+                world.events_timeline.append(temple_evt)
+            contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
+
+
 def resolve_war(
     attacker: Civilization,
     defender: Civilization,
@@ -625,81 +725,7 @@ def resolve_war(
             return WarResult("attacker_wins", contested.name if contested else None)
         # Otherwise: existing absorption path runs unchanged
         if contested:
-            contested.controller = attacker.name
-            contested.pending_build = None
-            # M48: Transient memory signals — conquest and victory
-            contested._controller_changed_this_turn = True
-            contested._war_won_this_turn = True
-            # M43a: Conquest stockpile destruction — 50% of each good lost
-            from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
-            for _good in list(contested.stockpile.goods.keys()):
-                contested.stockpile.goods[_good] *= CONQUEST_STOCKPILE_SURVIVAL
-            contested.last_conquered_turn = world.turn
-            attacker.regions.append(contested.name)
-            defender.regions = [r for r in defender.regions if r != contested.name]
-            if len(defender.regions) == 0:
-                from chronicler.simulation import reset_war_frequency_on_extinction
-                reset_war_frequency_on_extinction(defender)
-            bridge = getattr(world, "_agent_bridge", None)
-            if bridge is not None:
-                try:
-                    attacker_idx = world.civilizations.index(attacker)
-                    defender_idx = world.civilizations.index(defender)
-                    bridge.realign_region_agents_to_civ(
-                        world=world,
-                        region_names={contested.name},
-                        old_civ_id=defender_idx,
-                        new_civ_id=attacker_idx,
-                    )
-                except Exception:
-                    logger.exception(
-                        "Failed to realign region agents after conquest (region=%s, attacker=%s, defender=%s)",
-                        contested.name if contested else None,
-                        attacker.name,
-                        defender.name,
-                    )
-            if not hasattr(world, '_conquered_this_turn'):
-                world._conquered_this_turn = set()
-            world._conquered_this_turn.add(world.civilizations.index(attacker))
-            # Scorched earth check
-            reaction = REACTION_REGISTRY.get("region_lost")
-            scorch_events = []
-            if reaction:
-                scorch_events = reaction(world, defender, contested, seed)
-                world.events_timeline.extend(scorch_events)
-            # M52: Artifact lifecycle intent
-            from chronicler.artifacts import emit_conquest_lifecycle_intent
-            _scorched = bool(scorch_events)
-            _was_capital = (contested.name == defender.capital_region)
-            emit_conquest_lifecycle_intent(
-                world, losing_civ=defender.name, gaining_civ=attacker.name,
-                region=contested.name, is_capital=_was_capital,
-                is_destructive=_scorched,
-            )
-            # Fog: reveal conquered region adjacencies
-            if world.fog_of_war and attacker.known_regions is not None:
-                known_set = set(attacker.known_regions)
-                known_set.add(contested.name)
-                for adj in contested.adjacencies:
-                    known_set.add(adj)
-                attacker.known_regions = sorted(known_set)
-            # M37: Conquest conversion
-            if (world.belief_registry
-                and hasattr(attacker, 'civ_majority_faith')
-                and hasattr(defender, 'civ_majority_faith')
-                and attacker.civ_majority_faith != defender.civ_majority_faith):
-                attacker_belief = next(
-                    (b for b in world.belief_registry if b.faith_id == attacker.civ_majority_faith), None
-                )
-                is_militant = attacker_belief and attacker_belief.doctrines[DOCTRINE_STANCE] == 1
-                if is_militant:
-                    contested.conquest_conversion_active = True
-                    # M38a: militant holy war destroys temple
-                    from chronicler.infrastructure import destroy_temple_on_conquest
-                    temple_evt = destroy_temple_on_conquest(contested, attacker, world)
-                    if temple_evt:
-                        world.events_timeline.append(temple_evt)
-                    contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
+            apply_region_conquest(attacker, defender, contested, world, seed)
         att_mult = get_severity_multiplier(attacker, world)
         def_mult = get_severity_multiplier(defender, world)
         if acc is not None:
@@ -858,9 +884,58 @@ def _grudge_war_multiplier(grudges: list[dict], cap: float) -> float:
     return min(product, cap)
 
 
+# M63b contributor ceilings (roadmap decision D1). Global cap stays K_WEIGHT_CAP.
+BUCKET_CEILINGS: dict[str, float] = {
+    "trait": 2.0,
+    "situational": 2.5,
+    "tech_focus": 1.5,
+    "faction": 1.5,
+}
+
+
+class _ContributorBuckets:
+    """Clamp each named contributor bucket's per-action factor to its ceiling.
+
+    Buckets are measured as the ratio of weights after/before the stage, so the
+    existing pipeline is unchanged; only ratios above a ceiling are reduced.
+    Disabled (no arithmetic, empty ``factors``) unless governance is on.
+    """
+
+    def __init__(self, world, weights: dict[ActionType, float]):
+        self.enabled = getattr(world, "governance", None) is not None
+        self.factors: dict[str, dict[ActionType, float]] = {}
+        self._before = dict(weights) if self.enabled else None
+
+    def open(self, weights: dict[ActionType, float]) -> None:
+        if self.enabled:
+            self._before = dict(weights)
+
+    def _ratios(self, weights):
+        return {a: weights[a] / before for a, before in self._before.items() if before > 0}
+
+    def close(self, name: str, weights: dict[ActionType, float]) -> None:
+        if not self.enabled:
+            return
+        ceiling = BUCKET_CEILINGS[name]
+        ratios = self._ratios(weights)
+        for action, ratio in ratios.items():
+            if ratio > ceiling:
+                weights[action] = self._before[action] * ceiling
+                ratios[action] = ceiling
+        self.factors[name] = ratios
+        self._before = dict(weights)
+
+    def record(self, name: str, weights: dict[ActionType, float]) -> None:
+        """Record an already-clamped bucket (the governance bucket)."""
+        if self.enabled:
+            self.factors[name] = self._ratios(weights)
+            self._before = dict(weights)
+
+
 class ActionEngine:
     def __init__(self, world: WorldState):
         self.world = world
+        self.last_buckets: dict[str, dict[ActionType, float]] = {}
 
     def get_eligible_actions(self, civ: Civilization) -> list[ActionType]:
         eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
@@ -942,6 +1017,10 @@ class ActionEngine:
         weights: dict[ActionType, float] = {
             a: base if a in eligible else 0.0 for a in ActionType
         }
+        # M63b (REVIEW B-5): with the Phase 8 governance runtime on, named
+        # contributor buckets are clamped to their ceilings before combining;
+        # a no-op (no arithmetic at all) when governance is off.
+        buckets = _ContributorBuckets(self.world, weights)
         trait = civ.leader.trait
         if trait == "stubborn":
             history = self.world.action_history.get(civ.name, [])
@@ -959,7 +1038,9 @@ class ActionEngine:
                 if weights[action] == 0.0:
                     continue
                 weights[action] *= profile.get(action, 1.0)
+        buckets.close("trait", weights)
         self._apply_situational(civ, weights)
+        buckets.close("situational", weights)
         if civ.leader.secondary_trait:
             boosted = SECONDARY_TRAIT_ACTION.get(civ.leader.secondary_trait)
             secondary_boost = get_override(self.world, K_SECONDARY_TRAIT_BOOST, 1.3)
@@ -989,18 +1070,32 @@ class ActionEngine:
         if "diplomatic" in civ.traditions and ActionType.DIPLOMACY in weights:
             weights[ActionType.DIPLOMACY] *= 1.2
 
+        buckets.open(weights)  # leader/rival/grudge/tradition stay unbucketed (own caps)
+
         # M21: Tech focus weight biases
         from chronicler.tech_focus import get_focus_weight_modifiers
         focus_mods = get_focus_weight_modifiers(civ)
         for action, mod in focus_mods.items():
             if action in weights and weights[action] > 0:
                 weights[action] *= mod
+        buckets.close("tech_focus", weights)
 
         # M22: Faction weight modifier
         from chronicler.factions import get_faction_weight_modifier
         for action in ActionType:
             if weights[action] > 0:
                 weights[action] *= get_faction_weight_modifier(civ, action)
+        buckets.close("faction", weights)
+
+        # Phase 8 (M63b): governance contributor bucket -- institutions,
+        # ambitions, legitimacy and PSI -- pre-clamped to 1.5x as one bucket;
+        # the global weight cap below still applies to the combined weight.
+        if getattr(self.world, "governance", None) is not None and getattr(civ, "governance", None) is not None:
+            from chronicler.governance_runtime import governance_weight_modifiers
+            for action, mod in governance_weight_modifiers(civ, self.world).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+            buckets.record("governance", weights)
 
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):
@@ -1078,11 +1173,24 @@ class ActionEngine:
         # M21: Cap final pre-selection weights at base_weight * weight_cap.
         # Clamp individual actions. Uniform rescaling leaves selection
         # probabilities unchanged and does not enforce a real cap.
+        #
+        # Audit T2-3 decision (2026-10 deferred backlog): this is an ABSOLUTE
+        # per-action ceiling applied as the final step, by design (AGENTS.md
+        # capped modifiers; Phase 8 roadmap keeps 2.5x). Consequences kept on
+        # purpose: a civ with military >= 70 and a hostile neighbor reaches the
+        # WAR ceiling from the 2.5x situational boost alone, further WAR boosts
+        # are inert there, actions tied at the ceiling are equiprobable, and
+        # suppressors (damper, war-weariness, mule) only show once they bring
+        # the uncapped product below the ceiling. On the 837a44f subset gate the
+        # cap fires in ~80% of civ-turns (analytics precap_weights), so moving
+        # the clamp inside the chain is a global retune for a tuning milestone,
+        # not a fix. tests/test_weight_cap.py pins these semantics.
         weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
         max_allowed = base * weight_cap
         for action, weight in list(weights.items()):
             if weight > max_allowed:
                 weights[action] = max_allowed
+        self.last_buckets = buckets.factors
         return weights
 
     def _apply_situational(self, civ: Civilization, weights: dict[ActionType, float]) -> None:
