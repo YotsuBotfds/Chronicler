@@ -402,7 +402,9 @@ def test_transient_unviability_does_not_absorb():
         _, eligible = prepare_twilight_absorption(world)
         assert not eligible
         world.turn += 1
-    world.civilizations[1].population = 25  # recovers before the streak completes
+    # The drought ends before the streak completes: capacity recovers.
+    world.regions[1].ecology.water = 0.7
+    world.regions[1].ecology.soil = 0.6
     _, eligible = prepare_twilight_absorption(world)
     assert not eligible and world.civilizations[1].unviable_turns == 0
 

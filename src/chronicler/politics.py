@@ -1369,13 +1369,14 @@ def apply_twilight(world: WorldState, acc=None) -> list[Event]:
 # A global climate drought used to push every small civ below the "unviable"
 # effective-capacity threshold at once, and step 9 absorbed them all within a
 # few consecutive turns.  Absorption now requires structural unviability to
-# persist (and, in agent modes, the polity to be actually depopulated), is
-# spaced world-wide, and declining one-region states first become tributaries
-# of their would-be absorber (existing VassalRelation/tribute/vassal-rebellion
-# machinery) before annexation.
+# persist for TWILIGHT_UNVIABLE_STREAK turns (longer than a typical drought
+# trough, so only persistently poor land qualifies), is spaced world-wide, and
+# declining one-region states first become tributaries of their would-be
+# absorber (existing VassalRelation/tribute/vassal-rebellion machinery) before
+# annexation.  (An earlier draft also required the polity to be depopulated;
+# that made absorption inert in agent modes and froze the political map.)
 TWILIGHT_UNVIABLE_CAPACITY = 10
-TWILIGHT_UNVIABLE_POPULATION = 10
-TWILIGHT_UNVIABLE_STREAK = 10
+TWILIGHT_UNVIABLE_STREAK = 20
 TWILIGHT_ABSORPTION_SPACING = 10
 TRIBUTARY_ANNEX_TURNS = 30
 TRIBUTARY_MIN_OVERLORD_STABILITY = 40
@@ -1420,7 +1421,6 @@ def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozens
             continue
         unviable = (
             total_effective_capacity(civ, world) < TWILIGHT_UNVIABLE_CAPACITY
-            and civ.population < TWILIGHT_UNVIABLE_POPULATION
             and (world.turn - civ.founded_turn) > 30
         )
         civ.unviable_turns = civ.unviable_turns + 1 if unviable else 0
