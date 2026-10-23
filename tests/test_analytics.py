@@ -392,6 +392,51 @@ class TestReportAssembly:
         assert report["metadata"]["runs"] == 5
         assert report["metadata"]["report_schema_version"] == 2
 
+    def test_generate_report_includes_gini_and_merchant_trips(self, tmp_path):
+        """Deferred backlog: the formerly unreferenced gini and merchant-trip
+        extractors are part of the composite report."""
+        from chronicler.analytics import generate_report, format_text_report
+
+        batch_dir = tmp_path / "batch_wired"
+        batch_dir.mkdir()
+        for seed in (1, 2):
+            bundle = _make_bundle(seed=seed, turns=10)
+            for snap in bundle["history"]:
+                snap["civ_stats"]["Civ0"]["gini"] = 0.25 * seed
+                snap["civ_stats"]["Civ1"]["gini"] = 0.10
+            if seed == 2:
+                bundle["metadata"]["merchant_trip_stats"] = [
+                    {"active_trips": 3.0, "completed_trips": 2.0},
+                    {"active_trips": 1.0, "completed_trips": 4.0},
+                ]
+            run_dir = batch_dir / f"seed_{seed}"
+            run_dir.mkdir()
+            (run_dir / "chronicle_bundle.json").write_text(json.dumps(bundle))
+
+        report = generate_report(batch_dir, checkpoints=[5])
+        gini_t5 = report["gini"]["gini_by_turn"]["5"]
+        assert gini_t5["min"] == pytest.approx(0.10)
+        assert gini_t5["max"] == pytest.approx(0.50)
+        trips = report["merchant_trips"]["by_seed"]
+        assert trips[1] == []
+        assert [row["completed_trips"] for row in trips[2]] == [2.0, 4.0]
+
+        text = format_text_report(report)
+        assert "GINI (living civs):" in text
+        assert "Runs with trip stats: 1/2" in text
+        assert "Completed trips (all runs): 6" in text
+
+    def test_unwired_stub_extractors_removed(self):
+        import chronicler.analytics as analytics
+
+        for name in (
+            "extract_food_sufficiency",
+            "extract_trade_volume",
+            "extract_trade_flow_by_distance",
+            "extract_spatial_diagnostics",
+        ):
+            assert not hasattr(analytics, name), name
+
     def test_generate_report_respects_checkpoints(self, tmp_path):
         from chronicler.analytics import generate_report
         batch_dir = _write_batch(tmp_path, num_runs=3, turns=10)
