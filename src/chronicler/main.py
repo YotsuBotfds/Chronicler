@@ -1121,7 +1121,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Contact & trade-flow ledger: decayed region x region flows of goods, "
                              "migrants, soldiers and pilgrims feeding trade_volume, movement spread, "
                              "merchant great persons, trade warmth, embargo/war shocks and plague spread "
-                             "(default off for new worlds; saved on resume)")
+                             "(default on for new worlds; --no-contact-ledger disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

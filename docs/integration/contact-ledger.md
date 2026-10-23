@@ -2,8 +2,9 @@
 
 Status: implemented in `src/chronicler/contact_ledger.py`, behind
 `WorldState.contact_ledger` (CLI `--contact-ledger` / `--no-contact-ledger`;
-persisted in `state.json`, so resume keeps the setting). With the switch off no
-ledger code runs and every output is byte-identical to the base branch.
+persisted in `state.json`, so resume keeps the setting). On by default for new
+worlds. With the switch off no ledger code runs and every output is
+byte-identical to the base branch.
 
 ## Why
 
@@ -101,7 +102,7 @@ route graph (unchanged).
 | --- | --- |
 | CLI | `--contact-ledger` / `--no-contact-ledger` (`BooleanOptionalAction`) |
 | World field | `WorldState.contact_ledger: ContactLedgerState \| None` (presence = on) |
-| Default | `contact_ledger.DEFAULT_ENABLED_FOR_NEW_WORLDS` for worlds created by `execute_run` and the live server; resumed, forked and caller-supplied worlds keep their own setting; `WorldState`'s own default stays off |
+| Default | **On** for worlds created by `execute_run` and the live server (`contact_ledger.DEFAULT_ENABLED_FOR_NEW_WORLDS`); `--no-contact-ledger` opts out; resumed, forked and caller-supplied worlds keep their own setting; `WorldState`'s own default stays off. The frozen pre-ledger performance/dormancy oracles (`scripts/benchmark_headless.run`) pin `contact_ledger=False`. The flip is its own commit, so it can be reverted alone |
 | Gate runner | `scripts/m53b_run_validation.py --contact-ledger` forwards the flag to every run |
 
 `None` is omitted from serialized output (`state.json`, bundle `world_state`)

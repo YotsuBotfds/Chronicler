@@ -48,8 +48,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE] values are documented in docs/integration/contact-ledger.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds newly created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds newly created by the CLI/batch/live entry points
+#: (``--no-contact-ledger`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 CHANNELS: tuple[str, ...] = ("trade", "people", "soldiers", "pilgrims")
 TRADE, PEOPLE, SOLDIERS, PILGRIMS = range(4)
