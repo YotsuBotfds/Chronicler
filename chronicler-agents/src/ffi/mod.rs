@@ -2605,6 +2605,58 @@ mod tests {
     use pyo3_arrow::PyRecordBatch;
 
     #[test]
+    fn test_postpass_recompute_refreshes_yields_without_second_mineral_extraction() {
+        use arrow::array::Float32Array;
+        let mut sim = AgentSimulator::new(1, 42);
+        let mut region = RegionState::new(0);
+        region.terrain = 0;
+        region.soil = 0.8;
+        region.water = 0.6;
+        region.forest_cover = 0.2;
+        region.carrying_capacity = 60;
+        region.population = 30;
+        region.controller_civ = 0;
+        region.capacity_modifier = 1.0;
+        region.resource_types = [0, 5, 255]; // grain + ore
+        region.resource_base_yield = [1.0, 0.8, 0.0];
+        region.resource_effective_yield = [1.0, 0.8, 0.0];
+        region.resource_reserves = [1.0, 0.2, 0.0];
+        sim.regions = vec![region];
+        sim.tick_ecology(0, 0, vec![false], vec![false]).unwrap();
+        let after_tick = sim.regions[0].resource_reserves;
+        let ticked_yields = sim.regions[0].resource_yields;
+        assert!(after_tick[1] < 0.2, "the ecology tick itself extracts ore once");
+
+        // Python post-pass changed soil (e.g. a tradition soil floor), forcing
+        // a native yield recompute for this region.
+        let r = &sim.regions[0];
+        let patch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("region_id", DataType::UInt16, false),
+                Field::new("population", DataType::UInt16, false),
+                Field::new("soil", DataType::Float32, false),
+                Field::new("water", DataType::Float32, false),
+                Field::new("forest_cover", DataType::Float32, false),
+                Field::new("terrain", DataType::UInt8, false),
+                Field::new("carrying_capacity", DataType::UInt16, false),
+            ])),
+            vec![
+                Arc::new(UInt16Array::from(vec![0u16])),
+                Arc::new(UInt16Array::from(vec![r.population])),
+                Arc::new(Float32Array::from(vec![r.soil * 0.5])),
+                Arc::new(Float32Array::from(vec![r.water])),
+                Arc::new(Float32Array::from(vec![r.forest_cover])),
+                Arc::new(UInt8Array::from(vec![r.terrain])),
+                Arc::new(UInt16Array::from(vec![r.carrying_capacity])),
+            ],
+        ).unwrap();
+        sim.apply_region_postpass_patch(PyRecordBatch::new(patch)).unwrap();
+        assert_eq!(sim.regions[0].resource_reserves, after_tick, "post-pass must not extract again");
+        assert!(sim.regions[0].resource_yields[0] < ticked_yields[0], "crop yield follows patched soil");
+        assert_eq!(sim.regions[0].resource_yields[1], ticked_yields[1]);
+    }
+
+    #[test]
     fn test_stockpile_commitments_read_only_and_hybrid_scoped() {
         use arrow::array::Float32Array;
         use crate::merchant::{DeliveryBuffer, ShadowLedger};

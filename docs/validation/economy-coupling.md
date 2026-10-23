@@ -27,10 +27,10 @@ consumption rules, agent needs, or external narration calls.
    departure, since intervening consumption/decay can exhaust a reservation.
 5. The existing stock lifecycle consumes food, applies storage decay and caps
    storage once. Farmer income uses production-weighted category prices.
-6. Phase 2’s harvest preview does not deplete reserves. The inherited native
-   post-pass yield refresh can still deplete minerals again when ecology-affecting
-   inputs change; exactly-once depletion across that native path remains a
-   separate follow-up. Agent-backed famine uses this turn's pre-consumption food
+6. Phase 2’s harvest preview does not deplete reserves, and the native
+   post-pass yield refresh is non-depleting too (`ecology::refresh_yields`), so
+   minerals are extracted exactly once per turn on both paths. Agent-backed
+   famine uses this turn's pre-consumption food
    sufficiency, so reserves and delivered imports can prevent it. Aggregate
    mode retains the existing yield-based fallback. Hybrid/demographics-only
    leave population changes to the native pool; shadow/off retain their macro
