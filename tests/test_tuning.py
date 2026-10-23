@@ -231,6 +231,20 @@ def test_repo_tuning_yaml_is_utf8_mapping(yaml_path):
     assert isinstance(yaml.safe_load(text), dict)
 
 
+def test_peak_yield_is_not_an_accepted_tuning_key(tmp_path):
+    """ecology.peak_yield never had a consumer; the Rust satisfaction ceiling
+    (satisfaction.rs PEAK_YIELD) is a fixed constant. Setting it must warn
+    instead of being silently accepted with no effect."""
+    import chronicler.tuning as tuning
+
+    assert "ecology.peak_yield" not in tuning.KNOWN_OVERRIDES
+    assert not hasattr(tuning, "K_PEAK_YIELD")
+    p = tmp_path / "t.yaml"
+    p.write_text("ecology:\n  peak_yield: 1.5\n", encoding="utf-8")
+    with pytest.warns(UserWarning, match="Unknown tuning key: ecology.peak_yield"):
+        load_tuning(p)
+
+
 def test_load_tuning_reads_utf8_regardless_of_locale(tmp_path):
     p = tmp_path / "t.yaml"
     p.write_bytes(
