@@ -78,6 +78,14 @@ def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
 
 
+def _governance_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit Phase 8 governance switch; omitted keeps the CLI default."""
+    governance = getattr(args, "governance", None)
+    if governance is None:
+        return []
+    return ["--governance" if governance else "--no-governance"]
+
+
 def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     output_root = args.output_root / "oracle_subset"
     cmd = [
@@ -96,6 +104,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -119,6 +128,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_governance_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -148,6 +158,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         ]
         if agents == "hybrid":
             cmd.insert(-4, "--validation-sidecar")
+        cmd.extend(_governance_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -408,6 +419,12 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, default=None)
     parser.add_argument("--turns", type=int, default=None)
     parser.add_argument("--parallel", type=int, default=12)
+    parser.add_argument(
+        "--governance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --governance/--no-governance to every simulation run (default: CLI default).",
+    )
     parser.add_argument(
         "--require-strict-regression",
         action="store_true",
