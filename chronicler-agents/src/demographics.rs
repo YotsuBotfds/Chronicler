@@ -6,16 +6,28 @@ use crate::region::RegionState;
 
 const CROWDING_STRESS_WEIGHT: f32 = 0.30;
 const CROWDING_STRESS_CAP: f32 = 0.60;
-const FERTILITY_CROWDING_SOFT_START: f32 = 1.10;
-const FERTILITY_CROWDING_ZERO: f32 = 2.50;
+// Correction (2026-10): until the tick measured crowding from the live agent
+// count (see tick_region_demographics) this brake never engaged, and these
+// thresholds were never exercised in a hybrid run. Tapering from 1.1x to zero
+// at 2.5x lets regions settle near 2x capacity, where the satisfaction
+// overcrowding penalty saturates; births now taper from capacity and stop at
+// 1.6x, so crowding binds before misery does.
+const FERTILITY_CROWDING_SOFT_START: f32 = 1.00;
+const FERTILITY_CROWDING_ZERO: f32 = 1.60;
 const FERTILITY_SATISFACTION_RAMP: f32 = 0.10;
 
 #[inline]
 pub fn population_pressure(region: &RegionState) -> f32 {
+    population_pressure_for(region, region.population as usize)
+}
+
+/// Pressure for an explicit head count (the tick passes the live agent count).
+#[inline]
+pub fn population_pressure_for(region: &RegionState, population: usize) -> f32 {
     if region.carrying_capacity == 0 {
         1.0
     } else {
-        region.population as f32 / region.carrying_capacity as f32
+        population as f32 / region.carrying_capacity as f32
     }
 }
 
@@ -35,7 +47,11 @@ fn crowding_fertility_modifier(pop_over_capacity: f32) -> f32 {
 /// M26 per-variable ecological stress. Healthy terrain starts at 1.0; severe
 /// crowding adds extra pressure on top of soil/water stress.
 pub fn ecological_stress(region: &RegionState) -> f32 {
-    let pop_pressure = population_pressure(region);
+    ecological_stress_with_pressure(region, population_pressure(region))
+}
+
+/// Ecological stress for an explicit population pressure.
+pub fn ecological_stress_with_pressure(region: &RegionState, pop_pressure: f32) -> f32 {
     let soil_stress = (0.5 - region.soil).max(0.0);
     let water_stress = (0.5 - region.water).max(0.0);
     let crowding_stress =
@@ -293,18 +309,31 @@ mod tests {
 
     #[test]
     fn test_fertility_crowding_soft_start_preserves_baseline() {
-        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 1.05);
+        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 0.95);
         let baseline = fertility_rate(25, 0.6, 0, 0.8, 0.8);
         assert!((crowded - baseline).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_crowding_strongly_suppresses_births() {
-        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 2.0);
+        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 1.4);
         let full = FERTILITY_BASE_FARMER * 0.9;
-        let crowding_mult = (FERTILITY_CROWDING_ZERO - 2.0)
+        let crowding_mult = (FERTILITY_CROWDING_ZERO - 1.4)
             / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START);
+        assert!(crowding_mult > 0.0 && crowding_mult < 0.5);
         assert!((rate - full * crowding_mult).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_population_pressure_for_uses_explicit_head_count() {
+        // The tick passes the live agent count; region.population may be a
+        // stale or clamped Python-side figure.
+        let mut r = region(0.8, 0.6);
+        r.carrying_capacity = 40;
+        r.population = 20;
+        assert!((population_pressure_for(&r, 80) - 2.0).abs() < 1e-6);
+        assert!((population_pressure(&r) - 0.5).abs() < 1e-6);
+        assert!(ecological_stress_with_pressure(&r, 2.0) > ecological_stress(&r));
     }
 
     #[test]

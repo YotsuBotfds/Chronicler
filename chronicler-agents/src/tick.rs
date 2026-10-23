@@ -1550,8 +1550,13 @@ fn tick_region_demographics(
         sat_near_threshold: 0,
     };
 
-    let eco_stress = demographics::ecological_stress(region);
-    let pop_over_capacity = demographics::population_pressure(region);
+    // Correction (2026-10): crowding uses the region's live agent count, the
+    // same count satisfaction's overcrowding penalty uses. `region.population`
+    // is the Python-side figure, which aggregate climate migration clamps
+    // towards effective capacity, so the fertility brake never saw real
+    // crowding and agent populations overshot to 2-2.7x carrying capacity.
+    let pop_over_capacity = demographics::population_pressure_for(region, slots.len());
+    let eco_stress = demographics::ecological_stress_with_pressure(region, pop_over_capacity);
     let has_disease = region.endemic_severity > 0.0;
     // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
     // Prevents adding/removing mortality checks from changing personality assignments.
