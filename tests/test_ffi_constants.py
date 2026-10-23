@@ -13,6 +13,9 @@ def test_ffi_constants_match_rust_discriminants_and_legacy_aliases():
         "tundra": 5,
         "river": 0,
         "hills": 0,
+        "steppe": 6,
+        "jungle": 7,
+        "marsh": 8,
     }
     assert VALUE_TO_ID == {
         "Freedom": 0,

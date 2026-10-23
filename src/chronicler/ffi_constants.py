@@ -11,7 +11,8 @@ from __future__ import annotations
 # Terrain discriminants mirror chronicler-agents/src/region.rs::Terrain.
 # "river" and "hills" are legacy Python terrain labels that intentionally map
 # to plains for Rust terrain modifiers; river/hill effects are carried by other
-# fields/signals.
+# fields/signals. Geography 2.0 appends steppe/jungle/marsh (append only, never
+# reorder: the discriminants index Rust terrain tables).
 TERRAIN_MAP: dict[str, int] = {
     "plains": 0,
     "mountains": 1,
@@ -21,6 +22,9 @@ TERRAIN_MAP: dict[str, int] = {
     "tundra": 5,
     "river": 0,
     "hills": 0,
+    "steppe": 6,
+    "jungle": 7,
+    "marsh": 8,
 }
 
 # M36 cultural value string -> u8 slot mapping.  The numeric order matches the
