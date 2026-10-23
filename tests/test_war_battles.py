@@ -8,7 +8,6 @@ from chronicler.war import params as P
 from chronicler.war.battles import (
     Side, defense_multiplier, fight, garrison_size, quality, siege_required, siege_turn,
 )
-from chronicler.war.common import build_context
 from war_fixtures import place_army, start_war, war_world
 
 

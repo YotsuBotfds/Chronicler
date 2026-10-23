@@ -20,7 +20,7 @@ from chronicler.war.armies import (
     apply_casualties, disband, drain_population, general_of, kill_general, release_soldiers,
 )
 from chronicler.war.common import (
-    WarContext, add_stat, emit, holds, living_civ, name_event, war_rng,
+    WarContext, add_stat, emit, holds, name_event, war_rng,
 )
 
 if TYPE_CHECKING:
@@ -410,7 +410,3 @@ def side_for(world, civ: "Civilization", armies: list["Army"]) -> Side:
     if lead is not None and lead in armies:
         side.mercs = merc_soldiers(world, civ, lead)
     return side
-
-
-def living(world, name: str):
-    return living_civ(world, name)

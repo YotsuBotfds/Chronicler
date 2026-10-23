@@ -7,7 +7,7 @@ import pytest
 
 from chronicler import campaign_logistics as cl
 from chronicler.war import params as P
-from chronicler.war.common import build_context, build_graph
+from chronicler.war.common import build_graph
 from chronicler.war.logistics import logistics_step, move_armies, supply_sources, upkeep_cost
 from war_fixtures import place_army, start_war, war_world
 

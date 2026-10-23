@@ -26,10 +26,10 @@ from chronicler.war.armies import (
     can_raise, disband, raise_army, rebind_rosters, refresh_generals, release_soldiers,
 )
 from chronicler.war.battles import (
-    Side, garrison_size, side_for, siege_turn, skirmish, fight,
+    garrison_size, side_for, siege_turn, skirmish, fight,
 )
 from chronicler.war.common import (
-    WarContext, armies_of, at_war, build_context, emit, flush_military_losses, holds, living_civ,
+    WarContext, armies_of, at_war, build_context, flush_military_losses, holds, living_civ,
     other_side, spend, war_for,
 )
 from chronicler.war.logistics import move_armies, run_logistics
