@@ -1235,6 +1235,12 @@ def phase_consequences(
                     if region.name in lost:
                         region.controller = None
                         region._controller_changed_this_turn = True
+                # Audit T3-13 decision (2026-10 deferred backlog): intentional,
+                # applied once. The halving is the base collapse loss and the
+                # M18 severity multiplier (capped at 2.0) scales that loss a
+                # single time on both routes; hybrid guard-shock deltas are
+                # normalized, never re-multiplied. At the cap the loss equals
+                # the whole stat, so collapse bottoms out at STAT_FLOOR.
                 mult = get_severity_multiplier(civ, world)
                 base_mil_target = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                 base_eco_target = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)

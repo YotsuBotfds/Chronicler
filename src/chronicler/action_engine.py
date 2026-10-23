@@ -1078,6 +1078,18 @@ class ActionEngine:
         # M21: Cap final pre-selection weights at base_weight * weight_cap.
         # Clamp individual actions. Uniform rescaling leaves selection
         # probabilities unchanged and does not enforce a real cap.
+        #
+        # Audit T2-3 decision (2026-10 deferred backlog): this is an ABSOLUTE
+        # per-action ceiling applied as the final step, by design (AGENTS.md
+        # capped modifiers; Phase 8 roadmap keeps 2.5x). Consequences kept on
+        # purpose: a civ with military >= 70 and a hostile neighbor reaches the
+        # WAR ceiling from the 2.5x situational boost alone, further WAR boosts
+        # are inert there, actions tied at the ceiling are equiprobable, and
+        # suppressors (damper, war-weariness, mule) only show once they bring
+        # the uncapped product below the ceiling. On the 837a44f subset gate the
+        # cap fires in ~80% of civ-turns (analytics precap_weights), so moving
+        # the clamp inside the chain is a global retune for a tuning milestone,
+        # not a fix. tests/test_weight_cap.py pins these semantics.
         weight_cap = get_override(self.world, K_WEIGHT_CAP, 2.5)
         max_allowed = base * weight_cap
         for action, weight in list(weights.items()):
