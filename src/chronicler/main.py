@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import signal
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from chronicler.artifact_io import atomic_write_text
 from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
@@ -60,6 +63,94 @@ DEFAULT_CONFIG = {
     "reflection_interval": 10,
     "local_url": DEFAULT_LOCAL_URL,
 }
+
+# Turns between resumable state.json/memory checkpoints during a run. The final
+# state is always written; 1 restores the historical every-turn checkpoint.
+DEFAULT_STATE_EVERY = 10
+
+
+def _resolve_state_every(args: argparse.Namespace) -> int:
+    value = getattr(args, "state_every", None)
+    if value is None:
+        return DEFAULT_STATE_EVERY
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"--state-every must be a positive integer, got {value!r}")
+    return value
+
+
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {text!r}") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value}")
+    return value
+
+
+def _write_state_checkpoint(world: WorldState, path: Path) -> None:
+    """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
+
+    The final save keeps ``WorldState.save``'s indented format; both load with
+    ``WorldState.load`` into the same world.
+    """
+    atomic_write_text(path, world.model_dump_json())
+
+
+def _save_memory_streams(
+    memories: dict[str, MemoryStream],
+    output_dir: Path,
+    reflection_counts: dict[str, int] | None = None,
+) -> None:
+    """Write every memory stream; ``reflection_counts`` writes only each
+    stream's first N reflections (its content before this turn's reflection)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for civ_name, stream in memories.items():
+        count = reflection_counts.get(civ_name) if reflection_counts is not None else None
+        if count is not None and count != len(stream.reflections):
+            view = MemoryStream(civilization_name=stream.civilization_name)
+            view.entries = stream.entries
+            view.reflections = stream.reflections[:count]
+            stream = view
+        stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
+
+
+class _SigintDeferral:
+    """Let the in-flight turn finish on Ctrl-C so a consistent checkpoint can be saved.
+
+    Installed only from the main thread over Python's default SIGINT handler.
+    The first Ctrl-C records the request and restores the default handler, so
+    a second Ctrl-C interrupts immediately as before.
+    """
+
+    def __init__(self) -> None:
+        self.requested = False
+        self._installed = False
+
+    def __enter__(self) -> "_SigintDeferral":
+        if (threading.current_thread() is threading.main_thread()
+                and signal.getsignal(signal.SIGINT) is signal.default_int_handler):
+            signal.signal(signal.SIGINT, self._handle)
+            self._installed = True
+        return self
+
+    def _handle(self, signum, frame) -> None:
+        self.requested = True
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        print("\nInterrupt received: finishing this turn to save a resumable checkpoint "
+              "(press Ctrl-C again to stop immediately).", file=sys.stderr, flush=True)
+
+    def __exit__(self, *exc_info) -> bool:
+        if self._installed and signal.getsignal(signal.SIGINT) == self._handle:
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+        return False
+
+
+def _run_turn_deferring_sigint(*args, **kwargs):
+    """``run_turn_result(...)`` with Ctrl-C deferred to the end of the turn."""
+    with _SigintDeferral() as deferral:
+        turn_result = run_turn_result(*args, **kwargs)
+    return turn_result, deferral.requested
 
 
 class _DummyClient:
@@ -169,6 +260,7 @@ def execute_run(
             "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
         )
     _pause_every = pause_every or getattr(args, "pause_every", None)
+    _state_every = _resolve_state_every(args)
 
     # Use scenario_config from arg if not passed directly
     if scenario_config is None:
@@ -339,7 +431,7 @@ def execute_run(
 
         # Run one turn — pending injections drain inside run_turn with accumulator
         source_turn = world.turn
-        turn_result = run_turn_result(
+        turn_result, _interrupt_requested = _run_turn_deferring_sigint(
             world,
             action_selector=action_selector,
             narrator=_noop_narrator or engine.narrator,
@@ -568,12 +660,20 @@ def execute_run(
                         importance=event.importance,
                     )
 
-        # Save memory streams every turn
+        # Save memory streams at this point of the turn on checkpoint turns, the
+        # final turn and any turn a callback may end the run, so the files on
+        # disk at those turns match an every-turn writer's exactly.
+        _is_final_turn = turn_num == num_turns - 1
+        _checkpoint_due = world.turn % _state_every == 0
+        _pause_turn = bool(_pause_every and on_pause and world.turn % _pause_every == 0)
+        _may_stop = _pause_turn or quit_check is not None
         output_dir = output_path.parent
-        output_dir.mkdir(parents=True, exist_ok=True)
-        for civ_name, stream in memories.items():
-            safe_name = sanitize_civ_name(civ_name)
-            stream.save(output_dir / f"memories_{safe_name}.json")
+        _memories_saved = _checkpoint_due or _is_final_turn or _may_stop
+        if _memories_saved:
+            _save_memory_streams(memories, output_dir)
+        # Reflections only append; an interrupt checkpoint written after this
+        # turn's reflection uses these counts to write the save-point content.
+        _reflection_counts = {name: len(stream.reflections) for name, stream in memories.items()}
 
         # Generate era reflections at intervals
         if not _api_mode and should_reflect(world.turn, interval=reflection_interval):
@@ -594,9 +694,24 @@ def execute_run(
             era_reflections[world.turn] = f"## Era: Turns {era_start}\u2013{era_end}\n\n{combined}"
             print(f"  Era reflection generated for turns {era_start}-{era_end}")
 
-        # Save state after EVERY turn (crash recovery — resume from last good state)
-        if state_path:
-            world.save(state_path)
+        # Resumable checkpoint every _state_every turns and before a pause; the
+        # final state is written after the loop on every exit path.
+        if state_path and ((_checkpoint_due and not _is_final_turn) or _pause_turn):
+            _write_state_checkpoint(world, state_path)
+            _state_saved = True
+        else:
+            _state_saved = False
+
+        # Ctrl-C during the turn: save this completed turn, then stop.
+        if _interrupt_requested:
+            if not _memories_saved:
+                _save_memory_streams(memories, output_dir, _reflection_counts)
+            if state_path and not _state_saved:
+                _write_state_checkpoint(world, state_path)
+            if state_path:
+                print(f"Interrupted after turn {world.turn}; resume with --resume {state_path}",
+                      file=sys.stderr)
+            raise KeyboardInterrupt
 
         # on_pause callback — returns False to quit early
         if _pause_every and on_pause and world.turn % _pause_every == 0:
@@ -884,6 +999,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
     parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a saved state JSON file")
+    parser.add_argument("--state-every", type=_positive_int, default=None, metavar="K",
+                        help=f"Write the resumable --state checkpoint and memory streams every K turns "
+                             f"(default {DEFAULT_STATE_EVERY}; 1 = every turn). The final state is always "
+                             f"written, and Ctrl-C finishes the current turn and checkpoints it.")
     parser.add_argument("--reflection-interval", type=int, default=None)
     parser.add_argument("--local-url", type=str, default=DEFAULT_CONFIG["local_url"],
                         help="LM Studio / local model API URL (OpenAI-compatible)")

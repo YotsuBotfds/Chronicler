@@ -123,6 +123,7 @@ chronicler --narrate output/chronicle_bundle.json --narrator gemini --budget 50
 | `--compare report.json` | Compare an analysis run against a baseline report |
 | `--checkpoints 25,50,100` | Add checkpoint turns to analytics output |
 | `--resume state.json` | Resume from a saved state |
+| `--state-every K` | Write the resumable state/memory checkpoint every K turns (default 10; `1` = every turn); Ctrl-C finishes the turn and checkpoints it |
 
 ## Agent Modes
 
