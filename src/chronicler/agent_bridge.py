@@ -304,10 +304,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         adj_masks.append(mask)
 
     contested_regions_set = set()
-    for attacker, defender in world.active_wars:
-        for r in world.regions:
-            if r.controller == defender:
-                contested_regions_set.add(r.name)
+    if getattr(world, "campaigns_enabled", False):
+        # M60: only regions that actually see armies, battles or occupation.
+        from chronicler.war.runtime import contested_region_names
+        contested_regions_set = contested_region_names(world)
+    else:
+        for attacker, defender in world.active_wars:
+            for r in world.regions:
+                if r.controller == defender:
+                    contested_regions_set.add(r.name)
 
     def _controller_values(region):
         """Denormalize controller civ's cultural values into per-region columns."""

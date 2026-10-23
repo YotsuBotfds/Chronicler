@@ -1766,6 +1766,11 @@ def run_turn_result(
     # Phase 5: Action (selection + resolution)
     turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
 
+    # M60: Campaigns (armies, logistics, battles, sieges, occupation, peace)
+    if world.campaigns_enabled:
+        from chronicler.war.runtime import tick_campaigns
+        turn_events.extend(tick_campaigns(world, acc=acc, agent_bridge=agent_bridge))
+
     # M47d: Update war-weariness and peace momentum accumulators
     update_war_frequency_accumulators(world)
 
@@ -1853,6 +1858,10 @@ def run_turn_result(
     phase10_snapshot = None
     if agent_bridge is not None:
         phase10_snapshot = _capture_agent_snapshot(world, agent_bridge)
+        if world.campaigns_enabled and phase10_snapshot is not None:
+            # M60: natural deaths in the native tick shrink enlisted rosters.
+            from chronicler.war.armies import reconcile_rosters
+            reconcile_rosters(world, phase10_snapshot)
 
     # Preserve the prior completed publication gate used by Phase 5 and replay.
     world._economy_result = economy_result

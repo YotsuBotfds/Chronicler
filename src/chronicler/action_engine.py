@@ -292,6 +292,14 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
                 worst_disp = d
                 worst_name = other_name
 
+    if (worst_name and world.campaigns_enabled
+            and ((civ.name, worst_name) in world.active_wars
+                 or (worst_name, civ.name) in world.active_wars)):
+        # M60: diplomacy with a war enemy is a peace offer on war-score terms.
+        from chronicler.war.peace import sue_for_peace
+        offer = sue_for_peace(civ, world.civ_map[worst_name], world, acc=acc)
+        if offer is not None:
+            return offer
     if worst_name and civ.culture >= 30:
         # Improve relationship in both directions
         rel_out = world.relationships[civ.name][worst_name]
@@ -364,6 +372,10 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         return _resolve_develop(civ, world, acc=acc)
 
     defender = get_civ(world, target_name)
+    if defender and world.campaigns_enabled:
+        # M60: wars are fought by armies over subsequent turns, not resolved here.
+        from chronicler.war.runtime import declare_or_press_war
+        return declare_or_press_war(civ, defender, world, acc=acc)
     if defender:
         war_seed = stable_hash_int("war", world.seed, world.turn, civ.name, defender.name)
         result = resolve_war(civ, defender, world, seed=war_seed, acc=acc)
