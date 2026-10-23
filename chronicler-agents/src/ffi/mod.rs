@@ -1931,7 +1931,11 @@ impl AgentSimulator {
         let ri_terrain = col_u8!(&ri_rb, "terrain");
         let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
         let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
-        let ri_ey0 = col_f32!(&ri_rb, "resource_effective_yield_0");
+        let ri_rt1 = col_u8!(&ri_rb, "resource_type_1");
+        let ri_rt2 = col_u8!(&ri_rb, "resource_type_2");
+        let ri_y0 = col_f32!(&ri_rb, "resource_yield_0");
+        let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
+        let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
 
         // Fixed good slot columns
         const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
@@ -1950,10 +1954,31 @@ impl AgentSimulator {
                 region_id: ri_region_ids.value(i),
                 terrain: ri_terrain.value(i),
                 storage_population: ri_storage_pop.value(i),
-                resource_type_0: ri_rt0.value(i),
-                resource_effective_yield_0: ri_ey0.value(i),
+                resource_types: [ri_rt0.value(i), ri_rt1.value(i), ri_rt2.value(i)],
+                resource_yields: [ri_y0.value(i), ri_y1.value(i), ri_y2.value(i)],
+                production_caps: [None; 3],
                 stockpile,
             });
+        }
+
+        // Optional default-off experiment: a fish slot's goods production may
+        // not exceed the previous ecology tick's catch. The kernel applies the
+        // cap after splitting farmer labor across occupied slots, so permanent
+        // effective yields and other slots are untouched.
+        for slot in 0..3 {
+            let name = format!("fishery_catch_budget_{slot}");
+            let Some(column) = ri_rb.column_by_name(&name) else { continue };
+            use arrow::array::Array;
+            let budgets = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+            for i in 0..n_regions {
+                if budgets.is_null(i) { continue; }
+                let budget = budgets.value(i);
+                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_types[slot] != 3 {
+                    return Err(PyValueError::new_err("invalid fishery catch budget"));
+                }
+                region_inputs[i].production_caps[slot] = Some(budget);
+            }
         }
 
         // --- Derive agent counts from live pool ---
@@ -1993,26 +2018,6 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
-        }
-
-        // Optional experiment: production may not exceed last ecology's fish catch.
-        // Adjust only kernel input, leaving permanent effective yields untouched.
-        if let Some(column) = ri_rb.column_by_name("fishery_catch_budget") {
-            use arrow::array::Array;
-            let budgets = column.as_any().downcast_ref::<Float32Array>()
-                .ok_or_else(|| PyValueError::new_err("fishery_catch_budget must be Float32"))?;
-            for i in 0..n_regions {
-                if budgets.is_null(i) { continue; }
-                let budget = budgets.value(i);
-                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_type_0 != 3 {
-                    return Err(PyValueError::new_err("invalid fishery catch budget"));
-                }
-                let farmers = agent_counts[i].farmer_count;
-                if farmers > 0 {
-                    region_inputs[i].resource_effective_yield_0 =
-                        region_inputs[i].resource_effective_yield_0.min(budget / farmers as f32);
-                }
-            }
         }
 
         // M58a: Second pass — count transit merchants by their origin region (anchor counting)
@@ -2080,14 +2085,19 @@ impl AgentSimulator {
         }
 
         // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
-        // Note: On the first tick, the delivery buffer is empty (no merchant trips completed yet),
-        // so HybridDeliveryInput will have zero departures/arrivals/returns. The economy kernel
-        // still runs the hybrid code path but with no trade data — effectively producing abstract-
-        // equivalent results. This is the correct cold-start behavior.
+        // The route graph and persistent buffer may not exist before the first
+        // merchant tick. Hybrid cold-start still means zero realized deliveries;
+        // passing None would accidentally execute instantaneous abstract trade.
         let hybrid_delivery = if self.hybrid_economy_mode {
-            self.merchant_delivery_buf.as_ref().map(|buf| {
-                crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
-            })
+            let empty_buffer;
+            let buf = match self.merchant_delivery_buf.as_ref() {
+                Some(buf) => buf,
+                None => {
+                    empty_buffer = crate::merchant::DeliveryBuffer::new(n_regions);
+                    &empty_buffer
+                }
+            };
+            Some(crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions))
         } else {
             None
         };
@@ -2593,6 +2603,58 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    #[test]
+    fn test_postpass_recompute_refreshes_yields_without_second_mineral_extraction() {
+        use arrow::array::Float32Array;
+        let mut sim = AgentSimulator::new(1, 42);
+        let mut region = RegionState::new(0);
+        region.terrain = 0;
+        region.soil = 0.8;
+        region.water = 0.6;
+        region.forest_cover = 0.2;
+        region.carrying_capacity = 60;
+        region.population = 30;
+        region.controller_civ = 0;
+        region.capacity_modifier = 1.0;
+        region.resource_types = [0, 5, 255]; // grain + ore
+        region.resource_base_yield = [1.0, 0.8, 0.0];
+        region.resource_effective_yield = [1.0, 0.8, 0.0];
+        region.resource_reserves = [1.0, 0.2, 0.0];
+        sim.regions = vec![region];
+        sim.tick_ecology(0, 0, vec![false], vec![false]).unwrap();
+        let after_tick = sim.regions[0].resource_reserves;
+        let ticked_yields = sim.regions[0].resource_yields;
+        assert!(after_tick[1] < 0.2, "the ecology tick itself extracts ore once");
+
+        // Python post-pass changed soil (e.g. a tradition soil floor), forcing
+        // a native yield recompute for this region.
+        let r = &sim.regions[0];
+        let patch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("region_id", DataType::UInt16, false),
+                Field::new("population", DataType::UInt16, false),
+                Field::new("soil", DataType::Float32, false),
+                Field::new("water", DataType::Float32, false),
+                Field::new("forest_cover", DataType::Float32, false),
+                Field::new("terrain", DataType::UInt8, false),
+                Field::new("carrying_capacity", DataType::UInt16, false),
+            ])),
+            vec![
+                Arc::new(UInt16Array::from(vec![0u16])),
+                Arc::new(UInt16Array::from(vec![r.population])),
+                Arc::new(Float32Array::from(vec![r.soil * 0.5])),
+                Arc::new(Float32Array::from(vec![r.water])),
+                Arc::new(Float32Array::from(vec![r.forest_cover])),
+                Arc::new(UInt8Array::from(vec![r.terrain])),
+                Arc::new(UInt16Array::from(vec![r.carrying_capacity])),
+            ],
+        ).unwrap();
+        sim.apply_region_postpass_patch(PyRecordBatch::new(patch)).unwrap();
+        assert_eq!(sim.regions[0].resource_reserves, after_tick, "post-pass must not extract again");
+        assert!(sim.regions[0].resource_yields[0] < ticked_yields[0], "crop yield follows patched soil");
+        assert_eq!(sim.regions[0].resource_yields[1], ticked_yields[1]);
+    }
 
     #[test]
     fn test_stockpile_commitments_read_only_and_hybrid_scoped() {

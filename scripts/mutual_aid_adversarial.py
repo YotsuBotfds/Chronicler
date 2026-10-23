@@ -31,13 +31,18 @@ def _world(enabled: bool, treasury: int) -> WorldState:
     regions = [
         Region(name="Granary", terrain="plains", carrying_capacity=60, population=20,
                resources="fertile", controller="Cooperative", adjacencies=["Mine"],
-               resource_types=[0, 255, 255], resource_effective_yields=[.5, 0, 0]),
-        Region(name="Mine", terrain="hills", carrying_capacity=60, population=20,
+               resource_types=[0, 255, 255], resource_effective_yields=[.5, 0, 0],
+               resource_current_yields=[.5, 0, 0]),
+        # Integrated goods trade (inventory prices, physical cold start) lets
+        # merchant cargo partly relieve a 20-person Mine before aid is needed;
+        # 30 people keep the stress -> blocked -> reserve-bound aid sequence.
+        Region(name="Mine", terrain="hills", carrying_capacity=60, population=30,
                resources="mineral", controller="Cooperative", adjacencies=["Granary"],
-               resource_types=[5, 255, 255], resource_effective_yields=[.5, 0, 0]),
+               resource_types=[5, 255, 255], resource_effective_yields=[.5, 0, 0],
+               resource_current_yields=[.5, 0, 0]),
     ]
     regions[0].stockpile.goods = {"grain": 35.0}
-    civ = Civilization(name="Cooperative", population=40, military=10, economy=40,
+    civ = Civilization(name="Cooperative", population=50, military=10, economy=40,
                        culture=30, stability=80, treasury=treasury,
                        leader=Leader(name="Steward", trait="cautious", reign_start=0),
                        regions=[r.name for r in regions])
@@ -50,17 +55,24 @@ def _total_goods(world) -> float:
     return math.fsum(v for r in world.regions for v in r.stockpile.goods.values())
 
 
+def _set_yield(region, value: float) -> None:
+    # No ecology tick runs here, so the prescribed crop is also the realized
+    # harvest yield that the integrated Phase 2 economy reads.
+    region.resource_effective_yields[0] = value
+    region.resource_current_yields[0] = value
+
+
 def _schedule(world, turn: int) -> list[str]:
     changes = []
     if turn == 3:
-        world.regions[0].resource_effective_yields[0] = 4.0
+        _set_yield(world.regions[0], 4.0)
         changes.append("Donor effective grain yield .5 -> 4; no stock injection")
     if turn == 5:
         world.regions[1].resource_types[0] = 0
-        world.regions[1].resource_effective_yields[0] = 2.0
+        _set_yield(world.regions[1], 2.0)
         changes.append("Recipient primary ore -> grain, effective yield2; production ledger accounts output")
     if turn == 6:
-        world.regions[1].resource_effective_yields[0] = 0.0
+        _set_yield(world.regions[1], 0.0)
         changes.append("Recipient effective grain yield2 -> 0; existing stocks/cargo preserved")
     return changes
 

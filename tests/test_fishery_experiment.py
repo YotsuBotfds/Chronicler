@@ -23,6 +23,7 @@ def fish_world(make_world):
     region.resource_types = [ResourceType.FISH, ResourceType.ORE, EMPTY_SLOT]
     region.resource_base_yields = [1.0, 0.5, 0.0]
     region.resource_effective_yields = [1.0, 0.5, 0.0]
+    region.resource_current_yields = [1.0, 0.5, 0.0]
     world.civilizations[0].population = region.population
     return world
 
@@ -173,11 +174,13 @@ def test_save_load_legacy_defaults_and_resume(fish_world, tmp_path):
 def test_minimal_on_off_ecology_pair_and_lagged_economy(fish_world):
     from chronicler.economy import build_economy_region_input_batch
     off = fish_world.model_copy(deep=True)
+    assert "fishery_catch_budget_0" not in build_economy_region_input_batch(off).schema.names
     fish_world.fishery_experiment.enabled = True
-    initial_input = build_economy_region_input_batch(fish_world).column("resource_effective_yield_0")[0].as_py()
+    initial_input = build_economy_region_input_batch(fish_world).column("resource_yield_0")[0].as_py()
     assert initial_input == 1
-    initial_budget = build_economy_region_input_batch(fish_world).column("fishery_catch_budget")[0].as_py()
-    assert initial_budget == 0
+    budgets = build_economy_region_input_batch(fish_world).to_pylist()[0]
+    # No prior catch means no fish credit; the ore and empty slots stay uncapped.
+    assert [budgets[f"fishery_catch_budget_{slot}"] for slot in range(3)] == [0, None, None]
     for turn in range(24):
         for world in (off, fish_world):
             world.turn = turn
@@ -186,7 +189,7 @@ def test_minimal_on_off_ecology_pair_and_lagged_economy(fish_world):
     assert fish_world.regions[0].fishery_stocks[0] < .2
     assert 0 < fish_world.regions[0].resource_current_yields[0] < .5
     assert 0 < economy_yield(fish_world, fish_world.regions[0]) < 1
-    batch_yield = build_economy_region_input_batch(fish_world).column("resource_effective_yield_0")[0].as_py()
+    batch_yield = build_economy_region_input_batch(fish_world).column("resource_yield_0")[0].as_py()
     assert batch_yield == pytest.approx(economy_yield(fish_world, fish_world.regions[0]))
     assert fish_world.regions[0].resource_effective_yields[0] == 1
 
@@ -249,20 +252,96 @@ def test_economy_production_never_exceeds_stock_debit(fish_world, potential, pro
 
 @pytest.mark.native
 def test_native_economy_honors_lagged_budget(fish_world):
+    """Fish (slot 0) and ore (slot 1) split farmers; only the fish share is capped."""
     from chronicler.agent_bridge import build_region_batch
-    from chronicler.economy import build_economy_region_input_batch, build_economy_trade_route_batch
+    from chronicler.ecology import refresh_resource_yields
+    from chronicler.economy import (
+        build_economy_region_input_batch, build_economy_trade_route_batch, compute_economy,
+    )
     runtime = _native_class("AgentSimulator")(1, 42)
     fish_world.fishery_experiment.enabled = True
     region = fish_world.regions[0]
     region.fishery_stocks[0] = .1
     apply_fishery_feedback(fish_world, {region.name: [.65, .5, 0]})
     runtime.set_region_state(build_region_batch(fish_world))
-    result = runtime.tick_economy(build_economy_region_input_batch(fish_world),
+    refresh_resource_yields(fish_world, ClimatePhase.TEMPERATE)  # run_turn Phase 2 order
+    batch = build_economy_region_input_batch(fish_world)
+    snapshot = pa.record_batch(runtime.get_snapshot())
+    oracle_world = fish_world.model_copy(deep=True)
+    oracle = compute_economy(oracle_world, snapshot, oracle_world.region_map,
+                             agent_mode=True, active_trade_routes=[])
+    result = runtime.tick_economy(batch,
                                  build_economy_trade_route_batch(fish_world, active_trade_routes=[]),
                                  0, False, 1.0)
-    conservation = result[4]
-    production = conservation.column("production")[0].as_py()
-    assert production == pytest.approx(region.fishery_catch_budgets[0], abs=1e-5)
+    production = pa.record_batch(result[4]).column("production")[0].as_py()
+    farmers = sum(1 for occupation, rid in zip(snapshot.column("occupation").to_pylist(),
+                                               snapshot.column("region").to_pylist())
+                  if occupation == 0 and rid == 0)
+    row = batch.to_pylist()[0]
+    budget = region.fishery_catch_budgets[0]
+    uncapped_fish = row["resource_yield_0"] * farmers / 2
+    ore = row["resource_yield_1"] * farmers / 2
+    assert row["fishery_catch_budget_0"] == pytest.approx(budget)
+    assert row["fishery_catch_budget_1"] is None and row["fishery_catch_budget_2"] is None
+    assert uncapped_fish > budget > 0 and ore > 0  # the cap binds only the fish share
+    assert production == pytest.approx(budget + ore, rel=1e-5)
+    assert production == pytest.approx(oracle.conservation["production"], rel=1e-5)
+
+
+@pytest.mark.native
+def test_native_economy_rejects_catch_budget_on_nonfish_slot(fish_world):
+    from chronicler.agent_bridge import build_region_batch
+    from chronicler.economy import build_economy_region_input_batch, build_economy_trade_route_batch
+    runtime = _native_class("AgentSimulator")(1, 42)
+    fish_world.fishery_experiment.enabled = True
+    runtime.set_region_state(build_region_batch(fish_world))
+    batch = build_economy_region_input_batch(fish_world)
+    index = batch.schema.get_field_index("fishery_catch_budget_1")
+    bad = batch.set_column(index, "fishery_catch_budget_1", pa.array([5.0], type=pa.float32()))
+    with pytest.raises(ValueError, match="invalid fishery catch budget"):
+        runtime.tick_economy(bad, build_economy_trade_route_batch(fish_world, active_trade_routes=[]),
+                             0, False, 1.0)
+
+
+def test_fishing_effort_uses_the_production_labor_share(fish_world):
+    """Biomass is debited only for the farmers the economy assigns to fishing."""
+    fish_world.fishery_experiment.enabled = True
+    single = fish_world.model_copy(deep=True)
+    single.regions[0].resource_types = [ResourceType.FISH, EMPTY_SLOT, EMPTY_SLOT]
+    for world in (fish_world, single):
+        world.regions[0].fishery_stocks[0] = .5
+        apply_fishery_feedback(world, {world.regions[0].name: [1.0, .5, 0.0]})
+    shared, alone = fish_world.regions[0], single.regions[0]
+    # pop 2000 -> 400 proxy workers: 200 per slot when shared with ore.
+    expected_shared = step_fishery(.5, 1.0, 1.0, 200, FisheryConfig())
+    expected_alone = step_fishery(.5, 1.0, 1.0, 400, FisheryConfig())
+    assert shared.fishery_stocks[0] == pytest.approx(expected_shared.stock)
+    assert alone.fishery_stocks[0] == pytest.approx(expected_alone.stock)
+    assert shared.fishery_catch_budgets[0] < alone.fishery_catch_budgets[0]
+    assert shared.fishery_stocks[0] > alone.fishery_stocks[0]
+
+
+def test_python_economy_caps_each_fish_slot_after_labor_split(fish_world):
+    from chronicler.economy import compute_economy
+    fish_world.fishery_experiment.enabled = True
+    region = fish_world.regions[0]
+    region.resource_types = [ResourceType.FISH, ResourceType.ORE, ResourceType.FISH]
+    region.resource_base_yields = [1.0, 0.5, 1.0]
+    region.resource_effective_yields = [1.0, 0.5, 1.0]
+    region.resource_current_yields = [1.0, 0.5, 1.0]
+    region.fishery_catch_budgets = [3.0, None, 50.0]
+    farmers = 60
+    snapshot = pa.record_batch({
+        "region": pa.array([0] * farmers, type=pa.int32()),
+        "occupation": pa.array([0] * farmers, type=pa.int32()),
+        "wealth": pa.array([0.0] * farmers, type=pa.float32()),
+        "civ_affinity": pa.array([0] * farmers, type=pa.int32()),
+    })
+    result = compute_economy(fish_world, snapshot, fish_world.region_map,
+                             agent_mode=True, active_trade_routes=[])
+    # 20 farmers per slot: fish capped at 3, ore 10, second fish uncapped at 20 <= 50.
+    assert result.conservation["production"] == pytest.approx(3.0 + 10.0 + 20.0)
+    assert result.region_goods[region.name].production["raw_material"] == pytest.approx(10.0)
 
 
 @pytest.mark.native

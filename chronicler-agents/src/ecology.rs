@@ -656,11 +656,37 @@ fn river_cascade(
 // Step 7: Resource yield computation
 // ---------------------------------------------------------------------------
 
+/// Phase 9 yield computation: extracts mineral reserves once, then computes
+/// yields from the depleted reserves. Use [`refresh_yields`] to recompute after
+/// a same-turn post-pass without extracting again.
 pub fn compute_yields(
     region: &mut RegionState,
     config: &EcologyConfig,
     season_id: u8,
     climate_phase: u8,
+) -> [f32; 3] {
+    compute_yields_inner(region, config, season_id, climate_phase, true)
+}
+
+/// Recompute yields from current ecology/reserve state without mineral
+/// extraction. The post-pass patch can change soil/water/forest/terrain after
+/// this turn's ecology tick already depleted reserves; refreshing must not
+/// deplete them a second time (mirrors Python's `deplete_reserves=False`).
+pub fn refresh_yields(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    season_id: u8,
+    climate_phase: u8,
+) -> [f32; 3] {
+    compute_yields_inner(region, config, season_id, climate_phase, false)
+}
+
+fn compute_yields_inner(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    season_id: u8,
+    climate_phase: u8,
+    deplete_reserves: bool,
 ) -> [f32; 3] {
     let mut yields = [0.0_f32; 3];
     let phase_idx = (climate_phase as usize).min(3);
@@ -695,7 +721,7 @@ pub fn compute_yields(
         if is_mineral(rtype) {
             let reserves = region.resource_reserves[slot];
             // Depletion — only if there are workers and reserves remain
-            if reserves > 0.01 && region.population > 0 {
+            if deplete_reserves && reserves > 0.01 && region.population > 0 {
                 let eff = effective_capacity(region, config);
                 let target_workers = (eff / 3).max(1);
                 let worker_count = region.population / 5;

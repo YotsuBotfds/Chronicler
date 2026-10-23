@@ -1198,6 +1198,8 @@ pub(crate) fn apply_patch_to_regions(
 }
 
 /// Recompute yields for specific regions using stored context.
+/// This turn's ecology tick already extracted mineral reserves, so the post-pass
+/// refresh is non-depleting: reserves change exactly once per turn.
 /// Experimental catch overrides are applied separately after this recomputation.
 pub(crate) fn recompute_region_yields(
     regions: &mut [RegionState],
@@ -1207,7 +1209,7 @@ pub(crate) fn recompute_region_yields(
 ) {
     for &idx in indices {
         if idx < regions.len() {
-            crate::ecology::compute_yields(
+            crate::ecology::refresh_yields(
                 &mut regions[idx],
                 config,
                 ctx.season_id,

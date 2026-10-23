@@ -144,13 +144,20 @@ pub fn ecology_events_schema() -> Schema {
 // M54b: Economy schema helpers
 // ---------------------------------------------------------------------------
 
+/// Required economy input columns. When the default-off fishery experiment is
+/// enabled, Python also appends nullable `fishery_catch_budget_{0,1,2}`
+/// (Float32) production caps; `tick_economy` reads them by name if present.
 pub fn economy_region_input_schema() -> Schema {
     let mut fields = vec![
         Field::new("region_id", DataType::UInt16, false),
         Field::new("terrain", DataType::UInt8, false),
         Field::new("storage_population", DataType::UInt16, false),
         Field::new("resource_type_0", DataType::UInt8, false),
-        Field::new("resource_effective_yield_0", DataType::Float32, false),
+        Field::new("resource_type_1", DataType::UInt8, false),
+        Field::new("resource_type_2", DataType::UInt8, false),
+        Field::new("resource_yield_0", DataType::Float32, false),
+        Field::new("resource_yield_1", DataType::Float32, false),
+        Field::new("resource_yield_2", DataType::Float32, false),
     ];
     for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
         fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));

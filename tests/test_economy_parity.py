@@ -42,7 +42,7 @@ def _make_parity_world(n_farmers_r1=20, n_merchants_r1=5, n_soldiers_r1=0,
         resources="fertile", controller="Alpha",
         resource_types=[0, 255, 255],
         resource_base_yields=[2.0, 0.0, 0.0],
-        resource_effective_yields=[2.0, 0.0, 0.0],
+        resource_effective_yields=[2.0, 0.0, 0.0], resource_current_yields=[2.0, 0.0, 0.0],
     )
     r1.stockpile = RegionStockpile(goods={"grain": 50.0})
     r1.adjacencies = ["Port"]
@@ -53,7 +53,7 @@ def _make_parity_world(n_farmers_r1=20, n_merchants_r1=5, n_soldiers_r1=0,
         resources="maritime", controller="Beta",
         resource_types=[3, 255, 255],
         resource_base_yields=[1.0, 0.0, 0.0],
-        resource_effective_yields=[1.0, 0.0, 0.0],
+        resource_effective_yields=[1.0, 0.0, 0.0], resource_current_yields=[1.0, 0.0, 0.0],
     )
     r2.stockpile = RegionStockpile(goods={"fish": 20.0})
     r2.adjacencies = ["Breadbasket"]
@@ -314,7 +314,7 @@ def test_region_input_batch_dtypes():
     assert batch.schema.field("terrain").type == pa.uint8()
     assert batch.schema.field("storage_population").type == pa.uint16()
     assert batch.schema.field("resource_type_0").type == pa.uint8()
-    assert batch.schema.field("resource_effective_yield_0").type == pa.float32()
+    assert batch.schema.field("resource_yield_0").type == pa.float32()
     for good in FIXED_GOODS:
         assert batch.schema.field(f"stockpile_{good}").type == pa.float32()
 
