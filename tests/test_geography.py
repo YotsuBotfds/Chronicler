@@ -341,3 +341,15 @@ def test_cli_worldgen_flag():
     assert parser.parse_args(["--worldgen", "procedural"]).worldgen == "procedural"
     with pytest.raises(SystemExit):
         parser.parse_args(["--worldgen", "hexes"])
+
+
+def test_procedural_roles_are_mixed():
+    world = generate_world(seed=7, num_regions=150, num_civs=8)
+    roles = Counter(r.role for r in world.regions)
+    assert roles["chokepoint"] >= 3 and roles["crossroads"] >= 3
+    assert roles["standard"] > len(world.regions) // 2
+    for region in world.regions:
+        if region.role == "frontier":
+            assert len(region.adjacencies) <= 2
+        if region.role == "crossroads":
+            assert len(region.adjacencies) >= 7

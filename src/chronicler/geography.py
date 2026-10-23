@@ -54,7 +54,9 @@ ZONE_CELLS = 7                 # target water cells per sea zone
 LAKE_MAX_CELLS = 3
 LANE_RANGE = 2.6               # sea-lane reach, in grid spacings
 LANES_PER_REGION = 2
-RIVER_FLOW_THRESHOLD = 2.3     # rain-weighted drainage needed to form a river
+RIVER_FLOW_THRESHOLD = 2.0     # rain-weighted drainage needed to form a river
+CROSSROADS_DEGREE = 7          # procedural role: hubs (interior Voronoi cells average ~6)
+CHOKEPOINT_SHARE = 0.05        # procedural role: top betweenness share marked chokepoint
 
 # Latitude bands: |latitude| upper bounds for bands 0..3; band 4 above.
 LATITUDE_BAND_LIMITS = (0.15, 0.35, 0.6, 0.8)
@@ -256,6 +258,8 @@ class ProceduralGeography:
     regions: list[Region]
     rivers: list[River]
     geography: WorldGeography
+    # Land-mass crossings added for connectivity (region-name pairs; also sea lanes).
+    crossings: list[tuple[str, str]] = field(default_factory=list)
     # Diagnostics (not persisted)
     cell_count: int = 0
     land_cells: list[int] = field(default_factory=list)
@@ -447,7 +451,7 @@ def generate_procedural_geography(count: int, seed: int) -> ProceduralGeography:
     # Join remaining land masses by the shortest crossing over a shared water body.
     body_of_zone = [z["body"] for z in zones]
     region_bodies = [{body_of_zone[z] for z in zs} for zs in region_zones]
-    _connect_components(adjacency, land_cells, xs, ys, region_bodies, lanes)
+    crossing_ids = _connect_components(adjacency, land_cells, xs, ys, region_bodies, lanes)
 
     for k, region in enumerate(regions):
         region.adjacencies = [regions[n].name for n in sorted(adjacency[k])]
@@ -473,8 +477,82 @@ def generate_procedural_geography(count: int, seed: int) -> ProceduralGeography:
     )
     return ProceduralGeography(
         regions=regions, rivers=rivers, geography=geography,
+        crossings=[(regions[a].name, regions[b].name) for a, b in crossing_ids],
         cell_count=n_cells, land_cells=land_cells,
     )
+
+
+def classify_procedural_roles(
+    regions: list[Region], crossings: list[tuple[str, str]],
+) -> dict[str, str]:
+    """Region roles for procedural graphs.
+
+    ``adjacency.classify_regions`` calls every region with 3+ neighbours a
+    crossroads, which on a Voronoi map is nearly all of them. Here:
+    frontier = at most 2 neighbours; chokepoint = articulation point, an
+    endpoint of a land-mass crossing, or a bottleneck (betweenness centrality
+    in the top CHOKEPOINT_SHARE and above twice the mean); crossroads = at
+    least CROSSROADS_DEGREE neighbours; standard otherwise.
+    """
+    from chronicler.adjacency import _find_articulation_points
+    articulation = _find_articulation_points({r.name: list(r.adjacencies) for r in regions})
+    straits = {name for pair in crossings for name in pair}
+    betweenness = _betweenness(regions)
+    mean = sum(betweenness) / max(1, len(betweenness))
+    ranked = sorted(range(len(regions)), key=lambda i: (-betweenness[i], i))
+    bottlenecks = {
+        regions[i].name
+        for i in ranked[:max(1, round(CHOKEPOINT_SHARE * len(regions)))]
+        if betweenness[i] > 2.0 * mean
+    }
+    roles: dict[str, str] = {}
+    for region in regions:
+        degree = len(region.adjacencies)
+        if degree <= 2:
+            roles[region.name] = "frontier"
+        elif region.name in articulation or region.name in straits or region.name in bottlenecks:
+            roles[region.name] = "chokepoint"
+        elif degree >= CROSSROADS_DEGREE:
+            roles[region.name] = "crossroads"
+        else:
+            roles[region.name] = "standard"
+    return roles
+
+
+def _betweenness(regions: list[Region]) -> list[float]:
+    """Unweighted betweenness centrality (Brandes); exact up to 400 regions,
+    then estimated from every k-th source (deterministic)."""
+    index = {r.name: i for i, r in enumerate(regions)}
+    adj = [sorted(index[a] for a in r.adjacencies if a in index) for r in regions]
+    n = len(regions)
+    step = max(1, math.ceil(n / 400))
+    score = [0.0] * n
+    for s in range(0, n, step):
+        stack: list[int] = []
+        preds: list[list[int]] = [[] for _ in range(n)]
+        sigma = [0] * n
+        sigma[s] = 1
+        dist = [-1] * n
+        dist[s] = 0
+        queue: deque[int] = deque([s])
+        while queue:
+            v = queue.popleft()
+            stack.append(v)
+            for w in adj[v]:
+                if dist[w] < 0:
+                    dist[w] = dist[v] + 1
+                    queue.append(w)
+                if dist[w] == dist[v] + 1:
+                    sigma[w] += sigma[v]
+                    preds[w].append(v)
+        delta = [0.0] * n
+        while stack:
+            w = stack.pop()
+            for v in preds[w]:
+                delta[v] += sigma[v] / sigma[w] * (1.0 + delta[w])
+            if w != s:
+                score[w] += delta[w]
+    return [_q(x * step) for x in score]
 
 
 def _classify_terrain(rank: float, moisture: float, temp: float, coastal: bool) -> str:
@@ -727,8 +805,10 @@ def _connect_components(
     """Add shortest crossings until the region graph is connected.
 
     Prefers coastal pairs on a common water body; falls back to the nearest
-    pair overall (a land mass whose shores touch no shared body).
+    shore pair (a land mass whose shores touch no shared body). Returns the
+    crossings added, as region-index pairs.
     """
+    added: list[tuple[int, int]] = []
     comps = _components(adjacency)
     while len(comps) > 1:
         best = None
@@ -745,7 +825,9 @@ def _connect_components(
         adjacency[a].add(b)
         adjacency[b].add(a)
         lanes.add((min(a, b), max(a, b)))
+        added.append((min(a, b), max(a, b)))
         comps = _components(adjacency)
+    return added
 
 
 # --- Rivers on regions (shared with scenario rivers) -------------------------

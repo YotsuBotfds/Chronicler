@@ -538,8 +538,12 @@ def generate_world(
         geo = _procedural_regions(num_regions, seed)
         regions = geo.regions
     # Classify region roles by graph topology
-    adj_map = {r.name: r.adjacencies for r in regions}
-    roles = classify_regions(adj_map)
+    if geo is None:
+        adj_map = {r.name: r.adjacencies for r in regions}
+        roles = classify_regions(adj_map)
+    else:
+        from chronicler.geography import classify_procedural_roles
+        roles = classify_procedural_roles(regions, geo.crossings)
     for region in regions:
         region.role = roles.get(region.name, "standard")
     from chronicler.resources import assign_resources
