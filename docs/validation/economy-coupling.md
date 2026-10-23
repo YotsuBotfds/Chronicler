@@ -23,8 +23,9 @@ consumption rules, agent needs, or external narration calls.
    the hybrid path. They are not computed from post-consumption leftovers.
    Cold-start hybrid turns use an empty physical-delivery ledger, rather than
    falling back to abstract imports before a merchant has traveled.
-   Loading merchants revalidate reserved cargo against current inventory before
-   departure, since intervening consumption/decay can exhaust a reservation.
+   Loading merchants with physical (hybrid-economy) cargo revalidate their
+   reservation against current inventory at departure, since intervening
+   consumption/decay can exhaust it; shadow-mode cargo stays virtual.
 5. The existing stock lifecycle consumes food, applies storage decay and caps
    storage once. Farmer income uses production-weighted category prices.
 6. Phase 2’s harvest preview does not deplete reserves, and the native
@@ -37,8 +38,12 @@ consumption rules, agent needs, or external narration calls.
    population/refugee effects.
 
 The dedicated economy Arrow input now carries `resource_type_0/1/2` and
-`resource_yield_0/1/2`. Rebuild the native extension alongside Python; an old wheel
-is incompatible with the new input schema.
+`resource_yield_0/1/2` (from `fisheries.economy_yield`: the preview, times the
+lagged catch ratio for fish slots when the default-off fishery experiment is
+enabled). That experiment also appends nullable `fishery_catch_budget_0/1/2`
+production caps, applied after the labor split. Rebuild the native extension
+alongside Python; an old wheel is incompatible with the new input schema. See
+[the integration notes](../integration/ecology-goods-reconciliation.md).
 
 ## Reproduction
 
