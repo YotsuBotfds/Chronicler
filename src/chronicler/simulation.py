@@ -583,6 +583,11 @@ def phase_production(world: WorldState, acc=None) -> None:
     """Generate income and adjust population for each civilization."""
     from chronicler.ecology import effective_capacity
     for civ_idx, civ in enumerate(world.civilizations):
+        if not civ.regions:
+            # A fallen or exiled civ holds no land and produces nothing. Its
+            # treasury waits unchanged for a possible restoration.
+            civ.last_income = 0
+            continue
         # Base income
         income = civ.economy // 5 + len(civ.regions) * 2
         # Condition penalty

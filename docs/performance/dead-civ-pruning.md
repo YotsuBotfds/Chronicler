@@ -65,11 +65,13 @@ shrink.
 
 ## Restoring the omitted rows
 
-The omitted rows are not all copies of the final row. `phase_production` still
-pays every civilization record `economy // 5`, so a dead civilization's
-treasury keeps growing. This simulation behavior is unchanged here. On the
-subset gate batch, `treasury` changed in 1,806 omitted rows and
-`federation_name` in 2. No other field changed.
+When pruning landed, the omitted rows were not all copies of the final row:
+`phase_production` paid every civilization record `economy // 5`, so a dead
+civilization's treasury kept growing (on the subset gate batch, `treasury`
+changed in 1,806 omitted rows and `federation_name` in 2). A follow-up
+correction stops paying civilizations without regions; omitted rows are now
+normally unchanged, and `pruned_civ_stats` still records any field that does
+change.
 
 The bundle's new top-level `pruned_civ_stats` records, for each civilization, its
 omitted segments as change runs relative to its final row:
@@ -215,7 +217,10 @@ drop. There were no console errors or warnings.
 - In-memory snapshots still compute the pair tables of dead civilizations,
   which costs CPU. Restricting that computation would change the `on_turn`
   snapshots and the turn oracle, so it is left for a separate change.
-- Observation, not changed: dead civilizations keep collecting income, and that
-  treasury drift adds inflection points to the era oracle. Seed 42's 32
-  inflection turns fall to 7 without dead tails. Changing either would change
-  what the gate measures.
+- Dead civilizations used to keep collecting income, and that treasury drift
+  added inflection points to the era oracle (seed 42's 32 inflection turns
+  fall to 7 without dead tails). The follow-up correction stops the income; on
+  the subset gate it changes only dead civilizations' treasury and
+  `last_income` (10 of 20 `state.json`), every oracle status and regression
+  metric is unchanged, and one of 237 era collapses moves from "crisis only"
+  to "own signal".

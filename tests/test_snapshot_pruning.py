@@ -254,7 +254,8 @@ class TestRealRun:
         assert bundle["metadata"]["bundle_version"] == 5
         segments = bundle["pruned_civ_stats"]["Thornwall Confederacy"]
         assert segments[0]["from_turn"] == 44
-        assert set(segments[0]["changes"]) == {"treasury"}
+        # A civ without land earns nothing, so its pruned rows never change.
+        assert segments[0]["changes"] == {}
         by_turn = {snap["turn"]: snap for snap in bundle["history"]}
         final = by_turn[43]["civ_stats"]["Thornwall Confederacy"]
         assert final["regions"] == [] and final["alive"] is False
