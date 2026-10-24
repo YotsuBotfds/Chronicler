@@ -567,11 +567,13 @@ def _build_context(world, phase10) -> _Context:
         # Per-region belief counts over the same rows (only sums and lookups
         # of these counts are read, so key order is immaterial).
         if len(kept):
-            pairs, counts = np.unique(
-                np.stack([columns["region"][kept], columns["belief"][kept]], axis=1),
-                axis=0, return_counts=True)
-            for (rid, bid), count in zip(pairs.tolist(), counts.tolist()):
-                region_beliefs.setdefault(rid, {})[bid] = count
+            regions, beliefs = columns["region"][kept], columns["belief"][kept]
+            r0, b0 = int(regions.min()), int(beliefs.min())
+            width = int(beliefs.max()) - b0 + 1
+            keys, counts = np.unique((regions - r0) * width + (beliefs - b0), return_counts=True)
+            for key, count in zip(keys.tolist(), counts.tolist()):
+                rid, bid = divmod(key, width)
+                region_beliefs.setdefault(rid + r0, {})[bid + b0] = count
         rows = {"columns": columns, "by_civ": by_civ}
     turn_events = []
     for event in reversed(world.events_timeline):
