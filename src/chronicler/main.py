@@ -226,6 +226,14 @@ def _create_politics_runtime(world):
         return None
 
 
+def _contact_snapshot_fields(world) -> dict:
+    """Contact ledger per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.contact_ledger import ledger_enabled, snapshot_summary
+    if not ledger_enabled(world):
+        return {}
+    return {"contact": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -417,6 +425,14 @@ def execute_run(
     agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
     if agent_scale_mode != "exact" and agent_mode == "off":
         raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    # Contact & trade-flow ledger switch (persisted on the world).
+    contact_ledger = getattr(args, "contact_ledger", None)
+    if contact_ledger is None and fresh_world:
+        from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT
+        contact_ledger = _LEDGER_DEFAULT
+    if contact_ledger is not None:
+        from chronicler.contact_ledger import set_contact_ledger_enabled
+        set_contact_ledger_enabled(world, contact_ledger)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -662,6 +678,7 @@ def execute_run(
             founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
             dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
             **_war_snapshot_fields(world),
+            **_contact_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1131,6 +1148,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
                         help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
                              "(default on for new worlds; --no-governance disables; saved on resume)")
+    parser.add_argument("--contact-ledger", action=argparse.BooleanOptionalAction, default=None,
+                        help="Contact & trade-flow ledger: decayed region x region flows of goods, "
+                             "migrants, soldiers and pilgrims feeding trade_volume, movement spread, "
+                             "merchant great persons, trade warmth, embargo/war shocks and plague spread "
+                             "(default on for new worlds; --no-contact-ledger disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

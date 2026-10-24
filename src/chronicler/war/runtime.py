@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.war import params as P
 from chronicler.war.ai import assign_orders, threat_regions
 from chronicler.war.armies import (
@@ -118,6 +119,10 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
         world.invalidate_trade_route_cache()
         war = open_war(ctx, civ, target)
         spend(ctx, civ, int(get_override(world, K_WAR_ATTACKER_TREASURY_COST, 20)) // 2)
+        if _contact_ledger_on(world):
+            # Contact ledger: a new war severs trade (dependence shock).
+            from chronicler.contact_ledger import apply_war_trade_shock
+            apply_war_trade_shock(world, civ.name, target.name, acc=acc)
         world.events_timeline.extend(trigger_federation_defense(civ.name, target.name, world))
         from chronicler.leaders import update_rivalries
         update_rivalries(civ, target, world)

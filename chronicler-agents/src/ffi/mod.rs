@@ -2647,6 +2647,43 @@ impl AgentSimulator {
         Ok(PyRecordBatch::new(batch))
     }
 
+    /// Contact ledger: non-draining read of the merchant arrival records that
+    /// the next `tick_economy` call will consume (one row per completed
+    /// delivery, in recording order). Read-only; never mutates the buffer, so
+    /// calling it does not change any simulation result.
+    /// Columns: source_region (u16), dest_region (u16), good_slot (u8), qty (f32).
+    #[pyo3(name = "get_pending_arrivals")]
+    pub fn get_pending_arrivals(&self) -> PyResult<PyRecordBatch> {
+        use arrow::array::Float32Builder;
+
+        let records: &[crate::merchant::ArrivalRecord] = match &self.merchant_delivery_buf {
+            Some(buf) => &buf.arrival_imports,
+            None => &[],
+        };
+        let n = records.len();
+        let mut src = UInt16Builder::with_capacity(n);
+        let mut dst = UInt16Builder::with_capacity(n);
+        let mut slot = UInt8Builder::with_capacity(n);
+        let mut qty = Float32Builder::with_capacity(n);
+        for rec in records {
+            src.append_value(rec.source_region);
+            dst.append_value(rec.dest_region);
+            slot.append_value(rec.good_slot);
+            qty.append_value(rec.qty);
+        }
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("source_region", DataType::UInt16, false),
+            Field::new("dest_region", DataType::UInt16, false),
+            Field::new("good_slot", DataType::UInt8, false),
+            Field::new("qty", DataType::Float32, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![
+            Arc::new(src.finish()), Arc::new(dst.finish()),
+            Arc::new(slot.finish()), Arc::new(qty.finish()),
+        ]).map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
     /// M58b: Non-draining read of cumulative delivery counters.
     /// Run-lifetime monotonic — per-turn deltas derived by diffing consecutive reads.
     #[pyo3(name = "get_delivery_diagnostics")]
@@ -2822,6 +2859,38 @@ mod tests {
         assert_eq!(buffer.return_credits[0][0], 3.0);
         assert_eq!(buffer.diagnostics.total_departures[0][1], 5.0);
         assert_eq!(sim.merchant_ledger.as_ref().unwrap().in_transit_out[0][0], 99.0);
+    }
+
+    #[test]
+    fn test_pending_arrivals_read_only() {
+        use arrow::array::Float32Array;
+        use crate::merchant::DeliveryBuffer;
+        let mut sim = AgentSimulator::new(3, 42);
+        // No buffer yet: empty batch with the full schema.
+        let empty = sim.get_pending_arrivals().unwrap().into_inner();
+        assert_eq!(empty.num_rows(), 0);
+        assert!(empty.column_by_name("qty").is_some());
+        let mut buffer = DeliveryBuffer::new(3);
+        buffer.record_arrival(0, 2, 1, 0.75);
+        buffer.record_arrival(2, 1, 0, 1.0);
+        sim.merchant_delivery_buf = Some(buffer);
+        let read = |sim: &AgentSimulator| {
+            let batch = sim.get_pending_arrivals().unwrap().into_inner();
+            let src = batch.column_by_name("source_region").unwrap().as_any()
+                .downcast_ref::<UInt16Array>().unwrap().values().to_vec();
+            let dst = batch.column_by_name("dest_region").unwrap().as_any()
+                .downcast_ref::<UInt16Array>().unwrap().values().to_vec();
+            let slot = batch.column_by_name("good_slot").unwrap().as_any()
+                .downcast_ref::<UInt8Array>().unwrap().values().to_vec();
+            let qty = batch.column_by_name("qty").unwrap().as_any()
+                .downcast_ref::<Float32Array>().unwrap().values().to_vec();
+            (src, dst, slot, qty)
+        };
+        let first = read(&sim);
+        assert_eq!(first, (vec![0, 2], vec![2, 1], vec![1, 0], vec![0.75, 1.0]));
+        // Non-draining: a second read sees the same records and the buffer is intact.
+        assert_eq!(read(&sim), first);
+        assert_eq!(sim.merchant_delivery_buf.as_ref().unwrap().arrival_imports.len(), 2);
     }
 
     #[test]

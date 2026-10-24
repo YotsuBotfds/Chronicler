@@ -12,6 +12,7 @@ from chronicler.models import (
     ResourceType, TechEra, WorldState,
 )
 from chronicler.resources import get_active_trade_routes
+from chronicler.contact_ledger import ledger_enabled
 from chronicler.tech import _prev_era, remove_era_bonus
 from chronicler.tuning import (
     K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
@@ -370,7 +371,11 @@ def tick_pandemic(
     # cross-contamination via third-party trade connections.
     new_infections: list[PandemicRegion] = []
     rng_spread = random.Random(world.seed + world.turn * 1019)
-    for p in world.pandemic_state:
+    if ledger_enabled(world):
+        new_infections = _ledger_pandemic_spread(
+            world, region_map, civ_by_name, already_infected_or_recovered, rng_spread,
+        )
+    for p in ([] if ledger_enabled(world) else world.pandemic_state):
         source_region = region_map.get(p.region_name)
         if source_region is None:
             continue
@@ -410,6 +415,56 @@ def tick_pandemic(
         world.pandemic_recovered = []
 
     return events
+
+
+def _ledger_pandemic_spread(
+    world: WorldState,
+    region_map: dict,
+    civ_by_name: dict,
+    already_infected_or_recovered: set[str],
+    rng_spread: random.Random,
+) -> list[PandemicRegion]:
+    """Contact-ledger plague spread: people/trade/soldier/pilgrim flows, not adjacency.
+
+    Each infected region exposes every region it has recorded contact with
+    (any channel, either direction) under a different controller. Exposure
+    infects with probability ``1 - exp(-contact / PANDEMIC_CONTACT_SCALE)``,
+    one draw per exposed pair in (source order, target index) order. Severity,
+    duration and the scientist reduction follow the adjacency rule exactly.
+    Spread stays between controllers, as before (the per-civ damage model
+    has no per-region scaling for intra-civ chains).
+    """
+    from chronicler.contact_ledger import pandemic_spread_probability, pandemic_spread_targets
+
+    index = {r.name: i for i, r in enumerate(world.regions)}
+    new_infections: list[PandemicRegion] = []
+    for p in world.pandemic_state:
+        source_idx = index.get(p.region_name)
+        if source_idx is None:
+            continue
+        source_ctrl = world.regions[source_idx].controller
+        if not source_ctrl:
+            continue
+        for target_idx in pandemic_spread_targets(world, source_idx):
+            target = world.regions[target_idx]
+            if target.name in already_infected_or_recovered:
+                continue
+            if target.controller is None or target.controller == source_ctrl:
+                continue
+            prob = pandemic_spread_probability(world, source_idx, target_idx)
+            if prob <= 0 or rng_spread.random() >= prob:
+                continue
+            active_infra = len([i for i in target.infrastructure if i.active])
+            severity = min(3, 1 + active_infra // 2)
+            duration = rng_spread.randint(4, 6)
+            target_civ = civ_by_name.get(target.controller)
+            if target_civ and any(gp.role == "scientist" and gp.active for gp in target_civ.great_persons):
+                duration = max(1, duration - 1)
+            new_infections.append(PandemicRegion(
+                region_name=target.name, severity=severity, turns_remaining=duration,
+            ))
+            already_infected_or_recovered.add(target.name)
+    return new_infections
 
 
 def _apply_supervolcano(world: WorldState, seed: int, acc=None) -> list[Event]:

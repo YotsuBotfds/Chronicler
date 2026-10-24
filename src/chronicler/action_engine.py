@@ -37,6 +37,7 @@ from chronicler.utils import civ_index, clamp, get_civ, STAT_FLOOR
 from chronicler.intelligence import get_perceived_stat, emit_intelligence_failure
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
 from chronicler.emergence import get_severity_multiplier
+from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +391,10 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
         )
         if not just_vassalized and pair not in world.active_wars and pair_rev not in world.active_wars:
             world.active_wars.append(pair)
+            if _contact_ledger_on(world):
+                # Contact ledger: a new war severs trade (dependence shock).
+                from chronicler.contact_ledger import apply_war_trade_shock
+                apply_war_trade_shock(world, civ.name, target_name, acc=acc)
         # M-AF1 #4: Stamp war start turn (skip if vassalized — already cleared)
         if not just_vassalized:
             from chronicler.politics import war_key
@@ -483,6 +488,14 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
                 ))
             else:
                 embargo_damage = int(get_override(world, K_EMBARGO_STABILITY_DAMAGE, 5))
+            if _contact_ledger_on(world):
+                # Contact ledger: embargo pain scales with trade dependence.
+                from chronicler.contact_ledger import (
+                    apply_embargo_self_damage, embargo_dependence_damage,
+                )
+                extra, self_damage = embargo_dependence_damage(world, civ.name, target.name)
+                embargo_damage += extra
+                apply_embargo_self_damage(world, civ, self_damage, acc=acc)
             mult = get_severity_multiplier(target, world)
             if acc is not None:
                 target_idx = civ_index(world, target.name)
@@ -820,6 +833,12 @@ def resolve_trade(civ1: Civilization, civ2: Civilization, world: WorldState, acc
     else:
         civ1.treasury += gain1
         civ2.treasury += gain2
+    if _contact_ledger_on(world):
+        # Contact ledger: trade_volume is the decayed goods flow F_ab, derived
+        # at the end of the turn; a TRADE action adds a small goods bump.
+        from chronicler.contact_ledger import record_trade_action
+        record_trade_action(world, civ1.name, civ2.name)
+        return
     if civ1.name in world.relationships and civ2.name in world.relationships[civ1.name]:
         world.relationships[civ1.name][civ2.name].trade_volume += 1
     if civ2.name in world.relationships and civ1.name in world.relationships[civ2.name]:

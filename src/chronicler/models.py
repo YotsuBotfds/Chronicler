@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_seria
 
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
+from chronicler.contact_ledger import ContactLedgerState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -23,6 +24,13 @@ def _omit_dormant_governance(model: BaseModel, data):
     """Drop a ``None`` governance field so feature-off output stays byte-identical."""
     if isinstance(data, dict) and getattr(model, "governance", None) is None:
         data.pop("governance", None)
+    return data
+
+
+def _omit_dormant_contact_ledger(model: BaseModel, data):
+    """Drop a ``None`` contact ledger so feature-off output stays byte-identical."""
+    if isinstance(data, dict) and getattr(model, "contact_ledger", None) is None:
+        data.pop("contact_ledger", None)
     return data
 
 
@@ -965,6 +973,8 @@ class WorldState(BaseModel):
     governance: GovernanceSettings | None = None
     # Geography 2.0 metadata (procedural worlds only; omitted while None).
     geography: WorldGeography | None = None
+    # Contact & trade-flow ledger (None = disabled; omitted from output).
+    contact_ledger: ContactLedgerState | None = None
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -1000,6 +1010,9 @@ class WorldState(BaseModel):
     # Derived, never serialized: incremental lookups over the history lists
     # (chronicler.history_index); rebuilt lazily after load or copy.
     _history_index: object | None = PrivateAttr(default=None)
+    # Contact ledger: transient per-turn inputs, folded and cleared by
+    # contact_ledger.update_contact_ledger at the end of the turn.
+    _contact_pending: list | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
@@ -1038,7 +1051,7 @@ class WorldState(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize_without_dormant_governance(self, handler):
-        data = _omit_dormant_governance(self, handler(self))
+        data = _omit_dormant_contact_ledger(self, _omit_dormant_governance(self, handler(self)))
         if isinstance(data, dict) and self.geography is None:
             data.pop("geography", None)
         return data
@@ -1156,12 +1169,16 @@ class TurnSnapshot(BaseModel):
     # Omitted from serialization while None so default-off snapshots keep
     # their exact historical bytes.
     campaign: dict | None = None
+    # Contact ledger per-turn summary; None (and omitted) when the ledger is off.
+    contact: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
         data = handler(self)
         if isinstance(data, dict) and data.get("campaign", 0) is None:
             data.pop("campaign")
+        if isinstance(data, dict) and data.get("contact", 0) is None:
+            data.pop("contact")
         return data
 
 
