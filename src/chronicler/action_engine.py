@@ -39,6 +39,7 @@ from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILI
 from chronicler.emergence import get_severity_multiplier
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
+from chronicler.techniques_state import techniques_on
 
 logger = logging.getLogger(__name__)
 
@@ -737,6 +738,11 @@ def resolve_war(
 
     att_power *= tech_war_multiplier(attacker.tech_era, defender.tech_era)
     def_power *= tech_war_multiplier(defender.tech_era, attacker.tech_era)
+    if techniques_on(world):
+        # --techniques: practised arms techniques of each side.
+        from chronicler.techniques import military_factor
+        att_power *= military_factor(world, attacker, True)
+        def_power *= military_factor(world, defender, False)
 
     # Terrain + role defense bonus
     if contested:

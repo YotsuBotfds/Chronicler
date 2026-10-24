@@ -20,6 +20,7 @@ from chronicler.tuning import (
     get_override,
 )
 from chronicler.utils import civ_index, get_region_map, stable_hash_int
+from chronicler.techniques_state import techniques_on
 
 
 @dataclass(frozen=True)
@@ -287,11 +288,16 @@ def handle_build(civ: Civilization, world: WorldState, acc=None):
     faith_id = getattr(civ, 'civ_majority_faith', -1) if selected_type == IType.TEMPLES else -1
 
     spec = build_specs[selected_type]
+    cost = spec.cost
+    if techniques_on(world):
+        # --techniques: the region's building techniques cheapen the work.
+        from chronicler.techniques import build_cost
+        cost = build_cost(world, target_region, selected_type, cost)
     if acc is not None:
         civ_idx = civ_index(world, civ.name)
-        acc.add(civ_idx, civ, "treasury", -spec.cost, "keep")
+        acc.add(civ_idx, civ, "treasury", -cost, "keep")
     else:
-        civ.treasury -= spec.cost
+        civ.treasury -= cost
     target_region.pending_build = PendingBuild(
         type=selected_type,
         builder_civ=civ.name,

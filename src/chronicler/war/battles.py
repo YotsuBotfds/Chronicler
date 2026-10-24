@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from chronicler.models import InfrastructureType, TechEra
+from chronicler.techniques_state import techniques_on
 from chronicler.named_events import deduplicate_name, generate_battle_name
 from chronicler.tuning import K_FORT_DEFENSE_BONUS, get_override
 from chronicler.war import params as P
@@ -135,7 +136,12 @@ def _side_power(ctx: WarContext, side: Side, enemy: "Civilization", attacking: b
         power += side.mercs * quality(side.civ, 650, attacking=attacking)
     if side.garrison:
         power += side.garrison * quality(side.civ, 600, attacking=attacking)
-    return power * tech_war_multiplier(side.civ.tech_era, enemy.tech_era)
+    power *= tech_war_multiplier(side.civ.tech_era, enemy.tech_era)
+    if techniques_on(ctx.world):
+        # --techniques: practised arms (bronze, iron, horse, siege, castles, powder).
+        from chronicler.techniques import military_factor
+        power *= military_factor(ctx.world, side.civ, attacking)
+    return power
 
 
 def _split(total: int, weights: list[int]) -> list[int]:
