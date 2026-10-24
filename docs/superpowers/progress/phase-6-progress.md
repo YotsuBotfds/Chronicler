@@ -2,7 +2,48 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral; full gate pending the slot. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`feat/healthy-migration` Phase A: frontier, wage-gap and chain migration behind their own gates, net of life-course roots; exact native migration budget; calibration and full gate wait for food logistics. `fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off)
+
+---
+
+## Healthy-world migration (2026-10-24, `feat/healthy-migration`, Phase A)
+
+`feat/healthy-migration` from `fix/leftover-persecution` (`f3eccec`). Rust
+only; a behavior correction in every agent mode. Details and the HARD
+constant justification: `docs/integration/healthy-migration.md`.
+
+- **Budget, exact** (`efc2b06`, behavior-neutral: hybrid seeds 42/7 x 150,
+  18 files, 0 differences): the decision records each migration's positive
+  terms; `get_migration_driver_stats`. Base, seeds 142-161 x 500, from
+  turn 100: household followers 43.6% of migration units, famine memory
+  30.9%, persecution memory 9.1%, opportunity terms 11.0%, live persecution
+  3.4%.
+- **Drivers** (`a83e537`): frontier settlement (home >= 0.85 of capacity,
+  neighbour >= 0.30 emptier and fed), wage gap (farmers and merchants, peer
+  mean wealth >= 1.5x, room there), chain migration (bonds to settled
+  emigrants from here outweigh bonds at home). All internal (same ruler).
+  Roots: 0 to age 30, +0.01 a year, +0.08 married, +0.06 per unit of home
+  bond strength; under-20s take no voluntary moves. The pull joins the
+  target choice and the utility; hysteresis 0.18, the 5-turn lock and the
+  persecution terms unchanged; no new random draws.
+- **Hysteresis kept**: score gaps >= 0.10 reverse within 5 turns 26% of
+  the time (>= 0.18: 11%), and any positive utility moves 12.6% a turn.
+- **Phase A probe** (design values, not calibrated; 142-161 x 500, from
+  turn 100): migration per agent-turn 0.0449 -> 0.0489 (paired by seed
+  +0.0045 +- 0.0030); frontier / wage / chain 0.2 / 0.4 / 0.1% of
+  migration units. Gates open before roots for 2.4 / 4.3 / 1.0% of
+  evaluated agent-turns, beyond roots 0.3 / 0.5 / 0.1%. The binding limit
+  is food: for 0.2% of crowded young adults the emptier neighbour is fed.
+  Sloshing checks at or below the base.
+- **Tick time** (agent-scale benchmark): 53k agents within noise, 22k at
+  most about 3% more CPU.
+- **Tests** (`b510077`, fresh native build): `cargo test` 915 passed, 2
+  ignored; not-slow 5,904 passed, 3 skipped; slow 11 passed, 3 skipped;
+  no-Rust 5,701 passed, 206 skipped; oracle lane PASS (1,892 passed,
+  pytest 71.9 s, PR #19 guard fix local only). Agents-off identity 16
+  files, 0 differences.
+- **Pending (Phase B)**: merge `integrate/wave-6`, calibrate on the 20 x 500
+  probe, subset gates, golden check, full gate.
 
 ---
 
