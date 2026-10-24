@@ -14,7 +14,7 @@ use chronicler_agents::{AgentPool, Occupation, RegionState};
 const TRIP_PHASE_TRANSIT: u8 = 2;
 
 /// A linear 4-region world (0 <-> 1 <-> 2 <-> 3) whose merchant at region 0
-/// plans a 3-hop trip to the high-margin region 3.
+/// plans a 3-hop food trip to region 3, the populated region short of food.
 fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
     let mut pool = AgentPool::new(10);
     pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
@@ -23,9 +23,11 @@ fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
             let mut r = RegionState::new(i);
             r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
+            r.population = 20;
             r
         })
         .collect();
+    regions[3].food_sufficiency = 0.4;
     for (i, margin) in [0.1, 0.0, 0.0, 0.8].into_iter().enumerate() {
         regions[i].merchant_margin = margin;
         regions[i].merchant_route_margin = margin;

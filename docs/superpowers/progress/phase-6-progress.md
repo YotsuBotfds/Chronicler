@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`feat/healthy-migration` Phase A: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; exact native migration budget; calibration and full gate wait for food logistics. `fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off)
+> **Last updated:** 2026-10-24 (`feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; exact native migration budget; merged with `integrate/wave-6` (food logistics); calibration and full gate in progress. `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn)
 
 ---
 
@@ -49,6 +49,90 @@ constant justification: `docs/integration/healthy-migration.md`.
   labelling it needs a driver on migration events (own review).
 - **Pending (Phase B)**: merge `integrate/wave-6`, calibrate on the 20 x 500
   probe, subset gates, golden check, full gate.
+
+---
+
+## Food logistics (2026-10-24, `fix/food-logistics`)
+
+Branch `fix/food-logistics` from `integrate/wave-5` (`b7d9ced`), starting from
+the food-balance open items. Details, numbers and every changed expectation:
+[`docs/integration/food-logistics-2026-10.md`](../../integration/food-logistics-2026-10.md).
+
+- **Corrections** (one commit each):
+  - merchants route food by the destination's food price (1 / sufficiency)
+    instead of the destination's own export margin, and never to empty
+    regions (`787ba4e`; native): food deliveries to short regions 30% -> 70%,
+    to empty regions 24% -> 2% (template);
+  - the goods economy gets M34's subsistence floor where no food slot yields
+    (`afe3b3d`; Rust kernel and Python oracle): region-turns below 0.2
+    sufficiency 25% -> 13%.
+- **Recalibration** (own commit, `98ba9a2`): locust swarms 0.15 -> 0.02 per
+  eligible turn (the M35b placeholder gave a swarm in 62% of eligible
+  region-years). Golden oracles rolled forward to
+  `corrected_food_logistics_2026_10*` (`402230e`; standard and wide from turn
+  3); food-balance and dead-civ-pruning fixtures frozen.
+- **Effect** (template, base -> head): fed region-turns 44.6% -> 49.6%, winter
+  shortfall 67% -> 61%, famines 147 -> 137 per run (below 0.25 sufficiency
+  43% -> 32% of them), final population 164 -> 184 (smallest 90 -> 138);
+  procedural 64-region worlds never fall below 625 (492).
+- **Gates:** full 200 x 500 on `98ba9a2` PASS strict, 0 extinct,
+  `validation_compare` NO REGRESSION against the techniques-on full report;
+  migration 0.0514 (base 0.0512, floor 0.05), latest satisfaction 0.611.
+  Repeated on the merge with `integrate/wave-6` (`eda0ec0`): same result and
+  numbers; needs 190 seeds under wave-6's autonomy pairing. Subsets 42-61,
+  62-81 and 82-101 PASS (the base fails needs on 62-81).
+- **Tests:** before the merge not-slow 5,859 passed (base 5,844), no-Rust
+  5,651 / 197 skipped (base 5,637 / 196); `cargo test --release` 903 passed,
+  2 ignored. On `eda0ec0`: not-slow 5,905 passed, no-Rust 5,696 / 198
+  skipped, slow 11 passed; offline oracle lane PASS in 74 s (chunks 19-21 s
+  of 110 s; `test_food_logistics.py` added to `systems-1`); the
+  historiography frozen-oracle test reads the food-logistics fixtures. The
+  500-turn bundle is 17.47MB native / 18.07MB no-Rust (20.73 / 23.61 on the
+  wave-6 tip; 24MB guard unchanged).
+- **Verified, not changed:** storage caps (rarely bind) and decay;
+  drought/cooling (M34 design); the occupational dead band is real (M53 moved
+  the exit threshold, not the entry one) and its fix feeds worlds best of all,
+  but it lowers migration by about 0.006 per agent-turn, below the strict
+  floor; left open with the measured patch.
+- **Open:** the migration floor versus better-fed worlds; trade packets still
+  carry export margins (food price read live at known markets); non-food
+  routing keeps the activity proxy; the famine definition (any shortfall).
+
+## Needs oracle: autonomy without prior rebels (2026-10-24, `fix/needs-oracle-confound`)
+
+`fix/needs-oracle-confound` from `integrate/wave-6` (`439f0c5`), merged
+with `main` (PR #19's guard fix) without rebase. Oracle and test-runner
+changes only; the simulation and Rust are unchanged. Details:
+`docs/integration/needs-oracle-autonomy.md`.
+
+- **Confound:** a rebellion adds 0.10 to the rebel's autonomy
+  (`tick.rs` apply step), so high autonomy marks past rebels, who rebel
+  again. One rebellion still reads +0.035 after 20-29 turns, a burst
+  +0.07 to +0.11 after 20-34; without restoration it does not decay.
+- **Fix:** the autonomy -> rebellion pairing leaves out agents with a
+  rebellion on or before the snapshot turn. Other pairings, the window
+  and the thresholds are unchanged; `exclude_prior_rebels=False`
+  reproduces the old result.
+- **Subset gates (before / after, same batches):** needs seeds 17/15,
+  11/9, 18/15, 18/15 on 42-61, 62-81, 82-101, 102-121; gates PASS except
+  62-81 (FAIL before and after); comparator NO REGRESSION on all four;
+  every other oracle identical. Pooled autonomy low/high over the 80
+  worlds: 1.00 (0.91-1.09) before, 1.29 (0.82-2.15) after.
+- **Finding:** among agents without prior rebellions, 2 of 629 autonomy
+  pairs have the low agent under 0.25, the only range where autonomy adds
+  rebel pressure. The pairing rarely tests the mechanism.
+- **500-turn probe (142-161, not the full gate):** needs 20/20 before
+  and after, median d 1.03 -> 2.00; pooled autonomy 1.02 -> 1.04.
+- **Offline lane:** four chunks, each its own guarded pytest process with
+  the 110-second limit; stops at the first failing chunk. Same selection
+  and totals (1,895 passed, 10 skipped, 2 deselected); 75.8 s wall, the
+  largest chunk 21.8 s; every guard PASS.
+- **Tests (Linux, Python 3.13):** `pytest -m "not slow" -n 2` 5,890
+  passed, 3 skipped (three new); `-m slow` 11 passed, 3 skipped; no-Rust
+  5,690 passed, 203 skipped. Rust unchanged.
+- **Open:** the per-seed needs test has little power for autonomy (a
+  calibration for the needs owners); 62-81 still fails subset needs; the
+  200 x 500 full gate has not been run with this oracle.
 
 ---
 

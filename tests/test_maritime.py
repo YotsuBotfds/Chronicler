@@ -851,9 +851,10 @@ def test_hybrid_merchants_cross_sea_lanes_and_are_raided_deterministically(tmp_p
     for kind in ("ocean", "sea", "coast"):
         monkeypatch.setitem(M.PIRATE_START, kind, 1.0)
     states = []
-    # Seed 12: about 290 crossings and 5-11 cargo lost to pirates in 40 turns.
-    # Seed 7 lost its sea trade (86 crossings -> 6, no piracy) once the agent
-    # tick persecuted conquered majorities and its history changed.
+    # Seed 12, 40 turns: about 100 crossings and 4 cargo lost to pirates with
+    # the healthy-world migration drivers on food logistics. Seed 7 needed
+    # 60 turns after food logistics and its sea trade changes with each
+    # correction of the agent tick.
     for label in ("a", "b"):
         out = tmp_path / label
         args = _build_parser().parse_args([

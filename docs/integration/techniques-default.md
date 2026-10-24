@@ -282,10 +282,12 @@ with `integrate/wave-4`; later commits change documentation only.
   the 200-turn defaults batches and 1.02 at 500 turns, and it passes through
   best-of selection. Fixing it (for example by leaving out agents who
   rebelled just before the snapshot) is a separate calibration with its own
-  effect on the base, for the needs and agent-model owners.
+  effect on the base, for the needs and agent-model owners. Done in
+  `fix/needs-oracle-confound`: [needs-oracle-autonomy.md](needs-oracle-autonomy.md).
 * **Subset needs on seeds 62-81** stays one seed short with techniques on.
   It is noise on a low-rebellion seed set, but the subset comparator will
-  keep reporting it until the oracle changes.
+  keep reporting it until the oracle changes. The oracle fix above does not
+  close it (see that note).
 * **Still tribal.** About one living civ in six (91 of 554) is tribal at
   turn 500 with techniques on. Which polities stay tribal, and why, was not
   broken down here.

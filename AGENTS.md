@@ -37,9 +37,12 @@ documentation. Update the continuation ledger after material work.
 ## Verification
 
 Start with focused checks; `python scripts/run_python_oracle_checks.py` reproduces
-the bounded offline Python lane. It blocks native imports, network and child
-processes inside pytest and replaces the two main native runtime factories.
-Passing it does not qualify native execution or POSIX session persistence.
+the bounded offline Python lane. It runs in chunks, each a pytest process with
+its own guard and a 110-second limit, and stops at the first failing chunk. The
+guard blocks native imports, network and child processes inside pytest and
+replaces the two main native runtime factories. Add new tests to a chunk with
+headroom or a new chunk; do not raise the limit. Passing it does not qualify
+native execution or POSIX session persistence.
 
 For native work, build a fresh extension into the same Python environment,
 verify the real compiled submodule/classes, run appropriate Python/Rust tests,

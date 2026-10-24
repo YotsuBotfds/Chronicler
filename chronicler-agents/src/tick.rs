@@ -1827,6 +1827,9 @@ mod tests {
             let mut regions: Vec<_> = (0..4).map(RegionState::new).collect();
             regions[0].stockpile[0] = 10.;
             regions[3].merchant_route_margin = 1.;
+            // Grain travels to a populated market that is short of food.
+            regions[3].population = 20;
+            regions[3].food_sufficiency = 0.5;
             let graph = RouteGraph::from_edges(&[0, 1, 2], &[1, 2, 3], &[false; 3], &[1.; 3], 4);
             let mut ledger = ShadowLedger::new(4);
             let mut buf = DeliveryBuffer::new(4);

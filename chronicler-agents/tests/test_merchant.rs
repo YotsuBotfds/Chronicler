@@ -15,7 +15,9 @@ const TRIP_PHASE_LOADING: u8 = 1;
 const TRIP_PHASE_TRANSIT: u8 = 2;
 
 /// Build a linear 4-region world where region 3 is the most attractive destination.
-/// Low margin at region 0 and high margin at region 3 ensures a multi-hop trip.
+/// Region 3 is the shortest of food (its food price is the highest), which
+/// ensures a multi-hop trip; region 2 is also short, so packet tests can
+/// route a food cargo to it instead. Every region is populated.
 fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
     let mut pool = AgentPool::new(10);
     // Spawn a merchant at region 0
@@ -26,12 +28,14 @@ fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
             let mut r = RegionState::new(i);
             r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
+            r.population = 20;
             r
         })
         .collect();
+    regions[2].food_sufficiency = 0.5;
+    regions[3].food_sufficiency = 0.4;
 
     // Region 0: low margin (origin), region 3: high margin (destination).
-    // This ensures the route evaluation picks region 3 over closer alternatives.
     regions[0].merchant_margin = 0.1;
     regions[1].merchant_margin = 0.0;
     regions[2].merchant_margin = 0.0;
@@ -66,7 +70,7 @@ fn test_multi_turn_travel() {
     );
     assert_eq!(
         pool.trip_dest_region[0], 3,
-        "Merchant should target region 3 (highest margin sum)"
+        "Merchant should take food to region 3 (highest food price)"
     );
     assert_eq!(
         pool.trip_path_len[0], 3,
@@ -219,11 +223,13 @@ fn test_route_evaluation_uses_planning_margin_signal() {
     let mut pool = AgentPool::new(10);
     pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
+    // Timber (not food) travels by the market-activity proxy.
     let mut regions: Vec<RegionState> = (0..3)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
+            r.population = 20;
             r
         })
         .collect();
@@ -255,8 +261,9 @@ fn test_route_evaluation_does_not_fall_back_to_realized_margin_when_planning_mar
     let mut regions: Vec<RegionState> = (0..2)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
+            r.population = 20;
             r
         })
         .collect();
@@ -288,17 +295,19 @@ fn test_full_trip_lifecycle() {
     let mut pool = AgentPool::new(10);
     pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
-    // Two-region world: 0 <-> 1 (one hop trip)
-    let regions: Vec<RegionState> = (0..2)
+    // Two-region world: 0 <-> 1 (one hop trip); region 1 is short of food.
+    let mut regions: Vec<RegionState> = (0..2)
         .map(|i| {
             let mut r = RegionState::new(i);
             r.merchant_margin = 0.5;
             r.merchant_route_margin = 0.5;
             r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
+            r.population = 20;
             r
         })
         .collect();
+    regions[1].food_sufficiency = 0.5;
     let graph = RouteGraph::from_edges(
         &[0, 1],
         &[1, 0],
@@ -462,6 +471,7 @@ fn test_region_input(
         resource_yields: [yield_0, 0.0, 0.0],
         production_caps: [None; 3],
         stockpile,
+        subsistence_yield: 0.0,
     }
 }
 
@@ -902,6 +912,44 @@ fn test_packet_gated_routing_uses_packet_destinations() {
 }
 
 #[test]
+fn test_packet_gated_food_goes_to_the_known_short_market() {
+    // Food-logistics correction (2026-10): among packet-known markets, food
+    // goes where it is dearer than at home, whatever the packet strength; an
+    // empty region (no people, prices 0, the strongest export margin) is not
+    // a market at all.
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    regions[1].population = 0;
+    regions[2].food_sufficiency = 1.5;
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+    for (source_region, intensity) in [(1u16, 255u8), (2, 250), (3, 60)] {
+        admit_packet(&mut pool, 0, &PacketCandidate {
+            info_type: InfoType::TradeOpportunity as u8,
+            source_region,
+            source_turn: 5,
+            intensity,
+            hop_count: 1,
+        });
+    }
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+    assert!(had_packets);
+    let intent = intent.expect("food trip to the short market");
+    assert_eq!(intent.dest_region, 3);
+    assert_eq!(intent.good_slot, 0);
+
+    // Without a dearer known market, food stays home and, with no other
+    // cargo, there is no trip and no oracle fallback.
+    regions[3].food_sufficiency = 1.0;
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+    assert!(had_packets);
+    assert!(intent.is_none());
+}
+
+#[test]
 fn test_bootstrap_when_no_usable_packets() {
     let (pool, regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
@@ -914,7 +962,7 @@ fn test_bootstrap_when_no_usable_packets() {
     assert!(intent.is_some(), "Bootstrap should find oracle route");
     assert!(!had_packets, "Should report no usable packets");
     let intent = intent.unwrap();
-    assert_eq!(intent.dest_region, 3, "Bootstrap oracle should pick region 3 (highest margin)");
+    assert_eq!(intent.dest_region, 3, "Bootstrap oracle should pick region 3 (highest food price)");
 }
 
 #[test]

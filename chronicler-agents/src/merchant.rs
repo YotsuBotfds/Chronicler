@@ -387,6 +387,132 @@ pub const MIN_TRIP_PROFIT: f32 = 0.05; // [CALIBRATE]
 /// realized mobility doesn't bake in a systematic volume surplus.
 pub const MERCHANT_CARGO_CAP: f32 = 1.0; // [CALIBRATE]
 
+// Correction (2026-10, food logistics): destinations are scored by what the
+// destination pays for the cargo, not by its own export margin.
+//
+// `merchant_route_margin` is an origin-side signal: the average price gap
+// from a region to its trade neighbours. M58a used it for the destination
+// too ("bilateral market-activity proxy", a documented caveat M58b was to
+// refine with goods-level prices), and M59 trade packets carry it as the
+// destination's strength. A destination scored that way is attractive when it
+// is *cheaper* than its neighbours: well supplied, or empty, since a region
+// without people has no demand and every price 0 (hybrid template worlds:
+// median margin 1.0, the clamp, in empty regions against 0.0 in fed ones).
+// The cargo was the origin's largest stock whatever the destination needed.
+// About a quarter of food deliveries landed in regions with no people and
+// under a third in regions short of food.
+//
+// Food now travels by the food price gap, demand / supply = 1 / sufficiency
+// (the economy's own post-trade price); other goods keep the activity proxy,
+// which is all the planner knows about them, and never displace food. A
+// region with no people is never a destination. Packets still decide which
+// markets a merchant knows (M59b gating, unchanged); the price at a known
+// market is read live, as M58b's perfect-information price source does.
+
+/// Sufficiency floor in the planner's food price, the economy's supply floor
+/// (`SUPPLY_FLOOR`) applied to sufficiency: a region with no food at all
+/// prices it at 10.
+pub const FOOD_PRICE_SUFFICIENCY_FLOOR: f32 = 0.1;
+/// Scales a food price gap into the units of `merchant_route_margin` (the
+/// economy's default `merchant_margin_normalizer`), so `MIN_TRIP_PROFIT`
+/// means the same for food trips as for other trips.
+pub const FOOD_PRICE_GAP_SCALE: f32 = 5.0;
+
+/// The economy's food price in `region`: demand / supply, which is
+/// 1 / food_sufficiency. A region without people has no demand and no price.
+#[inline]
+pub fn food_price(region: &RegionState) -> f32 {
+    if region.population == 0 {
+        return 0.0;
+    }
+    1.0 / region.food_sufficiency.max(FOOD_PRICE_SUFFICIENCY_FLOOR)
+}
+
+/// Score of carrying food from `origin` to `dest`: the food price gap in
+/// margin units. Positive only where food is dearer at the destination.
+#[inline]
+pub fn food_trip_score(origin: &RegionState, dest: &RegionState) -> f32 {
+    (food_price(dest) - food_price(origin)) / FOOD_PRICE_GAP_SCALE
+}
+
+#[inline]
+fn is_food_slot(slot: usize) -> bool {
+    slot < NUM_GOODS && crate::economy::GOOD_CATEGORY[slot] == crate::economy::CAT_FOOD
+}
+
+/// The good slot with the most uncommitted cargo at `origin` among the slots
+/// `wanted` accepts (ties to the lower slot), with that quantity.
+fn best_cargo_slot(
+    origin: usize,
+    regions: &[RegionState],
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    wanted: impl Fn(usize) -> bool,
+) -> Option<(u8, f32)> {
+    let mut best_slot: Option<u8> = None;
+    let mut best_avail: f32 = 0.0;
+    for slot in 0..8u8 {
+        if !wanted(slot as usize) {
+            continue;
+        }
+        let overcommitted = match delivery_buf {
+            Some(buf) => ledger.is_overcommitted_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile),
+        };
+        if overcommitted {
+            continue;
+        }
+        let avail = match delivery_buf {
+            Some(buf) => ledger.available_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
+            None => ledger.available(origin, slot as usize, &regions[origin].stockpile),
+        };
+        if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
+            best_avail = avail;
+            best_slot = Some(slot);
+        }
+    }
+    best_slot.filter(|_| best_avail > 0.0).map(|s| (s, best_avail))
+}
+
+/// Best destination among `candidates` (region, score) above
+/// `MIN_TRIP_PROFIT`, ties to the lower (region, agent) pair.
+fn best_destination(
+    agent_id: u32,
+    candidates: impl Iterator<Item = (u16, f32)>,
+) -> Option<u16> {
+    let mut best_dest: Option<u16> = None;
+    let mut best_score: f32 = MIN_TRIP_PROFIT;
+    let mut best_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
+    for (dest, score) in candidates {
+        let tiebreak = (dest, agent_id);
+        if score > best_score || (score == best_score && tiebreak < best_tiebreak) {
+            best_score = score;
+            best_dest = Some(dest);
+            best_tiebreak = tiebreak;
+        }
+    }
+    best_dest
+}
+
+fn trip_intent(
+    agent_slot: usize,
+    origin_region: u16,
+    dest: u16,
+    cargo: (u8, f32),
+    path_table: &PathTable,
+) -> Option<TripIntent> {
+    let (path, path_len) = trace_path(path_table, origin_region, dest)?;
+    Some(TripIntent {
+        agent_slot,
+        origin_region,
+        dest_region: dest,
+        good_slot: cargo.0,
+        cargo_qty: cargo.1.min(MERCHANT_CARGO_CAP),
+        path,
+        path_len,
+    })
+}
+
 /// A reservation intent collected during parallel evaluation,
 /// applied in deterministic order.
 #[derive(Clone, Debug)]
@@ -416,65 +542,30 @@ pub fn evaluate_route(
     if origin >= regions.len() {
         return None;
     }
+    let reachable = || {
+        path_table.dist.iter().enumerate()
+            .filter(|&(dest, &dist)| dist != 0 && dist != u16::MAX && regions[dest].population > 0)
+            .map(|(dest, _)| dest as u16)
+    };
 
+    // Food goes where it is dearer than at home.
+    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
+        let scored = reachable()
+            .map(|d| (d, food_trip_score(&regions[origin], &regions[d as usize])));
+        if let Some(dest) = best_destination(agent_id, scored) {
+            if let Some(intent) = trip_intent(agent_slot, origin_region, dest, cargo, path_table) {
+                return Some(intent);
+            }
+        }
+    }
+
+    // Other goods by the market-activity proxy.
     let origin_margin = regions[origin].merchant_route_margin;
-
-    // Score all reachable destinations
-    let mut best_dest: Option<u16> = None;
-    let mut best_score: f32 = MIN_TRIP_PROFIT;
-    let mut best_dest_id_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
-
-    for (dest_idx, &dist) in path_table.dist.iter().enumerate() {
-        if dist == 0 || dist == u16::MAX {
-            continue;
-        }
-        let dest_margin = regions[dest_idx].merchant_route_margin;
-        let score = origin_margin + dest_margin;
-        let tiebreak = (dest_idx as u16, agent_id);
-        if score > best_score || (score == best_score && tiebreak < best_dest_id_tiebreak) {
-            best_score = score;
-            best_dest = Some(dest_idx as u16);
-            best_dest_id_tiebreak = tiebreak;
-        }
-    }
-
-    let dest = best_dest?;
-
-    // Find best good slot with available cargo
-    let mut best_slot: Option<u8> = None;
-    let mut best_avail: f32 = 0.0;
-    for slot in 0..8u8 {
-        let overcommitted = match delivery_buf {
-            Some(buf) => ledger.is_overcommitted_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
-            None => ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile),
-        };
-        if overcommitted {
-            continue;
-        }
-        let avail = match delivery_buf {
-            Some(buf) => ledger.available_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
-            None => ledger.available(origin, slot as usize, &regions[origin].stockpile),
-        };
-        if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
-            best_avail = avail;
-            best_slot = Some(slot);
-        }
-    }
-
-    let good_slot = best_slot.filter(|_| best_avail > 0.0)?;
-    let cargo_qty = best_avail.min(MERCHANT_CARGO_CAP);
-
-    let (path, path_len) = trace_path(path_table, origin_region, dest)?;
-
-    Some(TripIntent {
-        agent_slot,
-        origin_region,
-        dest_region: dest,
-        good_slot,
-        cargo_qty,
-        path,
-        path_len,
-    })
+    let scored = reachable()
+        .map(|d| (d, origin_margin + regions[d as usize].merchant_route_margin));
+    let dest = best_destination(agent_id, scored)?;
+    let cargo = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| !is_food_slot(s))?;
+    trip_intent(agent_slot, origin_region, dest, cargo, path_table)
 }
 
 /// M59b: Packet-gated route evaluation. When usable nonlocal trade packets
@@ -521,72 +612,34 @@ pub fn evaluate_route_packet_aware(
         return (intent, false); // false = no usable packets
     }
 
-    // Packet-gated planning: score only packet-known destinations
+    // Packet-gated planning: only packet-known markets are candidates, and
+    // when none is worth the trip there is no oracle fallback
+    // (anti-omniscience rule). A market needs people to sell to.
+    let known = || {
+        reachable_packets.iter()
+            .copied()
+            .filter(|&(src_region, _)| regions[src_region as usize].population > 0)
+    };
+
+    // Food goes to a known market where it is dearer than at home.
+    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
+        let scored = known()
+            .map(|(d, _)| (d, food_trip_score(&regions[origin], &regions[d as usize])));
+        if let Some(dest) = best_destination(agent_id, scored) {
+            if let Some(intent) = trip_intent(agent_slot, origin_region, dest, cargo, path_table) {
+                return (Some(intent), true);
+            }
+        }
+    }
+
+    // Other goods by the packet's strength (market-activity proxy).
     let origin_margin = regions[origin].merchant_route_margin;
-    let mut best_dest: Option<u16> = None;
-    let mut best_score: f32 = MIN_TRIP_PROFIT;
-    let mut best_dest_id_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
-
-    for &(src_region, packet_strength) in &reachable_packets {
-        let score = origin_margin + packet_strength;
-        let tiebreak = (src_region, agent_id);
-        if score > best_score || (score == best_score && tiebreak < best_dest_id_tiebreak) {
-            best_score = score;
-            best_dest = Some(src_region);
-            best_dest_id_tiebreak = tiebreak;
-        }
-    }
-
-    let dest = match best_dest {
-        Some(d) => d,
-        None => {
-            // All packet-gated destinations below MIN_TRIP_PROFIT.
-            // Do NOT fall back to oracle — anti-omniscience rule.
-            return (None, true);
-        }
-    };
-
-    // Find best good slot with available cargo (same logic as evaluate_route)
-    let mut best_slot: Option<u8> = None;
-    let mut best_avail: f32 = 0.0;
-    for slot in 0..8u8 {
-        let overcommitted = match delivery_buf {
-            Some(buf) => ledger.is_overcommitted_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
-            None => ledger.is_overcommitted(origin, slot as usize, &regions[origin].stockpile),
-        };
-        if overcommitted {
-            continue;
-        }
-        let avail = match delivery_buf {
-            Some(buf) => ledger.available_hybrid(origin, slot as usize, &regions[origin].stockpile, buf),
-            None => ledger.available(origin, slot as usize, &regions[origin].stockpile),
-        };
-        if avail > best_avail || (avail == best_avail && best_slot.is_none_or(|s| slot < s)) {
-            best_avail = avail;
-            best_slot = Some(slot);
-        }
-    }
-
-    let good_slot = match best_slot.filter(|_| best_avail > 0.0) {
-        Some(g) => g,
-        None => return (None, true),
-    };
-    let cargo_qty = best_avail.min(MERCHANT_CARGO_CAP);
-
-    let (path, path_len) = match trace_path(path_table, origin_region, dest) {
-        Some(p) => p,
-        None => return (None, true),
-    };
-
-    (Some(TripIntent {
-        agent_slot,
-        origin_region,
-        dest_region: dest,
-        good_slot,
-        cargo_qty,
-        path,
-        path_len,
-    }), true) // true = had usable packets
+    let scored = known().map(|(d, packet_strength)| (d, origin_margin + packet_strength));
+    let intent = best_destination(agent_id, scored).and_then(|dest| {
+        let cargo = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| !is_food_slot(s))?;
+        trip_intent(agent_slot, origin_region, dest, cargo, path_table)
+    });
+    (intent, true) // true = had usable packets
 }
 
 /// Apply a trip intent to the pool and shadow ledger.
@@ -1229,14 +1282,95 @@ mod tests {
                 r.merchant_margin = 0.3;
                 r.merchant_route_margin = 0.3;
                 r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+                r.population = 20;
                 r
             })
             .collect()
     }
 
+    /// Line 0 - 1 - 2 - 3 (bidirectional).
+    fn line_graph(n: u16) -> RouteGraph {
+        let mut from = Vec::new();
+        let mut to = Vec::new();
+        for i in 0..n - 1 {
+            from.extend([i, i + 1]);
+            to.extend([i + 1, i]);
+        }
+        let len = from.len();
+        RouteGraph::from_edges(&from, &to, &vec![false; len], &vec![1.0; len], n as usize)
+    }
+
+    #[test]
+    fn test_food_price_is_inverse_sufficiency_and_zero_without_people() {
+        let mut r = crate::region::RegionState::new(0);
+        r.population = 10;
+        r.food_sufficiency = 0.5;
+        assert_eq!(food_price(&r), 2.0);
+        r.food_sufficiency = 2.0;
+        assert_eq!(food_price(&r), 0.5);
+        r.food_sufficiency = 0.0;
+        assert_eq!(food_price(&r), 1.0 / FOOD_PRICE_SUFFICIENCY_FLOOR);
+        r.population = 0;
+        assert_eq!(food_price(&r), 0.0);
+    }
+
+    #[test]
+    fn test_food_goes_to_the_short_market_not_the_cheap_or_empty_one() {
+        // Region 1 is empty (its prices are 0, so its export margin is the
+        // largest), region 2 is fed and cheap, region 3 is short of food.
+        let mut regions = make_test_regions(4);
+        regions[1].population = 0;
+        regions[1].merchant_route_margin = 1.0;
+        regions[2].merchant_route_margin = 0.9;
+        regions[2].food_sufficiency = 2.0;
+        regions[3].merchant_route_margin = 0.0;
+        regions[3].food_sufficiency = 0.4;
+        let graph = line_graph(4);
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(4);
+        let intent = evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap();
+        assert_eq!(intent.dest_region, 3);
+        assert_eq!(intent.good_slot, 0, "the largest food stock (grain)");
+        assert_eq!(intent.cargo_qty, MERCHANT_CARGO_CAP);
+    }
+
+    #[test]
+    fn test_food_stays_home_without_a_dearer_market_and_others_use_the_proxy() {
+        // Every market is as well fed as home: grain and fish do not travel.
+        let mut regions = make_test_regions(3);
+        let graph = line_graph(3);
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(3);
+        assert!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).is_none());
+        // Timber travels by the market-activity proxy, to a populated market.
+        regions[0].stockpile[3] = 2.0;
+        regions[2].merchant_route_margin = 0.6;
+        let intent = evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap();
+        assert_eq!(intent.good_slot, 3);
+        assert_eq!(intent.dest_region, 2);
+        regions[2].population = 0;
+        let intent = evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap();
+        assert_eq!(intent.dest_region, 1, "an empty region is not a market");
+    }
+
+    #[test]
+    fn test_small_food_price_gaps_do_not_pay_for_a_trip() {
+        // Gap 1/0.85 - 1 = 0.176 < MIN_TRIP_PROFIT x FOOD_PRICE_GAP_SCALE = 0.25.
+        let mut regions = make_test_regions(2);
+        regions[1].food_sufficiency = 0.85;
+        let graph = line_graph(2);
+        let table = bfs_from(&graph, 0);
+        let ledger = ShadowLedger::new(2);
+        assert!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).is_none());
+        regions[1].food_sufficiency = 0.75;
+        assert_eq!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap().dest_region, 1);
+    }
+
     #[test]
     fn test_evaluate_route_finds_profitable_destination() {
-        let regions = make_test_regions(3);
+        let mut regions = make_test_regions(3);
+        regions[1].food_sufficiency = 0.5;
+        regions[2].food_sufficiency = 0.5;
         let graph = RouteGraph::from_edges(
             &[0, 1, 1, 2],
             &[1, 0, 2, 1],
@@ -1281,6 +1415,8 @@ mod tests {
         regions[1].merchant_route_margin = 0.5;
         regions[2].merchant_margin = 0.5;
         regions[2].merchant_route_margin = 0.5;
+        regions[1].food_sufficiency = 0.5;
+        regions[2].food_sufficiency = 0.5;
         let graph = RouteGraph::from_edges(
             &[0, 0, 1, 2],
             &[1, 2, 0, 0],
@@ -1293,6 +1429,7 @@ mod tests {
         let i1 = evaluate_route(0, 100, 0, &regions, &table, &ledger, None).unwrap();
         let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger, None).unwrap();
         assert_eq!(i1.dest_region, i2.dest_region);
+        assert_eq!(i1.dest_region, 1, "equal food prices tie to the lower region");
     }
 
     // -------------------------------------------------------------------

@@ -473,6 +473,23 @@ def goods_per_worker(rtype: int, harvest_index: float) -> float:
     return harvest_index / harvest_normal_index(int(rtype))
 
 
+def subsistence_goods_per_worker(world: "WorldState | None", climate_phase: ClimatePhase) -> float:
+    """M34's subsistence baseline as grain goods per foraging farmer-turn.
+
+    Correction (2026-10, food logistics). The aggregate famine check
+    (``check_food_yield``) gives a region whose food slots yield nothing a
+    food yield of ``SUBSISTENCE_BASELINE x crop climate`` on the harvest-index
+    scale it compares slot yields with. The goods economy, which decides
+    famine in agent modes, had no counterpart. This is the same quantity in
+    goods, on the grain scale: about 0.36 goods per forager in a temperate
+    phase against the 0.5 a person eats. No season or ecology factor, as in
+    the aggregate rule.
+    """
+    base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
+    crop_climate = CLIMATE_CLASS_MOD[0][_CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)]
+    return goods_per_worker(int(ResourceType.GRAIN), base * crop_climate)
+
+
 def potential_capacity(region: Region) -> float:
     """Undegraded capacity of the land: carrying capacity x disaster modifier.
 
