@@ -2,9 +2,63 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`feat/great-person-agendas`: great-person agendas, default off, on `integrate/wave-4` at `705fe2e`)
+> **Last updated:** 2026-10-24 (`perf/prune-dead-civ-snapshots`: bundle version 5, dead civs pruned from history snapshots, on `integrate/wave-5` at `7fbe8c0`)
 
 ---
+
+## Dead civs leave the history snapshots, bundle version 5 (2026-10-24, `perf/prune-dead-civ-snapshots`)
+
+`perf/prune-dead-civ-snapshots` from `integrate/wave-5` (`7fbe8c0`). This is a
+bundle format change, not a simulation change. A snapshot now records a civ
+only if it holds a region, an exile modifier can restore it, or it was live in
+the previous snapshot (its final row). The first snapshot records every civ.
+Other civs' `civ_stats` rows, `capitals` entries and pairs (`relationships`,
+`per_pair_accuracy`, `perception_errors`) are left out of the bundle and of the
+live turn stream. `world_state` and the in-memory history are untouched.
+Dead civs' treasuries keep growing (`phase_production` pays every record). The
+new top-level `pruned_civ_stats` stores those drifts as runs, and
+`snapshot_pruning.restore_bundle` rebuilds the version-4 `civ_stats` exactly.
+Validation, analytics, re-narration and the report scripts restore; the viewer
+reads gaps through `viewer/src/lib/civRows.ts`. Details:
+`docs/performance/dead-civ-pruning.md`.
+
+- **Sizes:**
+  - size-guard world: 37.45 MiB -> 20.29 MiB; the guard is now < 21 MB;
+  - 500-turn hybrid, seed 42: 12.51 -> 10.96 MiB;
+  - procedural 48x10, seed 7, 500 turns hybrid: 44.79 -> 43.41 MiB (11
+    polities; its pairs were already living-only);
+  - subset batch: -6.2%.
+- **Identity:**
+  - Subset gate (42-61, hybrid): the branch report is identical to the base
+    apart from the batch path, comparator NO REGRESSION. So is the base batch
+    converted to version 5 and re-validated.
+  - 2,141 non-bundle files are byte-identical, including every `state.json`.
+    Every bundle equals the conversion of its base bundle, apart from
+    `generated_at`.
+  - Without the restore, the era and arc metrics change (dead civs' series),
+    so the oracles must restore.
+  - The size-guard world's `state.json` and chronicle are identical to the
+    base.
+- **Fixtures:** `corrected_artifacts_dead_civ_pruning_2026_10.json` rolls the
+  artifact oracle forward (only `chronicle_bundle.json`, +22 bytes in each of
+  the three workloads; none prunes a civ). The pre-pruning projection still
+  matches the frozen food-balance artifacts. The viewer systems fixture was
+  regenerated from the same run.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,791 passed, 3 skipped (base 5,759).
+  - Viewer: 210 tests (base 199), lint and build pass.
+  - Headless Chromium on the version-5 size-guard bundle: the inspector keeps
+    a dead civ's final row past its death, chart lines end at the last row, no
+    console errors.
+  - `-m slow`: 11 passed, 3 skipped.
+  - No-Rust environment: 5,593 passed, 201 skipped (base 5,561 / 201).
+  - Offline oracle lane (PR #19 guard fix applied locally only): 1,803
+    passed, 8 skipped, 2 deselected, guard PASS.
+- **Open:**
+  - The 200 x 500 gate was not run.
+  - In-memory snapshots still compute dead civs' pair tables (CPU only).
+  - Dead civs' income drift inflates era-oracle inflection counts (left as
+    is).
 
 ## Great-person agendas (2026-10-24, `feat/great-person-agendas`, default off)
 
