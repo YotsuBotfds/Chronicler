@@ -114,6 +114,78 @@ def test_run_determinism_gate_fails_on_scrubbed_difference(tmp_path):
     assert result["mismatches"][0]["seed"] == 42
 
 
+def test_load_seed_runs_keeps_only_oracle_bundle_fields(tmp_path):
+    """Full-profile batches do not fit in memory as whole bundles: seed runs
+    keep only what the oracles read, with derived series from the full data."""
+    from chronicler.validate import load_seed_runs
+
+    seed_dir = tmp_path / "seed_42"
+    seed_dir.mkdir()
+    civ = {"population": 30, "treasury": -2, "stability": 40, "regions": ["A"],
+           "prestige": 5, "gini": 0.3, "great_persons": [{"name": "x"}], "factions": {"m": 1}}
+    bundle = {
+        "metadata": {"seed": 42, "total_turns": 2},
+        "world_state": {"turn": 2, "agent_mode": "off", "regions": [{"population": 30}],
+                        "artifacts": [{"status": "lost"}], "events_timeline": [{"turn": 1}]},
+        "history": [{"turn": 1, "civ_stats": {"Aram": civ}, "relationships": {"big": 1}},
+                    {"turn": 2, "civ_stats": {"Aram": dict(civ, population=35)}}],
+        "events_timeline": [{"turn": 1}],
+        "named_events": [],
+    }
+    (seed_dir / "chronicle_bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
+
+    (run,) = load_seed_runs(tmp_path)
+    kept = {k: v for k, v in civ.items() if k not in ("great_persons", "factions")}
+    assert run["bundle"] == {
+        "metadata": bundle["metadata"],
+        "history": [{"civ_stats": {"Aram": kept}},
+                    {"civ_stats": {"Aram": dict(kept, population=35)}}],
+        "world_state": {"turn": 2, "agent_mode": "off", "regions": [{"population": 30}],
+                        "artifacts": [{"status": "lost"}]},
+    }
+    assert run["world_population"] == [30, 35]
+    assert run["civ_trajectories"][0]["population"] == [30, 35]
+
+
+def test_agent_events_keep_counted_codes_and_presence(tmp_path):
+    pa = pytest.importorskip("pyarrow")
+    import pyarrow.ipc as ipc
+    from chronicler.validation_io import EVENT_NAME_TO_CODE, _load_agent_events
+
+    def load(names):
+        seed_dir = tmp_path / f"seed_{len(names)}"
+        seed_dir.mkdir()
+        table = pa.table({
+            "turn": pa.array(range(len(names)), pa.uint32()),
+            "agent_id": pa.array([7] * len(names), pa.uint32()),
+            "event_type": pa.array(names),
+        })
+        with ipc.new_file(seed_dir / "agent_events.arrow", table.schema) as writer:
+            writer.write_table(table)
+        return _load_agent_events(seed_dir)
+
+    code = EVENT_NAME_TO_CODE
+    assert load(["birth", "migration", "death", "rebellion", "occupation_switch", "dissolution"]) == [
+        {"turn": 1, "agent_id": 7, "event_type": code["migration"]},
+        {"turn": 3, "agent_id": 7, "event_type": code["rebellion"]},
+        {"turn": 4, "agent_id": 7, "event_type": code["occupation_switch"]},
+    ]
+    # Only uncounted events: one is kept so the run still has agent events.
+    assert load(["birth", "death"]) == [{"turn": 0, "agent_id": 7, "event_type": code["birth"]}]
+
+
+def test_arrow_columns_pack_numeric_values_losslessly():
+    pa = pytest.importorskip("pyarrow")
+    from chronicler.validation_io import _compact_column
+
+    for values, kind in (([1, 2, 300000], pa.uint32()), ([0.1, 2.5], pa.float32()),
+                         ([1.0, None], pa.float64()), ([True, False], pa.bool_())):
+        column = pa.chunked_array([pa.array(values, kind)])
+        packed = _compact_column(column)
+        assert list(packed) == column.to_pylist()
+        assert [type(v) for v in packed] == [type(v) for v in column.to_pylist()]
+
+
 def test_run_determinism_gate_skips_without_duplicate_seed_pairs(tmp_path):
     from chronicler.validate import run_determinism_gate
 
