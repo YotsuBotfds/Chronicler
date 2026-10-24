@@ -17,6 +17,7 @@ from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
 from chronicler.contact_ledger import ContactLedgerState
 from chronicler.epidemiology import EpidemicState
+from chronicler.finance import FinanceState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -32,6 +33,13 @@ def _omit_dormant_contact_ledger(model: BaseModel, data):
     """Drop a ``None`` contact ledger so feature-off output stays byte-identical."""
     if isinstance(data, dict) and getattr(model, "contact_ledger", None) is None:
         data.pop("contact_ledger", None)
+    return data
+
+
+def _omit_dormant_finance(model: BaseModel, data):
+    """Drop a ``None`` finance state so feature-off output stays byte-identical."""
+    if isinstance(data, dict) and getattr(model, "finance", None) is None:
+        data.pop("finance", None)
     return data
 
 
@@ -1078,6 +1086,8 @@ class WorldState(BaseModel):
     contact_ledger: ContactLedgerState | None = None
     # Regional SEIRS epidemiology (None = disabled; omitted from output).
     epidemics: EpidemicState | None = None
+    # Money, credit and public finance (None = disabled; omitted from output).
+    finance: FinanceState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1159,7 +1169,8 @@ class WorldState(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize_without_dormant_governance(self, handler):
-        data = _omit_dormant_contact_ledger(self, _omit_dormant_governance(self, handler(self)))
+        data = _omit_dormant_finance(self, _omit_dormant_contact_ledger(
+            self, _omit_dormant_governance(self, handler(self))))
         if isinstance(data, dict) and self.geography is None:
             data.pop("geography", None)
         if isinstance(data, dict) and self.epidemics is None:
@@ -1285,6 +1296,8 @@ class TurnSnapshot(BaseModel):
     contact: dict | None = None
     # Epidemiology per-turn summary; None (and omitted) when epidemiology is off.
     epidemics: dict | None = None
+    # Money, credit and public finance per-turn summary; None (omitted) when off.
+    finance: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1295,6 +1308,8 @@ class TurnSnapshot(BaseModel):
             data.pop("contact")
         if isinstance(data, dict) and data.get("epidemics", 0) is None:
             data.pop("epidemics")
+        if isinstance(data, dict) and data.get("finance", 0) is None:
+            data.pop("finance")
         return data
 
 

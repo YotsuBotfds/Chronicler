@@ -216,7 +216,11 @@ Raw sub-indices follow the roadmap:
   crowding = population / effective capacity.
 * `EMP` = G02's `frustrated_aspirants / elite_positions × consumption_index`.
 * `SFD = (base + enforcement) / max(treasury, 1) × (1 + enforcement/treasury × (1 − mean institution legitimacy))`
-  (decision D5; no institutions → neutral).
+  (decision D5; no institutions → neutral). With `--finance` (default off) the
+  real state debt replaces this proxy: `SFD = 0.04 × fiscal stress × (1 +
+  enforcement/revenue × (1 − mean institution legitimacy))`, where fiscal stress
+  measures debt, debt service and deficit against revenue, arrears, a recent
+  default and inflation (see `docs/integration/money-credit.md`).
 
 Each is divided by a reference scale (MMP 0.10, EMP 2.0, SFD 0.04; each about
 the 75th–85th percentile of 6-seed hybrid calibration runs) and capped at 4.

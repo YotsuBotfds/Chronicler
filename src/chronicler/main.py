@@ -293,6 +293,14 @@ def _pandemic_region_names(world) -> list[str]:
     return names
 
 
+def _finance_snapshot_fields(world) -> dict:
+    """Finance per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.finance import finance_enabled, snapshot_summary
+    if not finance_enabled(world):
+        return {}
+    return {"finance": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -520,6 +528,14 @@ def execute_run(
     if epidemiology is not None:
         from chronicler.epidemiology import set_epidemiology_enabled
         set_epidemiology_enabled(world, epidemiology)
+    # Money, credit and public finance switch (persisted on the world).
+    finance = getattr(args, "finance", None)
+    if finance is None and fresh_world:
+        from chronicler.finance import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT
+        finance = _FINANCE_DEFAULT
+    if finance is not None:
+        from chronicler.finance import set_finance_enabled
+        set_finance_enabled(world, finance)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -767,6 +783,7 @@ def execute_run(
             **_war_snapshot_fields(world),
             **_contact_snapshot_fields(world),
             **_epidemic_snapshot_fields(world),
+            **_finance_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1263,6 +1280,11 @@ def _build_parser() -> argparse.ArgumentParser:
                              "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
                              "plague and the M18 pandemic (default off; needs the contact ledger; "
                              "saved on resume)")
+    parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
+                        help="Money, credit and public finance: upkeep and court costs, state borrowing "
+                             "from merchant houses and foreign lenders, debt service, default, debasement "
+                             "and a per-civ price index feeding the governance PSI (default off for new "
+                             "worlds; --finance enables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

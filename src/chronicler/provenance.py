@@ -654,6 +654,14 @@ _PER_CIV_KEYS: dict[str, str] = {
 _PAIR_KEYS: dict[str, str] = {
     "border_incident": "border", "embargo": "embargo", "proxy_detected": "proxy",
 }
+# Finance (``--finance``): keys the debtor's fiscal events stand for. Only the
+# first civ (the debtor) is registered; lenders named on the event are not in
+# distress. ``fiscal`` is the key the PSI crisis cites for fiscal distress.
+_FINANCE_KEYS: dict[str, tuple[str, ...]] = {
+    "state_default": ("default", "fiscal"),
+    "debasement": ("debasement", "fiscal"),
+    "fiscal_strain": ("fiscal",),
+}
 _WAR_END_TYPES = frozenset({"peace_treaty", "war_ended", "congress_peace", "congress_ceasefire"})
 
 
@@ -670,6 +678,11 @@ def _register(world: "WorldState", ev: Event) -> None:
     if etype == "psi_recovery":
         for civ in civs:
             keys.pop(key("psi", civ), None)
+    finance_keys = _FINANCE_KEYS.get(etype)
+    if finance_keys is not None:
+        for civ in civs[:1]:
+            for kind in finance_keys:
+                keys[key(kind, civ)] = eid
     if etype in _PAIR_KEYS and len(civs) >= 2:
         keys[_PAIR_KEYS[etype] + ":" + pair(civs[0], civs[1])] = eid
     if etype == "war_declared" and len(civs) >= 2:
@@ -794,6 +807,9 @@ CHRONIC: dict[str, ChronicSpec] = {
     # and pathogen (the category) while an outbreak runs; one per closed state.
     "epidemic": ChronicSpec(1, False, None, "epidemic"),
     "quarantine": ChronicSpec(1, False, None, "border closure"),
+    # Finance (reported at the debtor's capital while the condition lasts).
+    "fiscal_strain": ChronicSpec(3, False, None, "fiscal crisis"),
+    "price_inflation": ChronicSpec(2, False, None, "inflation"),
 }
 
 
