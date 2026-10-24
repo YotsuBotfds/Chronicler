@@ -455,6 +455,34 @@ def test_artifact_lifecycle_counts_lost_and_destroyed():
     assert result["loss_destruction_rate"] == 0.50
 
 
+def test_artifact_loss_band_is_calibrated_for_living_worlds():
+    """2026-10: 2-30% with both loss channels alive (see the extinction-fix doc)."""
+    from chronicler.validate import check_artifact_lifecycle, run_artifact_oracle
+
+    def batch(lost, destroyed, active):
+        statuses = ["lost"] * lost + ["destroyed"] * destroyed + ["active"] * active
+        types = ["relic", "artwork", "monument", "treatise"]
+        return [{
+            "world_state": {"artifacts": [
+                {"artifact_type": types[i % 4], "status": s, "mule_origin": False}
+                for i, s in enumerate(statuses)
+            ]},
+            "metadata": {"total_turns": 500},
+        }]
+
+    living = check_artifact_lifecycle(batch(lost=1, destroyed=2, active=97))  # 3%
+    assert living["loss_destruction_rate_ok"] and living["loss_channels_ok"]
+    assert (living["lost_count"], living["destroyed_count"]) == (1, 2)
+    broken = check_artifact_lifecycle(batch(lost=0, destroyed=1, active=99))  # 1%
+    assert not broken["loss_destruction_rate_ok"]
+    no_capture_loss = check_artifact_lifecycle(batch(lost=0, destroyed=5, active=95))
+    assert no_capture_loss["loss_destruction_rate_ok"] and not no_capture_loss["loss_channels_ok"]
+    fragile = check_artifact_lifecycle(batch(lost=20, destroyed=15, active=65))  # 35%
+    assert not fragile["loss_destruction_rate_ok"]
+    runs = [{"bundle": b} for b in batch(lost=0, destroyed=5, active=95)]
+    assert run_artifact_oracle(runs)["status"] == "PARTIAL"
+
+
 def test_artifact_lifecycle_creation_rate():
     """Creation rate sanity check."""
     from chronicler.validate import check_artifact_lifecycle

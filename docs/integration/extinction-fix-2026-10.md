@@ -212,6 +212,50 @@ Suite results:
 - Slow `test_event_hazards`: 2 passed.
 - `cargo test`: 863 passed, 0 failed.
 
+## Artifact loss band recalibration (validation oracle)
+
+This is the only oracle threshold the branch changes. Every other band is
+unchanged.
+
+**The old band assumed extinction-era turnover.** The 10-30% floor came from
+the M53 spec ("10-30% lost or destroyed by turn 500; not 0% = too stable").
+It was calibrated on worlds that died:
+
+- The M53 baseline (`tuning/m53_baseline.yaml`) records agent extinction at
+  turn 77 on average over 40 seeds.
+- The phase-6 progress log reports a 50% loss rate "driven by civ
+  extinction — when civs fall, artifacts become LOST".
+- At `837a44f` the subset reached 8.2%, with 15 of 20 worlds extinct. 16 of
+  its 23 losses were capture losses during 82 twilight absorptions.
+
+**Living worlds lose far less.** About 13% of all artifacts are ever touched
+by a fall (captured, claimed, destroyed or lost), so the 10% floor would need
+most of them to vanish. Measured rates:
+
+| Run | Loss/destruction |
+| --- | --- |
+| 200-seed full profile, before the calibration fixes | 2.1% (193 of 9398) |
+| 20-seed 500-turn sample, scientist and prestige fixes | 1.8% |
+| Same sample plus campaign sacking | 3.0% |
+
+The realistic mechanism comes first. Campaign occupations now sack the fallen
+region (`SACK_DESTRUCTION_CHANCE` 0.5; a capital's portable treasures go to
+the occupier). That accounts for the rise to 3.0%. It cannot go further,
+because a 500-turn run sees only about 1.85 occupations, 1.1 of them of
+capitals.
+
+**The new band is 2-30%, and both loss channels must be alive.**
+`loss_channels_ok` requires at least one LOST and one DESTROYED artifact in
+the batch. It catches real regressions:
+
+- A lifecycle that never processes intents gives about 0% and fails the
+  floor.
+- If the LOST path is broken (capture loss, civ destruction), or the
+  DESTROYED path is broken (sack, scorched earth), `loss_channels_ok` fails
+  even when the other channel keeps the rate above 2%.
+- A return to extinction-driven loss (about 50%) or a fragile lifecycle
+  fails the unchanged 30% ceiling.
+
 ## Gate results
 
 Both gates ran on the final code. Run output is kept outside the repository.
