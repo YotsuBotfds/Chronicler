@@ -1244,8 +1244,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--narrate-output", type=Path, default=None,
                         help="Output path for narrated bundle")
     parser.add_argument("--narrator", type=str, default="local",
-                        choices=["local", "api", "gemini"],
-                        help="Narrator backend: local (LM Studio), api (Claude API), or gemini (Gemini API)")
+                        choices=["local", "api", "gemini", "mechanical"],
+                        help="Narrator backend: local (LM Studio), api (Claude API), gemini (Gemini API), "
+                             "or mechanical (no LLM: curated moments rendered from event descriptions "
+                             "and their recorded causal chains; works with --simulate-only)")
     parser.add_argument("--relationship-stats", action="store_true",
                         help="Enable per-tick relationship distribution snapshots")
     parser.add_argument("--validation-sidecar", action="store_true",
@@ -1484,6 +1486,9 @@ def main() -> None:
         if getattr(args, "simulate_only", False):
             sim_client = _DummyClient()
             narrative_client = _DummyClient()
+            if getattr(args, "narrator", "local") == "mechanical":
+                from chronicler.llm import MechanicalClient
+                narrative_client = MechanicalClient()
         else:
             sim_client, narrative_client = create_clients(
                 local_url=args.local_url,

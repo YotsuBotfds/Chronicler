@@ -7,11 +7,15 @@ M20a Tasks 3-7.
 """
 from __future__ import annotations
 
+import bisect
+import math
 from collections import Counter
 from typing import Sequence
 
 from chronicler.models import (
+    CausalChain,
     CausalLink,
+    ChainStep,
     Event,
     GapSummary,
     NamedEvent,
@@ -40,7 +44,7 @@ CAUSAL_PATTERNS: list[tuple[str, str, int, float]] = [
     ("plague", "famine", 10, 2.0),
     ("embargo", "rebellion", 15, 2.0),
     ("tech_advancement", "war", 10, 2.0),
-    ("cultural_renaissance", "movement", 10, 2.0),
+    ("cultural_renaissance", "movement_adoption", 10, 2.0),
     ("discovery", "war", 15, 2.0),
     # M43b: Supply shock causal patterns
     ("drought", "supply_shock", 5, 3.0),
@@ -174,51 +178,293 @@ def compute_base_scores(
 
 
 # ---------------------------------------------------------------------------
-# 3. compute_causal_links
+# 3. Cause graph (recorded provenance) and causal links
 # ---------------------------------------------------------------------------
+
+# Chronic-episode bookkeeping events never anchor a moment or extend a chain:
+# a repeat ("tick"/"repeat") or a closing event ("end") belongs to its onset.
+_EPISODE_FOLLOWERS = frozenset({"tick", "repeat", "end"})
+
+# Chain-score weights (see compute_chain_scores).
+ROOT_DEPTH_WEIGHT = 1.5
+ROOT_FANOUT_WEIGHT = 1.0
+EFFECT_DEPTH_WEIGHT = 0.75
+EFFECT_FANOUT_WEIGHT = 0.5
+EXPLAINED_WEIGHT = 0.5
+CHAIN_BONUS_CAP = 12.0
+DESCENDANT_CAP = 64
+MAX_CHAIN_STEPS = 6
+MAX_CHAINS_PER_MOMENT = 3
+
+
+class CauseGraph:
+    """Recorded cause -> effect edges over one event list (by index).
+
+    Only ``Event.causes`` that resolve to an event in the list are edges;
+    unresolved ids (events outside the list) are ignored.
+    """
+
+    def __init__(self, events: Sequence[Event]) -> None:
+        self.events = events
+        self.index: dict[str, int] = {}
+        for i, ev in enumerate(events):
+            if ev.event_id and ev.event_id not in self.index:
+                self.index[ev.event_id] = i
+        n = len(events)
+        self.parents: list[list[int]] = [[] for _ in range(n)]
+        self.children: list[list[int]] = [[] for _ in range(n)]
+        for j, ev in enumerate(events):
+            for cid in ev.causes:
+                i = self.index.get(cid)
+                if i is None or i == j or i in self.parents[j]:
+                    continue
+                self.parents[j].append(i)
+                self.children[i].append(j)
+        self._down: list[int] | None = None
+        self._up: list[int] | None = None
+
+    @property
+    def edge_count(self) -> int:
+        return sum(len(p) for p in self.parents)
+
+    def substantive(self, i: int) -> bool:
+        return self.events[i].episode not in _EPISODE_FOLLOWERS
+
+    def _longest(self, nbrs: list[list[int]]) -> list[int]:
+        """Longest path (in substantive steps) along ``nbrs`` from each node."""
+        n = len(self.events)
+        memo = [-1] * n
+        for start in range(n):
+            if memo[start] >= 0:
+                continue
+            stack = [(start, 0)]
+            on_path = {start}
+            while stack:
+                node, k = stack[-1]
+                nxt = nbrs[node]
+                if k < len(nxt):
+                    stack[-1] = (node, k + 1)
+                    child = nxt[k]
+                    if memo[child] < 0 and child not in on_path:
+                        on_path.add(child)
+                        stack.append((child, 0))
+                    continue
+                best = 0
+                for child in nxt:
+                    if memo[child] < 0:
+                        continue  # cycle guard (ids are emission-ordered; defensive)
+                    step = 1 if self.substantive(child) else 0
+                    best = max(best, step + memo[child])
+                memo[node] = best
+                on_path.discard(node)
+                stack.pop()
+        return memo
+
+    def depth_down(self) -> list[int]:
+        """Longest recorded consequence chain from each event."""
+        if self._down is None:
+            self._down = self._longest(self.children)
+        return self._down
+
+    def depth_up(self) -> list[int]:
+        """Longest recorded cause chain leading to each event."""
+        if self._up is None:
+            self._up = self._longest(self.parents)
+        return self._up
+
+    def descendants(self, i: int, cap: int = DESCENDANT_CAP) -> int:
+        """Distinct substantive consequences of event ``i`` (capped)."""
+        seen = {i}
+        frontier = [i]
+        count = 0
+        while frontier and count < cap:
+            nxt = []
+            for node in frontier:
+                for child in self.children[node]:
+                    if child in seen:
+                        continue
+                    seen.add(child)
+                    nxt.append(child)
+                    if self.substantive(child):
+                        count += 1
+            frontier = nxt
+        return min(count, cap)
+
+    def chain_to(self, j: int, max_steps: int = MAX_CHAIN_STEPS) -> list[int]:
+        """The deepest recorded cause chain ending at ``j``, root first."""
+        up = self.depth_up()
+        chain = [j]
+        seen = {j}
+        node = j
+        while self.parents[node] and len(chain) < max_steps:
+            # Follow the parent with the longest history; ties -> earliest event.
+            parent = max(self.parents[node], key=lambda p: (up[p], -p))
+            if parent in seen:
+                break
+            chain.append(parent)
+            seen.add(parent)
+            node = parent
+        chain.reverse()
+        return chain
+
+
+def compute_chain_scores(graph: CauseGraph) -> list[float]:
+    """Score bonus per event from its place in the recorded cause graph.
+
+    Root causes (no recorded cause of their own) with long, wide consequence
+    chains rank highest: ``1.5 * depth + 1.0 * log2(1 + descendants)``.
+    Effects with consequences of their own score at half weight, plus a
+    small bonus for being explained (``0.5 * cause depth``). Episode
+    repeats and closing events score nothing. Capped at CHAIN_BONUS_CAP.
+    """
+    down = graph.depth_down()
+    up = graph.depth_up()
+    bonus: list[float] = []
+    for i in range(len(graph.events)):
+        if not graph.substantive(i) or (not graph.parents[i] and not graph.children[i]):
+            bonus.append(0.0)
+            continue
+        fan = math.log2(1 + graph.descendants(i))
+        if not graph.parents[i]:
+            b = ROOT_DEPTH_WEIGHT * down[i] + ROOT_FANOUT_WEIGHT * fan
+        else:
+            b = EFFECT_DEPTH_WEIGHT * down[i] + EFFECT_FANOUT_WEIGHT * fan + EXPLAINED_WEIGHT * up[i]
+        bonus.append(min(CHAIN_BONUS_CAP, b))
+    return bonus
+
+
+def _link(cause: Event, effect: Event, pattern: str, provenance: str) -> CausalLink:
+    return CausalLink(
+        cause_turn=cause.turn,
+        cause_event_type=cause.event_type,
+        effect_turn=effect.turn,
+        effect_event_type=effect.event_type,
+        pattern=pattern,
+        cause_id=cause.event_id,
+        effect_id=effect.event_id,
+        provenance=provenance,
+    )
+
+
+def _pattern_links(
+    events: Sequence[Event],
+    scores: list[float],
+    pairs: list[tuple[int, int]] | None = None,
+) -> list[CausalLink]:
+    """Type-pair fallback for effects without recorded provenance.
+
+    For each effect with no ``causes`` and each matching pattern, link the
+    most recent cause of the pattern's type within ``max_gap`` turns that
+    shares an actor (one link per effect per pattern, not every pair).
+    The cause event's score receives the pattern bonus.
+    """
+    by_type: dict[str, list[int]] = {}
+    for i, ev in enumerate(events):
+        if ev.episode in _EPISODE_FOLLOWERS:
+            continue
+        by_type.setdefault(ev.event_type, []).append(i)
+    found: list[tuple[int, int, int, CausalLink, int, float]] = []
+    for p_idx, (cause_type, effect_type, max_gap, bonus) in enumerate(CAUSAL_PATTERNS):
+        causes = by_type.get(cause_type)
+        effects = by_type.get(effect_type)
+        if not causes or not effects:
+            continue
+        cause_turns = [events[i].turn for i in causes]
+        for j in effects:
+            effect = events[j]
+            if effect.causes:
+                continue
+            actors = set(effect.actors)
+            if not actors:
+                continue
+            # Causes precede the effect in list order (events are turn-sorted).
+            hi = bisect.bisect_right(cause_turns, effect.turn)
+            for k in range(hi - 1, -1, -1):
+                i = causes[k]
+                if effect.turn - events[i].turn > max_gap:
+                    break
+                if i >= j or not (actors & set(events[i].actors)):
+                    continue
+                found.append((i, j, p_idx, _link(
+                    events[i], effect, f"{cause_type}\u2192{effect_type}", "pattern"), i, bonus))
+                break
+    found.sort(key=lambda item: (item[0], item[1], item[2]))
+    for i, j, _p, _link_obj, cause_idx, bonus in found:
+        scores[cause_idx] += bonus
+        if pairs is not None:
+            pairs.append((i, j))
+    return [item[3] for item in found]
+
 
 def compute_causal_links(
     events: Sequence[Event],
     scores: list[float],
+    graph: "CauseGraph | None" = None,
+    pairs: list[tuple[int, int]] | None = None,
 ) -> list[CausalLink]:
-    """Discover causal links between events using ``CAUSAL_PATTERNS``.
+    """Causal links: recorded provenance first, type-pair patterns as fallback.
 
-    * Cause and effect must share at least one actor (spatial filter).
-    * The cause event's score is mutated in place (bonus added).
-    * Returns a list of ``CausalLink`` objects.
+    * Recorded links are the ``Event.causes`` edges that resolve within
+      ``events`` (``provenance="recorded"``); their weight enters the score
+      through :func:`compute_chain_scores`, not here.
+    * ``CAUSAL_PATTERNS`` link only effects that carry no recorded causes
+      (old saves/bundles, emitters without provenance); cause and effect must
+      share an actor; the cause event's score is mutated in place (bonus).
+    * ``pairs``, when given, receives the (cause, effect) index of each link.
     """
+    if graph is None:
+        graph = CauseGraph(events)
     links: list[CausalLink] = []
-
-    for i, cause in enumerate(events):
-        cause_actors = set(cause.actors)
-        for j in range(i + 1, len(events)):
-            effect = events[j]
-            gap = effect.turn - cause.turn
-            # Early exit: events are assumed sorted by turn.
-            # If gap exceeds the largest max_gap in any pattern we can skip,
-            # but to keep it simple, we check each pattern individually.
-            effect_actors = set(effect.actors)
-
-            # Spatial filter: must share at least one actor
-            if not cause_actors & effect_actors:
-                continue
-
-            for cause_type, effect_type, max_gap, bonus in CAUSAL_PATTERNS:
-                if (
-                    cause.event_type == cause_type
-                    and effect.event_type == effect_type
-                    and gap <= max_gap
-                ):
-                    scores[i] += bonus
-                    links.append(CausalLink(
-                        cause_turn=cause.turn,
-                        cause_event_type=cause.event_type,
-                        effect_turn=effect.turn,
-                        effect_event_type=effect.event_type,
-                        pattern=f"{cause_type}\u2192{effect_type}",
-                    ))
-
+    for j, parents in enumerate(graph.parents):
+        for i in parents:
+            cause, effect = events[i], events[j]
+            links.append(_link(cause, effect,
+                               f"{cause.event_type}\u2192{effect.event_type}", "recorded"))
+            if pairs is not None:
+                pairs.append((i, j))
+    links.extend(_pattern_links(events, scores, pairs))
     return links
+
+
+# Labels for hazard-rolled events, which carry no description (the narrator
+# fills it in): "{a}" is the first actor, "{b}" the second, "{all}" all.
+_HAZARD_LABELS: dict[str, str] = {
+    "drought": "drought strikes {all}",
+    "plague": "plague strikes {all}",
+    "earthquake": "an earthquake shakes {all}",
+    "border_incident": "a border incident between {a} and {b}",
+    "rebellion": "rebellion breaks out in {a}",
+    "migration": "a wave of emigration leaves {a}",
+    "religious_movement": "a religious movement stirs {a}",
+    "discovery": "{a} makes a discovery",
+    "cultural_renaissance": "a cultural renaissance flowers in {a}",
+    "leader_death": "the ruler of {a} dies",
+}
+
+
+def event_label(ev: Event) -> str:
+    """A readable one-line label (hazard events carry no description)."""
+    if ev.description:
+        return ev.description
+    actors = [a for a in ev.actors if a]
+    template = _HAZARD_LABELS.get(ev.event_type)
+    if template is not None and actors:
+        return template.format(a=actors[0], b=actors[1] if len(actors) > 1 else "its neighbours",
+                               all=" and ".join(actors))
+    what = ev.event_type.replace("_", " ")
+    return f"{what} in {', '.join(actors)}" if actors else what
+
+
+def build_causal_chain(graph: CauseGraph, j: int) -> CausalChain:
+    """The recorded "because" chain ending at event index ``j`` (root first)."""
+    steps = []
+    for i in graph.chain_to(j):
+        ev = graph.events[i]
+        steps.append(ChainStep(
+            event_id=ev.event_id, turn=ev.turn, event_type=ev.event_type,
+            description=event_label(ev), region=ev.region or ev.shock_region,
+        ))
+    return CausalChain(steps=steps)
 
 
 # ---------------------------------------------------------------------------
@@ -578,8 +824,17 @@ def curate(
                                   named_characters=named_characters,
                                   gp_by_name=gp_by_name)
 
-    # 3. Causal links
-    causal_links = compute_causal_links(sorted_events, scores)
+    # 3. Cause graph: recorded provenance scores by chain depth and fan-out;
+    # type-pair patterns link only effects without recorded causes.
+    graph = CauseGraph(sorted_events)
+    for i, bonus in enumerate(compute_chain_scores(graph)):
+        scores[i] += bonus
+    for i, ev in enumerate(sorted_events):
+        if ev.episode in _EPISODE_FOLLOWERS:
+            # Repeats and closing events of a chronic episode never anchor.
+            scores[i] = min(scores[i], max(1.0, float(ev.importance) - 3.0))
+    link_pairs: list[tuple[int, int]] = []
+    causal_links = compute_causal_links(sorted_events, scores, graph=graph, pairs=link_pairs)
 
     # 4. Clustering
     clusters = build_clusters(sorted_events, scores)
@@ -590,14 +845,29 @@ def curate(
     unselected_clusters = clusters[budget:]
 
     # 6. Convert to NarrativeMoments
-    # Build a map from event index to causal links involving that event
+    # Map each event index to the links it takes part in (cause or effect).
     link_map: dict[int, list[CausalLink]] = {}
-    for link in causal_links:
-        for idx, ev in enumerate(sorted_events):
-            if ev.turn == link.cause_turn and ev.event_type == link.cause_event_type:
-                link_map.setdefault(idx, []).append(link)
-            if ev.turn == link.effect_turn and ev.event_type == link.effect_event_type:
-                link_map.setdefault(idx, []).append(link)
+    for link, (ci, ei) in zip(causal_links, link_pairs):
+        link_map.setdefault(ci, []).append(link)
+        if ei != ci:
+            link_map.setdefault(ei, []).append(link)
+
+    def _moment_chains(indices: list[int]) -> list[CausalChain]:
+        """Deepest recorded "because" chains ending in this moment."""
+        up = graph.depth_up()
+        candidates = [i for i in indices if graph.parents[i] and graph.substantive(i)]
+        candidates.sort(key=lambda i: (-up[i], -scores[i], i))
+        chains: list[CausalChain] = []
+        covered: set[int] = set()
+        for i in candidates:
+            if len(chains) >= MAX_CHAINS_PER_MOMENT:
+                break
+            path = graph.chain_to(i)
+            if len(path) < 2 or i in covered:
+                continue
+            covered.update(path)
+            chains.append(build_causal_chain(graph, i))
+        return chains
 
     def _cluster_to_moment(cluster: dict) -> NarrativeMoment:
         indices = cluster["event_indices"]
@@ -613,8 +883,11 @@ def curate(
         seen_links: set[tuple] = set()
         for i in indices:
             for link in link_map.get(i, []):
-                link_key = (link.cause_turn, link.cause_event_type,
-                            link.effect_turn, link.effect_event_type)
+                if link.cause_id and link.effect_id:
+                    link_key: tuple = (link.cause_id, link.effect_id)
+                else:
+                    link_key = (link.cause_turn, link.cause_event_type,
+                                link.effect_turn, link.effect_event_type)
                 if link_key not in seen_links:
                     cluster_links.append(link)
                     seen_links.add(link_key)
@@ -628,6 +901,7 @@ def curate(
             causal_links=cluster_links,
             narrative_role=NarrativeRole.RESOLUTION,  # placeholder
             bonus_applied=0.0,
+            causal_chains=_moment_chains(indices),
         )
 
     selected_moments = [_cluster_to_moment(c) for c in selected_clusters]

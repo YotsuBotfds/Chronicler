@@ -125,6 +125,18 @@ class LocalNarrativeClient(LocalClient):
         return super().complete(prompt, max_tokens=max_tokens, system=system)
 
 
+class MechanicalClient:
+    """No-LLM narrator: moments are rendered mechanically (descriptions plus
+    their recorded "because" chains). Never called; NarrativeEngine checks
+    ``mechanical`` and renders instead."""
+
+    mechanical = True
+    model = "mechanical"
+
+    def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
+        raise RuntimeError("MechanicalClient does not generate text")
+
+
 class AnthropicClient:
     """Anthropic SDK client for Claude API calls.
 
@@ -283,9 +295,11 @@ def create_clients(
         temperature=0.3,
     )
 
-    if narrator == "api":
+    if narrator == "mechanical":
+        narrative_client: LLMClient = MechanicalClient()
+    elif narrator == "api":
         import anthropic
-        narrative_client: LLMClient = AnthropicClient(
+        narrative_client = AnthropicClient(
             client=anthropic.Anthropic(),
             model=narrative_model or "claude-sonnet-4-6",
         )

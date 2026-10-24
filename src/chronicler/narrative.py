@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
 from chronicler.models import (
     AgentContext,
+    CausalChain,
     CausalLink,
     ChronicleEntry,
     Civilization,
@@ -892,6 +893,62 @@ Write a chronicle entry for this turn. Rules:
 Respond only with the chronicle prose. No preamble, no markdown formatting, no meta-commentary."""
 
 
+def render_because(chain: CausalChain, told: set[str] | None = None) -> str:
+    """One sentence that walks a recorded chain backwards from its effect.
+
+    "Famine strikes X (turn 9), because Supply shock: food in X (turn 9),
+    because X is occupied by Y (turn 6), because A goes to war with B (turn 0)."
+    With ``told`` (ids already narrated) the walk stops at the first cause
+    narrated before ("..., as told above") and adds the chain's ids to it.
+    """
+    steps = list(chain.steps)
+    if len(steps) < 2:
+        return ""
+    effect, causes = steps[-1], list(reversed(steps[:-1]))
+    parts = [f"{effect.description.strip().rstrip('.')} (turn {effect.turn})"]
+    for step in causes:
+        label = step.description.strip().rstrip(".")
+        if told is not None and step.event_id and step.event_id in told:
+            parts.append(f"because {label} (turn {step.turn}, as told above)")
+            break
+        parts.append(f"because {label} (turn {step.turn})")
+    if told is not None:
+        told.update(s.event_id for s in steps if s.event_id)
+    return ", ".join(parts) + "."
+
+
+def render_chain_line(chain: CausalChain) -> str:
+    """Root-first arrow rendering for prompts: "[t0] a -> [t6] b -> [t9] c"."""
+    return " -> ".join(
+        f"[turn {s.turn}] {s.description.strip().rstrip('.')}" for s in chain.steps
+    )
+
+
+def _entry_for(moment: NarrativeMoment, narrative: str) -> ChronicleEntry:
+    return ChronicleEntry(
+        turn=moment.anchor_turn,
+        covers_turns=moment.turn_range,
+        events=list(moment.events),
+        named_events=list(moment.named_events),
+        narrative=narrative,
+        importance=moment.score,
+        narrative_role=moment.narrative_role,
+        causal_links=list(moment.causal_links),
+        causal_chains=list(moment.causal_chains),
+    )
+
+
+def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None) -> str:
+    """No-LLM chronicle text for a moment: its event descriptions, then the
+    recorded causal chains behind them ("... because ...")."""
+    descriptions = [e.description for e in moment.events if e.description]
+    text = "; ".join(descriptions) if descriptions else "Events unfolded."
+    because = [s for s in (render_because(c, told) for c in moment.causal_chains) if s]
+    if because:
+        text += "\n\n" + " ".join(because)
+    return text
+
+
 class NarrativeEngine:
     """LLM-powered chronicle generation.
 
@@ -966,6 +1023,10 @@ class NarrativeEngine:
             dynasty_registry=dynasty_registry,
         )
 
+        # No-LLM narrator: render moments mechanically (with their chains).
+        if getattr(self.narrative_client, "mechanical", False):
+            return self._narrate_mechanical(moments, on_progress)
+
         # Batch API path — Anthropic only
         if self._supports_batch():
             return self._narrate_batch_api(
@@ -1019,10 +1080,11 @@ class NarrativeEngine:
             causes: list[str] = []
             consequences: list[str] = []
             for link in moment.causal_links:
+                tag = " [recorded]" if link.provenance == "recorded" else ""
                 if link.effect_turn >= moment.turn_range[0] and link.effect_turn <= moment.turn_range[1]:
-                    causes.append(f"{link.pattern} (turn {link.cause_turn})")
+                    causes.append(f"{link.pattern} (turn {link.cause_turn}){tag}")
                 if link.cause_turn >= moment.turn_range[0] and link.cause_turn <= moment.turn_range[1]:
-                    consequences.append(f"{link.pattern} (turn {link.effect_turn})")
+                    consequences.append(f"{link.pattern} (turn {link.effect_turn}){tag}")
 
             event_text = ""
             for e in moment.events:
@@ -1035,6 +1097,11 @@ class NarrativeEngine:
                     named_text += f"- {ne.name} (turn {ne.turn}): {ne.description}\n"
 
             causal_text = ""
+            if moment.causal_chains:
+                causal_text += ("\n\nCAUSAL CHAINS recorded by the simulation (root cause first; "
+                                "say why these events happened, \"because ...\"):\n")
+                for chain in moment.causal_chains:
+                    causal_text += f"- {render_chain_line(chain)}\n"
             if causes:
                 causal_text += "\n\nCAUSES leading to this moment:\n"
                 for c in causes:
@@ -1158,6 +1225,19 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
 
         return result
 
+    def _narrate_mechanical(
+        self,
+        moments: list[NarrativeMoment],
+        on_progress: Callable[[int, int, float | None], None] | None = None,
+    ) -> list[ChronicleEntry]:
+        entries: list[ChronicleEntry] = []
+        told: set[str] = set()  # chain steps already narrated, in chronicle order
+        for idx, moment in enumerate(moments):
+            entries.append(_entry_for(moment, mechanical_narrative(moment, told)))
+            if on_progress is not None:
+                on_progress(idx + 1, len(moments), None)
+        return entries
+
     def _narrate_batch_api(
         self,
         moments: list[NarrativeMoment],
@@ -1175,19 +1255,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         entries: list[ChronicleEntry] = []
         for idx, (moment, narrative) in enumerate(zip(moments, results)):
             if narrative is None:
-                descriptions = [e.description for e in moment.events if e.description]
-                narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
+                narrative = mechanical_narrative(moment)
 
-            entries.append(ChronicleEntry(
-                turn=moment.anchor_turn,
-                covers_turns=moment.turn_range,
-                events=list(moment.events),
-                named_events=list(moment.named_events),
-                narrative=narrative,
-                importance=moment.score,
-                narrative_role=moment.narrative_role,
-                causal_links=list(moment.causal_links),
-            ))
+            entries.append(_entry_for(moment, narrative))
 
             if on_progress is not None:
                 on_progress(idx + 1, len(moments), None)
@@ -1227,23 +1297,11 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
-                descriptions = [
-                    e.description for e in moment.events if e.description
-                ]
-                narrative = "; ".join(descriptions) if descriptions else "Events unfolded."
+                narrative = mechanical_narrative(moment)
 
             previous_prose = narrative
 
-            entry = ChronicleEntry(
-                turn=moment.anchor_turn,
-                covers_turns=moment.turn_range,
-                events=list(moment.events),
-                named_events=list(moment.named_events),
-                narrative=narrative,
-                importance=moment.score,
-                narrative_role=moment.narrative_role,
-                causal_links=list(moment.causal_links),
-            )
+            entry = _entry_for(moment, narrative)
             entries.append(entry)
 
             # Progress callback with ETA
