@@ -125,3 +125,61 @@ turns) with silent collapses: FAIL. Removing only the hunger group leaves
 | All on, seeds 42-61, 200 turns | PASS, 1 silent seed (55) | PASS, 0 silent; 237 collapses, 137 era-marked, 100 crisis-only |
 
 The full-gate effect on the base is in [Gate results](#gate-results).
+
+## 2. Late-run satisfaction: the late run, not its last sample
+
+**What the ceiling protects.** The M53 regression suite bounds the agents'
+satisfaction distribution: mean 0.45-0.65 and standard deviation 0.10-0.25
+over the run (spec section 7.2). Below the floor agents starve or revolt
+without end; above the ceiling nobody has a reason to migrate or rebel. The
+run-wide `satisfaction_mean` check carries both bounds and is unchanged.
+
+**What `latest_satisfaction_mean` was for, and where it was set.** It came
+in with `bcd96e1` (2026-05-10, "gate regression on latest satisfaction");
+its test is `test_run_regression_summary_requires_latest_satisfaction_to_clear_floor`.
+It reused the run band to catch late-run collapse on worlds that died: the
+M53 baseline records agent extinction at turn 77, terminal living
+population was not required until `cebc650` (2026-10-05), and the statistic
+walks back to the last sample that still has agents, so on those worlds it
+read the dying cohort. The food-shortage weight cuts that the food-balance
+work undid (0.10, 0.08, 0.07) were made to meet this floor. Its ceiling
+never bound until worlds lived.
+
+**Why one sample measures the wrong thing on living worlds.** Seasons
+(`resources.get_season_id`: a 12-turn year) and the climate cycle
+(`climate.get_climate_phase`: 75 turns) are functions of the turn number.
+Every world's last sample therefore falls on the same calendar point: turn
+499 and turn 199 are both autumn of a drought phase, so both standard
+profiles end at harvest. Since the food-balance fix, satisfaction follows the
+harvest, and averaging 200 worlds does not remove a swing they all share:
+
+- Base seeds 62-81, 500 turns, pooled over the 20 worlds: 0.573 at turn
+  480, 0.589 at 490 and 0.651 at 500. By season of the sampled turn (turns
+  50 and later): spring 0.591, summer 0.595, autumn 0.610, winter 0.571.
+- On that batch the base fails regression on the ceiling alone (0.6513;
+  run mean 0.599). 17 of its 20 worlds end above their own last-60-turn
+  mean. The full base gate passes it by 0.007 (0.643, run mean 0.594).
+- High final samples do not mean a quiet late game: base worlds whose final
+  sample is above 0.65 have late-run migration 0.043 and rebellion 0.029
+  per agent-turn (last 100 turns), the others 0.045 and 0.035.
+
+**New definition.** `latest_satisfaction_mean` is the agent-weighted mean
+of every sampled turn in the 60 turns ending at the run's last sample with
+living agents (`REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS`), with the
+same band (floor 0.45, calibrated floor 0.40, ceiling 0.65). With the
+sidecar's 10-turn cadence, 60 turns visit every even turn of the 12-turn
+year once: the same seasonal mix as the run-wide mean. A dying world's
+window still ends at its last living sample, and a late collapse still fails
+the floor (tests: a final harvest high is pooled with the five samples
+before it; a 60-turn late collapse fails; a dead world is read before its
+death). The old single sample is reported as `final_sample_satisfaction_mean`.
+
+**Effect.**
+
+| Batch | Final sample (old) | Last 60 turns (new) | Regression |
+| --- | --- | --- | --- |
+| All off, seeds 62-81, 500 turns | 0.6513 | 0.6110 | FAIL -> PASS (calibrated floor: migration 0.0496 misses the strict 0.05) |
+| All on, seeds 62-81, 500 turns | 0.6263 | 0.6047 | PASS (calibrated floor) both |
+| All on, seeds 42-61, 200 turns | 0.6076 | 0.6098 | FAIL both (`civ_survival` 0.25; informational in the subset) |
+
+The full-gate effect on the base is in [Gate results](#gate-results).

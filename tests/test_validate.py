@@ -1607,6 +1607,54 @@ def test_run_regression_summary_requires_latest_satisfaction_to_clear_floor():
     assert result["status"] == "FAIL"
 
 
+def _late_satisfaction_run(samples: dict[int, float], total_turns: int = 500) -> dict:
+    from chronicler.validate import EVENT_NAME_TO_CODE
+
+    civs = {name: {"regions": [name], "gini": 0.5, "treasury": 10} for name in ("A", "B", "C", "D")}
+    counts = {"0": 40, "1": 20, "2": 20, "3": 10, "4": 10}
+    return {
+        "bundle": {"metadata": {"total_turns": total_turns},
+                   "history": [{"civ_stats": civs}, {"civ_stats": dict(civs, D={"regions": []})}]},
+        "validation_summary": {"agent_aggregates_by_turn": {
+            str(turn): ({"civ": {"satisfaction_mean": mean, "satisfaction_std": 0.15, "agent_count": 100,
+                                 "controlled_agent_count": 100, "occupation_counts": counts,
+                                 "controlled_occupation_counts": counts, "gini": 0.5}}
+                        if mean is not None else {})
+            for turn, mean in samples.items()
+        }},
+        "events": ([{"event_type": EVENT_NAME_TO_CODE["migration"]}] * 3000
+                   + [{"event_type": EVENT_NAME_TO_CODE["rebellion"]}] * 1500),
+    }
+
+
+def test_latest_satisfaction_pools_the_late_run_not_its_last_sample():
+    """2026-10: the final sample falls on the same season in every world."""
+    from chronicler.validate import run_regression_summary
+
+    # Every 10 turns; the last sample is a harvest-time high.
+    samples = {turn: 0.58 for turn in range(10, 500, 10)} | {500: 0.70}
+    result = run_regression_summary([_late_satisfaction_run(samples)])
+    assert result["final_sample_satisfaction_mean"] == 0.70
+    assert result["latest_satisfaction_window_turns"] == 60
+    # Turns 450-500: five samples at 0.58 and one at 0.70.
+    assert result["latest_satisfaction_mean"] == round((5 * 0.58 + 0.70) / 6, 4)
+    assert result["latest_satisfaction_mean_ok"] is True
+
+
+def test_latest_satisfaction_still_catches_a_late_collapse():
+    from chronicler.validate import run_regression_summary
+
+    samples = {turn: 0.62 for turn in range(10, 440, 10)} | {turn: 0.30 for turn in range(440, 510, 10)}
+    result = run_regression_summary([_late_satisfaction_run(samples)])
+    assert result["latest_satisfaction_mean"] == 0.30  # turn 440 is outside (440, 500]
+    assert "latest_satisfaction_mean" in result["calibrated_floor_failed_checks"]
+    # A world whose agents died: the window ends at the last living sample.
+    dying = {turn: 0.60 for turn in range(10, 200, 10)} | {200: 0.31, 210: None, 220: None}
+    dead = run_regression_summary([_late_satisfaction_run(dying, total_turns=220)])
+    assert dead["final_sample_satisfaction_mean"] == 0.31
+    assert dead["latest_satisfaction_mean"] == round((5 * 0.60 + 0.31) / 6, 4)
+
+
 def test_run_regression_summary_rejects_incomplete_controlled_occupation_counts():
     from chronicler.validate import EVENT_NAME_TO_CODE, run_regression_summary
 

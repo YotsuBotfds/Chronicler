@@ -49,6 +49,14 @@ ARTIFACT_LOSS_RATE_MAX = 0.30
 REGRESSION_SATISFACTION_MEAN_MIN = 0.45
 REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN = 0.40
 REGRESSION_SATISFACTION_MEAN_MAX = 0.65
+# Late-run satisfaction (``latest_satisfaction_mean``) pools the sampled turns
+# of the last 60 turns before a run's last living sample, not that one sample.
+# Seasons (a 12-turn year) and the climate cycle are functions of the turn, so
+# every world's final sample falls on the same calendar point (autumn of a
+# drought for both standard profiles); with the 10-turn sidecar cadence, 60
+# turns visit every even turn of the year once, the run mean's seasonal mix.
+# See docs/integration/wave3-defaults.md.
+REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS = 60
 REGRESSION_MIGRATION_RATE_MIN = 0.05
 REGRESSION_MIGRATION_RATE_CALIBRATED_MIN = 0.045
 REGRESSION_MIGRATION_RATE_MAX = 0.15
@@ -2445,6 +2453,36 @@ def _final_living_population(run: dict) -> dict:
     return evidence
 
 
+def _late_satisfaction_window(agent_aggregates: dict, last_turn: int) -> tuple[float, float, int]:
+    """Agent-weighted satisfaction sums over the late-run window ending at ``last_turn``.
+
+    Returns ``(sum of mean x count, sum of (std^2 + mean^2) x count, count)``
+    over every sampled turn in ``(last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
+    last_turn]`` and every civ with living agents.
+    """
+    weighted = second_moment = 0.0
+    weight = 0
+    first = last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS
+    for turn in _aggregate_turns_descending(agent_aggregates):
+        if turn > last_turn:
+            continue
+        if turn <= first:
+            break
+        aggregates = agent_aggregates.get(str(turn), {})
+        if not isinstance(aggregates, dict):
+            continue
+        for civ_data in aggregates.values():
+            count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
+            if count is None or count <= 0:
+                continue
+            mean = float(civ_data.get("satisfaction_mean", 0.0))
+            std = float(civ_data.get("satisfaction_std", 0.0))
+            weighted += mean * count
+            second_moment += (std ** 2 + mean ** 2) * count
+            weight += count
+    return weighted, second_moment, weight
+
+
 def run_regression_summary(seed_runs: list[dict]) -> dict:
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
@@ -2463,6 +2501,8 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     latest_satisfaction_weighted_sum = 0.0
     latest_satisfaction_second_moment_sum = 0.0
     latest_satisfaction_weight_total = 0
+    final_sample_satisfaction_weighted_sum = 0.0
+    final_sample_satisfaction_weight_total = 0
     controlled_occupation_shares: list[float] = []
     fallback_occupation_shares: list[float] = []
     latest_controlled_occupation_shares: list[float] = []
@@ -2599,9 +2639,12 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                             if share <= 0.0 or share > REGRESSION_OCCUPATION_SHARE_MAX:
                                 turn_latest_occupation_violation_agent_count += occ_count
                 if turn_satisfaction_weight_total:
-                    latest_satisfaction_weighted_sum += turn_satisfaction_weighted_sum
-                    latest_satisfaction_second_moment_sum += turn_satisfaction_second_moment_sum
-                    latest_satisfaction_weight_total += turn_satisfaction_weight_total
+                    final_sample_satisfaction_weighted_sum += turn_satisfaction_weighted_sum
+                    final_sample_satisfaction_weight_total += turn_satisfaction_weight_total
+                    window_sums = _late_satisfaction_window(agent_aggregates, turn)
+                    latest_satisfaction_weighted_sum += window_sums[0]
+                    latest_satisfaction_second_moment_sum += window_sums[1]
+                    latest_satisfaction_weight_total += window_sums[2]
                     if turn_latest_has_current_occupation_schema:
                         run_latest_has_current_occupation_schema = True
                     if turn_latest_has_controlled_occupation_evidence:
@@ -2697,6 +2740,10 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     latest_satisfaction_mean = (
         latest_satisfaction_weighted_sum / latest_satisfaction_weight_total
         if latest_satisfaction_weight_total else None
+    )
+    final_sample_satisfaction_mean = (
+        final_sample_satisfaction_weighted_sum / final_sample_satisfaction_weight_total
+        if final_sample_satisfaction_weight_total else None
     )
     latest_satisfaction_std = None
     if latest_satisfaction_weight_total and latest_satisfaction_mean is not None:
@@ -2939,6 +2986,11 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
         "latest_satisfaction_std": (
             round(latest_satisfaction_std, 4)
             if latest_satisfaction_std is not None else None
+        ),
+        "latest_satisfaction_window_turns": REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
+        "final_sample_satisfaction_mean": (
+            round(final_sample_satisfaction_mean, 4)
+            if final_sample_satisfaction_mean is not None else None
         ),
         "latest_satisfaction_mean_ok": latest_satisfaction_mean_ok,
         "latest_satisfaction_mean_calibrated_ok": latest_satisfaction_mean_calibrated_ok,
