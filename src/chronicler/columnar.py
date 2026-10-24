@@ -57,6 +57,42 @@ def batch_arrays(batch, names) -> tuple[np.ndarray, ...] | None:
     return arrays
 
 
+def _distinct(codes: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``np.unique(codes, return_index=True, return_counts=True)`` for codes >= 0.
+
+    Small code ranges use ``bincount`` and ``minimum.at`` (linear time)
+    instead of sorting; both give the distinct codes ascending, the first
+    row of each and its count.
+    """
+    n = len(codes)
+    span = int(codes.max()) + 1 if n else 0
+    if n and span <= max(4 * n, 1 << 16):
+        counts = np.bincount(codes, minlength=span)
+        first = np.full(span, n, dtype=np.int64)
+        np.minimum.at(first, codes, np.arange(n, dtype=np.int64))
+        present = np.flatnonzero(counts)
+        return present, first[present], counts[present]
+    return np.unique(codes, return_index=True, return_counts=True)
+
+
+def group_rows(keys: np.ndarray) -> list[tuple[int, np.ndarray]]:
+    """``[(key, rows)]`` for each distinct key ascending; rows in row order.
+
+    Equal to ``np.flatnonzero(keys == key)`` per key. Keys that fit 16 bits
+    are sorted by the (stable) radix path of a narrow dtype.
+    """
+    keys = np.asarray(keys)
+    if len(keys) == 0:
+        return []
+    lo, hi = int(keys.min()), int(keys.max())
+    sortable = (keys - lo).astype(np.uint16) if hi - lo < (1 << 16) else keys
+    order = np.argsort(sortable, kind="stable")
+    sorted_keys = keys[order]
+    bounds = np.flatnonzero(sorted_keys[1:] != sorted_keys[:-1]) + 1
+    starts = np.concatenate(([0], bounds))
+    return [(int(sorted_keys[s]), rows) for s, rows in zip(starts.tolist(), np.split(order, bounds))]
+
+
 def ordered_counts(keys: np.ndarray, values: np.ndarray) -> dict[int, Counter]:
     """Per-key value Counters in a row loop's insertion order (Python ints)."""
     keys = np.asarray(keys, dtype=np.int64)
@@ -67,7 +103,7 @@ def ordered_counts(keys: np.ndarray, values: np.ndarray) -> dict[int, Counter]:
     k0, v0 = int(keys.min()), int(values.min())
     width = int(values.max()) - v0 + 1
     pairs = (keys - k0) * width + (values - v0)
-    unique, first, counts = np.unique(pairs, return_index=True, return_counts=True)
+    unique, first, counts = _distinct(pairs)
     order = np.argsort(first, kind="stable")
     for pair, count in zip(unique[order].tolist(), counts[order].tolist()):
         key, value = divmod(pair, width)
@@ -83,8 +119,9 @@ def first_appearance(values: np.ndarray) -> list[int]:
     values = np.asarray(values)
     if len(values) == 0:
         return []
-    unique, first = np.unique(values, return_index=True)
-    return unique[np.argsort(first, kind="stable")].tolist()
+    lo = int(values.min())
+    unique, first, _ = _distinct(values.astype(np.int64) - lo)
+    return (unique[np.argsort(first, kind="stable")] + lo).tolist()
 
 
 def last_row_of(ids: np.ndarray, wanted) -> dict[int, int]:

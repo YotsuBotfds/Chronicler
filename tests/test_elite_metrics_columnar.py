@@ -67,7 +67,8 @@ def test_counts_equal_kernel_on_random_civs(seed):
     rng = random.Random(seed)
     for _ in range(25):
         civ, *columns, gps = _random_civ(rng)
-        calibration = EliteCalibration(0.4, 0.1, 3.0, elite_positions_divisor=rng.choice([1, 20, 100]))
+        calibration = EliteCalibration(0.4, 0.1, 3.0, elite_positions_divisor=rng.choice([1, 20, 100]),
+                                       elite_wealth_percentile=rng.choice([0.9, 0.9, 0.0, 0.5, 0.75, 1.0]))
         for conventions in ALL_CONVENTIONS:
             reference, counts = _both(civ, *columns, gps, calibration, conventions)
             assert counts.civ_id == reference.civ_id
@@ -79,6 +80,22 @@ def test_counts_equal_kernel_on_random_civs(seed):
             assert counts.conspicuous_consumption_index.hex() == reference.conspicuous_consumption_index.hex()
             assert counts.emp.hex() == reference.emp.hex()
             assert counts.next_ratchet_state == reference.next_ratchet_state
+
+
+@pytest.mark.parametrize("convention", list(WealthPercentileConvention))
+def test_wealth_qualifiers_match_the_sorted_group_scan(convention):
+    from chronicler.elite_metrics import _wealth_qualifiers as reference
+    from chronicler.elite_metrics_columnar import _wealth_qualifiers
+
+    rng = random.Random(17)
+    for n in list(range(1, 41)) + [99, 100, 101, 1000, 1001]:
+        for threshold in (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99, 1.0, rng.random()):
+            wealth = [float(rng.choice([0, 1, 2, 3, 5])) if rng.random() < 0.5 else rng.random()
+                      for _ in range(n)]
+            rows = [AgentEliteInput(i, 0, w, Occupation.FARMER, 0.0, 0.0) for i, w in enumerate(wealth)]
+            expected = reference(rows, threshold, convention)
+            got = _wealth_qualifiers(np.array(wealth), threshold, convention)
+            assert set(np.flatnonzero(got).tolist()) == expected, (n, threshold)
 
 
 def test_ties_across_agents_and_great_persons_follow_the_equal_wealth_order():

@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Iterable, Mapping
 import numpy as np
 
 from chronicler import elite_metrics as g02
+from chronicler.columnar import group_rows, ordered_counts
 from chronicler.elite_metrics_columnar import compute_civ_elite_counts
 from chronicler import governance_capital as g03
 from chronicler import institutions as g01
@@ -557,23 +558,13 @@ def _build_context(world, phase10) -> _Context:
         if civ_known is not None:
             keep &= civ_known
         kept = np.flatnonzero(keep)
-        kept_civ = civ[kept]
-        order = np.argsort(kept_civ, kind="stable")
-        sorted_civ = kept_civ[order]
-        bounds = np.flatnonzero(np.diff(sorted_civ)) + 1
-        by_civ = {int(group_civ[0]): group
-                  for group_civ, group in zip(np.split(sorted_civ, bounds), np.split(kept[order], bounds))
-                  if len(group)}
+        by_civ = {civ_id: kept[rows] for civ_id, rows in group_rows(civ[kept])}
         # Per-region belief counts over the same rows (only sums and lookups
         # of these counts are read, so key order is immaterial).
         if len(kept):
-            regions, beliefs = columns["region"][kept], columns["belief"][kept]
-            r0, b0 = int(regions.min()), int(beliefs.min())
-            width = int(beliefs.max()) - b0 + 1
-            keys, counts = np.unique((regions - r0) * width + (beliefs - b0), return_counts=True)
-            for key, count in zip(keys.tolist(), counts.tolist()):
-                rid, bid = divmod(key, width)
-                region_beliefs.setdefault(rid + r0, {})[bid + b0] = count
+            region_beliefs = {
+                rid: dict(counts) for rid, counts in
+                ordered_counts(columns["region"][kept], columns["belief"][kept]).items()}
         rows = {"columns": columns, "by_civ": by_civ}
     turn_events = []
     for event in reversed(world.events_timeline):
@@ -605,11 +596,6 @@ def _unit_array(values: np.ndarray) -> np.ndarray:
 
 
 _NO_ROWS = np.zeros(0, dtype=np.int64)
-
-
-def _contains(sorted_values: np.ndarray, value: int) -> bool:
-    pos = int(np.searchsorted(sorted_values, value))
-    return pos < len(sorted_values) and int(sorted_values[pos]) == value
 
 
 def _gp_keys(gps) -> list[tuple[str, object]]:
@@ -658,9 +644,9 @@ def _elite_metrics(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) 
         else:
             max_wealth = 0.0
             mean_sat = _unit(civ.stability / 100)
-        present = np.unique(ids) if gps else ids
         for key, gp in _gp_keys(gps):
-            backed = gp.agent_id if gp.agent_id is not None and _contains(present, gp.agent_id) else None
+            backed = (gp.agent_id if gp.agent_id is not None and bool((ids == gp.agent_id).any())
+                      else None)
             greats.append(g02.GreatPersonEliteInput(
                 key, civ_idx, backed,
                 None if backed is not None else max_wealth,

@@ -11,8 +11,9 @@ percentile, candidate and ranking rules exactly:
 
 * wealth qualifiers: an agent's LOWER (UPPER) rank is the number of the civ's
   rows with strictly smaller (smaller or equal) wealth, which is the start
-  (end) of its equal-wealth group in the kernel's sorted order; ``rank / n``
-  is the same IEEE division;
+  (end) of its equal-wealth group in the kernel's sorted order. ``rank / n``
+  (the same IEEE division) is monotone in the rank, so the test reduces to a
+  comparison with one order statistic (``np.partition``);
 * candidates are sorted by the kernel's total order ``(-wealth, kind,
   agent id, GP key)`` with one ``lexsort`` (GP keys enter as their lexical
   rank, agent ids are unique, GP keys are unique after deduplication);
@@ -63,6 +64,31 @@ class CivEliteCounts:
     next_ratchet_state: EliteRatchetState
 
 
+def _wealth_qualifiers(wealth: np.ndarray, threshold: float,
+                       convention: WealthPercentileConvention) -> np.ndarray:
+    """Rows whose ``rank / n > threshold`` (the kernel's test), in O(n).
+
+    ``r / n`` is non-decreasing in ``r`` (correctly rounded division), so the
+    qualifying ranks are ``r >= k`` for the least such ``k``. LOWER rank is
+    ``#(w < w_i)``: ``>= k`` iff the k-th smallest value is ``< w_i``. UPPER
+    rank is ``#(w <= w_i)``: ``>= k`` iff the k-th smallest is ``<= w_i``.
+    """
+    n = len(wealth)
+    # Every r <= threshold * n - 2 fails (r / n is at least 2/n below the
+    # threshold, far more than rounding), so start there and step exactly.
+    k = max(0, int(threshold * n) - 2)
+    while k <= n and not k / n > threshold:
+        k += 1
+    if k > n:
+        return np.zeros(n, dtype=bool)
+    if k == 0:
+        return np.ones(n, dtype=bool)
+    kth = np.partition(wealth, k - 1)[k - 1]
+    if convention is WealthPercentileConvention.LOWER:
+        return wealth > kth
+    return wealth >= kth
+
+
 def _check_unit(name: str, values: np.ndarray) -> None:
     if values.size and not (np.isfinite(values).all()
                             and (values >= 0).all() and (values <= 1).all()):
@@ -110,17 +136,15 @@ def compute_civ_elite_counts(
             raise ValueError("wealth must be finite")
         _check_unit("skill", skill)
         _check_unit("satisfaction", satisfaction)
-    order_by_id = np.argsort(ids, kind="stable")
-    sorted_ids = ids[order_by_id]
-    if n > 1 and (sorted_ids[1:] == sorted_ids[:-1]).any():
-        duplicate = int(sorted_ids[1:][sorted_ids[1:] == sorted_ids[:-1]][0])
-        raise ValueError(f"duplicate agent_id {duplicate}")
+    if n > 1:
+        sorted_ids = np.sort(ids)
+        repeated = sorted_ids[1:] == sorted_ids[:-1]
+        if repeated.any():
+            raise ValueError(f"duplicate agent_id {int(sorted_ids[1:][repeated][0])}")
 
     def backing_row(agent_id: int) -> int | None:
-        pos = int(np.searchsorted(sorted_ids, agent_id))
-        if pos < n and int(sorted_ids[pos]) == agent_id:
-            return int(order_by_id[pos])
-        return None
+        rows = np.flatnonzero(ids == agent_id)  # ids are unique
+        return int(rows[0]) if len(rows) else None
 
     # GreatPerson overlays: the kernel's loop, with row lookups by id.
     gp_keys: dict[str, tuple[object, ...]] = {}
@@ -157,13 +181,12 @@ def compute_civ_elite_counts(
         gp_candidates[key] = (gp.great_person_key, gp_wealth, gp_satisfaction)
 
     # Wealth qualifiers: rank = start (LOWER) or end (UPPER) of the row's
-    # equal-wealth group in ascending order.
+    # equal-wealth group in ascending order, i.e. the number of rows with
+    # smaller (LOWER) or smaller-or-equal (UPPER) wealth.
     if n:
-        sorted_wealth = np.sort(wealth)
-        side = "left" if conventions.wealth_percentile is WealthPercentileConvention.LOWER else "right"
-        rank = np.searchsorted(sorted_wealth, wealth, side=side)
-        candidate = rank.astype(np.float64) / n > calibration.elite_wealth_percentile
-        candidate |= (np.isin(occupation, _SKILLED_CODES)
+        candidate = _wealth_qualifiers(wealth, calibration.elite_wealth_percentile,
+                                       conventions.wealth_percentile)
+        candidate |= ((occupation >= min(_SKILLED_CODES))
                       & (skill >= calibration.elite_skill_threshold))
         if backed_rows:
             candidate[np.asarray(backed_rows, dtype=np.int64)] = True
