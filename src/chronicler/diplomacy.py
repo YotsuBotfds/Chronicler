@@ -1194,8 +1194,12 @@ def make_subject(world, overlord: "Civilization", vassal: "Civilization", stage:
     if reason == "twilight":
         description = (f"The Submission of {vassal.name}: the declining realm becomes a client "
                        f"of {overlord.name}")
+        # What made the realm unviable or declining: its twilight or collapse,
+        # and the famine and exhausted soil open in its land.
         causes = (*causes, prov.recall(world, prov.key("twilight", vassal.name)),
-                  prov.recall(world, prov.key("collapse", vassal.name), within=50))
+                  prov.recall(world, prov.key("collapse", vassal.name), within=50),
+                  *(prov.open_episode(world, "famine", rn) for rn in vassal.regions),
+                  *(prov.open_episode(world, "soil_exhaustion", rn) for rn in vassal.regions))
     else:
         description = f"{vassal.name} places itself under the protection of {overlord.name} as a client"
     event = _emit_now(world, Event(
