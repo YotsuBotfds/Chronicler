@@ -269,18 +269,22 @@ def test_embargo_respects_pacts_unless_breaking_pays(monkeypatch):
     assert dp.memory(world, "B", "A").grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_IMPOSED
 
 
-def test_an_embargo_is_lifted_once_the_imposer_regards_the_target_as_a_friend():
+def test_an_alliance_or_pact_lifts_an_embargo_and_a_friend_s_embargo_stops_offending():
     world = _three()
-    world.embargoes = [("A", "C"), ("B", "C")]
+    world.embargoes = [("A", "C"), ("B", "C"), ("C", "B")]
     world.relationships["A"]["C"].disposition = Disposition.FRIENDLY
-    world.relationships["B"]["C"].disposition = Disposition.SUSPICIOUS
+    world.relationships["B"]["C"].disposition = Disposition.FRIENDLY  # never lifted, no treaty
+    world.relationships["C"]["B"].disposition = Disposition.SUSPICIOUS
+    pact, _ = dp.sign_treaty(world, "trade_pact", _idx(world, "A"), _idx(world, "C"))
     world.turn = 1
     events = dp.tick_diplomacy(world, [])
-    assert world.embargoes == [("B", "C")]
-    assert [e.event_type for e in events] == ["embargo_lifted"] and events[0].actors == ["A", "C"]
-    assert dp.memory(world, "C", "B").grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_TURN
-    # No grievance accrues for a lifted embargo, and the reopened route earns goodwill.
-    assert dp.grievance(world, "C", "A", (EMBARGO,)) == 0.0 and dp.goodwill(world, "C", "A") > 0
+    assert world.embargoes == [("B", "C"), ("C", "B")]
+    lifted = [e for e in events if e.event_type == "embargo_lifted"]
+    assert len(lifted) == 1 and lifted[0].actors == ["A", "C"] and pact.event_id in lifted[0].causes
+    # A still-unfriendly imposer's embargo offends every turn; a friendly one's does not.
+    assert dp.grievance(world, "B", "C", (EMBARGO,)) == dp.GRIEVANCE_EMBARGO_TURN
+    assert dp.grievance(world, "C", "B", (EMBARGO,)) == 0.0
+    assert dp.grievance(world, "C", "A", (EMBARGO,)) == 0.0
 
 
 def test_trade_pact_keeps_a_route_open_between_suspicious_partners():

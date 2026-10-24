@@ -1546,21 +1546,23 @@ def _persecution_inputs(world) -> None:
 
 
 def _lift_embargoes(world) -> list[Event]:
-    """An imposer that has come to regard its target as a friend lifts the
-    embargo (embargoes are otherwise permanent). Lifting reopens the route
-    and stops the target's embargo grievance from accruing."""
+    """Normalization: an alliance or trade pact between the pair lifts an
+    embargo (embargoes are otherwise permanent), reopening the route."""
     lifted: list[Event] = []
     keep = []
-    friendly = _ORDER.index(Disposition.FRIENDLY)
     for imposer, target in world.embargoes:
         a, b = world.civ_map.get(imposer), world.civ_map.get(target)
-        if (a is not None and b is not None and a.regions and b.regions
-                and _disp(world, imposer, target) >= friendly):
+        binding = []
+        if a is not None and b is not None and a.regions and b.regions:
+            binding = treaties_between(world, _idx(world, imposer), _idx(world, target),
+                                       ("alliance", "trade_pact"))
+        if binding:
             _bump(world.diplomacy, "lifted:embargo")
             lifted.append(_emit_now(world, Event(
                 turn=world.turn, event_type="embargo_lifted", actors=[imposer, target],
-                description=f"{imposer} lifts its embargo on {target}.", importance=3,
-            ), (prov.recall(world, "embargo:" + prov.pair(imposer, target)),)))
+                description=f"{imposer} lifts its embargo on {target} under {binding[0].name}.",
+                importance=3,
+            ), (binding[0].event_id, prov.recall(world, "embargo:" + prov.pair(imposer, target)))))
             continue
         keep.append((imposer, target))
     if lifted:
@@ -1570,9 +1572,13 @@ def _lift_embargoes(world) -> list[Event]:
 
 
 def _embargo_inputs(world) -> None:
+    """A standing embargo offends while its imposer is still unfriendly; one a
+    friendly imposer merely never lifted is not felt as a fresh hostility."""
+    neutral = _ORDER.index(Disposition.NEUTRAL)
     for imposer, target in world.embargoes:
         a, b = world.civ_map.get(imposer), world.civ_map.get(target)
-        if a is not None and b is not None and a.regions and b.regions:
+        if (a is not None and b is not None and a.regions and b.regions
+                and _disp(world, imposer, target) <= neutral):
             add_grievance(world, target, imposer, EMBARGO, GRIEVANCE_EMBARGO_TURN)
 
 
