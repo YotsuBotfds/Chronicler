@@ -101,6 +101,7 @@ from chronicler.movements import tick_movements
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
 from chronicler.maritime import maritime_enabled as _maritime_on
+from chronicler.nomads_state import nomads_on as _nomads_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -2078,6 +2079,13 @@ def run_turn_result(
     if _maritime_on(world):
         from chronicler.maritime import tick_maritime
         _emit(tick_maritime(world, acc=acc, agent_bridge=agent_bridge))
+
+    # Nomads (--nomads): herds, transhumance, raids and tribute, hordes and
+    # their conquest waves, sedentarization; before campaigns so the wars a
+    # horde opens are fought this turn.
+    if _nomads_on(world):
+        from chronicler.nomads import tick_nomads
+        _emit(tick_nomads(world, acc=acc, agent_bridge=agent_bridge))
 
     # M60: Campaigns (armies, logistics, battles, sieges, occupation, peace)
     if world.campaigns_enabled:

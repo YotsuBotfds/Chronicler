@@ -21,6 +21,7 @@ from chronicler.finance import FinanceState
 from chronicler.diplomacy_state import DiplomacyState, DiplomaticMemory
 from chronicler.techniques_state import TechniqueState
 from chronicler.maritime_state import MaritimeState
+from chronicler.nomads_state import NomadState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1139,6 +1140,10 @@ class WorldState(BaseModel):
     # Maritime layer: fleets, sea-zone control, blockades, piracy, colonies
     # (chronicler.maritime; None = disabled; omitted from output).
     maritime: MaritimeState | None = None
+    # Pastoral and nomadic peoples: subsistence modes, herds, raids, tribute,
+    # hordes and sedentarization (chronicler.nomads; None = disabled;
+    # omitted from output).
+    nomads: NomadState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1232,6 +1237,8 @@ class WorldState(BaseModel):
             data.pop("techniques", None)
         if isinstance(data, dict) and self.maritime is None:
             data.pop("maritime", None)
+        if isinstance(data, dict) and self.nomads is None:
+            data.pop("nomads", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1361,6 +1368,8 @@ class TurnSnapshot(BaseModel):
     techniques: dict | None = None
     # Maritime per-turn summary; None (and omitted) when maritime is off.
     maritime: dict | None = None
+    # Nomads per-turn summary; None (and omitted) when nomads are off.
+    nomads: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1379,6 +1388,8 @@ class TurnSnapshot(BaseModel):
             data.pop("techniques")
         if isinstance(data, dict) and data.get("maritime", 0) is None:
             data.pop("maritime")
+        if isinstance(data, dict) and data.get("nomads", 0) is None:
+            data.pop("nomads")
         return data
 
 
