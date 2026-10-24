@@ -2,7 +2,8 @@
 
 Each test pins one correction: aggregate migration is a no-op for agent-owned
 populations, soil degrades against potential capacity, temperate water
-recovery is climatic, and mines need a mineral resource.
+recovery is climatic, mines need a mineral resource, and goods harvests are in
+economy units.
 """
 from __future__ import annotations
 
@@ -10,8 +11,11 @@ import pytest
 
 from chronicler.climate import PHASE_SCHEDULE, process_migration
 from chronicler.ecology import (
+    TERRAIN_ECOLOGY_DEFAULTS,
     _tick_soil,
     _tick_water,
+    goods_per_worker,
+    harvest_normal_index,
     potential_capacity,
 )
 from chronicler.models import (
@@ -26,6 +30,7 @@ from chronicler.models import (
     ResourceType,
     WorldState,
 )
+from chronicler.resources import CLIMATE_CLASS_MOD, SEASON_MOD
 
 
 def _civ(name: str, regions: list[str], population: int = 40) -> Civilization:
@@ -154,3 +159,65 @@ def test_mines_are_valid_where_there_is_ore_or_precious_metal(mineral):
 
     region = _region_with_slots([int(ResourceType.GRAIN), int(mineral)])
     assert InfrastructureType.MINES in valid_build_types(region)
+
+
+# --- goods harvest units ------------------------------------------------------
+
+def _cycle_mean(class_idx: int) -> float:
+    bounds = [t for t, _ in PHASE_SCHEDULE] + [1.0]
+    return sum((bounds[i + 1] - bounds[i]) * CLIMATE_CLASS_MOD[class_idx][i]
+               for i in range(len(PHASE_SCHEDULE)))
+
+
+def test_harvest_normal_index_is_derived_from_the_m34_tables():
+    plains = TERRAIN_ECOLOGY_DEFAULTS["plains"]
+    grain = sum(SEASON_MOD[ResourceType.GRAIN]) / 4 * _cycle_mean(0) * plains.soil * plains.water
+    assert harvest_normal_index(ResourceType.GRAIN) == pytest.approx(grain)
+    assert harvest_normal_index(ResourceType.GRAIN) == pytest.approx(0.95 * 0.82 * 0.54)
+    assert harvest_normal_index(ResourceType.FISH) == pytest.approx(0.85 * 0.94)
+    assert harvest_normal_index(ResourceType.ORE) == pytest.approx(0.95)
+    forest = TERRAIN_ECOLOGY_DEFAULTS["forest"].forest_cover
+    assert harvest_normal_index(ResourceType.TIMBER) == pytest.approx(0.9 * _cycle_mean(1) * forest)
+
+
+def test_healthy_land_averages_the_base_yield_over_a_full_cycle():
+    """Long-run goods per farmer on default farmland equal the base yield."""
+    from chronicler.climate import get_climate_phase
+    from chronicler.ecology import compute_resource_yields
+    from chronicler.resources import get_season_id
+
+    region = _plains(population=40, soil=0.9, water=0.6)
+    region.resource_types = [int(ResourceType.GRAIN), 255, 255]
+    region.resource_base_yields = [1.0, 0.0, 0.0]
+    world = _world_with(region)
+    period = world.climate_config.period
+    total = 0.0
+    turns = period * 4  # whole climate cycles and whole years
+    for turn in range(turns):
+        phase = get_climate_phase(turn, world.climate_config)
+        index = compute_resource_yields(region, get_season_id(turn), phase, 0, world,
+                                        deplete_reserves=False)[0]
+        total += goods_per_worker(ResourceType.GRAIN, index)
+    assert total / turns == pytest.approx(1.0, rel=0.01)
+
+
+def test_goods_per_worker_keeps_empty_and_zero_slots():
+    assert goods_per_worker(255, 0.0) == 0.0
+    assert goods_per_worker(int(ResourceType.GRAIN), 0.0) == 0.0
+
+
+def test_economy_yield_and_catch_budget_are_in_goods_units():
+    from chronicler.experimental.fisheries import catch_budget, economy_yield, set_fisheries_enabled
+
+    region = Region(name="C", terrain="coast", carrying_capacity=60, resources="maritime",
+                    controller="Rome", resource_types=[int(ResourceType.FISH), 255, 255],
+                    resource_base_yields=[1.0, 0.0, 0.0])
+    region.resource_current_yields = [0.6, 0.0, 0.0]
+    region.fishery_catch_budgets = [12.0, None, None]
+    world = _world_with(region)
+    assert economy_yield(world, region) == pytest.approx(0.6 / harvest_normal_index(ResourceType.FISH))
+    assert catch_budget(world, region) is None  # fishery off: uncapped
+    set_fisheries_enabled(world, True, new_world=True)
+    region.fishery_yield_ratios = [0.5, 1.0, 1.0]
+    assert economy_yield(world, region) == pytest.approx(0.3 / harvest_normal_index(ResourceType.FISH))
+    assert catch_budget(world, region) == pytest.approx(12.0 / harvest_normal_index(ResourceType.FISH))

@@ -30,6 +30,15 @@ RT_GOOD = {0: "grain", 1: "timber", 2: "botanicals", 3: "fish", 4: "salt", 5: "o
 TOL = 1e-3  # independent double-precision oracle versus float32 ABI
 
 
+def _goods_units(index: float) -> float:
+    """Fish harvest-index quantity in economy goods (2026-10 food balance)."""
+    try:
+        from chronicler.ecology import goods_per_worker
+    except ImportError:  # sources before the goods-unit conversion
+        return index
+    return goods_per_worker(3, index)
+
+
 def close(a, b, tol=TOL):
     assert math.isfinite(a) and math.isfinite(b) and abs(a - b) <= tol, (a, b)
 
@@ -183,7 +192,7 @@ class ObservedRuntime:
         if enabled:
             # The expected cap comes from the prior independently audited biomass
             # debit, not from trusting the packed production input being tested.
-            close(rows[0]["fishery_catch_budget_0"], self.previous_catch)
+            close(rows[0]["fishery_catch_budget_0"], _goods_units(self.previous_catch))
         expected, ledger = {}, {k: defaultdict(float) for k in ("production", "consumption", "storage_loss", "cap_overflow", "departures", "arrivals", "returns", "transit_loss")}
         errors = []
         food_suff = {}
@@ -200,7 +209,7 @@ class ObservedRuntime:
                     production = min(production, budget)
                 ledger["production"][good] += production
                 if enabled and rid == 0 and s == 0:
-                    assert production <= self.previous_catch + TOL
+                    assert production <= _goods_units(self.previous_catch) + TOL
                 values[good] += production
             for g in GOODS:
                 delta = {key: diag[rid, g][key] - self.settled[rid, g][key] for key in ("total_departures", "total_arrivals", "total_returns")}

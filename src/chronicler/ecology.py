@@ -408,6 +408,66 @@ def compute_resource_yields(
     return yields
 
 
+# --- Goods harvest units ------------------------------------------------------
+#
+# Correction (2026-10, food balance). The M34 harvest index above is a
+# dimensionless condition index (PEAK_YIELD 1.0 maps to full farmer
+# satisfaction; famine below 0.12). The goods economy's demand constants
+# (PER_CAPITA_FOOD 0.5, raw-material and luxury demand, CARRY_PER_MERCHANT,
+# stock caps) were set while one farmer-turn produced its slot's effective
+# yield, i.e. the base yield (about 1.0). PR #11 (76e1d2a) fed the economy the
+# realized index instead, whose long-run mean on healthy land is only 42% of
+# base for grain and 80% for fish, without converting units. The economy
+# therefore produced well under half the food its demand assumed. Goods per
+# farmer now keep PR #11's seasonal, climatic and ecological variation but are
+# expressed relative to the long-run mean, so healthy land again averages the
+# base yield per farmer over a full season and climate cycle.
+
+_HARVEST_NORMAL_CACHE: dict[int, float] = {}
+
+
+def _healthy_ecology_mod(class_idx: int) -> float:
+    """Ecology factor of each class on its reference healthy land."""
+    if class_idx == 0:  # Crop: default farmland (plains) soil x water
+        ref = TERRAIN_ECOLOGY_DEFAULTS["plains"]
+        return ref.soil * ref.water
+    if class_idx == 1:  # Forestry: default woodland cover
+        return TERRAIN_ECOLOGY_DEFAULTS["forest"].forest_cover
+    return 1.0  # Marine, mineral and evaporite yields have no ecology factor
+
+
+def harvest_normal_index(rtype: int) -> float:
+    """Long-run mean of the M34 harvest index per unit base yield, healthy land.
+
+    Annual mean of ``SEASON_MOD[rtype]`` x the climate-cycle mean of the
+    class's ``CLIMATE_CLASS_MOD`` row (weighted by the ``PHASE_SCHEDULE``
+    phase shares) x the class's healthy ecology factor. Derived from the model
+    tables; it has no tuning key.
+    """
+    cached = _HARVEST_NORMAL_CACHE.get(rtype)
+    if cached is not None:
+        return cached
+    from chronicler.climate import PHASE_SCHEDULE
+
+    bounds = [threshold for threshold, _ in PHASE_SCHEDULE] + [1.0]
+    shares = [bounds[i + 1] - bounds[i] for i in range(len(PHASE_SCHEDULE))]
+    class_idx = resource_class_index(rtype)
+    season_mean = sum(SEASON_MOD[rtype]) / len(SEASON_MOD[rtype])
+    phase_mods = [CLIMATE_CLASS_MOD[class_idx][_CLIMATE_PHASE_INDEX[p.value]]
+                  for _, p in PHASE_SCHEDULE]
+    climate_mean = sum(s * m for s, m in zip(shares, phase_mods))
+    value = season_mean * climate_mean * _healthy_ecology_mod(class_idx)
+    _HARVEST_NORMAL_CACHE[rtype] = value
+    return value
+
+
+def goods_per_worker(rtype: int, harvest_index: float) -> float:
+    """Convert an M34 harvest index into goods per farmer-turn (economy units)."""
+    if rtype == EMPTY_SLOT or harvest_index <= 0.0:
+        return harvest_index
+    return harvest_index / harvest_normal_index(int(rtype))
+
+
 def potential_capacity(region: Region) -> float:
     """Undegraded capacity of the land: carrying capacity x disaster modifier.
 
