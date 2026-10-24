@@ -20,6 +20,17 @@ diplomacy on), the subset gate passes with no comparator regression on seeds
 42-61 and 62-81, and 0 of 40 worlds go extinct (see [Gate](#gate)). The
 full 200-seed gate was not run. The default stays off.
 
+**Update, `fix/agenda-preaching`** (from `integrate/wave-5` at `b1b3f2d`,
+merged with `b7d9ced`, where techniques are on by default). The agent
+rebellion rise traced to persecution, not to conversion as such. Prophets now
+preach only in realms that hold their faith and never into persecution, and
+no longer take over a conversion slot's leftover rate; scientists vow only
+inventions their civ has a site for. With the switch off every output is
+byte-identical to `b7d9ced`. What is left of the rise runs through a
+persecution builder defect outside this feature. See
+[The rebellion tail](#the-rebellion-tail-fixagenda-preaching); it supersedes
+the rebellion and scientist numbers further down.
+
 ## Why
 
 Great persons were mostly decorative. Achievements spawned them
@@ -37,7 +48,7 @@ one of them.
 | Framework | The ruler-ambition kernel resolves every agenda. Ten great-person kinds are appended to `AmbitionType`; each agenda is one `Ambition` in a one-objective `RulerAmbitions` record keyed by the person, fed `EvidenceEvent`s from the turn's events and settled by `evaluate_ambitions`: state predicates (ownership, the trade-route surface, belief shares), on-time evidence (a coup, a completed temple, an era advance, an invention), the deadline, and, for great persons only, thwarting evidence (a crushed coup, a broken route, the holder's departure). |
 | Generals | `lead_campaign` against a war enemy's or hostile neighbour's region (hot-headed generals also a neutral neighbour's): WAR weight, renown and prestige from victories, agitation for war in peacetime; completes when the civ holds the region. `seize_throne` against a weak ruler: a coup through the existing GP-to-throne succession path, citing the grievance or ambition that drives it. |
 | Merchants | `open_trade_route` to a bordering civ (trade missions warm relations), `protect_trade_route` to a partner (kept to the deadline; interceding when relations sour), `found_trading_house` (a trade-good artifact and merchant influence; one house per region) and, with `--finance`, `lend_to_crown` (deeper domestic credit; completes on the crown's next domestic loan). |
-| Prophets | `spread_faith` to a region where the civ's faith is weak (preaching adds to the region's conversion signal; agent modes) and `found_shrine` (commission a temple that becomes a pilgrimage shrine). |
+| Prophets | `spread_faith` to a region of the faith's realms where the faith is weak and nobody is persecuted (preaching adds to the region's conversion signal; agent modes) and `found_shrine` (commission a temple that becomes a pilgrimage shrine). |
 | Scientists | `advance_learning` (the civ's next era) or, with `--techniques`, `invent_technique` (steers and speeds the civ's next invention). |
 | Bonds | Alliances (`loyalty` to the ruler, `conspiracy` behind a plotting general, `partnership` of merchants courting each other's civ) and rivalries (`opposition` to the ruler, `feud` between persons whose agendas collide). They change coup odds, shift faction influence and decide who backs whom in a succession crisis. |
 | Weights | Each open agenda's action bias joins the governance bucket and its 1.5x clamp; at most two agendas of one kind count per civ. |
@@ -134,10 +145,10 @@ Two persons of one civ never hold the same vow (kind and target).
 | `protect_trade_route` | current partners | 30% if the route lapsed by sour relations: talk it back | the route stands on the deadline | war, war declaration or embargo between the pair, or no route | DIPLOMACY x1.1, WAR x0.95 |
 | `found_trading_house` | two partners and a region of the civ without a house | 25% with two partners and treasury >= 30: pay 15 (keep), a trade-good artifact, merchant influence +0.03 (`trading_house_founded`) | `trading_house_founded` | - | TRADE x1.1 |
 | `lend_to_crown` | `--finance`: fiscal stress >= 0.25, a shortfall, or debt | (state) domestic credit capacity x1.5 per lender, at most two | `crown_loan` (the crown's next domestic `loan_taken`) | - | - |
-| `spread_faith` | agent modes: own or adjacent regions where the civ's faith is below 40% | +0.02 to the region's conversion signal for that faith (when no other faith holds the slot); the first time `preaching` and the prophet moves there | the faith reaches 50% there | - | INVEST_CULTURE x1.1 |
+| `spread_faith` | agent modes: own or adjacent regions where the civ's faith is below 40%, whose ruler holds the faith (own or co-religionist) and with no persecution intensity | while the region stays so: +0.02 to its conversion signal for that faith (an empty slot gets exactly 0.02; no other faith may hold the slot); the first time `preaching` and the prophet moves there | the faith reaches 50% there | - | INVEST_CULTURE x1.1 |
 | `found_shrine` | own regions without a temple where one can be built | once: commission the temple (the BUILD cost, keep) as a pending build (`shrine_commissioned`) | the temple is completed there: +10 temple prestige (a pilgrimage magnet), `shrine_consecrated` | - | BUILD x1.05 |
 | `advance_learning` | techniques off: the next era | - | `tech_advancement` to that era | - | DEVELOP x1.1 |
-| `invent_technique` | techniques on: the civ's lowest-tier invention candidates | (state) the candidate's score +2 in `_invent`; chance x1.25 when it is chosen | `technique_invented` of it | - | DEVELOP x1.05 |
+| `invent_technique` | techniques on: the civ's lowest-tier invention candidates that have a site (an inhabited region of the civ that suits them and practises their prerequisites, as `_invent` requires) | (state) the candidate's score +2 in `_invent`; chance x1.25 when it is chosen | `technique_invented` of it | - | DEVELOP x1.05 |
 
 Every kind also fails early when its holder leaves (`holder_gone`).
 
@@ -223,7 +234,9 @@ loyalists and a crowned great person's rivals its opposition.
   conversion signal, after its builder (`compute_conversion_signals`) and
   only when this turn's agent rows exist; the builder rewrites it every
   Phase 10, so nothing carries over once the vow ends (multi-turn test).
-  No other transient state is created.
+  Preaching reads `persecution_intensity` (written by `compute_persecution`
+  earlier in Phase 10) and never writes it. No other transient state is
+  created.
 * **Identity.** Records are keyed by name and birth turn (the pair
   `artifacts._find_gp` uses), plus the agent id for an agent-backed
   person: promotion can give two agents the same name in one turn (found
@@ -275,6 +288,19 @@ switch off no agenda code runs past the `world.gp_agendas is None` check
 | `scripts/run_python_oracle_checks.py` (PR #19 one-line guard fix applied locally, not committed) | - | 1,771 passed, 8 skipped, 2 deselected; guard PASS, no native module loaded, no blocked I/O |
 | No-Rust environment (no `chronicler_agents` installed), `pytest -n 2`, no marker filter | 5,510 passed, 200 skipped | 5,561 passed, 201 skipped (the extra skip is the hybrid determinism test, which needs the extension) |
 
+On `fix/agenda-preaching` the lanes were rerun against base `b7d9ced`
+(techniques on by default):
+
+| Lane | Base `b7d9ced` | Branch | Branch merged with `integrate/wave-6` |
+| --- | --- | --- | --- |
+| `pytest -m "not slow" -n 2` (native build) | not rerun; collects 5,847 (the branch 5,851: four new tests) | 5,848 passed, 3 skipped | 5,887 passed, 3 skipped |
+| `scripts/run_python_oracle_checks.py` (PR #19 guard fix applied locally, not committed) | - | 1,854 passed, 9 skipped, 2 deselected; guard PASS | 1,892 passed, 10 skipped, 2 deselected; guard PASS; pytest 68.7 s of the 110 s limit |
+| No-Rust environment, `pytest -n 2`, no marker filter | - | 5,649 passed, 202 skipped | - |
+
+The four new tests in `tests/test_gp_agendas.py` (empty slot, faith realms
+and persecution, halting and resuming, the scientist site rule) take about
+0.3 s in the oracle lane.
+
 The 52 new cases: 41 in `tests/test_gp_agendas.py` (added to the oracle
 lane), the existing `test_ruler_ambitions.py` generation check
 parametrised over the 10 appended kinds (rulers never draw them), and
@@ -303,12 +329,18 @@ turns; the result is byte-identical to a straight run).
   route completes on the deadline or breaks on an embargo; a trading house
   is paid for and leaves a trade good (one per region); a crown lender
   deepens domestic credit and completes on a domestic loan.
-* **Prophets.** Preaching abroad raises the conversion signal and the vow
-  is settled by the region's faith; the signal is rebuilt every turn and
-  leaves nothing once the vow ends (multi-turn reset check); a commissioned
-  temple becomes a pilgrimage shrine.
+* **Prophets.** Preaching among co-religionists abroad adds to the faith's
+  own conversion slot and the vow is settled by the region's faith; an
+  empty slot gets only the prophet's pressure, not its leftover rate; only
+  own and co-religionist regions without persecution are targets (not a
+  realm of another faith, an unruled region or a persecuted region);
+  preaching halts under persecution or when the realm changes faith and
+  resumes after; the signal is rebuilt every turn and leaves nothing once
+  the vow ends (multi-turn reset check); a commissioned temple becomes a
+  pilgrimage shrine.
 * **Scientists.** An era vow is settled by the advance or fails at the
-  deadline; with `--techniques` the vowed technique is steered and drawn.
+  deadline; with `--techniques` the vowed technique is steered and drawn,
+  and a technique without a site in the civ is never vowed.
 * **Lifecycle and bonds.** Retirement cuts an agenda short; one vow per
   civ and target; war and trade parties feud and merchants partner across
   borders; allies back and rivals oppose a succession candidate and the
@@ -363,7 +395,8 @@ community, needs and cohort are required; the rest is informational.
 
 ## On and off
 
-Per run, mean of 20 runs, from `scripts/gp_agendas_report.py` (agendas and
+Before `fix/agenda-preaching`, on base `705fe2e`; the current numbers are in
+[The rebellion tail](#the-rebellion-tail-fixagenda-preaching). Per run, mean of 20 runs, from `scripts/gp_agendas_report.py` (agendas and
 coups from the saved state; conversions and active trade routes measured
 live with its `measure` mode, which is output-neutral: a measured base run
 is byte-identical to an unmeasured one). Off is the base `705fe2e` (equal
@@ -478,7 +511,9 @@ above):
 * **Religion.** Conversions +31% (734 / 959), about half of it the
   preaching signal; pilgrimages 2.95 / 3.50; active temples at the end
   6.0 / 6.5; completed infrastructure 70.9 / 78.4 (shrines).
-* **Agent unrest.** Agent rebellions 1,504 / 1,871 per run (+24%; rate
+* **Agent unrest** (before `fix/agenda-preaching`; for the mechanism and
+  the fix see [The rebellion tail](#the-rebellion-tail-fixagenda-preaching)).
+  Agent rebellions 1,504 / 1,871 per run (+24%; rate
   0.043 / 0.052 per agent-turn, and 0.023 / 0.029 on 62-81). The rise is
   carried by a few worlds: on 42-61 only 9 of 20 seeds rise (median ratio
   0.91; seed 60 goes from 1,168 to 2,777), on 62-81 eleven seeds have none
@@ -504,17 +539,245 @@ above):
   `succession_backed` (6). Every one names its person, so arcs and the
   curator see them.
 
+## The rebellion tail (`fix/agenda-preaching`)
+
+Base `b7d9ced` (techniques on by default) unless marked `b1b3f2d`. Hybrid,
+200 turns, `--simulate-only`, seeds 42-101 (60 worlds), one run per arm.
+Rebellions are agent `rebellion` events; conversions count agents whose
+belief changed between consecutive Phase 10 snapshots (the definition of
+`gp_agendas_report.py measure`). An observer recorded every preaching deed
+and, per turn and region, the controller, majority belief, persecution
+intensity, conversion signal and conversions. It is output-neutral (a traced
+seed-60 run gave the same `state.json` and `agent_events.arrow` as a plain
+run). Patched arms swap one function or constant on top of the arm's source.
+Differences are paired by seed, ± one standard error. "Up/down" counts seeds
+whose rebellions rose or fell; 26 of the 60 worlds have no agent
+rebellion in any `b7d9ced` arm.
+
+### Where agent rebellions happen
+
+82% of agent rebellions with the switch off occur in regions under
+persecution. Two facts about persecution shape everything below:
+
+* `religion.compute_persecution` writes a region's intensity (the share of
+  its agents outside the ruler's faith) only for civs whose majority faith
+  is militant. It never resets other regions. When a civ's majority faith
+  leaves a militant faith, or a region passes to a non-militant ruler, the
+  last intensity stays in place. It stays until a militant ruler writes it
+  again, often for the rest of the run.
+* The agent tick applies the intensity to every agent whose belief differs
+  from the region's majority belief. The ruler's faith does not enter. Such
+  an agent loses 0.09 x intensity of satisfaction, and its rebel utility
+  gains 0.18 x intensity whatever its satisfaction or loyalty.
+
+| Per run, switch off | live persecution | left-over intensity | no persecution | total |
+| --- | --- | --- | --- | --- |
+| agent rebellions | 551 | 555 | 249 | 1,355 |
+
+### What the agendas did
+
+Before the fix, the switch on gave 1,508 rebellions per run (+153 ± 67;
+up/down 23/11). On `b1b3f2d` it gave +263 ± 92. Three mechanisms showed up in the
+traces of the high seeds (43, 57, 58, 60, 70, 99).
+
+1. **Converts led into persecution.** 39% of preaching episodes went into
+   regions that were already persecuted, and their converts were persecuted
+   at once.
+   Episodes into persecuted regions were followed by 28-37 rebels of the
+   preached faith in that region (during the episode and 20 turns after);
+   episodes into calm regions were followed by 12-14. This held for own and
+   foreign regions alike. Restricting preaching to the civ's own regions did
+   not help (`b1b3f2d`: +172 ± 100, with as many rebellions under live
+   persecution as the plain switch on), because own regions are
+   persecuted too.
+2. **Realms tipped across the militancy line.** Two thirds of preaching
+   went into realms of another faith. Converting a realm's citizens moves
+   its majority faith, and with it whether the realm persecutes. When it
+   leaves a militant faith, its regions keep their intensity. A first
+   version of the fix, which skipped only persecuted regions, isolates this
+   mechanism. In seed 70,
+   Dorrathi prophets preached a militant faith into three calm, non-militant
+   realms 48 times. Those realms then moved in and out of militancy 53 times
+   (0 with the switch off), and 1,050 rebellions followed under left-over
+   intensity. Seeds 58 and 99 show the same pattern (militancy changes 9 -> 74
+   and 1 -> 40).
+3. **A borrowed rate.** Preaching added its 0.02 to a conversion slot with no
+   faith in it, together with whatever rate the slot already held: a
+   martyrdom or conquest boost that converts nobody. The prophet's faith
+   took that rate over. This happened on 5.2 turns per run, with an average
+   leftover of 0.078: one third more conversion pressure than preaching
+   itself adds (`b1b3f2d`).
+
+Not every tail is preaching. In seed 60 a general, born on turn 2, vowed to
+take Amber Valley, the Selurian capital. On turn 3 Selurian capitulated and
+was extinguished; with the switch off, a treaty returned the valley the
+same turn. Dorrathi, of a militant faith, then ruled a population of another
+faith, and its majority faith left the militant faith on turn 30. Its two
+regions kept intensities 0.87 and 0.36 for the remaining 170 turns, and
+1,306 rebellions followed (1,251 in the whole world with the switch off).
+No preaching was involved.
+
+### The fix
+
+All in `gp_agendas`; no other module changes.
+
+* **Prophets preach only in the faith's realms and never into persecution**
+  (`_open_to_preaching`). The region's ruler must hold the prophet's faith
+  (his own civ or a co-religionist realm), and its persecution intensity must
+  be 0, live or left over. The rule bounds the vow's targets and is checked
+  again at every deed. Preaching waits while a region is persecuted or its
+  ruler holds another faith, and resumes when that ends. An unruled region
+  is never a target.
+* **An empty slot gets exactly the prophet's 0.02.** The leftover rate is
+  not added. When the slot already holds the faith, preaching adds 0.02 as
+  before.
+* **Scientists vow only inventions their civ has a site for**
+  (`_invention_candidates`). Before the fix, the vow pool ignored
+  `techniques._invent`'s site rule: an inhabited region of the civ that
+  suits the technique and practises its prerequisites. A vow for a
+  technique without a site could only run out while the civ invented
+  something else. That happened in 141 of 525 failed vows (60 runs, techniques
+  on). The pool now applies the site rule, reading this turn's practice
+  after Phase 4 (`suitability`, `contacts` and the practice rows are read,
+  never written).
+
+Results, 60 worlds:
+
+| Per run | off | on, before | on, fixed |
+| --- | --- | --- | --- |
+| agent rebellions | 1,355 | 1,508 (+153 ± 67; up/down 23/11) | 1,531 (+176 ± 68; up/down 20/14) |
+| of which under left-over intensity | 555 | 739 | 742 |
+| under live persecution | 551 | 467 | 534 |
+| conversions | 660 | 759 | 734 |
+| preaching deeds applied | - | 63.8 (realms of another faith 66%) | 17.7 (own regions 97%, none in another faith's realm) |
+| rebels of the preached faith per episode (and 20 turns after) | - | 12-14 calm, 28-37 persecuted | 8.5 (all calm) |
+| `spread_faith` vows declared / fulfilled | - | 14.4 / 4.9 | 4.2 / 1.3 |
+| `invent_technique` vows declared / fulfilled | - | 10.9 / 1.8 (17%) | 11.8 / 4.4 (37%) |
+
+The fix removes the agenda-made path: preaching now converts people inside
+their own faith's realms, where nobody persecutes them. The mean did not
+fall, though, because the remaining excess sits entirely under left-over
+intensity (+187). The diagnostic below shows this.
+
+### The diagnostic: persecution that always resets
+
+A patch outside this branch makes `compute_persecution` reset the intensity
+of every region that no militant ruler persecutes. It is a diagnostic only,
+because it changes default outputs.
+
+| Per run, persecution reset in every arm | off | on, before | on, fixed |
+| --- | --- | --- | --- |
+| agent rebellions | 1,079 (−277 ± 84 against the real builder) | 1,167 (+88 ± 95; up/down 22/12) | 1,054 (−24 ± 80; up/down 17/17) |
+
+With that defect gone, fixed agendas raise rebellions by nothing: 17 worlds
+go up, 17 down, and the mean moves −24 ± 80. Before the fix, more worlds
+still rose than fell (22/12; on `b1b3f2d` +224 ± 119, 23/11) through
+mechanisms 1-3. Every world-changing lever feeds the left-over-intensity
+defect: a general's
+conquest, a coup, a different war. A run that differs by one conquest or one
+militancy change can then carry persecution for a hundred turns. The same
+diagnostic pair also gives the size of chance tails. With no systematic
+effect, 4 of 60 worlds still more than double by over 1,000 rebellions
+(and 1 halves).
+
+**The other levers.** Each arm removes one lever from the fixed code (same
+60 worlds, against the switch off):
+
+| Lever removed | rebellions per run | difference | up/down | worlds doubling by > 1,000 |
+| --- | --- | --- | --- | --- |
+| none (fixed) | 1,531 | +176 ± 68 | 20/14 | 60, 93, 99 |
+| campaigns (`lead_campaign`) | 1,484 | +129 ± 63 | 20/14 | 60, 99 |
+| action-weight bias | 1,530 | +175 ± 64 | 21/13 | 60, 99 |
+| shrines | 1,463 | +108 ± 67 | 19/15 | 60, 70, 93 |
+| faction shifts | 1,583 | +228 ± 65 | 25/9 | 60, 93, 99 |
+| coups | 1,508 | +153 ± 64 | 22/12 | 60, 93 |
+| crown credit | 1,445 | +90 ± 71 | 17/17 | 60, 93, 99 |
+
+No single lever carries the excess: every arm lies within about one
+standard error of the others, and the same worlds double in nearly every
+arm. In seed 60, without campaigns, there is no early conquest, yet the
+world still ends in 66 short episodes of left-over intensity. These worlds
+are sensitive to any change of history. Under the reset diagnostic, seeds
+60 and 99 no longer double. The doubling worlds there (48, 61, 93, 97,
+with one halving) are the chance tails of a comparison with no mean effect.
+
+### Gates and identity on `b7d9ced`
+
+**Identity.** The base is a `b7d9ced` export, run with the same environment
+and native build (no Rust changes since `b1b3f2d`) and `PYTHONHASHSEED=0`.
+The comparison is `scripts/diplomacy_identity.py compare`. Seeds 42 and 7,
+`--agents off` 150 turns and `--agents hybrid` 120 turns, `--simulate-only`:
+30 files, **0 differences**, both for the branch default and for
+`--no-gp-agendas`. The subset gate on 42-61 with the switch off covers 2,164
+files. Only the three gate reports differ, and they are identical once the
+batch path is normalised.
+
+**Subset gates** (20 worlds x 200 turns, hybrid, `--parallel 2`, current
+defaults with techniques on). The branch runs with `--gp-agendas` against
+the base report and is compared with `chronicler.validation_compare`:
+
+| Oracle | 42-61 base / on | 62-81 base / on | 82-101 base / on |
+| --- | --- | --- | --- |
+| gate | PASS / PASS | **FAIL** (needs) / PASS | PASS / PASS |
+| comparator | - / NO REGRESSION | - / NO REGRESSION (resolves needs) | - / NO REGRESSION |
+| community (15 required) | 20 / 20 | 20 / 20 | 20 / 20 |
+| needs (12 required; median effect) | 17, 1.00 / 17, 1.00 | **11**, 0.32 / 12, 1.00 | 18, 1.21 / 18, 1.00 |
+| cohort (seeds; median effect) | 20, 1.25 / 20, 1.39 | 20, 1.36 / 20, 1.10 | 20, 1.09 / 20, 1.50 |
+| era (seeds with inflections; silent) | 20; 0 / 20; 0 | 20; 0 / 20; 0 | 20; 0 / 20; 0 |
+| arcs (seeds with three types; families) | 15; 5 / 15; 6 | 18; 6 / 16; 6 | 18; 6 / 18; 5 |
+| artifacts (creation; loss rate) | PARTIAL 2.13, 2.6% / PASS 2.59, 2.7% | PASS 2.29, 2.2% / PASS 2.75, 3.0% | PASS 1.89, 5.3% / PASS 2.67, 4.0% |
+| regression | FAIL (`civ_survival`) / FAIL (`civ_survival`) | PASS (calibrated) / **FAIL** (`civ_survival`) | PASS / PASS (strict) |
+| satisfaction mean; latest | 0.580; 0.597 / 0.585; 0.602 | 0.599; 0.604 / 0.601; 0.609 | 0.591; 0.584 / 0.590; 0.585 |
+| agent rebellion rate per agent-turn | 0.0428 / 0.0442 | 0.0222 / 0.0243 | 0.0532 / 0.0618 |
+| extinct worlds | 0 / 0 | 0 / 0 | 0 / 0 |
+
+* The 62-81 base failure is the known techniques-on needs result
+  (`docs/integration/techniques-default.md`). With agendas on, needs
+  reaches 12 seeds and passes.
+* **`civ_survival` on 62-81** (informational in the subset): 9 of 20 worlds
+  keep all four first civs with the switch on (base 4; the ceiling is 20%).
+  Across all agenda arms on these seeds the count ranges from 3 to 9 (off
+  arms 4-5), so agendas tend to keep more civs alive. This is a risk for
+  the full gate, where regression counts.
+* Rebellions in the gate batches: the on/off table below gives them per run.
+
+**On and off**, per run, from the traced arms (the gate configuration
+without the narrative sidecar; the gate batches give the same states). Off
+is `b7d9ced`; "before" is `b7d9ced` with `--gp-agendas`; "fixed" is this
+branch with `--gp-agendas`. The median seed ratio is taken over the worlds
+with any rebellion in either arm.
+
+| Per run | 42-61 off / before / fixed | 62-81 off / before / fixed | 82-101 off / before / fixed |
+| --- | --- | --- | --- |
+| agent rebellions | 1,490 / 1,608 / 1,587 | 763 / 1,009 / 851 | 1,812 / 1,907 / 2,156 |
+| median seed ratio (worlds with any) | - / 1.02 / 0.98 (12) | - / 1.13 / 1.04 (7) | - / 1.07 / 1.12 (15) |
+| seeds up/down | - / 7/5 / 6/6 | - / 6/1 / 4/3 | - / 10/5 / 10/5 |
+| worst seed | - / 58: 631 -> 2,311 / 60: 1,251 -> 2,504 | - / 70: 199 -> 2,622 / 75: 4,357 -> 5,329 | - / 100: 2,018 -> 2,718 / 99: 310 -> 3,037 |
+| conversions | 727 / 838 / 820 | 534 / 622 / 570 | 718 / 816 / 813 |
+| all coups (great-person seized / crushed) | 7.30 / 7.70 (0.20 / 0.25) / 7.70 (0.20 / 0.25) | 7.55 / 7.60 (0.20 / 0.25) / 8.55 (0.20 / 0.20) | 7.05 / 7.20 (0.20 / 0.60) / 7.20 (0.20 / 0.70) |
+| wars declared | 3.45 / 3.05 / 3.00 | 3.50 / 2.70 / 2.95 | 2.95 / 2.70 / 3.25 |
+| fulfilled: generals / merchants / prophets / scientists | - / 0.70 / 12.75 / 7.85 / 1.70 // 0.65 / 12.20 / 4.95 / 4.35 | - / 0.60 / 15.75 / 4.40 / 1.90 // 0.55 / 16.30 / 3.00 / 4.30 | - / 0.70 / 8.60 / 12.50 / 1.90 // 0.80 / 10.00 / 6.80 / 4.55 |
+| failed: generals / merchants / prophets / scientists | - / 1.80 / 5.05 / 10.95 / 8.85 // 1.55 / 5.85 / 3.05 / 6.45 | - / 1.85 / 6.75 / 5.50 / 9.25 // 1.75 / 7.40 / 2.40 / 8.25 | - / 3.25 / 4.55 / 13.55 / 8.15 // 3.35 / 4.95 / 4.70 / 6.80 |
+
+(In the two agenda rows, "before" is left of `//` and "fixed" right.)
+
 ## Open
 
 * **Full gate not run.** The 200-seed x 500-turn gate is required before
   any default flip; the default stays off.
-* **Agent rebellion tail.** Decide whether a few worlds tipping into heavy
-  rebellion is acceptable; if not, preaching abroad (into foreign-held
-  regions) is the first lever to narrow.
-* **Scientists rarely succeed** (0.4 fulfilled per hybrid run): eras and
-  inventions seldom come inside a 10-25 turn window. Their only levers are
-  a DEVELOP bias and (with techniques) steering; a stronger lever would
-  touch the era or invention costs.
+* **Left-over persecution intensity (outside this feature).**
+  `compute_persecution` never resets regions it does not visit. With the
+  switch off it carries 41% of hybrid agent rebellions, and a reset cuts
+  them by 20% (1,355 -> 1,079 per run). It also turns any change of history
+  into a long rebellion tail. The fix belongs in `religion.py` (the builder
+  should own every region's intensity), as its own change with a full gate,
+  since it changes default outputs. A related oddity: the agent tick
+  persecutes whoever differs from the region's majority belief, so a
+  militant ruler's own faith is persecuted where it is a local minority.
+* **Scientists without techniques** (`advance_learning`) still rarely
+  succeed: eras come about three times per 200-turn hybrid run in the whole
+  world, so a 10-25 turn window seldom holds one. With techniques on (now
+  the default) scientists vow inventions instead, 37% of which succeed.
 * **Generals in peaceful hybrid worlds** mostly sit idle (2.55 agendas per
   run): campaign targets need a hostile or war neighbour unless the general
   is hot-headed.
