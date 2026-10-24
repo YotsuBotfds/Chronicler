@@ -2,13 +2,29 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
-> **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
-> **Last updated:** 2026-10-24 (techniques on `feat/techniques`)
-> **Last updated:** 2026-10-24 (maritime layer on `feat/maritime`)
-> **Last updated:** 2026-10-24 (viewer panels for the five systems on `feat/viewer-systems`)
+> **Last updated:** 2026-10-24 (`integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
 
 ---
+
+## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
+
+Two oracles tuned on worlds that died are recalibrated, one commit each, with
+no base result moving from PASS to FAIL:
+
+- **Era (`303e0fa`):** a silent collapse is now a fall of 30% or more in a
+  civ's smoothed population with neither its own inflection nor a recorded
+  crisis naming it nearby. It used to be one collapse per civ, covered by any
+  civ's inflection anywhere in a window that can span a century.
+- **Late-run satisfaction (`a595a38`):** read over the last 60 turns, not the
+  final sample, which always lands in autumn of a drought.
+
+The founder-survival band and every other threshold were checked and left
+alone. The full profile (200 x 500) passes strict with 0 extinct worlds and no
+comparator regression both with all three systems off and with
+`--epidemiology --finance --diplomacy`. All three now default on for new
+worlds, one commit each. The frozen benchmark workloads pin them off.
+Migration (0.0524 against the 0.05 floor all on) is the margin to watch.
+Evidence: `docs/integration/wave3-defaults.md`.
 
 ## Viewer panels for the default-off systems (2026-10-24, `feat/viewer-systems`)
 

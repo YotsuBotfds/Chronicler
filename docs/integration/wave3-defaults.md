@@ -234,3 +234,64 @@ living ones, so none changes.
 | artifact loss | 2-30%, both channels | 3.8% (40 lost, 127 destroyed) | Recalibrated in `b63ea62` with evidence. |
 | arcs | 5 of 6 families, none above 40%, 50% of seeds with 3 types | 6 families, 161 seeds | |
 | needs / cohort / community | 60% / 60% / 75% of seeds | 190 / 200 / 200 | |
+
+## 5. The all-on full gate and the defaults
+
+With the two oracle changes in place (`a595a38`), the full profile (seeds
+42-241, 500 turns, hybrid) ran twice: once with all three systems off and once
+with `--epidemiology --finance --diplomacy`.
+
+| | All off | All on |
+| --- | ---: | ---: |
+| Gate | PASS (strict) | PASS (strict) |
+| `validation_compare` vs all-off / vs food-balance full report | – / NO REGRESSION | NO REGRESSION / NO REGRESSION |
+| Satisfaction, run mean | 0.594 | 0.596 |
+| Late-run satisfaction (60-turn window) | 0.607 | 0.610 |
+| Migration per agent-turn (floor 0.05) | 0.0556 | 0.0524 |
+| Rebellion per agent-turn | 0.0529 | 0.0482 |
+| All founders surviving (limit 0.20) | 0.165 | 0.155 |
+| Extinct worlds | 0 | 0 |
+| Final population, min / median / max | 33 / 182 / 325 | 41 / 168 / 302 |
+| Era: silent-collapse seeds | 0 | 0 |
+| Artifact creation per civ per 100 turns | 1.10 | 1.07 |
+| Artifact loss | 3.8% | 5.7% |
+
+Headline per run (same 200 worlds, 500 turns):
+
+| Per run | All off | All on |
+| --- | ---: | ---: |
+| Population | 180 | 166 |
+| Polities alive | 2.89 | 2.77 |
+| Wars | 4.62 | 5.36 |
+| Famine events | 345 | 328 |
+| Epidemic deaths | n/a (hazard plague) | 278 |
+| State defaults | 0 | 1.78 |
+| Treaties signed | 0 | 22.2 |
+| PSI crises | 3.11 | 2.06 |
+| Revolts | 4.67 | 3.06 |
+
+The condition set for the flips (PASS strict, 0 extinct, no comparator
+regression) is met, so epidemiology, finance and diplomacy now default on for
+new worlds, one commit each, so each can be reverted alone. Resumed, forked
+and caller-supplied worlds keep their saved setting, and `--no-epidemiology`,
+`--no-finance` and `--no-diplomacy` opt out. `scripts/benchmark_headless.run`
+pins finance and diplomacy off, next to the existing epidemiology pin, so the
+frozen performance oracles replay the same worlds (without the pins 9 golden
+tests move). Diplomacy's `SPARE_LAST_REGION` stays off.
+
+Migration is the margin to watch: epidemiology lowers it (on seeds 62-81 at 500
+turns, 0.0496 off and 0.0453 all on, a `calibrated_floor` pass). On the full
+profile it stays above the strict floor.
+
+Verification after the flips, on `integrate/wave-4` (`7946fff`, with techniques,
+maritime and the viewer panels merged, all default off):
+
+- `pytest -m "not slow"`: 5,707 passed, 3 skipped. No-Rust: 5,508 passed,
+  200 skipped. The offline oracle lane, with PR #19's guard fix applied
+  locally: 1,719 passed, 7 skipped.
+- The subset gate on the new defaults (no flags) passes with no comparator
+  regression. Its report is identical to this branch's all-on subset batch
+  re-scored with the final oracle code, so the defaults reproduce the
+  validated configuration. The informational regression check reads
+  `civ_full_survival` 0.25 on these 20 seeds, about 23% likely by chance at
+  that size (section 3); the full profile reads 0.155.
