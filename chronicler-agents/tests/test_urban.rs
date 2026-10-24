@@ -245,7 +245,7 @@ fn test_urban_satisfaction_material_bonus() {
         shock: chronicler_agents::signals::CivShock::default(),
         agent_values: [0, 0, 0], controller_values: [0, 0, 0],
         agent_belief: 0, majority_belief: 0, has_temple: false,
-        persecution_intensity: 0.0,
+        persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
@@ -281,7 +281,7 @@ fn test_urban_safety_penalty_respects_cap() {
         agent_values: [4, 3, 2], controller_values: [0, 1, 5], // max cultural mismatch
         agent_belief: 1, majority_belief: 2,                     // religious mismatch
         has_temple: false,
-        persecution_intensity: 1.0,                               // max persecution
+        persecution_intensity: 1.0, persecuting_faith: 0xFF,                               // max persecution
         gini_coefficient: 1.0, wealth_percentile: 0.0,          // max class tension
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,

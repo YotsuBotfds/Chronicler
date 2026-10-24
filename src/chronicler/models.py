@@ -371,7 +371,8 @@ class WorldGeography(BaseModel):
 _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
 # Optional region fields omitted from serialized output while None, so worlds
 # that never use them keep their exact bytes.
-_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending")
+_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending",
+                            "persecuting_faith")
 
 
 class Region(BaseModel):
@@ -442,6 +443,10 @@ class Region(BaseModel):
     conversion_target_signal: int = 0xFF         # for bridge
     # M38b: Persecution
     persecution_intensity: float = 0.0         # 0.0 = no persecution; computed in Phase 10
+    # The militant ruler's faith that persecution_intensity is measured
+    # against; the agent tick persecutes everyone outside it. None while the
+    # region is not persecuted (omitted from output).
+    persecuting_faith: int | None = None
     martyrdom_boost: float = 0.0               # decays linearly, same lifecycle as conquest_conversion_boost
     schism_convert_from: int = 0xFF            # 255 = no schism this turn
     schism_convert_to: int = 0xFF              # 255 = no schism this turn

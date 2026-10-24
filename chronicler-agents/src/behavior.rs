@@ -596,8 +596,8 @@ pub fn evaluate_region_decisions(
                 * personality_modifier(bold, BOLD_MIGRATE_WEIGHT)
         };
 
-        // M38b: Persecution boosts for agents whose belief differs from the majority
-        if pool.beliefs[slot] != region_state.majority_belief {
+        // M38b: Persecution boosts for agents outside the persecuting ruler's faith
+        if region_state.persecutes(pool.beliefs[slot]) {
             rebel_util += PERSECUTION_REBEL_BOOST * region_state.persecution_intensity;
             if !is_displaced {
                 migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;

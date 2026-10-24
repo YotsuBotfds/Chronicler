@@ -523,6 +523,12 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "persecution_intensity": pa.array(
             [r.persecution_intensity for r in world.regions], type=pa.float32()
         ),
+        # The faith the intensity was measured against (255 = none): the tick
+        # persecutes everyone outside it, not everyone outside the majority.
+        "persecuting_faith": pa.array(
+            [0xFF if r.persecuting_faith is None else r.persecuting_faith for r in world.regions],
+            type=pa.uint8(),
+        ),
         "schism_convert_from": pa.array(schism_from_vals, type=pa.uint8()),
         "schism_convert_to": pa.array(schism_to_vals, type=pa.uint8()),
         # M42: Goods economy signals

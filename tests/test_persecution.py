@@ -473,3 +473,156 @@ class TestPersecutionResetReachesTheAgentTick:
         assert sent == [0.0, 0.0, 0.0] and fired == []
         sent, fired = turn(base)
         assert sent == [0.0, 0.0, 0.0] and fired == []
+
+
+# ---------------------------------------------------------------------------
+# TestPersecutingFaith: who is persecuted
+# ---------------------------------------------------------------------------
+
+class TestPersecutingFaith:
+    """Persecution targets everyone outside the militant ruler's faith (the
+    faith the builder measured the minority against), also where that faith
+    is itself a local minority."""
+
+    def _conquest(self):
+        # A militant realm (faith 0) rules r0, where faith 1 is the majority.
+        region = _make_region("r0")
+        region.controller = "Militant"
+        beliefs = [_make_belief(0, stance=+1), _make_belief(1, stance=0)]
+        civ = _make_civ("Militant", faith_id=0, region_names=["r0"])
+        snap = _make_snapshot(_agents(0, 0, 0, 3, 0) + _agents(0, 1, 1, 7, 3))
+        return region, civ, beliefs, snap
+
+    def test_builder_records_the_rulers_faith_and_clears_it(self):
+        region, civ, beliefs, snap = self._conquest()
+        compute_persecution([region], [civ], beliefs, snap, turn=1, persecuted_regions=set())
+        assert region.persecution_intensity == pytest.approx(0.7)
+        assert region.persecuting_faith == 0
+        civ.civ_majority_faith = 1  # no longer militant
+        compute_persecution([region], [civ], beliefs, snap, turn=2, persecuted_regions=set())
+        assert region.persecution_intensity == 0.0
+        assert region.persecuting_faith is None
+
+    def test_no_persecuting_faith_without_a_minority(self):
+        region, civ, beliefs, _ = self._conquest()
+        region.persecuting_faith = 1
+        snap = _make_snapshot(_agents(0, 0, 0, 5, 0))
+        compute_persecution([region], [civ], beliefs, snap, turn=1, persecuted_regions=set())
+        assert region.persecution_intensity == 0.0
+        assert region.persecuting_faith is None
+
+    def test_region_batch_carries_the_persecuting_faith_each_turn(self, sample_world):
+        from chronicler.agent_bridge import build_region_batch
+        batch = build_region_batch(sample_world)
+        assert batch.schema.field("persecuting_faith").type == pa.uint8()
+        assert set(batch.column("persecuting_faith").to_pylist()) == {0xFF}
+        sample_world.regions[1].persecution_intensity = 0.4
+        sample_world.regions[1].persecuting_faith = 3
+        first = build_region_batch(sample_world).column("persecuting_faith").to_pylist()
+        assert first[1] == 3 and set(first[:1] + first[2:]) == {0xFF}
+        # A persisted field, not a one-shot signal: unchanged until Phase 10
+        # recomputes it, then cleared together with the intensity.
+        assert build_region_batch(sample_world).column("persecuting_faith").to_pylist() == first
+        compute_persecution(sample_world.regions, sample_world.civilizations, [], None,
+                            turn=1, persecuted_regions=set())
+        cleared = build_region_batch(sample_world)
+        assert set(cleared.column("persecuting_faith").to_pylist()) == {0xFF}
+        assert set(cleared.column("persecution_intensity").to_pylist()) == {0.0}
+
+    def test_region_omits_persecuting_faith_while_none_and_old_saves_load(self):
+        region = _make_region("r0")
+        assert "persecuting_faith" not in region.model_dump()
+        assert "persecuting_faith" not in region.model_dump_json()
+        region.persecution_intensity = 0.5
+        region.persecuting_faith = 2
+        data = region.model_dump()
+        assert data["persecuting_faith"] == 2
+        assert Region.model_validate(data).persecuting_faith == 2
+        del data["persecuting_faith"]  # a save from before the field
+        assert Region.model_validate(data).persecuting_faith is None
+
+    def test_martyrdom_counts_the_persecuted_not_the_rulers_faith(self):
+        region, civ, beliefs, snap = self._conquest()
+        compute_persecution([region], [civ], beliefs, snap, turn=1, persecuted_regions=set())
+        region.majority_belief = 1
+        # A death of the ruler's own faith is no martyrdom, even where that
+        # faith is a local minority.
+        compute_martyrdom_boosts([region], [{"region_idx": 0, "belief": 0}])
+        assert region.martyrdom_boost == 0.0
+        # A death of the persecuted local majority is.
+        compute_martyrdom_boosts([region], [{"region_idx": 0, "belief": 1}])
+        assert region.martyrdom_boost == pytest.approx(MARTYRDOM_BOOST_PER_EVENT)
+
+    def test_martyrdom_without_a_persecuting_faith_uses_the_region_majority(self):
+        region = _make_region("r0")
+        region.persecution_intensity = 0.5
+        region.majority_belief = 0
+        compute_martyrdom_boosts([region], [{"region_idx": 0, "belief": 0}])
+        assert region.martyrdom_boost == 0.0
+        compute_martyrdom_boosts([region], [{"region_idx": 0, "belief": 1}])
+        assert region.martyrdom_boost == pytest.approx(MARTYRDOM_BOOST_PER_EVENT)
+
+
+def _native_world(make_world, *, intensity: float, persecuting_faith):
+    """One hybrid region of faith-1 agents; the region carries the given
+    persecution as Phase 10 would leave it for the next tick."""
+    world = make_world(num_civs=1)
+    world.agent_mode = "hybrid"
+    world.belief_registry = [_make_belief(0, stance=+1), _make_belief(1, stance=0)]
+    world.civilizations[0].civ_majority_faith = 1
+    region = world.regions[0]
+    region.population = 30
+    world.civilizations[0].population = 30
+    region.majority_belief = 1
+    region.persecution_intensity = intensity
+    region.persecuting_faith = persecuting_faith
+    return world
+
+
+def _persecution_memories(bridge) -> int:
+    snap = bridge.get_snapshot()
+    ids = snap.column("id").to_pylist()
+    return sum(1 for agent_id in ids
+               for memory in bridge._sim.get_agent_memories(agent_id) if memory[0] == 3)
+
+
+def test_native_tick_persecutes_everyone_outside_the_rulers_faith_across_turns(make_world):
+    """Multi-turn consumption by the Rust tick: a militant ruler of faith 0
+    persecutes this faith-1 majority; a ruler of faith 1 persecutes nobody
+    here; once Phase 10 resets the region the next ticks persecute nobody, and
+    a restart writes new persecution memories (the gate was cleared)."""
+    chronicler_agents = pytest.importorskip("chronicler_agents")
+    if not isinstance(getattr(chronicler_agents, "AgentSimulator", None), type):
+        pytest.skip("requires the chronicler_agents Rust extension")
+    from chronicler.agent_bridge import AgentBridge
+
+    worlds = {
+        "foreign": _native_world(make_world, intensity=0.8, persecuting_faith=0),
+        "own": _native_world(make_world, intensity=0.8, persecuting_faith=1),
+    }
+    bridges = {k: AgentBridge(w, mode="hybrid") for k, w in worlds.items()}
+    memories = {k: [] for k in worlds}
+    satisfaction = {k: [] for k in worlds}
+    for turn, (intensity, foreign_faith) in enumerate(
+            [(0.8, 0), (0.0, None), (0.0, None), (0.8, 0)], start=1):
+        for key, world in worlds.items():
+            region = world.regions[0]
+            region.persecution_intensity = intensity
+            region.persecuting_faith = (foreign_faith if key == "foreign" else 1) if intensity else None
+            world.turn = turn
+            bridges[key].tick(world)
+            memories[key].append(_persecution_memories(bridges[key]))
+            sats = bridges[key].get_snapshot().column("satisfaction").to_pylist()
+            satisfaction[key].append(sum(sats) / len(sats))
+    # Only the foreign ruler's persecution reaches the faith-1 majority.
+    assert memories["own"] == [0, 0, 0, 0]
+    assert memories["foreign"][0] > 0
+    assert satisfaction["foreign"][0] < satisfaction["own"][0]
+    # Reset: no new persecution memories while the region is clear, and the
+    # satisfaction gap shrinks to what the memories leave behind ...
+    assert memories["foreign"][1] <= memories["foreign"][0]
+    assert memories["foreign"][2] <= memories["foreign"][1]
+    gap = [own - foreign for own, foreign in zip(satisfaction["own"], satisfaction["foreign"])]
+    assert gap[2] < gap[0] / 2
+    # ... and a restart writes them again.
+    assert memories["foreign"][3] > memories["foreign"][2]

@@ -62,6 +62,10 @@ pub struct RegionState {
     pub has_temple: bool,
     // M38b: Persecution
     pub persecution_intensity: f32,
+    /// The faith the persecuting (militant) ruler enforces here: Python's
+    /// builder measures the persecuted minority against it. BELIEF_NONE when
+    /// the batch carries no `persecuting_faith` column (see `persecuted_belief`).
+    pub persecuting_faith: u8,
     pub schism_convert_from: u8,
     pub schism_convert_to: u8,
     // M42: Goods economy signals
@@ -124,7 +128,36 @@ pub fn sorted_ids_intersect(a: &[u16], b: &[u16]) -> bool {
     false
 }
 
+/// M38b: whether an agent of `agent_belief` is among the people a persecuting
+/// ruler targets. Python's builder measures the persecuted minority against
+/// the militant ruler's majority faith (`persecuting_faith`), so the tick
+/// targets the same agents: every faith but the ruler's. Agents without a
+/// faith are never persecuted. Without a persecuting faith (BELIEF_NONE, a
+/// batch with no `persecuting_faith` column) the region's majority belief
+/// stands in for it, the rule before the column existed. The intensity is the
+/// caller's: this only says who, not how much.
+#[inline]
+pub fn persecuted_belief(agent_belief: u8, persecuting_faith: u8, majority_belief: u8) -> bool {
+    if agent_belief == crate::agent::BELIEF_NONE {
+        return false;
+    }
+    let enforced = if persecuting_faith != crate::agent::BELIEF_NONE {
+        persecuting_faith
+    } else {
+        majority_belief
+    };
+    agent_belief != enforced
+}
+
 impl RegionState {
+    /// M38b: whether this region's persecution reaches an agent of `belief`
+    /// (see `persecuted_belief`); false when the region is not persecuted.
+    #[inline]
+    pub fn persecutes(&self, belief: u8) -> bool {
+        self.persecution_intensity > 0.0
+            && persecuted_belief(belief, self.persecuting_faith, self.majority_belief)
+    }
+
     /// True when this region and `other` lie on a common river.
     #[inline]
     pub fn shares_river(&self, other: &RegionState) -> bool {
@@ -170,6 +203,7 @@ impl RegionState {
             majority_belief: 0xFF,
             has_temple: false,
             persecution_intensity: 0.0,
+            persecuting_faith: 0xFF,
             schism_convert_from: 0xFF,
             schism_convert_to: 0xFF,
             farmer_income_modifier: 1.0,
@@ -213,6 +247,43 @@ mod tests {
         assert!(r.adjacency.is_empty());
         assert_eq!(r.controller_civ, 255); // uncontrolled
         assert_eq!(r.trade_route_count, 0);
+    }
+
+    #[test]
+    fn test_persecution_targets_everyone_outside_the_rulers_faith() {
+        const RULER: u8 = 2;
+        const LOCAL: u8 = 5;
+        let mut r = RegionState::new(0);
+        assert_eq!(r.persecuting_faith, crate::agent::BELIEF_NONE);
+        r.persecution_intensity = 0.8;
+        r.persecuting_faith = RULER;
+        // The ruler's faith is a local minority: the local majority and any
+        // third faith are persecuted, the ruler's co-religionists are not.
+        r.majority_belief = LOCAL;
+        assert!(r.persecutes(LOCAL));
+        assert!(r.persecutes(7));
+        assert!(!r.persecutes(RULER));
+        assert!(!r.persecutes(crate::agent::BELIEF_NONE));
+        // The ruler's faith is the majority: the same rule.
+        r.majority_belief = RULER;
+        assert!(r.persecutes(LOCAL));
+        assert!(!r.persecutes(RULER));
+        // No intensity, no persecution.
+        r.persecution_intensity = 0.0;
+        assert!(!r.persecutes(LOCAL));
+    }
+
+    #[test]
+    fn test_persecution_without_a_persecuting_faith_uses_the_region_majority() {
+        // Batches without the persecuting_faith column keep the earlier rule.
+        let mut r = RegionState::new(0);
+        r.persecution_intensity = 0.5;
+        r.majority_belief = 3;
+        assert!(r.persecutes(4));
+        assert!(!r.persecutes(3));
+        assert!(!r.persecutes(crate::agent::BELIEF_NONE));
+        assert!(persecuted_belief(4, crate::agent::BELIEF_NONE, 3));
+        assert!(!persecuted_belief(3, crate::agent::BELIEF_NONE, 3));
     }
 
     #[test]

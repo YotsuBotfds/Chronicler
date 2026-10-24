@@ -1093,11 +1093,8 @@ pub fn try_tick_agents_with_options(
                         decay_factor_override: None,
                     });
                 }
-                // Persecution: minority belief + nonzero persecution intensity
-                if region.persecution_intensity > 0.0
-                    && pool.beliefs[slot] != region.majority_belief
-                    && pool.beliefs[slot] != crate::agent::BELIEF_NONE
-                {
+                // Persecution: outside the persecuting ruler's faith + nonzero intensity
+                if region.persecutes(pool.beliefs[slot]) {
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
                         expected_agent_id: pool.ids[slot],
@@ -1504,6 +1501,7 @@ fn update_satisfaction(
                                 majority_belief: region.majority_belief,
                                 has_temple: region.has_temple,
                                 persecution_intensity: region.persecution_intensity,
+                                persecuting_faith: region.persecuting_faith,
                                 gini_coefficient: gini,
                                 wealth_percentile: wealth_pct,
                                 food_sufficiency: region.food_sufficiency,

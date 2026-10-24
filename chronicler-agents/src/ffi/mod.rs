@@ -377,6 +377,11 @@ impl AgentSimulator {
         let persecution_intensity_col = rb
             .column_by_name("persecution_intensity")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // The militant ruler's faith that persecution_intensity was measured
+        // against (255 = none); absent in older batches.
+        let persecuting_faith_col = rb
+            .column_by_name("persecuting_faith")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
         let schism_convert_from_col = rb
             .column_by_name("schism_convert_from")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
@@ -553,6 +558,7 @@ impl AgentSimulator {
                     majority_belief: majority_belief_col.map_or(0xFF, |arr| arr.value(i)),
                     has_temple: has_temple_col.map_or(false, |c| c.value(i)),
                     persecution_intensity: persecution_intensity_col.map_or(0.0, |arr| arr.value(i)),
+                    persecuting_faith: persecuting_faith_col.map_or(0xFF, |arr| arr.value(i)),
                     schism_convert_from: schism_convert_from_col.map_or(0xFF, |arr| arr.value(i)),
                     schism_convert_to: schism_convert_to_col.map_or(0xFF, |arr| arr.value(i)),
                     farmer_income_modifier: farmer_income_modifier_col.map_or(1.0, |arr| arr.value(i)),
@@ -753,6 +759,13 @@ impl AgentSimulator {
                 r.majority_belief = majority_belief_col.map_or(r.majority_belief, |arr| arr.value(i));
                 r.has_temple = has_temple_col.map_or(r.has_temple, |arr| arr.value(i));
                 r.persecution_intensity = persecution_intensity_col.map_or(r.persecution_intensity, |arr| arr.value(i));
+                // Paired with the intensity: both keep their value only when
+                // the batch carries neither column.
+                r.persecuting_faith = match (persecuting_faith_col, persecution_intensity_col) {
+                    (Some(arr), _) => arr.value(i),
+                    (None, Some(_)) => 0xFF,
+                    (None, None) => r.persecuting_faith,
+                };
                 r.schism_convert_from = schism_convert_from_col.map_or(0xFF, |arr| arr.value(i));
                 r.schism_convert_to = schism_convert_to_col.map_or(0xFF, |arr| arr.value(i));
                 if let Some(arr) = farmer_income_modifier_col { r.farmer_income_modifier = arr.value(i); }

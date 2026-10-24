@@ -1072,7 +1072,7 @@ fn test_memory_satisfaction_inside_cap() {
         shock: CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [0, 1, 5], // max cultural mismatch = 0.15
         agent_belief: 3, majority_belief: 5,                    // religious mismatch = 0.05
-        has_temple: false, persecution_intensity: 1.0,           // persecution = 0.15
+        has_temple: false, persecution_intensity: 1.0, persecuting_faith: 0xFF,           // persecution = 0.15
         gini_coefficient: 1.0, wealth_percentile: 0.0,           // class tension fills remaining 0.05
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.20, // negative memory — should be absorbed (no budget)
@@ -1087,7 +1087,7 @@ fn test_memory_satisfaction_inside_cap() {
         shock: CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [0, 1, 5],
         agent_belief: 3, majority_belief: 5,
-        has_temple: false, persecution_intensity: 1.0,
+        has_temple: false, persecution_intensity: 1.0, persecuting_faith: 0xFF,
         gini_coefficient: 1.0, wealth_percentile: 0.0,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
@@ -1115,7 +1115,7 @@ fn test_memory_satisfaction_partial_budget() {
         shock: CivShock::default(),
         agent_values: [0, 1, 2], controller_values: [0, 1, 2],
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
@@ -1130,7 +1130,7 @@ fn test_memory_satisfaction_partial_budget() {
         shock: CivShock::default(),
         agent_values: [0, 1, 2], controller_values: [0, 1, 2],
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.10, // negative memory
@@ -1158,7 +1158,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         shock: CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [4, 0, 1], // 1 overlap -> distance 2 -> 0.10 penalty
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
@@ -1174,7 +1174,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         shock: CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [4, 0, 1],
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.05,
@@ -1195,7 +1195,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         shock: CivShock::default(),
         agent_values: [4, 3, 2], controller_values: [4, 0, 1],
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.50, // much larger than the 0.10 cultural penalty
@@ -1211,7 +1211,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         shock: CivShock::default(),
         agent_values: [0, 1, 2], controller_values: [0, 1, 2], // no cultural penalty
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
