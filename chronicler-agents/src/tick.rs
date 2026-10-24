@@ -294,9 +294,46 @@ pub fn try_tick_agents_with_targeted_deaths(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
-    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
     targeted_deaths: &[u32],
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_options(
+        pool,
+        regions,
+        signals,
+        master_seed,
+        turn,
+        wealth_percentiles,
+        spatial_grids,
+        attractors,
+        spatial_diag,
+        settlement_grids,
+        merchant_state,
+        targeted_deaths,
+        crate::scale::TickOptions::default(),
+    )
+}
+
+/// As [`try_tick_agents_with_targeted_deaths`] with explicit [`TickOptions`]
+/// (agent-scale mode). Default options are exactly the plain tick.
+///
+/// [`TickOptions`]: crate::scale::TickOptions
+pub fn try_tick_agents_with_options(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
+    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    let scale_mode = options.scale_mode;
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
     let mut household_stats = crate::household::HouseholdStats::default();
@@ -646,7 +683,7 @@ pub fn try_tick_agents_with_targeted_deaths(
     // -----------------------------------------------------------------------
     if !attractors.is_empty() {
         crate::spatial::rebuild_spatial_grids(pool, spatial_grids, num_regions as u16);
-        crate::spatial::spatial_drift_step(pool, spatial_grids, attractors, spatial_diag);
+        crate::spatial::spatial_drift_step_with_mode(pool, spatial_grids, attractors, spatial_diag, scale_mode);
     }
 
     // -----------------------------------------------------------------------
@@ -1101,22 +1138,24 @@ pub fn try_tick_agents_with_targeted_deaths(
     // -----------------------------------------------------------------------
     // M57a: Marriage scan (before formation scan)
     // -----------------------------------------------------------------------
-    let marriage_stats = crate::formation::marriage_scan(
+    let marriage_stats = crate::formation::marriage_scan_with_mode(
         pool,
         regions,
         signals,
         turn,
         &post_alive,
+        scale_mode,
     );
 
     // -----------------------------------------------------------------------
     // M50b: Formation scan (LAST operation before return)
     // -----------------------------------------------------------------------
-    let mut formation_stats = crate::formation::formation_scan(
+    let mut formation_stats = crate::formation::formation_scan_with_mode(
         pool,
         regions,
         turn,
         &post_alive,
+        scale_mode,
     );
     formation_stats.bonds_dissolved_death = death_dissolved_count;
 

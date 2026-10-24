@@ -29,6 +29,7 @@ pub mod economy;
 pub mod politics;
 pub mod merchant;
 pub mod knowledge;
+pub mod scale;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]
@@ -66,6 +67,8 @@ pub use pool::AgentPool;
 pub use region::RegionState;
 #[doc(hidden)]
 pub use tick::{tick_agents, AgentEvent, DemographicDebug};
+#[doc(hidden)]
+pub use tick::try_tick_agents_with_options;
 #[doc(hidden)]
 pub use tick::{assign_settlement_ids, build_settlement_grids};
 #[doc(hidden)]

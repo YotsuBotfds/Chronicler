@@ -145,6 +145,8 @@ pub struct AgentSimulator {
     /// turn, intent). Written at the start of the next `tick()` so the
     /// same-turn Python Mule roll still sees only pre-promotion memories.
     pending_promotion_memories: Vec<(u16, crate::memory::MemoryIntent)>,
+    /// Agent-scale mode and other per-tick options (default: exact).
+    tick_options: crate::scale::TickOptions,
 }
 
 #[pymethods]
@@ -192,6 +194,7 @@ impl AgentSimulator {
             hybrid_economy_mode: false,
             pending_targeted_deaths: Vec::new(),
             pending_promotion_memories: Vec::new(),
+            tick_options: crate::scale::TickOptions::default(),
         }
     }
 
@@ -204,6 +207,25 @@ impl AgentSimulator {
     /// M60b: number of queued targeted deaths not yet consumed by a tick.
     pub fn pending_targeted_death_count(&self) -> usize {
         self.pending_targeted_deaths.len()
+    }
+
+    /// Agent-scale mode for later ticks: `"exact"` (default; byte-identical
+    /// reference algorithms) or `"fast"` (bounded-work candidate sampling
+    /// for spatial drift, marriage and formation; changes results).
+    pub fn set_agent_scale_mode(&mut self, mode: &str) -> PyResult<()> {
+        let parsed = crate::scale::AgentScaleMode::parse(mode).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "agent scale mode must be 'exact' or 'fast', got {mode:?}"
+            ))
+        })?;
+        self.tick_options.scale_mode = parsed;
+        Ok(())
+    }
+
+    /// Current agent-scale mode (`"exact"` or `"fast"`).
+    #[getter]
+    pub fn agent_scale_mode(&self) -> &'static str {
+        self.tick_options.scale_mode.as_str()
     }
 
     /// Ingest region state from Python as an Arrow RecordBatch.
@@ -849,9 +871,10 @@ impl AgentSimulator {
         };
 
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
+        let tick_options = self.tick_options;
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents_with_targeted_deaths(
+                crate::tick::try_tick_agents_with_options(
                     &mut self.pool,
                     &self.regions,
                     &signals,
@@ -864,6 +887,7 @@ impl AgentSimulator {
                     &self.settlement_grids,  // M56b
                     merchant_state,
                     &targeted_deaths,
+                    tick_options,
                 )
             }).map_err(PyRuntimeError::new_err)?;
 
