@@ -1136,6 +1136,12 @@ def run_live(
         )
         _maritime = getattr(args, "maritime", None)
         set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
+        # Great-person agendas: new live worlds follow the CLI default (--gp-agendas opts in).
+        from chronicler.gp_agendas import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
+        )
+        _gp_agendas = getattr(args, "gp_agendas", None)
+        set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (

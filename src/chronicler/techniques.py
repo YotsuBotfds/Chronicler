@@ -459,6 +459,11 @@ def _invent(world, st: TechniqueState, civ_i: int, civ, members: list[int], know
     regions = world.regions
     candidates: list[tuple[tuple, int, list[int]]] = []
     focus_domains = FOCUS_DOMAINS.get(civ.active_focus or "", ())
+    # --gp-agendas: techniques the civ's scientists have vowed to discover.
+    vowed: frozenset[str] = frozenset()
+    if getattr(world, "gp_agendas", None) is not None:
+        from chronicler.gp_agendas import INVENTION_STEER, invention_targets
+        vowed = invention_targets(world, civ)
     for k, spec in enumerate(TECHNIQUES):
         if k in known or spec.tier > era_idx + 1:
             continue
@@ -469,7 +474,10 @@ def _invent(world, st: TechniqueState, civ_i: int, civ, members: list[int], know
                  and all(practice.get((r, q), 0.0) >= PREREQ_LEVEL for q in _PREREQS[k])]
         if not sites:
             continue
-        score = (-spec.tier, FOCUS_AFFINITY_BONUS if spec.domain in focus_domains else 0,
+        affinity = FOCUS_AFFINITY_BONUS if spec.domain in focus_domains else 0
+        if vowed and spec.key in vowed:
+            affinity += INVENTION_STEER
+        score = (-spec.tier, affinity,
                  len(sites), stable_hash_int("technique_choice", world.seed, civ_i, k))
         candidates.append((score, k, sites))
     if not candidates:
@@ -491,6 +499,9 @@ def _invent(world, st: TechniqueState, civ_i: int, civ, members: list[int], know
     intensity = max(0.0, min(1.0, (civ.culture + civ.economy) / 200.0))
     chance = (INVENT_P * intensity * rate * _research_multiplier(world, civ, civ_levels)
               / TIER_DIFFICULTY[spec.tier])
+    if vowed and spec.key in vowed:
+        from chronicler.gp_agendas import INVENTION_RESEARCH
+        chance *= 1.0 + INVENTION_RESEARCH
     if _draw("technique_invent", world, civ_i) >= chance:
         return None
     # Where: the capital if it is a site, else the most populous site.

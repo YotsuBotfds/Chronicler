@@ -1548,6 +1548,11 @@ def governance_weight_modifiers(civ, world) -> dict[ActionType, float]:
             continue
         for action, m in AMBITION_ACTION_BIAS.get(g04.AmbitionType(ambition.ambition_type), {}).items():
             mods[action] *= m
+    if getattr(world, "gp_agendas", None) is not None:
+        # Great-person agendas (--gp-agendas) share this bucket and its clamp.
+        from chronicler.gp_agendas import agenda_weight_factors
+        for action, m in agenda_weight_factors(world, civ).items():
+            mods[action] *= m
     if gov.psi_crisis:
         mods[A.DEVELOP] *= 1.1
         mods[A.WAR] *= 0.9

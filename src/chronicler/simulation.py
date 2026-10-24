@@ -82,6 +82,7 @@ from chronicler.utils import (
 )
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 from chronicler.techniques_state import techniques_on as _techniques_on
+from chronicler.gp_agendas_state import gp_agendas_on as _gp_agendas_on
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
@@ -2234,6 +2235,16 @@ def run_turn_result(
         _emit(tick_diplomacy(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc,
+        ))
+
+    # Great-person agendas (--gp-agendas): deeds, coups, outcomes, new vows
+    # and bonds, reading this turn's events; effects read by later phases are
+    # persisted state (effective N+1). Before the Phase 10 flush below.
+    if _gp_agendas_on(world):
+        from chronicler.gp_agendas import tick_gp_agendas
+        _emit(tick_gp_agendas(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
         ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,

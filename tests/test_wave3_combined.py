@@ -139,3 +139,33 @@ def test_save_load_resume_identity_with_all_five_on(tmp_path):
     first.save(path)
     resumed = _advance(WorldState.load(path), 15)
     assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+# --- Great-person agendas on top of all five --------------------------------------------
+
+def _six_world() -> WorldState:
+    """All five systems plus great-person agendas and the governance bucket."""
+    import chronicler.gp_agendas as ga
+    from chronicler.governance_runtime import set_governance_enabled
+    world = _five_world()
+    set_governance_enabled(world, True)
+    ga.set_gp_agendas_enabled(world, True)
+    return world
+
+
+def test_save_load_resume_identity_with_agendas_and_all_five_on(tmp_path):
+    import chronicler.gp_agendas as ga
+    first = _advance(_six_world(), 30)
+    while not any(ga._is_open(r) for r in first.gp_agendas.records.values()):
+        assert first.turn < 90, "no turn with an open great-person agenda"
+        _advance(first, 1)
+    assert first.techniques is not None and first.maritime.fleets
+    assert first.finance.loans and first.diplomacy.treaties
+    assert first.gp_agendas.counts["declared"] > 0
+    straight = _advance(_six_world(), first.turn + 15)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = WorldState.load(path)
+    assert resumed.gp_agendas == first.gp_agendas
+    _advance(resumed, 15)
+    assert resumed.model_dump_json() == straight.model_dump_json()
