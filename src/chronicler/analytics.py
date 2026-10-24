@@ -1432,6 +1432,11 @@ def generate_report(
     techniques = extract_technique_metrics(bundles)
     if techniques.get("runs"):
         report["techniques"] = techniques
+    # Maritime: present only for runs whose bundles carry history[n].maritime.
+    from chronicler.maritime import extract_maritime_metrics
+    maritime = extract_maritime_metrics(bundles)
+    if maritime.get("runs"):
+        report["maritime"] = maritime
 
     report["anomalies"] = detect_anomalies(report)
     return report

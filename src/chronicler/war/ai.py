@@ -45,7 +45,9 @@ def pick_offensive_objective(ctx: WarContext, army: "Army", war: "WarRecord") ->
     targets = offensive_targets(ctx, army.civ, enemy, war)
     if not targets:
         return None
-    dist = distances_from(ctx, army.region)
+    # Maritime: only targets reachable over lanes the civ can cross.
+    dist = (distances_from(ctx, army.region) if ctx.naval is None
+            else ctx.naval.distances(army.civ, army.region))
     region_map = ctx.world.region_map
     preferred = war.aim_region if (army.civ == war.attacker and war.aim_region in targets) else None
 

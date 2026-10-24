@@ -65,8 +65,13 @@ def quality(civ: "Civilization", morale: int, *, fed: bool = True,
 def army_power(ctx: WarContext, civ: "Civilization", army: "Army", *, attacking: bool = True) -> float:
     gp = general_of(ctx.world, army)
     fed = army.rations > 0
-    return army.soldiers * quality(civ, army.morale, fed=fed,
-                                   general_trait=gp.trait if gp else None, attacking=attacking)
+    power = army.soldiers * quality(civ, army.morale, fed=fed,
+                                    general_trait=gp.trait if gp else None, attacking=attacking)
+    if ctx.naval is not None:
+        # Maritime: an army fights at reduced power the turn it lands.
+        from chronicler.maritime import landing_factor
+        power *= landing_factor(ctx.world, army)
+    return power
 
 
 def garrison_size(world, region: "Region", owner: "Civilization | None") -> int:
@@ -195,6 +200,8 @@ def _retreat(ctx: WarContext, army: "Army") -> None:
         region = world.regions[nb]
         if region.name in enemy_regions:
             continue
+        if ctx.naval is not None and not ctx.naval.can_retreat(army, here, nb):
+            continue  # Maritime: no retreat across water without ships
         rank = 0 if holds(region, army.civ) else 1
         options.append((rank, nb))
     army.phase = "regrouping"

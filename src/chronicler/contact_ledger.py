@@ -270,7 +270,23 @@ def observe_phase2(world, routes: list[tuple[str, str]], agent_bridge=None) -> N
                 pending.append((int(src), int(dst), TRADE, float(qty)))
         return
 
+    from chronicler.maritime import ledger_trade_adjuster
+    adjust = ledger_trade_adjuster(world)  # None unless --maritime
+    for src, dst, value in off_mode_trade_rows(world, routes):
+        if adjust is not None:
+            # Maritime: blockaded sea lanes carry nothing; pirates skim the rest.
+            value = adjust(src, dst, value)
+            if value <= 0:
+                continue
+        pending.append((src, dst, TRADE, value))
+
+
+def off_mode_trade_rows(world, routes: list[tuple[str, str]]) -> list[tuple[int, int, float]]:
+    """``--agents off`` goods proxy rows ``(src_idx, dst_idx, value)``, in order:
+    each goods trade route's boundary pairs (both directions), then internal
+    commerce along intra-civ adjacencies. Pure read; also used by maritime."""
     from chronicler.economy import decompose_trade_routes, filter_goods_trade_routes
+    rows: list[tuple[int, int, float]] = []
     index = _region_index(world)
     region_map = world.region_map
     civ_map = world.civ_map
@@ -286,14 +302,15 @@ def observe_phase2(world, routes: list[tuple[str, str]], agent_bridge=None) -> N
         b_regions = set(b.regions)
         for src_set, dst_set in ((a_regions, b_regions), (b_regions, a_regions)):
             for src, dst in sorted(decompose_trade_routes(src_set, dst_set, region_map)):
-                pending.append((index[src], index[dst], TRADE, value))
+                rows.append((index[src], index[dst], value))
     for i, region in enumerate(world.regions):
         if region.controller is None:
             continue
         for adj in region.adjacencies:
             j = index.get(adj)
             if j is not None and j != i and world.regions[j].controller == region.controller:
-                pending.append((i, j, TRADE, OFF_INTERNAL_FLOW))
+                rows.append((i, j, OFF_INTERNAL_FLOW))
+    return rows
 
 
 def _end_of_turn_inputs(world, index: dict[str, int]) -> list[tuple[int, int, int, float]]:

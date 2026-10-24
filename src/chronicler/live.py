@@ -1130,6 +1130,12 @@ def run_live(
         )
         _techniques = getattr(args, "techniques", None)
         set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
+        # Maritime: new live worlds follow the CLI default (--maritime opts in).
+        from chronicler.maritime import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
+        )
+        _maritime = getattr(args, "maritime", None)
+        set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (

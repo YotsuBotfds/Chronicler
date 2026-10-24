@@ -197,12 +197,21 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
     civ_idx = civ_index(world, civ.name)
     rng = random.Random(world.turn * 1000 + civ_idx)
     unclaimed = [r for r in world.regions if r.controller is None]
+    if getattr(world, "maritime", None) is not None:
+        # Maritime: settlers walk only through empty or own land; overseas
+        # coasts need a fleet in their sea zone (colonization by sea).
+        from chronicler.maritime import expansion_candidates
+        unclaimed = expansion_candidates(world, civ, unclaimed)
     # Filter out harsh terrain if below IRON era
     if not _era_at_least(civ.tech_era, TechEra.IRON) and civ.active_focus != "exploration":
         unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
     expand_mil_thresh = int(get_override(world, K_EXPAND_MILITARY_THRESHOLD, 30))
     if unclaimed and civ.military >= expand_mil_thresh:
         target = rng.choice(unclaimed)
+        colony_zone = None
+        if getattr(world, "maritime", None) is not None:
+            from chronicler.maritime import overseas_zone
+            colony_zone = overseas_zone(world, civ, target)
         target.controller = civ.name
         civ.regions.append(target.name)
         world.invalidate_trade_route_cache()
@@ -226,10 +235,14 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
                 actors=[civ.name], description=f"{civ.name} exploration enables harsh terrain expansion",
                 importance=1,
             ))
-        return Event(
+        event = Event(
             turn=world.turn, event_type="expand", actors=[civ.name],
             description=f"{civ.name} expanded into {target.name}.", importance=6,
         )
+        if colony_zone is not None:
+            from chronicler.maritime import note_colony
+            note_colony(world, civ, target, colony_zone, event)
+        return event
     return Event(
         turn=world.turn, event_type="expand", actors=[civ.name],
         description=f"{civ.name} could not expand — no available territory or insufficient military.",
@@ -1040,6 +1053,10 @@ class ActionEngine:
         eligible = [ActionType.DEVELOP, ActionType.DIPLOMACY]
         unclaimed = [r for r in self.world.regions if r.controller is None]
         expand_thresh = int(get_override(self.world, K_EXPAND_MILITARY_THRESHOLD, 30))
+        if unclaimed and civ.military >= expand_thresh and getattr(self.world, "maritime", None) is not None:
+            # Maritime: only land the civ can walk to, or coasts its fleets reach.
+            from chronicler.maritime import expansion_candidates
+            unclaimed = expansion_candidates(self.world, civ, unclaimed)
         if civ.military >= expand_thresh and unclaimed:
             eligible.append(ActionType.EXPAND)
         has_hostile = False

@@ -2572,13 +2572,23 @@ impl AgentSimulator {
         }
 
         let num_regions = self.regions.len();
-        self.merchant_graph = Some(crate::merchant::RouteGraph::from_edges(
+        let mut graph = crate::merchant::RouteGraph::from_edges(
             from_region.values(),
             to_region.values(),
             &is_river_vec,
             transport_cost.values(),
             num_regions,
-        ));
+        );
+        // Maritime (optional): per-edge sea-lane raid risk, -1 on land edges.
+        // Absent unless the maritime layer is on, leaving the graph unchanged.
+        if let Some(col) = rb.column_by_name("sea_raid_risk") {
+            let risk = col
+                .as_any()
+                .downcast_ref::<arrow::array::Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("column sea_raid_risk not Float32"))?;
+            graph = graph.with_sea_lanes(from_region.values(), to_region.values(), risk.values());
+        }
+        self.merchant_graph = Some(graph);
 
         // Initialize ledger and delivery buffer on first call
         if self.merchant_ledger.is_none() {
@@ -2603,6 +2613,50 @@ impl AgentSimulator {
         stats.insert("stalled_trip_count".into(), self.merchant_trip_stats.stalled_trip_count as f64);
         stats.insert("overcommit_count".into(), self.merchant_trip_stats.overcommit_count as f64);
         Ok(stats)
+    }
+
+    /// Maritime: the last tick's merchant sea-lane crossings, one row per hop
+    /// across a sea lane (in slot order), with `raided` set where raiders
+    /// seized the cargo (`LossReason::Raid`). Empty unless the merchant route
+    /// graph carried `sea_raid_risk`. Read-only; rebuilt every tick.
+    /// Columns: from_region, to_region, origin_region, dest_region (u16),
+    /// good_slot (u8), qty (f32), raided (bool).
+    #[pyo3(name = "get_sea_trade_log")]
+    pub fn get_sea_trade_log(&self) -> PyResult<PyRecordBatch> {
+        use arrow::array::{BooleanBuilder, Float32Builder};
+        let log = &self.merchant_trip_stats.sea_log;
+        let n = log.len();
+        let mut from = UInt16Builder::with_capacity(n);
+        let mut to = UInt16Builder::with_capacity(n);
+        let mut origin = UInt16Builder::with_capacity(n);
+        let mut dest = UInt16Builder::with_capacity(n);
+        let mut slot = UInt8Builder::with_capacity(n);
+        let mut qty = Float32Builder::with_capacity(n);
+        let mut raided = BooleanBuilder::with_capacity(n);
+        for rec in log {
+            from.append_value(rec.from_region);
+            to.append_value(rec.to_region);
+            origin.append_value(rec.origin_region);
+            dest.append_value(rec.dest_region);
+            slot.append_value(rec.good_slot);
+            qty.append_value(rec.qty);
+            raided.append_value(rec.loss == Some(crate::merchant::LossReason::Raid));
+        }
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("from_region", DataType::UInt16, false),
+            Field::new("to_region", DataType::UInt16, false),
+            Field::new("origin_region", DataType::UInt16, false),
+            Field::new("dest_region", DataType::UInt16, false),
+            Field::new("good_slot", DataType::UInt8, false),
+            Field::new("qty", DataType::Float32, false),
+            Field::new("raided", DataType::Boolean, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![
+            Arc::new(from.finish()), Arc::new(to.finish()), Arc::new(origin.finish()),
+            Arc::new(dest.finish()), Arc::new(slot.finish()), Arc::new(qty.finish()),
+            Arc::new(raided.finish()),
+        ]).map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
     }
 
     /// M59a: Return knowledge stats from last tick as a flat HashMap.

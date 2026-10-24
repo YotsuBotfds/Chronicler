@@ -20,6 +20,7 @@ from chronicler.epidemiology import EpidemicState
 from chronicler.finance import FinanceState
 from chronicler.diplomacy_state import DiplomacyState, DiplomaticMemory
 from chronicler.techniques_state import TechniqueState
+from chronicler.maritime_state import MaritimeState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1135,6 +1136,9 @@ class WorldState(BaseModel):
     # Technology as diffusing techniques: per-region practice, civ known sets
     # (chronicler.techniques; None = disabled; omitted from output).
     techniques: TechniqueState | None = None
+    # Maritime layer: fleets, sea-zone control, blockades, piracy, colonies
+    # (chronicler.maritime; None = disabled; omitted from output).
+    maritime: MaritimeState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1226,6 +1230,8 @@ class WorldState(BaseModel):
             data.pop("diplomacy", None)
         if isinstance(data, dict) and self.techniques is None:
             data.pop("techniques", None)
+        if isinstance(data, dict) and self.maritime is None:
+            data.pop("maritime", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1353,6 +1359,8 @@ class TurnSnapshot(BaseModel):
     diplomacy: dict | None = None
     # Techniques per-turn summary; None (and omitted) when techniques are off.
     techniques: dict | None = None
+    # Maritime per-turn summary; None (and omitted) when maritime is off.
+    maritime: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1369,6 +1377,8 @@ class TurnSnapshot(BaseModel):
             data.pop("diplomacy")
         if isinstance(data, dict) and data.get("techniques", 0) is None:
             data.pop("techniques")
+        if isinstance(data, dict) and data.get("maritime", 0) is None:
+            data.pop("maritime")
         return data
 
 

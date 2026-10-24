@@ -1526,6 +1526,31 @@ def _war_inputs(world) -> None:
             add_grievance(world, side, other, WAR, amount)
     for occ in world.war_state.occupations:
         add_grievance(world, occ.owner, occ.occupier, OCCUPATION, GRIEVANCE_OCCUPIED_TURN)
+    if getattr(world, "maritime", None) is not None:
+        _naval_inputs(world)
+
+
+def _naval_inputs(world) -> None:
+    """Maritime: this turn's naval battles weigh like land battles (ships for
+    soldiers); a standing blockade offends like an embargo."""
+    from chronicler.maritime import maritime_enabled
+    if not maritime_enabled(world):
+        return
+    civs = world.civilizations
+    turn = world.turn
+    for battle in world.maritime.battles:
+        if battle.turn != turn:
+            continue
+        sides = ((battle.attacker, battle.defender, battle.attacker_losses, battle.attacker_ships),
+                 (battle.defender, battle.attacker, battle.defender_losses, battle.defender_ships))
+        for side, other, losses, ships in sides:
+            lost = battle.winner is not None and battle.winner != side
+            amount = ((GRIEVANCE_BATTLE_LOST if lost else GRIEVANCE_BATTLE_FOUGHT)
+                      + GRIEVANCE_BATTLE_CASUALTIES * losses / max(1, ships))
+            add_grievance(world, civs[side].name, civs[other].name, WAR, amount)
+    for blockade in world.maritime.active_blockades():
+        add_grievance(world, civs[blockade.target].name, civs[blockade.blockader].name,
+                      EMBARGO, GRIEVANCE_EMBARGO_TURN)
 
 
 def _event_inputs(world, turn_events: list[Event]) -> None:
