@@ -661,9 +661,17 @@ class TestBundleSize:
         bundle_path = tmp_path / "chronicle_bundle.json"
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
         # M41 added wealth column (~8MB for 500 turns). Bundle optimization deferred.
-        # Techniques (default on since docs/integration/techniques-default.md) add
-        # ~3MB: per-turn practice history (mostly the viewer's per-region field)
-        # and the events of a world whose eras move (33.7MB off, 36.6MB on).
+        # Wave 3 defaults (epidemiology, finance, diplomacy on): 37.45MB, from
+        # 17.57MB with them off. Their own snapshot fields add about 3MB; the
+        # rest is this world founding 20 polities over the run instead of 11,
+        # because every snapshot keeps every civ that ever existed in civ_stats
+        # and the pairwise tables. Rows for dead civs are 21.6 of the 26.6MB
+        # those fields take; pruning them is the deferred optimization.
+        # Techniques (default on, docs/integration/techniques-default.md) add
+        # about 1.1MB of per-turn practice history, mostly the viewer's
+        # per-region field; the rest depends on the polities the world founds:
+        # 37.45MB off and 32.39MB on with the native runtimes, 33.70MB and
+        # 36.56MB on the Python oracle (no-Rust) path.
         assert size_mb < 40, f"Bundle is {size_mb:.2f}MB, expected < 40MB"
 
 
