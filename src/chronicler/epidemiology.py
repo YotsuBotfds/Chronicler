@@ -188,12 +188,13 @@ class RegionInfection(BaseModel):
     cases: float = 0.0        # new infections in the last tick (people)
     virgin: bool = False      # the running outbreak reached a never-exposed population
     reported: bool = False    # the running outbreak has been reported (an open episode)
-    cause: str = ""           # event the next onset report cites (pandemic, injection, last outbreak)
-    # Contact import awaiting its onset report: source region, ledger channel
-    # and the turn it arrived (the arrival event is emitted with the onset).
+    # Event the next onset report cites (pandemic, injection, the previous
+    # outbreak); for a pending contact import, the source's open outbreak.
+    cause: str = ""
+    # Contact import awaiting its onset report: source region and the ledger
+    # channel that carried it (the arrival event is emitted with the onset).
     source: int = -1
     channel: int = -1
-    arrival_turn: int = -1
 
 
 class EpidemicState(BaseModel):
@@ -305,7 +306,7 @@ def _normalize(row: RegionInfection) -> None:
 
 
 def _seed(row: RegionInfection, people: float, *, cause: str, virgin: bool,
-          source: int = -1, channel: int = -1, turn: int = -1) -> None:
+          source: int = -1, channel: int = -1) -> None:
     """Move ``people`` susceptibles to exposed (bounded by the susceptible share)."""
     if row.n <= 0:
         return
@@ -315,7 +316,7 @@ def _seed(row: RegionInfection, people: float, *, cause: str, virgin: bool,
     row.cause = cause
     row.virgin = virgin
     row.reported = False
-    row.source, row.channel, row.arrival_turn = source, channel, turn
+    row.source, row.channel = source, channel
     _normalize(row)
 
 
@@ -553,6 +554,7 @@ def _absorb_population(row: RegionInfection, n_now: int) -> None:
 def _introduce(world, state: EpidemicState, rows: dict, mods: list) -> None:
     """Spillover in homelands and imports along contact-ledger flows."""
     from chronicler import contact_ledger as cl
+    from chronicler import provenance
 
     regions = world.regions
     n_regions = len(regions)
@@ -615,15 +617,18 @@ def _introduce(world, state: EpidemicState, rows: dict, mods: list) -> None:
             ab, ba = edge_map.get((src, t), zero), edge_map.get((t, src), zero)
             weights = cl.CONTACT_WEIGHTS
             channel = max(range(4), key=lambda c: (weights[c] * (ab[c] + ba[c]), -c))
-            _seed(row, INTRO_PEOPLE, cause="", virgin=_is_virgin(state, t, k),
-                  source=src, channel=channel, turn=world.turn)
+            # The source's outbreak as it stands now (open episode), if reported.
+            exporter = provenance.open_episode(world, "epidemic", regions[src].name, pathogen.name)
+            _seed(row, INTRO_PEOPLE, cause=exporter or "", virgin=_is_virgin(state, t, k),
+                  source=src, channel=channel)
 
 
 def _arrival_event(world, row: RegionInfection) -> "Event":
     """The contact edge that carried an outbreak, emitted with its onset report.
 
-    It cites the source region's latest outbreak of the pathogen (the
-    epidemic that was exporting it), or nothing for a quiet reservoir.
+    It cites the source region's outbreak that was exporting the pathogen
+    when it crossed (recorded at import), or nothing for a quiet reservoir
+    or an unreported smoulder.
     """
     from chronicler import provenance
     from chronicler.models import Event
@@ -640,8 +645,7 @@ def _arrival_event(world, row: RegionInfection) -> "Event":
         description=text + ".", importance=pathogen.importance - 1 + (1 if row.virgin else 0),
         region=target.name, shock_category=pathogen.name,
     )
-    provenance.cite(ev, provenance.recall(
-        world, provenance.key("epidemic", source.name, pathogen.name)))
+    provenance.cite(ev, row.cause or None)
     return ev
 
 
@@ -798,7 +802,7 @@ def _reports(world, state: EpidemicState) -> tuple[list["Event"], dict[tuple[int
                 # The outbreak subsided: the population now knows the pathogen,
                 # and a later flare-up of it is a return, not an arrival.
                 row.reported = row.virgin = False
-                row.source = row.channel = row.arrival_turn = -1
+                row.source = row.channel = -1
                 row.cause = provenance.recall(
                     world, provenance.key("epidemic", region.name, pathogen.name)) or ""
             continue
@@ -808,7 +812,7 @@ def _reports(world, state: EpidemicState) -> tuple[list["Event"], dict[tuple[int
         if onset and row.source >= 0 and row.source < len(world.regions):
             arrival = _arrival_event(world, row)
             row.cause = provenance.ensure_id(world, arrival) or ""
-            row.source = row.channel = row.arrival_turn = -1
+            row.source = row.channel = -1
             events.append(arrival)
         label = pathogen.label[0].upper() + pathogen.label[1:]
         if row.virgin:
@@ -995,6 +999,7 @@ def snapshot_summary(world) -> dict:
     """Small per-turn summary for ``TurnSnapshot.epidemics``."""
     state = world.epidemics
     regions = world.regions
+    tolls = {(j, k): d for j, k, d in state.last_deaths}
     active = [
         {
             "region": regions[row.region].name,
@@ -1002,6 +1007,7 @@ def snapshot_summary(world) -> dict:
             "prevalence": round(row.burden, 4),
             "immune": round(row.r, 4),
             "cases": round(row.cases, 2),
+            "deaths": tolls.get(_row_key(row), 0),
             "virgin": row.virgin,
         }
         for row in state.rows if row.region < len(regions) and _reportable(row)

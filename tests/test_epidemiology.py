@@ -610,7 +610,15 @@ def test_hybrid_epidemic_deaths_reach_the_agent_pool():
     bridge.tick(world)
     deaths = [e for e in world.agent_events_raw if e.event_type == "death" and e.region == region_idx]
     assert len(deaths) >= died, "the staged epidemic deaths killed real agents"
+    assert region.population <= agents_before - died
     assert region._catastrophe_deaths_this_turn == 0, "the transient is cleared once read"
+    # The next turn's batch carries no stale deaths when no epidemic tick ran.
+    from chronicler.agent_bridge import build_region_batch
+    assert set(build_region_batch(world).column("catastrophe_deaths_this_turn").to_pylist()) == {0}
+    # A second epidemic tick stages only its own deaths.
+    ep.tick_epidemics(world)
+    again = sum(d for j, _, d in world.epidemics.last_deaths if j == region_idx)
+    assert region._catastrophe_deaths_this_turn == again
 
 
 @pytest.mark.native
