@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTradeLinks, percentToTurn, turnToPercent } from "../appShellHelpers";
+import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "../appShellHelpers";
 
 describe("AppShell helpers", () => {
   it("respects an empty timeline trade-route snapshot over final world relationships", () => {
@@ -38,5 +38,20 @@ describe("AppShell helpers", () => {
   it("maps turns to a 0-100 percent range", () => {
     expect(turnToPercent(1, 10)).toBe(0);
     expect(turnToPercent(10, 10)).toBe(100);
+  });
+
+  it("keys events by recorded id, falling back to turn and type", () => {
+    expect(eventKey({ turn: 4, event_type: "famine", event_id: "4:famine:1" })).toBe("4:famine:1");
+    expect(eventKey({ turn: 4, event_type: "famine" })).toBe("4-famine");
+  });
+
+  it("resolves recorded causes and consequences of an event", () => {
+    const war = { turn: 0, event_type: "war_declared", event_id: "0:war_declared:0" };
+    const battle = { turn: 3, event_type: "war", event_id: "3:war:0", causes: ["0:war_declared:0"] };
+    const occupation = { turn: 3, event_type: "occupation", event_id: "3:occupation:0", causes: ["3:war:0"] };
+    const legacy = { turn: 3, event_type: "trade" };
+    const events = [war, battle, occupation, legacy];
+    expect(eventProvenance(events, battle)).toEqual({ causes: [war], effects: [occupation] });
+    expect(eventProvenance(events, legacy)).toEqual({ causes: [], effects: [] });
   });
 });

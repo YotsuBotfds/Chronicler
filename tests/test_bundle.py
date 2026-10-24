@@ -220,7 +220,7 @@ class TestBundleAssembly:
         assert meta["scenario_name"] is None
         assert "generated_at" in meta
         assert "total_turns" in meta
-        assert meta["bundle_version"] == 3
+        assert meta["bundle_version"] == 4
 
     def test_events_timeline_serialized(self, sample_world):
         from chronicler.models import Event

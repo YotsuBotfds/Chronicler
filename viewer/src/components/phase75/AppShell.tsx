@@ -22,7 +22,7 @@ import { BatchPanel } from "../BatchPanel";
 import { InterventionPanel } from "../InterventionPanel";
 import { RegionHistoryInspector } from "../RegionHistoryInspector";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
-import { buildTradeLinks, percentToTurn, turnToPercent } from "./appShellHelpers";
+import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "./appShellHelpers";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -752,7 +752,7 @@ export function AppShell({
       : selectedEntity?.kind === "civilization"
         ? civilizations.some((civilization) => civilization.name === selectedEntity.id)
         : selectedEntity?.kind === "event"
-          ? bundle.events_timeline.some((event) => `${event.turn}-${event.event_type}` === selectedEntity.id)
+          ? bundle.events_timeline.some((event) => eventKey(event) === selectedEntity.id)
           : true;
 
     if (!selectedStillExists) {
@@ -886,8 +886,9 @@ export function AppShell({
     ? civilizations.find((civilization) => civilization.name === selectedEntity.id) ?? null
     : null;
   const selectedEvent = selectedEntity?.kind === "event"
-    ? (bundle?.events_timeline.find((event) => `${event.turn}-${event.event_type}` === selectedEntity.id) ?? null)
+    ? (bundle?.events_timeline.find((event) => eventKey(event) === selectedEntity.id) ?? null)
     : null;
+  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? [], selectedEvent);
 
   const viewerReady = bundle !== null;
   const canActivateSurface = (candidate: AppSurface): boolean => {
@@ -991,7 +992,7 @@ export function AppShell({
           onSelectEvent={(event) => {
             setSelectedEntity({
               kind: "event",
-              id: `${event.turn}-${event.event_type}`,
+              id: eventKey(event),
               label: event.description,
               turn: event.turn,
             });
@@ -1075,6 +1076,7 @@ export function AppShell({
           selectedRegion={selectedRegion}
           selectedCivilization={selectedCivilization}
           selectedEvent={selectedEvent}
+          selectedEventProvenance={selectedEventProvenance}
           selectedBatchSummary={selectedBatchSummary}
           civilizations={civilizations}
           previewCivilizations={previewCivilizations}
@@ -2174,6 +2176,7 @@ function RightInspector({
   selectedRegion,
   selectedCivilization,
   selectedEvent,
+  selectedEventProvenance,
   selectedBatchSummary,
   civilizations,
   previewCivilizations,
@@ -2195,6 +2198,7 @@ function RightInspector({
   selectedRegion: RegionLike | null;
   selectedCivilization: CivilizationView | null;
   selectedEvent: Event | null;
+  selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedBatchSummary: BatchRunSummary | null;
   civilizations: CivilizationView[];
   previewCivilizations: Array<{ name: string; values: string[] }>;
@@ -2339,6 +2343,29 @@ function RightInspector({
                   <strong>{selectedEvent.event_type}</strong>
                 </div>
                 <p className="phase75-detail-copy">{selectedEvent.description}</p>
+                {selectedEventProvenance && selectedEventProvenance.causes.length > 0 && (
+                  <div className="phase75-stat-row" aria-label="Recorded causes">
+                    <span>Because</span>
+                    <strong>
+                      {selectedEventProvenance.causes
+                        .map((cause) => `T${cause.turn} ${cause.description || cause.event_type}`)
+                        .join("; ")}
+                    </strong>
+                  </div>
+                )}
+                {selectedEventProvenance && selectedEventProvenance.effects.length > 0 && (
+                  <div className="phase75-stat-row" aria-label="Recorded consequences">
+                    <span>Led to</span>
+                    <strong>
+                      {selectedEventProvenance.effects.length}
+                      {selectedEventProvenance.effects.length !== 1 ? " events: " : " event: "}
+                      {selectedEventProvenance.effects
+                        .slice(0, 3)
+                        .map((effect) => `T${effect.turn} ${effect.event_type.replace(/_/g, " ")}`)
+                        .join("; ")}
+                    </strong>
+                  </div>
+                )}
               </>
             )}
 

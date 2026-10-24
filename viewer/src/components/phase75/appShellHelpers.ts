@@ -71,3 +71,41 @@ export function buildTradeLinks(
 
   return links;
 }
+
+type ProvenanceEventLike = {
+  turn: number;
+  event_type: string;
+  event_id?: string;
+  causes?: string[];
+};
+
+/** Selection key for an event: its recorded id, else the legacy turn-type key. */
+export function eventKey(event: ProvenanceEventLike): string {
+  return event.event_id || `${event.turn}-${event.event_type}`;
+}
+
+/**
+ * Recorded provenance of one event (bundle version 4+): the events it cites
+ * as causes and the events that cite it. Both are empty for older bundles.
+ */
+export function eventProvenance<E extends ProvenanceEventLike>(
+  events: E[],
+  selected: E | null,
+): { causes: E[]; effects: E[] } {
+  if (!selected?.event_id) {
+    return { causes: [], effects: [] };
+  }
+  const selectedId = selected.event_id;
+  const wanted = new Set(selected.causes ?? []);
+  const causes: E[] = [];
+  const effects: E[] = [];
+  for (const event of events) {
+    if (event.event_id && wanted.has(event.event_id)) {
+      causes.push(event);
+    }
+    if (event.causes?.includes(selectedId)) {
+      effects.push(event);
+    }
+  }
+  return { causes, effects };
+}
