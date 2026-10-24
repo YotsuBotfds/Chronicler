@@ -85,6 +85,8 @@ INVENT_LEVEL = 0.20       # practice an invention starts with in its region
 SEED_LEVEL = 0.60         # practice of the techniques a world already had when switched on
 ADOPT_RATE = 0.15         # logistic adoption within a region per turn
 BASE_FORGET = 0.01        # per-turn forgetting
+EMPTY_FORGET = 0.05       # per-turn fading of the practice of a region nobody lives in
+LEVEL_SMOOTHING = 0.25    # weight of this tick's measurement in a civ's practice levels
 SHORTFALL_FORGET = 0.20   # extra forgetting at a complete practitioner shortfall
 DIFFUSION_SCALE = 0.005   # adoption hazard per unit of channel-weighted contact x source practice
 NEIGHBOUR_FLOW = 3.0      # contact of a shared border under one ruler (every border, ledger off)
@@ -373,11 +375,14 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit) ->
                 continue
             p = old.get((t, k), 0.0)
             if pops[t] <= 0:
-                # Nobody lives here now: the practice waits for the settlers
-                # who return with it (it neither teaches nor counts meanwhile).
+                # Nobody lives here now: the people who left carry the craft
+                # and settlers may return with it, so the practice fades
+                # slowly instead of vanishing (it teaches no one meanwhile).
                 if p > 0.0:
-                    new[(t, k)] = p
-                    new_meta[(t, k)] = meta[(t, k)]
+                    value = _q(p * (1.0 - EMPTY_FORGET))
+                    if value >= DROP_LEVEL:
+                        new[(t, k)] = value
+                        new_meta[(t, k)] = meta[(t, k)]
                 continue
             cap = 1.0 if suit[t][k] else UNSUITED_CAP
             prereq_ok = all(old.get((t, q), 0.0) >= PREREQ_LEVEL for q in _PREREQS[k])
@@ -593,8 +598,6 @@ def _gains_and_losses(world, st: TechniqueState, ctrl: list[int], old_rows: dict
         maxp = [0.0] * _K
         best_region = [-1] * _K
         for r in members:
-            if regions[r].population <= 0:
-                continue
             for k in range(_K):
                 p = practice.get((r, k), 0.0)
                 if p > maxp[k]:
@@ -875,33 +878,39 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
     old_rows = {(r, k): p for r, k, p, *_ in st.rows}
     practice, meta = _update_practice(world, st, ctrl, links, suit)
     regions = world.regions
-    members_of = [[r for r, c in enumerate(ctrl) if c == ci] for ci in range(len(world.civilizations))]
-    levels_before = [
-        {k: _civ_practice(practice, suit, regions, members_of[ci], k) for k in range(_K)}
-        if members_of[ci] else {}
-        for ci in range(len(world.civilizations))
-    ]
+    n_civs = len(world.civilizations)
+    members_of = [[r for r, c in enumerate(ctrl) if c == ci] for ci in range(n_civs)]
     held_before = {c for c in st.controllers if c >= 0}
+    # Research reads the civ practice measured (and smoothed) at the last tick.
+    levels_before = [dict(st.civ_levels[ci]) if ci < len(st.civ_levels) and ci in held_before else {}
+                     for ci in range(n_civs)]
     invented: dict[int, int] = {}
     for ci, civ in enumerate(world.civilizations):
         if not civ.regions or not members_of[ci]:
             continue
         if ci < len(st.known) and ci in held_before:
             known = set(st.known[ci])
-        else:  # a new polity knows what its (inhabited) land practises
+        else:  # a new polity knows what its land practises
             known = {k for k in range(_K)
-                     if any(practice.get((r, k), 0.0) >= GAIN_LEVEL for r in members_of[ci]
-                            if regions[r].population > 0)}
+                     if any(practice.get((r, k), 0.0) >= GAIN_LEVEL for r in members_of[ci])}
         k = _invent(world, st, ci, civ, members_of[ci], known, practice, meta, suit,
                     levels_before[ci], acc, events)
         if k is not None:
             invented[ci] = k
     known_now = _gains_and_losses(world, st, ctrl, old_rows, practice, meta, invented, events)
-    levels = [
-        {k: _civ_practice(practice, suit, regions, members_of[ci], k) for k in range(_K)}
-        if members_of[ci] else {}
-        for ci in range(len(world.civilizations))
-    ]
+    # Civ practice is smoothed over ticks, so people moving between a civ's
+    # regions do not swing its era; a new polity starts from its measurement.
+    levels: list[dict[int, float]] = []
+    for ci in range(n_civs):
+        if not members_of[ci]:
+            levels.append({})
+            continue
+        raw = {k: _civ_practice(practice, suit, regions, members_of[ci], k) for k in range(_K)}
+        if ci in held_before and ci < len(st.civ_levels):
+            prev = dict(st.civ_levels[ci])
+            raw = {k: (1.0 - LEVEL_SMOOTHING) * prev.get(k, 0.0) + LEVEL_SMOOTHING * v
+                   for k, v in raw.items()}
+        levels.append(raw)
     _derive_eras(world, st, ctrl, known_now, levels, practice, suit, acc, events)
     st.rows = [(r, k, practice[(r, k)], *meta[(r, k)]) for (r, k) in sorted(practice)]
     st.known = [sorted(s) for s in known_now]

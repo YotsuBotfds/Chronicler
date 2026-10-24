@@ -82,6 +82,12 @@ def _seed_practice(world, region: int, keys, level: float = 0.9, civ: int = 0) -
     known = set(st.known[civ])
     known.update(K[key] for key in keys)
     st.known[civ] = sorted(known)
+    # Civ levels are smoothed across ticks: start them where the practice is.
+    levels = dict(st.civ_levels[civ]) if civ < len(st.civ_levels) else {}
+    levels.update({K[key]: level for key in keys})
+    while len(st.civ_levels) <= civ:
+        st.civ_levels.append([])
+    st.civ_levels[civ] = sorted(levels.items())
     st.invalidate()
 
 
@@ -251,7 +257,7 @@ def test_untaught_new_land_does_not_undo_an_era_but_losing_the_core_does():
     world.regions.append(gamma)
     world.civilizations[0].regions.append("Gamma")
     world.invalidate_region_map()
-    _tick(world, 6)
+    _tick(world, 15)
     levels = dict(world.techniques.civ_levels[0])
     assert max(levels.values()) < T.KEEP_PRACTISED, "the civ-wide mean is diluted"
     assert world.civilizations[0].tech_era == TechEra.BRONZE, "the capital still practises"
@@ -259,6 +265,27 @@ def test_untaught_new_land_does_not_undo_an_era_but_losing_the_core_does():
     events = _tick(world, T.ERA_GRACE)
     assert [e.event_type for e in events].count("tech_regression") == 1
     assert world.civilizations[0].tech_era == TechEra.TRIBAL
+
+
+def test_people_moving_between_regions_do_not_forget():
+    world = _bronze_civ(pop=80)
+    camp = make_region("Camp", "X", 0)
+    world.regions.append(camp)
+    world.civilizations[0].regions.append("Camp")
+    world.invalidate_region_map()
+    _tick(world, 2)
+    events = []
+    for _ in range(6):  # everyone shuttles between the two regions
+        world.regions[0].population, camp.population = camp.population, world.regions[0].population
+        events += _tick(world, 1)
+    assert not [e for e in events if e.event_type in ("technique_lost", "technique_adopted", "tech_regression")]
+    assert world.civilizations[0].tech_era == TechEra.BRONZE
+    # A region left empty fades slowly rather than keeping its practice forever.
+    world.regions[0].population = 0
+    camp.population = 80
+    before = _level(world, 0, "writing")
+    _tick(world, 10)
+    assert 0.0 < _level(world, 0, "writing") < before * 0.7
 
 
 def test_losing_the_land_loses_its_techniques():
