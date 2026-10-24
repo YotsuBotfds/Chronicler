@@ -261,7 +261,7 @@ def test_pending_turn_signals_rejected(signal, make_world, tmp_path):
     elif signal == "faction":
         world.civilizations[0].factions.pending_faction_shift = "military"
     elif signal == "bootstrap":
-        world.regions[0]._stockpile_bootstrap_pending = True
+        world.regions[0].stockpile_bootstrap_pending = True
     else:
         world._artifact_intents.append(object())
     with pytest.raises(replay.CheckpointError, match="completed"):

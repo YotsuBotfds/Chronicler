@@ -210,7 +210,7 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
             if target.population > 0:
                 bootstrap_region_stockpile(target)
             else:
-                target._stockpile_bootstrap_pending = True
+                target.stockpile_bootstrap_pending = True
         expand_mil_cost = int(get_override(world, K_EXPAND_MILITARY_COST, 10))
         mult = get_severity_multiplier(civ, world)
         scaled_mil_cost = int(expand_mil_cost * mult)

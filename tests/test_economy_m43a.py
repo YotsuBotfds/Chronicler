@@ -411,16 +411,31 @@ def test_settle_pending_stockpile_bootstraps_waits_for_population():
         controller="Civ A",
     )
     region.resource_types[0] = 3  # fish
-    region._stockpile_bootstrap_pending = True
+    region.stockpile_bootstrap_pending = True
 
     assert settle_pending_stockpile_bootstraps([region]) == 0
-    assert getattr(region, "_stockpile_bootstrap_pending", False) is True
+    assert region.stockpile_bootstrap_pending is True
     assert region.stockpile.goods == {}
 
     region.population = 22
     assert settle_pending_stockpile_bootstraps([region]) == 1
-    assert getattr(region, "_stockpile_bootstrap_pending", False) is False
+    assert region.stockpile_bootstrap_pending is None
     assert region.stockpile.goods["fish"] == INITIAL_BUFFER * 22
+
+
+def test_pending_stockpile_bootstrap_survives_save_and_load():
+    region = Region(name="Frontier", terrain="coast", carrying_capacity=60,
+                    population=0, resources="maritime", controller="Civ A")
+    assert "stockpile_bootstrap_pending" not in region.model_dump()
+    region.resource_types[0] = 3  # fish
+    region.stockpile_bootstrap_pending = True
+
+    loaded = Region.model_validate_json(region.model_dump_json())
+    assert loaded.stockpile_bootstrap_pending is True
+    loaded.population = 22
+    assert settle_pending_stockpile_bootstraps([loaded]) == 1
+    assert loaded.stockpile.goods["fish"] == INITIAL_BUFFER * 22
+    assert "stockpile_bootstrap_pending" not in loaded.model_dump()
 
 
 # --- Task 11: Conquest Stockpile Destruction ---

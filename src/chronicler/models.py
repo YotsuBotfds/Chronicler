@@ -367,7 +367,7 @@ class WorldGeography(BaseModel):
 _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
 # Optional region fields omitted from serialized output while None, so worlds
 # that never use them keep their exact bytes.
-_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed")
+_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending")
 
 
 class Region(BaseModel):
@@ -391,6 +391,10 @@ class Region(BaseModel):
     forest_regrowth_turns: int = 0
     infrastructure: list[Infrastructure] = Field(default_factory=list)
     pending_build: PendingBuild | None = None
+    # One-shot stockpile seeding for a region claimed while empty, fulfilled
+    # when settlers arrive. Saved so a resumed run still seeds it; None while
+    # nothing is pending (omitted from output).
+    stockpile_bootstrap_pending: bool | None = None
     famine_cooldown: int = 0
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
