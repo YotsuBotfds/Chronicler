@@ -852,9 +852,15 @@ def note_instant_battle(world, attacker: "Civilization", defender: "Civilization
         add_grievance(world, defender.name, attacker.name, WAR, GRIEVANCE_BATTLE_LOST)
 
 
+#: Ladder lever for polity turnover: a conquest, capitulation or occupation
+#: consolidation that would extinguish a state makes it a vassal instead.
+#: Off, such states fall as before and only twilight decline enters the ladder.
+SPARE_LAST_REGION = True
+
+
 def spares_last_region(world, winner: "Civilization", loser: "Civilization") -> bool:
     """Ladder: may a conquest that would extinguish ``loser`` make it a vassal instead?"""
-    if not diplomacy_enabled(world):
+    if not diplomacy_enabled(world) or not SPARE_LAST_REGION:
         return False
     subject_of = _subject_of(world)
     overlords = {vr.overlord for vr in world.vassal_relations}
@@ -1545,32 +1551,6 @@ def _persecution_inputs(world) -> None:
                               GRIEVANCE_PERSECUTED_PEOPLE * intensity)
 
 
-def _lift_embargoes(world) -> list[Event]:
-    """Normalization: an alliance or trade pact between the pair lifts an
-    embargo (embargoes are otherwise permanent), reopening the route."""
-    lifted: list[Event] = []
-    keep = []
-    for imposer, target in world.embargoes:
-        a, b = world.civ_map.get(imposer), world.civ_map.get(target)
-        binding = []
-        if a is not None and b is not None and a.regions and b.regions:
-            binding = treaties_between(world, _idx(world, imposer), _idx(world, target),
-                                       ("alliance", "trade_pact"))
-        if binding:
-            _bump(world.diplomacy, "lifted:embargo")
-            lifted.append(_emit_now(world, Event(
-                turn=world.turn, event_type="embargo_lifted", actors=[imposer, target],
-                description=f"{imposer} lifts its embargo on {target} under {binding[0].name}.",
-                importance=3,
-            ), (binding[0].event_id, prov.recall(world, "embargo:" + prov.pair(imposer, target)))))
-            continue
-        keep.append((imposer, target))
-    if lifted:
-        world.embargoes = keep
-        world.invalidate_trade_route_cache()
-    return lifted
-
-
 def _embargo_inputs(world) -> None:
     """A standing embargo offends while its imposer is still unfriendly; one a
     friendly imposer merely never lifted is not felt as a fresh hostility."""
@@ -1771,10 +1751,9 @@ def tick_diplomacy(world, turn_events: list[Event], acc=None) -> list[Event]:
     _war_inputs(world)
     _event_inputs(world, turn_events)
     _persecution_inputs(world)
-    events = _lift_embargoes(world)
     _embargo_inputs(world)
     _goodwill_inputs(world)
-    events += _treaty_upkeep(world, acc)
+    events = _treaty_upkeep(world, acc)
     events += _ladder_tick(world, turn_events, acc)
     events += _aid_convoys(world, turn_events, acc)
     _apply_dispositions(world)

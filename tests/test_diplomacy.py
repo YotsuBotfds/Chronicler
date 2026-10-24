@@ -269,22 +269,16 @@ def test_embargo_respects_pacts_unless_breaking_pays(monkeypatch):
     assert dp.memory(world, "B", "A").grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_IMPOSED
 
 
-def test_an_alliance_or_pact_lifts_an_embargo_and_a_friend_s_embargo_stops_offending():
+def test_a_standing_embargo_offends_only_while_its_imposer_is_unfriendly():
     world = _three()
-    world.embargoes = [("A", "C"), ("B", "C"), ("C", "B")]
-    world.relationships["A"]["C"].disposition = Disposition.FRIENDLY
-    world.relationships["B"]["C"].disposition = Disposition.FRIENDLY  # never lifted, no treaty
+    world.embargoes = [("B", "C"), ("C", "B")]  # embargoes are never lifted
+    world.relationships["B"]["C"].disposition = Disposition.FRIENDLY
     world.relationships["C"]["B"].disposition = Disposition.SUSPICIOUS
-    pact, _ = dp.sign_treaty(world, "trade_pact", _idx(world, "A"), _idx(world, "C"))
     world.turn = 1
-    events = dp.tick_diplomacy(world, [])
+    dp.tick_diplomacy(world, [])
     assert world.embargoes == [("B", "C"), ("C", "B")]
-    lifted = [e for e in events if e.event_type == "embargo_lifted"]
-    assert len(lifted) == 1 and lifted[0].actors == ["A", "C"] and pact.event_id in lifted[0].causes
-    # A still-unfriendly imposer's embargo offends every turn; a friendly one's does not.
     assert dp.grievance(world, "B", "C", (EMBARGO,)) == dp.GRIEVANCE_EMBARGO_TURN
     assert dp.grievance(world, "C", "B", (EMBARGO,)) == 0.0
-    assert dp.grievance(world, "C", "A", (EMBARGO,)) == 0.0
 
 
 def test_trade_pact_keeps_a_route_open_between_suspicious_partners():
