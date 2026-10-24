@@ -126,6 +126,14 @@ def _diplomacy_args(args: argparse.Namespace) -> list[str]:
     return ["--diplomacy" if diplomacy else "--no-diplomacy"]
 
 
+def _maritime_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit maritime switch; omitted keeps the CLI default."""
+    maritime = getattr(args, "maritime", None)
+    if maritime is None:
+        return []
+    return ["--maritime" if maritime else "--no-maritime"]
+
+
 def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
     """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
 
@@ -167,6 +175,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_fishery_aid_args(args),
         *_epidemiology_args(args),
         *_diplomacy_args(args),
+        *_maritime_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -197,6 +206,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_fishery_aid_args(args),
         *_epidemiology_args(args),
         *_diplomacy_args(args),
+        *_maritime_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -233,6 +243,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_fishery_aid_args(args, agents))
         cmd.extend(_epidemiology_args(args))
         cmd.extend(_diplomacy_args(args))
+        cmd.extend(_maritime_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -542,6 +553,12 @@ def main() -> None:
         help="Forward --diplomacy/--no-diplomacy to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--maritime",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --maritime/--no-maritime to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -632,6 +649,7 @@ def main() -> None:
         "mutual_aid": args.mutual_aid,
         "epidemiology": args.epidemiology,
         "diplomacy": args.diplomacy,
+        "maritime": args.maritime,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

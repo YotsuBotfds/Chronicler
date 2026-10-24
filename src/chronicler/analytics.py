@@ -1427,6 +1427,11 @@ def generate_report(
     diplomacy = extract_diplomacy_metrics(bundles)
     if diplomacy.get("runs"):
         report["diplomacy"] = diplomacy
+    # Maritime: present only for runs whose bundles carry history[n].maritime.
+    from chronicler.maritime import extract_maritime_metrics
+    maritime = extract_maritime_metrics(bundles)
+    if maritime.get("runs"):
+        report["maritime"] = maritime
 
     report["anomalies"] = detect_anomalies(report)
     return report
