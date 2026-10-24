@@ -1024,7 +1024,7 @@ class NarrativeEngine:
         )
 
         # No-LLM narrator: render moments mechanically (with their chains).
-        if getattr(self.narrative_client, "mechanical", False):
+        if getattr(self.narrative_client, "mechanical", False) is True:
             return self._narrate_mechanical(moments, on_progress)
 
         # Batch API path — Anthropic only

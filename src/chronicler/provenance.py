@@ -771,10 +771,13 @@ class ChronicSpec(NamedTuple):
     label: str
 
 
-# Diagnostic switch (tests and the identity proof): keep folded repeats on
-# the timeline as ``episode="repeat"`` instead of dropping them, so the
-# timeline matches a provenance-free run event for event.
-KEEP_REPEATS = False
+# Diagnostic switch for identity proofs against pre-provenance oracles
+# (tests, scripts/provenance_identity.py): ids, causes and the causal index
+# are recorded as usual, but the timeline is left exactly as a
+# provenance-free run would write it: chronic repeats stay (as
+# ``episode="repeat"``), onset importance is not capped and no ``*_ended``
+# events are added. Never set in production.
+LEGACY_TIMELINE = False
 
 CHRONIC: dict[str, ChronicSpec] = {
     # Famine strikes at most every 5 turns per region (famine cooldown), and
@@ -808,7 +811,7 @@ def _gate(world: "WorldState", ids: TurnIds, ev: Event) -> bool:
         ep.last_turn = ids.turn
         ep.count += 1
         if not spec.keep_ticks:
-            if not KEEP_REPEATS:
+            if not LEGACY_TIMELINE:
                 return False
             ev.episode = "repeat"
             cite(ev, ep.onset_id)
@@ -819,7 +822,7 @@ def _gate(world: "WorldState", ids: TurnIds, ev: Event) -> bool:
         ep.last_id = ensure_id(world, ev)
         return True
     ev.episode = "onset"
-    if spec.importance_cap is not None and ev.importance > spec.importance_cap:
+    if spec.importance_cap is not None and ev.importance > spec.importance_cap and not LEGACY_TIMELINE:
         ev.importance = spec.importance_cap
     eid = ensure_id(world, ev)
     episodes[ek] = ChronicEpisode(
@@ -978,6 +981,8 @@ def end_turn(world: "WorldState") -> list[Event]:
     ids = _turn_ids(world)
     observe(world)
     ended = _close_episodes(world, ids) + _close_conditions(world, ids)
+    if LEGACY_TIMELINE:
+        return []
     for ev in ended:
         _observe_one(world, ids, ev, gate=False)
     return ended
