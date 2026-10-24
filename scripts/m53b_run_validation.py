@@ -102,6 +102,14 @@ def _contact_ledger_args(args: argparse.Namespace) -> list[str]:
     return ["--contact-ledger" if ledger else "--no-contact-ledger"]
 
 
+def _epidemiology_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit epidemiology switch; omitted keeps the CLI default."""
+    epidemiology = getattr(args, "epidemiology", None)
+    if epidemiology is None:
+        return []
+    return ["--epidemiology" if epidemiology else "--no-epidemiology"]
+
+
 def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
     """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
 
@@ -140,6 +148,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_governance_args(args),
         *_contact_ledger_args(args),
         *_fishery_aid_args(args),
+        *_epidemiology_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -167,6 +176,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_governance_args(args),
         *_contact_ledger_args(args),
         *_fishery_aid_args(args),
+        *_epidemiology_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -200,6 +210,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_governance_args(args))
         cmd.extend(_contact_ledger_args(args))
         cmd.extend(_fishery_aid_args(args, agents))
+        cmd.extend(_epidemiology_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -491,6 +502,12 @@ def main() -> None:
         help="Forward --mutual-aid/--no-mutual-aid to every agent-mode run (default: CLI default).",
     )
     parser.add_argument(
+        "--epidemiology",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --epidemiology/--no-epidemiology to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -578,6 +595,7 @@ def main() -> None:
         "contact_ledger": args.contact_ledger,
         "fisheries": args.fisheries,
         "mutual_aid": args.mutual_aid,
+        "epidemiology": args.epidemiology,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

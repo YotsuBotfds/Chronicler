@@ -90,6 +90,7 @@ def run(workload: dict, output: Path, on_turn=None):
         governance=False,  # frozen pre-governance oracles; see docs/governance/runtime-integration.md
         contact_ledger=False,  # frozen pre-ledger oracles; see docs/integration/contact-ledger.md
         fisheries=False, mutual_aid=False,  # frozen oracles; see docs/integration/fisheries-mutual-aid-promotion.md
+        epidemiology=False,  # frozen pre-epidemiology oracles; see docs/integration/epidemiology.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

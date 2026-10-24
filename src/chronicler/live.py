@@ -1122,6 +1122,14 @@ def run_live(
         from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
         _aid = getattr(args, "mutual_aid", None)
         world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
+        # Epidemiology: new live worlds follow the CLI default; it needs the ledger.
+        from chronicler.epidemiology import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT, set_epidemiology_enabled,
+        )
+        from chronicler.contact_ledger import ledger_enabled as _ledger_on
+        _epi = getattr(args, "epidemiology", None)
+        set_epidemiology_enabled(
+            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
 
     # Construct LLM clients from client-selected models
     client_config = server._resolve_client_config()
