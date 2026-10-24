@@ -1688,8 +1688,13 @@ def _loss_note(row: dict, name: str, archives: dict[str, dict]) -> str:
 
 
 def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
-             voices: int | None = None, noted: set[str] | None = None) -> tuple[str, list[str]]:
-    """The passage and the ids of the accounts it tells (see ``telling``)."""
+             voices: int | None = None, noted: set[str] | None = None,
+             localize=None) -> tuple[str, list[str]]:
+    """The passage and the ids of the accounts it tells (see ``telling``).
+
+    ``localize`` (row -> text) renders a chronicler's text in its own
+    language's names (``languages.NameIndex.localize_account``).
+    """
     parts: list[str] = []
     ids: list[str] = []
     told = (_voices(rows, voices) if voices is not None
@@ -1697,7 +1702,8 @@ def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, di
     for k, row in enumerate(told):
         name = names.get(row["chronicler"], row["chronicler"])
         lead = f"As {name} tell it" if k == 0 else f"Though {name} say"
-        parts.append(f"{lead}: {_quote(row['text'])}")
+        text = localize(row) if localize is not None else row["text"]
+        parts.append(f"{lead}: {_quote(text)}")
         ids.append(row["account_id"])
     notes = 0
     for row in rows:
@@ -1744,10 +1750,16 @@ def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dic
 
 
 class AccountIndex:
-    """Read-only view of a bundle's ``historiography`` field for narration."""
+    """Read-only view of a bundle's ``historiography`` field for narration.
 
-    def __init__(self, data: dict) -> None:
+    With ``names`` (a ``languages.NameIndex``), each chronicler's quoted text
+    uses its own language's names for peoples, places and persons
+    ("Ashkel Vor [Verdant Plains]"); without it the text is as written.
+    """
+
+    def __init__(self, data: dict, names=None) -> None:
         self.data = data
+        self.localize = names.localize_account if names else None
         self.names = {c["id"]: c["name"] for c in data.get("chroniclers", [])}
         self.archives = {a["owner"]: a for a in data.get("archives", [])}
         columns = tuple(data.get("account_columns") or ACCOUNT_COLUMNS)
@@ -1774,7 +1786,8 @@ class AccountIndex:
         return list(self.by_event.get(event_id, []))
 
     def telling_for(self, event_id: str) -> str:
-        return telling(self.by_event.get(event_id, []), self.names, self.archives)
+        return _telling(self.by_event.get(event_id, []), self.names, self.archives,
+                        localize=self.localize)[0]
 
     def select(self, events: Sequence["Event"], limit: int) -> list[tuple["Event", list[dict]]]:
         """The moment's events with notable accounts: contested first, then the most important."""
@@ -1798,7 +1811,8 @@ class AccountIndex:
         parts, ids = [], []
         noted = set() if noted is None else noted
         for _ev, rows in self.select(events, limit):
-            text, told = _telling(rows, self.names, self.archives, voices=voices, noted=noted)
+            text, told = _telling(rows, self.names, self.archives, voices=voices, noted=noted,
+                                  localize=self.localize)
             if text:
                 parts.append(text)
                 ids.extend(told)
@@ -1828,7 +1842,8 @@ class AccountIndex:
                 else:
                     kinds = sorted({t["kind"] for t in row.get("transforms", [])})
                     tag = f" ({', '.join(kinds)})" if kinds else ""
-                    lines.append(f"  - {name}{tag}: {_quote(row['text'])}")
+                    text = self.localize(row) if self.localize is not None else row["text"]
+                    lines.append(f"  - {name}{tag}: {_quote(text)}")
         if not lines:
             return "", []
         head = ("\n\nIN-WORLD ACCOUNTS (how the world's own chroniclers recorded these events; "

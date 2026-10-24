@@ -1196,6 +1196,11 @@ class WorldState(BaseModel):
     # model_dump (state.json keeps its bytes); save/load carry it in a
     # ``<state>.historiography.json`` sidecar. Equality-neutral.
     _historiography: object | None = PrivateAttr(default=None)
+    # In-world languages and names (chronicler.languages.LanguagesSlot; None =
+    # off). Observational like the historiography: never read by the
+    # simulation, never in model_dump; saved in a ``<state>.languages.json``
+    # sidecar. Equality-neutral.
+    _languages: object | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
@@ -1264,18 +1269,23 @@ class WorldState(BaseModel):
         if not parent_is_dir:
             parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
-        # The chronicles travel beside the state (removed while off).
+        # The chronicles and the languages travel beside the state (removed while off).
         from chronicler.historiography import save_sidecar
         save_sidecar(self, path)
+        from chronicler.languages import save_sidecar as save_languages
+        save_languages(self, path)
 
     @classmethod
     def load(cls, path: Path) -> WorldState:
-        """Load world state from a JSON file (and its historiography sidecar, if any)."""
+        """Load world state from a JSON file (and its historiography and languages
+        sidecars, if any)."""
         if not path.exists():
             raise FileNotFoundError(f"No state file at {path}")
         world = cls.model_validate_json(path.read_text(encoding="utf-8"))
         from chronicler.historiography import load_sidecar
         load_sidecar(world, path)
+        from chronicler.languages import load_sidecar as load_languages
+        load_languages(world, path)
         return world
 
 

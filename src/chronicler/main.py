@@ -115,12 +115,14 @@ def _write_state_checkpoint(world: WorldState, path: Path) -> None:
     """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
 
     The final save keeps ``WorldState.save``'s indented format; both load with
-    ``WorldState.load`` into the same world. The in-world chronicles (when
-    historiography is on) are checkpointed beside it.
+    ``WorldState.load`` into the same world. The in-world chronicles and
+    languages (when those layers are on) are checkpointed beside it.
     """
     atomic_write_text(path, world.model_dump_json())
     from chronicler.historiography import save_sidecar
     save_sidecar(world, path, atomic=True)
+    from chronicler.languages import save_sidecar as save_languages
+    save_languages(world, path, atomic=True)
 
 
 def _save_memory_streams(
@@ -637,6 +639,17 @@ def execute_run(
         from chronicler.historiography import set_historiography_enabled
         set_historiography_enabled(world, historiography)
     from chronicler.historiography import historiography_on as _historiography_on
+    # In-world languages and names (saved with the world in a state sidecar):
+    # sound systems that drift and split, loanwords and the names each people
+    # gives to the world. Observational only; the simulation never reads it.
+    languages = getattr(args, "languages", None)
+    if languages is None and fresh_world:
+        from chronicler.languages import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT
+        languages = _LANG_DEFAULT
+    if languages is not None:
+        from chronicler.languages import set_languages_enabled
+        set_languages_enabled(world, languages)
+    from chronicler.languages import languages_on as _languages_on
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -954,6 +967,10 @@ def execute_run(
         if _historiography_on(world):
             from chronicler.historiography import observe_turn
             observe_turn(world)
+        # The world's languages drift, split and name what their peoples know.
+        if _languages_on(world):
+            from chronicler.languages import observe_turn as observe_languages
+            observe_languages(world)
 
         # Phase-10 rows are historical inputs only for synchronous capture.
         # Release the handoff before callbacks can mutate world or bridge state.
@@ -1056,10 +1073,17 @@ def execute_run(
     # curated narration below reads them back through an AccountIndex.
     historiography_export = None
     account_index = None
+    # The languages field, read back through a NameIndex for perspective names.
+    languages_export = None
+    name_index = None
+    if _languages_on(world):
+        from chronicler.languages import NameIndex, export as _export_languages
+        languages_export = _export_languages(world)
+        name_index = NameIndex(languages_export)
     if _historiography_on(world):
         from chronicler.historiography import AccountIndex, export as _export_historiography
         historiography_export = _export_historiography(world)
-        account_index = AccountIndex(historiography_export)
+        account_index = AccountIndex(historiography_export, names=name_index)
 
     # M44: Post-loop curated narration for API mode
     if _api_mode:
@@ -1105,6 +1129,7 @@ def execute_run(
             great_persons=all_great_persons,
             world=world,
             historiography=account_index,
+            languages=name_index,
             social_edges=agent_bridge.read_social_edges() if agent_bridge is not None else None,
             dissolved_edges_by_turn=world.dissolved_edges_by_turn if hasattr(world, "dissolved_edges_by_turn") else None,
             agent_name_map=agent_bridge.named_agents if agent_bridge is not None else None,
@@ -1247,6 +1272,7 @@ def execute_run(
         interestingness_score=score_run(result, interestingness_weights),
         gap_summaries=gap_summaries,
         historiography=historiography_export,
+        languages=languages_export,
     )
     # M44: narrator provenance metadata
     bundle["metadata"]["narrator_mode"] = _narrator_mode
@@ -1443,6 +1469,14 @@ def _build_parser() -> argparse.ArgumentParser:
                              "unchanged; the bundle gains a 'historiography' field and curated "
                              "narration cites the accounts (default on for new worlds; "
                              "--no-historiography opts out; saved with the state)")
+    parser.add_argument("--languages", action=argparse.BooleanOptionalAction, default=None,
+                        help="In-world languages and names: each people speaks a language with "
+                             "its own sound system that drifts, splits into daughter languages "
+                             "and borrows through contact; civs, regions, settlements, faiths and "
+                             "persons get names in the languages that know them. Observational: "
+                             "the simulation is unchanged; the bundle gains a 'languages' field "
+                             "and narration glosses native names (default off for new worlds; "
+                             "saved with the state)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
@@ -1549,9 +1583,17 @@ def _run_narrate(args: argparse.Namespace) -> None:
     # In-world accounts carried by the bundle (absent in older bundles and
     # in runs with historiography off; --no-historiography ignores them).
     account_index = None
+    # In-world names carried by the bundle (absent in older bundles and in
+    # runs with languages off; --no-languages ignores them).
+    name_index = None
+    if getattr(args, "languages", None) is not False:
+        from chronicler.languages import NameIndex
+        name_index = NameIndex.from_bundle(bundle)
     if getattr(args, "historiography", None) is not False:
         from chronicler.historiography import AccountIndex
         account_index = AccountIndex.from_bundle(bundle)
+        if account_index is not None and name_index:
+            account_index = AccountIndex(bundle["historiography"], names=name_index)
 
     # Curate moments
     moments, gap_summaries = curate(
@@ -1588,6 +1630,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         great_persons=all_great_persons,
         world=world,
         historiography=account_index,
+        languages=name_index,
         agent_name_map=agent_name_map,
         social_edges=None,
         dissolved_edges_by_turn=None,
