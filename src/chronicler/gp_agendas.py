@@ -33,9 +33,10 @@ Roles and agendas
       house`` (a trade-good artifact and merchant influence) and, with
       ``--finance``, ``lend_to_crown`` (deeper domestic credit; completes on
       the crown's next domestic loan).
-    * prophet: ``spread_faith`` (preaching adds to a region's conversion
-      signal; agent modes) and ``found_shrine`` (commission a temple that
-      becomes a pilgrimage shrine).
+    * prophet: ``spread_faith`` (preaching adds the prophet's pressure to a
+      region's conversion signal, within realms that hold the faith and never
+      under persecution; agent modes) and ``found_shrine`` (commission a
+      temple that becomes a pilgrimage shrine).
     * scientist: ``advance_learning`` (the next era) or, with
       ``--techniques``, ``invent_technique`` (steers the civ's invention).
 
@@ -176,7 +177,7 @@ LEND_MIN_STRESS = 0.25
 # Prophets
 SPREAD_CANDIDATE_SHARE = 0.4
 SPREAD_TARGET_SHARE = 0.5
-PREACHING_RATE = 0.02         # added to the target region's conversion signal per turn
+PREACHING_RATE = 0.02         # the prophet's own pressure on the target region's conversion signal per turn
 SHRINE_PRESTIGE = 10          # temple prestige a consecrated shrine starts with (pilgrimage magnet)
 
 # Scientists (techniques)
@@ -642,6 +643,25 @@ def _shrine_targets(world, ctx: _Ctx, civ) -> list[str]:
     return out
 
 
+def _open_to_preaching(world, ctx: _Ctx, region, faith: int) -> bool:
+    """Whether a prophet of ``faith`` preaches in ``region`` this turn.
+
+    Only within the faith's realms: the region's ruler holds the faith (the
+    prophet's own people or co-religionists). Preaching there gathers a
+    realm's minorities into its own faith; preached into a realm of another
+    faith it would tip that realm's majority, and with it whether the realm
+    persecutes. And not while the region is under persecution: the agent
+    tick applies the intensity (live, or left over by a ruler who no longer
+    persecutes) to everyone outside the local majority, converts included.
+    """
+    if region.persecution_intensity > 0:
+        return False
+    idx = ctx.civ_index.get(region.controller) if region.controller is not None else None
+    if idx is None:
+        return False
+    return getattr(world.civilizations[idx], "civ_majority_faith", 0xFF) == faith
+
+
 def _spread_targets(world, ctx: _Ctx, civ) -> list[str]:
     faith = getattr(civ, "civ_majority_faith", 0xFF)
     if ctx.region_beliefs is None or not world.belief_registry or faith in (None, 0xFF, -1):
@@ -654,12 +674,21 @@ def _spread_targets(world, ctx: _Ctx, civ) -> list[str]:
     out = []
     for name in sorted(names):
         share = ctx.share(name, faith)
-        if share is not None and share < SPREAD_CANDIDATE_SHARE:
+        region = ctx.region_map.get(name)
+        if (share is not None and share < SPREAD_CANDIDATE_SHARE and region is not None
+                and _open_to_preaching(world, ctx, region, faith)):
             out.append(name)
     return out
 
 
 def _invention_candidates(world, civ_idx: int, civ) -> list[str]:
+    """The inventions ``techniques._invent`` could choose for the civ now, of
+    the lowest tier it would try first: unknown techniques of at most the next
+    era's tier whose prerequisites the civ knows and that have a site, an
+    inhabited region of the civ that suits them and practises their
+    prerequisites (this turn's practice, read after Phase 4). A technique
+    without a site is never chosen, so a vow for it could only run out."""
+    from chronicler import techniques as tq
     from chronicler.tech import _era_index
     from chronicler.techniques_state import TECHNIQUES, TECHNIQUE_INDEX, techniques_on
     if not techniques_on(world):
@@ -669,9 +698,23 @@ def _invention_candidates(world, civ_idx: int, civ) -> list[str]:
         return []
     known = set(st.known[civ_idx])
     era_idx = _era_index(civ.tech_era)
-    cands = [(spec.tier, spec.key) for k, spec in enumerate(TECHNIQUES)
+    cands = [(spec.tier, k, spec.key) for k, spec in enumerate(TECHNIQUES)
              if k not in known and spec.tier <= era_idx + 1
              and all(TECHNIQUE_INDEX[q] in known for q in spec.prereqs)]
+    if not cands:
+        return []
+    ctrl = tq._controllers(world, tq._civ_indices(world))
+    members = [r for r, c in enumerate(ctrl) if c == civ_idx]
+    suit = tq._suitability(world, ctrl, tq._contacts(world, ctrl))
+    practice = {(row[0], row[1]): row[2] for row in st.rows}
+    regions = world.regions
+
+    def sited(k: int) -> bool:
+        return any(suit[r][k] and regions[r].population > 0
+                   and all(practice.get((r, q), 0.0) >= tq.PREREQ_LEVEL for q in tq._PREREQS[k])
+                   for r in members)
+
+    cands = [(t, key) for t, k, key in cands if sited(k)]
     if not cands:
         return []
     low = min(t for t, _ in cands)
@@ -1225,8 +1268,16 @@ def _faith_deeds(world, ctx, state, civ_idx, civ, gp, rec, kind, acc, events, ev
             return  # preaching reaches people only through the agent pool
         if region.conversion_target_signal not in (0xFF, faith):
             return  # another faith's preachers hold the region this turn
-        region.conversion_target_signal = faith
-        region.conversion_rate_signal = region.conversion_rate_signal + PREACHING_RATE
+        if not _open_to_preaching(world, ctx, region, faith):
+            return  # out of the faith's realms or under persecution: the prophet waits
+        if region.conversion_target_signal == 0xFF:
+            # An empty slot's rate (a martyrdom or conquest boost with no faith
+            # to carry it) converts no one; the prophet brings his own pressure
+            # and does not take that leftover over.
+            region.conversion_target_signal = faith
+            region.conversion_rate_signal = PREACHING_RATE
+        else:
+            region.conversion_rate_signal = region.conversion_rate_signal + PREACHING_RATE
         if not rec.commissioned:
             rec.commissioned = True
             gp.region = target
