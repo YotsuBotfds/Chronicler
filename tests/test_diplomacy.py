@@ -350,7 +350,9 @@ def test_campaign_peace_emits_a_peace_treaty_and_tribute_in_installments():
     assert kinds["tribute"].terms["total"] == 20 + 20 and "over" in peace_event.description
 
 
-def test_capitulation_that_would_extinguish_makes_a_vassal_instead():
+def test_capitulation_that_would_extinguish_makes_a_vassal_instead(monkeypatch):
+    assert dp.SPARE_LAST_REGION is False  # the lever is off by default: states fall as on base
+    monkeypatch.setattr(dp, "SPARE_LAST_REGION", True)
     for on in (False, True):
         world = war_world()
         dp.set_diplomacy_enabled(world, on)
@@ -370,10 +372,24 @@ def test_capitulation_that_would_extinguish_makes_a_vassal_instead():
             assert world.civ_map["B"].regions == [] and not world.vassal_relations
 
 
+def test_by_default_a_capitulation_still_extinguishes_under_diplomacy():
+    world = war_world()
+    dp.set_diplomacy_enabled(world, True)
+    ctx, war = start_war(world)
+    war.aim = "conquest"
+    from chronicler.war.occupation import start_occupation
+    from chronicler.war.peace import conclude_peace
+    for region in ("Crag", "Dun", "Edge"):
+        start_occupation(ctx, world.region_map[region], world.civ_map["A"], war, None)
+    record = conclude_peace(ctx, war, "capitulation", "A")
+    assert world.civ_map["B"].regions == [] and not record.vassalized and not world.vassal_relations
+
+
 def test_instant_war_on_the_last_region_vassalizes_under_the_ladder(monkeypatch):
     from chronicler import action_engine as ae
     from chronicler.politics import choose_vassalize_or_absorb  # noqa: F401  (patched below)
     monkeypatch.setattr("chronicler.politics.choose_vassalize_or_absorb", lambda *a: False)
+    monkeypatch.setattr(dp, "SPARE_LAST_REGION", True)
     world = _three()
     world.campaigns_enabled = False
     world.civ_map["A"].military = 100

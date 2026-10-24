@@ -852,10 +852,15 @@ def note_instant_battle(world, attacker: "Civilization", defender: "Civilization
         add_grievance(world, defender.name, attacker.name, WAR, GRIEVANCE_BATTLE_LOST)
 
 
-#: Ladder lever for polity turnover: a conquest, capitulation or occupation
-#: consolidation that would extinguish a state makes it a vassal instead.
-#: Off, such states fall as before and only twilight decline enters the ladder.
-SPARE_LAST_REGION = True
+#: Ladder lever for polity turnover (off by default): a conquest,
+#: capitulation or occupation consolidation that would extinguish a state
+#: makes it a vassal instead. On 20 hybrid seeds x 500 turns it ends every
+#: conquest extinction but doubles wars (spared vassals revolt and seek
+#: revanche) and keeps all four founders alive in half the worlds (the
+#: regression oracle's civ_survival limit is a fifth); off, conquered states
+#: fall as on base and the ladder replaces twilight absorption only.
+#: See docs/integration/diplomacy.md.
+SPARE_LAST_REGION = False
 
 
 def spares_last_region(world, winner: "Civilization", loser: "Civilization") -> bool:
