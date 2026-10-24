@@ -414,6 +414,9 @@ def execute_run(
     if governance is not None:
         from chronicler.governance_runtime import set_governance_enabled
         set_governance_enabled(world, governance)
+    agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
+    if agent_scale_mode != "exact" and agent_mode == "off":
+        raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -434,6 +437,7 @@ def execute_run(
             validation_sidecar=_use_sidecar,
             output_dir=output_path.parent if _use_sidecar else None,
             relationship_stats=getattr(args, "relationship_stats", False),
+            agent_scale_mode=agent_scale_mode,
         )
 
     # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
@@ -1113,6 +1117,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--agents", type=str, default="off",
                         choices=["off", "demographics-only", "shadow", "hybrid"],
                         help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
+    parser.add_argument("--agent-scale-mode", choices=["exact", "fast"], default=None,
+                        help="Native agent tick algorithms: exact (default; byte-identical reference "
+                             "algorithms) or fast (bounded-work neighbour, marriage and formation "
+                             "candidate sampling for large populations; changes results; not saved "
+                             "in state, pass it again on --resume)")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
                         help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
     parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,

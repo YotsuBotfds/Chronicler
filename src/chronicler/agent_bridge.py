@@ -856,6 +856,11 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
     )
 
 
+# Native agent-scale modes (see chronicler-agents/src/scale.rs). "exact" is the
+# byte-identical reference; "fast" bounds per-agent work in dense regions.
+AGENT_SCALE_MODES = ("exact", "fast")
+
+
 def configure_economy_runtime(simulator, world: "WorldState") -> None:
     """Wire economy config onto a Rust AgentSimulator.
 
@@ -899,9 +904,24 @@ class AgentBridge:
                  shadow_output: Path | None = None,
                  validation_sidecar: bool = False,
                  output_dir: Path | None = None,
-                 relationship_stats: bool = False):
+                 relationship_stats: bool = False,
+                 agent_scale_mode: str = "exact"):
+        if agent_scale_mode not in AGENT_SCALE_MODES:
+            raise ValueError(
+                f"agent_scale_mode must be one of {AGENT_SCALE_MODES}, got {agent_scale_mode!r}"
+            )
         AgentSimulator = _load_agent_simulator_class()
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
+        # Exact mode is the native default; only a non-default mode is sent,
+        # so exact runs make exactly the calls they always made.
+        if agent_scale_mode != "exact":
+            if not hasattr(self._sim, "set_agent_scale_mode"):
+                raise RuntimeError(
+                    "the installed chronicler_agents extension predates agent scale modes; "
+                    "rebuild it to use --agent-scale-mode fast"
+                )
+            self._sim.set_agent_scale_mode(agent_scale_mode)
+        self.agent_scale_mode = agent_scale_mode
         self._mode = mode
         world._agent_bridge = self
         # M54a: Wire river topology and ecology config from tuning overrides
