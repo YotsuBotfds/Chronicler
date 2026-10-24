@@ -6,6 +6,40 @@
 
 ---
 
+## Money, credit and public finance (2026-10-24)
+
+Branch `feat/money-credit` on `integrate/wave-2` (`db26681`, PR #18), default
+off behind `--finance` (saved on the world). Details, numbers and stories:
+[`docs/integration/money-credit.md`](../../integration/money-credit.md).
+
+- **Built.** `chronicler/finance.py`: a Phase 3b fiscal tick (revenue partly
+  indexed to prices, army and administration upkeep at current prices, a court
+  that absorbs idle surpluses above a reserve target, debt service on credit
+  lines, borrowing from the merchant creditor class and from wealthy foreign
+  civs in contact, debasement, arrears and default with stability, legitimacy,
+  merchant-influence, grievance, exclusion and premium consequences) and an
+  end-of-turn monetary update (regional specie, precious-metal minting, sacks
+  of occupied regions, price-specie flow, a sticky per-civ price index).
+  Fiscal stress replaces the governing-cost/treasury proxy as the PSI
+  `state_debt` input; a finance contributor bucket (clamped to 1.25x) carries
+  creditor leverage and grievance into action weights; loans, defaults,
+  debasements and lapsed debts cite their causes, and fiscal strain and
+  inflation are chronic episodes. `transfer`/`extend_loan` are the API for
+  diplomacy. Rust is unchanged.
+- **Evidence (Linux, Python 3.13, fresh native build).** Flag-off outputs are
+  byte-identical to `db26681` (hybrid 200 and off 300 turns, seeds 42/7/1234,
+  45 files, default and explicit `--no-finance`). Not-slow suite 5,520 passed,
+  3 skipped; guarded oracle lane 1,596 passed (PR #19's guard line applied
+  locally only); subset gates with `--finance` PASS / NO REGRESSION on seeds
+  42-61 (vs base) and 62-81 (vs flag off), 0 extinct worlds. Treasury at turn
+  200 falls from about 9.1K to 1.0K per civ (30K to 1.2K at turn 500).
+- **Open before a default flip.** The era oracle (required only in the full
+  profile) reads 5 of 20 seeds as "silent collapse" in seeds 62-81 with finance
+  on: base treasuries supply about three quarters of all inflections and cover
+  slow population declines; finance makes treasuries homeostatic. Decide the
+  oracle treatment, then re-gate after the food-balance work lands. The
+  200-seed full gate has not been run with finance on.
+
 ## Recovery checkpoint (2026-10-11)
 
 Checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`) was restored in an
