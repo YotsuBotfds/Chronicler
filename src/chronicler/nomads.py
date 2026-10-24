@@ -439,6 +439,11 @@ def _emit(t: _Tick, event_type: str, actors: list[str], description: str, *,
     return ev
 
 
+def _poss(name: str) -> str:
+    """English possessive of a name ("the Jatain Clans'", "Qeduni Empire's")."""
+    return name + ("'" if name.endswith("s") else "'s")
+
+
 def _add_stat(t: _Tick, civ, stat: str, delta: float, category: str) -> None:
     from chronicler.war.common import add_stat
     add_stat(t, civ, stat, delta, category)
@@ -676,7 +681,8 @@ def _update_hordes(t: _Tick) -> None:
             names = [civs[m].name for m in horde.members if m < len(civs)]
             _end_horde(t, horde, "dissolved")
             ev = _emit(t, "horde_dissolved", names,
-                       f"With the {khan.name if khan else 'khan'}'s people fallen, {horde.name} scatters.",
+                       f"With {_poss('the ' + (khan.name if khan else 'khan'))} people fallen, "
+                       f"{horde.name} scatters.",
                        importance=6,
                        causes=(prov.recall(world, prov.key("conquered", khan.name), within=5) if khan else None,
                                horde.event_id))
@@ -813,7 +819,7 @@ def _herds(t: _Tick) -> None:
             _bump(state, "dzuds")
             civ = civs[ci]
             _emit(t, "dzud", [civ.name],
-                  f"A dzud winter kills {loss:.0f} head of the {civ.name}'s herds around "
+                  f"A dzud winter kills {loss:.0f} head of {_poss('the ' + civ.name)} herds around "
                   f"{world.regions[ri].name}.",
                   importance=5, region=world.regions[ri].name,
                   causes=(prov.recall(world, prov.key("drought", civ.name), within=12),))
@@ -1184,7 +1190,7 @@ def _raids(t: _Tick) -> None:
             _bump(state, "raid_deaths", killed)
             took = [f"carrying off {loot} in plunder"] if loot else []
             if killed:
-                took.append(f"killing {killed} of {target.name}'s people")
+                took.append(f"killing {killed} of {_poss(target.name)} people")
             what = " and ".join(took) if took else "but find little to take"
             ev = _emit(t, "raid", [civ.name, target.name],
                        f"Riders of the {civ.name} raid {region.name}, {what}.",

@@ -86,7 +86,8 @@ def run_metrics(state_path: Path) -> dict:
 
 
 COLUMNS = ("nomadic_civs", "pastoral_civs", "raids", "raids_repulsed", "tributes", "hordes_formed",
-           "hordes_fragmented", "hordes_dissolved", "horde_wars", "nomad_conquests", "sedentarizations",
+           "hordes_fragmented", "hordes_dissolved", "horde_wars", "horde_rides", "nomad_conquests",
+           "sedentarizations",
            "dzuds", "herd_mean", "herd_final", "polities_alive", "civ_records", "population",
            "wars_declared", "secessions", "federations_formed", "famines")
 
