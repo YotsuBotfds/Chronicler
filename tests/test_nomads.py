@@ -470,6 +470,41 @@ def test_a_strong_khan_unites_the_clans_into_a_horde_federation(monkeypatch):
     assert N._horde_of(world.nomads, SELURIAN) is horde
 
 
+def test_a_dominant_nomad_takes_command_of_his_federation(monkeypatch):
+    world = _horde_world(monkeypatch)
+    formed_fed = Event(turn=world.turn, event_type="federation_formed",
+                       actors=["Thornwall Confederacy", "Kethani Empire"], description="Formation")
+    prov.observe_now(world, formed_fed)
+    world.federations.append(Federation(name="The Iron Pact", founded_turn=1,
+                                        members=["Thornwall Confederacy", "Kethani Empire"]))
+    world.civilizations[KETHANI].military = 10
+    result = N.tick_nomads(world)
+    formed = _events(result, "horde_formed")
+    assert len(formed) == 1 and "The Iron Pact" in formed[0].description
+    horde = world.nomads.active_hordes()[0]
+    assert horde.khan == THORNWALL and horde.members == [THORNWALL, KETHANI]
+    # The federation itself becomes the horde (renamed); no second federation.
+    assert [f.name for f in world.federations] == [horde.name]
+    assert world.federations[0].members == ["Thornwall Confederacy", "Kethani Empire"]
+    assert formed_fed.event_id in formed[0].causes
+    # The khan's death breaks the federation he had taken over.
+    world.civilizations[THORNWALL].leader = Leader(name="Elder Heir", trait="cautious", reign_start=world.turn)
+    world.turn += 1
+    N.tick_nomads(world)
+    assert horde.status == "fragmented" and world.federations == []
+
+
+def test_an_outranked_nomad_does_not_take_command(monkeypatch):
+    world = _horde_world(monkeypatch)
+    world.federations.append(Federation(name="The Iron Pact", founded_turn=1,
+                                        members=["Thornwall Confederacy", "Kethani Empire"]))
+    kethani = world.civilizations[KETHANI]
+    kethani.military, kethani.stability, kethani.population = 100, 100, 400
+    assert N._power(kethani) > N._power(world.civilizations[THORNWALL])
+    N.tick_nomads(world)
+    assert world.nomads.hordes == [] and [f.name for f in world.federations] == ["The Iron Pact"]
+
+
 def test_the_horde_breaks_apart_when_the_khan_dies(monkeypatch):
     world = _horde_world(monkeypatch)
     N.tick_nomads(world)

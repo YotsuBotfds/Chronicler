@@ -66,7 +66,7 @@ threshold; see [Supplementary seed sets](#supplementary-seed-sets-not-the-gates-
 | Phase 2 (agent modes) | `refresh_resource_yields` -> `compute_resource_yields` -> `nomads.food_yields`: herd food in the yields the goods economy reads |
 | Phase 5 | the nomad weight bucket (WAR, for raiders and hordes facing a hostile settled neighbour); EXPAND's harsh-terrain filter skipped for herders |
 | After Phase 5 and the maritime tick | `tick_nomads` (order below), before campaigns so the wars a horde opens are fought this turn |
-| Campaign tick | a horde member's new war on a settled people aims at conquest (`war.peace.choose_aim`) |
+| Whenever a war opens | a horde member's new war on a settled people aims at conquest (`war.peace.choose_aim`) |
 | Phase 9 (Python ecology) | `compute_resource_yields` -> `food_yields`: herd food in the famine check |
 | After Phase 10 (diplomacy on) | this turn's raids (a border grievance of the raided) and repudiated tributes (a treaty grievance of the raiders) enter diplomatic memory |
 
@@ -276,7 +276,7 @@ existing asabiya dynamics do.
 
 ## Tests
 
-`tests/test_nomads.py` (46 tests, also in the bounded offline lane):
+`tests/test_nomads.py` (48 tests, also in the bounded offline lane):
 
 * subsistence: modes seeded from terrain (template and procedural), starting
   herds on pastoral land only, polities founded later seeded at their first
@@ -299,7 +299,9 @@ existing asabiya dynamics do.
 * tribute: agreed after repeated raids and citing them, paid each turn,
   sparing the payer; repudiated by a payer grown strong (citing the pact,
   with the raiders' treaty grievance);
-* hordes: formation as a federation with allied members; fragmentation on
+* hordes: formation as a federation with allied members; a dominant nomad
+  taking command of his federation (renamed, citing its formation, and
+  dissolved when he dies) and an outranked one not; fragmentation on
   the khan's death (federation gone, heirs suspicious, stability and asabiya
   lost, citing the death and the horde, and a later secession citing the
   break); dissolution when the federation sheds its clans; conquest waves
@@ -314,7 +316,7 @@ existing asabiya dynamics do.
   tundra;
 * switch and persistence: dormancy and omitted fields, old saves, no nomad
   code while off, state round trip with a warm cache, determinism,
-  save/load resume identity with live herds and a riding horde (every byte
+  save/load resume identity with live herds, raids and a standing horde (every byte
   of the resumed world after 15 more turns), switching on mid-history, the
   CLI flag, gate forwarding, bundle history, analytics and the report
   script, record pruning, the region flag reset by the turn with nothing
