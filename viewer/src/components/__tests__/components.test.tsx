@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 import sampleBundle from "../../__fixtures__/sample_bundle.json";
+import systemsBundle from "../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../types";
 
 // jsdom does not implement scrollIntoView
@@ -43,6 +44,25 @@ describe("FactionDashboard", () => {
     );
     const cards = container.querySelectorAll(".rounded.border");
     expect(cards.length).toBe(bundle.world_state.civilizations.length);
+  });
+
+  it("shows a civ left out of later snapshots as absorbed and ends its sparklines", () => {
+    // Version-5 fixture: Khorain Kingdom dies by turn 4 and has no row after it.
+    const pruned = systemsBundle as unknown as Bundle;
+    const { container } = render(
+      <FactionDashboard
+        civilizations={pruned.world_state.civilizations}
+        history={pruned.history}
+        currentTurn={120}
+      />,
+    );
+    const card = Array.from(container.querySelectorAll(".rounded.border"))
+      .find((element) => element.textContent?.includes("Khorain Kingdom")) as HTMLElement;
+    expect(card).toHaveTextContent("Absorbed");
+    const recorded = pruned.history.filter((s) => "Khorain Kingdom" in s.civ_stats).length;
+    for (const line of card.querySelectorAll("polyline")) {
+      expect(line.getAttribute("points")!.split(" ")).toHaveLength(recorded);
+    }
   });
 });
 

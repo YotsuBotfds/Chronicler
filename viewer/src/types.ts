@@ -492,7 +492,14 @@ export interface BundleMetadata {
 
 export interface Bundle {
   world_state: WorldState;
+  /**
+   * Bundle version 5 leaves civilizations that are dead at a turn out of
+   * that snapshot's civ_stats, capitals and pairwise tables (each keeps its
+   * final row in the snapshot of its death); read rows with lib/civRows.
+   */
   history: TurnSnapshot[];
+  /** Version 5: the omitted civ_stats rows as change runs (Python restores them; the viewer does not). */
+  pruned_civ_stats?: Record<string, unknown[]>;
   events_timeline: Event[];
   named_events: NamedEvent[];
   chronicle_entries: BundleChronicle;

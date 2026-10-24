@@ -12,6 +12,7 @@ import {
 import type { TurnSnapshot, NamedEvent, Civilization } from "../types";
 import type { CivSnapshot } from "../types";
 import { factionColor } from "../lib/colors";
+import { civChartRows } from "../lib/civRows";
 
 type StatKey = keyof Pick<
   CivSnapshot,
@@ -45,19 +46,17 @@ export function StatGraphs({
   const [compareMode, setCompareMode] = useState(false);
   const [compareStat, setCompareStat] = useState<StatKey>("population");
 
-  const chartData = useMemo(() => {
-    return history.map((snap) => {
-      const row: Record<string, number> = { turn: snap.turn };
-      for (const civ of civilizations) {
-        const civSnap = snap.civ_stats[civ.name];
-        row[civ.name] = civSnap ? civSnap[selectedStat] : 0;
-        if (compareMode) {
-          row[`${civ.name}_cmp`] = civSnap ? civSnap[compareStat] : 0;
-        }
-      }
-      return row;
-    });
-  }, [history, civilizations, selectedStat, compareMode, compareStat]);
+  // A civ without a row (not yet founded, or dead and left out of the
+  // snapshot by bundle version 5) has no value: its line ends there.
+  const chartData = useMemo(
+    () => civChartRows(
+      history,
+      civilizations.map((civ) => civ.name),
+      selectedStat,
+      compareMode ? compareStat : undefined,
+    ),
+    [history, civilizations, selectedStat, compareMode, compareStat],
+  );
 
   const eventMarkers = useMemo(() => {
     return [...namedEvents]
