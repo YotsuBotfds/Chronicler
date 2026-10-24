@@ -1523,8 +1523,10 @@ def phase_technology(world: WorldState, acc=None) -> list[Event]:
                     description=f"{civ.name} develops {new_focus.value} specialization",
                     importance=6,
                 ))
-            # Increment tech_advanced so great person generation can detect era advance
-            civ.event_counts["tech_advanced"] = civ.event_counts.get("tech_advanced", 0) + 1
+            # Count the advance for great person generation only when the
+            # era is new to this civ (re-advancing after a regression is not).
+            from chronicler.great_persons import note_tech_era_reached
+            note_tech_era_reached(civ)
             name = generate_tech_breakthrough_name(civ.tech_era)
             world.named_events.append(NamedEvent(
                 name=name, event_type="tech_breakthrough", turn=world.turn,

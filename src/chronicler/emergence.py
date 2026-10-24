@@ -671,6 +671,8 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False, acc
         old_era = civ.tech_era
         new_era = _prev_era(old_era)
         assert new_era is not None
+        from chronicler.great_persons import note_tech_era_lost
+        note_tech_era_lost(civ)
         if acc is not None:
             remove_era_bonus(civ, old_era, acc=acc, civ_idx=civ_index(world, civ.name))
         else:

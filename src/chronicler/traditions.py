@@ -38,6 +38,8 @@ def update_event_counts(world: WorldState) -> None:
             civ.event_counts["high_economy_turns"] = civ.event_counts.get("high_economy_turns", 0) + 1
         else:
             civ.event_counts["high_economy_turns"] = 0
+            # The streak is over: the next one may produce a new scientist.
+            civ.event_counts.pop("high_economy_scientist", None)
 
     # Track high trade route turns
     for civ in world.civilizations:

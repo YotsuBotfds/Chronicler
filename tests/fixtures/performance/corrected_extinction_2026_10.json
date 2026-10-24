@@ -4,12 +4,12 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "3902d3b+plague-cap",
+    "base_revision": "702be0d+scientist-triggers",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
         "id": "EXT-2026-10",
-        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split.",
+        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split. Scientists need scholarly change (one per prosperity streak, new eras only).",
         "workloads": {
           "single": 0,
           "standard": 0,
@@ -111,37 +111,37 @@
         "2036c65629fef4d4fce4a1581f6b55f53a49ebc68738c4216d3a8438cd789aa8",
         "1005c8b5ad5160079258341ffbedcba3bfef24607e9b2800566ed7096558bf5e",
         "a334a2a0462988c4c573f74e7a922a98ddc7a11ba84b6cbdea56392a4c064b63",
-        "86b36c5d1c0345b4c97e86400724d04d414d8f39a09f59bbf614a0e40ab7d17c",
-        "4efc5940ba53ec8dec79ad8a85a76411d6da678db2aeea6855b7690f60717b8c",
-        "b6a89b6c79731f055132f546c72f0849153fe226348d348bd37f88b5ce4f6dcc",
-        "840a99c672a33bf75f885a09fc22d5210479c358e632a2e0b07942d9ba6526c1",
-        "c0e47291b06e4ee995ea1d4d5fbe267a2373b6ae3cdd9033c9f13e0df9635c6a",
-        "46911aa1b45107ff7dde190966ff7143ddb95ac85accb31730aadd234a13ef85",
-        "d43865463408776d3e61e460a99961b1e019e000521ed7b43d06fb264d85ce2f",
-        "415c308428dfc92032a40dbce6f257c2b836d99e04296531c2bd283c83eec9fd",
-        "4ab1d7c38b3f63ec24ccdfaf0f1180c62b1c15420bbf5bdf33285f6d405aa2a7",
-        "3a0aca14f4dab6e60df8c3f4f5b90515c1b3e3f3f5cc7f9c290beefa7e79d6a9",
-        "1c440e4c60fdf4f508e0adc3b80ec91e481c1b6d0cf26b11f14d9f13d2940c0a",
-        "243d1f8fdc8e783d4191198a35a9a99cc4d185a88c6c878e013e94ddcf728b5f",
-        "d7763b93788cfbafe3c112838804e3b5dbfc15b6ac481d56aebc26df0e2fed35",
-        "42d55165401340e9bce5f691154877936cb5d97a736ee7fd391727342037a5f9",
-        "901ebc4a0626d597409aa344fe22b55fb50338d98a931b56ecbafc4d0df22e1d",
-        "155bd9a7715ebca397da9f13defcbdc3bf320b6b2b73428c7e72fd387ed159ef",
-        "41f13b3a8b7d16c9823ef15e95f61d10f29432e4c50fbe0e014ac10aff07d30e",
-        "d059861f228cf225357a5d04a7aa5bc3ff45742532fa0044902202f8db698c70",
-        "2d36d07ceb6f7a552971d52985186f98ea3455f73fc4fc89639c3ccfdfb86d0d",
-        "32b2f743e74d5903e29f04b58e69eec0d5a714ab179d0f735e130c9d90afc44e",
-        "7389ceba9a5f80ac9450ca95edf9309e248715d2d3e24bdedccd3d651ff90f43",
-        "b0c992122b48e388f885668ae0a3211794cf32b834786cb5b1c47735c69d3471"
+        "5352f75e9cad5d144e39649b596f5d06d2bb21632987032e0b46a07af9a4a5f9",
+        "725cfddc64f9bae309cbf3047d9acf80aacd661d4f5aa3192bf2761f62682034",
+        "e5b9619e40379ac144c188d4ec5771167557fbd444f5b8817a6047e635145ffa",
+        "20660438a3c352568c40fc57730b35e47f8d544e3a2baf2d1551e0571644042f",
+        "3b387f86104aab56ee09b44473b5aeca05ff013a7c6f47c44ec3129ac29e7cf1",
+        "514769f8cbb4acfe659e832b7cdbb920450b39e71f36dcffbd6dd4a0f27d4b2a",
+        "aff6693ae307c8cc96d714291445d0c39067a369ccbd87e0dff418c82e760569",
+        "ce5a372fce7876f8d885d65c1cb05e33f61596c7d589945d2c283eb617ecc7c7",
+        "62c7193fa4e00e30d5f95cb0d1d33ffca1ac319ce8afc0e5d14076e2e9615ddc",
+        "eb19781c805d91ffbd8d1244c48870d51b074fb0831f5ebeaceed7389adcfcc3",
+        "ee8dd3ffe0d5b7c9617815afd45e33b4a4e1f55e6c3d9dcee81ce66d9ddd0ac0",
+        "9886a42fd4ee715c6eca468ca64ee466f4b85059453164b15c0476bf30eac08d",
+        "6410124134bb7db2beeafcb3994fe843c13df6a2abcffce7123b923ad638667b",
+        "5359ada699d3d72d32c30dbc71af119f45ffbde6429aede6849b19cc96242526",
+        "036900f43a66ba83bcef90fec2c2af2c0ac6dae12f736f096f0f17bd47b9b5b4",
+        "ef1697b4e3ba09e368058c6c74caa71c0db30d7d7b6e8b938f0a8e1cf7a235fa",
+        "209b64a9531288b2685f1cd34889cc896d9e69a093d5e5b6fad20611ce38514b",
+        "40fee6676aa4a1abbb4480fffd0cfdcab5f22c0b34dec4d1f0852d92ac547c80",
+        "7205e83de8ddafdb0a0089bf9dfcae109ddb483d157b51a6d73a1d678e1c034e",
+        "66562c2e3345668186c474f92bd725f9f6c026bb6c3b26efd18a96b944fb9e76",
+        "13944d91c530edd53b4ea5da1c13ae9c0be0290a9aba396d8786b936da66528a",
+        "65e4d3d1e783705a6b2c0c88f3c99c6635fd9cd71b9b8373a2fe941927b19d5c"
       ],
       "rng": {
-        "sha256": "2b27311109d1eb5dc5c9daf3c75f51c5ecc342840b5d27185ae120182442984d",
+        "sha256": "414f2f0ef341a445ca0b915c3763ce4084cbe4adb73c54de0fa393a34ad409f9",
         "counts": {
-          "seed": 4841,
-          "getrandbits": 310,
+          "seed": 4838,
+          "getrandbits": 294,
           "random": 7072
         },
-        "instances": 4841
+        "instances": 4838
       }
     },
     "wide": {
@@ -190,17 +190,17 @@
         "0c4ce220dfb9380246d64155b301095e4385307217dd413eaff0be1ba4667c3f",
         "19b73ddd4d500e0dcd4e61e72bfde0b9430b4cb6f6420cf8d364000bfe6d740f",
         "abe43d75c0c0594dabddf7b29b6aa958e51461d78598f4e3fa262ec7d385a3bd",
-        "f207b6e34ead102f8459484c5739b913ec5243b2b359dc7aed80ef088a4bd50f",
-        "ea5c6d79cd2b4e8a26ca01979508bb07ac43b099af4e97fe8c572a4882ecf6fb"
+        "3d430a67f426853f65a368aaf3167d5329e019f9c1d5dd4093a29d9815ac397f",
+        "bd774b8a5cf8b7ac904329172397df85465b0b90735a55799d61e26be258cf2b"
       ],
       "rng": {
-        "sha256": "f53a3c7c1e2c36c96ad91b798e4a0d5436dee6c5a549f07d9cbd6c5b4e04052c",
+        "sha256": "7648e51a7aacbb77b9e25b05a18aa1ffe4d21501f00dbe93dea7d6c91baaabd1",
         "counts": {
-          "seed": 6569,
-          "getrandbits": 439,
+          "seed": 6568,
+          "getrandbits": 433,
           "random": 10326
         },
-        "instances": 6569
+        "instances": 6568
       }
     }
   }

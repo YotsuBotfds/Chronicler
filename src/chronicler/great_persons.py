@@ -52,8 +52,41 @@ _WAR_WIN_THRESHOLD = 3
 # Scientist triggers
 _TECH_ADVANCE_KEY = "tech_advanced"
 _HIGH_ECONOMY_KEY = "high_economy_turns"
+# Correction (2026-10): both scientist triggers were level-triggered. A civ
+# whose economy sat at its 100 cap (62% of civ-turns once worlds lived 500
+# turns) got a scientist, and so usually a treatise, on every 20-turn
+# cooldown, and a civ bouncing between eras got one per re-advance; treatises
+# reached 70% of all artifacts. Scientists now need actual scholarly change:
+# a new prosperity streak (one scientist per streak, re-armed when economy
+# drops below the threshold, see traditions.py) or an era the civ has never
+# reached before.
+_HIGH_ECONOMY_REWARDED_KEY = "high_economy_scientist"
+PEAK_TECH_ERA_KEY = "peak_tech_era"
 _HIGH_ECONOMY_STAT = 80
 _HIGH_ECONOMY_TURNS = 10
+
+
+def note_tech_era_reached(civ: "Civilization") -> bool:
+    """Record an era advance; count it for a scientist only if it is new.
+
+    Returns True when ``civ.tech_era`` is beyond every era the civ has held.
+    """
+    from chronicler.tech import _era_index
+    index = _era_index(civ.tech_era)
+    peak = civ.event_counts.get(PEAK_TECH_ERA_KEY, index - 1)
+    civ.event_counts[PEAK_TECH_ERA_KEY] = max(peak, index)
+    if index > peak:
+        civ.event_counts[_TECH_ADVANCE_KEY] = civ.event_counts.get(_TECH_ADVANCE_KEY, 0) + 1
+        return True
+    return False
+
+
+def note_tech_era_lost(civ: "Civilization") -> None:
+    """Remember the era a civ is about to regress from, so re-advancing to it
+    is recovery, not discovery."""
+    from chronicler.tech import _era_index
+    index = _era_index(civ.tech_era)
+    civ.event_counts[PEAK_TECH_ERA_KEY] = max(civ.event_counts.get(PEAK_TECH_ERA_KEY, index), index)
 
 # Global cap on living great persons
 _GREAT_PERSON_CAP = 50
@@ -189,12 +222,15 @@ def check_great_person_generation(civ: Civilization, world: WorldState) -> list[
         economy_trigger = (
             civ.economy >= _HIGH_ECONOMY_STAT
             and civ.event_counts.get(_HIGH_ECONOMY_KEY, 0) >= _HIGH_ECONOMY_TURNS
+            and not civ.event_counts.get(_HIGH_ECONOMY_REWARDED_KEY, 0)
         )
         if tech_trigger or economy_trigger:
             _enforce_cap(civ, world)
             gp = _create_great_person("scientist", civ, world)
             _set_cooldown(civ.name, "scientist", world)
             civ.event_counts["tech_advanced"] = 0  # Only reset on actual spawn
+            if economy_trigger:
+                civ.event_counts[_HIGH_ECONOMY_REWARDED_KEY] = 1
             spawned.append(gp)
 
     # ------------------------------------------------------------------
