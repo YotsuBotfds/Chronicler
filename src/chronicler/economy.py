@@ -568,28 +568,79 @@ def occupied_resource_slot_count(resource_types: list[int]) -> int:
     return sum(1 for rtype in resource_types if map_resource_to_good(rtype) is not None)
 
 
+FOOD_FIRST_NONFOOD_FLOOR: float = 0.25  # share of its equal labor a non-food slot keeps
+
+
+def food_first_slot_labor(
+    resource_types: list[int], resource_yields: list[float], farmer_count: int,
+    food_demand: float | None,
+) -> list[float]:
+    """Farmer labor per slot: equal split, then food-first when food is short.
+
+    Starts from the equal split across occupied valid slots. When a region has
+    both food and non-food slots and the food slots' equal share would not
+    cover ``food_demand``, farmers move from the non-food slots to the food
+    slots until the harvest covers demand, but each non-food slot keeps at
+    least ``FOOD_FIRST_NONFOOD_FLOOR`` of its equal share. Food slots never
+    receive less than their equal share; total labor is unchanged.
+    ``food_demand=None`` keeps the plain equal split. Mirrors Rust
+    ``food_first_slot_labor``.
+    """
+    occupied = occupied_resource_slot_count(resource_types)
+    labor = [0.0, 0.0, 0.0]
+    if occupied == 0:
+        return labor
+    farmers = max(farmer_count, 0)
+    equal_share = farmers / occupied
+    food_slots: list[int] = []
+    other_slots: list[int] = []
+    for slot, rtype in enumerate(resource_types):
+        good = map_resource_to_good(rtype)
+        if good is None:
+            continue
+        labor[slot] = equal_share
+        (food_slots if good in CATEGORY_GOODS["food"] else other_slots).append(slot)
+    if food_demand is None or not food_slots or not other_slots or farmers <= 0:
+        return labor
+    food_yield_sum = sum(max(resource_yields[s], 0.0) for s in food_slots)
+    if food_yield_sum <= 0.0:
+        return labor
+    needed = max(food_demand, 0.0) / (food_yield_sum / len(food_slots))
+    if needed <= equal_share * len(food_slots):
+        return labor
+    max_food_labor = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * len(other_slots)
+    food_labor = min(needed, max(max_food_labor, equal_share * len(food_slots)))
+    for s in food_slots:
+        labor[s] = food_labor / len(food_slots)
+    for s in other_slots:
+        labor[s] = max(farmers - food_labor, 0.0) / len(other_slots)
+    return labor
+
+
 def compute_allocated_production(
     resource_types: list[int], resource_yields: list[float], farmer_count: int,
     *, production_caps: list[float | None] | None = None,
+    food_demand: float | None = None,
 ) -> dict[str, float]:
-    """Split finite farmer labor equally across occupied, valid resource slots.
+    """Split finite farmer labor across occupied, valid resource slots.
 
     Dormant/suspended slots keep their allocation: a zero harvest cannot create
     extra labor for another good. Duplicate good slots aggregate their output.
     ``production_caps`` optionally bounds each slot's output (for example the
     fishery experiment's prior catch); ``None`` entries are uncapped. A capped
-    slot's unused labor is not reassigned.
+    slot's unused labor is not reassigned. With ``food_demand`` the split is
+    food-first (see ``food_first_slot_labor``); without it, equal.
     """
     occupied = occupied_resource_slot_count(resource_types)
     goods: dict[str, float] = {}
     if occupied == 0:
         return goods
-    labor = max(farmer_count, 0) / occupied
+    slot_labor = food_first_slot_labor(resource_types, resource_yields, farmer_count, food_demand)
     for slot, rtype in enumerate(resource_types):
         good = map_resource_to_good(rtype)
         if good is None:
             continue
-        amount = max(resource_yields[slot], 0.0) * labor
+        amount = max(resource_yields[slot], 0.0) * slot_labor[slot]
         cap = production_caps[slot] if production_caps is not None else None
         if cap is not None:
             amount = min(amount, cap)
@@ -1305,11 +1356,15 @@ def compute_economy(
         )
         region_agent_data[rname] = agent_data
 
+        demand = compute_demand(
+            agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
+        )
         produced = compute_allocated_production(
             region.resource_types,
             [economy_yield(world, region, slot) for slot in range(3)],
             agent_data["farmer_count"],
             production_caps=[catch_budget(world, region, slot) for slot in range(3)],
+            food_demand=demand["food"],
         )
         region_per_good_production[rname] = produced
         region_production[rname] = _category_totals(produced)
@@ -1319,10 +1374,6 @@ def compute_economy(
             for good in FIXED_GOODS
         }
         available_supply[rname] = _category_totals(available_goods[rname])
-
-        demand = compute_demand(
-            agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
-        )
         region_demand[rname] = demand
 
     # --- Step 2c: Pre-trade prices (accessible stock plus current harvest) ---

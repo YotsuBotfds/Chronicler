@@ -417,6 +417,9 @@ class Leader(BaseModel):
     dynasty_id: int | None = None
     throne_name: str | None = None
     regnal_ordinal: int = 0
+    # Turn of birth (one turn = one year).  None for old saves and founders;
+    # events.ensure_leader_birth_turn() infers a deterministic value on first use.
+    birth_turn: int | None = None
 
 
 class Civilization(BaseModel):
@@ -476,6 +479,10 @@ class Civilization(BaseModel):
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
     regnal_name_counts: dict[str, int] = Field(default_factory=dict)
+    # Decaying per-event-type hazard excitation (events.py Hawkes kernel).
+    event_excitation: dict[str, float] = Field(default_factory=dict)
+    # Consecutive Phase-10 checks this civ has been structurally unviable.
+    unviable_turns: int = 0
     # Phase 8 governance carry (None = dormant; omitted from serialized output).
     governance: CivGovernance | None = None
 
@@ -879,6 +886,8 @@ class WorldState(BaseModel):
     black_swan_cooldown: int = 0  # Turns until next black swan eligible
     chaos_multiplier: float = 1.0  # Scalar on black swan probability (from ScenarioConfig)
     black_swan_cooldown_turns: int = 30  # Configurable cooldown length (from ScenarioConfig)
+    # Turn of the last twilight absorption (paces absorptions world-wide).
+    last_twilight_absorption_turn: int | None = None
     pandemic_state: list[PandemicRegion] = Field(default_factory=list)
     pandemic_recovered: list[str] = Field(default_factory=list)  # Regions already hit; prevents re-infection
     terrain_transition_rules: list[TerrainTransitionRule] = Field(
@@ -931,6 +940,9 @@ class WorldState(BaseModel):
     _artifact_intents: list = PrivateAttr(default_factory=list)
     _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
     _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)
+    # Transient: events rolled by the hazard phases this turn (consumed and
+    # cleared by run_turn's excitation update; not serialized).
+    _hazard_events: list = PrivateAttr(default_factory=list)
     # Derived, never serialized: incremental lookups over the history lists
     # (chronicler.history_index); rebuilt lazily after load or copy.
     _history_index: object | None = PrivateAttr(default=None)

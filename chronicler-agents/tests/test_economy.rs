@@ -991,6 +991,36 @@ fn test_all_three_slots_share_finite_farmer_labor() {
 }
 
 #[test]
+fn test_food_first_labor_covers_food_demand_before_other_slots() {
+    let mut region = make_region(0, 0, 1.0);
+    region.resource_types = [0, 1, 5]; // grain, timber, ore
+    region.resource_yields = [1.0, 2.0, 3.0];
+    let regions = vec![region];
+    // 100 eaters demand 50 food; the equal share (20 farmers) would grow 20.
+    let agents = vec![make_agents(100, 60, 0, 0, 0)];
+    let out = tick_economy_core(&regions, &agents, &[], &[0.0], &[0], 1,
+        &[0], &default_config(), 1.0, false, None);
+    // Grain needs 50 farmers; timber and ore keep a quarter of their equal
+    // share (5 each): 50 on grain (50), 5 on timber (10), 5 on ore (15).
+    assert!((out.conservation.production - 75.0).abs() < 0.001);
+    assert_conserved(&regions, &out);
+}
+
+#[test]
+fn test_food_first_labor_never_exceeds_farmers_or_starves_food() {
+    use chronicler_agents::economy::food_first_slot_labor;
+    // Demand far above capacity: non-food keeps a quarter of its equal share.
+    let l = food_first_slot_labor(&[0, 1, 255], &[0.5, 2.0, 0.0], 40.0, 1000.0, 20.0);
+    assert!((l[0] - 35.0).abs() < 1e-5 && (l[1] - 5.0).abs() < 1e-5 && l[2] == 0.0);
+    // Food already covered by the equal share: equal split is kept.
+    let l = food_first_slot_labor(&[0, 1, 255], &[5.0, 2.0, 0.0], 40.0, 10.0, 20.0);
+    assert!((l[0] - 20.0).abs() < 1e-5 && (l[1] - 20.0).abs() < 1e-5);
+    // Food-only regions are unchanged.
+    let l = food_first_slot_labor(&[0, 2, 255], &[1.0, 1.0, 0.0], 40.0, 1000.0, 20.0);
+    assert!((l[0] - 20.0).abs() < 1e-5 && (l[1] - 20.0).abs() < 1e-5);
+}
+
+#[test]
 fn test_dormant_slot_keeps_labor_share_and_empty_slots_do_not() {
     let mut region = make_region(0, 0, 0.0);
     region.resource_types = [0, 3, 255];

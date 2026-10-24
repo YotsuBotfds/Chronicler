@@ -1,11 +1,13 @@
 """Exact corrected-baseline regression oracles for the snapshot optimization.
 
 Golden data was captured from 423a67c before importing the optimization and is
-kept frozen in ``corrected_423a67c.json``. The live oracle,
-``corrected_backlog_2026_10.json``, rolls it forward for the deliberate
-2026-10 deferred-backlog corrections listed in its provenance; the scoped
-difference and the restore-on-revert proofs below pin exactly what changed.
-The edf7299 artifacts remain frozen as historical pre-bugfix evidence.
+kept frozen in ``corrected_423a67c.json``. ``corrected_backlog_2026_10.json``
+rolled it forward for the 2026-10 deferred-backlog corrections and the live
+oracle, ``corrected_extinction_2026_10.json``, rolls that forward for the
+2026-10 extinction fix; each file's provenance lists only its own corrections
+and the scoped-difference proof below pins exactly what each link changed.
+The older fixtures and the edf7299 artifacts remain frozen as historical
+evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
 checked; no approximate float comparisons or relaxed precision are used.
 """
@@ -22,8 +24,12 @@ from scripts.benchmark_headless import FixedDateTime, rng_trace, run
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_backlog_2026_10.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_extinction_2026_10.json").read_text())
+BACKLOG_BASELINE = json.loads((FIXTURES / "corrected_backlog_2026_10.json").read_text())
 PRIOR_BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
+# Each roll-forward link: (older oracle, newer oracle declaring its corrections).
+ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
+                "extinction": (BACKLOG_BASELINE, BASELINE)}
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
@@ -53,15 +59,17 @@ def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
     assert trace == expected["rng"]
 
 
-def test_rolled_forward_oracle_differs_only_where_declared():
+@pytest.mark.parametrize("link", ORACLE_CHAIN)
+def test_rolled_forward_oracle_differs_only_where_declared(link):
     """Each declared correction changes only its workloads, from its turn on."""
+    prior_oracle, oracle = ORACLE_CHAIN[link]
     first_changed = {}
-    for correction in BASELINE["provenance"]["corrections"]:
+    for correction in oracle["provenance"]["corrections"]:
         for name, index in correction["workloads"].items():
             first_changed[name] = min(index, first_changed.get(name, index))
-    assert set(BASELINE["workloads"]) == set(PRIOR_BASELINE["workloads"])
-    for name, prior in PRIOR_BASELINE["workloads"].items():
-        current = BASELINE["workloads"][name]
+    assert set(oracle["workloads"]) == set(prior_oracle["workloads"])
+    for name, prior in prior_oracle["workloads"].items():
+        current = oracle["workloads"][name]
         assert current["spec"] == prior["spec"]
         if name not in first_changed:
             assert current == prior, name
@@ -71,35 +79,53 @@ def test_rolled_forward_oracle_differs_only_where_declared():
         assert next(i for i, (a, b) in enumerate(zip(old, new)) if a != b) == first_changed[name]
 
 
-def test_reverting_tech_regression_correction_restores_prior_oracle(tmp_path, monkeypatch):
-    """T1-3: re-creating the dropped era-bonus removal restores the 423a67c wide
-    oracle exactly, so the correction is the only source of that difference."""
+def test_off_mode_tech_regression_removes_era_bonus_immediately(monkeypatch):
+    """T1-3: off mode routes tech regression with ``acc=None`` so the era bonus
+    is removed at once, not recorded into an already-flushed accumulator.
+
+    This used to be proven by reverting T1-3 and recovering the 423a67c
+    ``wide`` oracle. After the 2026-10 extinction fix no golden workload
+    regresses (see the fixture notes), so force one regression instead.
+    """
     import chronicler.emergence as emergence
-    from chronicler.accumulator import StatAccumulator
+    from chronicler import simulation as sim
+    from chronicler.models import ActionType, TechEra
+    from chronicler.tech import ERA_BONUSES
+    from chronicler.world_gen import generate_world
 
+    world = generate_world(seed=77, num_civs=2, num_regions=6)
+    world.agent_mode = "off"
     real = emergence.check_tech_regression
+    seen = []
 
-    def pre_correction(world, black_swan_fired=False, acc=None):
-        # Before the correction off mode passed an already-flushed accumulator,
-        # so remove_era_bonus() deltas were recorded and never applied.
-        return real(world, black_swan_fired=black_swan_fired,
-                    acc=acc if acc is not None else StatAccumulator())
+    def forced(world, black_swan_fired=False, acc=None):
+        civ = world.civilizations[0]
+        civ.tech_era = TechEra.IRON
+        civ.decline_turns = max(1, civ.decline_turns)
+        civ.was_in_twilight = False
+        civ.culture = 0  # no culture resistance: the twilight trigger is certain
+        civ.economy = 50
+        events = real(world, black_swan_fired=black_swan_fired, acc=acc)
+        seen.append((acc, civ.tech_era, civ.economy, [e.event_type for e in events]))
+        return events
 
-    monkeypatch.setattr(emergence, "check_tech_regression", pre_correction)
-    expected = PRIOR_BASELINE["workloads"]["wide"]
-    turns, trace = _run_workload(expected["spec"], tmp_path, monkeypatch)
-    assert turns == expected["turn_sha256"]
-    assert trace == expected["rng"]
+    monkeypatch.setitem(emergence._REGRESSION_TRIGGERS, "entered_twilight", 1.0)
+    monkeypatch.setattr(emergence, "check_tech_regression", forced)
+    sim.run_turn(world, lambda *a: ActionType.DEVELOP, lambda w, e: "", seed=77)
+    assert seen == [(None, TechEra.BRONZE, 50 - ERA_BONUSES[TechEra.IRON]["economy"],
+                     ["tech_regression"])]
 
 
 def test_corrected_oracle_keeps_unaffected_workload_exact():
+    # Historical file-level check on the frozen backlog oracle (the extinction
+    # fix changes every workload from turn 0; see its provenance).
     historical = json.loads((FIXTURES / "public_edf7299.json").read_text())
-    assert BASELINE["workloads"]["single"] == historical["workloads"]["single"]
+    assert BACKLOG_BASELINE["workloads"]["single"] == historical["workloads"]["single"]
     # Real captures first affect snapshot intelligence at these turns. The
     # corresponding lifecycle tests assert the new +0.3 source and its expiry.
     for name, first_changed_index in (("standard", 0), ("wide", 3)):
         old = historical["workloads"][name]["turn_sha256"]
-        new = BASELINE["workloads"][name]["turn_sha256"]
+        new = BACKLOG_BASELINE["workloads"][name]["turn_sha256"]
         assert next(i for i, pair in enumerate(zip(old, new)) if pair[0] != pair[1]) == first_changed_index
 
 

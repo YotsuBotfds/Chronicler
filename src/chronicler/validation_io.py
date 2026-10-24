@@ -6,6 +6,7 @@ small and auditable.
 """
 from __future__ import annotations
 import argparse
+from array import array
 import json
 import statistics
 import sys
@@ -26,6 +27,10 @@ EVENT_NAME_TO_CODE = {
     "birth": 5,
     "dissolution": 6,
 }
+# Agent event codes any oracle counts (needs, cohort, regression).
+_ORACLE_COUNTED_EVENT_CODES = frozenset(
+    EVENT_NAME_TO_CODE[name] for name in ("migration", "rebellion", "occupation_switch")
+)
 
 # Full-gate balance uses strict historical thresholds plus explicitly reported
 # calibrated tolerances for stochastic 500-turn batches.  The tolerance path is
@@ -34,6 +39,13 @@ EVENT_NAME_TO_CODE = {
 ARTIFACT_CREATION_RATE_MIN = 1.00
 ARTIFACT_CREATION_RATE_TOLERANCE_MIN = 0.90
 ARTIFACT_CREATION_RATE_MAX = 3.00
+# Recalibrated 2026-10 for living worlds (docs/integration/extinction-fix-2026-10.md):
+# the old 10% floor was met only through extinction-era turnover (civs dying
+# without an absorber mark every artifact LOST). Living 500-turn worlds lose
+# 2-3%; a broken lifecycle loses ~0%, which the floor plus loss_channels_ok
+# (both LOST and DESTROYED present) still rejects. The 30% ceiling is unchanged.
+ARTIFACT_LOSS_RATE_MIN = 0.02
+ARTIFACT_LOSS_RATE_MAX = 0.30
 REGRESSION_SATISFACTION_MEAN_MIN = 0.45
 REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN = 0.40
 REGRESSION_SATISFACTION_MEAN_MAX = 0.65
@@ -129,22 +141,74 @@ def scrubbed_equal(a: dict, b: dict) -> bool:
     return _scrub(a) == _scrub(b)
 
 
-def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
-    """Load chronicle bundles from a batch directory or bundle path."""
+def _bundle_paths(batch_dir: Path) -> list[Path]:
     if not batch_dir.exists():
         raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
     if batch_dir.is_file():
-        bundle_paths = [batch_dir]
-    else:
-        bundle_paths = sorted(batch_dir.rglob(BUNDLE_FILENAME))
+        return [batch_dir]
+    return sorted(batch_dir.rglob(BUNDLE_FILENAME))
 
-    bundles: list[tuple[Path, dict]] = []
-    for bundle_path in bundle_paths:
-        try:
-            bundles.append((bundle_path, json.loads(bundle_path.read_text(encoding="utf-8"))))
-        except Exception as exc:
-            raise RuntimeError(f"Failed to load bundle: {bundle_path}") from exc
-    return bundles
+
+def _load_bundle(bundle_path: Path) -> dict:
+    try:
+        return json.loads(bundle_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load bundle: {bundle_path}") from exc
+
+
+def iter_bundles(batch_dir: Path):
+    """Yield ``(path, bundle)`` one at a time, in ``load_bundles`` order.
+
+    A full-profile batch (200 living 500-turn worlds, ~18 MB of JSON each)
+    does not fit in memory when every bundle is parsed at once.
+    """
+    for bundle_path in _bundle_paths(batch_dir):
+        yield bundle_path, _load_bundle(bundle_path)
+
+
+def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
+    """Load chronicle bundles from a batch directory or bundle path."""
+    return list(iter_bundles(batch_dir))
+
+
+# Bundle fields the seed-run oracles read: metadata, these per-snapshot
+# civ_stats fields, and the terminal world_state turn/agent_mode/regions/
+# artifacts. (World population and civ trajectories are derived from the full
+# bundle before it is narrowed.)
+_ORACLE_CIV_STAT_KEYS = ("population", "treasury", "stability", "regions", "prestige", "gini")
+_ORACLE_WORLD_STATE_KEYS = ("turn", "agent_mode", "regions", "artifacts")
+
+
+def _oracle_civ_stats_view(civ_stats):
+    if not isinstance(civ_stats, dict):
+        return civ_stats
+    return {
+        name: ({key: stats[key] for key in _ORACLE_CIV_STAT_KEYS if key in stats}
+               if isinstance(stats, dict) else stats)
+        for name, stats in civ_stats.items()
+    }
+
+
+def _oracle_bundle_view(bundle: dict) -> dict:
+    """Keep only the bundle fields that seed-run oracles consume."""
+    view: dict = {}
+    if "metadata" in bundle:
+        view["metadata"] = bundle["metadata"]
+    if "history" in bundle:
+        history = bundle["history"]
+        view["history"] = [
+            {"civ_stats": _oracle_civ_stats_view(snapshot["civ_stats"])}
+            if isinstance(snapshot, dict) and "civ_stats" in snapshot
+            else ({} if isinstance(snapshot, dict) else snapshot)
+            for snapshot in history
+        ] if isinstance(history, list) else history
+    if "world_state" in bundle:
+        world = bundle["world_state"]
+        view["world_state"] = (
+            {key: world[key] for key in _ORACLE_WORLD_STATE_KEYS if key in world}
+            if isinstance(world, dict) else world
+        )
+    return view
 
 
 def required_seed_count(total_seeds: int, fraction: float) -> int:
@@ -207,7 +271,28 @@ def _read_arrow_columns(path: Path) -> dict | None:
         return None
     import pyarrow.ipc as ipc
     table = ipc.open_file(path).read_all()
-    return table.to_pydict()
+    return {name: _compact_column(table.column(name)) for name in table.column_names}
+
+
+def _compact_column(column):
+    """Python values of an arrow column, packed when that is lossless.
+
+    Null-free integer and float columns become ``array('q')``/``array('d')``:
+    indexing and iteration yield the same Python ints and floats as
+    ``to_pylist()`` at about a quarter of the memory, which keeps a 200-seed
+    full-profile batch within memory. Anything else stays a list.
+    """
+    import pyarrow as pa
+    values = column.to_pylist()
+    if column.null_count == 0:
+        try:
+            if pa.types.is_integer(column.type):
+                return array("q", values)
+            if pa.types.is_floating(column.type):
+                return array("d", values)
+        except OverflowError:
+            return values
+    return values
 
 
 def _load_canonical_graph_snapshot(seed_dir: Path, target_turn: int) -> dict | None:
@@ -374,16 +459,30 @@ def _load_agent_events(seed_dir: Path) -> list[dict]:
     table = ipc.open_file(path).read_all()
     data = table.to_pydict()
     events: list[dict] = []
+    first_uncounted: dict | None = None
     event_names = data.get("event_type", [])
     for idx, event_name in enumerate(event_names):
         mapped_type = EVENT_NAME_TO_CODE.get(event_name)
         if mapped_type is None:
+            continue
+        if mapped_type not in _ORACLE_COUNTED_EVENT_CODES:
+            # Oracles only count migration/rebellion/occupation_switch; drop the
+            # rest (births, deaths, dissolutions are most of a living batch),
+            # keeping one so "has agent events" is unchanged.
+            if first_uncounted is None:
+                first_uncounted = {
+                    "turn": data["turn"][idx],
+                    "agent_id": data["agent_id"][idx],
+                    "event_type": mapped_type,
+                }
             continue
         events.append({
             "turn": data["turn"][idx],
             "agent_id": data["agent_id"][idx],
             "event_type": mapped_type,
         })
+    if not events and first_uncounted is not None:
+        events.append(first_uncounted)
     return events
 
 
@@ -426,7 +525,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
     if dependency_reason is not None:
         raise ValidationDependencyError(dependency_reason)
     runs: list[dict] = []
-    for bundle_path, bundle in load_bundles(batch_dir):
+    for bundle_path, bundle in iter_bundles(batch_dir):
         seed_dir = bundle_path.parent
         sidecar_dir = seed_dir / "validation_summary"
         total_turns = int(bundle.get("metadata", {}).get("total_turns", 0) or 0)
@@ -465,7 +564,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
             "bundle_path": bundle_path,
             "seed_dir": seed_dir,
             "seed": bundle.get("metadata", {}).get("seed"),
-            "bundle": bundle,
+            "bundle": _oracle_bundle_view(bundle),
             "events": _load_agent_events(seed_dir),
             "relationship_columns": relationship_columns,
             "memory_columns": memory_columns,
@@ -1260,7 +1359,11 @@ def check_artifact_lifecycle(
       adjudication so duplicate-suppressed long-horizon batches do not fail on
       near-threshold noise while still reporting the strict miss.
     - No single artifact_type should exceed 50% of total.
-    - Loss/destruction rate ((lost + destroyed) / total) should be 10-30%.
+    - Loss/destruction rate ((lost + destroyed) / total) should be 2-30%,
+      with both channels alive: at least one LOST and one DESTROYED
+      artifact in the batch (``loss_channels_ok``). The old 10% floor was
+      only ever met through extinction-era turnover; see
+      docs/integration/extinction-fix-2026-10.md.
 
     Parameters
     ----------
@@ -1278,12 +1381,16 @@ def check_artifact_lifecycle(
         type_diversity_ok              – bool (no single type > 50%)
         loss_destruction_count         – int
         loss_destruction_rate          – float
-        loss_destruction_rate_ok       – bool (rate in [0.10, 0.30])
+        loss_destruction_rate_ok       – bool (rate in [0.02, 0.30])
+        lost_count / destroyed_count   – int
+        loss_channels_ok               – bool (both counts > 0)
         mule_artifact_count            – int
         total_artifacts                – int
     """
     total_artifacts = 0
     loss_destruction_count = 0
+    lost_count = 0
+    destroyed_count = 0
     mule_artifact_count = 0
     total_turns_sum = 0
     type_counts: dict[str, int] = {}
@@ -1301,6 +1408,10 @@ def check_artifact_lifecycle(
             status = art.get("status", "active")
             if status in ("destroyed", "lost"):
                 loss_destruction_count += 1
+                if status == "lost":
+                    lost_count += 1
+                else:
+                    destroyed_count += 1
 
             if art.get("mule_origin", False):
                 mule_artifact_count += 1
@@ -1337,7 +1448,10 @@ def check_artifact_lifecycle(
     else:
         loss_destruction_rate = 0.0
 
-    loss_destruction_rate_ok = 0.10 <= loss_destruction_rate <= 0.30
+    loss_destruction_rate_ok = (
+        ARTIFACT_LOSS_RATE_MIN <= loss_destruction_rate <= ARTIFACT_LOSS_RATE_MAX
+    )
+    loss_channels_ok = lost_count > 0 and destroyed_count > 0
 
     return {
         "creation_rate_per_civ_per_100": creation_rate,
@@ -1348,6 +1462,9 @@ def check_artifact_lifecycle(
         "loss_destruction_count": loss_destruction_count,
         "loss_destruction_rate": loss_destruction_rate,
         "loss_destruction_rate_ok": loss_destruction_rate_ok,
+        "lost_count": lost_count,
+        "destroyed_count": destroyed_count,
+        "loss_channels_ok": loss_channels_ok,
         "mule_artifact_count": mule_artifact_count,
         "total_artifacts": total_artifacts,
     }
@@ -1632,17 +1749,18 @@ def classify_civ_arc(trajectory: dict) -> str:
 
 def run_determinism_gate(batch_dir: Path) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
-    bundles = load_bundles(batch_dir)
-    by_seed: dict[int, list[tuple[Path, dict]]] = defaultdict(list)
-
-    for bundle_path, bundle in bundles:
+    # Index seeds one bundle at a time, then re-read only duplicate groups, so
+    # a large batch never holds every parsed bundle at once.
+    paths_by_seed: dict[int, list[Path]] = defaultdict(list)
+    for bundle_path, bundle in iter_bundles(batch_dir):
         seed = bundle.get("metadata", {}).get("seed")
         if seed is None:
             continue
-        by_seed[int(seed)].append((bundle_path, bundle))
+        paths_by_seed[int(seed)].append(bundle_path)
 
     duplicate_seed_groups = {
-        seed: items for seed, items in by_seed.items() if len(items) >= 2
+        seed: [(path, _load_bundle(path)) for path in paths]
+        for seed, paths in paths_by_seed.items() if len(paths) >= 2
     }
     if not duplicate_seed_groups:
         return {
@@ -2013,6 +2131,7 @@ def run_artifact_oracle(seed_runs: list[dict]) -> dict:
         result["creation_rate_ok"]
         and result["type_diversity_ok"]
         and result["loss_destruction_rate_ok"]
+        and result["loss_channels_ok"]
     )
     any_pass = (
         result["creation_rate_ok"]

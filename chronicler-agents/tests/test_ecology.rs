@@ -89,16 +89,16 @@ fn test_basic_plains_tick() {
 
     let r = &regions[0];
 
-    // Soil: pop 30 < eff_cap 48 < eff_cap*0.75=36 => recovery path active
-    // recovery = 0.05 * pressure_mult(0.375) = 0.01875
-    // 0.80 + 0.01875 = 0.81875 => after clamp/round4 = 0.8188 (round4 of 0.81875)
-    // Actually round4(0.81875) = round(8187.5) / 10000 = 8188 / 10000 = 0.8188
-    assert!((r.soil - 0.8188).abs() < 0.001, "soil={}", r.soil);
+    // Pressure is measured against potential capacity (carrying_capacity 60 x
+    // capacity_modifier 1.0), not the soil/water-degraded effective capacity:
+    // pressure_mult = 1 - 30/60 = 0.5 (was 0.375 against eff_cap 48).
+    // Soil: pop 30 < potential*0.75 = 45 => recovery path active
+    // recovery = 0.05 * 0.5 = 0.025 => 0.80 + 0.025 = 0.825
+    assert!((r.soil - 0.825).abs() < 0.001, "soil={}", r.soil);
 
-    // Water: temperate => recovery = 0.03 * 0.375 = 0.01125
-    // 0.60 + 0.01125 = 0.61125 => round4 = 0.6113 (round(6112.5)/10000 = 6113/10000)
-    // Capped at 0.70 for plains — 0.6113 < 0.70, OK
-    assert!((r.water - 0.6113).abs() < 0.001, "water={}", r.water);
+    // Water: temperate => recovery = 0.03 * 0.5 = 0.015 => 0.615
+    // Capped at 0.70 for plains — 0.615 < 0.70, OK
+    assert!((r.water - 0.615).abs() < 0.001, "water={}", r.water);
 
     // Forest: pop 30 == carrying_capacity * 0.5 = 30 => NOT > threshold
     // Regrowth: pop < threshold AND water >= 0.3 => regrowth active
@@ -746,9 +746,9 @@ fn test_effective_capacity_min_one() {
 fn test_pressure_multiplier_overpopulated() {
     let config = default_config();
     let mut r = make_plains(0);
-    r.population = 60; // Well above eff_cap of 48
+    r.population = 60; // At the undegraded potential (60), above eff_cap of 48
     let pm = pressure_multiplier(&r, &config);
-    // 1.0 - 60/48 = 1.0 - 1.25 = -0.25, clamped to 0.1
+    // 1.0 - 60/60 = 0.0, clamped to 0.1
     assert!((pm - 0.1).abs() < 0.001, "pressure_multiplier should floor at 0.1");
 }
 

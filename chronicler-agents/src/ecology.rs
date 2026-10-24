@@ -240,15 +240,23 @@ pub fn effective_capacity(region: &RegionState, config: &EcologyConfig) -> u16 {
     (raw as u16).max(1)
 }
 
-/// Pressure multiplier used for recovery rate scaling.
-/// Mirrors Python: max(0.1, 1.0 - population / effective_capacity)
+/// Undegraded capacity of the land (carrying capacity x disaster modifier).
+/// Mirrors Python ecology.potential_capacity: max(1.0, carrying_capacity * capacity_modifier).
 #[inline]
-pub fn pressure_multiplier(region: &RegionState, config: &EcologyConfig) -> f32 {
-    let eff = effective_capacity(region, config);
-    if eff == 0 {
-        return 1.0;
-    }
-    (1.0 - region.population as f32 / eff as f32).max(0.1)
+pub fn potential_capacity(region: &RegionState) -> f32 {
+    (region.carrying_capacity as f32 * region.capacity_modifier).max(1.0)
+}
+
+/// Pressure multiplier used for recovery rate scaling.
+/// Mirrors Python: max(0.1, 1.0 - population / potential_capacity).
+///
+/// Correction (2026-10): pressure used to be measured against the *degraded*
+/// effective capacity, so depletion suppressed its own recovery and every
+/// populated region ratcheted to the soil/water floors in the first global
+/// drought.  `config` is kept for signature stability.
+#[inline]
+pub fn pressure_multiplier(region: &RegionState, _config: &EcologyConfig) -> f32 {
+    (1.0 - region.population as f32 / potential_capacity(region)).max(0.1)
 }
 
 /// Map ResourceType u8 to class index for CLIMATE_CLASS_MOD.
@@ -478,8 +486,8 @@ fn tick_soil_controlled(
         region.soil -= mine_rate;
     }
 
-    // Recovery: pressure-gated
-    if (region.population as f32) < eff as f32 * config.soil_recovery_pop_ratio {
+    // Recovery: pressure-gated (against the land's undegraded potential)
+    if (region.population as f32) < potential_capacity(region) * config.soil_recovery_pop_ratio {
         let mut rate = config.soil_recovery;
         rate *= pressure_multiplier(region, config);
         if region.active_focus == FOCUS_AGRICULTURE {
@@ -490,8 +498,7 @@ fn tick_soil_controlled(
 }
 
 fn tick_soil_uncontrolled(region: &mut RegionState, config: &EcologyConfig) {
-    let eff = effective_capacity(region, config);
-    if (region.population as f32) < eff as f32 * config.soil_recovery_pop_ratio {
+    if (region.population as f32) < potential_capacity(region) * config.soil_recovery_pop_ratio {
         let rate = config.soil_recovery * pressure_multiplier(region, config);
         region.soil += rate;
     }
@@ -876,8 +883,25 @@ mod tests {
         let config = EcologyConfig::default();
         let r = make_plains_region(0);
         let pm = pressure_multiplier(&r, &config);
-        // eff = 48, pop = 30: 1.0 - 30/48 = 0.375
-        assert!((pm - 0.375).abs() < 0.001);
+        // Pressure is measured against the undegraded potential (60 * 1.0),
+        // not the degraded effective capacity (48): 1.0 - 30/60 = 0.5
+        assert!((pm - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_depleted_soil_recovers_when_population_is_below_potential() {
+        // Regression: with pressure measured against effective capacity, a
+        // region whose soil and water had collapsed while population sat at
+        // that (collapsed) capacity could never recover.
+        let config = EcologyConfig::default();
+        let mut r = make_plains_region(0);
+        r.soil = 0.25;
+        r.water = 0.10;
+        r.population = effective_capacity(&r, &config) as u16; // at degraded capacity
+        let before = r.soil;
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert!(r.soil > before, "soil should recover: {} -> {}", before, r.soil);
+        assert!(pressure_multiplier(&r, &config) > 0.5);
     }
 
     #[test]

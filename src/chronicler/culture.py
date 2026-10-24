@@ -427,13 +427,29 @@ def check_cultural_victories(world: WorldState) -> None:
                 ))
 
 
+# Correction (2026-10): prestige decayed by a flat 1 per turn while temples
+# alone add 1 per temple per turn, so in a world that lives 500 turns it grew
+# without bound (mean 0 -> 525 by turn 500), and with it the prestige trade
+# bonus (prestige // 5 treasury per turn). Decay now also has a proportional
+# part, so prestige saturates where inflow equals PRESTIGE_DECAY_RATE x
+# prestige (e.g. ~100-150 for a civ with a few temples). Below 1 /
+# PRESTIGE_DECAY_RATE (50) the flat decay still dominates, as before.
+PRESTIGE_DECAY_RATE = 0.02
+
+
+def prestige_decay_for(prestige: int, flat_decay: int = 1) -> int:
+    """Per-turn prestige decay: the flat decay or 2% of prestige, whichever is larger."""
+    return max(flat_decay, int(prestige * PRESTIGE_DECAY_RATE))
+
+
 def tick_prestige(world: WorldState, acc=None) -> None:
     """Decay prestige and award trade income bonus."""
-    prestige_decay = int(get_override(world, K_PRESTIGE_DECAY, 1))
+    flat_decay = int(get_override(world, K_PRESTIGE_DECAY, 1))
     prestige_divisor = int(get_override(world, K_PRESTIGE_TRADE_DIVISOR, 5))
     for civ in world.civilizations:
         if len(civ.regions) == 0:
             continue
+        prestige_decay = prestige_decay_for(civ.prestige, flat_decay)
         next_prestige = max(0, civ.prestige - prestige_decay)
         if acc is not None:
             civ_idx = civ_index(world, civ.name)

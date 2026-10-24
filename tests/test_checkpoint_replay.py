@@ -27,18 +27,19 @@ def test_uninterrupted_matches_every_resumed_turn(seed, split, tmp_path):
 
 
 def test_real_pending_stockpile_boundary_rejects_api_and_cli(tmp_path, capsys):
-    # The reviewed mercenary correction changes this trace. At turn 12 an
-    # expansion into an empty region requests bootstrap on the next turn.
-    # The request is transient and intentionally outside the envelope contract.
+    # The reviewed mercenary correction and the 2026-10 extinction fix
+    # (decaying event hazards) change this trace. At turn 14 an expansion into
+    # an empty region requests bootstrap on the next turn. The request is
+    # transient and intentionally outside the envelope contract.
     world = generate_world(seed=42, num_civs=4, num_regions=8)
     original = world.model_dump()
     with pytest.raises(replay.CheckpointError, match="completed stockpile bootstrap"):
-        replay.validate_replay(world, turns=30, split=12, checkpoint_path=tmp_path / "api.json")
+        replay.validate_replay(world, turns=30, split=14, checkpoint_path=tmp_path / "api.json")
     assert world.model_dump() == original
     assert not (tmp_path / "api.json").exists()
     output = tmp_path / "cli"
     assert replay.main([
-        "--seed", "42", "--turns", "30", "--split", "12", "--output-dir", str(output),
+        "--seed", "42", "--turns", "30", "--split", "14", "--output-dir", str(output),
     ]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["status"] == "ERROR"
@@ -365,3 +366,27 @@ print(json.dumps({'turn':w.turn,'digest':_digest(_comparison_state(w))}))
         sys.executable, "-c", script, str(tmp_path / "checkpoint.json"),
     ], env=environment, cwd=root, text=True, capture_output=True, check=True)
     assert json.loads(resumed.stdout) == {"turn": 30, "digest": report["turn_digests"][-1]["uninterrupted"]}
+
+
+def test_resumed_state_json_matches_uninterrupted_across_a_suspension(tmp_path):
+    """Resource suspensions are keyed by int: a resumed run's state JSON must
+    match the uninterrupted run byte for byte (ResourceType keys used to
+    serialize as "ResourceType.GRAIN" in memory but "0" after a load)."""
+    seed, turns, split = 3, 24, 6
+    straight = generate_world(seed=seed, num_civs=4, num_regions=8)
+    trace = []
+    for _ in range(turns):
+        replay._advance(straight)
+        trace.append(straight.model_dump_json())
+    resumed = generate_world(seed=seed, num_civs=4, num_regions=8)
+    for _ in range(split):
+        replay._advance(resumed)
+    # This seed has a resource suspension running across the save point.
+    assert any(region.resource_suspensions for region in resumed.regions)
+    assert all(type(k) is int for r in resumed.regions for k in r.resource_suspensions)
+    replay.save_checkpoint(resumed, tmp_path / "checkpoint.json")
+    resumed = replay.load_checkpoint(tmp_path / "checkpoint.json")
+    assert resumed.model_dump_json() == trace[split - 1]
+    for turn in range(split, turns):
+        replay._advance(resumed)
+        assert resumed.model_dump_json() == trace[turn], f"turn {turn + 1}"

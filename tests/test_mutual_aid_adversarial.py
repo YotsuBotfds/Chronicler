@@ -55,9 +55,12 @@ def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
     assert rows[5]["memory_after"]["Mine"]["stress_streak"] == 0
     assert all(not r["transfers"] for r in rows[6:])
     # The streak resets at recovery and must be reacquired from fresh stress.
+    # (Since the 2026-10 occupation corrections the Mine has a one-turn
+    # shortfall blip before the sustained stress; a blip resets too.)
     streaks = [r["memory_after"]["Mine"]["stress_streak"] for r in rows]
-    restart = streaks.index(1, 6)
-    assert all(streak == 0 for streak in streaks[5:restart])
+    restart = next(i for i in range(6, len(streaks) - 2) if streaks[i:i + 3] == [1, 2, 3])
+    assert streaks[5] == 0
+    assert all(streak <= 1 for streak in streaks[5:restart])
     assert streaks[restart:restart + 3] == [1, 2, 3]
     assert rows[14]["prior_memory"]["Mine"]["stress_streak"] == 3
     assert rows[14]["treasury_before"] == 0

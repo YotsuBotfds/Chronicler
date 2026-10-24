@@ -62,6 +62,14 @@ def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization"
     if owner is not None and is_capital:
         from chronicler.emergence import get_severity_multiplier
         add_stat(ctx, owner, "stability", -int(8 * get_severity_multiplier(owner, world)), "guard-shock")
+    if owner is not None:
+        # The sack: anchored treasures may be burned, a capital's portable
+        # treasures are carried off (artifacts._process_sack, end of turn).
+        from chronicler.artifacts import OCCUPATION_SACK_ACTION, emit_conquest_lifecycle_intent
+        emit_conquest_lifecycle_intent(
+            world, losing_civ=owner.name, gaining_civ=occupier.name, region=region.name,
+            is_capital=is_capital, is_destructive=True, action=OCCUPATION_SACK_ACTION,
+        )
     by = f" by {army.name}" if army is not None else ""
     emit(ctx, "occupation", [occupier.name, owner_name or ""],
          f"{region.name}{' (capital of ' + owner_name + ')' if is_capital else ''} is occupied{by}.",

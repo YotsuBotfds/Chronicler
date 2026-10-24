@@ -627,6 +627,21 @@ def update_allied_turns(world: WorldState) -> None:
                 rel.allied_turns = 0
 
 
+_FEDERATION_EXIT_DISPOSITIONS = (Disposition.HOSTILE, Disposition.SUSPICIOUS, Disposition.NEUTRAL)
+
+
+def _would_exit_federation(world: WorldState, joiner: str, members: list[str]) -> bool:
+    """True if check_federation_dissolution would eject ``joiner`` or a member."""
+    for member in members:
+        if member == joiner:
+            continue
+        for a, b in ((joiner, member), (member, joiner)):
+            rel = world.relationships.get(a, {}).get(b)
+            if rel is not None and rel.disposition in _FEDERATION_EXIT_DISPOSITIONS:
+                return True
+    return False
+
+
 def check_federation_formation(world: WorldState) -> list[Event]:
     """Phase 10: Check if any allied pairs can form or join federations."""
     from chronicler.models import Federation
@@ -664,8 +679,15 @@ def check_federation_formation(world: WorldState) -> list[Event]:
             if fed_a and fed_b:
                 continue
             elif fed_a and not fed_b:
+                # Correction (2026-10): only join a federation the dissolution
+                # check would not immediately eject you from (it charged the
+                # exit/remaining stability penalties every turn).
+                if _would_exit_federation(world, civ_b_name, fed_a.members):
+                    continue
                 fed_a.members.append(civ_b_name)
             elif fed_b and not fed_a:
+                if _would_exit_federation(world, civ_a.name, fed_b.members):
+                    continue
                 fed_b.members.append(civ_a.name)
             else:
                 rng = random.Random(
@@ -1343,11 +1365,133 @@ def apply_twilight(world: WorldState, acc=None) -> list[Event]:
     return events
 
 
-def check_twilight_absorption(world: WorldState) -> list[Event]:
-    """Phase 10: Peacefully absorb civs in terminal twilight."""
+# --- Twilight absorption pacing (correction 2026-10) ---------------------------
+# A global climate drought used to push every small civ below the "unviable"
+# effective-capacity threshold at once, and step 9 absorbed them all within a
+# few consecutive turns.  Absorption now requires structural unviability to
+# persist for TWILIGHT_UNVIABLE_STREAK turns (longer than a typical drought
+# trough, so only persistently poor land qualifies), is spaced world-wide, and
+# declining one-region states first become tributaries of their would-be
+# absorber (existing VassalRelation/tribute/vassal-rebellion machinery) before
+# annexation.  (An earlier draft also required the polity to be depopulated;
+# that made absorption inert in agent modes and froze the political map.)
+TWILIGHT_UNVIABLE_CAPACITY = 10
+TWILIGHT_UNVIABLE_STREAK = 20
+TWILIGHT_ABSORPTION_SPACING = 10
+TRIBUTARY_ANNEX_TURNS = 30
+TRIBUTARY_MIN_OVERLORD_STABILITY = 40
+
+
+def best_twilight_absorber(civ: Civilization, world: WorldState) -> Civilization | None:
+    """Adjacent civ with the highest culture (first seen wins ties).
+
+    Mirrors the absorber choice of the Rust step 9 and the Python oracle.
+    """
+    region_map = world.region_map
+    civ_map = world.civ_map
+    best = None
+    best_culture = -1
+    for rn in civ.regions:
+        civ_r = region_map.get(rn)
+        if civ_r is None:
+            continue
+        for adj_name in getattr(civ_r, "adjacencies", []):
+            adj_region = region_map.get(adj_name)
+            if adj_region and adj_region.controller and adj_region.controller != civ.name:
+                absorber = civ_map.get(adj_region.controller)
+                if absorber and absorber.culture > best_culture:
+                    best_culture = absorber.culture
+                    best = absorber
+    return best
+
+
+def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozenset[int]]:
+    """Phase 10 (before the politics pass): pace twilight absorption.
+
+    Updates each civ's structural-unviability streak, turns declining
+    one-region states into tributaries of their would-be absorber, and returns
+    the (at most one) civ index the politics pass may absorb this turn.
+    """
+    from chronicler.factions import total_effective_capacity
+
+    events: list[Event] = []
+    for civ in world.civilizations:
+        if not civ.regions:
+            civ.unviable_turns = 0
+            continue
+        unviable = (
+            total_effective_capacity(civ, world) < TWILIGHT_UNVIABLE_CAPACITY
+            and (world.turn - civ.founded_turn) > 30
+        )
+        civ.unviable_turns = civ.unviable_turns + 1 if unviable else 0
+
+    decline_threshold = int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40))
+    vassal_of = {vr.vassal: vr for vr in world.vassal_relations}
+    overlords = {vr.overlord for vr in world.vassal_relations}
+    candidates: list[tuple[tuple, int]] = []
+    for civ_idx, civ in enumerate(world.civilizations):
+        if not civ.regions:
+            continue
+        unviable_ready = civ.unviable_turns >= TWILIGHT_UNVIABLE_STREAK
+        terminal = civ.decline_turns >= decline_threshold and len(civ.regions) == 1
+        if not (unviable_ready or terminal):
+            continue
+        absorber = best_twilight_absorber(civ, world)
+        if absorber is None:
+            continue
+        relation = vassal_of.get(civ.name)
+        if relation is not None and relation.overlord != absorber.name:
+            continue  # a vassal is not handed to a third party
+        if not unviable_ready:
+            if relation is None:
+                if (absorber.stability > TRIBUTARY_MIN_OVERLORD_STABILITY
+                        and civ.name not in overlords
+                        and absorber.name not in vassal_of):
+                    tribute_rate = get_override(world, K_VASSAL_TRIBUTE_RATE, 0.15)
+                    world.vassal_relations.append(VassalRelation(
+                        overlord=absorber.name, vassal=civ.name, tribute_rate=tribute_rate,
+                    ))
+                    vassal_of[civ.name] = world.vassal_relations[-1]
+                    overlords.add(absorber.name)
+                    events.append(Event(
+                        turn=world.turn, event_type="vassalization",
+                        actors=[absorber.name, civ.name],
+                        description=f"The Submission of {civ.name}: the declining realm "
+                                    f"becomes a tributary of {absorber.name}",
+                        importance=6,
+                    ))
+                    continue
+                # An unstable neighbour cannot hold a tributary: paced absorption.
+            elif relation.turns_active < TRIBUTARY_ANNEX_TURNS:
+                continue
+        candidates.append(((-civ.unviable_turns, -civ.decline_turns, civ_idx), civ_idx))
+
+    last = world.last_twilight_absorption_turn
+    if not candidates or (last is not None and world.turn - last < TWILIGHT_ABSORPTION_SPACING):
+        return events, frozenset()
+    candidates.sort()
+    return events, frozenset({candidates[0][1]})
+
+
+def note_twilight_absorptions(world: WorldState, events: list[Event]) -> None:
+    """Record the turn of any twilight absorption for world-wide spacing."""
+    if any(e.event_type == "twilight_absorption" for e in events):
+        world.last_twilight_absorption_turn = world.turn
+
+
+def check_twilight_absorption(
+    world: WorldState, eligible: frozenset[int] | None = None,
+) -> list[Event]:
+    """Phase 10: Peacefully absorb civs in terminal twilight.
+
+    ``eligible`` is the pacing gate from prepare_twilight_absorption (``None``
+    keeps the historical ungated behaviour for direct callers).
+    """
     events: list[Event] = []
 
-    for civ in list(world.civilizations):
+    for civ_pos, civ in enumerate(list(world.civilizations)):
+        if eligible is not None and civ_pos not in eligible:
+            continue
         # M22: Absorb structurally unviable civs
         from chronicler.factions import total_effective_capacity
         if total_effective_capacity(civ, world) < 10 and (world.turn - civ.founded_turn) > 30:

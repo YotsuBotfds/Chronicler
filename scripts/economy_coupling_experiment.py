@@ -111,11 +111,14 @@ def conservation_error(initial_stock, world, result):
 
 
 def harvest_by_region(world, snapshot):
+    from chronicler.economy import PER_CAPITA_FOOD
+
     rows = snapshot.to_pylist()
     return {
         r.name: compute_allocated_production(
             r.resource_types, [economy_yield(world, r, slot) for slot in range(3)],
             sum(a["region"] == i and a["occupation"] == 0 for a in rows),
+            food_demand=sum(a["region"] == i for a in rows) * PER_CAPITA_FOOD,
         ) for i, r in enumerate(world.regions)
     }
 

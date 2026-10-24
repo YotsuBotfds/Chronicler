@@ -104,6 +104,12 @@ pub struct CivInput {
     // Event counts (secession_occurred, capital_lost)
     pub secession_occurred_count: i32,
     pub capital_lost_count: i32,
+    /// Python-side pacing gate for step 9 (twilight absorption).  Python sets
+    /// it for at most one civ per pass once structural unviability has
+    /// persisted and the world-wide absorption spacing has elapsed; it is
+    /// necessary, not sufficient (step 9 still re-checks live state).
+    /// Defaults to true when the input batch has no such column.
+    pub absorption_eligible: bool,
 }
 
 impl CivInput {
@@ -131,6 +137,7 @@ impl CivInput {
             dominant_faction: 0,
             secession_occurred_count: 0,
             capital_lost_count: 0,
+            absorption_eligible: true,
         }
     }
 }
@@ -1941,13 +1948,32 @@ fn step_federation_formation(
 
     let fed_turns_req = config.federation_allied_turns;
 
+    // Correction (2026-10): match the Python oracle's H-8 guard (dead civs do
+    // not form or join federations) and only append a civ to a federation it
+    // is friendly with in full.  Previously a dead civ, or one merely neutral
+    // towards another member, was appended here and ejected again by step 6
+    // every turn, charging the exit/remaining stability penalties each time.
+    let is_dead = |idx: u16| -> bool {
+        (idx as usize) >= _live_civs.len() || !_live_civs[idx as usize].alive
+            || _live_civs[idx as usize].regions.is_empty()
+    };
+    // Mirrors step 6's exit test (either side Hostile/Suspicious/Neutral).
+    let would_exit = |a: u16, b: u16| -> bool {
+        matches!(
+            live_rels.get_disposition(a, b),
+            Some(Disposition::Hostile) | Some(Disposition::Suspicious) | Some(Disposition::Neutral)
+        )
+    };
+    let compatible_with_members = |joiner: u16, members: &[u16]| -> bool {
+        members
+            .iter()
+            .all(|&m| m == joiner || (!would_exit(joiner, m) && !would_exit(m, joiner)))
+    };
+
     for ci_a in 0..civs.len() {
         let civ_a = civs[ci_a].civ_idx;
         let a_is_vassal = live_vassals.entries.iter().any(|v| v.vassal == civ_a);
-        // Preserve the Python oracle's current behavior: federation formation
-        // does not exclude dead civs, so allied dead polities can still be
-        // appended or recreated if their relationship state persists.
-        if a_is_vassal {
+        if a_is_vassal || is_dead(civ_a) {
             continue;
         }
 
@@ -1982,7 +2008,7 @@ fn step_federation_formation(
                 continue;
             }
             let b_is_vassal = live_vassals.entries.iter().any(|v| v.vassal == civ_b);
-            if b_is_vassal {
+            if b_is_vassal || is_dead(civ_b) {
                 continue;
             }
 
@@ -1995,6 +2021,9 @@ fn step_federation_formation(
                     continue;
                 }
                 (Some(fi), None) => {
+                    if !compatible_with_members(civ_b, &live_feds.entries[fi].members) {
+                        continue;
+                    }
                     // Append B to A's federation
                     live_feds.entries[fi].members.push(civ_b);
                     result.federation_ops.push(FederationOp {
@@ -2009,6 +2038,9 @@ fn step_federation_formation(
                     // NOTE: APPEND_MEMBER does NOT emit events (spec Section 2)
                 }
                 (None, Some(fi)) => {
+                    if !compatible_with_members(civ_a, &live_feds.entries[fi].members) {
+                        continue;
+                    }
                     // Append A to B's federation
                     live_feds.entries[fi].members.push(civ_a);
                     result.federation_ops.push(FederationOp {
@@ -2562,6 +2594,11 @@ fn step_twilight_absorption(
         }
 
         if !live_civs[ci].alive || live_civs[ci].regions.is_empty() {
+            continue;
+        }
+
+        // Python paces absorptions (persistence streak + world-wide spacing).
+        if !civ.absorption_eligible {
             continue;
         }
 

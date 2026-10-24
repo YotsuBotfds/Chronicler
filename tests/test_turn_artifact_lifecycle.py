@@ -356,20 +356,37 @@ def test_exact_baseline_two_turns_events_narration_state_and_rng(api, sample_wor
     from chronicler import simulation as sim
     from chronicler.models import ActionType
     from scripts.benchmark_headless import rng_trace
+    from chronicler.events import ingest_turn_events, take_turn_cascade_events
     baseline = _baseline_simulation()
+    # The 2026-10 extinction correction deliberately replaces the event/leader
+    # hazard draws (per-civ decaying hazards in phase_environment and
+    # phase_random_events) and ingests the turn's cascade sources just before
+    # arc classification and narration. Graft exactly those corrected pieces
+    # onto the A01 baseline so this still isolates the coordinator refactor.
+    baseline.phase_environment = sim.phase_environment
+    baseline.phase_random_events = sim.phase_random_events
     results = []
     for label, implementation in (("baseline", baseline.run_turn), ("candidate", sim.run_turn)):
         world = sample_world.model_copy(deep=True)
         world.agent_mode = "off"
         captures = []
+        starts = []
 
-        def narrator(w, events):
+        def run_one(*args, _implementation=implementation, **kwargs):
+            world._hazard_events.clear()
+            starts[:] = [len(world.events_timeline), len(world.named_events)]
+            return _implementation(*args, **kwargs)
+
+        def narrator(w, events, _label=label):
+            if _label == "baseline":
+                ingest_turn_events(w, take_turn_cascade_events(w, w.events_timeline[starts[0]:]),
+                                   w.named_events[starts[1]:])
             captures.append((w.turn, [e.model_dump(mode="json") for e in events],
                              [e.model_dump(mode="json") for e in w.named_events], w.model_dump_json()))
             return str(captures[-1][1])
 
         with rng_trace(tmp_path / f"{label}.jsonl") as trace:
-            text = [implementation(world, lambda *a: ActionType.DEVELOP, narrator, seed=42) for _ in range(2)]
+            text = [run_one(world, lambda *a: ActionType.DEVELOP, narrator, seed=42) for _ in range(2)]
         results.append((captures, text, world.model_dump_json(), trace))
     assert results[0] == results[1]
 

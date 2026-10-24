@@ -36,9 +36,20 @@ if TYPE_CHECKING:
 
 from chronicler.events import (
     ENVIRONMENT_EVENTS,
-    apply_probability_cascade,
-    roll_for_event,
+    RANDOM_EVENT_TYPES,
+    HazardContext,
+    border_incident_partners,
+    civ_event_hazard,
+    hazard_probability,
+    ingest_turn_events,
+    leader_age,
+    leader_mortality_components,
+    pick_mortality_cause,
+    record_hazard_event,
+    take_turn_cascade_events,
 )
+# Historical module attributes (no longer used by the turn loop).
+from chronicler.events import apply_probability_cascade, roll_for_event  # noqa: F401
 from chronicler.settlements import run_settlement_tick
 from chronicler.models import (
     ActionType,
@@ -103,6 +114,20 @@ def _agent_pool_tracks_population(world: WorldState) -> bool:
     return getattr(world, "agent_mode", None) in {"demographics-only", "shadow", "hybrid"}
 
 
+# Correction (2026-10): a plague outbreak killed a fixed 10 x severity people
+# per civ, whatever its size. With per-civ hazards that is ~8% of a typical
+# civ but wipes out a small or recovering one (500-turn worlds died this way
+# once their population fell to a few dozen). The toll is now capped at a
+# tenth of the civ's people; civs of 100+ lose exactly what they did before.
+PLAGUE_POP_LOSS = 10
+PLAGUE_MAX_POP_SHARE = 0.10
+
+
+def _plague_pop_loss(civ_regions, mult: float) -> int:
+    population = sum(r.population for r in civ_regions)
+    return int(min(PLAGUE_POP_LOSS, PLAGUE_MAX_POP_SHARE * population) * mult)
+
+
 def _agents_own_population(world: WorldState) -> bool:
     """Return True when Python-side population deltas must defer to Rust demographics."""
     return getattr(world, "agent_mode", None) in {"demographics-only", "hybrid"}
@@ -155,23 +180,36 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     migration_events = process_migration(world, acc=acc)
     events.extend(migration_events)
 
-    # Legacy environment events (drought, plague, earthquake)
-    event = roll_for_event(
-        world.event_probabilities,
-        turn=world.turn,
-        seed=seed,
-        allowed_types=ENVIRONMENT_EVENTS,
-    )
-    if event is not None:
-        rng = random.Random(seed + 1)
-        alive_civs = [c for c in world.civilizations if len(c.regions) > 0]
-        if not alive_civs:
-            return events
-        affected = rng.sample(
-            alive_civs,
-            k=max(1, len(alive_civs) // 2),
+    # Environment hazards (drought, plague, earthquake): per-civ decaying
+    # hazards read real state (climate/water, endemic disease and contact,
+    # terrain) instead of striking a random half of the living civs.
+    hazard_ctx = HazardContext(world)
+    for event_type in ENVIRONMENT_EVENTS:
+        if event_type not in world.event_probabilities:
+            continue
+        affected: list[Civilization] = []
+        for civ_idx, civ in enumerate(world.civilizations):
+            if not civ.regions:
+                continue
+            p = hazard_probability(
+                civ_event_hazard(world, civ, civ_idx, event_type, hazard_ctx)
+            )
+            if p <= 0.0:
+                continue
+            draw = random.Random(
+                stable_hash_int("env_hazard", seed, civ_idx, event_type)
+            ).random()
+            if draw < p:
+                affected.append(civ)
+        if not affected:
+            continue
+        event = Event(
+            turn=world.turn,
+            event_type=event_type,
+            actors=[c.name for c in affected],
+            description="",  # Filled in by narrative engine
+            importance=5,
         )
-        event.actors = [c.name for c in affected]
 
         if event.event_type == "drought":
             for civ in affected:
@@ -200,7 +238,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
                 # one-turn catastrophe-death transient makes the same loss
                 # survive Rust write-back in bridge-backed agent modes.
                 civ_regions = [r for r in world.regions if r.controller == civ.name]
-                actual_drains = distribute_pop_loss(civ_regions, int(10 * mult))
+                actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
                 if _agent_pool_tracks_population(world):
                     for region, actual in zip(civ_regions, actual_drains):
                         stage_region_catastrophe_deaths(region, actual)
@@ -227,9 +265,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
                 else:
                     civ.economy = clamp(civ.economy - int(10 * mult), STAT_FLOOR["economy"], 100)
 
-        world.event_probabilities = apply_probability_cascade(
-            event.event_type, world.event_probabilities
-        )
+        # Excitation from this event is ingested at end of turn
+        # (events.ingest_turn_events); base rates stay constant.
+        record_hazard_event(world, event)
         events.append(event)
 
     return events
@@ -770,39 +808,144 @@ def apply_asabiya_dynamics(world: WorldState) -> None:
 
 # --- Phase 7: Random events ---
 
-def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
-    """Roll for 0-1 random external events (non-environment)."""
-    events: list[Event] = []
-    non_env = [k for k in world.event_probabilities if k not in ENVIRONMENT_EVENTS]
-    event = roll_for_event(
-        world.event_probabilities,
-        turn=world.turn,
-        seed=seed,
-        allowed_types=non_env,
-    )
-    if event is not None:
-        rng = random.Random(seed + 2)
-        alive_civs = [c for c in world.civilizations if len(c.regions) > 0]
-        if not alive_civs:
-            return events
-        event.actors = [rng.choice(alive_civs).name]
+def _agent_unrest_shares(world: WorldState) -> dict[int, tuple[float, float]] | None:
+    """Per-civ (rebel share, cross-border migrant share) from the last hybrid tick.
 
-        world.event_probabilities = apply_probability_cascade(
-            event.event_type, world.event_probabilities
+    Shares are relative to the civ's agent population before the moves
+    (current population plus emigrants).  Moves between two regions of the
+    same civ are internal and do not count as a migration crisis.
+    """
+    if world.agent_mode != "hybrid":
+        return None
+    bridge = getattr(world, "_agent_bridge", None)
+    if bridge is None or not hasattr(bridge, "last_tick_unrest_by_region"):
+        return None
+    rebels_by_region, flows = bridge.last_tick_unrest_by_region()
+    name_to_idx = {c.name: i for i, c in enumerate(world.civilizations)}
+    owner: list[int | None] = [
+        name_to_idx.get(region.controller) if region.controller else None
+        for region in world.regions
+    ]
+    pop: dict[int, int] = {}
+    rebels: dict[int, int] = {}
+    crossings: dict[int, int] = {}
+    emigrants: dict[int, int] = {}
+    for region_idx, civ_idx in enumerate(owner):
+        if civ_idx is None:
+            continue
+        pop[civ_idx] = pop.get(civ_idx, 0) + max(0, world.regions[region_idx].population)
+        rebels[civ_idx] = rebels.get(civ_idx, 0) + rebels_by_region.get(region_idx, 0)
+    for (src, dst), count in sorted(flows.items()):
+        src_civ = owner[src] if 0 <= src < len(owner) else None
+        dst_civ = owner[dst] if 0 <= dst < len(owner) else None
+        if src_civ == dst_civ:
+            continue
+        if src_civ is not None:
+            crossings[src_civ] = crossings.get(src_civ, 0) + count
+            emigrants[src_civ] = emigrants.get(src_civ, 0) + count
+        if dst_civ is not None:
+            crossings[dst_civ] = crossings.get(dst_civ, 0) + count
+    return {
+        civ_idx: (
+            rebels.get(civ_idx, 0) / max(1, total),
+            crossings.get(civ_idx, 0) / max(1, total + emigrants.get(civ_idx, 0)),
         )
+        for civ_idx, total in pop.items()
+    }
 
-        affected_civ = get_civ(world, event.actors[0])
-        if affected_civ:
-            _apply_event_effects(event.event_type, affected_civ, world, acc=acc)
 
-        events.append(event)
+def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
+    """Phase 7: per-civ decaying hazards for non-environment events.
+
+    Each living civ rolls each hazard independently (see chronicler.events).
+    In hybrid mode rebellion and migration are a roll-up of the agents' own
+    rebel/migrant decisions from the previous tick rather than extra dice.
+    Leader deaths come from the leader's age-based mortality hazard.
+    """
+    events: list[Event] = []
+    ctx = HazardContext(world, agent_unrest=_agent_unrest_shares(world))
+    event_types = [k for k in RANDOM_EVENT_TYPES if k in world.event_probabilities]
+    for civ_idx, civ in enumerate(world.civilizations):
+        if not civ.regions:
+            continue
+        for event_type in event_types:
+            p = hazard_probability(civ_event_hazard(world, civ, civ_idx, event_type, ctx))
+            if p <= 0.0:
+                continue
+            rng = random.Random(stable_hash_int("event_hazard", seed, civ_idx, event_type))
+            if rng.random() >= p:
+                continue
+            actors = [civ.name]
+            if event_type == "border_incident":
+                partners = border_incident_partners(civ, ctx)
+                if partners:
+                    total = sum(w for _, w in partners)
+                    pick = rng.random() * total
+                    for name, weight in partners:
+                        pick -= weight
+                        if pick < 0:
+                            actors.append(name)
+                            break
+                    else:
+                        actors.append(partners[-1][0])
+            event = Event(
+                turn=world.turn,
+                event_type=event_type,
+                actors=actors,
+                description="",  # Filled in by narrative engine
+                importance=5,
+            )
+            _apply_event_effects(event_type, civ, world, acc=acc)
+            record_hazard_event(world, event)
+            events.append(event)
+
+        if "leader_death" in world.event_probabilities:
+            leader_event = _roll_leader_mortality(world, civ, civ_idx, seed, ctx, acc=acc)
+            if leader_event is not None:
+                record_hazard_event(world, leader_event)
+                events.append(leader_event)
 
     from chronicler.politics import check_congress
     events.extend(check_congress(world, acc=acc))
     return events
 
 
-def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, acc=None) -> None:
+def _roll_leader_mortality(
+    world: WorldState, civ: Civilization, civ_idx: int, seed: int, ctx: HazardContext, acc=None,
+) -> Event | None:
+    """Age/war/coup/excitation mortality hazard for the civ's current leader."""
+    if not civ.leader.alive or is_in_crisis(civ):
+        return None
+    components = leader_mortality_components(world, civ, ctx)
+    p = hazard_probability(sum(components.values()))
+    if p <= 0.0:
+        return None
+    rng = random.Random(stable_hash_int("leader_mortality", seed, civ_idx))
+    if rng.random() >= p:
+        return None
+    cause = pick_mortality_cause(components, rng.random())
+    old_leader = civ.leader
+    age = leader_age(old_leader, world)
+    reign = world.turn - old_leader.reign_start
+    _apply_event_effects("leader_death", civ, world, acc=acc, cause=cause)
+    cause_text = {
+        "natural": f"dies at the age of {age}",
+        "battle": f"falls in war at the age of {age}",
+        "coup": "is overthrown and killed in a coup",
+        "misfortune": f"dies amid the turmoil, aged {age}",
+    }.get(cause, f"dies at the age of {age}")
+    return Event(
+        turn=world.turn,
+        event_type="leader_death",
+        actors=[civ.name],
+        description=f"{old_leader.name} of {civ.name} {cause_text} after a reign of {reign} years.",
+        importance=5,
+    )
+
+
+def _apply_event_effects(
+    event_type: str, civ: Civilization, world: WorldState, acc=None, cause: str | None = None,
+) -> None:
     """Apply mechanical stat changes for a random event."""
     civ_idx = civ_index(world, civ.name)
     if event_type == "leader_death":
@@ -831,7 +974,11 @@ def _apply_event_effects(event_type: str, civ: Civilization, world: WorldState, 
                 importance=8,
             ))
         else:
-            new_leader = generate_successor(civ, world, seed=world.seed, acc=acc)
+            # A coup installs the usurper; other deaths use normal succession.
+            force_type = "usurper" if cause == "coup" else None
+            new_leader = generate_successor(
+                civ, world, seed=world.seed, force_type=force_type, acc=acc,
+            )
             civ.leader = new_leader
     elif event_type == "rebellion":
         mult = get_severity_multiplier(civ, world)
@@ -955,10 +1102,9 @@ def apply_injected_event(
     elif event_type == "plague":
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
-        pop_loss = int(10 * mult)
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            actual_drains = distribute_pop_loss(civ_regions, pop_loss)
+            actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
             if _agent_pool_tracks_population(world):
                 for region, actual in zip(civ_regions, actual_drains):
                     stage_region_catastrophe_deaths(region, actual)
@@ -984,10 +1130,8 @@ def apply_injected_event(
     else:
         _apply_event_effects(event_type, civ, world, acc=acc)
 
-    world.event_probabilities = apply_probability_cascade(
-        event_type, world.event_probabilities
-    )
-
+    # Excitation is ingested with the turn's events (events.ingest_turn_events).
+    record_hazard_event(world, event)
     return [event]
 
 
@@ -1204,10 +1348,18 @@ def phase_consequences(
     # is available (both agent-backed modes and --agents=off).  Falls back to
     # the Python oracle when no runtime is present (e.g. bare unit tests that
     # call phase_consequences directly without constructing a simulator).
+    # Twilight-absorption pacing: persistence streaks, tributaries, and the
+    # (at most one) civ the politics pass may absorb this turn.
+    from chronicler.politics import prepare_twilight_absorption, note_twilight_absorptions
+    _tributary_events, _absorption_eligible = prepare_twilight_absorption(world)
+    collapse_events.extend(_tributary_events)
+    _politics_start = len(collapse_events)
     if politics_runtime is not None:
         from chronicler.politics import call_rust_politics, apply_politics_ops
         hybrid_mode = world.agent_mode == "hybrid"
-        ops = call_rust_politics(politics_runtime, world, hybrid_mode)
+        ops = call_rust_politics(
+            politics_runtime, world, hybrid_mode, absorption_eligible=_absorption_eligible,
+        )
         # M55b keeps collapse after regional aggregation. Rust politics still
         # computes step-11 collapse from the pre-aggregation civ scalar, so we
         # apply only steps 1-10 here and keep the collapse check below.
@@ -1229,8 +1381,9 @@ def phase_consequences(
         from chronicler.politics import check_twilight_absorption, update_decline_tracking
         collapse_events.extend(check_proxy_detection(world, acc=acc))
         collapse_events.extend(check_restoration(world, acc=acc))
-        collapse_events.extend(check_twilight_absorption(world))
+        collapse_events.extend(check_twilight_absorption(world, eligible=_absorption_eligible))
         update_decline_tracking(world)
+    note_twilight_absorptions(world, collapse_events[_politics_start:])
 
     apply_asabiya_dynamics(world)
     for civ in world.civilizations:
@@ -1370,8 +1523,10 @@ def phase_technology(world: WorldState, acc=None) -> list[Event]:
                     description=f"{civ.name} develops {new_focus.value} specialization",
                     importance=6,
                 ))
-            # Increment tech_advanced so great person generation can detect era advance
-            civ.event_counts["tech_advanced"] = civ.event_counts.get("tech_advanced", 0) + 1
+            # Count the advance for great person generation only when the
+            # era is new to this civ (re-advancing after a regression is not).
+            from chronicler.great_persons import note_tech_era_reached
+            note_tech_era_reached(civ)
             name = generate_tech_breakthrough_name(civ.tech_era)
             world.named_events.append(NamedEvent(
                 name=name, event_type="tech_breakthrough", turn=world.turn,
@@ -1660,6 +1815,11 @@ def run_turn_result(
     turn_events: list[Event] = []
     acc = StatAccumulator()
     clear_active_trade_routes_snapshot(world)
+    # Hazard excitation: this turn's hazard draws (incl. injections) plus the
+    # tech/succession/legacy sources it commits.
+    world._hazard_events.clear()
+    _hazard_timeline_start = len(world.events_timeline)
+    _hazard_named_start = len(world.named_events)
 
     # Drain pending injections now that accumulator exists
     if pending_injections:
@@ -2070,6 +2230,14 @@ def run_turn_result(
     # tech regression, artifacts).  Pre-Phase-10 events were already committed
     # above (C-2 fix).
     world.events_timeline.extend(turn_events[_pre_phase10_count:])
+
+    # Decaying hazards: decay one turn, then excite from this turn's hazard
+    # draws and the tech/coup/legacy/rival-fall sources it committed.
+    ingest_turn_events(
+        world,
+        take_turn_cascade_events(world, world.events_timeline[_hazard_timeline_start:]),
+        world.named_events[_hazard_named_start:],
+    )
 
     # M45: Arc classification — after events are on timeline, before snapshot.
     # classify_arc filters to events naming the character; the per-actor index

@@ -1376,3 +1376,54 @@ class TestReviewBugFixes:
         )
         text = render_artifact_context([a])
         assert "temple-bound in Ashara" in text
+
+
+class TestOccupationSack:
+    """M60b campaign occupations sack the fallen region (2026-10)."""
+
+    def _sack(self, world, is_capital):
+        world._artifact_lifecycle_intents.append(ArtifactLifecycleIntent(
+            action="occupation_sack", losing_civ="TestCiv", gaining_civ="Raider",
+            region="Region1", is_capital=is_capital, is_full_absorption=False,
+            is_destructive=True,
+        ))
+        return tick_artifacts(world)
+
+    def test_anchored_treasures_are_burned_with_the_sack_chance(self):
+        from chronicler.artifacts import SACK_DESTRUCTION_CHANCE
+        from chronicler.utils import stable_hash_int
+        world = _make_world_with_civ()
+        for _ in range(40):
+            _make_active_artifact(world, ArtifactType.MONUMENT, anchored=True)
+        elsewhere = _make_active_artifact(world, ArtifactType.RELIC, anchored=True, region="Region2")
+        world.turn = 30
+        events = self._sack(world, is_capital=False)
+        for a in world.artifacts[:40]:
+            roll = (stable_hash_int("artifact_sack", world.seed, 30, "Region1", a.artifact_id) % 10_000) / 10_000.0
+            expected = ArtifactStatus.DESTROYED if roll < SACK_DESTRUCTION_CHANCE else ArtifactStatus.ACTIVE
+            assert a.status == expected
+            # Survivors stay with the legal owner: occupation is not annexation.
+            assert a.owner_civ == (None if expected == ArtifactStatus.DESTROYED else "TestCiv")
+        destroyed = sum(a.status == ArtifactStatus.DESTROYED for a in world.artifacts[:40])
+        assert 0 < destroyed < 40
+        assert sum(e.event_type == "artifact_destroyed" for e in events) == destroyed
+        assert elsewhere.status == ArtifactStatus.ACTIVE
+
+    def test_portable_treasures_only_leave_a_fallen_capital(self):
+        world = _make_world_with_civ()
+        portable = _make_active_artifact(world, ArtifactType.TREATISE, anchored=False)
+        world.turn = 30
+        self._sack(world, is_capital=False)
+        assert portable.owner_civ == "TestCiv" and portable.status == ArtifactStatus.ACTIVE
+        world.turn = 31
+        self._sack(world, is_capital=True)
+        assert portable.owner_civ in ("Raider", None)
+        assert (portable.owner_civ is None) == (portable.status == ArtifactStatus.LOST)
+
+    def test_character_held_artifacts_are_not_sacked(self):
+        world = _make_world_with_civ()
+        held = _make_active_artifact(world, ArtifactType.WEAPON, anchored=True,
+                                     holder_name="Hero", holder_born_turn=1)
+        world.turn = 30
+        self._sack(world, is_capital=True)
+        assert held.status == ArtifactStatus.ACTIVE and held.owner_civ == "TestCiv"

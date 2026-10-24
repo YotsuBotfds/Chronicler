@@ -653,11 +653,14 @@ fn test_federation_append_does_not_emit_event() {
 }
 
 #[test]
-fn test_federation_append_preserves_dead_civ_legacy_behavior() {
+fn test_federation_append_skips_dead_civ_like_python_oracle() {
+    // Correction (2026-10): this test used to pin the pre-H-8 behaviour where a
+    // dead civ was appended (and ejected by step 6 again, with stability
+    // penalties, every turn).  The Python oracle skips dead civs (H-8).
     let regions = make_3_regions([0, 1, 1]);
     let civ0 = make_civ(0, vec![0]);
     let civ1 = make_civ(1, vec![1, 2]);
-    let civ2 = make_civ(2, vec![]); // dead civ, but legacy Python can still append it
+    let civ2 = make_civ(2, vec![]); // dead civ
 
     let mut topo = default_topology();
     topo.federations.push(FederationEntry {
@@ -677,12 +680,42 @@ fn test_federation_append_preserves_dead_civ_legacy_behavior() {
     let config = default_config();
     let result = run_politics_pass(&[civ0, civ1, civ2], &regions, &topo, &config, 100, 42, false);
 
-    let append = result
-        .federation_ops
-        .iter()
-        .find(|op| op.op_type == FederationOpType::AppendMember && op.civ == CivRef::Existing(2))
-        .expect("dead civ should still append to federation to match Python legacy behavior");
-    assert_eq!(append.federation_ref, FedRef::Existing(0));
+    assert!(
+        !result
+            .federation_ops
+            .iter()
+            .any(|op| op.op_type == FederationOpType::AppendMember && op.civ == CivRef::Existing(2)),
+        "dead civ must not join a federation"
+    );
+}
+
+#[test]
+fn test_federation_does_not_append_member_it_would_eject() {
+    // civ2 is allied with civ0 but neutral towards civ1 (both members): step 6
+    // would eject it immediately, charging stability penalties every turn.
+    let regions = make_3_regions([0, 1, 2]);
+    let civ0 = make_civ(0, vec![0]);
+    let civ1 = make_civ(1, vec![1]);
+    let civ2 = make_civ(2, vec![2]);
+
+    let mut topo = default_topology();
+    topo.federations.push(FederationEntry { fed_idx: 0, members: vec![0, 1], founded_turn: 50 });
+    for (a, b, disposition) in [
+        (0u16, 1u16, Disposition::Allied), (1, 0, Disposition::Allied),
+        (0, 2, Disposition::Allied), (2, 0, Disposition::Allied),
+        (1, 2, Disposition::Neutral), (2, 1, Disposition::Neutral),
+    ] {
+        topo.relationships.push(RelationshipEntry { civ_a: a, civ_b: b, disposition, allied_turns: 10 });
+    }
+
+    let config = default_config();
+    let result = run_politics_pass(&[civ0, civ1, civ2], &regions, &topo, &config, 100, 42, false);
+
+    assert!(!result.federation_ops.iter().any(|op| op.op_type == FederationOpType::AppendMember));
+    assert!(
+        !result.civ_effects.iter().any(|e| e.step == 6 && e.field == "stability"),
+        "no federation exit penalties without a real exit"
+    );
 }
 
 #[test]
@@ -1019,6 +1052,45 @@ fn test_twilight_absorption_preserves_dead_civ() {
     assert!(
         result.events.iter().any(|e| e.event_type == "twilight_absorption"),
         "Should emit twilight_absorption event"
+    );
+}
+
+#[test]
+fn test_twilight_absorption_respects_python_pacing_gate() {
+    // Same terminal-decline setup as above, but Python has not marked the
+    // civ eligible (persistence streak / world-wide spacing not met).
+    let mut regions = vec![RegionInput::new(0), RegionInput::new(1)];
+    regions[0].adjacencies = vec![1];
+    regions[0].controller = 0;
+    regions[0].effective_capacity = 5;
+    regions[1].adjacencies = vec![0];
+    regions[1].controller = 1;
+    regions[1].effective_capacity = 50;
+
+    let mut civ0 = make_civ(0, vec![0]);
+    civ0.decline_turns = 45;
+    civ0.founded_turn = 0;
+    civ0.total_effective_capacity = 5;
+    civ0.absorption_eligible = false;
+    let mut civ1 = make_civ(1, vec![1]);
+    civ1.culture = 60;
+
+    let config = default_config();
+    let topo = default_topology();
+    let blocked = run_politics_pass(
+        &[civ0.clone(), civ1.clone()], &regions, &topo, &config, 100, 42, false,
+    );
+    assert!(
+        !blocked.events.iter().any(|e| e.event_type == "twilight_absorption"),
+        "an ineligible civ must not be absorbed"
+    );
+    assert!(!blocked.civ_ops.iter().any(|op| op.op_type == CivOpType::Absorb));
+
+    civ0.absorption_eligible = true;
+    let allowed = run_politics_pass(&[civ0, civ1], &regions, &topo, &config, 100, 42, false);
+    assert!(
+        allowed.events.iter().any(|e| e.event_type == "twilight_absorption"),
+        "the gate is necessary, not sufficient: an eligible terminal civ is absorbed"
     );
 }
 
