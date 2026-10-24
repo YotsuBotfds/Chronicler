@@ -542,6 +542,11 @@ def generate_faction_candidates(civ: Civilization, world: WorldState) -> list[di
         legitimacy = compute_dynasty_legitimacy(candidates[-1], civ)
         candidates[-1]["weight"] += legitimacy
 
+    if getattr(world, "gp_agendas", None) is not None:
+        # Great-person agendas: allies back, rivals oppose (who backs whom).
+        from chronicler.gp_agendas import back_candidates
+        back_candidates(world, civ, candidates)
+
     return candidates
 
 
@@ -745,6 +750,11 @@ def resolve_crisis_with_factions(civ: Civilization, world: WorldState, acc=None)
     # 9. Handle external backer (upgrade disposition)
     if winner and winner.get("backer_civ"):
         _apply_external_backer_effects(civ, world, winner)
+
+    # 9b. Great-person agendas: the winner's backers stand by the new ruler.
+    if getattr(world, "gp_agendas", None) is not None:
+        from chronicler.gp_agendas import note_succession
+        events.extend(note_succession(world, civ, winner, old_leader, new_leader))
 
     # 10. Create exiled leader (call for side effects)
     create_exiled_leader(old_leader, civ, world)

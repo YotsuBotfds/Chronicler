@@ -45,6 +45,12 @@ The example needs ``from dataclasses import replace``. Persist ``result.reign``
 between calls; outputs are immutable and no caller object is mutated. A skipped
 state check cannot reconstruct historical ownership: after a deadline, only
 explicit on-time event evidence can complete an ambition, otherwise it fails.
+
+Great-person agendas (``chronicler.gp_agendas``, ``--gp-agendas``) reuse this
+kernel with the appended ``GP_AGENDA_TYPES``: one objective per record, keyed
+by the person rather than a civ, a 10-40 turn window, and early failure on the
+thwarting evidence in ``GP_THWARTING_EVENTS``. Ruler objectives, their pools,
+windows and completion rules are unchanged.
 """
 from __future__ import annotations
 
@@ -62,9 +68,58 @@ class AmbitionType(str, Enum):
     EXPAND_TERRITORY = 'expand_territory'
     PATRON_OF_ARTS = 'patron_of_arts'
     DIPLOMATIC_TRIUMPH = 'diplomatic_triumph'
+    # Great-person agendas (``chronicler.gp_agendas``), appended: declaration
+    # order is the canonical sort order. ``generate_ambitions`` never builds a
+    # pool for them, so ruler reigns are unchanged; the great-person adapter
+    # constructs these objectives itself and resolves them here.
+    LEAD_CAMPAIGN = 'lead_campaign'              # take a region (ownership)
+    SEIZE_THRONE = 'seize_throne'                # a general's coup (evidence)
+    OPEN_TRADE_ROUTE = 'open_trade_route'        # a route with a civ (route surface)
+    PROTECT_TRADE_ROUTE = 'protect_trade_route'  # keep a route to the deadline
+    FOUND_TRADING_HOUSE = 'found_trading_house'  # evidence
+    LEND_TO_CROWN = 'lend_to_crown'              # evidence (finance)
+    SPREAD_FAITH = 'spread_faith'                # belief share predicate
+    FOUND_SHRINE = 'found_shrine'                # completed temple in a region
+    ADVANCE_LEARNING = 'advance_learning'        # the civ's next era (evidence)
+    INVENT_TECHNIQUE = 'invent_technique'        # a technique (evidence; techniques)
 
 
 _AMBITION_INDEX = {kind: index for index, kind in enumerate(AmbitionType)}
+
+#: Great-person agenda kinds. They keep the kernel's evidence, cursor and
+#: deadline rules but use a shorter window (great persons live 20-30 turns)
+#: and may also end early on thwarting evidence (``GP_THWARTING_EVENTS``).
+GP_AGENDA_TYPES = frozenset({
+    AmbitionType.LEAD_CAMPAIGN, AmbitionType.SEIZE_THRONE, AmbitionType.OPEN_TRADE_ROUTE,
+    AmbitionType.PROTECT_TRADE_ROUTE, AmbitionType.FOUND_TRADING_HOUSE, AmbitionType.LEND_TO_CROWN,
+    AmbitionType.SPREAD_FAITH, AmbitionType.FOUND_SHRINE, AmbitionType.ADVANCE_LEARNING,
+    AmbitionType.INVENT_TECHNIQUE,
+})
+GP_AGENDA_MIN_DURATION = 10
+GP_AGENDA_MAX_DURATION = 40
+_UNTARGETED = frozenset({AmbitionType.PATRON_OF_ARTS, AmbitionType.SEIZE_THRONE,
+                         AmbitionType.FOUND_TRADING_HOUSE, AmbitionType.LEND_TO_CROWN})
+_RELIGIOUS = frozenset({AmbitionType.RELIGIOUS_CONVERSION, AmbitionType.SPREAD_FAITH})
+# Event goals: the evidence types that complete them (targeted goals also
+# need the event's target). The two ruler entries are the roadmap's.
+_EVENT_GOALS: dict[AmbitionType, tuple[str, ...]] = {
+    AmbitionType.BUILD_MONUMENT: ('infrastructure_completed',),
+    AmbitionType.PATRON_OF_ARTS: ('cultural_work', 'invest_culture'),
+    AmbitionType.SEIZE_THRONE: ('gp_coup',),
+    AmbitionType.FOUND_TRADING_HOUSE: ('trading_house_founded',),
+    AmbitionType.LEND_TO_CROWN: ('crown_loan',),
+    AmbitionType.FOUND_SHRINE: ('infrastructure_completed',),
+    AmbitionType.ADVANCE_LEARNING: ('tech_advancement',),
+    AmbitionType.INVENT_TECHNIQUE: ('technique_invented',),
+}
+#: Evidence that ends a great-person agenda in failure before its deadline:
+#: the holder's death or retirement for every kind, plus kind-specific
+#: setbacks (a crushed coup, a broken route). Ruler ambitions never fail early.
+GP_THWARTING_EVENTS: dict[AmbitionType, tuple[str, ...]] = {
+    kind: ('holder_gone',) for kind in GP_AGENDA_TYPES
+}
+GP_THWARTING_EVENTS[AmbitionType.SEIZE_THRONE] = ('holder_gone', 'gp_coup_failed')
+GP_THWARTING_EVENTS[AmbitionType.PROTECT_TRADE_ROUTE] = ('holder_gone', 'trade_route_broken')
 
 def _integer(value: int, name: str) -> None:
     if type(value) is not int or value < 0:
@@ -261,18 +316,21 @@ class Ambition:
         _integer(self.generated_turn, 'generated_turn')
         _integer(self.deadline_turn, 'deadline_turn')
         _integer(self.generated_event_cursor, 'generated_event_cursor')
-        if not 20 <= self.deadline_turn - self.generated_turn <= 40:
+        if self.ambition_type in GP_AGENDA_TYPES:
+            if not GP_AGENDA_MIN_DURATION <= self.deadline_turn - self.generated_turn <= GP_AGENDA_MAX_DURATION:
+                raise ValueError('agenda deadline must be 10-40 turns after generation')
+        elif not 20 <= self.deadline_turn - self.generated_turn <= 40:
             raise ValueError('deadline must be 20-40 turns after generation')
         if type(self.completed) is not bool or type(self.failed) is not bool or (self.completed and self.failed):
             raise ValueError('ambition must have at most one terminal flag')
-        if self.ambition_type == AmbitionType.PATRON_OF_ARTS:
+        if self.ambition_type in _UNTARGETED:
             if self.target is not None:
-                raise ValueError('patron_of_arts is untargeted')
+                raise ValueError(f'{self.ambition_type.value} is untargeted')
         else:
             _name(self.target, 'ambition target')
         if self.ambition_type == AmbitionType.DIPLOMATIC_TRIUMPH:
             raise ValueError('diplomatic_triumph has no live predicate')
-        if self.ambition_type == AmbitionType.RELIGIOUS_CONVERSION:
+        if self.ambition_type in _RELIGIOUS:
             if self.conversion_predicate is None or self.conversion_predicate.target != self.target:
                 raise ValueError('religious ambition requires matching concrete predicate')
         elif self.conversion_predicate is not None:
@@ -446,24 +504,49 @@ def _check_snapshot(reign: RulerAmbitions, snapshot: AmbitionSnapshot, *, requir
         raise ValueError('event cursor moved backwards')
 
 
+def _evidence(ambition: Ambition, snapshot: AmbitionSnapshot, events: tuple[EvidenceEvent, ...],
+              wanted: tuple[str, ...]) -> bool:
+    """On-time evidence of one of ``wanted`` after the generation cursor."""
+    return any(event.civ_id == snapshot.civ_id and event.event_type in wanted
+               and ambition.generated_turn <= event.turn <= min(snapshot.turn, ambition.deadline_turn)
+               and ambition.generated_event_cursor < event.sequence <= snapshot.event_cursor
+               and (ambition.target is None or event.target == ambition.target) for event in events)
+
+
 def _complete(ambition: Ambition, snapshot: AmbitionSnapshot, events: tuple[EvidenceEvent, ...]) -> bool:
     kind = ambition.ambition_type
-    if kind in (AmbitionType.BUILD_MONUMENT, AmbitionType.PATRON_OF_ARTS):
-        wanted = ('infrastructure_completed',) if kind == AmbitionType.BUILD_MONUMENT else ('cultural_work', 'invest_culture')
-        return any(event.civ_id == snapshot.civ_id and event.event_type in wanted
-                   and ambition.generated_turn <= event.turn <= min(snapshot.turn, ambition.deadline_turn)
-                   and ambition.generated_event_cursor < event.sequence <= snapshot.event_cursor
-                   and (ambition.target is None or event.target == ambition.target) for event in events)
+    wanted = _EVENT_GOALS.get(kind)
+    if wanted is not None:
+        return _evidence(ambition, snapshot, events, wanted)
     # A late snapshot does not prove that a state predicate was true by deadline.
     if snapshot.turn > ambition.deadline_turn:
         return False
-    if kind in (AmbitionType.CONQUER_REGION, AmbitionType.EXPAND_TERRITORY):
+    if kind in (AmbitionType.CONQUER_REGION, AmbitionType.EXPAND_TERRITORY, AmbitionType.LEAD_CAMPAIGN):
         return ambition.target in snapshot.owned_regions
-    if kind == AmbitionType.ESTABLISH_TRADE:
+    if kind in (AmbitionType.ESTABLISH_TRADE, AmbitionType.OPEN_TRADE_ROUTE):
         return ambition.target in snapshot.active_trade_partners
-    if kind == AmbitionType.RELIGIOUS_CONVERSION:
+    if kind == AmbitionType.PROTECT_TRADE_ROUTE:
+        # Sustained goal: the route must still stand on the deadline itself.
+        return snapshot.turn == ambition.deadline_turn and ambition.target in snapshot.active_trade_partners
+    if kind in _RELIGIOUS:
         return _converted(ambition.conversion_predicate, snapshot.conversion_observations)
     return False
+
+
+def _thwarted(ambition: Ambition, snapshot: AmbitionSnapshot, events: tuple[EvidenceEvent, ...]) -> bool:
+    """Great-person agendas only: on-time thwarting evidence ends them early.
+
+    Thwarting evidence for a targeted agenda must carry its target, except
+    ``holder_gone`` (the holder's death or retirement), which is untargeted.
+    """
+    wanted = GP_THWARTING_EVENTS.get(ambition.ambition_type)
+    if not wanted:
+        return False
+    return any(event.civ_id == snapshot.civ_id and event.event_type in wanted
+               and ambition.generated_turn <= event.turn <= min(snapshot.turn, ambition.deadline_turn)
+               and ambition.generated_event_cursor < event.sequence <= snapshot.event_cursor
+               and (event.event_type == 'holder_gone' or ambition.target is None
+                    or event.target == ambition.target) for event in events)
 
 
 def evaluate_ambitions(reign: RulerAmbitions, snapshot: AmbitionSnapshot,
@@ -489,7 +572,8 @@ def evaluate_ambitions(reign: RulerAmbitions, snapshot: AmbitionSnapshot,
             ambitions.append(ambition)
             continue
         completed = _complete(ambition, snapshot, events)
-        failed = not completed and snapshot.turn >= ambition.deadline_turn
+        failed = not completed and (snapshot.turn >= ambition.deadline_turn
+                                    or _thwarted(ambition, snapshot, events))
         ambitions.append(replace(ambition, completed=completed, failed=failed))
         if completed or failed:
             event_type = 'ambition_fulfilled' if completed else 'ambition_failed'

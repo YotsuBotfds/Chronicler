@@ -9,6 +9,7 @@ from itertools import chain
 from pathlib import Path
 
 from chronicler.action_engine import ACTION_WEIGHT_BASE
+from chronicler.snapshot_pruning import restore_bundle
 from chronicler.tuning import K_WEIGHT_CAP
 
 ERA_ORDER = [
@@ -54,7 +55,9 @@ def load_bundle_records(batch_dir: Path) -> list[tuple[Path, dict]]:
     records = []
     for p in bundle_paths:
         with open(p) as f:
-            records.append((p, json.load(f)))
+            # Version-5 histories leave dead civs out; the extractors measure
+            # over every civ row, so restore the omitted rows exactly.
+            records.append((p, restore_bundle(json.load(f))))
     return records
 
 
@@ -1437,6 +1440,11 @@ def generate_report(
     maritime = extract_maritime_metrics(bundles)
     if maritime.get("runs"):
         report["maritime"] = maritime
+    # Nomads: present only for runs whose bundles carry history[n].nomads.
+    from chronicler.nomads import extract_nomad_metrics
+    nomads = extract_nomad_metrics(bundles)
+    if nomads.get("runs"):
+        report["nomads"] = nomads
 
     report["anomalies"] = detect_anomalies(report)
     return report

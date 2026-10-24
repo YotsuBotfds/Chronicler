@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useLiveConnection } from "../useLiveConnection";
+import { civRowAt, civStatSeries } from "../../lib/civRows";
 
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
@@ -315,6 +316,37 @@ describe("useLiveConnection", () => {
 
     const lastSnap = result.current.bundle?.history[0];
     expect(lastSnap?.civ_stats["CivA"]?.military).toBe(9);
+  });
+
+  it("accumulates turn messages that leave a dead civ out, and ignores a set for it", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    const civ = (regions: string[], treasury: number) => ({
+      population: regions.length ? 10 : 0, military: 5, treasury, regions, alive: regions.length > 0,
+      tech_era: "tribal", leader_name: "L",
+    });
+    const turns = [
+      { A: civ(["a"], 1), B: civ(["b"], 7) },
+      { A: civ(["a"], 2), B: civ([], 8) },  // B's final row
+      { A: civ(["a"], 3) },                // B is left out from here on
+    ];
+    act(() => {
+      turns.forEach((civ_stats, index) => ws.simulateMessage({
+        type: "turn", turn: index + 1, civ_stats, region_control: {}, relationships: {},
+        events: [], named_events: [], chronicle_text: "",
+      }));
+    });
+    const history = result.current.bundle!.history;
+    expect(history.map((s) => Object.keys(s.civ_stats))).toEqual([["A", "B"], ["A", "B"], ["A"]]);
+    expect(civRowAt(history, "B", 3)).toMatchObject({ turn: 2, recorded: false });
+    expect(civStatSeries(history, "B", "treasury")).toEqual([7, 8, null]);
+
+    act(() => {
+      ws.simulateMessage({ type: "ack", command: "set", detail: "Set", still_paused: true, civ: "B", stat: "military", value: 9 });
+    });
+    expect(result.current.bundle!.history[2].civ_stats).not.toHaveProperty("B");
   });
 
   it("sets error state on error message", async () => {

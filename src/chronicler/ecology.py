@@ -408,7 +408,9 @@ def compute_resource_yields(
         yields[slot] = (base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
                         * yield_multiplier(world, region, rtype))
 
-    return yields
+    # nomads.food_yields returns ``yields`` itself unless --nomads (the herd food hook).
+    from chronicler.nomads import food_yields
+    return food_yields(world, region, yields, season_id)
 
 
 # --- Goods harvest units ------------------------------------------------------

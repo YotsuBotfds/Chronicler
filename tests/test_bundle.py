@@ -223,7 +223,8 @@ class TestBundleAssembly:
         assert meta["scenario_name"] is None
         assert "generated_at" in meta
         assert "total_turns" in meta
-        assert meta["bundle_version"] == 4
+        assert meta["bundle_version"] == 5
+        assert bundle["pruned_civ_stats"] == {}
 
     def test_events_timeline_serialized(self, sample_world):
         from chronicler.models import Event
@@ -660,14 +661,18 @@ class TestBundleSize:
         execute_run(args)
         bundle_path = tmp_path / "chronicle_bundle.json"
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
-        # M41 added wealth column (~8MB for 500 turns). Bundle optimization deferred.
+        # M41 added wealth column (~8MB for 500 turns).
         # Wave 3 defaults (epidemiology, finance, diplomacy on): 37.45MB, from
-        # 17.57MB with them off. Their own snapshot fields add about 3MB; the
-        # rest is this world founding 20 polities over the run instead of 11,
-        # because every snapshot keeps every civ that ever existed in civ_stats
-        # and the pairwise tables. Rows for dead civs are 21.6 of the 26.6MB
-        # those fields take; pruning them is the deferred optimization.
-        assert size_mb < 40, f"Bundle is {size_mb:.2f}MB, expected < 40MB"
+        # 17.57MB with them off, mostly because this world founds 20 polities
+        # over the run (about 5.6 alive per turn) and every snapshot kept every
+        # civ that ever existed in civ_stats and the pairwise tables.
+        # Bundle version 5 leaves dead civs out of the snapshots
+        # (docs/performance/dead-civ-pruning.md): 20.29MB.
+        # Techniques on by default (docs/integration/techniques-default.md) add
+        # per-turn practice history; with pruning this world writes 20.07MB on
+        # the native runtimes and 22.84MB on the Python (no-Rust) path, whose
+        # pure-Python ecology founds a different set of polities.
+        assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,8 @@ The source is a bundle written with every default-off system on, for example
         --epidemiology --finance --diplomacy --techniques --maritime \\
         --worldgen procedural --regions 48 --civs 10 --output DIR/chronicle.md
 
-The fixture keeps every N-th history snapshot (default 8) (and the last one) with its
+The fixture keeps every N-th history snapshot (default 8), the last one and,
+for a version-5 bundle, each snapshot holding a dead civ's final row, with its
 ``epidemics``, ``finance``, ``diplomacy``, ``techniques`` and ``maritime``
 fields exactly as exported, the snapshot keys the shell reads, the system
 events (and the events they cite, so provenance resolves), the region and
@@ -46,9 +47,21 @@ SYSTEM_EVENT_TYPES = {
 }
 
 
+def _final_row_positions(history: list[dict]) -> set[int]:
+    """Snapshots that hold a civ's last row before it leaves the history.
+
+    Version-5 bundles leave dead civs out of later snapshots; keeping the
+    snapshot with each one's final row keeps its death in the fixture.
+    """
+    return {i for i in range(len(history) - 1)
+            if set(history[i]["civ_stats"]) - set(history[i + 1]["civ_stats"])}
+
+
 def trim(bundle: dict, every: int) -> dict:
     history = bundle["history"]
-    keep = [snap for i, snap in enumerate(history) if i % every == 0 or i == len(history) - 1]
+    final_rows = _final_row_positions(history)
+    keep = [snap for i, snap in enumerate(history)
+            if i % every == 0 or i == len(history) - 1 or i in final_rows]
     snapshots = []
     for snap in keep:
         out = {key: snap[key] for key in SNAPSHOT_KEYS if key in snap}

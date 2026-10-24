@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { Civilization, TurnSnapshot, CivSnapshot } from "../types";
 import { factionColor } from "../lib/colors";
 import { ERA_LABELS } from "../lib/format";
+import { civDisplayRow, civStatSeries } from "../lib/civRows";
 
 interface FactionDashboardProps {
   civilizations: Civilization[];
@@ -20,7 +21,7 @@ function Sparkline({
   color,
   maxVal,
 }: {
-  data: number[];
+  data: (number | null)[];
   currentTurn: number;
   color: string;
   maxVal: number;
@@ -29,26 +30,39 @@ function Sparkline({
   const h = 24;
   if (data.length === 0) return null;
 
-  const points = data
-    .map((v, i) => {
-      const x = (i / Math.max(data.length - 1, 1)) * w;
-      const y = h - (v / Math.max(maxVal, 1)) * h;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  // One polyline per run of recorded values: a civ that is not founded yet,
+  // or dead and left out of later snapshots, has no line there.
+  const segments: string[][] = [];
+  let current: string[] | null = null;
+  data.forEach((v, i) => {
+    if (v === null) {
+      current = null;
+      return;
+    }
+    if (current === null) {
+      current = [];
+      segments.push(current);
+    }
+    const x = (i / Math.max(data.length - 1, 1)) * w;
+    const y = h - (v / Math.max(maxVal, 1)) * h;
+    current.push(`${x},${y}`);
+  });
 
   const markerX =
     ((currentTurn - 1) / Math.max(data.length - 1, 1)) * w;
 
   return (
     <svg width={w} height={h} className="inline-block">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        opacity="0.8"
-      />
+      {segments.map((points, index) => (
+        <polyline
+          key={index}
+          points={points.join(" ")}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          opacity="0.8"
+        />
+      ))}
       <line
         x1={markerX}
         y1={0}
@@ -68,24 +82,24 @@ export function FactionDashboard({
   currentTurn,
 }: FactionDashboardProps) {
   const statSeries = useMemo(() => {
-    const result: Record<string, Record<string, number[]>> = {};
+    const result: Record<string, Record<string, (number | null)[]>> = {};
     for (const civ of civilizations) {
       result[civ.name] = {};
       for (const key of STAT_KEYS) {
-        result[civ.name][key] = history.map(
-          (snap) => snap.civ_stats[civ.name]?.[key] ?? 0,
-        );
+        result[civ.name][key] = civStatSeries(history, civ.name, key);
       }
     }
     return result;
   }, [civilizations, history]);
 
-  const currentSnapshot = history.find((s) => s.turn === currentTurn);
 
   return (
     <div className="space-y-3 p-3 overflow-y-auto">
       {civilizations.map((civ) => {
-        const civSnap = currentSnapshot?.civ_stats[civ.name];
+        // A civ left out of this snapshot after it died shows its final row.
+        const civSnap = history.some((s) => s.turn === currentTurn)
+          ? civDisplayRow(history, civ.name, currentTurn)
+          : null;
         const alive = civSnap?.alive ?? true;
         const color = factionColor(civ.name);
 

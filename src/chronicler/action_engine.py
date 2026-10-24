@@ -204,7 +204,12 @@ def _resolve_expand(civ: Civilization, world: WorldState, acc=None) -> Event:
         unclaimed = expansion_candidates(world, civ, unclaimed)
     # Filter out harsh terrain if below IRON era
     if not _era_at_least(civ.tech_era, TechEra.IRON) and civ.active_focus != "exploration":
-        unclaimed = [r for r in unclaimed if r.terrain not in HARSH_TERRAINS]
+        harsh = HARSH_TERRAINS
+        if getattr(world, "nomads", None) is not None:
+            # Nomads: herders range over desert and tundra in any era.
+            from chronicler.nomads import harsh_terrains
+            harsh = harsh_terrains(world, civ, HARSH_TERRAINS)
+        unclaimed = [r for r in unclaimed if r.terrain not in harsh]
     expand_mil_thresh = int(get_override(world, K_EXPAND_MILITARY_THRESHOLD, 30))
     if unclaimed and civ.military >= expand_mil_thresh:
         target = rng.choice(unclaimed)
@@ -1234,6 +1239,14 @@ class ActionEngine:
                 if weights[action] > 0:
                     weights[action] *= mod
             buckets.record("diplomacy", weights)
+        # Nomads contributor bucket (raiders and hordes facing hostile settled
+        # neighbours), pre-clamped to [1/1.5, 1.5]; the global cap still applies.
+        if getattr(self.world, "nomads", None) is not None:
+            from chronicler.nomads import weight_modifiers as nomad_weight_modifiers
+            for action, mod in nomad_weight_modifiers(civ, self.world).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+            buckets.record("nomads", weights)
 
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):

@@ -14,6 +14,7 @@ from chronicler.interactive import VALID_STATS, CORE_STATS
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
+from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, SnapshotPruner, restore_history
 
 _SUPPORTED_NARRATORS = {"local", "api", "gemini"}
 _SUPPORTED_AGENT_MODES = {"off", "demographics-only", "shadow", "hybrid"}
@@ -56,7 +57,7 @@ def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
     if not isinstance(era_reflections, dict):
         raise ValueError("Bundle era_reflections must be an object")
 
-    return {
+    validated = {
         "world_state": WorldState.model_validate(payload["world_state"]).model_dump(mode="json"),
         "history": [
             TurnSnapshot.model_validate(snapshot).model_dump(mode="json")
@@ -75,6 +76,12 @@ def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
         "era_reflections": era_reflections,
         "metadata": metadata,
     }
+    # Version 5: the omitted rows of dead civs travel with the history so
+    # narration can restore them (snapshot_pruning.restore_history).
+    pruned = payload.get(PRUNED_CIV_STATS_KEY)
+    if isinstance(pruned, dict):
+        validated[PRUNED_CIV_STATS_KEY] = pruned
+    return validated
 
 
 def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
@@ -89,7 +96,7 @@ def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(current_turn, int):
         current_turn = max(history_turns, default=bundle.get("world_state", {}).get("turn", 0))
 
-    return {
+    init = {
         "type": "init",
         "world_state": bundle.get("world_state", {}),
         "history": history,
@@ -101,6 +108,9 @@ def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "metadata": metadata,
         "current_turn": current_turn,
     }
+    if PRUNED_CIV_STATS_KEY in bundle:
+        init[PRUNED_CIV_STATS_KEY] = bundle[PRUNED_CIV_STATS_KEY]
+    return init
 
 
 class LiveServer:
@@ -282,7 +292,12 @@ class LiveServer:
 
         all_events = [Event.model_validate(e) for e in init_data.get("events_timeline", [])]
         all_named = [NamedEvent.model_validate(e) for e in init_data.get("named_events", [])]
-        all_history = [TurnSnapshot.model_validate(s) for s in init_data.get("history", [])]
+        # A loaded version-5 bundle carries its dead civs' omitted rows:
+        # restore them so curation reads the history the run held.
+        all_history = [
+            TurnSnapshot.model_validate(s)
+            for s in restore_history(init_data.get("history", []), init_data.get(PRUNED_CIV_STATS_KEY))
+        ]
         seed = init_data.get("metadata", {}).get("seed", 0)
         range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
 
@@ -1124,7 +1139,7 @@ def run_live(
         )
         _diplomacy = getattr(args, "diplomacy", None)
         set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
-        # Techniques: new live worlds follow the CLI default (--techniques opts in).
+        # Techniques: new live worlds follow the CLI default (--no-techniques opts out).
         from chronicler.techniques import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
         )
@@ -1136,6 +1151,18 @@ def run_live(
         )
         _maritime = getattr(args, "maritime", None)
         set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
+        # Great-person agendas: new live worlds follow the CLI default (--gp-agendas opts in).
+        from chronicler.gp_agendas import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
+        )
+        _gp_agendas = getattr(args, "gp_agendas", None)
+        set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
+        # Nomads: new live worlds follow the CLI default (--nomads opts in).
+        from chronicler.nomads import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
+        )
+        _nomads = getattr(args, "nomads", None)
+        set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (
@@ -1170,10 +1197,12 @@ def run_live(
 
     init_sent = [False]
     world_ref = [world]
+    # Turn messages leave dead civs out, as the bundle's history does.
+    snapshot_pruner = SnapshotPruner(record_tails=False)
 
     def _serialize_snapshot(snapshot, chronicle_text, events, named_events):
         """Serialize turn data to a dict for the WebSocket protocol."""
-        snap_dict = snapshot.model_dump(mode="json")
+        snap_dict = snapshot_pruner.prune(snapshot.model_dump(mode="json"))
         snap_dict["type"] = "turn"
         snap_dict["chronicle_text"] = chronicle_text
         snap_dict["events"] = [e.model_dump(mode="json") for e in events]

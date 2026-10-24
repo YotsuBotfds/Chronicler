@@ -2,9 +2,199 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
+> **Last updated:** 2026-10-24 (`integrate/wave-5`: techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Dead civs leave the history snapshots, bundle version 5 (2026-10-24, `perf/prune-dead-civ-snapshots`)
+
+`perf/prune-dead-civ-snapshots` from `integrate/wave-5` (`7fbe8c0`). This is a
+bundle format change, not a simulation change. A snapshot now records a civ
+only if it holds a region, an exile modifier can restore it, or it was live in
+the previous snapshot (its final row). The first snapshot records every civ.
+Other civs' `civ_stats` rows, `capitals` entries and pairs (`relationships`,
+`per_pair_accuracy`, `perception_errors`) are left out of the bundle and of the
+live turn stream. `world_state` and the in-memory history are untouched.
+Dead civs' treasuries keep growing (`phase_production` pays every record). The
+new top-level `pruned_civ_stats` stores those drifts as runs, and
+`snapshot_pruning.restore_bundle` rebuilds the version-4 `civ_stats` exactly.
+Validation, analytics, re-narration and the report scripts restore; the viewer
+reads gaps through `viewer/src/lib/civRows.ts`. Details:
+`docs/performance/dead-civ-pruning.md`.
+
+- **Sizes:**
+  - size-guard world: 37.45 MiB -> 20.29 MiB; the guard is now < 21 MB;
+  - 500-turn hybrid, seed 42: 12.51 -> 10.96 MiB;
+  - procedural 48x10, seed 7, 500 turns hybrid: 44.79 -> 43.41 MiB (11
+    polities; its pairs were already living-only);
+  - subset batch: -6.2%.
+- **Identity:**
+  - Subset gate (42-61, hybrid): the branch report is identical to the base
+    apart from the batch path, comparator NO REGRESSION. So is the base batch
+    converted to version 5 and re-validated.
+  - 2,141 non-bundle files are byte-identical, including every `state.json`.
+    Every bundle equals the conversion of its base bundle, apart from
+    `generated_at`.
+  - Without the restore, the era and arc metrics change (dead civs' series),
+    so the oracles must restore.
+  - The size-guard world's `state.json` and chronicle are identical to the
+    base.
+- **Fixtures:** `corrected_artifacts_dead_civ_pruning_2026_10.json` rolls the
+  artifact oracle forward (only `chronicle_bundle.json`, +22 bytes in each of
+  the three workloads; none prunes a civ). The pre-pruning projection still
+  matches the frozen food-balance artifacts. The viewer systems fixture was
+  regenerated from the same run.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,791 passed, 3 skipped (base 5,759).
+  - Viewer: 210 tests (base 199), lint and build pass.
+  - Headless Chromium on the version-5 size-guard bundle: the inspector keeps
+    a dead civ's final row past its death, chart lines end at the last row, no
+    console errors.
+  - `-m slow`: 11 passed, 3 skipped.
+  - No-Rust environment: 5,593 passed, 201 skipped (base 5,561 / 201).
+  - Offline oracle lane (PR #19 guard fix applied locally only): 1,803
+    passed, 8 skipped, 2 deselected, guard PASS.
+- **Open:**
+  - The 200 x 500 gate was not run.
+  - In-memory snapshots still compute dead civs' pair tables (CPU only).
+  - Dead civs' income drift inflates era-oracle inflection counts (left as
+    is).
+
+## Great-person agendas (2026-10-24, `feat/great-person-agendas`, default off)
+
+`feat/great-person-agendas` from `integrate/wave-4` (`1a6cacb`), merged with
+`705fe2e` (no rebase), which is the identity and gate base. Great persons
+declare agendas settled by the M66b ruler-ambition kernel (ten kinds
+appended to `AmbitionType`; `src/chronicler/gp_agendas.py`,
+`gp_agendas_state.py`). Generals campaign for a region (WAR bias, renown,
+agitation in peacetime) or seize the throne from a weak ruler through the
+existing `general` succession path, citing the grievance or ambition;
+merchants open or protect a trade route, found a trading house or, with
+finance, lend to the crown; prophets spread the faith (preaching adds to
+the conversion signal) or found a pilgrimage shrine; scientists vow the
+next era or, with techniques, steer an invention. Loyalty, conspiracy,
+partnership, opposition and feud bonds change coup odds, faction influence
+and who backs whom in a succession crisis. Biases ride the capped
+governance bucket. Switch `--gp-agendas` (world field, gate forwarding,
+dormant field omitted). Details: `docs/integration/great-person-agendas.md`.
+
+- **Identity:** switch off (default and `--no-gp-agendas`) is
+  byte-identical to `705fe2e`: 30 files over seeds 42 and 7, agents off
+  and hybrid, and the 2,164-file subset gate batch (reports differ only in
+  the batch path). No Rust changes.
+- **Tests:** `pytest -m "not slow" -n 2` 5,759 passed, 3 skipped (base
+  5,707); offline oracle lane (PR #19 guard fix applied locally only)
+  1,771 passed, 8 skipped, 2 deselected, guard PASS; no-Rust environment
+  5,561 passed, 201 skipped (base 5,510 / 200).
+- **Subset gate, switch on** (seeds 42-61 and 62-81, hybrid, new defaults):
+  PASS, comparator NO REGRESSION, 0 extinct; artifacts PARTIAL on 62-81
+  (loss rate below band, informational). The base's `civ_survival`
+  regression FAIL (5 of 20 seeds keep all four civs) is PASS on the branch
+  (4 of 20).
+- **Effects (hybrid 42-61, per run, off / on):** conversions 734 / 959,
+  artifacts 16.1 / 20.7, wars 2.95 / 2.95, all coups 7.05 / 7.25, state
+  defaults 1.30 / 0.80. Agent rebellions 1,504 / 1,871, carried by a few
+  worlds (median seed ratio 0.91); preaching is the largest single lever.
+- **Cut:** artists (no such role), persecution and toleration (no reset
+  owner for the persecution signal), Rust, viewer panels, ruler legitimacy
+  from agenda outcomes.
+- **Open:** the full 200 x 500 gate (required before any default flip);
+  the agent-rebellion tail; scientists rarely succeed inside their window.
+## Pastoral and nomadic peoples (2026-10-24, `feat/nomads`, default off)
+
+Branch `feat/nomads` from `integrate/wave-4` (`c5f4df4`, PR #21), default
+off behind `--nomads` (`WorldState.nomads`). No Rust change. See
+[`docs/integration/nomads.md`](../../integration/nomads.md).
+
+- **Built.** Subsistence modes per civ (sedentary, agro-pastoral, nomadic)
+  seeded from the pastoral suitability of a civ's land (steppe, desert and
+  tundra favour herding), and for later polities at their first tick; herds
+  per region with logistic growth on pasture, drought die-off, dzud winters
+  and transhumance between seasonal pastures; herd food through one hook
+  (`ecology.compute_resource_yields` -> `nomads.food_yields`, identity while
+  off); raids on settled neighbours fought with the campaign layer's power
+  terms (plunder, deaths, stability, colder dispositions, a border grievance
+  with diplomacy on); tribute pacts that spare the payer, lapse or are
+  repudiated; hordes kept as federations (a khan unites weaker pastoral
+  neighbours or takes command of his federation), riding to war through the
+  campaign WAR path with conquest aims and breaking apart when the founding
+  khan dies; sedentarization after a generation on farmland, with asabiya
+  won on the steppe and lost on farmland; EXPAND into desert and tundra for
+  herders; loose hold of empty pasture. Every nomad event cites its causes;
+  wars between a raided pair cite the raid, secession and collapse a broken
+  horde.
+- **Cut.** Pastoral goods in the goods economy (no clean slot among the
+  eight fixed goods), mounted mobility for campaign armies, nomad-on-nomad
+  raiding, re-nomadization of settled peoples, off-mode herd food with the
+  native ecology runtime (one food hook), viewer panels.
+- **Evidence.** Switch off is byte-identical to `c5f4df4`: 99 files
+  (template seeds 42/7/1234 off 300 / hybrid 200, procedural 48x10 seeds 7
+  and 13 off 200 / hybrid 120), 0 differences with the default and with
+  `--no-nomads` on the final head; the switch-off subset batch matches the
+  base batch file for file (2,160 run files and the normalized reports);
+  with the switch on, the 8 gate seeds that never have a herder are
+  outcome-identical to the base. Native `pytest -m "not slow" -n 2` 5,758
+  passed, 3 skipped (base 5,707 / 3); no-Rust lane 5,560 passed, 201
+  skipped; bounded Python oracle lane (PR #19's guard fix applied locally
+  only) 1,768 passed, 8 skipped, guard PASS. Subset gate with `--nomads`
+  against `c5f4df4`: PASS, NO REGRESSION, 0 extinct worlds; artifacts PASS
+  -> PARTIAL (loss rate 1.5% against a 2% floor, one diverged seed);
+  regression keeps the base's own civ_survival FAIL. No Rust change, so no
+  `cargo test`.
+- **Numbers.** Procedural 48x10 worlds with steppe (3 seeds x off/hybrid,
+  300 turns): per run 1.8 nomadic and 3.2 pastoral polities at once, 26
+  raids through and 4 driven off, 5 tributes, 2.7 hordes (16 over the six
+  runs, 11 broken by the khan's death), 4 regions taken by herders, 1.2
+  sedentarizations, 10 dzuds; polities alive 15.2 on against 13.0 off; no
+  world extinct.
+- **Not run / open.** The full 200-seed gate with `--nomads`. In a
+  supplementary seed set (62-81) the needs oracle fails with the switch on
+  (11 seeds against 12 required; base at exactly 12); in another (82-101)
+  arcs move PASS -> FAIL on the dominance ceiling (41.2% against 40%). Both
+  are recorded in the integration doc. They concern runs with the switch on
+  only (switch-off output is byte-identical), and both block any default
+  change until the full gate is run.
+## Techniques on by default (2026-10-24, `feat/techniques-default`)
+
+`feat/techniques-default` from `integrate/wave-4` (`c5f4df4`) re-gates
+techniques on the Wave 3 defaults (epidemiology, finance and diplomacy on)
+and turns them on for new worlds (`594aedb`); `--no-techniques` opts out and
+saved worlds keep their setting. No oracle, threshold or technique parameter
+changes. Evidence: `docs/integration/techniques-default.md`.
+
+- **Subset gates** (seeds 42-61, 62-81, 82-101, 102-121, with and without
+  `--techniques`): every set passes with no comparator regression except
+  62-81, where the required needs oracle reads 11 of 20 with techniques (12
+  required) and 12 without. Over the 80 seeds both arms qualify 64; 7 seeds
+  are lost and 7 gained (McNemar p = 1). Pooled over every snapshot,
+  techniques do not weaken the autonomy-rebellion or material-migration
+  links. Seeds 62-81 have half the other sets' agent rebellion rate in both
+  arms. 0 of 160 worlds extinct.
+- **Needs-oracle finding (open, not changed):** a rebellion raises the
+  rebel's autonomy by 0.10 (since `aff1b18`), so in 41% of autonomy pairs
+  only the high-autonomy agent had just rebelled; the pooled autonomy link
+  reads 0.88 (backwards) on the 200-turn defaults and the oracle passes by
+  best-of selection over snapshots and pairings.
+- **Full gate** (200 x 500, hybrid, `--techniques` on the defaults): PASS
+  strict, 0 extinct worlds, `validation_compare` NO REGRESSION against the
+  all-on full report, which a `--no-techniques` full gate at `594aedb`
+  reproduces exactly. Needs 188 of 200 (191 off), migration 0.0512 against
+  the 0.05 floor (0.0524 off), all founders surviving 0.110 (0.155 off).
+- **Eras of living civs, Bronze or later** (full gate, off / on): 8% / 78%
+  at turn 100, 11% / 82% at 200, 11% / 84% at 500 (Medieval 2 / 19 civs).
+  Tech advances 5.4 / 7.1 per run, regressions 4.9 / 1.5.
+- **Tests:** `pytest -m "not slow" -n 2` 5,707 passed, 3 skipped; no-Rust
+  5,510 passed, 200 skipped after the 500-turn bundle-size limit moved from
+  35 to 40 MiB (`ae832c6`: 33.70 off, 36.56 on on the Python oracle path;
+  `integrate/wave-4`'s `1078367` raised it the same way for the Wave 3
+  defaults and is merged); offline oracle lane (PR
+  #19's guard fix applied locally only) 1,721 passed, 7 skipped, guard PASS.
+  The frozen benchmark workloads pin techniques off; golden fixtures
+  unchanged (without the pin 3 golden tests move).
+- **Open:** migration is the tightest margin; the needs oracle's autonomy
+  pairing needs its own calibration; trade actions rise about eightfold and
+  expansions fall by three fifths with moving eras; one living civ in six is
+  still tribal at turn 500.
 
 ## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
 
@@ -161,10 +351,6 @@ off behind `--finance` (saved on the world). Details, numbers and stories:
   slow population declines; finance makes treasuries homeostatic. Decide the
   oracle treatment, then re-gate after the food-balance work lands. The
   200-seed full gate has not been run with finance on.
-> **Last updated:** 2026-10-24 (food balance, `fix/food-balance`)
-
----
-
 ## Food balance (2026-10-24)
 
 Branch `fix/food-balance` on `integrate/wave-2` (`db26681`); details, numbers

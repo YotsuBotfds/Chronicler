@@ -326,6 +326,24 @@ def _maritime_snapshot_fields(world) -> dict:
     return {"maritime": snapshot_summary(world)}
 
 
+def _gp_agendas_snapshot_fields(world) -> dict:
+    """Great-person agenda per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.gp_agendas_state import gp_agendas_on
+    if not gp_agendas_on(world):
+        return {}
+    from chronicler.gp_agendas import snapshot_summary
+    return {"gp_agendas": snapshot_summary(world)}
+
+
+def _nomads_snapshot_fields(world) -> dict:
+    """Nomads per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.nomads_state import nomads_on
+    if not nomads_on(world):
+        return {}
+    from chronicler.nomads import snapshot_summary
+    return {"nomads": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -587,6 +605,24 @@ def execute_run(
     if maritime is not None:
         from chronicler.maritime import set_maritime_enabled
         set_maritime_enabled(world, maritime)
+    # Great-person agendas switch (persisted on the world): generals,
+    # merchants, prophets and scientists pursue objectives of their own.
+    gp_agendas = getattr(args, "gp_agendas", None)
+    if gp_agendas is None and fresh_world:
+        from chronicler.gp_agendas import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT
+        gp_agendas = _GP_AGENDAS_DEFAULT
+    if gp_agendas is not None:
+        from chronicler.gp_agendas import set_gp_agendas_enabled
+        set_gp_agendas_enabled(world, gp_agendas)
+    # Nomads switch (persisted on the world): subsistence modes seeded from
+    # terrain, herds, raids and tribute, hordes and sedentarization.
+    nomads = getattr(args, "nomads", None)
+    if nomads is None and fresh_world:
+        from chronicler.nomads import DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT
+        nomads = _NOMADS_DEFAULT
+    if nomads is not None:
+        from chronicler.nomads import set_nomads_enabled
+        set_nomads_enabled(world, nomads)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -838,6 +874,8 @@ def execute_run(
             **_diplomacy_snapshot_fields(world),
             **_techniques_snapshot_fields(world),
             **_maritime_snapshot_fields(world),
+            **_gp_agendas_snapshot_fields(world),
+            **_nomads_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1348,12 +1386,24 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Technology as diffusing techniques: per-region practice of about 30 "
                              "techniques spreads along contact flows, is invented from research "
                              "inputs and decays without practitioners; the era is derived from it "
-                             "(default off for new worlds; saved on resume)")
+                             "(default on for new worlds; --no-techniques opts out; saved on resume)")
     parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
                         help="Maritime layer: fleets built at coastal ports, sea-zone control, "
                              "blockades of enemy sea lanes and sea supply, escorted crossings and "
                              "amphibious landings, piracy and colonization by sea (default off for "
                              "new worlds; saved on resume)")
+    parser.add_argument("--gp-agendas", action=argparse.BooleanOptionalAction, default=None,
+                        help="Great-person agendas: generals seek campaigns and may seize the throne, "
+                             "merchants open and protect trade routes, found trading houses and lend "
+                             "to the crown, prophets spread the faith and found shrines, scientists "
+                             "pursue the next era or an invention; alliances and rivalries weigh on "
+                             "coups and succession (default off for new worlds; saved on resume)")
+    parser.add_argument("--nomads", action=argparse.BooleanOptionalAction, default=None,
+                        help="Pastoral and nomadic peoples: subsistence modes seeded from terrain "
+                             "(steppe, desert and tundra favour herding), herds with drought and "
+                             "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
+                             "that fragment on his death, and sedentarization of conquerors (default "
+                             "off for new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
@@ -1416,6 +1466,10 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
     with open(bundle_path) as f:
         bundle = _json.load(f)
+    # Version-5 histories leave dead civs out: restore their rows so curation
+    # and narration read the history the run itself held in memory.
+    from chronicler.snapshot_pruning import restore_bundle
+    bundle = restore_bundle(bundle)
 
     # Deserialize events, named_events, history
     events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]

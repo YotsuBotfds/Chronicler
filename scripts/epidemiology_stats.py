@@ -98,7 +98,9 @@ def _run_stats(run: Path) -> dict:
     stats["regions_affected"] = len(regions)
     bundle_path = run / "chronicle_bundle.json"
     if bundle_path.exists():
-        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        from chronicler.snapshot_pruning import restore_bundle
+        # Version-5 histories leave dead civs out; restore every civ row.
+        bundle = restore_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))
         history = bundle.get("history", [])
         pops = [sum(c.get("population", 0) for c in snap.get("civ_stats", {}).values()) for snap in history]
         stats["population"] = {"first": pops[0] if pops else None, "min": min(pops) if pops else None,

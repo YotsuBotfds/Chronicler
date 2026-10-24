@@ -85,6 +85,19 @@ class TestPhaseProduction:
             # Treasury should increase by economy-based income
             assert civ.treasury >= old_treasuries[civ.name]
 
+    def test_civ_without_regions_earns_nothing(self, sample_world):
+        fallen = sample_world.civilizations[1]
+        for region in sample_world.regions:
+            if region.controller == fallen.name:
+                region.controller = None
+        fallen.regions = []
+        fallen.economy = 80
+        fallen.last_income = 7
+        treasury = fallen.treasury
+        phase_production(sample_world)
+        assert fallen.treasury == treasury
+        assert fallen.last_income == 0
+
     def test_population_bounded(self, sample_world):
         # Set population to max
         sample_world.civilizations[0].population = 100

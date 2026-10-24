@@ -79,7 +79,10 @@ TESTS = [
     "tests/test_bridge_contract.py",
     "tests/test_diplomacy.py",
     "tests/test_techniques.py",
-    "tests/test_maritime.py"
+    "tests/test_maritime.py",
+    "tests/test_gp_agendas.py",
+    "tests/test_nomads.py",
+    "tests/test_snapshot_pruning.py"
 ]
 EXCLUDED = "Cross-process determinism/replay, POSIX persistence, native and broader socket/subprocess suites"
 parser = argparse.ArgumentParser(description=__doc__)

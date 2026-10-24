@@ -1,0 +1,147 @@
+{
+  "provenance": {
+    "derived_from": [
+      "corrected_food_balance_2026_10.json",
+      "corrected_artifacts_food_balance_2026_10.json"
+    ],
+    "base_revision": "7fbe8c0",
+    "description": "Artifact oracle rolled forward for bundle version 5 (dead civilizations pruned from the history snapshots; docs/performance/dead-civ-pruning.md). This is a format change, not a simulation correction: the turn oracle corrected_food_balance_2026_10.json is unchanged and still live, and every emitted file except chronicle_bundle.json is byte-identical to corrected_artifacts_food_balance_2026_10.json, which remains frozen. Captured with the exact capture loop of tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled; bundle bytes are the scripts/third_wave_controls.py projection, which keeps version 5 and pruned_civ_stats.",
+    "format_changes": [
+      {
+        "id": "BUNDLE-V5-DEAD-CIV-PRUNING",
+        "summary": "metadata.bundle_version 4 -> 5 and a top-level pruned_civ_stats object after history. No golden workload has a dead civilization, so no row is pruned: pruned_civ_stats is {} and the history is byte-identical (the pre_pruning projection of each new bundle reproduces the old hash exactly).",
+        "artifact_files": {
+          "single": {
+            "chronicle_bundle.json": {
+              "from": {
+                "sha256": "870897476f1696ab598fb4f2328a0036219da18519b3b4201a372d549c719e79",
+                "bytes": 73595
+              },
+              "to": {
+                "sha256": "268c294713025f0f21d09e01131a4b4ca7d36c0fbda45dcd515164c087296ff3",
+                "bytes": 73617
+              }
+            }
+          },
+          "standard": {
+            "chronicle_bundle.json": {
+              "from": {
+                "sha256": "81730e721ec6f20fa7de9463fa101ac039ac7c2e9e8c938e8462047354433c68",
+                "bytes": 860792
+              },
+              "to": {
+                "sha256": "ffa1d3d7950e395de153cddc776044cf56a74e7a29dc5954424e1e8fdc388e60",
+                "bytes": 860814
+              }
+            }
+          },
+          "wide": {
+            "chronicle_bundle.json": {
+              "from": {
+                "sha256": "56d2af454208ef13b006680c47de0d9d3bf37cda5bedf062eaa4755dc9368309",
+                "bytes": 935906
+              },
+              "to": {
+                "sha256": "1c8aee9e38e4d4e217b90637a7dcb0f1f67281e44c1a302c2ec9173ae4966815",
+                "bytes": 935928
+              }
+            }
+          }
+        }
+      }
+    ],
+    "environment": {
+      "python": "3.13.17",
+      "platform": "Linux"
+    },
+    "comparison": "complete emitted file set, byte count and SHA256; no field filtering or tolerance"
+  },
+  "workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "268c294713025f0f21d09e01131a4b4ca7d36c0fbda45dcd515164c087296ff3",
+        "bytes": 73617
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "fc66cac7089b4a190bc9ca3b6f3fcf53a237b0ab24c76a077148dedfdb762c4d",
+        "bytes": 5578
+      },
+      "state.json": {
+        "sha256": "7ce53ad072906f26eb586a2cecfc4ed1f668435f65b0418b5d349d386a0418d6",
+        "bytes": 25666
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "ffa1d3d7950e395de153cddc776044cf56a74e7a29dc5954424e1e8fdc388e60",
+        "bytes": 860814
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "2a978b36804ec3ba1f2480212f9d689ee0b2b38f84c58aa4ad839c71534a1400",
+        "bytes": 25318
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d7a99a48926d3249e331640129bfcaf21ee5b3316109cae3e3b7ca753481177c",
+        "bytes": 18463
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "76a192d335bea83a957c4d4033a875a5d6284ef0943b163daba249a698a414a2",
+        "bytes": 19883
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "97bf6fa9eb0b2174e18a54fd31f9c5c50b985a38e657bd2a5b4ea069e7e88fab",
+        "bytes": 24862
+      },
+      "state.json": {
+        "sha256": "6a7831573dda8de992769458917e84d8b94e7ac22b7efe9dc7d86334d80c08b6",
+        "bytes": 258955
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "1c8aee9e38e4d4e217b90637a7dcb0f1f67281e44c1a302c2ec9173ae4966815",
+        "bytes": 935928
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "68a6e759f6f5c25ed429779d8397a823afd0414b4dd9c6ea10ac713277c36b2a",
+        "bytes": 15730
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "3ecd77a40294bd993320d73e8cbda2792cad66a66ece3ef3d76295d8a9153df7",
+        "bytes": 16274
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "77aa18dc0d10ed5fac56a9d85dc678b2ead0a2e159a81d76e85fd28bf9f3519d",
+        "bytes": 16695
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "dda3d67e15064db89e53151ea147fbfef723c696cd14e578d7d956e41a27a6ad",
+        "bytes": 16123
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "57b7cf3f1df7dbe5edc8c22bcfc3d49b3eb0c87ea6510a3034aba410e1747711",
+        "bytes": 15128
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "2f04968271f35c6f97b68ecc6158125584e0157b72876cae1759d32ebaa3acc3",
+        "bytes": 9787
+      },
+      "state.json": {
+        "sha256": "608e3e097945899cf28bec0c3d228d0fe5796d5e5b4a9cf6fc3d2067d56dc7ae",
+        "bytes": 297920
+      }
+    }
+  }
+}
