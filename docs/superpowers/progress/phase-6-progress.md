@@ -6,6 +6,45 @@
 
 ---
 
+## Food logistics (2026-10-24, `fix/food-logistics`)
+
+Branch `fix/food-logistics` from `integrate/wave-5` (`b7d9ced`), starting from
+the food-balance open items. Details, numbers and every changed expectation:
+[`docs/integration/food-logistics-2026-10.md`](../../integration/food-logistics-2026-10.md).
+
+- **Corrections** (one commit each):
+  - merchants route food by the destination's food price (1 / sufficiency)
+    instead of the destination's own export margin, and never to empty
+    regions (`787ba4e`; native): food deliveries to short regions 30% -> 70%,
+    to empty regions 24% -> 2% (template);
+  - the goods economy gets M34's subsistence floor where no food slot yields
+    (`afe3b3d`; Rust kernel and Python oracle): region-turns below 0.2
+    sufficiency 25% -> 13%.
+- **Recalibration** (own commit, `98ba9a2`): locust swarms 0.15 -> 0.02 per
+  eligible turn (the M35b placeholder gave a swarm in 62% of eligible
+  region-years). Golden oracles rolled forward to
+  `corrected_food_logistics_2026_10*` (`402230e`; standard and wide from turn
+  3); food-balance and dead-civ-pruning fixtures frozen.
+- **Effect** (template, base -> head): fed region-turns 44.6% -> 49.6%, winter
+  shortfall 67% -> 61%, famines 147 -> 137 per run (below 0.25 sufficiency
+  43% -> 32% of them), final population 164 -> 184 (smallest 90 -> 138);
+  procedural 64-region worlds never fall below 625 (492).
+- **Gates:** full 200 x 500 on `98ba9a2` PASS strict, 0 extinct,
+  `validation_compare` NO REGRESSION against the techniques-on full report;
+  migration 0.0514 (base 0.0512, floor 0.05), latest satisfaction 0.611.
+  Subsets 42-61, 62-81 and 82-101 PASS (the base fails needs on 62-81).
+- **Tests:** not-slow 5,859 passed (base 5,844); slow 11 passed; no-Rust
+  5,651 passed / 197 skipped (base 5,637 / 196); offline oracle lane (PR #19
+  guard fix applied locally only) 1,852 passed, guard PASS.
+- **Verified, not changed:** storage caps (rarely bind) and decay;
+  drought/cooling (M34 design); the occupational dead band is real (M53 moved
+  the exit threshold, not the entry one) and its fix feeds worlds best of all,
+  but it lowers migration by about 0.006 per agent-turn, below the strict
+  floor; left open with the measured patch.
+- **Open:** the migration floor versus better-fed worlds; trade packets still
+  carry export margins (food price read live at known markets); non-food
+  routing keeps the activity proxy; the famine definition (any shortfall).
+
 ## Dead civs leave the history snapshots, bundle version 5 (2026-10-24, `perf/prune-dead-civ-snapshots`)
 
 `perf/prune-dead-civ-snapshots` from `integrate/wave-5` (`7fbe8c0`). This is a
