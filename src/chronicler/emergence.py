@@ -785,7 +785,7 @@ def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
     for slot in range(3):
         rtype = region.resource_types[slot]
         if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS):
-            region.resource_suspensions[rtype] = duration
+            region.resource_suspensions[int(rtype)] = duration
     return Event(
         turn=world.turn, event_type="locust_swarm",
         actors=[region.controller] if region.controller else [],
@@ -849,7 +849,7 @@ def _check_collapse(region: Region, world: WorldState, rng) -> Event | None:
     region.endemic_severity = min(0.15, region.endemic_severity + spike)
     for slot in range(3):
         if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS):
-            region.resource_suspensions[region.resource_types[slot]] = duration
+            region.resource_suspensions[int(region.resource_types[slot])] = duration
     return Event(
         turn=world.turn, event_type="mine_collapse",
         actors=[region.controller] if region.controller else [],

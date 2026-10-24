@@ -366,3 +366,27 @@ print(json.dumps({'turn':w.turn,'digest':_digest(_comparison_state(w))}))
         sys.executable, "-c", script, str(tmp_path / "checkpoint.json"),
     ], env=environment, cwd=root, text=True, capture_output=True, check=True)
     assert json.loads(resumed.stdout) == {"turn": 30, "digest": report["turn_digests"][-1]["uninterrupted"]}
+
+
+def test_resumed_state_json_matches_uninterrupted_across_a_suspension(tmp_path):
+    """Resource suspensions are keyed by int: a resumed run's state JSON must
+    match the uninterrupted run byte for byte (ResourceType keys used to
+    serialize as "ResourceType.GRAIN" in memory but "0" after a load)."""
+    seed, turns, split = 3, 24, 6
+    straight = generate_world(seed=seed, num_civs=4, num_regions=8)
+    trace = []
+    for _ in range(turns):
+        replay._advance(straight)
+        trace.append(straight.model_dump_json())
+    resumed = generate_world(seed=seed, num_civs=4, num_regions=8)
+    for _ in range(split):
+        replay._advance(resumed)
+    # This seed has a resource suspension running across the save point.
+    assert any(region.resource_suspensions for region in resumed.regions)
+    assert all(type(k) is int for r in resumed.regions for k in r.resource_suspensions)
+    replay.save_checkpoint(resumed, tmp_path / "checkpoint.json")
+    resumed = replay.load_checkpoint(tmp_path / "checkpoint.json")
+    assert resumed.model_dump_json() == trace[split - 1]
+    for turn in range(split, turns):
+        replay._advance(resumed)
+        assert resumed.model_dump_json() == trace[turn], f"turn {turn + 1}"

@@ -160,7 +160,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 wildfire_loss = get_override(world, K_WILDFIRE_FOREST_LOSS, 0.3)
                 region.ecology.forest_cover = max(0.0, region.ecology.forest_cover - wildfire_loss)
                 wildfire_susp = int(get_override(world, K_WILDFIRE_SUSPENSION_TURNS, 10))
-                region.resource_suspensions[ResourceType.TIMBER] = wildfire_susp
+                region.resource_suspensions[int(ResourceType.TIMBER)] = wildfire_susp
                 events.append(Event(
                     turn=world.turn, event_type="wildfire",
                     actors=[region.controller or "nature"],

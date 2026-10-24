@@ -4,7 +4,7 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "d0fb1a8+occupation-sack",
+    "base_revision": "b63ea62+int-suspension-keys",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
@@ -15,6 +15,22 @@
           "standard": 0,
           "wide": 0
         }
+      },
+      {
+        "id": "RES-SUSP-INT",
+        "summary": "Region.resource_suspensions keys are stored as int (wildfire, locust swarm, mine collapse wrote ResourceType keys, which serialized as 'ResourceType.GRAIN' in memory but '0' after a load).",
+        "workloads": {},
+        "artifact_files": {
+          "standard": [
+            "chronicle_bundle.json",
+            "state.json"
+          ],
+          "wide": [
+            "chronicle_bundle.json",
+            "state.json"
+          ]
+        },
+        "note": "Turn hashes are unchanged (turn snapshots do not carry resource_suspensions); the emitted state.json and chronicle_bundle.json bytes change."
       }
     ],
     "notes": [
@@ -51,8 +67,8 @@
         "bytes": 588
       },
       "chronicle_bundle.json": {
-        "sha256": "2749bfc47d9f4942dc1043d1346c893b73f7df669f06bb03649cecad0ef31e38",
-        "bytes": 819116
+        "sha256": "48bb3c5273a62d179c376aebc5db34b32e87ddf2d353289218d2820a2f05a5a4",
+        "bytes": 819098
       },
       "memories_ashkari_nomads.json": {
         "sha256": "a451ad7a5c45feb94324b921594f18775dfeb43b37b091d63eee693dd6fcb49a",
@@ -71,8 +87,8 @@
         "bytes": 24368
       },
       "state.json": {
-        "sha256": "a5707060e8f6e97a5e6d3e6caeba0d44ef17222f29f6c6ed9e044bc08e454dec",
-        "bytes": 244595
+        "sha256": "e75ad5af6a24fd2e67710fdfc23097bdd292861a5f8a8ed7e38fe6e94e8aef89",
+        "bytes": 244577
       }
     },
     "wide": {
@@ -81,8 +97,8 @@
         "bytes": 500
       },
       "chronicle_bundle.json": {
-        "sha256": "f4714f753f25be91efee823f397edb6c64c08ff4ea526a1e5eadebd13dca27d1",
-        "bytes": 936264
+        "sha256": "a0023da74ddd97cb97fb4432035c2d2fc386ec0e1fbc2f8b957ffcebe1ff4be1",
+        "bytes": 936207
       },
       "memories_ashkari_nomads.json": {
         "sha256": "3c2e3ed64a8c26ad7853cf3f1622930bc0021bb75eb8cd9c30accb1110bd3d3a",
@@ -109,8 +125,8 @@
         "bytes": 9824
       },
       "state.json": {
-        "sha256": "2d4855d7a311013fb699389e0f524c82e7ed2252a46bbb6bcf4c24c5c2d7cda9",
-        "bytes": 298895
+        "sha256": "761e6c23d5ef46bce46414076368dece4e1a91ca7546e017244f6fbe92095b54",
+        "bytes": 298838
       }
     }
   }

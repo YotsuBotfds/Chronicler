@@ -4,7 +4,7 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "d0fb1a8+occupation-sack",
+    "base_revision": "b63ea62+int-suspension-keys",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
@@ -15,6 +15,22 @@
           "standard": 0,
           "wide": 0
         }
+      },
+      {
+        "id": "RES-SUSP-INT",
+        "summary": "Region.resource_suspensions keys are stored as int (wildfire, locust swarm, mine collapse wrote ResourceType keys, which serialized as 'ResourceType.GRAIN' in memory but '0' after a load).",
+        "workloads": {},
+        "artifact_files": {
+          "standard": [
+            "chronicle_bundle.json",
+            "state.json"
+          ],
+          "wide": [
+            "chronicle_bundle.json",
+            "state.json"
+          ]
+        },
+        "note": "Turn hashes are unchanged (turn snapshots do not carry resource_suspensions); the emitted state.json and chronicle_bundle.json bytes change."
       }
     ],
     "notes": [
