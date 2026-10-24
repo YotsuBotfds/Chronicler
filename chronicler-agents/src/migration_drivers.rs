@@ -361,16 +361,22 @@ pub struct MigrationDriverStats {
     /// Decided migrations in which the term was positive.
     pub present: [u32; MIGRATION_TERMS],
     /// Evaluated agents whose best target carries a voluntary pull beyond
-    /// their roots, by driver (frontier, wage, chain): how often each gate
-    /// is open, whatever the agent then chooses.
+    /// their roots, by driver (frontier, wage, chain), whatever the agent
+    /// then chooses.
     pub open: [u32; 3],
+    /// Evaluated agents for whom some neighbour opens the driver's gate,
+    /// before roots: `gate - open` is what the roots hold back.
+    pub gate: [u32; 3],
 }
 
 impl MigrationDriverStats {
-    pub fn count_open_pulls(&mut self, pull: &VoluntaryPull) {
+    pub fn count_open_pulls(&mut self, pull: &VoluntaryPull, gate_open: &[bool; 3]) {
         self.open[0] += (pull.frontier > 0.0) as u32;
         self.open[1] += (pull.wage > 0.0) as u32;
         self.open[2] += (pull.chain > 0.0) as u32;
+        for i in 0..3 {
+            self.gate[i] += gate_open[i] as u32;
+        }
     }
 
     /// Record one decided migration from its positive utility terms.
@@ -404,6 +410,7 @@ impl MigrationDriverStats {
         }
         for i in 0..3 {
             self.open[i] += other.open[i];
+            self.gate[i] += other.gate[i];
         }
     }
 }

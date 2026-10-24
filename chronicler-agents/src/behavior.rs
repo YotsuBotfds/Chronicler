@@ -178,6 +178,9 @@ struct MigrationChoice {
     /// agents without one). It counts in the target choice and is added to
     /// the migrate utility; `opportunity` excludes it.
     voluntary: VoluntaryPull,
+    /// Whether any admissible neighbour opened each driver's gate before
+    /// roots (frontier, wage, chain), for the migration budget.
+    gate_open: [bool; 3],
 }
 
 impl MigrationChoice {
@@ -190,6 +193,7 @@ impl MigrationChoice {
             river: 0.0,
             news: 0.0,
             voluntary: VoluntaryPull::default(),
+            gate_open: [false; 3],
         }
     }
 }
@@ -232,6 +236,7 @@ fn best_migration_target_for_agent(
     let mut best_river = 0.0f32;
     let mut best_news = 0.0f32;
     let mut best_voluntary = VoluntaryPull::default();
+    let mut gate_open = [false; 3];
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -276,7 +281,11 @@ fn best_migration_target_for_agent(
                     adj_peer_wealth: &stats.peer_wealth[adj],
                     adj_peer_count: &stats.peer_count[adj],
                 };
-                pull_toward(m, &regions[region_id], &regions[adj], &inputs).net_of_roots(m.roots)
+                let gross = pull_toward(m, &regions[region_id], &regions[adj], &inputs);
+                gate_open[0] |= gross.frontier > 0.0;
+                gate_open[1] |= gross.wage > 0.0;
+                gate_open[2] |= gross.chain > 0.0;
+                gross.net_of_roots(m.roots)
             }
             None => VoluntaryPull::default(),
         };
@@ -336,6 +345,7 @@ fn best_migration_target_for_agent(
         river: best_river,
         news: best_news,
         voluntary: best_voluntary,
+        gate_open,
     }
 }
 
@@ -775,7 +785,7 @@ pub fn evaluate_region_decisions(
             );
             best_migration_target_for_agent(pool, regions, stats, region_id, slot, mobility.as_ref())
         };
-        pending.migration_drivers.count_open_pulls(&choice.voluntary);
+        pending.migration_drivers.count_open_pulls(&choice.voluntary, &choice.gate_open);
         let best_migration_target = choice.target;
         let migration_opportunity = choice.opportunity;
         if choice.threat_changed {
@@ -2158,7 +2168,8 @@ mod tests {
     fn test_frontier_pull_does_not_reach_elders_dependants_or_other_realms() {
         // Roots at 65 (0.35) exceed the full frontier pull (0.30).
         assert!(frontier_decisions(65, false).migrations.is_empty());
-        assert_eq!(frontier_decisions(65, false).migration_drivers.open[0], 0);
+        let elders = frontier_decisions(65, false).migration_drivers;
+        assert_eq!((elders.gate[0], elders.open[0]), (20, 0), "the gate opens, the roots hold");
         // Dependants move only with their household.
         assert!(frontier_decisions(crate::migration_drivers::MOBILITY_MIN_AGE - 1, false).migrations.is_empty());
         // Settlement is internal: the emptier region belongs to another civ.

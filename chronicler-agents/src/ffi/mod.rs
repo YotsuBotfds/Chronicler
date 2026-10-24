@@ -1504,7 +1504,10 @@ impl AgentSimulator {
     /// Migration budget of the last tick: agents that weighed a move, the
     /// migrations decided before household consolidation, and for each
     /// utility term its summed share (`share_<term>`) and the decisions in
-    /// which it was positive (`present_<term>`). Household followers are
+    /// which it was positive (`present_<term>`). Per voluntary driver
+    /// (frontier, wage, chain): `gate_<driver>`, agents for whom some
+    /// neighbour opens the gate, and `open_<driver>`, agents whose chosen
+    /// target carries that pull beyond their roots. Household followers are
     /// `household_migrations_follow` in `get_household_stats`. Diagnostic
     /// only; production Python does not read it.
     #[pyo3(name = "get_migration_driver_stats")]
@@ -1520,6 +1523,7 @@ impl AgentSimulator {
         }
         for (i, name) in ["frontier", "wage", "chain"].iter().enumerate() {
             m.insert(format!("open_{name}"), d.open[i] as f64);
+            m.insert(format!("gate_{name}"), d.gate[i] as f64);
         }
         m
     }

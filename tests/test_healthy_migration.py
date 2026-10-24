@@ -66,7 +66,8 @@ def test_native_migration_budget_reports_every_term(make_world):
     _, budget = _run(_frontier_world(make_world, internal=True), 1)
     expected = {"evaluated", "decided", "unexplained"}
     expected |= {f"share_{t}" for t in DRIVER_TERMS} | {f"present_{t}" for t in DRIVER_TERMS}
-    expected |= {"open_frontier", "open_wage", "open_chain"}
+    expected |= {f"{kind}_{driver}" for kind in ("open", "gate")
+                 for driver in ("frontier", "wage", "chain")}
     assert set(budget) == expected
     assert budget["evaluated"] > 0
     assert sum(budget[f"share_{t}"] for t in DRIVER_TERMS) == pytest.approx(
