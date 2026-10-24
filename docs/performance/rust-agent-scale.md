@@ -348,7 +348,16 @@ native tick in fast mode at a few seconds per turn (synthetic: 1.5 s at 500K,
 * `cargo test --manifest-path chronicler-agents/Cargo.toml` (debug, no
   debuginfo, separate target directory): 874 passed, 0 failed, 2 ignored
   (the timed regression gate).
-* `cargo test --release --test regression -- --ignored`: @@REGRESSION@@
+* `cargo test --release --test regression -- --ignored` (the M29 timing
+  gate, targets 3 s / 6 s for 500 turns at 6K / 10K agents): **not met, and
+  not met by the base either.** The base binary (built from the `eca9359`
+  export) and this branch's binary ran `regression_6k_24r_under_3s` side by
+  side; after 19 minutes neither had finished the first of its three
+  500-turn runs, so they were stopped. The gate world has no spatial
+  attractors (drift is skipped, every agent sits at (0.5, 0.5)); a sampled
+  stack of the branch run was in the unchanged decision phase. The targets
+  date from the M29 model on a 9950X; the gate needs re-baselining
+  separately.
 * New Rust tests: `spatial::scale_equivalence_tests` (bit identity of the
   block path, sorting of hand-built cells, fast-grid bounds, fast-sample
   determinism) and `tests/test_agent_scale_mode.rs` (exact marriage against
