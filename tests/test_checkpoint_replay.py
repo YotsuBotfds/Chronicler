@@ -373,12 +373,17 @@ def test_resumed_state_json_matches_uninterrupted_across_a_suspension(tmp_path):
     match the uninterrupted run byte for byte (ResourceType keys used to
     serialize as "ResourceType.GRAIN" in memory but "0" after a load)."""
     seed, turns, split = 3, 24, 6
+    # The swarm that spans the save point needs M35b's locust rate (the
+    # 2026-10 default of 0.02 fires none in this window).
+    locust = {"emergence.locust_probability": 0.15}
     straight = generate_world(seed=seed, num_civs=4, num_regions=8)
+    straight.tuning_overrides.update(locust)
     trace = []
     for _ in range(turns):
         replay._advance(straight)
         trace.append(straight.model_dump_json())
     resumed = generate_world(seed=seed, num_civs=4, num_regions=8)
+    resumed.tuning_overrides.update(locust)
     for _ in range(split):
         replay._advance(resumed)
     # This seed has a resource suspension running across the save point.
