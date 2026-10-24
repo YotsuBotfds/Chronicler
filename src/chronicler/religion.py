@@ -617,6 +617,7 @@ def compute_persecution(
                         f"(intensity={intensity:.2f})"
                     ),
                     importance=6,
+                    region=region_name,
                 ))
 
             # "Mass Migration" event when minority ratio exceeds threshold
@@ -630,6 +631,7 @@ def compute_persecution(
                         f"(minority_ratio={minority_ratio:.2f})"
                     ),
                     importance=6,
+                    region=region_name,
                 ))
 
     return events
@@ -956,6 +958,7 @@ def detect_schisms(
                 f"(minority_ratio={best_minority_ratio:.2f})"
             ),
             importance=7,
+            region=best_region.name,
         ))
 
     return events

@@ -241,10 +241,15 @@ def flush_military_losses(ctx: WarContext) -> None:
 # --- events -----------------------------------------------------------------------------
 
 def emit(ctx: WarContext, event_type: str, actors: list[str], description: str,
-         importance: int = 5) -> "Event":
+         importance: int = 5, region: str | None = None, causes=()) -> "Event":
+    from chronicler import provenance
     from chronicler.models import Event
     event = Event(turn=ctx.world.turn, event_type=event_type, actors=list(actors),
-                  description=description, importance=importance)
+                  description=description, importance=importance, region=region)
+    provenance.cite(event, *causes)
+    # Observe at emission so same-tick chains (declaration -> battle ->
+    # occupation -> annexation) resolve in the order they happened.
+    provenance.observe_now(ctx.world, event)
     ctx.events.append(event)
     return event
 

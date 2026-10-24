@@ -257,7 +257,7 @@ def fight(ctx: WarContext, war: "WarRecord", region: "Region", attacker: Side, d
     emit(ctx, "war", [attacker.civ.name, defender.civ.name],
          f"{name}: {attacker.civ.name} ({a_n}) vs {defender.civ.name} ({d_n}) at {region.name}: "
          f"{outcome}. Losses {a_killed}/{d_killed}{lead}.",
-         importance=7 if kind in ("field", "assault") else 5)
+         importance=7 if kind in ("field", "assault") else 5, region=region.name)
     if kind in ("field", "assault"):
         name_event(ctx, name, "battle", [attacker.civ.name, defender.civ.name], region.name,
                    f"{attacker.civ.name} vs {defender.civ.name}: {outcome}", 7 if kind == "field" else 6)
@@ -343,7 +343,8 @@ def _destroy(ctx: WarContext, army: "Army", side: Side, winner: Side | None, reg
                                   bridge=ctx.bridge)
         if hostage:
             emit(ctx, "hostage_taken", [winner.civ.name, side.civ.name],
-                 f"{winner.civ.name} takes {hostage.name} hostage from {side.civ.name}.", importance=6)
+                 f"{winner.civ.name} takes {hostage.name} hostage from {side.civ.name}.", importance=6,
+                 region=region.name)
 
 
 # --- sieges -------------------------------------------------------------------------
@@ -381,7 +382,8 @@ def siege_turn(ctx: WarContext, war: "WarRecord", region: "Region", armies: list
         army.siege_turns += 1
     if first:
         emit(ctx, "siege_begun", [besieger.name, owner.name],
-             f"{lead.name} lays siege to {region.name} ({required} turns to breach).", importance=5)
+             f"{lead.name} lays siege to {region.name} ({required} turns to breach).", importance=5,
+             region=region.name)
     drain_population(ctx, [region.name], region.population * P.SIEGE_CIVILIAN_LOSS_PERMILLE // 1000)
     from chronicler.war.occupation import _requisition
     _requisition(region, 0.85)

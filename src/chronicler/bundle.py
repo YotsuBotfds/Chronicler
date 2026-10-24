@@ -18,7 +18,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-LEGACY_BUNDLE_VERSION = 3
+# 4: events carry provenance (event_id, causes, region, civs, episode,
+# duration; omitted while empty), chronicle entries carry causal_chains and
+# causal links carry cause_id/effect_id/provenance. Version-3 readers ignore
+# the additions; version-4 readers treat them as optional.
+LEGACY_BUNDLE_VERSION = 4
 
 
 def _strip_llm_fields(world_dict: dict) -> dict:

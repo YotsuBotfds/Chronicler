@@ -26,6 +26,7 @@ Performance note — Python critical path hotspots (audit batch I, 2026-04-01):
 """
 from __future__ import annotations
 
+from chronicler import provenance
 from chronicler.columnar import pylist
 import logging
 import random
@@ -190,12 +191,12 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
         if event_type not in world.event_probabilities:
             continue
         affected: list[Civilization] = []
+        rates: list[float] = []
         for civ_idx, civ in enumerate(world.civilizations):
             if not civ.regions:
                 continue
-            p = hazard_probability(
-                civ_event_hazard(world, civ, civ_idx, event_type, hazard_ctx)
-            )
+            rate = civ_event_hazard(world, civ, civ_idx, event_type, hazard_ctx)
+            p = hazard_probability(rate)
             if p <= 0.0:
                 continue
             draw = random.Random(
@@ -203,6 +204,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             ).random()
             if draw < p:
                 affected.append(civ)
+                rates.append(rate)
         if not affected:
             continue
         event = Event(
@@ -212,6 +214,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             description="",  # Filled in by narrative engine
             importance=5,
         )
+        # Provenance: the event that excited this hazard, where it mattered.
+        provenance.cite(event, *(provenance.excitation_cause(world, c, event_type, r)
+                                 for c, r in zip(affected, rates)))
 
         if event.event_type == "drought":
             for civ in affected:
@@ -871,7 +876,8 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
         if not civ.regions:
             continue
         for event_type in event_types:
-            p = hazard_probability(civ_event_hazard(world, civ, civ_idx, event_type, ctx))
+            rate = civ_event_hazard(world, civ, civ_idx, event_type, ctx)
+            p = hazard_probability(rate)
             if p <= 0.0:
                 continue
             rng = random.Random(stable_hash_int("event_hazard", seed, civ_idx, event_type))
@@ -897,6 +903,7 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
                 description="",  # Filled in by narrative engine
                 importance=5,
             )
+            provenance.cite(event, provenance.excitation_cause(world, civ, event_type, rate))
             _apply_event_effects(event_type, civ, world, acc=acc)
             record_hazard_event(world, event)
             events.append(event)
@@ -929,6 +936,7 @@ def _roll_leader_mortality(
     old_leader = civ.leader
     age = leader_age(old_leader, world)
     reign = world.turn - old_leader.reign_start
+    _timeline_mark = len(world.events_timeline)
     _apply_event_effects("leader_death", civ, world, acc=acc, cause=cause)
     cause_text = {
         "natural": f"dies at the age of {age}",
@@ -936,13 +944,20 @@ def _roll_leader_mortality(
         "coup": "is overthrown and killed in a coup",
         "misfortune": f"dies amid the turmoil, aged {age}",
     }.get(cause, f"dies at the age of {age}")
-    return Event(
+    event = Event(
         turn=world.turn,
         event_type="leader_death",
         actors=[civ.name],
         description=f"{old_leader.name} of {civ.name} {cause_text} after a reign of {reign} years.",
         importance=5,
     )
+    # Provenance: the mortality component that drew the death, and the
+    # succession crisis the death just triggered (appended above).
+    provenance.cite(event, *provenance.leader_death_causes(world, civ, cause))
+    for ev in world.events_timeline[_timeline_mark:]:
+        if ev.event_type == "succession_crisis" and ev.actors[:1] == [civ.name]:
+            provenance.cite(ev, provenance.ensure_id(world, event))
+    return event
 
 
 def _apply_event_effects(
@@ -1489,12 +1504,17 @@ def phase_consequences(
             continue
         new_persons = check_great_person_generation(civ, world)
         for gp in new_persons:
-            collapse_events.append(Event(
+            born = Event(
                 turn=world.turn, event_type="great_person_born",
                 actors=[civ.name],
                 description=f"A great {gp.role} emerges in {civ.name}: {gp.name}.",
                 importance=6,
-            ))
+            )
+            # Provenance: the achievement that triggered the role; later
+            # deeds of this person cite the birth.
+            provenance.cite(born, *provenance.great_person_causes(world, civ.name, gp.role))
+            provenance.remember(world, provenance.key("gp", gp.name), born)
+            collapse_events.append(born)
         check_lifespan_expiry(civ, world)
 
     # M17b: Exile restoration checks
@@ -1848,12 +1868,20 @@ def run_turn_result(
     )
 
     turn_events: list[Event] = []
+    from chronicler import provenance as _prov
+
+    def _emit(events) -> None:
+        # Causal provenance: id, cite and register each phase's events in
+        # emission order, folding chronic repeats (outcome-neutral).
+        turn_events.extend(_prov.observe(world, events))
+
     acc = StatAccumulator()
     clear_active_trade_routes_snapshot(world)
     # Hazard excitation: this turn's hazard draws (incl. injections) plus the
     # tech/succession/legacy sources it commits.
     world._hazard_events.clear()
     _hazard_timeline_start = len(world.events_timeline)
+    _prov.begin_turn(world)
     _hazard_named_start = len(world.named_events)
 
     # Drain pending injections now that accumulator exists
@@ -1886,17 +1914,17 @@ def run_turn_result(
     world._dead_agents_this_turn = []
 
     # Phase 1: Environment
-    turn_events.extend(phase_environment(world, seed=seed, acc=acc))
+    _emit(phase_environment(world, seed=seed, acc=acc))
 
     # M18: Black swan check (after climate disasters)
     from chronicler.emergence import check_black_swans
-    turn_events.extend(check_black_swans(world, seed=seed, acc=acc))
+    _emit(check_black_swans(world, seed=seed, acc=acc))
 
     # M35b: Environmental events (condition-triggered, same phase)
     from chronicler.emergence import check_environmental_events
     import random as _random_m35b
     env_rng = _random_m35b.Random(seed + world.turn * 1013)
-    turn_events.extend(check_environmental_events(world, env_rng))
+    _emit(check_environmental_events(world, env_rng))
 
     # --- M42/M54b: Goods economy (Phase 2 sub-sequence) ---
     # M54b: Route through Rust economy only when an agent-backed snapshot exists.
@@ -1921,7 +1949,7 @@ def run_turn_result(
             if world.mutual_aid_enabled:
                 from chronicler.mutual_aid import dispatch_mutual_aid, read_stockpile_commitments
                 commitments = read_stockpile_commitments(world, agent_bridge._sim)
-                turn_events.extend(dispatch_mutual_aid(world, snapshot, acc=acc, commitments=commitments))
+                _emit(dispatch_mutual_aid(world, snapshot, acc=acc, commitments=commitments))
             # Harvest uses this turn's climate/season and current ecology, with
             # no depletion or ecology mutation here. Phase 9 advances those
             # once for the following harvest. Recompute transient yields even
@@ -1979,7 +2007,7 @@ def run_turn_result(
                 shock_events = detect_supply_shocks(
                     world, stockpiles, economy_tracker, economy_result, region_map,
                 )
-                turn_events.extend(shock_events)
+                _emit(shock_events)
 
     if world.mutual_aid_enabled:
         from chronicler.mutual_aid import observe_mutual_aid
@@ -1988,7 +2016,7 @@ def run_turn_result(
     del snapshot
 
     # Phase 2: Automatic Effects (NEW)
-    turn_events.extend(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
+    _emit(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
 
     # M42: Apply treasury tax (keep category)
     _apply_treasury_tax_from_economy(world, acc, economy_result)
@@ -1997,27 +2025,27 @@ def run_turn_result(
     phase_production(world, acc=acc)
 
     # Phase 4: Technology
-    turn_events.extend(phase_technology(world, acc=acc))
+    _emit(phase_technology(world, acc=acc))
 
     # Phase 5: Action (selection + resolution)
-    turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
+    _emit(phase_action(world, action_selector=action_selector, acc=acc))
 
     # M60: Campaigns (armies, logistics, battles, sieges, occupation, peace)
     if world.campaigns_enabled:
         from chronicler.war.runtime import tick_campaigns
-        turn_events.extend(tick_campaigns(world, acc=acc, agent_bridge=agent_bridge))
+        _emit(tick_campaigns(world, acc=acc, agent_bridge=agent_bridge))
 
     # M47d: Update war-weariness and peace momentum accumulators
     update_war_frequency_accumulators(world)
 
     # Phase 6: Cultural Milestones
-    turn_events.extend(phase_cultural_milestones(world, acc=acc))
+    _emit(phase_cultural_milestones(world, acc=acc))
 
     # Phase 7: Random Events
-    turn_events.extend(phase_random_events(world, seed=seed + 100, acc=acc))
+    _emit(phase_random_events(world, seed=seed + 100, acc=acc))
 
     # Phase 8: Leader Dynamics
-    turn_events.extend(phase_leader_dynamics(world, seed=seed, acc=acc))
+    _emit(phase_leader_dynamics(world, seed=seed, acc=acc))
 
     # Phase 9: Ecology (M23 — replaces phase_fertility)
     # M54a: ecology_runtime routes to Rust when available, else pure-Python.
@@ -2039,7 +2067,7 @@ def run_turn_result(
         from chronicler.agent_bridge import build_region_batch
         _eco_rt.set_region_state(build_region_batch(world))
 
-    turn_events.extend(tick_ecology(
+    _emit(tick_ecology(
         world, climate_phase, acc=acc, ecology_runtime=_eco_rt,
         economy_result=economy_result,
     ))
@@ -2063,7 +2091,7 @@ def run_turn_result(
         for ds in demands:
             agent_bridge._demand_manager.add(ds)
         # Run agent tick via split bridge (no second set_region_state)
-        turn_events.extend(agent_bridge.tick_agents(
+        _emit(agent_bridge.tick_agents(
             world, shocks=shocks, demands=demand_shifts, conquered=conquered_dict,
             death_output=death_output,
         ))
@@ -2072,7 +2100,7 @@ def run_turn_result(
         # match hybrid mode's stat application, making comparison fair.
         # "guard" mutations are intentionally skipped — agents produce them.
         acc.apply_keep(world)
-        turn_events.extend(agent_bridge.tick_agents(
+        _emit(agent_bridge.tick_agents(
             world, conquered=conquered_dict, death_output=death_output,
         ))
     else:
@@ -2122,7 +2150,7 @@ def run_turn_result(
         world, source_turn=artifacts.source_turn, force=force_settlement_detection,
         agent_rows=artifacts.phase10.agents,
     )
-    turn_events.extend(settlement_events)
+    _emit(settlement_events)
 
     # C-2 fix: Commit Phases 1-9 events to timeline BEFORE Phase 10 so that
     # update_event_counts(), check_great_person_generation(), and tick_factions()
@@ -2146,7 +2174,7 @@ def run_turn_result(
     _pol_rt = politics_runtime  # off-mode PoliticsSimulator (or None)
     if agent_bridge is not None:
         _pol_rt = agent_bridge._sim  # AgentSimulator has tick_politics()
-    turn_events.extend(phase_consequences(
+    _emit(phase_consequences(
         world, acc=phase10_acc, politics_runtime=_pol_rt, phase10=artifacts.phase10,
     ))
 
@@ -2167,6 +2195,7 @@ def run_turn_result(
         from chronicler.war.runtime import end_of_turn_sync
         end_of_turn_sync(world)
 
+    _relationship_mark = len(turn_events)
     # M40: Unified relationship formation and dissolution
     # One-turn latency: agent tick ran between Phase 9 and 10.
     # Rust reads edges from the previous turn's Phase 10 output. Intentional.
@@ -2238,6 +2267,9 @@ def run_turn_result(
                         source="agent",
                     ))
 
+    # Relationship-formation events above were appended without the observer.
+    turn_events[_relationship_mark:] = _prov.observe(world, turn_events[_relationship_mark:])
+
     # --- M18: Tech regression (after consequences, before stress) ---
     from chronicler.emergence import check_tech_regression
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
@@ -2247,7 +2279,7 @@ def run_turn_result(
     # (flushed just below), while off/shadow/demographics-only modes have
     # already flushed ``acc`` and must mutate directly (acc=None). Passing
     # ``acc`` in those modes silently dropped era-bonus removals.
-    turn_events.extend(check_tech_regression(
+    _emit(check_tech_regression(
         world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
     ))
 
@@ -2268,12 +2300,17 @@ def run_turn_result(
     # M52: Artifact processing
     from chronicler.artifacts import tick_artifacts
     artifact_events = tick_artifacts(world)
-    turn_events.extend(artifact_events)
+    _emit(artifact_events)
+
+    # Causal provenance: close chronic episodes and expired conditions that
+    # ended this turn (their end events join the post-Phase-10 commit).
+    turn_events.extend(_prov.end_turn(world))
 
     # Record post-Phase-10 events (Phase 10 consequences, relationships,
     # tech regression, artifacts).  Pre-Phase-10 events were already committed
     # above (C-2 fix).
     world.events_timeline.extend(turn_events[_pre_phase10_count:])
+    _prov.finish_turn(world)
 
     # Decaying hazards: decay one turn, then excite from this turn's hazard
     # draws and the tech/coup/legacy/rival-fall sources it committed.

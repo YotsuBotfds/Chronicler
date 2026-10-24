@@ -391,6 +391,8 @@ def ingest_turn_events(
     events; ``named_events`` supply coup, legacy and rival_fall (the first
     actor of a NamedEvent is the civ it happened to).
     """
+    from chronicler.provenance import note_excitation
+
     decay_excitations(world)
     civ_map = world.civ_map
     contact = None
@@ -407,6 +409,7 @@ def ingest_turn_events(
             continue
         for civ in involved:
             apply_event_excitation(civ, etype)
+            note_excitation(world, civ.name, EVENT_CASCADE_RULES[etype], event)
         if etype == "plague":
             if contact is None:
                 contact = _civ_contact_weights(world)
@@ -418,8 +421,11 @@ def ingest_turn_events(
                     other = civ_map.get(other_name)
                     if other is not None and other.regions:
                         excite(other, "plague", PLAGUE_CONTACT_ALPHA * weight)
+                        note_excitation(world, other.name, (("plague", PLAGUE_CONTACT_ALPHA * weight),), event)
         elif etype == "border_incident" and len(involved) >= 2:
             excite(involved[1], "border_incident", BORDER_INCIDENT_RECIPROCITY_ALPHA)
+            note_excitation(world, involved[1].name,
+                            (("border_incident", BORDER_INCIDENT_RECIPROCITY_ALPHA),), event)
     for named in named_events or []:
         etype = getattr(named, "event_type", None)
         if etype not in NAMED_EVENT_CASCADE_SOURCES or not named.actors:

@@ -70,6 +70,43 @@ describe("ChroniclePanel", () => {
   });
 });
 
+describe("ChroniclePanel causal chains", () => {
+  it("renders recorded because-chains of a version-4 entry", () => {
+    const entry = {
+      turn: 9,
+      covers_turns: [6, 9] as [number, number],
+      events: [],
+      named_events: [],
+      narrative: "Famine strikes Amber Valley.",
+      importance: 20,
+      narrative_role: "climax" as const,
+      causal_links: [{
+        cause_turn: 6, cause_event_type: "occupation", effect_turn: 9, effect_event_type: "famine",
+        pattern: "occupation\u2192famine", cause_id: "6:occupation:0", effect_id: "9:famine:0",
+        provenance: "recorded" as const,
+      }],
+      causal_chains: [{
+        steps: [
+          { event_id: "0:war_declared:0", turn: 0, event_type: "war_declared", description: "Kethani declares war" },
+          { event_id: "6:occupation:0", turn: 6, event_type: "occupation", description: "Amber Valley is occupied" },
+          { event_id: "9:famine:0", turn: 9, event_type: "famine", description: "Famine strikes Amber Valley" },
+        ],
+      }],
+    };
+    render(
+      <ChroniclePanel
+        chronicleEntries={[entry]}
+        eraReflections={{}}
+        currentTurn={9}
+        maxTurn={10}
+      />,
+    );
+    expect(screen.getByLabelText("Recorded causal chains")).toBeInTheDocument();
+    expect(screen.getByText(/Kethani declares war/)).toBeInTheDocument();
+    expect(screen.getByText(/\(recorded\)/)).toBeInTheDocument();
+  });
+});
+
 describe("StatGraphs", () => {
   it("renders stat selector", () => {
     render(

@@ -1107,8 +1107,10 @@ def _tick_civ(world, civ_idx: int, civ, acc, ctx: _Context) -> list[Event]:
             if ev.reason == "neglect":
                 gov.institutions_collapsed_total += 1
                 _log_institution(gov, turn, t, "collapsed")
-                events.append(_event(world, "institution_repealed", civ,
-                    f"{pretty} in {civ.name} collapses from neglect after its enforcement went unpaid.", 6))
+                from chronicler import provenance as prov
+                events.append(prov.cite(_event(world, "institution_repealed", civ,
+                    f"{pretty} in {civ.name} collapses from neglect after its enforcement went unpaid.", 6),
+                    prov.recall(world, prov.key("fiscal", civ.name))))
             else:
                 gov.institutions_repealed_total += 1
                 _log_institution(gov, turn, t, "repealed")
@@ -1118,8 +1120,10 @@ def _tick_civ(world, civ_idx: int, civ, acc, ctx: _Context) -> list[Event]:
     for inst in result.next_state.institutions:
         before = previous_legitimacy.get(inst.institution_type)
         if before is not None and before >= 0.5 > inst.legitimacy:
-            events.append(_event(world, "institution_enforcement_lapse", civ,
-                f"Unpaid officials let {_PRETTY[inst.institution_type]} in {civ.name} fall into disregard.", 3))
+            from chronicler import provenance as prov
+            events.append(prov.cite(_event(world, "institution_enforcement_lapse", civ,
+                f"Unpaid officials let {_PRETTY[inst.institution_type]} in {civ.name} fall into disregard.", 3),
+                prov.recall(world, prov.key("fiscal", civ.name))))
     _store_institutions(gov, result.next_state)
     if suppressed:
         gov.secession_suppressions += 1
@@ -1341,8 +1345,18 @@ def _advance_psi(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) ->
                                             ("elite overproduction", update.emp),
                                             ("fiscal distress", update.sfd))
                    if value >= STRESS.elevated_subindex]
-        events.append(_event(world, "psi_crisis", civ,
-            f"{civ.name} enters an age of troubles ({', '.join(drivers) or 'compounding strains'}).", 8))
+        crisis = _event(world, "psi_crisis", civ,
+            f"{civ.name} enters an age of troubles ({', '.join(drivers) or 'compounding strains'}).", 8)
+        # Provenance: the strains the PSI crossed its threshold on.
+        from chronicler import provenance as prov
+        driver_causes = {
+            "elite overproduction": [prov.recall(world, prov.key("elite", civ.name), within=40)],
+            "fiscal distress": [prov.recall(world, prov.key("fiscal", civ.name), within=30)],
+            "popular immiseration": prov._famines_of(world, civ.name),
+        }
+        for name in drivers or driver_causes:
+            prov.cite(crisis, *driver_causes[name])
+        events.append(crisis)
     elif update.crisis:
         gov.psi_peak = max(gov.psi_peak, update.psi)
     elif was_crisis:
@@ -1406,8 +1420,12 @@ def _revolt_and_civil_war(world, civ_idx: int, civ, gov: CivGovernance, acc,
     _add_tag(gov, world.turn, "revolt")
     _apply_stat(world, acc, civ_idx, civ, "stability", -REVOLT_STABILITY_LOSS, "signal")
     _apply_stat(world, acc, civ_idx, civ, "economy", -REVOLT_ECONOMY_LOSS, "signal")
-    events.append(_event(world, "revolt", civ,
-        f"Revolt flares across {civ.name} as the strains of the age boil over.", 7))
+    from chronicler import provenance as prov
+    revolt = _event(world, "revolt", civ,
+        f"Revolt flares across {civ.name} as the strains of the age boil over.", 7)
+    # Provenance: revolts are rolled only during a PSI crisis.
+    prov.cite(revolt, prov.recall(world, prov.key("psi", civ.name)))
+    events.append(revolt)
     legit = gov.ruler_legitimacy
     if (len(civ.regions) >= 3 and legit < CIVIL_WAR_LEGITIMACY_CEILING and not is_in_crisis(civ)):
         p_war = CIVIL_WAR_BASE_PROBABILITY * (1.0 - legit)
@@ -1419,8 +1437,13 @@ def _revolt_and_civil_war(world, civ_idx: int, civ, gov: CivGovernance, acc,
             gov.conspicuous_consumption_index = round(
                 gov.conspicuous_consumption_index * CIVIL_WAR_RATCHET_CRASH, 9)
             _add_tag(gov, world.turn, "civil_war")
-            events.append(_event(world, "civil_war", civ,
-                f"Rival claimants take up arms against {civ.leader.name}; {civ.name} descends into civil war.", 9))
+            civil_war = _event(world, "civil_war", civ,
+                f"Rival claimants take up arms against {civ.leader.name}; {civ.name} descends into civil war.", 9)
+            # Provenance: the revolt that escalated and the legitimacy crisis
+            # that raised its odds.
+            prov.cite(civil_war, prov.ensure_id(world, revolt),
+                      prov.recall(world, prov.key("legitimacy", civ.name), within=20))
+            events.append(civil_war)
     return events
 
 

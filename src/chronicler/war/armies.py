@@ -277,7 +277,7 @@ def kill_general(ctx: WarContext, army: "Army", region: str) -> str | None:
             civ.great_persons.remove(gp)
         ctx.world.retired_persons.append(gp)
     emit(ctx, "general_fallen", [civ.name], f"{gp.name}, general of {civ.name}, falls at {region}.",
-         importance=6)
+         importance=6, region=region)
     return gp.name
 
 
@@ -359,7 +359,7 @@ def disband(ctx: WarContext, army: "Army", reason: str) -> None:
     army.roster = []
     if reason == "destroyed":
         emit(ctx, "army_destroyed", [army.civ], f"{army.name} is destroyed at {army.region}.",
-             importance=6)
+             importance=6, region=army.region)
     elif reason == "demobilized":
         emit(ctx, "army_disbanded", [army.civ],
              f"{army.name} returns home and disbands ({army.soldiers} survivors).", importance=3)

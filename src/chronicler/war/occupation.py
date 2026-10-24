@@ -73,7 +73,7 @@ def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization"
     by = f" by {army.name}" if army is not None else ""
     emit(ctx, "occupation", [occupier.name, owner_name or ""],
          f"{region.name}{' (capital of ' + owner_name + ')' if is_capital else ''} is occupied{by}.",
-         importance=8 if is_capital else 6)
+         importance=8 if is_capital else 6, region=region.name)
     title = deduplicate_name(f"The Fall of {region.name}" if is_capital else f"The Occupation of {region.name}",
                              [ne.name for ne in world.named_events])
     name_event(ctx, title, "occupation", [occupier.name, owner_name or ""], region.name,
@@ -98,7 +98,7 @@ def end_occupation(ctx: WarContext, occ: "Occupation", reason: str) -> None:
         }[reason]
         emit(ctx, "liberation" if reason != "revolt" else "occupation_revolt",
              [occ.owner, occ.occupier], f"{occ.region} {verb} ({occ.occupier} withdraws).",
-             importance=6 if reason in ("liberated", "revolt") else 4)
+             importance=6 if reason in ("liberated", "revolt") else 4, region=occ.region)
 
 
 def annex_occupation(ctx: WarContext, occ: "Occupation", reason: str) -> bool:
@@ -127,14 +127,15 @@ def annex_occupation(ctx: WarContext, occ: "Occupation", reason: str) -> bool:
     owner_name = owner.name if owner is not None else occ.owner
     how = {"treaty": "ceded by treaty", "consolidated": "annexed after a long occupation",
            "owner_gone": "annexed as its former rulers vanish"}.get(reason, "annexed")
-    emit(ctx, "annexation", [occupier.name, owner_name], f"{region.name} is {how} to {occupier.name}.",
-         importance=7)
+    annexation = emit(ctx, "annexation", [occupier.name, owner_name],
+                      f"{region.name} is {how} to {occupier.name}.", importance=7, region=region.name)
     title = deduplicate_name(f"The Annexation of {region.name}", [ne.name for ne in world.named_events])
     name_event(ctx, title, "conquest", [occupier.name, owner_name], region.name,
                f"{region.name} passes from {owner_name} to {occupier.name} ({reason})", 7)
     if owner is not None and not owner.regions:
         emit(ctx, "civ_conquered", [occupier.name, owner.name],
-             f"{owner.name} is extinguished; its last land falls to {occupier.name}.", importance=9)
+             f"{owner.name} is extinguished; its last land falls to {occupier.name}.", importance=9,
+             region=region.name, causes=[annexation.event_id])
     return True
 
 
@@ -233,4 +234,5 @@ def _revolt(ctx: WarContext, occ, region, owner, occupier, garrison, rng) -> Non
         for army in garrison:
             apply_casualties(ctx, army, partisans // (3 * len(garrison)), cause="revolt")
         emit(ctx, "occupation_revolt", [owner.name, occupier.name],
-             f"A rising in {region.name} is crushed by {occupier.name} ({killed} dead).", importance=5)
+             f"A rising in {region.name} is crushed by {occupier.name} ({killed} dead).", importance=5,
+             region=region.name)

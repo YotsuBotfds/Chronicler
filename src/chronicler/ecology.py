@@ -211,7 +211,7 @@ def _check_famine_yield(
         events.append(Event(
             turn=world.turn, event_type="famine", actors=[civ.name],
             description=f"Famine strikes {region.name}, devastating {civ.name}.",
-            importance=8,
+            importance=8, region=region.name,
         ))
     return events
 
@@ -330,7 +330,7 @@ def _materialize_ecology_events(event_batch, world: "WorldState") -> list[Event]
                 event_type="soil_exhaustion",
                 actors=actors,
                 description=f"The fields of {rname} show signs of exhaustion from decades of intensive cultivation",
-                importance=6,
+                importance=6, region=region.name if region else None,
             ))
         elif etypes[i] == 1:
             events.append(Event(
@@ -338,7 +338,7 @@ def _materialize_ecology_events(event_batch, world: "WorldState") -> list[Event]
                 event_type="resource_depletion",
                 actors=actors,
                 description=f"Overextraction has degraded {rname}'s resources",
-                importance=7,
+                importance=7, region=region.name if region else None,
             ))
     return events
 
@@ -640,7 +640,7 @@ def update_depletion_feedback(region: "Region", world: "WorldState | None") -> l
                 event_type="soil_exhaustion",
                 actors=[region.controller] if region.controller else [],
                 description=f"The fields of {region.name} show signs of exhaustion from decades of intensive cultivation",
-                importance=6,
+                importance=6, region=region.name,
             ))
     else:
         region.soil_pressure_streak = 0
@@ -666,7 +666,7 @@ def update_depletion_feedback(region: "Region", world: "WorldState | None") -> l
                     event_type="resource_depletion",
                     actors=[region.controller] if region.controller else [],
                     description=f"Overextraction has degraded {region.name}'s resources",
-                    importance=7,
+                    importance=7, region=region.name,
                 ))
         else:
             region.overextraction_streaks[slot] = 0

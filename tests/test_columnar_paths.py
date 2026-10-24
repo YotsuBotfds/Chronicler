@@ -129,7 +129,12 @@ def test_windowed_event_summaries_match_the_window_scans(seed, sample_world):
         sample_world.turn = turn
         got = bridge._aggregate_events(sample_world, named)
         expected = legacy_aggregate_events(bridge, sample_world, named)
-        assert [e.model_dump() for e in got] == [e.model_dump() for e in expected]
+        # The legacy scans predate causal provenance: compare without the
+        # region/civs stamps (asserted separately below).
+        assert [e.model_dump(exclude={"region", "civs"}) for e in got] == [
+            e.model_dump() for e in expected]
+        for e in got:
+            assert e.region is None or e.region in {r.name for r in sample_world.regions}
     assert len(bridge._window_stats_cache) <= 20
 
 

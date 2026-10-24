@@ -136,6 +136,14 @@ export interface Event {
   description: string;
   consequences: string[];
   importance: number;
+  // Causal provenance (bundle version 4+; absent on older bundles and on
+  // events without provenance). See docs/integration/causal-provenance.md.
+  event_id?: string;
+  causes?: string[];
+  region?: string | null;
+  civs?: string[];
+  episode?: "onset" | "tick" | "repeat" | "end" | null;
+  duration?: number | null;
 }
 
 export interface NamedEvent {
@@ -437,6 +445,7 @@ export interface NewChronicleEntry {
   importance: number;
   narrative_role: "inciting" | "escalation" | "climax" | "resolution" | "coda";
   causal_links: CausalLink[];
+  causal_chains?: CausalChain[];
 }
 
 export interface GapSummary {
@@ -453,6 +462,23 @@ export interface CausalLink {
   effect_turn: number;
   effect_event_type: string;
   pattern: string;
+  cause_id?: string;
+  effect_id?: string;
+  /** "recorded" (stamped by the simulation) or "pattern" (type-pair fallback; the default). */
+  provenance?: "recorded" | "pattern";
+}
+
+export interface ChainStep {
+  event_id: string;
+  turn: number;
+  event_type: string;
+  description: string;
+  region?: string | null;
+}
+
+/** A recorded cause-to-effect path, root cause first. */
+export interface CausalChain {
+  steps: ChainStep[];
 }
 
 // --- M20b: Batch Runner types ---
