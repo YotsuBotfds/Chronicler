@@ -39,8 +39,50 @@ use rand_chacha::ChaCha8Rng;
 
 use crate::agent::Occupation;
 use crate::pool::AgentPool;
-use crate::region::RegionState;
+use crate::region::{mask_to_ids, normalize_ids, RegionState};
 use crate::politics::PoliticsConfig;
+
+/// Geography 2.0: read one sorted region/river id list per row.
+///
+/// Prefers the `List<UInt16>` column `list_name`; falls back to the legacy
+/// u32 bitmask column `mask_name` (decoded in ascending bit order, exactly the
+/// order the former bitmask walks used). Returns `None` when neither column is
+/// present so callers keep their previous value / default.
+pub(crate) fn read_region_id_lists(
+    rb: &RecordBatch,
+    list_name: &str,
+    mask_name: &str,
+) -> PyResult<Option<Vec<Vec<u16>>>> {
+    use arrow::array::Array;
+    if let Some(col) = rb.column_by_name(list_name) {
+        let list = col
+            .as_any()
+            .downcast_ref::<arrow::array::ListArray>()
+            .ok_or_else(|| PyValueError::new_err(format!("column {list_name} not List<UInt16>")))?;
+        let mut out = Vec::with_capacity(list.len());
+        for i in 0..list.len() {
+            let mut ids: Vec<u16> = if list.is_null(i) {
+                Vec::new()
+            } else {
+                let inner = list.value(i);
+                let values = inner
+                    .as_any()
+                    .downcast_ref::<arrow::array::UInt16Array>()
+                    .ok_or_else(|| {
+                        PyValueError::new_err(format!("column {list_name} inner not UInt16"))
+                    })?;
+                values.values().to_vec()
+            };
+            normalize_ids(&mut ids);
+            out.push(ids);
+        }
+        return Ok(Some(out));
+    }
+    Ok(rb
+        .column_by_name(mask_name)
+        .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>())
+        .map(|masks| (0..masks.len()).map(|i| mask_to_ids(masks.value(i))).collect()))
+}
 
 // ---------------------------------------------------------------------------
 // AgentSimulator
@@ -103,6 +145,8 @@ pub struct AgentSimulator {
     /// turn, intent). Written at the start of the next `tick()` so the
     /// same-turn Python Mule roll still sees only pre-promotion memories.
     pending_promotion_memories: Vec<(u16, crate::memory::MemoryIntent)>,
+    /// Agent-scale mode and other per-tick options (default: exact).
+    tick_options: crate::scale::TickOptions,
 }
 
 #[pymethods]
@@ -150,6 +194,7 @@ impl AgentSimulator {
             hybrid_economy_mode: false,
             pending_targeted_deaths: Vec::new(),
             pending_promotion_memories: Vec::new(),
+            tick_options: crate::scale::TickOptions::default(),
         }
     }
 
@@ -162,6 +207,25 @@ impl AgentSimulator {
     /// M60b: number of queued targeted deaths not yet consumed by a tick.
     pub fn pending_targeted_death_count(&self) -> usize {
         self.pending_targeted_deaths.len()
+    }
+
+    /// Agent-scale mode for later ticks: `"exact"` (default; byte-identical
+    /// reference algorithms) or `"fast"` (bounded-work candidate sampling
+    /// for spatial drift, marriage and formation; changes results).
+    pub fn set_agent_scale_mode(&mut self, mode: &str) -> PyResult<()> {
+        let parsed = crate::scale::AgentScaleMode::parse(mode).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "agent scale mode must be 'exact' or 'fast', got {mode:?}"
+            ))
+        })?;
+        self.tick_options.scale_mode = parsed;
+        Ok(())
+    }
+
+    /// Current agent-scale mode (`"exact"` or `"fast"`).
+    #[getter]
+    pub fn agent_scale_mode(&self) -> &'static str {
+        self.tick_options.scale_mode.as_str()
     }
 
     /// Ingest region state from Python as an Arrow RecordBatch.
@@ -214,9 +278,8 @@ impl AgentSimulator {
         let controller_civs = rb
             .column_by_name("controller_civ")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
-        let adjacency_masks = rb
-            .column_by_name("adjacency_mask")
-            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>());
+        // Geography 2.0: `adjacency` list column (legacy `adjacency_mask`).
+        let mut adjacency_lists = read_region_id_lists(&rb, "adjacency", "adjacency_mask")?;
         let trade_route_counts = rb
             .column_by_name("trade_route_count")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
@@ -259,10 +322,8 @@ impl AgentSimulator {
             .column_by_name("season_id")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
-        // Optional M35a column
-        let river_mask_col = rb
-            .column_by_name("river_mask")
-            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt32Array>());
+        // Optional M35a column. Geography 2.0: `rivers` list (legacy `river_mask`).
+        let mut river_lists = read_region_id_lists(&rb, "rivers", "river_mask")?;
 
         // Optional M35b column
         let endemic_severity_col = rb
@@ -350,6 +411,10 @@ impl AgentSimulator {
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
         let temple_prestige_col = rb
             .column_by_name("temple_prestige")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Geography 2.0: latitude climate exposure (absent on template worlds = 1.0)
+        let climate_exposure_col = rb
+            .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         // M54a: Ecology schema columns
@@ -441,7 +506,9 @@ impl AgentSimulator {
                     water: waters.value(i),
                     forest_cover: forest_covers.value(i),
                     controller_civ: controller_civs.map_or(255, |arr| arr.value(i)),
-                    adjacency_mask: adjacency_masks.map_or(0, |arr| arr.value(i)),
+                    adjacency: adjacency_lists
+                        .as_mut()
+                        .map_or_else(Vec::new, |lists| std::mem::take(&mut lists[i])),
                     trade_route_count: trade_route_counts.map_or(0, |arr| arr.value(i)),
                     resource_types: [
                         resource_type_0.map_or(255, |arr| arr.value(i)),
@@ -460,7 +527,9 @@ impl AgentSimulator {
                     ],
                     season: season_col.map_or(0, |arr| arr.value(i)),
                     season_id: season_id_col.map_or(0, |arr| arr.value(i)),
-                    river_mask: river_mask_col.map_or(0, |arr| arr.value(i)),
+                    rivers: river_lists
+                        .as_mut()
+                        .map_or_else(Vec::new, |lists| std::mem::take(&mut lists[i])),
                     endemic_severity: endemic_severity_col.map_or(0.0, |arr| arr.value(i)),
                     culture_investment_active: culture_investment.map_or(false, |arr| arr.value(i)),
                     controller_values: [
@@ -491,6 +560,7 @@ impl AgentSimulator {
                     // M55a
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
+                    climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -642,7 +712,9 @@ impl AgentSimulator {
                 r.water = waters.value(i);
                 r.forest_cover = forest_covers.value(i);
                 r.controller_civ = controller_civs.map_or(r.controller_civ, |arr| arr.value(i));
-                r.adjacency_mask = adjacency_masks.map_or(r.adjacency_mask, |arr| arr.value(i));
+                if let Some(lists) = adjacency_lists.as_mut() {
+                    r.adjacency = std::mem::take(&mut lists[i]);
+                }
                 r.trade_route_count = trade_route_counts.map_or(r.trade_route_count, |arr| arr.value(i));
                 r.resource_types[0] = resource_type_0.map_or(r.resource_types[0], |arr| arr.value(i));
                 r.resource_types[1] = resource_type_1.map_or(r.resource_types[1], |arr| arr.value(i));
@@ -655,7 +727,9 @@ impl AgentSimulator {
                 r.resource_reserves[2] = resource_reserve_2.map_or(r.resource_reserves[2], |arr| arr.value(i));
                 r.season = season_col.map_or(r.season, |arr| arr.value(i));
                 r.season_id = season_id_col.map_or(r.season_id, |arr| arr.value(i));
-                r.river_mask = river_mask_col.map_or(r.river_mask, |arr| arr.value(i));
+                if let Some(lists) = river_lists.as_mut() {
+                    r.rivers = std::mem::take(&mut lists[i]);
+                }
                 r.endemic_severity = endemic_severity_col.map_or(r.endemic_severity, |arr| arr.value(i));
                 r.culture_investment_active = culture_investment.map_or(r.culture_investment_active, |arr| arr.value(i));
                 r.controller_values = [
@@ -682,6 +756,7 @@ impl AgentSimulator {
                 r.catastrophe_deaths_this_turn = catastrophe_deaths_col.map_or(0, |arr| arr.value(i));
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
+                r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
@@ -796,9 +871,10 @@ impl AgentSimulator {
         };
 
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
+        let tick_options = self.tick_options;
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents_with_targeted_deaths(
+                crate::tick::try_tick_agents_with_options(
                     &mut self.pool,
                     &self.regions,
                     &signals,
@@ -811,6 +887,7 @@ impl AgentSimulator {
                     &self.settlement_grids,  // M56b
                     merchant_state,
                     &targeted_deaths,
+                    tick_options,
                 )
             }).map_err(PyRuntimeError::new_err)?;
 

@@ -82,7 +82,7 @@ fn test_coords_at_one_clamp() {
 
 fn make_test_region_with_features() -> RegionState {
     let mut r = RegionState::new(5);
-    r.river_mask = 1;
+    r.rivers = vec![0];
     r.resource_effective_yield = [0.5, 0.3, 0.0];
     r.has_temple = true;
     r.is_capital = true;
@@ -106,7 +106,7 @@ fn test_attractor_determinism() {
 fn test_attractor_separation() {
     // Region with many features to fill attractor slots
     let mut region = RegionState::new(0);
-    region.river_mask = 1;
+    region.rivers = vec![0];
     region.terrain = 2; // Coast
     region.resource_effective_yield = [0.5, 0.3, 0.1];
     region.has_temple = true;
@@ -142,7 +142,7 @@ fn test_attractor_separation() {
 fn test_attractor_weight_dynamics() {
     let mut region = RegionState::new(0);
     region.resource_effective_yield = [0.8, 0.0, 0.0];
-    region.river_mask = 1;
+    region.rivers = vec![0];
     region.water = 0.7;
 
     let mut a = init_attractors(42, 0, &region);
@@ -192,7 +192,7 @@ fn test_attractor_types_correct() {
 #[test]
 fn test_attractor_positions_in_bounds() {
     let mut region = RegionState::new(3);
-    region.river_mask = 1;
+    region.rivers = vec![0];
     region.terrain = 2;
     region.resource_effective_yield = [1.0, 1.0, 1.0];
     region.has_temple = true;
@@ -248,7 +248,7 @@ fn test_interior_positions_can_reach_upper_half() {
 #[test]
 fn test_attractor_weight_river_tracks_water() {
     let mut region = RegionState::new(0);
-    region.river_mask = 1;
+    region.rivers = vec![0];
     region.water = 0.3;
 
     let mut a = init_attractors(42, 0, &region);
@@ -580,7 +580,7 @@ fn test_spatial_drift_determinism() {
 
     // Build two region states with attractors
     let mut r0 = RegionState::new(0);
-    r0.river_mask = 1;
+    r0.rivers = vec![0];
     r0.resource_effective_yield = [0.5, 0.3, 0.0];
     r0.water = 0.6;
     let mut r1 = RegionState::new(1);
@@ -713,7 +713,7 @@ fn test_full_tick_with_spatial_determinism() {
     r0.carrying_capacity = 40;
     r0.soil = 0.6;
     r0.water = 0.5;
-    r0.river_mask = 1;
+    r0.rivers = vec![0];
     r0.resource_effective_yield = [0.5, 0.2, 0.0];
 
     let mut r1 = RegionState::new(1);

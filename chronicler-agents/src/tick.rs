@@ -294,9 +294,46 @@ pub fn try_tick_agents_with_targeted_deaths(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
-    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
     targeted_deaths: &[u32],
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_options(
+        pool,
+        regions,
+        signals,
+        master_seed,
+        turn,
+        wealth_percentiles,
+        spatial_grids,
+        attractors,
+        spatial_diag,
+        settlement_grids,
+        merchant_state,
+        targeted_deaths,
+        crate::scale::TickOptions::default(),
+    )
+}
+
+/// As [`try_tick_agents_with_targeted_deaths`] with explicit [`TickOptions`]
+/// (agent-scale mode). Default options are exactly the plain tick.
+///
+/// [`TickOptions`]: crate::scale::TickOptions
+pub fn try_tick_agents_with_options(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
+    mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    let scale_mode = options.scale_mode;
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
     let mut household_stats = crate::household::HouseholdStats::default();
@@ -646,7 +683,7 @@ pub fn try_tick_agents_with_targeted_deaths(
     // -----------------------------------------------------------------------
     if !attractors.is_empty() {
         crate::spatial::rebuild_spatial_grids(pool, spatial_grids, num_regions as u16);
-        crate::spatial::spatial_drift_step(pool, spatial_grids, attractors, spatial_diag);
+        crate::spatial::spatial_drift_step_with_mode(pool, spatial_grids, attractors, spatial_diag, scale_mode);
     }
 
     // -----------------------------------------------------------------------
@@ -1101,22 +1138,24 @@ pub fn try_tick_agents_with_targeted_deaths(
     // -----------------------------------------------------------------------
     // M57a: Marriage scan (before formation scan)
     // -----------------------------------------------------------------------
-    let marriage_stats = crate::formation::marriage_scan(
+    let marriage_stats = crate::formation::marriage_scan_with_mode(
         pool,
         regions,
         signals,
         turn,
         &post_alive,
+        scale_mode,
     );
 
     // -----------------------------------------------------------------------
     // M50b: Formation scan (LAST operation before return)
     // -----------------------------------------------------------------------
-    let mut formation_stats = crate::formation::formation_scan(
+    let mut formation_stats = crate::formation::formation_scan_with_mode(
         pool,
         regions,
         turn,
         &post_alive,
+        scale_mode,
     );
     formation_stats.bonds_dissolved_death = death_dissolved_count;
 
@@ -1870,8 +1909,8 @@ mod tests {
     fn test_full_tick_deterministic() {
         // Two pools with identical setup, same seed/signals -> identical results
         let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
-        regions[0].adjacency_mask = 0b10; // region 0 adjacent to region 1
-        regions[1].adjacency_mask = 0b01; // region 1 adjacent to region 0
+        regions[0].adjacency = crate::region::mask_to_ids(0b10); // region 0 adjacent to region 1
+        regions[1].adjacency = crate::region::mask_to_ids(0b01); // region 1 adjacent to region 0
         let signals = make_default_signals(2, 2);
         let mut seed = [0u8; 32];
         seed[0] = 77;
@@ -1923,6 +1962,56 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Geography 2.0: adjacency lists let agents migrate between regions with
+    /// ids >= 32 (the former u32 bitmask silently dropped those neighbours).
+    #[test]
+    fn test_tick_migrates_between_regions_beyond_32() {
+        let n: u16 = 64;
+        let crowded: u16 = 45;
+        let build = || {
+            let mut regions: Vec<RegionState> = (0..n)
+                .map(|i| {
+                    let mut r = make_healthy_region(i);
+                    r.adjacency = (i.saturating_sub(1)..=(i + 1).min(n - 1)).filter(|&x| x != i).collect();
+                    r.controller_civ = 0;
+                    r
+                })
+                .collect();
+            let c = &mut regions[crowded as usize];
+            c.carrying_capacity = 5;
+            c.soil = 0.05;
+            c.water = 0.1;
+            c.population = 300;
+            let mut pool = AgentPool::new(0);
+            for k in 0..300 {
+                pool.spawn(crowded, 0, Occupation::Farmer, 20 + (k % 20) as u16, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            }
+            (regions, pool)
+        };
+        let signals = make_default_signals(1, n as usize);
+        let mut seed = [0u8; 32];
+        seed[0] = 91;
+        let run = || {
+            let (regions, mut pool) = build();
+            let mut pct: Vec<f32> = Vec::new();
+            for turn in 0..12 {
+                if pct.len() < pool.capacity() { pct.resize(pool.capacity(), 0.0); }
+                tick_agents(&mut pool, &regions, &signals, seed, turn, &mut pct, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None);
+            }
+            let mut where_now: Vec<u16> = (0..pool.capacity())
+                .filter(|&s| pool.is_alive(s))
+                .map(|s| pool.regions[s])
+                .collect();
+            where_now.sort_unstable();
+            where_now
+        };
+        let a = run();
+        let moved: Vec<u16> = a.iter().copied().filter(|&r| r != crowded).collect();
+        assert!(!moved.is_empty(), "nobody left the crowded region");
+        assert!(moved.iter().all(|&r| r >= 32), "migrants reached {moved:?}");
+        assert_eq!(a, run(), "tick must stay deterministic");
     }
 
     #[test]
@@ -2124,9 +2213,9 @@ mod tests {
             make_healthy_region(1),
             make_healthy_region(2),
         ];
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b101;
-        regions[2].adjacency_mask = 0b011;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b101);
+        regions[2].adjacency = crate::region::mask_to_ids(0b011);
         regions[0].controller_civ = 0;
         regions[1].controller_civ = 1;
         regions[2].controller_civ = 0;

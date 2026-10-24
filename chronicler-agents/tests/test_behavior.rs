@@ -60,9 +60,9 @@ fn setup_migration_world() -> (AgentPool, Vec<RegionState>) {
         r.food_sufficiency = 1.0;
         r
     }).collect();
-    regions[0].adjacency_mask = (1 << 1) | (1 << 2);
-    regions[1].adjacency_mask = 1 << 0;
-    regions[2].adjacency_mask = 1 << 0;
+    regions[0].adjacency = vec![1, 2];
+    regions[1].adjacency = vec![0];
+    regions[2].adjacency = vec![0];
     (pool, regions)
 }
 
@@ -208,8 +208,8 @@ fn test_economy_satisfaction_behavior_chain_can_trigger_migration() {
         r.farmer_income_modifier = if i == 0 { 0.25 } else { 1.5 };
         r
     }).collect();
-    regions[0].adjacency_mask = 0b10;
-    regions[1].adjacency_mask = 0b01;
+    regions[0].adjacency = vec![1];
+    regions[1].adjacency = vec![0];
 
     let source_slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);
     let target_slot = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, BELIEF_NONE);

@@ -16,6 +16,8 @@ TERRAIN_PRIMARY: dict[str, int] = {
     "mountains": ResourceType.ORE, "coast": ResourceType.FISH,
     "desert": ResourceType.EXOTIC, "tundra": ResourceType.EXOTIC,
     "river": ResourceType.GRAIN, "hills": ResourceType.GRAIN,
+    "steppe": ResourceType.GRAIN, "jungle": ResourceType.BOTANICALS,
+    "marsh": ResourceType.FISH,
 }
 
 TERRAIN_SECONDARY: dict[str, list[tuple[int, float]]] = {
@@ -27,6 +29,9 @@ TERRAIN_SECONDARY: dict[str, list[tuple[int, float]]] = {
     "tundra": [(ResourceType.ORE, 0.15)],
     "river": [(ResourceType.FISH, 0.40)],
     "hills": [(ResourceType.ORE, 0.30)],
+    "steppe": [(ResourceType.SALT, 0.30)],
+    "jungle": [(ResourceType.EXOTIC, 0.40)],
+    "marsh": [(ResourceType.BOTANICALS, 0.40)],
 }
 
 TERRAIN_TERTIARY: dict[str, list[tuple[int, float]]] = {
@@ -38,6 +43,9 @@ TERRAIN_TERTIARY: dict[str, list[tuple[int, float]]] = {
     "tundra": [],
     "river": [(ResourceType.BOTANICALS, 0.20)],
     "hills": [(ResourceType.TIMBER, 0.20)],
+    "steppe": [(ResourceType.ORE, 0.10)],
+    "jungle": [(ResourceType.PRECIOUS, 0.10)],
+    "marsh": [(ResourceType.SALT, 0.15)],
 }
 
 
@@ -106,6 +114,9 @@ TERRAIN_RESOURCE_PROBS: dict[str, dict[Resource, float]] = {
     "tundra":    {Resource.GRAIN: 0.02, Resource.TIMBER: 0.1, Resource.IRON: 0.3, Resource.FUEL: 0.3, Resource.STONE: 0.1, Resource.RARE_MINERALS: 0.2},
     "river":     {Resource.GRAIN: 0.7, Resource.TIMBER: 0.3, Resource.IRON: 0.05, Resource.FUEL: 0.05, Resource.STONE: 0.15, Resource.RARE_MINERALS: 0.02},
     "hills":     {Resource.GRAIN: 0.3, Resource.TIMBER: 0.4, Resource.IRON: 0.4, Resource.FUEL: 0.15, Resource.STONE: 0.5, Resource.RARE_MINERALS: 0.1},
+    "steppe":    {Resource.GRAIN: 0.5, Resource.TIMBER: 0.05, Resource.IRON: 0.15, Resource.FUEL: 0.1, Resource.STONE: 0.2, Resource.RARE_MINERALS: 0.05},
+    "jungle":    {Resource.GRAIN: 0.2, Resource.TIMBER: 0.7, Resource.IRON: 0.05, Resource.FUEL: 0.15, Resource.STONE: 0.05, Resource.RARE_MINERALS: 0.15},
+    "marsh":     {Resource.GRAIN: 0.4, Resource.TIMBER: 0.3, Resource.IRON: 0.05, Resource.FUEL: 0.3, Resource.STONE: 0.02, Resource.RARE_MINERALS: 0.02},
 }
 
 DISP_ORDER = {"hostile": 0, "suspicious": 1, "neutral": 2, "friendly": 3, "allied": 4}

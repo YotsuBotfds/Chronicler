@@ -175,11 +175,8 @@ fn best_migration_target_for_agent(
     // isolates its own effect (threat vs. religion).
     let mut threat_best_adj_id = region_id as u16;
     let mut threat_best_adj_score = own_score;
-    for bit in 0..32u32 {
-        if regions[region_id].adjacency_mask & (1 << bit) == 0 {
-            continue;
-        }
-        let adj = bit as usize;
+    for &adj_id in &regions[region_id].adjacency {
+        let adj = adj_id as usize;
         if adj >= regions.len() {
             continue;
         }
@@ -205,7 +202,7 @@ fn best_migration_target_for_agent(
         let adj_mean = stats.mean_satisfaction[adj];
         let mut adj_score = migration_region_score(&regions[adj], adj_mean, adj_pop)
             + polity_alignment_score(&regions[region_id], &regions[adj], civ);
-        if regions[region_id].river_mask & regions[adj].river_mask != 0 {
+        if regions[region_id].shares_river(&regions[adj]) {
             adj_score += RIVER_MIGRATION_BONUS;
         }
 
@@ -424,38 +421,36 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         let own_score = migration_region_score(&regions[r], own_mean, pop_count[r]);
         let mut best_adj_score = own_score;
         let mut best_adj_id: u16 = r as u16;
-        for bit in 0..32u32 {
-            if regions[r].adjacency_mask & (1 << bit) != 0 {
-                let adj = bit as usize;
-                if adj < n {
-                    let adj_cap = regions[adj].carrying_capacity.max(1) as f32;
-                    let adj_pop_ratio = pop_count[adj] as f32 / adj_cap;
-                    if own_pop_ratio <= 1.0 && adj_pop_ratio > MIGRATION_TARGET_SOFT_CAP {
-                        continue;
-                    }
-                    if own_pop_ratio > 1.0
-                        && adj_pop_ratio > 1.0
-                        && adj_pop_ratio > own_pop_ratio - MIGRATION_OVERCROWD_EXIT_DELTA
-                    {
-                        continue;
-                    }
-                    if adj_pop_ratio > own_pop_ratio + MIGRATION_RELATIVE_CROWDING_GUARD
-                        && adj_pop_ratio > 1.0
-                    {
-                        continue;
-                    }
+        for &adj_id in &regions[r].adjacency {
+            let adj = adj_id as usize;
+            if adj < n {
+                let adj_cap = regions[adj].carrying_capacity.max(1) as f32;
+                let adj_pop_ratio = pop_count[adj] as f32 / adj_cap;
+                if own_pop_ratio <= 1.0 && adj_pop_ratio > MIGRATION_TARGET_SOFT_CAP {
+                    continue;
+                }
+                if own_pop_ratio > 1.0
+                    && adj_pop_ratio > 1.0
+                    && adj_pop_ratio > own_pop_ratio - MIGRATION_OVERCROWD_EXIT_DELTA
+                {
+                    continue;
+                }
+                if adj_pop_ratio > own_pop_ratio + MIGRATION_RELATIVE_CROWDING_GUARD
+                    && adj_pop_ratio > 1.0
+                {
+                    continue;
+                }
 
-                    let adj_mean = mean_satisfaction[adj];
-                    let mut adj_score =
-                        migration_region_score(&regions[adj], adj_mean, pop_count[adj]);
-                    // M35a: River-connected neighbors get a bonus
-                    if regions[r].river_mask & regions[adj].river_mask != 0 {
-                        adj_score += RIVER_MIGRATION_BONUS;
-                    }
-                    if adj_score > best_adj_score {
-                        best_adj_score = adj_score;
-                        best_adj_id = adj as u16;
-                    }
+                let adj_mean = mean_satisfaction[adj];
+                let mut adj_score =
+                    migration_region_score(&regions[adj], adj_mean, pop_count[adj]);
+                // M35a: River-connected neighbors get a bonus
+                if regions[r].shares_river(&regions[adj]) {
+                    adj_score += RIVER_MIGRATION_BONUS;
+                }
+                if adj_score > best_adj_score {
+                    best_adj_score = adj_score;
+                    best_adj_id = adj as u16;
                 }
             }
         }
@@ -767,20 +762,18 @@ fn evaluate_region_decisions_v1(
         }
 
         // 2. Migrate?
-        if sat < MIGRATE_SATISFACTION_THRESHOLD && region.adjacency_mask != 0 {
+        if sat < MIGRATE_SATISFACTION_THRESHOLD && !region.adjacency.is_empty() {
             let current_mean = stats.mean_satisfaction[region_id];
             let mut best_region: Option<u16> = None;
             let mut best_sat: f32 = current_mean + 0.05;
 
-            for bit in 0..32u32 {
-                if region.adjacency_mask & (1 << bit) != 0 {
-                    let adj = bit as usize;
-                    if adj < stats.mean_satisfaction.len()
-                        && stats.mean_satisfaction[adj] > best_sat
-                    {
-                        best_sat = stats.mean_satisfaction[adj];
-                        best_region = Some(adj as u16);
-                    }
+            for &adj_id in &region.adjacency {
+                let adj = adj_id as usize;
+                if adj < stats.mean_satisfaction.len()
+                    && stats.mean_satisfaction[adj] > best_sat
+                {
+                    best_sat = stats.mean_satisfaction[adj];
+                    best_region = Some(adj as u16);
                 }
             }
 
@@ -952,7 +945,7 @@ mod tests {
         use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(32);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
         for _ in 0..5 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_satisfaction(slot, 0.05);
@@ -981,7 +974,7 @@ mod tests {
         use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
         for _ in 0..6 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_satisfaction(slot, 0.05);
@@ -1083,7 +1076,7 @@ mod tests {
         use rand_chacha::ChaCha8Rng;
         let mut pool = AgentPool::new(16);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
         for _ in 0..6 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_loyalty(slot, 0.01);
@@ -1180,7 +1173,7 @@ mod tests {
     fn test_migration_opportunity_computed() {
         let mut pool = AgentPool::new(32);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
         for _ in 0..5 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_satisfaction(slot, 0.2);
@@ -1201,9 +1194,9 @@ mod tests {
     fn test_migration_avoids_food_starved_target() {
         let mut pool = AgentPool::new(128);
         let mut regions = vec![make_region(0), make_region(1), make_region(2)];
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b001;
-        regions[2].adjacency_mask = 0b001;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b001);
+        regions[2].adjacency = crate::region::mask_to_ids(0b001);
         regions[1].food_sufficiency = 0.0;
         regions[2].food_sufficiency = 1.2;
 
@@ -1228,9 +1221,9 @@ mod tests {
     fn test_agent_specific_migration_uses_region_score_without_alignment_bias() {
         let mut pool = AgentPool::new(64);
         let mut regions = vec![make_region(0), make_region(1), make_region(2)];
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b001;
-        regions[2].adjacency_mask = 0b001;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b001);
+        regions[2].adjacency = crate::region::mask_to_ids(0b001);
         regions[0].controller_civ = 0;
         regions[1].controller_civ = 0;
         regions[2].controller_civ = 1;
@@ -1307,9 +1300,9 @@ mod tests {
     fn test_migration_prefers_under_capacity_target() {
         let mut pool = AgentPool::new(128);
         let mut regions = vec![make_region(0), make_region(1), make_region(2)];
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b001;
-        regions[2].adjacency_mask = 0b001;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b001);
+        regions[2].adjacency = crate::region::mask_to_ids(0b001);
         regions[0].carrying_capacity = 60;
         regions[1].carrying_capacity = 20;
         regions[2].carrying_capacity = 60;
@@ -1340,7 +1333,7 @@ mod tests {
     fn test_migration_rejects_sideways_overcrowding() {
         let mut pool = AgentPool::new(128);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
         regions[0].carrying_capacity = 50;
         regions[1].carrying_capacity = 50;
 
@@ -1600,7 +1593,7 @@ mod tests {
 
         let mut pool = AgentPool::new(32);
         let mut regions = vec![make_region(0), make_region(1)];
-        regions[0].adjacency_mask = 0b10;
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
 
         for _ in 0..6 {
             let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
@@ -1819,14 +1812,14 @@ mod river_tests {
             RegionState::new(2),
         ];
         // Region 0 adjacent to 1 and 2
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b001;
-        regions[2].adjacency_mask = 0b001;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b001);
+        regions[2].adjacency = crate::region::mask_to_ids(0b001);
 
         // River: regions 0 and 1 share river 0
-        regions[0].river_mask = 1;
-        regions[1].river_mask = 1;
-        regions[2].river_mask = 0;
+        regions[0].rivers = crate::region::mask_to_ids(1);
+        regions[1].rivers = crate::region::mask_to_ids(1);
+        regions[2].rivers = crate::region::mask_to_ids(0);
 
         for r in &mut regions {
             r.carrying_capacity = 60;
@@ -1894,9 +1887,9 @@ mod packet_consumer_tests {
     /// packets the tie resolves to region 1. Returns (pool, regions, slot).
     fn migration_world(agent_belief: u8) -> (AgentPool, Vec<RegionState>, usize) {
         let mut regions: Vec<RegionState> = (0..3).map(RegionState::new).collect();
-        regions[0].adjacency_mask = 0b110;
-        regions[1].adjacency_mask = 0b001;
-        regions[2].adjacency_mask = 0b001;
+        regions[0].adjacency = crate::region::mask_to_ids(0b110);
+        regions[1].adjacency = crate::region::mask_to_ids(0b001);
+        regions[2].adjacency = crate::region::mask_to_ids(0b001);
         for r in &mut regions {
             r.carrying_capacity = 60;
             r.controller_civ = 0;

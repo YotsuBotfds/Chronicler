@@ -302,6 +302,44 @@ class River(BaseModel):
     path: list[str] = Field(min_length=2)
 
 
+# --- Geography 2.0 (procedural worlds); None on template/scenario worlds ---
+
+class RegionGeography(BaseModel):
+    """Generator facts about one procedural region (read-only after world gen)."""
+    elevation: float          # 0..1 above sea level, normalized over land
+    moisture: float           # 0..1
+    latitude: float           # signed, -1 (south pole) .. 1 (north pole)
+    coastal: bool = False
+    sea_zones: list[str] = Field(default_factory=list)  # bordering sea zone names
+
+
+class SeaZone(BaseModel):
+    """A named body of water. Sea zones are not ownable regions: they group
+    ocean cells, and coastal regions that border the same zone may be joined
+    by a sea lane."""
+    name: str
+    kind: str                 # "ocean", "sea" or "lake"
+    x: float
+    y: float
+    cells: int
+    coastal_regions: list[str] = Field(default_factory=list)
+    neighbors: list[str] = Field(default_factory=list)
+
+
+class WorldGeography(BaseModel):
+    """Geography 2.0 metadata for a procedurally generated world."""
+    generator: str = "procedural"
+    version: int = 1
+    cells: int = 0
+    land_regions: int = 0
+    sea_zones: list[SeaZone] = Field(default_factory=list)
+    # Region pairs joined across water (each also listed in Region.adjacencies).
+    sea_lanes: list[tuple[str, str]] = Field(default_factory=list)
+
+
+_DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
+
+
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
@@ -369,6 +407,20 @@ class Region(BaseModel):
     last_conquered_turn: int = -1              # -1 = never conquered; set by WAR resolution
     # M60b: military occupier; ``controller`` remains the legal owner.
     occupied_by: str | None = None
+    # Geography 2.0: 0 equatorial, 1 tropical, 2 temperate, 3 subpolar, 4 polar.
+    # None (and ``geo`` None) on template worlds; both are omitted from
+    # serialized output while None so those worlds keep their exact bytes.
+    latitude_band: int | None = None
+    geo: RegionGeography | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_dormant_geography(self, handler):
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in _DORMANT_REGION_GEOGRAPHY:
+                if key in data and getattr(self, key) is None:
+                    del data[key]
+        return data
 
     @field_validator("resource_suspensions", mode="before")
     @classmethod
@@ -911,6 +963,8 @@ class WorldState(BaseModel):
     war_state: WarState = Field(default_factory=WarState)
     # Phase 8 governance runtime switch (None = disabled; omitted from output).
     governance: GovernanceSettings | None = None
+    # Geography 2.0 metadata (procedural worlds only; omitted while None).
+    geography: WorldGeography | None = None
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -984,7 +1038,10 @@ class WorldState(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize_without_dormant_governance(self, handler):
-        return _omit_dormant_governance(self, handler(self))
+        data = _omit_dormant_governance(self, handler(self))
+        if isinstance(data, dict) and self.geography is None:
+            data.pop("geography", None)
+        return data
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""

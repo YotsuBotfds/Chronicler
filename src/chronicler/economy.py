@@ -51,6 +51,10 @@ TERRAIN_COST: dict[str, float] = {
     "mountains": 2.0,
     "tundra": 1.8,
     "coast": 0.6,
+    # Geography 2.0 (Rust TERRAIN_COST indices 6..8 mirror these).
+    "steppe": 1.1,
+    "jungle": 1.7,
+    "marsh": 1.6,
 }
 TRANSPORT_COST_BASE: float = 0.10
 RIVER_DISCOUNT: float = 0.5
