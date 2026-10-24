@@ -20,13 +20,15 @@ def _run(enabled, treasury):
 
 # Since the 2026-10 food-balance corrections (goods-unit harvests, travelling
 # merchants counted in their home occupational balance, merchants returning
-# home after delivering) one convoy already lifts the Mine over the stress
-# threshold, so a funded episode is a single send at turn 4; a fresh
-# three-turn stress then reactivates aid at turn 10. A treasury of 1 pays for
-# exactly the first send, so the reactivation is blocked by funding alone.
-# (Before: sends at 4 and 5, treasury 2, reactivation at turn 14.)
+# home after delivering, the restored food-shortage satisfaction weight) one
+# convoy already lifts the Mine over the stress threshold, so a funded episode
+# is a single send at turn 4; each fresh three-turn stress then reactivates
+# aid, at turns 10 and 14. A treasury of 1 pays for exactly the first send, so
+# the reactivation is blocked by funding alone. (Before: sends at 4 and 5,
+# treasury 2, reactivation at turn 14.)
 FIRST_SEND = 4
 REACTIVATED = 10
+SECOND_REACTIVATION = 14
 
 
 @pytest.mark.native
@@ -85,10 +87,11 @@ def test_multiturn_recovery_blocks_funded_aid_then_reactivation():
         for key in ("stocks_before", "stocks_after_aid", "native_commitments",
                     "sufficiency", "agent_snapshot", "delivery_diagnostics"):
             assert funded[key] == limited[key]
-    assert [r["turn"] for r in rows if r["transfers"]] == [FIRST_SEND, REACTIVATED]
+    assert [r["turn"] for r in rows if r["transfers"]] == [FIRST_SEND, REACTIVATED, SECOND_REACTIVATION]
     assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[FIRST_SEND + 1:REACTIVATED])
     assert rows[FIRST_SEND]["memory_after"]["Mine"]["stress_streak"] == 0
     assert rows[REACTIVATED]["prior_memory"]["Mine"]["stress_streak"] == 3
+    assert rows[SECOND_REACTIVATION]["prior_memory"]["Mine"]["stress_streak"] == 3
     # Funding, not stress, separates the runs: only the funded run pays.
     assert rows[REACTIVATED]["treasury_after"] < rows[REACTIVATED]["treasury_before"]
     assert not exhausted[REACTIVATED]["transfers"]
