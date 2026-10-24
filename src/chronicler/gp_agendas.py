@@ -138,7 +138,7 @@ _TRAIT_LEANING: dict[T, tuple[tuple[str, ...], float]] = {
 _BASE_WEIGHT: dict[T, float] = {T.SEIZE_THRONE: 1.5, T.LEND_TO_CROWN: 1.5}
 
 # Generals
-VICTORY_RENOWN = 1            # renown per victory of the civ while campaigning
+VICTORY_RENOWN = 1            # renown per victory of the civ, for every active general
 COMMAND_RENOWN = 2            # ... when the general commanded the winning army
 VICTORY_PRESTIGE = 1          # civ prestige per campaign victory (keep)
 CAMPAIGN_PRESTIGE = 2         # civ prestige when the campaign takes its region
@@ -978,6 +978,8 @@ def _campaign_deeds(world, ctx, state, civ_idx, civ, gp, rec, acc, events) -> No
             prov.cite(ev, rec.declared_event)
             _deed(gp, f"Agitated for war against {enemy}", world)
             _deed_event(world, gp, ev)
+            # The souring stands for the pair this turn: a trade road it cuts cites it.
+            prov.remember(world, prov.key("gp_soured", prov.pair(civ.name, enemy)), ev)
             events.append(ev)
             _count(state, "war_agitation")
         return
@@ -1167,7 +1169,9 @@ def _trade_deeds(world, ctx, state, civ_idx, civ, gp, rec, kind, acc, events, ev
                 events.append(ev)
                 _count(state, "trade_missions")
         if breach is not None or other not in ctx.partners().get(civ.name, set()):
-            evidence.add("trade_route_broken", target, prov.ensure_id(world, breach) if breach else None)
+            source = (prov.ensure_id(world, breach) if breach is not None
+                      else prov.recall(world, prov.key("gp_soured", prov.pair(civ.name, other)), within=0))
+            evidence.add("trade_route_broken", target, source)
         return
     if kind == T.FOUND_TRADING_HOUSE:
         partners = ctx.partners().get(civ.name, set())

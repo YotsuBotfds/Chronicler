@@ -258,6 +258,31 @@ def test_peacetime_general_agitates_against_the_neighbour_he_covets(monkeypatch)
     assert _tick(calm) == []
 
 
+def test_a_road_soured_by_a_generals_agitation_cites_it(monkeypatch):
+    world = _world()
+    for name in ("Thornwall Confederacy", "Selurian Republic"):
+        world.relationships["Kethani Empire"][name].disposition = Disposition.FRIENDLY
+    _gp(world, KETHANI, "general", "Marshal Tovan", trait="bold")
+    merchant = _gp(world, KETHANI, "merchant", "Factor Oda")
+    real = G._raw_pool
+
+    def pool(*args, **kwargs):
+        full = real(*args, **kwargs)
+        wanted = T.LEAD_CAMPAIGN if args[5].role == "general" else T.PROTECT_TRADE_ROUTE
+        return {wanted: full[wanted]} if wanted in full else {}
+
+    monkeypatch.setattr(G, "_raw_pool", pool)
+    _tick(world)
+    assert _rec(world, merchant).agenda.target == str(ASHKARI)
+    monkeypatch.setattr(G, "AGITATION_P", 1.0)
+    monkeypatch.setattr(G, "INTERCEDE_P", 0.0)
+    out = _next(world)
+    agitation = next(e for e in out if e.event_type == "war_agitation")
+    failed = next(e for e in out if e.event_type == "agenda_failed")
+    assert "the trade road was cut" in failed.description
+    assert prov.ensure_id(world, agitation) in failed.causes
+
+
 def _plot(world, monkeypatch, *, grievance: bool = True):
     """A renowned general of Kethani under a weak ruler declares a coup."""
     monkeypatch.setattr(G, "_campaign_targets", lambda *a, **k: [])
