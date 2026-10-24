@@ -1031,10 +1031,13 @@ fn plan_region_marriages(
     let n = e.len();
 
     // Fast mode: a bounded candidate adjacency (CSR) and the rejection
-    // counters over the distinct pairs it examined.
+    // counters over the examinations it made. Small regions keep the exact
+    // all-pairs scan, so fast mode only differs where it saves work.
     let fast = match mode {
-        crate::scale::AgentScaleMode::Exact => None,
-        crate::scale::AgentScaleMode::Fast => Some(fast_marriage_candidates(&e, civ_at_war)),
+        crate::scale::AgentScaleMode::Fast if n > crate::scale::FAST_MARRIAGE_SCAN => {
+            Some(fast_marriage_candidates(&e, civ_at_war, turn, region_idx))
+        }
+        _ => None,
     };
 
     // Offer every valid, writable, unmatched partner of `a`. In exact mode
@@ -1166,19 +1169,26 @@ fn plan_region_marriages(
     })
 }
 
-/// Fast mode: each eligible agent examines a deterministic sample of at most
-/// `FAST_MARRIAGE_CANDIDATES` agents from the 3 x 3 block of a
-/// population-sized grid around it. Returns the valid-pair adjacency (CSR),
-/// the number of distinct pairs examined and their rejection counters.
+/// Fast mode: each eligible agent examines a deterministic stride sample of
+/// at most `FAST_MARRIAGE_SCAN` agents from the 3 x 3 block of a
+/// population-sized grid around it and keeps its `FAST_MARRIAGE_CANDIDATES`
+/// best valid partners in the reference greedy order, so the bounded graph
+/// keeps the high-scoring (same civ / faith / culture) pairs the exact greedy
+/// would pick first. Returns the union of those lists as a CSR adjacency, the
+/// number of (agent, partner) examinations and their rejection counters.
 fn fast_marriage_candidates(
     e: &Eligible,
     civ_at_war: &[bool; 256],
+    turn: u32,
+    region_idx: u32,
 ) -> ((Vec<u32>, Vec<u32>), u32, [u32; 3]) {
+    use rayon::prelude::*;
+
     let n = e.len();
-    let k = crate::scale::FAST_MARRIAGE_CANDIDATES.max(1);
-    // Cells sized so a 3 x 3 block holds about k agents on average, never
-    // wider than the marriage radius allows to matter (side >= 4).
-    let side = (((9 * n) as f64 / k as f64).sqrt().ceil() as usize).clamp(4, 256);
+    let scan = crate::scale::FAST_MARRIAGE_SCAN.max(1);
+    let keep = crate::scale::FAST_MARRIAGE_CANDIDATES.max(1);
+    // Cells sized so a 3 x 3 block holds about `scan` agents on average.
+    let side = (((9 * n) as f64 / scan as f64).sqrt().ceil() as usize).clamp(1, 256);
     let cell_of = |i: usize| {
         let cx = ((e.x[i] * side as f32) as usize).min(side - 1);
         let cy = ((e.y[i] * side as f32) as usize).min(side - 1);
@@ -1199,57 +1209,84 @@ fn fast_marriage_candidates(
         fill[c] += 1;
     }
 
-    let mut pairs: Vec<(u32, u32)> = Vec::with_capacity(n * k);
-    let mut block: Vec<u32> = Vec::new();
-    for a in 0..n {
-        let c = cell_of(a);
-        let (cx, cy) = (c % side, c / side);
-        block.clear();
-        for row in cy.saturating_sub(1)..=(cy + 1).min(side - 1) {
-            let first = row * side + cx.saturating_sub(1);
-            let last = row * side + (cx + 1).min(side - 1);
-            block.extend_from_slice(&members[starts[first] as usize..starts[last + 1] as usize]);
-        }
-        let stride = if block.len() > k { (block.len() + k - 1) / k } else { 1 };
-        let mut idx = a % stride;
-        while idx < block.len() {
-            let b = block[idx] as usize;
-            if b != a {
-                pairs.push(if a < b { (a as u32, b as u32) } else { (b as u32, a as u32) });
+    let per_agent: Vec<(Vec<u32>, u32, [u32; 3])> = (0..n)
+        .into_par_iter()
+        .map_init(Vec::new, |block: &mut Vec<u32>, a| {
+            let c = cell_of(a);
+            let (cx, cy) = (c % side, c / side);
+            block.clear();
+            for row in cy.saturating_sub(1)..=(cy + 1).min(side - 1) {
+                let first = row * side + cx.saturating_sub(1);
+                let last = row * side + (cx + 1).min(side - 1);
+                block.extend_from_slice(&members[starts[first] as usize..starts[last + 1] as usize]);
             }
-            idx += stride;
+            let stride = if block.len() > scan { (block.len() + scan - 1) / scan } else { 1 };
+            let mut best: Vec<(PairKey, u32)> = Vec::with_capacity(keep + 1);
+            let mut examined = 0u32;
+            let mut counts = [0u32; 3];
+            let mut idx = a % stride;
+            while idx < block.len() {
+                let b = block[idx] as usize;
+                idx += stride;
+                if b == a {
+                    continue;
+                }
+                examined += 1;
+                match classify_pair(e, a, b, civ_at_war) {
+                    PairClass::Far => counts[0] += 1,
+                    PairClass::Incest => counts[1] += 1,
+                    PairClass::Hostile => counts[2] += 1,
+                    PairClass::Valid => {
+                        if !e.can_wed[a] || !e.can_wed[b] {
+                            continue;
+                        }
+                        let key = pair_key(e, a, b, turn, region_idx);
+                        if best.len() == keep && !key.before(&best[keep - 1].0) {
+                            continue;
+                        }
+                        let pos = best.iter().position(|(k, _)| key.before(k)).unwrap_or(best.len());
+                        best.insert(pos, (key, b as u32));
+                        best.truncate(keep);
+                    }
+                }
+            }
+            (best.into_iter().map(|(_, b)| b).collect(), examined, counts)
+        })
+        .collect();
+
+    let mut examined = 0u32;
+    let mut counts = [0u32; 3];
+    let mut pairs: Vec<(u32, u32)> = Vec::new();
+    for (a, (partners, ex, c)) in per_agent.iter().enumerate() {
+        examined = examined.wrapping_add(*ex);
+        for k in 0..3 {
+            counts[k] = counts[k].wrapping_add(c[k]);
+        }
+        for &b in partners {
+            let a = a as u32;
+            pairs.push(if a < b { (a, b) } else { (b, a) });
         }
     }
     pairs.sort_unstable();
     pairs.dedup();
 
-    let mut counts = [0u32; 3];
     let mut degree = vec![0u32; n + 1];
-    let mut valid: Vec<(u32, u32)> = Vec::with_capacity(pairs.len());
     for &(a, b) in &pairs {
-        match classify_pair(e, a as usize, b as usize, civ_at_war) {
-            PairClass::Far => counts[0] += 1,
-            PairClass::Incest => counts[1] += 1,
-            PairClass::Hostile => counts[2] += 1,
-            PairClass::Valid => {
-                valid.push((a, b));
-                degree[a as usize + 1] += 1;
-                degree[b as usize + 1] += 1;
-            }
-        }
+        degree[a as usize + 1] += 1;
+        degree[b as usize + 1] += 1;
     }
     for i in 0..n {
         degree[i + 1] += degree[i];
     }
     let mut fill = degree[..n].to_vec();
-    let mut partners = vec![0u32; valid.len() * 2];
-    for &(a, b) in &valid {
+    let mut partners = vec![0u32; pairs.len() * 2];
+    for &(a, b) in &pairs {
         partners[fill[a as usize] as usize] = b;
         fill[a as usize] += 1;
         partners[fill[b as usize] as usize] = a;
         fill[b as usize] += 1;
     }
-    ((degree, partners), pairs.len().min(u32::MAX as usize) as u32, counts)
+    ((degree, partners), examined, counts)
 }
 
 /// Check whether agents a and b share a positive contact (triadic closure).

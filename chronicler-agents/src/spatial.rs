@@ -615,8 +615,36 @@ struct DriftScratch {
     next_bounds: Vec<usize>,
     /// Neighbours actually evaluated (fast mode sample).
     sample: Vec<NeighborEntry>,
-    /// Per neighbour: (dist, dx / dist, dy / dist) toward the neighbour.
-    geom: Vec<[f32; 3]>,
+    /// The evaluated neighbours as columns (slot-sorted).
+    cols: NeighborColumns,
+    /// Per neighbour: distance and unit direction toward the neighbour.
+    geom: Geometry,
+}
+
+/// Neighbour list as columns, so the distance pass vectorises.
+#[derive(Default)]
+struct NeighborColumns {
+    slot: Vec<u32>,
+    x: Vec<f32>,
+    y: Vec<f32>,
+}
+
+impl NeighborColumns {
+    fn fill(&mut self, entries: &[NeighborEntry]) {
+        self.slot.clear();
+        self.x.clear();
+        self.y.clear();
+        self.slot.extend(entries.iter().map(|e| e.0));
+        self.x.extend(entries.iter().map(|e| e.1));
+        self.y.extend(entries.iter().map(|e| e.2));
+    }
+}
+
+#[derive(Default)]
+struct Geometry {
+    dist: Vec<f32>,
+    ux: Vec<f32>,
+    uy: Vec<f32>,
 }
 
 /// Stable two-way merge by slot.
@@ -699,8 +727,8 @@ fn compute_drift_excluding(
     agent_id: u32,
     self_slot: u32,
     attractors: &RegionAttractors,
-    neighbors: &[NeighborEntry],
-    geom: &mut Vec<[f32; 3]>,
+    neighbors: &NeighborColumns,
+    geom: &mut Geometry,
 ) -> (f32, f32) {
     // 1. Attractor vector — identical to compute_drift_for_agent.
     let mut att_x: f32 = 0.0;
@@ -721,25 +749,51 @@ fn compute_drift_excluding(
         att_y += pull * dir_y;
     }
 
-    geom.clear();
-    geom.extend(neighbors.iter().map(|&(slot, nx, ny)| {
+    let n = neighbors.slot.len();
+    let Geometry { dist, ux, uy } = geom;
+    dist.clear();
+    ux.clear();
+    uy.clear();
+    dist.resize(n, 0.0);
+    ux.resize(n, 0.0);
+    uy.resize(n, 0.0);
+    for ((((d, u), v), &nx), &ny) in dist
+        .iter_mut()
+        .zip(ux.iter_mut())
+        .zip(uy.iter_mut())
+        .zip(&neighbors.x)
+        .zip(&neighbors.y)
+    {
         let dx = nx - agent_x;
         let dy = ny - agent_y;
-        let dist = if slot == self_slot { f32::INFINITY } else { (dx * dx + dy * dy).sqrt() };
-        [dist, dx / dist, dy / dist]
-    }));
+        let r = (dx * dx + dy * dy).sqrt();
+        *d = r;
+        *u = dx / r;
+        *v = dy / r;
+    }
+    // The agent itself (slots are sorted, so its entries are adjacent).
+    if let Ok(found) = neighbors.slot.binary_search(&self_slot) {
+        let mut k = found;
+        while k > 0 && neighbors.slot[k - 1] == self_slot {
+            k -= 1;
+        }
+        while k < n && neighbors.slot[k] == self_slot {
+            dist[k] = f32::INFINITY;
+            k += 1;
+        }
+    }
 
     // 2. Density vector — mean direction to neighbors within DENSITY_RADIUS
     let mut dens_x: f32 = 0.0;
     let mut dens_y: f32 = 0.0;
     let mut dens_count: u32 = 0;
-    for g in geom.iter() {
-        let dist = g[0];
-        if dist > DENSITY_RADIUS || dist < DENSITY_MIN_DIST {
+    for k in 0..n {
+        let r = dist[k];
+        if r > DENSITY_RADIUS || r < DENSITY_MIN_DIST {
             continue;
         }
-        dens_x += g[1];
-        dens_y += g[2];
+        dens_x += ux[k];
+        dens_y += uy[k];
         dens_count += 1;
     }
     if dens_count > 0 {
@@ -756,12 +810,12 @@ fn compute_drift_excluding(
     // 3. Repulsion vector — sum from neighbors within REPULSION_RADIUS
     let mut rep_x: f32 = 0.0;
     let mut rep_y: f32 = 0.0;
-    for (k, g) in geom.iter().enumerate() {
-        let dist = g[0];
+    for k in 0..n {
+        let dist = dist[k];
         if dist > REPULSION_RADIUS {
             continue;
         }
-        let (neighbor_id, nx, ny) = neighbors[k];
+        let (neighbor_id, nx, ny) = (neighbors.slot[k], neighbors.x[k], neighbors.y[k]);
         let dx = agent_x - nx; // AWAY from neighbor
         let dy = agent_y - ny;
         let (dir_x, dir_y, force);
@@ -985,16 +1039,18 @@ pub fn spatial_drift_step_with_mode(
                 let (region, cell, _) = item[0];
                 let region = region as usize;
                 merge_block(&indexes[region], cell as usize, scratch);
-                let DriftScratch { block, sample, geom, .. } = scratch;
+                let DriftScratch { block, sample, cols, geom, .. } = scratch;
+                if !fast {
+                    cols.fill(block);
+                }
                 item.iter()
                     .map(|&(_, _, slot)| {
                         let s = slot as usize;
-                        let neighbors: &[NeighborEntry] = if fast {
+                        if fast {
                             sample_block(block, slot, sample);
-                            sample
-                        } else {
-                            block
-                        };
+                            cols.fill(sample);
+                        }
+                        let neighbors: &NeighborColumns = cols;
                         let (nx, ny) = compute_drift_excluding(
                             pool_ref.x[s],
                             pool_ref.y[s],
@@ -1227,8 +1283,9 @@ mod scale_equivalence_tests {
                 ref_with_self.push(s as u32);
                 ref_with_self.sort_unstable();
                 assert_eq!(with_self, ref_with_self, "case {case} slot {s}: block list");
+                scratch.cols.fill(&scratch.block);
                 let got = compute_drift_excluding(
-                    x, y, occ, id, s as u32, &att, &scratch.block, &mut scratch.geom,
+                    x, y, occ, id, s as u32, &att, &scratch.cols, &mut scratch.geom,
                 );
                 assert_eq!(
                     (expected.0.to_bits(), expected.1.to_bits()),

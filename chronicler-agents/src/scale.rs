@@ -61,8 +61,12 @@ pub const FAST_DRIFT_MIN_SIDE: usize = 10;
 /// the 3 x 3 query block always contains every repelling neighbour.
 pub const FAST_DRIFT_MAX_SIDE: usize = 20;
 /// Fast drift: neighbours evaluated per agent (deterministic stride sample).
-pub const FAST_DRIFT_MAX_NEIGHBORS: usize = 48; // [CALIBRATE M61b]
-/// Fast marriage: partner candidates examined per eligible agent.
+pub const FAST_DRIFT_MAX_NEIGHBORS: usize = 96; // [CALIBRATE M61b]
+/// Fast marriage: agents examined per eligible agent (stride sample of the
+/// surrounding block). Regions with at most this many eligible agents use the
+/// exact all-pairs scan.
+pub const FAST_MARRIAGE_SCAN: usize = 256; // [CALIBRATE M61b]
+/// Fast marriage: best valid partners kept per agent for the matching.
 pub const FAST_MARRIAGE_CANDIDATES: usize = 24; // [CALIBRATE M61b]
 /// Fast formation: later partners examined per agent in the shuffled order.
 pub const FAST_FORMATION_PARTNERS: usize = 64; // [CALIBRATE M61b]
