@@ -446,10 +446,13 @@ def test_escorted_crossing_lands_through_the_battle_code():
     landing = [e for e in ctx.events if e.event_type == "amphibious_landing"]
     assert landing and landing[0].causes[0] == state.fleets[0].event_id
     assert M.landing_factor(world, army) == M.LANDING_POWER
-    # The landed army fights the garrison through the ordinary campaign code.
+    # The landed army fights the garrison through the ordinary campaign code,
+    # and that fight cites the landing.
     before = len(world.war_state.battles)
     _sieges_and_liberation(ctx)
     assert len(world.war_state.battles) == before + 1
+    fight = [e for e in ctx.events if e.event_type == "war"][-1]
+    assert landing[0].event_id in fight.causes
 
 
 def test_escort_capacity_is_limited_per_turn():
