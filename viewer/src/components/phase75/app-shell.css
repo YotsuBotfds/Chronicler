@@ -479,6 +479,39 @@
   line-height: 1.5;
 }
 
+.phase75-accounts {
+  display: grid;
+  gap: 6px;
+}
+
+.phase75-account-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--phase75-muted-strong);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.phase75-account-source {
+  color: var(--phase75-ink);
+}
+
+.phase75-account-tags {
+  color: var(--phase75-gold);
+}
+
+.phase75-account-text {
+  display: block;
+  font-style: italic;
+}
+
+.phase75-account-lost-text {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
 .phase75-field {
   display: grid;
   gap: 6px;

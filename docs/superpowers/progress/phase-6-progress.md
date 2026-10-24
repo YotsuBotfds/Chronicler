@@ -2,9 +2,62 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-5`: techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## In-world historiography (2026-10-24, `feat/historiography`)
+
+`feat/historiography` from `integrate/wave-5` (`b1b3f2d`), merged forward to
+`b7d9ced` (no rebase). It adds an observational layer: court chroniclers
+per civ and temple scribes per faith with a standing temple. They record
+each completed turn's events with biases read from simulation state (ruler
+legitimacy and power struggles, clergy influence and faith, grievances,
+victory or defeat). The biases are omissions, inflated or minimized
+casualties, claimed stalemates, blame shifted to an enemy's real deed from
+the provenance graph, praise or condemnation of rulers, and divine favour,
+trials and wrath. Accounts go into archives that sacks, conquest, collapse,
+absorption, fire, earthquakes, floods, plague and desecration destroy;
+literacy techniques add copies. Chroniclers cite only what survives.
+Contested accounts are exported for the narrator (prompt block, mechanical
+"In their own words" passage, curator bonus), for `--narrate` and for the
+viewer's event inspector. `--historiography` is **on for new worlds**
+(`--no-historiography` opts out). State lives in a
+`state.historiography.json` sidecar, so `state.json` keeps its bytes. No
+Rust change. Evidence: `docs/integration/historiography.md`.
+
+- **Identity** (`scripts/historiography_identity.py`, base `b7d9ced` exported):
+  - Template seeds 42/7/1234 (off 300, hybrid 200) and procedural 48x10
+    seed 7, flag off: 72 files, 0 differences.
+  - Flag on: the same 72 files identical apart from narration (4+4
+    `chronicle.md`, bundles identical apart from `historiography`,
+    `chronicle_entries`, `gap_summaries`), plus 8 sidecars.
+  - Subset gates (20 x 200 hybrid) base / off / on: all PASS, 2,164 files
+    identical, validation reports and gate decisions identical (batch path
+    normalized).
+  - The frozen exact-trajectory oracles hold with the layer on: turn hashes,
+    RNG trace, artifacts minus the field and sidecar.
+- **Default on, justified as narration-only:** simulation, gates and saved
+  state are byte-identical. Cost about 4% run time on the 500-turn guard
+  world (three alternating runs each), +2.6% bundle on the subset, 243 KB
+  sidecar per 200-turn run. The frozen benchmark workloads pin it off.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,883 passed, 3 skipped (base 5,844; +39).
+  - No-Rust lane: 5,683 passed, 203 skipped (slow included).
+  - Oracle lane (PR #19's guard fix local, now including
+    `tests/test_historiography.py`): 1,888 passed, 10 skipped, 2 deselected, guard PASS.
+  - Viewer: 219 tests, lint, build.
+  - Bundle guard unchanged at 24 MB: 20.73 MB native, 23.61 MB no-Rust (field 0.65 / 0.77 MB).
+- **Open:**
+  - Bias and survival calibrations are illustrative.
+  - Temple desecration dominates archive losses (68 accounts per subset
+    run).
+  - The curator bonus matters only when clusters exceed the narration
+    budget.
+  - No inter-archive copying or captured archives.
+  - Live-mode resume (from a client-sent state dict) starts without
+    chronicles.
+  - The full 200-seed gate was not run (the simulation is unchanged).
 
 ## Dead civs leave the history snapshots, bundle version 5 (2026-10-24, `perf/prune-dead-civ-snapshots`)
 

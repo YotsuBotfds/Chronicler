@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
   BatchReport,
   BatchRunSummary,
@@ -25,6 +25,8 @@ import { RegionHistoryInspector } from "../RegionHistoryInspector";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
+import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
+import { InWorldAccounts } from "./InWorldAccounts";
 import {
   buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
 } from "./appShellHelpers";
@@ -921,6 +923,12 @@ export function AppShell({
     ? (bundle?.events_timeline.find((event) => eventKey(event) === selectedEntity.id) ?? null)
     : null;
   const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? [], selectedEvent);
+  const historiography = bundle?.historiography;
+  const accountRows = useMemo(
+    () => (historiography ? decodeAccounts(historiography) : []),
+    [historiography],
+  );
+  const selectedEventAccounts = accountsForEvent(historiography, selectedEvent?.event_id, accountRows);
 
   const viewerReady = bundle !== null;
   const canActivateSurface = (candidate: AppSurface): boolean => {
@@ -1101,6 +1109,7 @@ export function AppShell({
           selectedCivilization={selectedCivilization}
           selectedEvent={selectedEvent}
           selectedEventProvenance={selectedEventProvenance}
+          selectedEventAccounts={selectedEventAccounts}
           selectedBatchSummary={selectedBatchSummary}
           civilizations={civilizations}
           previewCivilizations={previewCivilizations}
@@ -2219,6 +2228,7 @@ function RightInspector({
   selectedCivilization,
   selectedEvent,
   selectedEventProvenance,
+  selectedEventAccounts = null,
   selectedBatchSummary,
   civilizations,
   previewCivilizations,
@@ -2242,6 +2252,7 @@ function RightInspector({
   selectedCivilization: CivilizationView | null;
   selectedEvent: Event | null;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
+  selectedEventAccounts?: EventAccounts | null;
   selectedBatchSummary: BatchRunSummary | null;
   civilizations: CivilizationView[];
   previewCivilizations: Array<{ name: string; values: string[] }>;
@@ -2415,6 +2426,7 @@ function RightInspector({
                     </strong>
                   </div>
                 )}
+                <InWorldAccounts accounts={selectedEventAccounts} />
               </>
             )}
 

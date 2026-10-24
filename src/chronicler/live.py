@@ -320,6 +320,10 @@ class LiveServer:
             if all_great_persons else None
         )
 
+        # In-world accounts, when the loaded bundle carries them.
+        from chronicler.historiography import AccountIndex
+        account_index = AccountIndex.from_bundle(init_data)
+
         moments, _ = curate(
             range_events,
             all_named,
@@ -327,6 +331,7 @@ class LiveServer:
             budget=1,
             seed=seed,
             named_characters=named_chars if named_chars else None,
+            contested=account_index.contested_bonus() if account_index else None,
         )
         if not moments:
             return None
@@ -349,6 +354,7 @@ class LiveServer:
             dynasty_registry=None,
             economy_result=None,
             gini_by_civ=None,
+            historiography=account_index,
         )
         if not entries:
             return None
@@ -1163,6 +1169,12 @@ def run_live(
         )
         _nomads = getattr(args, "nomads", None)
         set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
+        # Historiography: new live worlds follow the CLI default (observational).
+        from chronicler.historiography import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
+        )
+        _hist = getattr(args, "historiography", None)
+        set_historiography_enabled(world, _HIST_DEFAULT if _hist is None else bool(_hist))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (
