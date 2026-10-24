@@ -212,6 +212,41 @@ def test_runs_are_identical_with_row_paths_forced(argv, scale, tmp_path, monkeyp
 
 @pytest.mark.native
 @pytest.mark.skipif(not _AGENTS_AVAILABLE, reason="Rust agent extension not available")
+def test_native_snapshot_cache_is_dropped_by_pool_changes():
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.world_gen import generate_world
+
+    world = generate_world(seed=4, num_regions=8, num_civs=4)
+    world.agent_mode = "hybrid"
+    sim = AgentBridge(world, mode="hybrid")._sim
+    if not hasattr(sim, "snapshot_is_cached"):
+        pytest.skip("extension predates the snapshot cache")
+
+    def table(batch):
+        return pa.record_batch(batch)
+
+    first = sim.get_snapshot()
+    assert sim.snapshot_is_cached()
+    assert table(sim.get_snapshot()).equals(table(first))
+    # Read-only calls keep the batch.
+    sim.get_promotions()
+    sim.queue_targeted_deaths([])
+    assert sim.snapshot_is_cached()
+    # A pool-changing call drops it; the next export shows the change.
+    agent_id = table(first).column("id")[0].as_py()
+    old_civ = table(first).column("civ_affinity")[0].as_py()
+    sim.set_agent_civ(agent_id, (old_civ + 1) % 4)
+    assert not sim.snapshot_is_cached()
+    changed = table(sim.get_snapshot())
+    assert changed.column("civ_affinity")[0].as_py() == (old_civ + 1) % 4
+    # Any other mutating call (even a no-op) also drops it; re-export equals the cache.
+    sim.set_hybrid_economy_mode(True)
+    assert not sim.snapshot_is_cached()
+    assert table(sim.get_snapshot()).equals(changed)
+
+
+@pytest.mark.native
+@pytest.mark.skipif(not _AGENTS_AVAILABLE, reason="Rust agent extension not available")
 def test_shared_phase10_snapshot_equals_a_fresh_export(tmp_path, monkeypatch):
     """The batch handed over after the tick equals exporting the pool again."""
     from chronicler import simulation
@@ -224,6 +259,10 @@ def test_shared_phase10_snapshot_equals_a_fresh_export(tmp_path, monkeypatch):
         assert held is not None and held[0] == world.turn
         shared = original(world, bridge)
         assert shared is held[1] and bridge._post_tick_snapshot is None
+        if hasattr(bridge._sim, "snapshot_is_cached"):
+            # Drop the native cache with a call that changes nothing, so the
+            # comparison is against a real export.
+            bridge._sim.set_hybrid_economy_mode(bridge._mode == "hybrid")
         fresh = bridge._sim.get_snapshot()
         assert shared is not None
         assert pa.record_batch(shared).equals(pa.record_batch(fresh))

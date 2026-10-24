@@ -147,6 +147,13 @@ pub struct AgentSimulator {
     pending_promotion_memories: Vec<(u16, crate::memory::MemoryIntent)>,
     /// Agent-scale mode and other per-tick options (default: exact).
     tick_options: crate::scale::TickOptions,
+    /// The last `get_snapshot()` batch while the pool is unchanged. Every
+    /// `&mut self` Python method drops it first, except the three that only
+    /// read the pool (`get_promotions`, `queue_targeted_deaths`,
+    /// `tick_economy`); `to_record_batch` is a pure function of the pool, so
+    /// a held batch equals a fresh export. Arrow arrays are shared, so
+    /// handing it out again copies nothing.
+    snapshot_cache: Option<arrow::record_batch::RecordBatch>,
 }
 
 #[pymethods]
@@ -195,6 +202,7 @@ impl AgentSimulator {
             pending_targeted_deaths: Vec::new(),
             pending_promotion_memories: Vec::new(),
             tick_options: crate::scale::TickOptions::default(),
+            snapshot_cache: None,
         }
     }
 
@@ -213,6 +221,7 @@ impl AgentSimulator {
     /// reference algorithms) or `"fast"` (bounded-work candidate sampling
     /// for spatial drift, marriage and formation; changes results).
     pub fn set_agent_scale_mode(&mut self, mode: &str) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let parsed = crate::scale::AgentScaleMode::parse(mode).ok_or_else(|| {
             PyValueError::new_err(format!(
                 "agent scale mode must be 'exact' or 'fast', got {mode:?}"
@@ -234,6 +243,7 @@ impl AgentSimulator {
     /// population column (60% farmer, 15% soldier, 10% merchant, 10%
     /// scholar, ~5% priest). Subsequent calls update ecology fields only.
     pub fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
 
@@ -835,6 +845,7 @@ impl AgentSimulator {
 
     /// Advance simulation by one turn. Returns an events RecordBatch.
     pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         if !self.initialized {
             return Err(PyValueError::new_err(
                 "tick() called before set_region_state()",
@@ -916,9 +927,21 @@ impl AgentSimulator {
     }
 
     /// Return an Arrow RecordBatch snapshot of all alive agents.
-    pub fn get_snapshot(&self) -> PyResult<PyRecordBatch> {
+    ///
+    /// Repeated calls without a pool-changing call in between return the
+    /// same batch (see `snapshot_cache`) instead of exporting the pool again.
+    pub fn get_snapshot(&mut self) -> PyResult<PyRecordBatch> {
+        if let Some(batch) = &self.snapshot_cache {
+            return Ok(PyRecordBatch::new(batch.clone()));
+        }
         let batch = self.pool.to_record_batch().map_err(arrow_err)?;
+        self.snapshot_cache = Some(batch.clone());
         Ok(PyRecordBatch::new(batch))
+    }
+
+    /// Whether the next `get_snapshot()` reuses a held batch (diagnostics/tests).
+    pub fn snapshot_is_cached(&self) -> bool {
+        self.snapshot_cache.is_some()
     }
 
     /// Return per-civ aggregate stats as an Arrow RecordBatch.
@@ -1034,6 +1057,7 @@ impl AgentSimulator {
     }
 
     pub fn set_agent_civ(&mut self, agent_id: u32, new_civ_id: u8) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         for slot in 0..self.pool.capacity() {
             if self.pool.is_alive(slot) && self.pool.id(slot) == agent_id {
                 self.pool.set_civ_affinity(slot, new_civ_id);
@@ -1152,6 +1176,7 @@ impl AgentSimulator {
     /// Columns: op_type(u8), agent_a(u32), agent_b(u32), bond_type(u8), sentiment(i8), formed_turn(u16)
     /// op_type: 0=UpsertDirected, 1=UpsertSymmetric, 2=RemoveDirected, 3=RemoveSymmetric
     pub fn apply_relationship_ops(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
         let id_to_slot = self.pool.build_id_to_slot();
@@ -1723,6 +1748,7 @@ impl AgentSimulator {
         deforestation_threshold: f32,
         deforestation_water_loss: f32,
     ) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         self.ecology_config = crate::ecology::EcologyConfig {
             soil_degradation,
             soil_recovery,
@@ -1769,6 +1795,7 @@ impl AgentSimulator {
 
     /// Set the river topology for ecology cascade computation.
     pub fn set_river_topology(&mut self, rivers: Vec<Vec<u16>>) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         self.river_topology = crate::ecology::RiverTopology { rivers };
     }
 
@@ -1783,6 +1810,7 @@ impl AgentSimulator {
         pandemic_mask: Vec<bool>,
         army_arrived_mask: Vec<bool>,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         if self.regions.is_empty() {
             return Err(PyValueError::new_err(
                 "tick_ecology() called before set_region_state()",
@@ -1820,6 +1848,7 @@ impl AgentSimulator {
     /// Apply a narrow post-pass patch back to Rust region state.
     /// Recomputes resource_yields for regions whose ecology-affecting inputs changed.
     pub fn apply_region_postpass_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let recompute_indices = apply_patch_to_regions(&mut self.regions, &rb)?;
 
@@ -1841,6 +1870,7 @@ impl AgentSimulator {
 
     /// Optional default-off ecology experiment: patch actual fish catch only.
     pub fn apply_fishery_yield_patch(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         batch::apply_fishery_yield_patch(&mut self.regions, &batch.into_inner())
     }
 
@@ -1867,6 +1897,7 @@ impl AgentSimulator {
         severity_cap: f32,
         severity_multiplier: f32,
     ) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         self.politics_config = PoliticsConfig {
             secession_stability_threshold,
             secession_surveillance_threshold,
@@ -1945,6 +1976,7 @@ impl AgentSimulator {
         tatonnement_price_clamp_lo: f32,
         tatonnement_price_clamp_hi: f32,
     ) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         self.economy_config = crate::economy::EconomyConfig {
             base_price,
             per_capita_food,
@@ -1972,6 +2004,7 @@ impl AgentSimulator {
     /// When enabled, `tick_economy` consumes the merchant delivery buffer
     /// instead of running abstract tatonnement trade allocation.
     pub fn set_hybrid_economy_mode(&mut self, enabled: bool) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         self.hybrid_economy_mode = enabled;
         if let Some(buf) = self.merchant_delivery_buf.as_mut() {
             buf.physical_stock = enabled;
@@ -2450,6 +2483,7 @@ impl AgentSimulator {
 
     /// M56b: Ingest settlement footprint batch and build per-region grids.
     pub fn set_settlement_footprints(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         if rb.num_rows() == 0 {
             self.settlement_grids = vec![[0u16; 100]; self.num_regions];
@@ -2494,6 +2528,7 @@ impl AgentSimulator {
     /// Schema: from_region (uint16), to_region (uint16), is_river (bool), transport_cost (float32).
     #[pyo3(name = "set_merchant_route_graph")]
     pub fn set_merchant_route_graph(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
         if n == 0 {
