@@ -286,7 +286,8 @@ class HistoriographySlot:
     lookups.
     """
 
-    __slots__ = ("state", "_events", "_events_upto", "_accounts", "_by_chronicler", "_recent")
+    __slots__ = ("state", "_events", "_events_upto", "_accounts", "_by_chronicler", "_recent",
+                 "_zeal")
 
     def __init__(self, state: HistoriographyState) -> None:
         self.state = state
@@ -298,6 +299,7 @@ class HistoriographySlot:
         self._accounts: dict[str, int] | None = None
         self._by_chronicler: dict[str, list[int]] | None = None
         self._recent: dict[str, dict[tuple, int]] | None = None
+        self._zeal: dict[tuple, float] = {}
 
     def __eq__(self, other: object) -> bool:
         return other is None or isinstance(other, HistoriographySlot)
@@ -435,8 +437,11 @@ def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False)
             logger.warning("could not remove stale historiography sidecar %s", path)
         return
     if atomic:
-        from chronicler.artifact_io import atomic_write_text
-        atomic_write_text(path, text)
+        # Replace atomically (a reader never sees half a file). No fsync: a
+        # sidecar that does not match its state file is rejected on load.
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
     else:
         path.write_text(text, encoding="utf-8")
 
@@ -668,14 +673,24 @@ class _Turn:
             ruler = civ.leader.name if civ.leader is not None else None
             clergy = float(civ.factions.influence.get(self._clergy, 0.0))
             faith = civ.civ_majority_faith
-            temper = _Temper(loyalty, _unit(self.seed, chron.chronicler_id, "zeal", ruler),
+            temper = _Temper(loyalty, self.zeal(chron.chronicler_id, ruler),
                              ruler, clergy, faith, self.faith_names.get(faith))
         else:
             faith = chron.faith if chron.faith is not None else 0xFF
-            temper = _Temper("pious", _unit(self.seed, chron.chronicler_id, "zeal"), None,
+            temper = _Temper("pious", self.zeal(chron.chronicler_id, None), None,
                              1.0, faith, self.faith_names.get(faith))
         self._tempers[chron.chronicler_id] = temper
         return temper
+
+    def zeal(self, chronicler_id: str, ruler: str | None) -> float:
+        """The scribe's zeal for a chronicler and reign (a cached namespaced draw)."""
+        key = (chronicler_id, ruler)
+        cache = self.slot._zeal
+        value = cache.get(key)
+        if value is None:
+            value = cache[key] = (_unit(self.seed, chronicler_id, "zeal", ruler) if ruler is not None
+                                  else _unit(self.seed, chronicler_id, "zeal"))
+        return value
 
     def involved(self, ev: "Event") -> list[str]:
         """Civ names an event concerns: actors, ``civs``, the region's controller."""
