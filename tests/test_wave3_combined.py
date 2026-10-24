@@ -118,3 +118,24 @@ def test_maritime_with_all_three_is_deterministic():
     a = _advance(_sea_world(), 30)
     b = _advance(_sea_world(), 30)
     assert a.model_dump_json() == b.model_dump_json()
+
+
+# --- All five: techniques and maritime with epidemiology, finance and diplomacy --------
+
+def _five_world() -> WorldState:
+    import chronicler.techniques as tq
+    world = _sea_world()
+    tq.set_techniques_enabled(world, True)
+    return world
+
+
+def test_save_load_resume_identity_with_all_five_on(tmp_path):
+    first = _advance(_five_world(), 30)
+    assert first.techniques is not None and first.maritime.fleets
+    assert first.finance.loans and first.diplomacy.treaties
+    assert first.epidemics.deaths_total > 0
+    straight = _advance(_five_world(), 45)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = _advance(WorldState.load(path), 15)
+    assert resumed.model_dump_json() == straight.model_dump_json()
