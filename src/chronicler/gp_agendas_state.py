@@ -89,6 +89,8 @@ class GPAgendaState(BaseModel):
     evidence_cursor: int = 0
     counts: dict[str, int] = Field(default_factory=dict)
     log: list[AgendaLogEntry] = Field(default_factory=list)
+    # Trading houses founded: region name -> founding turn (one per region).
+    houses: dict[str, int] = Field(default_factory=dict)
 
 
 def gp_agendas_on(world) -> bool:

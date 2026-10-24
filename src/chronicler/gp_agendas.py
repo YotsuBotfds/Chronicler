@@ -159,14 +159,16 @@ COUP_SUCCESS_RANGE = (0.1, 0.85)
 COUP_FAILED_STABILITY = 3
 MAX_CONSPIRATORS = 2
 AGITATION_P = 0.1             # per turn: sour relations with the target's ruler one step
+AGITATION_GRIEVANCE = 5.0     # --diplomacy: border grievance the agitation plants in the civ's memory
 
 # Merchants
 MISSION_P = 0.15              # per turn: warm the target's disposition one step
 PARTNERSHIP_MISSION_FACTOR = 2.0
 INTERCEDE_P = 0.3             # protect: restore a partner's disposition that fell
+MISSION_GOODWILL = 5.0        # --diplomacy: goodwill a mission leaves in both memories
 TRADING_HOUSE_COST = 15
 TRADING_HOUSE_P = 0.25
-TRADING_HOUSE_MIN_PARTNERS = 2
+TRADING_HOUSE_MIN_PARTNERS = 2  # a house needs two trading partners (and one free region)
 CROWN_CREDIT_PER_LENDER = 0.5  # domestic credit capacity x (1 + 0.5 per lending merchant)
 MAX_CROWN_LENDERS = 2
 LEND_MIN_STRESS = 0.25
@@ -595,6 +597,10 @@ def _coup_motive(world, ctx: _Ctx, state: GPAgendaState, civ_idx: int, civ, gp, 
     if not motive:
         ambition = prov.recall(world, prov.key("gp_agenda_done", key), within=30)
         motive = [ambition] if ambition else []
+    if not motive:
+        # No named grievance or ambition: the distress that drained the
+        # ruler's stability (famines, wars, revolts, plague) is the grievance.
+        motive = [d for d in prov._distress(world, civ.name) if d]
     return motive
 
 
@@ -679,6 +685,19 @@ def _next_era(civ) -> str | None:
     return eras[i + 1].value if i + 1 < len(eras) else None
 
 
+def _house_site(state: GPAgendaState, civ, gp) -> str | None:
+    """Where a merchant would found a trading house: one house per region,
+    ever (``GPAgendaState.houses``); the merchant's own region, else the
+    capital, else the civ's first free region by name."""
+    free = [name for name in civ.regions if name not in state.houses]
+    if not free:
+        return None
+    for preferred in (gp.region, civ.capital_region):
+        if preferred in free:
+            return preferred
+    return sorted(free)[0]
+
+
 def _taken(state: GPAgendaState, civ_idx: int, active) -> set[tuple[str, str | None]]:
     """(kind, target) vows already held by an active person of the civ."""
     return {(r.agenda.ambition_type, r.agenda.target) for k, r in state.records.items()
@@ -722,7 +741,7 @@ def _raw_pool(world, ctx: _Ctx, state: GPAgendaState, civ_idx: int, civ, gp, rec
         protect = sorted(str(ctx.civ_index[p]) for p in partners if p in ctx.civ_index)
         if protect:
             pool[T.PROTECT_TRADE_ROUTE] = (sorted(protect, key=int), [])
-        if len(protect) >= TRADING_HOUSE_MIN_PARTNERS:
+        if len(protect) >= TRADING_HOUSE_MIN_PARTNERS and _house_site(state, civ, gp) is not None:
             pool[T.FOUND_TRADING_HOUSE] = ([None], [])
         from chronicler.finance import civ_finance, outstanding_debt
         f = civ_finance(world, civ_idx)
@@ -922,7 +941,12 @@ class _Evidence:
 
 
 def _sour_disposition_step(world, a: str, b: str) -> bool:
-    """Sour a neutral or suspicious pair one step (never below hostile)."""
+    """Sour a neutral or suspicious pair one step (never below hostile).
+
+    With ``--diplomacy`` the agitation also plants a border grievance in
+    ``a``'s memory of ``b``, so diplomacy's own drift carries it on rather
+    than its memory cap undoing it.
+    """
     from chronicler.culture import _downgrade_disposition
     moved = False
     for x, y in ((a, b), (b, a)):
@@ -930,6 +954,11 @@ def _sour_disposition_step(world, a: str, b: str) -> bool:
         if rel is not None and rel.disposition in (Disposition.NEUTRAL, Disposition.SUSPICIOUS):
             rel.disposition = _downgrade_disposition(rel.disposition)
             moved = True
+    from chronicler.diplomacy_state import diplomacy_on
+    if moved and diplomacy_on(world):
+        from chronicler.diplomacy import add_grievance
+        from chronicler.diplomacy_state import BORDER
+        add_grievance(world, a, b, BORDER, AGITATION_GRIEVANCE)
     return moved
 
 
@@ -1074,7 +1103,11 @@ def _crush_coup(world, state, civ_idx, civ, gp, rec, acc, causes, loyalists, age
 
 
 def _set_disposition_step(world, a: str, b: str) -> bool:
-    """Warm both sides of a pair one step up to neutral. True if anything moved."""
+    """Warm both sides of a pair one step up to neutral. True if anything moved.
+
+    With ``--diplomacy`` the mission also leaves goodwill in both memories,
+    which lifts the cap diplomacy's memory puts on the disposition.
+    """
     from chronicler.culture import upgrade_disposition
     moved = False
     for x, y in ((a, b), (b, a)):
@@ -1082,6 +1115,11 @@ def _set_disposition_step(world, a: str, b: str) -> bool:
         if rel is not None and rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
             rel.disposition = upgrade_disposition(rel.disposition)
             moved = True
+    from chronicler.diplomacy_state import diplomacy_on
+    if moved and diplomacy_on(world):
+        from chronicler.diplomacy import add_goodwill
+        add_goodwill(world, a, b, MISSION_GOODWILL)
+        add_goodwill(world, b, a, MISSION_GOODWILL)
     return moved
 
 
@@ -1133,14 +1171,15 @@ def _trade_deeds(world, ctx, state, civ_idx, civ, gp, rec, kind, acc, events, ev
         return
     if kind == T.FOUND_TRADING_HOUSE:
         partners = ctx.partners().get(civ.name, set())
-        if (len(partners) < TRADING_HOUSE_MIN_PARTNERS
+        region = _house_site(state, civ, gp)
+        if (region is None or len(partners) < TRADING_HOUSE_MIN_PARTNERS
                 or _projected_treasury(civ_idx, civ, acc) < 2 * TRADING_HOUSE_COST):
             return
         if _rng("trading_house", world, key).random() >= TRADING_HOUSE_P:
             return
         from chronicler.models import ArtifactIntent, ArtifactType
         _stat(world, acc, civ_idx, civ, "treasury", -TRADING_HOUSE_COST, "keep")
-        region = gp.region if gp.region in civ.regions else (civ.capital_region or civ.regions[0])
+        state.houses[region] = world.turn
         world._artifact_intents.append(ArtifactIntent(
             artifact_type=ArtifactType.TRADE_GOOD, trigger="gp_trading_house",
             creator_name=gp.name, creator_born_turn=gp.born_turn, holder_name=None,

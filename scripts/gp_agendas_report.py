@@ -2,20 +2,22 @@
 """Per-run great-person agenda numbers, for flag-on and flag-off runs alike.
 
 ``gp_agendas_report.py report LABEL=DIR [LABEL=DIR ...] [--json OUT]``
-    DIR is one run directory (``state.json`` and ``chronicle_bundle.json``)
-    or a batch of ``seed_*`` runs. Per run: agendas declared, fulfilled and
-    failed by role (zero with the switch off), coups (by great persons, and
-    all coups including the leader-mortality hazard's), wars declared,
-    battles, the mean number of active trade routes per turn, artifacts
-    created, and conversions when the run was measured (below). Prints a
-    per-label mean table; ``--json`` writes every row.
+    DIR is one run directory (``state.json``) or a batch of ``seed_*`` runs.
+    Per run: agendas declared, fulfilled and failed by role (zero with the
+    switch off), coups (by great persons, and all coups including the
+    leader-mortality hazard's), wars declared, war events (battles and
+    instant wars) and artifacts created, plus conversions and the mean
+    number of active trade routes per turn when the run was measured
+    (below). Prints a per-label mean table; ``--json`` writes every row.
 
 ``gp_agendas_report.py measure OUT_DIR -- ARGS...``
     Runs ``chronicler.main ARGS`` in this process (one seed, no
     ``--parallel``), counting agents whose belief changed from one turn's
     Phase 10 snapshot to the next (the snapshot that
-    ``religion.compute_majority_belief`` reads), and writes
-    ``OUT_DIR/conversions.json``. The counter only observes; outputs are
+    ``religion.compute_majority_belief`` reads) and the active trade routes
+    at the end of every turn (``resources._compute_active_trade_routes``, a
+    pure query; the bundle's route fields are not filled by runs), and
+    writes ``OUT_DIR/measure.json``. The counters only observe; outputs are
     unchanged. Select the source with ``PYTHONPATH`` (base or branch).
 
 See docs/integration/great-person-agendas.md.
@@ -46,6 +48,8 @@ def run_metrics(run: Path) -> dict:
     row: dict = {"run": run.name, "on": agendas is not None}
     for role in ROLES:
         row[f"declared_{role}"] = counts.get(f"declared:{role}", 0)
+        row[f"fulfilled_{role}"] = counts.get(f"fulfilled:{role}", 0)
+        row[f"failed_{role}"] = counts.get(f"failed:{role}", 0)
     for key in ("declared", "fulfilled", "failed", "coup_attempts", "coups", "coups_failed",
                 "campaign_victories", "war_agitation", "trade_missions", "trading_houses",
                 "crown_loans", "preaching", "shrines"):
@@ -55,15 +59,11 @@ def run_metrics(run: Path) -> dict:
     row["wars_declared"] = by_type.get("war_declared", 0)
     row["war_events"] = by_type.get("war", 0)
     row["artifacts"] = len(state.get("artifacts", []))
-    bundle_path = run / "chronicle_bundle.json"
-    if bundle_path.exists():
-        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
-        history = bundle.get("history", [])
-        routes = [len(h.get("trade_routes", [])) for h in history]
-        row["trade_routes_mean"] = round(sum(routes) / len(routes), 3) if routes else 0.0
-    conv = run / "conversions.json"
-    if conv.exists():
-        row["conversions"] = json.loads(conv.read_text(encoding="utf-8"))["conversions"]
+    measured = run / "measure.json"
+    if measured.exists():
+        data = json.loads(measured.read_text(encoding="utf-8"))
+        row["conversions"] = data["conversions"]
+        row["trade_routes_mean"] = data["trade_routes_mean"]
     return row
 
 
@@ -95,37 +95,47 @@ def report(argv: list[str]) -> int:
 
 
 def measure(argv: list[str]) -> int:
-    out_dir = Path(argv[0])
     if len(argv) < 2 or argv[1] != "--":
         print(__doc__)
         return 2
+    out_dir = Path(argv[0])
+    import chronicler.main as cli
     import chronicler.religion as religion
     from chronicler.columnar import batch_arrays
+    from chronicler.resources import _compute_active_trade_routes
 
     real = religion.compute_majority_belief
+    real_turn = cli.run_turn_result
     seen: dict[int, int] = {}
-    total = {"conversions": 0, "turns": 0}
+    total: dict = {"conversions": 0, "turns": 0}
+    routes: list[int] = []
 
     def counting(snapshot, *args, **kwargs):
         arrays = batch_arrays(snapshot, ("id", "belief")) if snapshot is not None else None
         if arrays is not None:
             ids, beliefs = (a.tolist() for a in arrays)
-            changed = sum(1 for i, b in zip(ids, beliefs) if i in seen and seen[i] != b)
-            total["conversions"] += changed
+            total["conversions"] += sum(1 for i, b in zip(ids, beliefs) if i in seen and seen[i] != b)
             total["turns"] += 1
             seen.clear()
             seen.update(zip(ids, beliefs))
         return real(snapshot, *args, **kwargs)
 
+    def turn_and_count(world, *args, **kwargs):
+        result = real_turn(world, *args, **kwargs)
+        routes.append(len(_compute_active_trade_routes(world)))  # pure query of the end-of-turn state
+        return result
+
     religion.compute_majority_belief = counting
-    from chronicler.main import main as chronicler_main
+    cli.run_turn_result = turn_and_count
     sys.argv = ["chronicler.main", *argv[2:]]
     try:
-        chronicler_main()
+        cli.main()
     finally:
         religion.compute_majority_belief = real
+        cli.run_turn_result = real_turn
+    total["trade_routes_mean"] = round(sum(routes) / len(routes), 3) if routes else 0.0
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "conversions.json").write_text(json.dumps(total, sort_keys=True), encoding="utf-8")
+    (out_dir / "measure.json").write_text(json.dumps(total, sort_keys=True), encoding="utf-8")
     return 0
 
 

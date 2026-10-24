@@ -314,6 +314,14 @@ def test_coup_without_a_grievance_cites_the_generals_ambition(monkeypatch):
     assert "9:agenda_fulfilled:0" in declared[0].causes
 
 
+def test_coup_without_grievance_or_ambition_cites_the_realms_distress(monkeypatch):
+    world = _world()
+    world.active_wars.append(("Kethani Empire", "Thornwall Confederacy"))
+    world.provenance.keys[prov.war_key("Kethani Empire", "Thornwall Confederacy")] = "3:war_declared:0"
+    general, declared = _plot(world, monkeypatch, grievance=False)
+    assert "3:war_declared:0" in declared[0].causes
+
+
 def test_crushed_coup_kills_the_general_and_credits_the_loyalist(monkeypatch):
     world = _world()
     kethani = world.civilizations[KETHANI]
@@ -376,6 +384,24 @@ def test_merchant_trade_mission_opens_the_route_and_fulfils_the_vow(monkeypatch)
     assert _rec(world, merchant).agenda.completed
 
 
+def test_with_diplomacy_missions_leave_goodwill_and_agitation_a_grievance(monkeypatch):
+    import chronicler.diplomacy as dp
+    from chronicler.diplomacy_state import BORDER
+    world = _world()
+    dp.set_diplomacy_enabled(world, True)
+    _gp(world, KETHANI, "merchant", "Factor Oda")
+    _force(monkeypatch, T.OPEN_TRADE_ROUTE, str(THORNWALL))
+    _tick(world)
+    monkeypatch.setattr(G, "MISSION_P", 1.0)
+    _next(world)
+    for a, b in (("Kethani Empire", "Thornwall Confederacy"), ("Thornwall Confederacy", "Kethani Empire")):
+        assert dp.memory(world, a, b).goodwill == pytest.approx(G.MISSION_GOODWILL)
+    assert G._sour_disposition_step(world, "Kethani Empire", "Ashkari Nomads")
+    assert dp.grievance(world, "Kethani Empire", "Ashkari Nomads", (BORDER,)) == pytest.approx(
+        G.AGITATION_GRIEVANCE)
+    assert dp.grievance(world, "Ashkari Nomads", "Kethani Empire") == 0.0
+
+
 def test_protected_route_completes_on_the_deadline_or_breaks_on_an_embargo(monkeypatch):
     world = _world()
     merchant = _gp(world, KETHANI, "merchant", "Factor Oda")
@@ -422,6 +448,14 @@ def test_trading_house_is_founded_paid_for_and_leaves_a_trade_good(monkeypatch):
     from chronicler.artifacts import tick_artifacts
     created = tick_artifacts(world)
     assert any(e.event_type == "artifact_created" for e in created)
+    # One house per region: the capital is taken, the next merchant builds elsewhere.
+    assert world.gp_agendas.houses == {kethani.capital_region: world.turn}
+    other = _gp(world, KETHANI, "merchant", "Factor Rhee")
+    assert G._house_site(world.gp_agendas, kethani, other) == "Frostholm Tundra"
+    world.gp_agendas.houses["Frostholm Tundra"] = world.turn
+    assert G._house_site(world.gp_agendas, kethani, other) is None
+    assert T.FOUND_TRADING_HOUSE not in G._raw_pool(world, G._Ctx(world, [], None), world.gp_agendas,
+                                                    KETHANI, kethani, other, _rec(world, merchant), {})
 
 
 def test_lending_merchant_deepens_crown_credit_and_completes_on_a_domestic_loan(monkeypatch):
