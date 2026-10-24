@@ -806,3 +806,26 @@ def test_naval_battles_and_blockades_feed_diplomatic_memory():
     loser_memory = world.relationships[c1][c0].memory
     assert loser_memory.grievance[WAR] > dp.GRIEVANCE_BATTLE_LOST
     assert loser_memory.grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_TURN
+
+
+def test_hybrid_merchants_cross_sea_lanes_and_are_raided_deterministically(tmp_path, monkeypatch):
+    """Real native merchants: the sea column reaches Rust, crossings are
+    logged, pirates seize cargo, and the run repeats exactly."""
+    pytest.importorskip("chronicler_agents")
+    from chronicler.main import _build_parser, execute_run
+    # Every sea starts infested so raids happen within a short run.
+    for kind in ("ocean", "sea", "coast"):
+        monkeypatch.setitem(M.PIRATE_START, kind, 1.0)
+    states = []
+    for label in ("a", "b"):
+        out = tmp_path / label
+        args = _build_parser().parse_args([
+            "--seed", "7", "--turns", "40", "--regions", "48", "--civs", "10",
+            "--worldgen", "procedural", "--agents", "hybrid", "--simulate-only", "--maritime",
+            "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
+        execute_run(args)
+        states.append((out / "state.json").read_text())
+    assert states[0] == states[1]
+    counters = json.loads(states[0])["maritime"]["counters"]
+    assert counters["crossings"] > 0 and counters["sea_trade"] > 0
+    assert counters["piracy_losses"] > 0

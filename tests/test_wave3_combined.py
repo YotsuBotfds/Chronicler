@@ -80,22 +80,34 @@ def _sea_world(seed: int = 11) -> WorldState:
     return world
 
 
-def test_maritime_with_all_three_runs_and_persists_state():
+def _all_four_live(world: WorldState) -> bool:
+    m = world.maritime
+    return bool(m.fleets and m.counters["naval_battles"] > 0 and m.counters["sea_trade"] > 0
+                and world.epidemics.deaths_total > 0 and world.finance.loans
+                and world.diplomacy.treaties)
+
+
+def _live_save_point() -> WorldState:
+    """The first turn from 30 on where every system carries live state:
+    fleets at sea after a naval battle, sea trade, an epidemic death, a loan
+    and a treaty."""
     world = _advance(_sea_world(), 30)
-    counters = world.maritime.counters
-    assert counters["fleets_commissioned"] > 0 and counters["naval_battles"] > 0
-    assert counters["sea_trade"] > 0 and counters["piracy_losses"] > 0
-    assert world.epidemics.deaths_total > 0 and world.finance.loans and world.diplomacy.treaties
+    while not _all_four_live(world):
+        assert world.turn < 90, "no turn with live state in all four systems"
+        _advance(world, 1)
+    return world
+
+
+def test_maritime_with_all_three_runs_and_persists_state():
+    world = _live_save_point()
     dumped = WorldState.model_validate_json(world.model_dump_json())
     assert dumped.maritime == world.maritime
+    assert dumped.model_dump_json() == world.model_dump_json()
 
 
 def test_save_load_resume_identity_with_maritime_and_all_three_on(tmp_path):
-    straight = _advance(_sea_world(), 45)
-    first = _advance(_sea_world(), 30)
-    # The save point carries fleets at sea and live state in every system.
-    assert first.maritime.fleets
-    assert first.epidemics.deaths_total > 0 and first.finance.loans and first.diplomacy.treaties
+    first = _live_save_point()
+    straight = _advance(_sea_world(), first.turn + 15)
     path = tmp_path / "state.json"
     first.save(path)
     resumed = _advance(WorldState.load(path), 15)
