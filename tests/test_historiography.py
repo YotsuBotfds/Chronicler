@@ -750,3 +750,63 @@ def test_native_hybrid_run_is_outcome_identical_with_the_flag(tmp_path):
     for name in ("state.json", "agent_events.arrow"):
         assert (outs[True] / name).read_bytes() == (outs[False] / name).read_bytes()
     assert _sim_view(_bundle(outs[True])) == _sim_view(_bundle(outs[False]))
+
+
+# ---------------------------------------------------------------------------
+# The frozen exact-trajectory oracles, with the layer switched on
+# ---------------------------------------------------------------------------
+
+_FIXTURES = ROOT / "tests" / "fixtures" / "performance"
+
+
+def _frozen():
+    baseline = json.loads((_FIXTURES / "corrected_food_balance_2026_10.json").read_text())
+    artifacts = json.loads((_FIXTURES / "corrected_artifacts_dead_civ_pruning_2026_10.json").read_text())
+    return baseline, artifacts
+
+
+@pytest.mark.parametrize("name", sorted(_frozen()[0]["workloads"]))
+def test_frozen_oracles_hold_with_historiography_on(name, tmp_path, monkeypatch):
+    """Every turn's snapshot, events and narration hash, the ordered RNG trace
+    and every artifact byte match the frozen corrected oracle with chronicles
+    kept; the only additions are the bundle field and the state sidecar."""
+    import hashlib
+    from scripts.benchmark_headless import rng_trace, run
+    from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
+    monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
+    monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
+    monkeypatch.setattr("chronicler.provenance.LEGACY_TIMELINE", True)
+    baseline, artifacts = _frozen()
+    expected = baseline["workloads"][name]
+    turns = []
+
+    def capture(snapshot, text, events, named):
+        data = [snapshot.model_dump(mode="json"), text,
+                [legacy_event_dump(event) for event in events],
+                [event.model_dump(mode="json") for event in named]]
+        turns.append(hashlib.sha256(json.dumps(
+            data, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest())
+
+    out = tmp_path / "artifacts"
+    with rng_trace(tmp_path / "rng.jsonl") as trace:
+        run({**expected["spec"], "historiography": True}, out, on_turn=capture)
+    assert turns == expected["turn_sha256"]
+    assert trace == expected["rng"]
+    sidecar = out / "state.historiography.json"
+    assert H.state_of(WorldState.load(out / "state.json")).accounts
+    bundle = json.loads((out / "chronicle_bundle.json").read_bytes())
+    assert bundle.pop("historiography")["accounts"]
+    stripped = tmp_path / "stripped"
+    stripped.mkdir()
+    (stripped / "chronicle_bundle.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    emitted = {}
+    for path in sorted(out.iterdir()):
+        if not path.is_file() or path == sidecar:
+            continue
+        source = stripped / path.name if path.name == "chronicle_bundle.json" else path
+        data = legacy_artifact_bytes(source)
+        if path.name not in ("state.json", "chronicle_bundle.json"):
+            data = data.replace(b"\r\n", b"\n")
+        emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+    assert emitted == artifacts["workloads"][name]

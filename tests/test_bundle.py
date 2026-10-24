@@ -672,6 +672,9 @@ class TestBundleSize:
         # per-turn practice history; with pruning this world writes 20.07MB on
         # the native runtimes and 22.84MB on the Python (no-Rust) path, whose
         # pure-Python ecology founds a different set of polities.
+        # In-world historiography on by default (docs/integration/historiography.md)
+        # adds its compact accounts field: 20.71MB native (field 0.63MB) and
+        # 23.62MB no-Rust (field 0.78MB); --no-historiography writes the sizes above.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
