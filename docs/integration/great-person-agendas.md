@@ -765,7 +765,10 @@ with any rebellion in either arm.
 
 * **Full gate not run.** The 200-seed x 500-turn gate is required before
   any default flip; the default stays off.
-* **Left-over persecution intensity (outside this feature).**
+* **Left-over persecution intensity (outside this feature).** Fixed on
+  `fix/leftover-persecution`, together with the oddity below; see
+  [persecution-fix-2026-10.md](persecution-fix-2026-10.md) for the fix and
+  the agendas re-measured on it.
   `compute_persecution` never resets regions it does not visit. With the
   switch off it carries 41% of hybrid agent rebellions, and a reset cuts
   them by 20% (1,355 -> 1,079 per run). It also turns any change of history

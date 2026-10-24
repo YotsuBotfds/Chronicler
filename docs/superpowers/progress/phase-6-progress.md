@@ -2,9 +2,73 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral; full gate pending the slot. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Left-over persecution (2026-10-24, `fix/leftover-persecution`)
+
+`fix/leftover-persecution` from `integrate/wave-6` (`439f0c5`). Two
+corrections, each its own commit, plus one test whose world depends on the
+second. Python and Rust change. Details:
+`docs/integration/persecution-fix-2026-10.md`.
+
+- **Root causes:**
+  - `2860af0`: `compute_persecution` wrote intensity only for militant-held
+    regions and never reset the others. Half of all persecuted region-turns
+    (159 per run) and 41% of hybrid agent rebellions were under left-over
+    intensity: a faith had left militancy, or a region had changed hands or
+    lost its ruler. The builder now clears every region and writes the
+    militant-held ones.
+  - Reset, not decay: M38b sets the intensity per turn from the current
+    minority. The aftermath is `martyrdom_boost` (10 turns) and the agents'
+    persecution memories (25-turn half-life).
+  - `44526a1`: the builder counts minorities against the ruler's faith, but
+    the Rust tick persecuted everyone outside the region's majority. In 57%
+    of live persecuted region-turns the ruler's faith is a local minority.
+    Per run, that persecuted 658 agent-turns of the ruler's own faith and
+    spared 1,257 of the other-faith majority.
+  - The fix records `Region.persecuting_faith` (omitted while None) and
+    sends a `persecuting_faith` region column. One Rust predicate covers the
+    satisfaction penalty, the rebel/migrate boosts and the memories, and
+    martyrdom uses the same rule. Batches without the column fall back to
+    the majority.
+  - `569040d`: the maritime raid test moves from seed 7 to seed 12. Seed 7's
+    sea trade vanishes in the corrected history.
+- **Result** (hybrid, 60 worlds, 200 turns, agendas off, per run; base /
+  reset / branch):
+  - Rebellions 1,355 / 1,078 / 1,168 (branch −187 ± 84 against the base).
+  - Share in persecuted regions 82% / 54% / 55%.
+  - Persecuted region-turns, live + left-over: 159 + 159 / 157 + 0.05 /
+    157 + 0.03.
+  - Migrations 1,825 / 1,821 / 1,898; conversions 660 / 576 / 616.
+  - Schisms 12 / 12 / 12 (the faith registry fills by turn 9 everywhere).
+  - Polities alive 2.97 / 2.97 / 2.92.
+- **Agendas** on − off: base +176 ± 68 (20/14), reset −24 ± 80 (17/17),
+  branch −15 ± 86 (13/21). The worst branch seed is 73 (688 -> 2,640).
+  Agendas are rebellion-neutral; chance tails remain.
+- **Gates (subset, branch vs base):**
+  - 42-61 PASS, NO REGRESSION; regression strict PASS.
+  - 62-81 PASS, NO REGRESSION; resolves needs (12; the base has 11).
+  - Migration per agent-turn 0.0580 / 0.0474 (base 0.0577 / 0.0474).
+  - Rebellion per agent-turn 0.0352 / 0.0186 (base 0.0428 / 0.0222; the
+    62-81 value is under the 0.02 floor, informational in the subset).
+  - 0 extinct.
+- **Identity:** agents-off base vs branch (each with its own native build),
+  seeds 42/7 x 150 turns, 16 files, 0 differences. Golden fixtures are
+  off-mode captures and do not change. 60 base hybrid states load.
+- **Tests** (pre-merge; `569040d` for the first two, `44526a1` for the rest):
+  - `cargo test` 897 passed, 2 ignored.
+  - `pytest -m "not slow" -n 2`: 5,902 passed, 3 skipped. On `44526a1` the
+    maritime test above failed; `569040d` fixes it.
+  - `-m slow`: 11 passed, 3 skipped.
+  - No-Rust lane: 5,701 passed, 204 skipped.
+  - Oracle lane (PR #19's guard fix local only): 1,892 passed, 10 skipped,
+    2 deselected, guard PASS, pytest 72.6 s of 110 s.
+- **Open:**
+  - The 200 x 500 full gate and the fixture roll-forward wait for the
+    full-gate slot and for food logistics in `integrate/wave-6`.
+  - Schism saturation.
 
 ## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)
 
