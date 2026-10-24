@@ -339,6 +339,43 @@ switch off.
   fall keeps it far above the floor. The full gate decides.
 - **Migration on 62-81** stays at the calibrated floor (0.0474, base 0.0474).
 
+## 500-turn probe (not the full gate)
+
+The left-over values pile up with run length, so the 500-turn effect is
+larger. This is a probe, not the full gate: the subset profile overridden
+to 20 seeds (142-161, inside the full gate's range) x 500 turns, plus
+traced arms of the same worlds.
+
+| | base | reset | branch |
+| --- | ---: | ---: | ---: |
+| gate; comparator against the base | PASS; - | PASS; NO REGRESSION | PASS; NO REGRESSION |
+| migration per agent-turn (strict floor 0.05, calibrated 0.045) | 0.0501 | 0.0474 | 0.0468 |
+| rebellion per agent-turn (0.02-0.08) | 0.0577 | 0.0293 | 0.0315 |
+| regression | FAIL (`civ_survival`) | PASS, calibrated floor (migration) | PASS, calibrated floor (migration) |
+| all founders surviving (limit 0.20) | 0.25 | 0.20 | 0.15 |
+| agent rebellions per run (traced) | 5,032 | 2,577 | 2,686 |
+| of them under left-over intensity | 3,581 (71%) | 0 | 0 |
+| persecuted region-turns per run: live / left-over | 219 / 933 | 356 / 0.1 | 345 / 0.05 |
+| agent migrations per run (traced) | 4,370 | 4,166 | 3,989 |
+| of them in left-over regions | 1,917 (44%) | 0 | 0 |
+| conversions per run | 1,951 | 1,371 | 1,377 |
+| polities alive at turn 500 | 2.90 | 2.90 | 2.80 |
+
+Over 500 turns, left-over intensity covered four fifths of all persecuted
+region-turns. Its migrate boost (+0.20 x intensity on every agent outside
+the majority) and its rebel boost were a large part of long-run migration
+and rebellion. Without it, most of those migrations still happen
+elsewhere, but migration per agent-turn falls by about 5-7% and rebellion
+by about half. The worlds without a militant faith (6 of the 20) are
+byte-identical between arms.
+
+**Risk for the full gate.** The full gate's migration margin is the
+tightest required margin: 0.0512 on the techniques-default full gate,
+against the strict floor of 0.05. A 5-7% fall puts it on the calibrated
+floor (0.045). The comparator reports that as a regression against a
+strict baseline. The full gate on top of food logistics decides; no
+threshold is changed here.
+
 ## Golden fixtures
 
 No golden expectation changes. The live oracles
@@ -407,7 +444,8 @@ gate against the then-current defaults' full report.
 
 ## Open items
 
-- **The full gate** (above).
+- **The full gate** (above), and its migration margin: the 500-turn
+  probe puts migration per agent-turn on the calibrated floor.
 - **Schisms saturate** the 16-faith registry by turn 9 in every world, so
   later persecution, clergy dominance or conquest cannot split a faith.
   This predates the fix and is a calibration question for the religion

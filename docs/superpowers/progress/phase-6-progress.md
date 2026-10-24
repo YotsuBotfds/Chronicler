@@ -65,9 +65,18 @@ second. Python and Rust change. Details:
   - No-Rust lane: 5,701 passed, 204 skipped.
   - Oracle lane (PR #19's guard fix local only): 1,892 passed, 10 skipped,
     2 deselected, guard PASS, pytest 72.6 s of 110 s.
+- **500-turn probe** (not the full gate; 20 seeds 142-161 x 500, subset
+  profile):
+  - Migration per agent-turn: base 0.0501, reset 0.0474, branch 0.0468, on
+    the calibrated floor.
+  - Rebellion per agent-turn: 0.0577 / 0.0293 / 0.0315.
+  - Left-over intensity covered 933 of 1,152 persecuted region-turns per run
+    and 44% of migrations.
 - **Open:**
   - The 200 x 500 full gate and the fixture roll-forward wait for the
     full-gate slot and for food logistics in `integrate/wave-6`.
+  - Risk: the full gate's migration margin (0.0512 against 0.05) is likely
+    to fall to the calibrated floor.
   - Schism saturation.
 
 ## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)
