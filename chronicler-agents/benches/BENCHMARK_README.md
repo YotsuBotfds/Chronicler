@@ -15,6 +15,17 @@ All targets and results in this project are for this machine.
 
     cargo test --release --test regression -- --ignored --nocapture
 
+### Agent-scale benchmark (spatial drift, marriage, formation at 1K-1M agents)
+
+    cargo run --release --example scale_bench -- --agents 100000 --regions 12 \
+        --turns 12 --warmup 4 --mode exact --hash
+
+`--mode fast` selects the bounded-work scale mode; `--hash` prints pool and
+event digests for identity checks. The full-pipeline counterpart is
+`scripts/agent_scale_benchmark.py`; results and method are in
+`docs/performance/rust-agent-scale.md`. Note that `tests/regression.rs` has
+no spatial attractors (drift is skipped and every agent sits at (0.5, 0.5)).
+
 ### Flamegraph (requires cargo-flamegraph, run in WSL)
 
     cargo flamegraph --example flamegraph_run --root -- --agents 10000 --regions 24 --turns 500
