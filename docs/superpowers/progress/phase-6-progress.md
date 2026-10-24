@@ -2,9 +2,79 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)
+
+`fix/agenda-preaching` from `integrate/wave-5` (`b1b3f2d`), merged with
+`b7d9ced` (techniques on by default; the identity and gate base) and then
+with `integrate/wave-6` (`59e6898`, historiography). Both merges are without
+rebase. Only `src/chronicler/gp_agendas.py` changes; no Rust. Details:
+`docs/integration/great-person-agendas.md`, section "The rebellion tail".
+
+- **Mechanism:**
+  - 82% of hybrid agent rebellions with the switch off happen in persecuted
+    regions.
+  - `compute_persecution` writes intensity only for militant rulers and
+    never resets other regions, so intensity is left over after a civ's
+    majority faith leaves a militant faith. That covers 41% of rebellions.
+  - The agent tick applies the intensity to anyone outside the region's
+    majority belief.
+  - Preaching fed this in three ways. It led converts into persecuted
+    regions (28-37 rebels of the preached faith per episode there, 12-14
+    elsewhere). Two thirds of it went into realms of another faith, which
+    tipped those realms in and out of militancy (seed 70: 53 militancy
+    changes, 0 with the switch off). And it took over a conversion slot's
+    leftover rate (+33% pressure).
+  - Seed 60's tail is a general's turn-3 conquest followed by 170 turns of
+    left-over intensity. No preaching is involved.
+- **Fix:**
+  - Prophets preach only where the ruler holds their faith and the
+    persecution intensity is 0. This applies to the vow's targets and is
+    rechecked at every deed.
+  - An empty conversion slot gets exactly the prophet's 0.02.
+  - Scientists vow only inventions their civ has a site for, which is the
+    `_invent` site rule. With techniques on, 37% of invention vows are now
+    fulfilled (17% before; 4.4 per run).
+- **Result (60 worlds, 42-101):**
+  - Rebellions per run: off 1,355; on before 1,508 (+153 ± 67, up/down
+    23/11); on fixed 1,531 (+176 ± 68, up/down 20/14).
+  - The diagnostic resets left-over intensity (outside this branch, since it
+    changes default outputs). Under it, fixed agendas move rebellions
+    −24 ± 80 (up/down 17/17). Before the fix, more worlds still rose than
+    fell (+88 ± 95, 22/12; `b1b3f2d`: +224 ± 119, 23/11).
+  - With the agendas' own path removed, the excess is entirely left-over
+    intensity, which any change of history triggers.
+  - Removing any single lever (campaigns, weights, shrines, faction shifts,
+    coups, crown credit) leaves +90 to +228. No lever carries a tail on its
+    own.
+- **Identity:** the switch off is byte-identical to `b7d9ced`. Direct runs
+  give 30 files with 0 differences (default and `--no-gp-agendas`). The
+  42-61 subset batch has 2,164 files; the reports differ only in the batch
+  path.
+- **Gates (subset, switch on vs `b7d9ced`):**
+  - 42-61 PASS, 62-81 PASS (the base FAILs needs at 11), 82-101 PASS.
+  - Comparator NO REGRESSION on all three; 0 extinct.
+  - `civ_survival` FAIL on 62-81 (9 of 20 worlds keep all four civs; base
+    4): informational here, a risk for the full gate.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,848 passed, 3 skipped (four new tests;
+    `b7d9ced` collects 5,847 of the branch's 5,851). After the wave-6
+    merge: 5,887 passed, 3 skipped.
+  - Offline oracle lane (PR #19 guard fix applied locally only): 1,854
+    passed, 9 skipped, 2 deselected. After the merge: 1,892 / 10 / 2, guard
+    PASS, pytest 68.7 s of its 110 s limit. The four new tests take about
+    0.3 s.
+  - No-Rust environment: 5,649 passed, 202 skipped. The only agenda skip is
+    the hybrid determinism test.
+- **Open:**
+  - Fix left-over persecution intensity in `religion.py`, as its own change
+    with a full gate (it cuts off-mode hybrid rebellions by 20%). Without it,
+    agendas raise rebellions by about 11-13% through chance tails.
+  - `civ_survival` with agendas on.
+  - The 200 x 500 full gate has not been run; the default stays off.
 
 ## In-world historiography (2026-10-24, `feat/historiography`)
 

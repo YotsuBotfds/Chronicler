@@ -511,10 +511,17 @@ def test_lending_merchant_deepens_crown_credit_and_completes_on_a_domestic_loan(
 
 # --- prophets --------------------------------------------------------------------------
 
-def test_prophet_preaches_abroad_and_the_faith_takes_hold(monkeypatch):
+def _coreligionists(world) -> int:
+    """Make the Selurian Republic (Ashara Desert) hold Kethani's faith."""
+    faith = world.civilizations[KETHANI].civ_majority_faith
+    world.civilizations[SELURIAN].civ_majority_faith = faith
+    return faith
+
+
+def test_prophet_preaches_among_coreligionists_abroad_and_the_faith_takes_hold(monkeypatch):
     world = _world()
     prophet = _gp(world, KETHANI, "prophet", "Seer Anwe", trait="zealous")
-    faith = world.civilizations[KETHANI].civ_majority_faith
+    faith = _coreligionists(world)
     rows = {"Amber Valley": [faith] * 4, "Frostholm Tundra": [faith] * 3, "Ashara Desert": [3, 3, 3, 3, faith],
             "Thornwood": [2, 2, faith, faith]}
     _force(monkeypatch, T.SPREAD_FAITH)
@@ -522,7 +529,9 @@ def test_prophet_preaches_abroad_and_the_faith_takes_hold(monkeypatch):
     assert _rec(world, prophet).agenda.target == "Ashara Desert"
     prov.observe(world, declared)
     desert = world.region_map["Ashara Desert"]
-    desert.conversion_rate_signal, desert.conversion_target_signal = 0.01, 0xFF
+    # The faith's own priests already hold the region's conversion slot: the
+    # prophet adds his pressure to theirs.
+    desert.conversion_rate_signal, desert.conversion_target_signal = 0.01, faith
     out = _next(world, phase10=_rows(world, rows))
     assert _types(out) == ["preaching"] and prophet.region == "Ashara Desert"
     preaching = prov.ensure_id(world, out[0])
@@ -535,12 +544,68 @@ def test_prophet_preaches_abroad_and_the_faith_takes_hold(monkeypatch):
     assert preaching in fulfilled.causes  # the deed that brought it about
 
 
+def test_preaching_an_empty_slot_brings_only_the_prophets_own_pressure(monkeypatch):
+    """A rate left in a slot no faith holds (a martyrdom or conquest boost)
+    converts no one; the prophet who takes the slot does not inherit it."""
+    world = _world()
+    _gp(world, KETHANI, "prophet", "Seer Anwe", trait="zealous")
+    faith = _coreligionists(world)
+    rows = {"Amber Valley": [faith] * 4, "Ashara Desert": [3, 3, 3, 3, faith]}
+    _force(monkeypatch, T.SPREAD_FAITH, "Ashara Desert")
+    _tick(world, phase10=_rows(world, rows))
+    desert = world.region_map["Ashara Desert"]
+    desert.conversion_rate_signal, desert.conversion_target_signal = 0.15, 0xFF
+    assert _types(_next(world, phase10=_rows(world, rows))) == ["preaching"]
+    assert desert.conversion_target_signal == faith
+    assert desert.conversion_rate_signal == pytest.approx(G.PREACHING_RATE)
+
+
+def test_prophets_preach_only_in_their_faiths_realms_and_never_into_persecution():
+    """Own and co-religionist regions qualify; a realm of another faith, an
+    unruled region and a persecuted region (live or left over) do not."""
+    world = _world()
+    kethani = world.civilizations[KETHANI]
+    faith = kethani.civ_majority_faith
+    rows = {"Amber Valley": [faith] * 4, "Frostholm Tundra": [2, 2, 2, faith], "Ashara Desert": [3, 3, 3, 3, faith],
+            "Iron Peaks": [2, 2, faith]}
+    ctx = G._Ctx(world, [], _rows(world, rows))
+    # Ashara Desert's ruler holds another faith; Iron Peaks has no ruler.
+    assert G._spread_targets(world, ctx, kethani) == ["Frostholm Tundra"]
+    _coreligionists(world)
+    assert G._spread_targets(world, ctx, kethani) == ["Ashara Desert", "Frostholm Tundra"]
+    world.region_map["Ashara Desert"].persecution_intensity = 0.4
+    world.region_map["Frostholm Tundra"].persecution_intensity = 0.2
+    assert G._spread_targets(world, ctx, kethani) == []
+
+
+def test_preaching_halts_under_persecution_or_a_change_of_faith_and_resumes_after(monkeypatch):
+    world = _world()
+    _gp(world, KETHANI, "prophet", "Seer Anwe", trait="zealous")
+    faith = _coreligionists(world)
+    selurian = world.civilizations[SELURIAN]
+    rows = {"Amber Valley": [faith] * 4, "Ashara Desert": [3, 3, 3, 3, faith]}
+    _force(monkeypatch, T.SPREAD_FAITH, "Ashara Desert")
+    _tick(world, phase10=_rows(world, rows))
+    desert = world.region_map["Ashara Desert"]
+    desert.conversion_rate_signal, desert.conversion_target_signal = 0.0, 0xFF
+    desert.persecution_intensity = 0.3
+    assert _next(world, phase10=_rows(world, rows)) == []
+    assert (desert.conversion_rate_signal, desert.conversion_target_signal) == (0.0, 0xFF)
+    desert.persecution_intensity = 0.0
+    selurian.civ_majority_faith = 3  # the realm turns to another faith
+    assert _next(world, phase10=_rows(world, rows)) == []
+    assert (desert.conversion_rate_signal, desert.conversion_target_signal) == (0.0, 0xFF)
+    selurian.civ_majority_faith = faith
+    assert _types(_next(world, phase10=_rows(world, rows))) == ["preaching"]
+    assert desert.conversion_rate_signal == pytest.approx(G.PREACHING_RATE)
+
+
 def test_preaching_signal_is_rebuilt_every_turn_and_leaves_no_residue(monkeypatch):
     """Multi-turn reset: the conversion builder rewrites the signal each Phase 10."""
     from chronicler.religion import compute_conversion_signals
     world = _world()
     prophet = _gp(world, KETHANI, "prophet", "Seer Anwe", trait="zealous")
-    faith = world.civilizations[KETHANI].civ_majority_faith
+    faith = _coreligionists(world)
     rows = {"Amber Valley": [faith] * 4, "Ashara Desert": [3, 3, 3, 3, faith]}
     _force(monkeypatch, T.SPREAD_FAITH, "Ashara Desert")
     desert_idx = next(i for i, r in enumerate(world.regions) if r.name == "Ashara Desert")
@@ -651,6 +716,32 @@ def test_scientist_steers_the_civs_invention_to_the_vowed_technique(monkeypatch)
     out = _tick(world, invented)
     assert _types(out)[0] == "agenda_fulfilled" and invented[0].event_id in out[0].causes
     assert _rec(world, scientist).agenda.completed
+
+
+def test_scientists_vow_only_techniques_the_civ_has_a_site_for(monkeypatch):
+    """``techniques._invent`` only chooses a technique with a site (an
+    inhabited, suited region of the civ practising its prerequisites)."""
+    import chronicler.techniques as TQ
+    world = _world()
+    TQ.set_techniques_enabled(world, True)
+    TQ.tick_techniques(world)
+    kethani = world.civilizations[KETHANI]
+    candidates = G._invention_candidates(world, KETHANI, kethani)
+    assert len(candidates) > 1
+    barred = TQ.TECHNIQUE_INDEX[candidates[0]]
+    real = TQ._suitability
+
+    def unsuited(*args, **kwargs):
+        rows = real(*args, **kwargs)
+        for row in rows:
+            row[barred] = False
+        return rows
+
+    monkeypatch.setattr(TQ, "_suitability", unsuited)
+    assert G._invention_candidates(world, KETHANI, kethani) == candidates[1:]
+    for name in kethani.regions:
+        world.region_map[name].population = 0
+    assert G._invention_candidates(world, KETHANI, kethani) == []
 
 
 # --- holders who leave, bonds, succession ----------------------------------------------
