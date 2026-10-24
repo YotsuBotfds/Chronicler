@@ -7,8 +7,9 @@ campaigns, governance, and the fisheries/mutual-aid promotion). Code:
 `provenance.py`, `governance_runtime.py`, `main.py`, `live.py`.
 
 Status: implemented behind `WorldState.epidemics` (CLI `--epidemiology` /
-`--no-epidemiology`, saved on the world). **Default off** for new worlds; see
-[Default](#default). With the switch off no epidemiology code runs and every
+`--no-epidemiology`, saved on the world). **Default on** for new worlds with
+the contact ledger since the 2026-10 all-on full gate
+(`docs/integration/wave3-defaults.md`); see [Default](#default). With the switch off no epidemiology code runs and every
 output is byte-identical to `db26681`.
 
 ## Why
@@ -201,7 +202,7 @@ rule.
 | --- | --- |
 | CLI | `--epidemiology` / `--no-epidemiology` (`BooleanOptionalAction`) |
 | World field | `WorldState.epidemics: EpidemicState \| None` (presence = on) |
-| Default | **off** (`epidemiology.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`); resumed, forked and caller-supplied worlds keep their own setting |
+| Default | **on** for new worlds with the contact ledger (`epidemiology.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the all-on full gate in `wave3-defaults.md`); `--no-epidemiology` opts out; resumed, forked and caller-supplied worlds keep their own setting |
 | Ledger | an explicit `--epidemiology` needs the contact ledger (`ValueError` otherwise); a default-on setting would stay off on a ledger-less new world |
 | Live server | new live worlds follow the CLI default |
 | Gate runner | `scripts/m53b_run_validation.py --epidemiology` forwards the switch |
@@ -389,7 +390,9 @@ lands and the full gate passes with 0 extinct worlds.
 ## Follow-ups
 
 * Calibrate against the 200-seed full profile before any default flip.
-* Per-pathogen viewer layer (the bundle already carries the data).
+* Per-pathogen viewer layer (the bundle already carries the data). Panels
+  and a region-inspector block are since added on `feat/viewer-systems`
+  ([viewer-systems.md](viewer-systems.md)); a map layer is not.
 * Quarantine could close goods routes and suspend merchant trips.
 * Disease-specific treatment by great persons (the M18 scientist rule is not
   carried over).

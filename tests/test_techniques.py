@@ -604,8 +604,15 @@ def test_cli_flag_persists_and_bundle_carries_technique_history(tmp_path):
     assert "techniques" in state
     bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
     assert all("techniques" in snap for snap in bundle["history"])
-    assert set(bundle["history"][-1]["techniques"]) == {"known", "practised", "rows"}
+    assert set(bundle["history"][-1]["techniques"]) == {"known", "practised", "rows", "regions"}
     assert "techniques" in bundle["world_state"]
+    # The viewer's per-region practice is the final practice table at or above LOSE_LEVEL.
+    ws = bundle["world_state"]
+    expected: dict = {}
+    for r, k, level, *_ in ws["techniques"]["rows"]:
+        if level >= T.LOSE_LEVEL:
+            expected.setdefault(ws["regions"][r]["name"], {})[TECHNIQUES[k].key] = round(level, 2)
+    assert expected and bundle["history"][-1]["techniques"]["regions"] == expected
     metrics = T.extract_technique_metrics([bundle])
     assert metrics["runs"] == 1 and metrics["by_seed"][0]["turns"] == len(bundle["history"])
     assert T.extract_technique_metrics([{"history": [{}]}]) == {}

@@ -50,7 +50,9 @@ tribal for 200 turns, and the dice produced 1.9 regressions per run.
   through era and focus (existing bridge fields) and through the economy.
   No Rust was changed.
 * **Viewer panels.** `history[n].techniques` and the new event types are
-  in the bundle; the viewer does not display them yet.
+  in the bundle; the viewer does not display them yet. (Since added on
+  `feat/viewer-systems`, with an additive `techniques.regions` snapshot
+  field: see [viewer-systems.md](viewer-systems.md).)
 * **Action-weight contributors.** Techniques add no weight bucket: the
   tech-focus bucket (capped at 1.5) and every other modifier are unchanged.
   Techniques reach actions only through the derived era (for example TRADE

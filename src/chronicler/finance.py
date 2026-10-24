@@ -89,8 +89,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 #: Default for worlds newly created by the CLI/batch/live entry points
-#: (``--finance`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: (on since the 2026-10 all-on full gate; ``--no-finance`` opts out; loaded
+#: worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 #: Lender id of the domestic merchant/elite creditor class.
 DOMESTIC = -1

@@ -1095,7 +1095,14 @@ def snapshot_summary(world) -> dict:
         known[civ.name] = len(st.known[ci]) if ci < len(st.known) else 0
         levels = st.civ_levels[ci] if ci < len(st.civ_levels) else []
         practised[civ.name] = sum(1 for _, v in levels if v >= PRACTISED)
-    return {"known": known, "practised": practised, "rows": len(st.rows)}
+    # Viewer region inspector: practice at or above LOSE_LEVEL per region, in
+    # the rows' own (region, technique) order (read-only; rounded for size).
+    regions: dict[str, dict[str, float]] = {}
+    for row in st.rows:
+        r, k, level = row[0], row[1], row[2]
+        if level >= LOSE_LEVEL and r < len(world.regions) and k < len(TECHNIQUES):
+            regions.setdefault(world.regions[r].name, {})[TECHNIQUES[k].key] = round(level, 2)
+    return {"known": known, "practised": practised, "rows": len(st.rows), "regions": regions}
 
 
 def extract_technique_metrics(bundles: list[dict]) -> dict:

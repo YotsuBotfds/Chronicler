@@ -1351,18 +1351,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epidemiology", action=argparse.BooleanOptionalAction, default=None,
                         help="Regional SEIRS epidemiology: pathogens spread along the contact ledger, "
                              "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
-                             "plague and the M18 pandemic (default off; needs the contact ledger; "
-                             "saved on resume)")
+                             "plague and the M18 pandemic (default on for new worlds with the contact ledger; "
+                             "--no-epidemiology opts out; saved on resume)")
     parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
                         help="Money, credit and public finance: upkeep and court costs, state borrowing "
                              "from merchant houses and foreign lenders, debt service, default, debasement "
-                             "and a per-civ price index feeding the governance PSI (default off for new "
-                             "worlds; --finance enables; saved on resume)")
+                             "and a per-civ price index feeding the governance PSI (default on for new "
+                             "worlds; --no-finance opts out; saved on resume)")
     parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
                         help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
                              "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
-                             "ladder client -> vassal -> personal union -> annexation (default off "
-                             "for new worlds; saved on resume)")
+                             "ladder client -> vassal -> personal union -> annexation (default on "
+                             "for new worlds; --no-diplomacy opts out; saved on resume)")
     parser.add_argument("--techniques", action=argparse.BooleanOptionalAction, default=None,
                         help="Technology as diffusing techniques: per-region practice of about 30 "
                              "techniques spreads along contact flows, is invented from research "

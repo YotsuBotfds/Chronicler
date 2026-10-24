@@ -13,6 +13,9 @@ from chronicler.bundle import assemble_bundle, write_bundle, write_agent_events_
 from chronicler.models import ChronicleEntry, NarrativeRole
 
 VIEWER_SAMPLE_BUNDLE = Path("viewer/src/__fixtures__/sample_bundle.json")
+# Trimmed real run with every default-off system on (scripts/build_viewer_systems_fixture.py).
+VIEWER_SYSTEMS_BUNDLE = Path("viewer/src/__fixtures__/systems_bundle.json")
+VIEWER_SYSTEM_FIELDS = {"epidemics", "finance", "diplomacy", "techniques", "maritime"}
 VIEWER_REQUIRED_TOP_LEVEL_KEYS = {
     "world_state",
     "history",
@@ -349,6 +352,64 @@ class TestViewerFixtureContract:
         assert VIEWER_REQUIRED_METADATA_KEYS.issubset(fixture["metadata"].keys())
         assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(generated["history"][0].keys())
         assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(fixture["history"][0].keys())
+
+    def test_systems_fixture_has_required_viewer_contract(self):
+        fixture = json.loads(VIEWER_SYSTEMS_BUNDLE.read_text(encoding="utf-8"))
+
+        assert VIEWER_REQUIRED_TOP_LEVEL_KEYS.issubset(fixture.keys())
+        assert VIEWER_REQUIRED_METADATA_KEYS.issubset(fixture["metadata"].keys())
+        for snapshot in fixture["history"]:
+            assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(snapshot.keys())
+            assert VIEWER_SYSTEM_FIELDS.issubset(snapshot.keys())
+
+    def test_systems_fixture_matches_generated_system_snapshots(self, tmp_path):
+        """The viewer's systems fixture keeps the shape snapshot_summary() writes today."""
+        from chronicler.main import execute_run
+
+        args = argparse.Namespace(
+            seed=7, turns=15, civs=6, regions=24, worldgen="procedural",
+            output=str(tmp_path / "chronicle.md"), state=str(tmp_path / "state.json"),
+            resume=None, reflection_interval=10, llm_actions=False, scenario=None,
+            pause_every=None, simulate_only=True, agents="off",
+            epidemiology=True, finance=True, diplomacy=True, techniques=True, maritime=True,
+        )
+        execute_run(args)
+
+        fixture = json.loads(VIEWER_SYSTEMS_BUNDLE.read_text(encoding="utf-8"))
+        generated = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        assert fixture["metadata"]["bundle_version"] == generated["metadata"]["bundle_version"]
+
+        def first_item(history, field, key):
+            for snapshot in history:
+                items = snapshot[field][key]
+                values = list(items.values()) if isinstance(items, dict) else items
+                if values:
+                    return values[0]
+            return None
+
+        for field in VIEWER_SYSTEM_FIELDS:
+            assert set(fixture["history"][-1][field]) == set(generated["history"][-1][field]), field
+        nested = [("epidemics", "active"), ("finance", "civs"), ("diplomacy", "treaties"),
+                  ("diplomacy", "subjects"), ("diplomacy", "top_grievances"), ("diplomacy", "pairs"),
+                  ("techniques", "regions"), ("maritime", "zones"), ("maritime", "fleets"),
+                  ("maritime", "blockades")]
+        compared = 0
+        for field, key in nested:
+            ours = first_item(fixture["history"], field, key)
+            theirs = first_item(generated["history"], field, key)
+            assert ours is not None, f"fixture has no {field}.{key} entry"
+            if theirs is None:
+                continue
+            compared += 1
+            if (field, key) == ("techniques", "regions"):
+                # region -> technique key -> practice share
+                assert all(isinstance(v, (int, float)) for v in [*ours.values(), *theirs.values()])
+            elif (field, key) == ("diplomacy", "pairs"):
+                # holder -> target -> [trust, grievance]
+                assert {len(v) for v in ours.values()} == {len(v) for v in theirs.values()} == {2}
+            else:
+                assert set(ours) == set(theirs), (field, key)
+        assert compared >= 5
 
 
 class TestWriteBundle:
