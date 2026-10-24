@@ -1112,6 +1112,12 @@ def run_live(
         )
         _ledger = getattr(args, "contact_ledger", None)
         set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
+        # Finance: new live worlds follow the CLI default (--finance opts in).
+        from chronicler.finance import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT, set_finance_enabled,
+        )
+        _finance = getattr(args, "finance", None)
+        set_finance_enabled(world, _FINANCE_DEFAULT if _finance is None else bool(_finance))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (

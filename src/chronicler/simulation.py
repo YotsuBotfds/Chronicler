@@ -2024,6 +2024,12 @@ def run_turn_result(
     # Phase 3: Production
     phase_production(world, acc=acc)
 
+    # Phase 3b (--finance): revenue, upkeep, court, debt service, borrowing,
+    # debasement and default, after every ordinary income of the turn.
+    if getattr(world, "finance", None) is not None:
+        from chronicler.finance import tick_finance
+        _emit(tick_finance(world, acc=acc, economy_result=economy_result))
+
     # Phase 4: Technology
     _emit(phase_technology(world, acc=acc))
 
@@ -2350,6 +2356,11 @@ def run_turn_result(
     if _contact_ledger_on(world):
         from chronicler.contact_ledger import update_contact_ledger
         update_contact_ledger(world)
+
+    # Finance: output, sacks, minting, specie flow and prices (read next turn).
+    if getattr(world, "finance", None) is not None:
+        from chronicler.finance import update_money
+        update_money(world)
 
     # Chronicle (narrative generation)
     chronicle_text = narrator(world, turn_events)
