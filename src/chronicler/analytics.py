@@ -1427,6 +1427,11 @@ def generate_report(
     diplomacy = extract_diplomacy_metrics(bundles)
     if diplomacy.get("runs"):
         report["diplomacy"] = diplomacy
+    # Techniques: present only for runs whose bundles carry history[n].techniques.
+    from chronicler.techniques import extract_technique_metrics
+    techniques = extract_technique_metrics(bundles)
+    if techniques.get("runs"):
+        report["techniques"] = techniques
 
     report["anomalies"] = detect_anomalies(report)
     return report

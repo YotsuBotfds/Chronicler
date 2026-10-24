@@ -309,6 +309,15 @@ def _diplomacy_snapshot_fields(world) -> dict:
     return {"diplomacy": snapshot_summary(world)}
 
 
+def _techniques_snapshot_fields(world) -> dict:
+    """Techniques per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.techniques_state import techniques_on
+    if not techniques_on(world):
+        return {}
+    from chronicler.techniques import snapshot_summary
+    return {"techniques": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -552,6 +561,15 @@ def execute_run(
     if diplomacy is not None:
         from chronicler.diplomacy import set_diplomacy_enabled
         set_diplomacy_enabled(world, diplomacy)
+    # Techniques switch (persisted on the world): per-region practice that
+    # diffuses along contact, inventions, and the era derived from them.
+    techniques = getattr(args, "techniques", None)
+    if techniques is None and fresh_world:
+        from chronicler.techniques import DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT
+        techniques = _TECHNIQUES_DEFAULT
+    if techniques is not None:
+        from chronicler.techniques import set_techniques_enabled
+        set_techniques_enabled(world, techniques)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -801,6 +819,7 @@ def execute_run(
             **_epidemic_snapshot_fields(world),
             **_finance_snapshot_fields(world),
             **_diplomacy_snapshot_fields(world),
+            **_techniques_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1307,6 +1326,11 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
                              "ladder client -> vassal -> personal union -> annexation (default off "
                              "for new worlds; saved on resume)")
+    parser.add_argument("--techniques", action=argparse.BooleanOptionalAction, default=None,
+                        help="Technology as diffusing techniques: per-region practice of about 30 "
+                             "techniques spreads along contact flows, is invented from research "
+                             "inputs and decays without practitioners; the era is derived from it "
+                             "(default off for new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

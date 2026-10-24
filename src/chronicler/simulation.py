@@ -81,6 +81,7 @@ from chronicler.utils import (
     stage_region_catastrophe_deaths,
 )
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
+from chronicler.techniques_state import techniques_on as _techniques_on
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
@@ -2050,8 +2051,13 @@ def run_turn_result(
         from chronicler.finance import tick_finance
         _emit(tick_finance(world, acc=acc, economy_result=economy_result))
 
-    # Phase 4: Technology
-    _emit(phase_technology(world, acc=acc))
+    # Phase 4: Technology. With --techniques, per-region practice, diffusion
+    # along the contact ledger, inventions and the era derived from them.
+    if _techniques_on(world):
+        from chronicler.techniques import tick_techniques
+        _emit(tick_techniques(world, acc=acc))
+    else:
+        _emit(phase_technology(world, acc=acc))
 
     # Phase 5: Action (selection + resolution)
     _emit(phase_action(world, action_selector=action_selector, acc=acc))
@@ -2314,9 +2320,12 @@ def run_turn_result(
     # (flushed just below), while off/shadow/demographics-only modes have
     # already flushed ``acc`` and must mutate directly (acc=None). Passing
     # ``acc`` in those modes silently dropped era-bonus removals.
-    _emit(check_tech_regression(
-        world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
-    ))
+    # With --techniques the era is derived from practice in Phase 4 (real
+    # regression from lost practitioners); the M18 random regression is off.
+    if not _techniques_on(world):
+        _emit(check_tech_regression(
+            world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
+        ))
 
     # Third apply_keep flush: tech regression's remove_era_bonus routes through
     # acc as "keep" (V1 fix), but runs after the Phase 10 flush above.
