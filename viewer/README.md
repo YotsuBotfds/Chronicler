@@ -7,6 +7,12 @@ See [the inspector guide](../docs/experiment-inspector.md) for evidence semantic
 the deterministic fixture, and local browser QA. The panel is closed by default
 and limited to static artifacts.
 
+Bundles written with any default-off system (`--epidemiology`, `--finance`,
+`--diplomacy`, `--techniques`, `--maritime`) also get a **Simulation systems**
+panel below the map and per-region epidemic and technique rows in the
+inspector; bundles without them look as before. See
+[viewer-systems.md](../docs/integration/viewer-systems.md).
+
 ## React + TypeScript + Vite scaffold notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

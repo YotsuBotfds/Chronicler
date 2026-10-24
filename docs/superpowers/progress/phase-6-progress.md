@@ -6,8 +6,35 @@
 > **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
 > **Last updated:** 2026-10-24 (techniques on `feat/techniques`)
 > **Last updated:** 2026-10-24 (maritime layer on `feat/maritime`)
+> **Last updated:** 2026-10-24 (viewer panels for the five systems on `feat/viewer-systems`)
 
 ---
+
+## Viewer panels for the default-off systems (2026-10-24, `feat/viewer-systems`)
+
+`feat/viewer-systems` from `integrate/wave-4` (`1a6cacb`). The production
+viewer (`AppShell`) shows epidemics, finance, diplomacy, techniques and the
+maritime layer when a bundle records them: a tabbed "Simulation systems"
+panel below the map workspace (tabs only for recorded systems), event lists
+that pin an event in the existing provenance inspector, per-region epidemic
+and technique state in the region inspector, and live-mode pass-through.
+Details: `docs/integration/viewer-systems.md`.
+
+- **Python:** two additive, flag-on-only snapshot fields,
+  `diplomacy.pairs` (trust and grievance of every living pair) and
+  `techniques.regions` (practice per region); bundle version stays 4.
+  Flags off is byte-identical to `1a6cacb` (4 runs, 37 files); with all five
+  systems on, outputs are identical apart from the two fields (2 runs, 22
+  files; `scripts/viewer_systems_identity.py`). `pytest -m "not slow" -n 2`
+  5,699 passed, 3 skipped.
+- **Viewer:** 197 tests (base 166), lint clean, build passes. A systems-off
+  bundle renders pixel-identically to the base build (9 of 9 headless
+  captures); every panel was captured from real all-on bundles with no
+  console errors.
+- **Cut:** map layers (the map has no sea geometry), a contact-ledger panel,
+  a per-lender loan book, phone layout. **Open:** hashed faction colours can
+  collide; the shell map's 0-1 coordinate assumption (pre-existing) puts
+  generated worlds' region nodes off the canvas.
 
 ## Techniques (2026-10-24, `feat/techniques`, default off)
 

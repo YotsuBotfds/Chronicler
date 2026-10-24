@@ -46,7 +46,8 @@ was not run.
   so land-battle consumers (contested regions, viewer battle lists) never see
   a zone where they expect a region.
 * *Viewer panels*: `history[n].maritime` is in the bundle; the viewer does
-  not display it.
+  not display it. (Since added on `feat/viewer-systems` as tables and a
+  zone-control strip: see [viewer-systems.md](viewer-systems.md).)
 
 ## Sea model
 
@@ -559,5 +560,6 @@ Chumapa Wilds (turn 77) and holds the colony to the end.
   have no sea.
 * Sea-lane trade in agent modes is measured per merchant hop; the ledger's
   delivery records only see one-hop sea deliveries as sea-lane edges.
-* No viewer panels; naval battles are not in `war_state.battles`.
+* No viewer panels (since added: [viewer-systems.md](viewer-systems.md));
+  naval battles are not in `war_state.battles`.
 

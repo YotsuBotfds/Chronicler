@@ -68,7 +68,9 @@ rarely have (median civ stability is about 26-29), so it never fired.
   the governance kernel; treaties could supply one. Left to the governance
   owners.
 * **Viewer.** `history[n].diplomacy` and the new event types are in the
-  bundle; the viewer does not display them yet.
+  bundle; the viewer does not display them yet. (Since added on
+  `feat/viewer-systems`, with an additive `diplomacy.pairs` snapshot field:
+  see [viewer-systems.md](viewer-systems.md).)
 
 ## Switch and persistence
 
