@@ -10,9 +10,11 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Mapping, cast
 
+import numpy as np
 import pyarrow as pa
 
 from chronicler.bridge_contract import FloatColumn, IntColumn
+from chronicler.columnar import numeric_array, pylist
 
 if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
@@ -45,6 +47,9 @@ class AgentRows:
     __columns: dict[str, tuple[int | float | None, ...]] = field(
         default_factory=dict, init=False, repr=False, compare=False,
     )
+    __arrays: dict[str, np.ndarray | None] = field(
+        default_factory=dict, init=False, repr=False, compare=False,
+    )
 
     def has(self, name: str) -> bool:
         return name in self.batch.schema.names
@@ -52,8 +57,30 @@ class AgentRows:
     def _column(self, name: str) -> tuple[int | float | None, ...]:
         if name not in self.__columns:
             # Assignment happens only after the complete decode succeeds.
-            self.__columns[name] = tuple(self.batch.column(name).to_pylist())
+            # ``pylist`` equals ``to_pylist()`` (NumPy route for numeric columns).
+            self.__columns[name] = tuple(pylist(self.batch.column(name)))
         return self.__columns[name]
+
+    def array(self, name: str) -> np.ndarray | None:
+        """Read-only NumPy values of a column, or None (nulls / not numeric).
+
+        Columnar consumers use it and keep their row-by-row path (``ints`` /
+        ``floats``, which keep ``None``) for such batches. The native snapshot
+        schema is numeric and non-null.
+        """
+        if name not in self.__arrays:
+            values = numeric_array(self.batch.column(name))
+            if values is not None and values.flags.writeable:
+                values.flags.writeable = False
+            self.__arrays[name] = values
+        return self.__arrays[name]
+
+    def arrays(self, *names: str) -> tuple[np.ndarray, ...] | None:
+        """``array`` of each name, or None if any column is missing or has nulls."""
+        if not all(self.has(name) for name in names):
+            return None
+        values = tuple(self.array(name) for name in names)
+        return None if any(v is None for v in values) else values
 
     def ints(self, name: IntColumn) -> tuple[int | None, ...]:
         return cast(tuple[int | None, ...], self._column(name))

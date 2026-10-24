@@ -37,6 +37,29 @@ def shares_adjacent_region(observer: Civilization, target: Civilization,
     return False
 
 
+def border_pairs(world: WorldState) -> set[tuple[str, str]]:
+    """All ``(observer, target)`` controller pairs that share a border.
+
+    ``(a, b) in border_pairs(world)`` equals ``shares_adjacent_region`` for
+    civs named ``a`` and ``b`` on the same world state (adjacency names
+    resolve to the first region with that name, as there). Built in one
+    O(regions x degree) pass, so all-pairs callers avoid an O(regions) scan
+    per pair.
+    """
+    first_by_name = {}
+    for region in world.regions:
+        first_by_name.setdefault(region.name, region)
+    pairs: set[tuple[str, str]] = set()
+    for region in world.regions:
+        if region.controller is None:
+            continue
+        for adj_name in region.adjacencies:
+            adj = first_by_name.get(adj_name)
+            if adj is not None and adj.controller is not None:
+                pairs.add((region.controller, adj.controller))
+    return pairs
+
+
 def has_active_trade_route(observer: Civilization, target: Civilization,
                            world: WorldState) -> bool:
     """True if an active trade route exists between observer and target."""
@@ -74,17 +97,23 @@ def at_war(observer: Civilization, target: Civilization,
 
 
 def compute_accuracy(observer: Civilization, target: Civilization,
-                     world: WorldState) -> float:
+                     world: WorldState, *,
+                     borders: set[tuple[str, str]] | None = None) -> float:
     """Compute intelligence accuracy from observer toward target.
     Stateless — recomputed from current relationships each turn.
     Returns 0.0 (no contact) to 1.0 (perfect knowledge). Self = 1.0.
+    ``borders``: optional :func:`border_pairs` of the same, unchanged world
+    state (identical result, cheaper for all-pairs loops).
     """
     if observer.name == target.name:
         return 1.0
 
     accuracy = 0.0
 
-    if shares_adjacent_region(observer, target, world):
+    if (
+        (observer.name, target.name) in borders if borders is not None
+        else shares_adjacent_region(observer, target, world)
+    ):
         accuracy += 0.3
     if has_active_trade_route(observer, target, world):
         accuracy += 0.2

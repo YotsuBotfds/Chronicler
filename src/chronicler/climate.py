@@ -55,6 +55,9 @@ _BASE_MULTIPLIERS: dict[str, dict[ClimatePhase, float]] = {
     "desert":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 1.25},
     "tundra":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 0.5, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 3.3},
     "mountains": {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 1.25},
+    "steppe":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.8,  ClimatePhase.COOLING: 1.25},
+    "jungle":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.2,  ClimatePhase.COOLING: 1.4},
+    "marsh":     {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.5,  ClimatePhase.COOLING: 1.25},
 }
 
 
@@ -116,6 +119,9 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
             prob = _disaster_probability(dtype, region.terrain, climate_phase, severity)
             if prob <= 0:
                 continue
+            if region.latitude_band is not None:
+                from chronicler.geography import disaster_factor
+                prob *= disaster_factor(region.latitude_band, dtype)
 
             roll = _deterministic_roll(world.seed, region.name, world.turn, dtype)
             if roll >= prob:
@@ -135,7 +141,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                     idx = min(idx, len(active_infra) - 1)
                     active_infra[idx].active = False
                 events.append(Event(
-                    turn=world.turn, event_type="earthquake",
+                    turn=world.turn, event_type="earthquake", region=region.name,
                     actors=[region.controller or "nature"],
                     description=f"Earthquake strikes {region.name}",
                     importance=7,
@@ -150,7 +156,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                     if i.type == InfrastructureType.PORTS and i.active:
                         i.active = False
                 events.append(Event(
-                    turn=world.turn, event_type="flood",
+                    turn=world.turn, event_type="flood", region=region.name,
                     actors=[region.controller or "nature"],
                     description=f"Flooding devastates {region.name}",
                     importance=6,
@@ -162,7 +168,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 wildfire_susp = int(get_override(world, K_WILDFIRE_SUSPENSION_TURNS, 10))
                 region.resource_suspensions[int(ResourceType.TIMBER)] = wildfire_susp
                 events.append(Event(
-                    turn=world.turn, event_type="wildfire",
+                    turn=world.turn, event_type="wildfire", region=region.name,
                     actors=[region.controller or "nature"],
                     description=f"Wildfire sweeps through {region.name}",
                     importance=6,
@@ -172,7 +178,7 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
                 sandstorm_susp = int(get_override(world, K_SANDSTORM_SUSPENSION_TURNS, 5))
                 region.route_suspensions["trade_route"] = sandstorm_susp
                 events.append(Event(
-                    turn=world.turn, event_type="sandstorm",
+                    turn=world.turn, event_type="sandstorm", region=region.name,
                     actors=[region.controller or "nature"],
                     description=f"Sandstorm disrupts {region.name}",
                     importance=4,
@@ -246,7 +252,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
             region.population = max(region.population - surplus, 0)
             importance = min(5 + surplus // 10, 9)
             events.append(Event(
-                turn=world.turn, event_type="migration",
+                turn=world.turn, event_type="migration", region=region.name,
                 actors=[civ.name],
                 description=f"Population flees {region.name} ({surplus} displaced)",
                 importance=importance,
@@ -254,7 +260,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
         else:
             region.population = max(region.population - surplus, 0)
             events.append(Event(
-                turn=world.turn, event_type="famine_starvation",
+                turn=world.turn, event_type="famine_starvation", region=region.name,
                 actors=[civ.name],
                 description=f"Population starves in {region.name} — nowhere to flee",
                 importance=min(5 + surplus // 10, 9),

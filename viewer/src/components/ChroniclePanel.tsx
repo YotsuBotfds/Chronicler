@@ -49,6 +49,25 @@ function NarratedSegment({ entry }: { entry: NewChronicleEntry }) {
           </ul>
         </details>
       )}
+      {(entry.causal_chains?.length ?? 0) > 0 && (
+        <details className="text-xs text-gray-400" open>
+          <summary className="cursor-pointer hover:text-gray-300">
+            Because ({entry.causal_chains!.length} recorded chain{entry.causal_chains!.length !== 1 ? "s" : ""})
+          </summary>
+          <ol className="mt-1 space-y-1 pl-3" aria-label="Recorded causal chains">
+            {entry.causal_chains!.map((chain, i) => (
+              <li key={`${chain.steps[chain.steps.length - 1]?.event_id ?? i}-${i}`}>
+                {chain.steps.map((step, k) => (
+                  <span key={step.event_id || k}>
+                    {k > 0 && <span className="text-gray-600"> &rarr; </span>}
+                    <span className="text-gray-500">T{step.turn}</span> {step.description}
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
       {entry.causal_links.length > 0 && (
         <details className="text-xs text-gray-400">
           <summary className="cursor-pointer hover:text-gray-300">
@@ -58,6 +77,7 @@ function NarratedSegment({ entry }: { entry: NewChronicleEntry }) {
             {entry.causal_links.map((link, i) => (
               <li key={`${link.cause_turn}-${link.effect_turn}-${link.pattern}-${i}`}>
                 T{link.cause_turn} ({link.cause_event_type}) &rarr; T{link.effect_turn} ({link.effect_event_type}): {link.pattern}
+                {link.provenance === "recorded" && <span className="text-gray-500"> (recorded)</span>}
               </li>
             ))}
           </ul>

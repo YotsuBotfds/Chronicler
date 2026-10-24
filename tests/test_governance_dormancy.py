@@ -8,7 +8,7 @@ import pytest
 
 from chronicler import governance_kernel_harness as harness
 from scripts.benchmark_headless import rng_trace, run
-from scripts.third_wave_controls import legacy_artifact_bytes
+from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
@@ -27,6 +27,9 @@ def test_complete_corrected_outputs_with_dormant_governance(
 ):
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
+    # Causal provenance is recorded but the timeline stays provenance-free, so
+    # the frozen oracle still pins every event (see legacy_event_dump).
+    monkeypatch.setattr("chronicler.provenance.LEGACY_TIMELINE", True)
     # This callback is a test seam, never a production simulation hook. The
     # empty synthetic carry has no connection to simulation state or extractors.
     opening = harness.HarnessCarry(0, -1, (), ())
@@ -53,7 +56,7 @@ def test_complete_corrected_outputs_with_dormant_governance(
             assert random.getstate() == before
             assert harness.carry_to_json(opening) == opening_json
         data = [snapshot.model_dump(mode="json"), text,
-                [event.model_dump(mode="json") for event in events],
+                [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(
             data, ensure_ascii=False, separators=(",", ":"),

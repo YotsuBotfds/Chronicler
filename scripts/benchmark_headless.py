@@ -88,6 +88,8 @@ def run(workload: dict, output: Path, on_turn=None):
         state=str(output / "state.json"), resume=None, reflection_interval=10,
         llm_actions=False, scenario=None, simulate_only=True, agents="off",
         governance=False,  # frozen pre-governance oracles; see docs/governance/runtime-integration.md
+        contact_ledger=False,  # frozen pre-ledger oracles; see docs/integration/contact-ledger.md
+        fisheries=False, mutual_aid=False,  # frozen oracles; see docs/integration/fisheries-mutual-aid-promotion.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

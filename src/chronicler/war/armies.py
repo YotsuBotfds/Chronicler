@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
+from chronicler.columnar import batch_arrays, last_row_of, pylist
 from chronicler.tuning import get_override
 from chronicler.utils import distribute_pop_loss, drain_region_pop, stage_region_catastrophe_deaths
 from chronicler.war import params as P
@@ -82,6 +85,35 @@ def _army_name(ctx: WarContext, civ: "Civilization") -> str:
     return f"The {ordinal} {noun} of {civ.name}"
 
 
+def _select_recruits_columnar(ctx, civ, civ_idx, taken, dist, count, ids, regs, occs, affs):
+    """``select_recruits``' candidate filter and sort over NumPy columns.
+
+    Per-region eligibility (controller, occupation, distance) is a table
+    lookup; candidates sort by the same key ``(soldier first, hops, id,
+    region)`` (lexsort, ids breaking every tie the key can have).
+    """
+    regions = ctx.world.regions
+    hops_of = np.full(len(regions) + 1, -1, dtype=np.int64)
+    for idx, region in enumerate(regions):
+        if region.controller != civ.name or region.occupied_by not in (None, civ.name):
+            continue
+        hops = dist.get(region.name)
+        if hops is not None:
+            hops_of[idx] = hops
+    ids = np.asarray(ids, dtype=np.int64)
+    regs = np.asarray(regs, dtype=np.int64)
+    occs = np.asarray(occs, dtype=np.int64)
+    hops = hops_of[np.where((regs >= 0) & (regs < len(regions)), regs, len(regions))]
+    keep = ((np.asarray(affs, dtype=np.int64) == civ_idx)
+            & ((occs == SOLDIER_OCCUPATION) | (occs == FARMER_OCCUPATION)) & (hops >= 0))
+    if taken:
+        keep &= ~np.isin(ids, np.fromiter(taken, dtype=np.int64, count=len(taken)))
+    rank = np.where(occs[keep] == SOLDIER_OCCUPATION, 0, 1)
+    cand_ids, cand_regs = ids[keep], regs[keep]
+    order = np.lexsort((cand_regs, cand_ids, hops[keep], rank))[:max(count, 0)]
+    return list(zip(cand_ids[order].tolist(), cand_regs[order].tolist()))
+
+
 def select_recruits(ctx: WarContext, civ: "Civilization", staging: str, count: int) -> list[tuple[int, int]]:
     """Pick ``count`` native agents of the civ: soldiers first, nearest first.
 
@@ -102,10 +134,13 @@ def select_recruits(ctx: WarContext, civ: "Civilization", staging: str, count: i
     taken.update(getattr(ctx.bridge, "named_agents", {}) or {})
     dist = distances_from(ctx, staging)
     regions = ctx.world.regions
-    ids = snap.column("id").to_pylist()
-    regs = snap.column("region").to_pylist()
-    occs = snap.column("occupation").to_pylist()
-    affs = snap.column("civ_affinity").to_pylist()
+    arrays = batch_arrays(snap, ("id", "region", "occupation", "civ_affinity"))
+    if arrays is not None and isinstance(civ_idx, int):
+        return _select_recruits_columnar(ctx, civ, civ_idx, taken, dist, count, *arrays)
+    ids = pylist(snap.column("id"))
+    regs = pylist(snap.column("region"))
+    occs = pylist(snap.column("occupation"))
+    affs = pylist(snap.column("civ_affinity"))
     candidates = []
     for aid, reg, occ, aff in zip(ids, regs, occs, affs):
         aid, reg, occ, aff = int(aid), int(reg), int(occ), int(aff)
@@ -242,7 +277,7 @@ def kill_general(ctx: WarContext, army: "Army", region: str) -> str | None:
             civ.great_persons.remove(gp)
         ctx.world.retired_persons.append(gp)
     emit(ctx, "general_fallen", [civ.name], f"{gp.name}, general of {civ.name}, falls at {region}.",
-         importance=6)
+         importance=6, region=region)
     return gp.name
 
 
@@ -324,7 +359,7 @@ def disband(ctx: WarContext, army: "Army", reason: str) -> None:
     army.roster = []
     if reason == "destroyed":
         emit(ctx, "army_destroyed", [army.civ], f"{army.name} is destroyed at {army.region}.",
-             importance=6)
+             importance=6, region=army.region)
     elif reason == "demobilized":
         emit(ctx, "army_disbanded", [army.civ],
              f"{army.name} returns home and disbands ({army.soldiers} survivors).", importance=3)
@@ -341,12 +376,19 @@ def reconcile_rosters(world, snapshot) -> int:
     armies = [a for a in world.war_state.armies if a.roster]
     if not armies or snapshot is None:
         return 0
-    try:
-        ids = snapshot.column("id").to_pylist()
-        regs = snapshot.column("region").to_pylist()
-    except Exception:
-        return 0
-    alive = {int(a): int(r) for a, r in zip(ids, regs)}
+    arrays = batch_arrays(snapshot, ("id", "region"))
+    if arrays is not None:
+        # Only enlisted ids are looked up; the last row per id wins, as in
+        # the full id -> region dict.
+        rows = last_row_of(arrays[0], {aid for army in armies for aid, _ in army.roster})
+        alive = {aid: int(arrays[1][row]) for aid, row in rows.items()}
+    else:
+        try:
+            ids = pylist(snapshot.column("id"))
+            regs = pylist(snapshot.column("region"))
+        except Exception:
+            return 0
+        alive = {int(a): int(r) for a, r in zip(ids, regs)}
     removed = 0
     for army in armies:
         kept = [(aid, alive[aid]) for aid, _ in army.roster if aid in alive]
@@ -378,7 +420,7 @@ def rebind_rosters(ctx: WarContext) -> None:
         return
     try:
         snap = ctx.bridge.get_snapshot()
-        live = {int(a) for a in snap.column("id").to_pylist()}
+        live = {int(a) for a in pylist(snap.column("id"))}
     except Exception:
         live = set()
     for army in sorted(world.war_state.armies, key=lambda a: a.army_id):

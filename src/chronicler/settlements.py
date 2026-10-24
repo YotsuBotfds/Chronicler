@@ -2,6 +2,7 @@
 """M56a: Settlement detection, matching, lifecycle, and diagnostics."""
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 import logging
 import math
 from typing import TYPE_CHECKING
@@ -340,9 +341,9 @@ def _parse_snapshot_by_region(
     """Extract per-region agent positions from Arrow snapshot."""
     if agent_rows is not None and agent_rows.batch is not snapshot:
         raise ValueError("Settlement view must wrap the supplied snapshot")
-    regions = agent_rows.ints("region") if agent_rows is not None else snapshot.column("region").to_pylist()
-    xs = agent_rows.floats("x") if agent_rows is not None else snapshot.column("x").to_pylist()
-    ys = agent_rows.floats("y") if agent_rows is not None else snapshot.column("y").to_pylist()
+    regions = agent_rows.ints("region") if agent_rows is not None else pylist(snapshot.column("region"))
+    xs = agent_rows.floats("x") if agent_rows is not None else pylist(snapshot.column("x"))
+    ys = agent_rows.floats("y") if agent_rows is not None else pylist(snapshot.column("y"))
 
     by_region: dict[int, list[tuple[float, float]]] = {r: [] for r in range(num_regions)}
     for i in range(len(regions)):

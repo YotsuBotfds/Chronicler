@@ -254,12 +254,41 @@ def _reset_terrain_derived_state(region: Region, terrain: str) -> None:
     region.stockpile.goods = {}
 
 
+def _apply_procedural_scenario_adjacency(
+    world: WorldState, config: ScenarioConfig, renamed: dict[str, str],
+) -> None:
+    """Rename generated-geography references and merge explicit adjacencies."""
+    def rn(name: str) -> str:
+        return renamed.get(name, name)
+
+    if renamed:
+        for region in world.regions:
+            region.adjacencies = [rn(a) for a in region.adjacencies]
+        for river in world.rivers:
+            river.path = [rn(n) for n in river.path]
+        geo = world.geography
+        for zone in geo.sea_zones:
+            zone.coastal_regions = [rn(n) for n in zone.coastal_regions]
+        geo.sea_lanes = [(rn(a), rn(b)) for a, b in geo.sea_lanes]
+    by_name = {r.name: r for r in world.regions}
+    for override in config.regions:
+        region = by_name.get(override.name)
+        if region is None or override.adjacencies is None:
+            continue
+        for other_name in region.adjacencies:
+            other = by_name.get(other_name)
+            if other is not None and region.name not in other.adjacencies:
+                other.adjacencies.append(region.name)
+    world.invalidate_region_map()
+
+
 def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     """Apply scenario overrides to a generated WorldState.
 
     Mutates world in-place. Call after generate_world() has produced the base state.
     """
     # --- Step 1: Region injection ---
+    renamed_regions: dict[str, str] = {}
     replaced_region_indices: set[int] = set()
     region_override_map: list[tuple[int, RegionOverride]] = []
     # Regions whose terrain the scenario changed: their template-derived
@@ -313,6 +342,7 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
         # Update civ.regions list entries and region.controller
         if old_name != new_name:
+            renamed_regions[old_name] = new_name
             for civ in world.civilizations:
                 civ.regions = [new_name if r == old_name else r for r in civ.regions]
 
@@ -418,12 +448,18 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
         world.terrain_transition_rules = list(config.terrain_transition_rules)
 
     # --- Step 8: Recompute adjacencies (fills gaps for regions without explicit adjacencies) ---
-    # Clear stale adjacencies from generate_world (region names may have changed)
-    from chronicler.adjacency import compute_adjacencies
-    for region in world.regions:
-        if not any(ro.name == region.name and ro.adjacencies is not None for ro in config.regions):
-            region.adjacencies = []
-    compute_adjacencies(world.regions)
+    if world.geography is not None:
+        # Geography 2.0: keep the generated neighbour graph (renamed), so a
+        # scenario on a procedural world does not fall back to the template
+        # all-coastal sea clique.
+        _apply_procedural_scenario_adjacency(world, config, renamed_regions)
+    else:
+        # Clear stale adjacencies from generate_world (region names may have changed)
+        from chronicler.adjacency import compute_adjacencies
+        for region in world.regions:
+            if not any(ro.name == region.name and ro.adjacencies is not None for ro in config.regions):
+                region.adjacencies = []
+        compute_adjacencies(world.regions)
     from chronicler.resources import assign_resources
     assign_resources(world.regions, seed=world.seed)
     from chronicler.resources import assign_resource_types
@@ -433,7 +469,18 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     if len(config.rivers) > 32:
         raise ValueError(f"Maximum 32 rivers supported (got {len(config.rivers)})")
     region_map = {r.name: r for r in world.regions}
-    world.rivers = []
+    if world.geography is not None and world.rivers:
+        if not config.rivers:
+            config_rivers_replace = False
+        else:
+            # Scenario rivers replace the generated ones (their bonuses stay).
+            config_rivers_replace = True
+            for region in world.regions:
+                region.river_mask = 0
+    else:
+        config_rivers_replace = True
+    if config_rivers_replace:
+        world.rivers = []
     for river_idx, river in enumerate(config.rivers):
         for rname in river.path:
             if rname not in region_map:
@@ -446,38 +493,11 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
                     f"River '{river.name}': '{river.path[i]}' and '{r_next_name}' are not adjacent"
                 )
         world.rivers.append(river)
-    # Assign river_mask bits
-    for river_idx, river in enumerate(world.rivers):
-        bit = 1 << river_idx
-        for rname in river.path:
-            region_map[rname].river_mask |= bit
-
-    # Apply river bonuses (once per region, not per river)
-    from chronicler.tuning import get_override, K_RIVER_WATER_BONUS, K_RIVER_CAPACITY_MULTIPLIER
-    from chronicler.ecology import clamp_ecology as _clamp_ecology
-    from chronicler.resources import RESOURCE_BASE
-    import random as _rng_mod
-    water_bonus = get_override(world, K_RIVER_WATER_BONUS, 0.15)
-    cap_mult = get_override(world, K_RIVER_CAPACITY_MULTIPLIER, 1.2)
-    for region in world.regions:
-        if region.river_mask == 0:
-            continue
-        # Water baseline
-        region.ecology.water += water_bonus
-        _clamp_ecology(region)
-        # Carrying capacity
-        region.carrying_capacity = int(region.carrying_capacity * cap_mult)
-        # Fish resource (Phoebe N-2: must also set base_yield)
-        if ResourceType.FISH not in region.resource_types:
-            for slot in range(3):
-                if region.resource_types[slot] == EMPTY_SLOT:
-                    region.resource_types[slot] = ResourceType.FISH
-                    rng = _rng_mod.Random(
-                        stable_hash_int("river_fish", world.seed, region.name)
-                    )
-                    variance = rng.uniform(-0.2, 0.2)
-                    region.resource_base_yields[slot] = RESOURCE_BASE[ResourceType.FISH] * (1.0 + variance)
-                    break
+    # Assign river_mask bits and apply river bonuses (once per region, not per river)
+    if config_rivers_replace:
+        from chronicler.geography import apply_river_bonuses, assign_river_masks
+        assign_river_masks(world.regions, world.rivers)
+        apply_river_bonuses(world.regions, world.seed, world)
 
     # --- H-23: Post-apply consistency restoration ---
     # Clamp ecology to terrain caps (scenario ecology overrides may violate them)

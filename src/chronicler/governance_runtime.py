@@ -40,7 +40,11 @@ import random
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Iterable, Mapping
 
+import numpy as np
+
 from chronicler import elite_metrics as g02
+from chronicler.columnar import group_rows, ordered_counts
+from chronicler.elite_metrics_columnar import compute_civ_elite_counts
 from chronicler import governance_capital as g03
 from chronicler import institutions as g01
 from chronicler import ruler_ambitions as g04
@@ -493,7 +497,27 @@ class _Context:
     turn_events: list[Event]
 
 
+# Snapshot columns read by the governance tick, with the value each consumer
+# gave a null cell (``None``) before the columnar rewrite: ``civ_affinity`` None
+# skipped the row, ``region``/``belief`` None became a dict key that no lookup
+# matches (belief 0xFF is never a civ faith), the rest read as 0 / 0.0.
+_AGENT_COLUMNS = {
+    "id": (np.int64, 0), "civ_affinity": (np.int64, -1), "occupation": (np.int64, 0),
+    "satisfaction": (np.float64, 0.0), "skill": (np.float64, 0.0), "wealth": (np.float64, 0.0),
+    "age": (np.int64, 0), "settlement_id": (np.int64, 0), "region": (np.int64, -1),
+    "belief": (np.int64, 0xFF),
+}
+
+
+def _column_array(batch, name: str, dtype, fill) -> np.ndarray:
+    column = batch.column(name)
+    if column.null_count:
+        return np.array([fill if v is None else v for v in column.to_pylist()], dtype=dtype)
+    return np.asarray(column.to_numpy(), dtype=dtype)
+
+
 def _agent_columns(world, phase10) -> dict | None:
+    """The snapshot columns as NumPy arrays plus ``civ_known`` (civ not null)."""
     batch = None
     if phase10 is not None and phase10.agents is not None:
         batch = phase10.agents.batch
@@ -502,11 +526,15 @@ def _agent_columns(world, phase10) -> dict | None:
     if batch is None:
         return None
     names = set(batch.schema.names)
-    needed = ("id", "civ_affinity", "occupation", "satisfaction", "skill", "wealth", "age",
-              "settlement_id", "region", "belief")
-    if not all(n in names for n in needed):
+    if not all(n in names for n in _AGENT_COLUMNS):
         return None
-    return {n: batch.column(n).to_pylist() for n in needed}
+    columns = {n: _column_array(batch, n, dtype, fill) for n, (dtype, fill) in _AGENT_COLUMNS.items()}
+    civ_column = batch.column("civ_affinity")
+    columns["civ_known"] = (
+        np.array([v is not None for v in civ_column.to_pylist()], dtype=bool)
+        if civ_column.null_count else None
+    )
+    return columns
 
 
 def _build_context(world, phase10) -> _Context:
@@ -522,17 +550,22 @@ def _build_context(world, phase10) -> _Context:
     rows: dict | None = None
     region_beliefs: dict[int, dict[int, int]] = {}
     if columns is not None:
-        rows = {}
         n_civs = len(world.civilizations)
-        for k in range(len(columns["id"])):
-            civ_id = columns["civ_affinity"][k]
-            if civ_id is None or civ_id >= n_civs:
-                continue
-            rows.setdefault(civ_id, []).append(k)
-            rid, bid = columns["region"][k], columns["belief"][k]
-            dist = region_beliefs.setdefault(rid, {})
-            dist[bid] = dist.get(bid, 0) + 1
-        rows = {"columns": columns, "by_civ": rows}
+        civ = columns["civ_affinity"]
+        # Rows with a known civ id below the civ count, in row order per civ.
+        keep = civ < n_civs
+        civ_known = columns.pop("civ_known")
+        if civ_known is not None:
+            keep &= civ_known
+        kept = np.flatnonzero(keep)
+        by_civ = {civ_id: kept[rows] for civ_id, rows in group_rows(civ[kept])}
+        # Per-region belief counts over the same rows (only sums and lookups
+        # of these counts are read, so key order is immaterial).
+        if len(kept):
+            region_beliefs = {
+                rid: dict(counts) for rid, counts in
+                ordered_counts(columns["region"][kept], columns["belief"][kept]).items()}
+        rows = {"columns": columns, "by_civ": by_civ}
     turn_events = []
     for event in reversed(world.events_timeline):
         if event.turn != world.turn:
@@ -555,6 +588,14 @@ def _unit(value) -> float:
     if not math.isfinite(value):
         return 0.0
     return min(1.0, max(0.0, value))
+
+
+def _unit_array(values: np.ndarray) -> np.ndarray:
+    """``_unit`` per element (``+ 0.0`` turns a clamped -0.0 into 0.0)."""
+    return np.where(np.isfinite(values), np.clip(values, 0.0, 1.0), 0.0) + 0.0
+
+
+_NO_ROWS = np.zeros(0, dtype=np.int64)
 
 
 def _gp_keys(gps) -> list[tuple[str, object]]:
@@ -581,53 +622,61 @@ def _elite_metrics(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) 
         ratchet_cap=ELITE_CALIBRATION.ratchet_cap,
         elite_positions_divisor=divisor,
     )
-    agents: list[g02.AgentEliteInput] = []
     greats: list[g02.GreatPersonEliteInput] = []
     gps = [gp for gp in civ.great_persons if gp.active and gp.alive]
     if ctx.rows is not None:
         cols = ctx.rows["columns"]
-        indices = ctx.rows["by_civ"].get(civ_idx, [])
-        present: dict[int, int] = {}
-        max_wealth = 0.0
-        sat_total = 0.0
-        for k in indices:
-            occ = cols["occupation"][k]
-            wealth = float(cols["wealth"][k] or 0.0)
-            if not math.isfinite(wealth):
-                wealth = 0.0
-            sat = _unit(cols["satisfaction"][k])
-            agents.append(g02.AgentEliteInput(
-                int(cols["id"][k]), civ_idx, wealth,
-                _OCCUPATIONS[occ] if occ is not None and 0 <= occ < len(_OCCUPATIONS) else g02.Occupation.FARMER,
-                _unit(cols["skill"][k]), sat))
-            present[int(cols["id"][k])] = k
-            max_wealth = max(max_wealth, wealth)
-            sat_total += sat
-        mean_sat = sat_total / len(indices) if indices else _unit(civ.stability / 100)
+        indices = ctx.rows["by_civ"].get(civ_idx, _NO_ROWS)
+        ids = cols["id"][indices]
+        # Row conversions of the record-per-agent adapter: non-finite wealth
+        # and a null cell read as 0.0 (-0.0 as 0.0, like ``float(v or 0.0)``);
+        # skill and satisfaction through ``_unit``; unknown occupations FARMER.
+        wealth = cols["wealth"][indices]
+        wealth = np.where(np.isfinite(wealth), wealth, 0.0) + 0.0
+        sat = _unit_array(cols["satisfaction"][indices])
+        skill = _unit_array(cols["skill"][indices])
+        occ = cols["occupation"][indices]
+        occ = np.where((occ >= 0) & (occ < len(_OCCUPATIONS)), occ, 0)
+        if len(indices):
+            max_wealth = max(0.0, float(wealth.max()))
+            # Left-to-right running sum, the order of the per-row ``+=``.
+            mean_sat = float(np.cumsum(sat)[-1]) / len(indices)
+        else:
+            max_wealth = 0.0
+            mean_sat = _unit(civ.stability / 100)
         for key, gp in _gp_keys(gps):
-            backed = gp.agent_id if gp.agent_id is not None and gp.agent_id in present else None
+            backed = (gp.agent_id if gp.agent_id is not None and bool((ids == gp.agent_id).any())
+                      else None)
             greats.append(g02.GreatPersonEliteInput(
                 key, civ_idx, backed,
                 None if backed is not None else max_wealth,
                 None if backed is not None else mean_sat))
-    else:
-        # --agents off: GreatPersons plus an aggregate cohort of notable houses
-        # stand in for the snapshot (no agent rows exist to classify).
-        base_sat = _unit(civ.stability / 100)
-        for key, gp in _gp_keys(gps):
-            greats.append(g02.GreatPersonEliteInput(key, civ_idx, None, 100.0 + civ.prestige, base_sat))
-        notables = int(round(civ.population * OFF_MODE_NOTABLE_RATE * (0.5 + civ.economy / 100)))
-        for k in range(notables):
-            spread = (k / (notables - 1) - 0.5) if notables > 1 else 0.0
-            greats.append(g02.GreatPersonEliteInput(
-                f"house:{civ_idx}:{k}", civ_idx, None, float(50 - k), _unit(base_sat + 0.3 * spread)))
+        if gov.ratchet_turn != turn - 1:
+            gov.ratchet_turn = turn - 1
+        return compute_civ_elite_counts(
+            turn=turn,
+            civilization=g02.CivEliteInput(civ_idx, max(0, int(civ.population)),
+                                           g02.EliteRatchetState(turn - 1, gov.conspicuous_consumption_index)),
+            agent_ids=ids, wealth=wealth, occupation=occ, skill=skill, satisfaction=sat,
+            great_persons=tuple(greats), calibration=calibration, conventions=ELITE_CONVENTIONS,
+        )
+    # --agents off: GreatPersons plus an aggregate cohort of notable houses
+    # stand in for the snapshot (no agent rows exist to classify).
+    base_sat = _unit(civ.stability / 100)
+    for key, gp in _gp_keys(gps):
+        greats.append(g02.GreatPersonEliteInput(key, civ_idx, None, 100.0 + civ.prestige, base_sat))
+    notables = int(round(civ.population * OFF_MODE_NOTABLE_RATE * (0.5 + civ.economy / 100)))
+    for k in range(notables):
+        spread = (k / (notables - 1) - 0.5) if notables > 1 else 0.0
+        greats.append(g02.GreatPersonEliteInput(
+            f"house:{civ_idx}:{k}", civ_idx, None, float(50 - k), _unit(base_sat + 0.3 * spread)))
     if gov.ratchet_turn != turn - 1:
         gov.ratchet_turn = turn - 1
     output = g02.compute_elite_metrics(
         turn=turn,
         civilizations=(g02.CivEliteInput(civ_idx, max(0, int(civ.population)),
                                          g02.EliteRatchetState(turn - 1, gov.conspicuous_consumption_index)),),
-        agents=tuple(agents), great_persons=tuple(greats),
+        agents=(), great_persons=tuple(greats),
         calibration=calibration, conventions=ELITE_CONVENTIONS,
     )
     return output.civilizations[0]
@@ -1058,8 +1107,10 @@ def _tick_civ(world, civ_idx: int, civ, acc, ctx: _Context) -> list[Event]:
             if ev.reason == "neglect":
                 gov.institutions_collapsed_total += 1
                 _log_institution(gov, turn, t, "collapsed")
-                events.append(_event(world, "institution_repealed", civ,
-                    f"{pretty} in {civ.name} collapses from neglect after its enforcement went unpaid.", 6))
+                from chronicler import provenance as prov
+                events.append(prov.cite(_event(world, "institution_repealed", civ,
+                    f"{pretty} in {civ.name} collapses from neglect after its enforcement went unpaid.", 6),
+                    prov.recall(world, prov.key("fiscal", civ.name))))
             else:
                 gov.institutions_repealed_total += 1
                 _log_institution(gov, turn, t, "repealed")
@@ -1069,8 +1120,10 @@ def _tick_civ(world, civ_idx: int, civ, acc, ctx: _Context) -> list[Event]:
     for inst in result.next_state.institutions:
         before = previous_legitimacy.get(inst.institution_type)
         if before is not None and before >= 0.5 > inst.legitimacy:
-            events.append(_event(world, "institution_enforcement_lapse", civ,
-                f"Unpaid officials let {_PRETTY[inst.institution_type]} in {civ.name} fall into disregard.", 3))
+            from chronicler import provenance as prov
+            events.append(prov.cite(_event(world, "institution_enforcement_lapse", civ,
+                f"Unpaid officials let {_PRETTY[inst.institution_type]} in {civ.name} fall into disregard.", 3),
+                prov.recall(world, prov.key("fiscal", civ.name))))
     _store_institutions(gov, result.next_state)
     if suppressed:
         gov.secession_suppressions += 1
@@ -1258,10 +1311,9 @@ def _advance_psi(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) ->
     turn = world.turn
     if ctx.rows is not None:
         cols = ctx.rows["columns"]
-        indices = ctx.rows["by_civ"].get(civ_idx, [])
-        mmp_raw = stress.mmp_from_agents([cols["wealth"][k] for k in indices],
-                                         [cols["age"][k] or 0 for k in indices],
-                                         [cols["settlement_id"][k] or 0 for k in indices], STRESS)[0]
+        indices = ctx.rows["by_civ"].get(civ_idx, _NO_ROWS)
+        mmp_raw = stress.mmp_from_agent_arrays(cols["wealth"][indices], cols["age"][indices],
+                                               cols["settlement_id"][indices], STRESS)[0]
     else:
         # --agents off proxy: crowding depresses wages, settled share ~ density.
         from chronicler.ecology import effective_capacity
@@ -1293,8 +1345,18 @@ def _advance_psi(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) ->
                                             ("elite overproduction", update.emp),
                                             ("fiscal distress", update.sfd))
                    if value >= STRESS.elevated_subindex]
-        events.append(_event(world, "psi_crisis", civ,
-            f"{civ.name} enters an age of troubles ({', '.join(drivers) or 'compounding strains'}).", 8))
+        crisis = _event(world, "psi_crisis", civ,
+            f"{civ.name} enters an age of troubles ({', '.join(drivers) or 'compounding strains'}).", 8)
+        # Provenance: the strains the PSI crossed its threshold on.
+        from chronicler import provenance as prov
+        driver_causes = {
+            "elite overproduction": [prov.recall(world, prov.key("elite", civ.name), within=40)],
+            "fiscal distress": [prov.recall(world, prov.key("fiscal", civ.name), within=30)],
+            "popular immiseration": prov._famines_of(world, civ.name),
+        }
+        for name in drivers or driver_causes:
+            prov.cite(crisis, *driver_causes[name])
+        events.append(crisis)
     elif update.crisis:
         gov.psi_peak = max(gov.psi_peak, update.psi)
     elif was_crisis:
@@ -1358,8 +1420,12 @@ def _revolt_and_civil_war(world, civ_idx: int, civ, gov: CivGovernance, acc,
     _add_tag(gov, world.turn, "revolt")
     _apply_stat(world, acc, civ_idx, civ, "stability", -REVOLT_STABILITY_LOSS, "signal")
     _apply_stat(world, acc, civ_idx, civ, "economy", -REVOLT_ECONOMY_LOSS, "signal")
-    events.append(_event(world, "revolt", civ,
-        f"Revolt flares across {civ.name} as the strains of the age boil over.", 7))
+    from chronicler import provenance as prov
+    revolt = _event(world, "revolt", civ,
+        f"Revolt flares across {civ.name} as the strains of the age boil over.", 7)
+    # Provenance: revolts are rolled only during a PSI crisis.
+    prov.cite(revolt, prov.recall(world, prov.key("psi", civ.name)))
+    events.append(revolt)
     legit = gov.ruler_legitimacy
     if (len(civ.regions) >= 3 and legit < CIVIL_WAR_LEGITIMACY_CEILING and not is_in_crisis(civ)):
         p_war = CIVIL_WAR_BASE_PROBABILITY * (1.0 - legit)
@@ -1371,8 +1437,13 @@ def _revolt_and_civil_war(world, civ_idx: int, civ, gov: CivGovernance, acc,
             gov.conspicuous_consumption_index = round(
                 gov.conspicuous_consumption_index * CIVIL_WAR_RATCHET_CRASH, 9)
             _add_tag(gov, world.turn, "civil_war")
-            events.append(_event(world, "civil_war", civ,
-                f"Rival claimants take up arms against {civ.leader.name}; {civ.name} descends into civil war.", 9))
+            civil_war = _event(world, "civil_war", civ,
+                f"Rival claimants take up arms against {civ.leader.name}; {civ.name} descends into civil war.", 9)
+            # Provenance: the revolt that escalated and the legitimacy crisis
+            # that raised its odds.
+            prov.cite(civil_war, prov.ensure_id(world, revolt),
+                      prov.recall(world, prov.key("legitimacy", civ.name), within=20))
+            events.append(civil_war)
     return events
 
 

@@ -21,6 +21,7 @@ import pytest
 
 from chronicler.intelligence import _get_perceived_stat_with_accuracy, get_perceived_stat
 from scripts.benchmark_headless import FixedDateTime, rng_trace, run
+from scripts.third_wave_controls import legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
@@ -37,11 +38,14 @@ def _run_workload(spec, tmp_path, monkeypatch):
     # Fix the lane even in environments where the optional Rust extension exists.
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
+    # Causal provenance is recorded but the timeline stays provenance-free:
+    # the frozen oracle pins every event once the additive fields are removed.
+    monkeypatch.setattr("chronicler.provenance.LEGACY_TIMELINE", True)
     turns = []
 
     def capture(snapshot, text, events, named):
         data = [snapshot.model_dump(mode="json"), text,
-                [event.model_dump(mode="json") for event in events],
+                [legacy_event_dump(event) for event in events],
                 [event.model_dump(mode="json") for event in named]]
         turns.append(hashlib.sha256(json.dumps(data, ensure_ascii=False,
                                               separators=(",", ":")).encode()).hexdigest())

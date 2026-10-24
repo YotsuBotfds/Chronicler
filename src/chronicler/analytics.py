@@ -1406,6 +1406,12 @@ def generate_report(
     if governance.get("runs"):
         report["governance"] = governance
 
+    # Contact ledger: present only for runs whose bundles carry history[n].contact.
+    from chronicler.contact_ledger import extract_contact_metrics
+    contact = extract_contact_metrics(bundles)
+    if contact.get("runs"):
+        report["contact_ledger"] = contact
+
     report["anomalies"] = detect_anomalies(report)
     return report
 

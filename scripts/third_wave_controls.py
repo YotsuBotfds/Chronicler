@@ -36,13 +36,53 @@ def strip_dormant_fields(world, *, aid=True):
     return world
 
 
+# Causal provenance (docs/integration/causal-provenance.md) adds event and
+# condition fields, the world's causal index and bundle version 4. Runs made
+# with ``chronicler.provenance.LEGACY_TIMELINE`` keep the timeline itself
+# exactly as a provenance-free run writes it, so removing only these
+# additions recovers the pre-provenance bytes.
+PROVENANCE_EVENT_FIELDS = ("event_id", "causes", "region", "civs", "episode", "duration")
+PROVENANCE_CONDITION_FIELDS = ("condition_id", "cause_id", "onset_turn")
+
+
+def strip_provenance_event(event: dict) -> dict:
+    assert event.get("episode") != "end", "end events: run with provenance.LEGACY_TIMELINE"
+    for key in PROVENANCE_EVENT_FIELDS:
+        event.pop(key, None)
+    return event
+
+
+def legacy_event_dump(event) -> dict:
+    """``event.model_dump(mode="json")`` without the provenance additions."""
+    return strip_provenance_event(event.model_dump(mode="json"))
+
+
+def strip_provenance(world: dict) -> dict:
+    world.pop("provenance", None)
+    for event in world.get("events_timeline", []):
+        strip_provenance_event(event)
+    for condition in world.get("active_conditions", []):
+        for key in PROVENANCE_CONDITION_FIELDS:
+            condition.pop(key, None)
+    return world
+
+
 def legacy_artifact_bytes(path):
     raw = path.read_bytes()
     if path.name not in ("state.json", "chronicle_bundle.json"):
         return raw
     data = json.loads(raw)
     strip_dormant_fields(data["world_state"] if path.name == "chronicle_bundle.json" else data)
+    strip_provenance(data["world_state"] if path.name == "chronicle_bundle.json" else data)
     if path.name == "chronicle_bundle.json":
+        for event in data.get("events_timeline", []):
+            strip_provenance_event(event)
+        for entry in data.get("chronicle_entries", []):
+            assert "causal_chains" not in entry
+            for event in entry.get("events", []):
+                strip_provenance_event(event)
+        assert data["metadata"]["bundle_version"] == 4
+        data["metadata"]["bundle_version"] = 3
         return json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()
     # Match WorldState.save's existing Pydantic formatting (including exponents).
     return to_json(data, indent=2)

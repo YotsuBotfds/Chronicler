@@ -75,7 +75,7 @@ from chronicler.narrative import NarrativeEngine
 from chronicler.simulation import run_turn_result
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
-from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
+from chronicler.intelligence import border_pairs, compute_accuracy, _get_perceived_stat_with_accuracy
 from chronicler.history_index import history_index
 
 DEFAULT_CONFIG = {
@@ -184,6 +184,47 @@ class _DummyClient:
         return "DEVELOP"
 
 
+def _urban_counts_by_civ(world, civ_ids, settlement_ids, region_ids) -> dict[str, tuple[int, int]]:
+    """``{civ name: (urban agents, agents)}`` from null-free snapshot columns.
+
+    Same attribution as the row loop in ``execute_run``: the controller of an
+    agent's region, else the civ of its affinity id, else the row is skipped;
+    names in order of first attribution.
+    """
+    import numpy as np
+    from chronicler.columnar import first_appearance
+
+    names: list[str] = []
+    code_of: dict[str, int] = {}
+
+    def code(name: str) -> int:
+        if name not in code_of:
+            code_of[name] = len(names)
+            names.append(name)
+        return code_of[name]
+
+    n_regions, n_civs = len(world.regions), len(world.civilizations)
+    region_code = np.full(n_regions + 1, -1, dtype=np.int64)
+    for idx, region in enumerate(world.regions):
+        if region.controller is not None:
+            region_code[idx] = code(region.controller)
+    civ_code = np.full(n_civs + 1, -1, dtype=np.int64)
+    for idx, civ in enumerate(world.civilizations):
+        civ_code[idx] = code(civ.name)
+    civ = np.asarray(civ_ids, dtype=np.int64)
+    if region_ids is None:
+        codes = np.full(len(civ), -1, dtype=np.int64)
+    else:
+        regions = np.asarray(region_ids, dtype=np.int64)
+        codes = region_code[np.where((regions >= 0) & (regions < n_regions), regions, n_regions)]
+    fallback = civ_code[np.where((civ >= 0) & (civ < n_civs), civ, n_civs)]
+    codes = np.where(codes >= 0, codes, fallback)
+    valid = codes >= 0
+    totals = np.bincount(codes[valid], minlength=len(names))
+    urban = np.bincount(codes[valid & (np.asarray(settlement_ids) > 0)], minlength=len(names))
+    return {names[k]: (int(urban[k]), int(totals[k])) for k in first_appearance(codes[valid])}
+
+
 def _governance_snapshot(civ):
     from chronicler.governance_runtime import governance_snapshot
     return governance_snapshot(civ)
@@ -224,6 +265,14 @@ def _create_politics_runtime(world):
         return pol_sim
     except ImportError:
         return None
+
+
+def _contact_snapshot_fields(world) -> dict:
+    """Contact ledger per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.contact_ledger import ledger_enabled, snapshot_summary
+    if not ledger_enabled(world):
+        return {}
+    return {"contact": snapshot_summary(world)}
 
 
 def _war_snapshot_fields(world) -> dict:
@@ -336,6 +385,7 @@ def execute_run(
             seed=seed,
             num_regions=num_regions,
             num_civs=num_civs,
+            worldgen=getattr(args, "worldgen", None),
         )
         start_turn = 0
         fresh_world = True
@@ -400,11 +450,26 @@ def execute_run(
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
+    # Adjacent mutual aid (persisted on the world). It moves goods-economy
+    # stocks, so an explicit --mutual-aid needs an agent mode; a default-on or
+    # saved setting is simply dormant under --agents off.
     mutual_aid = getattr(args, "mutual_aid", None)
+    if mutual_aid is True and agent_mode == "off":
+        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    if mutual_aid is None and fresh_world:
+        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
+        mutual_aid = _AID_DEFAULT
     if mutual_aid is not None:
         world.mutual_aid_enabled = mutual_aid
-    if world.mutual_aid_enabled and agent_mode == "off":
-        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    # Renewable fish stocks (persisted on the world). New worlds also get the
+    # living-world calibration; loaded worlds keep their saved parameters.
+    fisheries = getattr(args, "fisheries", None)
+    if fisheries is None and fresh_world:
+        from chronicler.experimental.fisheries import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT
+        fisheries = _FISH_DEFAULT
+    if fisheries is not None:
+        from chronicler.experimental.fisheries import set_fisheries_enabled
+        set_fisheries_enabled(world, fisheries, new_world=fresh_world)
     # Phase 8 governance runtime switch (persisted on the world).
     governance = getattr(args, "governance", None)
     if governance is None and fresh_world:
@@ -413,6 +478,17 @@ def execute_run(
     if governance is not None:
         from chronicler.governance_runtime import set_governance_enabled
         set_governance_enabled(world, governance)
+    agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
+    if agent_scale_mode != "exact" and agent_mode == "off":
+        raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    # Contact & trade-flow ledger switch (persisted on the world).
+    contact_ledger = getattr(args, "contact_ledger", None)
+    if contact_ledger is None and fresh_world:
+        from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT
+        contact_ledger = _LEDGER_DEFAULT
+    if contact_ledger is not None:
+        from chronicler.contact_ledger import set_contact_ledger_enabled
+        set_contact_ledger_enabled(world, contact_ledger)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -433,6 +509,7 @@ def execute_run(
             validation_sidecar=_use_sidecar,
             output_dir=output_path.parent if _use_sidecar else None,
             relationship_stats=getattr(args, "relationship_stats", False),
+            agent_scale_mode=agent_scale_mode,
         )
 
     # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
@@ -510,10 +587,25 @@ def execute_run(
         # Keep live reads for those worlds to preserve even discarded RNG draws.
         _unique_civ_names = len({c.name for c in world.civilizations}) == len(world.civilizations)
         _acc_cache: dict[tuple[str, str], float] = {}
-        for _obs in world.civilizations:
-            for _tgt in world.civilizations:
+        # Geography 2.0: procedural worlds keep civ-pair snapshot data
+        # (relationships, accuracy, perception errors) for living civs only.
+        # Civ records are never removed and secessions accumulate, so the
+        # all-records matrices dominated big-world bundles. Template worlds
+        # keep every record (unchanged bytes).
+        if world.geography is not None:
+            _pair_civs = [c for c in world.civilizations if c.regions]
+            _pair_names: set[str] | None = {c.name for c in _pair_civs}
+        else:
+            _pair_civs = world.civilizations
+            _pair_names = None
+        # One border pass for all pairs (identical to per-pair region scans).
+        _borders = border_pairs(world)
+        for _obs in _pair_civs:
+            for _tgt in _pair_civs:
                 if _obs.name != _tgt.name:
-                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(_obs, _tgt, world)
+                    _acc_cache[(_obs.name, _tgt.name)] = compute_accuracy(
+                        _obs, _tgt, world, borders=_borders,
+                    )
         snapshot = TurnSnapshot(
             turn=world.turn,
             civ_stats={
@@ -563,8 +655,10 @@ def execute_run(
                 civ_a: {
                     civ_b: RelationshipSnapshot(disposition=rel.disposition.value)
                     for civ_b, rel in inner.items()
+                    if _pair_names is None or civ_b in _pair_names
                 }
                 for civ_a, inner in world.relationships.items()
+                if _pair_names is None or civ_a in _pair_names
             },
             vassal_relations=[vr.model_dump() for vr in world.vassal_relations],
             federations=[f.model_dump() for f in world.federations],
@@ -586,11 +680,11 @@ def execute_run(
                     tgt_name: acc
                     for tgt_name, acc in (
                         (t.name, _acc_cache[(obs_name, t.name)])
-                        for t in world.civilizations if t.name != obs_name
+                        for t in _pair_civs if t.name != obs_name
                     )
                     if acc > 0.0
                 }
-                for obs_name in (c.name for c in world.civilizations)
+                for obs_name in (c.name for c in _pair_civs)
             },
             perception_errors={
                 obs_name: {
@@ -605,11 +699,11 @@ def execute_run(
                             ),
                         )) is not None
                     }
-                    for tgt in world.civilizations
+                    for tgt in _pair_civs
                     for tgt_name in [tgt.name]
                     if tgt_name != obs_name and _acc_cache.get((obs_name, tgt_name), 0.0) > 0.0
                 }
-                for obs in world.civilizations
+                for obs in _pair_civs
                 for obs_name in [obs.name]
             },
             # M56a: Settlement summary
@@ -640,6 +734,7 @@ def execute_run(
             founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
             dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
             **_war_snapshot_fields(world),
+            **_contact_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -648,7 +743,19 @@ def execute_run(
         if agent_bridge and agent_rows is not None:
             assert agent_rows.stamp.source_turn == source_turn
             assert agent_rows.stamp.stage == "phase10_entry"
-            if agent_rows.has("settlement_id"):
+            # Views with NumPy columns (AgentRows) take the columnar count;
+            # other views and batches with nulls keep the row loop.
+            urban_arrays = None
+            if agent_rows.has("settlement_id") and hasattr(agent_rows, "arrays"):
+                urban_arrays = agent_rows.arrays("civ_affinity", "settlement_id")
+                if urban_arrays is not None and agent_rows.has("region"):
+                    region_array = agent_rows.array("region")
+                    urban_arrays = None if region_array is None else (*urban_arrays, region_array)
+                elif urban_arrays is not None:
+                    urban_arrays = (*urban_arrays, None)
+            if urban_arrays is not None:
+                urban_by_civ = _urban_counts_by_civ(world, *urban_arrays)
+            elif agent_rows.has("settlement_id"):
                 civ_col = agent_rows.ints("civ_affinity")
                 sid_col = agent_rows.ints("settlement_id")
                 region_col = agent_rows.ints("region") if agent_rows.has("region") else [None] * len(civ_col)
@@ -1053,6 +1160,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turns", type=int, default=None, help="Number of simulation turns")
     parser.add_argument("--civs", type=int, default=None, help="Number of civilizations")
     parser.add_argument("--regions", type=int, default=None, help="Number of regions")
+    parser.add_argument("--worldgen", choices=("auto", "template", "procedural"), default=None,
+                        help="World generator: auto (default) uses the region templates up to "
+                             "12 regions and procedural geography above; 'procedural' forces "
+                             "heightmap/Voronoi geography at any size")
     parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
     parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a saved state JSON file")
@@ -1091,8 +1202,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--agents", type=str, default="off",
                         choices=["off", "demographics-only", "shadow", "hybrid"],
                         help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
+    parser.add_argument("--agent-scale-mode", choices=["exact", "fast"], default=None,
+                        help="Native agent tick algorithms: exact (default; byte-identical reference "
+                             "algorithms) or fast (bounded-work neighbour, marriage and formation "
+                             "candidate sampling for large populations; changes results; not saved "
+                             "in state, pass it again on --resume)")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
-                        help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
+                        help="Adjacent same-polity food aid after repeated food stress, paid from the "
+                             "treasury (agent modes; dormant with --agents off; default on for new "
+                             "worlds; --no-mutual-aid disables; saved on resume)")
+    parser.add_argument("--fisheries", action=argparse.BooleanOptionalAction, default=None,
+                        help="Renewable fish stocks: fishing draws down a recovering stock that caps "
+                             "the catch (default on for new worlds; --no-fisheries disables; saved on resume)")
     parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
                         help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
                              "negotiated peace replace instant WAR resolution (default on for new "
@@ -1100,6 +1221,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
                         help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
                              "(default on for new worlds; --no-governance disables; saved on resume)")
+    parser.add_argument("--contact-ledger", action=argparse.BooleanOptionalAction, default=None,
+                        help="Contact & trade-flow ledger: decayed region x region flows of goods, "
+                             "migrants, soldiers and pilgrims feeding trade_volume, movement spread, "
+                             "merchant great persons, trade warmth, embargo/war shocks and plague spread "
+                             "(default on for new worlds; --no-contact-ledger disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
@@ -1138,8 +1264,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--narrate-output", type=Path, default=None,
                         help="Output path for narrated bundle")
     parser.add_argument("--narrator", type=str, default="local",
-                        choices=["local", "api", "gemini"],
-                        help="Narrator backend: local (LM Studio), api (Claude API), or gemini (Gemini API)")
+                        choices=["local", "api", "gemini", "mechanical"],
+                        help="Narrator backend: local (LM Studio), api (Claude API), gemini (Gemini API), "
+                             "or mechanical (no LLM: curated moments rendered from event descriptions "
+                             "and their recorded causal chains; works with --simulate-only)")
     parser.add_argument("--relationship-stats", action="store_true",
                         help="Enable per-tick relationship distribution snapshots")
     parser.add_argument("--validation-sidecar", action="store_true",
@@ -1378,6 +1506,9 @@ def main() -> None:
         if getattr(args, "simulate_only", False):
             sim_client = _DummyClient()
             narrative_client = _DummyClient()
+            if getattr(args, "narrator", "local") == "mechanical":
+                from chronicler.llm import MechanicalClient
+                narrative_client = MechanicalClient()
         else:
             sim_client, narrative_client = create_clients(
                 local_url=args.local_url,

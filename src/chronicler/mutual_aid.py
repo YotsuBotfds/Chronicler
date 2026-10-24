@@ -1,17 +1,30 @@
-"""Default-off, treasury-funded adjacent mutual aid using existing food stocks.
+"""Treasury-funded adjacent mutual aid using existing food stocks.
 
 Observe Phase 2 sufficiency at N; dispatch before the economy at N+1. This is
 a small coordination rule, not the Phase 8 institution lifecycle. No production,
 ecology, fertility, migration or merchant planning is changed here.
+
+Worlds created by the CLI, batch and live entry points follow
+``DEFAULT_ENABLED_FOR_NEW_WORLDS`` (``--mutual-aid`` / ``--no-mutual-aid``);
+loaded, forked and caller-supplied worlds keep ``WorldState.mutual_aid_enabled``.
+Aid needs the agent-backed goods economy: with ``--agents off`` there are no
+regional stock flows to move, so an enabled world is dormant (a strict no-op)
+until it runs in an agent mode. See
+docs/integration/fisheries-mutual-aid-promotion.md.
 """
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 from collections import Counter
 import math
 
 from chronicler.economy import FIXED_GOODS, FOOD_GOODS, PER_CAPITA_FOOD, TRANSIT_DECAY
 from chronicler.models import Event, MutualAidState, MutualAidTransfer, WorldState
 from chronicler.tuning import get_override
+
+#: Default for worlds newly created by the CLI/batch/live entry points
+#: (``--no-mutual-aid`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Experimental hypotheses [CALIBRATE], not empirically fitted parameters.
 STRESS_THRESHOLD = 0.8
@@ -23,7 +36,7 @@ TREASURY_COST_PER_UNIT = 0.1
 
 
 def _populations(world, snapshot) -> dict[str, int]:
-    counts = Counter(snapshot.column("region").to_pylist())
+    counts = Counter(pylist(snapshot.column("region")))
     return {r.name: counts[i] for i, r in enumerate(world.regions)}
 
 
@@ -60,7 +73,7 @@ def read_stockpile_commitments(world: WorldState, simulator) -> dict[str, dict[s
     if not hasattr(simulator, "get_stockpile_commitments"):
         raise RuntimeError("Hybrid mutual aid requires get_stockpile_commitments; rebuild chronicler-agents")
     batch = simulator.get_stockpile_commitments()
-    rows = zip(*(batch.column(c).to_pylist() for c in
+    rows = zip(*(pylist(batch.column(c)) for c in
                  ("region_id", "good_slot", "reserved", "pending_departure")), strict=True)
     commitments = {r.name: {} for r in world.regions}
     for rid, slot, reserved, departure in rows:
@@ -81,9 +94,14 @@ def _free_goods(region, commitments):
                    - commitments.get(region.name, {}).get(g, 0.0)) for g in sorted(FOOD_GOODS)}
 
 
+def mutual_aid_active(world: WorldState) -> bool:
+    """Enabled and running on an agent-backed goods economy."""
+    return bool(world.mutual_aid_enabled) and world.agent_mode not in (None, "off")
+
+
 def observe_mutual_aid(world: WorldState, economy_result, snapshot) -> None:
     """Record one observation per turn; missing data breaks the stress streak."""
-    if not world.mutual_aid_enabled:
+    if not mutual_aid_active(world):
         return
     if economy_result is None or snapshot is None:
         world.mutual_aid_state = {}
@@ -130,7 +148,7 @@ def dispatch_mutual_aid(world: WorldState, snapshot, acc=None, *, commitments=No
     edges. Recipients are ordered by lagged sufficiency, then name; donors and
     goods by name. Received aid cannot be forwarded in the same dispatch.
     """
-    if (not world.mutual_aid_enabled or snapshot is None
+    if (not mutual_aid_active(world) or snapshot is None
             or world.mutual_aid_last_dispatch_turn == world.turn):
         return []
     if world.agent_mode == "hybrid" and commitments is None:
@@ -212,7 +230,8 @@ def dispatch_mutual_aid(world: WorldState, snapshot, acc=None, *, commitments=No
             world.mutual_aid_last_transfers.append(transfer)
             events.append(Event(
                 turn=world.turn, event_type="mutual_aid", actors=[civ.name], importance=3,
-                description=(f"{name} sent {amount:.3f} food to {recipient.name}; "
-                             f"{delivered:.3f} arrived, treasury cost {cost}."),
+                description=(f"{civ.name} sends a relief convoy of {amount:.1f} food from "
+                             f"{name} to hungry {recipient.name}; {delivered:.1f} arrives "
+                             f"(treasury cost {cost})."),
             ))
     return events

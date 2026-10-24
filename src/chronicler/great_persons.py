@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+from chronicler.columnar import batch_arrays, last_row_of, numeric_array, pylist
 from chronicler.turn_artifacts import AgentRows, _check_agent_rows
 from chronicler.leaders import _pick_name, ALL_TRAITS
 from chronicler.religion import (
@@ -344,6 +345,18 @@ def kill_great_person(
 # M38b: Pilgrimage subsystem
 # ---------------------------------------------------------------------------
 
+class _ScalarRows:
+    """Index a NumPy column like the decoded tuple: Python scalars per row."""
+
+    __slots__ = ("_values",)
+
+    def __init__(self, values) -> None:
+        self._values = values
+
+    def __getitem__(self, row: int):
+        return self._values[row].item()
+
+
 def check_pilgrimages(
     great_persons: list,
     temples: list,
@@ -364,10 +377,18 @@ def check_pilgrimages(
 
     # Build O(1) lookup: agent_id → row index in snapshot
     agent_idx_map: dict[int, int] = {}
+    names = ("id", "occupation", "loyalty_trait", "loyalty")
+    arrays = None
     if snapshot is not None and snapshot.num_rows > 0:
+        arrays = agent_rows.arrays(*names) if agent_rows is not None else batch_arrays(snapshot, names)
+    if arrays is not None:
+        # Only great persons' agents are looked up: index just those rows
+        # (last row per id, like the full dict) and read Python scalars.
+        agent_idx_map = last_row_of(arrays[0], [gp.agent_id for gp in great_persons])
+    elif snapshot is not None and snapshot.num_rows > 0:
         ids = (
             agent_rows.ints("id")
-            if agent_rows is not None else snapshot.column("id").to_pylist()
+            if agent_rows is not None else pylist(snapshot.column("id"))
         )
         agent_idx_map = {aid: i for i, aid in enumerate(ids)}
 
@@ -376,23 +397,38 @@ def check_pilgrimages(
     _snap_loyalty_trait: list | tuple | None = None
     _snap_loyalty: list | tuple | None = None
     _snap_belief: list | tuple | None = None
-    if snapshot is not None and snapshot.num_rows > 0:
+    if arrays is not None:
+        _snap_occupation, _snap_loyalty_trait, _snap_loyalty = (
+            _ScalarRows(a) for a in arrays[1:])
+        try:
+            belief = (
+                agent_rows.array("belief")
+                if agent_rows is not None else numeric_array(snapshot.column("belief"))
+            )
+            _snap_belief = (
+                _ScalarRows(belief) if belief is not None
+                else agent_rows.ints("belief") if agent_rows is not None
+                else pylist(snapshot.column("belief"))
+            )
+        except (KeyError, Exception):
+            _snap_belief = None
+    elif snapshot is not None and snapshot.num_rows > 0:
         _snap_occupation = (
             agent_rows.ints("occupation")
-            if agent_rows is not None else snapshot.column("occupation").to_pylist()
+            if agent_rows is not None else pylist(snapshot.column("occupation"))
         )
         _snap_loyalty_trait = (
             agent_rows.floats("loyalty_trait")
-            if agent_rows is not None else snapshot.column("loyalty_trait").to_pylist()
+            if agent_rows is not None else pylist(snapshot.column("loyalty_trait"))
         )
         _snap_loyalty = (
             agent_rows.floats("loyalty")
-            if agent_rows is not None else snapshot.column("loyalty").to_pylist()
+            if agent_rows is not None else pylist(snapshot.column("loyalty"))
         )
         try:
             _snap_belief = (
                 agent_rows.ints("belief")
-                if agent_rows is not None else snapshot.column("belief").to_pylist()
+                if agent_rows is not None else pylist(snapshot.column("belief"))
             )
         except (KeyError, Exception):
             _snap_belief = None

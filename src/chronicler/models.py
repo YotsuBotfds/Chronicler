@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_seria
 
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
+from chronicler.contact_ledger import ContactLedgerState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -23,6 +24,13 @@ def _omit_dormant_governance(model: BaseModel, data):
     """Drop a ``None`` governance field so feature-off output stays byte-identical."""
     if isinstance(data, dict) and getattr(model, "governance", None) is None:
         data.pop("governance", None)
+    return data
+
+
+def _omit_dormant_contact_ledger(model: BaseModel, data):
+    """Drop a ``None`` contact ledger so feature-off output stays byte-identical."""
+    if isinstance(data, dict) and getattr(model, "contact_ledger", None) is None:
+        data.pop("contact_ledger", None)
     return data
 
 
@@ -302,6 +310,47 @@ class River(BaseModel):
     path: list[str] = Field(min_length=2)
 
 
+# --- Geography 2.0 (procedural worlds); None on template/scenario worlds ---
+
+class RegionGeography(BaseModel):
+    """Generator facts about one procedural region (read-only after world gen)."""
+    elevation: float          # 0..1 above sea level, normalized over land
+    moisture: float           # 0..1
+    latitude: float           # signed, -1 (south pole) .. 1 (north pole)
+    coastal: bool = False
+    sea_zones: list[str] = Field(default_factory=list)  # bordering sea zone names
+
+
+class SeaZone(BaseModel):
+    """A named body of water. Sea zones are not ownable regions: they group
+    ocean cells, and coastal regions that border the same zone may be joined
+    by a sea lane."""
+    name: str
+    kind: str                 # "ocean", "sea" or "lake"
+    x: float
+    y: float
+    cells: int
+    coastal_regions: list[str] = Field(default_factory=list)
+    neighbors: list[str] = Field(default_factory=list)
+
+
+class WorldGeography(BaseModel):
+    """Geography 2.0 metadata for a procedurally generated world."""
+    generator: str = "procedural"
+    version: int = 1
+    cells: int = 0
+    land_regions: int = 0
+    sea_zones: list[SeaZone] = Field(default_factory=list)
+    # Region pairs joined across water (each also listed in Region.adjacencies).
+    sea_lanes: list[tuple[str, str]] = Field(default_factory=list)
+
+
+_DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
+# Optional region fields omitted from serialized output while None, so worlds
+# that never use them keep their exact bytes.
+_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed")
+
+
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
@@ -342,6 +391,9 @@ class Region(BaseModel):
     fishery_catch_budgets: list[Annotated[float, Field(ge=0, allow_inf_nan=False)] | None] = Field(
         default_factory=lambda: [None, None, None], min_length=3, max_length=3,
     )  # None means no experiment tick has supplied a catch budget yet.
+    # Fish slots whose stock is collapsed (narrated once on collapse and once on
+    # recovery); None while no slot is collapsed (omitted from output).
+    fishery_collapsed: list[int] | None = None
     river_mask: int = 0
     # M35b: Disease, Depletion & Environmental Events
     disease_baseline: float = 0.01
@@ -369,6 +421,20 @@ class Region(BaseModel):
     last_conquered_turn: int = -1              # -1 = never conquered; set by WAR resolution
     # M60b: military occupier; ``controller`` remains the legal owner.
     occupied_by: str | None = None
+    # Geography 2.0: 0 equatorial, 1 tropical, 2 temperate, 3 subpolar, 4 polar.
+    # None (and ``geo`` None) on template worlds; both are omitted from
+    # serialized output while None so those worlds keep their exact bytes.
+    latitude_band: int | None = None
+    geo: RegionGeography | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_dormant_geography(self, handler):
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in _DORMANT_REGION_OPTIONAL:
+                if key in data and getattr(self, key) is None:
+                    del data[key]
+        return data
 
     @field_validator("resource_suspensions", mode="before")
     @classmethod
@@ -581,17 +647,51 @@ class ShockContext(BaseModel):
     upstream_source: str | None = None
 
 
+# Causal-provenance fields (docs/integration/causal-provenance.md). They are
+# additive and omitted from serialized output while empty, so events without
+# provenance (old saves, bundles, fixtures) keep their exact bytes.
+_EVENT_PROVENANCE_DEFAULTS: tuple[tuple[str, object], ...] = (
+    ("event_id", ""), ("causes", []), ("region", None), ("civs", []),
+    ("episode", None), ("duration", None),
+)
+
+
+def _omit_empty_fields(data, defaults: tuple[tuple[str, object], ...]):
+    if isinstance(data, dict):
+        for key, empty in defaults:
+            if key in data and data[key] == empty:
+                del data[key]
+    return data
+
+
 class Event(BaseModel):
     turn: int
     event_type: str
     actors: list[str]
     description: str
+    # Legacy free-text field, never written by the simulation. Recorded
+    # provenance lives in ``causes`` (effect -> cause event ids).
     consequences: list[str] = Field(default_factory=list)
     importance: int = 5
     source: str = "aggregate"  # "aggregate" or "agent"
     # M43b: Structured shock metadata (None for non-shock events)
     shock_region: str | None = None
     shock_category: str | None = None
+    # Causal provenance. ``event_id`` is "<emission turn>:<event_type>:<n>",
+    # assigned without RNG draws when the turn loop observes the event;
+    # ``causes`` lists the ids of the events that produced this one.
+    event_id: str = ""
+    causes: list[str] = Field(default_factory=list)
+    region: str | None = None   # region name, when the event is regional
+    civs: list[str] = Field(default_factory=list)  # civs involved when actors are not civs
+    # Chronic conditions: "onset" (first turn), "tick" (a repeat kept for a
+    # per-turn consumer) or "end" (closing event; ``duration`` in turns).
+    episode: str | None = None
+    duration: int | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_provenance(self, handler):
+        return _omit_empty_fields(handler(self), _EVENT_PROVENANCE_DEFAULTS)
 
 
 class NamedEvent(BaseModel):
@@ -605,11 +705,71 @@ class NamedEvent(BaseModel):
     importance: int = 5
 
 
+_CONDITION_PROVENANCE_DEFAULTS: tuple[tuple[str, object], ...] = (
+    ("condition_id", ""), ("cause_id", None), ("onset_turn", None),
+)
+
+
 class ActiveCondition(BaseModel):
     condition_type: str
     affected_civs: list[str]
     duration: int
     severity: int = 1
+    # Causal provenance (omitted while empty): a stable id, the event that
+    # created the condition, and the turn it began.
+    condition_id: str = ""
+    cause_id: str | None = None
+    onset_turn: int | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_provenance(self, handler):
+        return _omit_empty_fields(handler(self), _CONDITION_PROVENANCE_DEFAULTS)
+
+
+class ChronicEpisode(BaseModel):
+    """An open chronic condition (one onset event, repeats folded in)."""
+    onset_id: str
+    # Latest report kept on the timeline (the onset, or the latest tick).
+    last_id: str = ""
+    event_type: str
+    onset_turn: int
+    last_turn: int
+    count: int = 1
+    region: str | None = None
+    category: str | None = None
+    civs: list[str] = Field(default_factory=list)
+
+
+class OpenCondition(BaseModel):
+    """An ActiveCondition the provenance layer is waiting to see end."""
+    condition_type: str
+    affected_civs: list[str] = Field(default_factory=list)
+    onset_turn: int
+    cause_id: str | None = None
+
+
+class Exciter(BaseModel):
+    """The dominant source of one civ's hazard excitation for one event type."""
+    event_id: str
+    alpha: float
+    turn: int
+
+
+class ProvenanceState(BaseModel):
+    """Persisted causal index (chronicler.provenance). Never read by the simulation.
+
+    ``keys`` maps a semantic key (e.g. ``war:A|B``, ``occupation:<region>``,
+    ``psi:<civ>``) to the id of the event that currently stands for it;
+    ``exciters`` maps ``<civ>|<event type>`` to the event whose decaying
+    hazard excitation is currently the largest.
+    """
+    keys: dict[str, str] = Field(default_factory=dict)
+    episodes: dict[str, ChronicEpisode] = Field(default_factory=dict)
+    conditions: dict[str, OpenCondition] = Field(default_factory=dict)
+    exciters: dict[str, Exciter] = Field(default_factory=dict)
+
+    def is_empty(self) -> bool:
+        return not (self.keys or self.episodes or self.conditions or self.exciters)
 
 
 class VassalRelation(BaseModel):
@@ -911,6 +1071,12 @@ class WorldState(BaseModel):
     war_state: WarState = Field(default_factory=WarState)
     # Phase 8 governance runtime switch (None = disabled; omitted from output).
     governance: GovernanceSettings | None = None
+    # Geography 2.0 metadata (procedural worlds only; omitted while None).
+    geography: WorldGeography | None = None
+    # Contact & trade-flow ledger (None = disabled; omitted from output).
+    contact_ledger: ContactLedgerState | None = None
+    # Causal provenance index (chronicler.provenance); omitted while empty.
+    provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -946,6 +1112,12 @@ class WorldState(BaseModel):
     # Derived, never serialized: incremental lookups over the history lists
     # (chronicler.history_index); rebuilt lazily after load or copy.
     _history_index: object | None = PrivateAttr(default=None)
+    # Contact ledger: transient per-turn inputs, folded and cleared by
+    # contact_ledger.update_contact_ledger at the end of the turn.
+    _contact_pending: list | None = PrivateAttr(default=None)
+    # Causal provenance: per-turn id counters and observation cursor
+    # (chronicler.provenance.TurnIds; equality-neutral, never serialized).
+    _provenance_turn: object | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
@@ -984,7 +1156,12 @@ class WorldState(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize_without_dormant_governance(self, handler):
-        return _omit_dormant_governance(self, handler(self))
+        data = _omit_dormant_contact_ledger(self, _omit_dormant_governance(self, handler(self)))
+        if isinstance(data, dict) and self.geography is None:
+            data.pop("geography", None)
+        if isinstance(data, dict) and self.provenance.is_empty():
+            data.pop("provenance", None)
+        return data
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -1099,12 +1276,16 @@ class TurnSnapshot(BaseModel):
     # Omitted from serialization while None so default-off snapshots keep
     # their exact historical bytes.
     campaign: dict | None = None
+    # Contact ledger per-turn summary; None (and omitted) when the ledger is off.
+    contact: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
         data = handler(self)
         if isinstance(data, dict) and data.get("campaign", 0) is None:
             data.pop("campaign")
+        if isinstance(data, dict) and data.get("contact", 0) is None:
+            data.pop("contact")
         return data
 
 
@@ -1126,6 +1307,33 @@ class CausalLink(BaseModel):
     effect_turn: int
     effect_event_type: str
     pattern: str  # e.g., "drought→famine"
+    # Causal provenance (omitted while empty): the linked event ids and how
+    # the link is known: "recorded" (the emitter stamped it in
+    # ``Event.causes``) or "pattern" (type-pair fallback where no provenance
+    # exists).
+    cause_id: str = ""
+    effect_id: str = ""
+    provenance: str = "pattern"
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_provenance(self, handler):
+        return _omit_empty_fields(
+            handler(self), (("cause_id", ""), ("effect_id", ""), ("provenance", "pattern")),
+        )
+
+
+class ChainStep(BaseModel):
+    """One event in a causal chain."""
+    event_id: str
+    turn: int
+    event_type: str
+    description: str = ""
+    region: str | None = None
+
+
+class CausalChain(BaseModel):
+    """A recorded cause-to-effect path, root cause first."""
+    steps: list[ChainStep] = Field(default_factory=list)
 
 
 class GapSummary(BaseModel):
@@ -1147,6 +1355,8 @@ class NarrativeMoment(BaseModel):
     causal_links: list[CausalLink]
     narrative_role: NarrativeRole
     bonus_applied: float  # internal, not serialized to bundle
+    # Recorded "because" chains ending at events of this moment (root first).
+    causal_chains: list[CausalChain] = Field(default_factory=list)
 
 
 class AgentContext(BaseModel):
@@ -1176,3 +1386,9 @@ class ChronicleEntry(BaseModel):
     importance: float
     narrative_role: NarrativeRole
     causal_links: list[CausalLink]
+    # Recorded causal chains (root first); omitted while empty.
+    causal_chains: list[CausalChain] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_chains(self, handler):
+        return _omit_empty_fields(handler(self), (("causal_chains", []),))

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections import Counter
 
+import numpy as np
+
+from chronicler.columnar import batch_arrays, first_appearance, ordered_counts, pylist
 from chronicler.turn_artifacts import AgentRows, _check_agent_rows
 from chronicler.ffi_constants import VALUE_TO_ID
 from chronicler.history_index import history_index
@@ -149,21 +152,34 @@ def compute_civ_cultural_profile(snapshot, *, agent_rows: AgentRows | None = Non
     _check_agent_rows(snapshot, agent_rows)
     if snapshot is None or snapshot.num_rows == 0:
         return {}
+    names = ("civ_affinity", "cultural_value_0", "cultural_value_1", "cultural_value_2")
+    arrays = agent_rows.arrays(*names) if agent_rows is not None else batch_arrays(snapshot, names)
+    if arrays is not None:
+        civ_col = arrays[0]
+        # Every civ gets a Counter at its first row, valid values or not;
+        # values count in row-major (row, slot) order, as the row loop added them.
+        profiles = {civ_id: Counter() for civ_id in first_appearance(civ_col)}
+        values = np.stack(arrays[1:], axis=1).reshape(-1)
+        keys = np.repeat(civ_col, 3)
+        valid = (values != 0xFF) & (values < 6)
+        for civ_id, counter in ordered_counts(keys[valid], values[valid]).items():
+            profiles[civ_id].update(counter)
+        return profiles
     civs = (
         agent_rows.ints("civ_affinity")
-        if agent_rows is not None else snapshot.column("civ_affinity").to_pylist()
+        if agent_rows is not None else pylist(snapshot.column("civ_affinity"))
     )
     cv0 = (
         agent_rows.ints("cultural_value_0")
-        if agent_rows is not None else snapshot.column("cultural_value_0").to_pylist()
+        if agent_rows is not None else pylist(snapshot.column("cultural_value_0"))
     )
     cv1 = (
         agent_rows.ints("cultural_value_1")
-        if agent_rows is not None else snapshot.column("cultural_value_1").to_pylist()
+        if agent_rows is not None else pylist(snapshot.column("cultural_value_1"))
     )
     cv2 = (
         agent_rows.ints("cultural_value_2")
-        if agent_rows is not None else snapshot.column("cultural_value_2").to_pylist()
+        if agent_rows is not None else pylist(snapshot.column("cultural_value_2"))
     )
     profiles: dict[int, Counter] = {}
     for i in range(len(civs)):
@@ -221,23 +237,35 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
                 if controller_civ and controller_civ.values:
                     primary_value = controller_civ.values[0]
                     target_val_id = VALUE_TO_ID.get(primary_value)
-                    if target_val_id is not None:
+                    names = ("region", "cultural_value_0", "cultural_value_1", "cultural_value_2")
+                    arrays = (agent_rows.arrays(*names) if agent_rows is not None
+                              else batch_arrays(agent_snapshot, names))
+                    if target_val_id is not None and arrays is not None:
+                        # Count agents in this region holding the value
+                        in_region = arrays[0] == region_idx
+                        total = int(np.count_nonzero(in_region))
+                        holders = int(np.count_nonzero(in_region & (
+                            (arrays[1] == target_val_id) | (arrays[2] == target_val_id)
+                            | (arrays[3] == target_val_id))))
+                        if total > 0 and (holders / total) >= get_override(world, K_ASSIMILATION_AGENT_THRESHOLD, 0.60):
+                            assimilated = True
+                    elif target_val_id is not None:
                         # Count agents in this region holding the value
                         regions_col = (
                             agent_rows.ints("region")
-                            if agent_rows is not None else agent_snapshot.column("region").to_pylist()
+                            if agent_rows is not None else pylist(agent_snapshot.column("region"))
                         )
                         cv0 = (
                             agent_rows.ints("cultural_value_0")
-                            if agent_rows is not None else agent_snapshot.column("cultural_value_0").to_pylist()
+                            if agent_rows is not None else pylist(agent_snapshot.column("cultural_value_0"))
                         )
                         cv1 = (
                             agent_rows.ints("cultural_value_1")
-                            if agent_rows is not None else agent_snapshot.column("cultural_value_1").to_pylist()
+                            if agent_rows is not None else pylist(agent_snapshot.column("cultural_value_1"))
                         )
                         cv2 = (
                             agent_rows.ints("cultural_value_2")
-                            if agent_rows is not None else agent_snapshot.column("cultural_value_2").to_pylist()
+                            if agent_rows is not None else pylist(agent_snapshot.column("cultural_value_2"))
                         )
                         total = 0
                         holders = 0

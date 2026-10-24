@@ -526,33 +526,158 @@ fn is_parent_child(pool: &AgentPool, a: usize, b: usize) -> bool {
 }
 
 fn marriage_score(pool: &AgentPool, a: usize, b: usize) -> f32 {
-    use crate::agent::*;
-    let mut score: f32 = 0.0;
-    if pool.civ_affinities[a] == pool.civ_affinities[b] { score += MARRIAGE_SAME_CIV_BONUS; }
-    let ba = pool.beliefs[a];
-    let bb = pool.beliefs[b];
-    if ba == bb && ba != BELIEF_NONE { score += MARRIAGE_SAME_BELIEF_BONUS; }
-    else if ba != BELIEF_NONE && bb != BELIEF_NONE && ba != bb { score -= MARRIAGE_CROSS_FAITH_PENALTY; }
-    let cv_a = [pool.cultural_value_0[a], pool.cultural_value_1[a], pool.cultural_value_2[a]];
-    let cv_b = [pool.cultural_value_0[b], pool.cultural_value_1[b], pool.cultural_value_2[b]];
-    for i in 0..3 {
-        if cv_a[i] == cv_b[i] && cv_a[i] != CULTURAL_VALUE_EMPTY { score += MARRIAGE_CULTURE_MATCH_BONUS; }
-    }
     let dx = pool.x[a] - pool.x[b];
     let dy = pool.y[a] - pool.y[b];
     let dist = (dx * dx + dy * dy).sqrt();
+    marriage_score_from(
+        pool.civ_affinities[a], pool.civ_affinities[b],
+        pool.beliefs[a], pool.beliefs[b],
+        [pool.cultural_value_0[a], pool.cultural_value_1[a], pool.cultural_value_2[a]],
+        [pool.cultural_value_0[b], pool.cultural_value_1[b], pool.cultural_value_2[b]],
+        dist,
+    )
+}
+
+/// Marriage score from the pair's attributes and distance (one shared
+/// definition, so the planned and reference scans add the same terms in the
+/// same order).
+#[inline]
+fn marriage_score_from(
+    civ_a: u8, civ_b: u8, ba: u8, bb: u8, cv_a: [u8; 3], cv_b: [u8; 3], dist: f32,
+) -> f32 {
+    use crate::agent::*;
+    let mut score: f32 = 0.0;
+    if civ_a == civ_b { score += MARRIAGE_SAME_CIV_BONUS; }
+    if ba == bb && ba != BELIEF_NONE { score += MARRIAGE_SAME_BELIEF_BONUS; }
+    else if ba != BELIEF_NONE && bb != BELIEF_NONE && ba != bb { score -= MARRIAGE_CROSS_FAITH_PENALTY; }
+    for i in 0..3 {
+        if cv_a[i] == cv_b[i] && cv_a[i] != CULTURAL_VALUE_EMPTY { score += MARRIAGE_CULTURE_MATCH_BONUS; }
+    }
     if dist > 0.001 { score += (1.0 / (1.0 + dist * 4.0)).min(MARRIAGE_CLOSENESS_CAP); }
     else { score += MARRIAGE_CLOSENESS_CAP; }
     score
 }
 
-/// M57a: Marriage scan — scored greedy matching within regions.
+/// M57a: Marriage scan — scored greedy matching within regions (exact mode).
 ///
 /// Runs BEFORE formation_scan on a staggered cadence (MARRIAGE_CADENCE).
 /// Evaluates eligible unmarried adults, rejects ineligible pairs (distance,
 /// incest, cross-civ hostility), scores the rest, and greedily accepts
 /// the highest-scoring disjoint pairs.
 pub fn marriage_scan(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &crate::signals::TickSignals,
+    turn: u32,
+    alive_slots: &[usize],
+) -> FormationStats {
+    marriage_scan_with_mode(
+        pool, regions, signals, turn, alive_slots, crate::scale::AgentScaleMode::Exact,
+    )
+}
+
+const MARRIAGE_INITIAL_SENTIMENT: i8 = 50;
+
+/// Marriage scan with an explicit scale mode.
+///
+/// Both modes plan each scanned region independently (in parallel) from the
+/// unchanged pool and then commit the planned marriages region by region.
+/// This is exact: a marriage only writes the two spouses' relationship
+/// slots, every planned spouse is distinct, and nothing a plan reads (age,
+/// spouse status, parents, civ, belief, culture, position, free relationship
+/// capacity) is changed by another region's or another pair's marriage.
+///
+/// Exact mode reproduces the reference all-pairs scan of
+/// [`marriage_scan_reference`] (same counters, same spouses). Fast mode
+/// examines a bounded spatial sample of partners per agent; see
+/// [`crate::scale`].
+pub fn marriage_scan_with_mode(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &crate::signals::TickSignals,
+    turn: u32,
+    alive_slots: &[usize],
+    mode: crate::scale::AgentScaleMode,
+) -> FormationStats {
+    use rayon::prelude::*;
+
+    let mut stats = FormationStats::default();
+    let cadence_phase = turn % agent::MARRIAGE_CADENCE;
+    let num_regions = regions.len();
+
+    // Bucket alive agents by region
+    let mut region_buckets: Vec<Vec<usize>> = vec![Vec::new(); num_regions];
+    for &slot in alive_slots {
+        let r = pool.regions[slot] as usize;
+        if r < num_regions {
+            region_buckets[r].push(slot);
+        }
+    }
+
+    // Pre-build civ war lookup: for each civ_id, is it at war?
+    let mut civ_at_war = [false; 256];
+    for cs in &signals.civs {
+        civ_at_war[cs.civ_id as usize] = cs.is_at_war;
+    }
+
+    // Regions on this turn's cadence with at least two eligible agents.
+    let scanned: Vec<(usize, Vec<usize>)> = (0..num_regions)
+        .filter(|&r| (r as u32) % agent::MARRIAGE_CADENCE == cadence_phase)
+        .filter_map(|r| {
+            let eligible: Vec<usize> = region_buckets[r]
+                .iter()
+                .filter(|&&slot| {
+                    pool.ages[slot] >= agent::MARRIAGE_MIN_AGE
+                        && crate::relationships::get_spouse_id(pool, slot).is_none()
+                })
+                .copied()
+                .collect();
+            (eligible.len() >= 2).then_some((r, eligible))
+        })
+        .collect();
+
+    let plans: Vec<Option<MarriagePlan>> = {
+        let pool_ref = &*pool;
+        let war = &civ_at_war;
+        scanned
+            .par_iter()
+            .map(|(r, eligible)| plan_region_marriages(pool_ref, eligible, *r as u32, turn, war, mode))
+            .collect()
+    };
+
+    for ((region_idx, eligible), plan) in scanned.iter().zip(plans) {
+        match plan {
+            Some(plan) => {
+                stats.marriage_pairs_evaluated += plan.evaluated;
+                stats.marriage_pairs_rejected_distance += plan.rejected_distance;
+                stats.marriage_pairs_rejected_incest += plan.rejected_incest;
+                stats.marriage_pairs_rejected_hostile += plan.rejected_hostile;
+                for &(slot_a, slot_b) in &plan.pairs {
+                    let ok = crate::relationships::upsert_symmetric(
+                        pool, slot_a, slot_b,
+                        BondType::Marriage as u8,
+                        MARRIAGE_INITIAL_SENTIMENT,
+                        turn as u16,
+                    );
+                    debug_assert!(ok, "planned marriage must have free relationship capacity");
+                    if ok {
+                        record_marriage(pool, slot_a, slot_b, &mut stats);
+                    }
+                }
+            }
+            // Non-finite positions: keep the reference sort semantics.
+            None => marriage_region_reference(
+                pool, *region_idx, eligible, turn, &civ_at_war, &mut stats,
+            ),
+        }
+    }
+
+    stats
+}
+
+/// Reference all-pairs marriage scan (the pre-scale implementation). Kept for
+/// the non-finite-position fallback and as the oracle in equivalence tests.
+pub fn marriage_scan_reference(
     pool: &mut AgentPool,
     regions: &[RegionState],
     signals: &crate::signals::TickSignals,
@@ -578,8 +703,6 @@ pub fn marriage_scan(
         civ_at_war[cs.civ_id as usize] = cs.is_at_war;
     }
 
-    const MARRIAGE_INITIAL_SENTIMENT: i8 = 50;
-
     for region_idx in 0..num_regions {
         // Staggered cadence check
         if (region_idx as u32) % agent::MARRIAGE_CADENCE != cadence_phase {
@@ -600,106 +723,602 @@ pub fn marriage_scan(
         if eligible.len() < 2 {
             continue;
         }
-
-        // Evaluate all pairs, collect candidates
-        let mut candidates: Vec<MarriageCandidate> = Vec::new();
-
-        for i in 0..eligible.len() {
-            let slot_a = eligible[i];
-            for j in (i + 1)..eligible.len() {
-                let slot_b = eligible[j];
-
-                stats.marriage_pairs_evaluated += 1;
-
-                // Reject: distance check
-                let dx = pool.x[slot_a] - pool.x[slot_b];
-                let dy = pool.y[slot_a] - pool.y[slot_b];
-                let dist = (dx * dx + dy * dy).sqrt();
-                if dist > agent::MARRIAGE_RADIUS {
-                    stats.marriage_pairs_rejected_distance += 1;
-                    continue;
-                }
-
-                // Reject: incest (parent-child or shared parent)
-                if is_parent_child(pool, slot_a, slot_b) || shares_parent(pool, slot_a, slot_b) {
-                    stats.marriage_pairs_rejected_incest += 1;
-                    continue;
-                }
-
-                // Reject: cross-civ hostile
-                let civ_a = pool.civ_affinities[slot_a];
-                let civ_b = pool.civ_affinities[slot_b];
-                if civ_a != civ_b {
-                    if civ_at_war[civ_a as usize] || civ_at_war[civ_b as usize] {
-                        stats.marriage_pairs_rejected_hostile += 1;
-                        continue;
-                    }
-                }
-
-                // Score the pair
-                let score = marriage_score(pool, slot_a, slot_b);
-                let hash = marriage_pair_hash(turn, region_idx as u32, pool.ids[slot_a], pool.ids[slot_b]);
-
-                candidates.push(MarriageCandidate {
-                    slot_a,
-                    slot_b,
-                    score,
-                    hash,
-                });
-            }
-        }
-
-        // Sort by descending score, then ascending hash for tie-breaking
-        candidates.sort_by(|a, b| {
-            b.score.partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.hash.cmp(&b.hash))
-        });
-
-        // Greedily accept disjoint pairs
-        let mut married_this_region: std::collections::HashSet<usize> = std::collections::HashSet::new();
-
-        for mc in &candidates {
-            if married_this_region.contains(&mc.slot_a) || married_this_region.contains(&mc.slot_b) {
-                continue;
-            }
-
-            let ok = crate::relationships::upsert_symmetric(
-                pool, mc.slot_a, mc.slot_b,
-                BondType::Marriage as u8,
-                MARRIAGE_INITIAL_SENTIMENT,
-                turn as u16,
-            );
-
-            if ok {
-                stats.marriages_formed += 1;
-                married_this_region.insert(mc.slot_a);
-                married_this_region.insert(mc.slot_b);
-
-                // Track civ stats
-                let civ_a = pool.civ_affinities[mc.slot_a];
-                let civ_b = pool.civ_affinities[mc.slot_b];
-                if civ_a == civ_b {
-                    stats.same_civ_marriages += 1;
-                } else {
-                    stats.cross_civ_marriages += 1;
-                }
-
-                // Track faith stats (only when both have a belief)
-                let belief_a = pool.beliefs[mc.slot_a];
-                let belief_b = pool.beliefs[mc.slot_b];
-                if belief_a != agent::BELIEF_NONE && belief_b != agent::BELIEF_NONE {
-                    if belief_a == belief_b {
-                        stats.same_faith_marriages += 1;
-                    } else {
-                        stats.cross_faith_marriages += 1;
-                    }
-                }
-            }
-        }
+        marriage_region_reference(pool, region_idx, &eligible, turn, &civ_at_war, &mut stats);
     }
 
     stats
+}
+
+/// One region of the reference scan: all pairs, stable sort, greedy accept.
+fn marriage_region_reference(
+    pool: &mut AgentPool,
+    region_idx: usize,
+    eligible: &[usize],
+    turn: u32,
+    civ_at_war: &[bool; 256],
+    stats: &mut FormationStats,
+) {
+    // Evaluate all pairs, collect candidates
+    let mut candidates: Vec<MarriageCandidate> = Vec::new();
+
+    for i in 0..eligible.len() {
+        let slot_a = eligible[i];
+        for j in (i + 1)..eligible.len() {
+            let slot_b = eligible[j];
+
+            stats.marriage_pairs_evaluated += 1;
+
+            // Reject: distance check
+            let dx = pool.x[slot_a] - pool.x[slot_b];
+            let dy = pool.y[slot_a] - pool.y[slot_b];
+            let dist = (dx * dx + dy * dy).sqrt();
+            if dist > agent::MARRIAGE_RADIUS {
+                stats.marriage_pairs_rejected_distance += 1;
+                continue;
+            }
+
+            // Reject: incest (parent-child or shared parent)
+            if is_parent_child(pool, slot_a, slot_b) || shares_parent(pool, slot_a, slot_b) {
+                stats.marriage_pairs_rejected_incest += 1;
+                continue;
+            }
+
+            // Reject: cross-civ hostile
+            let civ_a = pool.civ_affinities[slot_a];
+            let civ_b = pool.civ_affinities[slot_b];
+            if civ_a != civ_b {
+                if civ_at_war[civ_a as usize] || civ_at_war[civ_b as usize] {
+                    stats.marriage_pairs_rejected_hostile += 1;
+                    continue;
+                }
+            }
+
+            // Score the pair
+            let score = marriage_score(pool, slot_a, slot_b);
+            let hash = marriage_pair_hash(turn, region_idx as u32, pool.ids[slot_a], pool.ids[slot_b]);
+
+            candidates.push(MarriageCandidate {
+                slot_a,
+                slot_b,
+                score,
+                hash,
+            });
+        }
+    }
+
+    // Sort by descending score, then ascending hash for tie-breaking
+    candidates.sort_by(|a, b| {
+        b.score.partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.hash.cmp(&b.hash))
+    });
+
+    // Greedily accept disjoint pairs
+    let mut married_this_region: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+    for mc in &candidates {
+        if married_this_region.contains(&mc.slot_a) || married_this_region.contains(&mc.slot_b) {
+            continue;
+        }
+
+        let ok = crate::relationships::upsert_symmetric(
+            pool, mc.slot_a, mc.slot_b,
+            BondType::Marriage as u8,
+            MARRIAGE_INITIAL_SENTIMENT,
+            turn as u16,
+        );
+
+        if ok {
+            married_this_region.insert(mc.slot_a);
+            married_this_region.insert(mc.slot_b);
+            record_marriage(pool, mc.slot_a, mc.slot_b, stats);
+        }
+    }
+}
+
+/// Marriage counters for an accepted pair (after the bond is written).
+fn record_marriage(pool: &AgentPool, slot_a: usize, slot_b: usize, stats: &mut FormationStats) {
+    stats.marriages_formed += 1;
+
+    // Track civ stats
+    let civ_a = pool.civ_affinities[slot_a];
+    let civ_b = pool.civ_affinities[slot_b];
+    if civ_a == civ_b {
+        stats.same_civ_marriages += 1;
+    } else {
+        stats.cross_civ_marriages += 1;
+    }
+
+    // Track faith stats (only when both have a belief)
+    let belief_a = pool.beliefs[slot_a];
+    let belief_b = pool.beliefs[slot_b];
+    if belief_a != agent::BELIEF_NONE && belief_b != agent::BELIEF_NONE {
+        if belief_a == belief_b {
+            stats.same_faith_marriages += 1;
+        } else {
+            stats.cross_faith_marriages += 1;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Planned marriage matching (exact and fast modes)
+// ---------------------------------------------------------------------------
+
+/// Marriages planned for one region from the unchanged pool.
+struct MarriagePlan {
+    evaluated: u32,
+    rejected_distance: u32,
+    rejected_incest: u32,
+    rejected_hostile: u32,
+    /// (slot_a, slot_b) in the order the reference greedy accepts them;
+    /// slot_a precedes slot_b in the eligible list.
+    pairs: Vec<(usize, usize)>,
+}
+
+/// Region-local copy of the eligible agents' marriage inputs.
+struct Eligible {
+    slot: Vec<usize>,
+    x: Vec<f32>,
+    y: Vec<f32>,
+    id: Vec<u32>,
+    civ: Vec<u8>,
+    belief: Vec<u8>,
+    cv: Vec<[u8; 3]>,
+    parents: Vec<[u32; 2]>,
+    /// A marriage bond can be written (free or evictable relationship slot).
+    can_wed: Vec<bool>,
+}
+
+impl Eligible {
+    fn new(pool: &AgentPool, eligible: &[usize]) -> Self {
+        let n = eligible.len();
+        let mut e = Eligible {
+            slot: eligible.to_vec(),
+            x: Vec::with_capacity(n),
+            y: Vec::with_capacity(n),
+            id: Vec::with_capacity(n),
+            civ: Vec::with_capacity(n),
+            belief: Vec::with_capacity(n),
+            cv: Vec::with_capacity(n),
+            parents: Vec::with_capacity(n),
+            can_wed: Vec::with_capacity(n),
+        };
+        for &s in eligible {
+            e.x.push(pool.x[s]);
+            e.y.push(pool.y[s]);
+            e.id.push(pool.ids[s]);
+            e.civ.push(pool.civ_affinities[s]);
+            e.belief.push(pool.beliefs[s]);
+            e.cv.push([pool.cultural_value_0[s], pool.cultural_value_1[s], pool.cultural_value_2[s]]);
+            e.parents.push(pool.parent_ids(s));
+            // Mirrors upsert_symmetric's slot resolution for an unmarried
+            // agent: no existing Marriage bond, so it needs a free slot or an
+            // evictable (non-protected) one. Depends only on this agent.
+            e.can_wed.push(
+                (pool.rel_count[s] as usize) < crate::relationships::REL_SLOTS
+                    || crate::relationships::find_evictable(pool, s).is_some(),
+            );
+        }
+        e
+    }
+
+    fn len(&self) -> usize {
+        self.slot.len()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PairClass {
+    Far,
+    Incest,
+    Hostile,
+    Valid,
+}
+
+/// Reference rejection cascade for an eligible pair (symmetric in a, b),
+/// plus the pair distance. The distance is symmetric bit for bit
+/// (`x_a - x_b` is the exact negation of `x_b - x_a`), so it equals the one
+/// the reference computes for its score.
+#[inline]
+fn classify_pair_dist(e: &Eligible, a: usize, b: usize, civ_at_war: &[bool; 256]) -> (PairClass, f32) {
+    let dx = e.x[a] - e.x[b];
+    let dy = e.y[a] - e.y[b];
+    let dist = (dx * dx + dy * dy).sqrt();
+    (classify_with_dist(e, a, b, dist, civ_at_war), dist)
+}
+
+#[inline]
+fn classify_with_dist(e: &Eligible, a: usize, b: usize, dist: f32, civ_at_war: &[bool; 256]) -> PairClass {
+    if dist > agent::MARRIAGE_RADIUS {
+        return PairClass::Far;
+    }
+    let has_parent = |child: usize, pid: u32| {
+        pid != agent::PARENT_NONE && (e.parents[child][0] == pid || e.parents[child][1] == pid)
+    };
+    let parent_child = has_parent(a, e.id[b]) || has_parent(b, e.id[a]);
+    let shared = e.parents[a]
+        .iter()
+        .any(|&pa| pa != agent::PARENT_NONE && e.parents[b].contains(&pa));
+    if parent_child || shared {
+        return PairClass::Incest;
+    }
+    let (civ_a, civ_b) = (e.civ[a], e.civ[b]);
+    if civ_a != civ_b && (civ_at_war[civ_a as usize] || civ_at_war[civ_b as usize]) {
+        return PairClass::Hostile;
+    }
+    PairClass::Valid
+}
+
+/// Greedy order of a candidate pair: higher score first, then lower hash,
+/// then the reference's insertion order (lower eligible indices), which is
+/// what its stable sort falls back to.
+#[derive(Clone, Copy, Debug)]
+struct PairKey {
+    score: f32,
+    hash: u64,
+    lo: u32,
+    hi: u32,
+}
+
+impl PairKey {
+    /// True when `self` is accepted before `other` by the reference greedy.
+    /// Scores are finite here (non-finite positions use the reference path).
+    #[inline]
+    fn before(&self, other: &PairKey) -> bool {
+        match self.score.partial_cmp(&other.score) {
+            Some(std::cmp::Ordering::Greater) => true,
+            Some(std::cmp::Ordering::Less) => false,
+            _ => (self.hash, self.lo, self.hi) < (other.hash, other.lo, other.hi),
+        }
+    }
+}
+
+/// Score of an eligible pair from its distance (as the reference
+/// `marriage_score(pool, lo, hi)` computes it).
+#[inline]
+fn pair_score(e: &Eligible, a: usize, b: usize, dist: f32) -> f32 {
+    let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+    marriage_score_from(e.civ[lo], e.civ[hi], e.belief[lo], e.belief[hi], e.cv[lo], e.cv[hi], dist)
+}
+
+#[inline]
+fn pair_key_scored(e: &Eligible, a: usize, b: usize, score: f32, turn: u32, region_idx: u32) -> PairKey {
+    let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+    PairKey {
+        score,
+        hash: marriage_pair_hash(turn, region_idx, e.id[lo], e.id[hi]),
+        lo: lo as u32,
+        hi: hi as u32,
+    }
+}
+
+/// Best few partners of one agent among those still unmatched at its last
+/// scan, best first. When `complete`, it held every partner then available.
+const MARRIAGE_TOP_K: usize = 8;
+
+#[derive(Clone)]
+struct TopPartners {
+    entries: Vec<(PairKey, u32)>,
+    complete: bool,
+}
+
+impl TopPartners {
+    fn new() -> Self {
+        Self { entries: Vec::with_capacity(MARRIAGE_TOP_K + 1), complete: true }
+    }
+
+    /// Offer a partner given only its score when that already decides: a
+    /// pair scoring below a full cache's worst entry cannot enter it (the
+    /// score is the first key), so its hash need not be computed. Returns
+    /// false when the caller must build the full key and `offer` it.
+    #[inline]
+    fn rejects_score(&mut self, score: f32) -> bool {
+        if self.entries.len() == MARRIAGE_TOP_K && score < self.entries[MARRIAGE_TOP_K - 1].0.score {
+            self.complete = false;
+            return true;
+        }
+        false
+    }
+
+    #[inline]
+    fn offer(&mut self, key: PairKey, partner: u32) {
+        if self.entries.len() == MARRIAGE_TOP_K {
+            self.complete = false;
+            if !key.before(&self.entries[MARRIAGE_TOP_K - 1].0) {
+                return;
+            }
+            self.entries.pop();
+        }
+        let pos = self.entries.iter().position(|(k, _)| key.before(k)).unwrap_or(self.entries.len());
+        self.entries.insert(pos, (key, partner));
+    }
+}
+
+/// Plan one region's marriages. `None` when a position is not finite (the
+/// caller then runs the reference scan, whose comparator is then not a total
+/// order and cannot be reproduced by any other algorithm).
+fn plan_region_marriages(
+    pool: &AgentPool,
+    eligible: &[usize],
+    region_idx: u32,
+    turn: u32,
+    civ_at_war: &[bool; 256],
+    mode: crate::scale::AgentScaleMode,
+) -> Option<MarriagePlan> {
+    use rayon::prelude::*;
+
+    let e = Eligible::new(pool, eligible);
+    if !e.x.iter().chain(e.y.iter()).all(|v| v.is_finite()) {
+        return None;
+    }
+    let n = e.len();
+
+    // Fast mode: a bounded candidate adjacency (CSR) and the rejection
+    // counters over the examinations it made. Small regions keep the exact
+    // all-pairs scan, so fast mode only differs where it saves work.
+    let fast = match mode {
+        crate::scale::AgentScaleMode::Fast if n > crate::scale::FAST_MARRIAGE_SCAN => {
+            Some(fast_marriage_candidates(&e, civ_at_war, turn, region_idx))
+        }
+        _ => None,
+    };
+
+    // Offer every valid, writable, unmatched partner of `a`. In exact mode
+    // the initial scan (`count`) also tallies the reference rejection
+    // counters over the pairs (a, b > a), so every pair is classified once
+    // for the counters, exactly as in the reference loop.
+    let scan = |a: usize, matched: &[bool], count: bool| -> (TopPartners, [u32; 3]) {
+        let mut top = TopPartners::new();
+        let mut c = [0u32; 3];
+        let wed_a = e.can_wed[a];
+        let mut visit = |b: usize| {
+            if b == a {
+                return;
+            }
+            let tally = count && b > a;
+            if !tally && (!wed_a || matched[b] || !e.can_wed[b]) {
+                return;
+            }
+            let (class, dist) = classify_pair_dist(&e, a, b, civ_at_war);
+            if tally {
+                match class {
+                    PairClass::Far => c[0] = c[0].wrapping_add(1),
+                    PairClass::Incest => c[1] = c[1].wrapping_add(1),
+                    PairClass::Hostile => c[2] = c[2].wrapping_add(1),
+                    PairClass::Valid => {}
+                }
+            }
+            if class == PairClass::Valid && wed_a && !matched[b] && e.can_wed[b] {
+                let score = pair_score(&e, a, b, dist);
+                if !top.rejects_score(score) {
+                    top.offer(pair_key_scored(&e, a, b, score, turn, region_idx), b as u32);
+                }
+            }
+        };
+        match &fast {
+            None => (0..n).for_each(&mut visit),
+            Some(((starts, partners), _, _)) => {
+                for &b in &partners[starts[a] as usize..starts[a + 1] as usize] {
+                    visit(b as usize);
+                }
+            }
+        }
+        (top, c)
+    };
+
+    // Locally dominant matching. With a strict total order on pairs, the
+    // greedy matching (accept pairs best-first when both are free) is the
+    // unique matching built by repeatedly accepting pairs that are each
+    // other's best remaining partner, so this reproduces the reference
+    // greedy without materialising and sorting every candidate pair.
+    let mut matched = vec![false; n];
+    let initial: Vec<(TopPartners, [u32; 3])> = {
+        let m = &matched;
+        let count = fast.is_none();
+        (0..n).into_par_iter().map(|a| scan(a, m, count)).collect()
+    };
+    let (evaluated, counts) = match &fast {
+        None => {
+            let pairs = (n as u64) * (n as u64).saturating_sub(1) / 2;
+            let counts = initial.iter().fold([0u32; 3], |x, (_, c)| {
+                [x[0].wrapping_add(c[0]), x[1].wrapping_add(c[1]), x[2].wrapping_add(c[2])]
+            });
+            // The reference counts pairs in a u32 (wrapping in release).
+            (pairs as u32, counts)
+        }
+        Some((_, evaluated, counts)) => (*evaluated, *counts),
+    };
+    let mut top: Vec<TopPartners> = initial.into_iter().map(|(t, _)| t).collect();
+    let mut accepted: Vec<(PairKey, usize, usize)> = Vec::new();
+    loop {
+        let mut newly: Vec<(PairKey, usize, usize)> = Vec::new();
+        for a in 0..n {
+            if matched[a] {
+                continue;
+            }
+            if let Some(&(key, b)) = top[a].entries.first() {
+                let b = b as usize;
+                if a < b && top[b].entries.first().map(|&(_, c)| c as usize) == Some(a) {
+                    newly.push((key, a, b));
+                }
+            }
+        }
+        if newly.is_empty() {
+            break;
+        }
+        for &(_, a, b) in &newly {
+            matched[a] = true;
+            matched[b] = true;
+        }
+        accepted.extend(newly);
+        // Agents whose best partner was just taken advance to their next
+        // cached partner, or rescan when the cache ran out.
+        let dirty: Vec<usize> = (0..n)
+            .filter(|&a| {
+                !matched[a]
+                    && top[a].entries.first().map_or(false, |&(_, b)| matched[b as usize])
+            })
+            .collect();
+        let refreshed: Vec<(usize, TopPartners)> = {
+            let m = &matched;
+            let t = &top;
+            dirty
+                .par_iter()
+                .map(|&a| {
+                    let mut cur = t[a].clone();
+                    cur.entries.retain(|&(_, b)| !m[b as usize]);
+                    if cur.entries.is_empty() && !cur.complete {
+                        cur = scan(a, m, false).0;
+                    }
+                    (a, cur)
+                })
+                .collect()
+        };
+        for (a, cur) in refreshed {
+            top[a] = cur;
+        }
+    }
+    accepted.sort_by(|x, y| {
+        if x.0.before(&y.0) {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    });
+
+    Some(MarriagePlan {
+        evaluated,
+        rejected_distance: counts[0],
+        rejected_incest: counts[1],
+        rejected_hostile: counts[2],
+        pairs: accepted.into_iter().map(|(_, a, b)| (e.slot[a], e.slot[b])).collect(),
+    })
+}
+
+/// Fast mode: each eligible agent examines a deterministic stride sample of
+/// at most `FAST_MARRIAGE_SCAN` agents from the 3 x 3 block of a
+/// population-sized grid around it and keeps its `FAST_MARRIAGE_CANDIDATES`
+/// best valid partners in the reference greedy order, so the bounded graph
+/// keeps the high-scoring (same civ / faith / culture) pairs the exact greedy
+/// would pick first. Returns the union of those lists as a CSR adjacency, the
+/// number of (agent, partner) examinations and their rejection counters.
+fn fast_marriage_candidates(
+    e: &Eligible,
+    civ_at_war: &[bool; 256],
+    turn: u32,
+    region_idx: u32,
+) -> ((Vec<u32>, Vec<u32>), u32, [u32; 3]) {
+    use rayon::prelude::*;
+
+    let n = e.len();
+    let scan = crate::scale::FAST_MARRIAGE_SCAN.max(1);
+    let keep = crate::scale::FAST_MARRIAGE_CANDIDATES.max(1);
+    // Cells sized so a 3 x 3 block holds about `scan` agents on average.
+    let side = (((9 * n) as f64 / scan as f64).sqrt().ceil() as usize).clamp(1, 256);
+    let cell_of = |i: usize| {
+        let cx = ((e.x[i] * side as f32) as usize).min(side - 1);
+        let cy = ((e.y[i] * side as f32) as usize).min(side - 1);
+        cy * side + cx
+    };
+    let mut starts = vec![0u32; side * side + 1];
+    for i in 0..n {
+        starts[cell_of(i) + 1] += 1;
+    }
+    for c in 0..side * side {
+        starts[c + 1] += starts[c];
+    }
+    let mut fill = starts[..side * side].to_vec();
+    let mut members = vec![0u32; n];
+    for i in 0..n {
+        let c = cell_of(i);
+        members[fill[c] as usize] = i as u32;
+        fill[c] += 1;
+    }
+
+    let per_agent: Vec<(Vec<u32>, u32, [u32; 3])> = (0..n)
+        .into_par_iter()
+        .map_init(Vec::new, |block: &mut Vec<u32>, a| {
+            let c = cell_of(a);
+            let (cx, cy) = (c % side, c / side);
+            block.clear();
+            for row in cy.saturating_sub(1)..=(cy + 1).min(side - 1) {
+                let first = row * side + cx.saturating_sub(1);
+                let last = row * side + (cx + 1).min(side - 1);
+                block.extend_from_slice(&members[starts[first] as usize..starts[last + 1] as usize]);
+            }
+            let stride = if block.len() > scan { (block.len() + scan - 1) / scan } else { 1 };
+            let mut best: Vec<(PairKey, u32)> = Vec::with_capacity(keep + 1);
+            let mut examined = 0u32;
+            let mut counts = [0u32; 3];
+            let mut idx = a % stride;
+            while idx < block.len() {
+                let b = block[idx] as usize;
+                idx += stride;
+                if b == a {
+                    continue;
+                }
+                examined += 1;
+                let (class, dist) = classify_pair_dist(e, a, b, civ_at_war);
+                match class {
+                    PairClass::Far => counts[0] += 1,
+                    PairClass::Incest => counts[1] += 1,
+                    PairClass::Hostile => counts[2] += 1,
+                    PairClass::Valid => {
+                        if !e.can_wed[a] || !e.can_wed[b] {
+                            continue;
+                        }
+                        let score = pair_score(e, a, b, dist);
+                        if best.len() == keep && score < best[keep - 1].0.score {
+                            continue;
+                        }
+                        let key = pair_key_scored(e, a, b, score, turn, region_idx);
+                        if best.len() == keep && !key.before(&best[keep - 1].0) {
+                            continue;
+                        }
+                        let pos = best.iter().position(|(k, _)| key.before(k)).unwrap_or(best.len());
+                        best.insert(pos, (key, b as u32));
+                        best.truncate(keep);
+                    }
+                }
+            }
+            (best.into_iter().map(|(_, b)| b).collect(), examined, counts)
+        })
+        .collect();
+
+    let mut examined = 0u32;
+    let mut counts = [0u32; 3];
+    let mut pairs: Vec<(u32, u32)> = Vec::new();
+    for (a, (partners, ex, c)) in per_agent.iter().enumerate() {
+        examined = examined.wrapping_add(*ex);
+        for k in 0..3 {
+            counts[k] = counts[k].wrapping_add(c[k]);
+        }
+        for &b in partners {
+            let a = a as u32;
+            pairs.push(if a < b { (a, b) } else { (b, a) });
+        }
+    }
+    pairs.sort_unstable();
+    pairs.dedup();
+
+    let mut degree = vec![0u32; n + 1];
+    for &(a, b) in &pairs {
+        degree[a as usize + 1] += 1;
+        degree[b as usize + 1] += 1;
+    }
+    for i in 0..n {
+        degree[i + 1] += degree[i];
+    }
+    let mut fill = degree[..n].to_vec();
+    let mut partners = vec![0u32; pairs.len() * 2];
+    for &(a, b) in &pairs {
+        partners[fill[a as usize] as usize] = b;
+        fill[a as usize] += 1;
+        partners[fill[b as usize] as usize] = a;
+        fill[b as usize] += 1;
+    }
+    ((degree, partners), examined, counts)
 }
 
 /// Check whether agents a and b share a positive contact (triadic closure).
@@ -851,6 +1470,20 @@ pub fn formation_scan(
     turn: u32,
     alive_slots: &[usize],
 ) -> FormationStats {
+    formation_scan_with_mode(pool, regions, turn, alive_slots, crate::scale::AgentScaleMode::Exact)
+}
+
+/// Formation scan with an explicit scale mode. Exact mode is the reference
+/// scan. Fast mode pairs each agent only with the next
+/// `FAST_FORMATION_PARTNERS` agents in the region's shuffled order, which
+/// bounds the work per agent when few pairs pass the gates.
+pub fn formation_scan_with_mode(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    turn: u32,
+    alive_slots: &[usize],
+    mode: crate::scale::AgentScaleMode,
+) -> FormationStats {
     let mut stats = FormationStats::default();
     let cadence_phase = turn % agent::FORMATION_CADENCE;
 
@@ -863,6 +1496,11 @@ pub fn formation_scan(
             region_buckets[r].push(slot);
         }
     }
+
+    // Alive id -> slot lookup for belief-divergence cleanup (targets may have
+    // migrated). Ids and liveness do not change during the scan, so one map
+    // serves every region; it used to be rebuilt per scanned region.
+    let mut id_to_slot: Option<HashMap<u32, usize>> = None;
 
     for region_idx in 0..num_regions {
         // Staggered cadence check
@@ -886,12 +1524,10 @@ pub fn formation_scan(
 
         // M50b: Belief-divergence cleanup — remove CoReligionist bonds
         // where source and target beliefs have diverged.
-        // Build id_to_slot map for this region (targets may have migrated).
-        let id_to_slot: HashMap<u32, usize> = alive_slots
-            .iter()
-            .map(|&s| (pool.ids[s], s))
-            .collect();
-        let dissolved = belief_divergence_cleanup(pool, bucket, &id_to_slot);
+        let id_to_slot = id_to_slot.get_or_insert_with(|| {
+            alive_slots.iter().map(|&s| (pool.ids[s], s)).collect()
+        });
+        let dissolved = belief_divergence_cleanup(pool, bucket, id_to_slot);
         stats.bonds_dissolved_structural += dissolved;
 
         // Per-agent formation budget tracking
@@ -911,7 +1547,13 @@ pub fn formation_scan(
                 continue;
             }
 
-            for j in (i + 1)..n {
+            let j_end = match mode {
+                crate::scale::AgentScaleMode::Exact => n,
+                crate::scale::AgentScaleMode::Fast => {
+                    (i + 1).saturating_add(crate::scale::FAST_FORMATION_PARTNERS).min(n)
+                }
+            };
+            for j in (i + 1)..j_end {
                 if region_bonds >= agent::MAX_NEW_BONDS_PER_REGION {
                     break;
                 }

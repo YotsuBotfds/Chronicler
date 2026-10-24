@@ -65,14 +65,17 @@ ORDINALS = ("First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh",
 # --- logistics extensions (beyond the detached kernel) -----------------------
 SUPPLY_RANGE = 3
 REFILL_BY_DISTANCE = {0: 3, 1: 2, 2: 1, 3: 1}  # rations per soldier per turn
-FORAGE_BY_TERRAIN = {"plains": 2, "forest": 2, "coast": 2, "mountains": 1, "desert": 0, "tundra": 0}
-ATTRITION_PERMILLE = {"plains": 3, "coast": 3, "forest": 6, "mountains": 12, "desert": 20, "tundra": 18}
+FORAGE_BY_TERRAIN = {"plains": 2, "forest": 2, "coast": 2, "mountains": 1, "desert": 0, "tundra": 0,
+                     "steppe": 2, "jungle": 1, "marsh": 1}
+ATTRITION_PERMILLE = {"plains": 3, "coast": 3, "forest": 6, "mountains": 12, "desert": 20, "tundra": 18,
+                      "steppe": 4, "jungle": 16, "marsh": 14}
 HUNGER_ATTRITION_PERMILLE = 25
 DISTANCE_ATTRITION_PERMILLE = 6   # per edge beyond supply range
 UNREACHABLE_ATTRITION_PERMILLE = 30
 WINTER_ATTRITION_PERMILLE = 10    # mountains/tundra/forest in winter
 SIEGE_DISEASE_PERMILLE = 8
-MOVE_COST = {"mountains": 2, "forest": 1, "desert": 1, "tundra": 2, "plains": 1, "coast": 1}
+MOVE_COST = {"mountains": 2, "forest": 1, "desert": 1, "tundra": 2, "plains": 1, "coast": 1,
+             "steppe": 1, "jungle": 2, "marsh": 2}
 
 # --- battles -----------------------------------------------------------------
 ERA_QUALITY_STEP = 0.12

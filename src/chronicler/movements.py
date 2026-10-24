@@ -7,6 +7,7 @@ import hashlib
 from chronicler.models import Event, Movement, NamedEvent, TechEra, WorldState
 from chronicler.culture import VALUE_OPPOSITIONS
 from chronicler.history_index import history_index
+from chronicler.contact_ledger import ledger_enabled, movement_adoption_pct
 
 MOVEMENT_EMERGENCE_INTERVAL = 30
 SCHISM_DIVERGENCE_THRESHOLD = 3
@@ -79,6 +80,7 @@ def _check_emergence(world: WorldState) -> None:
 
 
 def _process_spread(world: WorldState) -> None:
+    ledger_on = ledger_enabled(world)
     for movement in world.movements:
         current_adherents = list(movement.adherents.keys())
         for adopter_name in current_adherents:
@@ -88,7 +90,7 @@ def _process_spread(world: WorldState) -> None:
                 if civ.name == adopter_name or civ.name in movement.adherents:
                     continue
                 rel = world.relationships.get(adopter_name, {}).get(civ.name)
-                if rel is None or rel.trade_volume <= 0:
+                if rel is None or (not ledger_on and rel.trade_volume <= 0):
                     continue
 
                 if movement.value_affinity in civ.values:
@@ -98,7 +100,16 @@ def _process_spread(world: WorldState) -> None:
                 else:
                     compatibility = 50
 
-                adoption_probability = rel.trade_volume * compatibility / 100
+                if ledger_on:
+                    # Contact ledger: ideas travel with goods, migrants,
+                    # soldiers and pilgrims (weighted decayed contact).
+                    adoption_probability = movement_adoption_pct(
+                        world, adopter_name, civ.name, compatibility,
+                    )
+                    if adoption_probability is None:
+                        continue
+                else:
+                    adoption_probability = rel.trade_volume * compatibility / 100
                 # M21: PRINTING doubles movement adoption probability
                 if civ.active_focus == "printing":
                     adoption_probability *= 2

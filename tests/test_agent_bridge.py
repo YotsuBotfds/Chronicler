@@ -875,15 +875,44 @@ class TestRegionBatchResourceColumns:
         batch = build_region_batch(sample_world)
         assert batch.column("resource_yield_0").to_pylist() == [0.0] * batch.num_rows
 
-    def test_region_batch_rejects_more_than_32_regions(self, sample_world):
-        """adjacency_mask is uint32; bridge must fail fast for >32 regions."""
-        while len(sample_world.regions) <= 32:
+    def test_region_batch_accepts_more_than_32_regions(self, sample_world):
+        """Geography 2.0: adjacency is a sorted uint16 id list, not a uint32 mask."""
+        while len(sample_world.regions) <= 40:
             clone = sample_world.regions[0].model_copy(deep=True)
             clone.name = f"overflow_{len(sample_world.regions)}"
             clone.adjacencies = []
             sample_world.regions.append(clone)
+        last = sample_world.regions[-1]
+        first = sample_world.regions[0]
+        last.adjacencies = [first.name, sample_world.regions[35].name]
+        first.adjacencies = first.adjacencies + [last.name]
 
-        with pytest.raises(ValueError, match="at most 32 regions"):
+        batch = build_region_batch(sample_world)
+        adjacency = batch.column("adjacency").to_pylist()
+        assert "adjacency_mask" not in batch.schema.names
+        assert adjacency[len(sample_world.regions) - 1] == [0, 35]
+        assert adjacency[0][-1] == len(sample_world.regions) - 1
+        assert all(row == sorted(set(row)) for row in adjacency)
+
+    def test_region_batch_adjacency_matches_legacy_mask_order(self, sample_world):
+        """The list is the ascending bit walk of the former uint32 mask."""
+        batch = build_region_batch(sample_world)
+        index = {r.name: i for i, r in enumerate(sample_world.regions)}
+        for region, ids in zip(sample_world.regions, batch.column("adjacency").to_pylist()):
+            mask = 0
+            for name in region.adjacencies:
+                mask |= 1 << index[name]
+            assert ids == [bit for bit in range(32) if mask >> bit & 1]
+
+    def test_region_batch_rejects_too_many_civ_records(self, sample_world):
+        from chronicler.ffi_constants import MAX_CIV_RECORDS
+        template = sample_world.civilizations[0]
+        while len(sample_world.civilizations) <= MAX_CIV_RECORDS:
+            clone = template.model_copy(deep=True)
+            clone.name = f"Overflow {len(sample_world.civilizations)}"
+            clone.regions = []
+            sample_world.civilizations.append(clone)
+        with pytest.raises(ValueError, match="at most 254"):
             build_region_batch(sample_world)
 
     def test_region_batch_has_m54a_ecology_columns(self, sample_world):

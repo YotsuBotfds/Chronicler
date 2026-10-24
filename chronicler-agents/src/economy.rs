@@ -62,8 +62,9 @@ const IS_FOOD: [bool; NUM_GOODS] = [
 ];
 
 /// Terrain cost for transport.  Indexed by terrain u8 encoding.
-/// plains(0)=1.0, mountains(1)=2.0, coast(2)=0.6, forest(3)=1.3, desert(4)=1.5, tundra(5)=1.8
-const TERRAIN_COST: [f32; 6] = [1.0, 2.0, 0.6, 1.3, 1.5, 1.8];
+/// plains(0)=1.0, mountains(1)=2.0, coast(2)=0.6, forest(3)=1.3, desert(4)=1.5, tundra(5)=1.8,
+/// steppe(6)=1.1, jungle(7)=1.7, marsh(8)=1.6 (mirrors Python economy.TERRAIN_COST)
+const TERRAIN_COST: [f32; 9] = [1.0, 2.0, 0.6, 1.3, 1.5, 1.8, 1.1, 1.7, 1.6];
 
 /// Per-good transit decay rate.
 pub const TRANSIT_DECAY: [f32; NUM_GOODS] = [

@@ -352,10 +352,14 @@ def test_phase10_uses_explicit_payload_and_forwards_all_readers(api, monkeypatch
     assert w._prev_priest_counts == {w.civilizations[0].name: 1}
 
 
-def test_exact_baseline_two_turns_events_narration_state_and_rng(api, sample_world, tmp_path):
+def test_exact_baseline_two_turns_events_narration_state_and_rng(api, sample_world, tmp_path, monkeypatch):
+    import json
     from chronicler import simulation as sim
     from chronicler.models import ActionType
     from scripts.benchmark_headless import rng_trace
+    from scripts.third_wave_controls import legacy_event_dump, strip_provenance
+    # Causal provenance is outcome-neutral; compare without its additions.
+    monkeypatch.setattr("chronicler.provenance.LEGACY_TIMELINE", True)
     from chronicler.events import ingest_turn_events, take_turn_cascade_events
     baseline = _baseline_simulation()
     # The 2026-10 extinction correction deliberately replaces the event/leader
@@ -381,13 +385,14 @@ def test_exact_baseline_two_turns_events_narration_state_and_rng(api, sample_wor
             if _label == "baseline":
                 ingest_turn_events(w, take_turn_cascade_events(w, w.events_timeline[starts[0]:]),
                                    w.named_events[starts[1]:])
-            captures.append((w.turn, [e.model_dump(mode="json") for e in events],
-                             [e.model_dump(mode="json") for e in w.named_events], w.model_dump_json()))
+            captures.append((w.turn, [legacy_event_dump(e) for e in events],
+                             [e.model_dump(mode="json") for e in w.named_events],
+                             strip_provenance(json.loads(w.model_dump_json()))))
             return str(captures[-1][1])
 
         with rng_trace(tmp_path / f"{label}.jsonl") as trace:
             text = [run_one(world, lambda *a: ActionType.DEVELOP, narrator, seed=42) for _ in range(2)]
-        results.append((captures, text, world.model_dump_json(), trace))
+        results.append((captures, text, strip_provenance(json.loads(world.model_dump_json())), trace))
     assert results[0] == results[1]
 
 
