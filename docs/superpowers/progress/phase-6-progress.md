@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`feat/healthy-migration` Phase A: frontier, wage-gap and chain migration behind their own gates, net of life-course roots; exact native migration budget; calibration and full gate wait for food logistics. `fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off)
+> **Last updated:** 2026-10-24 (`feat/healthy-migration` Phase A: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; exact native migration budget; calibration and full gate wait for food logistics. `fix/leftover-persecution`: persecution follows the current ruler every turn and the agent tick persecutes everyone outside the ruler's faith; agendas rebellion-neutral. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off)
 
 ---
 
@@ -18,30 +18,35 @@ constant justification: `docs/integration/healthy-migration.md`.
   turn 100: household followers 43.6% of migration units, famine memory
   30.9%, persecution memory 9.1%, opportunity terms 11.0%, live persecution
   3.4%.
-- **Drivers** (`a83e537`): frontier settlement (home >= 0.85 of capacity,
-  neighbour >= 0.30 emptier and fed), wage gap (farmers and merchants, peer
-  mean wealth >= 1.5x, room there), chain migration (bonds to settled
-  emigrants from here outweigh bonds at home). All internal (same ruler).
-  Roots: 0 to age 30, +0.01 a year, +0.08 married, +0.06 per unit of home
-  bond strength; under-20s take no voluntary moves. The pull joins the
-  target choice and the utility; hysteresis 0.18, the 5-turn lock and the
+- **Drivers** (`a83e537`, `c0cadd5`): frontier settlement (farmers; home
+  >= 0.85 of capacity, neighbour >= 0.30 emptier with land that feeds
+  settlers: a farmer's year of food >= 0.75, not stored food; an empty
+  region judged by home), wage gap (farmers and merchants, peer mean
+  wealth >= 1.5x, room there), chain migration (bonds to settled emigrants
+  from here outweigh bonds at home). All internal (same ruler). Roots: 0
+  to age 30, +0.01 a year, +0.08 married, +0.06 per unit of home bond
+  strength; under-20s take no voluntary moves. The pull joins the target
+  choice and the utility; hysteresis 0.18, the 5-turn lock and the
   persecution terms unchanged; no new random draws.
 - **Hysteresis kept**: score gaps >= 0.10 reverse within 5 turns 26% of
   the time (>= 0.18: 11%), and any positive utility moves 12.6% a turn.
+- **Frontier gate on land**: the first gate (food sufficiency 1.0) read
+  how few farmers an empty region has; the land gate passes 28% of the
+  crowded-next-to-emptier cases against 7.5% (base, three seeds).
 - **Phase A probe** (design values, not calibrated; 142-161 x 500, from
-  turn 100): migration per agent-turn 0.0449 -> 0.0489 (paired by seed
-  +0.0045 +- 0.0030); frontier / wage / chain 0.2 / 0.4 / 0.1% of
-  migration units. Gates open before roots for 2.4 / 4.3 / 1.0% of
-  evaluated agent-turns, beyond roots 0.3 / 0.5 / 0.1%. The binding limit
-  is food: for 0.2% of crowded young adults the emptier neighbour is fed.
-  Sloshing checks at or below the base.
-- **Tick time** (agent-scale benchmark): 53k agents within noise, 22k at
-  most about 3% more CPU.
-- **Tests** (`b510077`, fresh native build): `cargo test` 915 passed, 2
+  turn 100, `c0cadd5`): migration per agent-turn 0.0449 -> 0.0508 (paired
+  by seed +0.0069 +- 0.0033); frontier / wage / chain 0.2 / 0.4 / 0.0% of
+  migration units. Gates open before roots for 2.2 / 4.5 / 1.0% of
+  evaluated agent-turns, beyond roots 0.3 / 0.6 / 0.1%: roots are the main
+  calibration lever. Sloshing checks at or below the base.
+- **Tick time** (agent-scale benchmark, 22k and 53k agents): within noise.
+- **Tests** (`c0cadd5`, fresh native build): `cargo test` 917 passed, 2
   ignored; not-slow 5,904 passed, 3 skipped; slow 11 passed, 3 skipped;
   no-Rust 5,701 passed, 206 skipped; oracle lane PASS (1,892 passed,
-  pytest 71.9 s, PR #19 guard fix local only). Agents-off identity 16
+  pytest 66.8 s, PR #19 guard fix local only). Agents-off identity 16
   files, 0 differences.
+- **Open**: `mass_migration` is narrated as flight whatever moved it;
+  labelling it needs a driver on migration events (own review).
 - **Pending (Phase B)**: merge `integrate/wave-6`, calibrate on the 20 x 500
   probe, subset gates, golden check, full gate.
 

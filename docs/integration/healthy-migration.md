@@ -106,23 +106,42 @@ Distress migration keeps crossing borders as before.
 
 ### Frontier settlement
 
-Young people leave land that is full for land of the same realm that is
+Young farmers leave land that is full for land of the same realm that is
 not: inheritance and holding sizes push the surplus generation out
-(internal colonisation, frontier settlement). In the model carrying
-capacity stands for the land.
+(internal colonisation, frontier settlement). The draw is land. In the
+model carrying capacity stands for the room, and the harvest a farmer
+would get for what the land can feed.
 
-- Gate: home at `FRONTIER_SOURCE_MIN_RATIO` 0.85 of capacity or more; the
-  neighbour at least `FRONTIER_MIN_GAP` 0.30 emptier (share of capacity);
-  the neighbour fed (`FRONTIER_MIN_FOOD`: food sufficiency 1.0).
+- Gate: a farmer; home at `FRONTIER_SOURCE_MIN_RATIO` 0.85 of capacity or
+  more; the neighbour at least `FRONTIER_MIN_GAP` 0.30 emptier (share of
+  capacity); its land feeds settlers: `food_potential` at least
+  `FRONTIER_MIN_FOOD_POTENTIAL` 0.75.
+- `food_potential` is the best food slot's year of harvest per farmer as the
+  land stands (`ecology::annual_yield_potential`: base yield x the mean
+  season modifier x soil x water for crops), with no season, climate phase
+  or abundance multiplier. 0.75 is the economy's 0.5 food a head over the
+  0.66 ceiling on the farmers' share of the labor mix: land where the usual
+  share of farmers feeds everyone. Food here is what the goods economy
+  counts as food (`economy::is_food_resource`).
 - Pull: `FRONTIER_PULL` 0.30 x ramp(gap, 0.30, 0.70).
-- The food gate keeps settlers out of regions with no stores. An empty
-  region has none (sufficiency is stores over demand), and an agent in a
-  region under 0.6 writes a famine memory next tick: settling there would
-  start a famine-memory return.
+- An empty region reads mean satisfaction 0 and no stores, so its score
+  never beat home's. An agent pulled toward an empty region judges it by
+  home's mean satisfaction and food signal and the destination's room;
+  agents without a pull score it as before.
+- Why not stored food. The first design gated on food sufficiency 1.0.
+  Sufficiency is stores over demand, and under-filled regions are mostly
+  empty (median population 0, 78% without a farmer when they are the
+  emptiest candidate). Over every qualifying neighbour of the young adults
+  (20-30) who sit in a crowded home next to an emptier region of the realm
+  (28% of young adults; base, three seeds, 300 turns), the stores gate
+  passed 7.5% of the cases and the land gate passes 28% (18% for farmers);
+  a quarter of the cases are empty land. Farmers who arrive produce in the
+  next turn's harvest, which the economy runs before the agent tick, so
+  their own food counts before a famine memory could be written.
 - Self-limiting: the wave stops when home falls under 0.85 or the gap under
-  0.30. In the Rust multi-tick test (`tests/test_healthy_migration.rs`)
-  16 of 40 agents move in five turns, home drops to 0.80 and nobody moves
-  back.
+  0.30. In the Rust multi-tick test (`tests/test_healthy_migration.rs`) a
+  wave leaves the full region in the first turns, stops once home is under
+  the gate and nobody moves back.
 
 ### Wage gap
 
@@ -206,60 +225,59 @@ turn to turn. The 5-turn displacement lock is kept.
 ## Phase A measurement (design values, before food logistics)
 
 Not a calibration. Seeds 142-161 x 500 turns, hybrid, `--simulate-only`,
-`PYTHONHASHSEED=0`, through the output-neutral observer; base is `efc2b06`
-(the tally on `f3eccec` behavior), branch `ba7a9c8`; from turn 100.
+`PYTHONHASHSEED=0`, through the output-neutral observer, from turn 100.
+Base is `efc2b06` (the tally on `f3eccec` behavior); "stores gate" is
+`ba7a9c8` (frontier gated on food sufficiency); branch is `c0cadd5` (land
+gate, farmers, empty regions judged by home).
 
-| | base | branch |
-| --- | ---: | ---: |
-| migrations per run (events) | 2,927 | 3,376 |
-| migration per agent-turn (pooled) | 0.0449 | 0.0489 |
-| paired by seed (mean of seeds) | 0.0429 | 0.0474 (+0.0045 +- 0.0030, up/down 14/5) |
-| household followers | 43.6% | 43.6% |
-| famine memory | 30.9% | 32.3% |
-| persecution memory / live persecution | 9.1 / 3.4% | 7.2 / 2.9% |
-| opportunity terms | 11.0% | 11.4% |
-| frontier / wage / chain | - | 0.2 / 0.4 / 0.1% |
-| gate open, before roots (per evaluated agent-turn) | - | 2.44 / 4.26 / 1.01% |
-| pull beyond roots | - | 0.29 / 0.54 / 0.10% |
-| reverse flow on the next turn (share of migrations) | 18.7% | 17.2% |
-| agent back where it came from within 10 turns | 23.6% | 22.3% |
-| region pairs alternating 3+ turns (20 runs) | 208 | 217 |
+| | base | stores gate | branch |
+| --- | ---: | ---: | ---: |
+| migrations per run (events) | 2,927 | 3,376 | 3,393 |
+| migration per agent-turn (pooled) | 0.0449 | 0.0489 | 0.0508 |
+| paired by seed against the base | - | +0.0045 +- 0.0030 (14/5) | +0.0069 +- 0.0033 (13/6) |
+| household followers | 43.6% | 43.6% | 43.8% |
+| famine memory | 30.9% | 32.3% | 29.5% |
+| persecution memory / live persecution | 9.1 / 3.4% | 7.2 / 2.9% | 9.4 / 3.6% |
+| opportunity terms | 11.0% | 11.4% | 10.8% |
+| frontier / wage / chain | - | 0.2 / 0.4 / 0.1% | 0.2 / 0.4 / 0.0% |
+| gate open, before roots (per evaluated agent-turn) | - | 2.44 / 4.26 / 1.01% | 2.16 / 4.51 / 0.98% |
+| pull beyond roots | - | 0.29 / 0.54 / 0.10% | 0.27 / 0.58 / 0.08% |
+| reverse flow on the next turn (share of migrations) | 18.7% | 17.2% | 17.4% |
+| agent back where it came from within 10 turns | 23.6% | 22.3% | 22.7% |
+| region pairs alternating 3+ turns (20 runs) | 208 | 217 | 207 |
 
-- The drivers act rarely here, and roots hold about seven in eight of the
-  open gates. Histories diverge from the first changed move, so the
-  per-seed differences are mostly chance (one world is identical: no gate
-  ever opened beyond roots).
-- **The frontier is unfed.** Among young adults (20-30) with a ruled home,
-  23% sit in a home at 0.85 of capacity or more with a neighbour of the
-  same realm at least 0.30 emptier; for 0.2% of them that neighbour is fed
-  (sufficiency 1.0), and for 1.9% it holds 0.4 (four seeds, 300 turns, base).
-  Regions are empty because they cannot feed people: food does not move
-  between regions. Food logistics is expected to change this, so Phase B
-  calibrates on the merged world.
+- The drivers act rarely here: roots hold about seven in eight of the open
+  gates. Roots are the main calibration lever, more than the pull sizes.
+- The land gate opens as often as the stores gate did over all ages and
+  occupations, but for farmers and toward land that can feed them: the
+  stores gate mostly opened toward populated regions with stock, the land
+  gate also toward empty fertile land.
+- Histories diverge from the first changed move, so the per-seed
+  differences are mostly chance.
 - Sloshing does not rise: in the base nearly a quarter of migrants are
   back where they came from within ten turns (famine-memory churn); the
   branch is at or below it on the per-migrant checks and within chance on
   alternating pairs.
-- Agents-off identity, base (`f3eccec`, its build) against the branch
-  (`ba7a9c8`, its build), seeds 42 and 7, 150 turns: 16 files,
-  0 differences.
+- Agents-off identity, base (`f3eccec`, its build) against the branch (its
+  build), seeds 42 and 7, 150 turns: 16 files, 0 differences (`ba7a9c8`;
+  `c0cadd5` in Verification).
 
 ### Tick time
 
 `scripts/agent_scale_benchmark.py`, seed 42, 12 regions, 3 warm-up and 8
-timed turns, two repeats, one child at a time, release builds of `f3eccec`
-and `ba7a9c8`, shared 4-core machine (medians per run):
+timed turns, two repeats, one child at a time, release builds, shared
+4-core machine (median Rust tick per run, wall / process CPU):
 
-| agents | base: tick wall / CPU | branch: tick wall / CPU |
-| ---: | ---: | ---: |
-| ~21,800 | 185, 195 / 310, 297 ms | 223, 204 / 317, 317 ms |
-| ~53,200 | 1,077, 1,060 / 1,847, 1,788 ms | 1,058, 1,074 / 1,864, 1,749 ms |
+| agents | base `f3eccec` | stores gate `ba7a9c8` | branch `c0cadd5` |
+| ---: | ---: | ---: | ---: |
+| ~21,800 | 185, 195 / 310, 297 ms | 223, 204 / 317, 317 ms | 187, 178 / 305, 314 ms |
+| ~53,200 | 1,077, 1,060 / 1,847, 1,788 ms | 1,058, 1,074 / 1,864, 1,749 ms | 1,030, 1,041 / 1,732, 1,920 ms |
 
-Within noise at 53k; at most about 3% more CPU at 22k. The per-agent work
-is one pass over at most 8 bonds (one id lookup each, in the map the
-household code already builds) and a few comparisons per neighbour, with
-no allocation; per-region peer wealth and the internal-neighbour flag are
-computed once per tick in the existing region-stats pass.
+Within the run-to-run noise. The per-agent work is one pass over at most 8
+bonds (one id lookup each, in the map the household code already builds)
+and a few comparisons per neighbour, with no allocation; per-region peer
+wealth, food potential and the internal-neighbour flag are computed once
+per tick in the existing region-stats pass.
 
 ## Constants
 
@@ -278,7 +296,7 @@ All M53 HARD (migration consideration thresholds), tagged
 | `FRONTIER_SOURCE_MIN_RATIO` | 0.85 | "near capacity": the upper third of region-turns (base median 0.81) |
 | `FRONTIER_MIN_GAP` | 0.30 | well above the turn-to-turn noise of crowding; prevents a back-flow gradient |
 | `FRONTIER_FULL_GAP` | 0.70 | full pull for a region less than a third full next to a full one |
-| `FRONTIER_MIN_FOOD` | 1.0 | settle only where stores cover demand |
+| `FRONTIER_MIN_FOOD_POTENTIAL` | 0.75 | 0.5 food a head over the 0.66 farmer-share ceiling: the usual share of farmers feeds everyone |
 | `FRONTIER_PULL` | 0.30 | equal to the roots at 60; a fresh famine memory pushes 0.125, live persecution at most 0.20 |
 | `WAGE_MIN_RATIO` / `WAGE_FULL_RATIO` | 1.5 / 3.0 | a clear gap in accumulated income, not noise |
 | `WAGE_WEALTH_FLOOR` | 1.0 | below starting-wealth scale, ratios are meaningless |
@@ -291,9 +309,10 @@ All M53 HARD (migration consideration thresholds), tagged
 
 - Native: `get_migration_driver_stats()` after each tick: `evaluated`,
   `decided`, `share_<term>`, `present_<term>` for 17 terms (including
-  `frontier`, `wage`, `chain`) and `open_<driver>` (agents whose chosen
-  target carries that pull beyond their roots). Production Python does not
-  read it, so bundles do not change.
+  `frontier`, `wage`, `chain`), `gate_<driver>` (agents for whom some
+  neighbour opens the gate, before roots) and `open_<driver>` (agents whose
+  chosen target carries that pull beyond their roots). Production Python
+  does not read it, so bundles do not change.
 - Observer and tools (run directory, not committed): `mtrace.py` records
   the tally, household followers and migration events per tick;
   `budget.py` prints the budget with one row per driver, household
@@ -305,13 +324,16 @@ All M53 HARD (migration consideration thresholds), tagged
 
 - Rust, `migration_drivers`: roots by age, marriage and home bonds;
   `net_of_roots`; mobility eligibility (dependants, unruled regions); the
-  frontier, wage and chain gates one condition at a time (crowding, gap,
-  food, foreign and unclaimed targets; occupations, peers, room, wealth
-  floor; settled emigrants, natives, displacement, spouse, home bonds,
-  rivals, weak bonds, borders); the budget split.
-- Rust, `behavior`: frontier settlers leave a full region; elders,
-  dependants and foreign targets draw none; the pull counts in the target
-  choice but not in the opportunity; memory and need pushes by type.
+  frontier, wage and chain gates one condition at a time (farmers,
+  crowding, gap, land not stores, foreign and unclaimed targets;
+  occupations, peers, room, wealth floor; settled emigrants, natives,
+  displacement, spouse, home bonds, rivals, weak bonds, borders); food
+  potential (best food slot, season-free, suspension); the budget split.
+- Rust, `behavior`: frontier settlers leave a full region; elders (the
+  gate opens, the roots hold), dependants and foreign targets draw none;
+  settlers judge an empty region by home and others do not; the pull
+  counts in the target choice but not in the opportunity; memory and need
+  pushes by type.
 - Rust, `tests/test_healthy_migration.rs` (multi-tick through
   `tick_agents`): a frontier wave fills the emptier region, stops at the
   gate and moves nobody back; no frontier pull toward a foreign region;
@@ -325,19 +347,19 @@ All M53 HARD (migration consideration thresholds), tagged
 ## Verification (Phase A, before the merge with food logistics)
 
 Linux, Python 3.13; native extension built fresh (`maturin develop
---release --locked`) from `b510077` and checked as the compiled
+--release --locked`) from `c0cadd5` and checked as the compiled
 `chronicler_agents.chronicler_agents` with real `AgentSimulator`,
 `EcologySimulator` and `PoliticsSimulator` classes.
 
 | Check | Result |
 | --- | --- |
-| `cargo test --locked` | 915 passed, 0 failed, 2 ignored (18 new) |
+| `cargo test --locked` | 917 passed, 0 failed, 2 ignored (20 new) |
 | `pytest -m "not slow" -n 2` | 5,904 passed, 3 skipped, 526 subtests (2 new) |
 | `pytest -m slow -n 2` | 11 passed, 3 skipped |
 | no-Rust lane (fresh virtualenv without `chronicler_agents`) | 5,701 passed, 206 skipped (the 2 new native tests skip) |
-| `scripts/run_python_oracle_checks.py` (PR #19's guard fix applied locally, not committed) | PASS: 1,892 passed, 10 skipped, 2 deselected; no native module loaded, no blocked I/O; pytest 71.9 s of the 110 s limit (the new tests are not in its selection) |
-| agents-off identity against `f3eccec` | 16 files, 0 differences |
-| hybrid identity of the tally commit against `f3eccec` | 18 files, 0 differences |
+| `scripts/run_python_oracle_checks.py` (PR #19's guard fix applied locally, not committed) | PASS: 1,892 passed, 10 skipped, 2 deselected; no native module loaded, no blocked I/O; pytest 66.8 s of the 110 s limit (the new tests are not in its selection) |
+| agents-off identity against `f3eccec` (seeds 42 and 7, 150 turns) | 16 files, 0 differences |
+| hybrid identity of the tally commit `efc2b06` against `f3eccec` | 18 files, 0 differences |
 
 Not run: calibration, subset gates, golden roll-forward check and the full
 gate (Phase B).
@@ -346,7 +368,15 @@ gate (Phase B).
 
 - Phase B: merge `integrate/wave-6`, calibrate, subset gates on 42-61 and
   62-81, golden check, full gate.
+- Phase B calibration: roots hold about seven in eight of the open gates,
+  so they are the first lever; each move records the budget per driver
+  before and after. A pulled married head moves the household (followers
+  are 44% of migration units), which weighs on sloshing and on the
+  community anchoring oracle.
 - `mass_migration` events (8 or more agents leaving one region in one
-  tick) are narrated as flight ("fled X for Y") whatever moved them. A
-  settlement wave would be narrated as flight too; narration should read
-  the driver. Not changed here.
+  tick) are narrated as flight ("fled X for Y") whatever moved them, so a
+  settlement wave reads as flight. Labelling them needs the dominant
+  driver on each migration event (a new or repurposed agent-event column
+  and household followers inheriting the lead's label), which changes
+  `agent_events` content and hybrid bundle text; left for its own
+  review.
