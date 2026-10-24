@@ -4,6 +4,7 @@ import importlib.abc
 import json
 import os
 from pathlib import Path
+import platform
 import sys
 from types import ModuleType
 
@@ -52,6 +53,10 @@ def audit(event, args):
         raise RuntimeError(f"Offline test lane forbids {event}")
 
 
+# Checkpoints record platform.platform(). On Linux its first call runs
+# ``uname -p`` for the processor name; resolve that cached host metadata now,
+# before the hook, so no test spawns the process.
+platform.platform()
 sys.addaudithook(audit)
 
 
