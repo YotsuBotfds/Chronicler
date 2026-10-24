@@ -1475,8 +1475,8 @@ def _build_parser() -> argparse.ArgumentParser:
                              "and borrows through contact; civs, regions, settlements, faiths and "
                              "persons get names in the languages that know them. Observational: "
                              "the simulation is unchanged; the bundle gains a 'languages' field "
-                             "and narration glosses native names (default off for new worlds; "
-                             "saved with the state)")
+                             "and narration glosses native names (default on for new worlds; "
+                             "--no-languages opts out; saved with the state)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

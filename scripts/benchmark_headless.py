@@ -83,11 +83,12 @@ def run(workload: dict, output: Path, on_turn=None):
 
     # Frozen corrected workloads predate M60 campaigns: they replay instant
     # WAR resolution unless a workload opts in explicitly. They also predate
-    # the in-world historiography, an observational layer whose bundle field
-    # and state sidecar are not part of the frozen artifacts (a workload may
-    # opt in; see docs/integration/historiography.md).
+    # the in-world historiography and languages, observational layers whose
+    # bundle fields and state sidecars are not part of the frozen artifacts (a
+    # workload may opt in; see docs/integration/historiography.md and
+    # docs/integration/languages.md).
     args = argparse.Namespace(
-        **{"campaigns": False, "historiography": False, **workload},
+        **{"campaigns": False, "historiography": False, "languages": False, **workload},
         output=str(output / "chronicle.md"),
         state=str(output / "state.json"), resume=None, reflection_interval=10,
         llm_actions=False, scenario=None, simulate_only=True, agents="off",

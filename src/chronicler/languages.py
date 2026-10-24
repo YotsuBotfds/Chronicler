@@ -71,9 +71,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-#: New worlds keep languages only with ``--languages`` (see the doc's
-#: "Default" section).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: New worlds keep languages unless ``--no-languages`` (see the doc's
+#: "Default" section): the layer is observational and proven outcome-neutral.
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 FORMAT = "chronicler.languages"
 VERSION = 1
 SIDECAR_SUFFIX = ".languages.json"
@@ -1574,10 +1574,13 @@ class NameIndex:
         ents = self.entities(events)
         persp = self._perspectives(ents, turn)
         lines = []
+        example = None
         for kind, ref in ents[: self.MAX_ENTITIES]:
             v = self.views(kind, ref, turn, persp)
             if v is None or (v["name"] == v["canonical"] and not v["others"]):
                 continue
+            if example is None:
+                example = f"{v['name']}, the {v['canonical']}"
             gloss = f", '{v['gloss']}'" if v["gloss"] else ""
             lead = "they call themselves" if kind == "civ" else "its people say"
             if kind == "person":
@@ -1593,7 +1596,7 @@ class NameIndex:
         head = ("\n\nIN-WORLD NAMES (what the peoples of these events call themselves, each other "
                 "and their lands; the names above stay authoritative. To tell part of the story "
                 "from a people's perspective, use their names and gloss the canonical one at "
-                "first use, e.g. \"Ashkel Vor, the Verdant Plains\"):\n")
+                f"first use, e.g. \"{example}\"):\n")
         return head + "\n".join(lines) + "\n"
 
     def passage(self, events: Sequence["Event"], turn: int, glossed: set | None = None,

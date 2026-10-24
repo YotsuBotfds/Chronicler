@@ -15,10 +15,12 @@
     narration surfaces:
 
     * ``chronicle_bundle.json`` must be identical after dropping
-      ``metadata.generated_at`` and the narration fields (``languages``,
-      ``chronicle_entries``); the world state, every history snapshot, the
-      event timeline, named events, era reflections, gap summaries, the
-      historiography field and the rest of the metadata are compared;
+      ``metadata.generated_at``, the ``languages`` field and each chronicle
+      entry's ``narrative`` prose; the world state, every history snapshot,
+      the event timeline, named events, the curated moments (each entry's
+      turns, events, chains, role and account ids), era reflections, gap
+      summaries, the historiography field and the rest of the metadata are
+      compared;
     * ``chronicle.md`` (the narration) may differ;
     * ``<state>.languages.json`` sidecars exist only in NEW.
 
@@ -43,7 +45,7 @@ from pathlib import Path
 
 IGNORED_NAMES = frozenset({"run_manifest.json"})  # gate tooling, records its own flags
 SIDECAR_SUFFIX = ".languages.json"
-NARRATION_FIELDS = ("languages", "chronicle_entries")
+NARRATION_FIELDS = ("languages", "chronicle_entries[].narrative")
 NARRATION_FILES = frozenset({"chronicle.md"})
 
 
@@ -51,8 +53,10 @@ def _bundle(path: Path, *, drop_narration: bool) -> bytes:
     data = json.loads(path.read_text(encoding="utf-8"))
     data.get("metadata", {}).pop("generated_at", None)
     if drop_narration:
-        for key in NARRATION_FIELDS:
-            data.pop(key, None)
+        data.pop("languages", None)
+        for entry in data.get("chronicle_entries", []):
+            if isinstance(entry, dict):
+                entry.pop("narrative", None)
     return json.dumps(data, sort_keys=True).encode("utf-8")
 
 

@@ -508,11 +508,12 @@ def _bundle(folder: Path) -> dict:
     return json.loads((folder / "chronicle_bundle.json").read_text())
 
 
-NARRATION = ("languages", "chronicle_entries")
-
-
 def _sim_view(bundle: dict) -> dict:
-    out = {k: v for k, v in bundle.items() if k not in NARRATION}
+    """The bundle without the languages field and the entries' prose (the
+    curated moments themselves must not change)."""
+    out = {k: v for k, v in bundle.items() if k != "languages"}
+    out["chronicle_entries"] = [{k: v for k, v in e.items() if k != "narrative"}
+                                for e in bundle["chronicle_entries"]]
     out["metadata"] = {k: v for k, v in bundle["metadata"].items() if k != "generated_at"}
     return out
 
@@ -588,6 +589,7 @@ def test_flag_off_never_runs_the_layer(tmp_path, pure_python, monkeypatch):
         m.setattr(L.NameIndex, "__init__", forbidden)
         execute_run(_args(a, 12, languages=False, narrator="mechanical"),
                     narrative_client=MechanicalClient())
+        m.setattr(L, "DEFAULT_ENABLED_FOR_NEW_WORLDS", False)
         execute_run(_args(b, 12, languages=None, narrator="mechanical"),
                     narrative_client=MechanicalClient())
     for name in sorted(p.name for p in a.iterdir()):

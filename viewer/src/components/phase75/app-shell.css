@@ -512,6 +512,37 @@
   opacity: 0.7;
 }
 
+.phase75-languages {
+  display: grid;
+  gap: 8px;
+}
+
+.phase75-link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--phase75-ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+
+.phase75-etymology {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--phase75-muted-strong);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.phase75-etymology-forms {
+  margin: 2px 0 0;
+  padding-left: 1rem;
+}
+
 .phase75-field {
   display: grid;
   gap: 6px;
