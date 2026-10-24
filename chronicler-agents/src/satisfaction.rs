@@ -9,7 +9,15 @@ const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
 // a tuning key: the Python `ecology.peak_yield` override never reached Rust and
 // was removed (deferred-backlog 2026-10).
 const PEAK_YIELD: f32 = 1.0;
-const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] Multiplies `(1.0 - food_sufficiency)` when food_sufficiency < 1.0, so the added penalty range is [0.0, 0.07].
+// [CALIBRATE] Multiplies `(1.0 - food_sufficiency)` when food_sufficiency < 1.0,
+// so the added penalty range is [0.0, 0.15]. Recalibration (2026-10, food
+// balance): M47c set 0.15 (halving the M42 0.30 so the uncapped penalty plus
+// the 0.40 social cap was not too harsh early on). The later cuts to 0.10,
+// 0.08 and 0.07 each cited recovering the regression satisfaction floor on
+// worlds that starved every turn and died (M53 baseline: agent extinction by
+// turn 77). With shortage an event again, those floor-recovery cuts are
+// undone; see docs/integration/food-balance-2026-10.md.
+const FOOD_SHORTAGE_WEIGHT: f32 = 0.15;
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] Multiplies `merchant_margin` in [0.0, 1.0], so the merchant-only base uplift range is [0.0, 0.3].
 const FOOD_SCARCITY_FARMER_BONUS: f32 = 0.36;  // [CALIBRATE] Added to farmer demand weight when food_sufficiency is critically low; larger values accelerate labor reallocation toward farming.
 
@@ -430,6 +438,23 @@ mod m37_tests {
             memory_score: 0.0,
             is_urban: false,
         }
+    }
+
+    #[test]
+    fn test_food_shortage_penalty_scales_with_the_shortfall() {
+        // Unclamped farmer: 0.4 + 0.8 * 0.3 + 0.6 * 0.2 = 0.76 with no
+        // stability or demand/supply terms.
+        let fed = SatisfactionInputs { civ_stability: 0, demand_supply_ratio: 0.0, ..m37_base_inputs() };
+        let full = compute_satisfaction_with_culture(&fed);
+        let half = compute_satisfaction_with_culture(&SatisfactionInputs { food_sufficiency: 0.5, ..fed });
+        let none = compute_satisfaction_with_culture(&SatisfactionInputs {
+            food_sufficiency: 0.0,
+            civ_stability: 0, demand_supply_ratio: 0.0, ..m37_base_inputs()
+        });
+        assert!((full - 0.76).abs() < 1e-5);
+        assert!((full - half - 0.5 * FOOD_SHORTAGE_WEIGHT).abs() < 1e-5);
+        assert!((full - none - FOOD_SHORTAGE_WEIGHT).abs() < 1e-5);
+        assert!((FOOD_SHORTAGE_WEIGHT - 0.15).abs() < f32::EPSILON);
     }
 
     #[test]

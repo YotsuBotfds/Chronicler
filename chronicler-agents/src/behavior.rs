@@ -311,6 +311,9 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
     let mut sat_sum = vec![0.0f32; n];
     let mut pop_count = vec![0usize; n];
     let mut occupation_supply = vec![[0usize; OCCUPATION_COUNT]; n];
+    // Agents the occupational balance covers: present idle agents plus the
+    // region's own merchants away on a trip (see below).
+    let mut occupational_pop = vec![0usize; n];
     // Per-region civ data: BTreeMap for deterministic iteration order (H-32 audit).
     let mut civ_data: Vec<BTreeMap<u8, (usize, f32)>> =
         (0..n).map(|_| BTreeMap::new()).collect();
@@ -319,15 +322,34 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         if !pool.is_alive(slot) {
             continue;
         }
+
+        // M58a: Skip non-idle merchants from ALL region aggregates, except
+        // the occupational balance of the region they set out from.
+        // Correction (2026-10, food balance): a merchant is Loading or in
+        // Transit from the turn it plans a trip until it arrives, which covers
+        // almost every decision phase of a trading merchant. Leaving them out
+        // of occupation supply made every trading region look short of
+        // merchants, so idle agents kept switching into trade while the
+        // travelling merchants could not switch out. Hybrid template regions
+        // ran at 44% merchants against a 4-10% target and 35% farmers against
+        // 66%. They still take no decisions and do not count towards the
+        // region's satisfaction, rebellion or civ aggregates.
+        if pool.is_on_trip(slot) {
+            let origin = pool.trip_origin_region[slot] as usize;
+            if origin < n {
+                let occ = pool.occupation(slot) as usize;
+                if occ < OCCUPATION_COUNT {
+                    occupation_supply[origin][occ] += 1;
+                }
+                occupational_pop[origin] += 1;
+            }
+            continue;
+        }
         let r = pool.region(slot) as usize;
         if r >= n {
             continue;
         }
-
-        // M58a: Skip non-idle merchants from ALL region aggregates
-        if pool.is_on_trip(slot) {
-            continue;
-        }
+        occupational_pop[r] += 1;
 
         let sat = pool.satisfaction(slot);
         let loy = pool.loyalty(slot);
@@ -380,7 +402,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
                 regions[r].food_sufficiency,
                 demand_shifts,
             );
-            let pop = pop_count[r] as f32;
+            let pop = occupational_pop[r] as f32;
             let mut demand = [0.0f32; OCCUPATION_COUNT];
             for i in 0..OCCUPATION_COUNT {
                 demand[i] = ratios[i] * pop;
@@ -896,6 +918,40 @@ mod tests {
             &std::collections::HashMap::new(),  // M57b: no household effect in unit tests
         );
         pd
+    }
+
+    #[test]
+    fn test_travelling_merchants_count_in_their_origin_occupational_balance() {
+        // Food-balance correction: Loading and Transit merchants belong to the
+        // occupational balance of the region they set out from, so idle agents
+        // do not keep switching into trade while traders are away.
+        use crate::agent::{TRIP_PHASE_LOADING, TRIP_PHASE_TRANSIT};
+        let mut pool = AgentPool::new(32);
+        let regions = vec![make_region(0), make_region(1)];
+        for _ in 0..6 {
+            pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        }
+        let merchants: Vec<usize> = (0..4)
+            .map(|_| pool.spawn(0, 0, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE))
+            .collect();
+        pool.trip_phase[merchants[0]] = TRIP_PHASE_LOADING;
+        pool.trip_origin_region[merchants[0]] = 0;
+        pool.trip_phase[merchants[1]] = TRIP_PHASE_TRANSIT;
+        pool.trip_origin_region[merchants[1]] = 0;
+        pool.regions[merchants[1]] = 1; // passing through region 1
+        let signals = default_signals(regions.len());
+        let stats = compute_region_stats(&pool, &regions, &signals);
+
+        let merchant = Occupation::Merchant as usize;
+        assert_eq!(stats.occupation_supply[0][merchant], 4);
+        assert_eq!(stats.occupation_supply[1][merchant], 0);
+        let r0 = &regions[0];
+        let ratios = target_occupation_ratio(r0.terrain, r0.soil, r0.water, r0.food_sufficiency, [0.0; 5]);
+        assert!((stats.occupation_demand[0][merchant] - ratios[merchant] * 10.0).abs() < 1e-5);
+        assert_eq!(stats.occupation_demand[1], [0.0; OCCUPATION_COUNT]);
+        // Other aggregates still cover only the agents present and idle.
+        assert_eq!(stats.civ_counts[0], vec![(0u8, 8usize)]);
+        assert!(stats.civ_counts[1].is_empty());
     }
 
     #[test]

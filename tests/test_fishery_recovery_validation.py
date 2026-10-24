@@ -52,7 +52,8 @@ def test_python_saved_stock_ratio_budget_and_goods_resume_across_rest_boundary(v
 
 def test_saved_disabled_memory_is_ignored_then_removed_slot_resets(tmp_path):
     from chronicler.experimental.fisheries import apply_fishery_feedback, catch_budget
-    from chronicler.models import Region, WorldState
+    from chronicler.ecology import goods_per_worker
+    from chronicler.models import Region, ResourceType, WorldState
 
     world = WorldState(name="Reset fixture", seed=42, regions=[Region(
         name="Coast", terrain="coast", carrying_capacity=1000, population=100,
@@ -70,7 +71,8 @@ def test_saved_disabled_memory_is_ignored_then_removed_slot_resets(tmp_path):
     assert loaded.model_dump() == before
     assert catch_budget(loaded, loaded.regions[0]) is None
     loaded.fishery_experiment.enabled = True
-    assert catch_budget(loaded, loaded.regions[0]) == 40
+    # The saved catch credit, in goods units.
+    assert catch_budget(loaded, loaded.regions[0]) == pytest.approx(goods_per_worker(ResourceType.FISH, 40))
     loaded.regions[0].resource_types[0] = 0
     apply_fishery_feedback(loaded, yields)
     assert loaded.regions[0].fishery_stocks == [1, 1, 1]

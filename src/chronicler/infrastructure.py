@@ -140,8 +140,24 @@ def valid_build_types(
             continue
         if spec.terrain_exclude and region.terrain == spec.terrain_exclude:
             continue
+        if itype == IType.MINES and not _has_mineral_slot(region):
+            continue
         result.append(itype)
     return result
+
+
+def _has_mineral_slot(region) -> bool:
+    """Mines are worth digging only where there is ore or precious metal.
+
+    Correction (2026-10, food balance): mines were valid in every region, so
+    trait build priorities put one on almost every region by mid-game, grain
+    plains included. A mine costs its region 0.03 soil per turn and yields
+    nothing without a mineral resource (M15 intended mines to target mineral
+    regions). Existing mines are untouched.
+    """
+    from chronicler.models import MINERAL_TYPES
+
+    return any(rtype in MINERAL_TYPES for rtype in region.resource_types)
 
 
 def tick_infrastructure(world: WorldState) -> list:

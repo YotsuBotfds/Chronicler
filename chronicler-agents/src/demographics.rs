@@ -12,8 +12,20 @@ const CROWDING_STRESS_CAP: f32 = 0.60;
 // at 2.5x lets regions settle near 2x capacity, where the satisfaction
 // overcrowding penalty saturates; births now taper from capacity and stop at
 // 1.6x, so crowding binds before misery does.
-const FERTILITY_CROWDING_SOFT_START: f32 = 1.00;
-const FERTILITY_CROWDING_ZERO: f32 = 1.60;
+//
+// Correction (2026-10, food balance): the 1.0-1.6x band was chosen while the
+// ecology still read a population that Python's aggregate overflow migration
+// had clamped towards effective capacity, so its interaction with the soil
+// model was invisible. The ecology degrades soil whenever a region holds more
+// people than its undegraded (potential) capacity and lets it recover only
+// below 0.75x (`soil_recovery_pop_ratio`). A brake that only starts at 1.0x
+// parks every region in the degradation band; with real populations visible,
+// grain plains fell to soil 0.65 within 200 turns and kept falling. Births now
+// taper from the recovery ratio and stop at potential capacity, the band in
+// which the land neither degrades nor needs to recover. Mortality crowding
+// stress is unchanged (it starts at 1.0x).
+const FERTILITY_CROWDING_SOFT_START: f32 = 0.75;
+const FERTILITY_CROWDING_ZERO: f32 = 1.00;
 const FERTILITY_SATISFACTION_RAMP: f32 = 0.10;
 
 #[inline]
@@ -82,8 +94,11 @@ pub fn mortality_rate(age: u16, eco_stress: f32, is_soldier_at_war: bool, diseas
 /// Fertility with age taper: full rate through midlife, then a gradual decline.
 /// Replaces hard cutoff at FERTILITY_AGE_MAX which caused entire cohorts to drop out
 /// of the breeding pool simultaneously, creating generational handoff failures.
+/// Uncrowded: no carrying-capacity pressure (the crowding brake starts below
+/// capacity since the 2026-10 food-balance correction, so "at capacity" is no
+/// longer the neutral pressure).
 pub fn fertility_rate(age: u16, satisfaction: f32, occupation: u8, soil: f32, water: f32) -> f32 {
-    fertility_rate_with_pressure(age, satisfaction, occupation, soil, water, 1.0)
+    fertility_rate_with_pressure(age, satisfaction, occupation, soil, water, 0.0)
 }
 
 /// Fertility rate adjusted for carrying-capacity pressure in the current region.
@@ -195,9 +210,10 @@ mod tests {
 
     #[test]
     fn test_fertility_satisfaction_gate_ramps_smoothly() {
-        let low = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.11, 0, 1.0, 1.0, 1.0);
-        let mid = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.05, 0, 1.0, 1.0, 1.0);
-        let high = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD + 0.01, 0, 1.0, 1.0, 1.0);
+        // Uncrowded (pressure 0.0): the crowding brake does not mask the gate.
+        let low = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.11, 0, 1.0, 1.0, 0.0);
+        let mid = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD - 0.05, 0, 1.0, 1.0, 0.0);
+        let high = fertility_rate_with_pressure(30, FERTILITY_SATISFACTION_THRESHOLD + 0.01, 0, 1.0, 1.0, 0.0);
 
         assert_eq!(low, 0.0);
         assert!(mid > 0.0 && mid < high);
@@ -309,16 +325,18 @@ mod tests {
 
     #[test]
     fn test_fertility_crowding_soft_start_preserves_baseline() {
-        let crowded = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 0.95);
+        let crowded = fertility_rate_with_pressure(
+            25, 0.6, 0, 0.8, 0.8, FERTILITY_CROWDING_SOFT_START - 0.05,
+        );
         let baseline = fertility_rate(25, 0.6, 0, 0.8, 0.8);
         assert!((crowded - baseline).abs() < 0.001);
     }
 
     #[test]
     fn test_fertility_crowding_strongly_suppresses_births() {
-        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 1.4);
+        let rate = fertility_rate_with_pressure(25, 0.6, 0, 0.8, 0.8, 0.9);
         let full = FERTILITY_BASE_FARMER * 0.9;
-        let crowding_mult = (FERTILITY_CROWDING_ZERO - 1.4)
+        let crowding_mult = (FERTILITY_CROWDING_ZERO - 0.9)
             / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START);
         assert!(crowding_mult > 0.0 && crowding_mult < 0.5);
         assert!((rate - full * crowding_mult).abs() < 0.001);
