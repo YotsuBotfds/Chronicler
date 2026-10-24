@@ -661,7 +661,10 @@ class TestBundleSize:
         bundle_path = tmp_path / "chronicle_bundle.json"
         size_mb = bundle_path.stat().st_size / (1024 * 1024)
         # M41 added wealth column (~8MB for 500 turns). Bundle optimization deferred.
-        assert size_mb < 35, f"Bundle is {size_mb:.2f}MB, expected < 35MB"
+        # Techniques (default on since docs/integration/techniques-default.md) add
+        # ~3MB: per-turn practice history (mostly the viewer's per-region field)
+        # and the events of a world whose eras move (33.7MB off, 36.6MB on).
+        assert size_mb < 40, f"Bundle is {size_mb:.2f}MB, expected < 40MB"
 
 
 # ---------------------------------------------------------------------------
