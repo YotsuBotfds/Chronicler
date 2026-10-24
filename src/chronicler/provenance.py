@@ -225,7 +225,7 @@ def _wars_of(world: "WorldState", civ_name: str) -> list[str]:
 
 
 def _famines_of(world: "WorldState", civ_name: str, limit: int = 2) -> list[str]:
-    """Open famine onsets in the civ's regions, most recent first."""
+    """Latest reports of the open famines in the civ's regions, newest episode first."""
     eps = []
     for rname in _regions_of(world, civ_name):
         ep = world.provenance.episodes.get(episode_key("famine", rname))
@@ -276,7 +276,7 @@ def _rule_famine(world: "WorldState", ev: Event) -> list:
             recall(world, key("disaster", region), within=5),
             open_episode(world, "soil_exhaustion", region),
             open_episode(world, "supply_shock", region, "food"),
-            recall(world, key("siege", region)),
+            recall(world, key("siege", region), within=20),
             recall(world, key("occupation", region)),
             recall(world, key("pandemic", region), within=10),
         ]
@@ -409,7 +409,7 @@ def _rule_region_war(world: "WorldState", ev: Event) -> list:
     region = event_region(ev)
     if region is None:
         return _rule_war_end(world, ev)
-    return [recall(world, key("siege", region)), recall(world, key("battle", region), within=0)]
+    return [recall(world, key("siege", region), within=20), recall(world, key("battle", region), within=0)]
 
 
 def _rule_occupation_end(world: "WorldState", ev: Event) -> list:
@@ -478,7 +478,7 @@ def _rule_supply_shock(world: "WorldState", ev: Event) -> list:
     out: list[str | None] = []
     if region is not None:
         out += [recall(world, key("disaster", region), within=5),
-                recall(world, key("siege", region)),
+                recall(world, key("siege", region), within=20),
                 recall(world, key("occupation", region))]
     if civ is not None:
         out.append(recall(world, key("drought", civ), within=5))
@@ -564,8 +564,6 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "capital_loss": lambda w, ev: [recall(w, key("capital_taken", c), within=0)
                                    for c in event_civs(w, ev)[:1]],
     "move_capital": _rule_by_key("capital_loss", within=5),
-    "mercenary_spawned": lambda w, ev: [recall(w, key("peace_civ", c), within=10)
-                                        for c in event_civs(w, ev)[:1]],
     "temple_destroyed": _rule_civ_war,
     "scorched_earth": _rule_civ_war,
     # Disease and disaster
@@ -695,8 +693,6 @@ def _register(world: "WorldState", ev: Event) -> None:
     elif etype in _WAR_END_TYPES and len(civs) >= 2:
         keys.pop(war_key(civs[0], civs[1]), None)
         keys["peace:" + pair(civs[0], civs[1])] = eid
-        for civ in civs[:2]:
-            keys[key("peace_civ", civ)] = eid
     elif etype == "siege_begun" and region is not None:
         keys[key("siege", region)] = eid
     elif etype == "occupation" and region is not None:
@@ -874,7 +870,8 @@ def _observe_conditions(world: "WorldState", ids: TurnIds) -> None:
             continue
         cond.condition_id = _next_id(ids, "condition." + cond.condition_type)
         cond.onset_turn = ids.turn
-        source = CONDITION_SOURCES.get(cond.condition_type, cond.condition_type)
+        source = CONDITION_SOURCES.get(cond.condition_type) or (
+            "leader_death" if cond.condition_type.endswith("_legacy") else cond.condition_type)
         cond.cause_id = ids.last_by_type.get(source)
         conds[cond.condition_id] = OpenCondition(
             condition_type=cond.condition_type, affected_civs=list(cond.affected_civs),
