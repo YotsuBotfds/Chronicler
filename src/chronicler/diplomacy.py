@@ -1545,6 +1545,30 @@ def _persecution_inputs(world) -> None:
                               GRIEVANCE_PERSECUTED_PEOPLE * intensity)
 
 
+def _lift_embargoes(world) -> list[Event]:
+    """An imposer that has come to regard its target as a friend lifts the
+    embargo (embargoes are otherwise permanent). Lifting reopens the route
+    and stops the target's embargo grievance from accruing."""
+    lifted: list[Event] = []
+    keep = []
+    friendly = _ORDER.index(Disposition.FRIENDLY)
+    for imposer, target in world.embargoes:
+        a, b = world.civ_map.get(imposer), world.civ_map.get(target)
+        if (a is not None and b is not None and a.regions and b.regions
+                and _disp(world, imposer, target) >= friendly):
+            _bump(world.diplomacy, "lifted:embargo")
+            lifted.append(_emit_now(world, Event(
+                turn=world.turn, event_type="embargo_lifted", actors=[imposer, target],
+                description=f"{imposer} lifts its embargo on {target}.", importance=3,
+            ), (prov.recall(world, "embargo:" + prov.pair(imposer, target)),)))
+            continue
+        keep.append((imposer, target))
+    if lifted:
+        world.embargoes = keep
+        world.invalidate_trade_route_cache()
+    return lifted
+
+
 def _embargo_inputs(world) -> None:
     for imposer, target in world.embargoes:
         a, b = world.civ_map.get(imposer), world.civ_map.get(target)
@@ -1741,9 +1765,10 @@ def tick_diplomacy(world, turn_events: list[Event], acc=None) -> list[Event]:
     _war_inputs(world)
     _event_inputs(world, turn_events)
     _persecution_inputs(world)
+    events = _lift_embargoes(world)
     _embargo_inputs(world)
     _goodwill_inputs(world)
-    events = _treaty_upkeep(world, acc)
+    events += _treaty_upkeep(world, acc)
     events += _ladder_tick(world, turn_events, acc)
     events += _aid_convoys(world, turn_events, acc)
     _apply_dispositions(world)

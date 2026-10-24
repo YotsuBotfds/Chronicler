@@ -269,6 +269,20 @@ def test_embargo_respects_pacts_unless_breaking_pays(monkeypatch):
     assert dp.memory(world, "B", "A").grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_IMPOSED
 
 
+def test_an_embargo_is_lifted_once_the_imposer_regards_the_target_as_a_friend():
+    world = _three()
+    world.embargoes = [("A", "C"), ("B", "C")]
+    world.relationships["A"]["C"].disposition = Disposition.FRIENDLY
+    world.relationships["B"]["C"].disposition = Disposition.SUSPICIOUS
+    world.turn = 1
+    events = dp.tick_diplomacy(world, [])
+    assert world.embargoes == [("B", "C")]
+    assert [e.event_type for e in events] == ["embargo_lifted"] and events[0].actors == ["A", "C"]
+    assert dp.memory(world, "C", "B").grievance[EMBARGO] == dp.GRIEVANCE_EMBARGO_TURN
+    # No grievance accrues for a lifted embargo, and the reopened route earns goodwill.
+    assert dp.grievance(world, "C", "A", (EMBARGO,)) == 0.0 and dp.goodwill(world, "C", "A") > 0
+
+
 def test_trade_pact_keeps_a_route_open_between_suspicious_partners():
     from chronicler.resources import _compute_active_trade_routes
     world = _three()
