@@ -190,10 +190,15 @@ AGGRESSIVE_TRAITS = frozenset({"aggressive", "bold", "zealous", "ambitious"})
 CLIENT_TRIBUTE_RATE = 0.05
 UNION_TRIBUTE_RATE = 0.25
 LADDER_MIN_TURNS = {"client": 15, "vassal": 20, "union": 20}
-LADDER_FAST_TURNS = {"client": 6, "vassal": 8, "union": 6}   # an unviable subject
+#: A subject on the fast track (structurally unviable, or down to one region:
+#: the states the old paths absorb outright) needs only these turns per
+#: stage, no integration and an overlord merely stronger than itself, so it
+#: is annexed on about the old tributary's 30-turn timescale.
+LADDER_FAST_TURNS = {"client": 6, "vassal": 8, "union": 6}
+FAST_POWER_RATIO = 1.0
 UNION_MIN_INTEGRATION = 20.0
 ANNEX_MIN_INTEGRATION = 40.0
-FAST_MIN_INTEGRATION = 10.0
+FAST_MIN_INTEGRATION = 0.0
 ANNEX_MAX_REGIONS = 3
 PROMOTE_POWER_RATIO = 1.5
 # Stability thresholds are set against living hybrid worlds, where civ
@@ -205,7 +210,7 @@ ANNEX_MIN_STABILITY = 22
 CLIENT_MIN_OVERLORD_STABILITY = 20
 LADDER_COOLDOWN = 5
 WEAK_STABILITY = 20
-WEAK_POWER_RATIO = 1.0
+WEAK_POWER_RATIO = 0.75
 WEAK_DEFEAT_TURNS = 10
 LOOSEN_CHANCE = {"client": 0.10, "vassal": 0.12, "union": 0.15}
 CROWN_KEEP_INTEGRATION = 40.0
@@ -1284,17 +1289,26 @@ def _ladder_event(world, event_type: str, actors: list[str], description: str, v
     return event
 
 
+def fast_track(world, vassal: "Civilization") -> bool:
+    """A subject the old paths would have absorbed outright: structurally
+    unviable (the twilight step), or reduced to a single region (terminal
+    decline, a conquest or capitulation spared as a vassal, a city-state
+    under protection)."""
+    from chronicler.politics import TWILIGHT_UNVIABLE_STREAK
+    return vassal.unviable_turns >= TWILIGHT_UNVIABLE_STREAK or len(vassal.regions) == 1
+
+
 def _maybe_advance(world, vr: VassalRelation, overlord, vassal, acc=None) -> Event | None:
     state = world.diplomacy
     oi, vi = _idx(world, overlord.name), _idx(world, vassal.name)
     if _on_cooldown(state, oi, vi, "ladder", world.turn):
         return None
     turns = world.turn - (vr.stage_turn if vr.stage_turn is not None else world.turn)
-    from chronicler.politics import TWILIGHT_ABSORPTION_SPACING, TWILIGHT_UNVIABLE_STREAK
-    unviable = vassal.unviable_turns >= TWILIGHT_UNVIABLE_STREAK
+    from chronicler.politics import TWILIGHT_ABSORPTION_SPACING
+    unviable = fast_track(world, vassal)
     need = (LADDER_FAST_TURNS if unviable else LADDER_MIN_TURNS)[vr.stage]
     ratio = power(overlord) / power(vassal)
-    if turns < need or ratio < PROMOTE_POWER_RATIO:
+    if turns < need or ratio < (FAST_POWER_RATIO if unviable else PROMOTE_POWER_RATIO):
         return None
     g = grievance(world, vassal.name, overlord.name)
     tr = trust(world, vassal.name, overlord.name)
@@ -1387,8 +1401,8 @@ def _maybe_loosen(world, vr: VassalRelation, overlord, vassal, weakness: str, ca
     new_stage = "vassal" if stage == "union" else "client"
     _set_stage(world, vr, overlord, vassal, new_stage)
     if stage == "union":
-        text = (f"The crowns of {overlord.name}, {why}, and {vassal.name} part; "
-                f"{vassal.name} remains a vassal")
+        text = (f"{vassal.name} takes back its crown from {overlord.name}, {why}, "
+                f"and remains a vassal")
     else:
         text = f"{vassal.name} wins autonomy from {overlord.name}, {why}, and becomes a client"
     event = _ladder_event(world, "vassal_loosened", [vassal.name, overlord.name], text, vassal.name, causes)

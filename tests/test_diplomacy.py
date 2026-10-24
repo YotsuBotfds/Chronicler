@@ -463,7 +463,8 @@ def test_a_revolt_by_the_rust_politics_pass_is_remembered():
     rebellion = Event(turn=1, event_type="vassal_rebellion", actors=["C", "A"], description="")
     world.turn = 1
     dp.tick_diplomacy(world, [rebellion])
-    assert world.diplomacy.counts["revolt:vassal"] == 1
+    revolts = {k: v for k, v in world.diplomacy.counts.items() if k.startswith("revolt:")}
+    assert sum(revolts.values()) == 1  # keyed by the stage it reached before revolting
     assert dp.memory(world, "A", "C").grievance[TREATY] == dp.GRIEVANCE_REVOLT
     assert dp.trust(world, "A", "C") == dp.TRUST_REVOLT
 
