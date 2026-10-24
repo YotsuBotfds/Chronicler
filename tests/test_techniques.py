@@ -237,10 +237,28 @@ def test_depopulation_loses_techniques_and_regresses_the_era_with_causes():
     assert all(plague.event_id in e.causes for e in lost), "losses cite the disease that thinned the people"
     regress = [e for e in events if e.event_type == "tech_regression"]
     assert len(regress) == 1 and world.civilizations[0].tech_era == TechEra.TRIBAL
-    assert set(regress[0].causes) <= {e.event_id for e in lost} and regress[0].causes
+    earlier_losses = {e.event_id for e in lost if e.turn <= regress[0].turn}
+    assert earlier_losses and set(regress[0].causes) == earlier_losses | {plague.event_id}
     assert world.civilizations[0].military == military - 10, "the bronze era bonus is removed"
     assert world.techniques.counts["era_down"] == 1
     assert world.techniques.counts["lost:decay"] == len(lost)
+
+
+def test_untaught_new_land_does_not_undo_an_era_but_losing_the_core_does():
+    world = _bronze_civ(pop=80)
+    gamma = make_region("Gamma", "X", 1500)
+    gamma.resource_types = [5, 255, 255]
+    world.regions.append(gamma)
+    world.civilizations[0].regions.append("Gamma")
+    world.invalidate_region_map()
+    _tick(world, 6)
+    levels = dict(world.techniques.civ_levels[0])
+    assert max(levels.values()) < T.KEEP_PRACTISED, "the civ-wide mean is diluted"
+    assert world.civilizations[0].tech_era == TechEra.BRONZE, "the capital still practises"
+    world.civilizations[0].capital_region = "Gamma"  # the seat of learning is gone
+    events = _tick(world, T.ERA_GRACE)
+    assert [e.event_type for e in events].count("tech_regression") == 1
+    assert world.civilizations[0].tech_era == TechEra.TRIBAL
 
 
 def test_losing_the_land_loses_its_techniques():

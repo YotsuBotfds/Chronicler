@@ -665,10 +665,20 @@ def _tier_count(tier: int, known: set[int], levels: dict[int, float], threshold:
     return sum(1 for k in _BY_TIER.get(tier, ()) if k in known and levels.get(k, 0.0) >= threshold)
 
 
-def derived_era_step(era_idx: int, known: set[int], levels: dict[int, float]) -> int:
-    """-1, 0 or +1: the era change the technique mix calls for (one step per turn)."""
+def derived_era_step(era_idx: int, known: set[int], levels: dict[int, float],
+                     core: dict[int, float] | None = None) -> int:
+    """-1, 0 or +1: the era change the technique mix calls for (one step per turn).
+
+    A new era needs its tier practised broadly (``levels``: population-weighted
+    over the civ's suitable regions). An era is kept while each tier up to it
+    is still practised to the quorum either broadly or in the civ's core
+    (``core``: its capital), so newly held, untaught land does not undo it;
+    losing the capital's practitioners or a decline everywhere does.
+    """
+    keep = levels if core is None else {k: max(levels.get(k, 0.0), core.get(k, 0.0))
+                                        for k in set(levels) | set(core)}
     for tier in range(1, era_idx + 1):
-        if _tier_count(tier, known, levels, KEEP_PRACTISED) < ERA_QUORUM[tier]:
+        if _tier_count(tier, known, keep, KEEP_PRACTISED) < ERA_QUORUM[tier]:
             return -1
     if era_idx < MAX_TIER and _tier_count(era_idx + 1, known, levels, PRACTISED) >= ERA_QUORUM[era_idx + 1]:
         return 1
@@ -743,6 +753,11 @@ def _regress(world, civ_i: int, civ, known: set[int], acc, events: list) -> None
             if k not in known:
                 causes.append(prov.recall(world, prov.key("technique_lost", civ.name, TECHNIQUES[k].key),
                                           within=60))
+    # The conditions that thinned the practitioners: disease, hunger,
+    # occupation and disaster in its regions, collapse, and a lost capital.
+    causes += _decay_causes(world, civ.name, list(civ.regions))
+    causes += [prov.recall(world, prov.key("capital_taken", civ.name), within=20),
+               prov.recall(world, prov.key("capital_loss", civ.name), within=20)]
     events.append(Event(
         turn=world.turn, event_type="tech_regression", actors=[civ.name],
         description=f"{civ.name} loses the knowledge of the {old_era.value} era, falling back to {new_era.value}",
@@ -751,14 +766,20 @@ def _regress(world, civ_i: int, civ, known: set[int], acc, events: list) -> None
 
 
 def _derive_eras(world, st: TechniqueState, ctrl: list[int], known_now: list[set[int]],
-                 levels: list[dict[int, float]], acc, events: list) -> None:
+                 levels: list[dict[int, float]], practice: dict, suit, acc, events: list) -> None:
     from chronicler.tech import _era_index
     strain = list(st.era_strain) + [0] * max(0, len(world.civilizations) - len(st.era_strain))
     for ci, civ in enumerate(world.civilizations):
         if not civ.regions or ci >= len(known_now) or not any(c == ci for c in ctrl):
             strain[ci] = 0
             continue
-        step = derived_era_step(_era_index(civ.tech_era), known_now[ci], levels[ci])
+        core: dict[int, float] = {}
+        regions = world.regions
+        for r, region in enumerate(regions):
+            if region.name == civ.capital_region and ctrl[r] == ci and region.population > 0:
+                core = {k: practice.get((r, k), 0.0) for k in range(_K) if suit[r][k]}
+                break
+        step = derived_era_step(_era_index(civ.tech_era), known_now[ci], levels[ci], core)
         if step > 0:
             strain[ci] = 0
             _advance(world, ci, civ, known_now[ci], acc, events)
@@ -851,7 +872,7 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
         if members_of[ci] else {}
         for ci in range(len(world.civilizations))
     ]
-    _derive_eras(world, st, ctrl, known_now, levels, acc, events)
+    _derive_eras(world, st, ctrl, known_now, levels, practice, suit, acc, events)
     st.rows = [(r, k, practice[(r, k)], *meta[(r, k)]) for (r, k) in sorted(practice)]
     st.known = [sorted(s) for s in known_now]
     st.controllers = list(ctrl)
