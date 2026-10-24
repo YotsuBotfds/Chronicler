@@ -27,10 +27,13 @@ This layer adds what the peoples call things, as a gloss.
   to every word of the language, roots and names alike, and is recorded,
   so every name keeps its history of forms.
 * **Splits.** A seceding civ speaks a daughter of its regions' language. A
-  province cut off from its capital (no path through the civ's own land
-  and little contact-ledger flow) for 40 turns grows its own dialect. A
-  daughter starts from its parent's words and changes on its own; a change
-  can still spread between related languages in contact (wave model).
+  province cut off from its people's state for 40 turns grows its own
+  dialect: an exclave with no path to the capital through the civ's own
+  land, or a conquered province that keeps the language of a people still
+  ruling elsewhere, unless contact-ledger flow with the home land is
+  strong. A daughter starts from its parent's words and changes on its
+  own; a change can still spread between related languages in contact
+  (wave model).
 * **Contact.** The contact ledger's goods, migrant, soldier and pilgrim
   flows between civs (shared borders without the ledger) bring loanwords
   (trade, everyday, war and religious words) adapted to the borrower's
@@ -791,6 +794,34 @@ def _track_regions(ctx: _Turn) -> None:
             rec.speech.append([ctx.t, target])
             rec.story.append([ctx.t, kind, target])
             _count(st, f"speech:{kind}")
+            if kind == "shift":
+                _keep_substrate(ctx, ri, cur, target)
+
+
+def _origin(ctx: _Turn, word: Word) -> Word:
+    """The word a loan, calque, substrate or inherited name goes back to."""
+    words = ctx.st.words
+    for _ in range(16):
+        if word.source is None:
+            break
+        word = words[word.source]
+    return word
+
+
+def _keep_substrate(ctx: _Turn, ri: int, old: int, new: int) -> None:
+    """A people that shifts language keeps its place name, adapted to the new
+    language, unless that language's name already goes back to it."""
+    local = ctx.slot.name(old, "region", ri)
+    if local is None:
+        return
+    mine = ctx.slot.name(new, "region", ri)
+    if mine is not None:
+        if _origin(ctx, mine).word_id == _origin(ctx, local).word_id:
+            return
+        ctx.slot.retire(mine, ctx.t)   # the conqueror's own name gives way
+    _add_word(ctx, new, "region", ri, "substrate",
+              adapt(local.form, ctx.lang(new).phonology, max_syllables=LOAN_SYLLABLES),
+              source=local.word_id)
 
 
 def _ledger_edges(world: "WorldState") -> list:
@@ -799,19 +830,26 @@ def _ledger_edges(world: "WorldState") -> list:
 
 
 def _separation(ctx: _Turn) -> None:
-    """A province cut off from its civ's capital for long grows its own dialect."""
+    """A province cut off from its people's state for long grows its own dialect.
+
+    Cut off: a province of a civ that speaks the civ's language but has no
+    path to the capital through the civ's own land (an exclave), or a
+    conquered province that keeps the language of a people who still rule
+    land elsewhere. Strong contact-ledger flow with the home land keeps it
+    in the fold.
+    """
     st, world = ctx.st, ctx.world
-    cut_now: set[int] = set()
     owned: dict[int, list[int]] = {}
     for ri, ctrl in enumerate(ctx.controller):
         if ctrl is not None:
             owned.setdefault(ctrl, []).append(ri)
-    edges = None
+    groups: list[tuple[int, list[int], set[int]]] = []   # (language, cut off, home land)
     for civ_i in sorted(owned):
         regions = owned[civ_i]
         civ = world.civilizations[civ_i]
+        lid = ctx.lang_of(civ_i)
         cap = ctx.region_index.get(civ.capital_region) if civ.capital_region else None
-        if len(regions) < 2 or cap is None or ctx.controller[cap] != civ_i:
+        if lid is None or len(regions) < 2 or cap is None or ctx.controller[cap] != civ_i:
             continue
         own = set(regions)
         reached = {cap}
@@ -824,29 +862,37 @@ def _separation(ctx: _Turn) -> None:
                         reached.add(a)
                         nxt.append(a)
             frontier = nxt
-        cut = sorted(own - reached)
-        if not cut:
-            continue
-        if edges is None:
-            edges = _ledger_edges(world)
+        cut = [ri for ri in sorted(own - reached) if ctx.speech(ri) == lid]
+        if cut:
+            groups.append((lid, cut, reached))
+    homes: dict[int, set[int]] = {}
+    for civ_i, regions in owned.items():
+        lid = ctx.lang_of(civ_i)
+        if lid is not None:
+            homes.setdefault(lid, set()).update(regions)
+    foreign: dict[int, list[int]] = {}
+    for ri, ctrl in enumerate(ctx.controller):
+        local = ctx.speech(ri)
+        if ctrl is not None and local is not None and local != ctx.lang_of(ctrl) and local in homes:
+            foreign.setdefault(local, []).append(ri)
+    for lid in sorted(foreign):
+        groups.append((lid, foreign[lid], homes[lid]))
+    edges = _ledger_edges(world) if groups else []
+    cut_now: set[int] = set()
+    for lid, cut, home in groups:
         cut_set = set(cut)
         contact = 0.0
         for src, dst, *flows in edges:
-            if (src in cut_set and dst in reached) or (dst in cut_set and src in reached):
+            if (src in cut_set and dst in home) or (dst in cut_set and src in home):
                 contact += sum(w * v for w, v in zip(CONTACT_WEIGHTS, flows))
-        lid = ctx.lang_of(civ_i)
         for ri in cut:
-            rec = st.regions[ri]
-            if lid is None or ctx.speech(ri) != lid:
-                continue  # only a province speaking its civ's language counts as cut off
             cut_now.add(ri)
-            if rec.cut_since is None:
-                rec.cut_since = ctx.t
-        if contact >= SEPARATION_CONTACT or lid is None or len(st.languages) >= MAX_LANGUAGES:
+            if st.regions[ri].cut_since is None:
+                st.regions[ri].cut_since = ctx.t
+        if contact >= SEPARATION_CONTACT or len(st.languages) >= MAX_LANGUAGES:
             continue
-        # One dialect per connected group of long cut-off regions that still speak lid.
-        ready = [ri for ri in cut if ri in cut_now
-                 and ctx.t - st.regions[ri].cut_since >= SEPARATION_TURNS]
+        # One dialect per connected group of regions cut off long enough.
+        ready = [ri for ri in cut if ctx.t - st.regions[ri].cut_since >= SEPARATION_TURNS]
         done: set[int] = set()
         for ri in ready:
             if ri in done:
@@ -868,6 +914,7 @@ def _separation(ctx: _Turn) -> None:
                 rec = st.regions[r]
                 rec.speech.append([ctx.t, dialect.lang_id])
                 rec.story.append([ctx.t, "dialect", dialect.lang_id])
+                rec.cut_since = None
     for ri, rec in enumerate(st.regions):
         if ri not in cut_now:
             rec.cut_since = None

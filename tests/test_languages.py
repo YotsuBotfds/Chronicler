@@ -243,6 +243,31 @@ def test_conquest_leaves_a_substrate_name_that_becomes_local_after_a_shift(make_
     assert index.views("region", 0, 0)["lang"] == la   # names are read as of a turn
 
 
+def test_a_shift_replaces_the_conquerors_own_name_with_the_local_one(make_civ):
+    w = _world(make_civ)
+    _end(w)   # Amber Valley is empty: the Dorrathi next door coin a name of their own
+    la, lb = _lang_of(w, 0), _lang_of(w, 1)
+    own_b = _name(w, lb, "region", 2)
+    assert own_b.how == "native"
+    w.civilizations[0].regions.append("Amber Valley")
+    w.regions[2].controller = w.regions[2].cultural_identity = "Kethani Empire"
+    _end(w)
+    local = _name(w, la, "region", 2)
+    w.civilizations[0].regions.remove("Amber Valley")
+    w.civilizations[1].regions.append("Amber Valley")
+    w.regions[2].controller = "Dorrathi Clans"
+    _end(w)
+    assert _name(w, lb, "region", 2).word_id == own_b.word_id   # the court keeps its own name
+    w.regions[2].cultural_identity = "Dorrathi Clans"
+    _end(w)
+    sub = _name(w, lb, "region", 2)
+    assert sub.how == "substrate" and sub.source == local.word_id and sub.turn == 3
+    assert own_b.until == 3
+    index = L.NameIndex(L.export(w))
+    assert index.name("region", 2, lb, 2)[1]["id"] == own_b.word_id   # read as of turn 2
+    assert index.name("region", 2, lb, 3)[1]["id"] == sub.word_id
+
+
 def test_a_cut_off_province_grows_a_dialect(make_civ, monkeypatch):
     monkeypatch.setattr(L, "SEPARATION_TURNS", 3)
     w = _world(make_civ, styles=("maritime", "mountain", "forest"))
@@ -264,6 +289,27 @@ def test_a_cut_off_province_grows_a_dialect(make_civ, monkeypatch):
     w.regions[3].controller = "Free Thornwood"
     _end(w)
     assert _lang_of(w, 3) == dialect.lang_id
+
+
+def test_a_conquered_province_that_keeps_its_language_grows_a_dialect(make_civ, monkeypatch):
+    monkeypatch.setattr(L, "SEPARATION_TURNS", 3)
+    w = _world(make_civ)
+    w.civilizations[0].regions.append("Amber Valley")
+    w.regions[2].controller = w.regions[2].cultural_identity = "Kethani Empire"
+    _end(w)
+    la = _lang_of(w, 0)
+    # The Dorrathi take Amber Valley; its people keep speaking Kethani.
+    w.civilizations[0].regions.remove("Amber Valley")
+    w.civilizations[1].regions.append("Amber Valley")
+    w.regions[2].controller = "Dorrathi Clans"
+    _end(w, 3)
+    assert _st(w).regions[2].speech[-1][1] == la
+    _end(w)
+    dialect = _st(w).languages[_st(w).regions[2].speech[-1][1]]
+    assert dialect.origin == "separation" and dialect.parent == la
+    assert dialect.name == "Amber Valley Kethani"
+    _end(w, 5)   # it branches once
+    assert sum(x.origin == "separation" for x in _st(w).languages) == 1
 
 
 def test_contact_brings_loanwords_and_exonyms(make_civ, monkeypatch):
