@@ -78,6 +78,12 @@ impl ShadowLedger {
         }
     }
 
+    /// Seize: in-transit cargo taken by raiders (`LossReason::Raid`). It left
+    /// its origin (the departure debit stands) and never arrives anywhere.
+    pub fn seize(&mut self, origin: usize, slot: usize, qty: f32) {
+        self.in_transit_out[origin][slot] = (self.in_transit_out[origin][slot] - qty).max(0.0);
+    }
+
     /// Unwind: return in-transit cargo to origin (disruption).
     pub fn unwind(&mut self, origin: usize, slot: usize, qty: f32, delivery_buf: Option<&mut DeliveryBuffer>) {
         self.in_transit_out[origin][slot] = (self.in_transit_out[origin][slot] - qty).max(0.0);
@@ -187,14 +193,30 @@ impl DeliveryBuffer {
     }
 }
 
-/// Loss reason discriminant for future loss tracking (M58b: only transit_decay active).
+/// Loss reason discriminant for loss tracking. `TransitDecay` is applied by
+/// the economy kernel; `Raid` by the maritime sea-lane raids below (only when
+/// the route graph carries raid risks).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum LossReason {
     TransitDecay = 0,
-    Raid = 1,        // dormant — M58b+
+    Raid = 1,        // maritime: cargo seized on a sea lane
     Disruption = 2,  // dormant — M58b+
     Spoilage = 3,    // dormant — M58b+
+}
+
+/// Maritime: one merchant hop across a sea lane this tick (the sea-trade
+/// measurement), and whether raiders seized the cargo on it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SeaCrossing {
+    pub from_region: u16,
+    pub to_region: u16,
+    pub origin_region: u16,
+    pub dest_region: u16,
+    pub good_slot: u8,
+    pub qty: f32,
+    /// `Some(LossReason::Raid)` when the cargo was seized.
+    pub loss: Option<LossReason>,
 }
 
 /// Per-turn diagnostics collected during the merchant mobility phase.
@@ -213,6 +235,9 @@ pub struct MerchantTripStats {
     pub plans_packet_driven: u32,
     pub plans_bootstrap: u32,
     pub no_usable_packets: u32,
+    // Maritime: this tick's sea-lane crossings (empty unless the graph has sea lanes).
+    pub sea_log: Vec<SeaCrossing>,
+    pub raided_trips: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +252,10 @@ pub struct RouteGraph {
     pub num_regions: usize,
     /// Total directed edge count (for route_utilization normalization).
     pub edge_count: usize,
+    /// Maritime: directed sea-lane edges and their per-crossing raid
+    /// probability. Empty unless Python sent the optional `sea_raid_risk`
+    /// column, in which case the mobility phase behaves exactly as before.
+    pub sea_lanes: std::collections::HashMap<(u16, u16), f32>,
 }
 
 impl RouteGraph {
@@ -252,7 +281,20 @@ impl RouteGraph {
             adj,
             num_regions,
             edge_count: from_regions.len(),
+            sea_lanes: std::collections::HashMap::new(),
         }
+    }
+
+    /// Maritime: mark sea-lane edges. Rows with a negative risk are land edges;
+    /// a risk in [0, 1] is the chance raiders seize a cargo on that crossing.
+    pub fn with_sea_lanes(mut self, from_regions: &[u16], to_regions: &[u16], risks: &[f32]) -> Self {
+        for i in 0..from_regions.len().min(to_regions.len()).min(risks.len()) {
+            let risk = risks[i];
+            if risk >= 0.0 && risk.is_finite() {
+                self.sea_lanes.insert((from_regions[i], to_regions[i]), risk.min(1.0));
+            }
+        }
+        self
     }
 
     pub fn has_edge(&self, from: u16, to: u16) -> bool {
@@ -769,6 +811,24 @@ pub fn conquest_unwind(
 // Full mobility phase orchestration
 // ---------------------------------------------------------------------------
 
+/// Maritime: deterministic raid roll for one merchant crossing one sea lane.
+/// Same composite-stream discipline as knowledge transmission.
+pub fn raid_roll(master_seed: &[u8; 32], turn: u32, agent_id: u32, from: u16, to: u16) -> f32 {
+    use rand::Rng;
+    use rand::SeedableRng;
+    let stream = {
+        let mut h: u64 = agent_id as u64;
+        h = h.wrapping_mul(6364136223846793005).wrapping_add(from as u64);
+        h = h.wrapping_mul(6364136223846793005).wrapping_add(to as u64);
+        h = h.wrapping_mul(6364136223846793005).wrapping_add(turn as u64);
+        h = h.wrapping_mul(6364136223846793005).wrapping_add(crate::agent::MERCHANT_RAID_STREAM_OFFSET);
+        h
+    };
+    let mut rng = rand_chacha::ChaCha8Rng::from_seed(*master_seed);
+    rng.set_stream(stream);
+    rng.gen()
+}
+
 /// Run the full merchant mobility phase. Called at step 0.9 in tick_agents.
 /// Processes: disruption -> departures -> movement -> arrivals -> route eval -> reservations.
 pub fn merchant_mobility_phase(
@@ -777,6 +837,20 @@ pub fn merchant_mobility_phase(
     graph: &RouteGraph,
     ledger: &mut ShadowLedger,
     master_seed: &[u8; 32],
+    delivery_buf: Option<&mut DeliveryBuffer>,
+) -> MerchantTripStats {
+    merchant_mobility_phase_at(pool, regions, graph, ledger, master_seed, 0, delivery_buf)
+}
+
+/// [`merchant_mobility_phase`] for a given turn (seeds the maritime raid
+/// rolls; nothing else reads the turn).
+pub fn merchant_mobility_phase_at(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    graph: &RouteGraph,
+    ledger: &mut ShadowLedger,
+    master_seed: &[u8; 32],
+    turn: u32,
     mut delivery_buf: Option<&mut DeliveryBuffer>,
 ) -> MerchantTripStats {
     let mut stats = MerchantTripStats::default();
@@ -820,6 +894,36 @@ pub fn merchant_mobility_phase(
     let mut arrivals: Vec<usize> = Vec::new();
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_TRANSIT { continue; }
+        if !graph.sea_lanes.is_empty() {
+            // Maritime: log the sea crossing; raiders may seize the cargo.
+            let cursor = pool.trip_path_cursor[slot] as usize;
+            if cursor < pool.trip_path_len[slot] as usize {
+                let from = pool.regions[slot];
+                let to = pool.trip_path[slot][cursor];
+                if let Some(&risk) = graph.sea_lanes.get(&(from, to)) {
+                    let origin = pool.trip_origin_region[slot];
+                    let good = pool.trip_good_slot[slot];
+                    let qty = pool.trip_cargo_qty[slot];
+                    let raided = risk > 0.0
+                        && raid_roll(master_seed, turn, pool.ids[slot], from, to) < risk;
+                    stats.sea_log.push(SeaCrossing {
+                        from_region: from,
+                        to_region: to,
+                        origin_region: origin,
+                        dest_region: pool.trip_dest_region[slot],
+                        good_slot: good,
+                        qty,
+                        loss: if raided { Some(LossReason::Raid) } else { None },
+                    });
+                    if raided {
+                        ledger.seize(origin as usize, good as usize, qty);
+                        stats.raided_trips += 1;
+                        reset_trip_fields(pool, slot);
+                        continue;
+                    }
+                }
+            }
+        }
         if advance_one_hop(pool, slot, master_seed).is_none() {
             arrivals.push(slot);
         }

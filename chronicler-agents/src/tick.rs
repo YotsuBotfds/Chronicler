@@ -427,7 +427,7 @@ pub fn try_tick_agents_with_options(
         }
     }
     let mut merchant_stats = if let Some((graph, ref mut ledger, ref mut buf)) = merchant_state {
-        crate::merchant::merchant_mobility_phase(pool, regions, graph, ledger, &master_seed, Some(buf))
+        crate::merchant::merchant_mobility_phase_at(pool, regions, graph, ledger, &master_seed, turn, Some(buf))
     } else {
         crate::merchant::MerchantTripStats::default()
     };

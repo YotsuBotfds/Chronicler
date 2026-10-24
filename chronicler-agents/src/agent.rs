@@ -129,6 +129,9 @@ pub const MERCHANT_ROUTE_STREAM_OFFSET: u64 = 1700;
 pub const SCHISM_CONVERSION_STREAM_OFFSET: u64 = 1000;
 // M59a: Information packet propagation
 pub const KNOWLEDGE_STREAM_OFFSET: u64 = 1800;
+// Maritime: merchant cargo raided on sea lanes (consumed only when the
+// merchant route graph carries sea-lane raid risks).
+pub const MERCHANT_RAID_STREAM_OFFSET: u64 = 2300;
 // M57a: Marriage formation
 #[allow(dead_code)] // reserved for marriage RNG; kept even though v1 does not consume it yet
 pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
@@ -484,6 +487,8 @@ mod tests {
             MARRIAGE_STREAM_OFFSET,          // 1600
             MERCHANT_ROUTE_STREAM_OFFSET,    // 1700
             KNOWLEDGE_STREAM_OFFSET,         // 1800
+            CATASTROPHE_STREAM_OFFSET,       // 2200
+            MERCHANT_RAID_STREAM_OFFSET,     // 2300
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {
