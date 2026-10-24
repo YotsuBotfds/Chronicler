@@ -272,14 +272,18 @@ def test_save_load_round_trip_continues_identically(tmp_path):
 
 
 def test_feature_off_never_runs_ledger_code(monkeypatch):
+    # Import before patching: these modules bind ledger functions at import
+    # time, and a first import under the patch would keep the forbidden stub
+    # (and monkeypatch would "restore" it) for later tests in this process.
+    import chronicler.movements as movements
+    import chronicler.traditions as traditions
+
     def forbidden(*args, **kwargs):
         raise AssertionError("contact ledger invoked while disabled")
 
     for name in ("update_contact_ledger", "observe_phase2", "apply_trade_warmth",
                  "movement_adoption_pct", "trade_partner_count", "record_trade_action"):
         monkeypatch.setattr(cl, name, forbidden)
-    import chronicler.movements as movements
-    import chronicler.traditions as traditions
     monkeypatch.setattr(movements, "movement_adoption_pct", forbidden)
     monkeypatch.setattr(traditions, "trade_partner_count", forbidden)
     world = _advance(_world(42, ledger=False), 40)
