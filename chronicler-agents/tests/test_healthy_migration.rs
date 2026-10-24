@@ -39,8 +39,9 @@ fn peaceful_signals(num_regions: usize) -> TickSignals {
     }
 }
 
-/// Region 0 at capacity (40 agents, capacity 40), region 1 under-filled
-/// (8 agents, capacity 80); one realm, fed, identical land.
+/// Region 0 at capacity (40 farmers, capacity 40), region 1 under-filled
+/// (8 farmers, capacity 80); one realm, fed, identical grain land (a year's
+/// harvest per farmer 2.5 x 0.95 x 0.6 x 0.6 = 0.86).
 fn frontier_world(second_ruler: u8) -> (AgentPool, Vec<RegionState>) {
     let mut pool = AgentPool::new(64);
     let mut regions: Vec<RegionState> = (0..2)
@@ -50,6 +51,8 @@ fn frontier_world(second_ruler: u8) -> (AgentPool, Vec<RegionState>) {
             r.food_sufficiency = 1.2;
             r.soil = 0.6;
             r.water = 0.6;
+            r.resource_types[0] = 0;
+            r.resource_base_yield[0] = 2.5;
             // One faith with a temple keeps the spiritual need met, so no
             // deprivation push muddies the test.
             r.majority_belief = 0;
@@ -63,10 +66,10 @@ fn frontier_world(second_ruler: u8) -> (AgentPool, Vec<RegionState>) {
     regions[0].adjacency = vec![1];
     regions[1].adjacency = vec![0];
     for i in 0..40u16 {
-        pool.spawn(0, 0, Occupation::Scholar, 21 + i % 40, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        pool.spawn(0, 0, Occupation::Farmer, 21 + i % 40, 0.0, 0.0, 0.0, 0, 1, 2, 0);
     }
     for i in 0..8u16 {
-        pool.spawn(1, 0, Occupation::Scholar, 25 + i, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        pool.spawn(1, 0, Occupation::Farmer, 25 + i, 0.0, 0.0, 0.0, 0, 1, 2, 0);
     }
     (pool, regions)
 }

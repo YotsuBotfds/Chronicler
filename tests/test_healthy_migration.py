@@ -26,7 +26,7 @@ def _require_native():
 
 def _frontier_world(make_world, *, internal: bool):
     """Civ0 holds a full region (30 of 30) next to an under-filled one (12 of
-    60) that it rules too (internal) or that Civ1 rules."""
+    60) on the same grain land, which it rules too (internal) or Civ1 rules."""
     world = make_world(num_civs=2)
     world.agent_mode = "hybrid"
     full, empty = world.regions
@@ -34,6 +34,10 @@ def _frontier_world(make_world, *, internal: bool):
     empty.carrying_capacity, empty.population = 60, 12
     full.adjacencies = [empty.name]
     empty.adjacencies = [full.name]
+    for region in (full, empty):
+        # Grain land: a year's harvest per farmer 2.0 x 0.95 x 0.8 x 0.6 = 0.91.
+        region.resource_types = [0, 255, 255]
+        region.resource_base_yields = [2.0, 0.0, 0.0]
     civ0, civ1 = world.civilizations
     if internal:
         empty.controller = civ0.name
@@ -75,7 +79,7 @@ def test_native_migration_budget_reports_every_term(make_world):
 
 
 def test_native_frontier_settlement_stays_inside_the_realm(make_world):
-    """Young adults leave the full region for the emptier one of their own
+    """Young farmers leave the full region for the emptier land of their own
     realm; a foreign-ruled neighbour draws no frontier settlers."""
     _require_native()
     internal_moves, internal = _run(_frontier_world(make_world, internal=True), 6)

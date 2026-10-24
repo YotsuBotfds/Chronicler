@@ -6,8 +6,9 @@
 //! This module adds three pulls that move people in a living world, each
 //! behind its own gate, and one life-course threshold they must clear:
 //!
-//! - **Frontier settlement.** Home is near capacity and a neighbouring region
-//!   of the same realm is markedly emptier and fed.
+//! - **Frontier settlement.** A farmer whose home is near capacity, next to
+//!   a markedly emptier region of the same realm whose land would feed
+//!   settlers: the draw is land, not stored food.
 //! - **Wage gap.** A farmer or merchant whose occupational peers next door
 //!   are markedly better off (mean wealth, the income they accumulated).
 //!   Only these two occupations earn by location: farmers by yield and
@@ -75,8 +76,12 @@ pub const FRONTIER_SOURCE_MIN_RATIO: f32 = 0.85;
 /// the pull grows to `FRONTIER_PULL` at `FRONTIER_FULL_GAP`.
 pub const FRONTIER_MIN_GAP: f32 = 0.30;
 pub const FRONTIER_FULL_GAP: f32 = 0.70;
-/// Settlers go only where the stores cover demand (no settling into famine).
-pub const FRONTIER_MIN_FOOD: f32 = 1.0;
+/// Settlers go only where a farmer's year of food (`food_potential`) feeds
+/// the people a farmer has to: 0.5 food a head (the economy's per-capita
+/// food) over the 0.66 ceiling on the farmers' share of the target labor
+/// mix, 0.75. Stored food would not do: an under-filled region's stores
+/// reflect how few farmers work there now, not what settlers could grow.
+pub const FRONTIER_MIN_FOOD_POTENTIAL: f32 = 0.75;
 pub const FRONTIER_PULL: f32 = 0.30;
 
 /// Wage gap: peers' mean wealth there over peers' mean wealth here (the
@@ -111,6 +116,19 @@ pub fn wage_index(occupation: u8) -> Option<usize> {
     } else {
         None
     }
+}
+
+/// What a farmer there would harvest in food over a year as the land stands:
+/// the best food slot's `ecology::annual_yield_potential` (food as the goods
+/// economy counts it). Region-level; computed once per tick.
+pub fn food_potential(region: &RegionState) -> f32 {
+    let mut best = 0.0f32;
+    for slot in 0..3 {
+        if crate::economy::is_food_resource(region.resource_types[slot]) {
+            best = best.max(crate::ecology::annual_yield_potential(region, slot));
+        }
+    }
+    best
 }
 
 /// Voluntary pull toward one destination, by driver.
@@ -260,6 +278,8 @@ pub struct PullInputs<'a> {
     /// Index of the destination in `regions`.
     pub adj_id: u16,
     pub adj_ratio: f32,
+    /// The destination's `food_potential`.
+    pub adj_food_potential: f32,
     /// Peer mean wealth and peer count, per wage occupation, here and there.
     pub own_peer_wealth: &'a [f32; WAGE_OCCUPATIONS],
     pub adj_peer_wealth: &'a [f32; WAGE_OCCUPATIONS],
@@ -278,11 +298,12 @@ pub fn pull_toward(
     if dst.controller_civ != src.controller_civ || src.controller_civ == UNCONTROLLED {
         return pull;
     }
-    // Frontier settlement.
+    // Frontier settlement: farmers, for land.
     let gap = inputs.own_ratio - inputs.adj_ratio;
-    if inputs.own_ratio >= FRONTIER_SOURCE_MIN_RATIO
+    if m.occupation == Occupation::Farmer as u8
+        && inputs.own_ratio >= FRONTIER_SOURCE_MIN_RATIO
         && gap >= FRONTIER_MIN_GAP
-        && dst.food_sufficiency >= FRONTIER_MIN_FOOD
+        && inputs.adj_food_potential >= FRONTIER_MIN_FOOD_POTENTIAL
     {
         pull.frontier = FRONTIER_PULL * ramp(gap, FRONTIER_MIN_GAP, FRONTIER_FULL_GAP);
     }
@@ -460,6 +481,7 @@ mod driver_tests {
             own_ratio: own,
             adj_id: 1,
             adj_ratio: adj,
+            adj_food_potential: 1.0,
             own_peer_wealth: &wealth[0],
             adj_peer_wealth: &wealth[1],
             adj_peer_count: count,
@@ -506,27 +528,55 @@ mod driver_tests {
     }
 
     #[test]
-    fn frontier_needs_a_crowded_home_and_an_emptier_fed_region_of_the_same_realm() {
+    fn frontier_draws_farmers_from_a_crowded_home_to_emptier_land_of_the_realm() {
         let mut regions = realm();
         let mut pool = AgentPool::new(2);
-        let a = agent(&mut pool, 0, Occupation::Scholar, 25);
-        let m = mobility(&pool, a, &regions).unwrap();
-        let pull = |regions: &[RegionState], own: f32, adj: f32| {
-            pull_toward(&m, &regions[0], &regions[1], &inputs(own, adj, &EVEN, &PEERS)).frontier
+        let farmer = agent(&mut pool, 0, Occupation::Farmer, 25);
+        let scholar = agent(&mut pool, 0, Occupation::Scholar, 25);
+        let m = mobility(&pool, farmer, &regions).unwrap();
+        let pull = |regions: &[RegionState], own: f32, adj: f32, land: f32| {
+            let mut i = inputs(own, adj, &EVEN, &PEERS);
+            i.adj_food_potential = land;
+            pull_toward(&m, &regions[0], &regions[1], &i).frontier
         };
         // Full pull at the full gap, ramping from the minimum gap.
-        assert!((pull(&regions, 1.0, 0.3) - FRONTIER_PULL).abs() < 1e-6);
-        let mid = pull(&regions, 1.0, 0.5);
+        assert!((pull(&regions, 1.0, 0.3, 1.0) - FRONTIER_PULL).abs() < 1e-6);
+        let mid = pull(&regions, 1.0, 0.5, 1.0);
         assert!(mid > 0.0 && mid < FRONTIER_PULL);
-        assert_eq!(pull(&regions, 1.0, 1.0 - FRONTIER_MIN_GAP + 0.01), 0.0, "gap too small");
-        assert_eq!(pull(&regions, FRONTIER_SOURCE_MIN_RATIO - 0.01, 0.0), 0.0, "home not crowded");
-        regions[1].food_sufficiency = FRONTIER_MIN_FOOD - 0.01;
-        assert_eq!(pull(&regions, 1.0, 0.2), 0.0, "no settling into a shortage");
-        regions[1].food_sufficiency = 1.0;
+        assert_eq!(pull(&regions, 1.0, 1.0 - FRONTIER_MIN_GAP + 0.01, 1.0), 0.0, "gap too small");
+        assert_eq!(pull(&regions, FRONTIER_SOURCE_MIN_RATIO - 0.01, 0.0, 1.0), 0.0, "home not crowded");
+        // Land, not stores: an empty region with no food in store but good
+        // land draws settlers; poor land does not.
+        regions[1].food_sufficiency = 0.0;
+        assert!(pull(&regions, 1.0, 0.0, FRONTIER_MIN_FOOD_POTENTIAL) > 0.0);
+        assert_eq!(pull(&regions, 1.0, 0.0, FRONTIER_MIN_FOOD_POTENTIAL - 0.01), 0.0, "poor land");
+        // Farmers settle land; a scholar is not drawn.
+        let s = mobility(&pool, scholar, &regions).unwrap();
+        assert_eq!(pull_toward(&s, &regions[0], &regions[1], &inputs(1.0, 0.2, &EVEN, &PEERS)).frontier, 0.0);
         regions[1].controller_civ = 1;
-        assert_eq!(pull(&regions, 1.0, 0.2), 0.0, "another realm");
+        assert_eq!(pull(&regions, 1.0, 0.2, 1.0), 0.0, "another realm");
         regions[1].controller_civ = UNCONTROLLED;
-        assert_eq!(pull(&regions, 1.0, 0.2), 0.0, "unclaimed land");
+        assert_eq!(pull(&regions, 1.0, 0.2, 1.0), 0.0, "unclaimed land");
+    }
+
+    #[test]
+    fn food_potential_is_a_years_harvest_of_the_best_food_slot_as_the_land_stands() {
+        let mut r = RegionState::new(0);
+        r.resource_types = [1, 0, 255]; // timber, grain, empty
+        r.resource_base_yield = [2.0, 1.0, 0.0];
+        r.soil = 0.8;
+        r.water = 0.5;
+        // Grain: mean season 0.95 x soil x water; timber is not food.
+        assert!((food_potential(&r) - 0.95 * 0.8 * 0.5).abs() < 1e-6);
+        r.resource_types[2] = 3; // fish: no soil or water term
+        r.resource_base_yield[2] = 1.0;
+        assert!((food_potential(&r) - 0.85).abs() < 1e-6);
+        r.resource_suspension[2] = true;
+        assert!((food_potential(&r) - 0.95 * 0.8 * 0.5).abs() < 1e-6, "a suspended slot yields nothing");
+        // Independent of season, climate and stores.
+        r.season_id = 3;
+        r.food_sufficiency = 0.0;
+        assert!((food_potential(&r) - 0.95 * 0.8 * 0.5).abs() < 1e-6);
     }
 
     #[test]

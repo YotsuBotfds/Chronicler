@@ -399,6 +399,14 @@ fn rt_to_slot(rt: u8) -> usize {
     }
 }
 
+/// Whether a resource type's harvest counts as food (grain, fish, salt,
+/// botanicals, exotic), as the goods economy counts it.
+#[inline]
+pub fn is_food_resource(rt: u8) -> bool {
+    let slot = rt_to_slot(rt);
+    slot < NUM_GOODS && IS_FOOD[slot]
+}
+
 /// Map good slot to category index.
 #[inline]
 fn slot_to_category(slot: usize) -> usize {

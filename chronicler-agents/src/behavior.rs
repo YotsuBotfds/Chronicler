@@ -131,6 +131,23 @@ fn migration_region_score(region: &RegionState, mean_satisfaction: f32, pop_coun
     mean_satisfaction + headroom_bonus - overcrowding_penalty + food_signal
 }
 
+/// `migration_region_score` of an empty destination as a settler from
+/// `home` sees it: home's mean satisfaction and food signal, the
+/// destination's room.
+fn settler_region_score(
+    destination: &RegionState,
+    home: &RegionState,
+    home_mean_satisfaction: f32,
+    pop_count: usize,
+) -> f32 {
+    let cap = destination.carrying_capacity.max(1) as f32;
+    let pop_ratio = pop_count as f32 / cap;
+    let headroom_bonus = (1.0 - pop_ratio).clamp(-1.0, 1.0) * MIGRATION_HEADROOM_BONUS;
+    let overcrowding_penalty = (pop_ratio - 1.0).max(0.0) * MIGRATION_OVERCROWDING_PENALTY;
+    let food_signal = (home.food_sufficiency - 1.0).clamp(-1.0, 0.5) * MIGRATION_FOOD_SIGNAL_WEIGHT;
+    home_mean_satisfaction + headroom_bonus - overcrowding_penalty + food_signal
+}
+
 /// The capacity and food parts of `migration_region_score`, for the
 /// migration budget only (the score keeps its own arithmetic).
 fn migration_region_score_parts(region: &RegionState, pop_count: usize) -> (f32, f32) {
@@ -261,16 +278,6 @@ fn best_migration_target_for_agent(
             continue;
         }
 
-        let adj_mean = stats.mean_satisfaction[adj];
-        let mut adj_score = migration_region_score(&regions[adj], adj_mean, adj_pop)
-            + polity_alignment_score(&regions[region_id], &regions[adj], civ);
-        let mut river = 0.0f32;
-        if regions[region_id].shares_river(&regions[adj]) {
-            adj_score += RIVER_MIGRATION_BONUS;
-            river = RIVER_MIGRATION_BONUS;
-        }
-        let pre_news_score = adj_score;
-
         // Healthy-world drivers: frontier, wage gap, chain, net of roots.
         let voluntary = match mobility {
             Some(m) => {
@@ -278,6 +285,7 @@ fn best_migration_target_for_agent(
                     own_ratio: own_pop_ratio,
                     adj_id: adj as u16,
                     adj_ratio: adj_pop_ratio,
+                    adj_food_potential: stats.food_potential[adj],
                     own_peer_wealth: &stats.peer_wealth[region_id],
                     adj_peer_wealth: &stats.peer_wealth[adj],
                     adj_peer_count: &stats.peer_count[adj],
@@ -291,6 +299,22 @@ fn best_migration_target_for_agent(
             None => VoluntaryPull::default(),
         };
         let pull = voluntary.total();
+
+        // A region nobody lives in has no satisfaction or stores to judge it
+        // by (both read 0). An agent pulled there (frontier settlers) judges
+        // it by home: home's mean satisfaction and food, the destination's
+        // room. Everyone else scores it as before.
+        let mut adj_score = if pull > 0.0 && stats.civ_counts[adj].is_empty() {
+            settler_region_score(&regions[adj], &regions[region_id], own_mean, adj_pop)
+        } else {
+            migration_region_score(&regions[adj], stats.mean_satisfaction[adj], adj_pop)
+        } + polity_alignment_score(&regions[region_id], &regions[adj], civ);
+        let mut river = 0.0f32;
+        if regions[region_id].shares_river(&regions[adj]) {
+            adj_score += RIVER_MIGRATION_BONUS;
+            river = RIVER_MIGRATION_BONUS;
+        }
+        let pre_news_score = adj_score;
 
         // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
         // Baseline includes ALL existing modifiers (region score, polity, river)
@@ -471,6 +495,8 @@ pub struct RegionStats {
     /// Whether the region has a ruler and a neighbour under the same ruler
     /// (where the voluntary drivers can apply at all).
     pub has_internal_neighbour: Vec<bool>,
+    /// Frontier gate input: `migration_drivers::food_potential` per region.
+    pub food_potential: Vec<f32>,
 }
 
 /// Single O(n) pass over alive agents to build all region stats.
@@ -693,6 +719,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         peer_wealth,
         peer_count,
         has_internal_neighbour,
+        food_potential: regions.iter().map(food_potential).collect(),
     }
 }
 
@@ -2123,22 +2150,32 @@ mod tests {
     /// is equally satisfied, so the score gap (headroom 0.16) stays under the
     /// 0.18 hysteresis: only a voluntary pull can move anyone.
     fn frontier_world(age: u16, foreign: bool) -> (AgentPool, Vec<RegionState>, Vec<usize>) {
+        frontier_world_with(age, foreign, 12)
+    }
+
+    /// As `frontier_world`, with `settled` agents already in region 1, whose
+    /// land (grain, base yield 1, soil and water 1) feeds settlers.
+    fn frontier_world_with(age: u16, foreign: bool, settled: usize) -> (AgentPool, Vec<RegionState>, Vec<usize>) {
         let mut pool = AgentPool::new(40);
         let mut regions = vec![make_region(0), make_region(1)];
         regions[0].carrying_capacity = 20;
         regions[1].carrying_capacity = 60;
         regions[0].adjacency = vec![1];
         regions[1].adjacency = vec![0];
+        regions[1].resource_types[0] = 0;
+        regions[1].resource_base_yield[0] = 1.0;
+        regions[1].soil = 1.0;
+        regions[1].water = 1.0;
         if foreign {
             regions[1].controller_civ = 1;
         }
         let mut movers = Vec::new();
         for _ in 0..20 {
-            let slot = pool.spawn(0, 0, Occupation::Scholar, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_satisfaction(slot, 0.6);
             movers.push(slot);
         }
-        for _ in 0..12 {
+        for _ in 0..settled {
             let slot = pool.spawn(1, 0, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
             pool.set_satisfaction(slot, 0.6);
         }
@@ -2175,6 +2212,29 @@ mod tests {
         assert!(frontier_decisions(crate::migration_drivers::MOBILITY_MIN_AGE - 1, false).migrations.is_empty());
         // Settlement is internal: the emptier region belongs to another civ.
         assert!(frontier_decisions(25, true).migrations.is_empty());
+    }
+
+    #[test]
+    fn test_settlers_judge_an_empty_region_by_home_and_others_do_not() {
+        use rand::SeedableRng;
+        // Region 1 is empty: its mean satisfaction and stores read 0.
+        let decide = |age: u16| {
+            let (pool, regions, movers) = frontier_world_with(age, false, 0);
+            let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+            assert!(stats.civ_counts[1].is_empty());
+            let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+            eval_region_decisions(&pool, &movers, &regions, &stats, 0, &mut rng)
+        };
+        let young = decide(25);
+        assert!(young.migrations.len() >= 2, "got {}", young.migrations.len());
+        assert!(young.migrations.iter().all(|&(_, _, to)| to == 1));
+        assert!(young.migration_drivers.share[TERM_FRONTIER] > 0.0);
+        // Without a pull the empty region keeps its old score and draws nobody.
+        let (pool, regions, movers) = frontier_world_with(65, false, 0);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let choice = best_migration_target_for_agent(&pool, &regions, &stats, 0, movers[0], None);
+        assert_eq!(choice.target, 0);
+        assert!(decide(65).migrations.is_empty());
     }
 
     #[test]
