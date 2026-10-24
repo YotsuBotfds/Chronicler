@@ -1332,8 +1332,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epidemiology", action=argparse.BooleanOptionalAction, default=None,
                         help="Regional SEIRS epidemiology: pathogens spread along the contact ledger, "
                              "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
-                             "plague and the M18 pandemic (default off; needs the contact ledger; "
-                             "saved on resume)")
+                             "plague and the M18 pandemic (default on for new worlds with the contact ledger; "
+                             "--no-epidemiology opts out; saved on resume)")
     parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
                         help="Money, credit and public finance: upkeep and court costs, state borrowing "
                              "from merchant houses and foreign lenders, debt service, default, debasement "
