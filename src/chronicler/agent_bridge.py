@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from collections import Counter, deque
+from itertools import repeat, starmap
 from pathlib import Path
 from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
+from chronicler.columnar import pylist
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import (
     MAX_CIV_RECORDS, MAX_NATIVE_REGIONS, TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID,
@@ -272,7 +274,7 @@ def _require_snapshot_pylist(snapshot: pa.RecordBatch, field_name: str) -> list:
         raise ValueError("snapshot is unavailable")
     if field_name not in snapshot.schema.names:
         raise KeyError(f"snapshot missing required column {field_name!r}")
-    return snapshot.column(field_name).to_pylist()
+    return pylist(snapshot.column(field_name))
 
 
 def _require_snapshot_numpy(snapshot: pa.RecordBatch, field_name: str) -> np.ndarray:
@@ -282,6 +284,21 @@ def _require_snapshot_numpy(snapshot: pa.RecordBatch, field_name: str) -> np.nda
     if field_name not in snapshot.schema.names:
         raise KeyError(f"snapshot missing required column {field_name!r}")
     return snapshot.column(field_name).to_numpy()
+
+
+def _null_free(snapshot, field_names) -> bool:
+    """True when every named column exists and has no null cell.
+
+    Columnar fast paths require this; the native snapshot schema is non-null.
+    Other batches keep the row-by-row paths and their None semantics.
+    """
+    if snapshot is None:
+        return False
+    try:
+        names = snapshot.schema.names
+        return all(name in names and snapshot.column(name).null_count == 0 for name in field_names)
+    except AttributeError:
+        return False
 
 
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
@@ -992,10 +1009,102 @@ class AgentBridge:
             resolved.append(controller_id if controller_id is not None else int(fallback_civ_id))
         return resolved
 
+    def _resolve_polity_civ_id_array(
+        self, world: "WorldState", region_ids: np.ndarray, fallback_civ_ids: np.ndarray,
+    ) -> np.ndarray:
+        """``_resolve_polity_civ_ids`` over integer arrays (same ids)."""
+        name_to_id = {civ.name: idx for idx, civ in enumerate(world.civilizations)}
+        controller_ids = np.full(len(world.regions) + 1, -1, dtype=np.int64)
+        for idx, region in enumerate(world.regions):
+            if region.controller is not None:
+                controller_id = name_to_id.get(region.controller)
+                if controller_id is not None:
+                    controller_ids[idx] = controller_id
+        regions = np.asarray(region_ids, dtype=np.int64)
+        in_range = (regions >= 0) & (regions < len(world.regions))
+        # Out-of-range regions read the trailing -1 (no controller).
+        controller = controller_ids[np.where(in_range, regions, len(world.regions))]
+        return np.where(controller >= 0, controller, np.asarray(fallback_civ_ids, dtype=np.int64))
+
     def _refresh_snapshot_metrics(self, world: "WorldState") -> None:
         """Update displacement, Gini, and wealth stats from the current snapshot."""
         try:
             snap = self._sim.get_snapshot()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
+            return
+        self._post_tick_snapshot = (world.turn, snap)
+        if _null_free(snap, ("region", "displacement_turn", "wealth", "civ_affinity", "occupation")):
+            try:
+                self._refresh_snapshot_metrics_columnar(world, snap)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
+            return
+        self._refresh_snapshot_metrics_rows(world, snap)
+
+    def _refresh_snapshot_metrics_columnar(self, world: "WorldState", snap) -> None:
+        """Columnar ``_refresh_snapshot_metrics_rows`` for null-free snapshots.
+
+        Same dict key orders (regions by first appearance, civs ascending) and
+        the same per-civ wealth arrays in row order, so every NumPy reduction
+        and the Gini see identical inputs.
+        """
+        regions = np.asarray(_require_snapshot_numpy(snap, "region"), dtype=np.int64)
+        displaced = np.asarray(_require_snapshot_numpy(snap, "displacement_turn")) > 0
+        if len(regions):
+            unique, first, totals = np.unique(regions, return_index=True, return_counts=True)
+            displaced_counts = np.bincount(np.searchsorted(unique, regions[displaced]),
+                                           minlength=len(unique))
+            order = np.argsort(first, kind="stable")
+            self.displacement_by_region = {
+                region: (count / total if total > 0 else 0.0)
+                for region, count, total in zip(unique[order].tolist(),
+                                                displaced_counts[order].tolist(),
+                                                totals[order].tolist())
+            }
+        else:
+            self.displacement_by_region = {}
+
+        if "wealth" not in snap.schema.names:
+            return
+
+        wealth_col = _require_snapshot_numpy(snap, "wealth")
+        civ_col = self._resolve_polity_civ_id_array(
+            world, regions, np.asarray(_require_snapshot_numpy(snap, "civ_affinity"), dtype=np.int64),
+        )
+        occ_col = _require_snapshot_numpy(snap, "occupation")
+        occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
+        # Rows of each civ in row order, as the boolean masks selected them.
+        order = np.argsort(civ_col, kind="stable")
+        sorted_civ = civ_col[order]
+        bounds = np.flatnonzero(np.diff(sorted_civ)) + 1
+        groups = [(int(rows_civ[0]), rows) for rows_civ, rows in
+                  zip(np.split(sorted_civ, bounds), np.split(order, bounds)) if len(rows)]
+        new_gini: dict[int, float] = {}
+        for civ_id, rows in groups:
+            new_gini[civ_id] = compute_gini(wealth_col[rows])
+        stats: dict[int, dict] = {}
+        for civ_id, rows in groups:
+            civ_wealth = wealth_col[rows]
+            civ_occ = occ_col[rows]
+            wealth_by_occ = {}
+            for occ_idx, name in enumerate(occ_names):
+                occ_mask = civ_occ == occ_idx
+                if occ_mask.any():
+                    wealth_by_occ[name] = float(np.mean(civ_wealth[occ_mask]))
+            stats[civ_id] = {
+                "gini": new_gini.get(civ_id, 0.0),
+                "mean": float(np.mean(civ_wealth)),
+                "median": float(np.median(civ_wealth)),
+                "std": float(np.std(civ_wealth)),
+                "by_occupation": wealth_by_occ,
+            }
+        self._gini_by_civ = new_gini
+        self._wealth_stats = stats
+
+    def _refresh_snapshot_metrics_rows(self, world: "WorldState", snap) -> None:
+        """Row-by-row metrics; kept for snapshots with null cells."""
+        try:
             regions_col = _require_snapshot_pylist(snap, "region")
             disp_col = _require_snapshot_pylist(snap, "displacement_turn")
             region_totals = Counter(regions_col)
@@ -1051,6 +1160,21 @@ class AgentBridge:
             # accumulated history.
             logger.exception("Failed to compute displacement/Gini/wealth stats from snapshot")
 
+    def take_post_tick_snapshot(self, turn: int):
+        """Hand over the snapshot fetched after this turn's agent tick, once.
+
+        ``_process_tick_results`` reads the pool right after the tick; nothing
+        between there and the Phase 10 capture writes the native pool (bridge
+        post-processing and stockpile settlement only read it or Python
+        state), so the coordinator reuses that batch instead of exporting the
+        pool again. Returns None when no batch of this turn is held.
+        """
+        held = getattr(self, "_post_tick_snapshot", None)
+        self._post_tick_snapshot = None
+        if held is not None and held[0] == turn:
+            return held[1]
+        return None
+
     @property
     def ecology_simulator(self):
         """Expose the Rust simulator handle for ecology tick in agent modes."""
@@ -1061,6 +1185,7 @@ class AgentBridge:
 
         Must be called exactly once per turn BEFORE ecology tick or agent tick.
         """
+        self._post_tick_snapshot = None
         self._sim.set_region_state(build_region_batch(world, self._economy_result))
         # M56b: Send settlement footprints for urban classification
         settlement_batch = build_settlement_batch(world)
@@ -1114,6 +1239,7 @@ class AgentBridge:
         The coordinator supplies a fresh output list for each invocation. The
         legacy world list remains available to standalone bridge callers.
         """
+        self._post_tick_snapshot = None
         # M53: relationship stats collection (all modes)
         if self._collect_rel_stats:
             try:
@@ -1331,10 +1457,10 @@ class AgentBridge:
             rel_batch = self._sim.get_all_relationships()
             edges = []
             if rel_batch.num_rows > 0:
-                agent_ids = rel_batch.column("agent_id").to_pylist()
-                target_ids = rel_batch.column("target_id").to_pylist()
-                bond_types = rel_batch.column("bond_type").to_pylist()
-                sentiments = rel_batch.column("sentiment").to_pylist()
+                agent_ids = pylist(rel_batch.column("agent_id"))
+                target_ids = pylist(rel_batch.column("target_id"))
+                bond_types = pylist(rel_batch.column("bond_type"))
+                sentiments = pylist(rel_batch.column("sentiment"))
                 for i in range(len(agent_ids)):
                     edges.append((agent_ids[i], target_ids[i], bond_types[i], sentiments[i]))
         except Exception:
@@ -1345,10 +1471,10 @@ class AgentBridge:
             mem_batch = self._sim.get_all_memories()
             mem_sigs: dict = {}
             if mem_batch.num_rows > 0:
-                m_agent_ids = mem_batch.column("agent_id").to_pylist()
-                m_event_types = mem_batch.column("event_type").to_pylist()
-                m_turns = mem_batch.column("turn").to_pylist()
-                m_intensities = mem_batch.column("intensity").to_pylist()
+                m_agent_ids = pylist(mem_batch.column("agent_id"))
+                m_event_types = pylist(mem_batch.column("event_type"))
+                m_turns = pylist(mem_batch.column("turn"))
+                m_intensities = pylist(mem_batch.column("intensity"))
                 for i in range(len(m_agent_ids)):
                     aid = m_agent_ids[i]
                     if aid not in mem_sigs:
@@ -1369,7 +1495,7 @@ class AgentBridge:
                 needs_data = needs_batch.to_pydict()
             elif hasattr(needs_batch, "column_names"):
                 needs_data = {
-                    name: needs_batch.column(name).to_pylist()
+                    name: pylist(needs_batch.column(name))
                     for name in needs_batch.column_names
                 }
         except Exception:
@@ -1392,11 +1518,11 @@ class AgentBridge:
                         "controlled_agent_count": 0,
                     }
                 )
-                id_list = snap.column("id").to_pylist()
-                civ_list = snap.column("civ_affinity").to_pylist()
-                sat_list = snap.column("satisfaction").to_pylist()
-                occ_list = snap.column("occupation").to_pylist()
-                region_list = snap.column("region").to_pylist()
+                id_list = pylist(snap.column("id"))
+                civ_list = pylist(snap.column("civ_affinity"))
+                sat_list = pylist(snap.column("satisfaction"))
+                occ_list = pylist(snap.column("occupation"))
+                region_list = pylist(snap.column("region"))
                 polity_civ_ids = self._resolve_polity_civ_ids(world, region_list, civ_list)
                 for i in range(len(civ_list)):
                     civ_bucket = civ_data[polity_civ_ids[i]]
@@ -1478,8 +1604,8 @@ class AgentBridge:
                 from collections import Counter, defaultdict
                 from chronicler.validate import detect_communities
 
-                id_list = snap.column("id").to_pylist()
-                region_list = snap.column("region").to_pylist()
+                id_list = pylist(snap.column("id"))
+                region_list = pylist(snap.column("region"))
                 id_to_region = {
                     int(id_list[idx]): int(region_list[idx])
                     for idx in range(len(id_list))
@@ -1585,39 +1711,29 @@ class AgentBridge:
         names = batch.schema.names
 
         def column(name):
-            return batch.column(name).to_pylist()
+            return pylist(batch.column(name))
 
         def optional_column(name, default):
             return column(name) if name in names else [default] * num_rows
 
         event_type_codes = column("event_type")
         type_map = EVENT_TYPE_MAP
-        return [
-            AgentEventRecord(
-                turn=turn,
-                agent_id=agent_id,
-                event_type=type_map.get(code, f"unknown_{code}"),
-                region=region,
-                target_region=target_region,
-                civ_affinity=civ_affinity,
-                occupation=occupation,
-                belief=belief,
-                target_agent_id=target_agent_id,
-                formed_turn=formed_turn,
-            )
-            for (code, agent_id, region, target_region, civ_affinity, occupation,
-                 belief, target_agent_id, formed_turn) in zip(
-                event_type_codes,
-                column("agent_id"),
-                column("region"),
-                column("target_region"),
-                column("civ_affinity"),
-                column("occupation"),
-                optional_column("belief", None),
-                optional_column("target_agent_id", 0),
-                optional_column("formed_turn", 0),
-            )
-        ]
+        type_names = {code: type_map.get(code, f"unknown_{code}") for code in set(event_type_codes)}
+        # Positional construction in AgentEventRecord field order: turn,
+        # agent_id, event_type, region, target_region, civ_affinity,
+        # occupation, belief, target_agent_id, formed_turn.
+        return list(starmap(AgentEventRecord, zip(
+            repeat(turn, num_rows),
+            column("agent_id"),
+            [type_names[code] for code in event_type_codes],
+            column("region"),
+            column("target_region"),
+            column("civ_affinity"),
+            column("occupation"),
+            optional_column("belief", None),
+            optional_column("target_agent_id", 0),
+            optional_column("formed_turn", 0),
+        )))
 
     def _process_promotions(self, batch, world) -> list:
         """Process promotion RecordBatch → create GreatPerson instances.
@@ -2109,9 +2225,9 @@ class AgentBridge:
         if not target_region_ids:
             return set()
 
-        agent_ids = snapshot.column("id").to_pylist()
-        region_ids = snapshot.column("region").to_pylist()
-        civ_ids = snapshot.column("civ_affinity").to_pylist()
+        agent_ids = pylist(snapshot.column("id"))
+        region_ids = pylist(snapshot.column("region"))
+        civ_ids = pylist(snapshot.column("civ_affinity"))
 
         transferred: set[int] = set()
         for idx, agent_id in enumerate(agent_ids):
@@ -2134,6 +2250,15 @@ class AgentBridge:
 
     def _aggregate_events(self, world, named_agents=None):
         """Check thresholds and emit summary Events."""
+        # Named-actor lookups index each event list once per call (see
+        # _named_actors_in_region); the memo lives only for this call.
+        self._named_actor_memo = {}
+        try:
+            return self._aggregate_event_summaries(world, named_agents)
+        finally:
+            self._named_actor_memo = None
+
+    def _aggregate_event_summaries(self, world, named_agents=None):
         if named_agents is None:
             named_agents = {}
         summaries = []
@@ -2145,8 +2270,8 @@ class AgentBridge:
         }
         try:
             region_pops = self._sim.get_region_populations()
-            region_ids = region_pops.column("region_id").to_pylist()
-            alive_counts = region_pops.column("alive_count").to_pylist()
+            region_ids = pylist(region_pops.column("region_id"))
+            alive_counts = pylist(region_pops.column("alive_count"))
             region_populations.update({
                 int(region_id): int(alive_count)
                 for region_id, alive_count in zip(region_ids, alive_counts)
@@ -2328,14 +2453,33 @@ class AgentBridge:
         return summaries
 
     def _named_actors_in_region(self, region_id, named_agents, current_events):
-        """Find named character names involved in events for a given region."""
-        actors = []
-        for e in current_events:
-            if e.region == region_id and e.agent_id in named_agents:
-                name = named_agents[e.agent_id]
-                if name not in actors:
-                    actors.append(name)
-        return actors
+        """Find named character names involved in events for a given region.
+
+        Inside ``_aggregate_events`` each event list is scanned once into
+        per-region name lists (same names, same first-seen order).
+        """
+        memo = getattr(self, "_named_actor_memo", None)
+        if memo is None:
+            actors = []
+            for e in current_events:
+                if e.region == region_id and e.agent_id in named_agents:
+                    name = named_agents[e.agent_id]
+                    if name not in actors:
+                        actors.append(name)
+            return actors
+        key = (id(current_events), id(named_agents))
+        entry = memo.get(key)
+        if entry is None:
+            by_region: dict = {}
+            for e in current_events:
+                if e.agent_id in named_agents:
+                    name = named_agents[e.agent_id]
+                    names = by_region.setdefault(e.region, [])
+                    if name not in names:
+                        names.append(name)
+            # Holding the lists keeps their ids from being reused in this call.
+            entry = memo[key] = (current_events, named_agents, by_region)
+        return list(entry[2].get(region_id, ()))
 
     def _write_back(self, world: WorldState) -> None:
         """Write agent-derived stats to civ and region objects. Hybrid mode only."""
@@ -2344,8 +2488,8 @@ class AgentBridge:
 
         # Region populations from agent counts -- no clamp in hybrid mode
         pop_map = dict(zip(
-            region_pops.column("region_id").to_pylist(),
-            region_pops.column("alive_count").to_pylist(),
+            pylist(region_pops.column("region_id")),
+            pylist(region_pops.column("alive_count")),
         ))
         for i, region in enumerate(world.regions):
             agent_pop = pop_map.get(i, 0)
@@ -2369,7 +2513,7 @@ class AgentBridge:
             controlled_population_by_civ[region.controller] += region.population
 
         # Civ stats from aggregates
-        civ_ids = aggs.column("civ_id").to_pylist()
+        civ_ids = pylist(aggs.column("civ_id"))
         for civ in world.civilizations:
             civ.regions = controlled_regions_by_civ.get(civ.name, [])
         for row_idx, civ_id in enumerate(civ_ids):
@@ -2394,8 +2538,8 @@ class AgentBridge:
     def _apply_demographics_clamp(self, world: WorldState) -> None:
         region_pops = self._sim.get_region_populations()
         pop_map = dict(zip(
-            region_pops.column("region_id").to_pylist(),
-            region_pops.column("alive_count").to_pylist(),
+            pylist(region_pops.column("region_id")),
+            pylist(region_pops.column("alive_count")),
         ))
         for i, region in enumerate(world.regions):
             if region.controller is not None:
@@ -2438,10 +2582,10 @@ class AgentBridge:
         batch = self._sim.get_social_edges()
         if batch is None or batch.num_rows == 0:
             return []
-        agent_a = batch.column("agent_a").to_pylist()
-        agent_b = batch.column("agent_b").to_pylist()
-        rel = batch.column("relationship").to_pylist()
-        formed = batch.column("formed_turn").to_pylist()
+        agent_a = pylist(batch.column("agent_a"))
+        agent_b = pylist(batch.column("agent_b"))
+        rel = pylist(batch.column("relationship"))
+        formed = pylist(batch.column("formed_turn"))
         return list(zip(agent_a, agent_b, rel, formed))
 
     def apply_relationship_ops(self, ops: list[dict]) -> None:

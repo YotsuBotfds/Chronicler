@@ -26,6 +26,7 @@ Performance note — Python critical path hotspots (audit batch I, 2026-04-01):
 """
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 import logging
 import random
 from types import MappingProxyType
@@ -1167,13 +1168,21 @@ def phase_consequences(
     if _snap is not None:
         # Build per-region belief distribution
         rows = phase10.agents if phase10 is not None else None
-        region_col = rows.ints("region") if rows is not None else _snap.column("region").to_pylist()
-        belief_col = rows.ints("belief") if rows is not None else _snap.column("belief").to_pylist()
-        current_beliefs = {}
-        for rid, bid in zip(region_col, belief_col):
-            if rid not in current_beliefs:
-                current_beliefs[rid] = {}
-            current_beliefs[rid][bid] = current_beliefs[rid].get(bid, 0) + 1
+        import numpy as np
+        from chronicler.columnar import batch_arrays, first_appearance, ordered_counts
+        belief_arrays = (rows.arrays("region", "belief") if rows is not None
+                         else batch_arrays(_snap, ("region", "belief")))
+        if belief_arrays is not None:
+            # Same nested counts and insertion orders as the row loop below.
+            current_beliefs = {rid: dict(counts) for rid, counts in ordered_counts(*belief_arrays).items()}
+        else:
+            region_col = rows.ints("region") if rows is not None else pylist(_snap.column("region"))
+            belief_col = rows.ints("belief") if rows is not None else pylist(_snap.column("belief"))
+            current_beliefs = {}
+            for rid, bid in zip(region_col, belief_col):
+                if rid not in current_beliefs:
+                    current_beliefs[rid] = {}
+                current_beliefs[rid][bid] = current_beliefs[rid].get(bid, 0) + 1
 
         prev_beliefs = getattr(world, '_prev_belief_distribution', {})
         civ_majority_faiths = {c.name: getattr(c, 'civ_majority_faith', -1) for c in world.civilizations}
@@ -1186,15 +1195,26 @@ def phase_consequences(
         world._prev_belief_distribution = current_beliefs
 
         # Priest counts for EVT_PRIEST_LOSS
-        occ_col = rows.ints("occupation") if rows is not None else _snap.column("occupation").to_pylist()
-        civ_col = rows.ints("civ_affinity") if rows is not None else _snap.column("civ_affinity").to_pylist()
+        priest_arrays = (rows.arrays("occupation", "civ_affinity") if rows is not None
+                         else batch_arrays(_snap, ("occupation", "civ_affinity")))
         curr_priest_counts = {}
-        for occ, civ_id in zip(occ_col, civ_col):
-            if occ == 4:  # priest
-                # Need to map civ_id to civ_name
-                if civ_id < len(world.civilizations):
-                    civ_name = world.civilizations[civ_id].name
-                    curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + 1
+        if priest_arrays is not None:
+            occ_arr, civ_arr = priest_arrays
+            priest_civs = civ_arr[(occ_arr == 4) & (civ_arr < len(world.civilizations))]
+            per_civ = dict(zip(*(a.tolist() for a in np.unique(priest_civs, return_counts=True))))
+            # Names in order of their first priest row, as the row loop inserted them.
+            for civ_id in first_appearance(priest_civs):
+                civ_name = world.civilizations[civ_id].name
+                curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + per_civ[civ_id]
+        else:
+            occ_col = rows.ints("occupation") if rows is not None else pylist(_snap.column("occupation"))
+            civ_col = rows.ints("civ_affinity") if rows is not None else pylist(_snap.column("civ_affinity"))
+            for occ, civ_id in zip(occ_col, civ_col):
+                if occ == 4:  # priest
+                    # Need to map civ_id to civ_name
+                    if civ_id < len(world.civilizations):
+                        civ_name = world.civilizations[civ_id].name
+                        curr_priest_counts[civ_name] = curr_priest_counts.get(civ_name, 0) + 1
         world._prev_priest_counts = curr_priest_counts
 
     collapse_events: list[Event] = []
@@ -1594,7 +1614,17 @@ def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> 
 
 
 def _capture_agent_snapshot(world: WorldState, agent_bridge: object):
-    """Capture historical Phase 10 rows without publishing world scratch."""
+    """Capture historical Phase 10 rows without publishing world scratch.
+
+    An ``AgentBridge`` hands over the batch it read right after this turn's
+    agent tick (the pool is unchanged since); other bridges export again.
+    """
+    # Looked up on the class, so stand-in bridges (mocks) keep exporting.
+    take = getattr(type(agent_bridge), "take_post_tick_snapshot", None)
+    if take is not None:
+        held = take(agent_bridge, world.turn)
+        if held is not None:
+            return held
     try:
         return agent_bridge._sim.get_snapshot()
     except Exception:
