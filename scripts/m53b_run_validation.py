@@ -102,6 +102,14 @@ def _contact_ledger_args(args: argparse.Namespace) -> list[str]:
     return ["--contact-ledger" if ledger else "--no-contact-ledger"]
 
 
+def _finance_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit finance switch; omitted keeps the CLI default."""
+    finance = getattr(args, "finance", None)
+    if finance is None:
+        return []
+    return ["--finance" if finance else "--no-finance"]
+
+
 def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
     """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
 
@@ -139,6 +147,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_finance_args(args),
         *_fishery_aid_args(args),
     ]
     _run(cmd, cwd, env)
@@ -166,6 +175,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_finance_args(args),
         *_fishery_aid_args(args),
     ]
     _run(cmd, cwd, env)
@@ -199,6 +209,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_feature_flags(args))
         cmd.extend(_governance_args(args))
         cmd.extend(_contact_ledger_args(args))
+        cmd.extend(_finance_args(args))
         cmd.extend(_fishery_aid_args(args, agents))
         _run(cmd, cwd, env)
     return batch_dir
@@ -479,6 +490,12 @@ def main() -> None:
         help="Forward --contact-ledger/--no-contact-ledger to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--finance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --finance/--no-finance to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--fisheries",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -576,6 +593,7 @@ def main() -> None:
         "parallel": args.parallel,
         "campaigns": args.campaigns,
         "contact_ledger": args.contact_ledger,
+        "finance": args.finance,
         "fisheries": args.fisheries,
         "mutual_aid": args.mutual_aid,
         "pythonhashseed": env["PYTHONHASHSEED"],

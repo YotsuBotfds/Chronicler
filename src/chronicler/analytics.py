@@ -1412,6 +1412,12 @@ def generate_report(
     if contact.get("runs"):
         report["contact_ledger"] = contact
 
+    # Finance: present only for runs whose bundles carry history[n].finance.
+    from chronicler.finance import extract_finance_metrics
+    finance = extract_finance_metrics(bundles)
+    if finance.get("runs"):
+        report["finance"] = finance
+
     report["anomalies"] = detect_anomalies(report)
     return report
 
