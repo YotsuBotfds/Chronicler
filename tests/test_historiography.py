@@ -270,6 +270,33 @@ def test_temple_chronicler_sees_favour_and_wrath(world):
     assert "the temple scribes of the Faith of Civ0" in [c.name for c in st.chroniclers]
 
 
+def test_temple_archive_is_desecrated_only_with_its_own_temple(world, monkeypatch):
+    from chronicler.models import Belief
+    monkeypatch.setattr(H, "SURVIVAL", {**H.SURVIVAL, "desecration": 0.0})
+    world.belief_registry = [Belief(faith_id=0, name="Faith of Civ0", civ_origin=0,
+                                    doctrines=[0, 0, 0, 0, 0])]
+    civ = world.civilizations[0]
+    civ.civ_majority_faith = 0
+    region = world.regions[0]
+    region.infrastructure.append(Infrastructure(
+        type=InfrastructureType.TEMPLES, builder_civ=civ.name, built_turn=0, faith_id=0))
+    _end_turn(world)
+    _ev(world, "plague", [civ.name], "Plague.", region=region.name)
+    _end_turn(world)
+    archive = next(a for a in H.state_of(world).archives if a.owner == "temple:0")
+    _ev(world, "temple_destroyed", [], f"Temple of faith 1 replaced in {region.name}", importance=5)
+    _end_turn(world)
+    assert [x.cause for x in archive.losses] == ["plague"]
+    _ev(world, "temple_destroyed", [], f"Temple of faith 0 replaced in {region.name}", importance=5)
+    region.infrastructure[0].active = False
+    _end_turn(world)
+    assert [x.cause for x in archive.losses] == ["plague", "desecration"]
+    assert archive.losses[-1].lost == 1
+    # Without a standing temple the scribes fall silent and the archive is homeless.
+    chron = next(c for c in H.state_of(world).chroniclers if c.chronicler_id == "temple:0")
+    assert not chron.active and archive.region is None
+
+
 # ---------------------------------------------------------------------------
 # Archives
 # ---------------------------------------------------------------------------

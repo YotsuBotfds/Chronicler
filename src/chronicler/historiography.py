@@ -1389,7 +1389,10 @@ def _loss_cause(ctx: _Turn, chron: Chronicler, archive: Archive, ev: "Event") ->
         return None
     here = ctx.world.regions[archive.region].name
     if t == "temple_destroyed" and chron.kind == "temple":
-        return "desecration" if here in (ev.description or "") else None
+        # "Temple of faith <id> destroyed|replaced in <region>": this faith's great temple.
+        desc = ev.description or ""
+        mine = desc.startswith(f"Temple of faith {chron.faith} ") and desc.endswith(f" in {here}")
+        return "desecration" if mine else None
     if (ev.region or ev.shock_region) != here:
         return None
     if t in ("occupation", "annexation"):
