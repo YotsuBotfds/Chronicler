@@ -254,20 +254,21 @@ def test_cause_graph_depth_and_root_bonus():
     assert links[0].cause_id == "1:war_declared:0" and links[0].effect_id == "3:war:0"
 
 
-def test_patterns_link_only_effects_without_recorded_causes():
+def test_patterns_link_only_effects_without_provenance():
     events = [
         _ev(1, "drought", ["A"], eid="1:drought:0"),
         _ev(2, "drought", ["A"], eid="2:drought:0"),
-        _ev(4, "famine", ["A"], eid="4:famine:0"),                      # no provenance
+        _ev(4, "famine", ["A"]),                                          # legacy: no provenance
         _ev(5, "famine", ["A"], eid="5:famine:0", causes=["1:drought:0"]),  # recorded
+        _ev(6, "famine", ["A"], eid="6:famine:0"),                       # observed, no known cause
     ]
-    scores = [5.0] * 4
+    scores = [5.0] * 5
     links = compute_causal_links(events, scores)
     patterns = [link for link in links if link.provenance == "pattern"]
     recorded = [link for link in links if link.provenance == "recorded"]
     assert len(recorded) == 1 and recorded[0].effect_id == "5:famine:0"
-    # One fallback link for the unexplained famine, to the most recent drought.
-    assert [(p.cause_id, p.effect_id) for p in patterns] == [("2:drought:0", "4:famine:0")]
+    # One fallback link, for the legacy famine only, to the most recent drought.
+    assert [(p.cause_id, p.effect_turn) for p in patterns] == [("2:drought:0", 4)]
     assert scores[1] == 8.0 and scores[0] == 5.0
 
 
@@ -357,3 +358,23 @@ def test_mechanical_narrator_renders_without_an_llm():
     assert "because A goes to war with B (turn 0)" in entry.narrative
     assert entry.causal_chains == [chain]
     assert "causal_chains" in entry.model_dump()
+
+
+def test_hazard_event_cites_its_dominant_exciter():
+    world = _world(9)
+    civ = world.civilizations[0]
+    world.turn = 9
+    strong = Event(turn=9, event_type="drought", actors=[civ.name], description="", event_id="9:drought:0")
+    weak = Event(turn=9, event_type="plague", actors=[civ.name], description="", event_id="9:plague:0")
+    provenance.note_excitation(world, civ.name, {"migration": 0.04, "discovery": -0.02}, strong)
+    provenance.note_excitation(world, civ.name, {"migration": 0.03}, weak)
+    assert world.provenance.exciters[f"{civ.name}|migration"].event_id == "9:drought:0"
+    assert f"{civ.name}|discovery" not in world.provenance.exciters  # inhibition is not a cause
+    world.turn = 10
+    civ.event_excitation["migration"] = 0.07
+    # The drought's term (0.04) carries more than half of a 0.06 rate ...
+    assert provenance.excitation_cause(world, civ, "migration", 0.06) == "9:drought:0"
+    # ... but not of a rate dominated by the base hazard.
+    assert provenance.excitation_cause(world, civ, "migration", 0.5) is None
+    world.turn = 9 + provenance.EXCITATION_WITHIN + 1
+    assert provenance.excitation_cause(world, civ, "migration", 0.0001) is None

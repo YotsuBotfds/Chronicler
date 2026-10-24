@@ -353,10 +353,11 @@ def _pattern_links(
 ) -> list[CausalLink]:
     """Type-pair fallback for effects without recorded provenance.
 
-    For each effect with no ``causes`` and each matching pattern, link the
-    most recent cause of the pattern's type within ``max_gap`` turns that
-    shares an actor (one link per effect per pattern, not every pair).
-    The cause event's score receives the pattern bonus.
+    Only effects that carry no provenance at all (no ``event_id`` and no
+    ``causes``: old saves and bundles) are linked. For each such effect and
+    matching pattern, link the most recent cause of the pattern's type within
+    ``max_gap`` turns that shares an actor (one link per effect per pattern,
+    not every pair). The cause event's score receives the pattern bonus.
     """
     by_type: dict[str, list[int]] = {}
     for i, ev in enumerate(events):
@@ -372,7 +373,9 @@ def _pattern_links(
         cause_turns = [events[i].turn for i in causes]
         for j in effects:
             effect = events[j]
-            if effect.causes:
+            if effect.causes or effect.event_id:
+                # Recorded provenance exists: an observed event with no causes
+                # has none the simulation knows of; do not guess one.
                 continue
             actors = set(effect.actors)
             if not actors:
@@ -407,8 +410,9 @@ def compute_causal_links(
     * Recorded links are the ``Event.causes`` edges that resolve within
       ``events`` (``provenance="recorded"``); their weight enters the score
       through :func:`compute_chain_scores`, not here.
-    * ``CAUSAL_PATTERNS`` link only effects that carry no recorded causes
-      (old saves/bundles, emitters without provenance); cause and effect must
+    * ``CAUSAL_PATTERNS`` link only effects without provenance (no id and no
+      causes: old saves/bundles); an observed event with no causes has none
+      the simulation knows of and is not guessed at. Cause and effect must
       share an actor; the cause event's score is mutated in place (bonus).
     * ``pairs``, when given, receives the (cause, effect) index of each link.
     """

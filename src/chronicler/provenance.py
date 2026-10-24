@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Iterable, NamedTuple
 
-from chronicler.models import ChronicEpisode, Event, OpenCondition
+from chronicler.models import ChronicEpisode, Event, Exciter, OpenCondition
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import WorldState
@@ -417,44 +417,6 @@ def _rule_occupation_end(world: "WorldState", ev: Event) -> list:
     return [recall(world, key("occupation", region))] if region else []
 
 
-def _rule_plague(world: "WorldState", ev: Event) -> list:
-    """Plague excitation spreads over contact (shared border or trade route):
-    cite recent plague in civs this one touches, and pandemics in its land."""
-    out: list[str | None] = []
-    civs = set(event_civs(world, ev))
-    for civ in sorted(civs):
-        for rname in _regions_of(world, civ):
-            out.append(recall(world, key("pandemic", rname), within=10))
-        for other in _contacts_of(world, civ):
-            if other not in civs:
-                out.append(recall(world, key("plague", other), within=16))
-    return out
-
-
-def _contacts_of(world: "WorldState", civ: str) -> list[str]:
-    """Civs sharing a border with ``civ`` (the plague-excitation contact graph
-    without its trade-route half, which would touch the route caches)."""
-    by_name = {r.name: r for r in world.regions}
-    out: set[str] = set()
-    for region in world.regions:
-        if region.controller != civ:
-            continue
-        for adj_name in region.adjacencies:
-            adj = by_name.get(adj_name)
-            if adj is not None and adj.controller and adj.controller != civ:
-                out.add(adj.controller)
-    routes = ()
-    if getattr(world, "_trade_route_cache_turn", None) == world.turn:
-        # Read the route cache only if the simulation already built it this turn.
-        routes = getattr(world, "_active_trade_routes_cache", None) or ()
-    for a, b in routes:
-        if a == civ and b != civ:
-            out.add(b)
-        elif b == civ and a != civ:
-            out.add(a)
-    return sorted(out)
-
-
 def _rule_psi_crisis(world: "WorldState", ev: Event) -> list:
     civ = _first_civ(world, ev)
     if civ is None:
@@ -567,7 +529,6 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "temple_destroyed": _rule_civ_war,
     "scorched_earth": _rule_civ_war,
     # Disease and disaster
-    "plague": _rule_plague,
     "pandemic_leader_death": lambda w, ev: [recall(w, key("plague_civ", c), within=0)
                                             for c in event_civs(w, ev)[:1]],
     "drought_intensification": _rule_by_key("drought", within=10),
@@ -589,27 +550,54 @@ CAUSE_RULES: dict[str, CauseRule] = {
 # Hazard excitation (events.py): which event raised a civ's hazard
 # ---------------------------------------------------------------------------
 
-# A rolled hazard event cites the event that excited its hazard when the
-# (decaying) excitation is at least this share of the rate it was rolled at.
+# A rolled hazard event cites the event that excited its hazard when that
+# event's (decaying) excitation is at least this share of the rate the event
+# was rolled at. In a Hawkes process the probability that an event was
+# triggered by one excitation term is that term's share of the rate.
 EXCITATION_SHARE = 0.5
 EXCITATION_WITHIN = 24  # three decay time constants (tau = 8 turns)
 
 
-def note_excitation(world: "WorldState", civ_name: str, targets: Iterable[str], event: Event) -> None:
-    """Record ``event`` as the latest source exciting ``civ_name``'s ``targets``."""
+def _decay() -> float:
+    from chronicler.events import HAZARD_DECAY
+    return HAZARD_DECAY
+
+
+def note_excitation(world: "WorldState", civ_name: str, alphas, event: Event) -> None:
+    """Record ``event`` exciting ``civ_name`` by ``alphas`` ({target: alpha}
+    or (target, alpha) pairs). Per target the event with the largest current
+    (decayed) contribution is kept; inhibiting (negative) terms are ignored."""
     if not event.event_id:
         return
-    keys = world.provenance.keys
-    for target in targets:
-        keys[f"excite:{civ_name}|{target}"] = event.event_id
+    store = world.provenance.exciters
+    decay = _decay()
+    items = alphas.items() if isinstance(alphas, dict) else alphas
+    for target, alpha in items:
+        if alpha <= 0.0:
+            continue
+        k = f"{civ_name}|{target}"
+        current = store.get(k)
+        if current is not None and current.alpha * decay ** (world.turn - current.turn) >= alpha:
+            continue
+        store[k] = Exciter(event_id=event.event_id, alpha=alpha, turn=world.turn)
 
 
 def excitation_cause(world: "WorldState", civ, event_type: str, rate: float) -> str | None:
-    """The exciting event, if excitation carried a real share of ``rate``."""
-    excitation = civ.event_excitation.get(event_type, 0.0)
-    if not rate or excitation <= 0.0 or excitation < EXCITATION_SHARE * rate:
+    """The dominant exciting event, if its excitation carried at least
+    EXCITATION_SHARE of ``rate`` (the rate the event was rolled at)."""
+    exciter = world.provenance.exciters.get(f"{civ.name}|{event_type}")
+    if exciter is None or not rate:
         return None
-    return recall(world, f"excite:{civ.name}|{event_type}", within=EXCITATION_WITHIN)
+    age = world.turn - exciter.turn
+    if age > EXCITATION_WITHIN:
+        return None
+    # Excitation is ingested at the end of its turn and decays once per turn
+    # before the next roll; the net stored excitation bounds the term.
+    contribution = min(exciter.alpha * _decay() ** max(0, age - 1),
+                       civ.event_excitation.get(event_type, 0.0))
+    if contribution < EXCITATION_SHARE * rate:
+        return None
+    return exciter.event_id
 
 
 def great_person_causes(world: "WorldState", civ: str, role: str) -> list[str | None]:
@@ -637,7 +625,9 @@ def leader_death_causes(world: "WorldState", civ, cause: str) -> list[str | None
                 recall(world, key("civil_war", name), within=20),
                 recall(world, key("legitimacy", name), within=20)]
     if cause == "misfortune":
-        return [recall(world, f"excite:{name}|leader_death", within=EXCITATION_WITHIN)]
+        exciter = world.provenance.exciters.get(f"{name}|leader_death")
+        if exciter is not None and world.turn - exciter.turn <= EXCITATION_WITHIN:
+            return [exciter.event_id]
     return []
 
 
@@ -774,6 +764,10 @@ class ChronicSpec(NamedTuple):
 # ``episode="repeat"``), onset importance is not capped and no ``*_ended``
 # events are added. Never set in production.
 LEGACY_TIMELINE = False
+
+# Event types that exist only to carry provenance (no simulation consumer):
+# the contact edge a pandemic crossed. Dropped from a legacy timeline.
+PROVENANCE_ONLY_TYPES = frozenset({"pandemic_spread"})
 
 CHRONIC: dict[str, ChronicSpec] = {
     # Famine strikes at most every 5 turns per region (famine cooldown), and
@@ -914,13 +908,9 @@ def begin_turn(world: "WorldState") -> None:
     ids.turn_start = min(ids.turn_start, ids.watermark)
 
 
-# Hazard-rolled types: the emitter may stamp the exciting event; the state
-# rule still adds the conditions the hazard driver read.
-MERGE_RULE_TYPES = frozenset({
-    "rebellion", "migration", "plague", "drought", "earthquake", "border_incident",
-    "religious_movement", "discovery", "cultural_renaissance", "leader_death",
-    "supply_shock",
-})
+# Types whose emitter may stamp some causes (the exciting event, an upstream
+# shortage) while the state rule still adds the conditions the driver read.
+MERGE_RULE_TYPES = frozenset({"rebellion", "migration", "supply_shock"})
 
 
 def _observe_one(world: "WorldState", ids: TurnIds, ev: Event, gate: bool) -> bool:
@@ -956,7 +946,8 @@ def observe(world: "WorldState", events: Iterable[Event] = ()) -> list[Event]:
     for ev in timeline[ids.watermark:]:
         _observe_one(world, ids, ev, gate=False)
     ids.watermark = len(timeline)
-    kept = [ev for ev in events if _observe_one(world, ids, ev, gate=True)]
+    kept = [ev for ev in events if _observe_one(world, ids, ev, gate=True)
+            and not (LEGACY_TIMELINE and ev.event_type in PROVENANCE_ONLY_TYPES)]
     _observe_conditions(world, ids)
     return kept
 

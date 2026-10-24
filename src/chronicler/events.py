@@ -421,10 +421,11 @@ def ingest_turn_events(
                     other = civ_map.get(other_name)
                     if other is not None and other.regions:
                         excite(other, "plague", PLAGUE_CONTACT_ALPHA * weight)
-                        note_excitation(world, other.name, ("plague",), event)
+                        note_excitation(world, other.name, (("plague", PLAGUE_CONTACT_ALPHA * weight),), event)
         elif etype == "border_incident" and len(involved) >= 2:
             excite(involved[1], "border_incident", BORDER_INCIDENT_RECIPROCITY_ALPHA)
-            note_excitation(world, involved[1].name, ("border_incident",), event)
+            note_excitation(world, involved[1].name,
+                            (("border_incident", BORDER_INCIDENT_RECIPROCITY_ALPHA),), event)
     for named in named_events or []:
         etype = getattr(named, "event_type", None)
         if etype not in NAMED_EVENT_CASCADE_SOURCES or not named.actors:

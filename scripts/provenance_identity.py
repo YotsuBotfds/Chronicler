@@ -42,6 +42,11 @@ def _chronic_types() -> set[str]:
     return set(CHRONIC)
 
 
+def _added_types() -> set[str]:
+    from chronicler.provenance import PROVENANCE_ONLY_TYPES
+    return set(PROVENANCE_ONLY_TYPES)
+
+
 def strip_event(e: dict, importance: bool = True) -> dict:
     e = {k: v for k, v in e.items() if k not in EVENT_FIELDS}
     if not importance and e["event_type"] == "supply_shock":
@@ -82,7 +87,9 @@ def first_diff(a, b, path: str = "$") -> str | None:
 
 def check_prod_timeline(base_evs: list, new_evs: list) -> int | str:
     chronic = _chronic_types()
-    new_kept = [strip_event(e, False) for e in new_evs if e.get("episode") != "end"]
+    added = _added_types()
+    new_kept = [strip_event(e, False) for e in new_evs
+                if e.get("episode") != "end" and e["event_type"] not in added]
     i = dropped = 0
     for b in base_evs:
         sb = strip_event(b, False)
@@ -125,6 +132,7 @@ def compare(base: str, new: str, mode: str) -> bool:
     ok &= ab == an
     tb, tn = sb["events_timeline"], sn["events_timeline"]
     ends = sum(1 for e in tn if e.get("episode") == "end")
+    spreads = sum(1 for e in tn if e["event_type"] in _added_types())
     if mode == "legacy":
         d = first_diff([strip_event(e) for e in tb], [strip_event(e) for e in tn], "timeline")
         if ends:
@@ -136,7 +144,8 @@ def compare(base: str, new: str, mode: str) -> bool:
         res = check_prod_timeline(tb, tn)
         if isinstance(res, int):
             print(f"  timeline: base {len(tb)} -> new {len(tn)} events ({res} chronic repeats "
-                  f"folded, {ends} end events added): ordered subsequence OK")
+                  f"folded, {ends} end and {spreads} pandemic-spread events added): "
+                  "ordered subsequence OK")
         else:
             print("  timeline:", res)
             ok = False

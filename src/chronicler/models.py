@@ -742,18 +742,28 @@ class OpenCondition(BaseModel):
     cause_id: str | None = None
 
 
+class Exciter(BaseModel):
+    """The dominant source of one civ's hazard excitation for one event type."""
+    event_id: str
+    alpha: float
+    turn: int
+
+
 class ProvenanceState(BaseModel):
     """Persisted causal index (chronicler.provenance). Never read by the simulation.
 
     ``keys`` maps a semantic key (e.g. ``war:A|B``, ``occupation:<region>``,
-    ``psi:<civ>``) to the id of the event that currently stands for it.
+    ``psi:<civ>``) to the id of the event that currently stands for it;
+    ``exciters`` maps ``<civ>|<event type>`` to the event whose decaying
+    hazard excitation is currently the largest.
     """
     keys: dict[str, str] = Field(default_factory=dict)
     episodes: dict[str, ChronicEpisode] = Field(default_factory=dict)
     conditions: dict[str, OpenCondition] = Field(default_factory=dict)
+    exciters: dict[str, Exciter] = Field(default_factory=dict)
 
     def is_empty(self) -> bool:
-        return not (self.keys or self.episodes or self.conditions)
+        return not (self.keys or self.episodes or self.conditions or self.exciters)
 
 
 class VassalRelation(BaseModel):
