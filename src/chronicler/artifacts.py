@@ -382,6 +382,7 @@ def tick_artifacts(world) -> list[Event]:
             actors=actors,
             description=f"{name} created by {intent.civ_name}",
             importance=6,
+            region=intent.region_name, civs=[intent.civ_name] if intent.civ_name else [],
         ))
 
     # 2. Process lifecycle intents

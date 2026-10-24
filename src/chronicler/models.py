@@ -723,6 +723,8 @@ class ActiveCondition(BaseModel):
 class ChronicEpisode(BaseModel):
     """An open chronic condition (one onset event, repeats folded in)."""
     onset_id: str
+    # Latest report kept on the timeline (the onset, or the latest tick).
+    last_id: str = ""
     event_type: str
     onset_turn: int
     last_turn: int

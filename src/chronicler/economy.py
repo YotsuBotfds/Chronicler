@@ -256,10 +256,25 @@ def classify_upstream_source(
     category: str,
     region_map: dict,
 ) -> str | None:
-    """Find upstream civ if shock is import-driven.
+    """Find upstream civ if shock is import-driven (see upstream_source_region)."""
+    source = upstream_source_region(
+        world, economy_tracker, economy_result, region_name, category, region_map,
+    )
+    return region_map[source].controller if source is not None else None
 
-    Returns the controller of the first inbound source region when imports
-    have dropped by SHOCK_DELTA_THRESHOLD or more relative to the EMA.
+
+def upstream_source_region(
+    world,
+    economy_tracker: EconomyTracker,
+    economy_result: "EconomyResult",
+    region_name: str,
+    category: str,
+    region_map: dict,
+) -> str | None:
+    """Find the upstream source region if a shock is import-driven.
+
+    Returns the first inbound source region (one with a controller) when
+    imports have dropped by SHOCK_DELTA_THRESHOLD or more relative to the EMA.
     Source stockpile state is checked only to prefer regions that have also
     experienced a stockpile decline; any inbound source qualifies as fallback.
     """
@@ -276,7 +291,7 @@ def classify_upstream_source(
         if source_avg > 0 and source_stockpile / source_avg < (1.0 - SHOCK_DELTA_THRESHOLD):
             source_region = region_map.get(source_name)
             if source_region and source_region.controller:
-                return source_region.controller
+                return source_name
 
     return None  # imports dropped but no upstream stockpile crash — likely embargo
 
@@ -310,12 +325,17 @@ def detect_supply_shocks(
             else:
                 severity = min(1.0 - (current / max(avg, 0.1)), 1.0)
 
-            upstream = classify_upstream_source(
+            upstream_region = upstream_source_region(
                 world, economy_tracker, economy_result, name, cat, region_map,
             )
+            upstream = region_map[upstream_region].controller if upstream_region else None
             actors = [owner_civ_name]
             if upstream:
                 actors.append(upstream)
+            # Provenance: an import-driven shock cites the upstream region's
+            # own open shortage (episodes from earlier turns).
+            from chronicler.provenance import open_episode
+            causes = [open_episode(world, "supply_shock", upstream_region, cat)] if upstream_region else []
             shocks.append(Event(
                 turn=world.turn,
                 event_type="supply_shock",
@@ -326,6 +346,7 @@ def detect_supply_shocks(
                 source="economy",
                 shock_region=name,
                 shock_category=cat,
+                causes=[c for c in causes if c],
             ))
     return shocks
 

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import random
 
+from chronicler import provenance
+
 from chronicler.models import (
     ActiveCondition, Civilization, ClimatePhase, EMPTY_SLOT, Event, PandemicRegion, Region,
     ResourceType, TechEra, WorldState,
@@ -289,6 +291,7 @@ def _apply_pandemic_origin(world: WorldState, seed: int) -> list[Event]:
         actors=[best_civ.name],
         description=f"A devastating plague erupts in {origin_region.name}, spreading through {best_civ.name}'s trade network",
         importance=9,
+        region=origin_region.name,
     )]
 
 
@@ -356,6 +359,8 @@ def tick_pandemic(
                 actors=[civ_name],
                 description=f"{old_leader.name} of {civ_name} succumbs to the plague",
                 importance=8,
+                causes=[c for c in (provenance.recall(world, provenance.key("pandemic", r.name))
+                                    for r in affected_regions if r.name in infected_names) if c],
             ))
 
     # --- Spread to adjacent trade-connected regions ---
@@ -370,10 +375,12 @@ def tick_pandemic(
     # source region's controller, not all infected controllers. This prevents
     # cross-contamination via third-party trade connections.
     new_infections: list[PandemicRegion] = []
+    spread_sources: list[str] = []  # provenance: source region of each new infection
     rng_spread = random.Random(world.seed + world.turn * 1019)
     if ledger_enabled(world):
         new_infections = _ledger_pandemic_spread(
             world, region_map, civ_by_name, already_infected_or_recovered, rng_spread,
+            sources=spread_sources,
         )
     for p in ([] if ledger_enabled(world) else world.pandemic_state):
         source_region = region_map.get(p.region_name)
@@ -397,7 +404,22 @@ def tick_pandemic(
                 new_infections.append(PandemicRegion(
                     region_name=adj_name, severity=severity, turns_remaining=duration,
                 ))
+                spread_sources.append(p.region_name)
                 already_infected_or_recovered.add(adj_name)
+
+    # Provenance: one event per contact edge the plague crossed (no
+    # simulation consumer reads these; they carry the source -> target chain).
+    for source_name, infection in zip(spread_sources, new_infections):
+        target = region_map.get(infection.region_name)
+        source = region_map.get(source_name)
+        actors = [c for c in dict.fromkeys(
+            (target.controller if target else None, source.controller if source else None)) if c]
+        events.append(Event(
+            turn=world.turn, event_type="pandemic_spread", actors=actors,
+            description=f"The plague spreads from {source_name} to {infection.region_name}",
+            importance=6, region=infection.region_name,
+            causes=[c for c in (provenance.recall(world, provenance.key("pandemic", source_name)),) if c],
+        ))
 
     # --- Decrement timers and remove expired ---
     for p in world.pandemic_state:
@@ -423,6 +445,7 @@ def _ledger_pandemic_spread(
     civ_by_name: dict,
     already_infected_or_recovered: set[str],
     rng_spread: random.Random,
+    sources: list[str] | None = None,
 ) -> list[PandemicRegion]:
     """Contact-ledger plague spread: people/trade/soldier/pilgrim flows, not adjacency.
 
@@ -463,6 +486,8 @@ def _ledger_pandemic_spread(
             new_infections.append(PandemicRegion(
                 region_name=target.name, severity=severity, turns_remaining=duration,
             ))
+            if sources is not None:
+                sources.append(p.region_name)
             already_infected_or_recovered.add(target.name)
     return new_infections
 
@@ -658,6 +683,7 @@ def _apply_tech_accident(world: WorldState, seed: int) -> list[Event]:
         actors=[civ.name],
         description=f"Industrial disaster in {target.name} poisons the surrounding lands",
         importance=8,
+        region=target.name,
     )]
 
 
@@ -688,6 +714,9 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False, acc
 
         matching_probs: list[float] = []
 
+        # Provenance: the events behind each trigger that matched.
+        trigger_causes: list[str | None] = []
+
         # Trigger 1: Capital loss + territorial collapse
         if (civ.capital_start_of_turn is not None
                 and civ.capital_region != civ.capital_start_of_turn
@@ -696,18 +725,27 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False, acc
             matching_probs.append(
                 get_override(world, K_REGRESSION_CAPITAL_COLLAPSE, _REGRESSION_TRIGGERS["capital_collapse"])
             )
+            trigger_causes += [
+                provenance.recall(world, provenance.key("capital_taken", civ.name), within=0),
+                provenance.recall(world, provenance.key("capital_loss", civ.name), within=0),
+                provenance.recall(world, provenance.key("secession", civ.name), within=0),
+                provenance.recall(world, provenance.key("collapse", civ.name), within=0),
+            ]
 
         # Trigger 2: Entered twilight this turn
         if civ.decline_turns > 0 and not civ.was_in_twilight:
             matching_probs.append(
                 get_override(world, K_REGRESSION_TWILIGHT, _REGRESSION_TRIGGERS["entered_twilight"])
             )
+            trigger_causes.append(provenance.recall(world, provenance.key("twilight", civ.name), within=0))
 
         # Trigger 3: Black swan while critically stressed
         if black_swan_fired and civ.civ_stress >= 15:
             matching_probs.append(
                 get_override(world, K_REGRESSION_BLACK_SWAN, _REGRESSION_TRIGGERS["black_swan_stressed"])
             )
+            trigger_causes.append(provenance.recall(world, provenance.key("black_swan", civ.name), within=0))
+            trigger_causes.append(provenance.recall(world, provenance.key("black_swan_world"), within=0))
 
         if not matching_probs:
             continue
@@ -743,6 +781,7 @@ def check_tech_regression(world: WorldState, black_swan_fired: bool = False, acc
             actors=[civ.name],
             description=f"{civ.name} loses the knowledge of the {old_era.value} era, falling back to {new_era.value}",
             importance=9,
+            causes=[c for c in dict.fromkeys(trigger_causes) if c],
         ))
 
     return events
@@ -840,7 +879,7 @@ def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
         if rtype in (ResourceType.GRAIN, ResourceType.BOTANICALS):
             region.resource_suspensions[rtype] = duration
     return Event(
-        turn=world.turn, event_type="locust_swarm",
+        turn=world.turn, event_type="locust_swarm", region=region.name,
         actors=[region.controller] if region.controller else [],
         description=f"A locust swarm descends on {region.name}, devouring the crops",
         importance=7,
@@ -868,7 +907,7 @@ def _check_flood(region: Region, world: WorldState, rng) -> Event | None:
     caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
     region.ecology.soil = min(caps["soil"], region.ecology.soil + 0.15)
     return Event(
-        turn=world.turn, event_type="flood",
+        turn=world.turn, event_type="flood", region=region.name,
         actors=[region.controller] if region.controller else [],
         description=f"The river floods {region.name}, depositing rich silt but damaging infrastructure",
         importance=6,
@@ -904,7 +943,7 @@ def _check_collapse(region: Region, world: WorldState, rng) -> Event | None:
         if region.resource_types[slot] in (ResourceType.ORE, ResourceType.PRECIOUS):
             region.resource_suspensions[region.resource_types[slot]] = duration
     return Event(
-        turn=world.turn, event_type="mine_collapse",
+        turn=world.turn, event_type="mine_collapse", region=region.name,
         actors=[region.controller] if region.controller else [],
         description=f"A mine collapses in {region.name}, killing workers and halting extraction",
         importance=8,
@@ -938,7 +977,7 @@ def _check_drought(region: Region, world: WorldState, rng) -> Event | None:
             adj._capacity_modifier_source = "drought_intensification"
             adj.disaster_cooldowns["drought_intensification"] = duration
     return Event(
-        turn=world.turn, event_type="drought_intensification",
+        turn=world.turn, event_type="drought_intensification", region=region.name,
         actors=[region.controller] if region.controller else [],
         description=f"The drought intensifies around {region.name}, devastating the region",
         importance=8,
@@ -965,7 +1004,7 @@ def _check_ecological_recovery(region: Region, world: WorldState, rng) -> Event 
     restore = lost * fraction
     region.resource_effective_yields[slot] = min(base, current + restore)
     return Event(
-        turn=world.turn, event_type="ecological_recovery",
+        turn=world.turn, event_type="ecological_recovery", region=region.name,
         actors=[region.controller] if region.controller else [],
         description=f"The degraded resources of {region.name} show signs of recovery",
         importance=5,

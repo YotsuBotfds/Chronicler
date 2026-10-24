@@ -168,9 +168,13 @@ def episode_key(event_type: str, region: str | None, category: str | None = None
 
 def open_episode(world: "WorldState", event_type: str, region: str | None,
                  category: str | None = None) -> str | None:
-    """Onset id of the open chronic episode of this type in ``region``."""
+    """Latest kept report of the open chronic episode of this type in
+    ``region``: the latest tick (a recurring famine's current strike, whose
+    own causes are the conditions of that turn) or else the onset."""
     ep = world.provenance.episodes.get(episode_key(event_type, region, category))
-    return ep.onset_id if ep is not None else None
+    if ep is None:
+        return None
+    return ep.last_id or ep.onset_id
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +232,7 @@ def _famines_of(world: "WorldState", civ_name: str, limit: int = 2) -> list[str]
         if ep is not None:
             eps.append(ep)
     eps.sort(key=lambda ep: (-ep.onset_turn, ep.onset_id))
-    return [ep.onset_id for ep in eps[:limit]]
+    return [ep.last_id or ep.onset_id for ep in eps[:limit]]
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +390,16 @@ def _rule_civ_war(world: "WorldState", ev: Event) -> list:
     return _wars_of(world, civ) if civ is not None else []
 
 
+def _rule_battle_aftermath(world: "WorldState", ev: Event) -> list:
+    """Losses in a battle (a fallen general, a destroyed army, a hostage)
+    cite that battle; otherwise the civ's wars."""
+    region = event_region(ev)
+    battle = recall(world, key("battle", region), within=0) if region else None
+    if battle is not None:
+        return [battle]
+    return _rule_civ_war(world, ev)
+
+
 def _rule_war_end(world: "WorldState", ev: Event) -> list:
     p = _pair_of(world, ev)
     return [recall(world, war_key(*p))] if p else []
@@ -498,7 +512,9 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "brain_drain": _rule_regional_flight,
     "demographic_crisis": _rule_regional_flight,
     "notable_migration": _rule_regional_flight,
-    "Mass Migration": _rule_regional_flight,
+    "Mass Migration": lambda w, ev: [recall(w, key("persecution", ev.region))] if ev.region else [],
+    "Persecution": lambda w, ev: [recall(w, key("conquest", ev.region), within=50)] if ev.region else [],
+    "Schism": lambda w, ev: [recall(w, key("persecution", ev.region), within=50)] if ev.region else [],
     # Unrest and fragmentation
     "local_rebellion": _rule_local_unrest,
     "loyalty_cascade": _rule_local_unrest,
@@ -506,7 +522,12 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "vassal_rebellion": _rule_civ_distress,
     "secession": _rule_secession,
     "secession_suppressed": _rule_secession,
-    "secession_defection": _rule_local_unrest,
+    "secession_defection": lambda w, ev: [recall(w, key("secession", c), within=0)
+                                          for c in event_civs(w, ev)[:1]],
+    "conquest_exile": lambda w, ev: [
+        *(recall(w, key("conquered", c), within=0) for c in event_civs(w, ev)[:1]),
+        recall(w, key("conquest", ev.region), within=0) if ev.region else None],
+    "exile_return": lambda w, ev: [recall(w, key("exile", a)) for a in ev.actors[:1]],
     "collapse": _rule_collapse,
     "twilight": _rule_twilight,
     "twilight_absorption": _rule_twilight,
@@ -516,7 +537,6 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "psi_crisis": _rule_psi_crisis,
     "revolt": _rule_by_key("psi"),
     "psi_recovery": _rule_by_key("psi"),
-    "institution_repealed": _rule_by_key("fiscal", within=15),
     "legitimacy_crisis": _rule_by_key("ambition_failed", within=10),
     "succession_crisis_resolved": lambda w, ev: [
         recall(w, key("civil_war", c), within=30) for c in event_civs(w, ev)[:1]],
@@ -526,10 +546,10 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "war_declared": _rule_war_open,
     "war": _rule_war_event,
     "army_raised": _rule_war_event,
-    "army_destroyed": _rule_civ_war,
+    "army_destroyed": _rule_battle_aftermath,
     "army_disbanded": _rule_civ_war,
-    "general_fallen": _rule_civ_war,
-    "hostage_taken": _rule_war_event,
+    "general_fallen": _rule_battle_aftermath,
+    "hostage_taken": _rule_battle_aftermath,
     "siege_begun": _rule_war_event,
     "occupation": _rule_region_war,
     "annexation": _rule_occupation_end,
@@ -553,11 +573,74 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "pandemic_leader_death": lambda w, ev: [recall(w, key("plague_civ", c), within=0)
                                             for c in event_civs(w, ev)[:1]],
     "drought_intensification": _rule_by_key("drought", within=10),
+    "ecological_recovery": lambda w, ev: [
+        open_episode(w, "soil_exhaustion", ev.region),
+        recall(w, key("depletion", ev.region))] if ev.region else [],
+    # Great persons' deeds cite the person's emergence
+    "artifact_created": lambda w, ev: [recall(w, key("gp", a)) for a in ev.actors[:1]],
+    "pilgrimage_departure": lambda w, ev: [recall(w, key("gp", a)) for a in ev.actors[:1]],
+    "pilgrimage_return": lambda w, ev: [recall(w, key("pilgrimage", a)) for a in ev.actors[:1]],
     # Artifacts change hands when their holders fall
     "artifact_captured": _rule_artifact_loss,
     "artifact_lost": _rule_artifact_loss,
     "artifact_destroyed": _rule_artifact_loss,
 }
+
+
+# ---------------------------------------------------------------------------
+# Hazard excitation (events.py): which event raised a civ's hazard
+# ---------------------------------------------------------------------------
+
+# A rolled hazard event cites the event that excited its hazard when the
+# (decaying) excitation is at least this share of the rate it was rolled at.
+EXCITATION_SHARE = 0.5
+EXCITATION_WITHIN = 24  # three decay time constants (tau = 8 turns)
+
+
+def note_excitation(world: "WorldState", civ_name: str, targets: Iterable[str], event: Event) -> None:
+    """Record ``event`` as the latest source exciting ``civ_name``'s ``targets``."""
+    if not event.event_id:
+        return
+    keys = world.provenance.keys
+    for target in targets:
+        keys[f"excite:{civ_name}|{target}"] = event.event_id
+
+
+def excitation_cause(world: "WorldState", civ, event_type: str, rate: float) -> str | None:
+    """The exciting event, if excitation carried a real share of ``rate``."""
+    excitation = civ.event_excitation.get(event_type, 0.0)
+    if not rate or excitation <= 0.0 or excitation < EXCITATION_SHARE * rate:
+        return None
+    return recall(world, f"excite:{civ.name}|{event_type}", within=EXCITATION_WITHIN)
+
+
+def great_person_causes(world: "WorldState", civ: str, role: str) -> list[str | None]:
+    """The achievement each great-person threshold counts (great_persons.py)."""
+    if role == "general":  # war wins clustered in a 20-turn window
+        return [recall(world, key("war_win", civ), within=20)]
+    if role == "scientist":  # an era advance since the last scientist (or high economy)
+        tech = recall(world, key("tech", civ))
+        last = recall(world, key("gp_role", civ, role))
+        if tech is not None and (last is None or (id_turn(tech) or 0) >= (id_turn(last) or 0)):
+            return [tech]
+        return []
+    if role == "prophet":  # a movement adoption or emergence
+        return [recall(world, key("movement", civ), within=10)]
+    return []
+
+
+def leader_death_causes(world: "WorldState", civ, cause: str) -> list[str | None]:
+    """Causes of a leader's death from the mortality component that drew it."""
+    name = civ.name
+    if cause == "battle":
+        return _wars_of(world, name)
+    if cause == "coup":
+        return [recall(world, key("psi", name)), recall(world, key("revolt", name), within=10),
+                recall(world, key("civil_war", name), within=20),
+                recall(world, key("legitimacy", name), within=20)]
+    if cause == "misfortune":
+        return [recall(world, f"excite:{name}|leader_death", within=EXCITATION_WITHIN)]
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -628,13 +711,14 @@ def _register(world: "WorldState", ev: Event) -> None:
             _capital_taken(world, region, eid)
     elif etype == "civ_conquered" and len(civs) >= 2:
         keys[key("conquered", civs[1])] = eid
-    elif etype == "pandemic":
+    elif etype in ("pandemic", "pandemic_spread"):
         if region is not None:
             keys[key("pandemic", region)] = eid
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid
     if etype in _BLACK_SWAN_TYPES:
+        keys[key("black_swan_world")] = eid
         for civ in civs:
             keys[key("black_swan", civ)] = eid
     if etype == "plague":
@@ -642,6 +726,24 @@ def _register(world: "WorldState", ev: Event) -> None:
             keys[key("plague_civ", civ)] = eid
     if etype == "Persecution" and region is not None:
         keys[key("persecution", region)] = eid
+    if etype == "resource_depletion" and region is not None:
+        keys[key("depletion", region)] = eid
+    if etype == "war" and ev.actors and "attacker_wins" in ev.description:
+        keys[key("war_win", ev.actors[0])] = eid  # what traditions counts as a win
+    if etype == "tech_advancement":
+        for civ in civs:
+            keys[key("tech", civ)] = eid
+    if etype in ("movement_adoption", "movement_emergence"):
+        for civ in civs[:1]:
+            keys[key("movement", civ)] = eid
+    if etype == "great_person_born":
+        role = ev.description.split("A great ", 1)[-1].split(" ", 1)[0]
+        for civ in civs[:1]:
+            keys[key("gp_role", civ, role)] = eid
+    if etype == "pilgrimage_departure" and ev.actors:
+        keys[key("pilgrimage", ev.actors[0])] = eid
+    if etype == "conquest_exile" and ev.actors:
+        keys[key("exile", ev.actors[0])] = eid
 
 
 def _active_pairs(world: "WorldState") -> set[tuple[str, str]]:
@@ -688,6 +790,8 @@ CHRONIC: dict[str, ChronicSpec] = {
     "local_rebellion": ChronicSpec(1, False, None, "uprising"),
     "migration": ChronicSpec(1, False, None, "flight"),
     "soil_exhaustion": ChronicSpec(1, False, None, "exhaustion of the soil"),
+    "famine_starvation": ChronicSpec(1, False, None, "starvation"),
+    "Mass Migration": ChronicSpec(1, False, None, "flight of the faithful"),
 }
 
 
@@ -709,8 +813,10 @@ def _gate(world: "WorldState", ids: TurnIds, ev: Event) -> bool:
             ev.episode = "repeat"
             cite(ev, ep.onset_id)
             return True
+        # A kept repeat is a new report of the same condition: it gets the
+        # causes of its own turn (the cause rules), not a link to the onset.
         ev.episode = "tick"
-        cite(ev, ep.onset_id)
+        ep.last_id = ensure_id(world, ev)
         return True
     ev.episode = "onset"
     if spec.importance_cap is not None and ev.importance > spec.importance_cap:
@@ -808,6 +914,15 @@ def begin_turn(world: "WorldState") -> None:
     ids.turn_start = min(ids.turn_start, ids.watermark)
 
 
+# Hazard-rolled types: the emitter may stamp the exciting event; the state
+# rule still adds the conditions the hazard driver read.
+MERGE_RULE_TYPES = frozenset({
+    "rebellion", "migration", "plague", "drought", "earthquake", "border_incident",
+    "religious_movement", "discovery", "cultural_renaissance", "leader_death",
+    "supply_shock",
+})
+
+
 def _observe_one(world: "WorldState", ids: TurnIds, ev: Event, gate: bool) -> bool:
     if ev.event_id and ev.event_id in ids.observed:
         return True
@@ -815,7 +930,7 @@ def _observe_one(world: "WorldState", ids: TurnIds, ev: Event, gate: bool) -> bo
         return False
     eid = ensure_id(world, ev)
     ids.observed.add(eid)
-    if not ev.causes:
+    if not ev.causes or ev.event_type in MERGE_RULE_TYPES:
         rule = CAUSE_RULES.get(ev.event_type)
         if rule is not None:
             cite(ev, *rule(world, ev))
@@ -844,6 +959,13 @@ def observe(world: "WorldState", events: Iterable[Event] = ()) -> list[Event]:
     kept = [ev for ev in events if _observe_one(world, ids, ev, gate=True)]
     _observe_conditions(world, ids)
     return kept
+
+
+def observe_now(world: "WorldState", event: Event) -> str | None:
+    """Observe one event at emission (for emitters whose same-phase chains
+    must resolve in order). Never folds chronic repeats."""
+    _observe_one(world, _turn_ids(world), event, gate=False)
+    return event.event_id
 
 
 def end_turn(world: "WorldState") -> list[Event]:

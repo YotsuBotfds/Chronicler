@@ -26,6 +26,7 @@ Performance note — Python critical path hotspots (audit batch I, 2026-04-01):
 """
 from __future__ import annotations
 
+from chronicler import provenance
 from chronicler.columnar import pylist
 import logging
 import random
@@ -190,12 +191,12 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
         if event_type not in world.event_probabilities:
             continue
         affected: list[Civilization] = []
+        rates: list[float] = []
         for civ_idx, civ in enumerate(world.civilizations):
             if not civ.regions:
                 continue
-            p = hazard_probability(
-                civ_event_hazard(world, civ, civ_idx, event_type, hazard_ctx)
-            )
+            rate = civ_event_hazard(world, civ, civ_idx, event_type, hazard_ctx)
+            p = hazard_probability(rate)
             if p <= 0.0:
                 continue
             draw = random.Random(
@@ -203,6 +204,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             ).random()
             if draw < p:
                 affected.append(civ)
+                rates.append(rate)
         if not affected:
             continue
         event = Event(
@@ -212,6 +214,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
             description="",  # Filled in by narrative engine
             importance=5,
         )
+        # Provenance: the event that excited this hazard, where it mattered.
+        provenance.cite(event, *(provenance.excitation_cause(world, c, event_type, r)
+                                 for c, r in zip(affected, rates)))
 
         if event.event_type == "drought":
             for civ in affected:
@@ -871,7 +876,8 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
         if not civ.regions:
             continue
         for event_type in event_types:
-            p = hazard_probability(civ_event_hazard(world, civ, civ_idx, event_type, ctx))
+            rate = civ_event_hazard(world, civ, civ_idx, event_type, ctx)
+            p = hazard_probability(rate)
             if p <= 0.0:
                 continue
             rng = random.Random(stable_hash_int("event_hazard", seed, civ_idx, event_type))
@@ -897,6 +903,7 @@ def phase_random_events(world: WorldState, seed: int, acc=None) -> list[Event]:
                 description="",  # Filled in by narrative engine
                 importance=5,
             )
+            provenance.cite(event, provenance.excitation_cause(world, civ, event_type, rate))
             _apply_event_effects(event_type, civ, world, acc=acc)
             record_hazard_event(world, event)
             events.append(event)
@@ -929,6 +936,7 @@ def _roll_leader_mortality(
     old_leader = civ.leader
     age = leader_age(old_leader, world)
     reign = world.turn - old_leader.reign_start
+    _timeline_mark = len(world.events_timeline)
     _apply_event_effects("leader_death", civ, world, acc=acc, cause=cause)
     cause_text = {
         "natural": f"dies at the age of {age}",
@@ -936,13 +944,20 @@ def _roll_leader_mortality(
         "coup": "is overthrown and killed in a coup",
         "misfortune": f"dies amid the turmoil, aged {age}",
     }.get(cause, f"dies at the age of {age}")
-    return Event(
+    event = Event(
         turn=world.turn,
         event_type="leader_death",
         actors=[civ.name],
         description=f"{old_leader.name} of {civ.name} {cause_text} after a reign of {reign} years.",
         importance=5,
     )
+    # Provenance: the mortality component that drew the death, and the
+    # succession crisis the death just triggered (appended above).
+    provenance.cite(event, *provenance.leader_death_causes(world, civ, cause))
+    for ev in world.events_timeline[_timeline_mark:]:
+        if ev.event_type == "succession_crisis" and ev.actors[:1] == [civ.name]:
+            provenance.cite(ev, provenance.ensure_id(world, event))
+    return event
 
 
 def _apply_event_effects(
@@ -1489,12 +1504,17 @@ def phase_consequences(
             continue
         new_persons = check_great_person_generation(civ, world)
         for gp in new_persons:
-            collapse_events.append(Event(
+            born = Event(
                 turn=world.turn, event_type="great_person_born",
                 actors=[civ.name],
                 description=f"A great {gp.role} emerges in {civ.name}: {gp.name}.",
                 importance=6,
-            ))
+            )
+            # Provenance: the achievement that triggered the role; later
+            # deeds of this person cite the birth.
+            provenance.cite(born, *provenance.great_person_causes(world, civ.name, gp.role))
+            provenance.remember(world, provenance.key("gp", gp.name), born)
+            collapse_events.append(born)
         check_lifespan_expiry(civ, world)
 
     # M17b: Exile restoration checks

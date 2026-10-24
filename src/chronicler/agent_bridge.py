@@ -1901,6 +1901,7 @@ class AgentBridge:
                             description=desc,
                             importance=6,
                             source="agent",
+                            region=(region_name if e.region < len(world.regions) else None),
                         ))
                         found = True
                         break
@@ -1948,6 +1949,7 @@ class AgentBridge:
                         description=f"{name} returned to {target_name} after {turns_away} turns in exile",
                         importance=6,
                         source="agent",
+                        **self._character_place(e.agent_id, target_name),
                     ))
                     if e.agent_id in self.gp_by_agent_id:
                         self.gp_by_agent_id[e.agent_id].region = target_name
@@ -1963,12 +1965,19 @@ class AgentBridge:
                 description=f"{name} migrated from {source_name} to {target_name}",
                 importance=4,
                 source="agent",
+                **self._character_place(e.agent_id, source_name),
             ))
             if e.agent_id in self.gp_by_agent_id:
                 self.gp_by_agent_id[e.agent_id].region = target_name
                 _append_deed(self.gp_by_agent_id[e.agent_id], f"Migrated from {source_name} to {target_name}", region=target_name, turn=world.turn, civ=self.gp_by_agent_id[e.agent_id].civilization)
 
         return character_events
+
+    def _character_place(self, agent_id, region_name) -> dict:
+        """Provenance fields of a named character's event: where, and whose."""
+        gp = self.gp_by_agent_id.get(agent_id)
+        civs = [gp.civilization] if gp is not None and gp.civilization else []
+        return {"region": region_name, "civs": civs}
 
     def apply_conquest_transitions(self, conquered_civ, conqueror_civ,
                                    conquered_regions: list[str],
@@ -2029,7 +2038,7 @@ class AgentBridge:
                 event_type="conquest_exile",
                 actors=[gp.name, conquered_civ.name, conqueror_civ.name],
                 description=f"{gp.name} of {conquered_civ.name} exiled after conquest by {conqueror_civ.name}",
-                importance=5, source="agent",
+                importance=5, source="agent", region=gp.region,
             ))
 
         return events
@@ -2083,7 +2092,7 @@ class AgentBridge:
                 event_type="secession_defection",
                 actors=[gp.name, old_civ.name, new_civ.name],
                 description=f"{gp.name} defected with the secession of {gp.region}",
-                importance=5, source="agent",
+                importance=5, source="agent", region=gp.region,
             ))
 
         return events
@@ -2326,7 +2335,7 @@ class AgentBridge:
                         source_region=region_names.get(region_id, f"region {region_id}"),
                         target_region=region_names.get(target_id, f"region {target_id}"),
                     ),
-                    importance=5, source="agent",
+                    importance=5, source="agent", **self._summary_place(world, region_id),
                 ))
 
         # Local rebellion: >=5 agents rebel in one region
@@ -2341,7 +2350,7 @@ class AgentBridge:
                         count=len(events), occ_majority=occ_majority,
                         region=region_names.get(region_id, f"region {region_id}"),
                     ),
-                    importance=7, source="agent",
+                    importance=7, source="agent", **self._summary_place(world, region_id),
                 ))
 
         # Occupation shift: >25% of region switches in one tick
@@ -2358,7 +2367,7 @@ class AgentBridge:
                         region=region_names.get(region_id, f"region {region_id}"),
                         new_occupation=new_occ,
                     ),
-                    importance=5, source="agent",
+                    importance=5, source="agent", **self._summary_place(world, region_id),
                 ))
 
         # === Multi-turn patterns ===
@@ -2391,6 +2400,7 @@ class AgentBridge:
                         target_civ=target_civ_name,
                     ),
                     importance=6, source="agent",
+                    **self._summary_place(world, region_id, also=target_civ_name),
                 ))
 
         # Demographic crisis: region loses >30% over window
@@ -2413,7 +2423,7 @@ class AgentBridge:
                                     pct=int(loss_pct),
                                     window=len(self._event_window),
                                 ),
-                                importance=7, source="agent",
+                                importance=7, source="agent", **self._summary_place(world, region_id),
                             ))
 
         # === M30 new event types ===
@@ -2433,7 +2443,7 @@ class AgentBridge:
                         region=region_names.get(region_id, f"region {region_id}"),
                         count=count, window=boom_window,
                     ),
-                    importance=5, source="agent",
+                    importance=5, source="agent", **self._summary_place(world, region_id),
                 ))
 
         # Brain drain: >=5 scholars leave region over 10-turn window
@@ -2452,10 +2462,22 @@ class AgentBridge:
                         region=region_names.get(region_id, f"region {region_id}"),
                         window=drain_window,
                     ),
-                    importance=5, source="agent",
+                    importance=5, source="agent", **self._summary_place(world, region_id),
                 ))
 
         return summaries
+
+    @staticmethod
+    def _summary_place(world, region_id, also: str | None = None) -> dict:
+        """Provenance fields of a regional agent summary: the region and the
+        civ(s) involved (summaries name characters, not civs, as actors)."""
+        if not (0 <= region_id < len(world.regions)):
+            return {}
+        region = world.regions[region_id]
+        civs = [region.controller] if region.controller else []
+        if also and also not in civs and any(c.name == also for c in world.civilizations):
+            civs.append(also)
+        return {"region": region.name, "civs": civs}
 
     def _window_list_stats(self, events) -> dict:
         """Per-region tallies of one turn's event list in the event window.
