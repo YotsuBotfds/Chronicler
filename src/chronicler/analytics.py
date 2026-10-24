@@ -1422,6 +1422,11 @@ def generate_report(
     finance = extract_finance_metrics(bundles)
     if finance.get("runs"):
         report["finance"] = finance
+    # Diplomacy: present only for runs whose bundles carry history[n].diplomacy.
+    from chronicler.diplomacy import extract_diplomacy_metrics
+    diplomacy = extract_diplomacy_metrics(bundles)
+    if diplomacy.get("runs"):
+        report["diplomacy"] = diplomacy
 
     report["anomalies"] = detect_anomalies(report)
     return report

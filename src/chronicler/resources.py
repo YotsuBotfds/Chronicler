@@ -6,6 +6,7 @@ import random
 from chronicler.models import Event, InfrastructureType, Region, Resource, WorldState
 from chronicler.models import EMPTY_SLOT, ResourceType
 from chronicler.utils import get_region_map, stable_hash_int
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 # --- M34: Resource type constants ---
 
@@ -164,6 +165,11 @@ def _compute_active_trade_routes(
     routes: set[tuple[str, str]] = set()
     region_map = get_region_map(world)
     embargo_set = {(a, b) for a, b in world.embargoes} | {(b, a) for a, b in world.embargoes}
+    pacts: set[tuple[str, str]] = set()
+    if _diplomacy_on(world):
+        # Diplomacy: a trade pact keeps the route open down to SUSPICIOUS.
+        from chronicler.diplomacy import trade_pact_pairs
+        pacts = trade_pact_pairs(world)
     for r1 in world.regions:
         if r1.controller is None:
             continue
@@ -176,7 +182,8 @@ def _compute_active_trade_routes(
                 continue
             rel_ab = world.relationships.get(pair[0], {}).get(pair[1])
             rel_ba = world.relationships.get(pair[1], {}).get(pair[0])
-            if _trade_disposition_score(rel_ab) >= 2 and _trade_disposition_score(rel_ba) >= 2:
+            floor = 1 if pair in pacts else 2
+            if _trade_disposition_score(rel_ab) >= floor and _trade_disposition_score(rel_ba) >= floor:
                 routes.add(pair)
     # M21: NAVIGATION extends trade to 2-hop coastal routes
     # M21: RAILWAYS extends trade to 2-hop road routes

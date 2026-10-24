@@ -301,6 +301,14 @@ def _finance_snapshot_fields(world) -> dict:
     return {"finance": snapshot_summary(world)}
 
 
+def _diplomacy_snapshot_fields(world) -> dict:
+    """Diplomacy per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.diplomacy import diplomacy_enabled, snapshot_summary
+    if not diplomacy_enabled(world):
+        return {}
+    return {"diplomacy": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -536,6 +544,14 @@ def execute_run(
     if finance is not None:
         from chronicler.finance import set_finance_enabled
         set_finance_enabled(world, finance)
+    # Diplomacy switch (persisted on the world): memory, treaties, polity ladder.
+    diplomacy = getattr(args, "diplomacy", None)
+    if diplomacy is None and fresh_world:
+        from chronicler.diplomacy import DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT
+        diplomacy = _DIPLOMACY_DEFAULT
+    if diplomacy is not None:
+        from chronicler.diplomacy import set_diplomacy_enabled
+        set_diplomacy_enabled(world, diplomacy)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -784,6 +800,7 @@ def execute_run(
             **_contact_snapshot_fields(world),
             **_epidemic_snapshot_fields(world),
             **_finance_snapshot_fields(world),
+            **_diplomacy_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1285,6 +1302,11 @@ def _build_parser() -> argparse.ArgumentParser:
                              "from merchant houses and foreign lenders, debt service, default, debasement "
                              "and a per-civ price index feeding the governance PSI (default off for new "
                              "worlds; --finance enables; saved on resume)")
+    parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
+                        help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
+                             "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
+                             "ladder client -> vassal -> personal union -> annexation (default off "
+                             "for new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

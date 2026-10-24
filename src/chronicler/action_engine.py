@@ -38,6 +38,7 @@ from chronicler.intelligence import get_perceived_stat, emit_intelligence_failur
 from chronicler.religion import HOLY_WAR_WEIGHT_BONUS, HOLY_WAR_DEFENDER_STABILITY, CONQUEST_BOOST_RATE
 from chronicler.emergence import get_severity_multiplier
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +302,15 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
         offer = sue_for_peace(civ, world.civ_map[worst_name], world, acc=acc)
         if offer is not None:
             return offer
+    worst_at_war = bool(worst_name) and (
+        (civ.name, worst_name) in world.active_wars or (worst_name, civ.name) in world.active_wars)
+    if _diplomacy_on(world) and not worst_at_war:
+        # Diplomacy: the best treaty offer (accepted by the target's utility);
+        # with nothing worth offering, relations improve as before.
+        from chronicler.diplomacy import resolve_diplomacy_action
+        treaty_event = resolve_diplomacy_action(civ, world, acc=acc)
+        if treaty_event is not None:
+            return treaty_event
     if worst_name and civ.culture >= 30:
         # Improve relationship in both directions
         rel_out = world.relationships[civ.name][worst_name]
@@ -319,6 +329,9 @@ def _resolve_diplomacy(civ: Civilization, world: WorldState, acc=None) -> Event:
             # M-AF1 #4: Clean up war start turn
             from chronicler.politics import war_key
             world.war_start_turns.pop(war_key(civ.name, worst_name), None)
+            if worst_at_war and _diplomacy_on(world):
+                from chronicler.diplomacy import on_external_peace
+                on_external_peace(world, civ.name, worst_name, None)
         # Generate named treaty for significant upgrades (requires CLASSICAL+ era)
         if new_disp in (Disposition.FRIENDLY, Disposition.ALLIED) and _era_at_least(civ.tech_era, TechEra.CLASSICAL):
             treaty_name = generate_treaty_name(civ.name, worst_name, world, seed=world.seed)
@@ -345,6 +358,8 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
 
     target_name = None
     best_score = None
+    diplomacy_on = _diplomacy_on(world)
+    breaches: dict[str, list] = {}
     if civ.name in world.relationships:
         for other_name, rel in world.relationships[civ.name].items():
             if rel.disposition not in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
@@ -364,6 +379,15 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
             # Clamp ratio directly: parity (1.0) is neutral, >1.4 capped, <0.7 capped
             strength_mult = max(0.6, min(1.4, ratio))
             score = hostility_base + strength_mult
+            if diplomacy_on:
+                # Diplomacy: treaties protect a target unless breaking them
+                # is worth it; grievances that wars settle draw revanche.
+                from chronicler.diplomacy import revanche_bonus, war_guard
+                allowed, broken = war_guard(world, civ, other_civ)
+                if not allowed:
+                    continue
+                breaches[other_name] = broken
+                score += revanche_bonus(world, civ, other_civ)
             if best_score is None or score > best_score:
                 best_score = score
                 target_name = other_name
@@ -376,10 +400,24 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
     if defender and world.campaigns_enabled:
         # M60: wars are fought by armies over subsequent turns, not resolved here.
         from chronicler.war.runtime import declare_or_press_war
-        return declare_or_press_war(civ, defender, world, acc=acc)
+        if not diplomacy_on:
+            return declare_or_press_war(civ, defender, world, acc=acc)
+        enemies_before = _war_enemies(world, civ.name)
+        result_event = declare_or_press_war(civ, defender, world, acc=acc)
+        # Only a war actually declared (pressing an existing war declares none).
+        if defender.name not in enemies_before and defender.name in _war_enemies(world, civ.name):
+            from chronicler.diplomacy import on_war_declared
+            world.events_timeline.extend(on_war_declared(
+                world, civ, defender, broken=breaches.get(defender.name, ()), acc=acc,
+                enemies_before=enemies_before))
+        return result_event
+    enemies_before = _war_enemies(world, civ.name) if diplomacy_on else set()
     if defender:
         war_seed = stable_hash_int("war", world.seed, world.turn, civ.name, defender.name)
         result = resolve_war(civ, defender, world, seed=war_seed, acc=acc)
+        if diplomacy_on:
+            from chronicler.diplomacy import note_instant_battle
+            note_instant_battle(world, civ, defender, result.outcome)
         if result.outcome == "attacker_wins":
             world.invalidate_trade_route_cache()
         # Track active war (both orderings) — skip if vassalized (M-AF1 #15)
@@ -389,8 +427,10 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
             v.overlord == civ.name and v.vassal == target_name
             for v in world.vassal_relations
         )
+        newly_declared = False
         if not just_vassalized and pair not in world.active_wars and pair_rev not in world.active_wars:
             world.active_wars.append(pair)
+            newly_declared = True
             if _contact_ledger_on(world):
                 # Contact ledger: a new war severs trade (dependence shock).
                 from chronicler.contact_ledger import apply_war_trade_shock
@@ -406,6 +446,11 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
             from chronicler.politics import trigger_federation_defense
             fed_events = trigger_federation_defense(civ.name, target_name, world)
             world.events_timeline.extend(fed_events)
+        if diplomacy_on and newly_declared:
+            from chronicler.diplomacy import on_war_declared
+            world.events_timeline.extend(on_war_declared(
+                world, civ, defender, broken=breaches.get(target_name, ()), acc=acc,
+                enemies_before=enemies_before))
         # Generate named battle for decisive outcomes
         if result.outcome in ("attacker_wins", "defender_wins"):
             battle_region = None
@@ -464,6 +509,7 @@ def _resolve_war_action(civ: Civilization, world: WorldState, acc=None) -> Event
 def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
     """Impose trade embargo on most hostile neighbor."""
     target_name = None
+    broken_pacts: list = []
     if civ.name in world.relationships:
         for other, rel in world.relationships[civ.name].items():
             if rel.disposition in (Disposition.HOSTILE, Disposition.SUSPICIOUS):
@@ -471,12 +517,20 @@ def _resolve_embargo(civ: Civilization, world: WorldState, acc=None) -> Event:
                 if target_civ is None or len(target_civ.regions) == 0:
                     continue
                 if (civ.name, other) not in world.embargoes:
+                    if _diplomacy_on(world):
+                        from chronicler.diplomacy import embargo_guard
+                        allowed, broken_pacts = embargo_guard(world, civ, target_civ)
+                        if not allowed:
+                            continue
                     target_name = other
                     break
     if target_name:
         world.embargoes.append((civ.name, target_name))
         world.invalidate_trade_route_cache()
         target = get_civ(world, target_name)
+        if _diplomacy_on(world) and target is not None:
+            from chronicler.diplomacy import on_embargo
+            world.events_timeline.extend(on_embargo(world, civ, target, broken=broken_pacts, acc=acc))
         if target and target.regions:
             # M21: BANKING halves incoming embargo stability damage
             if target.active_focus == "banking":
@@ -626,6 +680,25 @@ def apply_region_conquest(
             contested.conquest_conversion_boost = 1.0  # normalized; decayed over CONQUEST_BOOST_DURATION turns
 
 
+def _war_enemies(world: WorldState, civ_name: str, attacking: bool = False) -> set[str]:
+    """Civs ``civ_name`` is at war with (only those it attacked, if ``attacking``)."""
+    out = set()
+    for a, b in world.active_wars:
+        if a == civ_name:
+            out.add(b)
+        elif b == civ_name and not attacking:
+            out.add(a)
+    return out
+
+
+def _ladder_spares(world: WorldState, attacker: Civilization, defender: Civilization, contested) -> bool:
+    """Diplomacy ladder: a conquest of the defender's last region vassalizes instead."""
+    if not _diplomacy_on(world) or contested is None or defender.regions != [contested.name]:
+        return False
+    from chronicler.diplomacy import spares_last_region
+    return spares_last_region(world, attacker, defender)
+
+
 def resolve_war(
     attacker: Civilization,
     defender: Civilization,
@@ -720,7 +793,8 @@ def resolve_war(
     if att_power > def_power * decisive_ratio:
         # M-AF1 #15: Check vassalization before absorption
         from chronicler.politics import choose_vassalize_or_absorb, resolve_vassalization
-        if choose_vassalize_or_absorb(attacker, defender, world):
+        if choose_vassalize_or_absorb(attacker, defender, world) or _ladder_spares(
+                world, attacker, defender, contested):
             # Vassalize: create VassalRelation, skip region transfer entirely
             vassal_events = resolve_vassalization(attacker, defender, world)
             world.events_timeline.extend(vassal_events)
@@ -1028,6 +1102,9 @@ class ActionEngine:
             )
             if has_valid_target:
                 eligible.append(ActionType.INVEST_CULTURE)
+        if _diplomacy_on(self.world):
+            from chronicler.diplomacy import restrict_eligible
+            eligible = restrict_eligible(self.world, civ, eligible)
         return eligible
 
     def compute_weights(self, civ: Civilization) -> dict[ActionType, float]:
@@ -1126,6 +1203,14 @@ class ActionEngine:
                 if weights[action] > 0:
                     weights[action] *= mod
             buckets.record("finance", weights)
+        # Diplomacy contributor bucket (treaties, grievances, subject status),
+        # pre-clamped to [1/1.5, 1.5]; the global weight cap below still applies.
+        if _diplomacy_on(self.world):
+            from chronicler.diplomacy import weight_modifiers as diplomacy_weight_modifiers
+            for action, mod in diplomacy_weight_modifiers(civ, self.world).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+            buckets.record("diplomacy", weights)
 
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):

@@ -17,6 +17,7 @@ from chronicler.war.common import (
     WarContext, add_stat, emit, living_civ, name_event, spend, war_rng,
 )
 from chronicler.war.occupation import annex_occupation, end_occupation
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 if TYPE_CHECKING:
     from chronicler.models import Civilization
@@ -204,6 +205,11 @@ def conclude_peace(ctx: WarContext, war: WarRecord, kind: str, winner_name: str 
     paid = 0
     vassalized = False
     aim = war.aim if winner is att else "conquest"
+    # Diplomacy (--diplomacy): tribute is paid in installments under a tribute
+    # treaty, and the polity ladder spares a state a capitulation would end.
+    ladder = _diplomacy_on(world)
+    spare = False
+    tribute_total = 0
     if winner is not None and loser is not None:
         held = [o for o in world.war_state.occupations
                 if o.war_key == war.war_key and o.occupier == winner.name and o.owner == loser.name]
@@ -225,14 +231,29 @@ def conclude_peace(ctx: WarContext, war: WarRecord, kind: str, winner_name: str 
             # Only a capitulation can extinguish the loser.
             if kind != "capitulation":
                 cede = cede[:max(0, len(loser.regions) - 1)]
+            elif ladder and cede and len(cede) >= len(loser.regions) and not already_vassal:
+                from chronicler.diplomacy import spares_last_region
+                if spares_last_region(world, winner, loser):
+                    # Ladder: the loser keeps its capital (or last region) as a vassal.
+                    held_regions = {o.region for o in cede}
+                    keep = loser.capital_region if loser.capital_region in held_regions else cede[-1].region
+                    cede = [o for o in cede if o.region != keep]
+                    spare = True
             for occ in cede:
                 if annex_occupation(ctx, occ, "treaty"):
                     ceded.append(occ.region)
             if aim == "tribute" or not ceded:
                 amount = (P.TRIBUTE_BASE + abs(war.score) // 2) if aim == "tribute" else 10 + abs(war.score) // 3
-                paid = spend(ctx, loser, amount)
-                if paid:
-                    add_stat(ctx, winner, "treasury", paid, "keep")
+                if aim == "tribute" and ladder and not spare:
+                    tribute_total = amount
+                else:
+                    paid = spend(ctx, loser, amount)
+                    if paid:
+                        add_stat(ctx, winner, "treasury", paid, "keep")
+            if spare:
+                _release_war_occupations(ctx, war, "treaty_returned")
+                ctx.events.extend(resolve_vassalization(winner, loser, world))
+                vassalized = True
     _release_war_occupations(ctx, war, "treaty_returned")
     if not vassalized:
         _remove_active_pair(world, att.name, dfn.name)
@@ -245,18 +266,26 @@ def conclude_peace(ctx: WarContext, war: WarRecord, kind: str, winner_name: str 
     world.war_state.treaties.append(treaty)
     if vassalized:
         terms = f"{loser.name} becomes a vassal of {winner.name}"
+        if ceded:
+            terms = f"{loser.name} cedes " + ", ".join(ceded) + f" and becomes a vassal of {winner.name}"
     elif winner is not None:
         parts = []
         if ceded:
             parts.append("cedes " + ", ".join(ceded))
         if paid:
             parts.append(f"pays {paid} in {'tribute' if aim == 'tribute' else 'reparations'}")
+        elif tribute_total:
+            from chronicler.diplomacy import TRIBUTE_INSTALLMENTS
+            parts.append(f"agrees to pay {tribute_total} in tribute over {TRIBUTE_INSTALLMENTS} turns")
         terms = f"{loser.name} " + (" and ".join(parts) if parts else "accepts defeat") + f" to {winner.name}"
     else:
         terms = "status quo ante bellum"
     label = {"capitulation": "capitulates", "negotiated": "negotiated peace", "white_peace": "white peace"}[kind]
-    emit(ctx, "peace_treaty", [att.name, dfn.name], f"{name} ends the war ({label}): {terms}.",
-         importance=8 if kind == "capitulation" else 6)
+    peace_event = emit(ctx, "peace_treaty", [att.name, dfn.name], f"{name} ends the war ({label}): {terms}.",
+                       importance=8 if kind == "capitulation" else 6)
+    if ladder:
+        from chronicler.diplomacy import on_campaign_peace
+        on_campaign_peace(world, treaty, peace_event, tribute_total=tribute_total)
     name_event(ctx, name, "treaty", [att.name, dfn.name], None, f"{name}: {terms}", 7 if ceded or vassalized else 5)
     _finish(ctx, war, kind)
     return treaty
@@ -272,9 +301,12 @@ def close_external(ctx: WarContext, war: WarRecord) -> None:
         kind="external", aim=war.aim, vassalized=vassal))
     alive = living_civ(world, war.attacker) is not None and living_civ(world, war.defender) is not None
     if alive:
-        emit(ctx, "war_ended", [war.attacker, war.defender],
-             f"The war between {war.attacker} and {war.defender} ends"
-             + (" in vassalage." if vassal else "."), importance=5)
+        ended = emit(ctx, "war_ended", [war.attacker, war.defender],
+                     f"The war between {war.attacker} and {war.defender} ends"
+                     + (" in vassalage." if vassal else "."), importance=5)
+        if not vassal and _diplomacy_on(world):
+            from chronicler.diplomacy import on_external_peace
+            on_external_peace(world, war.attacker, war.defender, ended)
     _finish(ctx, war, "vassalized" if vassal else "external")
 
 

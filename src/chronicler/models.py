@@ -18,6 +18,7 @@ from chronicler.governance_state import CivGovernance, GovernanceSettings
 from chronicler.contact_ledger import ContactLedgerState
 from chronicler.epidemiology import EpidemicState
 from chronicler.finance import FinanceState
+from chronicler.diplomacy_state import DiplomacyState, DiplomaticMemory
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -40,6 +41,15 @@ def _omit_dormant_finance(model: BaseModel, data):
     """Drop a ``None`` finance state so feature-off output stays byte-identical."""
     if isinstance(data, dict) and getattr(model, "finance", None) is None:
         data.pop("finance", None)
+    return data
+
+
+def _omit_none_fields(model: BaseModel, data, names: tuple[str, ...]):
+    """Drop optional fields that are ``None`` (dormant feature state)."""
+    if isinstance(data, dict):
+        for name in names:
+            if name in data and getattr(model, name, None) is None:
+                del data[name]
     return data
 
 
@@ -568,12 +578,23 @@ class Civilization(BaseModel):
 
 class Relationship(BaseModel):
     disposition: Disposition = Disposition.NEUTRAL
+    # Names of the treaties this pair has signed (campaign peace treaties and,
+    # with diplomacy on, every chronicler.diplomacy treaty).
     treaties: list[str] = Field(default_factory=list)
+    # Legacy free-text field, never written by the simulation. Structured
+    # grievance stocks live in ``memory`` (chronicler.diplomacy).
     grievances: list[str] = Field(default_factory=list)
     trade_volume: int = 0
     allied_turns: int = 0
     trade_contact_turns: int = 0
     disposition_drift: int = 0
+    # Diplomatic memory of the holder toward the other civ: trust, goodwill and
+    # decaying grievance stocks. None while diplomacy is off (omitted from output).
+    memory: DiplomaticMemory | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_dormant_memory(self, handler):
+        return _omit_none_fields(self, handler(self), ("memory",))
 
 
 class GreatPersonDeed(BaseModel):
@@ -781,11 +802,26 @@ class ProvenanceState(BaseModel):
         return not (self.keys or self.episodes or self.conditions or self.exciters)
 
 
+_DORMANT_VASSAL_LADDER = ("stage", "stage_turn", "integration", "crown")
+
+
 class VassalRelation(BaseModel):
     overlord: str
     vassal: str
     tribute_rate: float = 0.15
     turns_active: int = 0
+    # Polity ladder (chronicler.diplomacy; None while diplomacy is off and
+    # omitted from output): "client", "vassal" or "union", the turn the
+    # stage began, accumulated integration (0..100) and, in a union, the
+    # overlord ruler who wears both crowns.
+    stage: str | None = None
+    stage_turn: int | None = None
+    integration: float | None = None
+    crown: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_dormant_ladder(self, handler):
+        return _omit_none_fields(self, handler(self), _DORMANT_VASSAL_LADDER)
 
 
 class Federation(BaseModel):
@@ -1088,6 +1124,9 @@ class WorldState(BaseModel):
     epidemics: EpidemicState | None = None
     # Money, credit and public finance (None = disabled; omitted from output).
     finance: FinanceState | None = None
+    # Diplomacy: treaties, diplomatic memory and the polity ladder
+    # (chronicler.diplomacy; None = disabled; omitted from output).
+    diplomacy: DiplomacyState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1175,6 +1214,8 @@ class WorldState(BaseModel):
             data.pop("geography", None)
         if isinstance(data, dict) and self.epidemics is None:
             data.pop("epidemics", None)
+        if isinstance(data, dict) and self.diplomacy is None:
+            data.pop("diplomacy", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1298,6 +1339,8 @@ class TurnSnapshot(BaseModel):
     epidemics: dict | None = None
     # Money, credit and public finance per-turn summary; None (omitted) when off.
     finance: dict | None = None
+    # Diplomacy per-turn summary; None (and omitted) when diplomacy is off.
+    diplomacy: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1310,6 +1353,8 @@ class TurnSnapshot(BaseModel):
             data.pop("epidemics")
         if isinstance(data, dict) and data.get("finance", 0) is None:
             data.pop("finance")
+        if isinstance(data, dict) and data.get("diplomacy", 0) is None:
+            data.pop("diplomacy")
         return data
 
 

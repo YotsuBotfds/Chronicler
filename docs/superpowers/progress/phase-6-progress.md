@@ -3,6 +3,7 @@
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
 > **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
+> **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
 
 ---
 
@@ -89,6 +90,46 @@ Python runner. Fresh checks passed 1,570 guarded Python tests (3 skipped,
 now accounts for Windows newlines without changing production writes or goldens.
 POSIX session persistence, native/GPU, full suites and milestone qualification
 remain separate gates; no merge, flag activation or deployment is claimed.
+
+## Diplomacy (2026-10-24, `feat/diplomacy`)
+
+Branch `feat/diplomacy` from `integrate/wave-2` at `db26681`, default off
+behind `--diplomacy` (`WorldState.diplomacy`). See
+[`docs/integration/diplomacy.md`](../../integration/diplomacy.md).
+
+- **Built.** Directed pair memory on `Relationship.memory` (trust, goodwill,
+  six grievance stocks with half-lives) that caps dispositions and enters
+  every utility; `peace`, `non_aggression`, `alliance`, `trade_pact` and
+  installment `tribute` treaties with terms, expiry, renewal by fresh mutual
+  acceptance, breach and consequences, accepted only by the target's
+  utility; peace treaties emitted by `conclude_peace` and `close_external`;
+  a pre-clamped diplomacy bucket in the action weights, a WAR treaty guard
+  and revanche, calls to arms and alliance aid convoys; the
+  `client -> vassal -> union -> annexation` ladder on `VassalRelation`,
+  replacing the tributary step in `prepare_twilight_absorption` (absorber
+  stability above 20 instead of 40), with loosening when the overlord
+  weakens and the existing Rust rebellion still ending any stage. The
+  absorption body is shared as `politics.absorb_civ`. No Rust change.
+- **Cut.** Marriage alliances (no cross-civ ruler marriage exists), grievance
+  export from agent memory (Rust memories record the victim's own civ, not
+  the perpetrator), embargo lifting (it pushed artifacts and arcs to FAIL on
+  the subset), ruler-ambition predicates and viewer panels. Sparing the last
+  region of a conquered state is built as `SPARE_LAST_REGION` but off: it
+  doubles wars and keeps all founders in half the worlds.
+- **Evidence (final head).** Switch off is byte-identical to `db26681`:
+  direct runs (off 150 and hybrid 120 turns, seeds 42 and 7, default and
+  `--no-diplomacy`) 30 files, 0 differences; the switch-off subset gate
+  batch (one commit earlier, the last change being switch-on only) all 2,159
+  run files identical. Native `pytest -m "not slow" -n 2` 5,536 passed,
+  3 skipped; no-Rust lane 5,344 passed, 193 skipped; bounded Python oracle
+  lane (PR #19's guard fix applied locally only) 1,634 passed, 4 skipped,
+  2 deselected, guard PASS. Subset gate with `--diplomacy` against base: PASS, NO
+  REGRESSION, 0 extinct worlds, artifacts PARTIAL to PASS; informational
+  regression `civ_survival` 0.30 (base 0.25) and strict latest satisfaction
+  0.445 (base 0.454).
+- **Not run.** The full 200-seed gate with `--diplomacy`; it is required
+  before any default change, watching `civ_survival` and the strict
+  latest-satisfaction floor.
 
 ## Current Focus (2026-10-07)
 

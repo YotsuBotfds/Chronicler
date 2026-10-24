@@ -80,6 +80,7 @@ from chronicler.utils import (
     add_region_pop,
     stage_region_catastrophe_deaths,
 )
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
@@ -527,6 +528,10 @@ def apply_automatic_effects(
         from chronicler.governance_runtime import fund_institutions_phase2
         events.extend(fund_institutions_phase2(world, acc=acc))
     events.extend(collect_tribute(world, acc=acc))
+    if _diplomacy_on(world):
+        # Diplomacy: installments of tribute treaties (keep category).
+        from chronicler.diplomacy import collect_treaty_tribute
+        events.extend(collect_treaty_tribute(world, acc=acc))
     events.extend(apply_proxy_wars(world, acc=acc))
     events.extend(apply_exile_effects(world, acc=acc))
     events.extend(apply_balance_of_power(world))
@@ -2198,6 +2203,15 @@ def run_turn_result(
     _emit(phase_consequences(
         world, acc=phase10_acc, politics_runtime=_pol_rt, phase10=artifacts.phase10,
     ))
+
+    # Diplomacy (--diplomacy): memory, treaty upkeep and the polity ladder,
+    # after politics so it sees this turn's revolts, absorptions and wars.
+    if _diplomacy_on(world):
+        from chronicler.diplomacy import tick_diplomacy
+        _emit(tick_diplomacy(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc,
+        ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
     # faction effects, cultural assimilation treasury costs, etc.).

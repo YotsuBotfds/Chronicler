@@ -42,6 +42,7 @@ from chronicler.utils import (
 from chronicler.intelligence import get_perceived_stat
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 if TYPE_CHECKING:
     from chronicler.models import Federation
@@ -488,6 +489,8 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
         world.relationships[winner.name] = {}
     if loser.name not in world.relationships:
         world.relationships[loser.name] = {}
+    old_winner_view = world.relationships[winner.name].get(loser.name)
+    old_loser_view = world.relationships[loser.name].get(winner.name)
     world.relationships[winner.name][loser.name] = Relationship(disposition=Disposition.SUSPICIOUS)
     world.relationships[loser.name][winner.name] = Relationship(disposition=Disposition.HOSTILE)
 
@@ -498,6 +501,11 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
         description=f"The Subjugation of {loser.name}",
         importance=7,
     ))
+    if _diplomacy_on(world):
+        # Polity ladder: a subjugated state enters at the vassal stage and
+        # both sides keep their diplomatic memory.
+        from chronicler.diplomacy import on_vassalized
+        on_vassalized(world, world.vassal_relations[-1], old_winner_view, old_loser_view, events[-1])
     return events
 
 
@@ -1430,6 +1438,9 @@ def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozens
     decline_threshold = int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40))
     vassal_of = {vr.vassal: vr for vr in world.vassal_relations}
     overlords = {vr.overlord for vr in world.vassal_relations}
+    # Polity ladder (chronicler.diplomacy, --diplomacy): declining states
+    # become clients and the ladder decides when a subject is annexed.
+    ladder = _diplomacy_on(world)
     candidates: list[tuple[tuple, int]] = []
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
@@ -1444,7 +1455,23 @@ def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozens
         relation = vassal_of.get(civ.name)
         if relation is not None and relation.overlord != absorber.name:
             continue  # a vassal is not handed to a third party
-        if not unviable_ready:
+        if ladder:
+            # Generalized tributary step: the unviable as well as the declining
+            # become clients of a stable would-be absorber (no instant
+            # absorption); a subject is never handed to this gate, because
+            # the ladder's own annexation step ends it.
+            if relation is not None:
+                continue
+            from chronicler.diplomacy import CLIENT_MIN_OVERLORD_STABILITY, make_subject
+            if (absorber.stability > CLIENT_MIN_OVERLORD_STABILITY
+                    and civ.name not in overlords
+                    and absorber.name not in vassal_of):
+                events.append(make_subject(world, absorber, civ, "client", reason="twilight"))
+                vassal_of[civ.name] = world.vassal_relations[-1]
+                overlords.add(absorber.name)
+                continue
+            # An unstable neighbour cannot hold a client: paced absorption.
+        elif not unviable_ready:
             if relation is None:
                 if (absorber.stability > TRIBUTARY_MIN_OVERLORD_STABILITY
                         and civ.name not in overlords
@@ -1512,59 +1539,7 @@ def check_twilight_absorption(
                             best_culture_u = absorber.culture
                             best_absorber_u = absorber
             if best_absorber_u is not None:
-                absorbed_regions = list(civ.regions)
-                old_capital = civ.capital_region
-                civ_id = next(
-                    i for i, existing_civ in enumerate(world.civilizations)
-                    if existing_civ is civ
-                )
-                absorber_id = next(
-                    i for i, existing_civ in enumerate(world.civilizations)
-                    if existing_civ is best_absorber_u
-                )
-                for rn in absorbed_regions:
-                    best_absorber_u.regions.append(rn)
-                    if rn in region_map_u:
-                        region_map_u[rn].controller = best_absorber_u.name
-                civ.regions = []
-                civ.capital_region = None  # H-7: clear dangling capital reference
-                from chronicler.simulation import reset_war_frequency_on_extinction
-                reset_war_frequency_on_extinction(civ)
-                # M52: Artifact lifecycle intent for twilight absorption
-                from chronicler.artifacts import emit_conquest_lifecycle_intent
-                for rn in absorbed_regions:
-                    emit_conquest_lifecycle_intent(
-                        world, losing_civ=civ.name, gaining_civ=best_absorber_u.name,
-                        region=rn,
-                        is_capital=(rn == old_capital),
-                        is_destructive=False,
-                        action="twilight_absorption",
-                    )
-                if world.agent_mode == "hybrid":
-                    bridge = getattr(world, "_agent_bridge", None)
-                    if bridge is not None:
-                        bridge.apply_absorption_transitions(
-                            civ,
-                            best_absorber_u,
-                            absorbed_regions,
-                            losing_civ_id=civ_id,
-                            absorber_civ_id=absorber_id,
-                            world=world,
-                        )
-                sync_civ_population(best_absorber_u, world)
-                sync_civ_population(civ, world)
-                world.exile_modifiers.append(ExileModifier(
-                    original_civ_name=civ.name,
-                    absorber_civ=best_absorber_u.name,
-                    conquered_regions=absorbed_regions,
-                    turns_remaining=10,
-                ))
-                events.append(Event(
-                    turn=world.turn, event_type="twilight_absorption",
-                    actors=[civ.name, best_absorber_u.name],
-                    description=f"The Quiet End of {civ.name}",
-                    importance=6,
-                ))
+                events.append(absorb_civ(world, civ, best_absorber_u))
                 continue
 
         if civ.decline_turns < int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40)) or len(civ.regions) != 1:
@@ -1588,63 +1563,81 @@ def check_twilight_absorption(
         if best_absorber is None:
             continue
 
-        absorbed_regions_tw = list(civ.regions)
-        old_capital = civ.capital_region
-        civ_id = next(
-            i for i, existing_civ in enumerate(world.civilizations)
-            if existing_civ is civ
-        )
-        absorber_id = next(
-            i for i, existing_civ in enumerate(world.civilizations)
-            if existing_civ is best_absorber
-        )
-        for rn in civ.regions:
-            best_absorber.regions.append(rn)
-            if rn in region_map:
-                region_map[rn].controller = best_absorber.name
-        civ.regions = []
-        civ.capital_region = None  # H-7: clear dangling capital reference
-        from chronicler.simulation import reset_war_frequency_on_extinction
-        reset_war_frequency_on_extinction(civ)
-        # M52: Artifact lifecycle intent for twilight absorption
-        from chronicler.artifacts import emit_conquest_lifecycle_intent
-        for rn in absorbed_regions_tw:
-            emit_conquest_lifecycle_intent(
-                world, losing_civ=civ.name, gaining_civ=best_absorber.name,
-                region=rn,
-                is_capital=(rn == old_capital),
-                is_destructive=False,
-                action="twilight_absorption",
-            )
-        if world.agent_mode == "hybrid":
-            bridge = getattr(world, "_agent_bridge", None)
-            if bridge is not None:
-                bridge.apply_absorption_transitions(
-                    civ,
-                    best_absorber,
-                    absorbed_regions_tw,
-                    losing_civ_id=civ_id,
-                    absorber_civ_id=absorber_id,
-                    world=world,
-                )
-        sync_civ_population(best_absorber, world)
-        sync_civ_population(civ, world)
-
-        world.exile_modifiers.append(ExileModifier(
-            original_civ_name=civ.name,
-            absorber_civ=best_absorber.name,
-            conquered_regions=[civ_region.name],
-            turns_remaining=10,
-        ))
-
-        events.append(Event(
-            turn=world.turn, event_type="twilight_absorption",
-            actors=[civ.name, best_absorber.name],
-            description=f"The Quiet End of {civ.name}",
-            importance=6,
-        ))
+        # One region (checked above), so the exile claim is that region.
+        events.append(absorb_civ(world, civ, best_absorber))
 
     return events
+
+
+def absorb_civ(
+    world: WorldState,
+    civ: Civilization,
+    absorber: Civilization,
+    *,
+    event_type: str = "twilight_absorption",
+    description: str | None = None,
+) -> Event:
+    """Peacefully merge every region of ``civ`` into ``absorber``.
+
+    Shared by twilight absorption (Python oracle of the Rust step 9) and the
+    diplomacy ladder's final step. Moves the regions, clears the capital,
+    emits the artifact lifecycle intents, re-homes agents in hybrid mode and
+    leaves a government in exile. Returns the event (not appended anywhere).
+    """
+    region_map = world.region_map
+    absorbed_regions = list(civ.regions)
+    old_capital = civ.capital_region
+    civ_id = next(
+        i for i, existing_civ in enumerate(world.civilizations)
+        if existing_civ is civ
+    )
+    absorber_id = next(
+        i for i, existing_civ in enumerate(world.civilizations)
+        if existing_civ is absorber
+    )
+    for rn in absorbed_regions:
+        absorber.regions.append(rn)
+        if rn in region_map:
+            region_map[rn].controller = absorber.name
+    civ.regions = []
+    civ.capital_region = None  # H-7: clear dangling capital reference
+    from chronicler.simulation import reset_war_frequency_on_extinction
+    reset_war_frequency_on_extinction(civ)
+    # M52: Artifact lifecycle intent for twilight absorption
+    from chronicler.artifacts import emit_conquest_lifecycle_intent
+    for rn in absorbed_regions:
+        emit_conquest_lifecycle_intent(
+            world, losing_civ=civ.name, gaining_civ=absorber.name,
+            region=rn,
+            is_capital=(rn == old_capital),
+            is_destructive=False,
+            action="twilight_absorption",
+        )
+    if world.agent_mode == "hybrid":
+        bridge = getattr(world, "_agent_bridge", None)
+        if bridge is not None:
+            bridge.apply_absorption_transitions(
+                civ,
+                absorber,
+                absorbed_regions,
+                losing_civ_id=civ_id,
+                absorber_civ_id=absorber_id,
+                world=world,
+            )
+    sync_civ_population(absorber, world)
+    sync_civ_population(civ, world)
+    world.exile_modifiers.append(ExileModifier(
+        original_civ_name=civ.name,
+        absorber_civ=absorber.name,
+        conquered_regions=absorbed_regions,
+        turns_remaining=10,
+    ))
+    return Event(
+        turn=world.turn, event_type=event_type,
+        actors=[civ.name, absorber.name],
+        description=description or f"The Quiet End of {civ.name}",
+        importance=6,
+    )
 
 
 def apply_long_peace(world: WorldState, acc=None) -> list[Event]:
