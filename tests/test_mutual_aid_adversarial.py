@@ -18,16 +18,27 @@ def _run(enabled, treasury):
     return module.run_adversarial(enabled, treasury)
 
 
+# Since the 2026-10 food-balance corrections (goods-unit harvests, travelling
+# merchants counted in their home occupational balance, merchants returning
+# home after delivering) one convoy already lifts the Mine over the stress
+# threshold, so a funded episode is a single send at turn 4; a fresh
+# three-turn stress then reactivates aid at turn 10. A treasury of 1 pays for
+# exactly the first send, so the reactivation is blocked by funding alone.
+# (Before: sends at 4 and 5, treasury 2, reactivation at turn 14.)
+FIRST_SEND = 4
+REACTIVATED = 10
+
+
 @pytest.mark.native
 def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
-    result = _run(True, 2)
+    result = _run(True, 1)
     rows = result["history"]
     assert [r["memory_after"]["Mine"]["stress_streak"] for r in rows[:3]] == [1, 2, 3]
-    assert all(not r["transfers"] for r in rows[:4])
-    assert [r["turn"] for r in rows if r["transfers"]] == [4, 5]
+    assert all(not r["transfers"] for r in rows[:FIRST_SEND])
+    assert [r["turn"] for r in rows if r["transfers"]] == [FIRST_SEND]
     # First eligible dispatch is blocked by uncommitted donor reserve.
     assert rows[3]["prior_memory"]["Mine"]["stress_streak"] == 3
-    assert rows[3]["treasury_after"] == 2
+    assert rows[3]["treasury_after"] == 1
     pending = sum(c["reserved"] + c["pending_departure"] for c in rows[3]["native_commitments"]
                   if c["region_id"] == 0 and c["good_slot"] == 0)
     assert rows[3]["stocks_before"]["Granary"]["grain"] - pending < 2 * rows[3]["food_demand"]["Granary"]
@@ -50,20 +61,17 @@ def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
         assert row["aid_transit_loss"] > 0
     assert any(c["pending_departure"] > 0 for r in rows if r["transfers"]
                for c in r["native_commitments"] if c["region_id"] == 0 and c["good_slot"] == 0)
-    assert rows[5]["treasury_after"] == 0
-    assert rows[5]["sufficiency"]["Mine"] >= .8
-    assert rows[5]["memory_after"]["Mine"]["stress_streak"] == 0
-    assert all(not r["transfers"] for r in rows[6:])
+    assert rows[FIRST_SEND]["treasury_after"] == 0
+    assert rows[FIRST_SEND]["sufficiency"]["Mine"] >= .8
+    assert rows[FIRST_SEND]["memory_after"]["Mine"]["stress_streak"] == 0
+    assert all(not r["transfers"] for r in rows[FIRST_SEND + 1:])
     # The streak resets at recovery and must be reacquired from fresh stress.
-    # (Since the 2026-10 occupation corrections the Mine has a one-turn
-    # shortfall blip before the sustained stress; a blip resets too.)
     streaks = [r["memory_after"]["Mine"]["stress_streak"] for r in rows]
-    restart = next(i for i in range(6, len(streaks) - 2) if streaks[i:i + 3] == [1, 2, 3])
-    assert streaks[5] == 0
-    assert all(streak <= 1 for streak in streaks[5:restart])
-    assert streaks[restart:restart + 3] == [1, 2, 3]
-    assert rows[14]["prior_memory"]["Mine"]["stress_streak"] == 3
-    assert rows[14]["treasury_before"] == 0
+    restart = next(i for i in range(FIRST_SEND + 1, len(streaks) - 2) if streaks[i:i + 3] == [1, 2, 3])
+    assert all(streak == 0 for streak in streaks[FIRST_SEND:restart])
+    assert restart + 3 == REACTIVATED
+    assert rows[REACTIVATED]["prior_memory"]["Mine"]["stress_streak"] == 3
+    assert rows[REACTIVATED]["treasury_before"] == 0
     assert all(r["economy_conservation"]["clamp_floor_loss"] == 0 for r in rows)
     assert max(abs(r["conservation_residual"]) for r in rows) < 5e-5
     assert result["full_hybrid_continuation_tested"] is False
@@ -72,19 +80,18 @@ def test_multiturn_native_stress_cargo_reserve_funding_and_recovery():
 @pytest.mark.native
 def test_multiturn_recovery_blocks_funded_aid_then_reactivation():
     rows = _run(True, 20)["history"]
-    exhausted = _run(True, 2)["history"]
-    reactivated = 14  # fresh three-turn stress after recovery (see streak test)
-    for funded, limited in zip(rows[:reactivated], exhausted[:reactivated], strict=True):
+    exhausted = _run(True, 1)["history"]
+    for funded, limited in zip(rows[:REACTIVATED], exhausted[:REACTIVATED], strict=True):
         for key in ("stocks_before", "stocks_after_aid", "native_commitments",
                     "sufficiency", "agent_snapshot", "delivery_diagnostics"):
             assert funded[key] == limited[key]
-    assert [r["turn"] for r in rows if r["transfers"]] == [4, 5, reactivated]
-    assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[6:reactivated])
-    assert rows[5]["memory_after"]["Mine"]["stress_streak"] == 0
-    assert rows[reactivated]["prior_memory"]["Mine"]["stress_streak"] == 3
+    assert [r["turn"] for r in rows if r["transfers"]] == [FIRST_SEND, REACTIVATED]
+    assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[FIRST_SEND + 1:REACTIVATED])
+    assert rows[FIRST_SEND]["memory_after"]["Mine"]["stress_streak"] == 0
+    assert rows[REACTIVATED]["prior_memory"]["Mine"]["stress_streak"] == 3
     # Funding, not stress, separates the runs: only the funded run pays.
-    assert rows[reactivated]["treasury_after"] < rows[reactivated]["treasury_before"]
-    assert not exhausted[reactivated]["transfers"]
+    assert rows[REACTIVATED]["treasury_after"] < rows[REACTIVATED]["treasury_before"]
+    assert not exhausted[REACTIVATED]["transfers"]
 
 
 @pytest.mark.native

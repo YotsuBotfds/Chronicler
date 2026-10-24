@@ -2,10 +2,12 @@
 
 Golden data was captured from 423a67c before importing the optimization and is
 kept frozen in ``corrected_423a67c.json``. ``corrected_backlog_2026_10.json``
-rolled it forward for the 2026-10 deferred-backlog corrections and the live
-oracle, ``corrected_extinction_2026_10.json``, rolls that forward for the
-2026-10 extinction fix; each file's provenance lists only its own corrections
-and the scoped-difference proof below pins exactly what each link changed.
+rolled it forward for the 2026-10 deferred-backlog corrections,
+``corrected_extinction_2026_10.json`` for the 2026-10 extinction fix, and the
+live oracle, ``corrected_food_balance_2026_10.json``, rolls that forward for
+the 2026-10 food-balance corrections; each file's provenance lists only its own
+corrections and the scoped-difference proof below pins exactly what each link
+changed.
 The older fixtures and the edf7299 artifacts remain frozen as historical
 evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
@@ -25,12 +27,14 @@ from scripts.third_wave_controls import legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_extinction_2026_10.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_food_balance_2026_10.json").read_text())
+EXTINCTION_BASELINE = json.loads((FIXTURES / "corrected_extinction_2026_10.json").read_text())
 BACKLOG_BASELINE = json.loads((FIXTURES / "corrected_backlog_2026_10.json").read_text())
 PRIOR_BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
 # Each roll-forward link: (older oracle, newer oracle declaring its corrections).
 ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
-                "extinction": (BACKLOG_BASELINE, BASELINE)}
+                "extinction": (BACKLOG_BASELINE, EXTINCTION_BASELINE),
+                "food_balance": (EXTINCTION_BASELINE, BASELINE)}
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
