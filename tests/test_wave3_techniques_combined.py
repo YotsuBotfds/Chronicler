@@ -50,13 +50,15 @@ def test_all_four_systems_run_and_persist_state():
 
 
 def test_save_load_resume_identity_with_all_four_on(tmp_path):
-    straight = _advance(_world(42), 75)
-    first = _advance(_world(42), 60)
-    # The save point carries live state in every system.
-    assert first.epidemics.deaths_total > 0
-    assert first.finance.loans
-    assert first.diplomacy.treaties
-    assert any(0.0 < row[2] < 0.9 for row in first.techniques.rows), "practice still spreading"
+    # Save at the first turn from 40 on where every system carries live
+    # state (an epidemic has killed, a loan is outstanding, a treaty stands,
+    # practice is still spreading).
+    first = _advance(_world(42), 40)
+    while not (first.epidemics.deaths_total > 0 and first.finance.loans and first.diplomacy.treaties
+               and any(0.0 < row[2] < 0.9 for row in first.techniques.rows)):
+        assert first.turn < 120, "no turn with live state in all four systems"
+        _advance(first, 1)
+    straight = _advance(_world(42), first.turn + 15)
     path = tmp_path / "state.json"
     first.save(path)
     resumed = _advance(WorldState.load(path), 15)
