@@ -5,9 +5,9 @@ import pyarrow as pa
 import pytest
 from pydantic import ValidationError
 
-from chronicler.ecology import tick_ecology
+from chronicler.ecology import goods_per_worker, harvest_normal_index, tick_ecology
 from chronicler.experimental.fisheries import (
-    FisheryConfig, apply_fishery_feedback, economy_yield, step_fishery,
+    FisheryConfig, apply_fishery_feedback, catch_budget, economy_yield, step_fishery,
 )
 from chronicler.experimental.fisheries_bridge import build_fishery_yield_patch
 from chronicler.models import ActionType, ClimatePhase, EMPTY_SLOT, Region, ResourceType, WorldState
@@ -114,7 +114,8 @@ def test_disabled_path_freezes_experiment_and_yields(fish_world):
     apply_fishery_feedback(fish_world, yields)
     assert fish_world.model_dump() == before
     assert yields[region.name] == [1.0, .5, 0.0]
-    assert economy_yield(fish_world, region) == 1.0
+    assert economy_yield(fish_world, region) == goods_per_worker(
+        region.resource_types[0], region.resource_current_yields[0])
 
 
 def test_removed_slot_resets_and_other_resource_is_untouched(fish_world):
@@ -177,7 +178,8 @@ def test_minimal_on_off_ecology_pair_and_lagged_economy(fish_world):
     assert "fishery_catch_budget_0" not in build_economy_region_input_batch(off).schema.names
     fish_world.fishery_experiment.enabled = True
     initial_input = build_economy_region_input_batch(fish_world).column("resource_yield_0")[0].as_py()
-    assert initial_input == 1
+    full_catch = goods_per_worker(ResourceType.FISH, 1)  # index 1.0 in goods units
+    assert initial_input == pytest.approx(full_catch)
     budgets = build_economy_region_input_batch(fish_world).to_pylist()[0]
     # No prior catch means no fish credit; the ore and empty slots stay uncapped.
     assert [budgets[f"fishery_catch_budget_{slot}"] for slot in range(3)] == [0, None, None]
@@ -188,7 +190,7 @@ def test_minimal_on_off_ecology_pair_and_lagged_economy(fish_world):
     assert off.regions[0].fishery_stocks == [1, 1, 1]
     assert fish_world.regions[0].fishery_stocks[0] < .2
     assert 0 < fish_world.regions[0].resource_current_yields[0] < .5
-    assert 0 < economy_yield(fish_world, fish_world.regions[0]) < 1
+    assert 0 < economy_yield(fish_world, fish_world.regions[0]) < full_catch
     batch_yield = build_economy_region_input_batch(fish_world).column("resource_yield_0")[0].as_py()
     assert batch_yield == pytest.approx(economy_yield(fish_world, fish_world.regions[0]))
     assert fish_world.regions[0].resource_effective_yields[0] == 1
@@ -236,7 +238,7 @@ def test_economy_production_never_exceeds_stock_debit(fish_world, potential, pro
     region.population = proxy_workers * 5
     region.fishery_stocks[0] = .1
     apply_fishery_feedback(fish_world, {region.name: [potential, 0, 0]})
-    budget = region.fishery_catch_budgets[0]
+    budget = catch_budget(fish_world, region)  # the stock's catch credit in goods
     snapshot = pa.record_batch({
         "region": pa.array([0] * farmers, type=pa.int32()),
         "occupation": pa.array([0] * farmers, type=pa.int32()),
@@ -278,7 +280,7 @@ def test_native_economy_honors_lagged_budget(fish_world):
                                                snapshot.column("region").to_pylist())
                   if occupation == 0 and rid == 0)
     row = batch.to_pylist()[0]
-    budget = region.fishery_catch_budgets[0]
+    budget = catch_budget(fish_world, region)
     from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
     eaters = sum(1 for rid in snapshot.column("region").to_pylist() if rid == 0)
     labor = food_first_slot_labor(
@@ -344,8 +346,11 @@ def test_python_economy_caps_each_fish_slot_after_labor_split(fish_world):
     region.resource_types = [ResourceType.FISH, ResourceType.ORE, ResourceType.FISH]
     region.resource_base_yields = [1.0, 0.5, 1.0]
     region.resource_effective_yields = [1.0, 0.5, 1.0]
-    region.resource_current_yields = [1.0, 0.5, 1.0]
-    region.fishery_catch_budgets = [3.0, None, 50.0]
+    # Harvest indices and catch credits worth 1 fish, 0.5 ore, 1 fish per
+    # farmer and 3 / 50 fish of credit in goods units.
+    fish, ore = harvest_normal_index(ResourceType.FISH), harvest_normal_index(ResourceType.ORE)
+    region.resource_current_yields = [1.0 * fish, 0.5 * ore, 1.0 * fish]
+    region.fishery_catch_budgets = [3.0 * fish, None, 50.0 * fish]
     farmers = 60
     snapshot = pa.record_batch({
         "region": pa.array([0] * farmers, type=pa.int32()),

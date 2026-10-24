@@ -344,7 +344,9 @@ def test_hybrid_resume_continues_the_fishery_from_its_saved_state(fish_world, tm
     assert len(straight_inputs) == len(resumed_inputs) == 3
     # Boundary turn: identical fish yield (lagged ratio) and catch credit.
     assert resumed_inputs[0] == straight_inputs[0]
-    assert resumed_inputs[0][1] == pytest.approx(saved_budget, rel=1e-6)
+    from chronicler.ecology import goods_per_worker
+    from chronicler.models import ResourceType
+    assert resumed_inputs[0][1] == pytest.approx(goods_per_worker(ResourceType.FISH, saved_budget), rel=1e-6)
     # The stock keeps evolving from the saved value (no reset to full stock).
     later = resumed.regions[0].fishery_stocks[0]
     assert abs(later - saved_stock) < 0.1 and later < 1.0

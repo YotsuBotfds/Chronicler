@@ -40,7 +40,9 @@ consumption rules, agent needs, or external narration calls.
 The dedicated economy Arrow input now carries `resource_type_0/1/2` and
 `resource_yield_0/1/2` (from `fisheries.economy_yield`: the preview, times the
 lagged catch ratio for fish slots when the default-off fishery experiment is
-enabled). That experiment also appends nullable `fishery_catch_budget_0/1/2`
+enabled, converted from the harvest index into goods per farmer by
+`ecology.goods_per_worker` since the 2026-10 food-balance correction; see
+[food-balance-2026-10](../integration/food-balance-2026-10.md)). That experiment also appends nullable `fishery_catch_budget_0/1/2`
 production caps, applied after the labor split. Rebuild the native extension
 alongside Python; an old wheel is incompatible with the new input schema. See
 [the integration notes](../integration/ecology-goods-reconciliation.md).

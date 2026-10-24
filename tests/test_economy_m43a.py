@@ -656,15 +656,19 @@ def test_food_sufficiency_backward_compat_full_path():
     from unittest.mock import MagicMock
     import numpy as np
     import pyarrow as pa
+    from chronicler.ecology import harvest_normal_index
     from chronicler.economy import compute_economy, PER_CAPITA_FOOD
     from chronicler.models import Region, RegionStockpile
 
     pop = 20
     food_demand = pop * PER_CAPITA_FOOD
+    # The harvest index whose goods yield (index / long-run normal) feeds one
+    # person per farmer exactly.
+    index = food_demand / pop * harvest_normal_index(0)
     region = Region(name="Valley", terrain="plains", carrying_capacity=50, resources="fertile",
                     controller="Aram", resource_types=[0, 255, 255],
                     resource_base_yields=[food_demand / pop, 0.0, 0.0],
-                    resource_effective_yields=[food_demand / pop, 0.0, 0.0], resource_current_yields=[food_demand / pop, 0.0, 0.0])
+                    resource_effective_yields=[food_demand / pop, 0.0, 0.0], resource_current_yields=[index, 0.0, 0.0])
     region.stockpile = RegionStockpile(goods={})
     civ = MagicMock()
     civ.name = "Aram"

@@ -423,6 +423,8 @@ pub const TRIP_PHASE_IDLE: u8 = 0;
 pub const TRIP_PHASE_LOADING: u8 = 1;
 pub const TRIP_PHASE_TRANSIT: u8 = 2;
 pub const TRIP_GOOD_SLOT_NONE: u8 = 255;
+/// `AgentPool::trip_home_region` value meaning "no delivery to return from".
+pub const TRIP_HOME_NONE: u16 = u16::MAX;
 
 // M59a: Packet slot constants
 pub const PACKET_SLOTS: usize = 4;

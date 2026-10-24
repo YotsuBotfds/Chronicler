@@ -178,7 +178,9 @@ def test_region_input_batch_values():
     assert batch.column("region_id").to_pylist() == [0, 1]
     assert batch.column("storage_population").to_pylist() == [0, 0]  # default population
     assert batch.column("resource_type_0").to_pylist() == [0, 5]  # grain, ore
-    assert batch.column("resource_yield_0").to_pylist()[0] == pytest.approx(1.5)
+    # The realized harvest index (1.5) in goods per farmer.
+    from chronicler.ecology import goods_per_worker
+    assert batch.column("resource_yield_0").to_pylist()[0] == pytest.approx(goods_per_worker(0, 1.5))
     # Grain stockpile for Valley
     assert batch.column("stockpile_grain").to_pylist()[0] == pytest.approx(40.0)
     # Salt stockpile for Valley

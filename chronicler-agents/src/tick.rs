@@ -437,6 +437,8 @@ pub fn try_tick_agents_with_options(
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
     let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    // Merchants that delivered this turn have observed the market; they go home.
+    crate::merchant::return_delivering_merchants_home(pool, &master_seed);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
@@ -1314,9 +1316,25 @@ fn compute_satisfaction_region_inputs(
     let n = regions.len();
     let mut occupation_supply = vec![[0usize; OCCUPATION_COUNT]; n];
     let mut population = vec![0usize; n];
+    // Occupational balance: present idle agents plus the region's merchants
+    // away on a trip, as in behavior::compute_region_stats (2026-10 food
+    // balance correction). `population` stays the physically present count
+    // used for overcrowding.
+    let mut occupational_pop = vec![0usize; n];
 
     for slot in 0..pool.capacity() {
-        if !pool.is_alive(slot) || pool.is_on_trip(slot) {
+        if !pool.is_alive(slot) {
+            continue;
+        }
+        if pool.is_on_trip(slot) {
+            let origin = pool.trip_origin_region[slot] as usize;
+            if origin < n {
+                let occ = pool.occupation(slot) as usize;
+                if occ < OCCUPATION_COUNT {
+                    occupation_supply[origin][occ] += 1;
+                }
+                occupational_pop[origin] += 1;
+            }
             continue;
         }
 
@@ -1330,6 +1348,7 @@ fn compute_satisfaction_region_inputs(
             occupation_supply[region_id][occ] += 1;
         }
         population[region_id] += 1;
+        occupational_pop[region_id] += 1;
     }
 
     let occupation_demand = (0..n)
@@ -1346,7 +1365,7 @@ fn compute_satisfaction_region_inputs(
                 regions[region_id].food_sufficiency,
                 demand_shifts,
             );
-            let pop = population[region_id] as f32;
+            let pop = occupational_pop[region_id] as f32;
             let mut demand = [0.0f32; OCCUPATION_COUNT];
             for i in 0..OCCUPATION_COUNT {
                 demand[i] = ratios[i] * pop;

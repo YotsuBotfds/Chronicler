@@ -52,7 +52,13 @@ def test_long_cargo_independent_per_good_conservation_and_once_only_settlement(h
     assert sum(sum(r["cargo"].values()) > 0 for r in rows) >= hops - 1
     assert any(r["trip_stats"]["completed_trips"] > 0 and r["trip_stats"]["avg_trip_duration"] >= hops for r in rows)
     assert any(r["knowledge_stats"]["merchant_plans_bootstrap"] + r["knowledge_stats"]["merchant_plans_packet_driven"] > 0 for r in rows[1:])
-    assert {t["donor"] for r in rows for t in r["aid"]["transfers"]} == {"A", "B"}
+    # Which adjacent donor sends is emergent (donor stocks net of merchant
+    # cargo commitments). Since the 2026-10 food-balance corrections A's free
+    # surplus alone covers both recipients in some of these runs; multi-donor
+    # sharing is pinned deterministically by
+    # test_multiple_donors_competing_recipients_caps_and_exhaustion above.
+    donors = {t["donor"] for r in rows for t in r["aid"]["transfers"]}
+    assert "A" in donors and donors <= {"A", "B"}
     assert any({t["recipient"] for t in r["aid"]["transfers"]} == {"First", "Second"} for r in rows)
     assert any(r["economy_replay_ledger"] is not None for r in rows)
     assert sum(r["oracle_ledger"]["transit_loss"]["grain"] for r in rows) > 0

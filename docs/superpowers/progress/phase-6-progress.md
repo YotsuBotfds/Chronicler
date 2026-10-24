@@ -75,21 +75,47 @@ off behind `--finance` (saved on the world). Details, numbers and stories:
   slow population declines; finance makes treasuries homeostatic. Decide the
   oracle treatment, then re-gate after the food-balance work lands. The
   200-seed full gate has not been run with finance on.
+> **Last updated:** 2026-10-24 (food balance, `fix/food-balance`)
 
-## Recovery checkpoint (2026-10-11)
+---
 
-Checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`) was restored in an
-isolated Windows checkout. It contains public `main` (`edf7299`) and 108 further
-commits, so no rebase was needed. The continuation branch is
-`continuation/recovered-20261011`; older dirty Windows source and the competing
-desktop foundation architecture remain preserved separately. See
-[`docs/CONTINUATION.md`](../../CONTINUATION.md) for exact locations and standing,
-and [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md) for portable setup and the guarded
-Python runner. Fresh checks passed 1,570 guarded Python tests (3 skipped,
-2 deselected) and 162 viewer tests, lint and build. A Unix text-fixture comparison
-now accounts for Windows newlines without changing production writes or goldens.
-POSIX session persistence, native/GPU, full suites and milestone qualification
-remain separate gates; no merge, flag activation or deployment is claimed.
+## Food balance (2026-10-24)
+
+Branch `fix/food-balance` on `integrate/wave-2` (`db26681`); details, numbers
+and every changed expectation are in
+[`docs/integration/food-balance-2026-10.md`](../../integration/food-balance-2026-10.md).
+Nine root-cause corrections, one commit each: aggregate migration no longer
+runs on agent-owned populations; soil degrades against potential capacity;
+temperate water recovery is climatic; mines need ORE/PRECIOUS; travelling
+merchants count in their origin's occupational balance and return home after
+delivering; the fertility brake tapers from 0.75x to 1.0x capacity; the goods
+economy reads goods per farmer instead of the raw M34 harvest index (PR #11
+unit regression); outbreak contagion is spread over a civ's contacts. One
+separate recalibration restores the food-shortage satisfaction weight to
+0.15, undoing cuts made to meet the satisfaction floor on starving worlds.
+Golden oracles rolled forward to `corrected_food_balance_2026_10*`
+(extinction fixtures frozen). No famine, demand or validation threshold
+changed.
+
+- Hybrid template worlds: fed region-turns 4% → 42%, famine per 500-turn run
+  752 → 341, mutual-aid convoys 0 → 12 per 200 turns, population held at
+  0.66x capacity (was 1.0-1.35x on degrading land).
+- Procedural 64-region / 16-civ hybrid worlds no longer collapse (seeds 7-10:
+  822 → 64 by turn 150 before; 817 → 893 after, 988 at turn 300).
+- Gates on the branch head: full 200 × 500 PASS (strict; 0 of 200 extinct,
+  latest satisfaction 0.643 against the 0.65 ceiling), subset PASS (the
+  `db26681` subset fails `civ_survival`). pytest, no-Rust pytest, slow tests
+  and `cargo test --release` pass.
+- Open: winter shortage and merchant routing that ignores need, locust
+  frequency (M35b rate), drought/cooling compounding of crop and water
+  modifiers, the occupational switching dead band (farmers below target),
+  no goods-economy subsistence for foodless regions, fishing effort that
+  ignores catch per fisher, the secession threshold left pending this sweep,
+  the other floor-chasing satisfaction tunings (M47c-M57), and the
+  `civ_survival` band (0.15-0.165 on the branch; 0.25 against 0.20 in the
+  base subset), and smaller worlds (full-profile final population median 182,
+  minimum 33; none extinct). The plague change touches `events.py`, which the
+  epidemiology work also owns.
 
 ## Diplomacy (2026-10-24, `feat/diplomacy`)
 
@@ -130,6 +156,21 @@ behind `--diplomacy` (`WorldState.diplomacy`). See
 - **Not run.** The full 200-seed gate with `--diplomacy`; it is required
   before any default change, watching `civ_survival` and the strict
   latest-satisfaction floor.
+
+## Recovery checkpoint (2026-10-11)
+
+Checkpoint 011 (`b820217a9ea34ead33e2114e38d44f4297b0a70c`) was restored in an
+isolated Windows checkout. It contains public `main` (`edf7299`) and 108 further
+commits, so no rebase was needed. The continuation branch is
+`continuation/recovered-20261011`; older dirty Windows source and the competing
+desktop foundation architecture remain preserved separately. See
+[`docs/CONTINUATION.md`](../../CONTINUATION.md) for exact locations and standing,
+and [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md) for portable setup and the guarded
+Python runner. Fresh checks passed 1,570 guarded Python tests (3 skipped,
+2 deselected) and 162 viewer tests, lint and build. A Unix text-fixture comparison
+now accounts for Windows newlines without changing production writes or goldens.
+POSIX session persistence, native/GPU, full suites and milestone qualification
+remain separate gates; no merge, flag activation or deployment is claimed.
 
 ## Current Focus (2026-10-07)
 

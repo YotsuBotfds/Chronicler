@@ -96,9 +96,10 @@ fn test_basic_plains_tick() {
     // recovery = 0.05 * 0.5 = 0.025 => 0.80 + 0.025 = 0.825
     assert!((r.soil - 0.825).abs() < 0.001, "soil={}", r.soil);
 
-    // Water: temperate => recovery = 0.03 * 0.5 = 0.015 => 0.615
-    // Capped at 0.70 for plains — 0.615 < 0.70, OK
-    assert!((r.water - 0.615).abs() < 0.001, "water={}", r.water);
+    // Water: temperate => climatic recovery 0.03, not scaled by population
+    // pressure (2026-10 food-balance correction; was 0.03 * 0.5 = 0.015)
+    // => 0.63. Capped at 0.70 for plains — 0.63 < 0.70, OK
+    assert!((r.water - 0.63).abs() < 0.001, "water={}", r.water);
 
     // Forest: pop 30 == carrying_capacity * 0.5 = 30 => NOT > threshold
     // Regrowth: pop < threshold AND water >= 0.3 => regrowth active
@@ -1069,14 +1070,16 @@ fn test_soil_degradation_mult_from_streak() {
     // Region with streak at the limit — soil_mult should be 2.0
     let mut r_at_limit = make_plains(0);
     r_at_limit.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
-    r_at_limit.population = 55; // Above eff_cap to trigger degradation
+    // Above potential capacity (60) to trigger degradation; since the 2026-10
+    // food-balance correction the effective capacity (48) no longer suffices.
+    r_at_limit.population = 65;
     r_at_limit.soil_pressure_streak = 30; // At limit
     r_at_limit.soil = 0.80;
 
     // Region with streak below limit — soil_mult should be 1.0
     let mut r_below = make_plains(1);
     r_below.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
-    r_below.population = 55;
+    r_below.population = 65;
     r_below.soil_pressure_streak = 10;
     r_below.soil = 0.80;
 

@@ -153,6 +153,16 @@ RANDOM_EVENT_CIV_SHARE = 0.25
 # Cross-civ excitation (per unit of contact).
 PLAGUE_CONTACT_ALPHA = 0.04
 BORDER_INCIDENT_RECIPROCITY_ALPHA = 0.03
+# Total contact weight an outbreak spreads over at full strength. Correction
+# (2026-10, food balance): each contact used to receive ALPHA x weight
+# however many contacts the infected civ had, so an outbreak's offspring grew
+# with world connectivity. The hazards were calibrated on the default
+# four-civ template, where a civ's contact weight averages 3.0 (seeds 42-43);
+# in 64-region / 16-civ procedural worlds it averages 5.4 (p90 10), the plague
+# branching ratio exceeded 1, and outbreaks hit 4-9 civs a turn until 90% of
+# the population was dead. An outbreak now spreads at most this much weight;
+# a civ with more contact divides it among them in proportion.
+PLAGUE_CONTACT_WEIGHT_REF = 3.0
 
 # Agent roll-up references: the typical per-turn share of a civ's agents that
 # rebel / migrate (regression oracle calibration band midpoints).
@@ -415,13 +425,17 @@ def ingest_turn_events(
                 contact = _civ_contact_weights(world)
             infected = {c.name for c in involved}
             for civ in involved:
-                for other_name, weight in sorted(contact.get(civ.name, {}).items()):
+                row = contact.get(civ.name, {})
+                total = sum(row.values())
+                spread = min(1.0, PLAGUE_CONTACT_WEIGHT_REF / total) if total > 0.0 else 1.0
+                for other_name, weight in sorted(row.items()):
                     if other_name in infected:
                         continue
                     other = civ_map.get(other_name)
                     if other is not None and other.regions:
-                        excite(other, "plague", PLAGUE_CONTACT_ALPHA * weight)
-                        note_excitation(world, other.name, (("plague", PLAGUE_CONTACT_ALPHA * weight),), event)
+                        alpha = PLAGUE_CONTACT_ALPHA * weight * spread
+                        excite(other, "plague", alpha)
+                        note_excitation(world, other.name, (("plague", alpha),), event)
         elif etype == "border_incident" and len(involved) >= 2:
             excite(involved[1], "border_incident", BORDER_INCIDENT_RECIPROCITY_ALPHA)
             note_excitation(world, involved[1].name,

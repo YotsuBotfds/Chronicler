@@ -1,0 +1,168 @@
+{
+  "provenance": {
+    "derived_from": [
+      "corrected_extinction_2026_10.json",
+      "corrected_artifacts_extinction_2026_10.json"
+    ],
+    "base_revision": "db26681",
+    "description": "Corrected oracle rolled forward by the 2026-10 food-balance corrections (docs/integration/food-balance-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. Corrections are listed in commit order; each workload index is the first turn that correction changes relative to the oracle with all earlier corrections applied (consecutive captures of the branch commits). The corrected_extinction_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
+    "corrections": [
+      {
+        "id": "FB-MIGRATION",
+        "summary": "Aggregate overflow migration (climate.process_migration) is a no-op when the agent pool owns population (hybrid, demographics-only).",
+        "workloads": {},
+        "note": "Off-mode workloads are unchanged; the correction is confined to agent-owned modes."
+      },
+      {
+        "id": "FB-SOIL",
+        "summary": "Soil degrades when population exceeds potential capacity (carrying capacity x capacity modifier), not the degraded effective capacity.",
+        "workloads": {
+          "single": 9,
+          "standard": 18,
+          "wide": 0
+        }
+      },
+      {
+        "id": "FB-WATER",
+        "summary": "Temperate water recovery is the climatic rate, no longer scaled by the population pressure multiplier (controlled and uncontrolled regions).",
+        "workloads": {
+          "single": 0,
+          "standard": 0,
+          "wide": 0
+        }
+      },
+      {
+        "id": "FB-MINES",
+        "summary": "MINES are a valid build only in regions with an ORE or PRECIOUS resource slot.",
+        "workloads": {
+          "standard": 15,
+          "wide": 22
+        }
+      },
+      {
+        "id": "FB-MERCHANT-OCCUPATION",
+        "summary": "Travelling (Loading/Transit) merchants count in their trip origin's occupational supply and population (native behavior and satisfaction inputs).",
+        "workloads": {},
+        "note": "Native agent runtime only; the off-mode oracle lane does not run it."
+      },
+      {
+        "id": "FB-MERCHANT-HOME",
+        "summary": "A merchant that delivers returns to its trip origin after the arrival turn's knowledge phase instead of settling at the destination.",
+        "workloads": {},
+        "note": "Native agent runtime only; the off-mode oracle lane does not run it."
+      },
+      {
+        "id": "FB-CROWDING-BRAKE",
+        "summary": "Native fertility crowding brake tapers from 0.75x and stops at 1.0x capacity (was 1.0x to 1.6x).",
+        "workloads": {},
+        "note": "Native agent runtime only; the off-mode oracle lane does not run it."
+      },
+      {
+        "id": "FB-GOODS-UNITS",
+        "summary": "The goods economy reads goods per farmer (realized harvest index / its long-run healthy-land normal) instead of the raw M34 harvest index; fishery catch budgets and the fishery labour split use the same units.",
+        "workloads": {},
+        "note": "No golden workload changes: the exact-trajectory off-mode lane does not read the converted economy yields for any of its outcomes."
+      },
+      {
+        "id": "FB-PLAGUE-CONTACT",
+        "summary": "An outbreak's cross-civ contagion spreads at most PLAGUE_CONTACT_WEIGHT_REF (3.0) of contact weight; a civ with more contact divides it in proportion.",
+        "workloads": {
+          "wide": 35
+        }
+      }
+    ],
+    "environment": {
+      "python": "3.13.17",
+      "platform": "Linux"
+    },
+    "comparison": "complete emitted file set, byte count and SHA256; no field filtering or tolerance"
+  },
+  "workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "870897476f1696ab598fb4f2328a0036219da18519b3b4201a372d549c719e79",
+        "bytes": 73595
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "fc66cac7089b4a190bc9ca3b6f3fcf53a237b0ab24c76a077148dedfdb762c4d",
+        "bytes": 5578
+      },
+      "state.json": {
+        "sha256": "7ce53ad072906f26eb586a2cecfc4ed1f668435f65b0418b5d349d386a0418d6",
+        "bytes": 25666
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "81730e721ec6f20fa7de9463fa101ac039ac7c2e9e8c938e8462047354433c68",
+        "bytes": 860792
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "2a978b36804ec3ba1f2480212f9d689ee0b2b38f84c58aa4ad839c71534a1400",
+        "bytes": 25318
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d7a99a48926d3249e331640129bfcaf21ee5b3316109cae3e3b7ca753481177c",
+        "bytes": 18463
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "76a192d335bea83a957c4d4033a875a5d6284ef0943b163daba249a698a414a2",
+        "bytes": 19883
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "97bf6fa9eb0b2174e18a54fd31f9c5c50b985a38e657bd2a5b4ea069e7e88fab",
+        "bytes": 24862
+      },
+      "state.json": {
+        "sha256": "6a7831573dda8de992769458917e84d8b94e7ac22b7efe9dc7d86334d80c08b6",
+        "bytes": 258955
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "56d2af454208ef13b006680c47de0d9d3bf37cda5bedf062eaa4755dc9368309",
+        "bytes": 935906
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "68a6e759f6f5c25ed429779d8397a823afd0414b4dd9c6ea10ac713277c36b2a",
+        "bytes": 15730
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "3ecd77a40294bd993320d73e8cbda2792cad66a66ece3ef3d76295d8a9153df7",
+        "bytes": 16274
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "77aa18dc0d10ed5fac56a9d85dc678b2ead0a2e159a81d76e85fd28bf9f3519d",
+        "bytes": 16695
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "dda3d67e15064db89e53151ea147fbfef723c696cd14e578d7d956e41a27a6ad",
+        "bytes": 16123
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "57b7cf3f1df7dbe5edc8c22bcfc3d49b3eb0c87ea6510a3034aba410e1747711",
+        "bytes": 15128
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "2f04968271f35c6f97b68ecc6158125584e0157b72876cae1759d32ebaa3acc3",
+        "bytes": 9787
+      },
+      "state.json": {
+        "sha256": "608e3e097945899cf28bec0c3d228d0fe5796d5e5b4a9cf6fc3d2067d56dc7ae",
+        "bytes": 297920
+      }
+    }
+  }
+}
