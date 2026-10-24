@@ -667,6 +667,20 @@ def test_overseas_coast_needs_a_fleet_in_its_zone():
                      if r.controller is None and (i not in ports or i in walkable)}
 
 
+def test_settlers_follow_a_colony_fleet():
+    world = _colony_world()
+    civ = world.civilizations[0]
+    unclaimed = [r for r in world.regions if r.controller is None]
+    fleet = _fleet(world, 0, ZONE, 3, LANE_A)
+    assert len(M.expansion_candidates(world, civ, unclaimed)) > 1
+    fleet.mission = "colony"
+    targets = M.expansion_candidates(world, civ, unclaimed)
+    walkable = M.land_reachable(world, civ.name)
+    assert world.regions[LANE_B] in targets
+    assert all(world.regions.index(r) in world.maritime.zones[ZONE].ports
+               and world.regions.index(r) not in walkable for r in targets)
+
+
 def test_sealess_world_keeps_the_base_expand_reach():
     world = generate_world(seed=42, num_regions=8, num_civs=4)
     M.set_maritime_enabled(world, True)

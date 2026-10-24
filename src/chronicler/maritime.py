@@ -1540,6 +1540,7 @@ def expansion_candidates(world, civ, unclaimed: list["Region"]) -> list["Region"
     walkable = None
     reach = None
     out = []
+    overseas = []
     for region in unclaimed:
         i = index[region.name]
         zones = look.region_zones.get(i)
@@ -1547,9 +1548,20 @@ def expansion_candidates(world, civ, unclaimed: list["Region"]) -> list["Region"
             if walkable is None:
                 walkable = land_reachable(world, civ.name)
                 reach = _reach_zones(world, civ)
-            if i not in walkable and not any(z in reach for z in zones):
-                continue
+            if i not in walkable:
+                if not any(z in reach for z in zones):
+                    continue
+                overseas.append((region, zones))
         out.append(region)
+    # Settlers follow a colony fleet: while one stands off an overseas coast,
+    # EXPAND aims at the coasts it can carry them to.
+    ci = world.civ_index_map.get(civ.name)
+    colony_zones = {f.zone for f in world.maritime.fleets
+                    if f.civ == ci and f.mission == "colony" and f.ships > 0}
+    if colony_zones:
+        aimed = [r for r, zones in overseas if any(z in colony_zones for z in zones)]
+        if aimed:
+            return aimed
     return out
 
 
