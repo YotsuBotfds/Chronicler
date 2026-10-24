@@ -2,8 +2,8 @@
 
 Each test pins one correction: aggregate migration is a no-op for agent-owned
 populations, soil degrades against potential capacity, temperate water
-recovery is climatic, mines need a mineral resource, and goods harvests are in
-economy units.
+recovery is climatic, mines need a mineral resource, goods harvests are in
+economy units, and an outbreak's contagion is spread over its contacts.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from chronicler.models import (
     Civilization,
     ClimatePhase,
     Disposition,
+    Event,
     InfrastructureType,
     Leader,
     Region,
@@ -221,3 +222,52 @@ def test_economy_yield_and_catch_budget_are_in_goods_units():
     region.fishery_yield_ratios = [0.5, 1.0, 1.0]
     assert economy_yield(world, region) == pytest.approx(0.3 / harvest_normal_index(ResourceType.FISH))
     assert catch_budget(world, region) == pytest.approx(12.0 / harvest_normal_index(ResourceType.FISH))
+
+
+# --- plague contagion ---------------------------------------------------------
+
+def _star_world(spokes: int) -> WorldState:
+    """Civ H borders ``spokes`` single-region civs (shared border weight 0.5 each)."""
+    names = [f"S{i}" for i in range(spokes)]
+    hub = Region(name="h", terrain="plains", carrying_capacity=50, resources="fertile",
+                 controller="H", adjacencies=[n.lower() for n in names], population=20)
+    regions = [hub] + [
+        Region(name=n.lower(), terrain="plains", carrying_capacity=50, resources="fertile",
+               controller=n, adjacencies=["h"], population=20)
+        for n in names
+    ]
+    civs = [_civ("H", ["h"])] + [_civ(n, [n.lower()]) for n in names]
+    return WorldState(name="star", seed=3, regions=regions, civilizations=civs)
+
+
+def _outbreak(world: WorldState) -> None:
+    from chronicler.events import ingest_turn_events
+
+    ingest_turn_events(world, [Event(turn=0, event_type="plague", actors=["H"],
+                                     description="", importance=5)])
+
+
+def test_outbreak_contagion_unchanged_within_the_reference_contact_weight():
+    from chronicler.events import PLAGUE_CONTACT_ALPHA, PLAGUE_CONTACT_WEIGHT_REF, _civ_contact_weights
+
+    world = _star_world(2)
+    row = _civ_contact_weights(world)["H"]
+    assert sum(row.values()) <= PLAGUE_CONTACT_WEIGHT_REF
+    _outbreak(world)
+    for civ in world.civilizations[1:]:
+        assert civ.event_excitation["plague"] == PLAGUE_CONTACT_ALPHA * row[civ.name]
+
+
+def test_outbreak_contagion_is_shared_across_many_contacts():
+    from chronicler.events import PLAGUE_CONTACT_ALPHA, PLAGUE_CONTACT_WEIGHT_REF, _civ_contact_weights
+
+    world = _star_world(12)
+    row = _civ_contact_weights(world)["H"]
+    total = sum(row.values())
+    assert total > 2 * PLAGUE_CONTACT_WEIGHT_REF
+    _outbreak(world)
+    spread = {c.name: c.event_excitation["plague"] for c in world.civilizations[1:]}
+    for name, value in spread.items():
+        assert value == pytest.approx(PLAGUE_CONTACT_ALPHA * row[name] * PLAGUE_CONTACT_WEIGHT_REF / total)
+    # The outbreak's total pressure no longer grows with its number of contacts.
+    assert sum(spread.values()) == pytest.approx(PLAGUE_CONTACT_ALPHA * PLAGUE_CONTACT_WEIGHT_REF)
