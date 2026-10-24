@@ -174,6 +174,31 @@ struct MigrationChoice {
     /// score, for the migration budget.
     river: f32,
     news: f32,
+    /// Voluntary pull toward the target beyond the agent's roots (zero for
+    /// agents without one). It counts in the target choice and is added to
+    /// the migrate utility; `opportunity` excludes it.
+    voluntary: VoluntaryPull,
+}
+
+impl MigrationChoice {
+    fn stay(region_id: usize) -> Self {
+        MigrationChoice {
+            target: region_id as u16,
+            opportunity: 0.0,
+            threat_changed: false,
+            religion_changed: false,
+            river: 0.0,
+            news: 0.0,
+            voluntary: VoluntaryPull::default(),
+        }
+    }
+}
+
+/// Add a non-negative pull to a score; a zero pull leaves the score's bits
+/// untouched, so agents without a voluntary pull choose exactly as before.
+#[inline]
+fn with_pull(score: f32, pull: f32) -> f32 {
+    if pull > 0.0 { score + pull } else { score }
 }
 
 fn best_migration_target_for_agent(
@@ -182,6 +207,7 @@ fn best_migration_target_for_agent(
     stats: &RegionStats,
     region_id: usize,
     slot: usize,
+    mobility: Option<&Mobility>,
 ) -> MigrationChoice {
     let civ = pool.civ_affinity(slot);
     let belief = pool.beliefs[slot];
@@ -192,7 +218,10 @@ fn best_migration_target_for_agent(
     let own_score = migration_region_score(&regions[region_id], own_mean, own_pop)
         + polity_alignment_score(&regions[region_id], &regions[region_id], civ);
 
+    // Comparisons use each target's score plus its voluntary pull; the
+    // opportunity term reads the score alone.
     let mut best_adj_score = own_score;
+    let mut best_base_score = own_score;
     let mut best_adj_id = region_id as u16;
     let mut baseline_best_adj_id = region_id as u16;
     let mut baseline_best_adj_score = own_score;
@@ -202,6 +231,7 @@ fn best_migration_target_for_agent(
     let mut threat_best_adj_score = own_score;
     let mut best_river = 0.0f32;
     let mut best_news = 0.0f32;
+    let mut best_voluntary = VoluntaryPull::default();
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -236,10 +266,27 @@ fn best_migration_target_for_agent(
         }
         let pre_news_score = adj_score;
 
+        // Healthy-world drivers: frontier, wage gap, chain, net of roots.
+        let voluntary = match mobility {
+            Some(m) => {
+                let inputs = PullInputs {
+                    own_ratio: own_pop_ratio,
+                    adj_ratio: adj_pop_ratio,
+                    own_peer_wealth: &stats.peer_wealth[region_id],
+                    adj_peer_wealth: &stats.peer_wealth[adj],
+                    adj_peer_count: &stats.peer_count[adj],
+                };
+                pull_toward(m, &regions[region_id], &regions[adj], &inputs).net_of_roots(m.roots)
+            }
+            None => VoluntaryPull::default(),
+        };
+        let pull = voluntary.total();
+
         // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
-        // Baseline includes ALL existing modifiers (region score, polity, river).
-        if adj_score > baseline_best_adj_score {
-            baseline_best_adj_score = adj_score;
+        // Baseline includes ALL existing modifiers (region score, polity, river)
+        // and the voluntary pull.
+        if with_pull(adj_score, pull) > baseline_best_adj_score {
+            baseline_best_adj_score = with_pull(adj_score, pull);
             baseline_best_adj_id = adj as u16;
         }
 
@@ -250,8 +297,8 @@ fn best_migration_target_for_agent(
         if threat_strength > 0.0 {
             adj_score -= MAX_THREAT_PENALTY * threat_strength;
         }
-        if adj_score > threat_best_adj_score {
-            threat_best_adj_score = adj_score;
+        if with_pull(adj_score, pull) > threat_best_adj_score {
+            threat_best_adj_score = with_pull(adj_score, pull);
             threat_best_adj_id = adj as u16;
         }
 
@@ -271,21 +318,24 @@ fn best_migration_target_for_agent(
             }
         }
 
-        if adj_score > best_adj_score {
-            best_adj_score = adj_score;
+        if with_pull(adj_score, pull) > best_adj_score {
+            best_adj_score = with_pull(adj_score, pull);
+            best_base_score = adj_score;
             best_adj_id = adj as u16;
             best_river = river;
             best_news = adj_score - pre_news_score;
+            best_voluntary = voluntary;
         }
     }
 
     MigrationChoice {
         target: best_adj_id,
-        opportunity: (best_adj_score - own_score).max(0.0),
+        opportunity: (best_base_score - own_score).max(0.0),
         threat_changed: threat_best_adj_id != baseline_best_adj_id,
         religion_changed: best_adj_id != threat_best_adj_id,
         river: best_river,
         news: best_news,
+        voluntary: best_voluntary,
     }
 }
 
@@ -347,6 +397,9 @@ fn migration_terms(
         terms[TERM_MATERIAL_NEED] = need_mods.migrate_push[1] * k;
         terms[TERM_SPIRITUAL_NEED] = need_mods.migrate_push[2] * k;
     }
+    terms[TERM_FRONTIER] = choice.voluntary.frontier;
+    terms[TERM_WAGE] = choice.voluntary.wage;
+    terms[TERM_CHAIN] = choice.voluntary.chain;
     terms
 }
 
@@ -399,11 +452,21 @@ pub struct RegionStats {
     pub migration_opportunity: Vec<f32>,
     /// Region id of the best adjacent migration target (own id if none better).
     pub best_migration_target: Vec<u16>,
+    /// Wage gap inputs: mean wealth and count of the region's farmers and
+    /// merchants (index `migration_drivers::wage_index`), merchants away on
+    /// a trip counted in the region they set out from.
+    pub peer_wealth: Vec<[f32; WAGE_OCCUPATIONS]>,
+    pub peer_count: Vec<[u16; WAGE_OCCUPATIONS]>,
+    /// Whether the region has a ruler and a neighbour under the same ruler
+    /// (where the voluntary drivers can apply at all).
+    pub has_internal_neighbour: Vec<bool>,
 }
 
 /// Single O(n) pass over alive agents to build all region stats.
 pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: &TickSignals) -> RegionStats {
     let n = regions.len();
+    let mut peer_wealth_sum = vec![[0.0f32; WAGE_OCCUPATIONS]; n];
+    let mut peer_count = vec![[0u16; WAGE_OCCUPATIONS]; n];
 
     let mut rebel_eligible = vec![0usize; n];
     let mut sat_sum = vec![0.0f32; n];
@@ -440,6 +503,10 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
                     occupation_supply[origin][occ] += 1;
                 }
                 occupational_pop[origin] += 1;
+                if let Some(k) = wage_index(pool.occupation(slot)) {
+                    peer_wealth_sum[origin][k] += pool.wealth[slot];
+                    peer_count[origin][k] = peer_count[origin][k].saturating_add(1);
+                }
             }
             continue;
         }
@@ -448,6 +515,10 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
             continue;
         }
         occupational_pop[r] += 1;
+        if let Some(k) = wage_index(pool.occupation(slot)) {
+            peer_wealth_sum[r][k] += pool.wealth[slot];
+            peer_count[r][k] = peer_count[r][k].saturating_add(1);
+        }
 
         let sat = pool.satisfaction(slot);
         let loy = pool.loyalty(slot);
@@ -578,6 +649,27 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         best_migration_target[r] = best_adj_id;
     }
 
+    let peer_wealth: Vec<[f32; WAGE_OCCUPATIONS]> = (0..n)
+        .map(|r| {
+            let mut mean = [0.0f32; WAGE_OCCUPATIONS];
+            for k in 0..WAGE_OCCUPATIONS {
+                if peer_count[r][k] > 0 {
+                    mean[k] = peer_wealth_sum[r][k] / peer_count[r][k] as f32;
+                }
+            }
+            mean
+        })
+        .collect();
+    let has_internal_neighbour: Vec<bool> = (0..n)
+        .map(|r| {
+            let ruler = regions[r].controller_civ;
+            ruler != UNCONTROLLED
+                && regions[r].adjacency.iter().any(|&a| {
+                    (a as usize) < n && regions[a as usize].controller_civ == ruler
+                })
+        })
+        .collect();
+
     RegionStats {
         rebel_eligible,
         mean_satisfaction,
@@ -587,6 +679,9 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         civ_mean_satisfaction,
         migration_opportunity,
         best_migration_target,
+        peer_wealth,
+        peer_count,
+        has_internal_neighbour,
     }
 }
 
@@ -671,18 +766,16 @@ pub fn evaluate_region_decisions(
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
         let choice = if is_displaced {
-            MigrationChoice {
-                target: region_id as u16,
-                opportunity: 0.0,
-                threat_changed: false,
-                religion_changed: false,
-                river: 0.0,
-                news: 0.0,
-            }
+            MigrationChoice::stay(region_id)
         } else {
             pending.migration_drivers.evaluated += 1;
-            best_migration_target_for_agent(pool, regions, stats, region_id, slot)
+            let mobility = Mobility::for_agent(
+                pool, slot, regions, region_id,
+                stats.has_internal_neighbour[region_id], id_to_slot,
+            );
+            best_migration_target_for_agent(pool, regions, stats, region_id, slot, mobility.as_ref())
         };
+        pending.migration_drivers.count_open_pulls(&choice.voluntary);
         let best_migration_target = choice.target;
         let migration_opportunity = choice.opportunity;
         if choice.threat_changed {
@@ -728,6 +821,13 @@ pub fn evaluate_region_decisions(
         rebel_util += need_mods.rebel;
         if !is_displaced {
             migrate_util += need_mods.migrate;
+        }
+
+        // Healthy-world drivers: the voluntary pull toward the chosen target,
+        // net of roots (zero for displaced or ineligible agents).
+        let voluntary_pull = choice.voluntary.total();
+        if voluntary_pull > 0.0 {
+            migrate_util += voluntary_pull;
         }
 
         // M57b: Household-effective wealth modulates migration threshold for married agents.
@@ -1172,10 +1272,7 @@ mod tests {
 
         let regions = vec![make_region(0), make_region(1)];
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
-        let choice = MigrationChoice {
-            target: 1, opportunity: 0.0, threat_changed: false, religion_changed: false,
-            river: 0.0, news: 0.0,
-        };
+        let choice = MigrationChoice { target: 1, ..MigrationChoice::stay(0) };
         let terms = migration_terms(&pool, &regions, &stats, 0, slot, &choice, 0.0, &mem, &needs);
         assert_eq!(terms[TERM_FAMINE_MEMORY], mem.migrate_push[crate::memory::MIGRATE_PUSH_FAMINE]);
         assert_eq!(terms[TERM_BATTLE_MEMORY], mem.migrate_push[crate::memory::MIGRATE_PUSH_BATTLE]);
@@ -1502,7 +1599,7 @@ mod tests {
             "region-level targeting should still favor the slightly happier foreign-ruled region",
         );
 
-        let choice = best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
+        let choice = best_migration_target_for_agent(&pool, &regions, &stats, 0, 0, None);
         let (target, opportunity) = (choice.target, choice.opportunity);
         assert_eq!(
             target, 1,
@@ -2009,6 +2106,81 @@ mod tests {
                 "mercenary drift {} != expected {}", d.abs(), expected_mercenary_drift);
         }
     }
+
+    /// Region 0 full (20 agents at capacity 20), region 1 under-filled (12 at
+    /// capacity 60), both fed and, unless `foreign`, ruled by civ 0. Everyone
+    /// is equally satisfied, so the score gap (headroom 0.16) stays under the
+    /// 0.18 hysteresis: only a voluntary pull can move anyone.
+    fn frontier_world(age: u16, foreign: bool) -> (AgentPool, Vec<RegionState>, Vec<usize>) {
+        let mut pool = AgentPool::new(40);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].carrying_capacity = 20;
+        regions[1].carrying_capacity = 60;
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0];
+        if foreign {
+            regions[1].controller_civ = 1;
+        }
+        let mut movers = Vec::new();
+        for _ in 0..20 {
+            let slot = pool.spawn(0, 0, Occupation::Scholar, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.6);
+            movers.push(slot);
+        }
+        for _ in 0..12 {
+            let slot = pool.spawn(1, 0, Occupation::Scholar, 40, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.6);
+        }
+        (pool, regions, movers)
+    }
+
+    fn frontier_decisions(age: u16, foreign: bool) -> PendingDecisions {
+        use rand::SeedableRng;
+        let (pool, regions, movers) = frontier_world(age, foreign);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        eval_region_decisions(&pool, &movers, &regions, &stats, 0, &mut rng)
+    }
+
+    #[test]
+    fn test_frontier_settlers_leave_a_full_region_for_an_emptier_one_of_the_realm() {
+        let pending = frontier_decisions(25, false);
+        assert!(pending.migrations.len() >= 2, "got {}", pending.migrations.len());
+        assert!(pending.migrations.iter().all(|&(_, from, to)| from == 0 && to == 1));
+        let d = &pending.migration_drivers;
+        assert_eq!(d.open[0], 20, "every young adult has the frontier pull");
+        assert_eq!(d.decided as usize, pending.migrations.len());
+        assert!((d.share[TERM_FRONTIER] - d.decided as f64).abs() < 1e-6,
+            "frontier is the only positive term");
+    }
+
+    #[test]
+    fn test_frontier_pull_does_not_reach_elders_dependants_or_other_realms() {
+        // Roots at 65 (0.35) exceed the full frontier pull (0.30).
+        assert!(frontier_decisions(65, false).migrations.is_empty());
+        assert_eq!(frontier_decisions(65, false).migration_drivers.open[0], 0);
+        // Dependants move only with their household.
+        assert!(frontier_decisions(crate::migration_drivers::MOBILITY_MIN_AGE - 1, false).migrations.is_empty());
+        // Settlement is internal: the emptier region belongs to another civ.
+        assert!(frontier_decisions(25, true).migrations.is_empty());
+    }
+
+    #[test]
+    fn test_voluntary_pull_counts_in_the_target_choice_but_not_in_the_opportunity() {
+        let (pool, regions, movers) = frontier_world(25, false);
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let ids = std::collections::HashMap::new();
+        let m = Mobility::for_agent(&pool, movers[0], &regions, 0, stats.has_internal_neighbour[0], &ids);
+        assert!(m.is_some());
+        let with = best_migration_target_for_agent(&pool, &regions, &stats, 0, movers[0], m.as_ref());
+        let without = best_migration_target_for_agent(&pool, &regions, &stats, 0, movers[0], None);
+        assert_eq!(with.target, 1);
+        assert_eq!(without.target, 1, "the emptier region already scores better");
+        assert_eq!(with.opportunity, without.opportunity);
+        assert!(without.opportunity < MIGRATE_HYSTERESIS);
+        assert!((with.voluntary.frontier - crate::migration_drivers::FRONTIER_PULL).abs() < 1e-6);
+        assert_eq!(without.voluntary, VoluntaryPull::default());
+    }
 }
 
 #[cfg(test)]
@@ -2125,7 +2297,7 @@ mod packet_consumer_tests {
 
     fn target(pool: &AgentPool, regions: &[RegionState], slot: usize) -> (u16, bool, bool) {
         let stats = compute_region_stats(pool, regions, &signals(regions.len()));
-        let c = best_migration_target_for_agent(pool, regions, &stats, 0, slot);
+        let c = best_migration_target_for_agent(pool, regions, &stats, 0, slot, None);
         (c.target, c.threat_changed, c.religion_changed)
     }
 

@@ -1518,6 +1518,9 @@ impl AgentSimulator {
             m.insert(format!("share_{name}"), d.share[i]);
             m.insert(format!("present_{name}"), d.present[i] as f64);
         }
+        for (i, name) in ["frontier", "wage", "chain"].iter().enumerate() {
+            m.insert(format!("open_{name}"), d.open[i] as f64);
+        }
         m
     }
 
