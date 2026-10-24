@@ -1501,6 +1501,26 @@ impl AgentSimulator {
         Ok(stats)
     }
 
+    /// Migration budget of the last tick: agents that weighed a move, the
+    /// migrations decided before household consolidation, and for each
+    /// utility term its summed share (`share_<term>`) and the decisions in
+    /// which it was positive (`present_<term>`). Household followers are
+    /// `household_migrations_follow` in `get_household_stats`. Diagnostic
+    /// only; production Python does not read it.
+    #[pyo3(name = "get_migration_driver_stats")]
+    pub fn get_migration_driver_stats(&self) -> std::collections::HashMap<String, f64> {
+        let d = &self.household_stats.migration_drivers;
+        let mut m = std::collections::HashMap::new();
+        m.insert("evaluated".into(), d.evaluated as f64);
+        m.insert("decided".into(), d.decided as f64);
+        m.insert("unexplained".into(), d.unexplained as f64);
+        for (i, name) in crate::migration_drivers::MIGRATION_TERM_NAMES.iter().enumerate() {
+            m.insert(format!("share_{name}"), d.share[i]);
+            m.insert(format!("present_{name}"), d.present[i] as f64);
+        }
+        m
+    }
+
     /// M50b: Return ALL relationship edges as an Arrow RecordBatch.
     /// Schema: [agent_id: u32, target_id: u32, sentiment: i8, bond_type: u8, formed_turn: u16]
     /// One row per occupied relationship slot across all alive agents.

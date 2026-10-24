@@ -15,6 +15,7 @@ use crate::agent::{
     STAY_BASE, SWITCH_CAP, SWITCH_OVERSUPPLY_THRESH, SWITCH_UNDERSUPPLY_FACTOR,
     W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
 };
+use crate::migration_drivers::*;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::satisfaction::target_occupation_ratio;
@@ -130,6 +131,17 @@ fn migration_region_score(region: &RegionState, mean_satisfaction: f32, pop_coun
     mean_satisfaction + headroom_bonus - overcrowding_penalty + food_signal
 }
 
+/// The capacity and food parts of `migration_region_score`, for the
+/// migration budget only (the score keeps its own arithmetic).
+fn migration_region_score_parts(region: &RegionState, pop_count: usize) -> (f32, f32) {
+    let cap = region.carrying_capacity.max(1) as f32;
+    let pop_ratio = pop_count as f32 / cap;
+    let headroom_bonus = (1.0 - pop_ratio).clamp(-1.0, 1.0) * MIGRATION_HEADROOM_BONUS;
+    let overcrowding_penalty = (pop_ratio - 1.0).max(0.0) * MIGRATION_OVERCROWDING_PENALTY;
+    let food_signal = (region.food_sufficiency - 1.0).clamp(-1.0, 0.5) * MIGRATION_FOOD_SIGNAL_WEIGHT;
+    (headroom_bonus - overcrowding_penalty, food_signal)
+}
+
 // NOTE: MIGRATION_SELF_RULE_BONUS = 0.0 — this function currently returns 0.0
 // for all inputs. Retained as a calibration hook for future retuning.
 #[inline]
@@ -149,15 +161,28 @@ fn region_population_count(stats: &RegionStats, region_id: usize) -> usize {
     stats.occupation_supply[region_id].iter().sum()
 }
 
-/// Returns (best_target, migration_opportunity, choices_changed_by_threat,
-/// choices_changed_by_religion).
+/// One agent's best migration target.
+#[derive(Clone, Copy, Debug)]
+struct MigrationChoice {
+    /// Best adjacent region, or the agent's own region if none is better.
+    target: u16,
+    /// How much better the target scores than home (0 if none is better).
+    opportunity: f32,
+    threat_changed: bool,
+    religion_changed: bool,
+    /// River bonus and packet (threat, religion) adjustment in the target's
+    /// score, for the migration budget.
+    river: f32,
+    news: f32,
+}
+
 fn best_migration_target_for_agent(
     pool: &AgentPool,
     regions: &[RegionState],
     stats: &RegionStats,
     region_id: usize,
     slot: usize,
-) -> (u16, f32, bool, bool) {
+) -> MigrationChoice {
     let civ = pool.civ_affinity(slot);
     let belief = pool.beliefs[slot];
     let own_pop = region_population_count(stats, region_id);
@@ -175,6 +200,8 @@ fn best_migration_target_for_agent(
     // isolates its own effect (threat vs. religion).
     let mut threat_best_adj_id = region_id as u16;
     let mut threat_best_adj_score = own_score;
+    let mut best_river = 0.0f32;
+    let mut best_news = 0.0f32;
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -202,9 +229,12 @@ fn best_migration_target_for_agent(
         let adj_mean = stats.mean_satisfaction[adj];
         let mut adj_score = migration_region_score(&regions[adj], adj_mean, adj_pop)
             + polity_alignment_score(&regions[region_id], &regions[adj], civ);
+        let mut river = 0.0f32;
         if regions[region_id].shares_river(&regions[adj]) {
             adj_score += RIVER_MIGRATION_BONUS;
+            river = RIVER_MIGRATION_BONUS;
         }
+        let pre_news_score = adj_score;
 
         // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
         // Baseline includes ALL existing modifiers (region score, polity, river).
@@ -244,12 +274,80 @@ fn best_migration_target_for_agent(
         if adj_score > best_adj_score {
             best_adj_score = adj_score;
             best_adj_id = adj as u16;
+            best_river = river;
+            best_news = adj_score - pre_news_score;
         }
     }
 
-    let threat_changed = threat_best_adj_id != baseline_best_adj_id;
-    let religion_changed = best_adj_id != threat_best_adj_id;
-    (best_adj_id, (best_adj_score - own_score).max(0.0), threat_changed, religion_changed)
+    MigrationChoice {
+        target: best_adj_id,
+        opportunity: (best_adj_score - own_score).max(0.0),
+        threat_changed: threat_best_adj_id != baseline_best_adj_id,
+        religion_changed: best_adj_id != threat_best_adj_id,
+        river: best_river,
+        news: best_news,
+    }
+}
+
+/// The positive utility terms behind one decided migration, for the
+/// migration budget. The opportunity term is split across the parts of the
+/// target-minus-home score difference that favour the target.
+fn migration_terms(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    stats: &RegionStats,
+    region_id: usize,
+    slot: usize,
+    choice: &MigrationChoice,
+    persecution: f32,
+    mem_mods: &crate::memory::MemoryUtilityModifiers,
+    need_mods: &crate::needs::NeedUtilityModifiers,
+) -> [f32; MIGRATION_TERMS] {
+    let mut terms = [0.0f32; MIGRATION_TERMS];
+    let sat = pool.satisfaction(slot);
+    let sat_term = W_MIGRATE_SAT * (MIGRATE_SATISFACTION_THRESHOLD - sat).max(0.0);
+    let opp_term = W_MIGRATE_OPP * (choice.opportunity - MIGRATE_HYSTERESIS).max(0.0);
+    let raw = sat_term + opp_term;
+    let cap_scale = if raw > MIGRATE_CAP { MIGRATE_CAP / raw } else { 1.0 };
+    let scale = cap_scale * personality_modifier(pool.boldness(slot), BOLD_MIGRATE_WEIGHT);
+    terms[TERM_LOW_SATISFACTION] = sat_term * scale;
+    if opp_term > 0.0 {
+        let target = choice.target as usize;
+        let (own_cap, own_food) =
+            migration_region_score_parts(&regions[region_id], region_population_count(stats, region_id));
+        let (adj_cap, adj_food) =
+            migration_region_score_parts(&regions[target], region_population_count(stats, target));
+        let parts = [
+            (TERM_OPP_SATISFACTION, stats.mean_satisfaction[target] - stats.mean_satisfaction[region_id]),
+            (TERM_OPP_CAPACITY, adj_cap - own_cap),
+            (TERM_OPP_FOOD, adj_food - own_food),
+            (TERM_OPP_RIVER, choice.river),
+            (TERM_OPP_NEWS, choice.news),
+        ];
+        let positive: f32 = parts.iter().map(|&(_, v)| v.max(0.0)).sum();
+        if positive > 0.0 {
+            for &(idx, v) in &parts {
+                if v > 0.0 {
+                    terms[idx] = opp_term * scale * v / positive;
+                }
+            }
+        }
+    }
+    terms[TERM_PERSECUTION] = persecution;
+    terms[TERM_FAMINE_MEMORY] = mem_mods.migrate_push[crate::memory::MIGRATE_PUSH_FAMINE];
+    terms[TERM_BATTLE_MEMORY] = mem_mods.migrate_push[crate::memory::MIGRATE_PUSH_BATTLE];
+    terms[TERM_CONQUEST_MEMORY] = mem_mods.migrate_push[crate::memory::MIGRATE_PUSH_CONQUEST];
+    terms[TERM_PERSECUTION_MEMORY] = mem_mods.migrate_push[crate::memory::MIGRATE_PUSH_PERSECUTION];
+    // Needs enter the utility as one capped net modifier; its positive value
+    // is split across the deficits that pushed.
+    let need_push: f32 = need_mods.migrate_push.iter().sum();
+    if need_mods.migrate > 0.0 && need_push > 0.0 {
+        let k = need_mods.migrate / need_push;
+        terms[TERM_SAFETY_NEED] = need_mods.migrate_push[0] * k;
+        terms[TERM_MATERIAL_NEED] = need_mods.migrate_push[1] * k;
+        terms[TERM_SPIRITUAL_NEED] = need_mods.migrate_push[2] * k;
+    }
+    terms
 }
 
 fn switch_utility(
@@ -512,6 +610,8 @@ pub struct PendingDecisions {
     pub migration_changed_by_religion: u32,
     /// Diagnostics: drift-away steps damped by own-civ threat packets.
     pub loyalty_drifts_damped_by_rally: u32,
+    /// Diagnostics: what moved the migrants decided here (migration budget).
+    pub migration_drivers: MigrationDriverStats,
 }
 
 impl PendingDecisions {
@@ -524,6 +624,7 @@ impl PendingDecisions {
             loyalty_drifts: Vec::new(),
             migration_changed_by_religion: 0,
             loyalty_drifts_damped_by_rally: 0,
+            migration_drivers: MigrationDriverStats::default(),
         }
     }
 }
@@ -569,16 +670,25 @@ pub fn evaluate_region_decisions(
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
-        let (best_migration_target, migration_opportunity, threat_changed, religion_changed) =
-            if is_displaced {
-                (region_id as u16, 0.0, false, false)
-            } else {
-                best_migration_target_for_agent(pool, regions, stats, region_id, slot)
-            };
-        if threat_changed {
+        let choice = if is_displaced {
+            MigrationChoice {
+                target: region_id as u16,
+                opportunity: 0.0,
+                threat_changed: false,
+                religion_changed: false,
+                river: 0.0,
+                news: 0.0,
+            }
+        } else {
+            pending.migration_drivers.evaluated += 1;
+            best_migration_target_for_agent(pool, regions, stats, region_id, slot)
+        };
+        let best_migration_target = choice.target;
+        let migration_opportunity = choice.opportunity;
+        if choice.threat_changed {
             threat_changed_count += 1;
         }
-        if religion_changed {
+        if choice.religion_changed {
             pending.migration_changed_by_religion += 1;
         }
 
@@ -597,10 +707,12 @@ pub fn evaluate_region_decisions(
         };
 
         // M38b: Persecution boosts for agents outside the persecuting ruler's faith
+        let mut persecution_push = 0.0f32;
         if region_state.persecutes(pool.beliefs[slot]) {
             rebel_util += PERSECUTION_REBEL_BOOST * region_state.persecution_intensity;
             if !is_displaced {
-                migrate_util += PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
+                persecution_push = PERSECUTION_MIGRATE_BOOST * region_state.persecution_intensity;
+                migrate_util += persecution_push;
             }
         }
 
@@ -678,6 +790,11 @@ pub fn evaluate_region_decisions(
                     pending
                         .migrations
                         .push((slot, region_id as u16, best_migration_target));
+                    let terms = migration_terms(
+                        pool, regions, stats, region_id, slot, &choice,
+                        persecution_push, &mem_mods, &need_mods,
+                    );
+                    pending.migration_drivers.record(&terms);
                 }
             }
             2 => {
@@ -1022,6 +1139,48 @@ mod tests {
             assert_eq!(from, 0);
             assert_eq!(to, 1);
         }
+        // Migration budget: one unit per decided migration, here split
+        // between low own satisfaction and the satisfaction gap.
+        let d = &pending.migration_drivers;
+        assert_eq!(d.evaluated, 5);
+        assert_eq!(d.decided as usize, pending.migrations.len());
+        assert_eq!(d.unexplained, 0);
+        let total: f64 = d.share.iter().sum();
+        assert!((total - d.decided as f64).abs() < 1e-6);
+        assert_eq!(d.present[TERM_LOW_SATISFACTION], d.decided);
+        assert_eq!(d.present[TERM_OPP_SATISFACTION], d.decided);
+        assert!(d.share[TERM_LOW_SATISFACTION] > 0.0 && d.share[TERM_OPP_SATISFACTION] > 0.0);
+    }
+
+    #[test]
+    fn test_migration_budget_splits_memory_and_need_pushes_by_type() {
+        let mut pool = AgentPool::new(4);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, -0.5, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.memory_event_types[slot][0] = crate::memory::MemoryEventType::Famine as u8;
+        pool.memory_intensities[slot][0] = -80;
+        pool.memory_event_types[slot][1] = crate::memory::MemoryEventType::Battle as u8;
+        pool.memory_intensities[slot][1] = -60;
+        pool.memory_count[slot] = 2;
+        pool.need_safety[slot] = 0.1;
+        pool.need_social[slot] = 0.5;
+        let mem = crate::memory::compute_memory_utility_modifiers(&pool, slot);
+        let push: f32 = mem.migrate_push.iter().sum();
+        assert!((push - mem.migrate).abs() < 1e-6, "no dampers: pushes are the whole term");
+        assert!(mem.migrate_push[crate::memory::MIGRATE_PUSH_BATTLE] > 0.0, "cautious agent");
+        let needs = crate::needs::compute_need_utility_modifiers(&pool, slot);
+        assert!((needs.migrate_push[0] - needs.migrate).abs() < 1e-6);
+
+        let regions = vec![make_region(0), make_region(1)];
+        let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+        let choice = MigrationChoice {
+            target: 1, opportunity: 0.0, threat_changed: false, religion_changed: false,
+            river: 0.0, news: 0.0,
+        };
+        let terms = migration_terms(&pool, &regions, &stats, 0, slot, &choice, 0.0, &mem, &needs);
+        assert_eq!(terms[TERM_FAMINE_MEMORY], mem.migrate_push[crate::memory::MIGRATE_PUSH_FAMINE]);
+        assert_eq!(terms[TERM_BATTLE_MEMORY], mem.migrate_push[crate::memory::MIGRATE_PUSH_BATTLE]);
+        assert!((terms[TERM_SAFETY_NEED] - needs.migrate).abs() < 1e-6);
+        assert_eq!(terms[TERM_OPP_SATISFACTION], 0.0, "below the hysteresis");
     }
 
     #[test]
@@ -1343,8 +1502,8 @@ mod tests {
             "region-level targeting should still favor the slightly happier foreign-ruled region",
         );
 
-        let (target, opportunity, _threat_changed, _religion_changed) =
-            best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
+        let choice = best_migration_target_for_agent(&pool, &regions, &stats, 0, 0);
+        let (target, opportunity) = (choice.target, choice.opportunity);
         assert_eq!(
             target, 1,
             "without an alignment bonus, agent-specific targeting should match the region-level score",
@@ -1966,8 +2125,8 @@ mod packet_consumer_tests {
 
     fn target(pool: &AgentPool, regions: &[RegionState], slot: usize) -> (u16, bool, bool) {
         let stats = compute_region_stats(pool, regions, &signals(regions.len()));
-        let (t, _, threat, religion) = best_migration_target_for_agent(pool, regions, &stats, 0, slot);
-        (t, threat, religion)
+        let c = best_migration_target_for_agent(pool, regions, &stats, 0, slot);
+        (c.target, c.threat_changed, c.religion_changed)
     }
 
     #[test]

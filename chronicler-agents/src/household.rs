@@ -22,6 +22,10 @@ pub struct HouseholdStats {
     pub household_dependent_overrides: u32,
     pub births_married_parent: u32,
     pub births_unmarried_parent: u32,
+    /// What moved this tick's migrants, as decided before the household
+    /// consolidation that adds followers (diagnostic; exported separately by
+    /// `get_migration_driver_stats`, not by `get_household_stats`).
+    pub migration_drivers: crate::migration_drivers::MigrationDriverStats,
 }
 
 /// Transfer type for inheritance events.

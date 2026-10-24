@@ -535,6 +535,10 @@ pub fn try_tick_agents_with_options(
         pending_decisions.iter().map(|pd| pd.migration_changed_by_religion).sum();
     let loyalty_rally_damped: u32 =
         pending_decisions.iter().map(|pd| pd.loyalty_drifts_damped_by_rally).sum();
+    // Migration budget: merged in region order (deterministic).
+    for pd in &pending_decisions {
+        household_stats.migration_drivers.merge(&pd.migration_drivers);
+    }
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)

@@ -252,7 +252,17 @@ pub struct MemoryUtilityModifiers {
     pub migrate: f32,
     pub switch: f32,
     pub stay: f32,
+    /// The positive parts of `migrate` by memory type (famine, battle,
+    /// conquest, persecution). Diagnostic only: the migration budget splits
+    /// a migration across the terms that pushed it; no decision reads them.
+    pub migrate_push: [f32; 4],
 }
+
+/// Index into [`MemoryUtilityModifiers::migrate_push`].
+pub const MIGRATE_PUSH_FAMINE: usize = 0;
+pub const MIGRATE_PUSH_BATTLE: usize = 1;
+pub const MIGRATE_PUSH_CONQUEST: usize = 2;
+pub const MIGRATE_PUSH_PERSECUTION: usize = 3;
 
 /// Compute memory-driven utility modifiers for an agent's decision model.
 /// Each active memory slot contributes additive modifiers based on event type,
@@ -274,12 +284,14 @@ pub fn compute_memory_utility_modifiers(pool: &AgentPool, slot: usize) -> Memory
         match event_type {
             0 => { // Famine
                 mods.migrate += agent::FAMINE_MIGRATE_BOOST * abs_scale;
+                mods.migrate_push[MIGRATE_PUSH_FAMINE] += agent::FAMINE_MIGRATE_BOOST * abs_scale;
             }
             1 => { // Battle
                 if boldness > 0.0 {
                     mods.stay += agent::BATTLE_BOLD_STAY_BOOST * abs_scale;
                 } else {
                     mods.migrate += agent::BATTLE_CAUTIOUS_MIGRATE_BOOST * abs_scale;
+                    mods.migrate_push[MIGRATE_PUSH_BATTLE] += agent::BATTLE_CAUTIOUS_MIGRATE_BOOST * abs_scale;
                 }
             }
             2 => { // Conquest
@@ -287,11 +299,13 @@ pub fn compute_memory_utility_modifiers(pool: &AgentPool, slot: usize) -> Memory
                     mods.stay += agent::CONQUEST_CONQUEROR_STAY_BOOST * abs_scale;
                 } else {
                     mods.migrate += agent::CONQUEST_CONQUERED_MIGRATE_BOOST * abs_scale;
+                    mods.migrate_push[MIGRATE_PUSH_CONQUEST] += agent::CONQUEST_CONQUERED_MIGRATE_BOOST * abs_scale;
                 }
             }
             3 => { // Persecution
                 mods.rebel += agent::PERSECUTION_REBEL_BOOST_MEMORY * abs_scale;
                 mods.migrate += agent::PERSECUTION_MIGRATE_BOOST_MEMORY * abs_scale;
+                mods.migrate_push[MIGRATE_PUSH_PERSECUTION] += agent::PERSECUTION_MIGRATE_BOOST_MEMORY * abs_scale;
             }
             5 => { // Prosperity
                 mods.migrate -= agent::PROSPERITY_MIGRATE_PENALTY * abs_scale;
