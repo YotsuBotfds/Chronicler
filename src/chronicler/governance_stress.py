@@ -84,6 +84,32 @@ def mmp_from_agents(wealth: Sequence[float], ages: Sequence[int], settlement_ids
     return mmp_components(relative_wage, urbanization, youth), relative_wage, urbanization, youth
 
 
+def mmp_from_agent_arrays(wealth, ages, settlement_ids,
+                          calibration: StressCalibration = DEFAULT_STRESS) -> tuple[float, float, float, float]:
+    """``mmp_from_agents`` on NumPy columns, with the same result.
+
+    The sorted values and their exact ``fsum`` are the same; equal values may
+    sit in another order, which only the sign of a zero median could show, and
+    ``mmp_components`` floors a zero relative wage either way.
+    """
+    import numpy as np
+
+    n = len(wealth)
+    if n == 0:
+        return 0.0, 1.0, 0.0, 0.0
+    values = np.asarray(wealth, dtype=np.float64)
+    ordered = np.sort(np.where(np.isfinite(values), values, 0.0))
+    mid = n // 2
+    median = float(ordered[mid]) if n % 2 else 0.5 * (float(ordered[mid - 1]) + float(ordered[mid]))
+    mean = math.fsum(ordered.tolist()) / n
+    relative_wage = (median / mean) if mean > 0 else 1.0
+    urbanization = int(np.count_nonzero(np.asarray(settlement_ids))) / n
+    ages = np.asarray(ages)
+    youth = int(np.count_nonzero((ages >= calibration.youth_min_age)
+                                 & (ages <= calibration.youth_max_age))) / n
+    return mmp_components(relative_wage, urbanization, youth), relative_wage, urbanization, youth
+
+
 def sfd_raw(governing_cost: float, treasury: float, enforcement_cost: float,
             institutional_legitimacy: float) -> float:
     """Roadmap D5 proxy: no-institution polities are neutral, not distressed."""
