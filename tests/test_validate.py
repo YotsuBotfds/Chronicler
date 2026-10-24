@@ -129,12 +129,14 @@ def test_load_seed_runs_keeps_only_oracle_bundle_fields(tmp_path):
                         "artifacts": [{"status": "lost"}], "events_timeline": [{"turn": 1}]},
         "history": [{"turn": 1, "civ_stats": {"Aram": civ}, "relationships": {"big": 1}},
                     {"turn": 2, "civ_stats": {"Aram": dict(civ, population=35)}}],
-        "events_timeline": [{"turn": 1}],
+        "events_timeline": [{"turn": 1}, {"turn": 2, "event_type": "famine", "actors": ["Aram"]}],
         "named_events": [],
     }
     (seed_dir / "chronicle_bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
 
     (run,) = load_seed_runs(tmp_path)
+    assert run["civ_trajectories"][0]["turn"] == [1, 2]
+    assert run["civ_crisis_event_turns"] == {"Aram": [2]}
     kept = {k: v for k, v in civ.items() if k not in ("great_persons", "factions")}
     assert run["bundle"] == {
         "metadata": bundle["metadata"],
@@ -280,6 +282,119 @@ def test_era_inflection_no_false_positive_on_noise():
     from chronicler.validate import detect_inflection_points
     points = detect_inflection_points(pop_series, smoothing_window=5)
     assert len(points) == 0
+
+
+def _era_trajectory(name, population, *, treasury=None, stability=None, start_turn=1):
+    n = len(population)
+    return {
+        "civ_name": name,
+        "turn": list(range(start_turn, start_turn + n)),
+        "population": population,
+        "treasury": treasury if treasury is not None else [100] * n,
+        "stability": stability if stability is not None else [40] * n,
+        "territory": [2] * n,
+        "prestige": [0] * n,
+    }
+
+
+# Civ A declines slowly from 100 to 60 over turns 41-80: a 40% collapse that
+# no inflection of its own signals marks (the slope stays under 3 sigma).
+_SLOW_DECLINE = [100] * 40 + [100 - k for k in range(1, 41)] + [60] * 40
+
+
+def test_collapse_episodes_find_every_collapse_on_the_smoothed_series():
+    from chronicler.validate import detect_collapse_episodes
+
+    twice = [100] * 20 + [60] * 20 + [100] * 20 + [50] * 20
+    episodes = detect_collapse_episodes(twice)
+    assert len(episodes) == 2
+    (p1, t1, pv1, tv1), (p2, t2, pv2, tv2) = episodes
+    assert p1 < t1 < p2 < t2 and pv1 == pv2 == 100 and tv1 == 60 and tv2 == 50
+    # A one-turn dip of a small population is not a collapse once smoothed.
+    assert detect_collapse_episodes([40] * 20 + [25] + [40] * 20) == []
+    # Without a rebound the fall stays one episode, down to its lowest point.
+    assert [(e[2], e[3]) for e in detect_collapse_episodes([100] * 10 + [60] * 10 + [70] * 10 + [30] * 10)] == [(100, 30)]
+    # A civ that dies collapses to zero.
+    assert detect_collapse_episodes([50] * 20 + [0] * 20)[0][3] == 0
+
+
+def test_era_oracle_needs_the_collapsing_civs_own_signal():
+    """Another civ's treasury jump no longer covers a collapse."""
+    from chronicler.validate import detect_inflection_points, run_era_oracle
+
+    assert all(not detect_inflection_points([float(v) for v in series])
+               for series in (_SLOW_DECLINE, [100] * 120, [40] * 120, [2] * 120))
+    rich = [100] * 60 + [1000] * 60  # civ B's treasury jumps at turn 61
+    assert detect_inflection_points([float(v) for v in rich])
+    run = {"seed": 1, "civ_trajectories": [
+        _era_trajectory("A", _SLOW_DECLINE),
+        _era_trajectory("B", [80] * 120, treasury=rich),
+    ]}
+    result = run_era_oracle([run])
+    assert result["silent_collapse_seeds"] == 1
+    assert [(e["civ"], e["peak_turn"]) for e in result["silent_collapse_episodes"]] == [("A", 40)]
+    assert result["per_seed"][0]["collapse_count"] == 1
+
+
+def test_era_oracle_counts_a_recorded_crisis_of_the_collapsing_civ():
+    from chronicler.validate import run_era_oracle
+
+    def seed(crises):
+        return {"seed": 1, "civ_crisis_event_turns": crises, "civ_trajectories": [
+            _era_trajectory("A", _SLOW_DECLINE), _era_trajectory("B", [80] * 120)]}
+
+    assert run_era_oracle([seed({"A": [70]})])["silent_collapse_seeds"] == 0  # during the fall
+    assert run_era_oracle([seed({"A": [37]})])["silent_collapse_seeds"] == 0  # within 5 turns before the peak
+    marked = run_era_oracle([seed({"A": [70]})])
+    assert (marked["collapses_marked_by_era_signal"], marked["collapses_marked_by_crisis_only"]) == (0, 1)
+    assert run_era_oracle([seed({"B": [70]})])["silent_collapse_seeds"] == 1  # another civ's crisis
+    assert run_era_oracle([seed({"A": [10, 130]})])["silent_collapse_seeds"] == 1  # long before, long after
+
+
+def test_era_crisis_turns_keep_only_crises_that_name_the_civ():
+    from chronicler.validation_io import ERA_CRISIS_EVENT_TYPES, _civ_crisis_event_turns
+
+    bundle = {"events_timeline": [
+        {"turn": 5, "event_type": "famine", "actors": ["A"]},
+        {"turn": 6, "event_type": "epidemic", "actors": ["B"], "civs": ["A"]},
+        {"turn": 7, "event_type": "develop", "actors": ["A"]},
+        {"turn": 8, "event_type": "loan_taken", "actors": ["A"]},
+        {"turn": 9, "event_type": "war", "actors": ["A", "B"]},
+    ]}
+    assert _civ_crisis_event_turns(bundle) == {"A": [5, 6, 9], "B": [6, 9]}
+    assert {"famine", "epidemic", "war", "mass_migration", "civ_conquered"} <= ERA_CRISIS_EVENT_TYPES
+    assert not {"develop", "loan_taken", "trade", "build_started"} & ERA_CRISIS_EVENT_TYPES
+
+
+def test_era_oracle_reads_a_late_civs_series_on_world_turns():
+    """A seceded civ's index 0 is its first world turn, not turn 1."""
+    from chronicler.validate import run_era_oracle
+
+    run = {"seed": 1, "civ_crisis_event_turns": {"S": [150]}, "civ_trajectories": [
+        _era_trajectory("S", _SLOW_DECLINE, start_turn=101)]}
+    # The fall runs over world turns 141-180; a crisis at turn 150 marks it.
+    assert run_era_oracle([run])["silent_collapse_seeds"] == 0
+    run["civ_crisis_event_turns"] = {"S": [50]}  # index 50 would be inside the fall
+    assert run_era_oracle([run])["silent_collapse_episodes"][0]["peak_turn"] == 140
+
+
+def test_era_oracle_seed_fractions():
+    from chronicler.validate import run_era_oracle
+
+    rich = [100] * 60 + [1000] * 60  # B's treasury and stability each turn once
+    calm = [20] * 100 + [60] * 20
+
+    def seed(number, silent):
+        crises = {} if silent else {"A": [60]}
+        return {"seed": number, "civ_crisis_event_turns": crises, "civ_trajectories": [
+            _era_trajectory("A", _SLOW_DECLINE),
+            _era_trajectory("B", [80] * 120, treasury=rich, stability=calm)]}
+
+    one_in_ten = run_era_oracle([seed(n, n == 0) for n in range(10)])
+    assert (one_in_ten["status"], one_in_ten["silent_collapse_seeds"]) == ("PASS", 1)
+    two_in_ten = run_era_oracle([seed(n, n < 2) for n in range(10)])
+    assert (two_in_ten["status"], two_in_ten["silent_collapse_seeds"]) == ("FAIL", 2)
+    assert one_in_ten["seeds_with_inflections"] == 10
 
 
 def test_cohort_distinctiveness_detects_anchoring():
