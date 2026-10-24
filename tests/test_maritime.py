@@ -774,6 +774,13 @@ def test_cli_flag_gate_forwarding_and_snapshot(tmp_path):
     bundle = json.loads((out / "chronicle_bundle.json").read_text())
     assert all("maritime" in h for h in bundle["history"])
     assert M.extract_maritime_metrics([bundle])["runs"][0]["zones"] == len(state["maritime"]["zones"])
+    spec = importlib.util.spec_from_file_location(
+        "maritime_report", Path(__file__).resolve().parents[1] / "scripts" / "maritime_report.py")
+    report = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(report)
+    row = report.run_metrics(out / "state.json")
+    assert row["maritime"] and row["zones"] == len(state["maritime"]["zones"])
+    assert row["fleets"] == int(state["maritime"]["counters"]["fleets_commissioned"])
     # Default off for new worlds.
     out2 = tmp_path / "off"
     args = parser.parse_args(["--seed", "7", "--turns", "3", "--regions", "24", "--civs", "6",
@@ -781,6 +788,9 @@ def test_cli_flag_gate_forwarding_and_snapshot(tmp_path):
                               "--output", str(out2 / "chronicle.md"), "--state", str(out2 / "state.json")])
     execute_run(args)
     assert "maritime" not in json.loads((out2 / "state.json").read_text())
+    # A flag-off run is measured with a sea model derived from its saved world.
+    row = report.run_metrics(out2 / "state.json")
+    assert not row["maritime"] and row["zones"] == len(state["maritime"]["zones"]) and row["fleets"] == 0
 
 
 def test_naval_battles_and_blockades_feed_diplomatic_memory():
