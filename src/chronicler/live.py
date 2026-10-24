@@ -1124,7 +1124,7 @@ def run_live(
         )
         _diplomacy = getattr(args, "diplomacy", None)
         set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
-        # Techniques: new live worlds follow the CLI default (--techniques opts in).
+        # Techniques: new live worlds follow the CLI default (--no-techniques opts out).
         from chronicler.techniques import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
         )

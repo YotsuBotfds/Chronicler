@@ -1348,7 +1348,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Technology as diffusing techniques: per-region practice of about 30 "
                              "techniques spreads along contact flows, is invented from research "
                              "inputs and decays without practitioners; the era is derived from it "
-                             "(default off for new worlds; saved on resume)")
+                             "(default on for new worlds; --no-techniques opts out; saved on resume)")
     parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
                         help="Maritime layer: fleets built at coastal ports, sea-zone control, "
                              "blockades of enemy sea lanes and sea supply, escorted crossings and "

@@ -93,6 +93,7 @@ def run(workload: dict, output: Path, on_turn=None):
         epidemiology=False,  # frozen pre-epidemiology oracles; see docs/integration/epidemiology.md
         finance=False,  # frozen pre-finance oracles; see docs/integration/money-credit.md
         diplomacy=False,  # frozen pre-diplomacy oracles; see docs/integration/diplomacy.md
+        techniques=False,  # frozen pre-techniques oracles; see docs/integration/techniques.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):
