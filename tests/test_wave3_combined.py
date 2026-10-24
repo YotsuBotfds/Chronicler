@@ -61,3 +61,46 @@ def test_all_three_on_is_deterministic():
     a = _advance(_world(7), 30)
     b = _advance(_world(7), 30)
     assert a.model_dump_json() == b.model_dump_json()
+
+
+# --- Maritime together with epidemiology, finance and diplomacy -------------------------
+
+def _sea_world(seed: int = 11) -> WorldState:
+    """A procedural world with sea zones, so fleets, blockades and piracy run."""
+    import chronicler.maritime as mt
+    world = generate_world(seed=seed, num_regions=32, num_civs=8, worldgen="procedural")
+    world.campaigns_enabled = True
+    cl.set_contact_ledger_enabled(world, True)
+    ep.set_epidemiology_enabled(world, True)
+    F.set_finance_enabled(world, True)
+    dp.set_diplomacy_enabled(world, True)
+    mt.set_maritime_enabled(world, True)
+    return world
+
+
+def test_maritime_with_all_three_runs_and_persists_state():
+    world = _advance(_sea_world(), 30)
+    counters = world.maritime.counters
+    assert counters["fleets_commissioned"] > 0 and counters["naval_battles"] > 0
+    assert counters["sea_trade"] > 0 and counters["piracy_losses"] > 0
+    assert world.epidemics.deaths_total > 0 and world.finance.loans and world.diplomacy.treaties
+    dumped = WorldState.model_validate_json(world.model_dump_json())
+    assert dumped.maritime == world.maritime
+
+
+def test_save_load_resume_identity_with_maritime_and_all_three_on(tmp_path):
+    straight = _advance(_sea_world(), 45)
+    first = _advance(_sea_world(), 30)
+    # The save point carries fleets at sea and live state in every system.
+    assert first.maritime.fleets
+    assert first.epidemics.deaths_total > 0 and first.finance.loans and first.diplomacy.treaties
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = _advance(WorldState.load(path), 15)
+    assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+def test_maritime_with_all_three_is_deterministic():
+    a = _advance(_sea_world(), 30)
+    b = _advance(_sea_world(), 30)
+    assert a.model_dump_json() == b.model_dump_json()
