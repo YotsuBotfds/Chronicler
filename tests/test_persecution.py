@@ -296,3 +296,180 @@ class TestMartyrdomBoost:
             decay_martyrdom_boosts([region])
 
         assert region.martyrdom_boost == 0.0
+
+
+# ---------------------------------------------------------------------------
+# TestPersecutionFollowsCurrentRuler
+# ---------------------------------------------------------------------------
+
+def _agents(region: int, civ: int, belief: int, n: int, start: int) -> list[dict]:
+    return [{"id": start + i, "region": region, "civ": civ, "occupation": 0, "belief": belief}
+            for i in range(n)]
+
+
+class TestPersecutionFollowsCurrentRuler:
+    """The builder owns every region's intensity: persecution is the current
+    ruler's policy, never a value left from an earlier ruler or faith."""
+
+    def _world(self):
+        regions = [_make_region("r0"), _make_region("r1")]
+        regions[0].controller = "Militant"
+        regions[1].controller = "Calm"
+        beliefs = [_make_belief(0, stance=+1), _make_belief(1, stance=0), _make_belief(2, stance=-1)]
+        militant = _make_civ("Militant", faith_id=0, region_names=["r0"])
+        calm = _make_civ("Calm", faith_id=1, region_names=["r1"])
+        # r0: 8 of the militant faith, 2 of a minority faith; r1: 10 of faith 1.
+        snap = _make_snapshot(_agents(0, 0, 0, 8, 0) + _agents(0, 0, 2, 2, 8)
+                              + _agents(1, 1, 1, 10, 10))
+        return regions, [militant, calm], beliefs, snap
+
+    @staticmethod
+    def _persecute(regions, civs, beliefs, snap, turn, seen=None):
+        return compute_persecution(regions, civs, beliefs, snap, turn=turn,
+                                   persecuted_regions=set() if seen is None else seen)
+
+    def test_militant_ruler_persecutes(self):
+        regions, civs, beliefs, snap = self._world()
+        self._persecute(regions, civs, beliefs, snap, 1)
+        assert regions[0].persecution_intensity == pytest.approx(0.2)
+        assert regions[1].persecution_intensity == 0.0
+
+    def test_reset_when_the_rulers_faith_is_no_longer_militant(self):
+        regions, civs, beliefs, snap = self._world()
+        self._persecute(regions, civs, beliefs, snap, 1)
+        civs[0].civ_majority_faith = 2  # the realm's majority left the militant faith
+        events = self._persecute(regions, civs, beliefs, snap, 2)
+        assert regions[0].persecution_intensity == 0.0
+        assert events == []
+
+    def test_reset_when_the_faith_itself_stops_being_militant(self):
+        regions, civs, beliefs, snap = self._world()
+        self._persecute(regions, civs, beliefs, snap, 1)
+        beliefs[0].doctrines[DOCTRINE_STANCE] = 0
+        self._persecute(regions, civs, beliefs, snap, 2)
+        assert regions[0].persecution_intensity == 0.0
+
+    def test_reset_when_the_region_changes_hands(self):
+        regions, civs, beliefs, snap = self._world()
+        self._persecute(regions, civs, beliefs, snap, 1)
+        assert regions[0].persecution_intensity > 0.0
+        # The calm realm takes r0; the militant realm keeps no land.
+        civs[0].regions = []
+        civs[1].regions = ["r1", "r0"]
+        regions[0].controller = "Calm"
+        self._persecute(regions, civs, beliefs, snap, 2)
+        assert regions[0].persecution_intensity == 0.0
+
+    def test_reset_when_the_region_loses_its_ruler(self):
+        regions, civs, beliefs, snap = self._world()
+        self._persecute(regions, civs, beliefs, snap, 1)
+        civs[0].regions = []
+        regions[0].controller = None
+        self._persecute(regions, civs, beliefs, snap, 2)
+        assert regions[0].persecution_intensity == 0.0
+
+    def test_a_militant_conqueror_persecutes_its_new_region(self):
+        regions, civs, beliefs, snap = self._world()
+        # The militant realm conquers r1: its 10 agents of faith 1 are now a
+        # minority under a militant ruler; r0 stays persecuted.
+        civs[0].regions = ["r0", "r1"]
+        civs[1].regions = []
+        regions[1].controller = "Militant"
+        self._persecute(regions, civs, beliefs, snap, 1)
+        assert regions[0].persecution_intensity == pytest.approx(0.2)
+        assert regions[1].persecution_intensity == pytest.approx(1.0)
+
+    def test_multi_turn_intensity_follows_the_ruler_and_restarts(self):
+        """Live -> reset -> stays reset -> live again, with the one-shot event
+        firing again once the region was cleared (the H-14 set filter)."""
+        regions, civs, beliefs, snap = self._world()
+        seen: set[str] = set()
+        observed = []
+        fired = []
+        for turn, faith in enumerate([0, 2, 2, 0, 0], start=1):
+            civs[0].civ_majority_faith = faith
+            # simulation.py's H-14 filter: forget regions whose persecution ended
+            seen = {name for name in seen
+                    if any(r.name == name and r.persecution_intensity > 0 for r in regions)}
+            events = self._persecute(regions, civs, beliefs, snap, turn, seen)
+            observed.append(round(regions[0].persecution_intensity, 6))
+            fired.append([e.event_type for e in events if e.event_type == "Persecution"])
+            assert regions[1].persecution_intensity == 0.0
+        assert observed == [0.2, 0.0, 0.0, 0.2, 0.2]
+        assert fired == [["Persecution"], [], [], ["Persecution"], []]
+
+
+class TestPersecutionResetReachesTheAgentTick:
+    """Multi-turn consumption: Phase 10 recomputes persecution and the next
+    turn's region batch (the Rust tick's input) carries the current value."""
+
+    @staticmethod
+    def _snapshot(rows: list[tuple[int, int, int]]) -> pa.RecordBatch:
+        n = len(rows)
+        return pa.record_batch({
+            "id": pa.array(list(range(n)), type=pa.uint32()),
+            "region": pa.array([r for r, _, _ in rows], type=pa.uint16()),
+            "civ_affinity": pa.array([c for _, c, _ in rows], type=pa.uint16()),
+            "occupation": pa.array([0] * n, type=pa.uint8()),
+            "belief": pa.array([b for _, _, b in rows], type=pa.uint8()),
+            "cultural_value_0": pa.array([0] * n, type=pa.uint8()),
+            "cultural_value_1": pa.array([255] * n, type=pa.uint8()),
+            "cultural_value_2": pa.array([255] * n, type=pa.uint8()),
+            "loyalty_trait": pa.array([0.5] * n, type=pa.float32()),
+            "loyalty": pa.array([0.5] * n, type=pa.float32()),
+            "x": pa.array([0.5] * n, type=pa.float32()),
+            "y": pa.array([0.5] * n, type=pa.float32()),
+        })
+
+    def test_reset_survives_turns_and_restarts(self):
+        from chronicler.agent_bridge import build_region_batch
+        from chronicler.models import Relationship, WorldState
+        from chronicler.simulation import phase_consequences
+
+        regions = [_make_region("A"), _make_region("B"), _make_region("C")]
+        regions[0].controller = regions[2].controller = "Sword"
+        regions[1].controller = "Calm"
+        civs = [_make_civ("Sword", faith_id=0xFF, region_names=["A", "C"]),
+                _make_civ("Calm", faith_id=0xFF, region_names=["B"])]
+        world = WorldState(
+            name="T", seed=1, turn=0, regions=regions, civilizations=civs,
+            relationships={"Sword": {"Calm": Relationship()}, "Calm": {"Sword": Relationship()}},
+        )
+        world.agent_mode = "off"
+        world.belief_registry = [_make_belief(0, stance=+1), _make_belief(1, stance=0),
+                                 _make_belief(2, stance=-1)]
+        # A: 8 of the militant faith and 2 of a minority; B: faith 1; C: the
+        # militant faith only. Minorities stay under the schism threshold.
+        base = [(0, 0, 0)] * 8 + [(0, 0, 2)] * 2 + [(1, 1, 1)] * 10 + [(2, 0, 0)] * 10
+        # 40 Sword agents of the pacifist faith living in B move the realm's
+        # majority off the militant faith without a regional schism.
+        lapsed = base + [(1, 0, 2)] * 40
+
+        def turn(rows, *, conquest=False):
+            if conquest:
+                civs[0].regions = ["C"]
+                civs[1].regions = ["B", "A"]
+                regions[0].controller = "Calm"
+            world._agent_snapshot = self._snapshot(rows)
+            events = phase_consequences(world)
+            world.turn += 1
+            batch = build_region_batch(world)
+            sent = [round(v, 6) for v in batch.column("persecution_intensity").to_pylist()]
+            assert sent == [round(r.persecution_intensity, 6) for r in regions]
+            return sent, [e for e in events if e.event_type == "Persecution"]
+
+        sent, fired = turn(base)
+        assert civs[0].civ_majority_faith == 0
+        assert sent == [0.2, 0.0, 0.0] and len(fired) == 1
+        sent, fired = turn(lapsed)       # the realm's faith left militancy
+        assert civs[0].civ_majority_faith == 2
+        assert sent == [0.0, 0.0, 0.0] and fired == []
+        sent, fired = turn(lapsed)       # and the region stays clear
+        assert sent == [0.0, 0.0, 0.0] and fired == []
+        sent, fired = turn(base)         # the militant faith returns
+        assert civs[0].civ_majority_faith == 0
+        assert sent == [0.2, 0.0, 0.0] and len(fired) == 1
+        sent, fired = turn(base, conquest=True)  # A passes to the calm realm
+        assert sent == [0.0, 0.0, 0.0] and fired == []
+        sent, fired = turn(base)
+        assert sent == [0.0, 0.0, 0.0] and fired == []

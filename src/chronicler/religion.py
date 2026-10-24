@@ -515,6 +515,14 @@ def compute_persecution(
     inspect every region that civ controls and compute a persecution intensity based
     on the minority ratio among agents.
 
+    The builder owns every region's intensity. Persecution is the current
+    ruler's policy, so each call first clears all regions and then writes the
+    militant-held ones. A region whose ruler's faith is no longer militant, that
+    changed hands, or that has no ruler carries no persecution from the next
+    Rust tick on. Its aftermath is carried by ``martyrdom_boost`` and by the
+    agents' persecution memories, which decay on their own clocks; the
+    intensity itself does not linger.
+
     Args:
         regions:            List of Region objects (indexed by position).
         civilizations:      List of Civilization objects.
@@ -559,6 +567,12 @@ def compute_persecution(
             if region_idx not in region_belief_counts:
                 region_belief_counts[region_idx] = Counter()
             region_belief_counts[region_idx][faith_id] += 1
+
+    # Reset every region before the militant rulers write theirs: an intensity
+    # left from an earlier ruler or an earlier faith must not reach the agent
+    # tick (it applies the value to every agent outside the region's majority).
+    for region in regions:
+        region.persecution_intensity = 0.0
 
     for civ in civilizations:
         # Skip dead civs
