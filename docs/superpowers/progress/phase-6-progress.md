@@ -2,9 +2,45 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Needs oracle: autonomy without prior rebels (2026-10-24, `fix/needs-oracle-confound`)
+
+`fix/needs-oracle-confound` from `integrate/wave-6` (`439f0c5`), merged
+with `main` (PR #19's guard fix) without rebase. Oracle and test-runner
+changes only; the simulation and Rust are unchanged. Details:
+`docs/integration/needs-oracle-autonomy.md`.
+
+- **Confound:** a rebellion adds 0.10 to the rebel's autonomy
+  (`tick.rs` apply step), so high autonomy marks past rebels, who rebel
+  again. One rebellion still reads +0.035 after 20-29 turns, a burst
+  +0.07 to +0.11 after 20-34; without restoration it does not decay.
+- **Fix:** the autonomy -> rebellion pairing leaves out agents with a
+  rebellion on or before the snapshot turn. Other pairings, the window
+  and the thresholds are unchanged; `exclude_prior_rebels=False`
+  reproduces the old result.
+- **Subset gates (before / after, same batches):** needs seeds 17/15,
+  11/9, 18/15, 18/15 on 42-61, 62-81, 82-101, 102-121; gates PASS except
+  62-81 (FAIL before and after); comparator NO REGRESSION on all four;
+  every other oracle identical. Pooled autonomy low/high over the 80
+  worlds: 1.00 (0.91-1.09) before, 1.29 (0.82-2.15) after.
+- **Finding:** among agents without prior rebellions, 2 of 629 autonomy
+  pairs have the low agent under 0.25, the only range where autonomy adds
+  rebel pressure. The pairing rarely tests the mechanism.
+- **500-turn probe (142-161, not the full gate):** needs 20/20 before
+  and after, median d 1.03 -> 2.00; pooled autonomy 1.02 -> 1.04.
+- **Offline lane:** four chunks, each its own guarded pytest process with
+  the 110-second limit; stops at the first failing chunk. Same selection
+  and totals (1,895 passed, 10 skipped, 2 deselected); 75.8 s wall, the
+  largest chunk 21.8 s; every guard PASS.
+- **Tests (Linux, Python 3.13):** `pytest -m "not slow" -n 2` 5,890
+  passed, 3 skipped (three new); `-m slow` 11 passed, 3 skipped; no-Rust
+  5,690 passed, 203 skipped. Rust unchanged.
+- **Open:** the per-seed needs test has little power for autonomy (a
+  calibration for the needs owners); 62-81 still fails subset needs; the
+  200 x 500 full gate has not been run with this oracle.
 
 ## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)
 
