@@ -16,6 +16,7 @@ import { isLegacyBundle } from "../../types";
 import type { BatchConfig } from "../../types";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
+import { civRowAt, type CivRowAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
 import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
@@ -101,6 +102,8 @@ interface CivilizationView {
   goal: string;
   regions: string[];
   alive: boolean;
+  /** "Active", "Fallen", "Fallen (final record, turn N)" or "Not yet founded". */
+  status: string;
 }
 
 interface RegionLike {
@@ -161,7 +164,10 @@ function buildCivilizationViews(bundle: Bundle | null, snapshot: TurnSnapshot | 
   }
 
   return bundle.world_state.civilizations.map((civilization) => {
-    const snap = snapshot?.civ_stats[civilization.name];
+    // A dead civilization leaves later snapshots (bundle version 5): show its
+    // final row, not the end-of-run world state.
+    const found = snapshot ? civRowAt(bundle.history, civilization.name, snapshot.turn) : null;
+    const snap = found ? (found.recorded ? found.row : { ...found.row, alive: false, regions: [] }) : null;
     return {
       name: civilization.name,
       population: snap?.population ?? civilization.population,
@@ -178,8 +184,19 @@ function buildCivilizationViews(bundle: Bundle | null, snapshot: TurnSnapshot | 
       goal: civilization.goal,
       regions: snap?.regions ?? civilization.regions,
       alive: snap?.alive ?? civilization.regions.length > 0,
+      status: civilizationStatus(found),
     };
   });
+}
+
+function civilizationStatus(found: CivRowAt | null): string {
+  if (!found) {
+    return "Not yet founded";
+  }
+  if (!found.recorded) {
+    return `Fallen (final record, turn ${found.turn})`;
+  }
+  return found.row.alive === false || found.row.regions.length === 0 ? "Fallen" : "Active";
 }
 
 function dominantCivilization(civilizations: CivilizationView[]): CivilizationView | null {
@@ -2348,6 +2365,10 @@ function RightInspector({
                 <div className="phase75-stat-row">
                   <span>Civilization</span>
                   <strong>{selectedCivilization.name}</strong>
+                </div>
+                <div className="phase75-stat-row">
+                  <span>Status</span>
+                  <strong>{selectedCivilization.status}</strong>
                 </div>
                 <div className="phase75-stat-row">
                   <span>Leader</span>

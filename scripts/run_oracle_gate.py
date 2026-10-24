@@ -77,11 +77,13 @@ def _find_seed_dirs(batch_dir: Path) -> list[str]:
 
 def _load_bundle(seed_dir: Path) -> dict | None:
     """Load chronicle_bundle.json from a seed directory."""
+    from chronicler.snapshot_pruning import restore_bundle
     bundle_path = seed_dir / "chronicle_bundle.json"
     if not bundle_path.exists():
         return None
     with open(bundle_path) as f:
-        return json.load(f)
+        # Version-5 histories leave dead civs out; restore every civ row.
+        return restore_bundle(json.load(f))
 
 
 def format_terminal_report(

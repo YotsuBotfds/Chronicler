@@ -67,7 +67,16 @@ def strip_provenance(world: dict) -> dict:
     return world
 
 
-def legacy_artifact_bytes(path):
+def legacy_artifact_bytes(path, *, pre_pruning=False):
+    """Artifact bytes without the dormant and provenance additions.
+
+    Bundle version 4 (provenance) projects to version 3. A version-5 bundle
+    (dead civs pruned from the history, docs/performance/dead-civ-pruning.md)
+    keeps version 5 and its ``pruned_civ_stats``. With ``pre_pruning`` it
+    projects to version 3 as well, which requires that no civ was pruned:
+    then ``pruned_civ_stats`` is empty and the history is the version-4
+    history byte for byte.
+    """
     raw = path.read_bytes()
     if path.name not in ("state.json", "chronicle_bundle.json"):
         return raw
@@ -81,8 +90,14 @@ def legacy_artifact_bytes(path):
             assert "causal_chains" not in entry
             for event in entry.get("events", []):
                 strip_provenance_event(event)
-        assert data["metadata"]["bundle_version"] == 4
-        data["metadata"]["bundle_version"] = 3
+        version = data["metadata"]["bundle_version"]
+        if version == 5 and pre_pruning:
+            assert data.pop("pruned_civ_stats") == {}, "a civ was pruned from the history"
+            version = 4
+        if version == 4:
+            data["metadata"]["bundle_version"] = 3
+        else:
+            assert version == 5, version
         return json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()
     # Match WorldState.save's existing Pydantic formatting (including exponents).
     return to_json(data, indent=2)

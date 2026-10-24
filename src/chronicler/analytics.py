@@ -9,6 +9,7 @@ from itertools import chain
 from pathlib import Path
 
 from chronicler.action_engine import ACTION_WEIGHT_BASE
+from chronicler.snapshot_pruning import restore_bundle
 from chronicler.tuning import K_WEIGHT_CAP
 
 ERA_ORDER = [
@@ -54,7 +55,9 @@ def load_bundle_records(batch_dir: Path) -> list[tuple[Path, dict]]:
     records = []
     for p in bundle_paths:
         with open(p) as f:
-            records.append((p, json.load(f)))
+            # Version-5 histories leave dead civs out; the extractors measure
+            # over every civ row, so restore the omitted rows exactly.
+            records.append((p, restore_bundle(json.load(f))))
     return records
 
 
