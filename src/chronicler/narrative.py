@@ -1263,9 +1263,15 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         entries: list[ChronicleEntry] = []
         told: set[str] = set()  # chain steps already narrated, in chronicle order
         accounts = getattr(self, "_accounts", None)
+        noted: set[str] = set()  # archive losses already told, in chronicle order
         for idx, moment in enumerate(moments):
-            entries.append(_entry_for(moment, mechanical_narrative(moment, told, accounts),
-                                      _moment_account_ids(moment, accounts)))
+            text = mechanical_narrative(moment, told)
+            ids: list[str] = []
+            if accounts:
+                passage, ids = accounts.passage(moment.events, noted=noted)
+                if passage:
+                    text += "\n\n" + passage
+            entries.append(_entry_for(moment, text, ids))
             if on_progress is not None:
                 on_progress(idx + 1, len(moments), None)
         return entries

@@ -417,6 +417,36 @@ def test_contested_account_is_a_narratable_unit(world, monkeypatch):
     assert passage.startswith("In their own words: As the") and set(ids2) == set(ids)
 
 
+def test_a_lost_archive_is_told_once_per_chronicle_and_temple_losses_only_alone():
+    def row(eid, chron, text="x", lost=None, stance="victory"):
+        return [eid, chron, 1, stance, [], [], text, lost, "sack" if lost else None]
+
+    field = {
+        "chroniclers": [{"id": "court:0", "name": "the A chronicles"},
+                        {"id": "court:1", "name": "the B chronicles"},
+                        {"id": "temple:0", "name": "the temple scribes of the Faith of A"}],
+        "archives": [{"owner": "court:1", "losses": [
+            {"turn": 5, "cause": "sack", "region_name": "Reeds", "event_id": "5:occupation:0"}]}],
+        "account_columns": list(H.ACCOUNT_COLUMNS),
+        "accounts": [row("1:war:0", "court:0"), row("1:war:0", "court:1", lost=5),
+                     row("2:war:0", "court:0"), row("2:war:0", "court:1", lost=5),
+                     row("3:famine:0", "court:0", stance="disaster"),
+                     row("3:famine:0", "temple:0", lost=5, stance="disaster")],
+        "contested": [{"event_id": "1:war:0", "divergence": ["lost"]},
+                      {"event_id": "2:war:0", "divergence": ["lost"]}],
+    }
+    index = H.AccountIndex(field)
+    ev = lambda eid: Event(turn=1, event_type=eid.split(":")[1], actors=[], description="d", event_id=eid)
+    noted: set[str] = set()
+    first, ids1 = index.passage([ev("1:war:0")], noted=noted)
+    second, ids2 = index.passage([ev("2:war:0")], noted=noted)
+    assert "No account from the B chronicles survives: their archive at Reeds was sacked (turn 5)." in first
+    assert "No account" not in second and "court:1/2:war:0" not in ids2
+    assert ids1 == ["court:0/1:war:0", "court:1/1:war:0"]
+    famine, _ = index.passage([ev("3:famine:0")])
+    assert "temple scribes" not in famine  # a surviving court voice: the temple loss is not noted
+
+
 def test_divergence_kinds():
     plain = {"chronicler": "court:0", "stance": "neutral", "transforms": [], "text": "x", "cited": []}
     silent = {**plain, "chronicler": "court:1", "text": "", "transforms": [{"kind": "omit", "detail": {}}]}

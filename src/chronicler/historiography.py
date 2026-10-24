@@ -1661,23 +1661,29 @@ def _voices(rows: Sequence[dict], limit: int) -> list[dict]:
     return picked
 
 
-def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
-            voices: int | None = None, noted: set[str] | None = None) -> str:
-    """One narratable passage for an event, from its accounts (dicts, see ``row_dict``).
+def _loss_note(row: dict, name: str, archives: dict[str, dict]) -> str:
+    archive = archives.get(row["chronicler"], {})
+    loss = next((entry for entry in reversed(archive.get("losses", []))
+                 if entry["turn"] == row["lost_turn"]
+                 and entry["cause"] == row.get("lost_cause")), None)
+    where = f" at {loss['region_name']}" if loss and loss.get("region_name") else ""
+    phrase = _LOSS_PHRASES.get(row.get("lost_cause") or "", "lost")
+    return (f"No account from {name} survives: their archive{where} was "
+            f"{phrase} (turn {row['lost_turn']}).")
 
-    'As the Thornwall chronicles tell it: "...". Though the Kethani chronicles
-    say: "...". No account from the Ashkari chronicles survives: their archive
-    at Thornwood was sacked (turn 12).' With ``voices`` only that many told
-    accounts (the most divergent) and one note on silence or loss are given;
-    ``noted`` (chronicler ids) suppresses loss notes already told.
-    """
+
+def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
+             voices: int | None = None, noted: set[str] | None = None) -> tuple[str, list[str]]:
+    """The passage and the ids of the accounts it tells (see ``telling``)."""
     parts: list[str] = []
+    ids: list[str] = []
     told = (_voices(rows, voices) if voices is not None
             else [r for r in rows if r.get("text") and r.get("lost_turn") is None])
     for k, row in enumerate(told):
         name = names.get(row["chronicler"], row["chronicler"])
         lead = f"As {name} tell it" if k == 0 else f"Though {name} say"
         parts.append(f"{lead}: {_quote(row['text'])}")
+        ids.append(row["account_id"])
     notes = 0
     for row in rows:
         if voices is not None and notes >= 1:
@@ -1685,23 +1691,36 @@ def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dic
         cid = row["chronicler"]
         name = names.get(cid, cid)
         if row.get("lost_turn") is not None:
-            if noted is not None and cid in noted:
+            if voices is not None and told and not cid.startswith("court:"):
+                continue  # a lost temple copy is noted only where nothing else survives
+            episode = f"{cid}@{row['lost_turn']}:{row.get('lost_cause')}"
+            if noted is not None and episode in noted:
                 continue
-            archive = archives.get(cid, {})
-            loss = next((entry for entry in reversed(archive.get("losses", []))
-                         if entry["turn"] == row["lost_turn"]
-                         and entry["cause"] == row.get("lost_cause")), None)
-            where = f" at {loss['region_name']}" if loss and loss.get("region_name") else ""
-            phrase = _LOSS_PHRASES.get(row.get("lost_cause") or "", "lost")
-            parts.append(f"No account from {name} survives: their archive{where} was "
-                         f"{phrase} (turn {row['lost_turn']}).")
+            parts.append(_loss_note(row, name, archives))
+            ids.append(row["account_id"])
             if noted is not None:
-                noted.add(cid)
+                noted.add(episode)
             notes += 1
         elif not row.get("text"):
             parts.append(f"{_capital(name)} pass over it in silence.")
+            ids.append(row["account_id"])
             notes += 1
-    return " ".join(parts)
+    return " ".join(parts), ids
+
+
+def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
+            voices: int | None = None, noted: set[str] | None = None) -> str:
+    """One narratable passage for an event, from its accounts (dicts, see ``row_dict``).
+
+    'As the Thornwall chronicles tell it: "...". Though the Kethani chronicles
+    say: "...". No account from the Ashkari chronicles survives: their archive
+    at Thornwood was sacked (turn 12).' Without ``voices`` every account is
+    given. With ``voices`` only that many told accounts (the most divergent)
+    and one note on silence or loss (a temple's loss only when no voice
+    survives); ``noted`` (loss episodes already told, updated) keeps a loss
+    from being retold.
+    """
+    return _telling(rows, names, archives, voices, noted)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1754,16 +1773,20 @@ class AccountIndex:
         ranked.sort(key=lambda r: r[:3])
         return [(r[3], r[4]) for r in ranked[:limit]]
 
-    def passage(self, events: Sequence["Event"], limit: int = 2,
-                voices: int = 2) -> tuple[str, list[str]]:
-        """Mechanical chronicle text ("In their own words: ...") and the account ids it tells."""
+    def passage(self, events: Sequence["Event"], limit: int = 2, voices: int = 2,
+                noted: set[str] | None = None) -> tuple[str, list[str]]:
+        """Mechanical chronicle text ("In their own words: ...") and the account ids it tells.
+
+        ``noted`` (loss episodes already told) carries across a chronicle so
+        an archive's loss is told once.
+        """
         parts, ids = [], []
-        noted: set[str] = set()
+        noted = set() if noted is None else noted
         for _ev, rows in self.select(events, limit):
-            text = telling(rows, self.names, self.archives, voices=voices, noted=noted)
+            text, told = _telling(rows, self.names, self.archives, voices=voices, noted=noted)
             if text:
                 parts.append(text)
-                ids.extend(r["account_id"] for r in rows)
+                ids.extend(told)
         if not parts:
             return "", []
         return "In their own words: " + " ".join(parts), ids
