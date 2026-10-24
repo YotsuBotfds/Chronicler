@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 #: Default for worlds newly created by the CLI/batch/live entry points
 #: (``--no-fisheries`` opts out; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 #: Reference workforce applied when a *new* world enables the fishery. The
 #: class default (200) is kept so dormant configs serialize unchanged. With

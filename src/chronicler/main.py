@@ -1213,7 +1213,7 @@ def _build_parser() -> argparse.ArgumentParser:
                              "worlds; saved on resume)")
     parser.add_argument("--fisheries", action=argparse.BooleanOptionalAction, default=None,
                         help="Renewable fish stocks: fishing draws down a recovering stock that caps "
-                             "the catch (default off for new worlds; saved on resume)")
+                             "the catch (default on for new worlds; --no-fisheries disables; saved on resume)")
     parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
                         help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
                              "negotiated peace replace instant WAR resolution (default on for new "
