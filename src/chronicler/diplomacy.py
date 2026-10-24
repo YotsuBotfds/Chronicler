@@ -1834,8 +1834,20 @@ def snapshot_summary(world, top_n: int = 5) -> dict:
             "goodwill": m.goodwill,
             "kinds": {GRIEVANCE_KINDS[i]: v for i, v in enumerate(m.grievance) if v}}
            for t, h, o, m in rows[:top_n]]
+    # Viewer pair matrix: holder -> target -> [trust, total grievance] for every
+    # directed pair of living civs that has a memory, in civilization index
+    # order (read-only; one decimal keeps it small).
+    alive = _living(world)
+    pairs: dict[str, dict[str, list[float]]] = {}
+    for _, holder in alive:
+        rels = world.relationships.get(holder.name, {})
+        for _, other in alive:
+            rel = rels.get(other.name) if other is not holder else None
+            if rel is not None and rel.memory is not None:
+                pairs.setdefault(holder.name, {})[other.name] = [
+                    round(rel.memory.trust, 1), round(rel.memory.total_grievance(), 1)]
     return {"treaties": treaties, "subjects": subjects, "top_grievances": top,
-            "counts": dict(sorted(state.counts.items()))}
+            "counts": dict(sorted(state.counts.items())), "pairs": pairs}
 
 
 def extract_diplomacy_metrics(bundles: list[dict]) -> dict:
