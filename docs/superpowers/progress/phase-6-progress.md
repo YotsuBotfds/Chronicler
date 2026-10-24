@@ -2,9 +2,160 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-11 (GitHub continuation recovery)
+> **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
+> **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
 
 ---
+
+## Epidemiology (2026-10-24, `feat/epidemiology`, default off)
+
+`feat/epidemiology`, based on `integrate/wave-2` at `db26681`, replaces the
+hazard-rolled plague and the M18 black-swan pandemic with one regional SEIRS
+model (`chronicler/epidemiology.py`, `WorldState.epidemics`, CLI
+`--epidemiology`, saved on the world). Five pathogens (plague, pox, marsh
+fever, bloody flux, the black-swan great pestilence) spread along the contact
+ledger's region flows from reservoir homelands; never-exposed populations
+suffer virgin-soil epidemics; deaths use the plague death path and reach the
+hybrid agent pool through the catastrophe transient; famine and crowding raise
+susceptibility; states quarantine; labour scarcity eases the governance MMP.
+Epidemics are chronic provenance episodes whose onsets cite the contact
+arrival. Details and evidence: `docs/integration/epidemiology.md`.
+
+- **Switch off is byte-identical to `db26681`:** 8 direct runs (off and
+  hybrid, seeds 42/7) and the full 20-seed subset gate batch (2,161 files)
+  match; the frozen performance oracles are unchanged.
+- **Tests:** `pytest -m "not slow" -n 2` base 5,497 passed / 3 skipped,
+  branch 5,522 / 3 (25 new); slow 4 passed. The guarded offline lane fails
+  28 `test_checkpoint_replay` cases identically on base and branch on Linux
+  (`platform.processor()` subprocess blocked by the guard).
+- **Subset gate with `--epidemiology`:** PASS, `validation_compare` NO
+  REGRESSION; 0 extinct; all-initial-civ survival 0.25 as on base (the
+  informational regression FAIL is the known 0.20 calibration). Disease
+  deaths 159 per run against the base's 72 applied (plus 21 nominal M18
+  deaths that never reached agents in hybrid); final population 352 against
+  393. A 40-seed x 500-turn harness run loses no world and converges (431
+  against 435).
+- **Default stays off** until the food-balance work lands (famine feeds
+  susceptibility and fatality) and the 200-seed x 500-turn full gate passes
+  with the switch on; the full gate was not run.
+- **Finding:** the M18 pandemic's population loss was never staged for the
+  agent pool, so in hybrid runs it was erased by the write-back. Unchanged
+  with the switch off.
+
+## Money, credit and public finance (2026-10-24)
+
+Branch `feat/money-credit` on `integrate/wave-2` (`db26681`, PR #18), default
+off behind `--finance` (saved on the world). Details, numbers and stories:
+[`docs/integration/money-credit.md`](../../integration/money-credit.md).
+
+- **Built.** `chronicler/finance.py`: a Phase 3b fiscal tick (revenue partly
+  indexed to prices, army and administration upkeep at current prices, a court
+  that absorbs idle surpluses above a reserve target, debt service on credit
+  lines, borrowing from the merchant creditor class and from wealthy foreign
+  civs in contact, debasement, arrears and default with stability, legitimacy,
+  merchant-influence, grievance, exclusion and premium consequences) and an
+  end-of-turn monetary update (regional specie, precious-metal minting, sacks
+  of occupied regions, price-specie flow, a sticky per-civ price index).
+  Fiscal stress replaces the governing-cost/treasury proxy as the PSI
+  `state_debt` input; a finance contributor bucket (clamped to 1.25x) carries
+  creditor leverage and grievance into action weights; loans, defaults,
+  debasements and lapsed debts cite their causes, and fiscal strain and
+  inflation are chronic episodes. `transfer`/`extend_loan` are the API for
+  diplomacy. Rust is unchanged.
+- **Evidence (Linux, Python 3.13, fresh native build).** Flag-off outputs are
+  byte-identical to `db26681` (hybrid 200 and off 300 turns, seeds 42/7/1234,
+  45 files, default and explicit `--no-finance`). Not-slow suite 5,520 passed,
+  3 skipped; guarded oracle lane 1,596 passed (PR #19's guard line applied
+  locally only); subset gates with `--finance` PASS / NO REGRESSION on seeds
+  42-61 (vs base) and 62-81 (vs flag off), 0 extinct worlds. Treasury at turn
+  200 falls from about 9.1K to 1.0K per civ (30K to 1.2K at turn 500).
+- **Open before a default flip.** The era oracle (required only in the full
+  profile) reads 5 of 20 seeds as "silent collapse" in seeds 62-81 with finance
+  on: base treasuries supply about three quarters of all inflections and cover
+  slow population declines; finance makes treasuries homeostatic. Decide the
+  oracle treatment, then re-gate after the food-balance work lands. The
+  200-seed full gate has not been run with finance on.
+> **Last updated:** 2026-10-24 (food balance, `fix/food-balance`)
+
+---
+
+## Food balance (2026-10-24)
+
+Branch `fix/food-balance` on `integrate/wave-2` (`db26681`); details, numbers
+and every changed expectation are in
+[`docs/integration/food-balance-2026-10.md`](../../integration/food-balance-2026-10.md).
+Nine root-cause corrections, one commit each: aggregate migration no longer
+runs on agent-owned populations; soil degrades against potential capacity;
+temperate water recovery is climatic; mines need ORE/PRECIOUS; travelling
+merchants count in their origin's occupational balance and return home after
+delivering; the fertility brake tapers from 0.75x to 1.0x capacity; the goods
+economy reads goods per farmer instead of the raw M34 harvest index (PR #11
+unit regression); outbreak contagion is spread over a civ's contacts. One
+separate recalibration restores the food-shortage satisfaction weight to
+0.15, undoing cuts made to meet the satisfaction floor on starving worlds.
+Golden oracles rolled forward to `corrected_food_balance_2026_10*`
+(extinction fixtures frozen). No famine, demand or validation threshold
+changed.
+
+- Hybrid template worlds: fed region-turns 4% → 42%, famine per 500-turn run
+  752 → 341, mutual-aid convoys 0 → 12 per 200 turns, population held at
+  0.66x capacity (was 1.0-1.35x on degrading land).
+- Procedural 64-region / 16-civ hybrid worlds no longer collapse (seeds 7-10:
+  822 → 64 by turn 150 before; 817 → 893 after, 988 at turn 300).
+- Gates on the branch head: full 200 × 500 PASS (strict; 0 of 200 extinct,
+  latest satisfaction 0.643 against the 0.65 ceiling), subset PASS (the
+  `db26681` subset fails `civ_survival`). pytest, no-Rust pytest, slow tests
+  and `cargo test --release` pass.
+- Open: winter shortage and merchant routing that ignores need, locust
+  frequency (M35b rate), drought/cooling compounding of crop and water
+  modifiers, the occupational switching dead band (farmers below target),
+  no goods-economy subsistence for foodless regions, fishing effort that
+  ignores catch per fisher, the secession threshold left pending this sweep,
+  the other floor-chasing satisfaction tunings (M47c-M57), and the
+  `civ_survival` band (0.15-0.165 on the branch; 0.25 against 0.20 in the
+  base subset), and smaller worlds (full-profile final population median 182,
+  minimum 33; none extinct). The plague change touches `events.py`, which the
+  epidemiology work also owns.
+
+## Diplomacy (2026-10-24, `feat/diplomacy`)
+
+Branch `feat/diplomacy` from `integrate/wave-2` at `db26681`, default off
+behind `--diplomacy` (`WorldState.diplomacy`). See
+[`docs/integration/diplomacy.md`](../../integration/diplomacy.md).
+
+- **Built.** Directed pair memory on `Relationship.memory` (trust, goodwill,
+  six grievance stocks with half-lives) that caps dispositions and enters
+  every utility; `peace`, `non_aggression`, `alliance`, `trade_pact` and
+  installment `tribute` treaties with terms, expiry, renewal by fresh mutual
+  acceptance, breach and consequences, accepted only by the target's
+  utility; peace treaties emitted by `conclude_peace` and `close_external`;
+  a pre-clamped diplomacy bucket in the action weights, a WAR treaty guard
+  and revanche, calls to arms and alliance aid convoys; the
+  `client -> vassal -> union -> annexation` ladder on `VassalRelation`,
+  replacing the tributary step in `prepare_twilight_absorption` (absorber
+  stability above 20 instead of 40), with loosening when the overlord
+  weakens and the existing Rust rebellion still ending any stage. The
+  absorption body is shared as `politics.absorb_civ`. No Rust change.
+- **Cut.** Marriage alliances (no cross-civ ruler marriage exists), grievance
+  export from agent memory (Rust memories record the victim's own civ, not
+  the perpetrator), embargo lifting (it pushed artifacts and arcs to FAIL on
+  the subset), ruler-ambition predicates and viewer panels. Sparing the last
+  region of a conquered state is built as `SPARE_LAST_REGION` but off: it
+  doubles wars and keeps all founders in half the worlds.
+- **Evidence (final head).** Switch off is byte-identical to `db26681`:
+  direct runs (off 150 and hybrid 120 turns, seeds 42 and 7, default and
+  `--no-diplomacy`) 30 files, 0 differences; the switch-off subset gate
+  batch (one commit earlier, the last change being switch-on only) all 2,159
+  run files identical. Native `pytest -m "not slow" -n 2` 5,536 passed,
+  3 skipped; no-Rust lane 5,344 passed, 193 skipped; bounded Python oracle
+  lane (PR #19's guard fix applied locally only) 1,634 passed, 4 skipped,
+  2 deselected, guard PASS. Subset gate with `--diplomacy` against base: PASS, NO
+  REGRESSION, 0 extinct worlds, artifacts PARTIAL to PASS; informational
+  regression `civ_survival` 0.30 (base 0.25) and strict latest satisfaction
+  0.445 (base 0.454).
+- **Not run.** The full 200-seed gate with `--diplomacy`; it is required
+  before any default change, watching `civ_survival` and the strict
+  latest-satisfaction floor.
 
 ## Recovery checkpoint (2026-10-11)
 

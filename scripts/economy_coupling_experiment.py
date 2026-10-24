@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pyarrow as pa
 
-from chronicler.ecology import _check_famine_yield, refresh_resource_yields
+from chronicler.ecology import _check_famine_yield, harvest_normal_index, refresh_resource_yields
 from chronicler.experimental.fisheries import economy_yield
 from chronicler.economy import (
     CATEGORIES, FIXED_GOODS, build_economy_region_input_batch,
@@ -40,21 +40,34 @@ TARGET = "Valley"
 DONOR = "Coast"
 
 
+def goods_fixture_base(rtype: int, goods_per_farmer: float) -> float:
+    """Base yield whose harvest index converts to ``goods_per_farmer`` goods.
+
+    The fixtures were chosen in goods per farmer (to straddle the sufficiency
+    threshold). Goods are the harvest index over its long-run normal
+    (``ecology.goods_per_worker``), so the base is scaled by that normal and
+    the goods harvests stay those of the original experiment.
+    """
+    return goods_per_farmer * harvest_normal_index(rtype)
+
+
 def make_world(*, reserve: float = 0.0, seed: int = 42) -> WorldState:
     """Two controlled regions; the valley's sole intervention is food reserve."""
+    valley_base = goods_fixture_base(0, 1.8)
+    coast_base = goods_fixture_base(3, 4.0)
     target = Region(
         name=TARGET, terrain="plains", carrying_capacity=100, population=20,
         resources="fertile", controller="Valley Folk", adjacencies=[DONOR],
-        resource_types=[0, 255, 255], resource_base_yields=[1.8, 0.0, 0.0],
-        resource_effective_yields=[1.8, 0.0, 0.0],
+        resource_types=[0, 255, 255], resource_base_yields=[valley_base, 0.0, 0.0],
+        resource_effective_yields=[valley_base, 0.0, 0.0],
         ecology=RegionEcology(soil=0.8, water=0.8, forest_cover=0.2),
         stockpile=RegionStockpile(goods={"grain": reserve}),
     )
     donor = Region(
         name=DONOR, terrain="coast", carrying_capacity=300, population=120,
         resources="maritime", controller="Coast Folk", adjacencies=[TARGET],
-        resource_types=[3, 255, 255], resource_base_yields=[4.0, 0.0, 0.0],
-        resource_effective_yields=[4.0, 0.0, 0.0],
+        resource_types=[3, 255, 255], resource_base_yields=[coast_base, 0.0, 0.0],
+        resource_effective_yields=[coast_base, 0.0, 0.0],
         ecology=RegionEcology(soil=0.8, water=0.8, forest_cover=0.2),
     )
     civs = [

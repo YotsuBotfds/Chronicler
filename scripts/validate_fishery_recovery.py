@@ -20,6 +20,16 @@ SCHEMA_ADDITIONS = ("fishery_stocks", "fishery_yield_ratios", "fishery_catch_bud
 TOLERANCE = 1e-9
 
 
+def _goods(index: float) -> float:
+    """Fish harvest index in economy goods units (2026-10 food balance)."""
+    try:
+        from chronicler.ecology import goods_per_worker
+    except ImportError:  # sources before the goods-unit conversion
+        return index
+    from chronicler.models import ResourceType
+    return goods_per_worker(ResourceType.FISH, index)
+
+
 def canonical_hash(world) -> str:
     state = world.model_dump(mode="json")
     # Joint integration adds dormant aid metadata to this fishery-only fixture.
@@ -108,8 +118,11 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
             per_worker = region.resource_current_yields[0]
         else:
             per_worker = region.resource_effective_yields[0]
-        expected_production = per_worker * ratio * farmers
+        # Goods per farmer and catch credit are the harvest index in goods
+        # units (identity on sources that predate the conversion).
+        expected_production = _goods(per_worker * ratio) * farmers
         if enabled:
+            previous_budget = _goods(previous_budget)
             expected_production = min(expected_production, previous_budget)
 
         # Phase 2 uses the previous Phase 9 catch credit, with real goods accounting.
@@ -157,8 +170,10 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
             totals["biological_replenishment"] += recovery * biomass_capacity
             totals["harvest"] += catch
             # Pending current catch is outside goods inventory until next Phase 2.
-            combined_residual = (initial_biomass + initial_goods + totals["biological_replenishment"]
-                                 - stock_after * biomass_capacity - goods_after - catch
+            # Biomass is counted in harvest-index units; goods in goods units.
+            combined_residual = (_goods(initial_biomass + totals["biological_replenishment"]
+                                        - stock_after * biomass_capacity - catch)
+                                 + initial_goods - goods_after
                                  - sum(totals[key] for key in ("consumption", "storage_loss", "cap_overflow",
                                                             "clamp_floor_loss", "transit_loss", "in_transit_delta",
                                                             "discarded_catch")))

@@ -1112,6 +1112,18 @@ def run_live(
         )
         _ledger = getattr(args, "contact_ledger", None)
         set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
+        # Finance: new live worlds follow the CLI default (--finance opts in).
+        from chronicler.finance import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT, set_finance_enabled,
+        )
+        _finance = getattr(args, "finance", None)
+        set_finance_enabled(world, _FINANCE_DEFAULT if _finance is None else bool(_finance))
+        # Diplomacy: new live worlds follow the CLI default (--diplomacy opts in).
+        from chronicler.diplomacy import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT, set_diplomacy_enabled,
+        )
+        _diplomacy = getattr(args, "diplomacy", None)
+        set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (
@@ -1122,6 +1134,14 @@ def run_live(
         from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
         _aid = getattr(args, "mutual_aid", None)
         world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
+        # Epidemiology: new live worlds follow the CLI default; it needs the ledger.
+        from chronicler.epidemiology import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT, set_epidemiology_enabled,
+        )
+        from chronicler.contact_ledger import ledger_enabled as _ledger_on
+        _epi = getattr(args, "epidemiology", None)
+        set_epidemiology_enabled(
+            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
 
     # Construct LLM clients from client-selected models
     client_config = server._resolve_client_config()

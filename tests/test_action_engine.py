@@ -125,7 +125,7 @@ class TestEligibility:
         resolve_action(civ, ActionType.EXPAND, engine_world)
 
         assert frontier.controller == civ.name
-        assert getattr(frontier, "_stockpile_bootstrap_pending", False) is True
+        assert frontier.stockpile_bootstrap_pending is True
 
     def test_embargo_routes_target_penalty_as_shock_signal_in_accumulator_mode(self, engine_world):
         from chronicler.accumulator import StatAccumulator

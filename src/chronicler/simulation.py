@@ -80,6 +80,7 @@ from chronicler.utils import (
     add_region_pop,
     stage_region_catastrophe_deaths,
 )
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import (
     generate_successor, apply_leader_legacy, check_trait_evolution,
@@ -97,6 +98,7 @@ from chronicler.succession import (
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
+from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -189,6 +191,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     hazard_ctx = HazardContext(world)
     for event_type in ENVIRONMENT_EVENTS:
         if event_type not in world.event_probabilities:
+            continue
+        if event_type == "plague" and _epidemiology_on(world):
+            # Epidemiology replaces the hazard plague (tick_epidemics, Phase 1).
             continue
         affected: list[Civilization] = []
         rates: list[float] = []
@@ -523,6 +528,10 @@ def apply_automatic_effects(
         from chronicler.governance_runtime import fund_institutions_phase2
         events.extend(fund_institutions_phase2(world, acc=acc))
     events.extend(collect_tribute(world, acc=acc))
+    if _diplomacy_on(world):
+        # Diplomacy: installments of tribute treaties (keep category).
+        from chronicler.diplomacy import collect_treaty_tribute
+        events.extend(collect_treaty_tribute(world, acc=acc))
     events.extend(apply_proxy_wars(world, acc=acc))
     events.extend(apply_exile_effects(world, acc=acc))
     events.extend(apply_balance_of_power(world))
@@ -1120,7 +1129,12 @@ def apply_injected_event(
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
         civ_regions = [r for r in world.regions if r.controller == civ.name]
-        if civ_regions:
+        if _epidemiology_on(world):
+            # Epidemiology: the injection seeds the plague in the civ's capital;
+            # its deaths come from the outbreak, not a fixed toll.
+            from chronicler.epidemiology import seed_injection
+            seed_injection(world, civ, event)
+        elif civ_regions:
             actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
             if _agent_pool_tracks_population(world):
                 for region, actual in zip(civ_regions, actual_drains):
@@ -1916,6 +1930,12 @@ def run_turn_result(
     # Phase 1: Environment
     _emit(phase_environment(world, seed=seed, acc=acc))
 
+    # Epidemiology (replaces the hazard plague and the M18 pandemic tick):
+    # introductions, regional SEIRS, deaths staged for the agent pool.
+    if _epidemiology_on(world):
+        from chronicler.epidemiology import tick_epidemics
+        _emit(tick_epidemics(world, acc=acc))
+
     # M18: Black swan check (after climate disasters)
     from chronicler.emergence import check_black_swans
     _emit(check_black_swans(world, seed=seed, acc=acc))
@@ -2023,6 +2043,12 @@ def run_turn_result(
 
     # Phase 3: Production
     phase_production(world, acc=acc)
+
+    # Phase 3b (--finance): revenue, upkeep, court, debt service, borrowing,
+    # debasement and default, after every ordinary income of the turn.
+    if getattr(world, "finance", None) is not None:
+        from chronicler.finance import tick_finance
+        _emit(tick_finance(world, acc=acc, economy_result=economy_result))
 
     # Phase 4: Technology
     _emit(phase_technology(world, acc=acc))
@@ -2177,6 +2203,15 @@ def run_turn_result(
     _emit(phase_consequences(
         world, acc=phase10_acc, politics_runtime=_pol_rt, phase10=artifacts.phase10,
     ))
+
+    # Diplomacy (--diplomacy): memory, treaty upkeep and the polity ladder,
+    # after politics so it sees this turn's revolts, absorptions and wars.
+    if _diplomacy_on(world):
+        from chronicler.diplomacy import tick_diplomacy
+        _emit(tick_diplomacy(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc,
+        ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
     # faction effects, cultural assimilation treasury costs, etc.).
@@ -2350,6 +2385,11 @@ def run_turn_result(
     if _contact_ledger_on(world):
         from chronicler.contact_ledger import update_contact_ledger
         update_contact_ledger(world)
+
+    # Finance: output, sacks, minting, specie flow and prices (read next turn).
+    if getattr(world, "finance", None) is not None:
+        from chronicler.finance import update_money
+        update_money(world)
 
     # Chronicle (narrative generation)
     chronicle_text = narrator(world, turn_events)

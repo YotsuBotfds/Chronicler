@@ -324,6 +324,21 @@ def _rule_civ_distress(world: "WorldState", ev: Event) -> list:
     return _distress(world, civ) if civ is not None else []
 
 
+def _rule_vassal_rebellion(world: "WorldState", ev: Event) -> list:
+    """A vassal throws off its overlord: the vassal's own distress and, with
+    the diplomacy ladder on, the subjection it ends and what weakened the
+    overlord (the rebellion check reads the overlord's stability and treasury)."""
+    out = _rule_civ_distress(world, ev)
+    from chronicler.diplomacy_state import diplomacy_on
+    if diplomacy_on(world):
+        civs = event_civs(world, ev)
+        if civs:
+            out.append(recall(world, key("subject", civs[0])))
+        if len(civs) >= 2:
+            out += _distress(world, civs[1])
+    return out
+
+
 def _rule_secession(world: "WorldState", ev: Event) -> list:
     civs = event_civs(world, ev)
     out: list[str | None] = []
@@ -481,7 +496,7 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "local_rebellion": _rule_local_unrest,
     "loyalty_cascade": _rule_local_unrest,
     "rebellion": _rule_civ_distress,
-    "vassal_rebellion": _rule_civ_distress,
+    "vassal_rebellion": _rule_vassal_rebellion,
     "secession": _rule_secession,
     "secession_suppressed": _rule_secession,
     "secession_defection": lambda w, ev: [recall(w, key("secession", c), within=0)
@@ -654,6 +669,14 @@ _PER_CIV_KEYS: dict[str, str] = {
 _PAIR_KEYS: dict[str, str] = {
     "border_incident": "border", "embargo": "embargo", "proxy_detected": "proxy",
 }
+# Finance (``--finance``): keys the debtor's fiscal events stand for. Only the
+# first civ (the debtor) is registered; lenders named on the event are not in
+# distress. ``fiscal`` is the key the PSI crisis cites for fiscal distress.
+_FINANCE_KEYS: dict[str, tuple[str, ...]] = {
+    "state_default": ("default", "fiscal"),
+    "debasement": ("debasement", "fiscal"),
+    "fiscal_strain": ("fiscal",),
+}
 _WAR_END_TYPES = frozenset({"peace_treaty", "war_ended", "congress_peace", "congress_ceasefire"})
 
 
@@ -670,6 +693,11 @@ def _register(world: "WorldState", ev: Event) -> None:
     if etype == "psi_recovery":
         for civ in civs:
             keys.pop(key("psi", civ), None)
+    finance_keys = _FINANCE_KEYS.get(etype)
+    if finance_keys is not None:
+        for civ in civs[:1]:
+            for kind in finance_keys:
+                keys[key(kind, civ)] = eid
     if etype in _PAIR_KEYS and len(civs) >= 2:
         keys[_PAIR_KEYS[etype] + ":" + pair(civs[0], civs[1])] = eid
     if etype == "war_declared" and len(civs) >= 2:
@@ -700,6 +728,11 @@ def _register(world: "WorldState", ev: Event) -> None:
     elif etype in ("pandemic", "pandemic_spread"):
         if region is not None:
             keys[key("pandemic", region)] = eid
+    elif etype == "epidemic" and region is not None:
+        # Epidemiology onsets stand for disease in the region, so the famine
+        # and flight rules (which read pandemic:<region>) cite them too.
+        keys[key("pandemic", region)] = eid
+        keys[key("epidemic", region, ev.shock_category or "")] = eid
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid
@@ -785,6 +818,13 @@ CHRONIC: dict[str, ChronicSpec] = {
     "soil_exhaustion": ChronicSpec(1, False, None, "exhaustion of the soil"),
     "famine_starvation": ChronicSpec(1, False, None, "starvation"),
     "Mass Migration": ChronicSpec(1, False, None, "flight of the faithful"),
+    # Epidemiology (chronicler.epidemiology): one report per turn per region
+    # and pathogen (the category) while an outbreak runs; one per closed state.
+    "epidemic": ChronicSpec(1, False, None, "epidemic"),
+    "quarantine": ChronicSpec(1, False, None, "border closure"),
+    # Finance (reported at the debtor's capital while the condition lasts).
+    "fiscal_strain": ChronicSpec(3, False, None, "fiscal crisis"),
+    "price_inflation": ChronicSpec(2, False, None, "inflation"),
 }
 
 

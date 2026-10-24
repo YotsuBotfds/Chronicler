@@ -1412,6 +1412,22 @@ def generate_report(
     if contact.get("runs"):
         report["contact_ledger"] = contact
 
+    # Epidemiology: present only for runs whose bundles carry history[n].epidemics.
+    from chronicler.epidemiology import extract_epidemic_metrics
+    epidemics = extract_epidemic_metrics(bundles)
+    if epidemics.get("runs"):
+        report["epidemiology"] = epidemics
+    # Finance: present only for runs whose bundles carry history[n].finance.
+    from chronicler.finance import extract_finance_metrics
+    finance = extract_finance_metrics(bundles)
+    if finance.get("runs"):
+        report["finance"] = finance
+    # Diplomacy: present only for runs whose bundles carry history[n].diplomacy.
+    from chronicler.diplomacy import extract_diplomacy_metrics
+    diplomacy = extract_diplomacy_metrics(bundles)
+    if diplomacy.get("runs"):
+        report["diplomacy"] = diplomacy
+
     report["anomalies"] = detect_anomalies(report)
     return report
 

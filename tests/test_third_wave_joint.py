@@ -20,7 +20,13 @@ def test_joint_full_turn_accounting_and_determinism(fishery, aid, seed, hops):
     assert sum(r["economy"]["oracle_ledger"]["transit_loss"].get("grain", 0.) for r in rows) > 0
     assert all(r["economy"]["oracle_ledger"]["transit_loss"].get("salt", 0.) == 0 for r in rows)
     if aid:
-        assert {t["donor"] for r in rows for t in r["transfers"]} == {"A", "B"}
+        # Which adjacent donor sends is emergent (donor stocks net of merchant
+        # cargo commitments). Since the 2026-10 food-balance corrections A's
+        # free surplus alone covers both recipients in some of these runs;
+        # multi-donor sharing is pinned deterministically by
+        # test_mutual_aid_long_cargo.py::test_multiple_donors_competing_recipients_caps_and_exhaustion.
+        donors = {t["donor"] for r in rows for t in r["transfers"]}
+        assert "A" in donors and donors <= {"A", "B"}
         assert {t["recipient"] for r in rows for t in r["transfers"]} == {"First", "Second"}
         assert sum(sum(r["aid_treasury_debits"]) for r in rows) > 0
     else:

@@ -102,6 +102,30 @@ def _contact_ledger_args(args: argparse.Namespace) -> list[str]:
     return ["--contact-ledger" if ledger else "--no-contact-ledger"]
 
 
+def _epidemiology_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit epidemiology switch; omitted keeps the CLI default."""
+    epidemiology = getattr(args, "epidemiology", None)
+    if epidemiology is None:
+        return []
+    return ["--epidemiology" if epidemiology else "--no-epidemiology"]
+
+
+def _finance_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit finance switch; omitted keeps the CLI default."""
+    finance = getattr(args, "finance", None)
+    if finance is None:
+        return []
+    return ["--finance" if finance else "--no-finance"]
+
+
+def _diplomacy_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit diplomacy switch; omitted keeps the CLI default."""
+    diplomacy = getattr(args, "diplomacy", None)
+    if diplomacy is None:
+        return []
+    return ["--diplomacy" if diplomacy else "--no-diplomacy"]
+
+
 def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
     """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
 
@@ -139,7 +163,10 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_finance_args(args),
         *_fishery_aid_args(args),
+        *_epidemiology_args(args),
+        *_diplomacy_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -166,7 +193,10 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_finance_args(args),
         *_fishery_aid_args(args),
+        *_epidemiology_args(args),
+        *_diplomacy_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -199,7 +229,10 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_feature_flags(args))
         cmd.extend(_governance_args(args))
         cmd.extend(_contact_ledger_args(args))
+        cmd.extend(_finance_args(args))
         cmd.extend(_fishery_aid_args(args, agents))
+        cmd.extend(_epidemiology_args(args))
+        cmd.extend(_diplomacy_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -479,6 +512,12 @@ def main() -> None:
         help="Forward --contact-ledger/--no-contact-ledger to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--finance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --finance/--no-finance to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--fisheries",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -489,6 +528,18 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Forward --mutual-aid/--no-mutual-aid to every agent-mode run (default: CLI default).",
+    )
+    parser.add_argument(
+        "--epidemiology",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --epidemiology/--no-epidemiology to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
+        "--diplomacy",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --diplomacy/--no-diplomacy to every simulation run (default: CLI default).",
     )
     parser.add_argument(
         "--require-strict-regression",
@@ -576,8 +627,11 @@ def main() -> None:
         "parallel": args.parallel,
         "campaigns": args.campaigns,
         "contact_ledger": args.contact_ledger,
+        "finance": args.finance,
         "fisheries": args.fisheries,
         "mutual_aid": args.mutual_aid,
+        "epidemiology": args.epidemiology,
+        "diplomacy": args.diplomacy,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

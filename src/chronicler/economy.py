@@ -164,15 +164,15 @@ def settle_pending_stockpile_bootstraps(regions: list) -> int:
     """Fulfill one-shot region bootstrap requests once settlers are present."""
     settled = 0
     for region in regions:
-        if not getattr(region, "_stockpile_bootstrap_pending", False):
+        if not region.stockpile_bootstrap_pending:
             continue
         if region.controller is None or region.resource_types[0] == 255:
-            region._stockpile_bootstrap_pending = False
+            region.stockpile_bootstrap_pending = None
             continue
         if region.population <= 0:
             continue
         bootstrap_region_stockpile(region)
-        region._stockpile_bootstrap_pending = False
+        region.stockpile_bootstrap_pending = None
         settled += 1
     return settled
 

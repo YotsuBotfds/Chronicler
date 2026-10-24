@@ -275,6 +275,40 @@ def _contact_snapshot_fields(world) -> dict:
     return {"contact": snapshot_summary(world)}
 
 
+def _epidemic_snapshot_fields(world) -> dict:
+    """Epidemiology per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.epidemiology import epidemiology_enabled, snapshot_summary
+    if not epidemiology_enabled(world):
+        return {}
+    return {"epidemics": snapshot_summary(world)}
+
+
+def _pandemic_region_names(world) -> list[str]:
+    """M18 pandemic regions, plus regions with an epidemic when epidemiology is on."""
+    names = [p.region_name for p in world.pandemic_state]
+    from chronicler.epidemiology import active_region_names, epidemiology_enabled
+    if epidemiology_enabled(world):
+        active = active_region_names(world)
+        names += [r.name for r in world.regions if r.name in active and r.name not in names]
+    return names
+
+
+def _finance_snapshot_fields(world) -> dict:
+    """Finance per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.finance import finance_enabled, snapshot_summary
+    if not finance_enabled(world):
+        return {}
+    return {"finance": snapshot_summary(world)}
+
+
+def _diplomacy_snapshot_fields(world) -> dict:
+    """Diplomacy per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.diplomacy import diplomacy_enabled, snapshot_summary
+    if not diplomacy_enabled(world):
+        return {}
+    return {"diplomacy": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -489,6 +523,35 @@ def execute_run(
     if contact_ledger is not None:
         from chronicler.contact_ledger import set_contact_ledger_enabled
         set_contact_ledger_enabled(world, contact_ledger)
+    # Regional SEIRS epidemiology (persisted on the world). It spreads along
+    # the contact ledger, so an explicit --epidemiology needs the ledger; a
+    # default-on setting stays off on a ledger-less new world.
+    epidemiology = getattr(args, "epidemiology", None)
+    from chronicler.contact_ledger import ledger_enabled as _ledger_on
+    if epidemiology is True and not _ledger_on(world):
+        raise ValueError("Epidemiology spreads along the contact ledger (--contact-ledger)")
+    if epidemiology is None and fresh_world:
+        from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT
+        epidemiology = _EPI_DEFAULT and _ledger_on(world)
+    if epidemiology is not None:
+        from chronicler.epidemiology import set_epidemiology_enabled
+        set_epidemiology_enabled(world, epidemiology)
+    # Money, credit and public finance switch (persisted on the world).
+    finance = getattr(args, "finance", None)
+    if finance is None and fresh_world:
+        from chronicler.finance import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT
+        finance = _FINANCE_DEFAULT
+    if finance is not None:
+        from chronicler.finance import set_finance_enabled
+        set_finance_enabled(world, finance)
+    # Diplomacy switch (persisted on the world): memory, treaties, polity ladder.
+    diplomacy = getattr(args, "diplomacy", None)
+    if diplomacy is None and fresh_world:
+        from chronicler.diplomacy import DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT
+        diplomacy = _DIPLOMACY_DEFAULT
+    if diplomacy is not None:
+        from chronicler.diplomacy import set_diplomacy_enabled
+        set_diplomacy_enabled(world, diplomacy)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -669,7 +732,7 @@ def execute_run(
             region_cultural_identity={r.name: r.cultural_identity for r in world.regions},
             movements_summary=[{"id": m.id, "value_affinity": m.value_affinity, "adherent_count": len(m.adherents), "origin_civ": m.origin_civ} for m in world.movements],
             stress_index=world.stress_index,
-            pandemic_regions=[p.region_name for p in world.pandemic_state],
+            pandemic_regions=_pandemic_region_names(world),
             climate_phase=get_climate_phase(world.turn, world.climate_config).value,
             active_conditions=[
                 {"type": c.condition_type, "severity": c.severity, "duration": c.duration}
@@ -735,6 +798,9 @@ def execute_run(
             dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
             **_war_snapshot_fields(world),
             **_contact_snapshot_fields(world),
+            **_epidemic_snapshot_fields(world),
+            **_finance_snapshot_fields(world),
+            **_diplomacy_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1226,6 +1292,21 @@ def _build_parser() -> argparse.ArgumentParser:
                              "migrants, soldiers and pilgrims feeding trade_volume, movement spread, "
                              "merchant great persons, trade warmth, embargo/war shocks and plague spread "
                              "(default on for new worlds; --no-contact-ledger disables; saved on resume)")
+    parser.add_argument("--epidemiology", action=argparse.BooleanOptionalAction, default=None,
+                        help="Regional SEIRS epidemiology: pathogens spread along the contact ledger, "
+                             "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
+                             "plague and the M18 pandemic (default off; needs the contact ledger; "
+                             "saved on resume)")
+    parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
+                        help="Money, credit and public finance: upkeep and court costs, state borrowing "
+                             "from merchant houses and foreign lenders, debt service, default, debasement "
+                             "and a per-civ price index feeding the governance PSI (default off for new "
+                             "worlds; --finance enables; saved on resume)")
+    parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
+                        help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
+                             "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
+                             "ladder client -> vassal -> personal union -> annexation (default off "
+                             "for new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

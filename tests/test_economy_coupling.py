@@ -12,7 +12,7 @@ import random
 
 import pytest
 
-from chronicler.ecology import refresh_resource_yields
+from chronicler.ecology import goods_per_worker, harvest_normal_index, refresh_resource_yields
 from chronicler.economy import (
     FIXED_GOODS, compute_allocated_production,
     compute_economy, build_economy_region_input_batch,
@@ -80,7 +80,8 @@ def test_secondary_salt_and_precious_reach_real_stockpiles():
     world = experiment.make_world()
     target = world.regions[0]
     target.resource_types = [255, 4, 6]
-    target.resource_current_yields = [0.0, 2.0, 3.0]
+    # Harvest indices worth 2 salt and 3 precious per farmer in goods units.
+    target.resource_current_yields = [0.0, 2.0 * harvest_normal_index(4), 3.0 * harvest_normal_index(6)]
     # Twelve farmers split between two slots, with no phantom primary output.
     result = _oracle(world)
     assert result.region_goods[target.name].production["food"] == pytest.approx(12.0)
@@ -114,7 +115,9 @@ def test_ffi_transmits_realized_all_slot_yields_not_potential():
     row = build_economy_region_input_batch(world).to_pylist()[0]
     for i in range(3):
         assert row[f"resource_type_{i}"] == r.resource_types[i]
-        assert row[f"resource_yield_{i}"] == pytest.approx(r.resource_current_yields[i])
+        # The realized harvest index, converted into goods per farmer.
+        assert row[f"resource_yield_{i}"] == pytest.approx(
+            goods_per_worker(r.resource_types[i], r.resource_current_yields[i]))
     assert "resource_effective_yield_0" not in row
 
 

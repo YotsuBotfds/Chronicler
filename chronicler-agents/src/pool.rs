@@ -103,6 +103,10 @@ pub struct AgentPool {
     pub pkt_source_civ: Vec<[u8; 4]>,
     // M59a: Merchant arrival transient (set by 0.9 merchant mobility, cleared by 0.95 knowledge phase)
     pub arrived_this_turn: Vec<bool>,
+    // Merchant who delivered this turn: the region it returns to after the
+    // 0.95 knowledge phase (TRIP_HOME_NONE otherwise). Set by 0.9 merchant
+    // mobility, consumed the same turn by merchant::return_delivering_merchants_home.
+    pub trip_home_region: Vec<u16>,
     // Liveness
     pub alive: Vec<bool>,
 
@@ -178,6 +182,7 @@ impl AgentPool {
             pkt_intensity: Vec::with_capacity(capacity),
             pkt_source_civ: Vec::with_capacity(capacity),
             arrived_this_turn: Vec::with_capacity(capacity),
+            trip_home_region: Vec::with_capacity(capacity),
             alive: Vec::with_capacity(capacity),
             count: 0,
             next_id: 1,
@@ -273,6 +278,7 @@ impl AgentPool {
             self.pkt_intensity[slot] = [0; 4];
             self.pkt_source_civ[slot] = [crate::knowledge::PKT_CIV_NONE; 4];
             self.arrived_this_turn[slot] = false;
+            self.trip_home_region[slot] = crate::agent::TRIP_HOME_NONE;
             self.alive[slot] = true;
             self.count += 1;
             Ok(slot)
@@ -342,6 +348,7 @@ impl AgentPool {
             self.pkt_intensity.push([0; 4]);
             self.pkt_source_civ.push([crate::knowledge::PKT_CIV_NONE; 4]);
             self.arrived_this_turn.push(false);
+            self.trip_home_region.push(crate::agent::TRIP_HOME_NONE);
             self.alive.push(true);
             self.count += 1;
             Ok(slot)

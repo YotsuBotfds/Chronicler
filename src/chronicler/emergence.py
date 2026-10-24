@@ -15,6 +15,10 @@ from chronicler.models import (
 )
 from chronicler.resources import get_active_trade_routes
 from chronicler.contact_ledger import ledger_enabled
+from chronicler.epidemiology import (
+    active_region_names as epidemic_region_names,
+    epidemiology_enabled,
+)
 from chronicler.tech import _prev_era, remove_era_bonus
 from chronicler.tuning import (
     K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
@@ -73,6 +77,8 @@ def compute_civ_stress(civ: Civilization, world: WorldState) -> int:
     # Active pandemic in controlled regions: per infected region
     pandemic_weight = int(get_override(world, K_STRESS_PANDEMIC_WEIGHT, 2))
     infected_region_names = {p.region_name for p in world.pandemic_state}
+    if epidemiology_enabled(world):
+        infected_region_names |= epidemic_region_names(world)
     stress += sum(
         1 for r in world.regions
         if r.controller == civ.name and r.name in infected_region_names
@@ -279,20 +285,29 @@ def _apply_pandemic_origin(world: WorldState, seed: int) -> list[Event]:
     if has_scientist:
         duration = max(1, duration - 1)
 
-    world.pandemic_state.append(PandemicRegion(
-        region_name=origin_region.name,
-        severity=severity,
-        turns_remaining=duration,
-    ))
-
-    return [Event(
+    event = Event(
         turn=world.turn,
         event_type="pandemic",
         actors=[best_civ.name],
         description=f"A devastating plague erupts in {origin_region.name}, spreading through {best_civ.name}'s trade network",
         importance=9,
         region=origin_region.name,
-    )]
+    )
+    if epidemiology_enabled(world):
+        # Epidemiology: the black swan is a novel strain of the great
+        # pestilence seeded at the origin; the SEIRS model spreads it.
+        from chronicler.epidemiology import seed_pandemic
+        origin_idx = next(i for i, r in enumerate(world.regions) if r is origin_region)
+        seed_pandemic(world, origin_idx, event)
+        return [event]
+
+    world.pandemic_state.append(PandemicRegion(
+        region_name=origin_region.name,
+        severity=severity,
+        turns_remaining=duration,
+    ))
+
+    return [event]
 
 
 def tick_pandemic(

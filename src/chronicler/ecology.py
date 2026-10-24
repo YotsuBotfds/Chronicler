@@ -408,6 +408,66 @@ def compute_resource_yields(
     return yields
 
 
+# --- Goods harvest units ------------------------------------------------------
+#
+# Correction (2026-10, food balance). The M34 harvest index above is a
+# dimensionless condition index (PEAK_YIELD 1.0 maps to full farmer
+# satisfaction; famine below 0.12). The goods economy's demand constants
+# (PER_CAPITA_FOOD 0.5, raw-material and luxury demand, CARRY_PER_MERCHANT,
+# stock caps) were set while one farmer-turn produced its slot's effective
+# yield, i.e. the base yield (about 1.0). PR #11 (76e1d2a) fed the economy the
+# realized index instead, whose long-run mean on healthy land is only 42% of
+# base for grain and 80% for fish, without converting units. The economy
+# therefore produced well under half the food its demand assumed. Goods per
+# farmer now keep PR #11's seasonal, climatic and ecological variation but are
+# expressed relative to the long-run mean, so healthy land again averages the
+# base yield per farmer over a full season and climate cycle.
+
+_HARVEST_NORMAL_CACHE: dict[int, float] = {}
+
+
+def _healthy_ecology_mod(class_idx: int) -> float:
+    """Ecology factor of each class on its reference healthy land."""
+    if class_idx == 0:  # Crop: default farmland (plains) soil x water
+        ref = TERRAIN_ECOLOGY_DEFAULTS["plains"]
+        return ref.soil * ref.water
+    if class_idx == 1:  # Forestry: default woodland cover
+        return TERRAIN_ECOLOGY_DEFAULTS["forest"].forest_cover
+    return 1.0  # Marine, mineral and evaporite yields have no ecology factor
+
+
+def harvest_normal_index(rtype: int) -> float:
+    """Long-run mean of the M34 harvest index per unit base yield, healthy land.
+
+    Annual mean of ``SEASON_MOD[rtype]`` x the climate-cycle mean of the
+    class's ``CLIMATE_CLASS_MOD`` row (weighted by the ``PHASE_SCHEDULE``
+    phase shares) x the class's healthy ecology factor. Derived from the model
+    tables; it has no tuning key.
+    """
+    cached = _HARVEST_NORMAL_CACHE.get(rtype)
+    if cached is not None:
+        return cached
+    from chronicler.climate import PHASE_SCHEDULE
+
+    bounds = [threshold for threshold, _ in PHASE_SCHEDULE] + [1.0]
+    shares = [bounds[i + 1] - bounds[i] for i in range(len(PHASE_SCHEDULE))]
+    class_idx = resource_class_index(rtype)
+    season_mean = sum(SEASON_MOD[rtype]) / len(SEASON_MOD[rtype])
+    phase_mods = [CLIMATE_CLASS_MOD[class_idx][_CLIMATE_PHASE_INDEX[p.value]]
+                  for _, p in PHASE_SCHEDULE]
+    climate_mean = sum(s * m for s, m in zip(shares, phase_mods))
+    value = season_mean * climate_mean * _healthy_ecology_mod(class_idx)
+    _HARVEST_NORMAL_CACHE[rtype] = value
+    return value
+
+
+def goods_per_worker(rtype: int, harvest_index: float) -> float:
+    """Convert an M34 harvest index into goods per farmer-turn (economy units)."""
+    if rtype == EMPTY_SLOT or harvest_index <= 0.0:
+        return harvest_index
+    return harvest_index / harvest_normal_index(int(rtype))
+
+
 def potential_capacity(region: Region) -> float:
     """Undegraded capacity of the land: carrying capacity x disaster modifier.
 
@@ -444,10 +504,15 @@ def _pressure_multiplier(region: Region) -> float:
 
 
 def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState, degradation_mult: float = 1.0) -> None:
-    eff = effective_capacity(region)
-
-    # Degradation: overpopulation
-    if region.population > eff:
+    # Degradation: overpopulation of the undegraded land. Correction
+    # (2026-10, food balance): this compared population with
+    # ``effective_capacity``, which already contains the degraded soil and the
+    # drought-depressed water, so any dip (one drought) started a ratchet:
+    # lower soil lowered the threshold, the region degraded further and soil
+    # never recovered while population stayed above 0.75 x potential. The
+    # recovery gate already uses potential capacity (2026-10 extinction fix);
+    # degradation now uses the same reference.
+    if region.population > potential_capacity(region):
         rate = get_override(world, K_SOIL_DEGRADATION, 0.005) * degradation_mult
         region.ecology.soil -= rate
 
@@ -496,10 +561,15 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
         if region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
 
-    # Recovery
+    # Recovery: climatic, like the losses. Correction (2026-10, food balance):
+    # temperate recovery used to be scaled by the population pressure
+    # multiplier. Over one climate cycle the drought and cooling losses
+    # (15 x 0.04 + 15 x 0.02 = 0.9) equal the temperate gain (30 x 0.03) only
+    # at multiplier 1, i.e. an empty region, so every populated region lost
+    # water each cycle and a region at capacity (multiplier 0.1) sat at the
+    # floor for good. Population is not a water driver in this model.
     if climate_phase == ClimatePhase.TEMPERATE:
         rate = get_override(world, K_WATER_RECOVERY, 0.03)
-        rate *= _pressure_multiplier(region)
         region.ecology.water += rate
 
     # Irrigation bonus (always, not just temperate, but not during drought)
@@ -730,9 +800,8 @@ def _tick_ecology_python(
         elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
         elif climate_phase == ClimatePhase.TEMPERATE:
-            rate = get_override(world, K_WATER_RECOVERY, 0.03)
-            rate *= _pressure_multiplier(region)
-            region.ecology.water += rate
+            # Climatic recovery, not population-gated (see _tick_water).
+            region.ecology.water += get_override(world, K_WATER_RECOVERY, 0.03)
         # Forest: natural regrowth (water gate applies)
         forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
         water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)

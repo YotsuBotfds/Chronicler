@@ -164,7 +164,7 @@ def _require_supported(world: WorldState, runtime: str) -> None:
         raise CheckpointError("checkpoint requires a completed turn with no pending simulation signals")
     if any(civ.factions.pending_faction_shift for civ in world.civilizations):
         raise CheckpointError("checkpoint requires a completed turn with no pending faction shift")
-    if any(getattr(region, "_stockpile_bootstrap_pending", False) for region in world.regions):
+    if any(region.stockpile_bootstrap_pending for region in world.regions):
         raise CheckpointError("checkpoint requires a completed stockpile bootstrap")
     if getattr(world, "_treasury_tax_carry", None):
         raise CheckpointError("agent-backed treasury carry cannot be checkpointed")

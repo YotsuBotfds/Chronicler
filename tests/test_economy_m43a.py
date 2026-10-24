@@ -411,16 +411,31 @@ def test_settle_pending_stockpile_bootstraps_waits_for_population():
         controller="Civ A",
     )
     region.resource_types[0] = 3  # fish
-    region._stockpile_bootstrap_pending = True
+    region.stockpile_bootstrap_pending = True
 
     assert settle_pending_stockpile_bootstraps([region]) == 0
-    assert getattr(region, "_stockpile_bootstrap_pending", False) is True
+    assert region.stockpile_bootstrap_pending is True
     assert region.stockpile.goods == {}
 
     region.population = 22
     assert settle_pending_stockpile_bootstraps([region]) == 1
-    assert getattr(region, "_stockpile_bootstrap_pending", False) is False
+    assert region.stockpile_bootstrap_pending is None
     assert region.stockpile.goods["fish"] == INITIAL_BUFFER * 22
+
+
+def test_pending_stockpile_bootstrap_survives_save_and_load():
+    region = Region(name="Frontier", terrain="coast", carrying_capacity=60,
+                    population=0, resources="maritime", controller="Civ A")
+    assert "stockpile_bootstrap_pending" not in region.model_dump()
+    region.resource_types[0] = 3  # fish
+    region.stockpile_bootstrap_pending = True
+
+    loaded = Region.model_validate_json(region.model_dump_json())
+    assert loaded.stockpile_bootstrap_pending is True
+    loaded.population = 22
+    assert settle_pending_stockpile_bootstraps([loaded]) == 1
+    assert loaded.stockpile.goods["fish"] == INITIAL_BUFFER * 22
+    assert "stockpile_bootstrap_pending" not in loaded.model_dump()
 
 
 # --- Task 11: Conquest Stockpile Destruction ---
@@ -641,15 +656,19 @@ def test_food_sufficiency_backward_compat_full_path():
     from unittest.mock import MagicMock
     import numpy as np
     import pyarrow as pa
+    from chronicler.ecology import harvest_normal_index
     from chronicler.economy import compute_economy, PER_CAPITA_FOOD
     from chronicler.models import Region, RegionStockpile
 
     pop = 20
     food_demand = pop * PER_CAPITA_FOOD
+    # The harvest index whose goods yield (index / long-run normal) feeds one
+    # person per farmer exactly.
+    index = food_demand / pop * harvest_normal_index(0)
     region = Region(name="Valley", terrain="plains", carrying_capacity=50, resources="fertile",
                     controller="Aram", resource_types=[0, 255, 255],
                     resource_base_yields=[food_demand / pop, 0.0, 0.0],
-                    resource_effective_yields=[food_demand / pop, 0.0, 0.0], resource_current_yields=[food_demand / pop, 0.0, 0.0])
+                    resource_effective_yields=[food_demand / pop, 0.0, 0.0], resource_current_yields=[index, 0.0, 0.0])
     region.stockpile = RegionStockpile(goods={})
     civ = MagicMock()
     civ.name = "Aram"
