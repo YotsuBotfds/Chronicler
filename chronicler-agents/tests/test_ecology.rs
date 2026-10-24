@@ -1069,14 +1069,16 @@ fn test_soil_degradation_mult_from_streak() {
     // Region with streak at the limit — soil_mult should be 2.0
     let mut r_at_limit = make_plains(0);
     r_at_limit.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
-    r_at_limit.population = 55; // Above eff_cap to trigger degradation
+    // Above potential capacity (60) to trigger degradation; since the 2026-10
+    // food-balance correction the effective capacity (48) no longer suffices.
+    r_at_limit.population = 65;
     r_at_limit.soil_pressure_streak = 30; // At limit
     r_at_limit.soil = 0.80;
 
     // Region with streak below limit — soil_mult should be 1.0
     let mut r_below = make_plains(1);
     r_below.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
-    r_below.population = 55;
+    r_below.population = 65;
     r_below.soil_pressure_streak = 10;
     r_below.soil = 0.80;
 

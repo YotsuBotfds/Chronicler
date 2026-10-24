@@ -174,10 +174,9 @@ def tick_soil(
     degradation_mult: float = 1.0,
 ) -> float:
     """Apply one tick of soil dynamics. Returns new soil value."""
-    eff = effective_capacity(carrying_capacity, soil, water, capacity_modifier)
-
-    # Degradation: overpopulation
-    if population > eff:
+    # Degradation: overpopulation of the undegraded potential (2026-10 food
+    # balance; it compared with the degraded effective capacity, a ratchet).
+    if population > max(1.0, carrying_capacity * capacity_modifier):
         soil -= SOIL_DEGRADATION * degradation_mult
 
     # Degradation: active mines

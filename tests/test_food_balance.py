@@ -1,18 +1,21 @@
 """Food-balance corrections (2026-10): see docs/integration/food-balance-2026-10.md.
 
 Each test pins one correction: aggregate migration is a no-op for agent-owned
-populations.
+populations, and soil degrades against potential capacity.
 """
 from __future__ import annotations
 
 import pytest
 
 from chronicler.climate import process_migration
+from chronicler.ecology import _tick_soil, potential_capacity
 from chronicler.models import (
     Civilization,
+    ClimatePhase,
     Disposition,
     Leader,
     Region,
+    RegionEcology,
     Relationship,
     WorldState,
 )
@@ -62,3 +65,31 @@ def test_overflow_migration_still_moves_python_owned_populations(mode):
     assert [e.event_type for e in events] == ["migration"]
     assert world.regions[0].population < 40
     assert world.regions[1].population > 30
+
+
+# --- soil ---------------------------------------------------------------------
+
+def _plains(population: int, soil: float, water: float = 0.6) -> Region:
+    return Region(name="P", terrain="plains", carrying_capacity=80, resources="fertile",
+                  controller="Rome", population=population,
+                  ecology=RegionEcology(soil=soil, water=water, forest_cover=0.2))
+
+
+def _world_with(region: Region) -> WorldState:
+    return WorldState(name="T", seed=1, regions=[region], civilizations=[_civ("Rome", ["P"])])
+
+
+def test_degraded_soil_below_potential_capacity_does_not_degrade_further():
+    # Effective capacity 80 x 0.5 x 1.0 = 40 < 70 people < potential 80.
+    region = _plains(population=70, soil=0.5)
+    world = _world_with(region)
+    _tick_soil(region, world.civilizations[0], ClimatePhase.TEMPERATE, world)
+    assert region.ecology.soil == pytest.approx(0.5)
+
+
+def test_soil_degrades_above_potential_capacity():
+    region = _plains(population=90, soil=0.9)
+    world = _world_with(region)
+    assert region.population > potential_capacity(region)
+    _tick_soil(region, world.civilizations[0], ClimatePhase.TEMPERATE, world)
+    assert region.ecology.soil == pytest.approx(0.9 - 0.005)

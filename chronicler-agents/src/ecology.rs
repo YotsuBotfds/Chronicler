@@ -471,10 +471,13 @@ fn tick_soil_controlled(
     config: &EcologyConfig,
     degradation_mult: f32,
 ) {
-    let eff = effective_capacity(region, config);
-
-    // Degradation: overpopulation
-    if region.population > eff {
+    // Degradation: overpopulation of the undegraded land. Correction (2026-10,
+    // food balance): this compared population with the *effective* capacity,
+    // which already contains the degraded soil and drought-depressed water, so
+    // one dip started a ratchet (lower soil -> lower threshold -> further
+    // degradation, no recovery above 0.75 x potential). Mirrors Python
+    // ecology._tick_soil; recovery already uses potential capacity.
+    if region.population as f32 > potential_capacity(region) {
         region.soil -= config.soil_degradation * degradation_mult;
     }
 
@@ -962,6 +965,23 @@ mod tests {
         tick_soil_controlled(&mut r, &config, 1.0);
         assert!(r.soil > before, "soil should recover: {} -> {}", before, r.soil);
         assert!(pressure_multiplier(&r, &config) > 0.5);
+    }
+
+    #[test]
+    fn test_degraded_soil_below_potential_capacity_does_not_degrade() {
+        // Food-balance correction: degradation compares population with the
+        // undegraded potential, so a dip in soil cannot start a ratchet.
+        let config = EcologyConfig::default();
+        let mut r = make_plains_region(0);
+        r.soil = 0.5;
+        r.water = 0.6;
+        r.population = 55; // effective capacity 30 < 55 < potential 60; above 0.75 x 60
+        assert!(r.population > effective_capacity(&r, &config));
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert_eq!(r.soil, 0.5);
+        r.population = 61; // above potential: overpopulated
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert!((r.soil - (0.5 - config.soil_degradation)).abs() < 1e-6);
     }
 
     #[test]

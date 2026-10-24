@@ -444,10 +444,15 @@ def _pressure_multiplier(region: Region) -> float:
 
 
 def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldState, degradation_mult: float = 1.0) -> None:
-    eff = effective_capacity(region)
-
-    # Degradation: overpopulation
-    if region.population > eff:
+    # Degradation: overpopulation of the undegraded land. Correction
+    # (2026-10, food balance): this compared population with
+    # ``effective_capacity``, which already contains the degraded soil and the
+    # drought-depressed water, so any dip (one drought) started a ratchet:
+    # lower soil lowered the threshold, the region degraded further and soil
+    # never recovered while population stayed above 0.75 x potential. The
+    # recovery gate already uses potential capacity (2026-10 extinction fix);
+    # degradation now uses the same reference.
+    if region.population > potential_capacity(region):
         rate = get_override(world, K_SOIL_DEGRADATION, 0.005) * degradation_mult
         region.ecology.soil -= rate
 
