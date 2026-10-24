@@ -851,10 +851,13 @@ def test_hybrid_merchants_cross_sea_lanes_and_are_raided_deterministically(tmp_p
     for kind in ("ocean", "sea", "coast"):
         monkeypatch.setitem(M.PIRATE_START, kind, 1.0)
     states = []
+    # 60 turns (was 40): with the 2026-10 food-logistics corrections food only
+    # travels where it is dearer and foodless regions forage, so this world's
+    # first merchant sea crossing comes after turn 40 (12 by turn 60).
     for label in ("a", "b"):
         out = tmp_path / label
         args = _build_parser().parse_args([
-            "--seed", "7", "--turns", "40", "--regions", "48", "--civs", "10",
+            "--seed", "7", "--turns", "60", "--regions", "48", "--civs", "10",
             "--worldgen", "procedural", "--agents", "hybrid", "--simulate-only", "--maritime",
             "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
         execute_run(args)

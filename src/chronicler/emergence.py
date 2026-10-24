@@ -874,6 +874,18 @@ def _apply_transition(region: Region, rule) -> None:
 # M35b: Environmental Events (condition-triggered)
 # ---------------------------------------------------------------------------
 
+# Recalibration (2026-10, food logistics): chance of a swarm per eligible
+# turn. M35b set 0.15 as a placeholder with no calibration rationale; with the
+# 12-turn year (M34, the same day) a grain region is eligible six turns a
+# year, so 0.15 gave 0.71 swarms per eligible region-year: a swarm in 62% of
+# them, each taking 2-3 months of crop, about a fifth of the annual grain in
+# every eligible region every year (hybrid template worlds). Desert-locust
+# plagues are episodic, multi-year events separated by recessions of years
+# (FAO), and even a major upsurge (2003-05) left Sahel output within its
+# five-year range. 0.02 gives a swarm in about 11% of eligible region-years.
+LOCUST_PROBABILITY = 0.02
+
+
 def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
     """Locust swarm: plains/desert, summer/autumn, has Grain, soil > 0.4."""
     from chronicler.resources import get_season_id
@@ -886,7 +898,7 @@ def _check_locust(region: Region, world: WorldState, rng) -> Event | None:
         return None
     if region.ecology.soil <= 0.4:
         return None
-    prob = get_override(world, K_LOCUST_PROBABILITY, 0.15)
+    prob = get_override(world, K_LOCUST_PROBABILITY, LOCUST_PROBABILITY)
     if rng.random() >= prob:
         return None
     duration = rng.randint(2, 3)

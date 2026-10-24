@@ -1191,6 +1191,11 @@ class WorldState(BaseModel):
     # Causal provenance: per-turn id counters and observation cursor
     # (chronicler.provenance.TurnIds; equality-neutral, never serialized).
     _provenance_turn: object | None = PrivateAttr(default=None)
+    # In-world historiography (chronicler.historiography.HistoriographySlot;
+    # None = off). Observational: never read by the simulation, never in
+    # model_dump (state.json keeps its bytes); save/load carry it in a
+    # ``<state>.historiography.json`` sidecar. Equality-neutral.
+    _historiography: object | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
@@ -1259,13 +1264,19 @@ class WorldState(BaseModel):
         if not parent_is_dir:
             parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        # The chronicles travel beside the state (removed while off).
+        from chronicler.historiography import save_sidecar
+        save_sidecar(self, path)
 
     @classmethod
     def load(cls, path: Path) -> WorldState:
-        """Load world state from a JSON file."""
+        """Load world state from a JSON file (and its historiography sidecar, if any)."""
         if not path.exists():
             raise FileNotFoundError(f"No state file at {path}")
-        return cls.model_validate_json(path.read_text(encoding="utf-8"))
+        world = cls.model_validate_json(path.read_text(encoding="utf-8"))
+        from chronicler.historiography import load_sidecar
+        load_sidecar(world, path)
+        return world
 
 
 # --- Snapshot models (for viewer bundle — never persisted to state.json) ---
@@ -1502,7 +1513,10 @@ class ChronicleEntry(BaseModel):
     causal_links: list[CausalLink]
     # Recorded causal chains (root first); omitted while empty.
     causal_chains: list[CausalChain] = Field(default_factory=list)
+    # In-world accounts the narration drew on (ids in the bundle's
+    # ``historiography.accounts``); omitted while empty.
+    accounts: list[str] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_empty_chains(self, handler):
-        return _omit_empty_fields(handler(self), (("causal_chains", []),))
+        return _omit_empty_fields(handler(self), (("causal_chains", []), ("accounts", [])))

@@ -26,9 +26,15 @@ def _run(enabled, treasury):
 # aid, at turns 10 and 14. A treasury of 1 pays for exactly the first send, so
 # the reactivation is blocked by funding alone. (Before: sends at 4 and 5,
 # treasury 2, reactivation at turn 14.)
+# Since the 2026-10 food-logistics correction merchants carry food to the
+# stressed Mine (food goes where it is dearer, not by export margin), so its
+# fresh stress starts a turn earlier and aid reactivates at turn 9 (was 10).
+# In the funded run that convoy leaves the Mine at 0.44 sufficiency, still
+# stressed, so aid sends again at turn 10 before the next reactivation at 14.
 FIRST_SEND = 4
-REACTIVATED = 10
+REACTIVATED = 9
 SECOND_REACTIVATION = 14
+FUNDED_SENDS = [FIRST_SEND, REACTIVATED, REACTIVATED + 1, SECOND_REACTIVATION]
 
 
 @pytest.mark.native
@@ -87,7 +93,7 @@ def test_multiturn_recovery_blocks_funded_aid_then_reactivation():
         for key in ("stocks_before", "stocks_after_aid", "native_commitments",
                     "sufficiency", "agent_snapshot", "delivery_diagnostics"):
             assert funded[key] == limited[key]
-    assert [r["turn"] for r in rows if r["transfers"]] == [FIRST_SEND, REACTIVATED, SECOND_REACTIVATION]
+    assert [r["turn"] for r in rows if r["transfers"]] == FUNDED_SENDS
     assert all(r["treasury_before"] > 0 and not r["transfers"] for r in rows[FIRST_SEND + 1:REACTIVATED])
     assert rows[FIRST_SEND]["memory_after"]["Mine"]["stress_streak"] == 0
     assert rows[REACTIVATED]["prior_memory"]["Mine"]["stress_streak"] == 3

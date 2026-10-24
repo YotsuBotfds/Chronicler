@@ -124,16 +124,26 @@ def conservation_error(initial_stock, world, result):
 
 
 def harvest_by_region(world, snapshot):
+    from chronicler import economy as _economy
     from chronicler.economy import PER_CAPITA_FOOD
 
     rows = snapshot.to_pylist()
-    return {
-        r.name: compute_allocated_production(
-            r.resource_types, [economy_yield(world, r, slot) for slot in range(3)],
+
+    def harvest(i, r):
+        yields = [economy_yield(world, r, slot) for slot in range(3)]
+        extra = {}
+        # Food-logistics correction (2026-10): farmers forage when no food
+        # slot yields. Sources without the subsistence floor keep the old call.
+        if hasattr(_economy, "region_subsistence_yield"):
+            extra["subsistence_yield"] = _economy.region_subsistence_yield(world, r, yields)
+        return compute_allocated_production(
+            r.resource_types, yields,
             sum(a["region"] == i and a["occupation"] == 0 for a in rows),
             food_demand=sum(a["region"] == i for a in rows) * PER_CAPITA_FOOD,
-        ) for i, r in enumerate(world.regions)
-    }
+            **extra,
+        )
+
+    return {r.name: harvest(i, r) for i, r in enumerate(world.regions)}
 
 
 def run_phase(world, phase, route_open, *, backend="python", sim=None, snapshot=None):

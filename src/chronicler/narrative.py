@@ -924,7 +924,8 @@ def render_chain_line(chain: CausalChain) -> str:
     )
 
 
-def _entry_for(moment: NarrativeMoment, narrative: str) -> ChronicleEntry:
+def _entry_for(moment: NarrativeMoment, narrative: str,
+               accounts: list[str] | None = None) -> ChronicleEntry:
     return ChronicleEntry(
         turn=moment.anchor_turn,
         covers_turns=moment.turn_range,
@@ -935,18 +936,32 @@ def _entry_for(moment: NarrativeMoment, narrative: str) -> ChronicleEntry:
         narrative_role=moment.narrative_role,
         causal_links=list(moment.causal_links),
         causal_chains=list(moment.causal_chains),
+        accounts=list(accounts or []),
     )
 
 
-def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None) -> str:
+def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
+                         accounts=None) -> str:
     """No-LLM chronicle text for a moment: its event descriptions, then the
-    recorded causal chains behind them ("... because ...")."""
+    recorded causal chains behind them ("... because ..."), then, with an
+    ``accounts`` index (``historiography.AccountIndex``), how the world's own
+    chroniclers tell it ("In their own words: As the X chronicles tell it ...")."""
     descriptions = [e.description for e in moment.events if e.description]
     text = "; ".join(descriptions) if descriptions else "Events unfolded."
     because = [s for s in (render_because(c, told) for c in moment.causal_chains) if s]
     if because:
         text += "\n\n" + " ".join(because)
+    if accounts:
+        passage, _ids = accounts.passage(moment.events)
+        if passage:
+            text += "\n\n" + passage
     return text
+
+
+def _moment_account_ids(moment: NarrativeMoment, accounts) -> list[str]:
+    if not accounts:
+        return []
+    return accounts.passage(moment.events)[1]
 
 
 class NarrativeEngine:
@@ -1004,6 +1019,8 @@ class NarrativeEngine:
         displacement_by_region: dict[int, float] | None = None,
         # M39: Dynasty registry for lineage narration
         dynasty_registry=None,
+        # In-world accounts (historiography.AccountIndex); None = not used
+        historiography=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -1011,9 +1028,13 @@ class NarrativeEngine:
         Falls back to sequential for local/Gemini clients.
         Per-moment fallback on LLM failure (mechanical summary, batch continues).
         Progress: on_progress(completed, total, eta_seconds).
+        With ``historiography`` the prompts gain an IN-WORLD ACCOUNTS block and
+        the mechanical chronicle an "In their own words" passage; entries list
+        the account ids they drew on.
         """
         # M52: Store world for artifact context
         self._world = world
+        self._accounts = historiography if historiography else None
 
         # Build prompts and context for all moments up front
         prepared = self._prepare_narration_prompts(
@@ -1110,6 +1131,12 @@ class NarrativeEngine:
                 causal_text += "\n\nCONSEQUENCES flowing from this moment:\n"
                 for c in consequences:
                     causal_text += f"- {c}\n"
+
+            account_ids: list[str] = []
+            accounts_index = getattr(self, "_accounts", None)
+            if accounts_index:
+                accounts_text, account_ids = accounts_index.prompt_block(moment.events)
+                causal_text += accounts_text
 
             context_text = ""
             if before_summary:
@@ -1217,11 +1244,14 @@ EVENTS:{event_text}{named_text}{causal_text}{context_text}{agent_context_text}{a
 Write 3-5 paragraphs of chronicle prose for this moment.
 Respond only with the chronicle prose. No preamble, no markdown formatting."""
 
-            result.append({
+            prepared = {
                 "prompt": prompt,
                 "system": system,
                 "agent_ctx": agent_ctx,
-            })
+            }
+            if account_ids:
+                prepared["account_ids"] = account_ids
+            result.append(prepared)
 
         return result
 
@@ -1232,8 +1262,16 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
     ) -> list[ChronicleEntry]:
         entries: list[ChronicleEntry] = []
         told: set[str] = set()  # chain steps already narrated, in chronicle order
+        accounts = getattr(self, "_accounts", None)
+        noted: set[str] = set()  # archive losses already told, in chronicle order
         for idx, moment in enumerate(moments):
-            entries.append(_entry_for(moment, mechanical_narrative(moment, told)))
+            text = mechanical_narrative(moment, told)
+            ids: list[str] = []
+            if accounts:
+                passage, ids = accounts.passage(moment.events, noted=noted)
+                if passage:
+                    text += "\n\n" + passage
+            entries.append(_entry_for(moment, text, ids))
             if on_progress is not None:
                 on_progress(idx + 1, len(moments), None)
         return entries
@@ -1253,11 +1291,14 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         results = self.narrative_client.batch_complete(requests)
 
         entries: list[ChronicleEntry] = []
+        accounts = getattr(self, "_accounts", None)
         for idx, (moment, narrative) in enumerate(zip(moments, results)):
+            account_ids = prepared[idx].get("account_ids", [])
             if narrative is None:
-                narrative = mechanical_narrative(moment)
+                narrative = mechanical_narrative(moment, accounts=accounts)
+                account_ids = _moment_account_ids(moment, accounts)
 
-            entries.append(_entry_for(moment, narrative))
+            entries.append(_entry_for(moment, narrative, account_ids))
 
             if on_progress is not None:
                 on_progress(idx + 1, len(moments), None)
@@ -1288,6 +1329,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 prompt += f"\n\nPREVIOUS ENTRY (for style continuity):\n...{excerpt}"
 
             # Call LLM with fallback
+            account_ids = prep.get("account_ids", [])
             try:
                 narrative = self.narrative_client.complete(
                     prompt, max_tokens=1000, system=system
@@ -1297,11 +1339,13 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
-                narrative = mechanical_narrative(moment)
+                accounts = getattr(self, "_accounts", None)
+                narrative = mechanical_narrative(moment, accounts=accounts)
+                account_ids = _moment_account_ids(moment, accounts)
 
             previous_prose = narrative
 
-            entry = _entry_for(moment, narrative)
+            entry = _entry_for(moment, narrative, account_ids)
             entries.append(entry)
 
             # Progress callback with ETA

@@ -181,6 +181,9 @@ pub struct EconomyRegionInput {
     /// A capped slot keeps its labor share; spare labor is not reassigned.
     pub production_caps: [Option<f32>; 3],
     pub stockpile: [f32; NUM_GOODS],
+    /// Goods per farmer from foraging this turn (M34's subsistence baseline
+    /// in goods; see `allocate_farm_labor`). 0.0 disables foraging.
+    pub subsistence_yield: f32,
 }
 
 /// Derived per-region agent counts (computed inside Rust from pool).
@@ -468,6 +471,109 @@ pub fn food_first_slot_labor(
     labor
 }
 
+/// Farmer labor per resource slot and on foraging.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FarmLabor {
+    /// Labor on each resource slot (as `food_first_slot_labor`).
+    pub slot_labor: [f32; 3],
+    /// Labor that forages, producing `forage_yield` grain per farmer.
+    pub forage_labor: f32,
+    /// Foraged grain per farmer this turn (0 when nobody forages).
+    pub forage_yield: f32,
+}
+
+/// Correction (2026-10, food logistics): M34's subsistence baseline in the
+/// goods economy.
+///
+/// The aggregate model's famine check gives a region whose food slots yield
+/// nothing (no food slot at all, or every food slot suspended) a food yield
+/// of `SUBSISTENCE_BASELINE x crop climate` ("mountain villages survived on
+/// terrace agriculture and herding; forest communities foraged", M34). Since
+/// PR #11 the goods economy decides famine in agent modes, and it had no
+/// counterpart: such regions produced no food at all. Here the farmers who
+/// would work food land forage instead, at `subsistence_yield` goods each
+/// (Python passes the baseline converted to goods on the grain scale).
+///
+/// * Some food slot yields: unchanged (`food_first_slot_labor`).
+/// * Food slots exist but none yields (suspended): their labor forages.
+/// * No food slot: foraging is one more food share in the food-first split,
+///   and every non-food slot keeps `FOOD_FIRST_NONFOOD_FLOOR` of its equal
+///   share. Without any valid slot every farmer forages.
+///
+/// Mirrors Python `economy.farm_labor`.
+pub fn allocate_farm_labor(
+    resource_types: &[u8; 3],
+    resource_yields: &[f32; 3],
+    farmers: f32,
+    food_demand: f32,
+    subsistence_yield: f32,
+) -> FarmLabor {
+    let mut n_valid = 0usize;
+    let mut n_food = 0usize;
+    let mut food_output = false;
+    for i in 0..3 {
+        let slot = rt_to_slot(resource_types[i]);
+        if slot >= NUM_GOODS {
+            continue;
+        }
+        n_valid += 1;
+        if slot_to_category(slot) == CAT_FOOD {
+            n_food += 1;
+            food_output |= resource_yields[i] > 0.0;
+        }
+    }
+    let forage_yield = if food_output { 0.0 } else { subsistence_yield.max(0.0) };
+    if forage_yield <= 0.0 || farmers <= 0.0 {
+        let equal_share = farmers / n_valid.max(1) as f32;
+        return FarmLabor {
+            slot_labor: food_first_slot_labor(
+                resource_types, resource_yields, farmers, food_demand, equal_share,
+            ),
+            forage_labor: 0.0,
+            forage_yield: 0.0,
+        };
+    }
+    let is_food = |i: usize| {
+        let slot = rt_to_slot(resource_types[i]);
+        slot < NUM_GOODS && slot_to_category(slot) == CAT_FOOD
+    };
+    if n_food > 0 {
+        // Barren food slots: their workers forage, split food-first as if the
+        // slots yielded the subsistence rate.
+        let mut yields = *resource_yields;
+        for i in 0..3 {
+            if is_food(i) {
+                yields[i] = forage_yield;
+            }
+        }
+        let equal_share = farmers / n_valid as f32;
+        let mut slot_labor =
+            food_first_slot_labor(resource_types, &yields, farmers, food_demand, equal_share);
+        let mut forage_labor = 0.0;
+        for i in 0..3 {
+            if is_food(i) {
+                forage_labor += slot_labor[i];
+                slot_labor[i] = 0.0;
+            }
+        }
+        return FarmLabor { slot_labor, forage_labor, forage_yield };
+    }
+    // No food slot: foraging joins the split as one food share.
+    let n_other = n_valid;
+    let equal_share = farmers / (n_other + 1) as f32;
+    let needed = food_demand.max(0.0) / forage_yield;
+    let max_food_labor = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * n_other as f32;
+    let forage_labor = needed.min(max_food_labor).max(equal_share).min(farmers);
+    let per_other = if n_other > 0 { (farmers - forage_labor).max(0.0) / n_other as f32 } else { 0.0 };
+    let mut slot_labor = [0.0f32; 3];
+    for i in 0..3 {
+        if rt_to_slot(resource_types[i]) < NUM_GOODS {
+            slot_labor[i] = per_other;
+        }
+    }
+    FarmLabor { slot_labor, forage_labor, forage_yield }
+}
+
 /// Compute transport cost for a single route.
 fn compute_transport_cost(
     terrain_a: u8,
@@ -721,18 +827,22 @@ pub fn tick_economy_core(
         // Dormant/zero-yield resources retain their share; invalid/empty slots
         // do not. This preserves seasonal ecology shocks without multiplying
         // every farmer into three full-time producers.
-        let active_slots = inp.resource_types.iter()
-            .filter(|&&rt| rt_to_slot(rt) < NUM_GOODS).count();
-        let labor_per_slot = ac.farmer_count as f32 / active_slots.max(1) as f32;
-        let slot_labor = food_first_slot_labor(
+        let labor = allocate_farm_labor(
             &inp.resource_types,
             &inp.resource_yields,
             ac.farmer_count as f32,
             ac.population as f32 * config.per_capita_food,
-            labor_per_slot,
+            inp.subsistence_yield,
         );
+        let slot_labor = labor.slot_labor;
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
+        if labor.forage_labor > 0.0 {
+            let foraged = labor.forage_labor * labor.forage_yield;
+            per_good_production[SLOT_GRAIN] += foraged;
+            production[CAT_FOOD] += foraged;
+            conservation.production += foraged as f64;
+        }
         for resource_idx in 0..3 {
             let slot = rt_to_slot(inp.resource_types[resource_idx]);
             if slot >= NUM_GOODS { continue; }
@@ -1504,6 +1614,7 @@ mod tests {
             resource_yields: [1.0, 0.0, 0.0],
             production_caps: [None; 3],
             stockpile: [0.0; NUM_GOODS],
+            subsistence_yield: 0.0,
         }];
         let agents = vec![RegionAgentCounts {
             population: 100,
@@ -1521,6 +1632,86 @@ mod tests {
         assert_eq!(out.region_results.len(), 1);
         assert_eq!(out.civ_results.len(), 1);
         assert!((out.conservation.production - 50.0).abs() < 0.01);
+    }
+
+    const ORE_RT: u8 = 5;
+    const PRECIOUS_RT: u8 = 6;
+    const GRAIN_RT: u8 = 0;
+    const FISH_RT: u8 = 3;
+
+    #[test]
+    fn test_farm_labor_without_foraging_is_the_food_first_split() {
+        let types = [GRAIN_RT, ORE_RT, 255];
+        let yields = [1.0, 2.0, 0.0];
+        let labor = allocate_farm_labor(&types, &yields, 40.0, 30.0, 0.36);
+        assert_eq!(labor.slot_labor, food_first_slot_labor(&types, &yields, 40.0, 30.0, 20.0));
+        assert_eq!(labor.forage_labor, 0.0);
+        // A food slot that yields, however little, rules foraging out.
+        let labor = allocate_farm_labor(&types, &[0.01, 2.0, 0.0], 40.0, 30.0, 0.36);
+        assert_eq!(labor.forage_labor, 0.0);
+    }
+
+    #[test]
+    fn test_farm_labor_forages_without_a_food_slot() {
+        // Ore + precious, 30 farmers, 10 agents' demand 5: foraging takes the
+        // food share (10) at least, up to what covers demand.
+        let types = [ORE_RT, PRECIOUS_RT, 255];
+        let labor = allocate_farm_labor(&types, &[1.0, 1.0, 0.0], 30.0, 5.0, 0.25);
+        // needed = 5 / 0.25 = 20; max = 30 - 0.25 * 10 * 2 = 25.
+        assert!((labor.forage_labor - 20.0).abs() < 1e-5);
+        assert!((labor.slot_labor[0] - 5.0).abs() < 1e-5);
+        assert!((labor.slot_labor[1] - 5.0).abs() < 1e-5);
+        assert_eq!(labor.slot_labor[2], 0.0);
+        assert_eq!(labor.forage_yield, 0.25);
+        // High demand: every non-food slot keeps a quarter of its equal share.
+        let labor = allocate_farm_labor(&types, &[1.0, 1.0, 0.0], 30.0, 500.0, 0.25);
+        assert!((labor.forage_labor - 25.0).abs() < 1e-5);
+        assert!((labor.slot_labor[0] - 2.5).abs() < 1e-5);
+        // No valid slot at all: everyone forages.
+        let labor = allocate_farm_labor(&[255; 3], &[0.0; 3], 12.0, 1.0, 0.25);
+        assert_eq!(labor.forage_labor, 12.0);
+        // Labor is conserved.
+        let labor = allocate_farm_labor(&types, &[1.0, 1.0, 0.0], 30.0, 9.0, 0.3);
+        let total: f32 = labor.slot_labor.iter().sum::<f32>() + labor.forage_labor;
+        assert!((total - 30.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_farm_labor_forages_on_barren_food_slots() {
+        // Suspended grain (locusts) and fish: no food slot yields, so the food
+        // labor forages; ore keeps its floor.
+        let types = [GRAIN_RT, FISH_RT, ORE_RT];
+        let labor = allocate_farm_labor(&types, &[0.0, 0.0, 2.0], 30.0, 100.0, 0.3);
+        assert_eq!(labor.slot_labor[0], 0.0);
+        assert_eq!(labor.slot_labor[1], 0.0);
+        assert!((labor.slot_labor[2] - 2.5).abs() < 1e-5);
+        assert!((labor.forage_labor - 27.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_foraged_grain_reaches_the_stockpile_and_conservation() {
+        let config = EconomyConfig::default();
+        let region = EconomyRegionInput {
+            region_id: 0,
+            terrain: 1,
+            storage_population: 20,
+            resource_types: [ORE_RT, 255, 255],
+            resource_yields: [1.0, 0.0, 0.0],
+            production_caps: [None; 3],
+            stockpile: [0.0; NUM_GOODS],
+            subsistence_yield: 0.4,
+        };
+        let agents = vec![RegionAgentCounts {
+            population: 20, farmer_count: 10, soldier_count: 0, merchant_count: 0, wealthy_count: 0,
+        }];
+        let out = tick_economy_core(
+            &[region], &agents, &[], &[0.0], &[0], 1, &[0u8], &config, 1.0, false, None,
+        );
+        // Demand 10; forage labor = min(10 / 0.4, 10 - 0.25 * 5) = 8.75 -> 3.5 grain.
+        let suff = out.region_results[0].food_sufficiency;
+        assert!((suff - 0.35).abs() < 1e-4, "{suff}");
+        assert!((out.conservation.production - (3.5 + 1.25)).abs() < 1e-4);
+        assert!((out.conservation.consumption - 3.5).abs() < 1e-4);
     }
 
     #[test]

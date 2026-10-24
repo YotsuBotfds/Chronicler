@@ -506,6 +506,8 @@ export interface Bundle {
   gap_summaries?: GapSummary[];
   era_reflections: Record<string, string>;
   metadata: BundleMetadata;
+  /** In-world chroniclers' accounts (runs with historiography on; absent otherwise). */
+  historiography?: HistoriographyField;
 }
 
 // --- Live mode types ---
@@ -615,6 +617,66 @@ export interface NewChronicleEntry {
   narrative_role: "inciting" | "escalation" | "climax" | "resolution" | "coda";
   causal_links: CausalLink[];
   causal_chains?: CausalChain[];
+  /** In-world accounts the narration drew on (ids "<chronicler>/<event_id>"). */
+  accounts?: string[];
+}
+
+// --- In-world historiography (optional bundle field; docs/integration/historiography.md) ---
+
+export interface HistoriographyChronicler {
+  id: string; // "court:<civ index>" or "temple:<faith id>"
+  kind: "court" | "temple" | string;
+  name: string; // "the Kethani chronicles"
+  civ: number | null;
+  civ_name: string | null;
+  faith: number | null;
+  founded_turn: number;
+  active: boolean;
+  archive: string;
+  accounts: number;
+  surviving: number;
+}
+
+export interface HistoriographyArchiveLoss {
+  turn: number;
+  cause: string; // sack, conquest, collapse, fire, quake, flood, plague, desecration, absorption
+  event_id: string;
+  region: number | null;
+  region_name: string | null;
+  copies: number;
+  lost: number;
+  survived: number;
+}
+
+export interface HistoriographyArchive {
+  id: string;
+  owner: string;
+  region: number | null;
+  region_name: string | null;
+  copies: number;
+  status: "intact" | "damaged" | "lost" | "empty" | string;
+  losses: HistoriographyArchiveLoss[];
+}
+
+/** One row of ``accounts``, in the order named by ``account_columns``. */
+export type HistoriographyAccountRow = unknown[];
+
+export interface HistoriographyContested {
+  event_id: string;
+  divergence: string[]; // silence, lost, outcome, magnitude, blame, divine, ruler
+}
+
+export interface HistoriographyField {
+  version: number;
+  enabled_turn: number;
+  counts: Record<string, number>;
+  chroniclers: HistoriographyChronicler[];
+  archives: HistoriographyArchive[];
+  account_columns: string[];
+  accounts: HistoriographyAccountRow[];
+  /** chronicler id -> event ids it told plainly (no transformation, uncontested). */
+  plain: Record<string, string[]>;
+  contested: HistoriographyContested[];
 }
 
 export interface GapSummary {

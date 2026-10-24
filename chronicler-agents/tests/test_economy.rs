@@ -34,6 +34,7 @@ fn make_region(region_id: u16, rt: u8, yield_0: f32) -> EconomyRegionInput {
         resource_yields: [yield_0, 0.0, 0.0],
         production_caps: [None; 3],
         stockpile: [0.0; NUM_GOODS],
+        subsistence_yield: 0.0,
     }
 }
 

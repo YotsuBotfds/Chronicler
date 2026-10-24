@@ -134,6 +134,9 @@ def test_inventory_alone_changes_price_and_import_demand():
 
 def test_trade_delivers_actual_mixed_inventory_without_phantom_primary_goods():
     world = experiment.make_world()
+    # Barren slots isolate the trade accounting: no foraging either (the
+    # 2026-10 goods-economy subsistence floor would otherwise add grain).
+    world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
     target, donor = world.regions
     # Source primary is ore, but its exportable FOOD is fish + salt inventory.
     # A primary-good-only decomposition would erase or fabricate this shipment.
@@ -177,6 +180,8 @@ def test_randomized_slot_and_stock_trade_conservation(seed):
 def test_route_and_surplus_absence_cannot_create_imports():
     for route_open in (False, True):
         world = experiment.make_world()
+        # No harvest and no foraging (2026-10 subsistence floor disabled).
+        world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
         for r in world.regions:
             r.resource_current_yields = [0.0, 0.0, 0.0]
             r.stockpile.goods = {}
@@ -188,17 +193,26 @@ def test_route_and_surplus_absence_cannot_create_imports():
         assert result.inbound_sources == {}
 
 
-@pytest.mark.parametrize("scenario", ["secondary_slots", "mixed_inventory", "mineral_exhaustion"])
+@pytest.mark.parametrize("scenario", ["secondary_slots", "mixed_inventory", "mineral_exhaustion",
+                                      "foraging"])
 def test_native_multislot_and_mixed_stock_trade_parity(scenario):
     _native_available()
     world = experiment.make_world()
     target, donor = world.regions
-    if scenario == "secondary_slots":
+    if scenario == "foraging":
+        # 2026-10 subsistence floor: a region with no food slot forages grain,
+        # identically in the Rust kernel and the Python oracle.
+        target.resource_types = [5, 255, 255]
+        target.resource_base_yields = [1.0, 0.0, 0.0]
+        target.stockpile.goods = {}
+    elif scenario == "secondary_slots":
         target.resource_types = [255, 4, 6]
         target.resource_base_yields = [0.0, 2.0, 3.0]
         donor.resource_types = [5, 3, 4]
         donor.resource_base_yields = [0.6, 4.0, 0.4]
     elif scenario == "mixed_inventory":
+        # Barren slots and no foraging isolate the traded inventory mix.
+        world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
         target.resource_base_yields = [0.0, 0.0, 0.0]
         donor.resource_types = [5, 255, 255]
         donor.resource_base_yields = [0.0, 0.0, 0.0]
@@ -216,6 +230,10 @@ def test_native_multislot_and_mixed_stock_trade_parity(scenario):
         assert report["regions"][target.name]["delivered_imports"]["food"] > 0
         assert report["regions"][target.name]["stocks_after"]["grain"] == 0
         assert report["regions"][target.name]["stocks_after"]["ore"] == 0
+    if scenario == "foraging":
+        harvest = report["regions"][target.name]["expected_harvest_by_good"]
+        assert harvest["grain"] > 0 and harvest["ore"] > 0
+        assert report["regions"][target.name]["food_sufficiency"] > 0
 
 
 def test_native_hybrid_cold_start_does_not_fall_back_to_abstract_imports():

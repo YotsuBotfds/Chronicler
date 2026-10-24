@@ -42,9 +42,14 @@ POSIX advisory locks, nonblocking file reads, atomic replace and directory fsync
 they explicitly reject unsupported Windows persistence. Their suites belong in
 the POSIX lane, not in the bounded Windows selection.
 
-The guarded runner writes its selected node IDs, interpreter, source-file hashes,
-guard receipt, exit status and output under ignored `output/python-oracle/`.
-It excludes the two cross-process determinism/replay cases and broader
+The guarded runner splits its selection into chunks (`CHUNKS` in the script).
+Each chunk is a separate pytest process with its own offline guard and a
+110-second limit; the runner stops at the first failing chunk. It writes the
+interpreter, source-file hashes and, per chunk, the command, guard receipt,
+exit status, seconds and output under ignored `output/python-oracle/`.
+`--list` prints the selected node IDs. When a chunk nears its limit, move files
+to another chunk or add one rather than raising the limit. The runner excludes
+the two cross-process determinism/replay cases and broader
 native/socket/POSIX/subprocess suites. It is a reproducible focused gate, not
 the full suite or the scientific milestone gate.
 

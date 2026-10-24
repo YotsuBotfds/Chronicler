@@ -2,9 +2,214 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-5`: techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Food logistics (2026-10-24, `fix/food-logistics`)
+
+Branch `fix/food-logistics` from `integrate/wave-5` (`b7d9ced`), starting from
+the food-balance open items. Details, numbers and every changed expectation:
+[`docs/integration/food-logistics-2026-10.md`](../../integration/food-logistics-2026-10.md).
+
+- **Corrections** (one commit each):
+  - merchants route food by the destination's food price (1 / sufficiency)
+    instead of the destination's own export margin, and never to empty
+    regions (`787ba4e`; native): food deliveries to short regions 30% -> 70%,
+    to empty regions 24% -> 2% (template);
+  - the goods economy gets M34's subsistence floor where no food slot yields
+    (`afe3b3d`; Rust kernel and Python oracle): region-turns below 0.2
+    sufficiency 25% -> 13%.
+- **Recalibration** (own commit, `98ba9a2`): locust swarms 0.15 -> 0.02 per
+  eligible turn (the M35b placeholder gave a swarm in 62% of eligible
+  region-years). Golden oracles rolled forward to
+  `corrected_food_logistics_2026_10*` (`402230e`; standard and wide from turn
+  3); food-balance and dead-civ-pruning fixtures frozen.
+- **Effect** (template, base -> head): fed region-turns 44.6% -> 49.6%, winter
+  shortfall 67% -> 61%, famines 147 -> 137 per run (below 0.25 sufficiency
+  43% -> 32% of them), final population 164 -> 184 (smallest 90 -> 138);
+  procedural 64-region worlds never fall below 625 (492).
+- **Gates:** full 200 x 500 on `98ba9a2` PASS strict, 0 extinct,
+  `validation_compare` NO REGRESSION against the techniques-on full report;
+  migration 0.0514 (base 0.0512, floor 0.05), latest satisfaction 0.611.
+  Repeated on the merge with `integrate/wave-6` (`eda0ec0`): same result and
+  numbers; needs 190 seeds under wave-6's autonomy pairing. Subsets 42-61,
+  62-81 and 82-101 PASS (the base fails needs on 62-81).
+- **Tests:** before the merge not-slow 5,859 passed (base 5,844), no-Rust
+  5,651 / 197 skipped (base 5,637 / 196); `cargo test --release` 903 passed,
+  2 ignored. On `eda0ec0`: not-slow 5,905 passed, no-Rust 5,696 / 198
+  skipped, slow 11 passed; offline oracle lane PASS in 74 s (chunks 19-21 s
+  of 110 s; `test_food_logistics.py` added to `systems-1`); the
+  historiography frozen-oracle test reads the food-logistics fixtures. The
+  500-turn bundle is 17.47MB native / 18.07MB no-Rust (20.73 / 23.61 on the
+  wave-6 tip; 24MB guard unchanged).
+- **Verified, not changed:** storage caps (rarely bind) and decay;
+  drought/cooling (M34 design); the occupational dead band is real (M53 moved
+  the exit threshold, not the entry one) and its fix feeds worlds best of all,
+  but it lowers migration by about 0.006 per agent-turn, below the strict
+  floor; left open with the measured patch.
+- **Open:** the migration floor versus better-fed worlds; trade packets still
+  carry export margins (food price read live at known markets); non-food
+  routing keeps the activity proxy; the famine definition (any shortfall).
+
+## Needs oracle: autonomy without prior rebels (2026-10-24, `fix/needs-oracle-confound`)
+
+`fix/needs-oracle-confound` from `integrate/wave-6` (`439f0c5`), merged
+with `main` (PR #19's guard fix) without rebase. Oracle and test-runner
+changes only; the simulation and Rust are unchanged. Details:
+`docs/integration/needs-oracle-autonomy.md`.
+
+- **Confound:** a rebellion adds 0.10 to the rebel's autonomy
+  (`tick.rs` apply step), so high autonomy marks past rebels, who rebel
+  again. One rebellion still reads +0.035 after 20-29 turns, a burst
+  +0.07 to +0.11 after 20-34; without restoration it does not decay.
+- **Fix:** the autonomy -> rebellion pairing leaves out agents with a
+  rebellion on or before the snapshot turn. Other pairings, the window
+  and the thresholds are unchanged; `exclude_prior_rebels=False`
+  reproduces the old result.
+- **Subset gates (before / after, same batches):** needs seeds 17/15,
+  11/9, 18/15, 18/15 on 42-61, 62-81, 82-101, 102-121; gates PASS except
+  62-81 (FAIL before and after); comparator NO REGRESSION on all four;
+  every other oracle identical. Pooled autonomy low/high over the 80
+  worlds: 1.00 (0.91-1.09) before, 1.29 (0.82-2.15) after.
+- **Finding:** among agents without prior rebellions, 2 of 629 autonomy
+  pairs have the low agent under 0.25, the only range where autonomy adds
+  rebel pressure. The pairing rarely tests the mechanism.
+- **500-turn probe (142-161, not the full gate):** needs 20/20 before
+  and after, median d 1.03 -> 2.00; pooled autonomy 1.02 -> 1.04.
+- **Offline lane:** four chunks, each its own guarded pytest process with
+  the 110-second limit; stops at the first failing chunk. Same selection
+  and totals (1,895 passed, 10 skipped, 2 deselected); 75.8 s wall, the
+  largest chunk 21.8 s; every guard PASS.
+- **Tests (Linux, Python 3.13):** `pytest -m "not slow" -n 2` 5,890
+  passed, 3 skipped (three new); `-m slow` 11 passed, 3 skipped; no-Rust
+  5,690 passed, 203 skipped. Rust unchanged.
+- **Open:** the per-seed needs test has little power for autonomy (a
+  calibration for the needs owners); 62-81 still fails subset needs; the
+  200 x 500 full gate has not been run with this oracle.
+
+## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)
+
+`fix/agenda-preaching` from `integrate/wave-5` (`b1b3f2d`), merged with
+`b7d9ced` (techniques on by default; the identity and gate base) and then
+with `integrate/wave-6` (`59e6898`, historiography). Both merges are without
+rebase. Only `src/chronicler/gp_agendas.py` changes; no Rust. Details:
+`docs/integration/great-person-agendas.md`, section "The rebellion tail".
+
+- **Mechanism:**
+  - 82% of hybrid agent rebellions with the switch off happen in persecuted
+    regions.
+  - `compute_persecution` writes intensity only for militant rulers and
+    never resets other regions, so intensity is left over after a civ's
+    majority faith leaves a militant faith. That covers 41% of rebellions.
+  - The agent tick applies the intensity to anyone outside the region's
+    majority belief.
+  - Preaching fed this in three ways. It led converts into persecuted
+    regions (28-37 rebels of the preached faith per episode there, 12-14
+    elsewhere). Two thirds of it went into realms of another faith, which
+    tipped those realms in and out of militancy (seed 70: 53 militancy
+    changes, 0 with the switch off). And it took over a conversion slot's
+    leftover rate (+33% pressure).
+  - Seed 60's tail is a general's turn-3 conquest followed by 170 turns of
+    left-over intensity. No preaching is involved.
+- **Fix:**
+  - Prophets preach only where the ruler holds their faith and the
+    persecution intensity is 0. This applies to the vow's targets and is
+    rechecked at every deed.
+  - An empty conversion slot gets exactly the prophet's 0.02.
+  - Scientists vow only inventions their civ has a site for, which is the
+    `_invent` site rule. With techniques on, 37% of invention vows are now
+    fulfilled (17% before; 4.4 per run).
+- **Result (60 worlds, 42-101):**
+  - Rebellions per run: off 1,355; on before 1,508 (+153 ± 67, up/down
+    23/11); on fixed 1,531 (+176 ± 68, up/down 20/14).
+  - The diagnostic resets left-over intensity (outside this branch, since it
+    changes default outputs). Under it, fixed agendas move rebellions
+    −24 ± 80 (up/down 17/17). Before the fix, more worlds still rose than
+    fell (+88 ± 95, 22/12; `b1b3f2d`: +224 ± 119, 23/11).
+  - With the agendas' own path removed, the excess is entirely left-over
+    intensity, which any change of history triggers.
+  - Removing any single lever (campaigns, weights, shrines, faction shifts,
+    coups, crown credit) leaves +90 to +228. No lever carries a tail on its
+    own.
+- **Identity:** the switch off is byte-identical to `b7d9ced`. Direct runs
+  give 30 files with 0 differences (default and `--no-gp-agendas`). The
+  42-61 subset batch has 2,164 files; the reports differ only in the batch
+  path.
+- **Gates (subset, switch on vs `b7d9ced`):**
+  - 42-61 PASS, 62-81 PASS (the base FAILs needs at 11), 82-101 PASS.
+  - Comparator NO REGRESSION on all three; 0 extinct.
+  - `civ_survival` FAIL on 62-81 (9 of 20 worlds keep all four civs; base
+    4): informational here, a risk for the full gate.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,848 passed, 3 skipped (four new tests;
+    `b7d9ced` collects 5,847 of the branch's 5,851). After the wave-6
+    merge: 5,887 passed, 3 skipped.
+  - Offline oracle lane (PR #19 guard fix applied locally only): 1,854
+    passed, 9 skipped, 2 deselected. After the merge: 1,892 / 10 / 2, guard
+    PASS, pytest 68.7 s of its 110 s limit. The four new tests take about
+    0.3 s.
+  - No-Rust environment: 5,649 passed, 202 skipped. The only agenda skip is
+    the hybrid determinism test.
+- **Open:**
+  - Fix left-over persecution intensity in `religion.py`, as its own change
+    with a full gate (it cuts off-mode hybrid rebellions by 20%). Without it,
+    agendas raise rebellions by about 11-13% through chance tails.
+  - `civ_survival` with agendas on.
+  - The 200 x 500 full gate has not been run; the default stays off.
+
+## In-world historiography (2026-10-24, `feat/historiography`)
+
+`feat/historiography` from `integrate/wave-5` (`b1b3f2d`), merged forward to
+`b7d9ced` (no rebase). It adds an observational layer: court chroniclers
+per civ and temple scribes per faith with a standing temple. They record
+each completed turn's events with biases read from simulation state (ruler
+legitimacy and power struggles, clergy influence and faith, grievances,
+victory or defeat). The biases are omissions, inflated or minimized
+casualties, claimed stalemates, blame shifted to an enemy's real deed from
+the provenance graph, praise or condemnation of rulers, and divine favour,
+trials and wrath. Accounts go into archives that sacks, conquest, collapse,
+absorption, fire, earthquakes, floods, plague and desecration destroy;
+literacy techniques add copies. Chroniclers cite only what survives.
+Contested accounts are exported for the narrator (prompt block, mechanical
+"In their own words" passage, curator bonus), for `--narrate` and for the
+viewer's event inspector. `--historiography` is **on for new worlds**
+(`--no-historiography` opts out). State lives in a
+`state.historiography.json` sidecar, so `state.json` keeps its bytes. No
+Rust change. Evidence: `docs/integration/historiography.md`.
+
+- **Identity** (`scripts/historiography_identity.py`, base `b7d9ced` exported):
+  - Template seeds 42/7/1234 (off 300, hybrid 200) and procedural 48x10
+    seed 7, flag off: 72 files, 0 differences.
+  - Flag on: the same 72 files identical apart from narration (4+4
+    `chronicle.md`, bundles identical apart from `historiography`,
+    `chronicle_entries`, `gap_summaries`), plus 8 sidecars.
+  - Subset gates (20 x 200 hybrid) base / off / on: all PASS, 2,164 files
+    identical, validation reports and gate decisions identical (batch path
+    normalized).
+  - The frozen exact-trajectory oracles hold with the layer on: turn hashes,
+    RNG trace, artifacts minus the field and sidecar.
+- **Default on, justified as narration-only:** simulation, gates and saved
+  state are byte-identical. Cost about 4% run time on the 500-turn guard
+  world (three alternating runs each), +2.6% bundle on the subset, 243 KB
+  sidecar per 200-turn run. The frozen benchmark workloads pin it off.
+- **Tests:**
+  - `pytest -m "not slow" -n 2`: 5,883 passed, 3 skipped (base 5,844; +39).
+  - No-Rust lane: 5,683 passed, 203 skipped (slow included).
+  - Oracle lane (PR #19's guard fix local, now including
+    `tests/test_historiography.py`): 1,888 passed, 10 skipped, 2 deselected, guard PASS.
+  - Viewer: 219 tests, lint, build.
+  - Bundle guard unchanged at 24 MB: 20.73 MB native, 23.61 MB no-Rust (field 0.65 / 0.77 MB).
+- **Open:**
+  - Bias and survival calibrations are illustrative.
+  - Temple desecration dominates archive losses (68 accounts per subset
+    run).
+  - The curator bonus matters only when clusters exceed the narration
+    budget.
+  - No inter-archive copying or captured archives.
+  - Live-mode resume (from a client-sent state dict) starts without
+    chronicles.
+  - The full 200-seed gate was not run (the simulation is unchanged).
 
 ## Dead civs leave the history snapshots, bundle version 5 (2026-10-24, `perf/prune-dead-civ-snapshots`)
 

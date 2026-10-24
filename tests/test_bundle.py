@@ -672,6 +672,12 @@ class TestBundleSize:
         # per-turn practice history; with pruning this world writes 20.07MB on
         # the native runtimes and 22.84MB on the Python (no-Rust) path, whose
         # pure-Python ecology founds a different set of polities.
+        # In-world historiography on by default (docs/integration/historiography.md)
+        # adds its compact accounts field: 20.73MB native (field 0.65MB) and
+        # 23.61MB no-Rust (field 0.77MB); --no-historiography writes the sizes above.
+        # The locust recalibration (docs/integration/food-logistics-2026-10.md)
+        # leaves this world with 11 polities over the run instead of 17-18:
+        # 17.47MB native and 18.07MB no-Rust.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 

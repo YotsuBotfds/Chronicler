@@ -2104,7 +2104,23 @@ impl AgentSimulator {
                 resource_yields: [ri_y0.value(i), ri_y1.value(i), ri_y2.value(i)],
                 production_caps: [None; 3],
                 stockpile,
+                subsistence_yield: 0.0,
             });
+        }
+
+        // Optional: goods per farmer from foraging when no food slot yields
+        // (M34 subsistence baseline; see economy::allocate_farm_labor). An
+        // absent column means no foraging, the pre-2026-10 behavior.
+        if let Some(column) = ri_rb.column_by_name("subsistence_yield") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("subsistence_yield must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || v < 0.0 {
+                    return Err(PyValueError::new_err("invalid subsistence_yield"));
+                }
+                region_inputs[i].subsistence_yield = v;
+            }
         }
 
         // Optional default-off experiment: a fish slot's goods production may

@@ -45,8 +45,12 @@ def world_for(names, edges, initial, populations, enabled=True, seed=42, treasur
     civ = Civilization(name="Cooperative", population=sum(populations.values()), military=10,
                        economy=40, culture=30, stability=80, treasury=treasury,
                        leader=Leader(name="Steward", trait="cautious", reign_start=0), regions=names)
-    return WorldState(name="Long cargo qualification", seed=seed, regions=regions, civilizations=[civ],
-                      relationships={}, agent_mode="hybrid", mutual_aid_enabled=enabled)
+    world = WorldState(name="Long cargo qualification", seed=seed, regions=regions, civilizations=[civ],
+                       relationships={}, agent_mode="hybrid", mutual_aid_enabled=enabled)
+    # Slot-less regions with no production are the specification here: no
+    # 2026-10 goods-economy foraging. Older sources ignore the key.
+    world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
+    return world
 
 
 def audit_aid(world, snap, commitments):

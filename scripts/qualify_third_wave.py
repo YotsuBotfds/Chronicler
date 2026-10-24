@@ -80,6 +80,10 @@ def make_world(fishery=False, aid=False, seed=42, hops=5):
                        stability=80, treasury=100, leader=Leader(name="Steward", trait="cautious", reign_start=0), regions=names)
     world = WorldState(name="Third-wave full-turn joint fixture", seed=seed, regions=regions,
                        civilizations=[civ], relationships={}, agent_mode="hybrid")
+    # The recipients and waypoints have no resource slot by design, and the
+    # independent ledger below splits labor equally over slots: keep them
+    # food-less (no 2026-10 goods-economy foraging). Older sources ignore the key.
+    world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
     if hasattr(world, "fishery_experiment"):
         world.fishery_experiment.enabled = fishery
     else:
