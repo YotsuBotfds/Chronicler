@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
-from chronicler.columnar import pylist
+from chronicler.columnar import group_rows, ordered_counts, pylist
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import (
     MAX_CIV_RECORDS, MAX_NATIVE_REGIONS, TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID,
@@ -107,6 +107,15 @@ class AgentMemoryRecord:
     intensity: int
     decay_factor: int
     is_legacy: bool = False
+
+
+def _merge_counts(dicts) -> dict:
+    """Sum count dicts in order; keys keep their first-seen order."""
+    merged: dict = {}
+    for counts in dicts:
+        for key, value in counts.items():
+            merged[key] = merged.get(key, 0) + value
+    return merged
 
 
 def compute_gini(wealth_array: np.ndarray) -> float:
@@ -1051,19 +1060,11 @@ class AgentBridge:
         """
         regions = np.asarray(_require_snapshot_numpy(snap, "region"), dtype=np.int64)
         displaced = np.asarray(_require_snapshot_numpy(snap, "displacement_turn")) > 0
-        if len(regions):
-            unique, first, totals = np.unique(regions, return_index=True, return_counts=True)
-            displaced_counts = np.bincount(np.searchsorted(unique, regions[displaced]),
-                                           minlength=len(unique))
-            order = np.argsort(first, kind="stable")
-            self.displacement_by_region = {
-                region: (count / total if total > 0 else 0.0)
-                for region, count, total in zip(unique[order].tolist(),
-                                                displaced_counts[order].tolist(),
-                                                totals[order].tolist())
-            }
-        else:
-            self.displacement_by_region = {}
+        self.displacement_by_region = {}
+        for region, counts in ordered_counts(regions, displaced).items():
+            # Keys in order of first appearance; counts[1] = displaced rows.
+            total = counts[0] + counts[1]
+            self.displacement_by_region[region] = counts[1] / total if total > 0 else 0.0
 
         if "wealth" not in snap.schema.names:
             return
@@ -1075,11 +1076,7 @@ class AgentBridge:
         occ_col = _require_snapshot_numpy(snap, "occupation")
         occ_names = ["farmer", "soldier", "merchant", "scholar", "priest"]
         # Rows of each civ in row order, as the boolean masks selected them.
-        order = np.argsort(civ_col, kind="stable")
-        sorted_civ = civ_col[order]
-        bounds = np.flatnonzero(np.diff(sorted_civ)) + 1
-        groups = [(int(rows_civ[0]), rows) for rows_civ, rows in
-                  zip(np.split(sorted_civ, bounds), np.split(order, bounds)) if len(rows)]
+        groups = group_rows(civ_col)
         new_gini: dict[int, float] = {}
         for civ_id, rows in groups:
             new_gini[civ_id] = compute_gini(wealth_col[rows])
@@ -2345,20 +2342,19 @@ class AgentBridge:
 
         # === Multi-turn patterns ===
 
-        # Loyalty cascade: >=10 agents flip in one region over 5 turns
-        loyalty_flips_by_region = {}
-        window_depth = min(len(self._event_window), 5)
+        # Per-turn tallies of each window list, merged in window order (the
+        # same counts and first-seen key order as scanning the lists).
         window_list = list(self._event_window)
-        for turn_events in window_list[-window_depth:]:
-            for e in turn_events:
-                if e.event_type == "loyalty_flip":
-                    loyalty_flips_by_region[e.region] = loyalty_flips_by_region.get(e.region, 0) + 1
+        window_stats = [self._window_list_stats(turn_events) for turn_events in window_list]
+
+        # Loyalty cascade: >=10 agents flip in one region over 5 turns
+        window_depth = min(len(self._event_window), 5)
+        recent_stats = window_stats[len(window_stats) - window_depth:]
+        loyalty_flips_by_region = _merge_counts(s["loyalty_flips"] for s in recent_stats)
         for region_id, count in loyalty_flips_by_region.items():
             if count >= 10:
                 recent_flips = [
-                    e for turn_events in window_list[-window_depth:]
-                    for e in turn_events
-                    if e.event_type == "loyalty_flip" and e.region == region_id
+                    e for s in recent_stats for e in s["flips_by_region"].get(region_id, ())
                 ]
                 target_civ_counts = Counter(e.civ_affinity for e in recent_flips)
                 target_civ_id = target_civ_counts.most_common(1)[0][0]
@@ -2378,14 +2374,8 @@ class AgentBridge:
 
         # Demographic crisis: region loses >30% over window
         if len(self._event_window) >= 2:
-            deaths_by_region = {}
-            births_by_region = {}
-            for turn_events in self._event_window:
-                for e in turn_events:
-                    if e.event_type == "death":
-                        deaths_by_region[e.region] = deaths_by_region.get(e.region, 0) + 1
-                    elif e.event_type == "birth":
-                        births_by_region[e.region] = births_by_region.get(e.region, 0) + 1
+            deaths_by_region = _merge_counts(s["deaths"] for s in window_stats)
+            births_by_region = _merge_counts(s["births"] for s in window_stats)
             for region_id, deaths in deaths_by_region.items():
                 births = births_by_region.get(region_id, 0)
                 net_loss = deaths - births
@@ -2409,18 +2399,15 @@ class AgentBridge:
 
         # Economic boom: >=10 occupation switches TO merchant over 20-turn window
         # [CALIBRATE: post-M28, initial 10]
-        merchant_switches_by_region = {}
         boom_window = min(len(self._event_window), 20)
-        boom_events = [e for t in list(self._event_window)[-boom_window:] for e in t]
-        for e in boom_events:
-            if e.event_type == "occupation_switch" and e.occupation == 2:  # merchant
-                merchant_switches_by_region[e.region] = \
-                    merchant_switches_by_region.get(e.region, 0) + 1
+        boom_lists = window_list[len(window_list) - boom_window:]
+        merchant_switches_by_region = _merge_counts(  # switches to merchant
+            s["merchant_switches"] for s in window_stats[len(window_stats) - boom_window:])
         for region_id, count in merchant_switches_by_region.items():
             if count >= 10:
                 summaries.append(Event(
                     turn=world.turn, event_type="economic_boom",
-                    actors=self._named_actors_in_region(region_id, named_agents, boom_events),
+                    actors=self._named_actors_in_lists(region_id, named_agents, boom_lists),
                     description=SUMMARY_TEMPLATES["economic_boom"].format(
                         region=region_names.get(region_id, f"region {region_id}"),
                         count=count, window=boom_window,
@@ -2430,18 +2417,15 @@ class AgentBridge:
 
         # Brain drain: >=5 scholars leave region over 10-turn window
         # [CALIBRATE: post-M28, initial 5]
-        scholar_departures_by_region = {}
         drain_window = min(len(self._event_window), 10)
-        drain_events = [e for t in list(self._event_window)[-drain_window:] for e in t]
-        for e in drain_events:
-            if e.event_type == "migration" and e.occupation == 3:  # scholar
-                scholar_departures_by_region[e.region] = \
-                    scholar_departures_by_region.get(e.region, 0) + 1
+        drain_lists = window_list[len(window_list) - drain_window:]
+        scholar_departures_by_region = _merge_counts(  # scholar migrations
+            s["scholar_departures"] for s in window_stats[len(window_stats) - drain_window:])
         for region_id, count in scholar_departures_by_region.items():
             if count >= 5:
                 summaries.append(Event(
                     turn=world.turn, event_type="brain_drain",
-                    actors=self._named_actors_in_region(region_id, named_agents, drain_events),
+                    actors=self._named_actors_in_lists(region_id, named_agents, drain_lists),
                     description=SUMMARY_TEMPLATES["brain_drain"].format(
                         count=count,
                         region=region_names.get(region_id, f"region {region_id}"),
@@ -2451,6 +2435,106 @@ class AgentBridge:
                 ))
 
         return summaries
+
+    def _window_list_stats(self, events) -> dict:
+        """Per-region tallies of one turn's event list in the event window.
+
+        Window lists are not modified after they are appended, so each is
+        tallied once (cached by identity and length while in the window)
+        instead of on every turn it stays in the window. Dict keys are in
+        first-seen order, as the per-turn scans built them.
+        """
+        cache = getattr(self, "_window_stats_cache", None)
+        if cache is None:
+            cache = self._window_stats_cache = {}
+        entry = cache.get(id(events))
+        if entry is not None and entry[0] is events and entry[1] == len(events):
+            return entry[2]
+        loyalty: dict = {}
+        flips: dict = {}
+        deaths: dict = {}
+        births: dict = {}
+        merchants: dict = {}
+        scholars: dict = {}
+        for e in events:
+            event_type = e.event_type
+            if event_type == "loyalty_flip":
+                loyalty[e.region] = loyalty.get(e.region, 0) + 1
+                flips.setdefault(e.region, []).append(e)
+            elif event_type == "death":
+                deaths[e.region] = deaths.get(e.region, 0) + 1
+            elif event_type == "birth":
+                births[e.region] = births.get(e.region, 0) + 1
+            elif event_type == "occupation_switch":
+                if e.occupation == 2:  # merchant
+                    merchants[e.region] = merchants.get(e.region, 0) + 1
+            elif event_type == "migration":
+                if e.occupation == 3:  # scholar
+                    scholars[e.region] = scholars.get(e.region, 0) + 1
+        try:
+            agent_ids = np.fromiter((e.agent_id for e in events), dtype=np.int64, count=len(events))
+            order = np.argsort(agent_ids, kind="stable")
+            sorted_ids = agent_ids[order]
+        except (TypeError, ValueError, OverflowError):  # non-integer ids: scanned instead
+            order = sorted_ids = None
+        stats = {
+            "loyalty_flips": loyalty, "flips_by_region": flips, "deaths": deaths, "births": births,
+            "merchant_switches": merchants, "scholar_departures": scholars,
+            "sorted_agent_ids": sorted_ids, "agent_order": order,
+        }
+        live = {id(turn_events) for turn_events in self._event_window}
+        for key in [key for key in cache if key not in live]:
+            del cache[key]
+        cache[id(events)] = (events, len(events), stats)
+        return stats
+
+    def _named_actors_in_lists(self, region_id, named_agents, event_lists):
+        """``_named_actors_in_region`` over the concatenation of event lists.
+
+        Looks up only the named agents' rows (sorted agent ids per list)
+        instead of scanning every event; names keep first-seen event order.
+        """
+        memo = getattr(self, "_named_actor_memo", None)
+        key = ("lists", tuple(id(events) for events in event_lists), id(named_agents))
+        entry = memo.get(key) if memo is not None else None
+        if entry is None:
+            named_ids = list(named_agents)
+            stats_by_list = [self._window_list_stats(events) for events in event_lists]
+            indexed = (all(type(aid) is int and -(1 << 63) <= aid < (1 << 63) for aid in named_ids)
+                       and all(s["sorted_agent_ids"] is not None for s in stats_by_list))
+            if not named_ids:
+                by_region = {}
+            elif indexed:
+                hits = []
+                query = np.asarray(named_ids, dtype=np.int64)
+                for pos, stats in enumerate(stats_by_list):
+                    sorted_ids, order = stats["sorted_agent_ids"], stats["agent_order"]
+                    lo = np.searchsorted(sorted_ids, query, side="left")
+                    hi = np.searchsorted(sorted_ids, query, side="right")
+                    for aid, a, b in zip(named_ids, lo.tolist(), hi.tolist()):
+                        for row in order[a:b].tolist():
+                            hits.append((pos, row, aid))
+                hits.sort()
+                by_region: dict = {}
+                for pos, row, aid in hits:
+                    names = by_region.setdefault(event_lists[pos][row].region, [])
+                    name = named_agents[aid]
+                    if name not in names:
+                        names.append(name)
+            else:
+                # Non-integer ids or keys: scan, as _named_actors_in_region does.
+                by_region = {}
+                for events in event_lists:
+                    for e in events:
+                        if e.agent_id in named_agents:
+                            names = by_region.setdefault(e.region, [])
+                            name = named_agents[e.agent_id]
+                            if name not in names:
+                                names.append(name)
+            entry = (tuple(event_lists), named_agents, by_region)
+            if memo is not None:
+                memo[key] = entry
+        return list(entry[2].get(region_id, ()))
 
     def _named_actors_in_region(self, region_id, named_agents, current_events):
         """Find named character names involved in events for a given region.

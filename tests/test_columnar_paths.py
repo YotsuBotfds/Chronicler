@@ -101,6 +101,38 @@ def test_named_actor_memo_matches_the_scan():
     assert memo == plain and any(plain)
 
 
+@pytest.mark.parametrize("seed", range(6))
+def test_windowed_event_summaries_match_the_window_scans(seed, sample_world):
+    """Cached per-turn tallies and indexed named actors equal the old scans."""
+    from collections import deque
+
+    from legacy_aggregate_events import legacy_aggregate_events
+    from chronicler.models import AgentEventRecord
+
+    rng = random.Random(seed)
+    bridge = agent_bridge.AgentBridge.__new__(agent_bridge.AgentBridge)
+    bridge._sim = None  # region populations fall back to world values
+    bridge._event_window = deque(maxlen=20)
+    named = {}
+    n_regions = len(sample_world.regions)
+    types = ["migration", "rebellion", "occupation_switch", "loyalty_flip", "death", "birth"]
+    for turn in range(30):
+        events = [
+            AgentEventRecord(turn, rng.randrange(400), rng.choice(types), rng.randrange(n_regions + 1),
+                             rng.randrange(n_regions), rng.randrange(len(sample_world.civilizations) + 1),
+                             rng.randrange(5))
+            for _ in range(rng.choice([0, 40, 400]))
+        ]
+        bridge._event_window.append(events)
+        if rng.random() < 0.5:
+            named[rng.randrange(400)] = f"Named {rng.randrange(6)}"
+        sample_world.turn = turn
+        got = bridge._aggregate_events(sample_world, named)
+        expected = legacy_aggregate_events(bridge, sample_world, named)
+        assert [e.model_dump() for e in got] == [e.model_dump() for e in expected]
+    assert len(bridge._window_stats_cache) <= 20
+
+
 # --- whole runs: columnar paths forced off --------------------------------------
 
 def _force_row_paths(monkeypatch):
