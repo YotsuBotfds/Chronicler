@@ -1,8 +1,8 @@
 """Food-balance corrections (2026-10): see docs/integration/food-balance-2026-10.md.
 
 Each test pins one correction: aggregate migration is a no-op for agent-owned
-populations, soil degrades against potential capacity, and temperate water
-recovery is climatic.
+populations, soil degrades against potential capacity, temperate water
+recovery is climatic, and mines need a mineral resource.
 """
 from __future__ import annotations
 
@@ -18,10 +18,12 @@ from chronicler.models import (
     Civilization,
     ClimatePhase,
     Disposition,
+    InfrastructureType,
     Leader,
     Region,
     RegionEcology,
     Relationship,
+    ResourceType,
     WorldState,
 )
 
@@ -130,3 +132,25 @@ def test_populated_region_recovers_its_water_over_one_climate_cycle():
     assert min(waters) == pytest.approx(0.10)  # the drought still empties it
     assert waters[end_of_second_temperate] == pytest.approx(0.70)
     assert waters[2 * period - 1] == waters[period - 1]
+
+
+# --- mines --------------------------------------------------------------------
+
+def _region_with_slots(slots: list[int]) -> Region:
+    return Region(name="M", terrain="plains", carrying_capacity=60, resources="fertile",
+                  controller="Rome", resource_types=slots + [255] * (3 - len(slots)))
+
+
+def test_mines_are_not_valid_without_a_mineral_resource():
+    from chronicler.infrastructure import valid_build_types
+
+    farmland = _region_with_slots([int(ResourceType.GRAIN), int(ResourceType.BOTANICALS)])
+    assert InfrastructureType.MINES not in valid_build_types(farmland)
+
+
+@pytest.mark.parametrize("mineral", [ResourceType.ORE, ResourceType.PRECIOUS])
+def test_mines_are_valid_where_there_is_ore_or_precious_metal(mineral):
+    from chronicler.infrastructure import valid_build_types
+
+    region = _region_with_slots([int(ResourceType.GRAIN), int(mineral)])
+    assert InfrastructureType.MINES in valid_build_types(region)
