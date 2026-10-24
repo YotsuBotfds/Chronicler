@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 # (civ_stats, capitals and the pairwise tables), keeping each one's final row;
 # ``pruned_civ_stats`` restores the omitted civ_stats rows exactly
 # (chronicler.snapshot_pruning). world_state is unchanged.
+# An optional top-level ``historiography`` field (in-world accounts, its own
+# ``version``) and chronicle entries' optional ``accounts`` need no bump:
+# readers that do not know them ignore them.
 LEGACY_BUNDLE_VERSION = PRUNED_BUNDLE_VERSION
 
 
@@ -51,10 +54,16 @@ def assemble_bundle(
     narrative_model: str,
     interestingness_score: float | None,
     gap_summaries: list[GapSummary] | None = None,
+    historiography: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Assemble all run data into a single dict for the viewer bundle."""
+    """Assemble all run data into a single dict for the viewer bundle.
+
+    ``historiography`` (``chronicler.historiography.export``) is the optional
+    in-world accounts field, added at the end only when present, so bundles
+    of runs without it keep their exact bytes.
+    """
     pruned_history, pruned_civ_stats = prune_history(s.model_dump(mode="json") for s in history)
-    return {
+    bundle = {
         "world_state": _strip_llm_fields(world.model_dump(mode="json")),
         "history": pruned_history,
         PRUNED_CIV_STATS_KEY: pruned_civ_stats,
@@ -80,6 +89,9 @@ def assemble_bundle(
             "bundle_version": LEGACY_BUNDLE_VERSION,
         },
     }
+    if historiography is not None:
+        bundle["historiography"] = historiography
+    return bundle
 
 
 def write_bundle(bundle: dict[str, Any], path: Path,
