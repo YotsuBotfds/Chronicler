@@ -73,9 +73,10 @@ REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
 # reading often marks a past rebel, and past rebels rebel again. The
 # autonomy -> rebellion pairing therefore pairs only agents that have not
 # rebelled by the snapshot turn (inclusive: sidecars are written after that
-# turn's agent tick). No finite window suffices: after two or more rebellions
-# the shift is still about +0.10 at 20-39 turns, and where autonomy is not
-# restored (displaced, or foreign rule plus persecution) it does not decay.
+# turn's agent tick). No finite window suffices: one rebellion still reads
+# +0.035 after 20-29 turns, two or more +0.07 to +0.11 after 20-34, and where
+# autonomy is not restored (displaced, or foreign rule plus persecution) the
+# shift does not decay.
 # See docs/integration/needs-oracle-autonomy.md. False restores the old pairing.
 NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 
