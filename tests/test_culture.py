@@ -712,3 +712,14 @@ class TestM16EndToEnd:
 
         assert world.turn == 31
         assert len(world.movements) >= 1, "At least one movement should emerge by turn 31"
+
+
+def test_prestige_decay_saturates_instead_of_growing_without_bound():
+    """2026-10: flat decay let temples pump prestige to ~500 by turn 500."""
+    from chronicler.culture import PRESTIGE_DECAY_RATE, prestige_decay_for
+    assert prestige_decay_for(0) == 1 and prestige_decay_for(49) == 1  # flat decay as before
+    assert prestige_decay_for(150) == int(150 * PRESTIGE_DECAY_RATE) == 3
+    prestige = 0
+    for _ in range(2000):  # three temples' worth of inflow
+        prestige = max(0, prestige + 3 - prestige_decay_for(prestige))
+    assert 140 <= prestige <= 200
