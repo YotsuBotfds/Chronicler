@@ -471,6 +471,7 @@ fn test_region_input(
         resource_yields: [yield_0, 0.0, 0.0],
         production_caps: [None; 3],
         stockpile,
+        subsistence_yield: 0.0,
     }
 }
 

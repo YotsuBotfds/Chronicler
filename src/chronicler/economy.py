@@ -643,10 +643,66 @@ def food_first_slot_labor(
     return labor
 
 
+def farm_labor(
+    resource_types: list[int], resource_yields: list[float], farmer_count: int,
+    food_demand: float | None, subsistence_yield: float = 0.0,
+) -> tuple[list[float], float, float]:
+    """Farmer labor per slot and on foraging: (slot labor, forage labor, forage yield).
+
+    Correction (2026-10, food logistics): M34's subsistence baseline in the
+    goods economy. When no food slot yields (none present, or all suspended)
+    the farmers who would work food land forage at ``subsistence_yield``
+    grain each: barren food slots' labor forages; without a food slot,
+    foraging joins the food-first split as one food share, every non-food
+    slot keeping ``FOOD_FIRST_NONFOOD_FLOOR`` of its equal share. Otherwise
+    this is ``food_first_slot_labor``. Mirrors Rust ``allocate_farm_labor``.
+    """
+    occupied = occupied_resource_slot_count(resource_types)
+    food_slots = [s for s, rt in enumerate(resource_types)
+                  if map_resource_to_good(rt) in CATEGORY_GOODS["food"]]
+    food_output = any(resource_yields[s] > 0.0 for s in food_slots)
+    forage_yield = 0.0 if food_output else max(subsistence_yield, 0.0)
+    farmers = max(farmer_count, 0)
+    if forage_yield <= 0.0 or farmers <= 0:
+        return food_first_slot_labor(resource_types, resource_yields, farmer_count, food_demand), 0.0, 0.0
+    if food_slots:
+        yields = list(resource_yields)
+        for s in food_slots:
+            yields[s] = forage_yield
+        labor = food_first_slot_labor(resource_types, yields, farmer_count, food_demand)
+        forage = 0.0
+        for s in food_slots:
+            forage += labor[s]
+            labor[s] = 0.0
+        return labor, forage, forage_yield
+    n_other = occupied
+    equal_share = farmers / (n_other + 1)
+    if food_demand is None:
+        forage = equal_share
+    else:
+        needed = max(food_demand, 0.0) / forage_yield
+        max_food = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * n_other
+        forage = min(max(min(needed, max_food), equal_share), farmers)
+    per_other = max(farmers - forage, 0.0) / n_other if n_other else 0.0
+    labor = [per_other if map_resource_to_good(rt) is not None else 0.0 for rt in resource_types]
+    return labor, forage, forage_yield
+
+
+def region_subsistence_yield(world, region, slot_yields: list[float]) -> float:
+    """Foraging rate for ``region`` this turn: 0.0 when some food slot yields."""
+    if any(slot_yields[s] > 0.0 for s, rt in enumerate(region.resource_types)
+           if map_resource_to_good(rt) in CATEGORY_GOODS["food"]):
+        return 0.0
+    from chronicler.climate import get_climate_phase
+    from chronicler.ecology import subsistence_goods_per_worker
+    return subsistence_goods_per_worker(world, get_climate_phase(world.turn, world.climate_config))
+
+
 def compute_allocated_production(
     resource_types: list[int], resource_yields: list[float], farmer_count: int,
     *, production_caps: list[float | None] | None = None,
     food_demand: float | None = None,
+    subsistence_yield: float = 0.0,
 ) -> dict[str, float]:
     """Split finite farmer labor across occupied, valid resource slots.
 
@@ -655,13 +711,19 @@ def compute_allocated_production(
     ``production_caps`` optionally bounds each slot's output (for example the
     fishery experiment's prior catch); ``None`` entries are uncapped. A capped
     slot's unused labor is not reassigned. With ``food_demand`` the split is
-    food-first (see ``food_first_slot_labor``); without it, equal.
+    food-first (see ``food_first_slot_labor``); without it, equal. A positive
+    ``subsistence_yield`` lets farmers forage grain when no food slot yields
+    (see ``farm_labor``).
     """
     occupied = occupied_resource_slot_count(resource_types)
     goods: dict[str, float] = {}
+    slot_labor, forage_labor, forage_yield = farm_labor(
+        resource_types, resource_yields, farmer_count, food_demand, subsistence_yield,
+    )
+    if forage_labor > 0.0:
+        goods["grain"] = forage_labor * forage_yield
     if occupied == 0:
         return goods
-    slot_labor = food_first_slot_labor(resource_types, resource_yields, farmer_count, food_demand)
     for slot, rtype in enumerate(resource_types):
         good = map_resource_to_good(rtype)
         if good is None:
@@ -973,7 +1035,8 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
     """Pack world-state inputs for the Rust economy kernel.
 
     One row per region. Columns: region_id, terrain, storage_population,
-    resource_type_<slot>, resource_yield_<slot> x3, stockpile_<good> x8, and,
+    resource_type_<slot>, resource_yield_<slot> x3, subsistence_yield (goods
+    per foraging farmer, ``region_subsistence_yield``), stockpile_<good> x8, and,
     only when the fishery experiment is enabled, nullable
     fishery_catch_budget_<slot> x3.
     Yields are ``economy_yield()``: the read-only, current-turn ecology preview
@@ -990,13 +1053,19 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in regions], type=pa.uint8()),
         "storage_population": pa.array([r.population for r in regions], type=pa.uint16()),
     }
+    slot_yields = [[economy_yield(world, r, slot) for slot in range(3)] for r in regions]
     for slot in range(3):
         data[f"resource_type_{slot}"] = pa.array(
             [r.resource_types[slot] for r in regions], type=pa.uint8(),
         )
         data[f"resource_yield_{slot}"] = pa.array(
-            [economy_yield(world, r, slot) for r in regions], type=pa.float32(),
+            [y[slot] for y in slot_yields], type=pa.float32(),
         )
+    # Foraging rate, 0.0 wherever some food slot yields (the kernel ignores it there).
+    data["subsistence_yield"] = pa.array(
+        [region_subsistence_yield(world, r, y) for r, y in zip(regions, slot_yields)],
+        type=pa.float32(),
+    )
     for good in FIXED_GOODS:
         data[f"stockpile_{good}"] = pa.array(
             [r.stockpile.goods.get(good, 0.0) for r in regions], type=pa.float32(),
@@ -1391,12 +1460,14 @@ def compute_economy(
         demand = compute_demand(
             agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
         )
+        slot_yields = [economy_yield(world, region, slot) for slot in range(3)]
         produced = compute_allocated_production(
             region.resource_types,
-            [economy_yield(world, region, slot) for slot in range(3)],
+            slot_yields,
             agent_data["farmer_count"],
             production_caps=[catch_budget(world, region, slot) for slot in range(3)],
             food_demand=demand["food"],
+            subsistence_yield=region_subsistence_yield(world, region, slot_yields),
         )
         region_per_good_production[rname] = produced
         region_production[rname] = _category_totals(produced)

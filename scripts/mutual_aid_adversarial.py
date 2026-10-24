@@ -48,9 +48,13 @@ def _world(enabled: bool, treasury: int) -> WorldState:
                        culture=30, stability=80, treasury=treasury,
                        leader=Leader(name="Steward", trait="cautious", reign_start=0),
                        regions=[r.name for r in regions])
-    return WorldState(name="Adversarial Aid Fixture", seed=42, regions=regions,
-                      civilizations=[civ], relationships={}, agent_mode="hybrid",
-                      mutual_aid_enabled=enabled)
+    world = WorldState(name="Adversarial Aid Fixture", seed=42, regions=regions,
+                       civilizations=[civ], relationships={}, agent_mode="hybrid",
+                       mutual_aid_enabled=enabled)
+    # The Mine is food-less by design (the stress the aid must answer): no
+    # 2026-10 goods-economy foraging. Older sources ignore the key.
+    world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
+    return world
 
 
 def _total_goods(world) -> float:
