@@ -353,3 +353,37 @@ def test_pilgrimage_return_updates_gp_region():
     )
     events = check_pilgrimages([gp], [], None, current_turn=10)
     assert gp.region == "HolyCity"
+
+
+def test_sustained_prosperity_yields_one_scientist_per_streak(make_world):
+    """2026-10: a civ pinned at the economy cap no longer mints a scientist on
+    every cooldown; a new streak (after economy drops) may produce another."""
+    from chronicler.traditions import update_event_counts
+    world = make_world(num_civs=2, seed=42)
+    civ = world.civilizations[0]
+    civ.economy = 85
+    civ.event_counts["high_economy_turns"] = 15
+    assert any(s.role == "scientist" for s in check_great_person_generation(civ, world))
+    world.great_person_cooldowns.clear()  # cooldown over, still the same streak
+    assert not any(s.role == "scientist" for s in check_great_person_generation(civ, world))
+    civ.economy = 50
+    update_event_counts(world)  # streak broken
+    civ.economy = 85
+    civ.event_counts["high_economy_turns"] = 15
+    world.great_person_cooldowns.clear()
+    assert any(s.role == "scientist" for s in check_great_person_generation(civ, world))
+
+
+def test_only_a_new_era_counts_as_a_scientific_advance():
+    from chronicler.great_persons import note_tech_era_lost, note_tech_era_reached
+    from chronicler.models import Leader, TechEra
+    civ = Civilization(name="C", values=[], leader=Leader(name="L", trait="t", reign_start=0),
+                       regions=["R"], tech_era=TechEra.BRONZE)
+    assert note_tech_era_reached(civ) and civ.event_counts["tech_advanced"] == 1
+    civ.event_counts["tech_advanced"] = 0
+    note_tech_era_lost(civ)
+    civ.tech_era = TechEra.TRIBAL
+    civ.tech_era = TechEra.BRONZE  # re-advance after a regression: recovery
+    assert not note_tech_era_reached(civ) and civ.event_counts["tech_advanced"] == 0
+    civ.tech_era = TechEra.IRON
+    assert note_tech_era_reached(civ) and civ.event_counts["tech_advanced"] == 1

@@ -39,6 +39,13 @@ _ORACLE_COUNTED_EVENT_CODES = frozenset(
 ARTIFACT_CREATION_RATE_MIN = 1.00
 ARTIFACT_CREATION_RATE_TOLERANCE_MIN = 0.90
 ARTIFACT_CREATION_RATE_MAX = 3.00
+# Recalibrated 2026-10 for living worlds (docs/integration/extinction-fix-2026-10.md):
+# the old 10% floor was met only through extinction-era turnover (civs dying
+# without an absorber mark every artifact LOST). Living 500-turn worlds lose
+# 2-3%; a broken lifecycle loses ~0%, which the floor plus loss_channels_ok
+# (both LOST and DESTROYED present) still rejects. The 30% ceiling is unchanged.
+ARTIFACT_LOSS_RATE_MIN = 0.02
+ARTIFACT_LOSS_RATE_MAX = 0.30
 REGRESSION_SATISFACTION_MEAN_MIN = 0.45
 REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN = 0.40
 REGRESSION_SATISFACTION_MEAN_MAX = 0.65
@@ -1352,7 +1359,11 @@ def check_artifact_lifecycle(
       adjudication so duplicate-suppressed long-horizon batches do not fail on
       near-threshold noise while still reporting the strict miss.
     - No single artifact_type should exceed 50% of total.
-    - Loss/destruction rate ((lost + destroyed) / total) should be 10-30%.
+    - Loss/destruction rate ((lost + destroyed) / total) should be 2-30%,
+      with both channels alive: at least one LOST and one DESTROYED
+      artifact in the batch (``loss_channels_ok``). The old 10% floor was
+      only ever met through extinction-era turnover; see
+      docs/integration/extinction-fix-2026-10.md.
 
     Parameters
     ----------
@@ -1370,12 +1381,16 @@ def check_artifact_lifecycle(
         type_diversity_ok              – bool (no single type > 50%)
         loss_destruction_count         – int
         loss_destruction_rate          – float
-        loss_destruction_rate_ok       – bool (rate in [0.10, 0.30])
+        loss_destruction_rate_ok       – bool (rate in [0.02, 0.30])
+        lost_count / destroyed_count   – int
+        loss_channels_ok               – bool (both counts > 0)
         mule_artifact_count            – int
         total_artifacts                – int
     """
     total_artifacts = 0
     loss_destruction_count = 0
+    lost_count = 0
+    destroyed_count = 0
     mule_artifact_count = 0
     total_turns_sum = 0
     type_counts: dict[str, int] = {}
@@ -1393,6 +1408,10 @@ def check_artifact_lifecycle(
             status = art.get("status", "active")
             if status in ("destroyed", "lost"):
                 loss_destruction_count += 1
+                if status == "lost":
+                    lost_count += 1
+                else:
+                    destroyed_count += 1
 
             if art.get("mule_origin", False):
                 mule_artifact_count += 1
@@ -1429,7 +1448,10 @@ def check_artifact_lifecycle(
     else:
         loss_destruction_rate = 0.0
 
-    loss_destruction_rate_ok = 0.10 <= loss_destruction_rate <= 0.30
+    loss_destruction_rate_ok = (
+        ARTIFACT_LOSS_RATE_MIN <= loss_destruction_rate <= ARTIFACT_LOSS_RATE_MAX
+    )
+    loss_channels_ok = lost_count > 0 and destroyed_count > 0
 
     return {
         "creation_rate_per_civ_per_100": creation_rate,
@@ -1440,6 +1462,9 @@ def check_artifact_lifecycle(
         "loss_destruction_count": loss_destruction_count,
         "loss_destruction_rate": loss_destruction_rate,
         "loss_destruction_rate_ok": loss_destruction_rate_ok,
+        "lost_count": lost_count,
+        "destroyed_count": destroyed_count,
+        "loss_channels_ok": loss_channels_ok,
         "mule_artifact_count": mule_artifact_count,
         "total_artifacts": total_artifacts,
     }
@@ -2106,6 +2131,7 @@ def run_artifact_oracle(seed_runs: list[dict]) -> dict:
         result["creation_rate_ok"]
         and result["type_diversity_ok"]
         and result["loss_destruction_rate_ok"]
+        and result["loss_channels_ok"]
     )
     any_pass = (
         result["creation_rate_ok"]

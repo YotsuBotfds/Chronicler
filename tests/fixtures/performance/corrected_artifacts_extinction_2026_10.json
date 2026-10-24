@@ -4,17 +4,33 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "3902d3b+plague-cap",
+    "base_revision": "b63ea62+int-suspension-keys",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
         "id": "EXT-2026-10",
-        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split.",
+        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split. Scientists need scholarly change (one per prosperity streak, new eras only); prestige decay saturates (max(1, 2%)); campaign occupations sack the fallen region's artifacts.",
         "workloads": {
           "single": 0,
           "standard": 0,
           "wide": 0
         }
+      },
+      {
+        "id": "RES-SUSP-INT",
+        "summary": "Region.resource_suspensions keys are stored as int (wildfire, locust swarm, mine collapse wrote ResourceType keys, which serialized as 'ResourceType.GRAIN' in memory but '0' after a load).",
+        "workloads": {},
+        "artifact_files": {
+          "standard": [
+            "chronicle_bundle.json",
+            "state.json"
+          ],
+          "wide": [
+            "chronicle_bundle.json",
+            "state.json"
+          ]
+        },
+        "note": "Turn hashes are unchanged (turn snapshots do not carry resource_suspensions); the emitted state.json and chronicle_bundle.json bytes change."
       }
     ],
     "notes": [
@@ -51,28 +67,28 @@
         "bytes": 588
       },
       "chronicle_bundle.json": {
-        "sha256": "f9055bd82df1918615ab5c89c534c3978db31b2cfbdea37900bb5252f06f2c3f",
-        "bytes": 826629
+        "sha256": "48bb3c5273a62d179c376aebc5db34b32e87ddf2d353289218d2820a2f05a5a4",
+        "bytes": 819098
       },
       "memories_ashkari_nomads.json": {
         "sha256": "a451ad7a5c45feb94324b921594f18775dfeb43b37b091d63eee693dd6fcb49a",
         "bytes": 22150
       },
       "memories_kethani_empire.json": {
-        "sha256": "637e6b95a75380fb917d7082bb96b340809d8ea2983d6b2815e8578e8bb53a47",
-        "bytes": 19915
+        "sha256": "c82ec8d63d9ca380f227cdf82949a13c2907251138603e2d6019da51fb511ad3",
+        "bytes": 19755
       },
       "memories_selurian_republic.json": {
-        "sha256": "46697bf7a863e28c7fb82d4eb60bb60c4e9b248304ac137bbbb296e7fd666e35",
-        "bytes": 15676
+        "sha256": "0ffde3a23d206ed8d70a004a74b62f30f68ae03a0224835d1010ecfb5713a80c",
+        "bytes": 15515
       },
       "memories_thornwall_confederacy.json": {
-        "sha256": "a6bf1585b57df0ada643c5879c3a5fb9835136ef7f7730b1f32d31030b107262",
-        "bytes": 24704
+        "sha256": "17e40672c4667b4552438907c3ef0719370288f4b396ff315e6db5763b4dd7a7",
+        "bytes": 24368
       },
       "state.json": {
-        "sha256": "bd8028d55d55d15fc18d47f857b58cdadf8740ec996355999a2efd6cae6522a7",
-        "bytes": 250003
+        "sha256": "e75ad5af6a24fd2e67710fdfc23097bdd292861a5f8a8ed7e38fe6e94e8aef89",
+        "bytes": 244577
       }
     },
     "wide": {
@@ -81,8 +97,8 @@
         "bytes": 500
       },
       "chronicle_bundle.json": {
-        "sha256": "35e74e6b0f25fd44c24e82010070c5628992ee989f0e2561434b9ed90649bc27",
-        "bytes": 937636
+        "sha256": "a0023da74ddd97cb97fb4432035c2d2fc386ec0e1fbc2f8b957ffcebe1ff4be1",
+        "bytes": 936207
       },
       "memories_ashkari_nomads.json": {
         "sha256": "3c2e3ed64a8c26ad7853cf3f1622930bc0021bb75eb8cd9c30accb1110bd3d3a",
@@ -101,16 +117,16 @@
         "bytes": 16626
       },
       "memories_thornwall_confederacy.json": {
-        "sha256": "45fc122c561cdc4a6311582942e338c59c2e1e50adda9d3e5b36db6077334f96",
-        "bytes": 15794
+        "sha256": "e9459a4ce8b6e1aedceac13cde4aaa4be460c2e3b3ff727e361e8f4e111bc699",
+        "bytes": 15627
       },
       "memories_vrashni_dominion.json": {
         "sha256": "d5470130d8990bec58a142d54b6de9b957a3f6bef37177adb5c9de36a33fd050",
         "bytes": 9824
       },
       "state.json": {
-        "sha256": "8f58e05ee2298c7ca874279927d1c4e38591e562bd4440f1bc6973f44eac107c",
-        "bytes": 300459
+        "sha256": "761e6c23d5ef46bce46414076368dece4e1a91ca7546e017244f6fbe92095b54",
+        "bytes": 298838
       }
     }
   }
