@@ -121,6 +121,12 @@ fn test_raided_cargo_is_seized_and_never_arrives() {
     assert!(ledger.in_transit_out[0].iter().all(|&q| q == 0.0));
     assert!(ledger.pending_delivery.iter().all(|r| r.iter().all(|&q| q == 0.0)));
     assert_eq!(stats.iter().map(|s| s.completed_trips).sum::<u32>(), 0);
+    // Like a delivering merchant, the robbed one heads home (the tick sends it
+    // there after the knowledge phase) instead of planning from mid-route.
+    assert_eq!(pool.trip_home_region[0], 0);
+    assert_eq!(pool.regions[0], 1);
+    chronicler_agents::merchant::return_delivering_merchants_home(&mut pool, &[7u8; 32]);
+    assert_eq!(pool.regions[0], 0);
 }
 
 #[test]

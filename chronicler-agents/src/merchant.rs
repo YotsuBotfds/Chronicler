@@ -959,6 +959,9 @@ pub fn merchant_mobility_phase_at(
                         ledger.seize(origin as usize, good as usize, qty);
                         stats.raided_trips += 1;
                         reset_trip_fields(pool, slot);
+                        // Like a delivering merchant, the robbed one goes home
+                        // (return_delivering_merchants_home) and plans from there.
+                        pool.trip_home_region[slot] = origin;
                         continue;
                     }
                 }
