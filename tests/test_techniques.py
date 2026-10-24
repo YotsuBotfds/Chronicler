@@ -273,10 +273,16 @@ def test_losing_the_land_loses_its_techniques():
     conquest = Event(turn=world.turn, event_type="annexation", actors=["Y", "X"], description="taken",
                      importance=7, region="Alpha")
     prov.remember(world, prov.key("conquest", "Alpha"), conquest)
+    # Absorptions are not in the causal index: the committed timeline is read.
+    absorbed = Event(turn=world.turn - 1, event_type="twilight_absorption", actors=["X", "Y"],
+                     description="", importance=6, event_id=f"{world.turn - 1}:twilight_absorption:0")
+    world.events_timeline.append(absorbed)
     events = _tick(world, 1)
     gained = [e for e in events if e.event_type == "technique_adopted"]
     assert len(gained) == 1 and gained[0].actors == ["Y"] and "newly held Alpha" in gained[0].description
-    assert conquest.event_id in gained[0].causes
+    assert conquest.event_id in gained[0].causes and absorbed.event_id in gained[0].causes
+    lost = [e for e in events if e.event_type == "technique_lost"]
+    assert not lost, "a civ left without land keeps no known set and reports no loss"
     assert world.techniques.counts["gained:conquest"] == 1
     assert world.techniques.known[0] == []  # a civ without land keeps no known set
 

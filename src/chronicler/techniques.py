@@ -548,6 +548,31 @@ def _land_causes(world, civ_name: str, region_names: list[str]) -> list[str | No
     return out
 
 
+_TRANSFER_TYPES = frozenset({
+    "twilight_absorption", "union_annexation", "civ_conquered", "annexation", "secession",
+    "restoration", "liberation", "occupation_revolt",
+})
+TRANSFER_WINDOW = 5
+
+
+def _transfer_causes(world, old_owner: str, new_owner: str, region: str) -> list[str | None]:
+    """Recent committed events that moved land between the two civs (or this
+    region): absorptions and annexations are not in the causal index, so the
+    last few turns of the timeline are read (read-only, newest first)."""
+    out: list[str | None] = []
+    for ev in reversed(world.events_timeline):
+        if ev.turn < world.turn - TRANSFER_WINDOW:
+            break
+        if ev.event_type not in _TRANSFER_TYPES or not ev.event_id:
+            continue
+        actors = set(ev.actors) | set(ev.civs)
+        if ev.region == region or (old_owner in actors and new_owner in actors):
+            out.append(ev.event_id)
+            if len(out) >= 2:
+                break
+    return out
+
+
 def _gains_and_losses(world, st: TechniqueState, ctrl: list[int], old_rows: dict,
                       practice: dict, meta: dict, invented: dict[int, int], events: list
                       ) -> list[set[int]]:
@@ -596,9 +621,11 @@ def _gains_and_losses(world, st: TechniqueState, ctrl: list[int], old_rows: dict
                 channel = CONQUEST
                 old_owner = prev_ctrl[r]
                 text = f"{civ.name} takes up {spec.label} in newly held {region_name}"
-                causes += _land_causes(world, old_owner >= 0 and civs[old_owner].name or "", [region_name])
-                if 0 <= old_owner < len(civs):
-                    causes.append(prov.recall(world, prov.key("technique", civs[old_owner].name, spec.key)))
+                old_name = civs[old_owner].name if 0 <= old_owner < len(civs) else ""
+                causes += _land_causes(world, old_name, [region_name])
+                causes += _transfer_causes(world, old_name, civ.name, region_name)
+                if old_name:
+                    causes.append(prov.recall(world, prov.key("technique", old_name, spec.key)))
                     causes.append(prov.recall(world, prov.key("secession", civ.name), within=5))
             else:
                 channel = CHANNELS[ch] if 0 <= ch < len(CHANNELS) else "neighbours"
@@ -637,6 +664,9 @@ def _gains_and_losses(world, st: TechniqueState, ctrl: list[int], old_rows: dict
                 cause = "land"
                 text = f"{civ.name} loses {spec.label} with {names[0]}"
                 causes = _land_causes(world, civ.name, names)
+                new_owner = ctrl[moved[0]]
+                causes += _transfer_causes(world, civ.name, civs[new_owner].name if new_owner >= 0 else "",
+                                           names[0])
             else:
                 cause = "decay"
                 text = f"{civ.name} loses the art of {spec.label} as its practitioners dwindle"
