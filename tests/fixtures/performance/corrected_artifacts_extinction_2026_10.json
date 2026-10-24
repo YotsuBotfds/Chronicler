@@ -4,12 +4,12 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "f8b3673",
+    "base_revision": "3902d3b+plague-cap",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
         "id": "EXT-2026-10",
-        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split.",
+        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split.",
         "workloads": {
           "single": 0,
           "standard": 0,
@@ -51,8 +51,8 @@
         "bytes": 588
       },
       "chronicle_bundle.json": {
-        "sha256": "03a4cdd55eece4adacdd8f1118b505dbb883a82a0479e8f0cebfdd61915e9121",
-        "bytes": 826626
+        "sha256": "f9055bd82df1918615ab5c89c534c3978db31b2cfbdea37900bb5252f06f2c3f",
+        "bytes": 826629
       },
       "memories_ashkari_nomads.json": {
         "sha256": "a451ad7a5c45feb94324b921594f18775dfeb43b37b091d63eee693dd6fcb49a",
@@ -71,7 +71,7 @@
         "bytes": 24704
       },
       "state.json": {
-        "sha256": "30053dd1714a2bdb7d1f1123fa87e29030775c534907aac6a0462c43599d58be",
+        "sha256": "bd8028d55d55d15fc18d47f857b58cdadf8740ec996355999a2efd6cae6522a7",
         "bytes": 250003
       }
     },
@@ -81,8 +81,8 @@
         "bytes": 500
       },
       "chronicle_bundle.json": {
-        "sha256": "d10a7dea1435a71422875a566c0461ff791b950bf23e9c321c2bf86987f5b909",
-        "bytes": 936026
+        "sha256": "35e74e6b0f25fd44c24e82010070c5628992ee989f0e2561434b9ed90649bc27",
+        "bytes": 937636
       },
       "memories_ashkari_nomads.json": {
         "sha256": "3c2e3ed64a8c26ad7853cf3f1622930bc0021bb75eb8cd9c30accb1110bd3d3a",
@@ -93,8 +93,8 @@
         "bytes": 16121
       },
       "memories_kethani_empire.json": {
-        "sha256": "bed064adff1f584aedadaa928a507ace56248177089c7c7a3b3558a984107d73",
-        "bytes": 15346
+        "sha256": "ccdfbf0099a13bd88bfe32da288d2b402f893ae716fe7d6660f771a5679d7b1e",
+        "bytes": 15901
       },
       "memories_selurian_republic.json": {
         "sha256": "55834e2853a9bea75701e72f10e7f06f5398ce59ec639d3dee696eea02b8291f",
@@ -109,8 +109,8 @@
         "bytes": 9824
       },
       "state.json": {
-        "sha256": "30a4aaee10a493303ac30d5cf28cf4a84f9b7b207f5778c1c0b6f15b2fec1df6",
-        "bytes": 299364
+        "sha256": "8f58e05ee2298c7ca874279927d1c4e38591e562bd4440f1bc6973f44eac107c",
+        "bytes": 300459
       }
     }
   }

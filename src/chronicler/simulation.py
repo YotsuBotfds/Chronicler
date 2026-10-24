@@ -114,6 +114,20 @@ def _agent_pool_tracks_population(world: WorldState) -> bool:
     return getattr(world, "agent_mode", None) in {"demographics-only", "shadow", "hybrid"}
 
 
+# Correction (2026-10): a plague outbreak killed a fixed 10 x severity people
+# per civ, whatever its size. With per-civ hazards that is ~8% of a typical
+# civ but wipes out a small or recovering one (500-turn worlds died this way
+# once their population fell to a few dozen). The toll is now capped at a
+# tenth of the civ's people; civs of 100+ lose exactly what they did before.
+PLAGUE_POP_LOSS = 10
+PLAGUE_MAX_POP_SHARE = 0.10
+
+
+def _plague_pop_loss(civ_regions, mult: float) -> int:
+    population = sum(r.population for r in civ_regions)
+    return int(min(PLAGUE_POP_LOSS, PLAGUE_MAX_POP_SHARE * population) * mult)
+
+
 def _agents_own_population(world: WorldState) -> bool:
     """Return True when Python-side population deltas must defer to Rust demographics."""
     return getattr(world, "agent_mode", None) in {"demographics-only", "hybrid"}
@@ -224,7 +238,7 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
                 # one-turn catastrophe-death transient makes the same loss
                 # survive Rust write-back in bridge-backed agent modes.
                 civ_regions = [r for r in world.regions if r.controller == civ.name]
-                actual_drains = distribute_pop_loss(civ_regions, int(10 * mult))
+                actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
                 if _agent_pool_tracks_population(world):
                     for region, actual in zip(civ_regions, actual_drains):
                         stage_region_catastrophe_deaths(region, actual)
@@ -1088,10 +1102,9 @@ def apply_injected_event(
     elif event_type == "plague":
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
-        pop_loss = int(10 * mult)
         civ_regions = [r for r in world.regions if r.controller == civ.name]
         if civ_regions:
-            actual_drains = distribute_pop_loss(civ_regions, pop_loss)
+            actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
             if _agent_pool_tracks_population(world):
                 for region, actual in zip(civ_regions, actual_drains):
                     stage_region_catastrophe_deaths(region, actual)

@@ -346,6 +346,24 @@ def test_mean_reign_is_plausible():
     assert 15 <= mean <= 40, mean
 
 
+def test_plague_toll_is_capped_at_a_tenth_of_the_civ():
+    """A plague outbreak no longer wipes out a small or recovering civ."""
+    from types import SimpleNamespace
+
+    from chronicler.simulation import PLAGUE_POP_LOSS, _plague_pop_loss
+
+    def regions(*pops):
+        return [SimpleNamespace(population=p) for p in pops]
+
+    # Civs of 100+ lose exactly the historical 10 x severity.
+    assert _plague_pop_loss(regions(60, 70), 1.0) == PLAGUE_POP_LOSS
+    assert _plague_pop_loss(regions(150), 1.5) == int(PLAGUE_POP_LOSS * 1.5)
+    # Small civs lose at most a tenth of their people.
+    assert _plague_pop_loss(regions(20, 10), 1.0) == 3
+    assert _plague_pop_loss(regions(8), 1.0) == 0
+    assert _plague_pop_loss(regions(), 1.0) == 0
+
+
 def test_coup_death_installs_usurper(monkeypatch):
     from chronicler.simulation import _apply_event_effects
     world = generate_world(seed=9, num_regions=6, num_civs=2)
