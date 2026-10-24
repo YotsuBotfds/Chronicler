@@ -1327,6 +1327,14 @@ def _advance_psi(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) ->
     sfd = stress.sfd_raw(gov.last_base_governing_cost + gov.last_institution_enforcement_cost,
                          gov.funding_treasury_before, gov.last_institution_enforcement_cost,
                          institutional_legitimacy)
+    if getattr(world, "finance", None) is not None:
+        # --finance: real state debt replaces the governing-cost/treasury proxy
+        # (roadmap D5 "state_debt doesn't exist yet"): fiscal stress from debt,
+        # debt service and deficit relative to revenue, arrears, recent default
+        # and inflation, with the same institutional-enforcement term.
+        from chronicler.finance import psi_fiscal_distress
+        sfd = psi_fiscal_distress(world, civ_idx, institutional_legitimacy,
+                                  gov.last_institution_enforcement_cost)
     gov.mmp_raw = mmp_raw
     gov.sfd_raw = sfd
     was_crisis = gov.psi_crisis

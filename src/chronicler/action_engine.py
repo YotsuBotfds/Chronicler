@@ -1116,6 +1116,17 @@ class ActionEngine:
                     weights[action] *= mod
             buckets.record("governance", weights)
 
+        # --finance: creditor leverage, austerity and creditor grievance as one
+        # contributor bucket, pre-clamped to 1.25x like the governance bucket;
+        # the global weight cap below still applies.
+        if getattr(self.world, "finance", None) is not None:
+            from chronicler.finance import finance_weight_modifiers
+            for action, mod in finance_weight_modifiers(
+                    self.world, civ_index(self.world, civ.name)).items():
+                if weights[action] > 0:
+                    weights[action] *= mod
+            buckets.record("finance", weights)
+
         # M37: Holy war weight modifier
         if self.world.belief_registry and hasattr(civ, 'civ_majority_faith'):
             attacker_faith = civ.civ_majority_faith
