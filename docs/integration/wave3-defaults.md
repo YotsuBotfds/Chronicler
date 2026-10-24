@@ -150,18 +150,27 @@ never bound until worlds lived.
 (`climate.get_climate_phase`: 75 turns) are functions of the turn number.
 Every world's last sample therefore falls on the same calendar point: turn
 499 and turn 199 are both autumn of a drought phase, so both standard
-profiles end at harvest. Since the food-balance fix, satisfaction follows the
+profiles end at harvest. The final sample is also the only one taken off the
+sampling grid: regular samples read the tick of turn T for T a multiple of
+10 (always an even turn of the year), the post-loop sample reads the tick of
+turn 499 (the seventh). Since the food-balance fix, satisfaction follows the
 harvest, and averaging 200 worlds does not remove a swing they all share:
 
-- Base seeds 62-81, 500 turns, pooled over the 20 worlds: 0.573 at turn
-  480, 0.589 at 490 and 0.651 at 500. By season of the sampled turn (turns
-  50 and later): spring 0.591, summer 0.595, autumn 0.610, winter 0.571.
-- On that batch the base fails regression on the ceiling alone (0.6513;
-  run mean 0.599). 17 of its 20 worlds end above their own last-60-turn
-  mean. The full base gate passes it by 0.007 (0.643, run mean 0.594).
-- High final samples do not mean a quiet late game: base worlds whose final
-  sample is above 0.65 have late-run migration 0.043 and rebellion 0.029
-  per agent-turn (last 100 turns), the others 0.045 and 0.035.
+- Base full profile (seeds 42-241, 500 turns), pooled over the 200 worlds:
+  0.580 at turn 480, 0.602 at 490 and 0.643 at the final sample. By season
+  of the sampled turn (turns 50 and later): spring 0.591, summer 0.597,
+  autumn 0.598, winter 0.562. 153 of the 200 worlds end above their own
+  last-60-turn mean (by 0.038 on average); the last 60 turns pool to
+  0.607 and the run to 0.594.
+- Base seeds 62-81, 500 turns: 0.573, 0.589 and 0.651 at the same three
+  samples. That batch fails regression on the ceiling alone (0.6513; run
+  mean 0.599); 17 of its 20 worlds end above their last-60-turn mean. The
+  full base gate passes it by 0.007.
+- High final samples come with somewhat less late unrest, as they should,
+  not with a quiet late game: in the base full profile, the 100 worlds whose
+  final sample is above 0.65 have late-run (last 100 turns) migration 0.046
+  and rebellion 0.042 per agent-turn, inside the 0.02-0.08 rebellion band;
+  the other 100 have 0.054 and 0.065.
 
 **New definition.** `latest_satisfaction_mean` is the agent-weighted mean
 of every sampled turn in the 60 turns ending at the run's last sample with
@@ -183,3 +192,45 @@ death). The old single sample is reported as `final_sample_satisfaction_mean`.
 | All on, seeds 42-61, 200 turns | 0.6076 | 0.6098 | FAIL both (`civ_survival` 0.25; informational in the subset) |
 
 The full-gate effect on the base is in [Gate results](#gate-results).
+
+## 3. Founder survival band: checked, unchanged
+
+`civ_survival` fails when every founding civ is still alive at the end in
+more than 20% of runs (with any run losing all civs). The M53 spec sets it as
+a design target for turn 500 ("0 or all 4 surviving in >20% of seeds"): a
+500-turn history in which no founder falls in more than a fifth of the
+worlds has no state death. It was not tuned on dying worlds; there it read
+0.0 and never bound. It measures the right thing on living worlds, so it is
+unchanged.
+
+Is it sitting in noise? The base full profile reads 0.165 (33 of 200).
+That is 1.3 binomial standard deviations (0.026) below the limit; the 95%
+interval is 0.12-0.22. A fresh 200-seed set from the same worlds would fail
+it about 8% of the time (9% at 0.167, the rate pooled over every base
+batch here, 40 of 240 runs). The 20-seed subset reads it at 200 turns, not
+the spec's 500, and fails it by chance about 23% of the time; it is
+informational there. Base batches: 0.15 (seeds 42-61, 200 turns) and 0.20
+(seeds 62-81, 500 turns). All three systems on: 0.25 and 0.20 on the same
+seeds. The full-profile reading with all three on is in
+[Gate results](#gate-results).
+
+## 4. Other thresholds: checked, unchanged
+
+Every other required check was compared with its calibration history and its
+margin on the base full profile (seeds 42-241, 500 turns, all three off).
+None is demonstrably calibrated on dying worlds in a way that misreads
+living ones, so none changes.
+
+| Check | Band | Base full | History and reading |
+| --- | --- | --- | --- |
+| satisfaction mean (run) | 0.45-0.65 | 0.594 | M53 spec band; 0.056 inside. Carries the ceiling the spec means. |
+| satisfaction std | 0.10-0.25 | 0.182 | M53 spec. |
+| migration per agent-turn | 0.05-0.15 (calibrated floor 0.045) | 0.0556 | M53 spec band; the 0.045 tolerance came with `bcd96e1` for stochastic batches. Living worlds have read 0.048 (extinction fix), 0.0556 (food balance) and 0.0496 on base seeds 62-81 at 500 turns: it is the tightest required margin left, and it moves with crowding, which the food-balance brake now holds at about two thirds of capacity. A strict miss is a `calibrated_floor` pass that `validation_compare` reports as a regression against a strict baseline. |
+| rebellion per agent-turn | 0.02-0.08 | 0.0529 | M53 spec. |
+| Gini in range | at least 20% of civs in 0.30-0.70 | 85% | |
+| occupation | no share above 70% or at 0; latest-turn agents | 0.14%, latest 0.02% | |
+| treasury | no long negative streaks | 0 seeds | Finance floors treasuries at zero. |
+| artifact creation | 1-3 per civ per 100 turns (tolerance 0.90) | 1.10 | M53 spec; lowered to this level by the extinction fix's treatise-flood correction. Base seeds 62-81 read 0.94 (the tolerance). |
+| artifact loss | 2-30%, both channels | 3.8% (40 lost, 127 destroyed) | Recalibrated in `b63ea62` with evidence. |
+| arcs | 5 of 6 families, none above 40%, 50% of seeds with 3 types | 6 families, 161 seeds | |
+| needs / cohort / community | 60% / 60% / 75% of seeds | 190 / 200 / 200 | |
