@@ -68,6 +68,17 @@ REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX = 0.01
 REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX = 0.05
 REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
 
+# Needs oracle (M53 oracle 2). A rebellion raises the rebel's autonomy by 0.10
+# (chronicler-agents/src/tick.rs, rebellion apply step), so a high autonomy
+# reading often marks a past rebel, and past rebels rebel again. The
+# autonomy -> rebellion pairing therefore pairs only agents that have not
+# rebelled by the snapshot turn (inclusive: sidecars are written after that
+# turn's agent tick). No finite window suffices: after two or more rebellions
+# the shift is still about +0.10 at 20-39 turns, and where autonomy is not
+# restored (displaced, or foreign rule plus persecution) it does not decay.
+# See docs/integration/needs-oracle-autonomy.md. False restores the old pairing.
+NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
+
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
 # (docs/integration/wave3-defaults.md). A silent collapse is a population
 # collapse of one civ that neither its own era signals nor its recorded crises
@@ -1949,7 +1960,33 @@ def run_community_oracle(seed_runs: list[dict]) -> dict:
     }
 
 
-def run_needs_oracle(seed_runs: list[dict]) -> dict:
+def _first_event_turns(events: list[dict], event_type: int) -> dict[int, int]:
+    """Each agent's first turn with an event of ``event_type`` (agent IDs are never reused)."""
+    first: dict[int, int] = {}
+    for event in events:
+        if event["event_type"] == event_type:
+            agent_id = int(event["agent_id"])
+            turn = int(event["turn"])
+            if agent_id not in first or turn < first[agent_id]:
+                first[agent_id] = turn
+    return first
+
+
+def _without_agents_with_event_by(columns: dict, first_event_turn: dict[int, int], snapshot_turn: int) -> dict:
+    """Drop rows of agents whose first event falls on or before ``snapshot_turn``."""
+    keep = [
+        idx for idx, agent_id in enumerate(columns["agent_id"])
+        if first_event_turn.get(int(agent_id), snapshot_turn + 1) > snapshot_turn
+    ]
+    if len(keep) == len(columns["agent_id"]):
+        return columns
+    return {name: [values[idx] for idx in keep] for name, values in columns.items()}
+
+
+def run_needs_oracle(
+    seed_runs: list[dict],
+    exclude_prior_rebels: bool = NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS,
+) -> dict:
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
@@ -1976,6 +2013,7 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
         best_event_type = None
         best_result = {"pairs_found": 0, "rate_difference": 0.0, "effect_size": 0.0}
         total_turns = _total_turns(run)
+        first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
         for needs_snapshot in needs_snapshots:
             snapshot_turn = int(needs_snapshot["turn"])
             if total_turns and snapshot_turn + 20 > total_turns:
@@ -1984,8 +2022,11 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
             for need_name, event_type in need_event_configs:
                 if need_name not in needs_snapshot["columns"]:
                     continue
+                columns = needs_snapshot["columns"]
+                if need_name == "autonomy" and exclude_prior_rebels:
+                    columns = _without_agents_with_event_by(columns, first_rebellion, snapshot_turn)
                 result = compute_needs_diversity(
-                    needs_snapshot["columns"],
+                    columns,
                     events_window,
                     need_name,
                     event_type=event_type,
@@ -2027,6 +2068,7 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
         "seeds_with_expected_sign": seeds_with_expected_sign,
         "total_pairs": total_pairs,
         "median_effect_size": median_effect_size,
+        "autonomy_excludes_prior_rebels": exclude_prior_rebels,
         "per_seed": per_seed,
     }
 

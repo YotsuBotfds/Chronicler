@@ -785,6 +785,128 @@ def test_needs_candidate_priority_prefers_expected_sign():
     assert _needs_candidate_priority(positive, 100) > _needs_candidate_priority(negative, 50)
 
 
+REBELLION = 2  # validation_io.EVENT_NAME_TO_CODE["rebellion"]
+MIGRATION = 1
+
+
+def _needs_rows(agents):
+    """Snapshot columns for (agent_id, region, needs overrides) rows."""
+    names = ("safety", "autonomy", "social", "spiritual", "material", "purpose")
+    columns = {name: [] for name in ("agent_id", "region", *names)}
+    for agent_id, region, needs in agents:
+        columns["agent_id"].append(agent_id)
+        columns["region"].append(region)
+        for name in names:
+            columns[name].append(needs.get(name, 0.5))
+    count = len(agents)
+    columns.update(
+        civ_affinity=[0] * count, occupation=[1] * count, satisfaction=[0.5] * count,
+        boldness=[0.5] * count, ambition=[0.5] * count, loyalty_trait=[0.5] * count,
+    )
+    return columns
+
+
+def _autonomy_confound_run():
+    """One seed where rebellion's own autonomy boost reverses the pairing.
+
+    Snapshot at turn 100. Regions 0-3: quiet pairs; the low-autonomy agent
+    rebels once in the next 20 turns, the high one never. Regions 4-7: the
+    high agent reads 0.6 only because it rebelled before the snapshot (+0.10
+    per rebellion; turn 95, or a burst at 50-52 for region 7) and keeps
+    rebelling, three times; its low partner never does.
+    """
+    rows, events = [], []
+    for region in range(4):
+        low, high = 2 * region, 2 * region + 1
+        rows += [(low, region, {"autonomy": 0.1}), (high, region, {"autonomy": 0.5})]
+        events.append({"agent_id": low, "event_type": REBELLION, "turn": 105})
+    for region in range(4, 8):
+        low, high = 2 * region, 2 * region + 1
+        rows += [(low, region, {"autonomy": 0.1}), (high, region, {"autonomy": 0.6})]
+        prior = (50, 51, 52) if region == 7 else (95,)
+        events += [{"agent_id": high, "event_type": REBELLION, "turn": t} for t in prior]
+        events += [{"agent_id": high, "event_type": REBELLION, "turn": t} for t in (102, 108, 115)]
+    columns = _needs_rows(rows)
+    return {
+        "seed": 3,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **columns},
+        "events": events,
+    }
+
+
+def test_needs_oracle_autonomy_confound_reverses_then_exclusion_restores():
+    from chronicler.validate import run_needs_oracle
+
+    run = _autonomy_confound_run()
+
+    confounded = run_needs_oracle([run], exclude_prior_rebels=False)
+    assert confounded["status"] == "FAIL"
+    assert confounded["seeds_with_expected_sign"] == 0
+    seed = confounded["per_seed"][0]
+    assert (seed["need_name"], seed["pairs_found"]) == ("autonomy", 8)
+    # 4 low-agent rebellions against 12 high-agent ones: low / high = 1/3.
+    assert seed["rate_difference"] == pytest.approx(4 / 8 - 12 / 8)
+
+    fixed = run_needs_oracle([run])
+    assert fixed["autonomy_excludes_prior_rebels"] is True
+    assert fixed["status"] == "PASS"
+    assert fixed["seeds_with_expected_sign"] == 1
+    seed = fixed["per_seed"][0]
+    # Prior rebels, including the turn 50-52 burst, are left out; their
+    # partners have no one to pair with.
+    assert (seed["need_name"], seed["pairs_found"]) == ("autonomy", 4)
+    assert seed["rate_difference"] == pytest.approx(1.0)
+    assert run["events"] == _autonomy_confound_run()["events"]
+
+
+def test_needs_autonomy_exclusion_counts_rebellions_through_the_snapshot_turn():
+    from chronicler.validation_io import _first_event_turns, _without_agents_with_event_by
+
+    # Sidecars are written after the snapshot turn's agent tick, so a
+    # rebellion on turn 100 precedes the turn-100 reading.
+    events = [
+        {"agent_id": 1, "event_type": REBELLION, "turn": 100},
+        {"agent_id": 2, "event_type": REBELLION, "turn": 101},
+        {"agent_id": 3, "event_type": MIGRATION, "turn": 99},
+        {"agent_id": 4, "event_type": REBELLION, "turn": 130},
+        {"agent_id": 4, "event_type": REBELLION, "turn": 12},
+    ]
+    columns = _needs_rows([(agent_id, 0, {}) for agent_id in range(5)])
+    first = _first_event_turns(events, REBELLION)
+    assert first == {1: 100, 2: 101, 4: 12}
+
+    kept = _without_agents_with_event_by(columns, first, 100)
+    assert kept["agent_id"] == [0, 2, 3]
+    assert all(len(values) == 3 for values in kept.values())
+    assert _without_agents_with_event_by(columns, first, 11) is columns
+
+
+def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
+    from chronicler.validate import run_needs_oracle
+
+    # Material -> migration among agents who all rebelled just before the
+    # snapshot: only the autonomy pairing drops prior rebels.
+    rows = []
+    for region in range(3):
+        rows += [(2 * region, region, {"material": 0.1}), (2 * region + 1, region, {"material": 0.6})]
+    events = [{"agent_id": agent_id, "event_type": REBELLION, "turn": 99} for agent_id in range(6)]
+    events += [{"agent_id": 2 * region, "event_type": MIGRATION, "turn": 104} for region in range(3)]
+    run = {
+        "seed": 4,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **_needs_rows(rows)},
+        "events": events,
+    }
+
+    before = run_needs_oracle([run], exclude_prior_rebels=False)
+    after = run_needs_oracle([run])
+    assert before["per_seed"] == after["per_seed"]
+    assert after["per_seed"][0]["need_name"] == "material"
+    assert after["per_seed"][0]["pairs_found"] == 3
+    assert after["status"] == "PASS"
+
+
 def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch):
     from chronicler.validate import run_cohort_oracle
     from chronicler import validation_io
