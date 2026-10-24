@@ -1182,10 +1182,12 @@ def _raids(t: _Tick) -> None:
             _bump(state, "raids")
             _bump(state, "plunder", loot)
             _bump(state, "raid_deaths", killed)
-            took = f"carrying off {loot} in plunder and killing" if loot else "killing"
+            took = [f"carrying off {loot} in plunder"] if loot else []
+            if killed:
+                took.append(f"killing {killed} of {target.name}'s people")
+            what = " and ".join(took) if took else "but find little to take"
             ev = _emit(t, "raid", [civ.name, target.name],
-                       f"Riders of the {civ.name} raid {region.name}, {took} {killed} of "
-                       f"{target.name}'s people.",
+                       f"Riders of the {civ.name} raid {region.name}, {what}.",
                        importance=5, region=region.name, causes=causes)
         else:
             _bump(state, "raids_repulsed")
