@@ -139,3 +139,53 @@ def test_save_load_resume_identity_with_all_five_on(tmp_path):
     first.save(path)
     resumed = _advance(WorldState.load(path), 15)
     assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+# --- Nomads with every other system: the ledger, epidemiology, finance, diplomacy,
+# --- techniques and maritime ---------------------------------------------------------------
+
+def _all_world() -> WorldState:
+    """Seed 11 (32 regions, 8 civs) has a nomadic and two agro-pastoral peoples."""
+    import chronicler.nomads as nm
+    world = _five_world()
+    nm.set_nomads_enabled(world, True)
+    return world
+
+
+def _nomads_live(world: WorldState) -> bool:
+    n = world.nomads
+    return bool(sum(n.herds) > 0 and n.counters["raids"] + n.counters["raids_repulsed"] > 0
+                and any(m != 0 for i, m in enumerate(n.modes) if world.civilizations[i].regions))
+
+
+def _all_live_save_point() -> WorldState:
+    """The first turn from 30 on where herds graze, a raid has happened and
+    every other system carries live state."""
+    world = _advance(_all_world(), 30)
+    while not (_nomads_live(world) and _all_four_live(world) and world.techniques is not None):
+        assert world.turn < 120, "no turn with live state in every system"
+        _advance(world, 1)
+    return world
+
+
+def test_nomads_with_every_system_run_and_persist_state():
+    world = _all_live_save_point()
+    assert world.nomads.raids or world.nomads.counters["raids"] > 0
+    dumped = WorldState.model_validate_json(world.model_dump_json())
+    assert dumped.nomads == world.nomads
+    assert dumped.model_dump_json() == world.model_dump_json()
+
+
+def test_save_load_resume_identity_with_nomads_and_every_system_on(tmp_path):
+    first = _all_live_save_point()
+    straight = _advance(_all_world(), first.turn + 15)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = _advance(WorldState.load(path), 15)
+    assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+def test_nomads_with_every_system_is_deterministic():
+    a = _advance(_all_world(), 30)
+    b = _advance(_all_world(), 30)
+    assert a.model_dump_json() == b.model_dump_json()
