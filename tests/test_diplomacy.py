@@ -661,8 +661,19 @@ def test_cli_flag_persists_and_bundle_carries_diplomacy_history(tmp_path):
     assert "diplomacy" in state
     bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
     assert all("diplomacy" in snap for snap in bundle["history"])
-    assert set(bundle["history"][-1]["diplomacy"]) == {"treaties", "subjects", "top_grievances", "counts"}
+    assert set(bundle["history"][-1]["diplomacy"]) == {"treaties", "subjects", "top_grievances", "counts",
+                                                       "pairs"}
     assert "diplomacy" in bundle["world_state"]
+    # The viewer's pair matrix matches the final memories of living civs.
+    ws = bundle["world_state"]
+    living = [c["name"] for c in ws["civilizations"] if c["regions"]]
+    expected = [
+        (h, o, [round(m["trust"], 1), round(sum(m["grievance"]), 1)])
+        for h in living for o in living
+        if o != h and (m := ws["relationships"].get(h, {}).get(o, {}).get("memory")) is not None
+    ]
+    pairs = bundle["history"][-1]["diplomacy"]["pairs"]
+    assert pairs and [(h, o, v) for h, row in pairs.items() for o, v in row.items()] == expected
     metrics = dp.extract_diplomacy_metrics([bundle])
     assert metrics["runs"] == 1 and metrics["by_seed"][0]["turns"] == len(bundle["history"])
     assert dp.extract_diplomacy_metrics([{"history": [{}]}]) == {}
