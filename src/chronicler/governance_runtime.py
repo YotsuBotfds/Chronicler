@@ -1322,6 +1322,11 @@ def _advance_psi(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Context) ->
         relative_wage = min(1.0, max(0.2, 1.1 - 0.5 * crowding + 0.3 * (civ.economy / 100 - 0.5)))
         urbanization = min(0.6, 0.3 * crowding)
         mmp_raw = stress.mmp_components(relative_wage, urbanization, 0.25)
+    from chronicler.epidemiology import epidemiology_enabled, mmp_labour_relief
+    if epidemiology_enabled(world):
+        # Labour scarcity after epidemic deaths raises relative wages
+        # (MMP is proportional to 1 / relative wage).
+        mmp_raw = mmp_raw / mmp_labour_relief(world, civ_idx)
     legit = [i.legitimacy for i in gov.institutions]
     institutional_legitimacy = sum(legit) / len(legit) if legit else 1.0
     sfd = stress.sfd_raw(gov.last_base_governing_cost + gov.last_institution_enforcement_cost,
