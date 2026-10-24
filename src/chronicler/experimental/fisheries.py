@@ -2,6 +2,12 @@
 
 An open local fishery replenishes toward carrying stock, then harvest removes
 biomass. The catch limit is an accounting constraint, not a yield bonus.
+
+Worlds created by the CLI, batch and live entry points follow
+``DEFAULT_ENABLED_FOR_NEW_WORLDS`` (``--fisheries`` / ``--no-fisheries``);
+loaded, forked and caller-supplied worlds keep their saved
+``WorldState.fishery_experiment``. See
+docs/integration/fisheries-mutual-aid-promotion.md.
 """
 from __future__ import annotations
 
@@ -13,6 +19,27 @@ from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from chronicler.models import Region, WorldState
+
+
+#: Default for worlds newly created by the CLI/batch/live entry points
+#: (``--no-fisheries`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+
+#: Reference workforce applied when a *new* world enables the fishery. The
+#: class default (200) is kept so dormant configs serialize unchanged. With
+#: recovery 0.04 and 8 reserve turns, a slot sustains about
+#: ``recovery_rate * reserve_turns * reference_workers`` fishers at base yield:
+#: 64 at 200, which no living-world region reaches (template coasts carry
+#: 20-40 fishers), so the stock never constrained catch. 100 (about 32
+#: fishers) lets the densest coasts overfish. [CALIBRATE]
+NEW_WORLD_REFERENCE_WORKERS = 100
+
+#: Narrated stock transitions (fractions of carrying stock). A slot collapses
+#: below COLLAPSE_STOCK and is narrated as recovered once it is back at
+#: RECOVERED_STOCK; the gap is hysteresis so a stock hovering at one threshold
+#: does not repeat events.
+COLLAPSE_STOCK = 0.25
+RECOVERED_STOCK = 0.6
 
 
 class FisheryConfig(BaseModel):
@@ -111,6 +138,65 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
                 min(1.0, result.yield_per_worker / potential) if potential > 0.0 else 0.0
             )
         region.resource_current_yields = list(yields)
+
+
+def fishery_stock_events(world: WorldState) -> list:
+    """Collapse/recovery transitions after this tick's stock update.
+
+    Reads the stocks ``apply_fishery_feedback`` just wrote and the persisted
+    ``Region.fishery_collapsed`` memory; consumes no RNG and changes no yield.
+    Disabled runs neither read nor mutate the memory.
+    """
+    if not fishery_enabled(world):
+        return []
+    from chronicler.models import Event, ResourceType
+
+    events = []
+    for region in world.regions:
+        collapsed = set(region.fishery_collapsed or ())
+        before = set(collapsed)
+        for slot, rtype in enumerate(region.resource_types):
+            if rtype != ResourceType.FISH:
+                collapsed.discard(slot)  # removed fish resource: forget silently
+                continue
+            stock = region.fishery_stocks[slot]
+            actors = [region.controller] if region.controller else []
+            if slot not in collapsed and stock < COLLAPSE_STOCK:
+                collapsed.add(slot)
+                events.append(Event(
+                    turn=world.turn, event_type="fishery_collapse", actors=actors,
+                    description=(f"The fishing grounds of {region.name} collapse: years of heavy "
+                                 f"fishing have left {stock:.0%} of the stock."),
+                    importance=7,
+                ))
+            elif slot in collapsed and stock >= RECOVERED_STOCK:
+                collapsed.discard(slot)
+                events.append(Event(
+                    turn=world.turn, event_type="fishery_recovery", actors=actors,
+                    description=(f"Fish return to the waters of {region.name}; the stock has "
+                                 f"recovered to {stock:.0%}."),
+                    importance=6,
+                ))
+        if collapsed != before:
+            region.fishery_collapsed = sorted(collapsed) or None
+    return events
+
+
+def set_fisheries_enabled(world: WorldState, enabled: bool, *, new_world: bool = False) -> None:
+    """Switch the fishery on or off; a new world also gets its calibration.
+
+    Only a world created in this run (``new_world``) receives
+    ``NEW_WORLD_REFERENCE_WORKERS``; a loaded world keeps its saved
+    parameters and only flips ``enabled``. Stocks, ratios and budgets are
+    never touched here (disabling freezes them; re-enabling resumes them).
+    """
+    config = world.fishery_experiment
+    if enabled and new_world:
+        world.fishery_experiment = config.model_copy(
+            update={"enabled": True, "reference_workers": NEW_WORLD_REFERENCE_WORKERS},
+        )
+    else:
+        config.enabled = bool(enabled)
 
 
 def fishery_enabled(world: WorldState) -> bool:
