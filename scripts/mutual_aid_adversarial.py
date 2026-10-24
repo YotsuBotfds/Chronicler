@@ -41,6 +41,8 @@ def _world(enabled: bool, treasury: int) -> WorldState:
                resource_types=[5, 255, 255], resource_effective_yields=[.5, 0, 0],
                resource_current_yields=[.5, 0, 0]),
     ]
+    for region in regions:
+        _set_yield(region, region.resource_current_yields[0])
     regions[0].stockpile.goods = {"grain": 35.0}
     civ = Civilization(name="Cooperative", population=50, military=10, economy=40,
                        culture=30, stability=80, treasury=treasury,
@@ -55,11 +57,20 @@ def _total_goods(world) -> float:
     return math.fsum(v for r in world.regions for v in r.stockpile.goods.values())
 
 
+def _harvest_index(rtype: int, goods_per_farmer: float) -> float:
+    """Realized harvest index that the economy converts to ``goods_per_farmer``."""
+    try:
+        from chronicler.ecology import harvest_normal_index
+    except ImportError:  # sources before the 2026-10 goods-unit conversion
+        return goods_per_farmer
+    return goods_per_farmer * harvest_normal_index(rtype)
+
+
 def _set_yield(region, value: float) -> None:
-    # No ecology tick runs here, so the prescribed crop is also the realized
-    # harvest yield that the integrated Phase 2 economy reads.
+    # No ecology tick runs here, so the prescribed crop (goods per farmer) is
+    # also the realized harvest that the integrated Phase 2 economy reads.
     region.resource_effective_yields[0] = value
-    region.resource_current_yields[0] = value
+    region.resource_current_yields[0] = _harvest_index(region.resource_types[0], value)
 
 
 def _schedule(world, turn: int) -> list[str]:

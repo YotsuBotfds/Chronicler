@@ -3,7 +3,7 @@
 
 use chronicler_agents::merchant::{
     bfs_from, evaluate_route, evaluate_route_packet_aware, merchant_mobility_phase,
-    DeliveryBuffer, MerchantTripStats, RouteGraph, ShadowLedger,
+    return_delivering_merchants_home, DeliveryBuffer, MerchantTripStats, RouteGraph, ShadowLedger,
 };
 use chronicler_agents::knowledge::{
     admit_packet, PacketCandidate, InfoType,
@@ -96,12 +96,59 @@ fn test_multi_turn_travel() {
     // Turn 4: advance last hop (region 2 -> 3), arrive, trip completed.
     let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
     assert_eq!(stats.completed_trips, 1, "Trip should complete on turn 4");
-    // After arrival + reset, the merchant may immediately plan a new route (Loading)
-    // or remain Idle if no profitable return route exists. Either is valid.
+    // After arrival the merchant is Idle at the market; it goes home before
+    // planning again (see the return test below).
     assert_ne!(
         pool.trip_phase[0], TRIP_PHASE_TRANSIT,
         "After arrival, merchant should not remain in Transit"
     );
+}
+
+#[test]
+fn test_delivering_merchant_returns_home_after_observing_the_market() {
+    // Food-balance correction (2026-10): a merchant that delivers goes back to
+    // the region it set out from instead of settling at the market.
+    let (mut pool, regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+    for _ in 0..3 {
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
+    }
+    let stats = merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
+    assert_eq!(stats.completed_trips, 1);
+    // For the rest of the mobility and knowledge phases it is at the market,
+    // flagged as an arrival, and does not plan a trip from there.
+    assert_eq!(pool.regions[0], 3);
+    assert!(pool.arrived_this_turn[0]);
+    assert_eq!(pool.trip_phase[0], 0);
+    assert_eq!(pool.trip_home_region[0], 0);
+
+    return_delivering_merchants_home(&mut pool, &[0u8; 32]);
+    assert_eq!(pool.regions[0], 0, "merchant is back in its home region");
+    assert_eq!(pool.trip_home_region[0], u16::MAX, "the return is consumed");
+    return_delivering_merchants_home(&mut pool, &[0u8; 32]);
+    assert_eq!(pool.regions[0], 0);
+
+    // The next turn it plans from home again.
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
+    assert!(!pool.arrived_this_turn[0], "arrival flags are per turn");
+    assert_eq!(pool.trip_phase[0], TRIP_PHASE_LOADING);
+    assert_eq!(pool.trip_origin_region[0], 0);
+}
+
+#[test]
+fn test_pending_return_is_cleared_by_the_next_mobility_phase() {
+    // A direct caller that never runs the return step does not strand the
+    // merchant: the next phase clears last turn's pending return, and the
+    // merchant trades from wherever it is.
+    let (mut pool, regions, graph) = setup_linear_world();
+    let mut ledger = ShadowLedger::new(4);
+    for _ in 0..4 {
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
+    }
+    assert_eq!(pool.trip_home_region[0], 0);
+    merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0u8; 32], None);
+    assert_eq!(pool.trip_home_region[0], u16::MAX);
+    assert_eq!(pool.regions[0], 3);
 }
 
 #[test]

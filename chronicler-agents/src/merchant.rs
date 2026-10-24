@@ -681,6 +681,39 @@ pub fn depart_merchant(
     true
 }
 
+/// Send this turn's delivering merchants back to the region they set out from.
+///
+/// Called by the tick after the 0.95 knowledge phase, so an arrival still
+/// observes the destination market (M59a) before the merchant leaves it.
+/// Correction (2026-10, food balance): a merchant used to stay wherever it
+/// delivered, so every completed trip permanently moved one person (and one
+/// mouth) from the exporting region to the importing one, split households,
+/// and left the exporter short of merchants, which it re-recruited from its
+/// farmers. The return leg itself is not simulated: the outbound trip time
+/// is unchanged, and the merchant plans its next trip from home the
+/// following turn.
+pub fn return_delivering_merchants_home(pool: &mut AgentPool, master_seed: &[u8; 32]) {
+    let seed_u64 = u64::from_le_bytes(master_seed[..8].try_into().unwrap());
+    for slot in 0..pool.capacity() {
+        let home = pool.trip_home_region[slot];
+        if home == crate::agent::TRIP_HOME_NONE {
+            continue;
+        }
+        pool.trip_home_region[slot] = crate::agent::TRIP_HOME_NONE;
+        if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE {
+            continue;
+        }
+        let market = pool.regions[slot];
+        if market == home {
+            continue;
+        }
+        pool.regions[slot] = home;
+        let (x, y) = crate::spatial::transit_entry_position(seed_u64, home, market);
+        pool.x[slot] = x;
+        pool.y[slot] = y;
+    }
+}
+
 /// Reset all trip fields to Idle state.
 pub fn reset_trip_fields(pool: &mut AgentPool, slot: usize) {
     pool.trip_phase[slot] = TRIP_PHASE_IDLE;
@@ -781,6 +814,13 @@ pub fn merchant_mobility_phase(
 ) -> MerchantTripStats {
     let mut stats = MerchantTripStats::default();
     let cap = pool.capacity();
+    // Arrival flags and pending returns belong to this turn's arrivals only
+    // (the tick consumes both after the knowledge phase; direct callers of
+    // this phase may not).
+    for slot in 0..cap {
+        pool.arrived_this_turn[slot] = false;
+        pool.trip_home_region[slot] = crate::agent::TRIP_HOME_NONE;
+    }
 
     // Phase a-b: Disruption check + replan/unwind for Transit merchants
     for slot in 0..cap {
@@ -834,6 +874,9 @@ pub fn merchant_mobility_phase(
         stats.completed_trips += 1;
         stats.avg_trip_duration += duration as f32;
         pool.arrived_this_turn[slot] = true;
+        // The merchant goes home after delivering (see
+        // return_delivering_merchants_home); it plans its next trip from there.
+        pool.trip_home_region[slot] = origin as u16;
         reset_trip_fields(pool, slot);
     }
     if stats.completed_trips > 0 {
@@ -847,6 +890,9 @@ pub fn merchant_mobility_phase(
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
+        // A merchant that delivered this turn is still at the market; it
+        // returns home before planning again.
+        if pool.trip_home_region[slot] != crate::agent::TRIP_HOME_NONE { continue; }
         let origin = pool.regions[slot];
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
         let (intent, had_packets) = evaluate_route_packet_aware(

@@ -24,7 +24,11 @@ Phase 2, in order:
 3. The economy batch is packed: per-slot `resource_yield_{0,1,2}` from
    `fisheries.economy_yield()` (the preview; for fish slots with the experiment
    enabled, times the lagged catch ratio) and, only when the fishery experiment
-   is enabled, nullable `fishery_catch_budget_{0,1,2}`.
+   is enabled, nullable `fishery_catch_budget_{0,1,2}`. Since the 2026-10
+   food-balance correction both are in goods units (the index and the catch
+   credit divided by the long-run harvest normal, `ecology.goods_per_worker`);
+   see
+   [food-balance-2026-10](food-balance-2026-10.md).
 4. Native (or oracle) economy: farmer labor splits equally across occupied
    valid slots, each fish slot's allocated output is capped by its budget,
    then PR #11's inventory-based trade, prices and stock lifecycle run.

@@ -90,6 +90,7 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
         return
     from chronicler.models import ResourceType
 
+    from chronicler.ecology import goods_per_worker
     from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
 
     # The split bridge's live snapshot precedes this turn's agent tick. Prefer
@@ -113,9 +114,12 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
         yields = region_yields[region.name]
         # Goods production allocates farmer labor food-first across occupied
         # slots; fishing effort uses the same share, so biomass is not debited
-        # for labor that the economy assigns to other resources.
+        # for labor that the economy assigns to other resources. The split
+        # compares goods yields with food demand, as the economy does.
         slot_workers = food_first_slot_labor(
-            region.resource_types, yields, worker_counts[rid],
+            region.resource_types,
+            [goods_per_worker(rt, y) for rt, y in zip(region.resource_types, yields)],
+            worker_counts[rid],
             populations[rid] * PER_CAPITA_FOOD,
         )
         for slot, rtype in enumerate(region.resource_types):
@@ -205,11 +209,18 @@ def fishery_enabled(world: WorldState) -> bool:
 
 
 def catch_budget(world: WorldState, region: Region, slot: int = 0) -> float | None:
+    """The slot's production cap in goods: last tick's catch, if a fish slot.
+
+    The stock model counts catch in M34 harvest-index units; the economy
+    produces goods, so the budget is converted like the yield (see
+    ``ecology.goods_per_worker``).
+    """
     if fishery_enabled(world):
         from chronicler.models import ResourceType
         if region.resource_types[slot] == ResourceType.FISH:
+            from chronicler.ecology import goods_per_worker
             # No prior catch means no production credit; enabling cannot create fish.
-            return region.fishery_catch_budgets[slot] or 0.0
+            return goods_per_worker(ResourceType.FISH, region.fishery_catch_budgets[slot] or 0.0)
     return None
 
 
@@ -225,13 +236,18 @@ def economy_yield(world: WorldState, region: Region, slot: int = 0) -> float:
 
     Reads the realized ``resource_current_yields`` preview (season, climate,
     ecology, suspension and mineral reserves; see
-    ``ecology.refresh_resource_yields``). When the fishery experiment is
-    enabled, fish slots also carry the lagged catch ratio; the separate catch
-    budget caps their allocated output. Permanent yields are never overwritten.
+    ``ecology.refresh_resource_yields``), converted from the M34 harvest index
+    into goods per farmer (``ecology.goods_per_worker``). When the fishery
+    experiment is enabled, fish slots also carry the lagged catch ratio; the
+    separate catch budget caps their allocated output. Permanent yields are
+    never overwritten.
     """
+    from chronicler.ecology import goods_per_worker
+
+    rtype = region.resource_types[slot]
     value = region.resource_current_yields[slot]
     if fishery_enabled(world):
         from chronicler.models import ResourceType
-        if region.resource_types[slot] == ResourceType.FISH:
+        if rtype == ResourceType.FISH:
             value *= region.fishery_yield_ratios[slot]
-    return value
+    return goods_per_worker(rtype, value)

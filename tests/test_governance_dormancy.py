@@ -13,11 +13,11 @@ from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
 # Rolled forward from the frozen corrected_423a67c oracles by the 2026-10
-# deferred-backlog corrections and then the 2026-10 extinction fix; see the
-# fixture provenance and tests/test_performance_equivalence.py for the
-# scoped-difference proofs.
-BASELINE = json.loads((FIXTURES / "corrected_extinction_2026_10.json").read_text())
-ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_extinction_2026_10.json").read_text())
+# deferred-backlog corrections, the 2026-10 extinction fix and then the
+# 2026-10 food-balance corrections; see the fixture provenance and
+# tests/test_performance_equivalence.py for the scoped-difference proofs.
+BASELINE = json.loads((FIXTURES / "corrected_food_balance_2026_10.json").read_text())
+ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])

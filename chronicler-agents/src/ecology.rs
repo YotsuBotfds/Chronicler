@@ -471,10 +471,13 @@ fn tick_soil_controlled(
     config: &EcologyConfig,
     degradation_mult: f32,
 ) {
-    let eff = effective_capacity(region, config);
-
-    // Degradation: overpopulation
-    if region.population > eff {
+    // Degradation: overpopulation of the undegraded land. Correction (2026-10,
+    // food balance): this compared population with the *effective* capacity,
+    // which already contains the degraded soil and drought-depressed water, so
+    // one dip started a ratchet (lower soil -> lower threshold -> further
+    // degradation, no recovery above 0.75 x potential). Mirrors Python
+    // ecology._tick_soil; recovery already uses potential capacity.
+    if region.population as f32 > potential_capacity(region) {
         region.soil -= config.soil_degradation * degradation_mult;
     }
 
@@ -525,10 +528,13 @@ fn tick_water_controlled(
         region.water += config.warming_tundra_water_gain;
     }
 
-    // Recovery (temperate only)
+    // Recovery (temperate only), climatic like the losses. Correction (2026-10,
+    // food balance): scaling it by the population pressure multiplier left the
+    // climate cycle's water budget (drought + cooling losses 0.9, temperate
+    // gain 30 x 0.03) balanced only for an empty region, so populated regions
+    // ratcheted to the water floor. Mirrors Python ecology._tick_water.
     if climate_phase == CLIMATE_TEMPERATE {
-        let rate = config.water_recovery * pressure_multiplier(region, config);
-        region.water += rate;
+        region.water += config.water_recovery;
     }
 
     // Irrigation bonus (always except drought)
@@ -550,8 +556,8 @@ fn tick_water_uncontrolled(
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
     } else if climate_phase == CLIMATE_TEMPERATE {
-        let rate = config.water_recovery * pressure_multiplier(region, config);
-        region.water += rate;
+        // Climatic recovery, not population-gated (see tick_water_controlled).
+        region.water += config.water_recovery;
     }
 }
 
@@ -962,6 +968,44 @@ mod tests {
         tick_soil_controlled(&mut r, &config, 1.0);
         assert!(r.soil > before, "soil should recover: {} -> {}", before, r.soil);
         assert!(pressure_multiplier(&r, &config) > 0.5);
+    }
+
+    #[test]
+    fn test_degraded_soil_below_potential_capacity_does_not_degrade() {
+        // Food-balance correction: degradation compares population with the
+        // undegraded potential, so a dip in soil cannot start a ratchet.
+        let config = EcologyConfig::default();
+        let mut r = make_plains_region(0);
+        r.soil = 0.5;
+        r.water = 0.6;
+        r.population = 55; // effective capacity 30 < 55 < potential 60; above 0.75 x 60
+        assert!(r.population > effective_capacity(&r, &config));
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert_eq!(r.soil, 0.5);
+        r.population = 61; // above potential: overpopulated
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert!((r.soil - (0.5 - config.soil_degradation)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_temperate_water_recovery_does_not_depend_on_population() {
+        // Food-balance correction: recovery is climatic, like the drought and
+        // cooling losses it balances over a climate cycle.
+        let config = EcologyConfig::default();
+        for &pop in &[0u16, 30, 60, 120] {
+            for &controlled in &[true, false] {
+                let mut r = make_plains_region(0);
+                r.water = 0.3;
+                r.population = pop;
+                if controlled {
+                    tick_water_controlled(&mut r, &config, CLIMATE_TEMPERATE);
+                } else {
+                    r.controller_civ = UNCONTROLLED;
+                    tick_water_uncontrolled(&mut r, &config, CLIMATE_TEMPERATE);
+                }
+                assert!((r.water - (0.3 + config.water_recovery)).abs() < 1e-6, "pop {pop}");
+            }
+        }
     }
 
     #[test]

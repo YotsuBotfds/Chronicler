@@ -188,11 +188,27 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
 
 
 def process_migration(world: WorldState, acc=None) -> list[Event]:
-    """Called at end of phase 1, after disasters."""
+    """Called at end of phase 1, after disasters.
+
+    Aggregate overflow migration for Python-owned populations (off and shadow
+    modes). In hybrid and demographics-only modes the native agent pool owns
+    population and agents migrate themselves, so this is a no-op there.
+
+    Correction (2026-10, food balance): it used to run in every mode. In the
+    agent-owned modes it rewrote ``region.population`` for the rest of the
+    turn (clamping an overflowing region to its effective capacity and adding
+    the "surplus" to neighbours) although no agent moved; the write-back then
+    restored the agent count. Phase 2-9 consumers (ecology pressure, soil and
+    disease gates, plague crowding, stock caps) therefore read a fictitious
+    population, and the turn emitted migration/starvation events and
+    receiving-civ stability penalties for moves that never happened.
+    """
     from chronicler.ecology import effective_capacity
     from chronicler.utils import add_region_pop, get_region_map, sync_all_populations
 
     events: list[Event] = []
+    if getattr(world, "agent_mode", None) in ("hybrid", "demographics-only"):
+        return events
     civ_by_name = getattr(world, "civ_map", None)
     if not isinstance(civ_by_name, dict):
         civ_by_name = {c.name: c for c in world.civilizations}
