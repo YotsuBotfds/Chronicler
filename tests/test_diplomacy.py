@@ -531,6 +531,12 @@ def test_twilight_decliner_becomes_a_client_instead_of_being_absorbed():
 def test_a_personal_union_leaves_foreign_policy_to_the_overlord():
     world = _three()
     _subject(world, "union")
+    # Union partners regard each other as FRIENDLY at least, memory or not.
+    world.relationships["C"]["A"].disposition = Disposition.SUSPICIOUS
+    assert world.relationships["C"]["A"].memory is None
+    dp._apply_dispositions(world)
+    dp._apply_dispositions(world)
+    assert world.relationships["C"]["A"].disposition == Disposition.FRIENDLY
     eligible = ActionEngine(world).get_eligible_actions(world.civ_map["C"])
     assert not set(eligible) & dp.UNION_FORBIDDEN
     world.vassal_relations[0].stage = "client"

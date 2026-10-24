@@ -1710,11 +1710,13 @@ def _apply_dispositions(world) -> None:
         if holder not in living:
             continue
         for other, rel in rels.items():
-            if other not in living or rel.memory is None:
+            if other not in living:
                 continue
             mem = rel.memory
-            cur = _ORDER.index(rel.disposition)
             floor = friendly if ((holder, other) in unions or (other, holder) in unions) else 0
+            if mem is None and not floor:
+                continue
+            cur = _ORDER.index(rel.disposition)
             cap = max(floor, _ORDER.index(disposition_ceiling(mem)))
             if cur > cap:
                 rel.disposition = _ORDER[cur - 1]
@@ -1724,6 +1726,8 @@ def _apply_dispositions(world) -> None:
             if cur < floor:
                 rel.disposition = _ORDER[cur + 1]
                 changed = True
+                continue
+            if mem is None:
                 continue
             e = effective_grievance(mem)
             step = -1 if e >= DRIFT_GRIEVANCE else (1 if e <= -DRIFT_GOODWILL and mem.trust >= 0 else 0)
