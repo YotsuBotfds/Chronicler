@@ -347,6 +347,7 @@ def _rule_secession(world: "WorldState", ev: Event) -> list:
     if civs:
         out += _distress(world, civs[0])
         out.append(recall(world, key("legitimacy", civs[0]), within=20))
+        out.append(recall(world, key("fragmented", civs[0]), within=20))  # nomads: a broken horde
     return out
 
 
@@ -354,7 +355,8 @@ def _rule_collapse(world: "WorldState", ev: Event) -> list:
     civ = _first_civ(world, ev)
     if civ is None:
         return []
-    return [*_distress(world, civ), recall(world, key("secession", civ), within=20)]
+    return [*_distress(world, civ), recall(world, key("secession", civ), within=20),
+            recall(world, key("fragmented", civ), within=20)]  # nomads: a broken horde
 
 
 def _rule_twilight(world: "WorldState", ev: Event) -> list:
@@ -385,7 +387,8 @@ def _rule_war_open(world: "WorldState", ev: Event) -> list:
     return [recall(world, "border:" + k, within=10),
             recall(world, "embargo:" + k, within=20),
             recall(world, "proxy:" + k, within=20),
-            recall(world, "peace:" + k, within=30)]
+            recall(world, "peace:" + k, within=30),
+            recall(world, "raid:" + k, within=15)]  # nomads (none while off)
 
 
 def _rule_war_event(world: "WorldState", ev: Event) -> list:
@@ -667,6 +670,8 @@ _PER_CIV_KEYS: dict[str, str] = {
     "secession": "secession", "leader_death": "leader_death", "drought": "drought",
     "plague": "plague", "twilight": "twilight", "capital_loss": "capital_loss",
     "vassalization": "vassal", "federation_formed": "federation",
+    # Nomads: herd losses (the hunger raids answer) and settling.
+    "dzud": "herd_loss", "pasture_drought": "herd_loss", "sedentarization": "settled",
 }
 _PAIR_KEYS: dict[str, str] = {
     "border_incident": "border", "embargo": "embargo", "proxy_detected": "proxy",
@@ -739,6 +744,14 @@ def _register(world: "WorldState", ev: Event) -> None:
         keys[key("landing", region)] = eid
     if etype == "piracy" and region is not None:
         keys[key("piracy", region)] = eid  # a zone's latest raid, at its first port
+    if etype in ("raid", "raid_repulsed") and len(civs) >= 2:
+        keys["raid:" + pair(civs[0], civs[1])] = eid  # nomads: the pair's latest raid
+    elif etype == "horde_formed":
+        for civ in civs:
+            keys[key("horde", civ)] = eid
+    elif etype in ("horde_fragmented", "horde_dissolved"):
+        for civ in civs:
+            keys[key("fragmented", civ)] = eid
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid

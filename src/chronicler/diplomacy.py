@@ -122,6 +122,9 @@ GRIEVANCE_PERSECUTION = 2.0          # times the persecution intensity, per regi
 GRIEVANCE_PERSECUTED_PEOPLE = 1.0
 GRIEVANCE_EMBARGO_IMPOSED = 4.0
 GRIEVANCE_EMBARGO_TURN = 1.0
+GRIEVANCE_RAID = 4.0                 # --nomads: a raid that got through (border)
+GRIEVANCE_RAID_REPULSED = 2.0        # --nomads: a raid driven off (border)
+GRIEVANCE_TRIBUTE_REPUDIATED = 10.0  # --nomads: the raiders' grievance (treaty)
 
 # Goodwill inputs.
 GOODWILL_TRADE_MAX = 0.5             # per turn, at F_ab >= GOODWILL_TRADE_SCALE * max
@@ -1529,6 +1532,8 @@ def _war_inputs(world) -> None:
         add_grievance(world, occ.owner, occ.occupier, OCCUPATION, GRIEVANCE_OCCUPIED_TURN)
     if getattr(world, "maritime", None) is not None:
         _naval_inputs(world)
+    if getattr(world, "nomads", None) is not None:
+        _nomad_inputs(world)
 
 
 def _naval_inputs(world) -> None:
@@ -1552,6 +1557,25 @@ def _naval_inputs(world) -> None:
     for blockade in world.maritime.active_blockades():
         add_grievance(world, civs[blockade.target].name, civs[blockade.blockader].name,
                       EMBARGO, GRIEVANCE_EMBARGO_TURN)
+
+
+def _nomad_inputs(world) -> None:
+    """Nomads: this turn's raids leave a border grievance with the raided;
+    a repudiated tribute leaves one with the raiders it no longer pays."""
+    from chronicler.nomads_state import nomads_on
+    if not nomads_on(world):
+        return
+    civs = world.civilizations
+    turn = world.turn
+    for raid in world.nomads.raids:
+        if raid.turn != turn:
+            continue
+        add_grievance(world, civs[raid.target].name, civs[raid.raider].name, BORDER,
+                      GRIEVANCE_RAID if raid.success else GRIEVANCE_RAID_REPULSED)
+    for pact in world.nomads.tributes:
+        if pact.status == "repudiated" and pact.end_turn == turn:
+            add_grievance(world, civs[pact.recipient].name, civs[pact.payer].name, TREATY,
+                          GRIEVANCE_TRIBUTE_REPUDIATED)
 
 
 def _event_inputs(world, turn_events: list[Event]) -> None:

@@ -47,14 +47,23 @@ def choose_aim(ctx: WarContext, attacker: "Civilization", defender: "Civilizatio
     ratio = attacker.military / max(1, perceived if perceived is not None else defender.military)
     already_vassal = any(vr.vassal == defender.name for vr in world.vassal_relations)
     vassal_bias = 0.6 if attacker.leader.trait in _VASSAL_BIAS else 0.3
-    if ratio >= 1.5 and attacker.stability > 40 and not already_vassal and rng.random() < vassal_bias:
+    # Nomads (--nomads): a horde riding against settled land seeks its conquest.
+    horde = getattr(world, "nomads", None) is not None and _horde_conquest(world, attacker, defender)
+    if (not horde and ratio >= 1.5 and attacker.stability > 40 and not already_vassal
+            and rng.random() < vassal_bias):
         return "vassalization", defender.capital_region
-    if attacker.treasury < 40 or (attacker.leader.trait in _TRIBUTE_BIAS and rng.random() < 0.5):
+    if not horde and (attacker.treasury < 40
+                      or (attacker.leader.trait in _TRIBUTE_BIAS and rng.random() < 0.5)):
         richest = max(owned, key=lambda r: (r.population, -ctx.index[r.name]))
         return "tribute", richest.name
     frontier = _frontier_regions(ctx, attacker.name, defender.name) or [r.name for r in owned]
     best = max(frontier, key=lambda n: (region_value(world, world.region_map[n]), -ctx.index[n]))
     return "conquest", best
+
+
+def _horde_conquest(world, attacker: "Civilization", defender: "Civilization") -> bool:
+    from chronicler.nomads import horde_conquest
+    return horde_conquest(world, attacker, defender)
 
 
 def _frontier_regions(ctx: WarContext, civ_name: str, enemy_name: str) -> list[str]:

@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`feat/great-person-agendas`: great-person agendas, default off, on `integrate/wave-4` at `705fe2e`)
+> **Last updated:** 2026-10-24 (`integrate/wave-5`: great-person agendas and nomads, both default off, on `integrate/wave-4`)
 
 ---
 
@@ -46,6 +46,60 @@ dormant field omitted). Details: `docs/integration/great-person-agendas.md`.
   from agenda outcomes.
 - **Open:** the full 200 x 500 gate (required before any default flip);
   the agent-rebellion tail; scientists rarely succeed inside their window.
+## Pastoral and nomadic peoples (2026-10-24, `feat/nomads`, default off)
+
+Branch `feat/nomads` from `integrate/wave-4` (`c5f4df4`, PR #21), default
+off behind `--nomads` (`WorldState.nomads`). No Rust change. See
+[`docs/integration/nomads.md`](../../integration/nomads.md).
+
+- **Built.** Subsistence modes per civ (sedentary, agro-pastoral, nomadic)
+  seeded from the pastoral suitability of a civ's land (steppe, desert and
+  tundra favour herding), and for later polities at their first tick; herds
+  per region with logistic growth on pasture, drought die-off, dzud winters
+  and transhumance between seasonal pastures; herd food through one hook
+  (`ecology.compute_resource_yields` -> `nomads.food_yields`, identity while
+  off); raids on settled neighbours fought with the campaign layer's power
+  terms (plunder, deaths, stability, colder dispositions, a border grievance
+  with diplomacy on); tribute pacts that spare the payer, lapse or are
+  repudiated; hordes kept as federations (a khan unites weaker pastoral
+  neighbours or takes command of his federation), riding to war through the
+  campaign WAR path with conquest aims and breaking apart when the founding
+  khan dies; sedentarization after a generation on farmland, with asabiya
+  won on the steppe and lost on farmland; EXPAND into desert and tundra for
+  herders; loose hold of empty pasture. Every nomad event cites its causes;
+  wars between a raided pair cite the raid, secession and collapse a broken
+  horde.
+- **Cut.** Pastoral goods in the goods economy (no clean slot among the
+  eight fixed goods), mounted mobility for campaign armies, nomad-on-nomad
+  raiding, re-nomadization of settled peoples, off-mode herd food with the
+  native ecology runtime (one food hook), viewer panels.
+- **Evidence.** Switch off is byte-identical to `c5f4df4`: 99 files
+  (template seeds 42/7/1234 off 300 / hybrid 200, procedural 48x10 seeds 7
+  and 13 off 200 / hybrid 120), 0 differences with the default and with
+  `--no-nomads` on the final head; the switch-off subset batch matches the
+  base batch file for file (2,160 run files and the normalized reports);
+  with the switch on, the 8 gate seeds that never have a herder are
+  outcome-identical to the base. Native `pytest -m "not slow" -n 2` 5,758
+  passed, 3 skipped (base 5,707 / 3); no-Rust lane 5,560 passed, 201
+  skipped; bounded Python oracle lane (PR #19's guard fix applied locally
+  only) 1,768 passed, 8 skipped, guard PASS. Subset gate with `--nomads`
+  against `c5f4df4`: PASS, NO REGRESSION, 0 extinct worlds; artifacts PASS
+  -> PARTIAL (loss rate 1.5% against a 2% floor, one diverged seed);
+  regression keeps the base's own civ_survival FAIL. No Rust change, so no
+  `cargo test`.
+- **Numbers.** Procedural 48x10 worlds with steppe (3 seeds x off/hybrid,
+  300 turns): per run 1.8 nomadic and 3.2 pastoral polities at once, 26
+  raids through and 4 driven off, 5 tributes, 2.7 hordes (16 over the six
+  runs, 11 broken by the khan's death), 4 regions taken by herders, 1.2
+  sedentarizations, 10 dzuds; polities alive 15.2 on against 13.0 off; no
+  world extinct.
+- **Not run / open.** The full 200-seed gate with `--nomads`. In a
+  supplementary seed set (62-81) the needs oracle fails with the switch on
+  (11 seeds against 12 required; base at exactly 12); in another (82-101)
+  arcs move PASS -> FAIL on the dominance ceiling (41.2% against 40%). Both
+  are recorded in the integration doc. They concern runs with the switch on
+  only (switch-off output is byte-identical), and both block any default
+  change until the full gate is run.
 
 ## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
 
@@ -202,10 +256,6 @@ off behind `--finance` (saved on the world). Details, numbers and stories:
   slow population declines; finance makes treasuries homeostatic. Decide the
   oracle treatment, then re-gate after the food-balance work lands. The
   200-seed full gate has not been run with finance on.
-> **Last updated:** 2026-10-24 (food balance, `fix/food-balance`)
-
----
-
 ## Food balance (2026-10-24)
 
 Branch `fix/food-balance` on `integrate/wave-2` (`db26681`); details, numbers

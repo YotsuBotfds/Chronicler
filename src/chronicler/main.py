@@ -335,6 +335,15 @@ def _gp_agendas_snapshot_fields(world) -> dict:
     return {"gp_agendas": snapshot_summary(world)}
 
 
+def _nomads_snapshot_fields(world) -> dict:
+    """Nomads per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.nomads_state import nomads_on
+    if not nomads_on(world):
+        return {}
+    from chronicler.nomads import snapshot_summary
+    return {"nomads": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -605,6 +614,15 @@ def execute_run(
     if gp_agendas is not None:
         from chronicler.gp_agendas import set_gp_agendas_enabled
         set_gp_agendas_enabled(world, gp_agendas)
+    # Nomads switch (persisted on the world): subsistence modes seeded from
+    # terrain, herds, raids and tribute, hordes and sedentarization.
+    nomads = getattr(args, "nomads", None)
+    if nomads is None and fresh_world:
+        from chronicler.nomads import DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT
+        nomads = _NOMADS_DEFAULT
+    if nomads is not None:
+        from chronicler.nomads import set_nomads_enabled
+        set_nomads_enabled(world, nomads)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -857,6 +875,7 @@ def execute_run(
             **_techniques_snapshot_fields(world),
             **_maritime_snapshot_fields(world),
             **_gp_agendas_snapshot_fields(world),
+            **_nomads_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1379,6 +1398,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              "to the crown, prophets spread the faith and found shrines, scientists "
                              "pursue the next era or an invention; alliances and rivalries weigh on "
                              "coups and succession (default off for new worlds; saved on resume)")
+    parser.add_argument("--nomads", action=argparse.BooleanOptionalAction, default=None,
+                        help="Pastoral and nomadic peoples: subsistence modes seeded from terrain "
+                             "(steppe, desert and tundra favour herding), herds with drought and "
+                             "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
+                             "that fragment on his death, and sedentarization of conquerors (default "
+                             "off for new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

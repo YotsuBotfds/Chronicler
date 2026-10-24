@@ -22,6 +22,7 @@ from chronicler.diplomacy_state import DiplomacyState, DiplomaticMemory
 from chronicler.techniques_state import TechniqueState
 from chronicler.maritime_state import MaritimeState
 from chronicler.gp_agendas_state import GPAgendaState
+from chronicler.nomads_state import NomadState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1143,6 +1144,10 @@ class WorldState(BaseModel):
     # Great-person agendas: objectives, deeds, coups, alliances and rivalries
     # (chronicler.gp_agendas; None = disabled; omitted from output).
     gp_agendas: GPAgendaState | None = None
+    # Pastoral and nomadic peoples: subsistence modes, herds, raids, tribute,
+    # hordes and sedentarization (chronicler.nomads; None = disabled;
+    # omitted from output).
+    nomads: NomadState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1238,6 +1243,8 @@ class WorldState(BaseModel):
             data.pop("maritime", None)
         if isinstance(data, dict) and self.gp_agendas is None:
             data.pop("gp_agendas", None)
+        if isinstance(data, dict) and self.nomads is None:
+            data.pop("nomads", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1369,6 +1376,8 @@ class TurnSnapshot(BaseModel):
     maritime: dict | None = None
     # Great-person agenda per-turn summary; None (and omitted) when off.
     gp_agendas: dict | None = None
+    # Nomads per-turn summary; None (and omitted) when nomads are off.
+    nomads: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1389,6 +1398,8 @@ class TurnSnapshot(BaseModel):
             data.pop("maritime")
         if isinstance(data, dict) and data.get("gp_agendas", 0) is None:
             data.pop("gp_agendas")
+        if isinstance(data, dict) and data.get("nomads", 0) is None:
+            data.pop("nomads")
         return data
 
 
