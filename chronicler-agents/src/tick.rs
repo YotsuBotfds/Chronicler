@@ -437,6 +437,8 @@ pub fn try_tick_agents_with_options(
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
     let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    // Merchants that delivered this turn have observed the market; they go home.
+    crate::merchant::return_delivering_merchants_home(pool, &master_seed);
 
     // -----------------------------------------------------------------------
     // 1. Update satisfaction
