@@ -1412,6 +1412,12 @@ def generate_report(
     if contact.get("runs"):
         report["contact_ledger"] = contact
 
+    # Diplomacy: present only for runs whose bundles carry history[n].diplomacy.
+    from chronicler.diplomacy import extract_diplomacy_metrics
+    diplomacy = extract_diplomacy_metrics(bundles)
+    if diplomacy.get("runs"):
+        report["diplomacy"] = diplomacy
+
     report["anomalies"] = detect_anomalies(report)
     return report
 

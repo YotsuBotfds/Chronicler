@@ -1112,6 +1112,12 @@ def run_live(
         )
         _ledger = getattr(args, "contact_ledger", None)
         set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
+        # Diplomacy: new live worlds follow the CLI default (--diplomacy opts in).
+        from chronicler.diplomacy import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT, set_diplomacy_enabled,
+        )
+        _diplomacy = getattr(args, "diplomacy", None)
+        set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (

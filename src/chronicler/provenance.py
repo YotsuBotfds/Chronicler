@@ -324,6 +324,21 @@ def _rule_civ_distress(world: "WorldState", ev: Event) -> list:
     return _distress(world, civ) if civ is not None else []
 
 
+def _rule_vassal_rebellion(world: "WorldState", ev: Event) -> list:
+    """A vassal throws off its overlord: the vassal's own distress and, with
+    the diplomacy ladder on, the subjection it ends and what weakened the
+    overlord (the rebellion check reads the overlord's stability and treasury)."""
+    out = _rule_civ_distress(world, ev)
+    from chronicler.diplomacy_state import diplomacy_on
+    if diplomacy_on(world):
+        civs = event_civs(world, ev)
+        if civs:
+            out.append(recall(world, key("subject", civs[0])))
+        if len(civs) >= 2:
+            out += _distress(world, civs[1])
+    return out
+
+
 def _rule_secession(world: "WorldState", ev: Event) -> list:
     civs = event_civs(world, ev)
     out: list[str | None] = []
@@ -481,7 +496,7 @@ CAUSE_RULES: dict[str, CauseRule] = {
     "local_rebellion": _rule_local_unrest,
     "loyalty_cascade": _rule_local_unrest,
     "rebellion": _rule_civ_distress,
-    "vassal_rebellion": _rule_civ_distress,
+    "vassal_rebellion": _rule_vassal_rebellion,
     "secession": _rule_secession,
     "secession_suppressed": _rule_secession,
     "secession_defection": lambda w, ev: [recall(w, key("secession", c), within=0)

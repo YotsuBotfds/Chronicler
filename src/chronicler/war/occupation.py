@@ -18,6 +18,7 @@ from chronicler.war.armies import apply_casualties, drain_population
 from chronicler.war.common import (
     WarContext, add_stat, emit, living_civ, name_event, spend, war_for, war_rng,
 )
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 if TYPE_CHECKING:
     from chronicler.models import Army, Civilization, Occupation, Region, WarRecord
@@ -200,8 +201,17 @@ def tick_occupations(ctx: WarContext) -> None:
                 continue
         # Consolidation.
         if (world.turn - occ.since_turn >= annex_turns and occ.unrest < P.ANNEX_MAX_UNREST
-                and soldiers > 0):
+                and soldiers > 0 and not _ladder_holds_last_region(world, occ, owner, occupier)):
             annex_occupation(ctx, occ, "consolidated")
+
+
+def _ladder_holds_last_region(world, occ, owner, occupier) -> bool:
+    """Diplomacy ladder: a state's last region is not annexed by consolidation;
+    the war's peace decides (a capitulation makes the state a vassal)."""
+    if not _diplomacy_on(world) or owner.regions != [occ.region]:
+        return False
+    from chronicler.diplomacy import spares_last_region
+    return spares_last_region(world, occupier, owner)
 
 
 def _revolt(ctx: WarContext, occ, region, owner, occupier, garrison, rng) -> None:

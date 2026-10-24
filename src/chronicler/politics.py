@@ -42,6 +42,7 @@ from chronicler.utils import (
 from chronicler.intelligence import get_perceived_stat
 from chronicler.emergence import get_severity_multiplier
 from chronicler.leaders import _pick_regnal_name, _compose_regnal_name
+from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 
 if TYPE_CHECKING:
     from chronicler.models import Federation
@@ -488,6 +489,8 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
         world.relationships[winner.name] = {}
     if loser.name not in world.relationships:
         world.relationships[loser.name] = {}
+    old_winner_view = world.relationships[winner.name].get(loser.name)
+    old_loser_view = world.relationships[loser.name].get(winner.name)
     world.relationships[winner.name][loser.name] = Relationship(disposition=Disposition.SUSPICIOUS)
     world.relationships[loser.name][winner.name] = Relationship(disposition=Disposition.HOSTILE)
 
@@ -498,6 +501,11 @@ def resolve_vassalization(winner: Civilization, loser: Civilization, world: Worl
         description=f"The Subjugation of {loser.name}",
         importance=7,
     ))
+    if _diplomacy_on(world):
+        # Polity ladder: a subjugated state enters at the vassal stage and
+        # both sides keep their diplomatic memory.
+        from chronicler.diplomacy import on_vassalized
+        on_vassalized(world, world.vassal_relations[-1], old_winner_view, old_loser_view, events[-1])
     return events
 
 
@@ -1430,6 +1438,9 @@ def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozens
     decline_threshold = int(get_override(world, K_TWILIGHT_ABSORPTION_DECLINE, 40))
     vassal_of = {vr.vassal: vr for vr in world.vassal_relations}
     overlords = {vr.overlord for vr in world.vassal_relations}
+    # Polity ladder (chronicler.diplomacy, --diplomacy): declining states
+    # become clients and the ladder decides when a subject is annexed.
+    ladder = _diplomacy_on(world)
     candidates: list[tuple[tuple, int]] = []
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
@@ -1444,7 +1455,23 @@ def prepare_twilight_absorption(world: WorldState) -> tuple[list[Event], frozens
         relation = vassal_of.get(civ.name)
         if relation is not None and relation.overlord != absorber.name:
             continue  # a vassal is not handed to a third party
-        if not unviable_ready:
+        if ladder:
+            # Generalized tributary step: the unviable as well as the declining
+            # become clients of a stable would-be absorber (no instant
+            # absorption); a subject is never handed to this gate, because
+            # the ladder's own annexation step ends it.
+            if relation is not None:
+                continue
+            from chronicler.diplomacy import CLIENT_MIN_OVERLORD_STABILITY, make_subject
+            if (absorber.stability > CLIENT_MIN_OVERLORD_STABILITY
+                    and civ.name not in overlords
+                    and absorber.name not in vassal_of):
+                events.append(make_subject(world, absorber, civ, "client", reason="twilight"))
+                vassal_of[civ.name] = world.vassal_relations[-1]
+                overlords.add(absorber.name)
+                continue
+            # An unstable neighbour cannot hold a client: paced absorption.
+        elif not unviable_ready:
             if relation is None:
                 if (absorber.stability > TRIBUTARY_MIN_OVERLORD_STABILITY
                         and civ.name not in overlords
