@@ -553,6 +553,26 @@ def test_piracy_reports_fold_into_a_chronic_episode():
     del events
 
 
+def test_patrol_commission_cites_the_raid_it_answers():
+    from chronicler import provenance
+    world = _trading_world()
+    state = world.maritime
+    zone = state.zones[ZONE]
+    zone.pirates = 0.5
+    state.last_sea_trade[ZONE] = 2.0
+    anchor = world.regions[zone.ports[0]].name
+    raid = Event(turn=world.turn, event_type="piracy", actors=[], description="raid", region=anchor)
+    provenance.observe(world, [raid])
+    civ = world.civilizations[0]
+    civ.treasury = 500
+    t = M._Tick(world, None, None)
+    needs = {0: M._naval_needs(t, 0)}
+    assert needs[0][ZONE] == (M.PATROL_SHIPS, "patrol")
+    M._build_ships(t, needs)
+    commissioned = [e for e in t.events if e.event_type == "fleet_commissioned"]
+    assert commissioned and commissioned[0].causes == [raid.event_id]
+
+
 def test_controlled_zone_has_no_piracy_and_suppresses_pirates():
     world = _trading_world()
     zone = world.maritime.zones[ZONE]

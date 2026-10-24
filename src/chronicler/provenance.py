@@ -737,6 +737,8 @@ def _register(world: "WorldState", ev: Event) -> None:
         keys[key("epidemic", region, ev.shock_category or "")] = eid
     if etype == "amphibious_landing" and region is not None:
         keys[key("landing", region)] = eid
+    if etype == "piracy" and region is not None:
+        keys[key("piracy", region)] = eid  # a zone's latest raid, at its first port
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid

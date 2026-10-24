@@ -798,8 +798,13 @@ def _commission(t: _Tick, fleet: Fleet, civ, port: int, zone: int, ships: int, m
         for e in sorted(world.civilizations, key=lambda c: c.name):
             if e.regions and _at_war(t.wars, civ.name, e.name):
                 causes.append(_war_cause(world, civ.name, e.name))
-    if mission == "patrol" and state.zones[zone].pirates >= PIRATE_PATROL_MIN:
-        causes.append(state.zones[zone].status_event_id or None)
+    if mission == "patrol":
+        # A patrol answers the zone's latest raid (piracy reports stand at the
+        # zone's first port in the causal index).
+        from chronicler import provenance
+        anchor = _zone_anchor(world, state.zones[zone])
+        if anchor is not None:
+            causes.append(provenance.recall(world, provenance.key("piracy", anchor), within=20))
     ev = _emit(t, "fleet_commissioned", [civ.name],
                f"{civ.name} commissions {fleet.name} ({ships} ships) at {world.regions[port].name} "
                f"in {zone_name} {why}.".replace(" .", "."),
