@@ -804,8 +804,14 @@ def curate(
     seed: int = 0,
     named_characters: set[str] | None = None,
     gp_by_name: dict | None = None,  # M45
+    contested: dict[str, float] | None = None,
 ) -> tuple[list[NarrativeMoment], list[GapSummary]]:
     """Top-level curation pipeline.
+
+    ``contested`` (``historiography.AccountIndex.contested_bonus``) maps the
+    ids of events the in-world chroniclers tell differently to a score bonus,
+    so moments where the accounts diverge are picked more often. None (the
+    default) leaves curation exactly as it was.
 
     1. Sort events by turn
     2. Compute dominant power
@@ -835,6 +841,10 @@ def curate(
     graph = CauseGraph(sorted_events)
     for i, bonus in enumerate(compute_chain_scores(graph)):
         scores[i] += bonus
+    if contested:
+        for i, ev in enumerate(sorted_events):
+            if ev.event_id and ev.event_id in contested:
+                scores[i] += contested[ev.event_id]
     for i, ev in enumerate(sorted_events):
         if ev.episode in _EPISODE_FOLLOWERS:
             # Repeats and closing events of a chronic episode never anchor.

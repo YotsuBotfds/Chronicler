@@ -115,9 +115,12 @@ def _write_state_checkpoint(world: WorldState, path: Path) -> None:
     """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
 
     The final save keeps ``WorldState.save``'s indented format; both load with
-    ``WorldState.load`` into the same world.
+    ``WorldState.load`` into the same world. The in-world chronicles (when
+    historiography is on) are checkpointed beside it.
     """
     atomic_write_text(path, world.model_dump_json())
+    from chronicler.historiography import save_sidecar
+    save_sidecar(world, path, atomic=True)
 
 
 def _save_memory_streams(
@@ -623,6 +626,17 @@ def execute_run(
     if nomads is not None:
         from chronicler.nomads import set_nomads_enabled
         set_nomads_enabled(world, nomads)
+    # In-world historiography (saved with the world in a state sidecar):
+    # chroniclers and archives that record the run with their own biases.
+    # Observational only; the simulation never reads it.
+    historiography = getattr(args, "historiography", None)
+    if historiography is None and fresh_world:
+        from chronicler.historiography import DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT
+        historiography = _HIST_DEFAULT
+    if historiography is not None:
+        from chronicler.historiography import set_historiography_enabled
+        set_historiography_enabled(world, historiography)
+    from chronicler.historiography import historiography_on as _historiography_on
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -936,6 +950,11 @@ def execute_run(
 
         history.append(snapshot)
 
+        # In-world chroniclers record the completed turn (reads the world only).
+        if _historiography_on(world):
+            from chronicler.historiography import observe_turn
+            observe_turn(world)
+
         # Phase-10 rows are historical inputs only for synchronous capture.
         # Release the handoff before callbacks can mutate world or bridge state.
         del agent_rows, turn_result
@@ -1033,6 +1052,15 @@ def execute_run(
         if world.turn % 10 == 0:
             print(f"  Turn {world.turn}/{num_turns} complete")
 
+    # The in-world accounts as the bundle carries them (None while off); the
+    # curated narration below reads them back through an AccountIndex.
+    historiography_export = None
+    account_index = None
+    if _historiography_on(world):
+        from chronicler.historiography import AccountIndex, export as _export_historiography
+        historiography_export = _export_historiography(world)
+        account_index = AccountIndex(historiography_export)
+
     # M44: Post-loop curated narration for API mode
     if _api_mode:
         from chronicler.curator import curate
@@ -1062,6 +1090,7 @@ def execute_run(
             seed=seed,
             named_characters=named_chars if named_chars else None,
             gp_by_name=gp_by_name if gp_by_name else None,
+            contested=account_index.contested_bonus() if account_index else None,
         )
 
         def progress_cb(completed: int, total: int, eta: float | None) -> None:
@@ -1075,6 +1104,7 @@ def execute_run(
             moments, history, on_progress=progress_cb,
             great_persons=all_great_persons,
             world=world,
+            historiography=account_index,
             social_edges=agent_bridge.read_social_edges() if agent_bridge is not None else None,
             dissolved_edges_by_turn=world.dissolved_edges_by_turn if hasattr(world, "dissolved_edges_by_turn") else None,
             agent_name_map=agent_bridge.named_agents if agent_bridge is not None else None,
@@ -1216,6 +1246,7 @@ def execute_run(
         narrative_model=narr_model_name,
         interestingness_score=score_run(result, interestingness_weights),
         gap_summaries=gap_summaries,
+        historiography=historiography_export,
     )
     # M44: narrator provenance metadata
     bundle["metadata"]["narrator_mode"] = _narrator_mode
@@ -1404,6 +1435,14 @@ def _build_parser() -> argparse.ArgumentParser:
                              "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
                              "that fragment on his death, and sedentarization of conquerors (default "
                              "off for new worlds; saved on resume)")
+    parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
+                        help="In-world historiography: court and temple chroniclers record events "
+                             "with their own biases (omissions, inflated victories, blamed enemies, "
+                             "praised or condemned rulers, divine wrath) into archives that sacks, "
+                             "conquest, fire and plague destroy. Observational: the simulation is "
+                             "unchanged; the bundle gains a 'historiography' field and curated "
+                             "narration cites the accounts (default on for new worlds; "
+                             "--no-historiography opts out; saved with the state)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
@@ -1507,6 +1546,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         if gp_data.get("death_turn") is not None:
             gp_by_name[gp_data.get("name", "")] = _GP(**gp_data)
 
+    # In-world accounts carried by the bundle (absent in older bundles and
+    # in runs with historiography off; --no-historiography ignores them).
+    account_index = None
+    if getattr(args, "historiography", None) is not False:
+        from chronicler.historiography import AccountIndex
+        account_index = AccountIndex.from_bundle(bundle)
+
     # Curate moments
     moments, gap_summaries = curate(
         events=events,
@@ -1516,6 +1562,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         seed=seed,
         named_characters=named_chars if named_chars else None,
         gp_by_name=gp_by_name if gp_by_name else None,
+        contested=account_index.contested_bonus() if account_index else None,
     )
 
     print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
@@ -1540,6 +1587,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
         moments, history, on_progress=progress_cb,
         great_persons=all_great_persons,
         world=world,
+        historiography=account_index,
         agent_name_map=agent_name_map,
         social_edges=None,
         dissolved_edges_by_turn=None,
