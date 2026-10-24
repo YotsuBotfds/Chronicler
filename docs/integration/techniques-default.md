@@ -264,9 +264,9 @@ Verification on the final code (Linux, Python 3.13):
 | Golden fixtures (`tests/fixtures/performance/`) | unchanged; `test_performance_equivalence` 65 passed |
 | Rust | unchanged by this branch, so no `cargo test` |
 
-The not-slow run was on `594aedb`, the no-Rust and oracle-lane runs on
-`ae832c6`; later commits change only the slow-marked size check (run on its
-own in both environments after the merge: passes) and documentation.
+The first three rows ran on `594aedb` (not-slow) and `ae832c6` (no-Rust,
+oracle lane), and again with the same counts on `939f2f2`, after the merge
+with `integrate/wave-4`; later commits change documentation only.
 
 ## 6. Open items
 
