@@ -136,7 +136,8 @@ WAR_COURT_SHARE = 0.5         # the court's share of its peacetime spending whil
 DEBT_CEILING_TURNS = 10.0     # creditors stop lending at this many turns of revenue
 MIN_LOAN = 10
 BORROW_BUFFER_TURNS = 3.0     # a loan covers the gap plus this many turns of upkeep
-LOAN_EVENT_TURNS = 1.0        # borrowing of at least this many turns of revenue is an event
+LOAN_EVENT_TURNS = 1.0        # an advance on an open line of at least this many turns of revenue ...
+LOAN_EVENT_GROWTH = 0.5       # ... that also grows the line by this share is an event
 LOAN_TERM = 20
 MAX_NEW_LOANS = 2             # per civ per turn
 DOMESTIC_RATE = 0.04          # per turn (one turn is a year)
@@ -566,12 +567,16 @@ def _new_loan(world, borrower: int, lender: int, principal: int, rate: float, te
 
 def _loan_event(world, civ, f: CivFinance, loan: Loan, amount: int, rate: float, lender, causes: list,
                 events: list) -> None:
-    """Record material borrowing (at least ``LOAN_EVENT_TURNS`` of revenue, or a
-    new foreign line) as a ``loan_taken`` event; the line keeps its latest id."""
+    """Record material borrowing as a ``loan_taken`` event: opening a credit
+    line, or an advance of at least ``LOAN_EVENT_TURNS`` of revenue that also
+    grows the line by ``LOAN_EVENT_GROWTH``. Routine top-ups are not events
+    (the open fiscal-strain episode covers them); the line keeps its latest id."""
     from chronicler import provenance as prov
     new_line = loan.issued_turn == world.turn and loan.principal == amount
-    if amount < LOAN_EVENT_TURNS * max(f.revenue_ema, 1.0) and not (lender is not None and new_line):
-        return
+    if not new_line:
+        before = loan.principal - amount
+        if amount < LOAN_EVENT_TURNS * max(f.revenue_ema, 1.0) or amount < LOAN_EVENT_GROWTH * before:
+            return
     if lender is None:
         ev = _event(world, "loan_taken", civ,
                     f"{civ.name} borrows {amount} from its merchant houses at {rate:.1%}.", 4)
@@ -717,11 +722,24 @@ def _write_off_dead(world, events: list) -> None:
         if loan.principal > 0:
             st.totals["written_off"] += loan.principal
             st.civs[loan.borrower].written_off_total += loan.principal
-        if loan.principal >= MIN_LOAN and not borrower.regions:
-            who = "its own merchants" if loan.lender == DOMESTIC else world.civilizations[loan.lender].name
-            ev = _event(world, "debt_written_off", borrower,
-                        f"With {borrower.name} gone, {loan.principal} owed to {who} is lost.", 3)
+        if loan.principal >= MIN_LOAN:
             from chronicler import provenance as prov
+            if not borrower.regions:
+                who = "its own merchants" if loan.lender == DOMESTIC else world.civilizations[loan.lender].name
+                ev = _event(world, "debt_written_off", borrower,
+                            f"With {borrower.name} gone, {loan.principal} owed to {who} is lost.", 3)
+                if loan.lender != DOMESTIC:
+                    ev.actors.append(who)
+                    ev.civs.append(who)
+            else:
+                lender = world.civilizations[loan.lender]
+                ev = _event(world, "debt_written_off", borrower,
+                            f"With {lender.name} gone, the {loan.principal} {borrower.name} owed it lapses.", 4,
+                            actors=[borrower.name, lender.name])
+                ev.civs = [borrower.name, lender.name]
+                prov.cite(ev, prov.recall(world, prov.key("collapse", lender.name), within=5),
+                          prov.recall(world, prov.key("conquered", lender.name), within=5),
+                          prov.recall(world, prov.key("twilight", lender.name), within=5))
             prov.cite(ev, loan.event_id or None)
             events.append(ev)
     st.loans = keep
@@ -1050,11 +1068,11 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
                 and debt >= max(2 * MIN_LOAN, DEFAULT_MIN_DEBT_TURNS * f.revenue_ema)
                 and (f.grace_until is None or turn >= f.grace_until)):
             _default(world, civ_idx, civ, f, acc, events, causes)
-        # 5. Surplus: prepay debt (an indebted state repays from above half its
-        # reserve), then the court.
+        # 5. Surplus: prepay debt (an indebted state at peace that did not just
+        # borrow repays from above half its reserve), then the court.
         debt = outstanding_debt(world, civ_idx)
         surplus = book.proj[civ_idx] - (int(INDEBTED_RESERVE_SHARE * reserve) if debt else reserve)
-        if surplus > 0 and debt:
+        if surplus > 0 and debt and not borrowed and not at_war:
             prepay_budget = int(PREPAY_RATE * surplus)
             for loan in sorted((ln for ln in st.loans if ln.borrower == civ_idx),
                                key=lambda ln: (-ln.rate, ln.loan_id)):
@@ -1127,9 +1145,10 @@ def _reports(world, civ_idx: int, civ, f: CivFinance, causes: list) -> list:
     out = []
     if f.fiscal_stress >= STRAIN_REPORT:
         debt = outstanding_debt(world, civ_idx)
+        what = (f"labours under its debts ({debt} owed" if debt
+                else "cannot balance its books (spending outruns revenue")
         ev = _event(world, "fiscal_strain", civ,
-                    f"{civ.name} labours under its debts ({debt} owed, stress {f.fiscal_stress:.1f}).", 5,
-                    region=region)
+                    f"{civ.name} {what}, stress {f.fiscal_stress:.1f}).", 5, region=region)
         loan_ids = [loan.event_id for loan in loans_of(world, civ_idx) if loan.event_id][-3:]
         prov.cite(ev, *loan_ids, prov.recall(world, prov.key("default", civ.name), within=20),
                   prov.recall(world, prov.key("debasement", civ.name), within=20), *causes)
