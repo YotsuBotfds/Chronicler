@@ -250,7 +250,7 @@ fn spatial_world(seed: u64, n: usize) -> (AgentPool, Vec<RegionAttractors>) {
 #[test]
 fn exact_drift_is_independent_of_thread_count() {
     let run = |threads: usize| {
-        let (mut pool, attractors) = spatial_world(9, 3000);
+        let (mut pool, attractors) = spatial_world(9, 6000); // above the parallel threshold
         let tp = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
         tp.install(|| {
             let mut grids: Vec<SpatialGrid> = Vec::new();

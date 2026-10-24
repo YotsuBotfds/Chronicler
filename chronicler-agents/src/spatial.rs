@@ -884,6 +884,9 @@ pub fn fast_drift_grid_side(n: usize) -> usize {
 /// Agents per parallel work item; one cell's agents may span several items.
 const DRIFT_CHUNK: usize = 128;
 
+/// Below this many drifting agents the drift step runs on one thread.
+const DRIFT_PARALLEL_MIN_AGENTS: usize = 4096;
+
 /// Two-pass spatial drift for all alive agents (exact mode).
 /// Reads old positions, computes new positions, writes back.
 pub fn spatial_drift_step(
@@ -1033,39 +1036,44 @@ pub fn spatial_drift_step_with_mode(
     //    snapshot, so the parallel map is exact.
     let results: Vec<Vec<(u32, f32, f32)>> = {
         let pool_ref = &*pool;
-        items
-            .par_iter()
-            .map_init(DriftScratch::default, |scratch, item| {
-                let (region, cell, _) = item[0];
-                let region = region as usize;
-                merge_block(&indexes[region], cell as usize, scratch);
-                let DriftScratch { block, sample, cols, geom, .. } = scratch;
-                if !fast {
-                    cols.fill(block);
-                }
-                item.iter()
-                    .map(|&(_, _, slot)| {
-                        let s = slot as usize;
-                        if fast {
-                            sample_block(block, slot, sample);
-                            cols.fill(sample);
-                        }
-                        let neighbors: &NeighborColumns = cols;
-                        let (nx, ny) = compute_drift_excluding(
-                            pool_ref.x[s],
-                            pool_ref.y[s],
-                            pool_ref.occupations[s],
-                            pool_ref.ids[s],
-                            slot,
-                            &attractors[region],
-                            neighbors,
-                            geom,
-                        );
-                        (slot, nx, ny)
-                    })
-                    .collect()
-            })
-            .collect()
+        let run_item = |scratch: &mut DriftScratch, item: &&[(u32, u32, u32)]| -> Vec<(u32, f32, f32)> {
+            let (region, cell, _) = item[0];
+            let region = region as usize;
+            merge_block(&indexes[region], cell as usize, scratch);
+            let DriftScratch { block, sample, cols, geom, .. } = scratch;
+            if !fast {
+                cols.fill(block);
+            }
+            item.iter()
+                .map(|&(_, _, slot)| {
+                    let s = slot as usize;
+                    if fast {
+                        sample_block(block, slot, sample);
+                        cols.fill(sample);
+                    }
+                    let neighbors: &NeighborColumns = cols;
+                    let (nx, ny) = compute_drift_excluding(
+                        pool_ref.x[s],
+                        pool_ref.y[s],
+                        pool_ref.occupations[s],
+                        pool_ref.ids[s],
+                        slot,
+                        &attractors[region],
+                        neighbors,
+                        geom,
+                    );
+                    (slot, nx, ny)
+                })
+                .collect()
+        };
+        // Small pools (default worlds hold a few hundred agents) are cheaper
+        // without the fork-join overhead; the results are the same.
+        if work.len() < DRIFT_PARALLEL_MIN_AGENTS {
+            let mut scratch = DriftScratch::default();
+            items.iter().map(|item| run_item(&mut scratch, item)).collect()
+        } else {
+            items.par_iter().map_init(DriftScratch::default, run_item).collect()
+        }
     };
 
     // 4. Write all new positions back to pool
