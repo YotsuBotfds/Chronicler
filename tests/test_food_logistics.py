@@ -81,3 +81,51 @@ def test_allocated_production_credits_foraged_grain():
     # Without the rate (the default) nothing changes.
     assert compute_allocated_production(
         [ORE, EMPTY, EMPTY], [1.0, 0.0, 0.0], 10, food_demand=10.0) == {"ore": 10.0}
+
+
+# --- Locust rate (recalibration) -------------------------------------------
+
+class _Draw:
+    """rng stub: random() returns a fixed draw, randint the lower bound."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def random(self):
+        return self.value
+
+    def randint(self, lo, hi):
+        return lo
+
+
+def _eligible_summer_region():
+    from chronicler.world_gen import generate_world
+    world = generate_world(seed=42)
+    world.turn = 4  # summer
+    region = world.regions[0]
+    region.terrain = "plains"
+    region.ecology.soil = 0.8
+    region.resource_types = [GRAIN, EMPTY, EMPTY]
+    region.disaster_cooldowns = {}
+    region.resource_suspensions = {}
+    return world, region
+
+
+def test_locust_swarm_fires_below_the_recalibrated_rate_only():
+    from chronicler.emergence import LOCUST_PROBABILITY, _check_locust
+    assert LOCUST_PROBABILITY == 0.02
+    world, region = _eligible_summer_region()
+    assert _check_locust(region, world, _Draw(0.0199)) is not None
+    world, region = _eligible_summer_region()
+    assert _check_locust(region, world, _Draw(0.0201)) is None
+    # The M35b tuning key still overrides the default (0.15 restores M35b).
+    world, region = _eligible_summer_region()
+    world.tuning_overrides["emergence.locust_probability"] = 0.15
+    assert _check_locust(region, world, _Draw(0.14)) is not None
+
+
+def test_recalibrated_rate_gives_a_swarm_in_about_one_eligible_year_in_nine():
+    from chronicler.emergence import LOCUST_PROBABILITY
+    eligible_turns_per_year = 6  # summer and autumn, three turns each
+    p_year = 1 - (1 - LOCUST_PROBABILITY) ** eligible_turns_per_year
+    assert 0.10 < p_year < 0.12
