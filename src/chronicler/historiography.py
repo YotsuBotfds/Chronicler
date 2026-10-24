@@ -95,7 +95,7 @@ PRETEXT_GRIEVANCE = 1.5       # grievance needed to blame an enemy without a rec
 #: episode per archive, cause and turn).
 SURVIVAL: dict[str, float] = {
     "sack": 0.50, "conquest": 0.25, "collapse": 0.60, "fire": 0.70,
-    "quake": 0.75, "flood": 0.85, "plague": 0.95, "desecration": 0.50,
+    "quake": 0.75, "flood": 0.85, "plague": 0.97, "desecration": 0.50,
     "absorption": 0.60,
 }
 #: Extra copies an archive keeps per writing technique its owner knows
@@ -196,7 +196,6 @@ ROUTINE = frozenset({
     "settlement_dissolved", "explore_failed", "pandemic_spread", "move_capital", "none",
     "supply_shock", "occupation_shift", "notable_migration", "economic_shock",
 })
-_OUTCOME_TOKENS = ("attacker_wins", "defender_wins", "stalemate", "a victory for ", "indecisive")
 _ENDING_EPISODES = frozenset({"end", "repeat", "tick"})
 
 _POLITY_WORDS = frozenset({
@@ -1414,12 +1413,14 @@ def _apply_losses(ctx: _Turn, new: Sequence["Event"]) -> None:
         chron = chroniclers.get(archive.owner)
         if chron is None:
             continue
+        struck: set[str] = set()   # one episode per cause and turn
         for ev in new:
             if not ev.event_id:
                 continue
             cause = _loss_cause(ctx, chron, archive, ev)
-            if cause is None:
+            if cause is None or cause in struck:
                 continue
+            struck.add(cause)
             p_copy = SURVIVAL[cause]
             copies = max(1, archive.copies)
             p_survive = 1.0 - (1.0 - p_copy) ** copies

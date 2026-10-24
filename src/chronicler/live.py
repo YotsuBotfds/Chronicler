@@ -320,6 +320,10 @@ class LiveServer:
             if all_great_persons else None
         )
 
+        # In-world accounts, when the loaded bundle carries them.
+        from chronicler.historiography import AccountIndex
+        account_index = AccountIndex.from_bundle(init_data)
+
         moments, _ = curate(
             range_events,
             all_named,
@@ -327,6 +331,7 @@ class LiveServer:
             budget=1,
             seed=seed,
             named_characters=named_chars if named_chars else None,
+            contested=account_index.contested_bonus() if account_index else None,
         )
         if not moments:
             return None
@@ -349,6 +354,7 @@ class LiveServer:
             dynasty_registry=None,
             economy_result=None,
             gini_by_civ=None,
+            historiography=account_index,
         )
         if not entries:
             return None
