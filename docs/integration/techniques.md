@@ -8,14 +8,19 @@ corrections, with Rust changes), which is the base of every result below.
 Code: `src/chronicler/techniques.py` (behavior) and
 `src/chronicler/techniques_state.py` (registry and persisted state).
 
-**Status.** Default off behind `WorldState.techniques` (CLI
-`--techniques`). With the switch off no technique code runs and every
+**Status.** Default on for new worlds since the 2026-10 techniques full
+gate ([techniques-default.md](techniques-default.md)), behind
+`WorldState.techniques` (CLI `--techniques` / `--no-techniques`). On the
+current defaults (epidemiology, finance and diplomacy on) the full profile
+(200 seeds x 500 turns) passes strict with the switch on, with 0 extinct
+worlds and no comparator regression against the current defaults' full
+report (`wave3-defaults.md`, section 5). The subset needs-oracle miss on
+seeds 62-81 ([Gate](#gate)) recurs on the current defaults, by one seed on
+a set whose base sits on the threshold, and is noise (techniques-default.md,
+section 2). The results below were measured on the `92b6122` base with the
+switch off by default. With the switch off no technique code runs and every
 output is byte-identical to `92b6122` (and was to `20eeead` before the
-merge; see [Feature-off identity](#feature-off-identity)). With the switch
-on the subset gate passes with no comparator regression on seeds 42-61 and
-82-101 and **fails** on seeds 62-81 (needs oracle, 11 of 20 seeds against
-12 required; see [Gate](#gate)); 0 of 60 worlds go extinct. The full
-200-seed gate was not run. The default stays off.
+merge; see [Feature-off identity](#feature-off-identity)).
 
 ## Why
 
@@ -194,7 +199,7 @@ flag-off saves keep their causal index bytes.
 | --- | --- |
 | CLI | `--techniques` / `--no-techniques` (`BooleanOptionalAction`) |
 | World field | `WorldState.techniques: TechniqueState \| None` (presence = on) |
-| Default | **Off** (`techniques.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and caller-supplied worlds keep their own setting |
+| Default | **On** (`techniques.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the full gate in `techniques-default.md`) for `execute_run`, batch and the live server; `--no-techniques` opts out; resumed, forked and caller-supplied worlds keep their own setting. `scripts/benchmark_headless.run` pins it off so the frozen performance oracles replay the same worlds |
 | Gate runner | `scripts/m53b_run_validation.py --techniques` forwards the switch to every run and records it in `run_manifest.json` |
 | Dormant fields | `WorldState.techniques` and `TurnSnapshot.techniques` are omitted from serialized output while `None`; old saves and bundles load unchanged |
 | Switched on mid-history | the first tick seeds, for every civ, the techniques of its era and below at 0.6 where its land suits them |
@@ -503,13 +508,14 @@ drought or soil exhaustion.
 
 ## Open items
 
-* **Needs oracle on seeds 62-81** (above): a required-oracle failure on
-  one of three seed sets, 46 against 46 qualifying seeds over all 60.
-  Re-gate after the next calibration change; do not flip the default on
-  the subset alone.
-* **Full gate not run.** The 200-seed x 500-turn gate is required before
-  any default change. It requires the era, artifacts, arcs and regression
-  oracles that are informational here.
+* **Needs oracle on seeds 62-81** (above): re-measured on the current
+  defaults it is again one seed short (11 against 12; the base reads 12),
+  with 64 against 64 qualifying seeds over 80 and 7 seeds lost against 7
+  gained. No technique mechanism weakens the need-behaviour link
+  ([techniques-default.md](techniques-default.md), section 2).
+* **Full gate.** Run on the current defaults with the switch on: PASS
+  strict, 0 extinct worlds, no comparator regression; the default is now
+  on ([techniques-default.md](techniques-default.md)).
 * **Scientists and artifacts.** The scientist trigger counts each era a
   civ reaches for the first time, so with eras moving scientists roughly
   double (7 to 15 per run before the merge) and treatises with them.

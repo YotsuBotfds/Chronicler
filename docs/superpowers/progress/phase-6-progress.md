@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-5`: great-person agendas and nomads, both default off; bundle version 5 prunes dead civs from history snapshots)
+> **Last updated:** 2026-10-24 (`integrate/wave-5`: techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
 
@@ -154,6 +154,47 @@ off behind `--nomads` (`WorldState.nomads`). No Rust change. See
   are recorded in the integration doc. They concern runs with the switch on
   only (switch-off output is byte-identical), and both block any default
   change until the full gate is run.
+## Techniques on by default (2026-10-24, `feat/techniques-default`)
+
+`feat/techniques-default` from `integrate/wave-4` (`c5f4df4`) re-gates
+techniques on the Wave 3 defaults (epidemiology, finance and diplomacy on)
+and turns them on for new worlds (`594aedb`); `--no-techniques` opts out and
+saved worlds keep their setting. No oracle, threshold or technique parameter
+changes. Evidence: `docs/integration/techniques-default.md`.
+
+- **Subset gates** (seeds 42-61, 62-81, 82-101, 102-121, with and without
+  `--techniques`): every set passes with no comparator regression except
+  62-81, where the required needs oracle reads 11 of 20 with techniques (12
+  required) and 12 without. Over the 80 seeds both arms qualify 64; 7 seeds
+  are lost and 7 gained (McNemar p = 1). Pooled over every snapshot,
+  techniques do not weaken the autonomy-rebellion or material-migration
+  links. Seeds 62-81 have half the other sets' agent rebellion rate in both
+  arms. 0 of 160 worlds extinct.
+- **Needs-oracle finding (open, not changed):** a rebellion raises the
+  rebel's autonomy by 0.10 (since `aff1b18`), so in 41% of autonomy pairs
+  only the high-autonomy agent had just rebelled; the pooled autonomy link
+  reads 0.88 (backwards) on the 200-turn defaults and the oracle passes by
+  best-of selection over snapshots and pairings.
+- **Full gate** (200 x 500, hybrid, `--techniques` on the defaults): PASS
+  strict, 0 extinct worlds, `validation_compare` NO REGRESSION against the
+  all-on full report, which a `--no-techniques` full gate at `594aedb`
+  reproduces exactly. Needs 188 of 200 (191 off), migration 0.0512 against
+  the 0.05 floor (0.0524 off), all founders surviving 0.110 (0.155 off).
+- **Eras of living civs, Bronze or later** (full gate, off / on): 8% / 78%
+  at turn 100, 11% / 82% at 200, 11% / 84% at 500 (Medieval 2 / 19 civs).
+  Tech advances 5.4 / 7.1 per run, regressions 4.9 / 1.5.
+- **Tests:** `pytest -m "not slow" -n 2` 5,707 passed, 3 skipped; no-Rust
+  5,510 passed, 200 skipped after the 500-turn bundle-size limit moved from
+  35 to 40 MiB (`ae832c6`: 33.70 off, 36.56 on on the Python oracle path;
+  `integrate/wave-4`'s `1078367` raised it the same way for the Wave 3
+  defaults and is merged); offline oracle lane (PR
+  #19's guard fix applied locally only) 1,721 passed, 7 skipped, guard PASS.
+  The frozen benchmark workloads pin techniques off; golden fixtures
+  unchanged (without the pin 3 golden tests move).
+- **Open:** migration is the tightest margin; the needs oracle's autonomy
+  pairing needs its own calibration; trade actions rise about eightfold and
+  expansions fall by three fifths with moving eras; one living civ in six is
+  still tribal at turn 500.
 
 ## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
 

@@ -668,7 +668,11 @@ class TestBundleSize:
         # civ that ever existed in civ_stats and the pairwise tables.
         # Bundle version 5 leaves dead civs out of the snapshots
         # (docs/performance/dead-civ-pruning.md): 20.29MB.
-        assert size_mb < 21, f"Bundle is {size_mb:.2f}MB, expected < 21MB"
+        # Techniques on by default (docs/integration/techniques-default.md) add
+        # per-turn practice history; with pruning this world writes 20.07MB on
+        # the native runtimes and 22.84MB on the Python (no-Rust) path, whose
+        # pure-Python ecology founds a different set of polities.
+        assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
 # ---------------------------------------------------------------------------
