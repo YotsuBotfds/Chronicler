@@ -825,6 +825,8 @@ CHRONIC: dict[str, ChronicSpec] = {
     # Finance (reported at the debtor's capital while the condition lasts).
     "fiscal_strain": ChronicSpec(3, False, None, "fiscal crisis"),
     "price_inflation": ChronicSpec(2, False, None, "inflation"),
+    # Maritime: raiders taking sea cargo in a zone (reported at its first port).
+    "piracy": ChronicSpec(2, False, None, "piracy"),
 }
 
 

@@ -99,6 +99,7 @@ from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_a
 from chronicler.movements import tick_movements
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
+from chronicler.maritime import maritime_enabled as _maritime_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -1957,6 +1958,10 @@ def run_turn_result(
         # Contact ledger, --agents off: goods-route proxy flows for this turn.
         from chronicler.contact_ledger import observe_phase2
         observe_phase2(world, phase2_trade_routes)
+    if _maritime_on(world) and agent_bridge is None:
+        # Maritime, --agents off: sea-lane trade and piracy on the route proxy.
+        from chronicler.maritime import observe_phase2 as _maritime_phase2
+        _maritime_phase2(world, phase2_trade_routes)
 
     economy_result = None
     snapshot = None
@@ -1993,6 +1998,12 @@ def run_turn_result(
             trade_route_input = build_economy_trade_route_batch(
                 world, active_trade_routes=economic_routes,
             )
+            if _maritime_on(world):
+                # Maritime: blockaded sea lanes carry no goods.
+                from chronicler.maritime import filter_boundary_batch
+                trade_route_input = filter_boundary_batch(
+                    world, trade_route_input, "origin_region_id", "dest_region_id",
+                )
             season_id = get_season_id(world.turn)
             is_winter = season_id == 3
             trade_friction = get_multiplier(world, K_TRADE_FRICTION)
@@ -2055,6 +2066,12 @@ def run_turn_result(
 
     # Phase 5: Action (selection + resolution)
     _emit(phase_action(world, action_selector=action_selector, acc=acc))
+
+    # Maritime (--maritime): fleets, naval battles, sea-zone control,
+    # blockades and pirates, before campaigns so armies see this turn's sea.
+    if _maritime_on(world):
+        from chronicler.maritime import tick_maritime
+        _emit(tick_maritime(world, acc=acc, agent_bridge=agent_bridge))
 
     # M60: Campaigns (armies, logistics, battles, sieges, occupation, peace)
     if world.campaigns_enabled:
@@ -2379,6 +2396,12 @@ def run_turn_result(
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type
                 gp.arc_type_turn = world.turn
+
+    # Maritime, agent modes: the native merchant sea-crossing log (cargo and
+    # raids) of this turn's agent tick, consumed by the next maritime tick.
+    if _maritime_on(world) and agent_bridge is not None:
+        from chronicler.maritime import observe_agent_sea_trade
+        observe_agent_sea_trade(world, agent_bridge)
 
     # Contact ledger: decay, fold this turn's movements in, refresh civ-pair
     # aggregates (read by next turn's consumers). Clears its transient inputs.
