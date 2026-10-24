@@ -17,6 +17,12 @@ CULTURAL_PRODUCTION_CHANCE = 0.45
 GP_PRESTIGE_THRESHOLD = 25
 GP_SCIENTIST_ARTIFACT_CHANCE = 0.80  # [CALIBRATE P2] restore non-relic artifact volume after duplicate burst caps.
 PORTABLE_CAPTURE_LOSS_CHANCE = 0.14  # [CALIBRATE M57]
+# M60b campaigns: a region that falls to an enemy army is sacked
+# (war/occupation.py). Its anchored treasures (temple relics, monuments) are
+# looted or burned with this chance; a fallen capital also yields its owner's
+# portable treasures to the occupier under the M52 capital-capture rule.
+OCCUPATION_SACK_ACTION = "occupation_sack"
+SACK_DESTRUCTION_CHANCE = 0.5
 RELIC_CONVERSION_BONUS = 0.15
 PROSPERITY_STABILITY_THRESHOLD = 55
 PROSPERITY_TREASURY_THRESHOLD = 5
@@ -197,41 +203,84 @@ def _process_conquest(world, intent: ArtifactLifecycleIntent, events: list) -> N
             continue
         if not a.anchored and a.owner_civ == intent.losing_civ:
             if intent.is_capital or intent.is_full_absorption:
-                # M57 tuning: even portable artifacts are sometimes lost in regime-collapse chaos.
-                capture_loss_roll = (
-                    stable_hash_int(
-                        "artifact_capture_loss",
-                        world.seed,
-                        world.turn,
-                        intent.losing_civ,
-                        intent.gaining_civ,
-                        intent.region,
-                        a.artifact_id,
-                    ) % 10_000
-                ) / 10_000.0
-                if capture_loss_roll < PORTABLE_CAPTURE_LOSS_CHANCE:
-                    a.status = ArtifactStatus.LOST
-                    a.owner_civ = None
-                    _add_history(
-                        a,
-                        f"Lost during the fall of {intent.region}, turn {world.turn}",
-                    )
-                    events.append(Event(
-                        turn=world.turn,
-                        event_type="artifact_lost",
-                        actors=[intent.losing_civ, a.name],
-                        description=f"{a.name} lost during the fall of {intent.region}",
-                        importance=6,
-                    ))
-                else:
-                    a.owner_civ = intent.gaining_civ
-                    _add_history(a, f"Captured by {intent.gaining_civ} during the fall of {intent.region}, turn {world.turn}")
-                    events.append(Event(
-                        turn=world.turn, event_type="artifact_captured",
-                        actors=[intent.gaining_civ, intent.losing_civ, a.name],
-                        description=f"{a.name} captured by {intent.gaining_civ}",
-                        importance=7,
-                    ))
+                _capture_portable(world, intent, a, events)
+
+
+def _capture_portable(world, intent: ArtifactLifecycleIntent, a: Artifact, events: list) -> None:
+    """A fallen capital's portable artifact: captured, or lost in the chaos."""
+    # M57 tuning: even portable artifacts are sometimes lost in regime-collapse chaos.
+    capture_loss_roll = (
+        stable_hash_int(
+            "artifact_capture_loss",
+            world.seed,
+            world.turn,
+            intent.losing_civ,
+            intent.gaining_civ,
+            intent.region,
+            a.artifact_id,
+        ) % 10_000
+    ) / 10_000.0
+    if capture_loss_roll < PORTABLE_CAPTURE_LOSS_CHANCE:
+        a.status = ArtifactStatus.LOST
+        a.owner_civ = None
+        _add_history(
+            a,
+            f"Lost during the fall of {intent.region}, turn {world.turn}",
+        )
+        events.append(Event(
+            turn=world.turn,
+            event_type="artifact_lost",
+            actors=[intent.losing_civ, a.name],
+            description=f"{a.name} lost during the fall of {intent.region}",
+            importance=6,
+        ))
+    else:
+        a.owner_civ = intent.gaining_civ
+        _add_history(a, f"Captured by {intent.gaining_civ} during the fall of {intent.region}, turn {world.turn}")
+        events.append(Event(
+            turn=world.turn, event_type="artifact_captured",
+            actors=[intent.gaining_civ, intent.losing_civ, a.name],
+            description=f"{a.name} captured by {intent.gaining_civ}",
+            importance=7,
+        ))
+
+
+def _process_sack(world, intent: ArtifactLifecycleIntent, events: list) -> None:
+    """A region falls to an enemy army (campaign occupation).
+
+    Legal control stays with the owner, so surviving anchored sites are not
+    transferred (annexation does that later). Each anchored treasure in the
+    region is looted or burned with ``SACK_DESTRUCTION_CHANCE``. If the region
+    is the owner's capital, its portable treasures are carried off exactly as
+    on a capital capture (``_process_conquest``).
+    """
+    for a in world.artifacts:
+        if a.status != ArtifactStatus.ACTIVE or a.holder_name is not None:
+            continue
+        if not (a.anchored and a.anchor_region == intent.region):
+            continue
+        roll = (
+            stable_hash_int(
+                "artifact_sack", world.seed, world.turn, intent.region, a.artifact_id,
+            ) % 10_000
+        ) / 10_000.0
+        if roll >= SACK_DESTRUCTION_CHANCE:
+            continue
+        a.status = ArtifactStatus.DESTROYED
+        a.owner_civ = None
+        _add_history(a, f"Destroyed in the sack of {intent.region}, turn {world.turn}")
+        events.append(Event(
+            turn=world.turn, event_type="artifact_destroyed",
+            actors=[intent.gaining_civ or "unknown", a.name],
+            description=f"{a.name} destroyed in the sack of {intent.region}",
+            importance=7,
+        ))
+    if intent.is_capital:
+        for a in world.artifacts:
+            if (a.status != ArtifactStatus.ACTIVE or a.holder_name is not None
+                    or a.anchored or a.owner_civ != intent.losing_civ):
+                continue
+            _capture_portable(world, intent, a, events)
 
 
 def _anchored_region_controller(world, artifact: Artifact) -> str | None:
@@ -392,6 +441,8 @@ def tick_artifacts(world) -> list[Event]:
             _process_conquest(world, intent, events)  # same rules
         elif intent.action == "civ_destruction":
             _process_civ_destruction(world, intent, events)
+        elif intent.action == OCCUPATION_SACK_ACTION:
+            _process_sack(world, intent, events)
 
     # 2b. Auto-detect dead civs with active artifacts not already handled
     for civ in world.civilizations:
@@ -403,6 +454,7 @@ def tick_artifacts(world) -> list[Event]:
             if has_active:
                 already_handled = any(
                     intent.losing_civ == civ.name
+                    and intent.action != OCCUPATION_SACK_ACTION
                     for intent in world._artifact_lifecycle_intents
                 )
                 if not already_handled:

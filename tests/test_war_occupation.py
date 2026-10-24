@@ -37,6 +37,17 @@ def test_capital_occupation_shocks_owner_stability():
     assert any("capital" in e.description for e in ctx.events if e.event_type == "occupation")
 
 
+def test_occupation_sacks_the_fallen_region():
+    world = war_world()
+    ctx, war = start_war(world)
+    _occupy(world, ctx, war, region="Edge")
+    _occupy(world, ctx, war, region="Dun")  # B's capital
+    sacks = [(i.action, i.losing_civ, i.gaining_civ, i.region, i.is_capital)
+             for i in world._artifact_lifecycle_intents]
+    assert sacks == [("occupation_sack", "B", "A", "Edge", False),
+                     ("occupation_sack", "B", "A", "Dun", True)]
+
+
 def test_unrest_grows_without_garrison_and_is_suppressed_by_one():
     world = war_world()
     ctx, war = start_war(world)

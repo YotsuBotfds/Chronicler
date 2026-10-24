@@ -4,12 +4,12 @@
       "corrected_backlog_2026_10.json",
       "corrected_artifacts_backlog_2026_10.json"
     ],
-    "base_revision": "9497869+prestige-saturation",
+    "base_revision": "d0fb1a8+occupation-sack",
     "description": "Corrected oracle rolled forward by the 2026-10 extinction fix (docs/integration/extinction-fix-2026-10.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. The corrected_backlog_2026_10 (and older) fixtures remain frozen; workloads not named in 'corrections' would be byte-identical to them.",
     "corrections": [
       {
         "id": "EXT-2026-10",
-        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split. Scientists need scholarly change (one per prosperity streak, new eras only); prestige decay saturates (max(1, 2%)).",
+        "summary": "Per-civ decaying event hazards replace the non-decaying probability cascade (new Civilization.event_excitation / unviable_turns, Leader.birth_turn and WorldState.last_twilight_absorption_turn fields appear in every turn-0 snapshot); age-based leader mortality; plague toll capped at a tenth of the civ; ecology pressure against potential capacity; paced twilight absorption; federation-membership fix; food-first labour split. Scientists need scholarly change (one per prosperity streak, new eras only); prestige decay saturates (max(1, 2%)); campaign occupations sack the fallen region's artifacts.",
         "workloads": {
           "single": 0,
           "standard": 0,
