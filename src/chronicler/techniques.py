@@ -1,4 +1,4 @@
-"""Technology as diffusing techniques (``--techniques``, default off).
+"""Technology as diffusing techniques (``--techniques``, default on for new worlds).
 
 The monolithic tech era is replaced by a registry of techniques
 (:data:`chronicler.techniques_state.TECHNIQUES`: agriculture, metallurgy,
@@ -66,8 +66,11 @@ from chronicler.techniques_state import (
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Civilization, Event, Region, WorldState
 
-#: Default for worlds newly created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds newly created by the CLI/batch/live entry points
+#: (on since the 2026-10 techniques full gate,
+#: ``docs/integration/techniques-default.md``; ``--no-techniques`` opts out;
+#: loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # ---------------------------------------------------------------------------
 # Parameters (illustrative calibrations, documented in docs/integration/techniques.md)
