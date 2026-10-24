@@ -916,12 +916,20 @@ enum PairClass {
     Valid,
 }
 
-/// Reference rejection cascade for an eligible pair (symmetric in a, b).
+/// Reference rejection cascade for an eligible pair (symmetric in a, b),
+/// plus the pair distance. The distance is symmetric bit for bit
+/// (`x_a - x_b` is the exact negation of `x_b - x_a`), so it equals the one
+/// the reference computes for its score.
 #[inline]
-fn classify_pair(e: &Eligible, a: usize, b: usize, civ_at_war: &[bool; 256]) -> PairClass {
+fn classify_pair_dist(e: &Eligible, a: usize, b: usize, civ_at_war: &[bool; 256]) -> (PairClass, f32) {
     let dx = e.x[a] - e.x[b];
     let dy = e.y[a] - e.y[b];
     let dist = (dx * dx + dy * dy).sqrt();
+    (classify_with_dist(e, a, b, dist, civ_at_war), dist)
+}
+
+#[inline]
+fn classify_with_dist(e: &Eligible, a: usize, b: usize, dist: f32, civ_at_war: &[bool; 256]) -> PairClass {
     if dist > agent::MARRIAGE_RADIUS {
         return PairClass::Far;
     }
@@ -966,16 +974,19 @@ impl PairKey {
     }
 }
 
+/// Score of an eligible pair from its distance (as the reference
+/// `marriage_score(pool, lo, hi)` computes it).
 #[inline]
-fn pair_key(e: &Eligible, a: usize, b: usize, turn: u32, region_idx: u32) -> PairKey {
+fn pair_score(e: &Eligible, a: usize, b: usize, dist: f32) -> f32 {
     let (lo, hi) = if a < b { (a, b) } else { (b, a) };
-    let dx = e.x[lo] - e.x[hi];
-    let dy = e.y[lo] - e.y[hi];
-    let dist = (dx * dx + dy * dy).sqrt();
+    marriage_score_from(e.civ[lo], e.civ[hi], e.belief[lo], e.belief[hi], e.cv[lo], e.cv[hi], dist)
+}
+
+#[inline]
+fn pair_key_scored(e: &Eligible, a: usize, b: usize, score: f32, turn: u32, region_idx: u32) -> PairKey {
+    let (lo, hi) = if a < b { (a, b) } else { (b, a) };
     PairKey {
-        score: marriage_score_from(
-            e.civ[lo], e.civ[hi], e.belief[lo], e.belief[hi], e.cv[lo], e.cv[hi], dist,
-        ),
+        score,
         hash: marriage_pair_hash(turn, region_idx, e.id[lo], e.id[hi]),
         lo: lo as u32,
         hi: hi as u32,
@@ -995,6 +1006,19 @@ struct TopPartners {
 impl TopPartners {
     fn new() -> Self {
         Self { entries: Vec::with_capacity(MARRIAGE_TOP_K + 1), complete: true }
+    }
+
+    /// Offer a partner given only its score when that already decides: a
+    /// pair scoring below a full cache's worst entry cannot enter it (the
+    /// score is the first key), so its hash need not be computed. Returns
+    /// false when the caller must build the full key and `offer` it.
+    #[inline]
+    fn rejects_score(&mut self, score: f32) -> bool {
+        if self.entries.len() == MARRIAGE_TOP_K && score < self.entries[MARRIAGE_TOP_K - 1].0.score {
+            self.complete = false;
+            return true;
+        }
+        false
     }
 
     #[inline]
@@ -1056,7 +1080,7 @@ fn plan_region_marriages(
             if !tally && (!wed_a || matched[b] || !e.can_wed[b]) {
                 return;
             }
-            let class = classify_pair(&e, a, b, civ_at_war);
+            let (class, dist) = classify_pair_dist(&e, a, b, civ_at_war);
             if tally {
                 match class {
                     PairClass::Far => c[0] = c[0].wrapping_add(1),
@@ -1066,7 +1090,10 @@ fn plan_region_marriages(
                 }
             }
             if class == PairClass::Valid && wed_a && !matched[b] && e.can_wed[b] {
-                top.offer(pair_key(&e, a, b, turn, region_idx), b as u32);
+                let score = pair_score(&e, a, b, dist);
+                if !top.rejects_score(score) {
+                    top.offer(pair_key_scored(&e, a, b, score, turn, region_idx), b as u32);
+                }
             }
         };
         match &fast {
@@ -1232,7 +1259,8 @@ fn fast_marriage_candidates(
                     continue;
                 }
                 examined += 1;
-                match classify_pair(e, a, b, civ_at_war) {
+                let (class, dist) = classify_pair_dist(e, a, b, civ_at_war);
+                match class {
                     PairClass::Far => counts[0] += 1,
                     PairClass::Incest => counts[1] += 1,
                     PairClass::Hostile => counts[2] += 1,
@@ -1240,7 +1268,11 @@ fn fast_marriage_candidates(
                         if !e.can_wed[a] || !e.can_wed[b] {
                             continue;
                         }
-                        let key = pair_key(e, a, b, turn, region_idx);
+                        let score = pair_score(e, a, b, dist);
+                        if best.len() == keep && score < best[keep - 1].0.score {
+                            continue;
+                        }
+                        let key = pair_key_scored(e, a, b, score, turn, region_idx);
                         if best.len() == keep && !key.before(&best[keep - 1].0) {
                             continue;
                         }
