@@ -1437,6 +1437,11 @@ def generate_report(
     maritime = extract_maritime_metrics(bundles)
     if maritime.get("runs"):
         report["maritime"] = maritime
+    # Nomads: present only for runs whose bundles carry history[n].nomads.
+    from chronicler.nomads import extract_nomad_metrics
+    nomads = extract_nomad_metrics(bundles)
+    if nomads.get("runs"):
+        report["nomads"] = nomads
 
     report["anomalies"] = detect_anomalies(report)
     return report

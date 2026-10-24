@@ -1136,6 +1136,12 @@ def run_live(
         )
         _maritime = getattr(args, "maritime", None)
         set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
+        # Nomads: new live worlds follow the CLI default (--nomads opts in).
+        from chronicler.nomads import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
+        )
+        _nomads = getattr(args, "nomads", None)
+        set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (
