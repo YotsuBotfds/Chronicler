@@ -45,11 +45,13 @@ def _dist(a, b):
 # --- template worlds stay byte-identical --------------------------------------
 
 # sha256 of generate_world(...).model_dump_json() on the pre-Geography-2.0 base
-# (integrate/wave-1 @ 1282630). Template worlds must not change.
+# (fix/world-extinction @ 702be0d, which added leader birth turns; Geography
+# 2.0 itself left the integrate/wave-1 @ 1282630 digests unchanged).
+# Template worlds must not change.
 TEMPLATE_DIGESTS = {
-    (42, 8, 4): "6280897fa20cd5dfc1beeb5720f285ab897f1e5cde27a8ade33f2dcdbed76a04",
-    (7, 12, 6): "75a08fe764095ec2d87bb4b8ffc640aa49278f51fa115739304394a024265e11",
-    (1234, 5, 3): "fddb7bac3307d6f98134877944543c5988c39f9f92665a2d4fef638a4ce0b92d",
+    (42, 8, 4): "8b78449e687284b9d58088c35998d3a8b1f6ba1d4b9b09442f865ded569e1850",
+    (7, 12, 6): "051c02b1966c70352acc73e3b56ff6f536a15cdee771cdf6f31229bc52295a7d",
+    (1234, 5, 3): "1572eb201fdf006617ea11304490eadc43fbe0d8dfab98b87dd553d4baac9107",
 }
 
 
