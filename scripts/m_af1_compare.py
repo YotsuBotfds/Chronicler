@@ -15,10 +15,12 @@ CHECKPOINTS = [100, 250, 500]
 
 
 def load_bundle(path: Path) -> dict | None:
+    from chronicler.snapshot_pruning import restore_bundle
     for name in ["chronicle_bundle.json", "bundle.json"]:
         f = path / name
         if f.exists():
-            return json.loads(f.read_text())
+            # Version-5 histories leave dead civs out; restore every civ row.
+            return restore_bundle(json.loads(f.read_text()))
     return None
 
 

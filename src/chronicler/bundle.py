@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
+from chronicler.snapshot_pruning import PRUNED_BUNDLE_VERSION, PRUNED_CIV_STATS_KEY, prune_history
 
 try:
     import pyarrow as pa
@@ -22,7 +23,11 @@ logger = logging.getLogger(__name__)
 # duration; omitted while empty), chronicle entries carry causal_chains and
 # causal links carry cause_id/effect_id/provenance. Version-3 readers ignore
 # the additions; version-4 readers treat them as optional.
-LEGACY_BUNDLE_VERSION = 4
+# 5: history snapshots leave out civilizations that are dead at that turn
+# (civ_stats, capitals and the pairwise tables), keeping each one's final row;
+# ``pruned_civ_stats`` restores the omitted civ_stats rows exactly
+# (chronicler.snapshot_pruning). world_state is unchanged.
+LEGACY_BUNDLE_VERSION = PRUNED_BUNDLE_VERSION
 
 
 def _strip_llm_fields(world_dict: dict) -> dict:
@@ -48,9 +53,11 @@ def assemble_bundle(
     gap_summaries: list[GapSummary] | None = None,
 ) -> dict[str, Any]:
     """Assemble all run data into a single dict for the viewer bundle."""
+    pruned_history, pruned_civ_stats = prune_history(s.model_dump(mode="json") for s in history)
     return {
         "world_state": _strip_llm_fields(world.model_dump(mode="json")),
-        "history": [s.model_dump(mode="json") for s in history],
+        "history": pruned_history,
+        PRUNED_CIV_STATS_KEY: pruned_civ_stats,
         "events_timeline": [
             e.model_dump(mode="json") for e in world.events_timeline
         ],

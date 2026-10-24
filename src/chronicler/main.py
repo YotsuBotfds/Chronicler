@@ -1441,6 +1441,10 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
     with open(bundle_path) as f:
         bundle = _json.load(f)
+    # Version-5 histories leave dead civs out: restore their rows so curation
+    # and narration read the history the run itself held in memory.
+    from chronicler.snapshot_pruning import restore_bundle
+    bundle = restore_bundle(bundle)
 
     # Deserialize events, named_events, history
     events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]

@@ -15,6 +15,7 @@ from math import ceil
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
+from .snapshot_pruning import restore_bundle
 
 SCRUB_KEYS = {"generated_at"}
 BUNDLE_FILENAME = "chronicle_bundle.json"
@@ -189,8 +190,14 @@ def _bundle_paths(batch_dir: Path) -> list[Path]:
 
 
 def _load_bundle(bundle_path: Path) -> dict:
+    """Load a bundle with every civ row in its history.
+
+    Version-5 bundles leave dead civilizations out of the history snapshots;
+    the oracles measure over every civ row (dead civs' series included), so
+    the omitted rows are restored exactly (``snapshot_pruning.restore_bundle``).
+    """
     try:
-        return json.loads(bundle_path.read_text(encoding="utf-8"))
+        return restore_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))
     except Exception as exc:
         raise RuntimeError(f"Failed to load bundle: {bundle_path}") from exc
 
