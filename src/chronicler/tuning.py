@@ -47,7 +47,6 @@ K_MECHANIZATION_MINE_MULT = "ecology.mechanization_mine_multiplier"
 K_FAMINE_WATER_THRESHOLD = "ecology.famine_water_threshold"
 K_SUBSISTENCE_BASELINE = "ecology.subsistence_baseline"
 K_FAMINE_YIELD_THRESHOLD = "ecology.famine_yield_threshold"
-K_PEAK_YIELD = "ecology.peak_yield"
 K_DEPLETION_RATE = "ecology.depletion_rate"
 # M35a: Rivers
 K_RIVER_WATER_BONUS = "ecology.river_water_bonus"
@@ -255,7 +254,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_FOREST_CLEARING, K_FOREST_REGROWTH, K_COOLING_FOREST_DAMAGE,
     K_IRRIGATION_WATER_BONUS, K_IRRIGATION_DROUGHT_MULT,
     K_AGRICULTURE_SOIL_BONUS, K_MECHANIZATION_MINE_MULT, K_FAMINE_WATER_THRESHOLD,
-    K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD, K_PEAK_YIELD, K_DEPLETION_RATE,
+    K_SUBSISTENCE_BASELINE, K_FAMINE_YIELD_THRESHOLD, K_DEPLETION_RATE,
     K_MILITARY_FREE_THRESHOLD, K_BLACK_SWAN_BASE_PROB, K_BLACK_SWAN_COOLDOWN,
     K_REGRESSION_CAPITAL_COLLAPSE, K_REGRESSION_TWILIGHT, K_REGRESSION_BLACK_SWAN,
     K_REGRESSION_CULTURE_RESISTANCE_FLOOR, K_REGRESSION_CULTURE_RESISTANCE_DIVISOR,
@@ -368,7 +367,7 @@ def _flatten(d: dict, prefix: str = "") -> dict[str, float]:
 
 def load_tuning(path: Path) -> dict[str, float]:
     """Load hierarchical YAML, flatten to dot-notation keys, validate."""
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"Tuning YAML must be a mapping, got {type(raw).__name__}")
     flat = _flatten(raw)

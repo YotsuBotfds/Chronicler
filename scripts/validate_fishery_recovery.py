@@ -40,6 +40,10 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
     sys.path.insert(0, str(source.resolve()))
     import pyarrow as pa
     from chronicler.ecology import check_food_yield, compute_resource_yields, tick_ecology
+    try:  # Integrated sources preview the realized harvest before Phase 2.
+        from chronicler.ecology import refresh_resource_yields
+    except ImportError:  # Pre-integration sources produced from permanent yields.
+        refresh_resource_yields = None
     from chronicler.economy import compute_economy
     from chronicler.models import (
         Civilization, ClimatePhase, Leader, Region, RegionStockpile, TechEra, WorldState,
@@ -97,7 +101,14 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
         goods_before = sum(region.stockpile.goods.values())
         previous_budget = (region.fishery_catch_budgets[0] or 0.0) if enabled else None
         ratio = region.fishery_yield_ratios[0] if enabled else 1.0
-        expected_production = region.resource_effective_yields[0] * ratio * farmers
+        if refresh_resource_yields is not None:
+            # run_turn's agent-mode Phase 2 order: non-depleting harvest preview,
+            # then the economy (single slot, so all farmers work it).
+            refresh_resource_yields(world, ClimatePhase.TEMPERATE)
+            per_worker = region.resource_current_yields[0]
+        else:
+            per_worker = region.resource_effective_yields[0]
+        expected_production = per_worker * ratio * farmers
         if enabled:
             expected_production = min(expected_production, previous_budget)
 

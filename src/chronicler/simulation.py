@@ -2,7 +2,7 @@
 
 Turn phases:
 1. Environment — climate, conditions, terrain transitions, black swans
-2. Economy / automatic effects — goods economy, trade routes, income, tribute, treasury
+2. Economy / automatic effects — realized harvest, goods economy, trade routes, income, tribute, treasury
 3. Production
 4. Technology
 5. Action selection + resolution (action engine)
@@ -73,6 +73,7 @@ from chronicler.leaders import (
     check_rival_fall,
 )
 from chronicler.named_events import generate_tech_breakthrough_name
+from chronicler.history_index import history_index
 from chronicler.tech_focus import TechFocus, select_tech_focus, apply_focus_effects, remove_focus_effects
 from chronicler.action_engine import resolve_action
 from chronicler.succession import (
@@ -471,6 +472,11 @@ def apply_automatic_effects(
         apply_long_peace, update_peak_regions,
     )
     events.extend(apply_governing_costs(world, acc=acc))
+    # Phase 8 governance: institutional enforcement is paid right after the
+    # base governing cost and recorded for late Phase 10 (M63a bookkeeping).
+    if getattr(world, "governance", None) is not None:
+        from chronicler.governance_runtime import fund_institutions_phase2
+        events.extend(fund_institutions_phase2(world, acc=acc))
     events.extend(collect_tribute(world, acc=acc))
     events.extend(apply_proxy_wars(world, acc=acc))
     events.extend(apply_exile_effects(world, acc=acc))
@@ -587,9 +593,11 @@ def phase_production(world: WorldState, acc=None) -> None:
     # Stability recovery: passive per-turn recovery, halved during severe conditions.
     # B-1 fix: In hybrid mode, stability is overwritten by _write_back (mean_sat *
     # mean_loy * 100), so "keep" routing is dead code.  Route as "guard-shock" so
-    # the recovery feeds the Rust tick as a positive shock signal.  In aggregate
-    # mode (acc=None), direct mutation.  In shadow/demographics-only (acc with
-    # apply()), the guard-shock is still applied via apply().
+    # the recovery feeds the Rust tick as a positive shock signal.  --agents=off
+    # applies it through acc.apply(); standalone acc=None callers mutate
+    # directly.  Shadow/demographics-only flush with apply_keep() and do not
+    # route shocks (C-10), so this recovery does not reach their aggregate
+    # stability.
     for civ_idx, civ in enumerate(world.civilizations):
         if not civ.regions:
             continue
@@ -1235,6 +1243,12 @@ def phase_consequences(
                     if region.name in lost:
                         region.controller = None
                         region._controller_changed_this_turn = True
+                # Audit T3-13 decision (2026-10 deferred backlog): intentional,
+                # applied once. The halving is the base collapse loss and the
+                # M18 severity multiplier (capped at 2.0) scales that loss a
+                # single time on both routes; hybrid guard-shock deltas are
+                # normalized, never re-multiplied. At the cap the loss equals
+                # the whole stat, so collapse bottoms out at STAT_FLOOR.
                 mult = get_severity_multiplier(civ, world)
                 base_mil_target = clamp(civ.military // 2, STAT_FLOOR["military"], 100)
                 base_eco_target = clamp(civ.economy // 2, STAT_FLOOR["economy"], 100)
@@ -1322,6 +1336,12 @@ def phase_consequences(
     # M38a: Temple prestige tick
     from chronicler.infrastructure import tick_temple_prestige
     tick_temple_prestige(world, acc=acc)
+
+    # Phase 8 governance (late Phase 10, after politics and tick_factions):
+    # institutions, elites, capital, ambitions and PSI; effective N+1.
+    if getattr(world, "governance", None) is not None:
+        from chronicler.governance_runtime import tick_governance
+        collapse_events.extend(tick_governance(world, acc=acc, phase10=phase10))
 
     return collapse_events
 
@@ -1697,10 +1717,22 @@ def run_turn_result(
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
         if snapshot is not None:
+            # Lagged mutual aid moves existing stock (observed at N-1) before
+            # this turn's inventory is packed; it does not read yields.
             if world.mutual_aid_enabled:
                 from chronicler.mutual_aid import dispatch_mutual_aid, read_stockpile_commitments
                 commitments = read_stockpile_commitments(world, agent_bridge._sim)
                 turn_events.extend(dispatch_mutual_aid(world, snapshot, acc=acc, commitments=commitments))
+            # Harvest uses this turn's climate/season and current ecology, with
+            # no depletion or ecology mutation here. Phase 9 advances those
+            # once for the following harvest. Recompute transient yields even
+            # on turn zero and after restoring a save. Fishery catch limits are
+            # applied separately by the lagged catch ratio/budget in Phase 2.
+            from chronicler.climate import get_climate_phase
+            from chronicler.ecology import refresh_resource_yields
+            refresh_resource_yields(
+                world, get_climate_phase(world.turn, world.climate_config),
+            )
             from chronicler.resources import get_season_id
             from chronicler.economy import (
                 build_economy_region_input_batch,
@@ -1766,6 +1798,11 @@ def run_turn_result(
     # Phase 5: Action (selection + resolution)
     turn_events.extend(phase_action(world, action_selector=action_selector, acc=acc))
 
+    # M60: Campaigns (armies, logistics, battles, sieges, occupation, peace)
+    if world.campaigns_enabled:
+        from chronicler.war.runtime import tick_campaigns
+        turn_events.extend(tick_campaigns(world, acc=acc, agent_bridge=agent_bridge))
+
     # M47d: Update war-weariness and peace momentum accumulators
     update_war_frequency_accumulators(world)
 
@@ -1798,7 +1835,10 @@ def run_turn_result(
         from chronicler.agent_bridge import build_region_batch
         _eco_rt.set_region_state(build_region_batch(world))
 
-    turn_events.extend(tick_ecology(world, climate_phase, acc=acc, ecology_runtime=_eco_rt))
+    turn_events.extend(tick_ecology(
+        world, climate_phase, acc=acc, ecology_runtime=_eco_rt,
+        economy_result=economy_result,
+    ))
 
     artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear immediately before bridge consumption
@@ -1853,6 +1893,10 @@ def run_turn_result(
     phase10_snapshot = None
     if agent_bridge is not None:
         phase10_snapshot = _capture_agent_snapshot(world, agent_bridge)
+        if world.campaigns_enabled and phase10_snapshot is not None:
+            # M60: natural deaths in the native tick shrink enlisted rosters.
+            from chronicler.war.armies import reconcile_rosters
+            reconcile_rosters(world, phase10_snapshot)
 
     # Preserve the prior completed publication gate used by Phase 5 and replay.
     world._economy_result = economy_result
@@ -1915,6 +1959,9 @@ def run_turn_result(
             world.pending_shocks.extend(phase10_shocks)
 
     prune_inactive_wars(world)
+    if world.campaigns_enabled:
+        from chronicler.war.runtime import end_of_turn_sync
+        end_of_turn_sync(world)
 
     # M40: Unified relationship formation and dissolution
     # One-turn latency: agent tick ran between Phase 9 and 10.
@@ -1991,10 +2038,17 @@ def run_turn_result(
     from chronicler.emergence import check_tech_regression
     from chronicler.emergence import BLACK_SWAN_EVENT_TYPES
     black_swan_this_turn = any(e.event_type in BLACK_SWAN_EVENT_TYPES for e in turn_events)
-    turn_events.extend(check_tech_regression(world, black_swan_fired=black_swan_this_turn, acc=acc))
+    # T1-3: tech regression runs after every earlier accumulator flush, so it
+    # follows the Phase 10 routing rule: hybrid records into the accumulator
+    # (flushed just below), while off/shadow/demographics-only modes have
+    # already flushed ``acc`` and must mutate directly (acc=None). Passing
+    # ``acc`` in those modes silently dropped era-bonus removals.
+    turn_events.extend(check_tech_regression(
+        world, black_swan_fired=black_swan_this_turn, acc=phase10_acc,
+    ))
 
     # Third apply_keep flush: tech regression's remove_era_bonus routes through
-    # acc as "keep" (V1 fix), but runs after the Phase 10 flush at line ~1797.
+    # acc as "keep" (V1 fix), but runs after the Phase 10 flush above.
     # Without this flush, era-bonus removals are silently dropped in hybrid mode.
     if world.agent_mode == "hybrid" and acc is not None:
         acc.apply_keep(world)
@@ -2017,13 +2071,16 @@ def run_turn_result(
     # above (C-2 fix).
     world.events_timeline.extend(turn_events[_pre_phase10_count:])
 
-    # M45: Arc classification — after events are on timeline, before snapshot
+    # M45: Arc classification — after events are on timeline, before snapshot.
+    # classify_arc filters to events naming the character; the per-actor index
+    # yields that same ordered subset without rescanning the whole timeline.
     dynasty_reg = agent_bridge.dynasty_registry if agent_bridge else None
+    _history = history_index(world)
     for civ in world.civilizations:
         for gp in civ.great_persons:
             prev_type = gp.arc_type
             gp.arc_phase, new_type = classify_arc(
-                gp, world.events_timeline, dynasty_reg, world.turn
+                gp, _history.events_for_actor(world, gp.name), dynasty_reg, world.turn
             )
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type
@@ -2033,7 +2090,7 @@ def run_turn_result(
         if gp.death_turn == world.turn:
             prev_type = gp.arc_type
             gp.arc_phase, new_type = classify_arc(
-                gp, world.events_timeline, dynasty_reg, world.turn
+                gp, _history.events_for_actor(world, gp.name), dynasty_reg, world.turn
             )
             if new_type is not None and new_type != prev_type:
                 gp.arc_type = new_type

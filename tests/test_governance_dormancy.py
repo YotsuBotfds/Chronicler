@@ -12,8 +12,11 @@ from scripts.third_wave_controls import legacy_artifact_bytes
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
-ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_423a67c.json").read_text())
+# Rolled forward from the frozen corrected_423a67c oracles by the 2026-10
+# deferred-backlog corrections; see the fixture provenance and
+# tests/test_performance_equivalence.py for the scoped-difference proofs.
+BASELINE = json.loads((FIXTURES / "corrected_backlog_2026_10.json").read_text())
+ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_backlog_2026_10.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])

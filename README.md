@@ -123,6 +123,7 @@ chronicler --narrate output/chronicle_bundle.json --narrator gemini --budget 50
 | `--compare report.json` | Compare an analysis run against a baseline report |
 | `--checkpoints 25,50,100` | Add checkpoint turns to analytics output |
 | `--resume state.json` | Resume from a saved state |
+| `--state-every K` | Write the resumable state/memory checkpoint every K turns (default 10; `1` = every turn); Ctrl-C finishes the turn and checkpoints it |
 
 ## Agent Modes
 
@@ -221,6 +222,8 @@ python scripts/m53b_run_validation.py --profile full --output-root output/m53/fu
 ```
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.
+
+See [ecology/goods coupling validation](docs/validation/economy-coupling.md) for harvest timing, finite resource labor, reserve-aware famine, and reproducible paired/native accounting experiments.
 
 ## Project Structure
 

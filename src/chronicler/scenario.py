@@ -227,6 +227,33 @@ def load_scenario(path: Path) -> ScenarioConfig:
     return config
 
 
+def _reset_terrain_derived_state(region: Region, terrain: str) -> None:
+    """Drop template-terrain state before a scenario changes a region's terrain.
+
+    generate_world() derives starting ecology, resource slots, disease baseline
+    and the turn-0 stockpile from the template terrain. Without this reset a
+    scenario ``river`` region placed over a desert template kept desert ecology,
+    desert resources and a cholera baseline, and the river/hills resource
+    tables never applied (audit T3-16). Resources are re-rolled by Step 8;
+    disease baseline, effective yields and the stockpile are re-derived in the
+    post-apply consistency pass.
+
+    Terrains without their own ecology defaults (``river``, ``hills``) use the
+    plains defaults, matching TERRAIN_MAP's plains mapping for the Rust runtimes
+    and the plains fallbacks for ecology caps, climate and terrain effects.
+    """
+    from chronicler.ecology import TERRAIN_ECOLOGY_DEFAULTS
+
+    defaults = TERRAIN_ECOLOGY_DEFAULTS.get(terrain, TERRAIN_ECOLOGY_DEFAULTS["plains"])
+    region.ecology = defaults.model_copy()
+    region.specialized_resources = []
+    region.resource_types = [EMPTY_SLOT, EMPTY_SLOT, EMPTY_SLOT]
+    region.resource_base_yields = [0.0, 0.0, 0.0]
+    region.resource_effective_yields = [0.0, 0.0, 0.0]
+    region.resource_reserves = [1.0, 1.0, 1.0]
+    region.stockpile.goods = {}
+
+
 def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     """Apply scenario overrides to a generated WorldState.
 
@@ -235,6 +262,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     # --- Step 1: Region injection ---
     replaced_region_indices: set[int] = set()
     region_override_map: list[tuple[int, RegionOverride]] = []
+    # Regions whose terrain the scenario changed: their template-derived
+    # resources/ecology/disease/stockpile are re-derived for the new terrain.
+    terrain_reset_indices: set[int] = set()
     for reg_override in config.regions:
         target_idx = None
         for i, region in enumerate(world.regions):
@@ -251,6 +281,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
 
         # Apply overrides (non-None fields only)
         if reg_override.terrain is not None:
+            if reg_override.terrain != world.regions[target_idx].terrain:
+                _reset_terrain_derived_state(world.regions[target_idx], reg_override.terrain)
+                terrain_reset_indices.add(target_idx)
             world.regions[target_idx].terrain = reg_override.terrain
         if reg_override.carrying_capacity is not None:
             world.regions[target_idx].carrying_capacity = reg_override.carrying_capacity
@@ -451,6 +484,19 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
     from chronicler.ecology import clamp_ecology as _clamp_eco
     for region in world.regions:
         _clamp_eco(region)
+
+    # T3-16: finish re-deriving turn-0 state for terrain-changed regions the
+    # way generate_world() does, now that resources, rivers and ecology
+    # overrides have all been applied.
+    if terrain_reset_indices:
+        from chronicler.economy import bootstrap_region_stockpile
+        from chronicler.world_gen import initialize_disease_baseline
+        for idx in sorted(terrain_reset_indices):
+            region = world.regions[idx]
+            region.resource_effective_yields = list(region.resource_base_yields)
+            initialize_disease_baseline(region)
+            if region.controller is not None:
+                bootstrap_region_stockpile(region)
 
     # Verify capital_region is owned; fix if not
     for civ in world.civilizations:

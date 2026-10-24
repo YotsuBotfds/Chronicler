@@ -208,6 +208,26 @@ fn collect_catastrophe_deaths(
     deaths
 }
 
+/// M60b: resolve stable agent ids to alive slots, in ascending slot order,
+/// skipping slots already selected for catastrophe deaths.
+fn collect_targeted_deaths(
+    pool: &AgentPool,
+    targeted: &[u32],
+    already: &[(usize, u16)],
+) -> Vec<(usize, u16)> {
+    if targeted.is_empty() {
+        return Vec::new();
+    }
+    let wanted: std::collections::HashSet<u32> = targeted.iter().copied().collect();
+    let taken: std::collections::HashSet<usize> = already.iter().map(|&(slot, _)| slot).collect();
+    (0..pool.capacity())
+        .filter(|&slot| {
+            pool.is_alive(slot) && wanted.contains(&pool.ids[slot]) && !taken.contains(&slot)
+        })
+        .map(|slot| (slot, pool.region(slot)))
+        .collect()
+}
+
 fn mark_war_survivors(
     pool: &mut AgentPool,
     region_groups: &[Vec<usize>],
@@ -240,7 +260,42 @@ pub fn try_tick_agents(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_targeted_deaths(
+        pool,
+        regions,
+        signals,
+        master_seed,
+        turn,
+        wealth_percentiles,
+        spatial_grids,
+        attractors,
+        spatial_diag,
+        settlement_grids,
+        merchant_state,
+        &[],
+    )
+}
+
+/// M60b: as [`try_tick_agents`], additionally killing the listed stable agent
+/// ids (war casualties chosen by the Python campaign layer) in the same
+/// pre-tick death batch as region catastrophe deaths. Ids that are already
+/// dead, unknown, or selected by the catastrophe draw are ignored. With an
+/// empty list this is exactly `try_tick_agents`.
+pub fn try_tick_agents_with_targeted_deaths(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let num_regions = regions.len();
     let mut events: Vec<AgentEvent> = Vec::new();
@@ -251,7 +306,9 @@ pub fn try_tick_agents(
     // 0.0 Catastrophe deaths — apply before the main tick so direct Python
     // phase losses survive write-back in bridge-backed modes.
     // -----------------------------------------------------------------------
-    let catastrophe_deaths = collect_catastrophe_deaths(pool, regions, master_seed, turn);
+    let mut catastrophe_deaths = collect_catastrophe_deaths(pool, regions, master_seed, turn);
+    let targeted = collect_targeted_deaths(pool, targeted_deaths, &catastrophe_deaths);
+    catastrophe_deaths.extend(targeted);
     let catastrophe_dead_ids: std::collections::HashSet<u32> = catastrophe_deaths
         .iter()
         .map(|&(slot, _)| pool.ids[slot])
@@ -435,6 +492,10 @@ pub fn try_tick_agents(
     let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
         .into_iter().map(|(pd, _)| pd).collect();
+    let migration_religion_changed: u32 =
+        pending_decisions.iter().map(|pd| pd.migration_changed_by_religion).sum();
+    let loyalty_rally_damped: u32 =
+        pending_decisions.iter().map(|pd| pd.loyalty_drifts_damped_by_rally).sum();
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)
@@ -618,7 +679,17 @@ pub fn try_tick_agents(
                         is_legacy: false,
                         decay_factor_override: None,
                     });
-                    if region_id < regions.len() && regions[region_id].war_won_this_turn {
+                    // Victory is civ-filtered: in both decisive outcomes the
+                    // civ holding the region after this turn's battles is the
+                    // winner, so only its soldiers remember a victory. A region
+                    // that changed hands holds the losing defenders (realigned
+                    // to the conqueror), who keep Battle + Conquest instead.
+                    if region_id < regions.len()
+                        && regions[region_id].war_won_this_turn
+                        && !regions[region_id].controller_changed_this_turn
+                        && regions[region_id].controller_civ != 255
+                        && pool.civ_affinities[slot] == regions[region_id].controller_civ
+                    {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: slot,
                             expected_agent_id: pool.ids[slot],
@@ -1065,6 +1136,8 @@ pub fn try_tick_agents(
     knowledge_stats.merchant_plans_bootstrap = merchant_stats.plans_bootstrap;
     knowledge_stats.merchant_no_usable_packets = merchant_stats.no_usable_packets;
     knowledge_stats.migration_choices_changed_by_threat = migration_threat_changed;
+    knowledge_stats.migration_choices_changed_by_religion = migration_religion_changed;
+    knowledge_stats.loyalty_drifts_damped_by_rally = loyalty_rally_damped;
 
     // Mobility runs before demographics. Report the surviving cargo after
     // deaths have released their trips and before returning to the economy.
@@ -1915,6 +1988,73 @@ mod tests {
         let death_events: Vec<_> = events.iter().filter(|e| e.event_type == 0).collect();
         assert_eq!(death_events.len(), 40);
         assert_eq!(pool.alive_count(), 0);
+    }
+
+    #[test]
+    fn test_targeted_deaths_kill_exact_ids_before_tick() {
+        let mut pool = AgentPool::new(0);
+        let regions = vec![make_healthy_region(0)];
+        let signals = make_default_signals(1, 1);
+        let mut slots = Vec::new();
+        for _ in 0..10 {
+            slots.push(pool.spawn(0, 0, Occupation::Soldier, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE));
+        }
+        let victims: Vec<u32> = vec![pool.ids[slots[2]], pool.ids[slots[7]], 999_999];
+        let mut seed = [0u8; 32];
+        seed[0] = 12;
+        let mut percentiles = vec![0.0f32; pool.capacity()];
+        let (events, _, _, _, _, _, _) = try_tick_agents_with_targeted_deaths(
+            &mut pool,
+            &regions,
+            &signals,
+            seed,
+            0,
+            &mut percentiles,
+            &mut Vec::new(),
+            &[],
+            &mut crate::spatial::SpatialDiagnostics::default(),
+            &[],
+            None,
+            &victims,
+        )
+        .unwrap();
+        let dead: Vec<u32> = events.iter().filter(|e| e.event_type == 0).map(|e| e.agent_id).collect();
+        assert!(dead.contains(&victims[0]));
+        assert!(dead.contains(&victims[1]));
+        assert!(!pool.is_alive(slots[2]));
+        assert!(!pool.is_alive(slots[7]));
+        assert!(pool.is_alive(slots[0]));
+    }
+
+    #[test]
+    fn test_empty_targeted_deaths_match_plain_tick() {
+        let build = || {
+            let mut pool = AgentPool::new(0);
+            for _ in 0..30 {
+                pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            }
+            pool
+        };
+        let regions = vec![make_healthy_region(0)];
+        let signals = make_default_signals(1, 1);
+        let mut seed = [0u8; 32];
+        seed[0] = 5;
+        let mut a = build();
+        let mut b = build();
+        let mut pa = vec![0.0f32; a.capacity()];
+        let mut pb = vec![0.0f32; b.capacity()];
+        let (ea, _, _, _, _, _, _) = tick_agents(
+            &mut a, &regions, &signals, seed, 3, &mut pa, &mut Vec::new(), &[],
+            &mut crate::spatial::SpatialDiagnostics::default(), &[], None,
+        );
+        let (eb, _, _, _, _, _, _) = try_tick_agents_with_targeted_deaths(
+            &mut b, &regions, &signals, seed, 3, &mut pb, &mut Vec::new(), &[],
+            &mut crate::spatial::SpatialDiagnostics::default(), &[], None, &[],
+        )
+        .unwrap();
+        assert_eq!(ea.len(), eb.len());
+        assert_eq!(a.alive_count(), b.alive_count());
+        assert_eq!(a.ids, b.ids);
     }
 
     #[test]

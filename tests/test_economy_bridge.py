@@ -42,7 +42,7 @@ def _make_two_region_world(trade_routes=None, rivers=None):
         name="Valley", terrain="plains", carrying_capacity=50, resources="fertile",
         controller="Aram", resource_types=[0, 255, 255],
         resource_base_yields=[1.0, 0.0, 0.0],
-        resource_effective_yields=[1.5, 0.0, 0.0],
+        resource_effective_yields=[1.5, 0.0, 0.0], resource_current_yields=[1.5, 0.0, 0.0],
     )
     r1.stockpile = RegionStockpile(goods={"grain": 40.0, "salt": 5.0})
     r1.adjacencies = ["Hills"]
@@ -51,7 +51,7 @@ def _make_two_region_world(trade_routes=None, rivers=None):
         name="Hills", terrain="mountains", carrying_capacity=30, resources="mineral",
         controller="Babel", resource_types=[5, 255, 255],
         resource_base_yields=[0.5, 0.0, 0.0],
-        resource_effective_yields=[0.8, 0.0, 0.0],
+        resource_effective_yields=[0.8, 0.0, 0.0], resource_current_yields=[0.8, 0.0, 0.0],
     )
     r2.stockpile = RegionStockpile(goods={"ore": 10.0})
     r2.adjacencies = ["Valley"]
@@ -133,7 +133,7 @@ def test_conservation_with_clamp_floor_loss():
 
     # Full conservation law with clamp_floor_loss included
     c = result.conservation
-    # production + old_stock = new_stock + consumption + transit_loss + storage_loss + cap_overflow + clamp_floor_loss
+    # production + old_stock + clamp_floor_loss = new_stock + consumption + transit_loss + storage_loss + cap_overflow
     # We just verify the field exists and is non-negative here; full balance test is in test_economy_m43a.py
 
 
@@ -142,10 +142,10 @@ def test_conservation_with_clamp_floor_loss():
 # ---------------------------------------------------------------------------
 
 def test_region_input_batch_column_count():
-    """Region input batch has 5 + 8 = 13 columns."""
+    """Region input batch has 3 identifiers + 6 resource fields + 8 stocks."""
     world = _make_two_region_world()
     batch = build_economy_region_input_batch(world)
-    assert batch.num_columns == 13
+    assert batch.num_columns == 17
     assert batch.num_rows == 2
 
 
@@ -155,7 +155,9 @@ def test_region_input_batch_column_names():
     batch = build_economy_region_input_batch(world)
     expected = [
         "region_id", "terrain", "storage_population",
-        "resource_type_0", "resource_effective_yield_0",
+        "resource_type_0", "resource_yield_0",
+        "resource_type_1", "resource_yield_1",
+        "resource_type_2", "resource_yield_2",
     ] + [f"stockpile_{g}" for g in FIXED_GOODS]
     assert batch.schema.names == expected
 
@@ -176,7 +178,7 @@ def test_region_input_batch_values():
     assert batch.column("region_id").to_pylist() == [0, 1]
     assert batch.column("storage_population").to_pylist() == [0, 0]  # default population
     assert batch.column("resource_type_0").to_pylist() == [0, 5]  # grain, ore
-    assert batch.column("resource_effective_yield_0").to_pylist()[0] == pytest.approx(1.5)
+    assert batch.column("resource_yield_0").to_pylist()[0] == pytest.approx(1.5)
     # Grain stockpile for Valley
     assert batch.column("stockpile_grain").to_pylist()[0] == pytest.approx(40.0)
     # Salt stockpile for Valley

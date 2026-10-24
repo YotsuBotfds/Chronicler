@@ -6,6 +6,7 @@ import hashlib
 
 from chronicler.models import Event, Movement, NamedEvent, TechEra, WorldState
 from chronicler.culture import VALUE_OPPOSITIONS
+from chronicler.history_index import history_index
 
 MOVEMENT_EMERGENCE_INTERVAL = 30
 SCHISM_DIVERGENCE_THRESHOLD = 3
@@ -138,17 +139,15 @@ def _increment_variants(world: WorldState) -> None:
 
 def _detect_schisms(world: WorldState) -> None:
     from itertools import combinations
+    index = history_index(world)
     for movement in world.movements:
         adherent_names = list(movement.adherents.keys())
         for a, b in combinations(adherent_names, 2):
             divergence = abs(movement.adherents[a] - movement.adherents[b])
             if divergence >= SCHISM_DIVERGENCE_THRESHOLD:
-                already_fired = any(
-                    ne.event_type == "movement_schism"
-                    and a in ne.actors and b in ne.actors
-                    and movement.id in ne.description
-                    for ne in world.named_events
-                )
+                # Same predicate as scanning named_events for a movement_schism
+                # naming a and b whose description contains movement.id.
+                already_fired = index.schism_fired(world, movement.id, a, b)
                 if not already_fired:
                     world.named_events.append(NamedEvent(
                         name=f"Schism of {movement.id.replace('_', ' ')}",

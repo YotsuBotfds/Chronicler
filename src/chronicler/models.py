@@ -11,11 +11,19 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_serializer, model_validator
 
 from chronicler.experimental.fisheries import FisheryConfig
+from chronicler.governance_state import CivGovernance, GovernanceSettings
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+
+
+def _omit_dormant_governance(model: BaseModel, data):
+    """Drop a ``None`` governance field so feature-off output stays byte-identical."""
+    if isinstance(data, dict) and getattr(model, "governance", None) is None:
+        data.pop("governance", None)
+    return data
 
 
 # --- Enums ---
@@ -359,6 +367,8 @@ class Region(BaseModel):
     schism_convert_from: int = 0xFF            # 255 = no schism this turn
     schism_convert_to: int = 0xFF              # 255 = no schism this turn
     last_conquered_turn: int = -1              # -1 = never conquered; set by WAR resolution
+    # M60b: military occupier; ``controller`` remains the legal owner.
+    occupied_by: str | None = None
 
     @field_validator("resource_suspensions", mode="before")
     @classmethod
@@ -466,6 +476,12 @@ class Civilization(BaseModel):
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
     regnal_name_counts: dict[str, int] = Field(default_factory=dict)
+    # Phase 8 governance carry (None = dormant; omitted from serialized output).
+    governance: CivGovernance | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
 
 
 class Relationship(BaseModel):
@@ -609,6 +625,111 @@ class ProxyWar(BaseModel):
     treasury_per_turn: int = 8
     turns_active: int = 0
     detected: bool = False
+
+
+# --- M60: Campaigns, battles and occupation (default off; see docs/war/) ---
+
+class Army(BaseModel):
+    """A field army raised for one war. Persisted; identity is ``army_id``."""
+    army_id: str
+    name: str
+    civ: str
+    war_key: str
+    region: str
+    home_region: str
+    objective: str | None = None
+    phase: str = "rally"  # rally, marching, sieging, holding, regrouping, returning
+    soldiers: int = 0
+    raised: int = 0
+    morale: int = 700  # M60a thousandths
+    rations: int = 0  # carried cohort rations (M60a kits)
+    supply_distance: int | None = None
+    move_progress: int = 0
+    siege_turns: int = 0
+    general: str | None = None
+    # Agent modes: enlisted native agents as (agent_id, region_index) pairs.
+    roster: list[tuple[int, int]] = Field(default_factory=list)
+    raised_turn: int = 0
+    casualties: int = 0
+    deserted: int = 0
+    attrition: int = 0
+    battles_won: int = 0
+    battles_lost: int = 0
+    unpaid_turns: int = 0
+    last_combat_turn: int = -1
+
+
+class Occupation(BaseModel):
+    """Military occupation: ``owner`` keeps legal control, ``occupier`` holds it."""
+    region: str
+    owner: str
+    occupier: str
+    war_key: str
+    since_turn: int
+    unrest: int = 0  # 0..1000
+    revolts: int = 0
+
+
+class WarRecord(BaseModel):
+    """Campaign-layer bookkeeping for one entry of ``WorldState.active_wars``."""
+    war_key: str
+    attacker: str
+    defender: str
+    aim: str = "conquest"  # conquest, tribute, vassalization, liberation
+    aim_region: str | None = None
+    start_turn: int
+    score: int = 0  # attacker perspective, -100..100
+    battle_points: int = 0
+    battles: int = 0
+    attacker_losses: int = 0
+    defender_losses: int = 0
+    last_combat_turn: int = -1
+    ended_turn: int | None = None
+    outcome: str | None = None
+
+
+class BattleRecord(BaseModel):
+    turn: int
+    name: str
+    kind: str  # field, skirmish, assault, revolt
+    region: str
+    war_key: str
+    attacker: str
+    defender: str
+    attacker_soldiers: int
+    defender_soldiers: int
+    attacker_power: int
+    defender_power: int
+    attacker_losses: int
+    defender_losses: int
+    winner: str | None = None
+    attacker_general: str | None = None
+    defender_general: str | None = None
+
+
+class TreatyRecord(BaseModel):
+    turn: int
+    name: str
+    war_key: str
+    parties: list[str]
+    winner: str | None = None
+    kind: str  # capitulation, negotiated, white_peace, external
+    aim: str = "conquest"
+    regions_ceded: list[str] = Field(default_factory=list)
+    treasury_paid: int = 0
+    vassalized: bool = False
+
+
+class WarState(BaseModel):
+    armies: list[Army] = Field(default_factory=list)
+    wars: list[WarRecord] = Field(default_factory=list)
+    ended_wars: list[WarRecord] = Field(default_factory=list)
+    occupations: list[Occupation] = Field(default_factory=list)
+    battles: list[BattleRecord] = Field(default_factory=list)
+    treaties: list[TreatyRecord] = Field(default_factory=list)
+    next_army_serial: int = 1
+    raised_counts: dict[str, int] = Field(default_factory=dict)  # per-civ ordinal source
+    last_raise_turn: dict[str, int] = Field(default_factory=dict)
 
 
 class ExileModifier(BaseModel):
@@ -776,6 +897,11 @@ class WorldState(BaseModel):
     mutual_aid_state: dict[str, MutualAidState] = Field(default_factory=dict)
     mutual_aid_last_dispatch_turn: int | None = None
     mutual_aid_last_transfers: list[MutualAidTransfer] = Field(default_factory=list)
+    # M60: campaigns, battles and occupation (default off).
+    campaigns_enabled: bool = False
+    war_state: WarState = Field(default_factory=WarState)
+    # Phase 8 governance runtime switch (None = disabled; omitted from output).
+    governance: GovernanceSettings | None = None
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -805,6 +931,9 @@ class WorldState(BaseModel):
     _artifact_intents: list = PrivateAttr(default_factory=list)
     _artifact_lifecycle_intents: list = PrivateAttr(default_factory=list)
     _artifact_prestige_by_civ: dict = PrivateAttr(default_factory=dict)
+    # Derived, never serialized: incremental lookups over the history lists
+    # (chronicler.history_index); rebuilt lazily after load or copy.
+    _history_index: object | None = PrivateAttr(default=None)
 
     @property
     def region_map(self) -> dict[str, "Region"]:
@@ -840,6 +969,10 @@ class WorldState(BaseModel):
         self._active_trade_routes_cache = None
         self._active_trade_route_pairs_cache = None
         self._self_trade_civs_cache = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
 
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
@@ -901,6 +1034,12 @@ class CivSnapshot(BaseModel):
     # M47d: War frequency analytics
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
+    # Phase 8 governance per-turn stats (None when governance is disabled).
+    governance: dict | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_without_dormant_governance(self, handler):
+        return _omit_dormant_governance(self, handler(self))
 
 
 class RelationshipSnapshot(BaseModel):
@@ -944,6 +1083,17 @@ class TurnSnapshot(BaseModel):
     # M56b: Urban metrics
     urban_agent_count: int = 0
     urban_fraction: float = 0.0
+    # M60: campaign layer (armies, battles, occupations, wars); None when off.
+    # Omitted from serialization while None so default-off snapshots keep
+    # their exact historical bytes.
+    campaign: dict | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_dormant_campaign(self, handler):
+        data = handler(self)
+        if isinstance(data, dict) and data.get("campaign", 0) is None:
+            data.pop("campaign")
+        return data
 
 
 # --- M20a: Narration Pipeline v2 models ---

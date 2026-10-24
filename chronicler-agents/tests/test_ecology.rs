@@ -14,7 +14,7 @@
 use chronicler_agents::RegionState;
 use chronicler_agents::ecology::{
     EcologyConfig, EcologyEvent, RiverTopology, effective_capacity, pressure_multiplier,
-    tick_ecology, compute_yields, season_id_from_turn,
+    tick_ecology, compute_yields, refresh_yields, season_id_from_turn,
 };
 
 // ---------------------------------------------------------------------------
@@ -1946,4 +1946,43 @@ fn test_mechanization_focus_amplifies_mine_damage() {
         "mechanization focus soil {} should be lower (more mine damage) than no-focus soil {}",
         regions_mech[0].soil, regions_none[0].soil
     );
+}
+
+// ---------------------------------------------------------------------------
+// Test: post-pass yield refresh never re-extracts mineral reserves
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_refresh_yields_recomputes_without_second_mineral_depletion() {
+    let config = default_config();
+    let mut r = make_plains(0);
+    r.population = 60;
+    r.resource_types = [RT_GRAIN, RT_ORE, EMPTY_SLOT];
+    r.resource_base_yield = [1.0, 0.8, 0.0];
+    r.resource_effective_yield = [1.0, 0.8, 0.0];
+    r.resource_reserves = [1.0, 0.2, 0.0];
+
+    // Phase 9 tick: one extraction.
+    let ticked = compute_yields(&mut r, &config, 0, CLIMATE_TEMPERATE);
+    let reserves_after_tick = r.resource_reserves;
+    assert!(reserves_after_tick[1] < 0.2, "the tick itself must extract ore");
+
+    // Post-pass with unchanged inputs: identical yields, unchanged reserves.
+    let same = refresh_yields(&mut r, &config, 0, CLIMATE_TEMPERATE);
+    assert_eq!(r.resource_reserves, reserves_after_tick);
+    assert_eq!(same, ticked);
+    assert_eq!(r.resource_yields, ticked);
+
+    // Post-pass soil change: crop yield follows soil, ore reserves still once.
+    r.soil *= 0.5;
+    let refreshed = refresh_yields(&mut r, &config, 0, CLIMATE_TEMPERATE);
+    assert_eq!(r.resource_reserves, reserves_after_tick);
+    assert!(refreshed[0] < ticked[0]);
+    assert_eq!(refreshed[1], ticked[1]);
+    assert_eq!(r.resource_yields, refreshed);
+
+    // A second depleting computation would have extracted again.
+    let mut again = r.clone();
+    compute_yields(&mut again, &config, 0, CLIMATE_TEMPERATE);
+    assert!(again.resource_reserves[1] < reserves_after_tick[1]);
 }

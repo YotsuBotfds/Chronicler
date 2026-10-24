@@ -1,6 +1,10 @@
 """Exact corrected-baseline regression oracles for the snapshot optimization.
 
-Golden data was captured from 423a67c before importing the optimization.
+Golden data was captured from 423a67c before importing the optimization and is
+kept frozen in ``corrected_423a67c.json``. The live oracle,
+``corrected_backlog_2026_10.json``, rolls it forward for the deliberate
+2026-10 deferred-backlog corrections listed in its provenance; the scoped
+difference and the restore-on-revert proofs below pin exactly what changed.
 The edf7299 artifacts remain frozen as historical pre-bugfix evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
 checked; no approximate float comparisons or relaxed precision are used.
@@ -18,16 +22,15 @@ from scripts.benchmark_headless import FixedDateTime, rng_trace, run
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_backlog_2026_10.json").read_text())
+PRIOR_BASELINE = json.loads((FIXTURES / "corrected_423a67c.json").read_text())
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
-@pytest.mark.parametrize("name", BASELINE["workloads"])
-def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
+def _run_workload(spec, tmp_path, monkeypatch):
     # Fix the lane even in environments where the optional Rust extension exists.
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
-    expected = BASELINE["workloads"][name]
     turns = []
 
     def capture(snapshot, text, events, named):
@@ -38,7 +41,53 @@ def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
                                               separators=(",", ":")).encode()).hexdigest())
 
     with rng_trace(tmp_path / "rng.jsonl") as trace:
-        run(expected["spec"], tmp_path / "artifacts", on_turn=capture)
+        run(spec, tmp_path / "artifacts", on_turn=capture)
+    return turns, trace
+
+
+@pytest.mark.parametrize("name", BASELINE["workloads"])
+def test_corrected_baseline_all_turns_and_rng(name, tmp_path, monkeypatch):
+    expected = BASELINE["workloads"][name]
+    turns, trace = _run_workload(expected["spec"], tmp_path, monkeypatch)
+    assert turns == expected["turn_sha256"]
+    assert trace == expected["rng"]
+
+
+def test_rolled_forward_oracle_differs_only_where_declared():
+    """Each declared correction changes only its workloads, from its turn on."""
+    first_changed = {}
+    for correction in BASELINE["provenance"]["corrections"]:
+        for name, index in correction["workloads"].items():
+            first_changed[name] = min(index, first_changed.get(name, index))
+    assert set(BASELINE["workloads"]) == set(PRIOR_BASELINE["workloads"])
+    for name, prior in PRIOR_BASELINE["workloads"].items():
+        current = BASELINE["workloads"][name]
+        assert current["spec"] == prior["spec"]
+        if name not in first_changed:
+            assert current == prior, name
+            continue
+        old, new = prior["turn_sha256"], current["turn_sha256"]
+        assert len(old) == len(new)
+        assert next(i for i, (a, b) in enumerate(zip(old, new)) if a != b) == first_changed[name]
+
+
+def test_reverting_tech_regression_correction_restores_prior_oracle(tmp_path, monkeypatch):
+    """T1-3: re-creating the dropped era-bonus removal restores the 423a67c wide
+    oracle exactly, so the correction is the only source of that difference."""
+    import chronicler.emergence as emergence
+    from chronicler.accumulator import StatAccumulator
+
+    real = emergence.check_tech_regression
+
+    def pre_correction(world, black_swan_fired=False, acc=None):
+        # Before the correction off mode passed an already-flushed accumulator,
+        # so remove_era_bonus() deltas were recorded and never applied.
+        return real(world, black_swan_fired=black_swan_fired,
+                    acc=acc if acc is not None else StatAccumulator())
+
+    monkeypatch.setattr(emergence, "check_tech_regression", pre_correction)
+    expected = PRIOR_BASELINE["workloads"]["wide"]
+    turns, trace = _run_workload(expected["spec"], tmp_path, monkeypatch)
     assert turns == expected["turn_sha256"]
     assert trace == expected["rng"]
 

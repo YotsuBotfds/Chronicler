@@ -14,7 +14,11 @@ pub enum CharacterRole {
     Merchant = 1,
     Scientist = 2,
     Prophet = 3,
-    // PLACEHOLDER: produced by Python-side bypass triggers; Rust does not generate Exile roles
+    /// Reserved wire id 4, kept so the enum matches Python `ROLE_MAP` and its
+    /// declaration order. Never produced by promotion: on a GreatPerson
+    /// `exile` means a deposed-leader pretender (Python `succession.py`),
+    /// which an agent promotion must not create; Python rejects role 4 in
+    /// promotion batches.
     Exile = 4,
 }
 
@@ -27,7 +31,7 @@ pub struct NamedCharacter {
     pub origin_civ_id: u8,
     pub born_turn: u16,
     pub promotion_turn: u16,
-    pub promotion_trigger: u8, // 0=skill, 1=rebellion, 2=displacement, 3=migration, 4=versatility
+    pub promotion_trigger: u8, // 0=skill, 1=rebellion; 2-4 reserved (Python relabels roles, not triggers)
     pub parent_id_0: u32,
     pub parent_id_1: u32,
     pub history: Vec<(u16, u8, u16)>, // (turn, event_type, region)
@@ -137,10 +141,14 @@ impl NamedCharacterRegistry {
             return Some((role, 1));
         }
 
-        // Bypasses 2-4 (long displacement, serial migrant, occupation versatility)
-        // are deferred to Python which can count from event history.
-        // displacement_turns is a short decrementing cooldown, not an accumulator,
-        // so checking it here would be dead code.
+        // Triggers 2-4 stay out of Rust by design. The pool keeps life-event
+        // bits and `displacement_turns` (a short decrementing cooldown), not
+        // lifetime migration/switch counts, so Rust cannot evaluate them.
+        // Python relabels the role of skill-gated candidates (trigger 0) from
+        // its full agent event history: 3+ migrations -> Merchant, 3+
+        // occupation switches -> Scientist. These relabel; they do not bypass
+        // this gate. "Long displacement -> Exile" was dropped: Exile is the
+        // deposed-leader pretender role and must not come from promotion.
 
         None
     }
@@ -220,6 +228,31 @@ mod tests {
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].1, CharacterRole::Prophet);
         assert_eq!(candidates[0].2, 1); // trigger 1 = rebellion
+    }
+
+    /// Deferred backlog: promotion never emits the reserved Exile role, and
+    /// only triggers 0 (skill) and 1 (rebellion) come from Rust.
+    #[test]
+    fn test_promotion_never_emits_exile_role() {
+        let occupations = [
+            Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+            Occupation::Scholar, Occupation::Priest,
+        ];
+        let mut pool = AgentPool::new(64);
+        for (i, &occ) in occupations.iter().enumerate() {
+            for life in [LIFE_EVENT_REBELLION, LIFE_EVENT_MIGRATION, 0xFF] {
+                let slot = pool.spawn(0, (i % 3) as u8, occ, 30, 0.0, 0.0, 0.0, 0, 1, 2, BELIEF_NONE);
+                pool.life_events[slot] = life;
+                pool.promotion_progress[slot] = PROMOTION_DURATION_TURNS;
+                pool.displacement_turns[slot] = u8::MAX;
+            }
+        }
+        let candidates = NamedCharacterRegistry::new().find_candidates(&pool, 500);
+        assert_eq!(candidates.len(), occupations.len() * 3);
+        for &(_, role, trigger) in &candidates {
+            assert_ne!(role, CharacterRole::Exile);
+            assert!(trigger <= 1, "unexpected Rust trigger {trigger}");
+        }
     }
 
     #[test]

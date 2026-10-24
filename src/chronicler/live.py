@@ -1100,6 +1100,11 @@ def run_live(
             from chronicler.scenario import load_scenario, apply_scenario
             scenario_config = load_scenario(Path("scenarios") / params["scenario"])
             apply_scenario(world, scenario_config)
+        # M60: new live worlds default to campaigns (--no-campaigns opts out).
+        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+        _campaigns = getattr(args, "campaigns", None)
+        world.campaigns_enabled = (CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+                                   if _campaigns is None else bool(_campaigns))
 
     # Construct LLM clients from client-selected models
     client_config = server._resolve_client_config()

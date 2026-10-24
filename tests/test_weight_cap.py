@@ -163,3 +163,50 @@ class TestWeightCap:
         if civ.max_precap_weight > ACTION_WEIGHT_BASE * 2.5:
             max_weight = max(weights.values())
             assert max_weight <= ACTION_WEIGHT_BASE * 2.5 + 0.001  # Float tolerance
+
+
+class TestAbsoluteCeilingDecision:
+    """Audit T2-3 decision: the 2.5x cap is an absolute per-action ceiling
+    applied as the final step. These tests pin the accepted consequences so
+    any restructuring of the multiplier chain is a deliberate retune."""
+
+    CEILING = ACTION_WEIGHT_BASE * 2.5
+
+    def test_situational_boost_alone_reaches_war_ceiling(self):
+        # opportunistic WAR trait weight is 1.0; military >= 70 with a hostile
+        # neighbor multiplies by 2.5, which lands exactly on the ceiling.
+        world = _make_world(trait="opportunistic", military=80, stability=50)
+        civ = world.civilizations[0]
+        weights = ActionEngine(world).compute_weights(civ)
+        assert weights[ActionType.WAR] == pytest.approx(self.CEILING)
+
+    def test_extra_war_boosts_are_inert_at_the_ceiling(self):
+        world = _make_world(trait="aggressive", military=80, stability=50)
+        civ = world.civilizations[0]
+        plain = ActionEngine(world).compute_weights(civ)[ActionType.WAR]
+        civ.traditions = ["martial"]
+        boosted = ActionEngine(world).compute_weights(civ)[ActionType.WAR]
+        assert plain == boosted == pytest.approx(self.CEILING)
+        assert civ.max_precap_weight > self.CEILING
+
+    def test_suppressor_absorbed_while_uncapped_product_stays_above_ceiling(self):
+        """War-weariness acts on the uncapped product (5x base for an
+        aggressive, high-military civ); a 0.5x penalty still leaves it above
+        the ceiling, so the clamped WAR weight is unchanged."""
+        world = _make_world(trait="aggressive", military=80, stability=50)
+        civ = world.civilizations[0]
+        fresh = ActionEngine(world).compute_weights(civ)[ActionType.WAR]
+        civ.war_weariness = 0.5  # penalty = 1 / (1 + 0.5 / 0.5) = 0.5
+        weary = ActionEngine(world).compute_weights(civ)[ActionType.WAR]
+        assert fresh == weary == pytest.approx(self.CEILING)
+        civ.war_weariness = 4.5  # penalty = 0.1 -> uncapped product drops below ceiling
+        exhausted = ActionEngine(world).compute_weights(civ)[ActionType.WAR]
+        assert exhausted < self.CEILING
+
+    def test_ceiling_runs_after_streak_zeroing(self):
+        world = _make_world(trait="aggressive", military=80, stability=50)
+        civ = world.civilizations[0]
+        world.action_history[civ.name] = [ActionType.WAR.value] * 3
+        weights = ActionEngine(world).compute_weights(civ)
+        assert weights[ActionType.WAR] == 0.0
+        assert all(w <= self.CEILING for w in weights.values())

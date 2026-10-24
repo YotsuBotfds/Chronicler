@@ -13,6 +13,7 @@ from chronicler.models import (
     Leader,
     WorldState,
 )
+from chronicler.history_index import history_index
 from chronicler.utils import STAT_FLOOR, clamp, get_region_map, stable_hash_int
 
 # ---------------------------------------------------------------------------
@@ -298,9 +299,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
         old_dominant = get_dominant_faction(civ.factions)
 
         # 2. Scan current-turn events for influence shifts
-        for event in world.events_timeline:
-            if event.turn != current_turn:
-                continue
+        for event in history_index(world).events_for_turn(world, current_turn):
             if civ.name not in event.actors:
                 continue
 

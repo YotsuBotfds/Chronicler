@@ -911,6 +911,38 @@ class TestApiNarrationIntegration:
         # Gap summaries should be present in bundle
         assert "gap_summaries" in bundle
 
+    def test_shared_client_reports_per_run_tokens(self, tmp_path):
+        """M44 NB-1: a sequential batch shares one narrative client across
+        seeds; each bundle must report only its own run's tokens."""
+        import json
+        api_client = AnthropicClient(client=MagicMock(), model="claude-sonnet-4-6")
+
+        def fake_batch_complete(requests, poll_interval=10.0):
+            api_client.total_input_tokens += 500 * len(requests)
+            api_client.total_output_tokens += 200 * len(requests)
+            api_client.call_count += len(requests)
+            return ["Chronicle text." for _ in requests]
+
+        api_client.batch_complete = MagicMock(side_effect=fake_batch_complete)
+        metas = []
+        for run in ("first", "second"):
+            run_dir = tmp_path / run
+            run_dir.mkdir()
+            execute_run(
+                self._make_args(str(run_dir)),
+                sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
+                narrative_client=api_client,
+            )
+            metas.append(json.loads((run_dir / "chronicle_bundle.json").read_text())["metadata"])
+
+        first, second = metas
+        assert first["narrative_input_tokens"] > 0
+        # Same seed and args: the second run spends exactly what the first did,
+        # instead of reporting the cumulative client total.
+        assert second["narrative_input_tokens"] == first["narrative_input_tokens"]
+        assert second["narrative_output_tokens"] == first["narrative_output_tokens"]
+        assert api_client.total_input_tokens == 2 * first["narrative_input_tokens"]
+
     def test_run_narrate_api_mode_writes_metadata(self, tmp_path):
         """_run_narrate with --narrator api writes narrator_mode and token fields."""
         import json

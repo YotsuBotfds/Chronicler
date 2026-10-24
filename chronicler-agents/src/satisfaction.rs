@@ -5,6 +5,9 @@ use crate::region::RegionState;
 use crate::signals::CivShock;
 
 const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
+// Fixed normalization ceiling for farmer yield satisfaction. Intentionally not
+// a tuning key: the Python `ecology.peak_yield` override never reached Rust and
+// was removed (deferred-backlog 2026-10).
 const PEAK_YIELD: f32 = 1.0;
 const FOOD_SHORTAGE_WEIGHT: f32 = 0.07;  // [CALIBRATE] Multiplies `(1.0 - food_sufficiency)` when food_sufficiency < 1.0, so the added penalty range is [0.0, 0.07].
 const MERCHANT_MARGIN_WEIGHT: f32 = 0.3;  // [CALIBRATE] Multiplies `merchant_margin` in [0.0, 1.0], so the merchant-only base uplift range is [0.0, 0.3].

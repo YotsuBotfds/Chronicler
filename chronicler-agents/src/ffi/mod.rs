@@ -97,6 +97,12 @@ pub struct AgentSimulator {
     knowledge_stats: crate::knowledge::KnowledgeStats,
     /// M58b: when true, economy tick consumes delivery buffer instead of tatonnement.
     hybrid_economy_mode: bool,
+    /// M60b: stable agent ids queued by Python war casualties; drained by the next tick.
+    pending_targeted_deaths: Vec<u32>,
+    /// M48: Promotion memories queued by `get_promotions()` as (promotion
+    /// turn, intent). Written at the start of the next `tick()` so the
+    /// same-turn Python Mule roll still sees only pre-promotion memories.
+    pending_promotion_memories: Vec<(u16, crate::memory::MemoryIntent)>,
 }
 
 #[pymethods]
@@ -142,7 +148,20 @@ impl AgentSimulator {
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
             knowledge_stats: crate::knowledge::KnowledgeStats::default(),
             hybrid_economy_mode: false,
+            pending_targeted_deaths: Vec::new(),
+            pending_promotion_memories: Vec::new(),
         }
+    }
+
+    /// M60b: queue stable agent ids to die at the start of the next tick
+    /// (war casualties). The queue is consumed and cleared by `tick()`.
+    pub fn queue_targeted_deaths(&mut self, ids: Vec<u32>) {
+        self.pending_targeted_deaths.extend(ids);
+    }
+
+    /// M60b: number of queued targeted deaths not yet consumed by a tick.
+    pub fn pending_targeted_death_count(&self) -> usize {
+        self.pending_targeted_deaths.len()
     }
 
     /// Ingest region state from Python as an Arrow RecordBatch.
@@ -748,6 +767,8 @@ impl AgentSimulator {
         }
         self.turn = turn;
 
+        self.flush_pending_promotion_memories();
+
         // Parse civ signals from the Arrow batch.
         let civ_rb: RecordBatch = civ_signals.into_inner();
         let civs = crate::signals::parse_civ_signals(&civ_rb).map_err(arrow_err)?;
@@ -774,9 +795,10 @@ impl AgentSimulator {
             _ => None,
         };
 
+        let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents(
+                crate::tick::try_tick_agents_with_targeted_deaths(
                     &mut self.pool,
                     &self.regions,
                     &signals,
@@ -788,6 +810,7 @@ impl AgentSimulator {
                     &mut spatial_diag,
                     &self.settlement_grids,  // M56b
                     merchant_state,
+                    &targeted_deaths,
                 )
             }).map_err(PyRuntimeError::new_err)?;
 
@@ -895,6 +918,19 @@ impl AgentSimulator {
                 self.pool.parent_id_0[slot],
                 self.pool.parent_id_1[slot],
             );
+            // M48: queue the Promotion memory for the next tick (see field doc).
+            self.pending_promotion_memories.push((
+                self.turn as u16,
+                crate::memory::MemoryIntent {
+                    agent_slot: slot,
+                    expected_agent_id: agent_id,
+                    event_type: crate::memory::MemoryEventType::Promotion as u8,
+                    source_civ: self.pool.civ_affinity(slot),
+                    intensity: crate::agent::PROMOTION_DEFAULT_INTENSITY,
+                    is_legacy: false,
+                    decay_factor_override: None,
+                },
+            ));
         }
 
         let schema = Arc::new(promotions_schema());
@@ -1931,7 +1967,11 @@ impl AgentSimulator {
         let ri_terrain = col_u8!(&ri_rb, "terrain");
         let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
         let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
-        let ri_ey0 = col_f32!(&ri_rb, "resource_effective_yield_0");
+        let ri_rt1 = col_u8!(&ri_rb, "resource_type_1");
+        let ri_rt2 = col_u8!(&ri_rb, "resource_type_2");
+        let ri_y0 = col_f32!(&ri_rb, "resource_yield_0");
+        let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
+        let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
 
         // Fixed good slot columns
         const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
@@ -1950,10 +1990,31 @@ impl AgentSimulator {
                 region_id: ri_region_ids.value(i),
                 terrain: ri_terrain.value(i),
                 storage_population: ri_storage_pop.value(i),
-                resource_type_0: ri_rt0.value(i),
-                resource_effective_yield_0: ri_ey0.value(i),
+                resource_types: [ri_rt0.value(i), ri_rt1.value(i), ri_rt2.value(i)],
+                resource_yields: [ri_y0.value(i), ri_y1.value(i), ri_y2.value(i)],
+                production_caps: [None; 3],
                 stockpile,
             });
+        }
+
+        // Optional default-off experiment: a fish slot's goods production may
+        // not exceed the previous ecology tick's catch. The kernel applies the
+        // cap after splitting farmer labor across occupied slots, so permanent
+        // effective yields and other slots are untouched.
+        for slot in 0..3 {
+            let name = format!("fishery_catch_budget_{slot}");
+            let Some(column) = ri_rb.column_by_name(&name) else { continue };
+            use arrow::array::Array;
+            let budgets = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+            for i in 0..n_regions {
+                if budgets.is_null(i) { continue; }
+                let budget = budgets.value(i);
+                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_types[slot] != 3 {
+                    return Err(PyValueError::new_err("invalid fishery catch budget"));
+                }
+                region_inputs[i].production_caps[slot] = Some(budget);
+            }
         }
 
         // --- Derive agent counts from live pool ---
@@ -1993,26 +2054,6 @@ impl AgentSimulator {
                 merchant_count,
                 wealthy_count,
             });
-        }
-
-        // Optional experiment: production may not exceed last ecology's fish catch.
-        // Adjust only kernel input, leaving permanent effective yields untouched.
-        if let Some(column) = ri_rb.column_by_name("fishery_catch_budget") {
-            use arrow::array::Array;
-            let budgets = column.as_any().downcast_ref::<Float32Array>()
-                .ok_or_else(|| PyValueError::new_err("fishery_catch_budget must be Float32"))?;
-            for i in 0..n_regions {
-                if budgets.is_null(i) { continue; }
-                let budget = budgets.value(i);
-                if !budget.is_finite() || budget < 0.0 || region_inputs[i].resource_type_0 != 3 {
-                    return Err(PyValueError::new_err("invalid fishery catch budget"));
-                }
-                let farmers = agent_counts[i].farmer_count;
-                if farmers > 0 {
-                    region_inputs[i].resource_effective_yield_0 =
-                        region_inputs[i].resource_effective_yield_0.min(budget / farmers as f32);
-                }
-            }
         }
 
         // M58a: Second pass — count transit merchants by their origin region (anchor counting)
@@ -2080,14 +2121,19 @@ impl AgentSimulator {
         }
 
         // --- M58b: Build hybrid delivery input if in hybrid economy mode ---
-        // Note: On the first tick, the delivery buffer is empty (no merchant trips completed yet),
-        // so HybridDeliveryInput will have zero departures/arrivals/returns. The economy kernel
-        // still runs the hybrid code path but with no trade data — effectively producing abstract-
-        // equivalent results. This is the correct cold-start behavior.
+        // The route graph and persistent buffer may not exist before the first
+        // merchant tick. Hybrid cold-start still means zero realized deliveries;
+        // passing None would accidentally execute instantaneous abstract trade.
         let hybrid_delivery = if self.hybrid_economy_mode {
-            self.merchant_delivery_buf.as_ref().map(|buf| {
-                crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions)
-            })
+            let empty_buffer;
+            let buf = match self.merchant_delivery_buf.as_ref() {
+                Some(buf) => buf,
+                None => {
+                    empty_buffer = crate::merchant::DeliveryBuffer::new(n_regions);
+                    &empty_buffer
+                }
+            };
+            Some(crate::economy::HybridDeliveryInput::from_buffer(buf, n_regions))
         } else {
             None
         };
@@ -2474,6 +2520,9 @@ impl AgentSimulator {
         stats.insert("merchant_plans_bootstrap".into(), self.knowledge_stats.merchant_plans_bootstrap as f64);
         stats.insert("merchant_no_usable_packets".into(), self.knowledge_stats.merchant_no_usable_packets as f64);
         stats.insert("migration_choices_changed_by_threat".into(), self.knowledge_stats.migration_choices_changed_by_threat as f64);
+        // Deferred-backlog consumers (religious signals, loyalty rally)
+        stats.insert("migration_choices_changed_by_religion".into(), self.knowledge_stats.migration_choices_changed_by_religion as f64);
+        stats.insert("loyalty_drifts_damped_by_rally".into(), self.knowledge_stats.loyalty_drifts_damped_by_rally as f64);
         Ok(stats)
     }
 
@@ -2586,6 +2635,19 @@ impl AgentSimulator {
     }
 }
 
+impl AgentSimulator {
+    /// M48: Write Promotion memories queued by the previous `get_promotions()`
+    /// call, stamped with their promotion turn. Draining clears the queue
+    /// (one-shot); `write_all_memories` skips slots reused since promotion.
+    fn flush_pending_promotion_memories(&mut self) {
+        for (promotion_turn, intent) in std::mem::take(&mut self.pending_promotion_memories) {
+            crate::memory::write_all_memories(
+                &mut self.pool, std::slice::from_ref(&intent), promotion_turn,
+            );
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
@@ -2593,6 +2655,58 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    #[test]
+    fn test_postpass_recompute_refreshes_yields_without_second_mineral_extraction() {
+        use arrow::array::Float32Array;
+        let mut sim = AgentSimulator::new(1, 42);
+        let mut region = RegionState::new(0);
+        region.terrain = 0;
+        region.soil = 0.8;
+        region.water = 0.6;
+        region.forest_cover = 0.2;
+        region.carrying_capacity = 60;
+        region.population = 30;
+        region.controller_civ = 0;
+        region.capacity_modifier = 1.0;
+        region.resource_types = [0, 5, 255]; // grain + ore
+        region.resource_base_yield = [1.0, 0.8, 0.0];
+        region.resource_effective_yield = [1.0, 0.8, 0.0];
+        region.resource_reserves = [1.0, 0.2, 0.0];
+        sim.regions = vec![region];
+        sim.tick_ecology(0, 0, vec![false], vec![false]).unwrap();
+        let after_tick = sim.regions[0].resource_reserves;
+        let ticked_yields = sim.regions[0].resource_yields;
+        assert!(after_tick[1] < 0.2, "the ecology tick itself extracts ore once");
+
+        // Python post-pass changed soil (e.g. a tradition soil floor), forcing
+        // a native yield recompute for this region.
+        let r = &sim.regions[0];
+        let patch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("region_id", DataType::UInt16, false),
+                Field::new("population", DataType::UInt16, false),
+                Field::new("soil", DataType::Float32, false),
+                Field::new("water", DataType::Float32, false),
+                Field::new("forest_cover", DataType::Float32, false),
+                Field::new("terrain", DataType::UInt8, false),
+                Field::new("carrying_capacity", DataType::UInt16, false),
+            ])),
+            vec![
+                Arc::new(UInt16Array::from(vec![0u16])),
+                Arc::new(UInt16Array::from(vec![r.population])),
+                Arc::new(Float32Array::from(vec![r.soil * 0.5])),
+                Arc::new(Float32Array::from(vec![r.water])),
+                Arc::new(Float32Array::from(vec![r.forest_cover])),
+                Arc::new(UInt8Array::from(vec![r.terrain])),
+                Arc::new(UInt16Array::from(vec![r.carrying_capacity])),
+            ],
+        ).unwrap();
+        sim.apply_region_postpass_patch(PyRecordBatch::new(patch)).unwrap();
+        assert_eq!(sim.regions[0].resource_reserves, after_tick, "post-pass must not extract again");
+        assert!(sim.regions[0].resource_yields[0] < ticked_yields[0], "crop yield follows patched soil");
+        assert_eq!(sim.regions[0].resource_yields[1], ticked_yields[1]);
+    }
 
     #[test]
     fn test_stockpile_commitments_read_only_and_hybrid_scoped() {
@@ -2631,6 +2745,65 @@ mod tests {
         assert_eq!(buffer.return_credits[0][0], 3.0);
         assert_eq!(buffer.diagnostics.total_departures[0][1], 5.0);
         assert_eq!(sim.merchant_ledger.as_ref().unwrap().in_transit_out[0][0], 99.0);
+    }
+
+    #[test]
+    fn test_promotion_memory_queued_then_written_once_next_tick() {
+        use crate::memory::MemoryEventType;
+        let mut sim = AgentSimulator::new(1, 42);
+        let slot = sim.pool.spawn(
+            0, 3, crate::agent::Occupation::Soldier, 30,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let bystander = sim.pool.spawn(
+            0, 3, crate::agent::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        sim.pool.life_events[slot] = crate::agent::LIFE_EVENT_REBELLION; // bypass trigger
+        sim.turn = 7;
+
+        let promoted = sim.get_promotions().unwrap().into_inner();
+        assert_eq!(promoted.num_rows(), 1);
+        // Not written during get_promotions: the same-turn Python Mule roll
+        // must see only the agent's pre-promotion memories.
+        assert_eq!(sim.pool.memory_count[slot], 0);
+        assert_eq!(sim.pending_promotion_memories.len(), 1);
+
+        sim.turn = 8;
+        sim.flush_pending_promotion_memories();
+        assert!(sim.pending_promotion_memories.is_empty());
+        assert_eq!(sim.pool.memory_count[slot], 1);
+        assert_eq!(sim.pool.memory_event_types[slot][0], MemoryEventType::Promotion as u8);
+        assert_eq!(sim.pool.memory_intensities[slot][0], crate::agent::PROMOTION_DEFAULT_INTENSITY);
+        assert_eq!(sim.pool.memory_turns[slot][0], 7);
+        assert_eq!(sim.pool.memory_source_civs[slot][0], 3);
+        assert_eq!(sim.pool.memory_count[bystander], 0);
+
+        // Already-registered characters are not re-promoted, and the drained
+        // queue does not write the memory a second time.
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
+        sim.flush_pending_promotion_memories();
+        assert_eq!(sim.pool.memory_count[slot], 1);
+    }
+
+    #[test]
+    fn test_promotion_memory_skipped_if_agent_died_before_flush() {
+        let mut sim = AgentSimulator::new(1, 42);
+        let slot = sim.pool.spawn(
+            0, 0, crate::agent::Occupation::Soldier, 30,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        sim.pool.life_events[slot] = crate::agent::LIFE_EVENT_REBELLION;
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 1);
+        sim.pool.kill(slot);
+        let reused = sim.pool.spawn(
+            0, 0, crate::agent::Occupation::Farmer, 0,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        assert_eq!(reused, slot, "test assumes the freed slot is reused");
+        sim.flush_pending_promotion_memories();
+        assert_eq!(sim.pool.memory_count[reused], 0);
+        assert!(sim.pending_promotion_memories.is_empty());
     }
 
     #[test]

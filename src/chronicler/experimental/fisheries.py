@@ -35,7 +35,7 @@ class FisheryStep:
 
 
 def step_fishery(stock: float, base_yield: float, potential_yield: float,
-                 workers: int, config: FisheryConfig) -> FisheryStep:
+                 workers: float, config: FisheryConfig) -> FisheryStep:
     """Recover, then harvest. Stock/recovery/harvest are fractions of capacity.
 
     Effort is bounded to four reference workforces. Yield remains per-worker;
@@ -63,6 +63,8 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
         return
     from chronicler.models import ResourceType
 
+    from chronicler.economy import occupied_resource_slot_count
+
     # The split bridge's live snapshot precedes this turn's agent tick. Prefer
     # actual farmers there; pure-Python/off-mode uses the existing ecology proxy.
     worker_counts = [max(0, region.population // 5) for region in world.regions]
@@ -86,7 +88,10 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
                 region.fishery_catch_budgets[slot] = None
                 continue
             potential = yields[slot]
-            workers = worker_counts[rid]
+            # Goods production splits farmer labor equally across occupied
+            # slots; fishing effort uses the same share, so biomass is not
+            # debited for labor that the economy assigns to other resources.
+            workers = worker_counts[rid] / max(1, occupied_resource_slot_count(region.resource_types))
             result = step_fishery(region.fishery_stocks[slot],
                                   region.resource_base_yields[slot], potential, workers, config)
             region.fishery_stocks[slot] = result.stock
@@ -122,8 +127,15 @@ def require_fishery_runtime(world: WorldState, runtime) -> None:
 
 
 def economy_yield(world: WorldState, region: Region, slot: int = 0) -> float:
-    """Lagged ecology constraint on economy input; never overwrite permanent yields."""
-    value = region.resource_effective_yields[slot]
+    """Per-worker goods yield for one slot's Phase 2 harvest.
+
+    Reads the realized ``resource_current_yields`` preview (season, climate,
+    ecology, suspension and mineral reserves; see
+    ``ecology.refresh_resource_yields``). When the fishery experiment is
+    enabled, fish slots also carry the lagged catch ratio; the separate catch
+    budget caps their allocated output. Permanent yields are never overwritten.
+    """
+    value = region.resource_current_yields[slot]
     if fishery_enabled(world):
         from chronicler.models import ResourceType
         if region.resource_types[slot] == ResourceType.FISH:

@@ -225,6 +225,71 @@ export interface TurnSnapshot {
   dissolved_this_turn?: number[];
   urban_agent_count?: number;
   urban_fraction?: number;
+  /** M60 campaign layer; present only when the run enabled --campaigns. */
+  campaign?: CampaignSnapshot;
+}
+
+export interface CampaignArmy {
+  id: string;
+  name: string;
+  civ: string;
+  region: string;
+  objective: string | null;
+  phase: string;
+  soldiers: number;
+  morale: number;
+  rations: number;
+  supply_distance: number | null;
+  general: string | null;
+  war: string;
+  siege_turns: number;
+}
+
+export interface CampaignBattle {
+  turn: number;
+  name: string;
+  kind: string;
+  region: string;
+  war_key: string;
+  attacker: string;
+  defender: string;
+  attacker_soldiers: number;
+  defender_soldiers: number;
+  attacker_power: number;
+  defender_power: number;
+  attacker_losses: number;
+  defender_losses: number;
+  winner: string | null;
+  attacker_general: string | null;
+  defender_general: string | null;
+}
+
+export interface CampaignOccupation {
+  region: string;
+  owner: string;
+  occupier: string;
+  war_key: string;
+  since_turn: number;
+  unrest: number;
+  revolts: number;
+}
+
+export interface CampaignWar {
+  war: string;
+  attacker: string;
+  defender: string;
+  aim: string;
+  aim_region: string | null;
+  score: number;
+  start_turn: number;
+  battles: number;
+}
+
+export interface CampaignSnapshot {
+  armies: CampaignArmy[];
+  battles: CampaignBattle[];
+  occupations: CampaignOccupation[];
+  wars: CampaignWar[];
 }
 
 // --- World state ---

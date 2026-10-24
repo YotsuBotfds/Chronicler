@@ -66,6 +66,11 @@ def compute_crisis_probability(civ: Civilization, world: WorldState) -> float:
     elif alignment < 0.2:
         modifiers *= 1.3
 
+    # Phase 8 governance: ruler legitimacy, succession institutions and PSI.
+    if getattr(world, "governance", None) is not None and getattr(civ, "governance", None) is not None:
+        from chronicler.governance_runtime import governance_crisis_multiplier
+        modifiers *= governance_crisis_multiplier(civ, world)
+
     return max(0.05, min(0.40, base * region_factor * instability_factor * modifiers))
 
 

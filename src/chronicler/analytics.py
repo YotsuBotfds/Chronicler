@@ -1361,6 +1361,10 @@ def generate_report(
     bond_health = extract_bond_health(bundles)
     era_signals = extract_era_signals(bundles)
     legacy_chains = extract_legacy_chain_metrics(bundles)
+    # M41 / M58a extractors (wired by the 2026-10 deferred-backlog pass)
+    gini = extract_gini_trajectory(bundles, checkpoints=cps)
+    merchant_trips = extract_merchant_trip_stats(bundles)
+    legitimacy = extract_legitimacy_activation(bundles)
 
     report = {
         "metadata": metadata,
@@ -1390,8 +1394,17 @@ def generate_report(
         "bond_health": bond_health,
         "era_signals": era_signals,
         "legacy_chains": legacy_chains,
+        "gini": gini,
+        "merchant_trips": merchant_trips,
+        "legitimacy": legitimacy,
         "run_summaries": compute_run_summaries(records),
     }
+
+    # Phase 8 / M67 measurement: present only for governance-enabled runs.
+    from chronicler.governance_metrics import extract_governance_metrics
+    governance = extract_governance_metrics(bundles)
+    if governance.get("runs"):
+        report["governance"] = governance
 
     report["anomalies"] = detect_anomalies(report)
     return report
@@ -1581,6 +1594,42 @@ def format_text_report(report: dict) -> str:
             lines.append(f"  {label}: {rate:.0%} of runs")
         lines.append("")
 
+    # Wealth inequality (M41)
+    gini_by_turn = report.get("gini", {}).get("gini_by_turn", {})
+    if any(gini_by_turn.values()):
+        lines.append("GINI (living civs):")
+        for cp, pcts in gini_by_turn.items():
+            if pcts:
+                lines.append(
+                    f"  turn {cp}:  median={pcts['median']:.3f}, "
+                    f"p10={pcts['p10']:.3f}, p90={pcts['p90']:.3f}"
+                )
+        lines.append("")
+
+    # Succession legitimacy (M51)
+    legit = report.get("legitimacy", {})
+    if legit.get("crises_resolved"):
+        lines.append("SUCCESSION LEGITIMACY:")
+        lines.append(
+            f"  Crises resolved: {legit['crises_resolved']}, dynasty-legitimate winners: "
+            f"{legit['direct_heir_wins'] + legit['same_dynasty_wins']} "
+            f"({legit['activation_rate']:.0%})"
+        )
+        lines.append("")
+
+    # Merchant trips (M58a; agent modes only)
+    trips_by_seed = report.get("merchant_trips", {}).get("by_seed", {})
+    seeds_with_trips = [s for s, rows in trips_by_seed.items() if rows]
+    if seeds_with_trips:
+        completed = sum(
+            row.get("completed_trips", 0)
+            for rows in trips_by_seed.values() for row in rows
+        )
+        lines.append("MERCHANT TRIPS:")
+        lines.append(f"  Runs with trip stats: {len(seeds_with_trips)}/{n_runs}")
+        lines.append(f"  Completed trips (all runs): {completed:g}")
+        lines.append("")
+
     # Event firing rates
     lines.append("EVENT FIRING RATES:")
     for et, rate in sorted(report.get("event_firing_rates", {}).items(), key=lambda x: -x[1]):
@@ -1741,30 +1790,6 @@ def extract_arc_distribution(bundles: list[dict]) -> dict:
     return {"arc_types": type_counts, "total": total, "distinct_count": len(type_counts)}
 
 
-def extract_food_sufficiency(bundles: list[dict], checkpoints: list[int] | None = None) -> dict:
-    """Food sufficiency distribution at checkpoints. Reads economy_result from bundle metadata."""
-    # EconomyResult is transient and not bundled into turn snapshots yet.
-    # For now, read the final world_state stockpile levels as a proxy.
-    counts = []
-    for b in bundles:
-        regions = b.get("world_state", {}).get("regions", [])
-        total_food = 0.0
-        for r in regions:
-            stockpile = r.get("stockpile", {}).get("goods", {})
-            for good, amount in stockpile.items():
-                if good in ("grain", "fish", "salt"):
-                    total_food += amount
-        counts.append(total_food)
-    return {"final_food_stock": _compute_percentiles(counts) if counts else {}}
-
-
-def extract_trade_volume(bundles: list[dict]) -> dict:
-    """Trade volume proxy from stockpile import/export data."""
-    # Full per-turn trade volume requires EconomyResult persistence.
-    # Use stockpile levels as a proxy for trade activity.
-    return {"note": "Requires EconomyResult bundling (deferred to M62 viewer)"}
-
-
 def extract_stockpile_levels(bundles: list[dict]) -> dict:
     """Stockpile levels at final turn per region."""
     all_totals = []
@@ -1795,11 +1820,6 @@ def extract_conversion_rates(bundles: list[dict]) -> dict:
         for t in event_aliases:
             counts_by_type[t].append(per_run[t])
     return {t: _compute_percentiles(v) for t, v in counts_by_type.items()}
-
-
-def extract_trade_flow_by_distance(bundles: list[dict]) -> dict:
-    """Trade flow by distance — requires per-route data in bundle (deferred)."""
-    return {"note": "Requires per-route EconomyResult bundling (deferred to M62 viewer)"}
 
 
 def extract_artifacts(bundles: list[dict]) -> dict:
@@ -1935,60 +1955,6 @@ def extract_era_signals(bundles: list[dict]) -> dict:
     return civ_series
 
 
-def extract_spatial_diagnostics(diag_history: list[dict]) -> dict:
-    """Summarize per-turn spatial diagnostics emitted by Rust.
-
-    Each entry in ``diag_history`` is a dict returned by
-    ``AgentSimulator.get_spatial_diagnostics()``, which uses
-    ``HashMap<String, Vec<f64>>`` format:
-      - ``hotspot_count_by_region``: one value per region
-      - ``hash_max_cell_occupancy``: one value per region
-      - ``sort_time_us``: single-element list
-      - ``attractor_occupancy_flat``: flattened region x MAX_ATTRACTORS
-    """
-    if not diag_history:
-        return {
-            "hotspot_persistence": [],
-            "attractor_occupancy_mean": [],
-            "hash_max_occupancy_trend": [],
-            "sort_time_trend_us": [],
-        }
-
-    hotspot_persistence = []
-    attractor_occ_means = []
-    hash_max_trend = []
-    sort_times = []
-
-    for diag in diag_history:
-        hotspots = diag.get("hotspot_count_by_region", [])
-        hotspot_persistence.append(sum(hotspots))
-
-        # attractor_occupancy_flat is a flat list of floats
-        occ_flat = diag.get("attractor_occupancy_flat", [])
-        if occ_flat:
-            nonzero = [v for v in occ_flat if v > 0]
-            attractor_occ_means.append(
-                sum(nonzero) / len(nonzero) if nonzero else 0.0
-            )
-        else:
-            attractor_occ_means.append(0.0)
-
-        max_cells = diag.get("hash_max_cell_occupancy", [])
-        hash_max_trend.append(max(max_cells) if max_cells else 0)
-
-        sort_time_list = diag.get("sort_time_us", [])
-        sort_times.append(
-            sort_time_list[0] if sort_time_list else 0
-        )
-
-    return {
-        "hotspot_persistence": hotspot_persistence,
-        "attractor_occupancy_mean": attractor_occ_means,
-        "hash_max_occupancy_trend": hash_max_trend,
-        "sort_time_trend_us": sort_times,
-    }
-
-
 def extract_legacy_chain_metrics(bundles: list[dict]) -> dict:
     """Extract dynasty chain lengths from great_persons in bundle metadata.
 
@@ -2093,6 +2059,44 @@ def extract_settlement_diagnostics(history: list) -> dict:
         "urbanization": urbanization,
     }
     return result
+
+
+# M51: succession_crisis_resolved descriptions carry the winner's dynasty
+# legitimacy only through this phrasing (factions.resolve_crisis_with_factions:
+# >= LEGITIMACY_DIRECT_HEIR -> blood, >= LEGITIMACY_SAME_DYNASTY -> house).
+LEGITIMACY_DIRECT_HEIR_PHRASE = ", by right of blood,"
+LEGITIMACY_SAME_DYNASTY_PHRASE = ", of the ruling house,"
+
+
+def extract_legitimacy_activation(bundles: list[dict]) -> dict:
+    """M51: how often succession-crisis winners carried dynasty legitimacy.
+
+    A low ``activation_rate`` means dynasty scoring is mostly decorative
+    (winners are abstract faction or external candidates); measure this before
+    any dynasty-focused retune.
+    """
+    resolved = direct = dynasty = runs_active = 0
+    for bundle in bundles:
+        run_active = False
+        for event in bundle.get("events_timeline", []):
+            if event.get("event_type") != "succession_crisis_resolved":
+                continue
+            resolved += 1
+            description = event.get("description", "")
+            if LEGITIMACY_DIRECT_HEIR_PHRASE in description:
+                direct += 1
+                run_active = True
+            elif LEGITIMACY_SAME_DYNASTY_PHRASE in description:
+                dynasty += 1
+                run_active = True
+        runs_active += run_active
+    return {
+        "crises_resolved": resolved,
+        "direct_heir_wins": direct,
+        "same_dynasty_wins": dynasty,
+        "activation_rate": (direct + dynasty) / resolved if resolved else 0.0,
+        "runs_with_activation": runs_active,
+    }
 
 
 def extract_merchant_trip_stats(bundles: list[dict]) -> dict:

@@ -324,6 +324,48 @@ def _path(graph, start, goal):
     return ()
 
 
+# --- Shared pure arithmetic -------------------------------------------------
+# The production campaign layer (chronicler.war) reuses exactly these
+# formulas at cohort granularity. ``advance`` below calls the same helpers, so
+# the detached receipts and the production logistics cannot drift apart.
+
+def validated_graph(policy: Policy, topology: Topology) -> dict[int, tuple[int, ...]]:
+    """Validate an explicit policy/topology pair and return its sorted graph."""
+    return _config(policy, topology)[1]
+
+
+def shortest_path(graph, start: int, goal: int) -> tuple[int, ...]:
+    """Sorted-neighbor BFS path from start to goal; ``()`` when unreachable."""
+    return _path(graph, start, goal)
+
+
+def supply_distance(graph, start: int, sources) -> int | None:
+    """Edges to the closest reachable supply source, or None if unreachable."""
+    distances = [len(path) - 1 for path in (_path(graph, start, source) for source in sources) if path]
+    return min(distances) if distances else None
+
+
+def stress_components(policy: Policy, *, demand: int, consumed: int, distance: int | None,
+                      unmet_needs: int, information_quality: int) -> tuple[int, int, int, int]:
+    """Return (hunger, distance, needs, information) stress in morale thousandths.
+
+    ``demand`` is the rations required this tick: ``policy.ration_demand`` for
+    one member, or a cohort's total demand. Hunger uses ceiling division of the
+    unfilled fraction; needs and information use floor division by 1000.
+    """
+    shortfall = demand - consumed
+    hunger = (policy.hunger_stress * shortfall + demand - 1) // demand
+    distance_stress = policy.unreachable_stress if distance is None else distance * policy.distance_stress
+    needs = unmet_needs * policy.needs_stress // 1000
+    information = (1000 - information_quality) * policy.information_stress // 1000
+    return hunger, distance_stress, needs, information
+
+
+def next_morale(policy: Policy, morale: int, stress: int) -> int:
+    """Subtract stress, or recover when stress is zero; clamp to 0..1000."""
+    return max(0, min(1000, morale - stress if stress else morale + policy.morale_recovery))
+
+
 def _counts(state):
     values = {status: sum(s.status == status for s in state.soldiers) for status in STATUSES}
     return Counts(values["active"], values["arrived"], values["returned"], values["deserted"])
@@ -625,16 +667,14 @@ def advance(session: Session, *, policy: Policy, topology: Topology, tick: Tick)
             consumed = min(member.rations, policy.ration_demand)
             consumed_total += consumed
             shortfall = policy.ration_demand - consumed
-            hunger = (policy.hunger_stress * shortfall + policy.ration_demand - 1) // policy.ration_demand
-            routes = [_path(graph, member.region, source) for source in tick.supply_sources]
-            distances = [len(path) - 1 for path in routes if path]
-            distance = min(distances) if distances else None
-            distance_stress = policy.unreachable_stress if distance is None else distance * policy.distance_stress
+            distance = supply_distance(graph, member.region, tick.supply_sources)
             condition = conditions[member.agent_id]
-            needs = condition.unmet_needs * policy.needs_stress // 1000
-            information = (1000 - condition.information_quality) * policy.information_stress // 1000
+            hunger, distance_stress, needs, information = stress_components(
+                policy, demand=policy.ration_demand, consumed=consumed, distance=distance,
+                unmet_needs=condition.unmet_needs,
+                information_quality=condition.information_quality)
             stress = hunger + distance_stress + needs + information
-            morale = max(0, min(1000, member.morale - stress if stress else member.morale + policy.morale_recovery))
+            morale = next_morale(policy, member.morale, stress)
             draw = draws[member.agent_id]
             desert = morale <= policy.desertion_threshold and draw < policy.desertion_chance
             member = replace(member, rations=member.rations - consumed, morale=morale)

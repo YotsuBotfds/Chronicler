@@ -14,9 +14,13 @@ WORLD_DEFAULTS = {
     "mutual_aid_state": {},
     "mutual_aid_last_dispatch_turn": None,
     "mutual_aid_last_transfers": [],
+    # M60 campaigns (default off): flag plus empty campaign state.
+    "campaigns_enabled": False,
+    "war_state": {"armies": [], "wars": [], "ended_wars": [], "occupations": [], "battles": [],
+                  "treaties": [], "next_army_serial": 1, "raised_counts": {}, "last_raise_turn": {}},
 }
 REGION_DEFAULTS = {"fishery_stocks": [1., 1., 1.], "fishery_yield_ratios": [1., 1., 1.],
-                   "fishery_catch_budgets": [None, None, None]}
+                   "fishery_catch_budgets": [None, None, None], "occupied_by": None}
 
 
 def strip_dormant_fields(world, *, aid=True):

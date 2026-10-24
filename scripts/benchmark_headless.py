@@ -81,10 +81,13 @@ def rng_trace(path: Path):
 def run(workload: dict, output: Path, on_turn=None):
     from chronicler.main import execute_run
 
+    # Frozen corrected workloads predate M60 campaigns: they replay instant
+    # WAR resolution unless a workload opts in explicitly.
     args = argparse.Namespace(
-        **workload, output=str(output / "chronicle.md"),
+        **{"campaigns": False, **workload}, output=str(output / "chronicle.md"),
         state=str(output / "state.json"), resume=None, reflection_interval=10,
         llm_actions=False, scenario=None, simulate_only=True, agents="off",
+        governance=False,  # frozen pre-governance oracles; see docs/governance/runtime-integration.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

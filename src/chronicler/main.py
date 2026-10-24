@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import signal
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from chronicler.artifact_io import atomic_write_text
 from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
@@ -29,14 +32,37 @@ def _tracks_tokens(client: Any) -> bool:
 logger = logging.getLogger(__name__)
 
 
-def _set_narrative_token_metadata(metadata: dict[str, Any], client: Any) -> None:
+def _token_counts(client: Any) -> tuple[int, int, int]:
+    """Current (input, output, calls) counters of a token-tracking client."""
+    if not _tracks_tokens(client):
+        return (0, 0, 0)
+    return (
+        client.total_input_tokens,
+        client.total_output_tokens,
+        int(getattr(client, "call_count", 0) or 0),
+    )
+
+
+def _token_usage_since(client: Any, baseline: tuple[int, int, int]) -> tuple[int, int, int]:
+    """Counters accrued since ``baseline``. A sequential batch shares one client
+    across seeds, so each run reports its own delta (M44 NB-1)."""
+    now = _token_counts(client)
+    return (now[0] - baseline[0], now[1] - baseline[1], now[2] - baseline[2])
+
+
+def _set_narrative_token_metadata(
+    metadata: dict[str, Any],
+    client: Any,
+    baseline: tuple[int, int, int] = (0, 0, 0),
+) -> None:
     """Populate canonical narrative token fields plus deprecated aliases."""
     if not _tracks_tokens(client):
         return
-    metadata["narrative_input_tokens"] = client.total_input_tokens
-    metadata["narrative_output_tokens"] = client.total_output_tokens
-    metadata["api_input_tokens"] = client.total_input_tokens
-    metadata["api_output_tokens"] = client.total_output_tokens
+    inp, out, _ = _token_usage_since(client, baseline)
+    metadata["narrative_input_tokens"] = inp
+    metadata["narrative_output_tokens"] = out
+    metadata["api_input_tokens"] = inp
+    metadata["api_output_tokens"] = out
 
 
 def _default_shadow_output_path(output_path: Path) -> Path:
@@ -50,6 +76,7 @@ from chronicler.simulation import run_turn_result
 from chronicler.types import RunResult
 from chronicler.world_gen import enrich_with_llm, generate_world
 from chronicler.intelligence import compute_accuracy, _get_perceived_stat_with_accuracy
+from chronicler.history_index import history_index
 
 DEFAULT_CONFIG = {
     "seed": 42,
@@ -60,6 +87,94 @@ DEFAULT_CONFIG = {
     "local_url": DEFAULT_LOCAL_URL,
 }
 
+# Turns between resumable state.json/memory checkpoints during a run. The final
+# state is always written; 1 restores the historical every-turn checkpoint.
+DEFAULT_STATE_EVERY = 10
+
+
+def _resolve_state_every(args: argparse.Namespace) -> int:
+    value = getattr(args, "state_every", None)
+    if value is None:
+        return DEFAULT_STATE_EVERY
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"--state-every must be a positive integer, got {value!r}")
+    return value
+
+
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {text!r}") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value}")
+    return value
+
+
+def _write_state_checkpoint(world: WorldState, path: Path) -> None:
+    """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
+
+    The final save keeps ``WorldState.save``'s indented format; both load with
+    ``WorldState.load`` into the same world.
+    """
+    atomic_write_text(path, world.model_dump_json())
+
+
+def _save_memory_streams(
+    memories: dict[str, MemoryStream],
+    output_dir: Path,
+    reflection_counts: dict[str, int] | None = None,
+) -> None:
+    """Write every memory stream; ``reflection_counts`` writes only each
+    stream's first N reflections (its content before this turn's reflection)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for civ_name, stream in memories.items():
+        count = reflection_counts.get(civ_name) if reflection_counts is not None else None
+        if count is not None and count != len(stream.reflections):
+            view = MemoryStream(civilization_name=stream.civilization_name)
+            view.entries = stream.entries
+            view.reflections = stream.reflections[:count]
+            stream = view
+        stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
+
+
+class _SigintDeferral:
+    """Let the in-flight turn finish on Ctrl-C so a consistent checkpoint can be saved.
+
+    Installed only from the main thread over Python's default SIGINT handler.
+    The first Ctrl-C records the request and restores the default handler, so
+    a second Ctrl-C interrupts immediately as before.
+    """
+
+    def __init__(self) -> None:
+        self.requested = False
+        self._installed = False
+
+    def __enter__(self) -> "_SigintDeferral":
+        if (threading.current_thread() is threading.main_thread()
+                and signal.getsignal(signal.SIGINT) is signal.default_int_handler):
+            signal.signal(signal.SIGINT, self._handle)
+            self._installed = True
+        return self
+
+    def _handle(self, signum, frame) -> None:
+        self.requested = True
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        print("\nInterrupt received: finishing this turn to save a resumable checkpoint "
+              "(press Ctrl-C again to stop immediately).", file=sys.stderr, flush=True)
+
+    def __exit__(self, *exc_info) -> bool:
+        if self._installed and signal.getsignal(signal.SIGINT) == self._handle:
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+        return False
+
+
+def _run_turn_deferring_sigint(*args, **kwargs):
+    """``run_turn_result(...)`` with Ctrl-C deferred to the end of the turn."""
+    with _SigintDeferral() as deferral:
+        turn_result = run_turn_result(*args, **kwargs)
+    return turn_result, deferral.requested
+
 
 class _DummyClient:
     """Fallback LLM client for deterministic-only runs (no API calls)."""
@@ -67,6 +182,11 @@ class _DummyClient:
 
     def complete(self, prompt: str, max_tokens: int = 100, system: str | None = None) -> str:
         return "DEVELOP"
+
+
+def _governance_snapshot(civ):
+    from chronicler.governance_runtime import governance_snapshot
+    return governance_snapshot(civ)
 
 
 def _create_ecology_runtime(world):
@@ -104,6 +224,14 @@ def _create_politics_runtime(world):
         return pol_sim
     except ImportError:
         return None
+
+
+def _war_snapshot_fields(world) -> dict:
+    """M60 campaign fields for the viewer snapshot (empty when disabled)."""
+    if not world.campaigns_enabled:
+        return {}
+    from chronicler.war.runtime import snapshot_summary
+    return {"campaign": snapshot_summary(world)}
 
 
 def execute_run(
@@ -151,6 +279,7 @@ def execute_run(
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
+    _narr_token_baseline = _token_counts(_narr)
     _narrator_mode = getattr(args, "narrator", "local")
     _api_mode = _narrator_mode != "local"
 
@@ -168,6 +297,7 @@ def execute_run(
             "--llm-actions is deprecated and ignored; simulation action selection remains deterministic"
         )
     _pause_every = pause_every or getattr(args, "pause_every", None)
+    _state_every = _resolve_state_every(args)
 
     # Use scenario_config from arg if not passed directly
     if scenario_config is None:
@@ -194,6 +324,7 @@ def execute_run(
         _noop_narrator = None
 
     # World setup
+    fresh_world = False
     if world is not None:
         start_turn = world.turn
     elif resume_path:
@@ -207,6 +338,7 @@ def execute_run(
             num_civs=num_civs,
         )
         start_turn = 0
+        fresh_world = True
 
         # Apply scenario overrides if provided
         if scenario_config:
@@ -257,6 +389,15 @@ def execute_run(
         if val is not None:
             world.tuning_overrides[key] = val
 
+    # M60: campaign layer switch (persisted on the world for resume). New
+    # worlds default to campaigns; resumed or supplied worlds keep theirs.
+    campaigns = getattr(args, "campaigns", None)
+    if campaigns is None and fresh_world:
+        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+        campaigns = CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
+    if campaigns is not None:
+        world.campaigns_enabled = campaigns
+
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
     mutual_aid = getattr(args, "mutual_aid", None)
@@ -264,6 +405,14 @@ def execute_run(
         world.mutual_aid_enabled = mutual_aid
     if world.mutual_aid_enabled and agent_mode == "off":
         raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    # Phase 8 governance runtime switch (persisted on the world).
+    governance = getattr(args, "governance", None)
+    if governance is None and fresh_world:
+        from chronicler.governance_runtime import DEFAULT_ENABLED_FOR_NEW_WORLDS
+        governance = DEFAULT_ENABLED_FOR_NEW_WORLDS
+    if governance is not None:
+        from chronicler.governance_runtime import set_governance_enabled
+        set_governance_enabled(world, governance)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -338,7 +487,7 @@ def execute_run(
 
         # Run one turn — pending injections drain inside run_turn with accumulator
         source_turn = world.turn
-        turn_result = run_turn_result(
+        turn_result, _interrupt_requested = _run_turn_deferring_sigint(
             world,
             action_selector=action_selector,
             narrator=_noop_narrator or engine.narrator,
@@ -401,6 +550,7 @@ def execute_run(
                     gini=getattr(agent_bridge, '_gini_by_civ', {}).get(civ_idx, 0.0) if agent_bridge else 0.0,
                     war_weariness=civ.war_weariness,
                     peace_momentum=civ.peace_momentum,
+                    governance=(_governance_snapshot(civ) if world.governance is not None else None),
                 )
                 for civ_idx, civ in enumerate(world.civilizations)
             },
@@ -489,6 +639,7 @@ def execute_run(
             ),
             founded_this_turn=sorted(getattr(world, '_settlement_founded_this_turn', [])),
             dissolved_this_turn=sorted(getattr(world, '_settlement_dissolved_this_turn', [])),
+            **_war_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -552,12 +703,12 @@ def execute_run(
 
         # on_turn callback — fires after each turn's data is captured
         if on_turn is not None:
-            turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
+            turn_events = history_index(world).events_for_turn(world, world.turn - 1)
             turn_named = world.named_events[named_events_before:]
             on_turn(snapshot, chronicle_text, turn_events, turn_named)
 
         # Update memory streams with this turn's events
-        turn_events = [e for e in world.events_timeline if e.turn == world.turn - 1]
+        turn_events = history_index(world).events_for_turn(world, world.turn - 1)
         for event in turn_events:
             for actor in event.actors:
                 if actor in memories:
@@ -567,12 +718,20 @@ def execute_run(
                         importance=event.importance,
                     )
 
-        # Save memory streams every turn
+        # Save memory streams at this point of the turn on checkpoint turns, the
+        # final turn and any turn a callback may end the run, so the files on
+        # disk at those turns match an every-turn writer's exactly.
+        _is_final_turn = turn_num == num_turns - 1
+        _checkpoint_due = world.turn % _state_every == 0
+        _pause_turn = bool(_pause_every and on_pause and world.turn % _pause_every == 0)
+        _may_stop = _pause_turn or quit_check is not None
         output_dir = output_path.parent
-        output_dir.mkdir(parents=True, exist_ok=True)
-        for civ_name, stream in memories.items():
-            safe_name = sanitize_civ_name(civ_name)
-            stream.save(output_dir / f"memories_{safe_name}.json")
+        _memories_saved = _checkpoint_due or _is_final_turn or _may_stop
+        if _memories_saved:
+            _save_memory_streams(memories, output_dir)
+        # Reflections only append; an interrupt checkpoint written after this
+        # turn's reflection uses these counts to write the save-point content.
+        _reflection_counts = {name: len(stream.reflections) for name, stream in memories.items()}
 
         # Generate era reflections at intervals
         if not _api_mode and should_reflect(world.turn, interval=reflection_interval):
@@ -593,9 +752,24 @@ def execute_run(
             era_reflections[world.turn] = f"## Era: Turns {era_start}\u2013{era_end}\n\n{combined}"
             print(f"  Era reflection generated for turns {era_start}-{era_end}")
 
-        # Save state after EVERY turn (crash recovery — resume from last good state)
-        if state_path:
-            world.save(state_path)
+        # Resumable checkpoint every _state_every turns and before a pause; the
+        # final state is written after the loop on every exit path.
+        if state_path and ((_checkpoint_due and not _is_final_turn) or _pause_turn):
+            _write_state_checkpoint(world, state_path)
+            _state_saved = True
+        else:
+            _state_saved = False
+
+        # Ctrl-C during the turn: save this completed turn, then stop.
+        if _interrupt_requested:
+            if not _memories_saved:
+                _save_memory_streams(memories, output_dir, _reflection_counts)
+            if state_path and not _state_saved:
+                _write_state_checkpoint(world, state_path)
+            if state_path:
+                print(f"Interrupted after turn {world.turn}; resume with --resume {state_path}",
+                      file=sys.stderr)
+            raise KeyboardInterrupt
 
         # on_pause callback — returns False to quit early
         if _pause_every and on_pause and world.turn % _pause_every == 0:
@@ -666,9 +840,8 @@ def execute_run(
 
         # Token usage summary
         if _tracks_tokens(_narr):
-            inp = _narr.total_input_tokens
-            out = _narr.total_output_tokens
-            print(f"API narration: {_narr.call_count} calls, "
+            inp, out, calls = _token_usage_since(_narr, _narr_token_baseline)
+            print(f"API narration: {calls} calls, "
                   f"{inp/1000:.1f}K input + {out/1000:.1f}K output tokens")
 
     if agent_bridge is not None:
@@ -798,7 +971,7 @@ def execute_run(
     )
     # M44: narrator provenance metadata
     bundle["metadata"]["narrator_mode"] = _narrator_mode
-    _set_narrative_token_metadata(bundle["metadata"], _narr)
+    _set_narrative_token_metadata(bundle["metadata"], _narr, _narr_token_baseline)
 
     # M53: relationship stats metadata
     if agent_bridge is not None and agent_bridge._collect_rel_stats:
@@ -883,6 +1056,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=str, default="output/chronicle.md", help="Output file path")
     parser.add_argument("--state", type=str, default="output/state.json", help="State file path")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a saved state JSON file")
+    parser.add_argument("--state-every", type=_positive_int, default=None, metavar="K",
+                        help=f"Write the resumable --state checkpoint and memory streams every K turns "
+                             f"(default {DEFAULT_STATE_EVERY}; 1 = every turn). The final state is always "
+                             f"written, and Ctrl-C finishes the current turn and checkpoints it.")
     parser.add_argument("--reflection-interval", type=int, default=None)
     parser.add_argument("--local-url", type=str, default=DEFAULT_CONFIG["local_url"],
                         help="LM Studio / local model API URL (OpenAI-compatible)")
@@ -916,6 +1093,13 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Agent mode: off (aggregate), demographics-only, shadow (compare), hybrid (agent-driven)")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
                         help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
+    parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
+                        help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
+                             "negotiated peace replace instant WAR resolution (default on for new "
+                             "worlds; --no-campaigns restores instant wars; saved on resume)")
+    parser.add_argument("--governance", action=argparse.BooleanOptionalAction, default=None,
+                        help="Phase 8 governance runtime: institutions, elites, legitimacy, ambitions, PSI "
+                             "(default on for new worlds; --no-governance disables; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,
