@@ -2,7 +2,9 @@
 
 Branch `fix/food-logistics`, based on `integrate/wave-5` at `b7d9ced` (new-world
 defaults: epidemiology, finance, diplomacy and techniques on; maritime, nomads
-and great-person agendas off). It starts from the "Open items" of
+and great-person agendas off), merged with `integrate/wave-6` at `5737aae`
+without rebase (see "After merging `integrate/wave-6`"). It starts from the
+"Open items" of
 [`food-balance-2026-10.md`](food-balance-2026-10.md). Two root causes are
 **corrected** and one constant is **recalibrated**, one commit each; the golden
 oracles are rolled forward in a fourth commit. Three more candidates were
@@ -34,6 +36,7 @@ food demand constant changed.
 - Full gate (200 x 500): **PASS strict**, 0 of 200 worlds extinct,
   `validation_compare` **NO REGRESSION** against the current defaults' full
   report; migration 0.0514 against the strict 0.05 floor (0.0512 on the base).
+  The same holds after merging `integrate/wave-6` (`eda0ec0`).
 
 ## Root causes and changes
 
@@ -324,7 +327,10 @@ oracle with all earlier changes applied):
 `ORACLE_CHAIN` (food balance -> food logistics), and
 `tests/test_governance_dormancy.py` reads the new artifact oracle for both
 projections and checks that only the declared workloads differ from the frozen
-artifacts.
+artifacts. After the merge with `integrate/wave-6`,
+`tests/test_historiography.py::test_frozen_oracles_hold_with_historiography_on`
+(added there) replays the live oracles instead of the food-balance and
+dead-civ-pruning ones (`7d081b8`); it failed on standard and wide before.
 
 ## Tests changed and why
 
@@ -341,7 +347,8 @@ New tests:
   split (food share, 25% floor, all forage without slots, labor conserved);
   barren food slots forage; foraged grain reaches stock, sufficiency and
   conservation.
-- `tests/test_food_logistics.py` (15 cases): the subsistence rate is M34's
+- `tests/test_food_logistics.py` (12 cases, in the offline oracle lane's
+  `systems-1` chunk): the subsistence rate is M34's
   baseline in grain goods for every climate phase and reads the tuning key; it
   stays under half a ration; the Python labor split mirrors the Rust cases;
   production credits foraged grain; the locust swarm fires below 0.02 only,
@@ -391,8 +398,12 @@ Changed expectations, each following from a change:
     pins the M35b 0.15 through the tuning key in both worlds (`701bd92`): it
     needs a suspension across its turn-6 save point, and 0.02 fires none there.
   - Golden oracles: see "Golden fixtures".
+  - `tests/test_bundle.py::TestBundleSize`: the comment records the new sizes
+    (`4711d81`; see "Verification"); the 24MB guard is unchanged.
 
 ## Verification
+
+### Before the merge
 
 On `701bd92` (the last simulation-relevant change is `98ba9a2`; Rust last
 changed in `afe3b3d`), Linux, Python 3.13. The native extension was built from
@@ -407,10 +418,41 @@ build in this worktree.
 - Slow tests (`-m slow`): 11 passed, 3 skipped.
 - No-Rust environment (fresh venv without `chronicler_agents`): 5,651 passed,
   197 skipped (base 5,637 / 196).
-- `cargo test --release`: CARGO_RESULT.
+- `cargo test --release` (all targets, `--no-fail-fast`): 903 passed, 0
+  failed, 2 ignored.
 - Offline Python oracle lane (`scripts/run_python_oracle_checks.py`, PR #19's
   guard fix applied locally and reverted): 1,852 passed, 9 skipped, 2
   deselected, guard PASS, 63 s.
+
+### After merging `integrate/wave-6`
+
+`integrate/wave-6` at `5737aae` (historiography, the needs oracle's autonomy
+fix, great-person agenda preaching, the chunked oracle lane with the committed
+guard fix; no Rust changes) merged without rebase at `4c2e3cb`; the same
+extension serves the merged tree.
+
+- Slow tests: 11 passed, 3 skipped.
+- Not-slow, native and no-Rust: the only failures were the historiography
+  frozen-oracle test's standard and wide cases, which read the superseded
+  fixtures (fixed in `7d081b8`; see "Golden fixtures"). On `eda0ec0`:
+  native 5,905 passed, 3 skipped; no-Rust 5,696 passed, 198 skipped.
+- Offline oracle lane (wave-6 runner, no local patch), with
+  `tests/test_food_logistics.py` in `systems-1` (`eda0ec0`): PASS in 74.0 s,
+  1,909 passed, 10 skipped, 2 deselected; chunks core 19.4 s, governance
+  15.7 s, systems-1 18.0 s, systems-2 20.9 s, each of 110 s; guard PASS with
+  no native module loaded.
+- 500-turn bundle (`tests/test_bundle.py::TestBundleSize`: seed 1, 5 civs, 10
+  regions, agents off), measured here on both trees:
+
+  | Path | `5737aae` (wave-6 tip) | Merged head |
+  | --- | --- | --- |
+  | Native runtimes | 20.73MB (17 polities) | 17.47MB (11) |
+  | No-Rust | 23.61MB (18 polities) | 18.07MB (11) |
+
+  Off mode runs neither merchants nor the goods economy, so only the locust
+  recalibration moves this world; it founds 11 polities over the run instead
+  of 17-18, and the history snapshots shrink with them. The guard (24MB) is not crossed and is
+  unchanged.
 
 ## Gate results
 
@@ -424,6 +466,13 @@ On `98ba9a2` (C1-C3; later commits change only tests, fixtures and docs).
 `validation_compare` against the techniques-on full report (the current
 defaults' gate): **NO REGRESSION**. A full gate on `afe3b3d` (C1-C2) also
 passed strict with no regression.
+
+Repeated after the merge with `integrate/wave-6`, on `eda0ec0`: **PASS
+strict, 0 extinct, NO REGRESSION**. Every regression, arcs, era and artifacts
+number equals the `98ba9a2` column (wave-6 does not move the simulation). The
+needs oracle, now with wave-6's autonomy pairing that leaves out prior rebels,
+passes on 190 seeds with 356 pairs (192 and 772 under the old pairing; 120
+required).
 
 | Oracle / measure | Current defaults (full-on report) | `afe3b3d` (1-2) | `98ba9a2` (head) |
 | --- | --- | --- | --- |

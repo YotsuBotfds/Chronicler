@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-24 (`fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
 
@@ -32,10 +32,17 @@ the food-balance open items. Details, numbers and every changed expectation:
 - **Gates:** full 200 x 500 on `98ba9a2` PASS strict, 0 extinct,
   `validation_compare` NO REGRESSION against the techniques-on full report;
   migration 0.0514 (base 0.0512, floor 0.05), latest satisfaction 0.611.
-  Subsets 42-61, 62-81 and 82-101 PASS (the base fails needs on 62-81).
-- **Tests:** not-slow 5,859 passed (base 5,844); slow 11 passed; no-Rust
-  5,651 passed / 197 skipped (base 5,637 / 196); offline oracle lane (PR #19
-  guard fix applied locally only) 1,852 passed, guard PASS.
+  Repeated on the merge with `integrate/wave-6` (`eda0ec0`): same result and
+  numbers; needs 190 seeds under wave-6's autonomy pairing. Subsets 42-61,
+  62-81 and 82-101 PASS (the base fails needs on 62-81).
+- **Tests:** before the merge not-slow 5,859 passed (base 5,844), no-Rust
+  5,651 / 197 skipped (base 5,637 / 196); `cargo test --release` 903 passed,
+  2 ignored. On `eda0ec0`: not-slow 5,905 passed, no-Rust 5,696 / 198
+  skipped, slow 11 passed; offline oracle lane PASS in 74 s (chunks 19-21 s
+  of 110 s; `test_food_logistics.py` added to `systems-1`); the
+  historiography frozen-oracle test reads the food-logistics fixtures. The
+  500-turn bundle is 17.47MB native / 18.07MB no-Rust (20.73 / 23.61 on the
+  wave-6 tip; 24MB guard unchanged).
 - **Verified, not changed:** storage caps (rarely bind) and decay;
   drought/cooling (M34 design); the occupational dead band is real (M53 moved
   the exit threshold, not the entry one) and its fix feeds worlds best of all,
