@@ -24,7 +24,7 @@ from chronicler.tuning import get_override
 
 #: Default for worlds newly created by the CLI/batch/live entry points
 #: (``--no-mutual-aid`` opts out; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Experimental hypotheses [CALIBRATE], not empirically fitted parameters.
 STRESS_THRESHOLD = 0.8

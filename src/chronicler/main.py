@@ -1209,8 +1209,8 @@ def _build_parser() -> argparse.ArgumentParser:
                              "in state, pass it again on --resume)")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
                         help="Adjacent same-polity food aid after repeated food stress, paid from the "
-                             "treasury (agent modes; dormant with --agents off; default off for new "
-                             "worlds; saved on resume)")
+                             "treasury (agent modes; dormant with --agents off; default on for new "
+                             "worlds; --no-mutual-aid disables; saved on resume)")
     parser.add_argument("--fisheries", action=argparse.BooleanOptionalAction, default=None,
                         help="Renewable fish stocks: fishing draws down a recovering stock that caps "
                              "the catch (default on for new worlds; --no-fisheries disables; saved on resume)")
