@@ -21,6 +21,8 @@ import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
 import { InterventionPanel } from "../InterventionPanel";
 import { RegionHistoryInspector } from "../RegionHistoryInspector";
+import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
+import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "./appShellHelpers";
 import "./app-shell.css";
@@ -879,6 +881,16 @@ export function AppShell({
     onSeek(percentToTurn(percent, totalTurns));
   };
 
+  const selectEvent = (event: Event) => {
+    setSelectedEntity({
+      kind: "event",
+      id: eventKey(event),
+      label: event.description,
+      turn: event.turn,
+    });
+    onSeek(event.turn);
+  };
+
   const selectedRegion = selectedEntity?.kind === "region"
     ? atlasRegions.find((region) => region.name === selectedEntity.id) ?? null
     : null;
@@ -989,15 +1001,7 @@ export function AppShell({
           chronicleFeed={chronicleFeed}
           eventFeed={eventFeed}
           onJumpToTurn={(turn) => onSeek(turn)}
-          onSelectEvent={(event) => {
-            setSelectedEntity({
-              kind: "event",
-              id: eventKey(event),
-              label: event.description,
-              turn: event.turn,
-            });
-            onSeek(event.turn);
-          }}
+          onSelectEvent={selectEvent}
           setupState={{
             scenario,
             scenarios,
@@ -1097,8 +1101,25 @@ export function AppShell({
             serverState,
             livePaused: livePaused ?? false,
           }}
+          currentSnapshot={currentSnapshot}
         />
       </div>
+
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
+        <SystemsPanel
+          key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+          bundle={bundle}
+          surface={surface}
+          snapshot={currentSnapshot}
+          currentTurn={currentTurn}
+          onSeek={onSeek}
+          onSelectEvent={selectEvent}
+          onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
+          onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+          selectedRegion={selectedRegion?.name ?? null}
+          selectedCivilization={selectedCivilization?.name ?? null}
+        />
+      )}
 
       {error && surface !== "setup" && surface !== "batch" && (
         <div className="phase75-error-banner">{error}</div>
@@ -2192,6 +2213,7 @@ function RightInspector({
   onShowCompare,
   viewerReady,
   liveState,
+  currentSnapshot = null,
 }: {
   surface: AppSurface;
   selection: SelectedEntity | null;
@@ -2219,6 +2241,7 @@ function RightInspector({
     serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
     livePaused: boolean;
   };
+  currentSnapshot?: TurnSnapshot | null;
 }) {
   return (
     <aside className="phase75-right-rail phase75-panel">
@@ -2312,6 +2335,7 @@ function RightInspector({
                   <span>Resources</span>
                   <strong>{selectedRegion.resources ?? "Unknown"}</strong>
                 </div>
+                <RegionSystemsDetail snapshot={currentSnapshot} region={selectedRegion.name} />
               </>
             )}
 
