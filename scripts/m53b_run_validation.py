@@ -102,6 +102,22 @@ def _contact_ledger_args(args: argparse.Namespace) -> list[str]:
     return ["--contact-ledger" if ledger else "--no-contact-ledger"]
 
 
+def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
+    """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
+
+    Mutual aid is dormant under ``--agents off`` and the CLI rejects an explicit
+    ``--mutual-aid`` there, so an aggregate run only receives ``--no-mutual-aid``.
+    """
+    out: list[str] = []
+    fisheries = getattr(args, "fisheries", None)
+    if fisheries is not None:
+        out.append("--fisheries" if fisheries else "--no-fisheries")
+    aid = getattr(args, "mutual_aid", None)
+    if aid is not None and not (aid and agents == "off"):
+        out.append("--mutual-aid" if aid else "--no-mutual-aid")
+    return out
+
+
 def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     output_root = args.output_root / "oracle_subset"
     cmd = [
@@ -123,6 +139,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_fishery_aid_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -149,6 +166,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
+        *_fishery_aid_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -181,6 +199,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_feature_flags(args))
         cmd.extend(_governance_args(args))
         cmd.extend(_contact_ledger_args(args))
+        cmd.extend(_fishery_aid_args(args, agents))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -460,6 +479,18 @@ def main() -> None:
         help="Forward --contact-ledger/--no-contact-ledger to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--fisheries",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --fisheries/--no-fisheries to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
+        "--mutual-aid",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --mutual-aid/--no-mutual-aid to every agent-mode run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -545,6 +576,8 @@ def main() -> None:
         "parallel": args.parallel,
         "campaigns": args.campaigns,
         "contact_ledger": args.contact_ledger,
+        "fisheries": args.fisheries,
+        "mutual_aid": args.mutual_aid,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

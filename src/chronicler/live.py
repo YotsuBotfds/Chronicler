@@ -1112,6 +1112,16 @@ def run_live(
         )
         _ledger = getattr(args, "contact_ledger", None)
         set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
+        # Fisheries and mutual aid: new live worlds follow the CLI defaults
+        # (execute_run sees a supplied world and keeps these settings).
+        from chronicler.experimental.fisheries import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT, set_fisheries_enabled,
+        )
+        _fish = getattr(args, "fisheries", None)
+        set_fisheries_enabled(world, _FISH_DEFAULT if _fish is None else bool(_fish), new_world=True)
+        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
+        _aid = getattr(args, "mutual_aid", None)
+        world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
 
     # Construct LLM clients from client-selected models
     client_config = server._resolve_client_config()

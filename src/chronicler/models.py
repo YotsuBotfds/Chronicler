@@ -346,6 +346,9 @@ class WorldGeography(BaseModel):
 
 
 _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
+# Optional region fields omitted from serialized output while None, so worlds
+# that never use them keep their exact bytes.
+_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed")
 
 
 class Region(BaseModel):
@@ -388,6 +391,9 @@ class Region(BaseModel):
     fishery_catch_budgets: list[Annotated[float, Field(ge=0, allow_inf_nan=False)] | None] = Field(
         default_factory=lambda: [None, None, None], min_length=3, max_length=3,
     )  # None means no experiment tick has supplied a catch budget yet.
+    # Fish slots whose stock is collapsed (narrated once on collapse and once on
+    # recovery); None while no slot is collapsed (omitted from output).
+    fishery_collapsed: list[int] | None = None
     river_mask: int = 0
     # M35b: Disease, Depletion & Environmental Events
     disease_baseline: float = 0.01
@@ -425,7 +431,7 @@ class Region(BaseModel):
     def _omit_dormant_geography(self, handler):
         data = handler(self)
         if isinstance(data, dict):
-            for key in _DORMANT_REGION_GEOGRAPHY:
+            for key in _DORMANT_REGION_OPTIONAL:
                 if key in data and getattr(self, key) is None:
                     del data[key]
         return data

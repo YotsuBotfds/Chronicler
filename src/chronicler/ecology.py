@@ -779,11 +779,12 @@ def _tick_ecology_python(
         region.resource_current_yields = yields
         region_yields[region.name] = yields
 
-    from chronicler.experimental.fisheries import apply_fishery_feedback
+    from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events
     apply_fishery_feedback(world, region_yields)
+    fishery_events = fishery_stock_events(world)
 
     # M34: famine check (agent modes: Phase 2 food sufficiency; aggregate: yields)
-    events = _check_famine_yield(
+    events = fishery_events + _check_famine_yield(
         world, region_yields, climate_phase, famine_threshold, subsistence_base, acc,
         economy_result=economy_result,
     )
@@ -845,8 +846,9 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
     # 2. Write-back to Python Region (also sets region.resource_current_yields)
     region_yields = _write_back_ecology(world, region_batch)
 
-    from chronicler.experimental.fisheries import apply_fishery_feedback
+    from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events
     apply_fishery_feedback(world, region_yields)
+    fishery_events = fishery_stock_events(world)
 
     # 3. Materialize Rust ecology events
     rust_events = _materialize_ecology_events(event_batch, world)
@@ -889,7 +891,7 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
         from chronicler.experimental.fisheries_bridge import build_fishery_yield_patch
         ecology_runtime.apply_fishery_yield_patch(build_fishery_yield_patch(world))
 
-    return famine_events + rust_events + terrain_events
+    return fishery_events + famine_events + rust_events + terrain_events
 
 
 def clamp_ecology(region: Region) -> None:

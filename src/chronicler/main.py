@@ -450,11 +450,26 @@ def execute_run(
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
+    # Adjacent mutual aid (persisted on the world). It moves goods-economy
+    # stocks, so an explicit --mutual-aid needs an agent mode; a default-on or
+    # saved setting is simply dormant under --agents off.
     mutual_aid = getattr(args, "mutual_aid", None)
+    if mutual_aid is True and agent_mode == "off":
+        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    if mutual_aid is None and fresh_world:
+        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
+        mutual_aid = _AID_DEFAULT
     if mutual_aid is not None:
         world.mutual_aid_enabled = mutual_aid
-    if world.mutual_aid_enabled and agent_mode == "off":
-        raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    # Renewable fish stocks (persisted on the world). New worlds also get the
+    # living-world calibration; loaded worlds keep their saved parameters.
+    fisheries = getattr(args, "fisheries", None)
+    if fisheries is None and fresh_world:
+        from chronicler.experimental.fisheries import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT
+        fisheries = _FISH_DEFAULT
+    if fisheries is not None:
+        from chronicler.experimental.fisheries import set_fisheries_enabled
+        set_fisheries_enabled(world, fisheries, new_world=fresh_world)
     # Phase 8 governance runtime switch (persisted on the world).
     governance = getattr(args, "governance", None)
     if governance is None and fresh_world:
@@ -1193,7 +1208,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              "candidate sampling for large populations; changes results; not saved "
                              "in state, pass it again on --resume)")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
-                        help="Experimental adjacent food aid after repeated stress (default off; saved on resume)")
+                        help="Adjacent same-polity food aid after repeated food stress, paid from the "
+                             "treasury (agent modes; dormant with --agents off; default on for new "
+                             "worlds; --no-mutual-aid disables; saved on resume)")
+    parser.add_argument("--fisheries", action=argparse.BooleanOptionalAction, default=None,
+                        help="Renewable fish stocks: fishing draws down a recovering stock that caps "
+                             "the catch (default on for new worlds; --no-fisheries disables; saved on resume)")
     parser.add_argument("--campaigns", action=argparse.BooleanOptionalAction, default=None,
                         help="M60 campaigns: armies, logistics, battles, sieges, occupation and "
                              "negotiated peace replace instant WAR resolution (default on for new "
