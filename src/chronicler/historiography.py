@@ -46,7 +46,6 @@ prompt, the mechanical chronicle and the curator.
 """
 from __future__ import annotations
 
-import copy
 import json
 import logging
 from pathlib import Path
@@ -73,10 +72,13 @@ SIDECAR_SUFFIX = ".historiography.json"
 # Parameters (illustrative; they shape narration only)
 # ---------------------------------------------------------------------------
 
-MIN_IMPORTANCE = 5            # court chronicles skip lesser events
-TEMPLE_MIN_IMPORTANCE = 6     # temple chronicles are more selective
+MIN_IMPORTANCE = 6            # court chronicles skip lesser events ...
+MIN_IMPORTANCE_LOW = 5        # ... except unrest, crises and rulers
+TEMPLE_MIN_IMPORTANCE = 7     # temple chronicles are more selective
 NOTABLE_IMPORTANCE = 7        # unclassified events this important are chronicled plainly
 MAX_ACCOUNTS_PER_TURN = 8     # per chronicler, most important first
+REPEAT_WINDOW = 10            # turns within which a chronicler does not retell a recurring
+                              # hostility, disaster or treaty (same type, parties, region)
 LOYAL_LEGITIMACY = 0.55       # a court at or above this flatters its ruler
 DISAFFECTED_LEGITIMACY = 0.35  # ... below this (or in a power struggle) writes against him
 DIVINE_CLERGY = 0.30          # clergy influence at which a court sees the gods' hand in disasters
@@ -94,6 +96,7 @@ PRETEXT_GRIEVANCE = 1.5       # grievance needed to blame an enemy without a rec
 SURVIVAL: dict[str, float] = {
     "sack": 0.50, "conquest": 0.25, "collapse": 0.60, "fire": 0.70,
     "quake": 0.75, "flood": 0.85, "plague": 0.95, "desecration": 0.50,
+    "absorption": 0.60,
 }
 #: Extra copies an archive keeps per writing technique its owner knows
 #: (``--techniques`` only; one copy otherwise).
@@ -110,8 +113,8 @@ CONTESTED_CAP = 3.0
 #: Two-sided events: type -> index (in ``actors``) of the side that gains.
 TWO_SIDED: dict[str, int] = {
     "occupation": 0, "annexation": 0, "civ_conquered": 0, "vassalization": 0,
-    "union_annexation": 0, "raid": 0, "hostage_taken": 0,
-    "liberation": 0, "artifact_captured": 0, "raid_repulsed": 1, "secession": 1,
+    "raid": 0, "hostage_taken": 0, "liberation": 0, "artifact_captured": 0,
+    "raid_repulsed": 1, "secession": 1, "union_annexation": 1, "twilight_absorption": 1,
 }
 #: How a loser's court tells a two-sided or one-sided loss it minimizes.
 MINIMIZE_PHRASES: dict[str, str] = {
@@ -120,6 +123,7 @@ MINIMIZE_PHRASES: dict[str, str] = {
     "civ_conquered": "the spirit of the realm endured",
     "vassalization": "it was an alliance between equals",
     "union_annexation": "it was a union between equals",
+    "twilight_absorption": "the realm chose its protector",
     "raid": "the raiders carried off little",
     "hostage_taken": "an honoured guest, not a captive",
     "liberation": "the province was let go of the ruler's grace",
@@ -229,7 +233,6 @@ class Account(BaseModel):
     stance: str                     # victory, defeat, stalemate, disaster, disgrace, glory, ...
     transforms: list[Transform] = Field(default_factory=list)
     cited: list[str] = Field(default_factory=list)   # causes named (real events it holds)
-    ruler: str | None = None        # the reigning ruler when written
     text: str = ""                  # "" for an omission
     lost_turn: int | None = None    # the turn its last copy was destroyed
     lost_cause: str | None = None
@@ -284,7 +287,7 @@ class HistoriographySlot:
     lookups.
     """
 
-    __slots__ = ("state", "_events", "_events_upto", "_accounts", "_by_chronicler")
+    __slots__ = ("state", "_events", "_events_upto", "_accounts", "_by_chronicler", "_recent")
 
     def __init__(self, state: HistoriographyState) -> None:
         self.state = state
@@ -295,6 +298,7 @@ class HistoriographySlot:
         self._events_upto = 0
         self._accounts: dict[str, int] | None = None
         self._by_chronicler: dict[str, list[int]] | None = None
+        self._recent: dict[str, dict[tuple, int]] | None = None
 
     def __eq__(self, other: object) -> bool:
         return other is None or isinstance(other, HistoriographySlot)
@@ -350,6 +354,19 @@ class HistoriographySlot:
         self._by_chronicler.setdefault(acc.chronicler, []).append(len(self.state.accounts))  # type: ignore[union-attr]
         self.state.accounts.append(acc)
 
+    def recent(self, chronicler_id: str, timeline: Sequence["Event"]) -> dict[tuple, int]:
+        """repeat key -> latest turn told, rebuilt from the accounts after a load."""
+        if self._recent is None:
+            events = self.index_events(timeline)
+            self._recent = {}
+            for acc in self.state.accounts:
+                i = events.get(acc.event_id)
+                key = None if i is None else repeat_key(timeline[i])
+                if key is not None:
+                    table = self._recent.setdefault(acc.chronicler, {})
+                    table[key] = max(table.get(key, acc.turn), acc.turn)
+        return self._recent.setdefault(chronicler_id, {})
+
     def holds(self, chronicler_id: str, event_id: str) -> bool:
         """The chronicler wrote the event down and the account survives."""
         acc = self.account(f"{chronicler_id}/{event_id}")
@@ -400,9 +417,10 @@ def sidecar_text(world: "WorldState") -> str | None:
     st = state_of(world)
     if st is None:
         return None
-    payload = {"format": FORMAT, "version": VERSION, "turn": world.turn,
-               "state": st.model_dump(mode="json")}
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    head = json.dumps({"format": FORMAT, "version": VERSION, "turn": world.turn},
+                      separators=(",", ":"))
+    # pydantic's own (compact) serializer: the state is the bulk of the file.
+    return head[:-1] + ',"state":' + st.model_dump_json() + "}"
 
 
 def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False) -> None:
@@ -487,13 +505,26 @@ def _temple_name(faith_name: str) -> str:
     return f"the temple scribes of {faith_display(faith_name)}"
 
 
+#: Labels for events that can arrive without a description (native runtimes).
+_OWN_LABELS: dict[str, str] = {
+    "proxy_detected": "the agents of {a} are unmasked in {b}",
+    "vassal_rebellion": "{a} rises against its overlord {b}",
+    "secession": "{b} breaks away from {a}",
+}
+
+
 def _label(ev: "Event") -> str:
     from chronicler.curator import event_label
-    text = event_label(ev).strip()
+    template = _OWN_LABELS.get(ev.event_type)
+    if not ev.description and template is not None and len(ev.actors) >= 2:
+        text = template.format(a=ev.actors[0], b=ev.actors[1])
+    else:
+        text = event_label(ev).strip()
+    text = text[:1].upper() + text[1:]
     return text[:-1] if text.endswith(".") else text
 
 
-def _short_label(ev: "Event", limit: int = 110) -> str:
+def _short_label(ev: "Event", limit: int = 100) -> str:
     """The event's label cut to its first clause (for citing it as a cause)."""
     text = _label(ev)
     for sep in (": ", "; "):
@@ -502,7 +533,10 @@ def _short_label(ev: "Event", limit: int = 110) -> str:
             text = head
     if " (" in text:
         text = text.split(" (", 1)[0]
-    return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:")
+    return cut + "..."
 
 
 def _mid(text: str) -> str:
@@ -792,6 +826,28 @@ def _classified(t: str) -> bool:
             or t in FAITH or t in PEACE)
 
 
+_WAR_LIKE = frozenset(TWO_SIDED) | BATTLES | ONE_SIDED_LOSS | WAR_START | RULER
+
+
+def _min_importance(t: str) -> int:
+    if not _classified(t):
+        return NOTABLE_IMPORTANCE
+    if t in DISGRACE or t in RULER:
+        return MIN_IMPORTANCE_LOW
+    return MIN_IMPORTANCE
+
+
+_REPEATING = HOSTILITY | DISASTER | PEACE
+
+
+def repeat_key(ev: "Event") -> tuple | None:
+    """Recurring hostilities, disasters and diplomacy a chronicler does not
+    retell within REPEAT_WINDOW (None: always told)."""
+    if ev.event_type not in _REPEATING:
+        return None
+    return (ev.event_type, tuple(ev.actors[:2]), ev.region or ev.shock_region)
+
+
 def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
     """How the event stands for civ ``name``: (stance, the other principal civ)."""
     t = ev.event_type
@@ -823,6 +879,18 @@ def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
         if not known or winner is None:
             return "peace", other
         return ("victory" if winner == name else "defeat"), other
+    if t == "vassal_rebellion" and len(actors) >= 2:
+        if name == actors[0]:
+            return "grievance", actors[1]
+        if name == actors[1]:
+            return "disgrace", actors[0]
+        return "neutral", None
+    if t == "proxy_detected" and len(actors) >= 2:
+        if name == actors[0]:
+            return "disgrace", actors[1]
+        if name == actors[1]:
+            return "grievance", actors[0]
+        return "neutral", None
     if t in WAR_START or t in HOSTILITY:
         if len(actors) < 2:
             return "neutral", None
@@ -859,10 +927,7 @@ def _record(ctx: _Turn, new: Sequence["Event"]) -> None:
     for order, ev in enumerate(new):
         if not _chronicle_worthy(ev):
             continue
-        classified = _classified(ev.event_type)
-        if not classified and ev.importance < NOTABLE_IMPORTANCE:
-            continue
-        if ev.importance < MIN_IMPORTANCE:
+        if ev.importance < _min_importance(ev.event_type):
             continue
         involved = ctx.involved(ev)
         faiths_done: set[int] = set()
@@ -882,9 +947,16 @@ def _record(ctx: _Turn, new: Sequence["Event"]) -> None:
         chosen = sorted(picks[cid])[:MAX_ACCOUNTS_PER_TURN]
         chosen.sort(key=lambda p: p[1])
         chron = chroniclers[cid]
+        recent = ctx.slot.recent(cid, ctx.world.events_timeline)
         for _, _, ev, name in chosen:
             if ctx.slot.account(f"{cid}/{ev.event_id}") is not None:
                 continue
+            key = repeat_key(ev)
+            if key is not None:
+                last = recent.get(key)
+                if last is not None and ev.turn - last <= REPEAT_WINDOW:
+                    continue
+                recent[key] = ev.turn
             acc = _write(ctx, chron, ev, name)
             ctx.slot.add_account(acc)
             _count(st, "accounts")
@@ -948,7 +1020,8 @@ def deed_of(ev: "Event", civ: str) -> bool:
 
 
 def _pick_blame(ctx: _Turn, chron: Chronicler, ev: "Event", name: str,
-                other: str | None, *, target_only: bool = False) -> Transform | None:
+                other: str | None, *, target_only: bool = False,
+                pretext: bool = True) -> Transform | None:
     """Name a different real cause: an enemy's deed among the event's recorded
     ancestors, else the latest deed of a resented enemy the chronicler holds
     (a pretext). ``target_only`` (an aggression) looks only for deeds of the
@@ -976,8 +1049,10 @@ def _pick_blame(ctx: _Turn, chron: Chronicler, ev: "Event", name: str,
                 best = (*key, civ, anc.event_id)
     if best is not None:
         return Transform(kind="blame", detail={
-            "blamed": best[3], "cited": best[4], "true_causes": true, "relation": "ancestor"})
+            "blamed": best[3], "cited": best[4], "relation": "ancestor"})
     # The latest deed of a resented enemy the chronicler still holds.
+    if not pretext:
+        return None
     resented = {c: g for c, g in enemies.items() if target_only or g >= PRETEXT_GRIEVANCE}
     if not resented:
         return None
@@ -993,8 +1068,7 @@ def _pick_blame(ctx: _Turn, chron: Chronicler, ev: "Event", name: str,
         for civ in resented:
             if deed_of(past, civ):
                 return Transform(kind="blame", detail={
-                    "blamed": civ, "cited": past.event_id, "true_causes": true,
-                    "relation": "pretext"})
+                    "blamed": civ, "cited": past.event_id, "relation": "pretext"})
     return None
 
 
@@ -1042,8 +1116,9 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
     def draw(rule: str) -> float:
         return _unit(ctx.seed, aid, rule)
 
-    def add_blame(target_only: bool = False) -> bool:
-        blame = _pick_blame(ctx, chron, ev, name, other, target_only=target_only)
+    def add_blame(target_only: bool = False, pretext: bool = True) -> bool:
+        blame = _pick_blame(ctx, chron, ev, name, other, target_only=target_only,
+                            pretext=pretext)
         if blame is None:
             return False
         tr.append(blame)
@@ -1060,13 +1135,13 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
                 own, enemy = numbers
                 claim_enemy = max(enemy + 1, int(round(enemy * (1.5 + 1.5 * z))))
                 tr.append(Transform(kind="inflate", detail={
-                    "of": "enemy losses", "civ": other, "true": enemy, "claimed": claim_enemy}))
+                    "of": "enemy losses", "true": enemy, "claimed": claim_enemy}))
                 claim_own = int(own * (1.0 - 0.5 * z))
                 if own > 0 and claim_own < own:
                     tr.append(Transform(kind="minimize", detail={
-                        "of": "own losses", "civ": name, "true": own, "claimed": claim_own}))
+                        "of": "own losses", "true": own, "claimed": claim_own}))
             else:
-                tr.append(Transform(kind="inflate", detail={"of": "the victory", "claimed": "a great triumph"}))
+                tr.append(Transform(kind="inflate", detail={"of": "victory"}))
             if temper.loyalty == "loyal" and temper.ruler:
                 tr.append(Transform(kind="praise", detail={"ruler": temper.ruler}))
     elif stance == "defeat":
@@ -1080,9 +1155,9 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
                 claim_own = int(own * (0.4 + 0.3 * (1.0 - z)))
                 if claim_own < own:
                     tr.append(Transform(kind="minimize", detail={
-                        "of": "own losses", "civ": name, "true": own, "claimed": claim_own}))
+                        "of": "own losses", "true": own, "claimed": claim_own}))
             elif numbers is None:
-                tr.append(Transform(kind="minimize", detail={"of": "the defeat", "claimed": "a withdrawal"}))
+                tr.append(Transform(kind="minimize", detail={"of": "defeat"}))
             add_blame()
             if temper.loyalty == "disaffected" and temper.ruler:
                 tr.append(Transform(kind="condemn", detail={"ruler": temper.ruler}))
@@ -1090,10 +1165,10 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
         if temper.clergy >= DIVINE_CLERGY and temper.faith_name:
             target, who = _divine_target(ctx, temper, name)
             tr.append(Transform(kind="divine", detail={
-                "faith": faith_display(temper.faith_name), "mode": "wrath", "target": target, "who": who,
-                "true_causes": list(ev.causes)}))
+                "faith": faith_display(temper.faith_name), "mode": "wrath", "target": target,
+                "who": who}))
             cited = []
-        elif not add_blame() and temper.loyalty == "disaffected" and temper.ruler:
+        elif not add_blame(pretext=False) and temper.loyalty == "disaffected" and temper.ruler:
             tr.append(Transform(kind="condemn", detail={"ruler": temper.ruler}))
     elif stance == "disgrace":
         base, slope = OMIT_DISGRACE
@@ -1121,8 +1196,7 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
             add_blame(target_only=True)
 
     acc = Account(account_id=aid, event_id=ev.event_id, turn=ev.turn, chronicler=cid,
-                  stance=stance, transforms=tr, cited=[] if omitted else cited,
-                  ruler=temper.ruler)
+                  stance=stance, transforms=tr, cited=[] if omitted else cited)
     acc.text = "" if omitted else _render_court(ctx, ev, name, other, stance, tr, numbers)
     return acc
 
@@ -1148,8 +1222,7 @@ def _write_temple(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Acco
     elif stance in ("disaster", "disgrace"):
         target, who = ("ruler", ruler) if (not pious and ruler) else ("heretics", None)
         tr.append(Transform(kind="divine", detail={
-            "faith": faith, "mode": "wrath", "target": target, "who": who,
-            "true_causes": list(ev.causes)}))
+            "faith": faith, "mode": "wrath", "target": target, "who": who}))
         cited = []
         if target == "ruler":
             tr.append(Transform(kind="condemn", detail={"ruler": ruler}))
@@ -1157,7 +1230,7 @@ def _write_temple(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Acco
         if ruler:
             tr.append(Transform(kind="praise" if pious else "condemn", detail={"ruler": ruler}))
     acc = Account(account_id=aid, event_id=ev.event_id, turn=ev.turn, chronicler=cid,
-                  stance=stance, transforms=tr, cited=cited, ruler=ruler)
+                  stance=stance, transforms=tr, cited=cited)
     acc.text = _render_temple(ctx, ev, name, stance, tr)
     return acc
 
@@ -1169,11 +1242,38 @@ def _find(tr: Sequence[Transform], kind: str) -> Transform | None:
     return next((t for t in tr if t.kind == kind), None)
 
 
-def _cause_phrase(ctx: _Turn, eid: str) -> str:
+def _battle_name(ev: "Event") -> str | None:
+    """The engagement's name ("The Fight for Thornwood") for a battle event."""
+    if ev.event_type not in BATTLES or _outcome(ev) is None or ": " not in (ev.description or ""):
+        return None
+    return ev.description.split(": ", 1)[0]
+
+
+def _what(ev: "Event") -> str:
+    """The event as a chronicler names it (a battle by its name and victor)."""
+    name = _battle_name(ev)
+    if name is None:
+        return _label(ev)
+    outcome = _outcome(ev)
+    if outcome == "attacker_wins" and ev.actors:
+        return f"{name}, won by the {short_name(ev.actors[0])}"
+    if outcome == "defender_wins" and len(ev.actors) >= 2:
+        return f"{name}, won by the {short_name(ev.actors[1])}"
+    return f"{name}, where neither side prevailed"
+
+
+def _cause_phrase(ctx: _Turn, eid: str, avenge: bool = False) -> str:
     cause = _event_at(ctx, eid)
     if cause is None:
-        return "an old wrong"
-    return f"{_short_label(cause)} (turn {cause.turn})"
+        return "an old wrong" if avenge else "of old"
+    battle = _battle_name(cause)
+    if avenge:
+        if battle is not None:
+            return f"{_mid(battle)} (turn {cause.turn})"
+        return f"the wrong of turn {cause.turn}, when {_mid(_short_label(cause))}"
+    if battle is not None:
+        return f"as at {_mid(battle)} (turn {cause.turn})"
+    return f"as in turn {cause.turn}, when {_mid(_short_label(cause))}"
 
 
 def _sentence(text: str) -> str:
@@ -1202,7 +1302,7 @@ def _whom(divine: Transform) -> str:
 
 def _render_court(ctx: _Turn, ev: "Event", name: str, other: str | None, stance: str,
                   tr: Sequence[Transform], numbers: tuple[int, int] | None) -> str:
-    what = _label(ev)
+    what = _what(ev)
     own = short_name(name)
     rec = ctx.battle_record(ev) if numbers is not None else None
     praise, condemn = _find(tr, "praise"), _find(tr, "condemn")
@@ -1233,11 +1333,11 @@ def _render_court(ctx: _Turn, ev: "Event", name: str, other: str | None, stance:
     else:
         core = what
     if blame is not None:
-        phrase = _cause_phrase(ctx, blame.detail["cited"])
         if stance == "aggression":
-            core += f", to avenge this: {phrase}"
+            core += f", to avenge {_cause_phrase(ctx, blame.detail['cited'], avenge=True)}"
         else:
-            core += f"; the fault lay with the {short_name(blame.detail['blamed'])}: {phrase}"
+            core += (f"; the fault lay with the {short_name(blame.detail['blamed'])}, "
+                     f"{_cause_phrase(ctx, blame.detail['cited'])}")
     if stance == "ruler" and praise is not None:
         core += "; the realm mourned a great ruler"
     elif stance == "ruler" and condemn is not None:
@@ -1250,7 +1350,7 @@ def _render_court(ctx: _Turn, ev: "Event", name: str, other: str | None, stance:
 
 
 def _render_temple(ctx: _Turn, ev: "Event", name: str, stance: str, tr: Sequence[Transform]) -> str:
-    what = _label(ev)
+    what = _what(ev)
     divine, praise, condemn = _find(tr, "divine"), _find(tr, "praise"), _find(tr, "condemn")
     if divine is not None:
         mode = divine.detail.get("mode")
@@ -1283,6 +1383,9 @@ def _loss_cause(ctx: _Turn, chron: Chronicler, archive: Archive, ev: "Event") ->
         return "conquest"
     if t == "collapse" and owner_civ is not None and ev.actors[:1] == [owner_civ]:
         return "collapse"
+    if (t in ("union_annexation", "twilight_absorption") and owner_civ is not None
+            and ev.actors[:1] == [owner_civ]):
+        return "absorption"
     if archive.region is None or archive.region >= len(ctx.world.regions):
         return None
     here = ctx.world.regions[archive.region].name
@@ -1376,6 +1479,7 @@ _LOSS_PHRASES = {
     "sack": "sacked", "conquest": "conquered", "collapse": "lost in the collapse",
     "fire": "burned", "quake": "thrown down by an earthquake", "flood": "flooded",
     "plague": "emptied by plague", "desecration": "desecrated",
+    "absorption": "scattered when the realm was absorbed",
 }
 
 
@@ -1394,8 +1498,8 @@ def divergence(accounts: Sequence[dict]) -> list[str]:
     survives, another was destroyed), and among the told accounts:
     ``outcome`` (a stalemate claimed, or both sides claiming the victory),
     ``magnitude`` (different inflated or minimized claims), ``blame``
-    (different causes named, or a cause substituted), ``divine`` (the gods'
-    hand seen by one and not the other) and ``ruler`` (different verdicts).
+    (different culprits or substituted causes), ``divine`` (the gods' hand
+    seen by one and not the other) and ``ruler`` (different verdicts).
     """
     kinds: set[str] = set()
     told = [a for a in accounts if a.get("text")]
@@ -1414,24 +1518,60 @@ def divergence(accounts: Sequence[dict]) -> list[str]:
             if len({_signature(a, names, keys) for a in told}) > 1:
                 kinds.add(kind)
         blamed = {_signature(a, ("blame",), ("blamed", "cited")) for a in told}
-        cited = {tuple(sorted(a.get("cited", []))) for a in told}
-        if len(blamed) > 1 or (any(blamed) and len(cited) > 1) or len(cited) > 1:
+        if len(blamed) > 1:
             kinds.add("blame")
     return sorted(kinds)
 
 
+#: Column order of the exported ``accounts`` rows (append only).
+ACCOUNT_COLUMNS: tuple[str, ...] = (
+    "event_id", "chronicler", "turn", "stance", "transforms", "cited", "text",
+    "lost_turn", "lost_cause",
+)
+
+
+def account_row(acc: Account) -> list:
+    """An account as a compact row (see ACCOUNT_COLUMNS); transforms as [kind, detail]."""
+    return [acc.event_id, acc.chronicler, acc.turn, acc.stance,
+            [[t.kind, t.detail] for t in acc.transforms], list(acc.cited), acc.text,
+            acc.lost_turn, acc.lost_cause]
+
+
+def row_dict(row: Sequence) -> dict:
+    """A row back as a dict (``account_id``, ``transforms`` as {kind, detail})."""
+    out = dict(zip(ACCOUNT_COLUMNS, row))
+    out["transforms"] = [{"kind": k, "detail": d} for k, d in out.get("transforms") or []]
+    out["account_id"] = f"{out['chronicler']}/{out['event_id']}"
+    return out
+
+
+def _plain(acc: Account) -> bool:
+    return not acc.transforms and bool(acc.text) and acc.lost_turn is None
+
+
 def export(world: "WorldState") -> dict | None:
-    """The bundle field: chroniclers, archives, every account and the contested ones."""
+    """The bundle field: chroniclers, archives, the notable accounts and the contested ones.
+
+    Accounts are compact rows (``account_columns``). The bundle carries every
+    account that is biased (has a transform), silent, lost, or part of a
+    contested event; an account that tells an uncontested event plainly is
+    listed by event id only, under ``plain`` (its text is the event's own).
+    """
     st = state_of(world)
     if st is None:
         return None
     regions = world.regions
     surviving: dict[str, int] = {}
     total: dict[str, int] = {}
+    lost_by: dict[str, int] = {}
+    by_event: dict[str, list[Account]] = {}
     for acc in st.accounts:
         total[acc.chronicler] = total.get(acc.chronicler, 0) + 1
         if acc.lost_turn is None and acc.text:
             surviving[acc.chronicler] = surviving.get(acc.chronicler, 0) + 1
+        if acc.lost_turn is not None:
+            lost_by[acc.chronicler] = lost_by.get(acc.chronicler, 0) + 1
+        by_event.setdefault(acc.event_id, []).append(acc)
     chroniclers = [{
         "id": c.chronicler_id, "kind": c.kind, "name": c.name, "civ": c.civ,
         "civ_name": (world.civilizations[c.civ].name if c.civ is not None
@@ -1447,41 +1587,40 @@ def export(world: "WorldState") -> dict | None:
     archives = []
     for a in st.archives:
         held = total.get(a.owner, 0)
-        lost_n = sum(1 for acc in st.accounts if acc.chronicler == a.owner and acc.lost_turn is not None)
-        status = "intact" if lost_n == 0 else ("lost" if surviving.get(a.owner, 0) == 0 else "damaged")
+        if not held:
+            status = "empty"
+        elif not lost_by.get(a.owner):
+            status = "intact"
+        else:
+            status = "lost" if not surviving.get(a.owner) else "damaged"
         archives.append({
             "id": a.archive_id, "owner": a.owner, "region": a.region, "region_name": region_name(a.region),
-            "copies": a.copies, "status": status if held else "empty",
+            "copies": a.copies, "status": status,
             "losses": [{**loss.model_dump(mode="json"), "region_name": region_name(loss.region)}
                        for loss in a.losses],
         })
-    accounts = []
-    for acc in st.accounts:
-        row = acc.model_dump(mode="json")
-        if row.get("lost_turn") is None:
-            row.pop("lost_turn", None)
-            row.pop("lost_cause", None)
-        accounts.append(row)
-    names = {c["id"]: c["name"] for c in chroniclers}
-    by_event: dict[str, list[dict]] = {}
-    for row in accounts:
-        by_event.setdefault(row["event_id"], []).append(row)
-    archive_by_owner = {a["owner"]: a for a in archives}
     contested = []
-    for eid, rows in by_event.items():
-        if len(rows) < 2:
+    in_contest: set[str] = set()
+    for eid, accs in by_event.items():
+        if len(accs) < 2:
             continue
-        kinds = divergence(rows)
+        kinds = divergence([row_dict(account_row(a)) for a in accs])
         if not kinds:
             continue
-        contested.append({
-            "event_id": eid, "turn": rows[0]["turn"], "accounts": [r["account_id"] for r in rows],
-            "divergence": kinds,
-            "telling": telling(rows, names, archive_by_owner),
-        })
+        in_contest.add(eid)
+        contested.append({"event_id": eid, "divergence": kinds})
+    rows = []
+    plain: dict[str, list[str]] = {}
+    for acc in st.accounts:
+        if _plain(acc) and acc.event_id not in in_contest:
+            plain.setdefault(acc.chronicler, []).append(acc.event_id)
+        else:
+            rows.append(account_row(acc))
     return {
         "version": VERSION, "enabled_turn": st.enabled_turn, "counts": dict(sorted(st.counts.items())),
-        "chroniclers": chroniclers, "archives": archives, "accounts": accounts, "contested": contested,
+        "chroniclers": chroniclers, "archives": archives,
+        "account_columns": list(ACCOUNT_COLUMNS), "accounts": rows, "plain": plain,
+        "contested": contested,
     }
 
 
@@ -1489,26 +1628,75 @@ def _quote(text: str) -> str:
     return "“" + text.strip() + "”"
 
 
-def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict]) -> str:
-    """One narratable passage: "As X tell it: "...". Though Y say: "..."."""
-    parts: list[str] = []
+def _capital(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _voice_rank(row: dict) -> tuple:
+    kinds = len(row.get("transforms", []))
+    return (row.get("stance") in ("neutral", "peace"), -kinds,
+            not row["chronicler"].startswith("court:"))
+
+
+def _voices(rows: Sequence[dict], limit: int) -> list[dict]:
+    """The told, surviving accounts to quote: the most partial first, then the
+    ones that differ from those quoted before (``limit`` at most)."""
     told = [r for r in rows if r.get("text") and r.get("lost_turn") is None]
+    ranked = sorted(range(len(told)), key=lambda i: (_voice_rank(told[i]), i))
+    picked: list[dict] = []
+    seen: set = set()
+    for i in ranked:
+        row = told[i]
+        sig = (row.get("stance"), tuple(sorted(t["kind"] for t in row.get("transforms", []))))
+        if picked and sig in seen:
+            continue
+        picked.append(row)
+        seen.add(sig)
+        if len(picked) >= limit:
+            break
+    return picked
+
+
+def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
+            voices: int | None = None, noted: set[str] | None = None) -> str:
+    """One narratable passage for an event, from its accounts (dicts, see ``row_dict``).
+
+    'As the Thornwall chronicles tell it: "...". Though the Kethani chronicles
+    say: "...". No account from the Ashkari chronicles survives: their archive
+    at Thornwood was sacked (turn 12).' With ``voices`` only that many told
+    accounts (the most divergent) and one note on silence or loss are given;
+    ``noted`` (chronicler ids) suppresses loss notes already told.
+    """
+    parts: list[str] = []
+    told = (_voices(rows, voices) if voices is not None
+            else [r for r in rows if r.get("text") and r.get("lost_turn") is None])
     for k, row in enumerate(told):
         name = names.get(row["chronicler"], row["chronicler"])
         lead = f"As {name} tell it" if k == 0 else f"Though {name} say"
         parts.append(f"{lead}: {_quote(row['text'])}")
+    notes = 0
     for row in rows:
-        name = names.get(row["chronicler"], row["chronicler"])
+        if voices is not None and notes >= 1:
+            break
+        cid = row["chronicler"]
+        name = names.get(cid, cid)
         if row.get("lost_turn") is not None:
-            archive = archives.get(row["chronicler"], {})
-            loss = next((l for l in reversed(archive.get("losses", []))
-                         if l["turn"] == row["lost_turn"] and l["cause"] == row.get("lost_cause")), None)
+            if noted is not None and cid in noted:
+                continue
+            archive = archives.get(cid, {})
+            loss = next((entry for entry in reversed(archive.get("losses", []))
+                         if entry["turn"] == row["lost_turn"]
+                         and entry["cause"] == row.get("lost_cause")), None)
             where = f" at {loss['region_name']}" if loss and loss.get("region_name") else ""
             phrase = _LOSS_PHRASES.get(row.get("lost_cause") or "", "lost")
             parts.append(f"No account from {name} survives: their archive{where} was "
                          f"{phrase} (turn {row['lost_turn']}).")
+            if noted is not None:
+                noted.add(cid)
+            notes += 1
         elif not row.get("text"):
-            parts.append(f"{name[0].upper() + name[1:]} pass over it in silence.")
+            parts.append(f"{_capital(name)} pass over it in silence.")
+            notes += 1
     return " ".join(parts)
 
 
@@ -1524,8 +1712,10 @@ class AccountIndex:
         self.data = data
         self.names = {c["id"]: c["name"] for c in data.get("chroniclers", [])}
         self.archives = {a["owner"]: a for a in data.get("archives", [])}
+        columns = tuple(data.get("account_columns") or ACCOUNT_COLUMNS)
         self.by_event: dict[str, list[dict]] = {}
-        for row in data.get("accounts", []):
+        for raw in data.get("accounts", []):
+            row = row_dict(raw) if columns == ACCOUNT_COLUMNS else _decode(columns, raw)
             self.by_event.setdefault(row["event_id"], []).append(row)
         self.contested = {c["event_id"]: c for c in data.get("contested", [])}
 
@@ -1542,8 +1732,14 @@ class AccountIndex:
         return {eid: min(CONTESTED_CAP, CONTESTED_WEIGHT * len(c["divergence"]))
                 for eid, c in self.contested.items()}
 
+    def accounts_for(self, event_id: str) -> list[dict]:
+        return list(self.by_event.get(event_id, []))
+
+    def telling_for(self, event_id: str) -> str:
+        return telling(self.by_event.get(event_id, []), self.names, self.archives)
+
     def select(self, events: Sequence["Event"], limit: int) -> list[tuple["Event", list[dict]]]:
-        """The moment's events with accounts: contested first, then the most important."""
+        """The moment's events with notable accounts: contested first, then the most important."""
         ranked = []
         for order, ev in enumerate(events):
             rows = self.by_event.get(ev.event_id) if ev.event_id else None
@@ -1554,11 +1750,13 @@ class AccountIndex:
         ranked.sort(key=lambda r: r[:3])
         return [(r[3], r[4]) for r in ranked[:limit]]
 
-    def passage(self, events: Sequence["Event"], limit: int = 2) -> tuple[str, list[str]]:
-        """Mechanical chronicle text ("In their own words ...") and the account ids it tells."""
+    def passage(self, events: Sequence["Event"], limit: int = 2,
+                voices: int = 2) -> tuple[str, list[str]]:
+        """Mechanical chronicle text ("In their own words: ...") and the account ids it tells."""
         parts, ids = [], []
+        noted: set[str] = set()
         for _ev, rows in self.select(events, limit):
-            text = telling(rows, self.names, self.archives)
+            text = telling(rows, self.names, self.archives, voices=voices, noted=noted)
             if text:
                 parts.append(text)
                 ids.extend(r["account_id"] for r in rows)
@@ -1572,12 +1770,17 @@ class AccountIndex:
         lines, ids = [], []
         for ev, rows in self.select(events, limit):
             lines.append(f"- [turn {ev.turn}] {_label(ev)}")
-            for row in rows[:per_event]:
+            quoted = _voices(rows, per_event)
+            others = [r for r in rows if r not in quoted
+                      and (r.get("lost_turn") is not None or not r.get("text"))]
+            others = others[: max(1, per_event - len(quoted))]
+            for row in quoted + others:
                 name = self.names.get(row["chronicler"], row["chronicler"])
                 ids.append(row["account_id"])
                 if row.get("lost_turn") is not None:
-                    lines.append(f"  - {name}: lost ({_LOSS_PHRASES.get(row.get('lost_cause') or '', 'lost')}"
-                                 f", turn {row['lost_turn']}); no account survives")
+                    phrase = _LOSS_PHRASES.get(row.get("lost_cause") or "", "lost")
+                    lines.append(f"  - {name}: lost (archive {phrase}, turn {row['lost_turn']}); "
+                                 "no account survives")
                 elif not row.get("text"):
                     lines.append(f"  - {name}: silent (the event is left out)")
                 else:
@@ -1593,6 +1796,7 @@ class AccountIndex:
         return head + "\n".join(lines) + "\n", ids
 
 
-def copy_state(world: "WorldState") -> HistoriographyState | None:
-    st = state_of(world)
-    return None if st is None else copy.deepcopy(st)
+def _decode(columns: Sequence[str], raw: Sequence) -> dict:
+    """A row of another column layout: known columns by name, the rest ignored."""
+    values = dict(zip(columns, raw))
+    return row_dict([values.get(c) for c in ACCOUNT_COLUMNS])

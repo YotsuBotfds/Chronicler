@@ -1163,6 +1163,12 @@ def run_live(
         )
         _nomads = getattr(args, "nomads", None)
         set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
+        # Historiography: new live worlds follow the CLI default (observational).
+        from chronicler.historiography import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
+        )
+        _hist = getattr(args, "historiography", None)
+        set_historiography_enabled(world, _HIST_DEFAULT if _hist is None else bool(_hist))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (
