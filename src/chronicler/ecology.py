@@ -10,6 +10,7 @@ used widely by other Python modules.
 """
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 from typing import TYPE_CHECKING
 
 from chronicler.models import (
@@ -266,24 +267,24 @@ def _write_back_ecology(world: "WorldState", region_batch) -> dict[str, list[flo
     """
     region_yields: dict[str, list[float]] = {}
     n = region_batch.num_rows
-    soils = region_batch.column("soil").to_pylist()
-    waters = region_batch.column("water").to_pylist()
-    forests = region_batch.column("forest_cover").to_pylist()
-    severities = region_batch.column("endemic_severity").to_pylist()
-    prev_waters = region_batch.column("prev_turn_water").to_pylist()
-    soil_streaks = region_batch.column("soil_pressure_streak").to_pylist()
-    over0 = region_batch.column("overextraction_streak_0").to_pylist()
-    over1 = region_batch.column("overextraction_streak_1").to_pylist()
-    over2 = region_batch.column("overextraction_streak_2").to_pylist()
-    res0 = region_batch.column("resource_reserve_0").to_pylist()
-    res1 = region_batch.column("resource_reserve_1").to_pylist()
-    res2 = region_batch.column("resource_reserve_2").to_pylist()
-    ey0 = region_batch.column("resource_effective_yield_0").to_pylist()
-    ey1 = region_batch.column("resource_effective_yield_1").to_pylist()
-    ey2 = region_batch.column("resource_effective_yield_2").to_pylist()
-    cy0 = region_batch.column("current_turn_yield_0").to_pylist()
-    cy1 = region_batch.column("current_turn_yield_1").to_pylist()
-    cy2 = region_batch.column("current_turn_yield_2").to_pylist()
+    soils = pylist(region_batch.column("soil"))
+    waters = pylist(region_batch.column("water"))
+    forests = pylist(region_batch.column("forest_cover"))
+    severities = pylist(region_batch.column("endemic_severity"))
+    prev_waters = pylist(region_batch.column("prev_turn_water"))
+    soil_streaks = pylist(region_batch.column("soil_pressure_streak"))
+    over0 = pylist(region_batch.column("overextraction_streak_0"))
+    over1 = pylist(region_batch.column("overextraction_streak_1"))
+    over2 = pylist(region_batch.column("overextraction_streak_2"))
+    res0 = pylist(region_batch.column("resource_reserve_0"))
+    res1 = pylist(region_batch.column("resource_reserve_1"))
+    res2 = pylist(region_batch.column("resource_reserve_2"))
+    ey0 = pylist(region_batch.column("resource_effective_yield_0"))
+    ey1 = pylist(region_batch.column("resource_effective_yield_1"))
+    ey2 = pylist(region_batch.column("resource_effective_yield_2"))
+    cy0 = pylist(region_batch.column("current_turn_yield_0"))
+    cy1 = pylist(region_batch.column("current_turn_yield_1"))
+    cy2 = pylist(region_batch.column("current_turn_yield_2"))
 
     for i in range(n):
         if i >= len(world.regions):
@@ -314,8 +315,8 @@ def _materialize_ecology_events(event_batch, world: "WorldState") -> list[Event]
     events: list[Event] = []
     if event_batch.num_rows == 0:
         return events
-    etypes = event_batch.column("event_type").to_pylist()
-    rids = event_batch.column("region_id").to_pylist()
+    etypes = pylist(event_batch.column("event_type"))
+    rids = pylist(event_batch.column("region_id"))
     # slots and magnitudes available but not needed for Event construction
     for i in range(event_batch.num_rows):
         rid = rids[i]

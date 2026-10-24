@@ -1,6 +1,7 @@
 """Character relationships: rivalry, mentorship, marriage alliance, hostage exchanges."""
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 import logging
 import random
 from collections import defaultdict
@@ -140,9 +141,9 @@ def compute_belief_data(
 
     from collections import Counter, defaultdict
 
-    belief_col = snap.column("belief").to_pylist()
-    region_col = snap.column("region").to_pylist()
-    agent_id_col = snap.column("id").to_pylist()
+    belief_col = pylist(snap.column("belief"))
+    region_col = pylist(snap.column("region"))
+    agent_id_col = pylist(snap.column("id"))
 
     for aid, bel in zip(agent_id_col, belief_col):
         if aid in active_ids:
