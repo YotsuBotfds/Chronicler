@@ -14,12 +14,13 @@ gate ([techniques-default.md](techniques-default.md)), behind
 current defaults (epidemiology, finance and diplomacy on) the full profile
 (200 seeds x 500 turns) passes strict with the switch on, with 0 extinct
 worlds and no comparator regression against the current defaults' full
-report (`wave3-defaults.md`, section 5).
-The subset needs-oracle miss on seeds 62-81 (below) recurs there, by one
-seed on a set whose base sits on the threshold, and is noise: see
-techniques-default.md, section 2. With the switch off no technique code
-runs and every output is byte-identical to `92b6122` (and was to `20eeead`
-before the merge; see [Feature-off identity](#feature-off-identity)).
+report (`wave3-defaults.md`, section 5). The subset needs-oracle miss on
+seeds 62-81 ([Gate](#gate)) recurs on the current defaults, by one seed on
+a set whose base sits on the threshold, and is noise (techniques-default.md,
+section 2). The results below were measured on the `92b6122` base with the
+switch off by default. With the switch off no technique code runs and every
+output is byte-identical to `92b6122` (and was to `20eeead` before the
+merge; see [Feature-off identity](#feature-off-identity)).
 
 ## Why
 
