@@ -1124,6 +1124,12 @@ def run_live(
         )
         _diplomacy = getattr(args, "diplomacy", None)
         set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
+        # Techniques: new live worlds follow the CLI default (--techniques opts in).
+        from chronicler.techniques import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
+        )
+        _techniques = getattr(args, "techniques", None)
+        set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
         # Fisheries and mutual aid: new live worlds follow the CLI defaults
         # (execute_run sees a supplied world and keeps these settings).
         from chronicler.experimental.fisheries import (

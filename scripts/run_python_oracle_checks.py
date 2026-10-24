@@ -77,7 +77,8 @@ TESTS = [
     "tests/test_governance_kernel_harness.py",
     "tests/test_governance_dormancy.py",
     "tests/test_bridge_contract.py",
-    "tests/test_diplomacy.py"
+    "tests/test_diplomacy.py",
+    "tests/test_techniques.py"
 ]
 EXCLUDED = "Cross-process determinism/replay, POSIX persistence, native and broader socket/subprocess suites"
 parser = argparse.ArgumentParser(description=__doc__)

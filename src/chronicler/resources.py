@@ -7,6 +7,7 @@ from chronicler.models import Event, InfrastructureType, Region, Resource, World
 from chronicler.models import EMPTY_SLOT, ResourceType
 from chronicler.utils import get_region_map, stable_hash_int
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
+from chronicler.techniques_state import techniques_on
 
 # --- M34: Resource type constants ---
 
@@ -232,6 +233,12 @@ def _compute_active_trade_routes(
                 actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
                 importance=1,
             ))
+
+    # --techniques: regions practising celestial navigation or road building
+    # reach two hops (the navigation/railways capabilities, region by region).
+    if techniques_on(world):
+        from chronicler.techniques import extend_trade_routes
+        extend_trade_routes(world, routes, embargo_set, region_map)
 
     # Federation members get trade routes regardless of adjacency
     for fed in world.federations:

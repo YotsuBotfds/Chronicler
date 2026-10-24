@@ -4,8 +4,50 @@
 >
 > **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
 > **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
+> **Last updated:** 2026-10-24 (techniques on `feat/techniques`)
 
 ---
+
+## Techniques (2026-10-24, `feat/techniques`, default off)
+
+`feat/techniques`, from `integrate/wave-3` (`20eeead`, merged with
+`92b6122` for the food-balance corrections), replaces the monolithic tech
+era with 30 techniques that civs invent and that spread between regions
+along the contact ledger (`chronicler/techniques.py`,
+`chronicler/techniques_state.py`, `WorldState.techniques`, CLI
+`--techniques`, saved on the world). Per-region practice grows, diffuses
+by merchants, migrants, soldiers and pilgrims, and decays when the
+connected people who share a craft fall short of its tier's need; a civ's
+era is derived from its practised technique mix (quorum, hysteresis, a
+three-tick grace, the capital keeping an era), so the M18 random
+regression is off with the switch and dark ages come from plague, famine,
+collapse and isolation. Effects go through battle strength, build costs,
+trade range, one crop/fish yield hook, epidemic fatality and quarantine,
+and credit capacity. Inventions, adoptions ("X learned Y from Z's
+merchants"), losses, advances and regressions cite their causes. Details:
+`docs/integration/techniques.md`.
+
+- **Switch off is byte-identical** to `92b6122` (and to `20eeead` before
+  the merge): direct runs 30 files, 0 differences, default and
+  `--no-techniques`; the whole subset gate batch (2,164 files) matches
+  apart from the reports' batch path; the frozen performance oracles are
+  unchanged.
+- **Tests:** `pytest -m "not slow" -n 2` 5,649 passed, 3 skipped (base
+  `92b6122` 5,610; +39); no-Rust lane 5,454 passed, 198 skipped; bounded
+  Python oracle lane (PR #19's guard fix applied locally only) 1,669
+  passed, 5 skipped, 2 deselected, guard PASS.
+- **Subset gate with `--techniques`** against `92b6122`: seeds 42-61 and
+  82-101 PASS with NO REGRESSION; seeds 62-81 **FAIL** on the required
+  needs oracle (11 of 20 seeds, 12 required; base 14), comparator
+  REGRESSION. Over all 60 seeds base and techniques-on both count 46
+  qualifying needs seeds. Era oracle 20 of 20 inflection seeds in every
+  set, 1 silent collapse in two sets (base 0; limit 2). 0 of 60 worlds
+  extinct.
+- **Not run:** the 200-seed x 500-turn full gate. Default stays off.
+- **Open:** scientists double with moving eras (treatise artifacts rise,
+  inside the band on this base, above it on one pre-merge set); TRADE
+  actions rise about sevenfold once civs reach Bronze; Rust technique
+  packets and viewer panels are cut.
 
 ## Epidemiology (2026-10-24, `feat/epidemiology`, default off)
 
