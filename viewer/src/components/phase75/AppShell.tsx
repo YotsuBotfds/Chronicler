@@ -24,7 +24,9 @@ import { RegionHistoryInspector } from "../RegionHistoryInspector";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
 import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
-import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "./appShellHelpers";
+import {
+  buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
+} from "./appShellHelpers";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -378,11 +380,12 @@ function computeAtlasLayout(regions: RegionLike[], controllers: Record<string, s
 
   const hasPins = regions.some((region) => region.x !== null && region.y !== null);
   if (hasPins) {
+    const scale = pinScale(regions.flatMap((region) => [region.x, region.y]));
     return regions.map((region) => ({
       region,
       controller: controllers[region.name] ?? null,
-      x: 90 + (region.x ?? 0.5) * 820,
-      y: 80 + (region.y ?? 0.5) * 480,
+      x: 90 + ((region.x ?? 0.5 * scale) / scale) * 820,
+      y: 80 + ((region.y ?? 0.5 * scale) / scale) * 480,
     }));
   }
 
@@ -1971,6 +1974,7 @@ function MapViewport({
   batchState: BatchState;
   batchProgress: { completed: number; total: number; currentSeed: number } | null;
 }) {
+  const maxCapacity = Math.max(0, ...atlasNodes.map((node) => node.region.carrying_capacity ?? 0));
   const highlightedEventRegions = new Set(
     namedEvents
       .filter((event) => event.region)
@@ -2108,7 +2112,7 @@ function MapViewport({
             {atlasNodes.map((node) => {
               const isSelected = selectedEntity?.kind === "region" && selectedEntity.id === node.region.name;
               const fill = node.controller ? factionColor(node.controller) : UNCONTROLLED_COLOR;
-              const radius = 16 + (node.region.carrying_capacity ?? 2) * 2;
+              const radius = regionNodeRadius(node.region.carrying_capacity, maxCapacity, atlasNodes.length);
               return (
                 <g key={node.region.name}>
                   <circle
