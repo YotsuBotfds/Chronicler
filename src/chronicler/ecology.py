@@ -39,6 +39,7 @@ from chronicler.resources import (
     CLIMATE_CLASS_MOD, SEASON_MOD,
     _CLIMATE_PHASE_INDEX, resource_class_index,
 )
+from chronicler.geography import climate_exposure
 from chronicler.utils import civ_index
 
 if TYPE_CHECKING:
@@ -52,6 +53,10 @@ TERRAIN_ECOLOGY_DEFAULTS: dict[str, RegionEcology] = {
     "coast":     RegionEcology(soil=0.70, water=0.80, forest_cover=0.30),
     "desert":    RegionEcology(soil=0.20, water=0.10, forest_cover=0.05),
     "tundra":    RegionEcology(soil=0.15, water=0.50, forest_cover=0.10),
+    # Geography 2.0 procedural terrains (Rust TERRAIN_CAPS rows 6..8 mirror the caps).
+    "steppe":    RegionEcology(soil=0.60, water=0.35, forest_cover=0.10),
+    "jungle":    RegionEcology(soil=0.55, water=0.90, forest_cover=0.95),
+    "marsh":     RegionEcology(soil=0.60, water=0.90, forest_cover=0.30),
 }
 
 TERRAIN_ECOLOGY_CAPS: dict[str, dict[str, float]] = {
@@ -61,6 +66,9 @@ TERRAIN_ECOLOGY_CAPS: dict[str, dict[str, float]] = {
     "coast":     {"soil": 0.80, "water": 0.90, "forest_cover": 0.40},
     "desert":    {"soil": 0.30, "water": 0.20, "forest_cover": 0.10},
     "tundra":    {"soil": 0.20, "water": 0.60, "forest_cover": 0.15},
+    "steppe":    {"soil": 0.75, "water": 0.50, "forest_cover": 0.25},
+    "jungle":    {"soil": 0.70, "water": 0.95, "forest_cover": 0.98},
+    "marsh":     {"soil": 0.70, "water": 0.95, "forest_cover": 0.50},
 }
 
 _FLOOR_SOIL = 0.05
@@ -463,14 +471,15 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
         i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure
     )
 
-    # Degradation / phase effects
+    # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)
+    exposure = climate_exposure(region.latitude_band, climate_phase)
     if climate_phase == ClimatePhase.DROUGHT:
-        rate = get_override(world, K_WATER_DROUGHT, 0.04)
+        rate = get_override(world, K_WATER_DROUGHT, 0.04) * exposure
         if has_irrigation:
             rate *= get_override(world, K_IRRIGATION_DROUGHT_MULT, 1.5)
         region.ecology.water -= rate
     elif climate_phase == ClimatePhase.COOLING:
-        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
+        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure
     elif climate_phase == ClimatePhase.WARMING:
         if region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
@@ -495,7 +504,10 @@ def _tick_forest(region: Region, civ, climate_phase: ClimatePhase, world: WorldS
         region.ecology.forest_cover -= rate
 
     if climate_phase == ClimatePhase.COOLING:
-        region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
+        region.ecology.forest_cover -= (
+            get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
+            * climate_exposure(region.latitude_band, climate_phase)
+        )
 
     water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)
     if region.population < region.carrying_capacity * forest_pop_ratio and region.ecology.water >= water_gate:
@@ -698,11 +710,12 @@ def _tick_ecology_python(
             rate = get_override(world, K_SOIL_RECOVERY, 0.05)
             rate *= _pressure_multiplier(region)
             region.ecology.soil += rate
-        # Water: climate effects only
+        # Water: climate effects only (scaled by latitude exposure)
+        exposure = climate_exposure(region.latitude_band, climate_phase)
         if climate_phase == ClimatePhase.DROUGHT:
-            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04)
+            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04) * exposure
         elif climate_phase == ClimatePhase.COOLING:
-            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02)
+            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure
         elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
         elif climate_phase == ClimatePhase.TEMPERATE:
@@ -717,7 +730,9 @@ def _tick_ecology_python(
             rate *= _pressure_multiplier(region)
             region.ecology.forest_cover += rate
         if climate_phase == ClimatePhase.COOLING:
-            region.ecology.forest_cover -= get_override(world, K_COOLING_FOREST_DAMAGE, 0.01)
+            region.ecology.forest_cover -= (
+                get_override(world, K_COOLING_FOREST_DAMAGE, 0.01) * exposure
+            )
         _apply_cross_effects(region, world)
         clamp_ecology(region)
 

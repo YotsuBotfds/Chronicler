@@ -171,22 +171,281 @@ def assign_civilizations(
         civ.leader.regnal_ordinal = ordinal
 
         # P4: distribute initial population across starting regions
-        assigned_regions = [r for r in regions if r.name in assigned]
-        if assigned_regions:
-            total_cap = sum(effective_capacity(r) for r in assigned_regions)
-            remainder = total_pop
-            for j, ar in enumerate(assigned_regions):
-                if j == len(assigned_regions) - 1:
-                    ar.population = remainder
-                else:
-                    share = (
-                        round(total_pop * effective_capacity(ar) / total_cap)
-                        if total_cap > 0
-                        else total_pop // len(assigned_regions)
-                    )
-                    ar.population = share
-                    remainder -= share
+        _distribute_initial_population([r for r in regions if r.name in assigned], total_pop)
 
+    return civs
+
+
+def _distribute_initial_population(assigned_regions: list[Region], total_pop: int) -> None:
+    """P4: split a civ's founding population by effective capacity."""
+    if not assigned_regions:
+        return
+    total_cap = sum(effective_capacity(r) for r in assigned_regions)
+    remainder = total_pop
+    for j, ar in enumerate(assigned_regions):
+        if j == len(assigned_regions) - 1:
+            ar.population = remainder
+        else:
+            share = (
+                round(total_pop * effective_capacity(ar) / total_cap)
+                if total_cap > 0
+                else total_pop // len(assigned_regions)
+            )
+            ar.population = share
+            remainder -= share
+
+
+# --- Geography 2.0: procedural civilizations -------------------------------
+
+VALUE_POOL: tuple[str, ...] = (
+    "Trade", "Order", "Honor", "Strength", "Knowledge", "Liberty",
+    "Piety", "Destiny", "Tradition", "Self-reliance", "Freedom", "Cunning",
+)
+
+TERRAIN_VALUES: dict[str, tuple[str, ...]] = {
+    "coast": ("Trade", "Freedom", "Knowledge"),
+    "plains": ("Order", "Tradition", "Destiny"),
+    "steppe": ("Freedom", "Honor", "Strength"),
+    "forest": ("Tradition", "Self-reliance", "Piety"),
+    "jungle": ("Cunning", "Piety", "Tradition"),
+    "marsh": ("Self-reliance", "Cunning", "Tradition"),
+    "hills": ("Honor", "Self-reliance", "Order"),
+    "mountains": ("Honor", "Strength", "Tradition"),
+    "desert": ("Piety", "Cunning", "Freedom"),
+    "tundra": ("Self-reliance", "Strength", "Honor"),
+}
+
+# First domain sets the leader-name archetype (leaders._DOMAIN_TO_ARCHETYPE).
+TERRAIN_DOMAINS: dict[str, tuple[str, str]] = {
+    "coast": ("maritime", "commerce"),
+    "plains": ("pastoral", "expansion"),
+    "steppe": ("nomadic", "warfare"),
+    "forest": ("woodland", "resilience"),
+    "jungle": ("sylvan", "adaptability"),
+    "marsh": ("nature", "resilience"),
+    "hills": ("highland", "fortress"),
+    "mountains": ("mining", "warfare"),
+    "desert": ("arid", "adaptability"),
+    "tundra": ("highland", "resilience"),
+}
+
+VALUE_DOMAINS: dict[str, str] = {
+    "Trade": "commerce", "Order": "expansion", "Honor": "warfare", "Strength": "conquest",
+    "Knowledge": "scholarship", "Liberty": "diplomacy", "Piety": "faith",
+    "Destiny": "expansion", "Tradition": "culture", "Self-reliance": "resilience",
+    "Freedom": "diplomacy", "Cunning": "intrigue",
+}
+
+# Polity forms and the founding titles they use (all in leaders.TITLES so
+# strip_title() recognizes them).
+POLITY_TITLES: dict[str, tuple[str, ...]] = {
+    "Empire": ("Emperor", "Empress"),
+    "Kingdom": ("King", "Queen"),
+    "Clans": ("Chieftain", "Warchief"),
+    "Tribes": ("Chieftain", "Elder"),
+    "Republic": ("Consul", "Chancellor"),
+    "League": ("Archon", "Chancellor"),
+    "Commonwealth": ("Chancellor", "Tribune"),
+    "Confederacy": ("Elder", "Chancellor"),
+    "Theocracy": ("High Priestess", "Patriarch", "Matriarch"),
+    "Dominion": ("Sovereign", "Regent"),
+    "Hegemony": ("Sovereign", "Archon"),
+    "Principality": ("Regent", "Sovereign"),
+    "Khanate": ("Warchief", "Sovereign"),
+    "Sultanate": ("Sovereign", "Regent"),
+    "Thalassocracy": ("Archon", "Sovereign"),
+}
+
+TERRAIN_POLITIES: dict[str, tuple[str, ...]] = {
+    "coast": ("Thalassocracy", "League", "Republic", "Kingdom"),
+    "plains": ("Empire", "Kingdom", "Dominion", "Republic"),
+    "steppe": ("Khanate", "Clans", "Tribes", "Hegemony"),
+    "forest": ("Confederacy", "Kingdom", "Tribes", "Commonwealth"),
+    "jungle": ("Dominion", "Tribes", "Kingdom", "Theocracy"),
+    "marsh": ("Confederacy", "League", "Principality"),
+    "hills": ("Clans", "Principality", "Kingdom"),
+    "mountains": ("Clans", "Kingdom", "Hegemony"),
+    "desert": ("Sultanate", "Theocracy", "Tribes", "Dominion"),
+    "tundra": ("Clans", "Tribes", "Confederacy"),
+}
+
+TRAIT_POLITIES: dict[str, str] = {
+    "zealous": "Theocracy", "aggressive": "Empire", "ambitious": "Empire",
+    "cautious": "Republic", "calculating": "League",
+}
+
+_POOR_START_TERRAINS = frozenset({"tundra", "desert", "mountains"})
+LEADER_POOL_SIZE = 24
+
+
+def check_civ_request(num_civs: int, num_regions: int) -> None:
+    """Reject civilization counts the world cannot honor."""
+    from chronicler.ffi_constants import MAX_CIV_RECORDS
+    if num_civs < 1:
+        raise ValueError(f"Requested {num_civs} civilizations; need at least 1")
+    if num_civs > MAX_CIV_RECORDS:
+        raise ValueError(
+            f"Requested {num_civs} civilizations but at most {MAX_CIV_RECORDS} civ "
+            "records are supported (civ ids are uint8, 255 = none)"
+        )
+    if num_civs > num_regions:
+        raise ValueError(
+            f"Requested {num_civs} civilizations but the world has only {num_regions} "
+            "regions; each civilization needs a starting region"
+        )
+
+
+def _adjective(root: str) -> str:
+    if root[-1] in "aeiouy":
+        return root + "n"
+    return root + "i"
+
+
+def _graph_distances(start: int, adjacency: list[list[int]]) -> list[int]:
+    from collections import deque
+    dist = [-1] * len(adjacency)
+    dist[start] = 0
+    queue = deque([start])
+    while queue:
+        cur = queue.popleft()
+        for nxt in adjacency[cur]:
+            if dist[nxt] < 0:
+                dist[nxt] = dist[cur] + 1
+                queue.append(nxt)
+    return [d if d >= 0 else len(adjacency) for d in dist]
+
+
+def choose_starting_regions(regions: list[Region], civ_count: int, seed: int) -> list[int]:
+    """Spread capitals: greedy farthest-point sampling on graph distance.
+
+    The first capital is a seeded pick among the most habitable regions; each
+    next one maximizes hop distance to the capitals so far, with capacity as
+    the tiebreak. Tundra, desert and mountains are used only when needed.
+    """
+    from chronicler.utils import stable_hash_int
+    rng = random.Random(stable_hash_int("geography", seed, "civ_starts"))
+    index = {r.name: i for i, r in enumerate(regions)}
+    adjacency = [[index[a] for a in r.adjacencies if a in index] for r in regions]
+    good = [i for i, r in enumerate(regions) if r.terrain not in _POOR_START_TERRAINS]
+    pool = good if len(good) >= civ_count else list(range(len(regions)))
+    by_cap = sorted(pool, key=lambda i: (-regions[i].carrying_capacity, i))
+    first = rng.choice(by_cap[:max(1, len(by_cap) // 4)])
+    starts = [first]
+    min_dist = _graph_distances(first, adjacency)
+    jitter = {i: rng.random() for i in range(len(regions))}
+    while len(starts) < civ_count:
+        taken = set(starts)
+        cands = [i for i in pool if i not in taken]
+        if not cands:
+            cands = [i for i in range(len(regions)) if i not in taken]
+        best = max(
+            cands,
+            key=lambda i: (min_dist[i] * 100 + regions[i].carrying_capacity + jitter[i], -i),
+        )
+        starts.append(best)
+        for i, d in enumerate(_graph_distances(best, adjacency)):
+            if d < min_dist[i]:
+                min_dist[i] = d
+    return starts
+
+
+def generate_procedural_civilizations(
+    regions: list[Region],
+    civ_count: int,
+    seed: int,
+) -> list[Civilization]:
+    """Geography 2.0: create ``civ_count`` civilizations without templates.
+
+    Names come from the cultural phonology of each civ's homeland terrain
+    (see ``geography.PHONOLOGIES``), with a matching leader-name pool; values,
+    domains, trait and polity form are drawn from terrain-weighted pools;
+    capitals are spread with :func:`choose_starting_regions`. Founding stats
+    use the same ranges as the template civilizations.
+    """
+    from chronicler.culture import VALUE_OPPOSITIONS
+    from chronicler.geography import PHONOLOGIES, TERRAIN_PHONOLOGY, make_name, unique_name
+    from chronicler.leaders import ALL_TRAITS
+    from chronicler.utils import stable_hash_int
+
+    check_civ_request(civ_count, len(regions))
+    starts = choose_starting_regions(regions, civ_count, seed)
+    index = {r.name: i for i, r in enumerate(regions)}
+    owner: dict[int, int] = {s: k for k, s in enumerate(starts)}
+    assigned: list[list[int]] = [[s] for s in starts]
+    # A second, adjacent starting region for about half the civs.
+    expand_rng = random.Random(stable_hash_int("geography", seed, "civ_expansion"))
+    for k, s in enumerate(starts):
+        if expand_rng.random() >= 0.5:
+            continue
+        free = [index[a] for a in regions[s].adjacencies if a in index and index[a] not in owner]
+        if free:
+            pick = max(free, key=lambda i: (regions[i].carrying_capacity, -i))
+            owner[pick] = k
+            assigned[k].append(pick)
+
+    used_names: set[str] = {r.name for r in regions}
+    throne_used: set[str] = set()  # leader pools are disjoint across civs
+    civs: list[Civilization] = []
+    for k, region_ids in enumerate(assigned):
+        rng = random.Random(stable_hash_int("geography", seed, "civ", k))
+        home = regions[region_ids[0]]
+        phon = PHONOLOGIES[TERRAIN_PHONOLOGY.get(home.terrain, "steppe")]
+        trait = rng.choice(ALL_TRAITS)
+        preferred = TERRAIN_VALUES.get(home.terrain, ())
+        weights = [3 if v in preferred else 1 for v in VALUE_POOL]
+        first_value = rng.choices(VALUE_POOL, weights=weights)[0]
+        rest = [v for v in VALUE_POOL
+                if v != first_value and VALUE_OPPOSITIONS.get(first_value) != v
+                and VALUE_OPPOSITIONS.get(v) != first_value]
+        rest_weights = [3 if v in preferred else 1 for v in rest]
+        values = [first_value, rng.choices(rest, weights=rest_weights)[0]]
+        terrain_domains = TERRAIN_DOMAINS.get(home.terrain, ("pastoral", "expansion"))
+        domains = [terrain_domains[0], VALUE_DOMAINS.get(values[0], terrain_domains[1])]
+        if domains[1] == domains[0]:
+            domains[1] = terrain_domains[1]
+
+        forms = TERRAIN_POLITIES.get(home.terrain, ("Kingdom",))
+        form = TRAIT_POLITIES.get(trait) if rng.random() < 0.35 else None
+        form = form or rng.choice(forms)
+        if rng.random() < 0.3:
+            build = lambda r, form=form: f"{form} of {make_name(r, phon)}"
+        else:
+            build = lambda r, form=form: f"{_adjective(make_name(r, phon))} {form}"
+        name = unique_name(rng, used_names, build)
+
+        pool = [unique_name(rng, throne_used, lambda r: make_name(r, phon, max_syllables=2))
+                for _ in range(LEADER_POOL_SIZE)]
+        title = rng.choice(POLITY_TITLES[form])
+        throne_name = pool[0]
+        total_pop = rng.randint(30, 70)
+        civ = Civilization(
+            name=name,
+            population=total_pop,
+            military=rng.randint(20, 70),
+            economy=rng.randint(30, 70),
+            culture=rng.randint(20, 70),
+            stability=rng.randint(40, 70),
+            tech_era=TechEra.TRIBAL,
+            treasury=rng.randint(30, 150),
+            leader=Leader(
+                name=_compose_regnal_name(title, throne_name, 0),
+                trait=trait,
+                reign_start=0,
+                throne_name=throne_name,
+                regnal_ordinal=0,
+            ),
+            domains=domains,
+            values=values,
+            goal="",
+            regions=[regions[i].name for i in region_ids],
+            asabiya=round(rng.uniform(0.4, 0.8), 2),
+            leader_name_pool=pool,
+        )
+        civ.regnal_name_counts[throne_name] = 1
+        for i in region_ids:
+            regions[i].controller = name
+        _distribute_initial_population([regions[i] for i in region_ids], total_pop)
+        civs.append(civ)
     return civs
 
 
@@ -221,26 +480,84 @@ def initialize_disease_baseline(region: Region) -> None:
     region.endemic_severity = region.disease_baseline
 
 
+WORLDGEN_MODES: tuple[str, ...] = ("auto", "template", "procedural")
+
+
+def resolve_worldgen(worldgen: str | None, num_regions: int) -> str:
+    """Pick the generator: templates up to their pool size, procedural above.
+
+    ``auto`` (the default) keeps every world of at most 12 regions on the
+    template path, byte-identical to earlier releases.
+    """
+    mode = worldgen or "auto"
+    if mode not in WORLDGEN_MODES:
+        raise ValueError(f"Unknown worldgen mode {mode!r}; choose one of {', '.join(WORLDGEN_MODES)}")
+    if mode == "auto":
+        return "template" if num_regions <= len(REGION_TEMPLATES) else "procedural"
+    return mode
+
+
+def _procedural_regions(num_regions: int, seed: int):
+    """Geography 2.0 regions with terrain ecology adjusted by moisture."""
+    from chronicler.ecology import TERRAIN_ECOLOGY_CAPS, clamp_ecology
+    from chronicler.geography import generate_procedural_geography
+    geo = generate_procedural_geography(num_regions, seed)
+    for region in geo.regions:
+        defaults = TERRAIN_ECOLOGY_DEFAULTS.get(region.terrain, TERRAIN_ECOLOGY_DEFAULTS["plains"])
+        region.ecology = defaults.model_copy()
+        caps = TERRAIN_ECOLOGY_CAPS.get(region.terrain, TERRAIN_ECOLOGY_CAPS["plains"])
+        wetter = round((region.geo.moisture - 0.5) * 0.2, 4)
+        region.ecology.water = min(caps["water"], max(0.1, region.ecology.water + wetter))
+        clamp_ecology(region)
+    return geo
+
+
 def generate_world(
     seed: int = 42,
     num_regions: int = 8,
     num_civs: int = 4,
     world_name: str = "Aetheris",
+    worldgen: str | None = "auto",
 ) -> WorldState:
-    """Generate a complete initial WorldState ready for simulation."""
-    regions = generate_regions(count=num_regions, seed=seed)
+    """Generate a complete initial WorldState ready for simulation.
+
+    ``worldgen``: ``auto`` (templates for <=12 regions, procedural above),
+    ``template`` or ``procedural``. Civilizations come from the six templates
+    on template worlds with at most six civs; otherwise they are generated
+    (:func:`generate_procedural_civilizations`), so ``num_civs`` is always
+    honored or rejected with a clear error.
+    """
+    mode = resolve_worldgen(worldgen, num_regions)
+    check_civ_request(num_civs, num_regions)
     from chronicler.adjacency import compute_adjacencies, classify_regions
-    compute_adjacencies(regions)
+    geo = None
+    if mode == "template":
+        regions = generate_regions(count=num_regions, seed=seed)
+        compute_adjacencies(regions)
+    else:
+        geo = _procedural_regions(num_regions, seed)
+        regions = geo.regions
     # Classify region roles by graph topology
-    adj_map = {r.name: r.adjacencies for r in regions}
-    roles = classify_regions(adj_map)
+    if geo is None:
+        adj_map = {r.name: r.adjacencies for r in regions}
+        roles = classify_regions(adj_map)
+    else:
+        from chronicler.geography import classify_procedural_roles
+        roles = classify_procedural_roles(regions, geo.crossings)
     for region in regions:
         region.role = roles.get(region.name, "standard")
     from chronicler.resources import assign_resources
     assign_resources(regions, seed=seed)
     from chronicler.resources import assign_resource_types
     assign_resource_types(regions, seed=seed)
-    civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
+    if geo is not None and geo.rivers:
+        from chronicler.geography import apply_river_bonuses, assign_river_masks
+        assign_river_masks(regions, geo.rivers)
+        apply_river_bonuses(regions, seed)
+    if mode == "template" and num_civs <= len(CIV_TEMPLATES):
+        civs = assign_civilizations(regions, civ_count=num_civs, seed=seed)
+    else:
+        civs = generate_procedural_civilizations(regions, num_civs, seed)
     for civ in civs:
         if civ.regions and civ.capital_region is None:
             civ.capital_region = civ.regions[0]
@@ -262,6 +579,9 @@ def generate_world(
         event_probabilities=dict(DEFAULT_EVENT_PROBABILITIES),
         used_leader_names=used_leader_names,
     )
+    if geo is not None:
+        world.geography = geo.geography
+        world.rivers = list(geo.rivers)
 
     # Auto-enable fog of war for larger worlds
     if len(regions) >= 15:

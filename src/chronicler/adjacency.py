@@ -59,6 +59,26 @@ def graph_distance(
     return -1
 
 
+def graph_distances_from(
+    adj: dict[str, set[str]] | dict[str, list[str]],
+    from_name: str,
+) -> dict[str, int]:
+    """Single-source BFS hop distances (unreachable names are absent).
+
+    ``graph_distances_from(adj, a).get(b, -1) == graph_distance(adj, a, b)``;
+    one pass replaces a BFS per destination.
+    """
+    dist = {from_name: 0}
+    queue: deque[str] = deque([from_name])
+    while queue:
+        current = queue.popleft()
+        for neighbor in adj.get(current, ()):
+            if neighbor not in dist:
+                dist[neighbor] = dist[current] + 1
+                queue.append(neighbor)
+    return dist
+
+
 def is_chokepoint(regions: list[Region], name: str) -> bool:
     """True if removing this region disconnects the graph (articulation point).
 

@@ -61,7 +61,7 @@ fn make_test_pool(regions: &[RegionState]) -> AgentPool {
 fn make_spatial_regions() -> Vec<RegionState> {
     let mut regions = make_test_regions();
     // Add spatial features so attractors are non-trivial
-    regions[0].river_mask = 1;
+    regions[0].rivers = vec![0];
     regions[0].resource_effective_yield = [0.5, 0.3, 0.0];
     regions[1].is_capital = true;
     regions[1].resource_effective_yield = [0.0, 0.4, 0.2];

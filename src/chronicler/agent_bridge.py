@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
 from chronicler.demand_signals import DemandSignalManager
-from chronicler.ffi_constants import TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID
+from chronicler.ffi_constants import (
+    MAX_CIV_RECORDS, MAX_NATIVE_REGIONS, TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID,
+    check_civ_capacity, river_ids_from_mask,
+)
 from chronicler.great_persons import _append_deed
 from chronicler.history_index import history_index
 from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
@@ -291,18 +294,21 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     if not isinstance(civ_index_by_name, dict):
         civ_index_by_name = {c.name: i for i, c in enumerate(world.civilizations)}
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
-    if len(world.regions) > 32:
+    if len(world.regions) > MAX_NATIVE_REGIONS:
         raise ValueError(
-            "build_region_batch supports at most 32 regions (adjacency_mask is uint32)"
+            f"build_region_batch supports at most {MAX_NATIVE_REGIONS} regions "
+            "(region ids are uint16)"
         )
+    check_civ_capacity(world)
 
-    adj_masks = []
-    for r in world.regions:
-        mask = 0
-        for adj_name in r.adjacencies:
-            if adj_name in region_name_to_idx:
-                mask |= 1 << region_name_to_idx[adj_name]
-        adj_masks.append(mask)
+    # Geography 2.0: sorted neighbour/river id lists replace the former uint32
+    # bitmasks (which capped worlds at 32 regions). Ascending order matches
+    # the old bit walk, so <=32-region worlds tick identically.
+    adjacency_lists = [
+        sorted({region_name_to_idx[a] for a in r.adjacencies if a in region_name_to_idx})
+        for r in world.regions
+    ]
+    river_lists = [river_ids_from_mask(r.river_mask) for r in world.regions]
 
     contested_regions_set = set()
     if getattr(world, "campaigns_enabled", False):
@@ -408,7 +414,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
                 max_prest = max(max_prest, float(getattr(inf, 'temple_prestige', 0) or 0))
         temple_prestiges.append(max_prest)
 
-    return pa.record_batch({
+    columns = {
         "region_id": pa.array(range(len(world.regions)), type=pa.uint16()),
         "terrain": pa.array([TERRAIN_MAP[r.terrain] for r in world.regions], type=pa.uint8()),
         "carrying_capacity": pa.array([r.carrying_capacity for r in world.regions], type=pa.uint16()),
@@ -420,7 +426,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             [civ_name_to_id.get(r.controller, 255) if r.controller else 255 for r in world.regions],
             type=pa.uint8(),
         ),
-        "adjacency_mask": pa.array(adj_masks, type=pa.uint32()),
+        "adjacency": pa.array(adjacency_lists, type=pa.list_(pa.uint16())),
         "trade_route_count": pa.array(
             [economy_result.trade_route_counts.get(r.name, 0) if economy_result else 0
              for r in world.regions], type=pa.uint8(),
@@ -458,8 +464,8 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "overextraction_streak_2": pa.array([r.overextraction_streaks.get(2, 0) for r in world.regions], type=pa.int32()),
         "season": pa.array([get_season_step(world.turn) for _ in world.regions], type=pa.uint8()),
         "season_id": pa.array([get_season_id(world.turn) for _ in world.regions], type=pa.uint8()),
-        # M35a: River mask
-        "river_mask": pa.array([r.river_mask for r in world.regions], type=pa.uint32()),
+        # M35a rivers: ids of the rivers each region lies on (from river_mask).
+        "rivers": pa.array(river_lists, type=pa.list_(pa.uint16())),
         # M35b: Endemic disease severity
         "endemic_severity": pa.array([r.endemic_severity for r in world.regions], type=pa.float32()),
         # M36: Cultural identity signals
@@ -545,7 +551,17 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             )
             for g, good_name in enumerate(_FIXED_GOODS)
         },
-    })
+    }
+    if world.geography is not None:
+        # Geography 2.0: latitude-band climate exposure for this turn's phase
+        # (template worlds omit the column; Rust then uses 1.0).
+        from chronicler.climate import get_climate_phase
+        from chronicler.geography import climate_exposure
+        phase = get_climate_phase(world.turn, world.climate_config)
+        columns["climate_exposure"] = pa.array(
+            [climate_exposure(r.latitude_band, phase) for r in world.regions], type=pa.float32(),
+        )
+    return pa.record_batch(columns)
 
 
 def build_region_postpass_patch_batch(world: WorldState) -> pa.RecordBatch:

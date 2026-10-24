@@ -4,7 +4,10 @@ No state. No side effects. Other modules import and call these.
 Unknown terrain types fall through to plains defaults. The scenario terrains
 ``river`` and ``hills`` intentionally use plains effects, ecology and climate
 (matching ``ffi_constants.TERRAIN_MAP`` for Rust); they differ only in their
-resource tables, transport cost and river sea-route adjacency.
+resource tables, transport cost and river sea-route adjacency. Geography 2.0
+adds ``steppe``, ``jungle`` and ``marsh`` with their own tables everywhere
+(Python and Rust); procedural worlds also use ``hills`` with its scenario
+semantics.
 """
 from __future__ import annotations
 
@@ -29,6 +32,10 @@ TERRAIN_EFFECTS: dict[str, TerrainEffect] = {
     "coast":     TerrainEffect(defense=0,  fertility_cap=0.8, trade_mod=2),
     "desert":    TerrainEffect(defense=5,  fertility_cap=0.3, trade_mod=0),
     "tundra":    TerrainEffect(defense=10, fertility_cap=0.2, trade_mod=0),
+    # Geography 2.0 procedural terrains.
+    "steppe":    TerrainEffect(defense=0,  fertility_cap=0.6, trade_mod=1),
+    "jungle":    TerrainEffect(defense=10, fertility_cap=0.6, trade_mod=-1),
+    "marsh":     TerrainEffect(defense=15, fertility_cap=0.5, trade_mod=-1),
 }
 
 _DEFAULT = TERRAIN_EFFECTS["plains"]

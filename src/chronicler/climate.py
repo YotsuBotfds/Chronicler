@@ -55,6 +55,9 @@ _BASE_MULTIPLIERS: dict[str, dict[ClimatePhase, float]] = {
     "desert":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 1.25},
     "tundra":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 0.5, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 3.3},
     "mountains": {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.0,  ClimatePhase.COOLING: 1.25},
+    "steppe":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.8,  ClimatePhase.COOLING: 1.25},
+    "jungle":    {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.2,  ClimatePhase.COOLING: 1.4},
+    "marsh":     {ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 1.0, ClimatePhase.DROUGHT: 1.5,  ClimatePhase.COOLING: 1.25},
 }
 
 
@@ -116,6 +119,9 @@ def check_disasters(world: WorldState, climate_phase: ClimatePhase) -> list[Even
             prob = _disaster_probability(dtype, region.terrain, climate_phase, severity)
             if prob <= 0:
                 continue
+            if region.latitude_band is not None:
+                from chronicler.geography import disaster_factor
+                prob *= disaster_factor(region.latitude_band, dtype)
 
             roll = _deterministic_roll(world.seed, region.name, world.turn, dtype)
             if roll >= prob:

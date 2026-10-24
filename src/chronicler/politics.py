@@ -6,7 +6,7 @@ import math
 import random
 from typing import TYPE_CHECKING
 
-from chronicler.adjacency import graph_distance
+from chronicler.adjacency import graph_distance, graph_distances_from
 from chronicler.models import (
     ActionType, Civilization, CivShock, Disposition, Event, Leader, NamedEvent,
     ProxyWar, ExileModifier, Relationship, VassalRelation, WorldState,
@@ -81,10 +81,12 @@ def governing_cost_components(
 
     stability_cost = 0
     gov_cost_per_dist = get_override(world, K_GOVERNING_COST, 0.5)
+    # One BFS from the capital (same distances as a graph_distance per region).
+    from_capital = graph_distances_from(adj_map, civ.capital_region)
     for region_name in civ.regions:
         if region_name == civ.capital_region:
             continue
-        dist = graph_distance(adj_map, civ.capital_region, region_name)
+        dist = from_capital.get(region_name, -1)
         if dist < 0:
             dist = 1  # fallback if disconnected
         treasury_cost += dist * 2
