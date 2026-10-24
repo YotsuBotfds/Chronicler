@@ -2,9 +2,50 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
+> **Last updated:** 2026-10-24 (`feat/great-person-agendas`: great-person agendas, default off, on `integrate/wave-4` at `705fe2e`)
 
 ---
+
+## Great-person agendas (2026-10-24, `feat/great-person-agendas`, default off)
+
+`feat/great-person-agendas` from `integrate/wave-4` (`1a6cacb`), merged with
+`705fe2e` (no rebase), which is the identity and gate base. Great persons
+declare agendas settled by the M66b ruler-ambition kernel (ten kinds
+appended to `AmbitionType`; `src/chronicler/gp_agendas.py`,
+`gp_agendas_state.py`). Generals campaign for a region (WAR bias, renown,
+agitation in peacetime) or seize the throne from a weak ruler through the
+existing `general` succession path, citing the grievance or ambition;
+merchants open or protect a trade route, found a trading house or, with
+finance, lend to the crown; prophets spread the faith (preaching adds to
+the conversion signal) or found a pilgrimage shrine; scientists vow the
+next era or, with techniques, steer an invention. Loyalty, conspiracy,
+partnership, opposition and feud bonds change coup odds, faction influence
+and who backs whom in a succession crisis. Biases ride the capped
+governance bucket. Switch `--gp-agendas` (world field, gate forwarding,
+dormant field omitted). Details: `docs/integration/great-person-agendas.md`.
+
+- **Identity:** switch off (default and `--no-gp-agendas`) is
+  byte-identical to `705fe2e`: 30 files over seeds 42 and 7, agents off
+  and hybrid, and the 2,164-file subset gate batch (reports differ only in
+  the batch path). No Rust changes.
+- **Tests:** `pytest -m "not slow" -n 2` 5,759 passed, 3 skipped (base
+  5,707); offline oracle lane (PR #19 guard fix applied locally only)
+  1,771 passed, 8 skipped, 2 deselected, guard PASS; no-Rust environment
+  5,561 passed, 201 skipped (base 5,510 / 200).
+- **Subset gate, switch on** (seeds 42-61 and 62-81, hybrid, new defaults):
+  PASS, comparator NO REGRESSION, 0 extinct; artifacts PARTIAL on 62-81
+  (loss rate below band, informational). The base's `civ_survival`
+  regression FAIL (5 of 20 seeds keep all four civs) is PASS on the branch
+  (4 of 20).
+- **Effects (hybrid 42-61, per run, off / on):** conversions 734 / 959,
+  artifacts 16.1 / 20.7, wars 2.95 / 2.95, all coups 7.05 / 7.25, state
+  defaults 1.30 / 0.80. Agent rebellions 1,504 / 1,871, carried by a few
+  worlds (median seed ratio 0.91); preaching is the largest single lever.
+- **Cut:** artists (no such role), persecution and toleration (no reset
+  owner for the persecution signal), Rust, viewer panels, ruler legitimacy
+  from agenda outcomes.
+- **Open:** the full 200 x 500 gate (required before any default flip);
+  the agent-rebellion tail; scientists rarely succeed inside their window.
 
 ## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
 
