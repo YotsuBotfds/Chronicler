@@ -4,6 +4,7 @@
 >
 > **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
 > **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
+> **Last updated:** 2026-10-24 (maritime layer on `feat/maritime`)
 
 ---
 
@@ -156,6 +157,52 @@ behind `--diplomacy` (`WorldState.diplomacy`). See
 - **Not run.** The full 200-seed gate with `--diplomacy`; it is required
   before any default change, watching `civ_survival` and the strict
   latest-satisfaction floor.
+
+## Maritime layer (2026-10-24, `feat/maritime`, default off)
+
+Branch `feat/maritime` from `integrate/wave-3` (`20eeead`, merged with
+`92b6122` for the food-balance corrections), default off behind
+`--maritime` (`WorldState.maritime`). See
+[`docs/integration/maritime.md`](../../integration/maritime.md).
+
+- **Built.** Fleets per civ commissioned at coastal ports by a naval
+  programme (treasury, and timber from free physical stocks in hybrid runs),
+  with upkeep, storms and naval battles feeding the campaign war score;
+  per-zone control (uncontested, contested, controlled) on Geography 2.0's
+  sea zones, or on one derived zone per connected coast-clique group on
+  template worlds; blockades that close an enemy's sea lanes to trade
+  routes, goods-economy pairs, the native merchant graph and the ledger's
+  route proxy, and cut its sea supply; armies cross lanes only with an
+  escort or command, wait and request one otherwise, and land through the
+  ordinary campaign battle code at reduced power; pirate pressure in
+  uncommanded zones that skims the off-mode proxy and, through the native
+  `Raid` loss reason (activated), seizes merchant cargo; colonization of
+  coasts a civ cannot walk to through EXPAND, gated on a fleet in the zone.
+  Naval battles and blockades enter diplomatic memory; every maritime event
+  cites its causes.
+- **Cut.** Ship classes, troop transports and bombardment (escort capacity
+  stands in), privateering orders, fleets crossing between unconnected water
+  bodies, navigation techniques (a neutral `navigation_level` seam for the
+  technique registry), naval battles in `war_state.battles`, viewer panels.
+- **Evidence (final head).** Switch off is byte-identical to `92b6122`: 72
+  files (template seeds 42/7/1234 off 300 / hybrid 200, procedural 48x10 off
+  200 / hybrid 120), 0 differences with the default and with `--no-maritime`;
+  the switch-off subset batch matches the base batch file for file (2,160 run
+  files); with the switch on, the 13 sealess gate seeds are outcome-identical
+  to the base. Native `pytest -m "not slow" -n 2` 5,657 passed, 3 skipped
+  (base `92b6122` 5,610 / 3); no-Rust lane 5,461 passed, 199 skipped; bounded
+  Python oracle lane (PR #19's guard fix applied locally only) 1,677 passed, 6
+  skipped, guard PASS; `cargo test --release` 894 passed. Subset gate with
+  `--maritime` against `92b6122`: PASS, NO REGRESSION, 0 extinct worlds,
+  regression PASS (strict) on both sides.
+- **Numbers.** Procedural 48x10 worlds (3 seeds x off/hybrid, 200 turns):
+  per run 24 fleets, 23 naval battles, 12 blockades, 4 overseas campaigns,
+  0.7 colonies, 6.6 cargo units lost to pirates, 827 cargo units carried by
+  sea; fewer trading civ pairs in every run. Only 7 of 20 default template
+  worlds have a sea at all.
+- **Not run.** The full 200-seed gate with `--maritime`; required before any
+  default change. Piracy and colonization are small in current worlds
+  (illustrative calibration).
 
 ## Recovery checkpoint (2026-10-11)
 
