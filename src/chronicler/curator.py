@@ -182,8 +182,10 @@ def compute_base_scores(
 # ---------------------------------------------------------------------------
 
 # Chronic-episode bookkeeping events never anchor a moment or extend a chain:
-# a repeat ("tick"/"repeat") or a closing event ("end") belongs to its onset.
-_EPISODE_FOLLOWERS = frozenset({"tick", "repeat", "end"})
+# a folded repeat ("repeat", legacy timelines only) or a closing event ("end")
+# belongs to its onset. A "tick" is a real new report (a renewed famine strike
+# with its own causes) and counts like any other event.
+_EPISODE_FOLLOWERS = frozenset({"repeat", "end"})
 
 # Chain-score weights (see compute_chain_scores).
 ROOT_DEPTH_WEIGHT = 1.5
