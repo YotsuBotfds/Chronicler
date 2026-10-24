@@ -1,14 +1,19 @@
 """Food-balance corrections (2026-10): see docs/integration/food-balance-2026-10.md.
 
 Each test pins one correction: aggregate migration is a no-op for agent-owned
-populations, and soil degrades against potential capacity.
+populations, soil degrades against potential capacity, and temperate water
+recovery is climatic.
 """
 from __future__ import annotations
 
 import pytest
 
-from chronicler.climate import process_migration
-from chronicler.ecology import _tick_soil, potential_capacity
+from chronicler.climate import PHASE_SCHEDULE, process_migration
+from chronicler.ecology import (
+    _tick_soil,
+    _tick_water,
+    potential_capacity,
+)
 from chronicler.models import (
     Civilization,
     ClimatePhase,
@@ -93,3 +98,35 @@ def test_soil_degrades_above_potential_capacity():
     assert region.population > potential_capacity(region)
     _tick_soil(region, world.civilizations[0], ClimatePhase.TEMPERATE, world)
     assert region.ecology.soil == pytest.approx(0.9 - 0.005)
+
+
+# --- water --------------------------------------------------------------------
+
+@pytest.mark.parametrize("population", [0, 40, 80, 160])
+def test_temperate_water_recovery_does_not_depend_on_population(population):
+    region = _plains(population=population, soil=0.9, water=0.3)
+    world = _world_with(region)
+    _tick_water(region, world.civilizations[0], ClimatePhase.TEMPERATE, world)
+    assert region.ecology.water == pytest.approx(0.33)
+
+
+def test_populated_region_recovers_its_water_over_one_climate_cycle():
+    """Drought and cooling losses are made good by the temperate phase."""
+    from chronicler.climate import get_climate_phase
+    from chronicler.ecology import clamp_ecology
+
+    # At capacity the old pressure multiplier (0.1) let temperate recover only
+    # 0.09 of the 0.6 a drought takes, so water stayed near the floor.
+    region = _plains(population=80, soil=0.9, water=0.7)
+    world = _world_with(region)
+    period = world.climate_config.period
+    waters = []
+    for turn in range(2 * period):
+        phase = get_climate_phase(turn, world.climate_config)
+        _tick_water(region, world.civilizations[0], phase, world)
+        clamp_ecology(region)
+        waters.append(region.ecology.water)
+    end_of_second_temperate = period + int(PHASE_SCHEDULE[1][0] * period) - 1
+    assert min(waters) == pytest.approx(0.10)  # the drought still empties it
+    assert waters[end_of_second_temperate] == pytest.approx(0.70)
+    assert waters[2 * period - 1] == waters[period - 1]

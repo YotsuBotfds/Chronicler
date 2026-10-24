@@ -528,10 +528,13 @@ fn tick_water_controlled(
         region.water += config.warming_tundra_water_gain;
     }
 
-    // Recovery (temperate only)
+    // Recovery (temperate only), climatic like the losses. Correction (2026-10,
+    // food balance): scaling it by the population pressure multiplier left the
+    // climate cycle's water budget (drought + cooling losses 0.9, temperate
+    // gain 30 x 0.03) balanced only for an empty region, so populated regions
+    // ratcheted to the water floor. Mirrors Python ecology._tick_water.
     if climate_phase == CLIMATE_TEMPERATE {
-        let rate = config.water_recovery * pressure_multiplier(region, config);
-        region.water += rate;
+        region.water += config.water_recovery;
     }
 
     // Irrigation bonus (always except drought)
@@ -553,8 +556,8 @@ fn tick_water_uncontrolled(
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
     } else if climate_phase == CLIMATE_TEMPERATE {
-        let rate = config.water_recovery * pressure_multiplier(region, config);
-        region.water += rate;
+        // Climatic recovery, not population-gated (see tick_water_controlled).
+        region.water += config.water_recovery;
     }
 }
 
@@ -982,6 +985,27 @@ mod tests {
         r.population = 61; // above potential: overpopulated
         tick_soil_controlled(&mut r, &config, 1.0);
         assert!((r.soil - (0.5 - config.soil_degradation)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_temperate_water_recovery_does_not_depend_on_population() {
+        // Food-balance correction: recovery is climatic, like the drought and
+        // cooling losses it balances over a climate cycle.
+        let config = EcologyConfig::default();
+        for &pop in &[0u16, 30, 60, 120] {
+            for &controlled in &[true, false] {
+                let mut r = make_plains_region(0);
+                r.water = 0.3;
+                r.population = pop;
+                if controlled {
+                    tick_water_controlled(&mut r, &config, CLIMATE_TEMPERATE);
+                } else {
+                    r.controller_civ = UNCONTROLLED;
+                    tick_water_uncontrolled(&mut r, &config, CLIMATE_TEMPERATE);
+                }
+                assert!((r.water - (0.3 + config.water_recovery)).abs() < 1e-6, "pop {pop}");
+            }
+        }
     }
 
     #[test]

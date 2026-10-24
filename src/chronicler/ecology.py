@@ -501,10 +501,15 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
         if region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
 
-    # Recovery
+    # Recovery: climatic, like the losses. Correction (2026-10, food balance):
+    # temperate recovery used to be scaled by the population pressure
+    # multiplier. Over one climate cycle the drought and cooling losses
+    # (15 x 0.04 + 15 x 0.02 = 0.9) equal the temperate gain (30 x 0.03) only
+    # at multiplier 1, i.e. an empty region, so every populated region lost
+    # water each cycle and a region at capacity (multiplier 0.1) sat at the
+    # floor for good. Population is not a water driver in this model.
     if climate_phase == ClimatePhase.TEMPERATE:
         rate = get_override(world, K_WATER_RECOVERY, 0.03)
-        rate *= _pressure_multiplier(region)
         region.ecology.water += rate
 
     # Irrigation bonus (always, not just temperate, but not during drought)
@@ -735,9 +740,8 @@ def _tick_ecology_python(
         elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
         elif climate_phase == ClimatePhase.TEMPERATE:
-            rate = get_override(world, K_WATER_RECOVERY, 0.03)
-            rate *= _pressure_multiplier(region)
-            region.ecology.water += rate
+            # Climatic recovery, not population-gated (see _tick_water).
+            region.ecology.water += get_override(world, K_WATER_RECOVERY, 0.03)
         # Forest: natural regrowth (water gate applies)
         forest_pop_ratio = get_override(world, K_FOREST_POP_RATIO, 0.5)
         water_gate = get_override(world, K_FOREST_REGROWTH_WATER_GATE, 0.3)

@@ -223,12 +223,9 @@ def tick_water(
         if terrain == "tundra":
             water += WARMING_TUNDRA_WATER_GAIN
 
-    # Recovery
+    # Recovery: climatic, not population-gated (2026-10 food balance)
     if climate_phase == "temperate":
-        rate = WATER_RECOVERY
-        pm = pressure_multiplier(population, carrying_capacity, soil, water, capacity_modifier)
-        rate *= pm
-        water += rate
+        water += WATER_RECOVERY
 
     # Irrigation bonus (always, not just temperate, but not during drought)
     if has_irrigation and climate_phase != "drought":
