@@ -309,6 +309,12 @@ fn main() {
     let mut marriages = 0u64;
     let mut pairs_evaluated = 0u64;
     let mut marriage_pairs = 0u64;
+    let mut same_civ = 0u64;
+    let mut same_faith = 0u64;
+    let mut cross_faith = 0u64;
+    let mut agent_turns = 0u64;
+    let mut hotspots = 0u64;
+    let mut max_cell = 0u64;
     let initial_alive = pool.alive_count();
     let total = args.warmup + args.turns;
     for turn in 0..total {
@@ -335,9 +341,36 @@ fn main() {
             marriages += fstats.marriages_formed as u64;
             pairs_evaluated += fstats.pairs_evaluated as u64;
             marriage_pairs += fstats.marriage_pairs_evaluated as u64;
+            same_civ += fstats.same_civ_marriages as u64;
+            same_faith += fstats.same_faith_marriages as u64;
+            cross_faith += fstats.cross_faith_marriages as u64;
+            agent_turns += pool.alive_count() as u64;
+            hotspots += diag.hotspot_count_by_region.iter().map(|&h| h as u64).sum::<u64>();
+            max_cell += diag.hash_max_cell_occupancy.iter().map(|&h| h as u64).sum::<u64>();
         }
     }
     let measured = args.turns.max(1) as f64;
+    // End-of-run social and spatial structure.
+    let alive: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.alive[s]).collect();
+    let adults: Vec<usize> = alive.iter().copied().filter(|&s| pool.ages[s] >= 16).collect();
+    let married = adults
+        .iter()
+        .filter(|&&s| chronicler_agents::relationships::get_spouse_id(&pool, s).is_some())
+        .count();
+    let mut bond_types = [0u64; 8];
+    for &s in &alive {
+        for k in 0..pool.rel_count[s] as usize {
+            let t = pool.rel_bond_types[s][k] as usize;
+            if t < 8 {
+                bond_types[t] += 1;
+            }
+        }
+    }
+    let mut occupied = 0usize;
+    for g in &grids {
+        occupied += g.cells.iter().filter(|c| !c.is_empty()).count();
+    }
+    let occupied_frac = occupied as f64 / (grids.len().max(1) * 100) as f64;
     let mut wall_sorted = wall_ms.clone();
     let med = median(&mut wall_sorted);
     let pool_hash = if args.hash { format!("\"{:016x}\"", hash_pool(&pool)) } else { "null".into() };
@@ -346,10 +379,18 @@ fn main() {
         "{{\"agents\":{},\"regions\":{},\"mode\":\"{}\",\"seed\":{},\"warmup\":{},\"turns\":{},\
 \"initial_alive\":{},\"final_alive\":{},\"tick_ms_median\":{:.3},\"tick_ms_mean\":{:.3},\
 \"cpu_ms_per_tick\":{:.3},\"bonds_formed\":{},\"marriages_formed\":{},\"pairs_evaluated\":{},\
-\"marriage_pairs_evaluated\":{},\"threads\":{},\"pool_hash\":{},\"events_hash\":{}}}",
+\"marriage_pairs_evaluated\":{},\"same_civ_marriages\":{},\"same_faith_marriages\":{},\
+\"cross_faith_marriages\":{},\"agent_turns\":{},\"married_adult_fraction\":{:.4},\
+\"mean_rel_count\":{:.4},\"bond_types\":{:?},\"occupied_cell_fraction\":{:.4},\
+\"mean_hotspots_per_tick\":{:.3},\"mean_max_cell_per_tick\":{:.3},\
+\"threads\":{},\"pool_hash\":{},\"events_hash\":{}}}",
         args.agents, args.regions, args.mode, args.seed, args.warmup, args.turns,
         initial_alive, pool.alive_count(), med, wall_total * 1e3 / measured,
         cpu_total * 1e3 / measured, bonds, marriages, pairs_evaluated, marriage_pairs,
+        same_civ, same_faith, cross_faith, agent_turns,
+        married as f64 / adults.len().max(1) as f64,
+        bond_types.iter().sum::<u64>() as f64 / alive.len().max(1) as f64,
+        bond_types, occupied_frac, hotspots as f64 / measured, max_cell as f64 / measured,
         rayon::current_num_threads(), pool_hash, events_hash,
     );
 }
@@ -375,9 +416,12 @@ fn run_tick(
     chronicler_agents::merchant::MerchantTripStats,
     chronicler_agents::knowledge::KnowledgeStats,
 ) {
-    assert!(args.mode == "exact", "this build supports only --mode exact");
-    chronicler_agents::tick_agents(
+    let scale_mode = chronicler_agents::scale::AgentScaleMode::parse(&args.mode)
+        .expect("--mode must be exact or fast");
+    chronicler_agents::try_tick_agents_with_options(
         pool, regions, signals, master_seed, turn, percentiles, grids, attractors, diag,
-        &[], None,
+        &[], None, &[],
+        chronicler_agents::scale::TickOptions { scale_mode },
     )
+    .expect("agent pool exhausted")
 }

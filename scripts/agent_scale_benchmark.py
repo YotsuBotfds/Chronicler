@@ -88,6 +88,12 @@ def _child(opts: argparse.Namespace) -> dict:
         return ru.ru_utime + ru.ru_stime
 
     tick_log: list[tuple[float, float, int]] = []
+    social_log: list[dict] = []
+    social_keys = (
+        "bonds_formed", "marriages_formed", "same_civ_marriages", "cross_civ_marriages",
+        "same_faith_marriages", "cross_faith_marriages", "mean_rel_count",
+        "marriage_pairs_evaluated", "pairs_evaluated",
+    )
 
     class TimedSim:
         """Delegating proxy that times ``tick`` on the native simulator."""
@@ -106,6 +112,14 @@ def _child(opts: argparse.Namespace) -> dict:
             result = self._inner.tick(*args, **kwargs)
             tick_log.append((time.perf_counter() - w0, cpu() - c0,
                              int(self._inner.last_tick_alive)))
+            if opts.social:
+                rel = self._inner.get_relationship_stats()
+                row = {k: rel.get(k, 0.0) for k in social_keys}
+                row["alive"] = int(self._inner.last_tick_alive)
+                diag = self._inner.get_spatial_diagnostics()
+                row["hotspots"] = sum(diag.get("hotspot_count_by_region", []))
+                row["max_cell_occupancy"] = sum(diag.get("hash_max_cell_occupancy", []))
+                social_log.append(row)
             return result
 
     original_init = ab.AgentBridge.__init__
@@ -181,6 +195,30 @@ def _child(opts: argparse.Namespace) -> dict:
             for i in range(len(turn_wall))
         ],
         "rayon_threads": os.environ.get("RAYON_NUM_THREADS", "default"),
+        **({"social": _social_summary(social_log)} if opts.social else {}),
+    }
+
+
+def _social_summary(rows: list[dict]) -> dict:
+    """Whole-run social and spatial totals (all ticks, warm-up included)."""
+    if not rows:
+        return {}
+    agent_turns = sum(r["alive"] for r in rows)
+    total = {k: sum(r[k] for r in rows) for k in rows[0] if k not in ("alive", "mean_rel_count")}
+    married = total["marriages_formed"]
+    faith = total["same_faith_marriages"] + total["cross_faith_marriages"]
+    return {
+        "ticks": len(rows),
+        "agent_turns": agent_turns,
+        "final_alive": rows[-1]["alive"],
+        **total,
+        "bonds_per_1k_agent_turns": 1e3 * total["bonds_formed"] / max(1, agent_turns),
+        "marriages_per_1k_agent_turns": 1e3 * married / max(1, agent_turns),
+        "same_civ_marriage_share": total["same_civ_marriages"] / max(1, married),
+        "same_faith_marriage_share": total["same_faith_marriages"] / max(1, faith),
+        "final_mean_rel_count": rows[-1]["mean_rel_count"],
+        "mean_hotspots_per_tick": total["hotspots"] / len(rows),
+        "mean_max_cell_per_tick": total["max_cell_occupancy"] / len(rows),
     }
 
 
@@ -210,14 +248,18 @@ def _parse(argv=None) -> argparse.Namespace:
                    help="directory containing a chronicler_agents package to use")
     p.add_argument("--run-root", type=Path, default=Path(tempfile.gettempdir()))
     p.add_argument("--keep-runs", action="store_true")
+    p.add_argument("--seeds", default=None,
+                   help="comma-separated seeds (overrides --seed; one child per seed)")
+    p.add_argument("--social", action="store_true",
+                   help="also record per-tick relationship/marriage and spatial stats")
     p.add_argument("--out", type=Path, default=None, help="write results JSON here")
     p.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     return p.parse_args(argv)
 
 
-def _child_cmd(opts: argparse.Namespace, target: int) -> list[str]:
+def _child_cmd(opts: argparse.Namespace, target: int, seed: int) -> list[str]:
     cmd = [sys.executable, str(Path(__file__).resolve()), "--child",
-           "--target", str(target), "--seed", str(opts.seed),
+           "--target", str(target), "--seed", str(seed),
            "--regions", str(opts.regions), "--civs", str(opts.civs),
            "--agents", opts.agents, "--warmup", str(opts.warmup),
            "--turns", str(opts.turns), "--run-root", str(opts.run_root),
@@ -228,6 +270,8 @@ def _child_cmd(opts: argparse.Namespace, target: int) -> list[str]:
         cmd += ["--agent-scale-mode", opts.agent_scale_mode]
     if opts.keep_runs:
         cmd.append("--keep-runs")
+    if opts.social:
+        cmd.append("--social")
     return cmd
 
 
@@ -250,36 +294,40 @@ def main(argv=None) -> int:
         return 0
     opts.run_root.mkdir(parents=True, exist_ok=True)
     targets = [int(t) for t in opts.targets.split(",") if t.strip()]
-    jobs = [(t, r) for t in targets for r in range(opts.repeats)]
+    seeds = [int(x) for x in opts.seeds.split(",")] if opts.seeds else [opts.seed]
+    jobs = [(t, sd, r) for t in targets for sd in seeds for r in range(opts.repeats)]
     env = _child_env(opts)
     results = []
-    running: list[tuple[int, int, subprocess.Popen, float]] = []
+    running: list[tuple[int, int, int, subprocess.Popen, float, Path]] = []
     pending = list(jobs)
+    log_dir = Path(tempfile.mkdtemp(prefix="agent-scale-logs-", dir=opts.run_root))
     while pending or running:
         while pending and len(running) < max(1, opts.jobs):
-            t, r = pending.pop(0)
-            proc = subprocess.Popen(_child_cmd(opts, t), env=env, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True)
-            running.append((t, r, proc, time.monotonic()))
+            t, sd, r = pending.pop(0)
+            log = log_dir / f"t{t}_s{sd}_r{r}"
+            with open(log.with_suffix(".out"), "w") as out, open(log.with_suffix(".err"), "w") as err:
+                proc = subprocess.Popen(_child_cmd(opts, t, sd), env=env, stdout=out, stderr=err)
+            running.append((t, sd, r, proc, time.monotonic(), log))
         for item in list(running):
-            t, r, proc, started = item
+            t, sd, r, proc, started, log = item
             if proc.poll() is None:
                 if time.monotonic() - started > opts.timeout:
                     proc.kill()
                     proc.wait()
-                    results.append({"target": t, "repeat": r, "error": "timeout"})
+                    results.append({"target": t, "seed": sd, "repeat": r, "error": "timeout"})
                     running.remove(item)
                 continue
-            out, err = proc.communicate()
             running.remove(item)
+            out = log.with_suffix(".out").read_text()
+            err = log.with_suffix(".err").read_text()
             if proc.returncode != 0:
-                results.append({"target": t, "repeat": r, "error": err[-2000:]})
-                print(f"target {t} repeat {r}: FAILED\n{err[-2000:]}", file=sys.stderr)
+                results.append({"target": t, "seed": sd, "repeat": r, "error": err[-2000:]})
+                print(f"target {t} seed {sd} repeat {r}: FAILED\n{err[-2000:]}", file=sys.stderr)
                 continue
             row = json.loads(out.strip().splitlines()[-1])
             row["repeat"] = r
             results.append(row)
-            print(f"target {t:>7} r{r}: alive~{row['alive_median']}, "
+            print(f"target {t:>7} seed {sd} r{r}: alive~{row['alive_median']}, "
                   f"rust tick {row['rust_tick_wall_ms']:.1f} ms wall / "
                   f"{row['rust_tick_cpu_ms']:.1f} ms cpu, "
                   f"turn {row['turn_wall_ms']:.1f} ms wall / {row['turn_cpu_ms']:.1f} ms cpu",
@@ -291,8 +339,10 @@ def main(argv=None) -> int:
             "argv": sys.argv[1:],
             "source_root": str(opts.source_root or REPO_ROOT),
             "native_root": str(opts.native_root) if opts.native_root else None,
-            "results": sorted(results, key=lambda r: (r["target"], r.get("repeat", 0))),
+            "results": sorted(results, key=lambda r: (r["target"], r.get("seed", 0), r.get("repeat", 0))),
         }, indent=2) + "\n")
+    if not opts.keep_runs:
+        shutil.rmtree(log_dir, ignore_errors=True)
     return 0 if all("error" not in r for r in results) else 1
 
 
