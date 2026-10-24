@@ -211,6 +211,40 @@ describe("useLiveConnection", () => {
     expect(snapshot?.campaign?.wars[0]?.score).toBe(18);
   });
 
+  it("carries the default-off system summaries, and omits them when the run has them off", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    const systems = {
+      epidemics: { active: [{ region: "Ford", pathogen: "pox", prevalence: 0.04, immune: 0.1, cases: 3, deaths: 1, virgin: true }],
+        deaths: 1, deaths_by_pathogen: { pox: 1 }, deaths_total: 1, quarantine: ["Civ B"], strains: {} },
+      finance: { civs: {}, loans: 2, totals: {} },
+      diplomacy: { treaties: [], subjects: [], top_grievances: [], counts: {}, pairs: { "Civ A": { "Civ B": [12.5, 3] } } },
+      techniques: { known: { "Civ A": 2 }, practised: { "Civ A": 1 }, rows: 3, regions: { Ford: { masonry: 0.6 } } },
+      maritime: { zones: [], fleets: [], blockades: [], blocked_lanes: 0, counters: {} },
+    };
+    act(() => {
+      ws.simulateMessage({
+        type: "turn", turn: 2, civ_stats: {}, region_control: {}, relationships: {},
+        ...systems, events: [], named_events: [], chronicle_text: "",
+      });
+      ws.simulateMessage({
+        type: "turn", turn: 3, civ_stats: {}, region_control: {}, relationships: {},
+        events: [], named_events: [], chronicle_text: "",
+      });
+    });
+    const [withSystems, withoutSystems] = result.current.bundle?.history ?? [];
+    expect(withSystems?.epidemics?.active[0]?.virgin).toBe(true);
+    expect(withSystems?.finance?.loans).toBe(2);
+    expect(withSystems?.diplomacy?.pairs?.["Civ A"]?.["Civ B"]).toEqual([12.5, 3]);
+    expect(withSystems?.techniques?.regions?.Ford?.masonry).toBe(0.6);
+    expect(withSystems?.maritime?.blocked_lanes).toBe(0);
+    for (const key of ["epidemics", "finance", "diplomacy", "techniques", "maritime"] as const) {
+      expect(withoutSystems?.[key]).toBeUndefined();
+    }
+  });
+
   it("sets paused state on paused message", async () => {
     const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
     await vi.advanceTimersByTimeAsync(10);

@@ -56,8 +56,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 #: Default for worlds newly created by the CLI/batch/live entry points
-#: (``--epidemiology`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: (on since the 2026-10 all-on full gate, for new worlds with the contact
+#: ledger; ``--no-epidemiology`` opts out; loaded worlds keep their saved
+#: setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +496,12 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
         _absorb_population(row, int(regions[row.region].population))
         rows[_row_key(row)] = row
     mods = [_modifiers(region) for region in regions]
+    from chronicler.techniques_state import techniques_on
+    if techniques_on(world):
+        # --techniques: practised medicine lowers case fatality region by region.
+        from chronicler.techniques import epidemic_cfr_factors
+        factors = epidemic_cfr_factors(world)
+        mods = [(susc, cfr * factors[i], famine) for i, (susc, cfr, famine) in enumerate(mods)]
 
     _introduce(world, state, rows, mods)
 
@@ -560,6 +568,12 @@ def _introduce(world, state: EpidemicState, rows: dict, mods: list) -> None:
     n_regions = len(regions)
     homelands = set(state.homelands)
     quarantined = {world.civilizations[c].name for c in state.quarantine if c < len(world.civilizations)}
+    from chronicler.techniques_state import techniques_on
+    efficacy = {name: QUARANTINE_EFFICACY for name in quarantined}
+    if techniques_on(world):
+        # --techniques: written law and lazarets make a closed border tighter.
+        from chronicler.techniques import quarantine_efficacy
+        efficacy = {name: quarantine_efficacy(world, name, QUARANTINE_EFFICACY) for name in quarantined}
     ledger_on = cl.ledger_enabled(world)
     neighbors = world.contact_ledger.neighbors() if ledger_on else {}
     edge_map = world.contact_ledger.edge_map() if ledger_on else {}
@@ -580,7 +594,7 @@ def _introduce(world, state: EpidemicState, rows: dict, mods: list) -> None:
                 value = contact * burden
                 dst_ctrl = regions[t].controller
                 if dst_ctrl in quarantined and src_ctrl != dst_ctrl:
-                    value *= 1.0 - QUARANTINE_EFFICACY
+                    value *= 1.0 - efficacy[dst_ctrl]
                 pressure.setdefault(t, []).append((value, j))
         for t in range(n_regions):
             region = regions[t]

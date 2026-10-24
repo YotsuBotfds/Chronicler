@@ -309,6 +309,23 @@ def _diplomacy_snapshot_fields(world) -> dict:
     return {"diplomacy": snapshot_summary(world)}
 
 
+def _techniques_snapshot_fields(world) -> dict:
+    """Techniques per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.techniques_state import techniques_on
+    if not techniques_on(world):
+        return {}
+    from chronicler.techniques import snapshot_summary
+    return {"techniques": snapshot_summary(world)}
+
+
+def _maritime_snapshot_fields(world) -> dict:
+    """Maritime per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.maritime import maritime_enabled, snapshot_summary
+    if not maritime_enabled(world):
+        return {}
+    return {"maritime": snapshot_summary(world)}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -552,6 +569,24 @@ def execute_run(
     if diplomacy is not None:
         from chronicler.diplomacy import set_diplomacy_enabled
         set_diplomacy_enabled(world, diplomacy)
+    # Techniques switch (persisted on the world): per-region practice that
+    # diffuses along contact, inventions, and the era derived from them.
+    techniques = getattr(args, "techniques", None)
+    if techniques is None and fresh_world:
+        from chronicler.techniques import DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT
+        techniques = _TECHNIQUES_DEFAULT
+    if techniques is not None:
+        from chronicler.techniques import set_techniques_enabled
+        set_techniques_enabled(world, techniques)
+    # Maritime switch (persisted on the world): fleets, sea control, blockade,
+    # piracy, naval campaigns and colonization by sea.
+    maritime = getattr(args, "maritime", None)
+    if maritime is None and fresh_world:
+        from chronicler.maritime import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT
+        maritime = _MARITIME_DEFAULT
+    if maritime is not None:
+        from chronicler.maritime import set_maritime_enabled
+        set_maritime_enabled(world, maritime)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -801,6 +836,8 @@ def execute_run(
             **_epidemic_snapshot_fields(world),
             **_finance_snapshot_fields(world),
             **_diplomacy_snapshot_fields(world),
+            **_techniques_snapshot_fields(world),
+            **_maritime_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot
@@ -1295,18 +1332,28 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epidemiology", action=argparse.BooleanOptionalAction, default=None,
                         help="Regional SEIRS epidemiology: pathogens spread along the contact ledger, "
                              "virgin-soil epidemics, quarantine and labour scarcity, replacing the hazard "
-                             "plague and the M18 pandemic (default off; needs the contact ledger; "
-                             "saved on resume)")
+                             "plague and the M18 pandemic (default on for new worlds with the contact ledger; "
+                             "--no-epidemiology opts out; saved on resume)")
     parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
                         help="Money, credit and public finance: upkeep and court costs, state borrowing "
                              "from merchant houses and foreign lenders, debt service, default, debasement "
-                             "and a per-civ price index feeding the governance PSI (default off for new "
-                             "worlds; --finance enables; saved on resume)")
+                             "and a per-civ price index feeding the governance PSI (default on for new "
+                             "worlds; --no-finance opts out; saved on resume)")
     parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
                         help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
                              "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
-                             "ladder client -> vassal -> personal union -> annexation (default off "
-                             "for new worlds; saved on resume)")
+                             "ladder client -> vassal -> personal union -> annexation (default on "
+                             "for new worlds; --no-diplomacy opts out; saved on resume)")
+    parser.add_argument("--techniques", action=argparse.BooleanOptionalAction, default=None,
+                        help="Technology as diffusing techniques: per-region practice of about 30 "
+                             "techniques spreads along contact flows, is invented from research "
+                             "inputs and decays without practitioners; the era is derived from it "
+                             "(default off for new worlds; saved on resume)")
+    parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
+                        help="Maritime layer: fleets built at coastal ports, sea-zone control, "
+                             "blockades of enemy sea lanes and sea supply, escorted crossings and "
+                             "amphibious landings, piracy and colonization by sea (default off for "
+                             "new worlds; saved on resume)")
     parser.add_argument("--tuning", type=str, default=None,
                         help="Path to tuning YAML file for constant overrides")
     parser.add_argument("--seed-range", type=str, default=None,

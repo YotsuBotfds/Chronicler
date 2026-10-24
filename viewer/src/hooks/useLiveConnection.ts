@@ -139,6 +139,11 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     urban_agent_count: msg.urban_agent_count as TurnSnapshot["urban_agent_count"],
     urban_fraction: msg.urban_fraction as TurnSnapshot["urban_fraction"],
     campaign: msg.campaign as TurnSnapshot["campaign"],
+    epidemics: msg.epidemics as TurnSnapshot["epidemics"],
+    finance: msg.finance as TurnSnapshot["finance"],
+    diplomacy: msg.diplomacy as TurnSnapshot["diplomacy"],
+    techniques: msg.techniques as TurnSnapshot["techniques"],
+    maritime: msg.maritime as TurnSnapshot["maritime"],
   }), []);
 
   useEffect(() => {

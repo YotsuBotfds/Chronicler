@@ -2,10 +2,96 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
-> **Last updated:** 2026-10-24 (diplomacy on `feat/diplomacy`)
+> **Last updated:** 2026-10-24 (`integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
 
 ---
+
+## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
+
+Two oracles tuned on worlds that died are recalibrated, one commit each, with
+no base result moving from PASS to FAIL:
+
+- **Era (`303e0fa`):** a silent collapse is now a fall of 30% or more in a
+  civ's smoothed population with neither its own inflection nor a recorded
+  crisis naming it nearby. It used to be one collapse per civ, covered by any
+  civ's inflection anywhere in a window that can span a century.
+- **Late-run satisfaction (`a595a38`):** read over the last 60 turns, not the
+  final sample, which always lands in autumn of a drought.
+
+The founder-survival band and every other threshold were checked and left
+alone. The full profile (200 x 500) passes strict with 0 extinct worlds and no
+comparator regression both with all three systems off and with
+`--epidemiology --finance --diplomacy`. All three now default on for new
+worlds, one commit each. The frozen benchmark workloads pin them off.
+Migration (0.0524 against the 0.05 floor all on) is the margin to watch.
+Evidence: `docs/integration/wave3-defaults.md`.
+
+## Viewer panels for the default-off systems (2026-10-24, `feat/viewer-systems`)
+
+`feat/viewer-systems` from `integrate/wave-4` (`1a6cacb`). The production
+viewer (`AppShell`) shows epidemics, finance, diplomacy, techniques and the
+maritime layer when a bundle records them: a tabbed "Simulation systems"
+panel below the map workspace (tabs only for recorded systems), event lists
+that pin an event in the existing provenance inspector, per-region epidemic
+and technique state in the region inspector, and live-mode pass-through.
+Details: `docs/integration/viewer-systems.md`.
+
+- **Python:** two additive, flag-on-only snapshot fields,
+  `diplomacy.pairs` (trust and grievance of every living pair) and
+  `techniques.regions` (practice per region); bundle version stays 4.
+  Flags off is byte-identical to `1a6cacb` (4 runs, 37 files); with all five
+  systems on, outputs are identical apart from the two fields (2 runs, 22
+  files; `scripts/viewer_systems_identity.py`). `pytest -m "not slow" -n 2`
+  5,699 passed, 3 skipped.
+- **Viewer:** 197 tests (base 166), lint clean, build passes. A systems-off
+  bundle renders pixel-identically to the base build (9 of 9 headless
+  captures); every panel was captured from real all-on bundles with no
+  console errors.
+- **Cut:** map layers (the map has no sea geometry), a contact-ledger panel,
+  a per-lender loan book, phone layout. **Open:** hashed faction colours can
+  collide; the shell map's 0-1 coordinate assumption (pre-existing) puts
+  generated worlds' region nodes off the canvas.
+
+## Techniques (2026-10-24, `feat/techniques`, default off)
+
+`feat/techniques`, from `integrate/wave-3` (`20eeead`, merged with
+`92b6122` for the food-balance corrections), replaces the monolithic tech
+era with 30 techniques that civs invent and that spread between regions
+along the contact ledger (`chronicler/techniques.py`,
+`chronicler/techniques_state.py`, `WorldState.techniques`, CLI
+`--techniques`, saved on the world). Per-region practice grows, diffuses
+by merchants, migrants, soldiers and pilgrims, and decays when the
+connected people who share a craft fall short of its tier's need; a civ's
+era is derived from its practised technique mix (quorum, hysteresis, a
+three-tick grace, the capital keeping an era), so the M18 random
+regression is off with the switch and dark ages come from plague, famine,
+collapse and isolation. Effects go through battle strength, build costs,
+trade range, one crop/fish yield hook, epidemic fatality and quarantine,
+and credit capacity. Inventions, adoptions ("X learned Y from Z's
+merchants"), losses, advances and regressions cite their causes. Details:
+`docs/integration/techniques.md`.
+
+- **Switch off is byte-identical** to `92b6122` (and to `20eeead` before
+  the merge): direct runs 30 files, 0 differences, default and
+  `--no-techniques`; the whole subset gate batch (2,164 files) matches
+  apart from the reports' batch path; the frozen performance oracles are
+  unchanged.
+- **Tests:** `pytest -m "not slow" -n 2` 5,649 passed, 3 skipped (base
+  `92b6122` 5,610; +39); no-Rust lane 5,454 passed, 198 skipped; bounded
+  Python oracle lane (PR #19's guard fix applied locally only) 1,669
+  passed, 5 skipped, 2 deselected, guard PASS.
+- **Subset gate with `--techniques`** against `92b6122`: seeds 42-61 and
+  82-101 PASS with NO REGRESSION; seeds 62-81 **FAIL** on the required
+  needs oracle (11 of 20 seeds, 12 required; base 14), comparator
+  REGRESSION. Over all 60 seeds base and techniques-on both count 46
+  qualifying needs seeds. Era oracle 20 of 20 inflection seeds in every
+  set, 1 silent collapse in two sets (base 0; limit 2). 0 of 60 worlds
+  extinct.
+- **Not run:** the 200-seed x 500-turn full gate. Default stays off.
+- **Open:** scientists double with moving eras (treatise artifacts rise,
+  inside the band on this base, above it on one pre-merge set); TRADE
+  actions rise about sevenfold once civs reach Bronze; Rust technique
+  packets and viewer panels are cut.
 
 ## Epidemiology (2026-10-24, `feat/epidemiology`, default off)
 
@@ -156,6 +242,52 @@ behind `--diplomacy` (`WorldState.diplomacy`). See
 - **Not run.** The full 200-seed gate with `--diplomacy`; it is required
   before any default change, watching `civ_survival` and the strict
   latest-satisfaction floor.
+
+## Maritime layer (2026-10-24, `feat/maritime`, default off)
+
+Branch `feat/maritime` from `integrate/wave-3` (`20eeead`, merged with
+`92b6122` for the food-balance corrections), default off behind
+`--maritime` (`WorldState.maritime`). See
+[`docs/integration/maritime.md`](../../integration/maritime.md).
+
+- **Built.** Fleets per civ commissioned at coastal ports by a naval
+  programme (treasury, and timber from free physical stocks in hybrid runs),
+  with upkeep, storms and naval battles feeding the campaign war score;
+  per-zone control (uncontested, contested, controlled) on Geography 2.0's
+  sea zones, or on one derived zone per connected coast-clique group on
+  template worlds; blockades that close an enemy's sea lanes to trade
+  routes, goods-economy pairs, the native merchant graph and the ledger's
+  route proxy, and cut its sea supply; armies cross lanes only with an
+  escort or command, wait and request one otherwise, and land through the
+  ordinary campaign battle code at reduced power; pirate pressure in
+  uncommanded zones that skims the off-mode proxy and, through the native
+  `Raid` loss reason (activated), seizes merchant cargo; colonization of
+  coasts a civ cannot walk to through EXPAND, gated on a fleet in the zone.
+  Naval battles and blockades enter diplomatic memory; every maritime event
+  cites its causes.
+- **Cut.** Ship classes, troop transports and bombardment (escort capacity
+  stands in), privateering orders, fleets crossing between unconnected water
+  bodies, navigation techniques (a neutral `navigation_level` seam for the
+  technique registry), naval battles in `war_state.battles`, viewer panels.
+- **Evidence (final head).** Switch off is byte-identical to `92b6122`: 72
+  files (template seeds 42/7/1234 off 300 / hybrid 200, procedural 48x10 off
+  200 / hybrid 120), 0 differences with the default and with `--no-maritime`;
+  the switch-off subset batch matches the base batch file for file (2,160 run
+  files); with the switch on, the 13 sealess gate seeds are outcome-identical
+  to the base. Native `pytest -m "not slow" -n 2` 5,657 passed, 3 skipped
+  (base `92b6122` 5,610 / 3); no-Rust lane 5,461 passed, 199 skipped; bounded
+  Python oracle lane (PR #19's guard fix applied locally only) 1,677 passed, 6
+  skipped, guard PASS; `cargo test --release` 894 passed. Subset gate with
+  `--maritime` against `92b6122`: PASS, NO REGRESSION, 0 extinct worlds,
+  regression PASS (strict) on both sides.
+- **Numbers.** Procedural 48x10 worlds (3 seeds x off/hybrid, 200 turns):
+  per run 24 fleets, 23 naval battles, 12 blockades, 4 overseas campaigns,
+  0.7 colonies, 6.6 cargo units lost to pirates, 827 cargo units carried by
+  sea; fewer trading civ pairs in every run. Only 7 of 20 default template
+  worlds have a sea at all.
+- **Not run.** The full 200-seed gate with `--maritime`; required before any
+  default change. Piracy and colonization are small in current worlds
+  (illustrative calibration).
 
 ## Recovery checkpoint (2026-10-11)
 

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from chronicler.models import InfrastructureType, TechEra
+from chronicler.techniques_state import techniques_on
 from chronicler.named_events import deduplicate_name, generate_battle_name
 from chronicler.tuning import K_FORT_DEFENSE_BONUS, get_override
 from chronicler.war import params as P
@@ -64,8 +65,13 @@ def quality(civ: "Civilization", morale: int, *, fed: bool = True,
 def army_power(ctx: WarContext, civ: "Civilization", army: "Army", *, attacking: bool = True) -> float:
     gp = general_of(ctx.world, army)
     fed = army.rations > 0
-    return army.soldiers * quality(civ, army.morale, fed=fed,
-                                   general_trait=gp.trait if gp else None, attacking=attacking)
+    power = army.soldiers * quality(civ, army.morale, fed=fed,
+                                    general_trait=gp.trait if gp else None, attacking=attacking)
+    if ctx.naval is not None:
+        # Maritime: an army fights at reduced power the turn it lands.
+        from chronicler.maritime import landing_factor
+        power *= landing_factor(ctx.world, army)
+    return power
 
 
 def garrison_size(world, region: "Region", owner: "Civilization | None") -> int:
@@ -135,7 +141,12 @@ def _side_power(ctx: WarContext, side: Side, enemy: "Civilization", attacking: b
         power += side.mercs * quality(side.civ, 650, attacking=attacking)
     if side.garrison:
         power += side.garrison * quality(side.civ, 600, attacking=attacking)
-    return power * tech_war_multiplier(side.civ.tech_era, enemy.tech_era)
+    power *= tech_war_multiplier(side.civ.tech_era, enemy.tech_era)
+    if techniques_on(ctx.world):
+        # --techniques: practised arms (bronze, iron, horse, siege, castles, powder).
+        from chronicler.techniques import military_factor
+        power *= military_factor(ctx.world, side.civ, attacking)
+    return power
 
 
 def _split(total: int, weights: list[int]) -> list[int]:
@@ -189,6 +200,8 @@ def _retreat(ctx: WarContext, army: "Army") -> None:
         region = world.regions[nb]
         if region.name in enemy_regions:
             continue
+        if ctx.naval is not None and not ctx.naval.can_retreat(army, here, nb):
+            continue  # Maritime: no retreat across water without ships
         rank = 0 if holds(region, army.civ) else 1
         options.append((rank, nb))
     army.phase = "regrouping"

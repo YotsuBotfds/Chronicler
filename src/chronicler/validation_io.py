@@ -49,6 +49,14 @@ ARTIFACT_LOSS_RATE_MAX = 0.30
 REGRESSION_SATISFACTION_MEAN_MIN = 0.45
 REGRESSION_SATISFACTION_MEAN_CALIBRATED_MIN = 0.40
 REGRESSION_SATISFACTION_MEAN_MAX = 0.65
+# Late-run satisfaction (``latest_satisfaction_mean``) pools the sampled turns
+# of the last 60 turns before a run's last living sample, not that one sample.
+# Seasons (a 12-turn year) and the climate cycle are functions of the turn, so
+# every world's final sample falls on the same calendar point (autumn of a
+# drought for both standard profiles); with the 10-turn sidecar cadence, 60
+# turns visit every even turn of the year once, the run mean's seasonal mix.
+# See docs/integration/wave3-defaults.md.
+REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS = 60
 REGRESSION_MIGRATION_RATE_MIN = 0.05
 REGRESSION_MIGRATION_RATE_CALIBRATED_MIN = 0.045
 REGRESSION_MIGRATION_RATE_MAX = 0.15
@@ -58,6 +66,37 @@ REGRESSION_OCCUPATION_SHARE_MAX = 0.70
 REGRESSION_OCCUPATION_VIOLATION_FRACTION_MAX = 0.01
 REGRESSION_LATEST_OCCUPATION_VIOLATION_AGENT_FRACTION_MAX = 0.05
 REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
+
+# Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
+# (docs/integration/wave3-defaults.md). A silent collapse is a population
+# collapse of one civ that neither its own era signals nor its recorded crises
+# mark. Seed fractions and the 30% drop are the M53 spec's; the smoothing
+# window is the inflection detector's own, and the 5-turn slack is unchanged.
+ERA_INFLECTION_SEED_FRACTION_MIN = 0.80
+ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX = 0.10
+ERA_COLLAPSE_DROP_FRACTION = 0.30
+ERA_COLLAPSE_SMOOTHING_WINDOW = 5
+ERA_SIGNAL_SLACK_TURNS = 5
+# Recorded crises that mark a collapse in a civ's history: what takes its
+# people (hunger, disease, war, flight, disaster) or records its breakdown
+# (unrest, the fall of the state). Fiscal, cultural and routine events do not.
+ERA_CRISIS_EVENT_GROUPS = {
+    "hunger": ("famine", "supply_shock", "drought", "drought_intensification", "locust_swarm",
+               "soil_exhaustion", "fishery_collapse", "demographic_crisis"),
+    "disease": ("plague", "epidemic", "epidemic_arrival", "pandemic", "pandemic_spread"),
+    "war": ("war", "war_declared", "battle", "siege_begun", "occupation", "army_destroyed",
+            "scorched_earth", "capital_loss", "civ_conquered", "annexation"),
+    "flight": ("migration", "mass_migration", "notable_migration", "Mass Migration",
+               "Persecution", "brain_drain"),
+    "disaster": ("earthquake", "flood", "wildfire", "sandstorm", "supervolcano", "mine_collapse"),
+    "unrest": ("rebellion", "local_rebellion", "revolt", "civil_war", "secession", "coup",
+               "psi_crisis", "vassal_rebellion", "loyalty_cascade", "succession_crisis",
+               "legitimacy_crisis"),
+    "fall": ("collapse", "twilight", "twilight_absorption", "union_annexation", "vassalization"),
+}
+ERA_CRISIS_EVENT_TYPES = frozenset(
+    event_type for group in ERA_CRISIS_EVENT_GROUPS.values() for event_type in group
+)
 
 
 def _rounded_delta(value: float | None, target: float) -> float | None:
@@ -497,6 +536,7 @@ def _world_population_series(bundle: dict) -> list[int]:
 def _civ_trajectories(bundle: dict) -> list[dict]:
     histories: dict[str, dict[str, list[float]]] = defaultdict(
         lambda: {
+            "turn": [],
             "population": [],
             "treasury": [],
             "stability": [],
@@ -504,8 +544,12 @@ def _civ_trajectories(bundle: dict) -> list[dict]:
             "prestige": [],
         }
     )
-    for snapshot in bundle.get("history", []):
+    for index, snapshot in enumerate(bundle.get("history", [])):
+        turn = snapshot.get("turn", index)
         for civ_name, civ_stats in snapshot.get("civ_stats", {}).items():
+            # A civ that appears late (a secession) starts its series late:
+            # its own index is not a world turn, so the turn travels along.
+            histories[civ_name]["turn"].append(turn if isinstance(turn, int) else index)
             histories[civ_name]["population"].append(civ_stats.get("population", 0))
             histories[civ_name]["treasury"].append(civ_stats.get("treasury", 0))
             histories[civ_name]["stability"].append(civ_stats.get("stability", 0))
@@ -515,6 +559,27 @@ def _civ_trajectories(bundle: dict) -> list[dict]:
         {"civ_name": civ_name, **signals}
         for civ_name, signals in histories.items()
     ]
+
+
+def _civ_crisis_event_turns(bundle: dict) -> dict[str, list[int]]:
+    """Turns of the recorded crises that name each civ (era oracle input).
+
+    Only ``ERA_CRISIS_EVENT_TYPES`` count: events that take people from a
+    civ (hunger, disease, war, flight, disaster) or record its breakdown
+    (unrest, the fall of the state). A civ is named by an event's ``actors``
+    or ``civs``.
+    """
+    turns: dict[str, set[int]] = defaultdict(set)
+    for event in bundle.get("events_timeline", []) or []:
+        if not isinstance(event, dict) or event.get("event_type") not in ERA_CRISIS_EVENT_TYPES:
+            continue
+        turn = event.get("turn")
+        if not isinstance(turn, int) or isinstance(turn, bool):
+            continue
+        for name in list(event.get("actors") or []) + list(event.get("civs") or []):
+            if isinstance(name, str):
+                turns[name].add(turn)
+    return {name: sorted(values) for name, values in turns.items()}
 
 
 def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) -> list[dict]:
@@ -575,6 +640,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
             "validation_community_summary": _load_validation_community_summary(seed_dir),
             "world_population": _world_population_series(bundle),
             "civ_trajectories": _civ_trajectories(bundle),
+            "civ_crisis_event_turns": _civ_crisis_event_turns(bundle),
         })
     return runs
 
@@ -1958,66 +2024,161 @@ def run_needs_oracle(seed_runs: list[dict]) -> dict:
     }
 
 
+def detect_collapse_episodes(
+    series: list[float],
+    *,
+    drop_fraction: float = ERA_COLLAPSE_DROP_FRACTION,
+    smoothing_window: int = ERA_COLLAPSE_SMOOTHING_WINDOW,
+) -> list[tuple[int, int, float, float]]:
+    """Population collapses: falls of ``drop_fraction`` or more from a peak.
+
+    The series is smoothed with the inflection detector's trailing rolling
+    mean, so one-turn swings of small populations are not collapses. A running
+    peak is tracked; a collapse opens when the smoothed value falls to
+    ``(1 - drop_fraction) x peak`` and follows the trough until the series
+    regains the peak or rebounds from the trough by the same ratio (to
+    ``trough / (1 - drop_fraction)``). The next peak is tracked from there, so
+    every collapse of a run is found, not only the one below the global peak.
+
+    Returns ``(peak_index, trough_index, peak_value, trough_value)`` per
+    collapse, in smoothed units.
+    """
+    if len(series) < 2:
+        return []
+    keep = 1.0 - drop_fraction
+    smoothed = _smoothed_series([float(value) for value in series], max(1, smoothing_window))
+    episodes: list[tuple[int, int, float, float]] = []
+    peak_value, peak_index = smoothed[0], 0
+    trough_value = trough_index = None
+    for index in range(1, len(smoothed)):
+        value = smoothed[index]
+        if trough_index is None:
+            if value >= peak_value:  # the last turn at the peak: where the fall begins
+                peak_value, peak_index = value, index
+            elif peak_value > 0 and value <= keep * peak_value:
+                trough_value, trough_index = value, index
+            continue
+        if value < trough_value:
+            trough_value, trough_index = value, index
+        elif value >= peak_value or (value > trough_value and value * keep >= trough_value):
+            episodes.append((peak_index, trough_index, peak_value, trough_value))
+            trough_value = trough_index = None
+            peak_value, peak_index = value, index
+    if trough_index is not None:
+        episodes.append((peak_index, trough_index, peak_value, trough_value))
+    return episodes
+
+
 def run_era_oracle(seed_runs: list[dict]) -> dict:
+    """Oracle 3: era inflections, and no silent collapses.
+
+    A seed needs at least two (collapsed) inflection points across its civs'
+    era signals. A *silent collapse* is a population collapse of one civ
+    (``detect_collapse_episodes``) that nothing marks between five turns
+    before its peak and five after its trough: no inflection point in that
+    civ's own era signals (population, treasury, stability, territory,
+    prestige) and no recorded crisis naming it (``ERA_CRISIS_EVENT_TYPES``).
+    The oracle passes when at least 80% of seeds have inflections and at most
+    10% of seeds have a silent collapse.
+
+    Recalibrated 2026-10 (docs/integration/wave3-defaults.md). The old check
+    took each civ's global peak and the lowest point after it and accepted an
+    inflection of *any* civ's signal anywhere in that window, which could span
+    centuries; three quarters of those inflections were treasury jumps. It
+    therefore depended on other civs' finances, missed every collapse but one
+    per civ, and could not tell a collapse that the chronicle records from
+    one it does not.
+    """
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
     analyzed_seeds = 0
     seeds_with_inflections = 0
     silent_collapse_seeds = 0
+    collapse_episode_count = 0
+    era_signal_marked = 0
+    crisis_only_marked = 0
     per_seed: list[dict] = []
+    silent_episodes: list[dict] = []
 
     for run in seed_runs:
         trajectories = run.get("civ_trajectories", [])
         if not trajectories:
             continue
         analyzed_seeds += 1
-        inflection_points: list[int] = []
+        crisis_turns = run.get("civ_crisis_event_turns") or {}
+        inflection_turns: list[int] = []
         signal_hits: Counter[str] = Counter()
+        seed_collapses = 0
+        seed_silent: list[dict] = []
         for trajectory in trajectories:
-            for signal_name, series in _trajectory_metric_series(trajectory).items():
+            series_map = _trajectory_metric_series(trajectory)
+            length = max((len(values) for values in series_map.values()), default=0)
+            turns = list(trajectory.get("turn") or range(length))
+            own_turns: set[int] = set()
+            for signal_name, series in series_map.items():
                 if len(series) < 10:
                     continue
                 points = detect_inflection_points(series)
-                inflection_points.extend(points)
                 signal_hits[signal_name] += len(points)
-        collapsed = _collapse_nearby_points(inflection_points, radius=5)
-        silent_collapse = False
-        for trajectory in trajectories:
-            pop_series = trajectory.get("population", [])
-            if len(pop_series) >= 10:
-                peak_value = max(pop_series)
-                peak_turn = pop_series.index(peak_value)
-                if peak_value > 0:
-                    post_peak = pop_series[peak_turn:]
-                    trough_value = min(post_peak) if post_peak else peak_value
-                    if trough_value <= peak_value * 0.70:
-                        trough_turn = peak_turn + post_peak.index(trough_value)
-                        if not any((peak_turn - 5) <= point <= (trough_turn + 5) for point in collapsed):
-                            silent_collapse = True
+                own_turns.update(turns[point] for point in points if point < len(turns))
+            inflection_turns.extend(own_turns)
+            pop_series = series_map["population"]
+            if len(pop_series) < 10:
+                continue
+            civ_name = trajectory.get("civ_name")
+            civ_crises = crisis_turns.get(civ_name, []) if isinstance(civ_name, str) else []
+            for peak, trough, peak_value, trough_value in detect_collapse_episodes(pop_series):
+                if trough >= len(turns):
+                    continue
+                low = turns[peak] - ERA_SIGNAL_SLACK_TURNS
+                high = turns[trough] + ERA_SIGNAL_SLACK_TURNS
+                seed_collapses += 1
+                if any(low <= turn <= high for turn in own_turns):
+                    era_signal_marked += 1
+                elif any(low <= turn <= high for turn in civ_crises):
+                    crisis_only_marked += 1
+                else:
+                    seed_silent.append({
+                        "seed": run.get("seed"),
+                        "civ": civ_name,
+                        "peak_turn": turns[peak],
+                        "trough_turn": turns[trough],
+                        "peak_population": round(peak_value, 1),
+                        "trough_population": round(trough_value, 1),
+                    })
+        collapsed = _collapse_nearby_points(inflection_turns, radius=5)
+        collapse_episode_count += seed_collapses
         if len(collapsed) >= 2:
             seeds_with_inflections += 1
-        if silent_collapse:
+        if seed_silent:
             silent_collapse_seeds += 1
+            silent_episodes.extend(seed_silent)
         per_seed.append({
             "seed": run.get("seed"),
             "inflection_count": len(collapsed),
             "inflection_turns": collapsed,
-            "silent_collapse": silent_collapse,
+            "silent_collapse": bool(seed_silent),
+            "collapse_count": seed_collapses,
+            "silent_collapse_count": len(seed_silent),
             "signal_hits": dict(signal_hits),
         })
 
     if analyzed_seeds == 0:
         return {"status": "SKIP", "reason": "no_history_series"}
 
-    required = required_seed_count(analyzed_seeds, 0.80)
-    max_silent = analyzed_seeds * 0.10
+    required = required_seed_count(analyzed_seeds, ERA_INFLECTION_SEED_FRACTION_MIN)
+    max_silent = analyzed_seeds * ERA_SILENT_COLLAPSE_SEED_FRACTION_MAX
     return {
         "status": "PASS" if seeds_with_inflections >= required and silent_collapse_seeds <= max_silent else "FAIL",
         "analyzed_seeds": analyzed_seeds,
         "required_seed_count": required,
         "seeds_with_inflections": seeds_with_inflections,
         "silent_collapse_seeds": silent_collapse_seeds,
+        "collapse_episode_count": collapse_episode_count,
+        "collapses_marked_by_era_signal": era_signal_marked,
+        "collapses_marked_by_crisis_only": crisis_only_marked,
+        "silent_collapse_episodes": silent_episodes,
         "per_seed": per_seed,
     }
 
@@ -2292,6 +2453,36 @@ def _final_living_population(run: dict) -> dict:
     return evidence
 
 
+def _late_satisfaction_window(agent_aggregates: dict, last_turn: int) -> tuple[float, float, int]:
+    """Agent-weighted satisfaction sums over the late-run window ending at ``last_turn``.
+
+    Returns ``(sum of mean x count, sum of (std^2 + mean^2) x count, count)``
+    over every sampled turn in ``(last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
+    last_turn]`` and every civ with living agents.
+    """
+    weighted = second_moment = 0.0
+    weight = 0
+    first = last_turn - REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS
+    for turn in _aggregate_turns_descending(agent_aggregates):
+        if turn > last_turn:
+            continue
+        if turn <= first:
+            break
+        aggregates = agent_aggregates.get(str(turn), {})
+        if not isinstance(aggregates, dict):
+            continue
+        for civ_data in aggregates.values():
+            count = _population_count(civ_data.get("agent_count")) if isinstance(civ_data, dict) else None
+            if count is None or count <= 0:
+                continue
+            mean = float(civ_data.get("satisfaction_mean", 0.0))
+            std = float(civ_data.get("satisfaction_std", 0.0))
+            weighted += mean * count
+            second_moment += (std ** 2 + mean ** 2) * count
+            weight += count
+    return weighted, second_moment, weight
+
+
 def run_regression_summary(seed_runs: list[dict]) -> dict:
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
@@ -2310,6 +2501,8 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     latest_satisfaction_weighted_sum = 0.0
     latest_satisfaction_second_moment_sum = 0.0
     latest_satisfaction_weight_total = 0
+    final_sample_satisfaction_weighted_sum = 0.0
+    final_sample_satisfaction_weight_total = 0
     controlled_occupation_shares: list[float] = []
     fallback_occupation_shares: list[float] = []
     latest_controlled_occupation_shares: list[float] = []
@@ -2446,9 +2639,12 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
                             if share <= 0.0 or share > REGRESSION_OCCUPATION_SHARE_MAX:
                                 turn_latest_occupation_violation_agent_count += occ_count
                 if turn_satisfaction_weight_total:
-                    latest_satisfaction_weighted_sum += turn_satisfaction_weighted_sum
-                    latest_satisfaction_second_moment_sum += turn_satisfaction_second_moment_sum
-                    latest_satisfaction_weight_total += turn_satisfaction_weight_total
+                    final_sample_satisfaction_weighted_sum += turn_satisfaction_weighted_sum
+                    final_sample_satisfaction_weight_total += turn_satisfaction_weight_total
+                    window_sums = _late_satisfaction_window(agent_aggregates, turn)
+                    latest_satisfaction_weighted_sum += window_sums[0]
+                    latest_satisfaction_second_moment_sum += window_sums[1]
+                    latest_satisfaction_weight_total += window_sums[2]
                     if turn_latest_has_current_occupation_schema:
                         run_latest_has_current_occupation_schema = True
                     if turn_latest_has_controlled_occupation_evidence:
@@ -2544,6 +2740,10 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
     latest_satisfaction_mean = (
         latest_satisfaction_weighted_sum / latest_satisfaction_weight_total
         if latest_satisfaction_weight_total else None
+    )
+    final_sample_satisfaction_mean = (
+        final_sample_satisfaction_weighted_sum / final_sample_satisfaction_weight_total
+        if final_sample_satisfaction_weight_total else None
     )
     latest_satisfaction_std = None
     if latest_satisfaction_weight_total and latest_satisfaction_mean is not None:
@@ -2787,6 +2987,11 @@ def run_regression_summary(seed_runs: list[dict]) -> dict:
             round(latest_satisfaction_std, 4)
             if latest_satisfaction_std is not None else None
         ),
+        "latest_satisfaction_window_turns": REGRESSION_LATEST_SATISFACTION_WINDOW_TURNS,
+        "final_sample_satisfaction_mean": (
+            round(final_sample_satisfaction_mean, 4)
+            if final_sample_satisfaction_mean is not None else None
+        ),
         "latest_satisfaction_mean_ok": latest_satisfaction_mean_ok,
         "latest_satisfaction_mean_calibrated_ok": latest_satisfaction_mean_calibrated_ok,
         "satisfaction_mean_ok": satisfaction_mean_ok,
@@ -2949,4 +3154,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']
+__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']

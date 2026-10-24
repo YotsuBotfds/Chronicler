@@ -7,6 +7,7 @@ from chronicler.models import Event, InfrastructureType, Region, Resource, World
 from chronicler.models import EMPTY_SLOT, ResourceType
 from chronicler.utils import get_region_map, stable_hash_int
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
+from chronicler.techniques_state import techniques_on
 
 # --- M34: Resource type constants ---
 
@@ -170,12 +171,19 @@ def _compute_active_trade_routes(
         # Diplomacy: a trade pact keeps the route open down to SUSPICIOUS.
         from chronicler.diplomacy import trade_pact_pairs
         pacts = trade_pact_pairs(world)
+    # Maritime: sea lanes closed by a blockade carry no trade (empty when off).
+    blocked: frozenset = frozenset()
+    if getattr(world, "maritime", None) is not None:
+        from chronicler.maritime import blocked_name_pairs
+        blocked = blocked_name_pairs(world)
     for r1 in world.regions:
         if r1.controller is None:
             continue
         for adj_name in r1.adjacencies:
             r2 = region_map.get(adj_name)
             if r2 is None or r2.controller is None or r1.controller == r2.controller:
+                continue
+            if blocked and (r1.name, adj_name) in blocked:
                 continue
             pair = tuple(sorted([r1.controller, r2.controller]))
             if pair in embargo_set:
@@ -203,6 +211,8 @@ def _compute_active_trade_routes(
             mid = region_map.get(mid_name)
             if mid is None:
                 continue
+            if blocked and (r1.name, mid_name) in blocked:
+                continue
             # NAVIGATION: intermediate must be coastal
             if focus == "navigation" and mid.terrain != "coast":
                 continue
@@ -214,6 +224,8 @@ def _compute_active_trade_routes(
             for hop2_name in mid.adjacencies:
                 hop2 = region_map.get(hop2_name)
                 if hop2 is None or hop2.controller is None or hop2.controller == r1.controller:
+                    continue
+                if blocked and (mid_name, hop2_name) in blocked:
                     continue
                 pair = tuple(sorted([r1.controller, hop2.controller]))
                 if pair in embargo_set or pair in routes:
@@ -232,6 +244,12 @@ def _compute_active_trade_routes(
                 actors=[civ_name], description=f"{civ_name} {focus} extends trade routes",
                 importance=1,
             ))
+
+    # --techniques: regions practising celestial navigation or road building
+    # reach two hops (the navigation/railways capabilities, region by region).
+    if techniques_on(world):
+        from chronicler.techniques import extend_trade_routes
+        extend_trade_routes(world, routes, embargo_set, region_map)
 
     # Federation members get trade routes regardless of adjacency
     for fed in world.federations:

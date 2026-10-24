@@ -402,8 +402,11 @@ def compute_resource_yields(
             reserve_ramp = min(1.0, reserves / ramp_thresh)
 
         from chronicler.tuning import get_multiplier, K_RESOURCE_ABUNDANCE
+        from chronicler.techniques import yield_multiplier
         abundance = get_multiplier(world, K_RESOURCE_ABUNDANCE) if world else 1.0
-        yields[slot] = base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
+        # techniques.yield_multiplier is 1.0 unless --techniques (the one ecology hook).
+        yields[slot] = (base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
+                        * yield_multiplier(world, region, rtype))
 
     return yields
 

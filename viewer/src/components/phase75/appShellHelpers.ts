@@ -5,6 +5,35 @@ export function turnToPercent(turn: number, maxTurn: number): number {
   return ((turn - 1) / (maxTurn - 1)) * 100;
 }
 
+/**
+ * Divisor that brings region map pins into 0-1. Generated worlds place
+ * regions on a 0-100 map; hand-made demo data already uses 0-1.
+ */
+export function pinScale(coords: Array<number | null | undefined>): number {
+  let max = 0;
+  for (const value of coords) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      max = Math.max(max, Math.abs(value));
+    }
+  }
+  return max > 1 ? Math.max(100, max) : 1;
+}
+
+/**
+ * Region node radius on the atlas: area follows carrying capacity relative
+ * to the largest region shown, under a ceiling that shrinks as the map holds
+ * more regions, so nodes stay apart on both 6-region and 150-region worlds.
+ */
+export function regionNodeRadius(
+  capacity: number | null | undefined,
+  maxCapacity: number,
+  regionCount: number,
+): number {
+  const ceiling = Math.max(8, Math.min(40, 160 / Math.sqrt(Math.max(regionCount, 1))));
+  const share = maxCapacity > 0 ? Math.min(1, Math.max(0, capacity ?? 0) / maxCapacity) : 0.5;
+  return ceiling * (0.4 + 0.6 * Math.sqrt(share));
+}
+
 export function percentToTurn(percent: number, maxTurn: number): number {
   if (maxTurn <= 1) {
     return 1;

@@ -79,6 +79,8 @@ from typing import TYPE_CHECKING, Iterable
 
 from pydantic import BaseModel, Field
 
+from chronicler.techniques_state import techniques_on
+
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Civilization, Event, WorldState
 
@@ -87,8 +89,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 #: Default for worlds newly created by the CLI/batch/live entry points
-#: (``--finance`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: (on since the 2026-10 all-on full gate; ``--no-finance`` opts out; loaded
+#: worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 #: Lender id of the domestic merchant/elite creditor class.
 DOMESTIC = -1
@@ -645,6 +648,10 @@ def _merchant_wealth_now(world, civ_idx: int, civ, economy_result) -> float:
 def _domestic_capacity(world, civ_idx: int, civ, f: CivFinance) -> int:
     capacity = (DOMESTIC_WEALTH_SHARE * f.merchant_wealth
                 + DOMESTIC_REVENUE_TURNS * f.revenue_ema * _merchant_influence(civ)) * f.domestic_trust
+    if techniques_on(world):
+        # --techniques: coinage, banking and bookkeeping deepen domestic credit.
+        from chronicler.techniques import credit_factor
+        capacity *= credit_factor(world, civ_idx)
     return max(0, int(capacity) - outstanding_debt(world, civ_idx, DOMESTIC))
 
 
@@ -771,7 +778,12 @@ def _borrow(world, civ_idx: int, civ, f: CivFinance, gap: int, book: _Book, lend
     from chronicler.models import Disposition
     st = world.finance
     raised = 0
-    headroom = int(_debt_ceiling(f)) - outstanding_debt(world, civ_idx)
+    ceiling = _debt_ceiling(f)
+    if techniques_on(world):
+        # --techniques: practised banking lets creditors carry more debt.
+        from chronicler.techniques import credit_factor
+        ceiling *= credit_factor(world, civ_idx)
+    headroom = int(ceiling) - outstanding_debt(world, civ_idx)
     gap = min(gap, headroom)
     loans_made = 0
     excluded = f.excluded_until is not None and world.turn < f.excluded_until

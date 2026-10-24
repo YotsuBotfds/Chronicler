@@ -235,6 +235,166 @@ export interface TurnSnapshot {
   urban_fraction?: number;
   /** M60 campaign layer; present only when the run enabled --campaigns. */
   campaign?: CampaignSnapshot;
+  /** Epidemiology; present only when the run enabled --epidemiology. */
+  epidemics?: EpidemicSnapshot;
+  /** Money, credit and public finance; present only with --finance. */
+  finance?: FinanceSnapshot;
+  /** Treaties, pair memory and the vassal ladder; present only with --diplomacy. */
+  diplomacy?: DiplomacySnapshot;
+  /** Diffusing techniques; present only with --techniques. */
+  techniques?: TechniquesSnapshot;
+  /** Fleets, sea zones and blockades; present only with --maritime. */
+  maritime?: MaritimeSnapshot;
+}
+
+// --- Default-off simulation systems (history[n].<field>) ---
+// Shapes follow each system's snapshot_summary() in src/chronicler/. Every
+// field is optional on TurnSnapshot: bundles without the system omit it.
+
+/** One reportable outbreak: a (region, pathogen) row of the SEIRS table. */
+export interface EpidemicOutbreak {
+  region: string;
+  pathogen: string;
+  /** Mean infectious share over the last tick (what the region exports). */
+  prevalence: number;
+  /** Recovered (immune) share. */
+  immune: number;
+  /** New infections last tick, in people. */
+  cases: number;
+  /** Deaths last tick. */
+  deaths: number;
+  /** The population never had an epidemic of this pathogen. */
+  virgin: boolean;
+}
+
+export interface EpidemicSnapshot {
+  active: EpidemicOutbreak[];
+  deaths: number;
+  deaths_by_pathogen: Record<string, number>;
+  deaths_total: number;
+  /** Civilizations whose borders are closed this turn. */
+  quarantine: string[];
+  /** Pathogen name -> strain count (only mutated pathogens). */
+  strains: Record<string, number>;
+}
+
+export interface FinanceCivSnapshot {
+  debt: number;
+  foreign_debt: number;
+  revenue: number;
+  revenue_ema: number;
+  upkeep: number;
+  court: number;
+  debt_service: number;
+  interest: number;
+  borrowed: number;
+  shortfall: number;
+  price_index: number;
+  inflation: number;
+  fineness: number;
+  fiscal_stress: number;
+  arrears_turns: number;
+  defaults: number;
+  debasements: number;
+  credit_premium: number;
+}
+
+export interface FinanceSnapshot {
+  /** Living civilizations only. */
+  civs: Record<string, FinanceCivSnapshot>;
+  /** Number of open credit lines. */
+  loans: number;
+  totals: Record<string, number>;
+}
+
+export interface DiplomacyTreaty {
+  id: number;
+  kind: string;
+  name: string;
+  parties: string[];
+  start: number;
+  expiry: number | null;
+}
+
+export interface DiplomacySubject {
+  overlord: string;
+  vassal: string;
+  /** "client", "vassal" or "union". */
+  stage: string | null;
+  since: number | null;
+  integration: number | null;
+}
+
+export interface DiplomacyGrievance {
+  holder: string;
+  target: string;
+  grievance: number;
+  trust: number;
+  goodwill: number;
+  kinds: Record<string, number>;
+}
+
+/** Directed pair memory as exported: [trust, total grievance] of holder toward target. */
+export type DiplomacyPairMemory = [number, number];
+
+export interface DiplomacySnapshot {
+  treaties: DiplomacyTreaty[];
+  subjects: DiplomacySubject[];
+  /** The five largest grievances between living civilizations. */
+  top_grievances: DiplomacyGrievance[];
+  counts: Record<string, number>;
+  /**
+   * Holder -> target -> [trust, total grievance] for every living directed
+   * pair with a memory. Absent on bundles written before the viewer panels.
+   */
+  pairs?: Record<string, Record<string, DiplomacyPairMemory>>;
+}
+
+export interface TechniquesSnapshot {
+  /** Living civilization -> techniques known. */
+  known: Record<string, number>;
+  /** Living civilization -> techniques practised widely enough to count toward an era. */
+  practised: Record<string, number>;
+  /** Rows of the regional practice table. */
+  rows: number;
+  /** Region -> technique key -> practice share (>= 0.03); absent on older bundles. */
+  regions?: Record<string, Record<string, number>>;
+}
+
+export interface MaritimeZone {
+  zone: string;
+  /** "uncontested", "contested" or "controlled". */
+  status: string;
+  controller: string | null;
+  pirates: number;
+  /** Civilization -> ships in the zone. */
+  ships: Record<string, number>;
+  sea_trade: number;
+  piracy: number;
+}
+
+export interface MaritimeFleet {
+  id: number;
+  name: string;
+  civ: string | null;
+  zone: string;
+  ships: number;
+  mission: string;
+}
+
+export interface MaritimeBlockade {
+  zone: string;
+  blockader: string | null;
+  target: string | null;
+  since: number;
+}
+
+export interface MaritimeSnapshot {
+  zones: MaritimeZone[];
+  fleets: MaritimeFleet[];
+  blockades: MaritimeBlockade[];
+  blocked_lanes: number;
+  counters: Record<string, number>;
 }
 
 export interface CampaignArmy {
@@ -312,6 +472,8 @@ export interface WorldState {
   events_timeline: Event[];
   named_events: NamedEvent[];
   scenario_name: string | null;
+  /** Final maritime state (present only with --maritime); the viewer reads zone ports. */
+  maritime?: { zones?: Array<{ name: string; kind?: string; ports?: number[] }> } | null;
 }
 
 // --- Bundle ---

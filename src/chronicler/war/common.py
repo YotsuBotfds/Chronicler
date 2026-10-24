@@ -36,6 +36,8 @@ class WarContext:
     # Per-civ fractional military-stat losses, flushed once per tick.
     military_loss: dict[str, float] = field(default_factory=dict)
     battle_regions: set = field(default_factory=set)
+    # Maritime (--maritime): chronicler.maritime.NavalContext; None when off.
+    naval: object | None = None
 
     @property
     def turn(self) -> int:
@@ -75,7 +77,11 @@ def build_context(world: "WorldState", acc=None, bridge=None) -> WarContext:
     graph, index, names = build_graph(world)
     if bridge is None:
         bridge = getattr(world, "_agent_bridge", None)
-    return WarContext(world=world, acc=acc, graph=graph, index=index, names=names, bridge=bridge)
+    ctx = WarContext(world=world, acc=acc, graph=graph, index=index, names=names, bridge=bridge)
+    if getattr(world, "maritime", None) is not None:
+        from chronicler.maritime import attach_naval_context
+        attach_naval_context(ctx)
+    return ctx
 
 
 def war_rng(ctx: WarContext, namespace: str, *parts) -> random.Random:

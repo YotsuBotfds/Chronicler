@@ -62,8 +62,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 #: Default for worlds newly created by the CLI/batch/live entry points
-#: (``--diplomacy`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: (on since the 2026-10 all-on full gate; ``--no-diplomacy`` opts out;
+#: loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 
 def diplomacy_enabled(world) -> bool:
@@ -1526,6 +1527,31 @@ def _war_inputs(world) -> None:
             add_grievance(world, side, other, WAR, amount)
     for occ in world.war_state.occupations:
         add_grievance(world, occ.owner, occ.occupier, OCCUPATION, GRIEVANCE_OCCUPIED_TURN)
+    if getattr(world, "maritime", None) is not None:
+        _naval_inputs(world)
+
+
+def _naval_inputs(world) -> None:
+    """Maritime: this turn's naval battles weigh like land battles (ships for
+    soldiers); a standing blockade offends like an embargo."""
+    from chronicler.maritime import maritime_enabled
+    if not maritime_enabled(world):
+        return
+    civs = world.civilizations
+    turn = world.turn
+    for battle in world.maritime.battles:
+        if battle.turn != turn:
+            continue
+        sides = ((battle.attacker, battle.defender, battle.attacker_losses, battle.attacker_ships),
+                 (battle.defender, battle.attacker, battle.defender_losses, battle.defender_ships))
+        for side, other, losses, ships in sides:
+            lost = battle.winner is not None and battle.winner != side
+            amount = ((GRIEVANCE_BATTLE_LOST if lost else GRIEVANCE_BATTLE_FOUGHT)
+                      + GRIEVANCE_BATTLE_CASUALTIES * losses / max(1, ships))
+            add_grievance(world, civs[side].name, civs[other].name, WAR, amount)
+    for blockade in world.maritime.active_blockades():
+        add_grievance(world, civs[blockade.target].name, civs[blockade.blockader].name,
+                      EMBARGO, GRIEVANCE_EMBARGO_TURN)
 
 
 def _event_inputs(world, turn_events: list[Event]) -> None:
@@ -1808,8 +1834,20 @@ def snapshot_summary(world, top_n: int = 5) -> dict:
             "goodwill": m.goodwill,
             "kinds": {GRIEVANCE_KINDS[i]: v for i, v in enumerate(m.grievance) if v}}
            for t, h, o, m in rows[:top_n]]
+    # Viewer pair matrix: holder -> target -> [trust, total grievance] for every
+    # directed pair of living civs that has a memory, in civilization index
+    # order (read-only; one decimal keeps it small).
+    alive = _living(world)
+    pairs: dict[str, dict[str, list[float]]] = {}
+    for _, holder in alive:
+        rels = world.relationships.get(holder.name, {})
+        for _, other in alive:
+            rel = rels.get(other.name) if other is not holder else None
+            if rel is not None and rel.memory is not None:
+                pairs.setdefault(holder.name, {})[other.name] = [
+                    round(rel.memory.trust, 1), round(rel.memory.total_grievance(), 1)]
     return {"treaties": treaties, "subjects": subjects, "top_grievances": top,
-            "counts": dict(sorted(state.counts.items()))}
+            "counts": dict(sorted(state.counts.items())), "pairs": pairs}
 
 
 def extract_diplomacy_metrics(bundles: list[dict]) -> dict:

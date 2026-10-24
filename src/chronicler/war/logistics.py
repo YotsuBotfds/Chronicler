@@ -78,7 +78,9 @@ def logistics_step(ctx: WarContext, army: "Army", civ: "Civilization", sources: 
     army.unpaid_turns = army.unpaid_turns + 1 if unmet else 0
 
     # Replenish along the supply line, plus foraging off friendly land.
-    distance = supply_distance(ctx.graph, here, sources)
+    # Maritime: supply does not run through enemy-controlled sea zones.
+    graph = ctx.graph if ctx.naval is None else ctx.naval.supply_graph(civ.name)
+    distance = supply_distance(graph, here, sources)
     army.supply_distance = distance
     capacity = army.soldiers * POLICY.carried_limit
     refill = 0
@@ -166,9 +168,20 @@ def move_armies(ctx: WarContext, armies: list["Army"]) -> None:
             continue
         if (army.morale < POLICY.movement_min_morale and army.phase not in ("returning", "regrouping")):
             continue
-        path = shortest_path(ctx.graph, ctx.index[army.region], ctx.index[army.objective])
+        if ctx.naval is None:
+            path = shortest_path(ctx.graph, ctx.index[army.region], ctx.index[army.objective])
+        else:
+            # Maritime: plan over lanes the civ can cross; wait on the shore
+            # for an escort (or command of the zone) before crossing.
+            path = ctx.naval.path(army)
         if len(path) < 2:
             continue
+        escort = None
+        if ctx.naval is not None:
+            allowed, escort = ctx.naval.crossing(army, path[0], path[1])
+            if not allowed:
+                army.move_progress = 0
+                continue
         nxt = world.regions[path[1]]
         army.move_progress += 1
         if army.move_progress < P.MOVE_COST.get(nxt.terrain, 1):
@@ -177,6 +190,8 @@ def move_armies(ctx: WarContext, armies: list["Army"]) -> None:
         army.region = nxt.name
         if army.phase == "rally":
             army.phase = "marching"
+        if ctx.naval is not None:
+            ctx.naval.note_crossing(army, path[0], path[1], escort)
 
 
 def _serial(army: "Army") -> int:

@@ -395,9 +395,11 @@ def _rule_war_event(world: "WorldState", ev: Event) -> list:
     if p is None:
         return []
     war = recall(world, war_key(*p))
+    # Maritime: a fight on a beachhead the turn the army landed.
+    landing = recall(world, key("landing", ev.region), within=0) if ev.region else None
     if war is not None:
-        return [war, recall(world, key("siege", ev.region), within=10) if ev.region else None]
-    return _rule_war_open(world, ev)
+        return [war, recall(world, key("siege", ev.region), within=10) if ev.region else None, landing]
+    return _rule_war_open(world, ev) + [landing]
 
 
 def _rule_civ_war(world: "WorldState", ev: Event) -> list:
@@ -733,6 +735,10 @@ def _register(world: "WorldState", ev: Event) -> None:
         # and flight rules (which read pandemic:<region>) cite them too.
         keys[key("pandemic", region)] = eid
         keys[key("epidemic", region, ev.shock_category or "")] = eid
+    if etype == "amphibious_landing" and region is not None:
+        keys[key("landing", region)] = eid
+    if etype == "piracy" and region is not None:
+        keys[key("piracy", region)] = eid  # a zone's latest raid, at its first port
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid
@@ -825,6 +831,8 @@ CHRONIC: dict[str, ChronicSpec] = {
     # Finance (reported at the debtor's capital while the condition lasts).
     "fiscal_strain": ChronicSpec(3, False, None, "fiscal crisis"),
     "price_inflation": ChronicSpec(2, False, None, "inflation"),
+    # Maritime: raiders taking sea cargo in a zone (reported at its first port).
+    "piracy": ChronicSpec(2, False, None, "piracy"),
 }
 
 

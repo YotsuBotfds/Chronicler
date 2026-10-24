@@ -1200,6 +1200,10 @@ class AgentBridge:
         # M58a: Sync merchant route graph before tick
         from chronicler.economy import build_merchant_route_graph
         route_batch = build_merchant_route_graph(world)
+        if getattr(world, "maritime", None) is not None:
+            # Maritime: blockaded lanes removed, per-lane raid risk attached.
+            from chronicler.maritime import merchant_route_graph
+            route_batch = merchant_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
@@ -1220,6 +1224,10 @@ class AgentBridge:
         # M58a: Sync merchant route graph before tick
         from chronicler.economy import build_merchant_route_graph
         route_batch = build_merchant_route_graph(world)
+        if getattr(world, "maritime", None) is not None:
+            # Maritime: blockaded lanes removed, per-lane raid risk attached.
+            from chronicler.maritime import merchant_route_graph
+            route_batch = merchant_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,

@@ -21,8 +21,12 @@ import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
 import { InterventionPanel } from "../InterventionPanel";
 import { RegionHistoryInspector } from "../RegionHistoryInspector";
+import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
+import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
-import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "./appShellHelpers";
+import {
+  buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
+} from "./appShellHelpers";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -376,11 +380,12 @@ function computeAtlasLayout(regions: RegionLike[], controllers: Record<string, s
 
   const hasPins = regions.some((region) => region.x !== null && region.y !== null);
   if (hasPins) {
+    const scale = pinScale(regions.flatMap((region) => [region.x, region.y]));
     return regions.map((region) => ({
       region,
       controller: controllers[region.name] ?? null,
-      x: 90 + (region.x ?? 0.5) * 820,
-      y: 80 + (region.y ?? 0.5) * 480,
+      x: 90 + ((region.x ?? 0.5 * scale) / scale) * 820,
+      y: 80 + ((region.y ?? 0.5 * scale) / scale) * 480,
     }));
   }
 
@@ -879,6 +884,16 @@ export function AppShell({
     onSeek(percentToTurn(percent, totalTurns));
   };
 
+  const selectEvent = (event: Event) => {
+    setSelectedEntity({
+      kind: "event",
+      id: eventKey(event),
+      label: event.description,
+      turn: event.turn,
+    });
+    onSeek(event.turn);
+  };
+
   const selectedRegion = selectedEntity?.kind === "region"
     ? atlasRegions.find((region) => region.name === selectedEntity.id) ?? null
     : null;
@@ -989,15 +1004,7 @@ export function AppShell({
           chronicleFeed={chronicleFeed}
           eventFeed={eventFeed}
           onJumpToTurn={(turn) => onSeek(turn)}
-          onSelectEvent={(event) => {
-            setSelectedEntity({
-              kind: "event",
-              id: eventKey(event),
-              label: event.description,
-              turn: event.turn,
-            });
-            onSeek(event.turn);
-          }}
+          onSelectEvent={selectEvent}
           setupState={{
             scenario,
             scenarios,
@@ -1097,8 +1104,25 @@ export function AppShell({
             serverState,
             livePaused: livePaused ?? false,
           }}
+          currentSnapshot={currentSnapshot}
         />
       </div>
+
+      {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
+        <SystemsPanel
+          key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+          bundle={bundle}
+          surface={surface}
+          snapshot={currentSnapshot}
+          currentTurn={currentTurn}
+          onSeek={onSeek}
+          onSelectEvent={selectEvent}
+          onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
+          onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+          selectedRegion={selectedRegion?.name ?? null}
+          selectedCivilization={selectedCivilization?.name ?? null}
+        />
+      )}
 
       {error && surface !== "setup" && surface !== "batch" && (
         <div className="phase75-error-banner">{error}</div>
@@ -1950,6 +1974,7 @@ function MapViewport({
   batchState: BatchState;
   batchProgress: { completed: number; total: number; currentSeed: number } | null;
 }) {
+  const maxCapacity = Math.max(0, ...atlasNodes.map((node) => node.region.carrying_capacity ?? 0));
   const highlightedEventRegions = new Set(
     namedEvents
       .filter((event) => event.region)
@@ -2087,7 +2112,7 @@ function MapViewport({
             {atlasNodes.map((node) => {
               const isSelected = selectedEntity?.kind === "region" && selectedEntity.id === node.region.name;
               const fill = node.controller ? factionColor(node.controller) : UNCONTROLLED_COLOR;
-              const radius = 16 + (node.region.carrying_capacity ?? 2) * 2;
+              const radius = regionNodeRadius(node.region.carrying_capacity, maxCapacity, atlasNodes.length);
               return (
                 <g key={node.region.name}>
                   <circle
@@ -2192,6 +2217,7 @@ function RightInspector({
   onShowCompare,
   viewerReady,
   liveState,
+  currentSnapshot = null,
 }: {
   surface: AppSurface;
   selection: SelectedEntity | null;
@@ -2219,6 +2245,7 @@ function RightInspector({
     serverState: "connecting" | "lobby" | "starting" | "running" | "completed";
     livePaused: boolean;
   };
+  currentSnapshot?: TurnSnapshot | null;
 }) {
   return (
     <aside className="phase75-right-rail phase75-panel">
@@ -2312,6 +2339,7 @@ function RightInspector({
                   <span>Resources</span>
                   <strong>{selectedRegion.resources ?? "Unknown"}</strong>
                 </div>
+                <RegionSystemsDetail snapshot={currentSnapshot} region={selectedRegion.name} />
               </>
             )}
 

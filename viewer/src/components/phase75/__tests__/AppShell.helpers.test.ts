@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildTradeLinks, eventKey, eventProvenance, percentToTurn, turnToPercent } from "../appShellHelpers";
+import {
+  buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
+} from "../appShellHelpers";
 
 describe("AppShell helpers", () => {
   it("respects an empty timeline trade-route snapshot over final world relationships", () => {
@@ -33,6 +35,21 @@ describe("AppShell helpers", () => {
     expect(percentToTurn(0, 10)).toBe(1);
     expect(percentToTurn(0.5, 10)).toBe(6);
     expect(percentToTurn(1, 10)).toBe(10);
+  });
+
+  it("scales generated 0-100 map pins and leaves 0-1 pins alone", () => {
+    expect(pinScale([12.5, 99.1, null, 40])).toBe(100);
+    expect(pinScale([0.2, 0.9, undefined])).toBe(1);
+    expect(pinScale([])).toBe(1);
+    expect(pinScale([150, 20])).toBe(150);
+  });
+
+  it("sizes region nodes by relative capacity under a density ceiling", () => {
+    expect(regionNodeRadius(80, 80, 12)).toBe(40);
+    expect(regionNodeRadius(20, 80, 12)).toBeCloseTo(40 * (0.4 + 0.6 * 0.5));
+    expect(regionNodeRadius(96, 96, 100)).toBe(16);
+    expect(regionNodeRadius(50, 50, 10000)).toBe(8);
+    expect(regionNodeRadius(null, 0, 6)).toBeCloseTo(40 * (0.4 + 0.6 * Math.sqrt(0.5)));
   });
 
   it("maps turns to a 0-100 percent range", () => {
