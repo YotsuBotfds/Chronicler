@@ -243,11 +243,16 @@ the pin `test_corrected_baseline_all_turns_and_rng` fails for its single,
 standard and wide workloads; with it all 65 tests pass and no fixture
 changes.
 
-The slow `TestBundleSize` check (seed 1, 500 turns, 10 regions) grows from
-33.70 to 36.56 MiB with techniques on: 1.12 MiB of per-turn technique
-history (0.95 of it the viewer's per-region practice) and the extra events
-and state of a world whose eras move. Its limit, raised before as each
-system added per-turn data (5, 12, 20, 25, 35 MiB), is now 40 (`ae832c6`).
+The slow `TestBundleSize` check (seed 1, 500 turns, 10 regions) failed in
+the no-Rust lane after the flip: on the Python oracle path its bundle grows
+from 33.70 to 36.56 MiB with techniques on, over the 35 MiB limit, from
+1.12 MiB of per-turn technique history (0.95 of it the viewer's per-region
+practice) and the extra events and state of a world whose eras move.
+`ae832c6` raised the limit to 40, as each system adding per-turn data did
+before (5, 12, 20, 25, 35). Meanwhile `integrate/wave-4` raised it to 40
+for the Wave 3 defaults (`1078367`: 37.45 MiB with the native runtimes,
+where techniques on read 32.39); this branch merges that commit and keeps
+both explanations in the test.
 
 Verification on the final code (Linux, Python 3.13):
 
@@ -259,8 +264,9 @@ Verification on the final code (Linux, Python 3.13):
 | Golden fixtures (`tests/fixtures/performance/`) | unchanged; `test_performance_equivalence` 65 passed |
 | Rust | unchanged by this branch, so no `cargo test` |
 
-The not-slow run was on `594aedb`; `ae832c6` changes only the slow-marked
-size check.
+The not-slow run was on `594aedb`, the no-Rust and oracle-lane runs on
+`ae832c6`; later commits change only the slow-marked size check (run on its
+own in both environments after the merge: passes) and documentation.
 
 ## 6. Open items
 

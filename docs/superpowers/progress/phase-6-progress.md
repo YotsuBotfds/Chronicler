@@ -37,7 +37,9 @@ changes. Evidence: `docs/integration/techniques-default.md`.
   Tech advances 5.4 / 7.1 per run, regressions 4.9 / 1.5.
 - **Tests:** `pytest -m "not slow" -n 2` 5,707 passed, 3 skipped; no-Rust
   5,510 passed, 200 skipped after the 500-turn bundle-size limit moved from
-  35 to 40 MiB (`ae832c6`: 33.70 off, 36.56 on); offline oracle lane (PR
+  35 to 40 MiB (`ae832c6`: 33.70 off, 36.56 on on the Python oracle path;
+  `integrate/wave-4`'s `1078367` raised it the same way for the Wave 3
+  defaults and is merged); offline oracle lane (PR
   #19's guard fix applied locally only) 1,721 passed, 7 skipped, guard PASS.
   The frozen benchmark workloads pin techniques off; golden fixtures
   unchanged (without the pin 3 golden tests move).
