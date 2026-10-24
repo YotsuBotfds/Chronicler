@@ -17,7 +17,11 @@ FIXTURES = Path(__file__).parent / "fixtures" / "performance"
 # 2026-10 food-balance corrections; see the fixture provenance and
 # tests/test_performance_equivalence.py for the scoped-difference proofs.
 BASELINE = json.loads((FIXTURES / "corrected_food_balance_2026_10.json").read_text())
-ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
+# Bundle version 5 (dead civs pruned from history snapshots) rolls the artifact
+# oracle forward as a format change; the food-balance artifacts stay frozen
+# and the pre-pruning projection must still reproduce them exactly.
+ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_dead_civ_pruning_2026_10.json").read_text())
+PRE_PRUNING_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])
@@ -74,13 +78,28 @@ def test_complete_corrected_outputs_with_dormant_governance(
     # newlines. Compare their LF representation on Windows without changing
     # production writes or the frozen fixture. State/bundle JSON is already
     # canonicalized by the dormant-schema helper.
-    emitted = {}
-    for path in sorted((tmp_path / "artifacts").iterdir()):
-        if not path.is_file():
-            continue
-        data = legacy_artifact_bytes(path)
-        if path.name not in ("state.json", "chronicle_bundle.json"):
-            data = data.replace(b"\r\n", b"\n")
-        emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(),
-                              "bytes": len(data)}
-    assert emitted == ARTIFACTS["workloads"][name]
+    for pre_pruning, oracle in ((False, ARTIFACTS), (True, PRE_PRUNING_ARTIFACTS)):
+        emitted = {}
+        for path in sorted((tmp_path / "artifacts").iterdir()):
+            if not path.is_file():
+                continue
+            data = legacy_artifact_bytes(path, pre_pruning=pre_pruning)
+            if path.name not in ("state.json", "chronicle_bundle.json"):
+                data = data.replace(b"\r\n", b"\n")
+            emitted[path.name] = {"sha256": hashlib.sha256(data).hexdigest(),
+                                  "bytes": len(data)}
+        assert emitted == oracle["workloads"][name], pre_pruning
+
+
+def test_pruning_artifact_oracle_changes_only_declared_files():
+    """The version-5 roll-forward changes only the bundle entries it lists."""
+    (change,) = ARTIFACTS["provenance"]["format_changes"]
+    declared = change["artifact_files"]
+    assert set(ARTIFACTS["workloads"]) == set(PRE_PRUNING_ARTIFACTS["workloads"])
+    for name, files in ARTIFACTS["workloads"].items():
+        prior = PRE_PRUNING_ARTIFACTS["workloads"][name]
+        assert set(files) == set(prior)
+        changed = {fname for fname in files if files[fname] != prior[fname]}
+        assert changed == set(declared.get(name, {})) == {"chronicle_bundle.json"}
+        for fname in changed:
+            assert declared[name][fname] == {"from": prior[fname], "to": files[fname]}
