@@ -2,9 +2,47 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-11 (GitHub continuation recovery)
+> **Last updated:** 2026-10-24 (food balance, `fix/food-balance`)
 
 ---
+
+## Food balance (2026-10-24)
+
+Branch `fix/food-balance` on `integrate/wave-2` (`db26681`); details, numbers
+and every changed expectation are in
+[`docs/integration/food-balance-2026-10.md`](../../integration/food-balance-2026-10.md).
+Nine root-cause corrections, one commit each: aggregate migration no longer
+runs on agent-owned populations; soil degrades against potential capacity;
+temperate water recovery is climatic; mines need ORE/PRECIOUS; travelling
+merchants count in their origin's occupational balance and return home after
+delivering; the fertility brake tapers from 0.75x to 1.0x capacity; the goods
+economy reads goods per farmer instead of the raw M34 harvest index (PR #11
+unit regression); outbreak contagion is spread over a civ's contacts. One
+separate recalibration restores the food-shortage satisfaction weight to
+0.15, undoing cuts made to meet the satisfaction floor on starving worlds.
+Golden oracles rolled forward to `corrected_food_balance_2026_10*`
+(extinction fixtures frozen). No famine, demand or validation threshold
+changed.
+
+- Hybrid template worlds: fed region-turns 4% → 42%, famine per 500-turn run
+  752 → 341, mutual-aid convoys 0 → 12 per 200 turns, population held at
+  0.66x capacity (was 1.0-1.35x on degrading land).
+- Procedural 64-region / 16-civ hybrid worlds no longer collapse (seeds 7-10:
+  822 → 64 by turn 150 before; 817 → 893 after, 988 at turn 300).
+- Gates on the branch head: full 200 × 500 PASS (strict; 0 of 200 extinct,
+  latest satisfaction 0.643 against the 0.65 ceiling), subset PASS (the
+  `db26681` subset fails `civ_survival`). pytest, no-Rust pytest, slow tests
+  and `cargo test --release` pass.
+- Open: winter shortage and merchant routing that ignores need, locust
+  frequency (M35b rate), drought/cooling compounding of crop and water
+  modifiers, the occupational switching dead band (farmers below target),
+  no goods-economy subsistence for foodless regions, fishing effort that
+  ignores catch per fisher, the secession threshold left pending this sweep,
+  the other floor-chasing satisfaction tunings (M47c-M57), and the
+  `civ_survival` band (0.15-0.165 on the branch; 0.25 against 0.20 in the
+  base subset), and smaller worlds (full-profile final population median 182,
+  minimum 33; none extinct). The plague change touches `events.py`, which the
+  epidemiology work also owns.
 
 ## Recovery checkpoint (2026-10-11)
 
