@@ -2,9 +2,51 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-24 (`integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
+> **Last updated:** 2026-10-24 (`feat/nomads` on `integrate/wave-4`: pastoral and nomadic peoples, default off; before it `integrate/wave-4`: living-world oracles; epidemiology, finance and diplomacy on by default; techniques, maritime and the viewer panels)
 
 ---
+
+## Pastoral and nomadic peoples (2026-10-24, `feat/nomads`, default off)
+
+Branch `feat/nomads` from `integrate/wave-4` (`c5f4df4`, PR #21), default
+off behind `--nomads` (`WorldState.nomads`). No Rust change. See
+[`docs/integration/nomads.md`](../../integration/nomads.md).
+
+- **Built.** Subsistence modes per civ (sedentary, agro-pastoral, nomadic)
+  seeded from the pastoral suitability of a civ's land (steppe, desert and
+  tundra favour herding), and for later polities at their first tick; herds
+  per region with logistic growth on pasture, drought die-off, dzud winters
+  and transhumance between seasonal pastures; herd food through one hook
+  (`ecology.compute_resource_yields` -> `nomads.food_yields`, identity while
+  off); raids on settled neighbours fought with the campaign layer's power
+  terms (plunder, deaths, stability, colder dispositions, a border grievance
+  with diplomacy on); tribute pacts that spare the payer, lapse or are
+  repudiated; hordes kept as federations (a khan unites weaker pastoral
+  neighbours or takes command of his federation), riding to war through the
+  campaign WAR path with conquest aims and breaking apart when the founding
+  khan dies; sedentarization after a generation on farmland, with asabiya
+  won on the steppe and lost on farmland; EXPAND into desert and tundra for
+  herders; loose hold of empty pasture. Every nomad event cites its causes;
+  wars between a raided pair cite the raid, secession and collapse a broken
+  horde.
+- **Cut.** Pastoral goods in the goods economy (no clean slot among the
+  eight fixed goods), mounted mobility for campaign armies, nomad-on-nomad
+  raiding, re-nomadization of settled peoples, off-mode herd food with the
+  native ecology runtime (one food hook), viewer panels.
+- **Evidence.** __LEDGER_EVIDENCE__
+- **Numbers.** Procedural 48x10 worlds with steppe (3 seeds x off/hybrid,
+  300 turns): per run 1.8 nomadic and 3.2 pastoral polities at once, 26
+  raids through and 4 driven off, 5 tributes, 2.7 hordes (16 over the six
+  runs, 11 broken by the khan's death), 4 regions taken by herders, 1.2
+  sedentarizations, 10 dzuds; polities alive 15.2 on against 13.0 off; no
+  world extinct.
+- **Not run / open.** The full 200-seed gate with `--nomads`. In a
+  supplementary seed set (62-81) the needs oracle fails with the switch on
+  (11 seeds against 12 required; base at exactly 12); in another (82-101)
+  arcs move PASS -> FAIL on the dominance ceiling (41.2% against 40%). Both
+  are recorded in the integration doc. They concern runs with the switch on
+  only (switch-off output is byte-identical), and both block any default
+  change until the full gate is run.
 
 ## Living-world oracles and the Wave 3 defaults (2026-10-24, `feat/wave3-defaults`, merged into `integrate/wave-4`)
 
