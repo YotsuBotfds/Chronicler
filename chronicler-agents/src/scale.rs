@@ -7,18 +7,21 @@
 //! `Fast` swaps the density-dependent parts of the tick for bounded-work
 //! approximations whose per-agent cost does not grow with region density:
 //!
-//! * spatial drift uses a population-sized neighbour grid and samples at most
-//!   [`FAST_DRIFT_MAX_NEIGHBORS`] neighbours per agent;
-//! * marriage considers, per eligible agent, at most
-//!   [`FAST_MARRIAGE_CANDIDATES`] partners from the nearest cells of a
-//!   radius-sized grid instead of every pair in the region;
-//! * relationship formation pairs each agent with at most
-//!   [`FAST_FORMATION_PARTNERS`] partners that follow it in the shuffled
-//!   order instead of every later agent.
+//! * spatial drift buckets each region into a population-sized grid
+//!   (10 x 10 up to 20 x 20 cells, never narrower than the repulsion radius)
+//!   and evaluates at most [`FAST_DRIFT_MAX_NEIGHBORS`] neighbours per agent,
+//!   a deterministic stride sample of its 3 x 3 block;
+//! * marriage lets each eligible agent examine a stride sample of at most
+//!   [`FAST_MARRIAGE_SCAN`] agents around it and keep its
+//!   [`FAST_MARRIAGE_CANDIDATES`] best partners in the reference greedy order;
+//!   the same greedy matching then runs on the union of those lists. Regions
+//!   with at most `FAST_MARRIAGE_SCAN` eligible agents keep the exact scan;
+//! * relationship formation pairs each agent only with the next
+//!   [`FAST_FORMATION_PARTNERS`] agents of the region's shuffled order.
 //!
 //! Fast mode changes candidate sets and therefore results; it is designed to
-//! keep the expected bonds and marriages per agent statistically equivalent
-//! (see `docs/performance/rust-agent-scale.md`). It is opt-in.
+//! keep bonds and marriages per agent statistically equivalent (see
+//! `docs/performance/rust-agent-scale.md`). It is opt-in.
 
 /// How density-dependent tick phases choose their candidates.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
