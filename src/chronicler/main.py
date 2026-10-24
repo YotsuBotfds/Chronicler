@@ -184,6 +184,47 @@ class _DummyClient:
         return "DEVELOP"
 
 
+def _urban_counts_by_civ(world, civ_ids, settlement_ids, region_ids) -> dict[str, tuple[int, int]]:
+    """``{civ name: (urban agents, agents)}`` from null-free snapshot columns.
+
+    Same attribution as the row loop in ``execute_run``: the controller of an
+    agent's region, else the civ of its affinity id, else the row is skipped;
+    names in order of first attribution.
+    """
+    import numpy as np
+    from chronicler.columnar import first_appearance
+
+    names: list[str] = []
+    code_of: dict[str, int] = {}
+
+    def code(name: str) -> int:
+        if name not in code_of:
+            code_of[name] = len(names)
+            names.append(name)
+        return code_of[name]
+
+    n_regions, n_civs = len(world.regions), len(world.civilizations)
+    region_code = np.full(n_regions + 1, -1, dtype=np.int64)
+    for idx, region in enumerate(world.regions):
+        if region.controller is not None:
+            region_code[idx] = code(region.controller)
+    civ_code = np.full(n_civs + 1, -1, dtype=np.int64)
+    for idx, civ in enumerate(world.civilizations):
+        civ_code[idx] = code(civ.name)
+    civ = np.asarray(civ_ids, dtype=np.int64)
+    if region_ids is None:
+        codes = np.full(len(civ), -1, dtype=np.int64)
+    else:
+        regions = np.asarray(region_ids, dtype=np.int64)
+        codes = region_code[np.where((regions >= 0) & (regions < n_regions), regions, n_regions)]
+    fallback = civ_code[np.where((civ >= 0) & (civ < n_civs), civ, n_civs)]
+    codes = np.where(codes >= 0, codes, fallback)
+    valid = codes >= 0
+    totals = np.bincount(codes[valid], minlength=len(names))
+    urban = np.bincount(codes[valid & (np.asarray(settlement_ids) > 0)], minlength=len(names))
+    return {names[k]: (int(urban[k]), int(totals[k])) for k in first_appearance(codes[valid])}
+
+
 def _governance_snapshot(civ):
     from chronicler.governance_runtime import governance_snapshot
     return governance_snapshot(civ)
@@ -687,7 +728,19 @@ def execute_run(
         if agent_bridge and agent_rows is not None:
             assert agent_rows.stamp.source_turn == source_turn
             assert agent_rows.stamp.stage == "phase10_entry"
-            if agent_rows.has("settlement_id"):
+            # Views with NumPy columns (AgentRows) take the columnar count;
+            # other views and batches with nulls keep the row loop.
+            urban_arrays = None
+            if agent_rows.has("settlement_id") and hasattr(agent_rows, "arrays"):
+                urban_arrays = agent_rows.arrays("civ_affinity", "settlement_id")
+                if urban_arrays is not None and agent_rows.has("region"):
+                    region_array = agent_rows.array("region")
+                    urban_arrays = None if region_array is None else (*urban_arrays, region_array)
+                elif urban_arrays is not None:
+                    urban_arrays = (*urban_arrays, None)
+            if urban_arrays is not None:
+                urban_by_civ = _urban_counts_by_civ(world, *urban_arrays)
+            elif agent_rows.has("settlement_id"):
                 civ_col = agent_rows.ints("civ_affinity")
                 sid_col = agent_rows.ints("settlement_id")
                 region_col = agent_rows.ints("region") if agent_rows.has("region") else [None] * len(civ_col)

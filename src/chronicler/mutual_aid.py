@@ -6,6 +6,7 @@ ecology, fertility, migration or merchant planning is changed here.
 """
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 from collections import Counter
 import math
 
@@ -23,7 +24,7 @@ TREASURY_COST_PER_UNIT = 0.1
 
 
 def _populations(world, snapshot) -> dict[str, int]:
-    counts = Counter(snapshot.column("region").to_pylist())
+    counts = Counter(pylist(snapshot.column("region")))
     return {r.name: counts[i] for i, r in enumerate(world.regions)}
 
 
@@ -60,7 +61,7 @@ def read_stockpile_commitments(world: WorldState, simulator) -> dict[str, dict[s
     if not hasattr(simulator, "get_stockpile_commitments"):
         raise RuntimeError("Hybrid mutual aid requires get_stockpile_commitments; rebuild chronicler-agents")
     batch = simulator.get_stockpile_commitments()
-    rows = zip(*(batch.column(c).to_pylist() for c in
+    rows = zip(*(pylist(batch.column(c)) for c in
                  ("region_id", "good_slot", "reserved", "pending_departure")), strict=True)
     commitments = {r.name: {} for r in world.regions}
     for rid, slot, reserved, departure in rows:

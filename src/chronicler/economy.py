@@ -10,6 +10,7 @@ Called from simulation.py Phase 2 before existing treasury logic.
 
 from __future__ import annotations
 
+from chronicler.columnar import pylist
 import math
 from dataclasses import dataclass, field
 
@@ -1197,15 +1198,15 @@ def reconstruct_economy_result(
             )
 
     # --- Region result batch → stockpile write-back + signals ---
-    rr_ids = region_result_batch.column("region_id").to_pylist()
+    rr_ids = pylist(region_result_batch.column("region_id"))
     for col_good in FIXED_GOODS:
-        vals = region_result_batch.column(f"stockpile_{col_good}").to_pylist()
+        vals = pylist(region_result_batch.column(f"stockpile_{col_good}"))
         for i, rid in enumerate(rr_ids):
             rname = region_names[rid]
             world.regions[rid].stockpile.goods[col_good] = vals[i]
 
     for signal in ("farmer_income_modifier", "food_sufficiency", "merchant_margin", "merchant_trade_income"):
-        vals = region_result_batch.column(signal).to_pylist()
+        vals = pylist(region_result_batch.column(signal))
         target = {
             "farmer_income_modifier": result.farmer_income_modifiers,
             "food_sufficiency": result.food_sufficiency,
@@ -1215,41 +1216,47 @@ def reconstruct_economy_result(
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = vals[i]
 
-    trc_vals = region_result_batch.column("trade_route_count").to_pylist()
+    trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):
         result.trade_route_counts[region_names[rid]] = trc_vals[i]
 
     # --- Civ result batch → fiscal outputs ---
-    cr_ids = civ_result_batch.column("civ_id").to_pylist()
+    cr_ids = pylist(civ_result_batch.column("civ_id"))
     for field_name, target in [
         ("treasury_tax", result.treasury_tax),
         ("tithe_base", result.tithe_base),
         ("priest_tithe_share", result.priest_tithe_shares),
     ]:
-        vals = civ_result_batch.column(field_name).to_pylist()
+        vals = pylist(civ_result_batch.column(field_name))
         for i, cid in enumerate(cr_ids):
             target[cid] = vals[i]
 
     # --- Observability batch → imports, stockpile levels, trade dependency ---
-    obs_ids = observability_batch.column("region_id").to_pylist()
+    # Each column is decoded once (it was decoded again for every region).
+    obs_ids = pylist(observability_batch.column("region_id"))
+    if obs_ids:
+        obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}")) for cat in CATEGORIES}
+        obs_stockpiles = {cat: pylist(observability_batch.column(f"stockpile_{cat}")) for cat in CATEGORIES}
+        obs_import_share = pylist(observability_batch.column("import_share"))
+        obs_trade_dependent = pylist(observability_batch.column("trade_dependent"))
     for i, rid in enumerate(obs_ids):
         rname = region_names[rid]
         result.imports_by_region[rname] = {
-            cat: observability_batch.column(f"imports_{cat}").to_pylist()[i]
+            cat: obs_imports[cat][i]
             for cat in CATEGORIES
         }
         result.stockpile_levels[rname] = {
-            cat: observability_batch.column(f"stockpile_{cat}").to_pylist()[i]
+            cat: obs_stockpiles[cat][i]
             for cat in CATEGORIES
         }
-        result.import_share[rname] = observability_batch.column("import_share").to_pylist()[i]
-        result.trade_dependent[rname] = bool(observability_batch.column("trade_dependent").to_pylist()[i])
+        result.import_share[rname] = obs_import_share[i]
+        result.trade_dependent[rname] = bool(obs_trade_dependent[i])
 
     # --- Upstream sources batch → inbound_sources ---
     if upstream_sources_batch.num_rows > 0:
-        dest_ids = upstream_sources_batch.column("dest_region_id").to_pylist()
-        ordinals = upstream_sources_batch.column("source_ordinal").to_pylist()
-        source_ids = upstream_sources_batch.column("source_region_id").to_pylist()
+        dest_ids = pylist(upstream_sources_batch.column("dest_region_id"))
+        ordinals = pylist(upstream_sources_batch.column("source_ordinal"))
+        source_ids = pylist(upstream_sources_batch.column("source_region_id"))
         # Group by dest, sort by ordinal, map ids to names
         from collections import defaultdict
         grouped: dict[int, list[tuple[int, int]]] = defaultdict(list)
@@ -1263,17 +1270,17 @@ def reconstruct_economy_result(
 
     # --- Conservation batch ---
     for field_name in ("production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss"):
-        result.conservation[field_name] = conservation_batch.column(field_name).to_pylist()[0]
+        result.conservation[field_name] = pylist(conservation_batch.column(field_name))[0]
     # M58b: in_transit_delta (nullable, absent in pre-M58b batches)
     if "in_transit_delta" in conservation_batch.schema.names:
-        result.conservation["in_transit_delta"] = conservation_batch.column("in_transit_delta").to_pylist()[0]
+        result.conservation["in_transit_delta"] = pylist(conservation_batch.column("in_transit_delta"))[0]
 
     # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---
     if "oracle_imports_food" in observability_batch.schema.names:
-        obs_ids = observability_batch.column("region_id").to_pylist()
-        oracle_food = observability_batch.column("oracle_imports_food").to_pylist()
-        oracle_rm = observability_batch.column("oracle_imports_raw_material").to_pylist()
-        oracle_lux = observability_batch.column("oracle_imports_luxury").to_pylist()
+        obs_ids = pylist(observability_batch.column("region_id"))
+        oracle_food = pylist(observability_batch.column("oracle_imports_food"))
+        oracle_rm = pylist(observability_batch.column("oracle_imports_raw_material"))
+        oracle_lux = pylist(observability_batch.column("oracle_imports_luxury"))
         for i, rid in enumerate(obs_ids):
             rname = region_names[rid]
             result.oracle_imports[rname] = {
@@ -1284,9 +1291,9 @@ def reconstruct_economy_result(
 
     # --- M58b: Oracle shadow margins and food sufficiency ---
     if "oracle_margin" in observability_batch.schema.names:
-        obs_ids = observability_batch.column("region_id").to_pylist()
-        oracle_margins = observability_batch.column("oracle_margin").to_pylist()
-        oracle_food_suff = observability_batch.column("oracle_food_sufficiency").to_pylist()
+        obs_ids = pylist(observability_batch.column("region_id"))
+        oracle_margins = pylist(observability_batch.column("oracle_margin"))
+        oracle_food_suff = pylist(observability_batch.column("oracle_food_sufficiency"))
         for i, rid in enumerate(obs_ids):
             rname = region_names[rid]
             if rname not in result.oracle_imports:

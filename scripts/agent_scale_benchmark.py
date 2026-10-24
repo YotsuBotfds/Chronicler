@@ -145,11 +145,21 @@ def _child(opts: argparse.Namespace) -> dict:
     args = cm._build_parser().parse_args(argv)
 
     turn_marks: list[tuple[float, float]] = []
+    profiler = None
+    if opts.profile_out:
+        import cProfile
+
+        profiler = cProfile.Profile()
 
     def on_turn(*_):
         turn_marks.append((time.perf_counter(), cpu()))
+        # Profile the measured turns only (warm-up turns are excluded).
+        if profiler is not None and len(turn_marks) == opts.warmup:
+            profiler.enable()
 
     start = (time.perf_counter(), cpu())
+    if profiler is not None and opts.warmup == 0:
+        profiler.enable()
     try:
         import contextlib
         import io
@@ -157,6 +167,11 @@ def _child(opts: argparse.Namespace) -> dict:
         with contextlib.redirect_stdout(io.StringIO()):
             cm.execute_run(args, on_turn=on_turn)
     finally:
+        if profiler is not None:
+            profiler.disable()
+            profile_path = Path(opts.profile_out)
+            profile_path.parent.mkdir(parents=True, exist_ok=True)
+            profiler.dump_stats(str(profile_path))
         if not opts.keep_runs:
             shutil.rmtree(out_dir, ignore_errors=True)
     total = (time.perf_counter() - start[0], cpu() - start[1])
@@ -253,6 +268,10 @@ def _parse(argv=None) -> argparse.Namespace:
     p.add_argument("--social", action="store_true",
                    help="also record per-tick relationship/marriage and spatial stats")
     p.add_argument("--out", type=Path, default=None, help="write results JSON here")
+    p.add_argument("--profile-dir", type=Path, default=None,
+                   help="write a cProfile of each child's measured turns here "
+                        "(timings then include profiler overhead)")
+    p.add_argument("--profile-out", default=None, help=argparse.SUPPRESS)
     p.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     return p.parse_args(argv)
 
@@ -272,6 +291,9 @@ def _child_cmd(opts: argparse.Namespace, target: int, seed: int) -> list[str]:
         cmd.append("--keep-runs")
     if opts.social:
         cmd.append("--social")
+    if opts.profile_dir:
+        name = f"t{target}_s{seed}_{opts.agent_scale_mode or 'default'}.prof"
+        cmd += ["--profile-out", str((opts.profile_dir / name).resolve())]
     return cmd
 
 
