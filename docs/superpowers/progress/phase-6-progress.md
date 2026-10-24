@@ -33,7 +33,20 @@ off behind `--nomads` (`WorldState.nomads`). No Rust change. See
   eight fixed goods), mounted mobility for campaign armies, nomad-on-nomad
   raiding, re-nomadization of settled peoples, off-mode herd food with the
   native ecology runtime (one food hook), viewer panels.
-- **Evidence.** __LEDGER_EVIDENCE__
+- **Evidence.** Switch off is byte-identical to `c5f4df4`: 99 files
+  (template seeds 42/7/1234 off 300 / hybrid 200, procedural 48x10 seeds 7
+  and 13 off 200 / hybrid 120), 0 differences with the default and with
+  `--no-nomads` on the final head; the switch-off subset batch matches the
+  base batch file for file (2,160 run files and the normalized reports);
+  with the switch on, the 8 gate seeds that never have a herder are
+  outcome-identical to the base. Native `pytest -m "not slow" -n 2` 5,758
+  passed, 3 skipped (base 5,707 / 3); no-Rust lane 5,560 passed, 201
+  skipped; bounded Python oracle lane (PR #19's guard fix applied locally
+  only) 1,768 passed, 8 skipped, guard PASS. Subset gate with `--nomads`
+  against `c5f4df4`: PASS, NO REGRESSION, 0 extinct worlds; artifacts PASS
+  -> PARTIAL (loss rate 1.5% against a 2% floor, one diverged seed);
+  regression keeps the base's own civ_survival FAIL. No Rust change, so no
+  `cargo test`.
 - **Numbers.** Procedural 48x10 worlds with steppe (3 seeds x off/hybrid,
   300 turns): per run 1.8 nomadic and 3.2 pastoral polities at once, 26
   raids through and 4 driven off, 5 tributes, 2.7 hordes (16 over the six

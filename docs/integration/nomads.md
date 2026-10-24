@@ -333,9 +333,9 @@ loans and treaties), and determinism.
 
 | Check (Linux, Python 3.13, shared 4-core host) | Result |
 | --- | --- |
-| `pytest -m "not slow" -n 2` (extension built from this tree; compiled `AgentSimulator`, `EcologySimulator`, `PoliticsSimulator` verified) | __PYTEST__ |
-| No-Rust lane (fresh virtualenv without `chronicler_agents`, `pytest -q -n 2`, slow included, as CI runs it) | __NORUST__ |
-| `scripts/run_python_oracle_checks.py` (PR #19's guard line applied locally, not committed) | __ORACLE__ |
+| `pytest -m "not slow" -n 2` (extension built from this tree; compiled `AgentSimulator`, `EcologySimulator`, `PoliticsSimulator` verified) | 5,758 passed, 3 skipped (base `c5f4df4`: 5,707 passed, 3 skipped; +48 nomad and +3 combined tests) |
+| No-Rust lane (fresh virtualenv without `chronicler_agents`, `pytest -q -n 2`, slow included, as CI runs it) | 5,560 passed, 201 skipped |
+| `scripts/run_python_oracle_checks.py` (PR #19's guard line applied locally, not committed) | PASS: 1,768 passed, 8 skipped, 2 deselected; guard PASS, no native module loaded, no blocked I/O |
 | `cargo test` | not run: no Rust change |
 
 ### Subset gate (20 seeds x 200 turns, hybrid, `--parallel 2`)
