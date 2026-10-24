@@ -2,9 +2,44 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-11 (GitHub continuation recovery)
+> **Last updated:** 2026-10-24 (epidemiology on `feat/epidemiology`)
 
 ---
+
+## Epidemiology (2026-10-24, `feat/epidemiology`, default off)
+
+`feat/epidemiology`, based on `integrate/wave-2` at `db26681`, replaces the
+hazard-rolled plague and the M18 black-swan pandemic with one regional SEIRS
+model (`chronicler/epidemiology.py`, `WorldState.epidemics`, CLI
+`--epidemiology`, saved on the world). Five pathogens (plague, pox, marsh
+fever, bloody flux, the black-swan great pestilence) spread along the contact
+ledger's region flows from reservoir homelands; never-exposed populations
+suffer virgin-soil epidemics; deaths use the plague death path and reach the
+hybrid agent pool through the catastrophe transient; famine and crowding raise
+susceptibility; states quarantine; labour scarcity eases the governance MMP.
+Epidemics are chronic provenance episodes whose onsets cite the contact
+arrival. Details and evidence: `docs/integration/epidemiology.md`.
+
+- **Switch off is byte-identical to `db26681`:** 8 direct runs (off and
+  hybrid, seeds 42/7) and the full 20-seed subset gate batch (2,161 files)
+  match; the frozen performance oracles are unchanged.
+- **Tests:** `pytest -m "not slow" -n 2` base 5,497 passed / 3 skipped,
+  branch 5,522 / 3 (25 new); slow 4 passed. The guarded offline lane fails
+  28 `test_checkpoint_replay` cases identically on base and branch on Linux
+  (`platform.processor()` subprocess blocked by the guard).
+- **Subset gate with `--epidemiology`:** PASS, `validation_compare` NO
+  REGRESSION; 0 extinct; all-initial-civ survival 0.25 as on base (the
+  informational regression FAIL is the known 0.20 calibration). Disease
+  deaths 159 per run against the base's 72 applied (plus 21 nominal M18
+  deaths that never reached agents in hybrid); final population 352 against
+  393. A 40-seed x 500-turn harness run loses no world and converges (431
+  against 435).
+- **Default stays off** until the food-balance work lands (famine feeds
+  susceptibility and fatality) and the 200-seed x 500-turn full gate passes
+  with the switch on; the full gate was not run.
+- **Finding:** the M18 pandemic's population loss was never staged for the
+  agent pool, so in hybrid runs it was erased by the write-back. Unchanged
+  with the switch off.
 
 ## Recovery checkpoint (2026-10-11)
 

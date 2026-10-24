@@ -700,6 +700,11 @@ def _register(world: "WorldState", ev: Event) -> None:
     elif etype in ("pandemic", "pandemic_spread"):
         if region is not None:
             keys[key("pandemic", region)] = eid
+    elif etype == "epidemic" and region is not None:
+        # Epidemiology onsets stand for disease in the region, so the famine
+        # and flight rules (which read pandemic:<region>) cite them too.
+        keys[key("pandemic", region)] = eid
+        keys[key("epidemic", region, ev.shock_category or "")] = eid
     if etype in _DISASTER_TYPES:
         if region is not None:
             keys[key("disaster", region)] = eid
@@ -785,6 +790,10 @@ CHRONIC: dict[str, ChronicSpec] = {
     "soil_exhaustion": ChronicSpec(1, False, None, "exhaustion of the soil"),
     "famine_starvation": ChronicSpec(1, False, None, "starvation"),
     "Mass Migration": ChronicSpec(1, False, None, "flight of the faithful"),
+    # Epidemiology (chronicler.epidemiology): one report per turn per region
+    # and pathogen (the category) while an outbreak runs; one per closed state.
+    "epidemic": ChronicSpec(1, False, None, "epidemic"),
+    "quarantine": ChronicSpec(1, False, None, "border closure"),
 }
 
 

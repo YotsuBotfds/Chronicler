@@ -1412,6 +1412,12 @@ def generate_report(
     if contact.get("runs"):
         report["contact_ledger"] = contact
 
+    # Epidemiology: present only for runs whose bundles carry history[n].epidemics.
+    from chronicler.epidemiology import extract_epidemic_metrics
+    epidemics = extract_epidemic_metrics(bundles)
+    if epidemics.get("runs"):
+        report["epidemiology"] = epidemics
+
     report["anomalies"] = detect_anomalies(report)
     return report
 

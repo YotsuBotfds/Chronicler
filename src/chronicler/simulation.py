@@ -97,6 +97,7 @@ from chronicler.succession import (
 from chronicler.culture import tick_prestige, apply_value_drift, tick_cultural_assimilation, check_cultural_victories
 from chronicler.movements import tick_movements
 from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
+from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -189,6 +190,9 @@ def phase_environment(world: WorldState, seed: int, acc=None) -> list[Event]:
     hazard_ctx = HazardContext(world)
     for event_type in ENVIRONMENT_EVENTS:
         if event_type not in world.event_probabilities:
+            continue
+        if event_type == "plague" and _epidemiology_on(world):
+            # Epidemiology replaces the hazard plague (tick_epidemics, Phase 1).
             continue
         affected: list[Civilization] = []
         rates: list[float] = []
@@ -1120,7 +1124,12 @@ def apply_injected_event(
         mult = get_severity_multiplier(civ, world)
         drain = int(get_override(world, K_PLAGUE_STABILITY, 3) * mult)
         civ_regions = [r for r in world.regions if r.controller == civ.name]
-        if civ_regions:
+        if _epidemiology_on(world):
+            # Epidemiology: the injection seeds the plague in the civ's capital;
+            # its deaths come from the outbreak, not a fixed toll.
+            from chronicler.epidemiology import seed_injection
+            seed_injection(world, civ, event)
+        elif civ_regions:
             actual_drains = distribute_pop_loss(civ_regions, _plague_pop_loss(civ_regions, mult))
             if _agent_pool_tracks_population(world):
                 for region, actual in zip(civ_regions, actual_drains):
@@ -1915,6 +1924,12 @@ def run_turn_result(
 
     # Phase 1: Environment
     _emit(phase_environment(world, seed=seed, acc=acc))
+
+    # Epidemiology (replaces the hazard plague and the M18 pandemic tick):
+    # introductions, regional SEIRS, deaths staged for the agent pool.
+    if _epidemiology_on(world):
+        from chronicler.epidemiology import tick_epidemics
+        _emit(tick_epidemics(world, acc=acc))
 
     # M18: Black swan check (after climate disasters)
     from chronicler.emergence import check_black_swans

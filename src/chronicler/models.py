@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_seria
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
 from chronicler.contact_ledger import ContactLedgerState
+from chronicler.epidemiology import EpidemicState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1075,6 +1076,8 @@ class WorldState(BaseModel):
     geography: WorldGeography | None = None
     # Contact & trade-flow ledger (None = disabled; omitted from output).
     contact_ledger: ContactLedgerState | None = None
+    # Regional SEIRS epidemiology (None = disabled; omitted from output).
+    epidemics: EpidemicState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1159,6 +1162,8 @@ class WorldState(BaseModel):
         data = _omit_dormant_contact_ledger(self, _omit_dormant_governance(self, handler(self)))
         if isinstance(data, dict) and self.geography is None:
             data.pop("geography", None)
+        if isinstance(data, dict) and self.epidemics is None:
+            data.pop("epidemics", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1278,6 +1283,8 @@ class TurnSnapshot(BaseModel):
     campaign: dict | None = None
     # Contact ledger per-turn summary; None (and omitted) when the ledger is off.
     contact: dict | None = None
+    # Epidemiology per-turn summary; None (and omitted) when epidemiology is off.
+    epidemics: dict | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
@@ -1286,6 +1293,8 @@ class TurnSnapshot(BaseModel):
             data.pop("campaign")
         if isinstance(data, dict) and data.get("contact", 0) is None:
             data.pop("contact")
+        if isinstance(data, dict) and data.get("epidemics", 0) is None:
+            data.pop("epidemics")
         return data
 
 
