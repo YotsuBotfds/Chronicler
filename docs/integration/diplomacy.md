@@ -6,7 +6,9 @@ the tributary step, the contact ledger, causal provenance, procedural
 geography, fisheries and mutual aid). Code: `src/chronicler/diplomacy.py`
 (behavior) and `src/chronicler/diplomacy_state.py` (persisted state).
 
-**Status.** Default off behind `WorldState.diplomacy` (CLI `--diplomacy`).
+**Status.** Default on for new worlds since the 2026-10 all-on full gate
+(`docs/integration/wave3-defaults.md`), behind `WorldState.diplomacy`
+(CLI `--diplomacy` / `--no-diplomacy`).
 With the switch off no diplomacy code runs and every output is
 byte-identical to `db26681` (see [Identity](#feature-off-identity)). The
 subset gate passes with the switch on, with no comparator regression; the
@@ -76,7 +78,7 @@ rarely have (median civ stability is about 26-29), so it never fired.
 | --- | --- |
 | CLI | `--diplomacy` / `--no-diplomacy` (`BooleanOptionalAction`) |
 | World field | `WorldState.diplomacy: DiplomacyState \| None` (presence = on) |
-| Default | **Off** (`diplomacy.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and caller-supplied worlds keep their own setting; `--no-diplomacy` on a resumed world also drops the dormant memory and ladder fields |
+| Default | **On** (`diplomacy.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the all-on full gate in `wave3-defaults.md`) for `execute_run`, batch and the live server; `--no-diplomacy` opts out; resumed, forked and caller-supplied worlds keep their own setting; `--no-diplomacy` on a resumed world also drops the dormant memory and ladder fields |
 | Gate runner | `scripts/m53b_run_validation.py --diplomacy` forwards the switch to every run (and records it in `run_manifest.json`) |
 | Dormant fields | `WorldState.diplomacy`, `Relationship.memory`, `VassalRelation.stage/stage_turn/integration/crown` and `TurnSnapshot.diplomacy` are `None` by default and omitted from serialized output while `None`, so saves, bundles and fixtures without diplomacy keep their bytes and old saves load unchanged |
 

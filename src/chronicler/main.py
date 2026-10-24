@@ -1342,8 +1342,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
                         help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
                              "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
-                             "ladder client -> vassal -> personal union -> annexation (default off "
-                             "for new worlds; saved on resume)")
+                             "ladder client -> vassal -> personal union -> annexation (default on "
+                             "for new worlds; --no-diplomacy opts out; saved on resume)")
     parser.add_argument("--techniques", action=argparse.BooleanOptionalAction, default=None,
                         help="Technology as diffusing techniques: per-region practice of about 30 "
                              "techniques spreads along contact flows, is invented from research "

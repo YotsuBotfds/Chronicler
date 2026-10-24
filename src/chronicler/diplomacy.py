@@ -62,8 +62,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 #: Default for worlds newly created by the CLI/batch/live entry points
-#: (``--diplomacy`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: (on since the 2026-10 all-on full gate; ``--no-diplomacy`` opts out;
+#: loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 
 def diplomacy_enabled(world) -> bool:
