@@ -72,11 +72,17 @@ second. Python and Rust change. Details:
   - Rebellion per agent-turn: 0.0577 / 0.0293 / 0.0315.
   - Left-over intensity covered 933 of 1,152 persecuted region-turns per run
     and 44% of migrations.
+- **Migration budget** (same probe, from turn 100; base / branch):
+  - Famine memory 47% / 55%; live persecution 14% / 5%; persecution
+    memory 18% / 15%.
+  - All opportunity (pull) terms together about 3%; needs about 1%.
+  - Healthy worlds have almost no migration driver, so the floor was held
+    up by pathologies.
 - **Open:**
-  - The 200 x 500 full gate and the fixture roll-forward wait for the
-    full-gate slot and for food logistics in `integrate/wave-6`.
-  - Risk: the full gate's migration margin (0.0512 against 0.05) is likely
-    to fall to the calibrated floor.
+  - The coordinator decided that healthy-world migration drivers come next,
+    on top of this branch. One full gate (with the `integrate/wave-6`
+    merge and any fixture roll-forward) covers both. Not run here; this
+    branch is not merged with wave-6.
   - Schism saturation.
 
 ## Great-person agendas: the rebellion tail (2026-10-24, `fix/agenda-preaching`, default off)

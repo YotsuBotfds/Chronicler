@@ -26,8 +26,9 @@ the persecuted region-turns have no persecuting ruler.
   [Golden fixtures](#golden-fixtures)).
 - Subset gates on 42-61 and 62-81: PASS, `validation_compare` NO
   REGRESSION; 62-81 passes needs (12 seeds), where the base fails it (11).
-- The full gate (200 x 500) waits for the full-gate slot; see
-  [Full gate](#full-gate).
+- The full gate (200 x 500) was not run. It will cover this fix together
+  with the healthy-world migration drivers that follow; see
+  [Full gate](#full-gate) and [Migration budget](#migration-budget).
 
 ## Measurement
 
@@ -390,8 +391,8 @@ Agents-off identity, base against branch, each with its own native build:
 seeds 42 and 7, 150 turns, `--simulate-only`, `PYTHONHASHSEED=0`, compared
 with `scripts/diplomacy_identity.py compare`: 16 files, **0 differences**.
 
-The roll-forward on top of the food-logistics fixtures is recorded in
-[Full gate](#full-gate).
+This branch is not merged with the food-logistics fixtures; the check
+must be repeated after that merge (see [Full gate](#full-gate)).
 
 ## Tests changed and why
 
@@ -434,13 +435,42 @@ Before the merge with food logistics:
 The slow, no-Rust and oracle lanes ran before `569040d`, which changes only
 a native-only test (skipped in the no-Rust and oracle lanes; not slow).
 
+## Migration budget
+
+Which terms of the agent decision move migrants, rebuilt for the 500-turn
+probe (seeds 142-161, migrations from turn 100). For each migrant, the
+utility terms are recomputed from the 10-turn needs and memory census, the
+region food sufficiency and the per-turn persecution trace, and each
+migration is split in proportion to its positive terms. 17-20% of
+migrations cannot be attributed: the agent was born after the census, or no
+term is positive (mostly household followers).
+
+| Driver | base | branch |
+| --- | ---: | ---: |
+| migrations per run | 3,317 | 2,927 |
+| famine memory (+0.2 x memory scale) | 46.8% | 55.0% |
+| live persecution (+0.20 x intensity) | 14.0% | 4.6% |
+| persecution memory (+0.17) | 17.7% | 15.0% |
+| opportunity: food / satisfaction gap / capacity | 1.3 / 0.9 / 0.4% | 1.4 / 0.9 / 0.5% |
+| low own satisfaction | 1.0% | 1.1% |
+| needs (spiritual, material, safety) | 0.8% | 1.2% |
+| war (battle, conquest memories) | 0.3% | 0.3% |
+
+The pull term (`behavior.rs` `migrate_utility`: 1.10 x (opportunity −
+0.18)) is positive for only about 7% of migrants. Between fed, uncrowded
+neighbours the region-score gaps stay under the 0.18 hysteresis. So in a
+healthy world almost nothing moves agents except memories of famine,
+persecution and conquest. The migration floor has been held up by those
+pathologies. That is a mechanism gap for a separate change (healthy-world
+migration drivers), not a threshold question.
+
 ## Full gate
 
-Waiting for the full-gate slot (`fix/food-logistics` holds it and rolls the
-golden fixtures forward). After food logistics lands in `integrate/wave-6`,
-this branch merges `origin/integrate/wave-6` (no rebase), rolls the
-fixtures forward with provenance if anything changes, and runs the 200 x 500
-gate against the then-current defaults' full report.
+Not run. The coordinator decided that a separate change will add
+healthy-world migration drivers on top of this branch. One full gate will
+then cover both changes, including the merge with `integrate/wave-6` and
+any golden fixture roll-forward. This branch is not merged with
+`integrate/wave-6`.
 
 ## Open items
 
