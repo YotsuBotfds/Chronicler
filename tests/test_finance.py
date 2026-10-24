@@ -534,19 +534,20 @@ def test_cli_flag_persists_and_bundle_carries_finance_history(tmp_path):
     assert metrics["runs"] == 1 and metrics["price_index"]["min"] > 0
 
 
-def test_default_off_for_new_worlds_and_resume_keeps_saved_setting(tmp_path):
+def test_default_on_for_new_worlds_and_resume_keeps_saved_setting(tmp_path):
     from chronicler.main import execute_run
-    assert F.DEFAULT_ENABLED_FOR_NEW_WORLDS is False
+    assert F.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
     fresh = tmp_path / "fresh"
     execute_run(_cli_args(fresh, finance=None, turns=3))
-    assert "finance" not in json.loads((fresh / "state.json").read_text())
-    on = tmp_path / "on"
-    execute_run(_cli_args(on, finance=True, turns=3))
-    resumed = _cli_args(on, finance=None, turns=5)
-    resumed.resume = str(on / "state.json")
-    resumed.state = str(on / "resumed.json")
+    assert "finance" in json.loads((fresh / "state.json").read_text())
+    off = tmp_path / "off"
+    execute_run(_cli_args(off, finance=False, turns=3))
+    assert "finance" not in json.loads((off / "state.json").read_text())
+    resumed = _cli_args(off, finance=None, turns=5)
+    resumed.resume = str(off / "state.json")
+    resumed.state = str(off / "resumed.json")
     execute_run(resumed)
-    assert "finance" in json.loads((on / "resumed.json").read_text())
+    assert "finance" not in json.loads((off / "resumed.json").read_text())
 
 
 def test_gate_runner_forwards_the_switch_only_when_explicit():

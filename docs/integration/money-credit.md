@@ -7,8 +7,9 @@ warfare, causal provenance, fisheries and mutual aid). Code:
 turn), `governance_runtime.py` (PSI), `action_engine.py` (weight bucket),
 `provenance.py` (keys and episodes), `models.py`, `main.py`, `live.py`.
 
-**Status: default off.** `--finance` turns it on and is saved on the world
-(`WorldState.finance`); `--no-finance` or no flag leaves it off. With the switch
+**Status: default on** for new worlds since the 2026-10 all-on full gate
+(`docs/integration/wave3-defaults.md`). The setting is saved on the world
+(`WorldState.finance`); `--no-finance` turns it off. With the switch
 off no finance code runs and every output is byte-identical to `db26681`
 ([identity](#flag-off-identity)). The default is to be decided after the
 food-balance work lands and a full gate runs.
@@ -237,7 +238,7 @@ itself is not built here.
 | --- | --- |
 | CLI | `--finance` / `--no-finance` (`BooleanOptionalAction`, `None` = default or saved) |
 | World field | `WorldState.finance: FinanceState \| None` (presence = on) |
-| Default | **off** for worlds created by `execute_run`, batch and the live server (`finance.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`); resumed, forked and supplied worlds keep their setting |
+| Default | **on** for worlds created by `execute_run`, batch and the live server (`finance.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the all-on full gate in `wave3-defaults.md`); `--no-finance` opts out; resumed, forked and supplied worlds keep their setting |
 | Gate runner | `scripts/m53b_run_validation.py --finance` forwards the flag to every run and records it in `run_manifest.json` |
 | Serialization | `None` is omitted from `state.json` and bundle `world_state`; `TurnSnapshot.finance` (per living civ: debt, foreign debt, revenue, upkeep, court, service, interest, borrowed, shortfall, price index, inflation, fineness, fiscal stress, arrears, defaults, debasements, premium) is omitted while `None` |
 | Analytics | `analytics.generate_report` adds a `finance` section when bundles carry it |
@@ -269,7 +270,7 @@ outstanding loans; determinism; no transient state; feature-off dormancy (the
 finance entry points are forbidden while off); dormant serialization and old
 saves; the PSI input; the clamped, directional weight bucket; provenance
 chains (loan cites the war, default cites the lines and registers the fiscal
-key); the CLI flag, default-off new worlds, resume, bundle history and
+key); the CLI flag, the new-world default, resume, bundle history and
 analytics; gate-runner forwarding; native hybrid determinism with creditor
 wealth read from the economy.
 

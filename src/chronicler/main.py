@@ -1337,8 +1337,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--finance", action=argparse.BooleanOptionalAction, default=None,
                         help="Money, credit and public finance: upkeep and court costs, state borrowing "
                              "from merchant houses and foreign lenders, debt service, default, debasement "
-                             "and a per-civ price index feeding the governance PSI (default off for new "
-                             "worlds; --finance enables; saved on resume)")
+                             "and a per-civ price index feeding the governance PSI (default on for new "
+                             "worlds; --no-finance opts out; saved on resume)")
     parser.add_argument("--diplomacy", action=argparse.BooleanOptionalAction, default=None,
                         help="Diplomacy: diplomatic memory (trust, grievances, goodwill), treaties "
                              "(peace, non-aggression, alliance, trade pact, tribute) and the polity "
