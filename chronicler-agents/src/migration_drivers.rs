@@ -257,6 +257,8 @@ impl Mobility {
 /// Region inputs of the voluntary pulls, from `RegionStats`.
 pub struct PullInputs<'a> {
     pub own_ratio: f32,
+    /// Index of the destination in `regions`.
+    pub adj_id: u16,
     pub adj_ratio: f32,
     /// Peer mean wealth and peer count, per wage occupation, here and there.
     pub own_peer_wealth: &'a [f32; WAGE_OCCUPATIONS],
@@ -294,7 +296,7 @@ pub fn pull_toward(
         }
     }
     // Chain migration.
-    let chain = m.chain_strength_toward(dst.region_id);
+    let chain = m.chain_strength_toward(inputs.adj_id);
     if chain > m.home_bonds {
         pull.chain = (CHAIN_PULL_PER_BOND * chain).min(CHAIN_PULL_CAP);
     }
@@ -456,6 +458,7 @@ mod driver_tests {
     fn inputs<'a>(own: f32, adj: f32, wealth: &'a [[f32; 2]; 2], count: &'a [u16; 2]) -> PullInputs<'a> {
         PullInputs {
             own_ratio: own,
+            adj_id: 1,
             adj_ratio: adj,
             own_peer_wealth: &wealth[0],
             adj_peer_wealth: &wealth[1],

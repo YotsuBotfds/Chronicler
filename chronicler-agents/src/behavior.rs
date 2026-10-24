@@ -276,6 +276,7 @@ fn best_migration_target_for_agent(
             Some(m) => {
                 let inputs = PullInputs {
                     own_ratio: own_pop_ratio,
+                    adj_id: adj as u16,
                     adj_ratio: adj_pop_ratio,
                     own_peer_wealth: &stats.peer_wealth[region_id],
                     adj_peer_wealth: &stats.peer_wealth[adj],
