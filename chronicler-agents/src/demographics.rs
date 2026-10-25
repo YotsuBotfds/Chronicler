@@ -28,6 +28,96 @@ const FERTILITY_CROWDING_SOFT_START: f32 = 0.75;
 const FERTILITY_CROWDING_ZERO: f32 = 1.00;
 const FERTILITY_SATISFACTION_RAMP: f32 = 0.10;
 
+// ---------------------------------------------------------------------------
+// Hunger (2026-10, docs/integration/hunger-mortality.md)
+// ---------------------------------------------------------------------------
+// A region's food sufficiency (pre-consumption food over demand) and the run
+// of turns it has stayed below the famine severity threshold give two
+// components in [0, 1]:
+//
+// * dearth: the shortfall across the dearth band, 0 when fed and 1 at or
+//   below the severity threshold: `min(1, (1 - s) / (1 - 0.6))`;
+// * famine: the depth below the threshold, `(0.6 - s) / 0.6`, ramped in over
+//   the turns a famine takes to declare (`min(1, run / 3)`), so a single lean
+//   month is not a famine.
+//
+// The thresholds are the food-crisis labels' (Python
+// `ecology.FAMINE_SEVERE_SUFFICIENCY`, `FAMINE_SEVERE_TURNS`). Mortality
+// gains `1 + vulnerability * (DEARTH * dearth + FAMINE * famine)`; fertility
+// is scaled by `(1 - DEARTH * dearth) * (1 - FAMINE * famine)`. Magnitudes
+// sit at the low end of pre-industrial demography (high-price years: deaths
+// up a few percent, births down 5-15%; famines: crude death rates two to
+// four times normal, most among young children, the old and the poor, births
+// down a quarter to a half). Simulated famines last longer and recur more
+// often than historical famine years, so the per-turn terms compound; twice
+// these magnitudes pushed long, world-wide famines towards extinction.
+pub const HUNGER_SEVERE_SUFFICIENCY: f32 = crate::agent::FAMINE_MEMORY_THRESHOLD;
+pub const HUNGER_FAMINE_TURNS: u16 = 3;
+/// Mortality multiplier at the edge of the dearth band (vulnerability 1).
+pub const HUNGER_DEARTH_MORTALITY: f32 = 0.05;
+/// Added mortality multiplier of a total, sustained famine (vulnerability 1).
+pub const HUNGER_FAMINE_MORTALITY: f32 = 0.50;
+/// Births withheld at the edge of the dearth band.
+pub const HUNGER_DEARTH_FERTILITY: f32 = 0.10;
+/// Further share of births withheld in a total, sustained famine.
+pub const HUNGER_FAMINE_FERTILITY: f32 = 0.30;
+/// Vulnerability by age band: young children and the old carry the full
+/// hunger hazard, older children and working-age adults half of it.
+pub const HUNGER_CHILD_AGE: u16 = 5;
+pub const HUNGER_VULNERABLE_WEIGHT: f32 = 1.0;
+pub const HUNGER_ROBUST_WEIGHT: f32 = 0.5;
+/// Adults' vulnerability spread by civ wealth percentile: the poorest carry
+/// `1 + W/2`, the richest `1 - W/2` (children's own wealth is not their
+/// household's, so they carry the age weight alone).
+pub const HUNGER_POVERTY_WEIGHT: f32 = 0.5;
+
+/// (dearth, famine) hunger components of a region this turn. `prev_run` is
+/// the severe-shortage run up to the previous turn; this turn extends it
+/// while sufficiency stays below the threshold.
+#[inline]
+pub fn hunger_components(food_sufficiency: f32, prev_run: u16) -> (f32, f32) {
+    let s = food_sufficiency;
+    if !(s < 1.0) {
+        return (0.0, 0.0);
+    }
+    let dearth = ((1.0 - s) / (1.0 - HUNGER_SEVERE_SUFFICIENCY)).clamp(0.0, 1.0);
+    if !(s < HUNGER_SEVERE_SUFFICIENCY) {
+        return (dearth, 0.0);
+    }
+    let run = prev_run.saturating_add(1);
+    let ramp = (run as f32 / HUNGER_FAMINE_TURNS as f32).min(1.0);
+    let depth = ((HUNGER_SEVERE_SUFFICIENCY - s) / HUNGER_SEVERE_SUFFICIENCY).clamp(0.0, 1.0);
+    (dearth, depth * ramp)
+}
+
+/// Hunger vulnerability of an agent: its age band, and for adults its civ
+/// wealth percentile (0 poorest, 1 richest).
+#[inline]
+pub fn hunger_vulnerability(age: u16, wealth_percentile: f32) -> f32 {
+    if age < HUNGER_CHILD_AGE {
+        HUNGER_VULNERABLE_WEIGHT
+    } else if age < AGE_ADULT {
+        HUNGER_ROBUST_WEIGHT
+    } else {
+        let base = if age < AGE_ELDER { HUNGER_ROBUST_WEIGHT } else { HUNGER_VULNERABLE_WEIGHT };
+        let poverty = 1.0 + HUNGER_POVERTY_WEIGHT * (0.5 - wealth_percentile.clamp(0.0, 1.0));
+        base * poverty
+    }
+}
+
+/// Mortality multiplier from hunger (1 when fed).
+#[inline]
+pub fn hunger_mortality_multiplier(vulnerability: f32, dearth: f32, famine: f32) -> f32 {
+    1.0 + vulnerability * (HUNGER_DEARTH_MORTALITY * dearth + HUNGER_FAMINE_MORTALITY * famine)
+}
+
+/// Fertility multiplier from hunger (1 when fed; never 0, so it withholds
+/// births without removing their draws).
+#[inline]
+pub fn hunger_fertility_multiplier(dearth: f32, famine: f32) -> f32 {
+    (1.0 - HUNGER_DEARTH_FERTILITY * dearth) * (1.0 - HUNGER_FAMINE_FERTILITY * famine)
+}
+
 #[inline]
 pub fn population_pressure(region: &RegionState) -> f32 {
     population_pressure_for(region, region.population as usize)
@@ -340,6 +430,57 @@ mod tests {
             / (FERTILITY_CROWDING_ZERO - FERTILITY_CROWDING_SOFT_START);
         assert!(crowding_mult > 0.0 && crowding_mult < 0.5);
         assert!((rate - full * crowding_mult).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_hunger_components_fed_dearth_famine() {
+        assert_eq!(hunger_components(1.0, 0), (0.0, 0.0));
+        assert_eq!(hunger_components(2.0, 7), (0.0, 0.0));
+        assert_eq!(hunger_components(f32::NAN, 0), (0.0, 0.0));
+        let (d, f) = hunger_components(0.8, 0);
+        assert!((d - 0.5).abs() < 1e-6 && f == 0.0);
+        let (d, f) = hunger_components(HUNGER_SEVERE_SUFFICIENCY, 9);
+        assert!((d - 1.0).abs() < 1e-6 && f == 0.0);
+        // Below the line: depth ramped over the run, this turn included.
+        let depth = (HUNGER_SEVERE_SUFFICIENCY - 0.3) / HUNGER_SEVERE_SUFFICIENCY;
+        for prev in 0..5u16 {
+            let (d, f) = hunger_components(0.3, prev);
+            let ramp = ((prev + 1) as f32 / HUNGER_FAMINE_TURNS as f32).min(1.0);
+            assert_eq!(d, 1.0);
+            assert!((f - depth * ramp).abs() < 1e-6, "prev {} f {}", prev, f);
+        }
+        assert_eq!(hunger_components(0.0, u16::MAX), (1.0, 1.0));
+    }
+
+    #[test]
+    fn test_hunger_vulnerability_by_age_and_wealth() {
+        let child = hunger_vulnerability(2, 0.9);
+        let youth = hunger_vulnerability(12, 0.0);
+        let poor_adult = hunger_vulnerability(30, 0.0);
+        let rich_adult = hunger_vulnerability(30, 1.0);
+        let poor_elder = hunger_vulnerability(70, 0.0);
+        let rich_elder = hunger_vulnerability(70, 1.0);
+        assert_eq!(child, HUNGER_VULNERABLE_WEIGHT);
+        assert_eq!(youth, HUNGER_ROBUST_WEIGHT);
+        assert!(poor_adult > rich_adult);
+        assert!(poor_elder > rich_elder);
+        assert!(rich_elder > poor_adult);
+        // The middle of the wealth ranking carries the age weight alone.
+        assert!((hunger_vulnerability(30, 0.5) - HUNGER_ROBUST_WEIGHT).abs() < 1e-6);
+        assert!((hunger_vulnerability(70, 0.5) - HUNGER_VULNERABLE_WEIGHT).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_hunger_multipliers() {
+        assert_eq!(hunger_mortality_multiplier(1.0, 0.0, 0.0), 1.0);
+        assert_eq!(hunger_fertility_multiplier(0.0, 0.0), 1.0);
+        let dearth = hunger_mortality_multiplier(1.0, 1.0, 0.0);
+        let famine = hunger_mortality_multiplier(1.0, 1.0, 1.0);
+        assert!((dearth - (1.0 + HUNGER_DEARTH_MORTALITY)).abs() < 1e-6);
+        assert!((famine - (1.0 + HUNGER_DEARTH_MORTALITY + HUNGER_FAMINE_MORTALITY)).abs() < 1e-6);
+        assert!(hunger_mortality_multiplier(0.5, 1.0, 1.0) < famine);
+        let worst = hunger_fertility_multiplier(1.0, 1.0);
+        assert!(worst > 0.0 && worst < hunger_fertility_multiplier(1.0, 0.0));
     }
 
     #[test]

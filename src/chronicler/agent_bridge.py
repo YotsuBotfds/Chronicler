@@ -579,6 +579,12 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             [economy_result.food_sufficiency.get(r.name, 1.0) if economy_result else 1.0
              for r in world.regions], type=pa.float32(),
         ),
+        # Hunger: the severe-shortage run up to the previous turn (Phase 9
+        # extends it after this batch is built; the native demographic tick
+        # adds the current turn itself).
+        "food_severe_turns": pa.array(
+            [min(0xFFFF, r.food_severe_turns or 0) for r in world.regions], type=pa.uint16(),
+        ),
         "merchant_margin": pa.array(
             [economy_result.merchant_margins.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),

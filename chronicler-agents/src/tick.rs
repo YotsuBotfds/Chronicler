@@ -812,6 +812,7 @@ pub fn try_tick_agents_with_options(
     let demo_results: Vec<(DemographicsPending, RegionDemoDebug)> = {
         let pool_ref = &*pool;
         let civ_idx_ref = &demo_civ_idx;
+        let wealth_ref: &[f32] = &*wealth_percentiles;
         region_groups
             .par_iter()
             .enumerate()
@@ -827,6 +828,7 @@ pub fn try_tick_agents_with_options(
                     &regions[region_id],
                     signals,
                     civ_idx_ref,
+                    wealth_ref,
                     region_id,
                     &mut rng,
                     master_seed,
@@ -849,6 +851,8 @@ pub fn try_tick_agents_with_options(
         demo_debug.fertile_age_total += rd.fertile_age_total;
         demo_debug.expected_deaths += rd.expected_deaths;
         demo_debug.expected_births += rd.expected_births;
+        demo_debug.expected_hunger_deaths += rd.expected_hunger_deaths;
+        demo_debug.hunger_births_withheld += rd.hunger_births_withheld;
         demo_debug.sat_near_threshold += rd.sat_near_threshold;
     }
     // Endemic stats from region state
@@ -1579,6 +1583,8 @@ struct RegionDemoDebug {
     fertile_age_total: u32,
     expected_deaths: f32,
     expected_births: f32,
+    expected_hunger_deaths: f32,
+    hunger_births_withheld: f32,
     sat_near_threshold: u32,
 }
 
@@ -1597,6 +1603,10 @@ pub struct DemographicDebug {
     pub fertile_age_total: u32,
     pub expected_deaths: f32,
     pub expected_births: f32,
+    /// Expected deaths added by hunger (the hunger multiplier's excess).
+    pub expected_hunger_deaths: f32,
+    /// Expected births withheld by hunger.
+    pub hunger_births_withheld: f32,
     pub sat_near_threshold: u32,
 }
 
@@ -1606,6 +1616,7 @@ fn tick_region_demographics(
     region: &RegionState,
     signals: &TickSignals,
     civ_idx: &crate::signals::CivSignalsIndex,  // H-29: O(1) civ lookup
+    wealth_percentiles: &[f32],  // M41 civ wealth rank, this tick
     region_id: usize,
     rng: &mut ChaCha8Rng,
     master_seed: [u8; 32],
@@ -1622,6 +1633,7 @@ fn tick_region_demographics(
         deaths_eco_stress_gt1: 0,
         fertile_by_occ: [0; 5], fertile_age_total: 0,
         expected_deaths: 0.0, expected_births: 0.0,
+        expected_hunger_deaths: 0.0, hunger_births_withheld: 0.0,
         sat_near_threshold: 0,
     };
 
@@ -1633,6 +1645,11 @@ fn tick_region_demographics(
     let pop_over_capacity = demographics::population_pressure_for(region, slots.len());
     let eco_stress = demographics::ecological_stress_with_pressure(region, pop_over_capacity);
     let has_disease = region.endemic_severity > 0.0;
+    // Hunger (2026-10): food sufficiency and its severe run this turn.
+    let (hunger_dearth, hunger_famine) =
+        demographics::hunger_components(region.food_sufficiency, region.food_severe_turns);
+    let hunger_fertility = demographics::hunger_fertility_multiplier(hunger_dearth, hunger_famine);
+    let hungry = hunger_dearth > 0.0;
     // Dedicated personality RNG (offset 700) decoupled from demographics RNG.
     // Prevents adding/removing mortality checks from changing personality assignments.
     let mut personality_rng = ChaCha8Rng::from_seed(master_seed);
@@ -1651,7 +1668,15 @@ fn tick_region_demographics(
             .map_or(false, |c| c.is_at_war);
         let is_soldier_at_war = occ == 1 && civ_at_war;
 
-        let mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
+        let mut mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
+        if hungry {
+            let wp = wealth_percentiles.get(slot).copied().unwrap_or(0.5);
+            let fed_rate = mort_rate;
+            mort_rate *= demographics::hunger_mortality_multiplier(
+                demographics::hunger_vulnerability(age, wp), hunger_dearth, hunger_famine,
+            );
+            debug.expected_hunger_deaths += mort_rate - fed_rate;
+        }
         debug.expected_deaths += mort_rate;
 
         // Satisfaction near fertility threshold (0.25 to 0.35 band)
@@ -1685,7 +1710,7 @@ fn tick_region_demographics(
             }
 
             // Fertility check (only for survivors)
-            let fert_rate = demographics::fertility_rate_with_pressure(
+            let mut fert_rate = demographics::fertility_rate_with_pressure(
                 age,
                 sat,
                 occ,
@@ -1693,6 +1718,11 @@ fn tick_region_demographics(
                 region.water,
                 pop_over_capacity,
             );
+            if hungry {
+                let fed_rate = fert_rate;
+                fert_rate *= hunger_fertility;
+                debug.hunger_births_withheld += fed_rate - fert_rate;
+            }
             debug.expected_births += fert_rate;
             if fert_rate > 0.0 && rng.gen::<f32>() < fert_rate {
                 let civ_id = pool.civ_affinity(slot);
@@ -2319,6 +2349,47 @@ mod tests {
 
         let parent_agent_id = pool.id(parent_slot);
         assert_ne!(parent_agent_id, PARENT_NONE);
+    }
+
+    /// Hunger (2026-10): a starving region's expected deaths rise and its
+    /// expected births fall, by the documented multipliers; a fed region is
+    /// untouched, and every survivor keeps its birth draw.
+    #[test]
+    fn test_region_demographics_hunger_terms() {
+        let mut pool = AgentPool::new(0);
+        for age in [1u16, 10, 25, 40, 70, 75] {
+            for _ in 0..20 {
+                pool.spawn(0, 0, Occupation::Farmer, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            }
+        }
+        for slot in 0..pool.capacity() {
+            pool.satisfactions[slot] = 0.8;
+        }
+        let slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+        let signals = make_default_signals(1, 1);
+        let civ_idx = signals.build_index();
+        let percentiles = vec![0.5f32; pool.capacity()];
+        let run = |food: f32, prev_run: u16| {
+            let mut region = make_healthy_region(0);
+            region.carrying_capacity = 1000; // no crowding brake
+            region.food_sufficiency = food;
+            region.food_severe_turns = prev_run;
+            let mut rng = ChaCha8Rng::from_seed([7u8; 32]);
+            tick_region_demographics(&pool, &slots, &region, &signals, &civ_idx, &percentiles, 0, &mut rng, [7u8; 32], 3).1
+        };
+        let fed = run(1.2, 0);
+        let lean = run(0.8, 0);
+        let famine = run(0.0, 5);
+        assert_eq!(fed.expected_hunger_deaths, 0.0);
+        assert_eq!(fed.hunger_births_withheld, 0.0);
+        assert!(lean.expected_hunger_deaths > 0.0);
+        assert!(famine.expected_hunger_deaths > lean.expected_hunger_deaths);
+        assert!(famine.expected_deaths > lean.expected_deaths && lean.expected_deaths > fed.expected_deaths);
+        assert!(famine.expected_births < lean.expected_births && lean.expected_births < fed.expected_births);
+        // A total famine leaves the documented share of its survivors' births.
+        let share = famine.expected_births / (famine.expected_births + famine.hunger_births_withheld);
+        let expected = demographics::hunger_fertility_multiplier(1.0, 1.0);
+        assert!((share - expected).abs() < 1e-3, "share {} expected {}", share, expected);
     }
 }
 

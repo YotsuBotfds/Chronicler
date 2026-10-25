@@ -432,6 +432,10 @@ impl AgentSimulator {
         let city_pull_col = rb
             .column_by_name("city_pull")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Hunger: the severe-shortage run up to the previous turn (absent = 0)
+        let food_severe_turns_col = rb
+            .column_by_name("food_severe_turns")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt16Array>());
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -582,6 +586,7 @@ impl AgentSimulator {
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
+                    food_severe_turns: food_severe_turns_col.map_or(0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -786,6 +791,7 @@ impl AgentSimulator {
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
+                r.food_severe_turns = food_severe_turns_col.map_or(0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
@@ -1324,6 +1330,8 @@ impl AgentSimulator {
         m.insert("fertile_age_total".into(), d.fertile_age_total as f64);
         m.insert("expected_deaths".into(), d.expected_deaths as f64);
         m.insert("expected_births".into(), d.expected_births as f64);
+        m.insert("expected_hunger_deaths".into(), d.expected_hunger_deaths as f64);
+        m.insert("hunger_births_withheld".into(), d.hunger_births_withheld as f64);
         m.insert("sat_near_threshold".into(), d.sat_near_threshold as f64);
         m
     }
