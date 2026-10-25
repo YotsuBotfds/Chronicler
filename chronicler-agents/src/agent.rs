@@ -289,7 +289,7 @@ pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [FROZEN M53 SOF
 pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [FROZEN M53 SOFT]
 
 // M49: Needs system — starting value of founders (a newborn takes its birth
-// parent's needs: needs::inherit_needs).
+// parent's needs of conditions: needs::inherit_needs).
 pub const STARTING_NEED: f32 = 0.5;  // [FROZEN M53 SOFT]
 
 // M49: Need decay rates. Needs calibration (2026-10, docs/integration/
