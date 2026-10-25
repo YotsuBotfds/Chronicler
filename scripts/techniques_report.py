@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
+from chronicler.bundle_codec import load_bundle  # noqa: E402
 from chronicler.techniques_state import CHANNELS, CONQUEST  # noqa: E402
 
 GAIN_CHANNELS = tuple(c for c in CHANNELS if c not in ("invention", "seeded")) + (CONQUEST,)
@@ -68,7 +69,7 @@ def run_numbers(run_dir: Path) -> dict:
     history: list[dict] = []
     bundle_path = run_dir / "chronicle_bundle.json"
     if bundle_path.exists():
-        history = json.loads(bundle_path.read_text(encoding="utf-8")).get("history", [])
+        history = load_bundle(bundle_path).get("history", [])
     by_turn = {snap["turn"]: snap for snap in history}
     last = history[-1] if history else {}
     known = {t: _known_mean(by_turn[t]) for t in CHECKPOINTS if t in by_turn}

@@ -7,6 +7,7 @@ from collections import Counter, deque
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 from chronicler.geography import (
     LANE_RANGE,
     MAP_SIZE,
@@ -335,7 +336,7 @@ def test_large_world_runs(tmp_path, mode):
         # Agents live in regions with ids >= 32 (impossible with u32 masks).
         assert any(r["population"] > 0 for r in state["regions"][32:])
     # Procedural bundles keep civ-pair snapshot data for living civs only.
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     for snap in bundle["history"]:
         alive = {name for name, cs in snap["civ_stats"].items() if cs["alive"]}
         assert set(snap["relationships"]) <= alive

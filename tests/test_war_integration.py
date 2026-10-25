@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 from chronicler.action_engine import ActionEngine
 from chronicler.models import WorldState
 from chronicler.simulation import run_turn
@@ -148,7 +149,7 @@ def test_cli_flag_persists_and_bundle_carries_campaign_history(tmp_path):
     execute_run(_cli_args(tmp_path, campaigns=True))
     state = json.loads((tmp_path / "state.json").read_text())
     assert state["campaigns_enabled"] is True
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     assert all("campaign" in snap for snap in bundle["history"])
     assert set(bundle["history"][-1]["campaign"]) == {"armies", "battles", "occupations", "wars"}
     assert "war_state" in bundle["world_state"]

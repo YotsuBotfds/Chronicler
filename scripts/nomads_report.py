@@ -26,6 +26,8 @@ import argparse
 import json
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 
 def _runs(paths: list[Path]) -> list[Path]:
     out = []
@@ -48,7 +50,7 @@ def run_metrics(state_path: Path) -> dict:
     bundle_path = state_path.parent / "chronicle_bundle.json"
     history = []
     if bundle_path.exists():
-        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        bundle = load_bundle(bundle_path)
         history = [h["nomads"] for h in bundle.get("history", []) if h.get("nomads")]
     row = {
         "run": str(state_path.parent),

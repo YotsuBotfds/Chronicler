@@ -102,6 +102,7 @@ CHUNKS = {
         "tests/test_gp_agendas.py",
         "tests/test_nomads.py",
         "tests/test_snapshot_pruning.py",
+        "tests/test_bundle_codec.py",
         "tests/test_historiography.py",
         "tests/test_languages.py",
         "tests/test_viewer_snapshot_fields.py",

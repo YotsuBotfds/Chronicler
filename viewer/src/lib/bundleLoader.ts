@@ -1,4 +1,5 @@
 import type { Bundle } from "../types";
+import { decodeBundlePayload } from "./bundleCodec";
 import { looksLikeBundleV2Manifest, parseBundleV2Manifest, type BundleV2Manifest } from "./bundleV2";
 
 const LEGACY_REQUIRED_KEYS: (keyof Bundle)[] = [
@@ -57,9 +58,9 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
     });
   }
 
-  const obj = parsed as Record<string, unknown>;
-  if (looksLikeBundleV2Manifest(obj)) {
-    const v2 = parseBundleV2Manifest(obj);
+  const raw = parsed as Record<string, unknown>;
+  if (looksLikeBundleV2Manifest(raw)) {
+    const v2 = parseBundleV2Manifest(raw);
     if (v2.error) {
       return toErrorResult({
         code: "MANIFEST_SCHEMA_ERROR",
@@ -82,6 +83,8 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
     };
   }
 
+  // Bundle version 6 writes the history as deltas (lib/bundleCodec.ts).
+  const obj = decodeBundlePayload(raw);
   const missing = LEGACY_REQUIRED_KEYS.filter((k) => !(k in obj));
   if (missing.length > 0) {
     return toErrorResult({

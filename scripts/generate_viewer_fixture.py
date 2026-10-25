@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from chronicler.bundle_codec import load_bundle
 from chronicler.main import execute_run
 
 
@@ -31,7 +32,10 @@ def main():
     src = tmp_dir / "chronicle_bundle.json"
     dst = Path("viewer/src/__fixtures__/sample_bundle.json")
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    # The viewer's tests import the fixture as a bundle, so write it decoded
+    # (the version-5 layout; the bundle file itself is version 6).
+    dst.write_text(json.dumps(load_bundle(src), ensure_ascii=False, separators=(",", ":")),
+                   encoding="utf-8")
     print(f"Fixture written to {dst} ({dst.stat().st_size} bytes)")
 
     shutil.rmtree(tmp_dir)

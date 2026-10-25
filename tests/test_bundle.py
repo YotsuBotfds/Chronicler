@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import pytest
+from chronicler.bundle_codec import load_bundle
 from chronicler.models import (
     CivSnapshot, RelationshipSnapshot, TurnSnapshot, TechEra, Region,
     AgentEventRecord,
@@ -227,8 +228,11 @@ class TestBundleAssembly:
         assert meta["scenario_name"] is None
         assert "generated_at" in meta
         assert "total_turns" in meta
-        assert meta["bundle_version"] == 5
+        # Version 6 (bundle_codec): the writer stores the history as deltas;
+        # the assembled bundle is the decoded, version-5 layout.
+        assert meta["bundle_version"] == 6
         assert bundle["pruned_civ_stats"] == {}
+        assert "history" in bundle and "history_delta" not in bundle
 
     def test_events_timeline_serialized(self, sample_world):
         from chronicler.models import Event
@@ -350,7 +354,7 @@ class TestViewerFixtureContract:
         execute_run(args)
 
         fixture = json.loads(VIEWER_SAMPLE_BUNDLE.read_text(encoding="utf-8"))
-        generated = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        generated = load_bundle(tmp_path / "chronicle_bundle.json")
 
         assert VIEWER_REQUIRED_TOP_LEVEL_KEYS.issubset(generated.keys())
         assert VIEWER_REQUIRED_METADATA_KEYS.issubset(generated["metadata"].keys())
@@ -389,7 +393,7 @@ class TestViewerFixtureContract:
         execute_run(args)
 
         fixture = json.loads(VIEWER_SYSTEMS_BUNDLE.read_text(encoding="utf-8"))
-        generated = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        generated = load_bundle(tmp_path / "chronicle_bundle.json")
         assert fixture["metadata"]["bundle_version"] == generated["metadata"]["bundle_version"]
 
         def first_item(history, field, key):
@@ -474,14 +478,14 @@ class TestSnapshotCapture:
         args = self._make_args(tmp_path, turns=5)
         execute_run(args)
         bundle_path = tmp_path / "chronicle_bundle.json"
-        bundle = json.loads(bundle_path.read_text())
+        bundle = load_bundle(bundle_path)
         assert len(bundle["history"]) == 5
 
     def test_bundle_history_has_all_civs(self, tmp_path):
         from chronicler.main import execute_run
         args = self._make_args(tmp_path, turns=3)
         execute_run(args)
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         for snapshot in bundle["history"]:
             assert len(snapshot["civ_stats"]) == 2
             for civ_data in snapshot["civ_stats"].values():
@@ -491,7 +495,7 @@ class TestSnapshotCapture:
         from chronicler.main import execute_run
         args = self._make_args(tmp_path, turns=3)
         execute_run(args)
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         for snapshot in bundle["history"]:
             assert "relationships" in snapshot
             assert len(snapshot["relationships"]) > 0
@@ -500,7 +504,7 @@ class TestSnapshotCapture:
         from chronicler.main import execute_run
         args = self._make_args(tmp_path, turns=5)
         execute_run(args)
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         assert "events_timeline" in bundle
         assert isinstance(bundle["events_timeline"], list)
 
@@ -508,7 +512,7 @@ class TestSnapshotCapture:
         from chronicler.main import execute_run
         args = self._make_args(tmp_path, turns=5)
         execute_run(args)
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         assert "named_events" in bundle
         assert isinstance(bundle["named_events"], list)
 
@@ -516,7 +520,7 @@ class TestSnapshotCapture:
         from chronicler.main import execute_run
         args = self._make_args(tmp_path, turns=3)
         execute_run(args)
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         meta = bundle["metadata"]
         assert "sim_model" in meta
         assert "narrative_model" in meta
@@ -717,7 +721,11 @@ class TestBundleSize:
         # (docs/integration/farmland-climate.md) keep more of this world's
         # polities alive at once: 21.55MB native (11 over the run, 5.5 alive per
         # snapshot against 4.2) and 22.67MB no-Rust (10, 5.6 against 5.4).
-        assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
+        # Bundle version 6 (docs/performance/bundle-v6.md) writes the history as
+        # changes between snapshots and drops world_state's copy of the timeline
+        # and named events; decoded, the bundle is the version-5 one. 7.89MB
+        # native and 8.61MB no-Rust. The guard sits about 20% above the larger.
+        assert size_mb < 10.5, f"Bundle is {size_mb:.2f}MB, expected < 10.5MB"
 
 
 # ---------------------------------------------------------------------------

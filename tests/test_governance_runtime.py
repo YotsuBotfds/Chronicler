@@ -6,6 +6,7 @@ import random
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 from chronicler import governance_runtime as gr
 from chronicler import governance_stress as stress
 from chronicler import institutions as g01
@@ -337,7 +338,7 @@ def test_execute_run_cli_flag_produces_bundle_stats(tmp_path):
                               llm_actions=False, scenario=None, simulate_only=True, agents="off",
                               governance=True)
     execute_run(args)
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     stats = [c.get("governance") for s in bundle["history"] for c in s["civ_stats"].values() if c["regions"]]
     assert stats and all(g is not None for g in stats[len(stats) // 2:])
     state = json.loads((tmp_path / "state.json").read_text())

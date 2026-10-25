@@ -12,7 +12,9 @@
                                  order), and nothing else differs apart from
                                  the bundle version and generated_at
 
-Bundles are written the way ``chronicler.bundle.write_bundle`` writes them.
+Converted bundles are written in the version-5 layout; ``scripts/bundle_v6.py
+convert`` converts either version to version 6. ``check`` decodes a version-6
+V5_BUNDLE first.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
+from chronicler.bundle_codec import decode_bundle  # noqa: E402
 from chronicler.snapshot_pruning import (  # noqa: E402
     PRUNED_CIV_STATS_KEY,
     prune_bundle,
@@ -70,7 +73,7 @@ def _strict(a, b) -> bool:
 
 def check(v4_path: Path, v5_path: Path) -> int:
     v4 = json.loads(v4_path.read_text(encoding="utf-8"))
-    v5 = json.loads(v5_path.read_text(encoding="utf-8"))
+    v5 = decode_bundle(json.loads(v5_path.read_text(encoding="utf-8")))
     problems: list[str] = []
     if PRUNED_CIV_STATS_KEY in v4:
         problems.append(f"{v4_path} is not a version-4 bundle")
