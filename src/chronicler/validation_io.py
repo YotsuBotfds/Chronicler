@@ -94,7 +94,7 @@ ERA_SIGNAL_SLACK_TURNS = 5
 # people (hunger, disease, war, flight, disaster) or records its breakdown
 # (unrest, the fall of the state). Fiscal, cultural and routine events do not.
 ERA_CRISIS_EVENT_GROUPS = {
-    "hunger": ("famine", "supply_shock", "drought", "drought_intensification", "locust_swarm",
+    "hunger": ("famine", "dearth", "supply_shock", "drought", "drought_intensification", "locust_swarm",
                "soil_exhaustion", "fishery_collapse", "demographic_crisis"),
     "disease": ("plague", "epidemic", "epidemic_arrival", "pandemic", "pandemic_spread"),
     "war": ("war", "war_declared", "battle", "siege_begun", "occupation", "army_destroyed",

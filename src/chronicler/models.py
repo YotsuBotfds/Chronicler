@@ -372,7 +372,7 @@ _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
 # Optional region fields omitted from serialized output while None, so worlds
 # that never use them keep their exact bytes.
 _DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending",
-                            "persecuting_faith")
+                            "persecuting_faith", "food_severe_turns")
 
 
 class Region(BaseModel):
@@ -401,6 +401,11 @@ class Region(BaseModel):
     # nothing is pending (omitted from output).
     stockpile_bootstrap_pending: bool | None = None
     famine_cooldown: int = 0
+    # Agent modes: consecutive turns food sufficiency has stayed below the
+    # famine severity threshold (``ecology.FAMINE_SEVERE_SUFFICIENCY``); it
+    # labels a food-crisis report famine or dearth. None while the region is
+    # not severely short (omitted from output).
+    food_severe_turns: int | None = None
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
     resource_suspensions: dict[int, int] = Field(default_factory=dict)
@@ -705,6 +710,12 @@ def _omit_empty_fields(data, defaults: tuple[tuple[str, object], ...]):
             if key in data and data[key] == empty:
                 del data[key]
     return data
+
+
+#: Reports of a region's food crisis (``ecology._check_famine_yield``):
+#: "famine" (sustained severe shortage) and "dearth" (a lean season). Both
+#: have the same effects; every simulation consumer reads both.
+FOOD_CRISIS_EVENT_TYPES: frozenset[str] = frozenset({"famine", "dearth"})
 
 
 class Event(BaseModel):

@@ -51,7 +51,9 @@ from chronicler.diplomacy_state import (
     BORDER, EMBARGO, FAITH, GRIEVANCE_KINDS, OCCUPATION, TREATY, TREATY_KINDS, WAR,
     DiplomacyState, DiplomaticMemory, Treaty,
 )
-from chronicler.models import ActionType, Disposition, Event, NamedEvent, VassalRelation
+from chronicler.models import (
+    FOOD_CRISIS_EVENT_TYPES, ActionType, Disposition, Event, NamedEvent, VassalRelation,
+)
 from chronicler.utils import STAT_FLOOR, civ_index, clamp, stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -1716,7 +1718,7 @@ def _aid_convoys(world, turn_events: list[Event], acc=None) -> list[Event]:
     famine: dict[str, Event] = {}
     region_map = world.region_map
     for ev in turn_events:
-        if ev.event_type != "famine" or not ev.region or ev.episode == "tick":
+        if ev.event_type not in FOOD_CRISIS_EVENT_TYPES or not ev.region or ev.episode == "tick":
             continue
         region = region_map.get(ev.region)
         if region is not None and region.controller is not None:
@@ -1743,7 +1745,8 @@ def _aid_convoys(world, turn_events: list[Event], acc=None) -> list[Event]:
             _bump(state, "aid")
             events.append(_emit_now(world, Event(
                 turn=world.turn, event_type="aid_convoy", actors=[donor.name, recipient.name],
-                description=f"{donor.name} sends a relief convoy worth {amount} to its famine-struck "
+                description=f"{donor.name} sends a relief convoy worth {amount} to its "
+                            f"{'famine-struck' if famine[recipient.name].event_type == 'famine' else 'hungry'} "
                             f"ally {recipient.name}.",
                 importance=4, region=famine[recipient.name].region,
             ), (famine[recipient.name].event_id, treaty.event_id)))

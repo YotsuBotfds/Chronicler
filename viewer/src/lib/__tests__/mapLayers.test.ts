@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../types";
-import { famineSpans, FAMINE_COLOR } from "../food";
+import { DEARTH_COLOR, famineSpans, FAMINE_COLOR } from "../food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniques, type MapLayerKey,
 } from "../mapLayers";
@@ -47,6 +47,26 @@ describe("map layers", () => {
       expect(view.titles.get(span.region)).toContain(`famine since T${span.start}`);
     }
     expect(view.legend.map((item) => item.label)).toContain("relief convoy");
+  });
+
+  it("tells dearth from famine on the food layer", () => {
+    const snapshot = systems.history.find((entry) => (entry.food?.aid.length ?? 0) > 0)!;
+    const observed = names.filter((_, index) => snapshot.food!.sufficiency[index] != null);
+    const [hungry, lean] = [observed[0], observed[1]];
+    const spans = [
+      { region: hungry, start: 0, end: null, reports: 3, kind: "famine" as const },
+      { region: lean, start: 0, end: null, reports: 1, kind: "dearth" as const },
+    ];
+    const withFood = buildMapLayer("food", { bundle: systems, snapshot, famine: spans, technique: null })!;
+    expect(withFood.fills.get(hungry)).toBe(FAMINE_COLOR);
+    expect(withFood.titles.get(lean)).toContain("dearth since T0");
+    // With the food field a dearth keeps the region's shortage shading.
+    expect(withFood.fills.get(lean)).not.toBe(DEARTH_COLOR);
+    const bare = { ...snapshot, food: undefined };
+    const noFood = buildMapLayer("food", { bundle: systems, snapshot: bare, famine: spans, technique: null })!;
+    expect(noFood.fills.get(lean)).toBe(DEARTH_COLOR);
+    expect(noFood.fills.get(hungry)).toBe(FAMINE_COLOR);
+    expect(noFood.legend.map((item) => item.label)).toEqual(["famine", "dearth", "not observed"]);
   });
 
   it("fills each outbreak region with its strongest pathogen", () => {

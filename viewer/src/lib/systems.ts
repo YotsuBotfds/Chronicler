@@ -112,7 +112,8 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = []): S
     if (field && history.some((snapshot) => snapshot[field] != null)) {
       return true;
     }
-    return key === "food" && events.some((event) => event.event_type === "famine" && !!event.region && !!event.episode);
+    return key === "food" && events.some((event) => (event.event_type === "famine" || event.event_type === "dearth")
+      && !!event.region && !!event.episode);
   });
 }
 
@@ -132,7 +133,8 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "sea_control_lost", "blockade", "blockade_lifted", "piracy", "piracy_ended", "amphibious_landing",
   ],
   food: [
-    "famine", "famine_ended", "aid_convoy", "mutual_aid", "locust_swarm", "fishery_collapse", "fishery_recovery",
+    "famine", "famine_ended", "dearth", "dearth_ended", "aid_convoy", "mutual_aid", "locust_swarm",
+    "fishery_collapse", "fishery_recovery",
   ],
   wars: [
     "war_declared", "peace_treaty", "war_ended", "army_raised", "army_destroyed", "siege_begun", "occupation",

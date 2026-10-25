@@ -3,8 +3,8 @@ import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import {
-  aidFlows, famineRows, faminesAt, famineSpans, foodSeries, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
-  migrationFlows, netMigration, sufficiencyByRegion,
+  aidFlows, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, famineSpans, foodCrisisSpans, foodSeries,
+  hasFamineRecord, hasFoodRecord, hasMigrationRecord, migrationFlows, netMigration, spansOfKind, sufficiencyByRegion,
 } from "../food";
 
 const systems = systemsFixture as unknown as Bundle;
@@ -30,15 +30,43 @@ describe("famine spans", () => {
       famine(12, null, "onset"),
       famine(13, "C", "tick"),
     ]);
-    expect(spans.map((span) => [span.region, span.start, span.end, span.reports])).toEqual([
-      ["A", 2, 9, 2], ["B", 5, null, 1], ["A", 11, null, 1],
+    expect(spans.map((span) => [span.region, span.start, span.end, span.reports, span.kind])).toEqual([
+      ["A", 2, 9, 2, "famine"], ["B", 5, null, 1, "famine"], ["A", 11, null, 1, "famine"],
     ]);
+    // A bundle written before the labels reads the same through the labelled spans.
+    expect(foodCrisisSpans([
+      famine(2, "A", "onset"), famine(4, "A", "tick"), famine(9, "A", "end", "famine_ended"),
+    ])).toEqual(spans.filter((span) => span.region === "A" && span.start === 2));
     expect(faminesAt(spans, 8).map((span) => span.region)).toEqual(["A", "B"]);
     expect(faminesAt(spans, 9).map((span) => span.region)).toEqual(["B"]);
     const rows = famineRows(spans, ["B", "A"], 20);
     expect(rows.map((row) => row.id)).toEqual(["B", "A"]);
     expect(rows[1].segments.map((segment) => [segment.start, segment.end])).toEqual([[2, 9], [11, 21]]);
     expect(rows[1].segments[1].label).toContain("still running");
+  });
+
+  it("splits one episode where a dearth deepens into famine and eases back", () => {
+    const events = [
+      famine(0, "A", "onset", "dearth"),
+      famine(5, "A", "tick", "dearth"),
+      famine(10, "A", "tick", "famine"),
+      famine(15, "A", "tick", "famine"),
+      famine(20, "A", "tick", "dearth"),
+      famine(30, "A", "end", "famine_ended"),
+      famine(3, "B", "onset", "dearth"),
+      famine(12, "B", "end", "dearth_ended"),
+      famine(6, "C", "tick", "famine"),
+    ];
+    const spans = foodCrisisSpans(events);
+    expect(spans.map((span) => [span.region, span.kind, span.start, span.end, span.reports])).toEqual([
+      ["A", "dearth", 0, 10, 2], ["B", "dearth", 3, 12, 1], ["A", "famine", 10, 20, 2], ["A", "dearth", 20, 30, 1],
+    ]);
+    expect(famineSpans(events).map((span) => [span.start, span.end])).toEqual([[10, 20]]);
+    expect(spansOfKind(faminesAt(spans, 11), "dearth").map((span) => span.region)).toEqual(["B"]);
+    expect(hasFamineRecord([famine(0, "A", "onset", "dearth")])).toBe(true);
+    const row = famineRows(spans, ["A", "B"], 40)[0];
+    expect(row.segments.map((segment) => segment.color)).toEqual([DEARTH_COLOR, FAMINE_COLOR, DEARTH_COLOR]);
+    expect(row.segments[0].label).toContain("A: dearth, turns 0-9");
   });
 
   it("finds famine records only where events carry region and episode", () => {
@@ -64,15 +92,15 @@ describe("food field", () => {
     expect(sufficiencyByRegion(null, names).size).toBe(0);
   });
 
-  it("counts regions short of food (a gap without the field) and in famine per snapshot", () => {
+  it("counts regions short of food (a gap without the field), in dearth and in famine per snapshot", () => {
     const history = [
       snap(1, { food: { sufficiency: [0.4, 1.2, null], aid: [] } }),
       snap(2),
     ];
-    const spans = famineSpans([famine(1, "A", "onset")]);
+    const spans = foodCrisisSpans([famine(1, "A", "onset"), famine(2, "B", "onset", "dearth")]);
     expect(foodSeries(history, spans)).toEqual([
-      { turn: 1, "Short of food": 1, "In famine": 1 },
-      { turn: 2, "Short of food": null, "In famine": 1 },
+      { turn: 1, "Short of food": 1, "In dearth": 0, "In famine": 1 },
+      { turn: 2, "Short of food": null, "In dearth": 1, "In famine": 1 },
     ]);
   });
 });

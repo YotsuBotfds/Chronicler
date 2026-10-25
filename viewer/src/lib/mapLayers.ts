@@ -7,8 +7,8 @@
 import type { Bundle, TurnSnapshot } from "../types";
 import { factionColor, UNCONTROLLED_COLOR } from "./colors";
 import {
-  AID_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord, MIGRATION_COLOR,
-  migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD, sufficiencyByRegion, type FamineSpan,
+  AID_COLOR, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
+  MIGRATION_COLOR, migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD, sufficiencyByRegion, type FamineSpan,
 } from "./food";
 import {
   BLOCKADE_COLOR, CONTESTED_COLOR, formatShare, pathogenColor, pathogenLabel, techniqueLabel,
@@ -112,6 +112,7 @@ export interface MapLayerView {
 export interface MapLayerInput {
   bundle: Bundle;
   snapshot: TurnSnapshot | null;
+  /** Food-crisis spans of the run, both labels (`lib/food.foodCrisisSpans`). */
   famine: FamineSpan[];
   technique: string | null;
 }
@@ -141,20 +142,25 @@ function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
   const names = bundle.world_state.regions.map((region) => region.name);
   const view = emptyView("food", snapshot?.food
     ? "Food on hand over need at this turn: amber where short (brighter is shorter), orange in famine; green arrows are relief convoys within a realm."
-    : "Regions in famine at this turn (this bundle does not export regional food sufficiency).");
+    : "Regions in famine (orange) and dearth (pale amber) at this turn (this bundle does not export regional food sufficiency).");
   const sufficiency = sufficiencyByRegion(snapshot, names);
-  const famines = new Map(faminesAt(famine, at).map((span) => [span.region, span]));
+  const crises = new Map(faminesAt(famine, at).map((span) => [span.region, span]));
   for (const name of names) {
     const value = sufficiency.get(name);
-    const span = famines.get(name);
+    const span = crises.get(name);
     const parts: string[] = [name];
     if (value !== undefined) {
       parts.push(`food ${value.toFixed(2)} of need`);
       view.fills.set(name, value < SHORT_OF_FOOD ? mixHex("#6b5a2a", SHORT_COLOR, 1 - value) : FED_COLOR);
     }
     if (span) {
-      parts.push(`famine since T${span.start}`);
-      view.fills.set(name, FAMINE_COLOR);
+      parts.push(`${span.kind} since T${span.start}`);
+      // A dearth keeps its food shading where the bundle has it; a famine is always orange.
+      if (span.kind === "famine") {
+        view.fills.set(name, FAMINE_COLOR);
+      } else if (value === undefined) {
+        view.fills.set(name, DEARTH_COLOR);
+      }
     }
     if (value === undefined && !span && snapshot?.food) {
       parts.push("not observed (no owner or nobody living there)");
@@ -171,6 +177,8 @@ function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
   }
   view.legend = [
     { label: "famine", color: FAMINE_COLOR, kind: "fill" },
+    ...(!snapshot?.food && famine.some((span) => span.kind === "dearth")
+      ? [{ label: "dearth", color: DEARTH_COLOR, kind: "fill" as const }] : []),
     ...(snapshot?.food ? [
       { label: "short of food", color: SHORT_COLOR, kind: "fill" as const },
       { label: "fed", color: FED_COLOR, kind: "fill" as const },

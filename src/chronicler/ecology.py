@@ -121,6 +121,37 @@ def check_food_yield(
     return food_yield < threshold
 
 
+# Food-crisis labels (2026-10, docs/integration/navigation-famine-labels.md).
+# In agent modes the check below reports any shortfall (sufficiency below 1)
+# once the region's cooldown has run out, and every report has the same
+# effects. The report is labelled by severity and duration: "famine" when
+# sufficiency has stayed below FAMINE_SEVERE_SUFFICIENCY (the agents' famine
+# memory threshold) for FAMINE_SEVERE_TURNS consecutive turns up to the
+# report, a season of severe shortage; otherwise "dearth", a lean season in
+# which food is short and dear. The aggregate model's famine (yields below
+# the famine threshold, with population loss) keeps its label.
+FAMINE_SEVERE_SUFFICIENCY = 0.6
+FAMINE_SEVERE_TURNS = 3
+
+
+def _update_severe_food_turns(world: WorldState, economy_result: EconomyResult | None) -> None:
+    """Count, per region, the consecutive turns of severe food shortage.
+
+    Agent modes only. ``Region.food_severe_turns`` is None while the region is
+    not severely short; an uncontrolled or empty region, or one the economy
+    did not measure this turn, resets.
+    """
+    sufficiency = economy_result.food_sufficiency if economy_result is not None else {}
+    for region in world.regions:
+        value = None
+        if region.controller is not None and region.population > 0:
+            value = sufficiency.get(region.name)
+        if value is not None and value < FAMINE_SEVERE_SUFFICIENCY:
+            region.food_severe_turns = (region.food_severe_turns or 0) + 1
+        else:
+            region.food_severe_turns = None
+
+
 def _check_famine_yield(
     world: WorldState,
     region_yields: dict[str, list[float]],
@@ -136,7 +167,8 @@ def _check_famine_yield(
     The economy measures availability before consumption, including reserves and
     delivered imports. Raw yields cannot determine whether those people ate.
     Missing agent economy data is not evidence of famine, and a previous turn's
-    result must never be reused here.
+    result must never be reused here. Agent-mode reports are labelled famine
+    or dearth (see ``FAMINE_SEVERE_SUFFICIENCY``); both have the same effects.
     """
     from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
     from chronicler.emergence import get_severity_multiplier
@@ -144,6 +176,8 @@ def _check_famine_yield(
     events: list[Event] = []
     agent_mode = world.agent_mode in ("hybrid", "shadow", "demographics-only")
     agents_own_population = world.agent_mode in ("hybrid", "demographics-only")
+    if agent_mode:
+        _update_severe_food_turns(world, economy_result)
     for region in world.regions:
         if region.controller is None or region.famine_cooldown > 0:
             continue
@@ -208,6 +242,13 @@ def _check_famine_yield(
                 else:
                     neighbor.stability = clamp(neighbor.stability - int(5 * neighbor_mult), STAT_FLOOR["stability"], 100)
 
+        if agent_mode and (region.food_severe_turns or 0) < FAMINE_SEVERE_TURNS:
+            events.append(Event(
+                turn=world.turn, event_type="dearth", actors=[civ.name],
+                description=f"Dearth in {region.name}: food runs short and dear for {civ.name}.",
+                importance=4, region=region.name,
+            ))
+            continue
         events.append(Event(
             turn=world.turn, event_type="famine", actors=[civ.name],
             description=f"Famine strikes {region.name}, devastating {civ.name}.",

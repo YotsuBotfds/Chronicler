@@ -150,7 +150,7 @@ HOSTILITY = frozenset({
     "propaganda_campaign", "blockade", "piracy", "siege_begun",
 })
 DISASTER = frozenset({
-    "famine", "famine_starvation", "plague", "pandemic", "epidemic", "epidemic_arrival",
+    "famine", "dearth", "famine_starvation", "plague", "pandemic", "epidemic", "epidemic_arrival",
     "drought", "drought_intensification", "earthquake", "flood", "wildfire",
     "locust_swarm", "sandstorm", "supervolcano", "soil_exhaustion", "mine_collapse",
     "dzud", "pasture_drought", "fishery_collapse", "migration", "mass_migration",

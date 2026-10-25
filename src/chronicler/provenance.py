@@ -487,6 +487,7 @@ def _rule_artifact_loss(world: "WorldState", ev: Event) -> list:
 CAUSE_RULES: dict[str, CauseRule] = {
     # Hunger and its consequences
     "famine": _rule_famine,
+    "dearth": _rule_famine,
     "famine_starvation": lambda w, ev: [open_episode(w, "famine", event_region(ev))],
     "supply_shock": _rule_supply_shock,
     "migration": _rule_regional_flight,
@@ -824,7 +825,11 @@ PROVENANCE_ONLY_TYPES = frozenset({"pandemic_spread"})
 CHRONIC: dict[str, ChronicSpec] = {
     # Famine strikes at most every 5 turns per region (famine cooldown), and
     # traditions/factions count every strike: keep the repeats as ticks.
+    # Dearth and famine reports (the same check, labelled by severity) share
+    # one episode per region (``EPISODE_FAMILY``), so onsets and ticks fall
+    # exactly where they fell before the labels.
     "famine": ChronicSpec(5, True, None, "famine"),
+    "dearth": ChronicSpec(5, True, None, "dearth"),
     "supply_shock": ChronicSpec(1, False, 6, "shortage"),
     "economic_boom": ChronicSpec(1, False, None, "economic boom"),
     "brain_drain": ChronicSpec(1, False, None, "flight of scholars"),
@@ -849,18 +854,27 @@ CHRONIC: dict[str, ChronicSpec] = {
 }
 
 
+#: Report types that continue another type's episode (keyed by that type).
+#: A dearth that deepens into famine is one episode; the episode takes the
+#: famine label from its first famine report (its end is ``famine_ended``).
+EPISODE_FAMILY: dict[str, str] = {"dearth": "famine"}
+
+
 def _gate(world: "WorldState", ids: TurnIds, ev: Event) -> bool:
     """Fold a chronic report into its episode. Returns False to drop it."""
     spec = CHRONIC.get(ev.event_type)
     region = event_region(ev)
     if spec is None or region is None or ev.episode is not None:
         return True
-    ek = episode_key(ev.event_type, region, ev.shock_category)
+    family = EPISODE_FAMILY.get(ev.event_type, ev.event_type)
+    ek = episode_key(family, region, ev.shock_category)
     episodes = world.provenance.episodes
     ep = episodes.get(ek)
     if ep is not None and ids.turn - ep.last_turn <= spec.gap:
         ep.last_turn = ids.turn
         ep.count += 1
+        if ev.event_type == family and ep.event_type != family:
+            ep.event_type = family  # a dearth deepened into famine
         if not spec.keep_ticks:
             if not LEGACY_TIMELINE:
                 return False

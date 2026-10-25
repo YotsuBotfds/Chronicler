@@ -64,7 +64,9 @@ _RESTLESS_EVENTS = {"loyalty_cascade", "brain_drain", "occupation_shift"}
 # ---------------------------------------------------------------------------
 
 MEMORY_DESCRIPTIONS = {
-    0: "a great famine under the {civ}",
+    # Agents remember any month below 0.6 food sufficiency: hunger, which a
+    # famine is only when it lasts (ecology.FAMINE_SEVERE_TURNS).
+    0: "hunger under the {civ}",
     1: "combat against the {civ}",
     2: "the fall of the {civ}",
     3: "persecution by the {civ}",

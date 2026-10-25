@@ -4,6 +4,7 @@ from __future__ import annotations
 import random
 
 from chronicler.models import (
+    FOOD_CRISIS_EVENT_TYPES,
     ActionType,
     Disposition,
     Event,
@@ -338,7 +339,7 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
             elif event.event_type in ("cultural_work", "movement_adoption"):
                 civ.factions.influence[FactionType.CULTURAL] += 0.04
 
-            elif event.event_type == "famine":
+            elif event.event_type in FOOD_CRISIS_EVENT_TYPES:  # famine or dearth
                 civ.factions.influence[FactionType.MILITARY] -= 0.015
                 civ.factions.influence[FactionType.MERCHANT] -= 0.015
                 civ.factions.influence[FactionType.CULTURAL] += 0.015
