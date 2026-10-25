@@ -1,5 +1,5 @@
 """Great-person agendas: generals, merchants, prophets and scientists with
-objectives of their own (``--gp-agendas``, default off).
+objectives of their own (``--gp-agendas``, default on for new worlds).
 
 The agenda framework is the M66b ruler-ambition kernel
 (:mod:`chronicler.ruler_ambitions`). Each agenda is one
@@ -83,7 +83,10 @@ A = ActionType
 # Switch
 # ---------------------------------------------------------------------------
 
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points
+#: (on since the 2026-10 Wave 8 full gate, ``docs/integration/defaults-wave8.md``;
+#: ``--no-gp-agendas`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 
 def gp_agendas_enabled(world) -> bool:

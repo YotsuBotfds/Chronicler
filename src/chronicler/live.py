@@ -1156,19 +1156,19 @@ def run_live(
         )
         _techniques = getattr(args, "techniques", None)
         set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
-        # Maritime: new live worlds follow the CLI default (--maritime opts in).
+        # Maritime: new live worlds follow the CLI default (--no-maritime opts out).
         from chronicler.maritime import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
         )
         _maritime = getattr(args, "maritime", None)
         set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
-        # Great-person agendas: new live worlds follow the CLI default (--gp-agendas opts in).
+        # Great-person agendas: new live worlds follow the CLI default (--no-gp-agendas opts out).
         from chronicler.gp_agendas import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
         )
         _gp_agendas = getattr(args, "gp_agendas", None)
         set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
-        # Nomads: new live worlds follow the CLI default (--nomads opts in).
+        # Nomads: new live worlds follow the CLI default (--no-nomads opts out).
         from chronicler.nomads import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
         )

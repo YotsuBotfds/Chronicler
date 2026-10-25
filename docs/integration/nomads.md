@@ -8,7 +8,10 @@ politics federation step). `c5f4df4` is the identity and gate base for every
 result below. Code: `src/chronicler/nomads.py` (behaviour) and
 `src/chronicler/nomads_state.py` (persisted state). No native change.
 
-**Status.** Default off behind `WorldState.nomads` (CLI `--nomads`). With the
+**Status.** On by default for new worlds since the Wave 8 full gate
+([defaults-wave8.md](defaults-wave8.md)); `--no-nomads` opts out and saved
+worlds keep their setting. Originally default off behind `WorldState.nomads`
+(CLI `--nomads`). With the
 switch off no nomad code runs except the food hook, which returns its input
 list unchanged, and every output is byte-identical to `c5f4df4` (see
 [Identity](#feature-off-identity)). The 20-seed subset gate passes with the
@@ -187,7 +190,7 @@ vassal: `horde_dissolved`.
 | --- | --- |
 | CLI | `--nomads` / `--no-nomads` (`BooleanOptionalAction`) |
 | World field | `WorldState.nomads: NomadState \| None` (presence = on) |
-| Default | **Off** (`nomads.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and caller-supplied worlds keep their setting; an explicit `--nomads` on a resumed world seeds modes and herds from its current land; `--no-nomads` drops the state |
+| Default | **On** (`nomads.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the full gate in [defaults-wave8.md](defaults-wave8.md)) for `execute_run`, batch and the live server; `--no-nomads` opts out and drops the state; resumed, forked and caller-supplied worlds keep their setting; an explicit `--nomads` on a resumed world seeds modes and herds from its current land. `scripts/benchmark_headless.run` pins it off so the frozen performance oracles replay the same worlds |
 | Gate runner | `scripts/m53b_run_validation.py --nomads` forwards the switch to every run and records it in `run_manifest.json` |
 | Dormant fields | `WorldState.nomads` and `TurnSnapshot.nomads` are `None` by default and omitted from serialized output, so flag-off saves, bundles and fixtures keep their bytes and old saves load unchanged |
 | State | per civ: mode, the turn and event that set it, the settling clock; per region: herd, empty-pasture clock, controller at the last tick; raids (40 turns), tribute pacts, hordes, conquests (80 turns); counters. Region and civ identity by index; a horde's federation by its federation name |
@@ -581,7 +584,8 @@ ways (`251:secession:0`, `254:secession:0`).
 
 ## Known gaps
 
-* The full 200-seed gate has not been run with `--nomads`.
+* The full 200-seed gate ran with nomads on in
+  [defaults-wave8.md](defaults-wave8.md), together with agendas and maritime.
 * In the supplementary seed set 62-81 the needs oracle fails with the switch
   on (see above). It is a seed-count oracle on a handful of agent pairs per
   seed and its base sat exactly at the threshold; a default change would need

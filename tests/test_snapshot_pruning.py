@@ -226,7 +226,10 @@ class TestBundle:
 
 # --- A real run: seed 1, 5 civs, 10 regions (the bundle-size world), 50 turns.
 # Thornwall Confederacy loses its last region at turn 33, stays restorable in
-# exile and is pruned from turn 44 with its treasury still growing.
+# exile and is pruned from turn 44 with its treasury still growing. The world
+# predates the Wave 8 defaults (docs/integration/defaults-wave8.md): with
+# great-person agendas or nomads on, Thornwall survives these 50 turns, so the
+# three Wave 8 switches are pinned off.
 
 def _run(tmp_path, monkeypatch, *, turns=50):
     from chronicler.main import execute_run
@@ -236,7 +239,8 @@ def _run(tmp_path, monkeypatch, *, turns=50):
     args = argparse.Namespace(seed=1, turns=turns, civs=5, regions=10,
                               output=str(tmp_path / "chronicle.md"), state=str(tmp_path / "state.json"),
                               resume=None, reflection_interval=50, llm_actions=False, scenario=None,
-                              pause_every=None, simulate_only=True, agents="off")
+                              pause_every=None, simulate_only=True, agents="off",
+                              maritime=False, gp_agendas=False, nomads=False)
     with contextlib.redirect_stdout(io.StringIO()):
         execute_run(args, on_turn=lambda snap, *_: snapshots.append(snap.model_dump(mode="json")))
     return snapshots, json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
