@@ -802,10 +802,10 @@ def test_cli_flag_gate_forwarding_snapshot_analytics_and_report(tmp_path):
     row = rep.run_metrics(out / "state.json")
     assert row["nomads"] and row["raids"] == int(state["nomads"]["counters"]["raids"])
     assert row["pastoral_civs"] >= 1
-    # Default off for new worlds; a flag-off run reports zeros and its polities.
+    # --no-nomads leaves them out; a flag-off run reports zeros and its polities.
     out2 = tmp_path / "off"
     args = parser.parse_args(["--seed", "13", "--turns", "3", "--regions", "48", "--civs", "10",
-                              "--worldgen", "procedural", "--simulate-only",
+                              "--worldgen", "procedural", "--simulate-only", "--no-nomads",
                               "--output", str(out2 / "chronicle.md"), "--state", str(out2 / "state.json")])
     execute_run(args)
     assert "nomads" not in json.loads((out2 / "state.json").read_text())
@@ -814,6 +814,29 @@ def test_cli_flag_gate_forwarding_snapshot_analytics_and_report(tmp_path):
     # Analytics reports nomads only for the run that carries them.
     from chronicler.analytics import generate_report
     assert len(generate_report(tmp_path)["nomads"]["runs"]) == 1
+
+
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
+    from chronicler.main import _build_parser, execute_run
+    assert N.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    parser = _build_parser()
+
+    def args(out, *extra, turns=3):
+        return parser.parse_args(["--seed", "13", "--turns", str(turns), "--regions", "48", "--civs", "10",
+                                  "--worldgen", "procedural", "--simulate-only", *extra,
+                                  "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
+    fresh = tmp_path / "fresh"
+    execute_run(args(fresh))
+    assert "nomads" in json.loads((fresh / "state.json").read_text())
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-nomads"))
+    assert "nomads" not in json.loads((off / "state.json").read_text())
+    for run, kept in ((off, False), (fresh, True)):
+        resumed = args(run, turns=5)
+        resumed.resume = str(run / "state.json")
+        resumed.state = str(run / "resumed.json")
+        execute_run(resumed)
+        assert ("nomads" in json.loads((run / "resumed.json").read_text())) is kept
 
 
 def test_raid_records_are_pruned_and_counters_kept(monkeypatch):

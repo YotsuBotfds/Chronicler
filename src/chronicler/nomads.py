@@ -1,10 +1,10 @@
 """Pastoral and nomadic peoples: subsistence modes, herds, raids, tribute,
 hordes and sedentarization (``--nomads``).
 
-Default off behind ``WorldState.nomads`` (CLI ``--nomads``, persisted on the
-world so a resumed run keeps it). With the switch off nothing in this module
-runs, except :func:`food_yields`, which returns its input list unchanged, and
-every output is identical to the simulation without it. See
+Behind ``WorldState.nomads`` (CLI ``--nomads``, on by default for new worlds,
+persisted on the world so a resumed run keeps it). With the switch off nothing
+in this module runs, except :func:`food_yields`, which returns its input list
+unchanged, and every output is identical to the simulation without it. See
 ``docs/integration/nomads.md``.
 
 Subsistence mode (``NomadState.modes``, per civ)
@@ -71,8 +71,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/nomads.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points
+#: (on since the 2026-10 Wave 8 full gate, ``docs/integration/defaults-wave8.md``;
+#: ``--no-nomads`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Subsistence: pastoral suitability of terrain (share of a people that herds).
 PASTORAL_SUITABILITY: dict[str, float] = {

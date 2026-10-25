@@ -1168,7 +1168,7 @@ def run_live(
         )
         _gp_agendas = getattr(args, "gp_agendas", None)
         set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
-        # Nomads: new live worlds follow the CLI default (--nomads opts in).
+        # Nomads: new live worlds follow the CLI default (--no-nomads opts out).
         from chronicler.nomads import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
         )

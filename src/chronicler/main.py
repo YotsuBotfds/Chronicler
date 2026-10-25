@@ -1489,7 +1489,7 @@ def _build_parser() -> argparse.ArgumentParser:
                              "(steppe, desert and tundra favour herding), herds with drought and "
                              "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
                              "that fragment on his death, and sedentarization of conquerors (default "
-                             "off for new worlds; saved on resume)")
+                             "on for new worlds; --no-nomads opts out; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "
