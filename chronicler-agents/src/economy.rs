@@ -191,6 +191,11 @@ pub struct EconomyRegionInput {
     /// Cities (`--cities`): raw materials the region's city crafts want, added
     /// to the soldiers' raw-material demand. 0.0 without the switch.
     pub craft_raw_demand: f32,
+    /// Diminishing returns to farm labour (see `effective_farm_labor`): the
+    /// labour at which a farmer produces today's constant-returns output, and
+    /// the curve's half-saturation labour. 0.0 keeps constant returns.
+    pub farm_labor_ref: f32,
+    pub farm_labor_half: f32,
 }
 
 /// Derived per-region agent counts (computed inside Rust from pool).
@@ -278,6 +283,10 @@ pub struct EconomyRegionResult {
     /// market prices (`merchant::market_price`).
     pub market_demand: [f32; NUM_CATEGORIES],
     pub market_supply: [f32; NUM_CATEGORIES],
+    /// Output per farmer relative to constant returns (effective over
+    /// headcount labour, `effective_farm_labor`); 1.0 without the curve or
+    /// without farmers. Scales farmer income in the agent tick.
+    pub farm_productivity: f32,
 }
 
 /// Output row per civ.
@@ -595,6 +604,25 @@ pub fn allocate_farm_labor(
     FarmLabor { slot_labor, forage_labor, forage_yield }
 }
 
+/// Diminishing returns to farm labour on a region's land (2026-10,
+/// docs/integration/farmland-climate.md).
+///
+/// Effective labour `E(L) = L (L_ref + L_h) / (L + L_h)`, a saturating
+/// (Michaelis-Menten) curve in the farmers working the land: `E(L_ref) =
+/// L_ref`, so at the reference labour a farmer produces what constant returns
+/// gave; fewer farmers produce more each (up to `1 + L_ref / L_h` times),
+/// more produce less, and the land's output never exceeds `L_ref + L_h`.
+/// Python sets both from the region's arable capacity (potential capacity
+/// raised by farming techniques and irrigation). `labor_ref <= 0` keeps
+/// constant returns. Mirrors Python `economy.effective_farm_labor`.
+#[inline]
+pub fn effective_farm_labor(labor: f32, labor_ref: f32, labor_half: f32) -> f32 {
+    if labor_ref <= 0.0 || labor <= 0.0 {
+        return labor;
+    }
+    labor * (labor_ref + labor_half) / (labor + labor_half)
+}
+
 /// Compute transport cost for a single route.
 fn compute_transport_cost(
     terrain_a: u8,
@@ -842,6 +870,7 @@ pub fn tick_economy_core(
     // -----------------------------------------------------------------------
 
     let mut work: Vec<RegionWorkState> = Vec::with_capacity(n_regions);
+    let mut farm_productivity: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -850,11 +879,20 @@ pub fn tick_economy_core(
         // every farmer into three full-time producers.
         // Cities: city farmers give part of their labor to the town. The
         // product is skipped at 1.0, so without the switch nothing changes.
-        let farm_labor = if inp.farm_labor_factor != 1.0 {
+        let headcount_labor = if inp.farm_labor_factor != 1.0 {
             ac.farmer_count as f32 * inp.farm_labor_factor
         } else {
             ac.farmer_count as f32
         };
+        // Diminishing returns: the labour budget is effective labour on the
+        // region's land, concave in the farmers working it.
+        let farm_labor =
+            effective_farm_labor(headcount_labor, inp.farm_labor_ref, inp.farm_labor_half);
+        farm_productivity.push(if headcount_labor > 0.0 && inp.farm_labor_ref > 0.0 {
+            farm_labor / headcount_labor
+        } else {
+            1.0
+        });
         let labor = allocate_farm_labor(
             &inp.resource_types,
             &inp.resource_yields,
@@ -1526,6 +1564,7 @@ pub fn tick_economy_core(
             trade_route_count,
             market_demand: w.demand,
             market_supply,
+            farm_productivity: farm_productivity[ri],
         });
 
         // Step 7: Derive observability.
@@ -1654,6 +1693,8 @@ mod tests {
             subsistence_yield: 0.0,
             farm_labor_factor: 1.0,
             craft_raw_demand: 0.0,
+            farm_labor_ref: 0.0,
+            farm_labor_half: 0.0,
         }];
         let agents = vec![RegionAgentCounts {
             population: 100,
@@ -1690,6 +1731,8 @@ mod tests {
             subsistence_yield: 0.0,
             farm_labor_factor,
             craft_raw_demand,
+            farm_labor_ref: 0.0,
+            farm_labor_half: 0.0,
         }
     }
 
@@ -1731,6 +1774,43 @@ mod tests {
         assert_eq!(ra.food_sufficiency.to_bits(), rb.food_sufficiency.to_bits());
         assert_eq!(ra.farmer_income_modifier.to_bits(), rb.farmer_income_modifier.to_bits());
         assert_eq!(ra.market_demand[CAT_RAW_MATERIAL].to_bits(), (4.0f32 * 0.3).to_bits());
+    }
+
+    #[test]
+    fn test_effective_farm_labor_is_concave_and_exact_at_the_reference() {
+        // Reference 20, half-saturation 20: the curve 40 L / (L + 20).
+        assert_eq!(effective_farm_labor(20.0, 20.0, 20.0), 20.0);
+        assert!((effective_farm_labor(10.0, 20.0, 20.0) - 40.0 / 3.0).abs() < 1e-5); // +33% each
+        assert!((effective_farm_labor(40.0, 20.0, 20.0) - 80.0 / 3.0).abs() < 1e-5); // -33% each
+        assert!(effective_farm_labor(1e6, 20.0, 20.0) < 40.0); // the land's ceiling
+        // No curve, or nobody farming: the labour itself, bit for bit.
+        assert_eq!(effective_farm_labor(17.3, 0.0, 0.0).to_bits(), 17.3f32.to_bits());
+        assert_eq!(effective_farm_labor(0.0, 20.0, 20.0), 0.0);
+    }
+
+    #[test]
+    fn test_crowded_land_produces_less_per_farmer_and_empty_land_more() {
+        let with_curve = |farm_labor_ref: f32| {
+            let mut r = city_market_region(1.0, 0.0);
+            r.farm_labor_ref = farm_labor_ref;
+            r.farm_labor_half = farm_labor_ref;
+            run_one(r)
+        };
+        let base = run_one(city_market_region(1.0, 0.0));
+        // 20 farmers at their reference: today's output, productivity 1.
+        let at_ref = with_curve(20.0);
+        assert!((at_ref.conservation.production - base.conservation.production).abs() < 1e-4);
+        assert!((at_ref.region_results[0].farm_productivity - 1.0).abs() < 1e-6);
+        // Land for 10: crowded, 20 farmers grow 20 x 20 / 30.
+        let crowded = with_curve(10.0);
+        assert!((crowded.conservation.production - 40.0 / 3.0).abs() < 1e-4);
+        assert!((crowded.region_results[0].farm_productivity - 2.0 / 3.0).abs() < 1e-5);
+        assert!(crowded.region_results[0].food_sufficiency < 1.0);
+        // Land for 40: each of the 20 grows 80 / 60.
+        let roomy = with_curve(40.0);
+        assert!((roomy.region_results[0].farm_productivity - 4.0 / 3.0).abs() < 1e-5);
+        // Without the columns the result keeps constant returns.
+        assert_eq!(base.region_results[0].farm_productivity, 1.0);
     }
 
     const ORE_RT: u8 = 5;
@@ -1801,6 +1881,8 @@ mod tests {
             subsistence_yield: 0.4,
             farm_labor_factor: 1.0,
             craft_raw_demand: 0.0,
+            farm_labor_ref: 0.0,
+            farm_labor_half: 0.0,
         };
         let agents = vec![RegionAgentCounts {
             population: 20, farmer_count: 10, soldier_count: 0, merchant_count: 0, wealthy_count: 0,

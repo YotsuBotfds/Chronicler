@@ -77,9 +77,13 @@ def make_world(*, reserve: float = 0.0, seed: int = 42) -> WorldState:
         )
         for i, r in enumerate((target, donor))
     ]
+    # Constant returns to farm labour and the global climate schedule alone:
+    # the experiment's harvests are designed in goods per farmer under the
+    # phase's full drought (2026-10 farmland and regional climate).
     return WorldState(
         name="Controlled economy coupling", seed=seed, turn=0,
         regions=[target, donor], civilizations=civs, agent_mode="shadow",
+        tuning_overrides={"economy.farm_reference_density": 0.0, "climate.trend_share": 1.0},
     )
 
 

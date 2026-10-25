@@ -433,6 +433,9 @@ impl AgentSimulator {
         let food_sufficiency_col = rb
             .column_by_name("food_sufficiency")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let farm_productivity_col = rb
+            .column_by_name("farm_productivity")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         let merchant_margin_col = rb
             .column_by_name("merchant_margin")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -496,6 +499,9 @@ impl AgentSimulator {
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let harvest_shock_col = rb
+            .column_by_name("harvest_shock")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         // M54a: Ecology schema columns
@@ -629,6 +635,7 @@ impl AgentSimulator {
                     schism_convert_to: schism_convert_to_col.map_or(0xFF, |arr| arr.value(i)),
                     farmer_income_modifier: farmer_income_modifier_col.map_or(1.0, |arr| arr.value(i)),
                     food_sufficiency: food_sufficiency_col.map_or(1.0, |arr| arr.value(i)),
+                    farm_productivity: farm_productivity_col.map_or(1.0, |arr| arr.value(i)),
                     merchant_margin: merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
                     merchant_route_margin: merchant_route_margin_col.map_or(
                         merchant_margin_col.map_or(0.0, |arr| arr.value(i)),
@@ -643,6 +650,7 @@ impl AgentSimulator {
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
+                    harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
                     market_demand: market_row(&market_demand_cols, i),
                     market_supply: market_row(&market_supply_cols, i),
@@ -842,6 +850,7 @@ impl AgentSimulator {
                 r.schism_convert_to = schism_convert_to_col.map_or(0xFF, |arr| arr.value(i));
                 if let Some(arr) = farmer_income_modifier_col { r.farmer_income_modifier = arr.value(i); }
                 if let Some(arr) = food_sufficiency_col { r.food_sufficiency = arr.value(i); }
+                r.farm_productivity = farm_productivity_col.map_or(1.0, |arr| arr.value(i));
                 if let Some(arr) = merchant_margin_col { r.merchant_margin = arr.value(i); }
                 r.merchant_route_margin = merchant_route_margin_col.map_or(r.merchant_margin, |arr| arr.value(i));
                 if let Some(arr) = merchant_trade_income_col { r.merchant_trade_income = arr.value(i); }
@@ -852,6 +861,7 @@ impl AgentSimulator {
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
+                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
                 r.market_demand = market_row(&market_demand_cols, i);
                 r.market_supply = market_row(&market_supply_cols, i);
@@ -1920,7 +1930,26 @@ impl AgentSimulator {
             workers_per_yield_unit,
             deforestation_threshold,
             deforestation_water_loss,
+            // Kept: set by `set_climate_config`.
+            climate_trend_share: self.ecology_config.climate_trend_share,
+            harvest_shock_water_loss: self.ecology_config.harvest_shock_water_loss,
         };
+    }
+
+    /// Regional climate (2026-10): the global phase's share of the crop and
+    /// water effects and the water a unit of harvest shock takes per turn
+    /// (Python `climate.climate_trend_share`, `harvest_shock_water_loss`).
+    /// Never called: 1.0 and 0.0, the global schedule alone.
+    pub fn set_climate_config(&mut self, trend_share: f32, harvest_shock_water_loss: f32) -> PyResult<()> {
+        if !trend_share.is_finite() || !(0.0..=1.0).contains(&trend_share)
+            || !harvest_shock_water_loss.is_finite() || harvest_shock_water_loss < 0.0
+        {
+            return Err(PyValueError::new_err("invalid climate config"));
+        }
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
+        self.ecology_config.climate_trend_share = trend_share;
+        self.ecology_config.harvest_shock_water_loss = harvest_shock_water_loss;
+        Ok(())
     }
 
     /// Set the river topology for ecology cascade computation.
@@ -2237,6 +2266,8 @@ impl AgentSimulator {
                 subsistence_yield: 0.0,
                 farm_labor_factor: 1.0,
                 craft_raw_demand: 0.0,
+                farm_labor_ref: 0.0,
+                farm_labor_half: 0.0,
             });
         }
 
@@ -2278,6 +2309,25 @@ impl AgentSimulator {
                     return Err(PyValueError::new_err("invalid craft_raw_demand"));
                 }
                 region_inputs[i].craft_raw_demand = v;
+            }
+        }
+
+        // Optional: diminishing returns to farm labour (Python
+        // `economy.farm_labor_curve`). Absent columns keep constant returns.
+        for (name, half) in [("farm_labor_ref", false), ("farm_labor_half", true)] {
+            let Some(column) = ri_rb.column_by_name(name) else { continue };
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err(format!("{name} must be Float32")))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || v < 0.0 {
+                    return Err(PyValueError::new_err(format!("invalid {name}")));
+                }
+                if half {
+                    region_inputs[i].farm_labor_half = v;
+                } else {
+                    region_inputs[i].farm_labor_ref = v;
+                }
             }
         }
 
@@ -2470,12 +2520,14 @@ impl AgentSimulator {
         let mut rr_stockpile: Vec<Float32Builder> = (0..8).map(|_| Float32Builder::with_capacity(n_out)).collect();
         // market_demand_{food,raw_material,luxury}, then market_supply_*.
         let mut rr_market: Vec<Float32Builder> = (0..6).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        let mut rr_fp = Float32Builder::with_capacity(n_out);
 
         for rr in &output.region_results {
             for c in 0..3 {
                 rr_market[c].append_value(rr.market_demand[c]);
                 rr_market[3 + c].append_value(rr.market_supply[c]);
             }
+            rr_fp.append_value(rr.farm_productivity);
             rr_region_id.append_value(rr.region_id);
             rr_fim.append_value(rr.farmer_income_modifier);
             rr_fs.append_value(rr.food_sufficiency);
@@ -2503,6 +2555,7 @@ impl AgentSimulator {
         for builder in rr_market.iter_mut() {
             rr_columns.push(Arc::new(builder.finish()));
         }
+        rr_columns.push(Arc::new(rr_fp.finish()));
 
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),

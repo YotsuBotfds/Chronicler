@@ -685,6 +685,18 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             for g, good_name in enumerate(_FIXED_GOODS)
         },
     }
+    from chronicler.climate import climate_trend_share, region_harvest_shocks
+    if climate_trend_share(world) < 1.0:
+        # Regional climate: this turn's harvest shock of each region (crop
+        # loss of its bad harvest year; without the column Rust reads 0).
+        columns["harvest_shock"] = pa.array(region_harvest_shocks(world), type=pa.float32())
+    farm_productivity = getattr(economy_result, "farm_productivity", None) if economy_result else None
+    if farm_productivity:
+        # Diminishing returns to farm labour: output per farmer against constant
+        # returns scales farmer income (without the column Rust reads 1.0).
+        columns["farm_productivity"] = pa.array(
+            [farm_productivity.get(r.name, 1.0) for r in world.regions], type=pa.float32(),
+        )
     if world.geography is not None:
         # Geography 2.0: latitude-band climate exposure for this turn's phase
         # (template worlds omit the column; Rust then uses 1.0).
@@ -994,6 +1006,12 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
         deforestation_threshold=get_override(world, "ecology.deforestation_threshold", 0.2),
         deforestation_water_loss=get_override(world, "ecology.deforestation_water_loss", 0.05),
     )
+    # Regional climate (2026-10): the trend share and the water a harvest
+    # shock takes. Not sent at share 1.0 (the native defaults: global schedule).
+    from chronicler.climate import climate_trend_share, harvest_shock_water_loss
+    trend = climate_trend_share(world)
+    if trend < 1.0:
+        simulator.set_climate_config(trend, harvest_shock_water_loss(world, trend))
 
 
 # Native agent-scale modes (see chronicler-agents/src/scale.rs). "exact" is the

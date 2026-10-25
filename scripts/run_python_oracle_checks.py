@@ -107,6 +107,7 @@ CHUNKS = {
         "tests/test_viewer_snapshot_fields.py",
         "tests/test_agent_movements.py",
         "tests/test_hunger_mortality.py",
+        "tests/test_farmland_climate.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
