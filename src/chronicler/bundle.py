@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 # (chronicler.snapshot_pruning). world_state is unchanged.
 # An optional top-level ``historiography`` field (in-world accounts, its own
 # ``version``) and chronicle entries' optional ``accounts`` need no bump:
-# readers that do not know them ignore them.
+# readers that do not know them ignore them. The same holds for the optional
+# ``languages`` field (in-world languages and names, its own ``version``).
 LEGACY_BUNDLE_VERSION = PRUNED_BUNDLE_VERSION
 
 
@@ -55,12 +56,14 @@ def assemble_bundle(
     interestingness_score: float | None,
     gap_summaries: list[GapSummary] | None = None,
     historiography: dict[str, Any] | None = None,
+    languages: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble all run data into a single dict for the viewer bundle.
 
-    ``historiography`` (``chronicler.historiography.export``) is the optional
-    in-world accounts field, added at the end only when present, so bundles
-    of runs without it keep their exact bytes.
+    ``historiography`` (``chronicler.historiography.export``) and
+    ``languages`` (``chronicler.languages.export``) are optional observational
+    fields, added at the end only when present, so bundles of runs without
+    them keep their exact bytes.
     """
     pruned_history, pruned_civ_stats = prune_history(s.model_dump(mode="json") for s in history)
     bundle = {
@@ -91,6 +94,8 @@ def assemble_bundle(
     }
     if historiography is not None:
         bundle["historiography"] = historiography
+    if languages is not None:
+        bundle["languages"] = languages
     return bundle
 
 

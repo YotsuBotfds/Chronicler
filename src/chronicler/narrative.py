@@ -941,11 +941,13 @@ def _entry_for(moment: NarrativeMoment, narrative: str,
 
 
 def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
-                         accounts=None) -> str:
+                         accounts=None, names=None, glossed: set | None = None) -> str:
     """No-LLM chronicle text for a moment: its event descriptions, then the
     recorded causal chains behind them ("... because ..."), then, with an
     ``accounts`` index (``historiography.AccountIndex``), how the world's own
-    chroniclers tell it ("In their own words: As the X chronicles tell it ...")."""
+    chroniclers tell it ("In their own words: As the X chronicles tell it ..."),
+    then, with a ``names`` index (``languages.NameIndex``), what the peoples
+    call themselves and their lands ("In their own tongues: ...")."""
     descriptions = [e.description for e in moment.events if e.description]
     text = "; ".join(descriptions) if descriptions else "Events unfolded."
     because = [s for s in (render_because(c, told) for c in moment.causal_chains) if s]
@@ -955,6 +957,10 @@ def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
         passage, _ids = accounts.passage(moment.events)
         if passage:
             text += "\n\n" + passage
+    if names:
+        gloss = names.passage(moment.events, moment.turn_range[1], glossed)
+        if gloss:
+            text += "\n\n" + gloss
     return text
 
 
@@ -1021,6 +1027,8 @@ class NarrativeEngine:
         dynasty_registry=None,
         # In-world accounts (historiography.AccountIndex); None = not used
         historiography=None,
+        # In-world names (languages.NameIndex); None = not used
+        languages=None,
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -1030,11 +1038,14 @@ class NarrativeEngine:
         Progress: on_progress(completed, total, eta_seconds).
         With ``historiography`` the prompts gain an IN-WORLD ACCOUNTS block and
         the mechanical chronicle an "In their own words" passage; entries list
-        the account ids they drew on.
+        the account ids they drew on. With ``languages`` the prompts gain an
+        IN-WORLD NAMES block and the mechanical chronicle an "In their own
+        tongues" gloss.
         """
         # M52: Store world for artifact context
         self._world = world
         self._accounts = historiography if historiography else None
+        self._names = languages if languages else None
 
         # Build prompts and context for all moments up front
         prepared = self._prepare_narration_prompts(
@@ -1137,6 +1148,9 @@ class NarrativeEngine:
             if accounts_index:
                 accounts_text, account_ids = accounts_index.prompt_block(moment.events)
                 causal_text += accounts_text
+            names_index = getattr(self, "_names", None)
+            if names_index:
+                causal_text += names_index.prompt_block(moment.events, moment.turn_range[1])
 
             context_text = ""
             if before_summary:
@@ -1263,7 +1277,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         entries: list[ChronicleEntry] = []
         told: set[str] = set()  # chain steps already narrated, in chronicle order
         accounts = getattr(self, "_accounts", None)
+        names = getattr(self, "_names", None)
         noted: set[str] = set()  # archive losses already told, in chronicle order
+        glossed: set = set()  # entities whose names were glossed, in chronicle order
         for idx, moment in enumerate(moments):
             text = mechanical_narrative(moment, told)
             ids: list[str] = []
@@ -1271,6 +1287,10 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 passage, ids = accounts.passage(moment.events, noted=noted)
                 if passage:
                     text += "\n\n" + passage
+            if names:
+                gloss = names.passage(moment.events, moment.turn_range[1], glossed)
+                if gloss:
+                    text += "\n\n" + gloss
             entries.append(_entry_for(moment, text, ids))
             if on_progress is not None:
                 on_progress(idx + 1, len(moments), None)
@@ -1292,10 +1312,11 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
 
         entries: list[ChronicleEntry] = []
         accounts = getattr(self, "_accounts", None)
+        names = getattr(self, "_names", None)
         for idx, (moment, narrative) in enumerate(zip(moments, results)):
             account_ids = prepared[idx].get("account_ids", [])
             if narrative is None:
-                narrative = mechanical_narrative(moment, accounts=accounts)
+                narrative = mechanical_narrative(moment, accounts=accounts, names=names)
                 account_ids = _moment_account_ids(moment, accounts)
 
             entries.append(_entry_for(moment, narrative, account_ids))
@@ -1340,7 +1361,8 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
                 accounts = getattr(self, "_accounts", None)
-                narrative = mechanical_narrative(moment, accounts=accounts)
+                narrative = mechanical_narrative(moment, accounts=accounts,
+                                                 names=getattr(self, "_names", None))
                 account_ids = _moment_account_ids(moment, accounts)
 
             previous_prose = narrative

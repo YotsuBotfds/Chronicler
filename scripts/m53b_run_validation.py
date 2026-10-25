@@ -166,6 +166,14 @@ def _historiography_args(args: argparse.Namespace) -> list[str]:
     return ["--historiography" if historiography else "--no-historiography"]
 
 
+def _languages_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit languages switch; omitted keeps the CLI default."""
+    languages = getattr(args, "languages", None)
+    if languages is None:
+        return []
+    return ["--languages" if languages else "--no-languages"]
+
+
 def _fishery_aid_args(args: argparse.Namespace, agents: str = "hybrid") -> list[str]:
     """Forward explicit fisheries / mutual-aid switches; omitted keeps the CLI default.
 
@@ -212,6 +220,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_gp_agendas_args(args),
         *_nomads_args(args),
         *_historiography_args(args),
+        *_languages_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -247,6 +256,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_gp_agendas_args(args),
         *_nomads_args(args),
         *_historiography_args(args),
+        *_languages_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -288,6 +298,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_gp_agendas_args(args))
         cmd.extend(_nomads_args(args))
         cmd.extend(_historiography_args(args))
+        cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
     return batch_dir
 
@@ -627,6 +638,12 @@ def main() -> None:
         help="Forward --historiography/--no-historiography to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--languages",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --languages/--no-languages to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -722,6 +739,7 @@ def main() -> None:
         "gp_agendas": args.gp_agendas,
         "nomads": args.nomads,
         "historiography": args.historiography,
+        "languages": args.languages,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

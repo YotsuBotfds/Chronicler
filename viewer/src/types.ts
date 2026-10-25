@@ -508,6 +508,8 @@ export interface Bundle {
   metadata: BundleMetadata;
   /** In-world chroniclers' accounts (runs with historiography on; absent otherwise). */
   historiography?: HistoriographyField;
+  /** In-world languages and names (runs with languages on; absent otherwise). */
+  languages?: LanguagesField;
 }
 
 // --- Live mode types ---
@@ -677,6 +679,60 @@ export interface HistoriographyField {
   /** chronicler id -> event ids it told plainly (no transformation, uncontested). */
   plain: Record<string, string[]>;
   contested: HistoriographyContested[];
+}
+
+// --- In-world languages and names (optional bundle field; docs/integration/languages.md) ---
+
+/** A sound change: [turn, rule id, description, words changed, spread from (language id) or null, prehistoric]. */
+export type LanguageChange = [number, string, string, number, number | null, boolean];
+
+export interface LanguageInfo {
+  id: number;
+  name: string; // "Kethani", "Proto-Highland", "Iron Peaks Kethani"
+  parent: number | null;
+  family: number;
+  origin: "proto" | "founding" | "prehistory" | "secession" | "separation" | string;
+  turn: number;
+  status: "living" | "extinct" | "reconstructed" | string;
+  last_spoken: number | null;
+  style: string;
+  civs: number[];
+  native: string | null; // its speakers' name for themselves
+  phonology: {
+    consonants: string;
+    vowels: string;
+    onsets: string[];
+    finals: string;
+    syllables: string[];
+    order: "mh" | "hm" | string;
+    join: string;
+    stress: string;
+  };
+  changes: LanguageChange[];
+}
+
+/** One row of ``words``, in the order named by ``word_columns``. */
+export type LanguageWordRow = unknown[];
+
+export interface LanguagesField {
+  version: number;
+  enabled_turn: number;
+  counts: Record<string, number>;
+  languages: LanguageInfo[];
+  word_columns: string[];
+  words: LanguageWordRow[];
+  /** civ index -> [[turn, language id], ...] */
+  civs: Array<{ civ: number; name: string | null; lang: Array<[number, number]> }>;
+  /** region index -> speech history and story ([turn, kind, civ index or language id]). */
+  regions: Array<{
+    region: number;
+    name: string | null;
+    speech: Array<[number, number]>;
+    story: Array<[number, string, number]>;
+  }>;
+  settlements: Array<{ id: number; name: string; region: number }>;
+  faiths: Array<{ faith: number; name: string; civ: number }>;
+  persons: Array<{ key: string; name: string; civ: number; role: string }>;
 }
 
 export interface GapSummary {

@@ -5,6 +5,7 @@ import type {
   Bundle,
   Command,
   Event,
+  LanguagesField,
   LobbyInit,
   NamedEvent,
   PauseContext,
@@ -27,6 +28,7 @@ import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
+import { LanguagesPanel } from "./LanguagesPanel";
 import {
   buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
 } from "./appShellHelpers";
@@ -653,6 +655,7 @@ export function AppShell({
   const [activeOverlays, setActiveOverlays] = useState<OverlayKey[]>(["borders", "settlements", "chronicle"]);
   const [inspectorSections, setInspectorSections] = useState<Record<string, boolean>>({
     selection: true,
+    languages: true,
     metrics: true,
     network: true,
     signals: true,
@@ -929,6 +932,21 @@ export function AppShell({
     [historiography],
   );
   const selectedEventAccounts = accountsForEvent(historiography, selectedEvent?.event_id, accountRows);
+  // The pinned region or civ by index, for the languages panel's names.
+  const languageSelection = useMemo(() => {
+    if (!bundle?.languages || !selectedEntity) {
+      return null;
+    }
+    if (selectedEntity.kind === "region") {
+      const ref = bundle.world_state.regions.findIndex((region) => region.name === selectedEntity.id);
+      return ref >= 0 ? { kind: "region" as const, ref } : null;
+    }
+    if (selectedEntity.kind === "civilization") {
+      const ref = bundle.world_state.civilizations.findIndex((civ) => civ.name === selectedEntity.id);
+      return ref >= 0 ? { kind: "civ" as const, ref } : null;
+    }
+    return null;
+  }, [bundle, selectedEntity]);
 
   const viewerReady = bundle !== null;
   const canActivateSurface = (candidate: AppSurface): boolean => {
@@ -1110,6 +1128,9 @@ export function AppShell({
           selectedEvent={selectedEvent}
           selectedEventProvenance={selectedEventProvenance}
           selectedEventAccounts={selectedEventAccounts}
+          languages={bundle?.languages}
+          languageSelection={languageSelection}
+          currentTurn={currentTurn}
           selectedBatchSummary={selectedBatchSummary}
           civilizations={civilizations}
           previewCivilizations={previewCivilizations}
@@ -2229,6 +2250,9 @@ function RightInspector({
   selectedEvent,
   selectedEventProvenance,
   selectedEventAccounts = null,
+  languages,
+  languageSelection = null,
+  currentTurn = 0,
   selectedBatchSummary,
   civilizations,
   previewCivilizations,
@@ -2253,6 +2277,9 @@ function RightInspector({
   selectedEvent: Event | null;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
+  languages?: LanguagesField;
+  languageSelection?: { kind: "region" | "civ"; ref: number } | null;
+  currentTurn?: number;
   selectedBatchSummary: BatchRunSummary | null;
   civilizations: CivilizationView[];
   previewCivilizations: Array<{ name: string; values: string[] }>;
@@ -2438,6 +2465,16 @@ function RightInspector({
           </>
         )}
       </InspectorSection>
+
+      {languages && surface !== "setup" && surface !== "batch" && (
+        <InspectorSection
+          title="Languages"
+          open={inspectorSections.languages}
+          onToggle={() => onToggleSection("languages")}
+        >
+          <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+        </InspectorSection>
+      )}
 
       <InspectorSection
         title={surface === "batch" ? "Report Health" : "Metrics"}
