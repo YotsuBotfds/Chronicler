@@ -265,6 +265,12 @@ pub struct EconomyRegionResult {
     pub merchant_margin: f32,
     pub merchant_trade_income: f32,
     pub trade_route_count: u16,
+    /// Demand per category (food, raw material, luxury) and post-trade
+    /// supply (available - exports + imports, the denominator of the
+    /// post-trade price before `SUPPLY_FLOOR`): the merchant planner's
+    /// market prices (`merchant::market_price`).
+    pub market_demand: [f32; NUM_CATEGORIES],
+    pub market_supply: [f32; NUM_CATEGORIES],
 }
 
 /// Output row per civ.
@@ -1489,6 +1495,10 @@ pub fn tick_economy_core(
         // trade_route_count = boundary pair count before zero-flow pruning.
         let trade_route_count = boundary_pair_counts[ri];
 
+        let mut market_supply = [0.0f32; NUM_CATEGORIES];
+        for c in 0..NUM_CATEGORIES {
+            market_supply[c] = (w.available[c] - w.exports[c] + w.imports[c]).max(0.0);
+        }
         region_results.push(EconomyRegionResult {
             region_id: inp.region_id,
             stockpile,
@@ -1497,6 +1507,8 @@ pub fn tick_economy_core(
             merchant_margin,
             merchant_trade_income,
             trade_route_count,
+            market_demand: w.demand,
+            market_supply,
         });
 
         // Step 7: Derive observability.

@@ -187,6 +187,12 @@ pub fn economy_region_result_schema() -> Schema {
         Field::new("merchant_trade_income", DataType::Float32, false),
         Field::new("trade_route_count", DataType::UInt16, false),
     ]);
+    // Merchant routing: demand and post-trade supply per goods category.
+    for prefix in ["market_demand", "market_supply"] {
+        for cat in ["food", "raw_material", "luxury"] {
+            fields.push(Field::new(format!("{prefix}_{cat}"), DataType::Float32, false));
+        }
+    }
     Schema::new(fields)
 }
 
