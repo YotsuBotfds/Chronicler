@@ -337,19 +337,22 @@ pub const SAFETY_WAR_ZONE_PRESSURE: f32 = 0.050;      // [CALIBRATE] new
 pub const SAFETY_CONQUEST_SHOCK: f32 = 0.15;          // [CALIBRATE] new: the turn the region changes hands
 pub const SAFETY_RAID_SHOCK: f32 = 0.20;              // [CALIBRATE] new: a successful raid on the region
 pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [FROZEN M53 SOFT]
-// Material: food sufficiency and civ wealth percentile restore it; dearth
+// Material: food sufficiency and civ wealth percentile restore it, wealth
+// the more the shorter food is (the wealthy buy food in a dearth); dearth
 // and famine (demographics::hunger_components, the hunger mortality bands)
-// add pressure. Fed: 0.45 poorest, 0.62 median, 0.72 richest; dearth at
-// 0.8 sufficiency: poorest 0.25, median 0.51; famine at 0.4 for a season:
-// median 0.15, richest 0.43.
-pub const MATERIAL_RESTORE_FOOD: f32 = 0.089;         // [CALIBRATE] was 0.018
-pub const MATERIAL_RESTORE_WEALTH: f32 = 0.095;       // [CALIBRATE] was 0.022
-pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.011;      // [CALIBRATE] new
-pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.015;      // [CALIBRATE] new
+// add pressure. Fed: 0.56 poorest, 0.62 median, 0.67 richest; dearth at
+// 0.8 sufficiency: 0.26, 0.44, 0.56; famine at 0.4 for a season: 0, 0.13,
+// 0.43.
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.115;         // [CALIBRATE] was 0.018
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.044;       // [CALIBRATE] was 0.022
+/// Added wealth restoration per unit of food shortfall (1 - sufficiency).
+pub const MATERIAL_RESTORE_WEALTH_SHORTAGE: f32 = 0.15; // [CALIBRATE] new
+pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.039;      // [CALIBRATE] new
+pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.018;      // [CALIBRATE] new
 // Social: bonds with people living in the same region restore it (bonds
 // with people elsewhere no longer count), and the community proxy
-// (population, occupation, age) adds a little. Two or more co-resident
-// bonds: 0.62; one: 0.38; none: 0 (binds within about 13 turns).
+// (population, occupation, age) adds a little. One co-resident bond or
+// more: 0.62 (0.53 for a child); none: 0 (binds within about 13 turns).
 pub const SOCIAL_RESTORE_POP: f32 = 0.019;            // [CALIBRATE] was 0.010 (x0.7 blend)
 pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [FROZEN M53 SOFT]
@@ -360,17 +363,17 @@ pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [FROZEN M53 SOFT]
 // not of anyone in the region) restore it; persecution, harsh rule
 // (martial law) and the remembered conquest by another civ add pressure; a
 // conquest caps the conquered's autonomy; displacement blocks restoration.
-// Free and self-ruled: 0.75; foreign rule: 0.53 (0.40 after a displaced
-// spell); persecuted at intensity 0.5 under its own civ: 0.05 (0.27 at
-// 0.2); martial law: 0.42 self-ruled, 0 foreign; a fresh conquest by another
-// civ: 0.09, back above the threshold within about 20 turns.
-pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.041;     // [CALIBRATE] was 0.030
-pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.050;     // [CALIBRATE] was 0.030 (region-wide)
-pub const AUTONOMY_PERSECUTION_PRESSURE: f32 = 0.030; // [CALIBRATE] new: per unit intensity
+// Free and self-ruled: 0.75; foreign rule: 0.61 (0.48 after a displaced
+// spell); persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5;
+// martial law: 0.42 self-ruled, 0.11 foreign; a fresh conquest by another
+// civ: 0.06, back above the threshold after about 20 turns.
+pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.031;     // [CALIBRATE] was 0.030
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.060;     // [CALIBRATE] was 0.030 (region-wide)
+pub const AUTONOMY_PERSECUTION_PRESSURE: f32 = 0.020; // [CALIBRATE] new: per unit intensity
 pub const AUTONOMY_HARSH_RULE_PRESSURE: f32 = 0.030;  // [CALIBRATE] new: per unit harsh_rule
 /// Per unit of the strongest conquest memory (|intensity| / 127) whose
 /// conqueror is not the agent's civ: fades with the memory (half-life 30).
-pub const AUTONOMY_CONQUEST_PRESSURE: f32 = 0.040;    // [CALIBRATE] new
+pub const AUTONOMY_CONQUEST_PRESSURE: f32 = 0.060;    // [CALIBRATE] new
 /// The turn its region changes hands, an agent not of the conqueror's civ
 /// keeps at most this much autonomy.
 pub const AUTONOMY_CONQUEST_CAP: f32 = 0.20;          // [CALIBRATE] new
@@ -445,7 +448,7 @@ pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;   // [FROZEN M53 SOFT]
 // blend of bonds anywhere and the population proxy is now a sum, see the
 // social restoration note above).
 pub const SOCIAL_RESTORE_BOND: f32 = 0.054;  // [CALIBRATE] was 0.030 (x0.3 blend)
-pub const SOCIAL_BOND_TARGET: f32 = 2.0;     // [CALIBRATE] was 4.0
+pub const SOCIAL_BOND_TARGET: f32 = 1.0;     // [CALIBRATE] was 4.0: one close tie is company
 
 // Synthesis budget
 pub const SYNTHESIS_BUDGET_MAX: u8 = 100;  // [FROZEN M53 SOFT]

@@ -345,7 +345,10 @@ pub fn restore_needs_with_bonds(
             } else {
                 0.0
             };
-            let mut wealth_contribution = agent::MATERIAL_RESTORE_WEALTH * wp * deficit;
+            let shortfall = (1.0 - region.food_sufficiency).clamp(0.0, 1.0);
+            let mut wealth_contribution = (agent::MATERIAL_RESTORE_WEALTH
+                + agent::MATERIAL_RESTORE_WEALTH_SHORTAGE * shortfall)
+                * wp * deficit;
             if is_urban {
                 wealth_contribution *= agent::URBAN_WEALTH_RESTORATION_MULT;
             }
@@ -663,11 +666,12 @@ mod tests {
         let result_three = social_restoration(&pool, slot, &region, 3);
 
         assert!(result_no_bonds > 0.0, "the community proxy alone restores a little");
-        assert!(result_one > result_no_bonds && result_two > result_one);
-        // Saturates at SOCIAL_BOND_TARGET co-resident bonds
-        assert!((result_three - result_two).abs() < 1e-7);
+        assert!(result_one > result_no_bonds);
+        // Saturates at SOCIAL_BOND_TARGET (one) co-resident bond
+        assert!((result_two - result_one).abs() < 1e-7);
+        assert!((result_three - result_one).abs() < 1e-7);
         // bond part at the target = 0.054 * deficit 0.7 = 0.0378
-        assert!((result_two - result_no_bonds - 0.0378).abs() < 1e-5);
+        assert!((result_one - result_no_bonds - 0.0378).abs() < 1e-5);
     }
 
     #[test]
@@ -713,7 +717,7 @@ mod tests {
         let wp = vec![0.5_f32; 2];
         let slots = vec![alone, bonded];
         let mut co = vec![0u32; 2];
-        co[bonded] = 2;
+        co[bonded] = 1;
         let mut bound_at = None;
         for t in 0..40 {
             decay_needs(&mut pool, &slots);
