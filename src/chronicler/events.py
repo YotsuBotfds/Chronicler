@@ -497,8 +497,10 @@ class HazardContext:
             score += 0.5
         if self.has_condition(civ.name, "drought"):
             score += 0.5
-        if any(r.famine_cooldown > 0 for r in self.civ_regions.get(civ.name, [])):
-            score += 0.5
+        # A food crisis in any region; a dearth weighs a third of a famine.
+        from chronicler.ecology import food_crisis_weight
+        score += 0.5 * max((food_crisis_weight(r) for r in self.civ_regions.get(civ.name, [])),
+                           default=0.0)
         return min(1.0, score)
 
 

@@ -1,0 +1,228 @@
+{
+  "provenance": {
+    "derived_from": [
+      "corrected_food_logistics_2026_10.json",
+      "corrected_artifacts_food_logistics_2026_10.json"
+    ],
+    "base_revision": "3355289",
+    "description": "Corrected oracle rolled forward by the 2026-10 hunger corrections (docs/integration/hunger-mortality.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. Each workload index is the first turn that correction moves relative to the oracle with all earlier corrections applied (consecutive captures). corrected_food_logistics_2026_10 and older fixtures remain frozen; workloads not named in 'corrections' are byte-identical to it.",
+    "corrections": [
+      {
+        "id": "HM-DEARTH-WEIGHT",
+        "summary": "A dearth report drains a third of a famine's stability, and its five-turn cooldown weighs a third of a famine's in hazard hardship, civ stress, technique growth and nomad raid hunger.",
+        "workloads": {},
+        "note": "Dearth labels exist only in agent modes; an aggregate famine keeps the full weight."
+      },
+      {
+        "id": "HM-EPIDEMIC-HUNGER",
+        "summary": "Agent modes: epidemic susceptibility (+0.15 dearth, +0.35 famine) and fatality (x1 + 0.10 dearth + 0.40 famine) follow the region's last measured hunger instead of a report's cooldown.",
+        "workloads": {},
+        "note": "The aggregate model keeps the flat famine terms; the oracle lane also runs with epidemiology off."
+      },
+      {
+        "id": "HM-NATIVE-DEMOGRAPHY",
+        "summary": "Native agent mortality gains a hunger hazard for young children, the old and the poor, and fertility a hunger multiplier, from food sufficiency and the severe-shortage run (region batch column food_severe_turns).",
+        "workloads": {},
+        "note": "Native agent runtime only."
+      },
+      {
+        "id": "HM-AGGREGATE-TOLL",
+        "summary": "The aggregate famine toll (5 x stress multiplier) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold.",
+        "workloads": {
+          "standard": 0,
+          "wide": 9
+        }
+      },
+      {
+        "id": "HM-AGGREGATE-GROWTH",
+        "summary": "Aggregate population growth in a region under a famine report's cooldown is scaled by the agents' famine birth multiplier (0.63).",
+        "workloads": {
+          "standard": 50
+        }
+      }
+    ],
+    "environment": {
+      "python": "3.13.17",
+      "platform": "Linux"
+    }
+  },
+  "workloads": {
+    "single": {
+      "spec": {
+        "seed": 321,
+        "turns": 20,
+        "civs": 1,
+        "regions": 3
+      },
+      "turn_sha256": [
+        "0565d95aa4f2c032cea55d0a0e6592e42322a8d7b53102f79a61520a66b6a814",
+        "14a6ff8217bd7104e0b9eac7512031025775bf72c48c3a391d81707189d7f4a4",
+        "6680ddbf8ef2584d9565f797156c726f701bf1c54454eb87b2f216aa5e714b3f",
+        "9637a0b3c53330a6c0706bbc6a02303efbe080ea1365e9501bf24e75a296e290",
+        "4d6685a3d819133744fd9fa4c725a6f552f32971321098efad11ec36015bc6a2",
+        "a5edab979567535f6ce578ccd44b60040bd19e8eeec6f82c6cfb00d866c9990a",
+        "3eff04bf360d37d35d2708a7b7608818b91080adae772f4a7e1ced4ab3c9c666",
+        "d0c402549476a292143211e91d22d4d2347a1c9ce2b935fde9c5faf7609c6674",
+        "6caf0da63a6840e82a42ef75ef39f87a75b1447b3b0ef60f17379fe97ea3eb06",
+        "bd52a231997c901849e383612abf794346c3c9e682c808f858aeb8b1e40c02b0",
+        "b48e7538ba8f1ab91f27aae64f440d04fc099b68f963b65bd24ae0e177f4abfa",
+        "6809b15742f097416efa27e36a6bb5db4dddfc2351588fd4b1acbdcfce59a5a3",
+        "5814b9a1c9f3f314f4a3dd080a773647d33c0453a6af7462924a7ad3d86af37a",
+        "22530364b268956701521cb8956dedf7606a4354ce41bc22f0966e8a949a984b",
+        "ff6a8bd5b7e34736345769b0be35e17c50fab43097f3c7c0d4ea3da96e6b9955",
+        "bab284568671f5b66d9779c2b2e7954ed9b57969688191b8ff7c4a4992589366",
+        "7a3a2b251d49f9e254d46ef85e8e6708e70b39414411bf714cd42ffbe6bb14f4",
+        "9c67c33bba45e16d107a18bf062678b5a6756fccddbeb5c2afc0fe05ab0722d7",
+        "b5a824de6b9385581a697cb7466821531179a7ff48f3c6e9bbe73484d79eaed5",
+        "07addde28719a48b2ea0c5ff3fb6767241688217ce7baacb0abfbff22f89146e"
+      ],
+      "rng": {
+        "sha256": "54449bc5fe146efcf10ba6c787c5e0e51896ff2e937ba899caf6ff20342852dc",
+        "counts": {
+          "seed": 254,
+          "getrandbits": 61,
+          "random": 263
+        },
+        "instances": 254
+      }
+    },
+    "standard": {
+      "spec": {
+        "seed": 42,
+        "turns": 60,
+        "civs": 4,
+        "regions": 12
+      },
+      "turn_sha256": [
+        "36fb994e535a77b3f12f2a4a080305992971a5e8f6e8493fee7629054a78c4b5",
+        "08105b9c1fbb366e9d65f1bc280adfee97f1d64fe0c5022e608d287d033a45f9",
+        "3579f7799648f8d60bf83bc446acc4f796d379d6a03643e4337ab3b6797f18bc",
+        "26dfed40e47a17487f1f016ca36eccc775648d26f5df2a0442cd05e5a18a0451",
+        "ead3fa1f333a8e36717fb23b85e1fef9b27fd96fce1376ba21db415dc7c07730",
+        "b5460dcdca494427c69a0beb3b3861d07c6dcef54a7096eba0379ab24f1819d0",
+        "a48d5bfa43731bc73f6e394a9ca4156cc1423ce8adeb3664236436334cdaf2d8",
+        "e305ce2f418d39c83f750c3eacb6a14ecbd11f1b9b43e9313d529b0b496e5664",
+        "e38a2c8cd41407b521c90d35305a113559a1159f7b81810475e04f6e67bf69e4",
+        "056600ac0064ad788118d6bdb3cf6fca236c1b4fbb1b3a473b5c9bac214bf23a",
+        "e447ac2fd93679f756dbd07cb1b571589e3947dbd930c6e21ae93bfacf66b354",
+        "55eaf9b0684aa570d24973805921c80ddac1a4dc49b2d53d17007aca8eb3a27f",
+        "7f7d216c1a043b0d05eab6d0ae05e6e3b1c239b18368a6a560b5505d214bb4e0",
+        "59882db7259983b35b9a6c4683a7bb5596b365ddd3f30eaf4399a55d74c3e68b",
+        "32e3e3a1754bb1386a241cb0e3812ba98007b0c54bcaefc50888973e257ebd92",
+        "01964b9911b033c1123f2a470d48020185cdfd38b353bde7ffd98de2c2fe2fac",
+        "764fe39f0285d8649406279058457c4da6aab32ac268e450078fd0780f46662f",
+        "b4d6e72fe67e3680bcea12499a4a6c2c48b7b94a8a6f175a73c44c1a9c7e8d38",
+        "f0de046534236ad1d475014b61f7f02b3f76fcdb487d47cd3916a54b0aa9c9c1",
+        "f99897a12b42c39ddf5c9f3228072f25f09e287f5741ede62ea72c80ddd2f81e",
+        "a869f32e4ace9a01f720ca9cd5febc5a269f5d91fd23461a153220008fa72bc4",
+        "f5b048292fcb9adaf8b75fa19789146b2365bdadb40c690282e4c4cd52f43e5e",
+        "670daf84946fdb52d1399e04e23e36358f262330e2ff9c90fb943a97b1691b8e",
+        "d9e564273034bf8ccd98381fa735d2d97857721f3d60d9172316167870c4b6d7",
+        "c1a6f8cdc53435459190ad09d344c32d33e406141d379013fbb8b1f4120efb2a",
+        "dd9f105499e78f4135abb6456220393b6440fd3574e885ff4ff2c53e2c37c879",
+        "2af02bb3f421566c7d876eb0e3649d47206d949016b701d753ef64a813a1c4a4",
+        "309547e5467c30452a66914e8058a802d2e085e967151e5412a0f67aca7ec779",
+        "2336db6e051846af649d08a6979d509e6f78080b6707b4fad37f37ee5d609b9d",
+        "2bfb89f660c6f0422ca15a649124d6ea96fc9298b22ac89107b1faad69a8e0b4",
+        "c04510516580436efaddfc10ecc8d73822663e75e1eb624c43bf623af7f07f2b",
+        "5796ebf891b8ed2b9d6a9d27df5e4fe32e7270fff8faad24f1feafe6b068d4c1",
+        "3ed1a9564070b5589dee29bb6df52ae278ee216a4b446bb63eb3516d5e0e084e",
+        "47b318446e40c749e24076e2baf03953e6527ed79692eff502f32c01ff70d1bf",
+        "e451374d625ec7368bfed9b8ebe6e2412f859f7f43473e04c7afe99ba4f6ccdd",
+        "d3e4a0c9fad0c5da1d9693fff8e01b471d66b529bec3524a2ced2d9abc95a2c9",
+        "d0c68c24905c3f90fd31392f9596a6443db6a04a6deff77fdec5c00a77d022f1",
+        "a1d73949892b1b1b35aa9a6847fc5effce5b69ce8d305d3a6b7d27cd0744b6c3",
+        "0a4dc79e5c643fa471ba4d2efe1ac70c82a43e294b526eba0db88b2fd7cec477",
+        "bacf9f9fbc2cf998c4ffd69957c386fb6f4f143bfb1946f0d01d65fe409cf8f5",
+        "e5ade9661017b75e9ecb21b838d92013ed4e3a8c5e49bed6330b71c13bb32452",
+        "7a85b469bf9c52b8b6c4250ec476b7600b077478cb177fde317196480435f5f2",
+        "264905282c5cdf6dd1b32d7ba99031823b053a09086bee93f277a865eac2f412",
+        "f45f01aa7a89595ebdd91938a4d21cf3b85fe034d3fa7d2cd805f2d426dd1a03",
+        "d5a14fbe0bc666e607eb951ba4dc2e1520d0c7f19530aaa82e4490ab890d37d1",
+        "f5277d1e9a1d0020b86d055e859c60e1e2b711b0f04f5eef29044f0da083658c",
+        "7d932b2d60104cce5039c5a262ba8ed98f38d0ef26171f39256946c2c0d01720",
+        "b87b2438644ce301ce5656e726a86af94478b19cdbf9be3870c406c9184b8cff",
+        "cb20d3c6b6433359e1e272f8365aed9a5e652162c1395e37f047d9913176a345",
+        "3fc3ef616ec28f534c4e587637e66bb5271d094b3b025f1eddfc4d0364c60bf6",
+        "62d066c3d869b3e7c06f22111b8eaf7d18ad2d1b3c9c59fe6fe0774d3257c37f",
+        "b4e2a447dbd7467e941858e066022f85e87a54b3776f27ce3596f6f2a085aa51",
+        "a1f1bb553ddaef262f3cd2f001df2e3ed00958b4fb91f3a725e83b833e8ade4b",
+        "b13340646d5da61993bf5218ccee9694cf5e57a24d6e9f60bad117676da8f3fa",
+        "26aab5d15f484404af9c29e352d2645f8472fe49621bf9be2008828475b7e4ce",
+        "32558b2f04d577b2f82efc59fcf92ce502b5c53fd06d9ac528706d1dd961046f",
+        "cb1bdfdb018b01c40ba04416bfe07226e7d4b731be862dbdacad824daa22855e",
+        "e1cf122234dd3cf11bdeff78df386a0b6822e9001f6b43411b1697cea6883ccd",
+        "d7f4e7afc5b5c67e01ee10ef28e8458d1c615f5ce589d5698853637021a73d3f",
+        "0dffeb9f2ad07b46fd939aecdde767abd95f239d19749914b5bfa2c7530fbbe6"
+      ],
+      "rng": {
+        "sha256": "46531b23dda2057d78a7755cc0f131031cdf269be34ddbe614ba0bece1fcaa8a",
+        "counts": {
+          "seed": 4763,
+          "getrandbits": 267,
+          "random": 6927
+        },
+        "instances": 4763
+      }
+    },
+    "wide": {
+      "spec": {
+        "seed": 77,
+        "turns": 40,
+        "civs": 6,
+        "regions": 12
+      },
+      "turn_sha256": [
+        "122d9057dd5a7601e20ce889b09512f122d4153a5c28810e1f4862f922d25e78",
+        "94620a4dea24af37d19931e100a13c194f9447ca1358caca62907c6368db234d",
+        "1900d179eb99f9342444da9b885b7e26fc81d84ded40f8429829c848e39c497d",
+        "0f4a465191a7befd615ff69b305ea4681ae2ca53a7839bf2b7cba4331ed69ba4",
+        "2eeb3278fd7d87482f7517e58ce03ee304901e63405f20bb7963b140da62d7cc",
+        "daf0fb48da38a1f5114e7e018b3559bf013fb630e46b86674c01a3e9a5bf4f55",
+        "947a687667a45d736f8baf873c1c0e3c6aa98216ec3ca54fb80b0108dd08a8b3",
+        "77e35a08e2403da19c48c6a3ea797388e80bf169ff6b61a27116696035c5d519",
+        "22927355be888a79dea5a8f8099797997cd78666b6fff1d22c67d433daeb37c1",
+        "99fc954b3da5a53c561f2bb3357d792e0781f17457f6f87bd016a9be7d1bafb5",
+        "6fa96d566944535d52c377ee172615c942ecb92a3a4c571a2956bf6f778f071a",
+        "2ad86d6de5c6a774a60a65ac65386f5036213c0c1a937eb568e51c68c9e3e869",
+        "7c0bacf05bea437069020daf024f985e33af91b88972bc5e5e97e0729191f49b",
+        "08e930452f23ad960835b879600f7a97824d1c4981c52aacd61c6f356713a1f1",
+        "28fe378c710dd6ac0b80bac94f9bbe192cc95e1ea1181e774d65e153c920bed2",
+        "64a24ec991030704cc39b150183a09b5a2055dbc1c33b47171d4d746775801a8",
+        "44ebe678dc1eceef247d95597020f8da17f0b7664c4ee67ea0a44eef8f8c8976",
+        "a4da4637ec1a2d5174213c5b61c56fe9aa55dfad3a8723ba83b2cd1be53a0a94",
+        "d55c47511d153a3c3b2aa06a501356302ea664ed3731bd190097f22c47273a9a",
+        "0040c423dbd09cab32cbf27d5114ea335359231d23856d9bda9ad7773235faff",
+        "8f6b2c6eea34e2cd0f0ae3dde9b5f898c87064ca83e34ab6702cb585e4a54ef3",
+        "8ad489aa79f174f0c7cbaf417d4d880116e61c7a041355b7860a6b387706181e",
+        "6e30bb7a0214487364c7c600fced36aacb4a55e0950903bd11d168abe9c37888",
+        "6fc2ca3f320b06e7398ac9844d1b5b024ccd29ca1018950958af816b247d549e",
+        "5355f5282a7f919f6b908b8a84f91fe40dca4c1af17c5369f9a6a2b2bc8a03a4",
+        "6434d0cca5bc84debcba755dc0869db09dba27ad244711fadc3db876a850389c",
+        "afde53a5eef94d3439f9f50e9b2eb812f5fe9b9d3e51082d362a6d211c28f236",
+        "7b76a63942f65de20ea8cbd0c1402554f87547ccdf61a694ab19c1251274f5cb",
+        "a6043c7022a2609dac5b1a3d6713c7299c7fda91aecb36ac541b1dc8b09c46b1",
+        "6bd20729fcbf819172cbea478fe1707f6b2f0c2ae2238e52caedfeadf390e658",
+        "483d6868045060cb0372ab833268502f7be7526d0ad50cacb0841316736ebd2d",
+        "0c5d472179f109e0b1083ba8b33e96114012672c989fd3272f66176e236ea1d5",
+        "0fdaef54f34a4dc17376188666d599adcf4c525edff9e16ac0a583e1c45907a4",
+        "f10a23e22265dde228cbf444a579856a0a465d43c3b0f6d002535b3df3725072",
+        "ff93431d4e7cc044752b10db792d9af60d7d6f2f77e20d9a17742f195eb45d79",
+        "8285e3b250676076aae1c1debf88f2d72af1c6d2b0de5de16b1f85817754f991",
+        "81a888bcd7e36f4ac6e64fa0e8d437acf7d7c264ccb2cfa9ef571a6dcee7e009",
+        "82e301dd4dbd48e08e4302de9bd7a5c6d3175b3b1d584e1e8304af0762d77a30",
+        "1bb4ee08ccf60f983dd3d9b5d28b14ee46fa1e1ea120a995536d051e309c6b72",
+        "c3a53c69013a1b0bde7770531a2a9bffeecc2511785433ff3601917307189e07"
+      ],
+      "rng": {
+        "sha256": "61f4841438535800e304a1c46adfaaaa5b3380e5babe421ad48666ef870677b9",
+        "counts": {
+          "seed": 6564,
+          "getrandbits": 401,
+          "random": 10318
+        },
+        "instances": 6564
+      }
+    }
+  }
+}

@@ -1,9 +1,10 @@
 """Food-crisis labels: famine (sustained severe shortage) and dearth (a lean season).
 
-The agent-mode famine check reports any shortfall after the cooldown, with the
-same effects whatever the label (``chronicler.ecology._check_famine_yield``);
-the label reads the region's run of severely short turns. See
-docs/integration/navigation-famine-labels.md.
+The agent-mode famine check reports any shortfall after the cooldown
+(``chronicler.ecology._check_famine_yield``); the label reads the region's run
+of severely short turns. See docs/integration/navigation-famine-labels.md.
+Since the hunger work a dearth's effects are milder than a famine's
+(tests/test_hunger_mortality.py, docs/integration/hunger-mortality.md).
 """
 from __future__ import annotations
 
@@ -59,16 +60,18 @@ def _turn(world: WorldState, sufficiency: float | None) -> list[Event]:
     return events
 
 
-def test_first_shortfall_is_a_dearth_with_the_famine_effects():
+def test_first_shortfall_is_a_dearth_with_milder_effects():
     world = _world()
     events = _turn(world, 0.1)
     assert [e.event_type for e in events] == ["dearth"]
     ev = events[0]
     assert ev.importance == 4 and ev.region == "Fields" and ev.actors == ["Farmers"]
     assert "Dearth" in ev.description and "Famine" not in ev.description
-    # The effects of every report: stability drain and the five-turn cooldown.
-    assert world.civilizations[0].stability == 77
+    # Every report sets the five-turn cooldown; a dearth drains a third of a
+    # famine's stability (1 of 3) and marks its cooldown as a dearth's.
+    assert world.civilizations[0].stability == 79
     assert world.regions[0].famine_cooldown == 4  # set to 5, one turn ticked
+    assert world.regions[0].dearth_cooldown is True
     assert world.regions[0].population == 20  # agents own population in hybrid
 
 
@@ -136,11 +139,15 @@ def test_aggregate_famine_keeps_its_label():
     assert world.regions[0].food_severe_turns is None
 
 
-def test_shadow_mode_labels_and_keeps_its_population_loss():
+def test_shadow_mode_labels_and_scales_its_population_loss():
     world = _world(mode="shadow")
     events = _turn(world, 0.9)
     assert [e.event_type for e in events] == ["dearth"]
-    assert world.regions[0].population == 15
+    assert world.regions[0].population == 20  # a mild dearth takes no toll
+    world = _world(mode="shadow")
+    world.regions[0].food_severe_turns = FAMINE_SEVERE_TURNS
+    assert [e.event_type for e in _turn(world, 0.0)] == ["famine"]
+    assert world.regions[0].population == 15  # a total famine takes the full toll
 
 
 # --- provenance: one episode per region whatever the label ---------------------------------

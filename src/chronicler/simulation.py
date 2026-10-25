@@ -613,8 +613,11 @@ def phase_production(world: WorldState, acc=None) -> None:
                 if acc is not None and _agents_own_population(world):
                     acc.add(civ_idx, civ, "population", per_region * len(civ_regions), "guard")
                 else:
+                    # Hunger withholds births (the agents' fertility response).
+                    from chronicler.ecology import population_growth_share
                     for r in civ_regions:
-                        add_region_pop(r, per_region)
+                        share = population_growth_share(r)
+                        add_region_pop(r, per_region if share >= 1.0 else int(round(per_region * share)))
                     sync_civ_population(civ, world)
         elif civ.stability <= 5 and civ.population > 1:
             if civ_regions:

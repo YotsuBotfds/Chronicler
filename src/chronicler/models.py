@@ -373,7 +373,8 @@ _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
 # Optional region fields omitted from serialized output while None, so worlds
 # that never use them keep their exact bytes.
 _DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending",
-                            "persecuting_faith", "food_severe_turns")
+                            "persecuting_faith", "food_severe_turns", "food_shortfall",
+                            "dearth_cooldown")
 
 
 class Region(BaseModel):
@@ -407,6 +408,14 @@ class Region(BaseModel):
     # labels a food-crisis report famine or dearth. None while the region is
     # not severely short (omitted from output).
     food_severe_turns: int | None = None
+    # Agent modes: the economy's last measured food shortfall (1 - food
+    # sufficiency, 4 decimals); the next turn's epidemics read it. None while
+    # fed or not measured (omitted from output).
+    food_shortfall: float | None = None
+    # True while ``famine_cooldown`` follows a dearth report that has not
+    # deepened into famine (``ecology.food_crisis_weight``). None otherwise
+    # (omitted from output).
+    dearth_cooldown: bool | None = None
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
     resource_suspensions: dict[int, int] = Field(default_factory=dict)
