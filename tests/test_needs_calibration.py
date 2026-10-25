@@ -83,7 +83,9 @@ def test_native_migration_budget_names_match_python():
 
 
 def _region_autonomy(bridge, region: int) -> float:
-    needs = bridge._sim.get_all_needs().to_pydict()
+    import pyarrow as pa
+
+    needs = pa.record_batch(bridge._sim.get_all_needs()).to_pydict()
     values = [a for a, r in zip(needs["autonomy"], needs["region"]) if r == region]
     assert values
     return sum(values) / len(values)
