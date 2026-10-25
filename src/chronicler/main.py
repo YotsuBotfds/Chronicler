@@ -1475,8 +1475,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
                         help="Maritime layer: fleets built at coastal ports, sea-zone control, "
                              "blockades of enemy sea lanes and sea supply, escorted crossings and "
-                             "amphibious landings, piracy and colonization by sea (default off for "
-                             "new worlds; saved on resume)")
+                             "amphibious landings, piracy and colonization by sea (default on for "
+                             "new worlds; --no-maritime opts out; saved on resume)")
     parser.add_argument("--gp-agendas", action=argparse.BooleanOptionalAction, default=None,
                         help="Great-person agendas: generals seek campaigns and may seize the throne, "
                              "merchants open and protect trade routes, found trading houses and lend "

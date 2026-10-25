@@ -1,9 +1,9 @@
 """Maritime layer: fleets, sea-zone control, blockade, naval campaigns,
 piracy and colonization by sea.
 
-Default off behind ``WorldState.maritime`` (CLI ``--maritime``). With the
-switch off nothing in this module runs and every output is identical to the
-simulation without it. See ``docs/integration/maritime.md``.
+Behind ``WorldState.maritime`` (CLI ``--maritime``, on by default for new
+worlds). With the switch off nothing in this module runs and every output is
+identical to the simulation without it. See ``docs/integration/maritime.md``.
 
 Sea model
     Procedural worlds use Geography 2.0's named sea zones; every sea lane
@@ -58,8 +58,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/maritime.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points
+#: (on since the 2026-10 Wave 8 full gate, ``docs/integration/defaults-wave8.md``;
+#: ``--no-maritime`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Ships and fleets.
 SHIP_COST = 8                  # treasury per ship

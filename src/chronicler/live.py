@@ -1156,7 +1156,7 @@ def run_live(
         )
         _techniques = getattr(args, "techniques", None)
         set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
-        # Maritime: new live worlds follow the CLI default (--maritime opts in).
+        # Maritime: new live worlds follow the CLI default (--no-maritime opts out).
         from chronicler.maritime import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
         )
