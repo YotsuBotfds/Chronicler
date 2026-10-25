@@ -121,7 +121,8 @@ system).
 totals per channel) and `top_trade_pairs` (top 5 by `F_ab` with both
 dependences). `world_state.contact_ledger` carries the full matrix and civ
 aggregates. `analytics.generate_report` adds a `contact_ledger` section
-(`extract_contact_metrics`) when bundles carry the summaries.
+(`extract_contact_metrics`) when bundles carry the summaries. The viewer's
+Contact tab reads the summaries ([viewer-systems.md](viewer-systems.md)).
 
 ## Native change
 

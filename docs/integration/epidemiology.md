@@ -392,7 +392,7 @@ lands and the full gate passes with 0 extinct worlds.
 * Calibrate against the 200-seed full profile before any default flip.
 * Per-pathogen viewer layer (the bundle already carries the data). Panels
   and a region-inspector block are since added on `feat/viewer-systems`
-  ([viewer-systems.md](viewer-systems.md)); a map layer is not.
+  ([viewer-systems.md](viewer-systems.md)), then an Epidemics map layer.
 * Quarantine could close goods routes and suspend merchant trips.
 * Disease-specific treatment by great persons (the M18 scientist rule is not
   carried over).

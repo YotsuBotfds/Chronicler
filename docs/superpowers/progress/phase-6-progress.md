@@ -2,9 +2,51 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Viewer: systems tabs and map layers (2026-10-25, `feat/viewer-systems`)
+
+`feat/viewer-systems` from `origin/main` (`6e6fae6`), no rebase. An audit
+of every system against the bundle and the viewer (table in
+[`docs/integration/viewer-systems.md`](../../integration/viewer-systems.md)),
+then the gaps a reader of a run meets first:
+
+- **Tabs** in the systems panel for Wars (campaign layer), Food (famine
+  spans, hunger over time, hungry regions, relief), Nomads, Agendas,
+  Governance and Contact, next to the first five.
+- **Map layers**, one at a time with a legend: Food, Epidemics, Wars,
+  Migration, Techniques, Sea. The atlas fits the pins' bounds; the region
+  inspector gains food and war blocks.
+- **Two viewer-only snapshot fields**, written only in agent modes:
+  `food` (per-region sufficiency mutual aid observed, relief convoys) and
+  `migration` (the turn's agent moves by region pair). No simulation change.
+- **Identity** (`scripts/viewer_systems_identity.py`, base `6e6fae6`): the
+  bundle-size guard world, agents off, 500 turns: 10 files, 0 differences
+  (`compare`). Five hybrid runs (guard world 300 turns; procedural 48x10
+  and template 10x5, all on, 200 turns; template and procedural defaults,
+  150 turns): every file identical once the two fields are removed
+  (`compare-additive`, 62 files, 0 differences).
+- **Bundle size:** the guard bundle is unchanged (18,519,396 bytes, 17.66 MB
+  native; the no-Rust guard cannot change, not re-measured). Hybrid runs
+  grow 0.27-0.37% (guard world 300 turns +33.8 KB).
+- **Tests** (Linux, Python 3.13, fresh native build):
+  - `pytest -m "not slow" -n 2`: 5,946 passed, 3 skipped (+7 in
+    `tests/test_viewer_snapshot_fields.py`).
+  - `pytest -m slow -n 2`: 11 passed, 3 skipped.
+  - No-Rust lane (slow included): 5,743 passed, 206 skipped.
+  - Oracle lane (the new file in `systems-2`): 1,948 passed, 12 skipped,
+    guard PASS, 77.0 s (largest chunk 26.0 s).
+  - Viewer: 262 tests (+33), lint, build (existing large-chunk warning).
+  - Browser: headless Chromium on the production build with the audit
+    bundles, every new tab and layer, no console errors.
+- **Open:**
+  - Per-turn region population, fish stocks, merchant food deliveries and
+    per-region herds are not in the snapshot.
+  - Elevation, moisture and real adjacency are not drawn.
+  - Hashed faction colours can collide.
+  - The full 200-seed gate was not run (the simulation is unchanged).
 
 ## In-world languages and names (2026-10-25, `feat/languages`)
 
