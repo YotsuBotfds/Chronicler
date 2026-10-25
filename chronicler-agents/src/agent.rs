@@ -306,7 +306,7 @@ pub const PURPOSE_DECAY: f32 = 0.012;    // [FROZEN M53 SOFT]
 // M49: Need behavioral thresholds [FROZEN M53 SOFT]
 pub const SAFETY_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const MATERIAL_THRESHOLD: f32 = 0.3;  // [FROZEN M53 SOFT]
-pub const SOCIAL_THRESHOLD: f32 = 0.35;   // [CALIBRATE] was 0.25: isolation binds within about 9 turns
+pub const SOCIAL_THRESHOLD: f32 = 0.35;   // [CALIBRATE] was 0.25: isolation binds within about 14 turns
 pub const SPIRITUAL_THRESHOLD: f32 = 0.3; // [FROZEN M53 SOFT]
 pub const AUTONOMY_THRESHOLD: f32 = 0.35;  // [CALIBRATE] was 0.25: foreign rule (0.61) stays above it
 pub const PURPOSE_THRESHOLD: f32 = 0.35;  // [FROZEN M53 SOFT]
@@ -352,7 +352,7 @@ pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.018;      // [CALIBRATE] new
 // Social: bonds with people living in the same region restore it (bonds
 // with people elsewhere no longer count), and the community proxy
 // (population, occupation, age) adds a little. One co-resident bond or
-// more: 0.62 (0.53 for a child); none: 0 (binds within about 13 turns).
+// more: 0.62 (0.53 for a child); none: 0 (binds within about 14 turns).
 pub const SOCIAL_RESTORE_POP: f32 = 0.019;            // [CALIBRATE] was 0.010 (x0.7 blend)
 pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [FROZEN M53 SOFT]
@@ -364,9 +364,12 @@ pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [FROZEN M53 SOFT]
 // (martial law) and the remembered conquest by another civ add pressure; a
 // conquest caps the conquered's autonomy; displacement blocks restoration.
 // Free and self-ruled: 0.75; foreign rule: 0.61 (0.48 after a displaced
-// spell); persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5;
+// spell); persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5
+// (binds after about 20 turns from 0.75);
 // martial law: 0.42 self-ruled, 0.11 foreign; a fresh conquest by another
-// civ: 0.06, back above the threshold after about 20 turns.
+// civ: capped at 0.20, fixed point 0.06 rising as the memory fades, back
+// above the threshold after about 50 turns unless the agent rebels (+0.10)
+// or takes the conqueror's side (the memory then no longer counts).
 pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.031;     // [CALIBRATE] was 0.030
 pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.060;     // [CALIBRATE] was 0.030 (region-wide)
 pub const AUTONOMY_PERSECUTION_PRESSURE: f32 = 0.020; // [CALIBRATE] new: per unit intensity
