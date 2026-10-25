@@ -699,6 +699,10 @@ class TestBundleSize:
         # In-world languages on by default (docs/integration/languages.md) add
         # their field: 17.66MB native (field 0.20MB) and 18.28MB no-Rust (field
         # 0.21MB); --no-languages writes the sizes above.
+        # Maritime, great-person agendas and nomads on by default
+        # (docs/integration/defaults-wave8.md) add their history fields (0.83MB
+        # together) and, in this world, 14 polities over the run instead of 11:
+        # 20.35MB native and 19.72MB no-Rust; with the three off, the sizes above.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
