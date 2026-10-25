@@ -387,10 +387,19 @@ def _observe(phase10) -> _Observation | None:
     rows = getattr(phase10, "agents", None) if phase10 is not None else None
     if rows is None:
         return None
-    arrays = rows.arrays("settlement_id", "occupation", "satisfaction")
-    if arrays is None:
-        return None
     import numpy as np
+    names = ("settlement_id", "occupation", "satisfaction")
+    arrays = rows.arrays(*names)
+    if arrays is None:
+        # Row path (the columnar shortcut unavailable): the same values.
+        if not all(rows.has(name) for name in names):
+            return None
+        sid_l, occ_l = rows.ints("settlement_id"), rows.ints("occupation")
+        sat_l = rows.floats("satisfaction")
+        if any(v is None for col in (sid_l, occ_l, sat_l) for v in col):
+            return None
+        arrays = (np.asarray(sid_l, dtype=np.int64), np.asarray(occ_l, dtype=np.int64),
+                  np.asarray(sat_l, dtype=np.float64))
     sid, occ, sat = arrays
     sid = sid.astype(np.int64)
     n = int(sid.max()) + 1 if sid.size else 1
@@ -978,11 +987,21 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
     switch on and no city every region is at 1.0 and 0.0."""
     if not cities_on(world) or snapshot is None:
         return None
-    from chronicler.columnar import batch_arrays
-    arrays = batch_arrays(snapshot, ("region", "occupation", "settlement_id"))
-    if arrays is None:
-        return None
     import numpy as np
+    from chronicler.columnar import batch_arrays, pylist
+    names = ("region", "occupation", "settlement_id")
+    arrays = batch_arrays(snapshot, names)
+    if arrays is None:
+        # Row path (the columnar shortcut unavailable): the same values.
+        try:
+            if not all(name in snapshot.schema.names for name in names):
+                return None
+            columns = [pylist(snapshot.column(name)) for name in names]
+        except AttributeError:
+            return None
+        if any(v is None for col in columns for v in col):
+            return None
+        arrays = tuple(np.asarray(col, dtype=np.int64) for col in columns)
     region, occupation, sid = (a.astype(np.int64) for a in arrays)
     n = len(world.regions)
     factor = [1.0] * n
