@@ -247,11 +247,48 @@ fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
 /// indexed by slot.
 pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
     let id_to_slot = pool.build_id_to_slot();
+    co_resident_counts_with(pool, alive_slots, &id_to_slot)
+}
+
+fn co_resident_counts_with(
+    pool: &AgentPool,
+    alive_slots: &[usize],
+    id_to_slot: &HashMap<u32, usize>,
+) -> Vec<u32> {
     let mut co_resident = vec![0u32; pool.capacity()];
     for &slot in alive_slots {
-        co_resident[slot] = co_resident_bonds(pool, slot, &id_to_slot);
+        co_resident[slot] = co_resident_bonds(pool, slot, id_to_slot);
     }
     co_resident
+}
+
+/// The wealth percentile a need reads: a dependant's (under `AGE_ADULT`) is
+/// its living birth parent's, since a child's means are its household's;
+/// everyone else's is their own. Needs calibration (2026-10): children own
+/// almost nothing, so on their own percentile every child read as the
+/// poorest in a dearth.
+pub fn household_wealth_percentiles(
+    pool: &AgentPool,
+    alive_slots: &[usize],
+    wealth_percentiles: &[f32],
+    id_to_slot: &HashMap<u32, usize>,
+) -> Vec<f32> {
+    let mut out = wealth_percentiles.to_vec();
+    for &slot in alive_slots {
+        if pool.ages[slot] >= agent::AGE_ADULT || slot >= out.len() {
+            continue;
+        }
+        let parent_id = pool.parent_id_0[slot];
+        if parent_id == agent::PARENT_NONE {
+            continue;
+        }
+        if let Some(&p) = id_to_slot.get(&parent_id) {
+            if p < wealth_percentiles.len() && pool.is_alive(p) && pool.ids[p] == parent_id {
+                out[slot] = wealth_percentiles[p];
+            }
+        }
+    }
+    out
 }
 
 /// Apply proportional restoration to all 6 needs for alive agents, and the
@@ -265,8 +302,10 @@ pub fn restore_needs(
     signals: &TickSignals,
     wealth_percentiles: &[f32],
 ) {
-    let co_resident = co_resident_counts(pool, alive_slots);
-    restore_needs_with_bonds(pool, alive_slots, regions, signals, wealth_percentiles, &co_resident);
+    let id_to_slot = pool.build_id_to_slot();
+    let co_resident = co_resident_counts_with(pool, alive_slots, &id_to_slot);
+    let household_wp = household_wealth_percentiles(pool, alive_slots, wealth_percentiles, &id_to_slot);
+    restore_needs_with_bonds(pool, alive_slots, regions, signals, &household_wp, &co_resident);
 }
 
 /// [`restore_needs`] with the co-resident bond counts given (indexed by
@@ -753,6 +792,28 @@ mod tests {
         let t = bound_at.expect("an isolated agent's social need binds");
         assert!(t <= 15, "binds within 15 turns, took {}", t);
         assert!((pool.need_social[bonded] - 0.615).abs() < 0.02, "bonded {}", pool.need_social[bonded]);
+    }
+
+    #[test]
+    fn test_dependants_read_their_parents_wealth() {
+        let mut pool = AgentPool::new(8);
+        let parent = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let child = pool.spawn(0, 0, Occupation::Farmer, 5, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let orphan = pool.spawn(0, 0, Occupation::Farmer, 5, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let grown = pool.spawn(0, 0, Occupation::Farmer, agent::AGE_ADULT, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.parent_id_0[child] = pool.ids[parent];
+        pool.parent_id_0[grown] = pool.ids[parent];
+        let gone = pool.spawn(0, 0, Occupation::Farmer, 60, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.parent_id_0[orphan] = pool.ids[gone];
+        pool.kill(gone);
+        let wp = vec![0.9_f32, 0.0, 0.1, 0.2, 0.5];
+        let map = pool.build_id_to_slot();
+        let slots = [parent, child, orphan, grown];
+        let out = household_wealth_percentiles(&pool, &slots, &wp, &map);
+        assert_eq!(out[child], 0.9, "a child reads its parent's");
+        assert_eq!(out[orphan], 0.1, "an orphan reads its own");
+        assert_eq!(out[grown], 0.2, "an adult reads its own");
+        assert_eq!(out[parent], 0.9);
     }
 
     #[test]
