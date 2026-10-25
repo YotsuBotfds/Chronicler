@@ -441,6 +441,7 @@ fn migration_terms(
         terms[TERM_SAFETY_NEED] = need_mods.migrate_push[0] * k;
         terms[TERM_MATERIAL_NEED] = need_mods.migrate_push[1] * k;
         terms[TERM_SPIRITUAL_NEED] = need_mods.migrate_push[2] * k;
+        terms[TERM_SOCIAL_NEED] = need_mods.migrate_push[3] * k;
     }
     terms[TERM_FRONTIER] = choice.voluntary.frontier;
     terms[TERM_WAGE] = choice.voluntary.wage;

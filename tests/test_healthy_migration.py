@@ -14,7 +14,7 @@ DRIVER_TERMS = (
     "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river",
     "opp_news", "persecution", "famine_memory", "battle_memory", "conquest_memory",
     "persecution_memory", "safety_need", "material_need", "spiritual_need",
-    "frontier", "wage", "chain", "urban",
+    "frontier", "wage", "chain", "urban", "social_need",
 )
 
 

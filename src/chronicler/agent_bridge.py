@@ -100,6 +100,7 @@ MASS_MIGRATION_BY_DRIVER = {
     "safety_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
     "material_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
     "spiritual_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
+    "social_need": "{count} {occ_majority} with no one left in {source_region} moved to {target_region}",
     "opp_satisfaction": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
     "opp_capacity": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
     "opp_river": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
@@ -488,6 +489,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
     controller_changed_vals = [getattr(r, '_controller_changed_this_turn', False) for r in world.regions]
     war_won_vals = [getattr(r, '_war_won_this_turn', False) for r in world.regions]
     seceded_vals = [getattr(r, '_seceded_this_turn', False) for r in world.regions]
+    raided_vals = [bool(getattr(r, '_raided_this_turn', False)) for r in world.regions]
     catastrophe_death_vals = [
         max(0, min(int(getattr(r, '_catastrophe_deaths_this_turn', 0) or 0), 0xFFFF))
         for r in world.regions
@@ -496,7 +498,20 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         r._controller_changed_this_turn = False
         r._war_won_this_turn = False
         r._seceded_this_turn = False
+        r._raided_this_turn = False
         r._catastrophe_deaths_this_turn = 0
+
+    # Needs calibration: harsh rule by the controller (martial law), 0..1,
+    # pressure on the autonomy need of people of other civs.
+    from chronicler.institutions import InstitutionType
+    martial_law = InstitutionType.MARTIAL_LAW.value
+
+    def _harsh_rule(region) -> float:
+        controller = civ_by_name.get(region.controller) if region.controller else None
+        governance = getattr(controller, "governance", None)
+        if governance is None:
+            return 0.0
+        return 1.0 if any(i.institution_type == martial_law for i in governance.institutions) else 0.0
 
     # M55a: is_capital — any alive civ has this region as capital
     alive_civs = [c for c in world.civilizations if c.regions]
@@ -621,6 +636,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "food_severe_turns": pa.array(
             [min(0xFFFF, r.food_severe_turns or 0) for r in world.regions], type=pa.uint16(),
         ),
+        "harsh_rule": pa.array([_harsh_rule(r) for r in world.regions], type=pa.float32()),
         "merchant_margin": pa.array(
             [economy_result.merchant_margins.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),
@@ -652,6 +668,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "controller_changed_this_turn": pa.array(controller_changed_vals, type=pa.bool_()),
         "war_won_this_turn": pa.array(war_won_vals, type=pa.bool_()),
         "seceded_this_turn": pa.array(seceded_vals, type=pa.bool_()),
+        "raided_this_turn": pa.array(raided_vals, type=pa.bool_()),
         "catastrophe_deaths_this_turn": pa.array(catastrophe_death_vals, type=pa.uint16()),
         # M55a: Spatial substrate signals
         "is_capital": pa.array(is_capital_flags, type=pa.bool_()),

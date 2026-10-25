@@ -1,5 +1,8 @@
 /// M49 Needs System
 /// Spec: docs/superpowers/specs/2026-03-20-m49-needs-system-design.md
+/// Calibration (2026-10): docs/integration/needs-calibration.md
+
+use std::collections::HashMap;
 
 use crate::agent;
 use crate::agent::Occupation;
@@ -16,8 +19,8 @@ pub struct NeedUtilityModifiers {
     pub switch_occ: f32,
     pub stay: f32,
     /// The positive parts of `migrate` before the cap (safety, material,
-    /// spiritual). Diagnostic only, for the migration budget.
-    pub migrate_push: [f32; 3],
+    /// spiritual, social). Diagnostic only, for the migration budget.
+    pub migrate_push: [f32; 4],
 }
 
 // ---------------------------------------------------------------------------
@@ -36,19 +39,30 @@ pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtil
         mods.stay -= safety_deficit * agent::SAFETY_WEIGHT;
     }
 
-    // Material → migrate +, switch +
+    // Material → migrate +, switch + (not for farmers). Needs calibration
+    // (2026-10): want sends people to other work, in a food shortage mostly
+    // to the fields (satisfaction::target_occupation_ratio); a farmer's want
+    // is the harvest's, and leaving the fields would deepen it (and farmers
+    // bear more children: demographics' FERTILITY_BASE_FARMER).
     let material_deficit = (agent::MATERIAL_THRESHOLD - pool.need_material[slot]).max(0.0);
     if material_deficit > 0.0 {
         mods.migrate += material_deficit * agent::MATERIAL_WEIGHT;
         mods.migrate_push[1] = material_deficit * agent::MATERIAL_WEIGHT;
-        mods.switch_occ += material_deficit * agent::MATERIAL_WEIGHT;
+        if pool.occupations[slot] != Occupation::Farmer as u8 {
+            mods.switch_occ += material_deficit * agent::MATERIAL_WEIGHT;
+        }
     }
 
-    // Social → stay +, migrate -
+    // Social → migrate +. Needs calibration (2026-10): an isolated agent,
+    // with no bonds where it lives, has nothing holding it there and moves
+    // more; bonded agents are held by the migration drivers' roots
+    // (`migration_drivers`) and pulled toward emigrated kin by chain
+    // migration. The old term (deficit → stay +, migrate -) made isolation
+    // anchor agents, the reverse of its own rationale.
     let social_deficit = (agent::SOCIAL_THRESHOLD - pool.need_social[slot]).max(0.0);
     if social_deficit > 0.0 {
-        mods.stay += social_deficit * agent::SOCIAL_WEIGHT;
-        mods.migrate -= social_deficit * agent::SOCIAL_WEIGHT;
+        mods.migrate += social_deficit * agent::SOCIAL_WEIGHT;
+        mods.migrate_push[3] = social_deficit * agent::SOCIAL_WEIGHT;
     }
 
     // Spiritual → migrate +
@@ -113,11 +127,10 @@ pub fn clamp_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 }
 
 // ---------------------------------------------------------------------------
-// Social restoration proxy
+// Social restoration
 // ---------------------------------------------------------------------------
 
-/// Population-based social restoration proxy (pre-M50 baseline).
-/// Uses population/capacity ratio, occupation modifier, and age modifier.
+/// Community proxy: population/capacity ratio, occupation and age.
 fn social_restoration_proxy(pool: &AgentPool, slot: usize, region: &RegionState) -> f32 {
     // Population ratio — guard for capacity == 0
     let pop_ratio = if region.carrying_capacity > 0 {
@@ -150,40 +163,76 @@ fn social_restoration_proxy(pool: &AgentPool, slot: usize, region: &RegionState)
     base_rate * occ_mult * age_mult * deficit
 }
 
-/// Social restoration with M50b blend: pop proxy + bond factor.
-/// At alpha=0.0 (default), this is a pure proxy — bond scan skipped entirely.
-fn social_restoration(pool: &AgentPool, slot: usize, region: &RegionState) -> f32 {
-    let alpha = agent::SOCIAL_BLEND_ALPHA;
-
-    // Fast path: alpha == 0 → pure proxy, skip bond scan
-    if alpha == 0.0 {
-        return social_restoration_proxy(pool, slot, region);
-    }
-
-    let proxy = social_restoration_proxy(pool, slot, region);
-
-    // Bond factor: count positive-valence bonds with positive sentiment
-    let mut positive_count = 0u32;
-    for i in 0..pool.rel_count[slot] as usize {
-        if crate::relationships::is_positive_valence(pool.rel_bond_types[slot][i])
-            && pool.rel_sentiments[slot][i] > 0
+/// Positive-valence bonds with positive sentiment whose holder is alive and
+/// lives in the agent's region. Bonds to people elsewhere (left behind by a
+/// migration) or to the dead give no company.
+pub fn co_resident_bonds(pool: &AgentPool, slot: usize, id_to_slot: &HashMap<u32, usize>) -> u32 {
+    let region = pool.regions[slot];
+    let mut count = 0u32;
+    for i in 0..(pool.rel_count[slot] as usize).min(crate::relationships::REL_SLOTS) {
+        if !crate::relationships::is_positive_valence(pool.rel_bond_types[slot][i])
+            || pool.rel_sentiments[slot][i] <= 0
         {
-            positive_count += 1;
+            continue;
+        }
+        let target_id = pool.rel_target_ids[slot][i];
+        if let Some(&t) = id_to_slot.get(&target_id) {
+            if t < pool.capacity()
+                && pool.is_alive(t)
+                && pool.ids[t] == target_id
+                && pool.regions[t] == region
+            {
+                count += 1;
+            }
         }
     }
+    count
+}
+
+/// Social restoration: co-resident bonds plus the community proxy.
+fn social_restoration(pool: &AgentPool, slot: usize, region: &RegionState, co_resident: u32) -> f32 {
+    let proxy = social_restoration_proxy(pool, slot, region);
     let deficit = 1.0 - pool.need_social[slot];
     let bond_factor = agent::SOCIAL_RESTORE_BOND
-        * (positive_count as f32 / agent::SOCIAL_BOND_TARGET).min(1.0)
+        * (co_resident as f32 / agent::SOCIAL_BOND_TARGET).min(1.0)
         * deficit;
+    proxy + bond_factor
+}
 
-    (1.0 - alpha) * proxy + alpha * bond_factor
+/// The strongest remembered conquest of the agent's region by a civ other
+/// than its own (|intensity| / 127, decayed with the memory). A conquest by
+/// the agent's own civ, or by one it has since joined, does not count.
+fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
+    let civ = pool.civ_affinities[slot];
+    let mut best = 0.0f32;
+    for i in 0..(pool.memory_count[slot] as usize).min(crate::memory::MEMORY_SLOTS) {
+        if pool.memory_event_types[slot][i] == crate::memory::MemoryEventType::Conquest as u8
+            && pool.memory_source_civs[slot][i] != civ
+        {
+            let v = (pool.memory_intensities[slot][i] as f32).abs() / 127.0;
+            best = best.max(v);
+        }
+    }
+    best.min(1.0)
 }
 
 // ---------------------------------------------------------------------------
-// Restore — proportional restoration for all 6 needs
+// Restore — proportional restoration and condition pressure for all 6 needs
 // ---------------------------------------------------------------------------
 
-/// Apply proportional restoration to all 6 needs for alive agents.
+/// Co-resident bond counts (`co_resident_bonds`) of the given slots,
+/// indexed by slot.
+pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
+    let id_to_slot = pool.build_id_to_slot();
+    let mut co_resident = vec![0u32; pool.capacity()];
+    for &slot in alive_slots {
+        co_resident[slot] = co_resident_bonds(pool, slot, &id_to_slot);
+    }
+    co_resident
+}
+
+/// Apply proportional restoration to all 6 needs for alive agents, and the
+/// condition pressures and shocks of safety, material and autonomy.
 /// Each need has per-agent restoration conditions that create behavioral
 /// diversity between agents in the same region.
 pub fn restore_needs(
@@ -192,6 +241,20 @@ pub fn restore_needs(
     regions: &[RegionState],
     signals: &TickSignals,
     wealth_percentiles: &[f32],
+) {
+    let co_resident = co_resident_counts(pool, alive_slots);
+    restore_needs_with_bonds(pool, alive_slots, regions, signals, wealth_percentiles, &co_resident);
+}
+
+/// [`restore_needs`] with the co-resident bond counts given (indexed by
+/// slot; a missing slot counts none).
+pub fn restore_needs_with_bonds(
+    pool: &mut AgentPool,
+    alive_slots: &[usize],
+    regions: &[RegionState],
+    signals: &TickSignals,
+    wealth_percentiles: &[f32],
+    co_resident: &[u32],
 ) {
     for &slot in alive_slots {
         let region_idx = pool.regions[slot] as usize;
@@ -205,6 +268,14 @@ pub fn restore_needs(
         // Look up civ signals (guard for out-of-bounds)
         let civ_signals = signals.civs.get(civ as usize);
         let is_at_war = civ_signals.map_or(false, |c| c.is_at_war);
+        let contested = signals.contested_regions.get(region_idx).copied().unwrap_or(false);
+        // A war zone: armies, battles or occupation in a region whose ruler
+        // or whose people's civ is at war (armies alone, in peace, are not).
+        let ruler_at_war = signals
+            .civs
+            .get(region.controller_civ as usize)
+            .map_or(false, |c| c.is_at_war);
+        let war_zone = contested && (is_at_war || ruler_at_war);
 
         // ----- Safety -----
         {
@@ -214,6 +285,11 @@ pub fn restore_needs(
             // NOT at war
             if !is_at_war {
                 delta += agent::SAFETY_RESTORE_PEACE * deficit;
+            }
+
+            // No armies, battles or occupation in the region
+            if !contested {
+                delta += agent::SAFETY_RESTORE_SECURE * deficit;
             }
 
             // Low disease
@@ -232,6 +308,19 @@ pub fn restore_needs(
             // M56b: Urban safety restoration penalty
             if is_urban {
                 delta *= agent::URBAN_SAFETY_RESTORATION_MULT;
+            }
+
+            // Pressure and shocks: a war zone; a conquest or a raid this
+            // turn. (Epidemic deaths act through the health term, not as
+            // violence.)
+            if war_zone {
+                delta -= agent::SAFETY_WAR_ZONE_PRESSURE;
+            }
+            if region.controller_changed_this_turn {
+                delta -= agent::SAFETY_CONQUEST_SHOCK;
+            }
+            if region.raided_this_turn {
+                delta -= agent::SAFETY_RAID_SHOCK;
             }
 
             pool.need_safety[slot] += delta;
@@ -262,12 +351,22 @@ pub fn restore_needs(
             }
             delta += wealth_contribution;
 
+            // Pressure: dearth and famine, graded as the hunger mortality
+            // bands grade them (the severe run includes this turn).
+            let (dearth, famine) = crate::demographics::hunger_components(
+                region.food_sufficiency,
+                region.food_severe_turns,
+            );
+            delta -= agent::MATERIAL_DEARTH_PRESSURE * dearth
+                + agent::MATERIAL_FAMINE_PRESSURE * famine;
+
             pool.need_material[slot] += delta;
         }
 
-        // ----- Social (pre-M50 proxy) -----
+        // ----- Social -----
         {
-            let mut delta = social_restoration(pool, slot, region);
+            let bonds = co_resident.get(slot).copied().unwrap_or(0);
+            let mut delta = social_restoration(pool, slot, region, bonds);
             // M56b: Urban social restoration bonus
             if is_urban {
                 delta *= agent::URBAN_SOCIAL_RESTORATION_MULT;
@@ -297,22 +396,38 @@ pub fn restore_needs(
 
         // ----- Autonomy -----
         {
+            let persecuted = region.persecutes(pool.beliefs[slot]);
+            let mut delta = 0.0_f32;
             // GATE: if displacement_turns > 0, ALL autonomy restoration blocked
             if pool.displacement_turns[slot] == 0 {
                 let deficit = 1.0 - pool.need_autonomy[slot];
-                let mut delta = 0.0_f32;
 
                 // Self-governance: controller matches civ affinity
                 if region.controller_civ == civ {
                     delta += agent::AUTONOMY_RESTORE_SELF_GOV * deficit;
                 }
 
-                // No persecution
-                if region.persecution_intensity == 0.0 {
+                // Not persecuted: the agent's faith is not the one targeted
+                if !persecuted {
                     delta += agent::AUTONOMY_RESTORE_NO_PERSC * deficit;
                 }
+            }
 
-                pool.need_autonomy[slot] += delta;
+            // Pressure: persecution of the agent's faith, harsh rule, and a
+            // remembered conquest by another civ.
+            if persecuted {
+                delta -= agent::AUTONOMY_PERSECUTION_PRESSURE
+                    * region.persecution_intensity.clamp(0.0, 1.0);
+            }
+            if region.harsh_rule > 0.0 {
+                delta -= agent::AUTONOMY_HARSH_RULE_PRESSURE * region.harsh_rule.min(1.0);
+            }
+            delta -= agent::AUTONOMY_CONQUEST_PRESSURE * conquest_grievance(pool, slot);
+
+            pool.need_autonomy[slot] += delta;
+            // A conquest strips the conquered of their say at once.
+            if region.controller_changed_this_turn && region.controller_civ != civ {
+                pool.need_autonomy[slot] = pool.need_autonomy[slot].min(agent::AUTONOMY_CONQUEST_CAP);
             }
         }
 
@@ -354,7 +469,8 @@ pub fn update_needs(
         .filter(|&slot| pool.is_alive(slot))
         .collect();
 
-    // Decay → Restore → Clamp
+    // Decay → Restore → Clamp. Co-resident bonds are counted inside
+    // restore_needs; decay moves no one.
     decay_needs(pool, &alive_slots);
     restore_needs(pool, &alive_slots, regions, signals, wealth_percentiles);
     clamp_needs(pool, &alive_slots);
@@ -454,7 +570,7 @@ mod tests {
         let signals = peacetime_signals();
         let wealth_pct = vec![0.5_f32];
 
-        restore_needs(&mut pool, &[slot], &[region], &signals, &wealth_pct);
+        restore_needs_with_bonds(&mut pool, &[slot], &[region], &signals, &wealth_pct, &[0]);
 
         // deficit = 0.8, temple = 0.020 * 0.8 = 0.016, match = 0.015 * 0.8 = 0.012
         // total delta = 0.028
@@ -491,7 +607,7 @@ mod tests {
         let wealth_pct = vec![0.5_f32];
 
         let before = pool.need_spiritual[slot];
-        restore_needs(&mut pool, &[slot], &[region], &signals, &wealth_pct);
+        restore_needs_with_bonds(&mut pool, &[slot], &[region], &signals, &wealth_pct, &[0]);
         let delta = pool.need_spiritual[slot] - before;
 
         // deficit = 0.05, temple = 0.020 * 0.05 = 0.001, match = 0.015 * 0.05 = 0.00075
@@ -523,7 +639,7 @@ mod tests {
         let wealth_pct = vec![0.5_f32];
 
         let before = pool.need_autonomy[slot];
-        restore_needs(&mut pool, &[slot], &[region], &signals, &wealth_pct);
+        restore_needs_with_bonds(&mut pool, &[slot], &[region], &signals, &wealth_pct, &[0]);
         let after = pool.need_autonomy[slot];
 
         assert!(
@@ -534,42 +650,290 @@ mod tests {
     }
 
     #[test]
-    fn test_social_restoration_blend_bonds_improve() {
-        // At alpha=0.3, bonds should increase restoration vs no-bonds
-        use crate::relationships::BondType;
-
+    fn test_social_restoration_co_resident_bonds_improve() {
         let mut pool = AgentPool::new(8);
         let slot = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
         pool.need_social[slot] = 0.3;
 
         let region = make_region(0);
 
-        // Compute without bonds
-        let result_no_bonds = social_restoration(&pool, slot, &region);
+        let result_no_bonds = social_restoration(&pool, slot, &region, 0);
+        let result_one = social_restoration(&pool, slot, &region, 1);
+        let result_two = social_restoration(&pool, slot, &region, 2);
+        let result_three = social_restoration(&pool, slot, &region, 3);
 
-        // Add 3 positive bonds with positive sentiment
-        pool.rel_bond_types[slot][0] = BondType::Friend as u8;
-        pool.rel_sentiments[slot][0] = 50;
-        pool.rel_bond_types[slot][1] = BondType::Kin as u8;
-        pool.rel_sentiments[slot][1] = 80;
-        pool.rel_bond_types[slot][2] = BondType::Mentor as u8;
-        pool.rel_sentiments[slot][2] = 30;
-        pool.rel_count[slot] = 3;
+        assert!(result_no_bonds > 0.0, "the community proxy alone restores a little");
+        assert!(result_one > result_no_bonds && result_two > result_one);
+        // Saturates at SOCIAL_BOND_TARGET co-resident bonds
+        assert!((result_three - result_two).abs() < 1e-7);
+        // bond part at the target = 0.054 * deficit 0.7 = 0.0378
+        assert!((result_two - result_no_bonds - 0.0378).abs() < 1e-5);
+    }
 
-        // Compute with bonds — should be higher due to bond restoration
-        let result_with_bonds = social_restoration(&pool, slot, &region);
+    #[test]
+    fn test_co_resident_bonds_count_only_living_neighbours() {
+        use crate::relationships::BondType;
+        let mut pool = AgentPool::new(8);
+        let a = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let here = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let away = pool.spawn(1, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let dead = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let rival = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let faded = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let bonds = [
+            (here, BondType::Kin, 60i8),
+            (away, BondType::Kin, 60),
+            (dead, BondType::Friend, 40),
+            (rival, BondType::Rival, -20),
+            (faded, BondType::Friend, 0),
+        ];
+        for (i, (t, bt, sent)) in bonds.iter().enumerate() {
+            pool.rel_target_ids[a][i] = pool.ids[*t];
+            pool.rel_bond_types[a][i] = *bt as u8;
+            pool.rel_sentiments[a][i] = *sent;
+        }
+        pool.rel_count[a] = bonds.len() as u8;
+        pool.kill(dead);
+        let map = pool.build_id_to_slot();
+        assert_eq!(co_resident_bonds(&pool, a, &map), 1);
+        // The bonded neighbour leaves: no company left.
+        pool.regions[here] = 1;
+        assert_eq!(co_resident_bonds(&pool, a, &map), 0);
+    }
 
-        assert!(
-            result_with_bonds > result_no_bonds,
-            "Bonds should increase restoration: no_bonds={}, with_bonds={}",
-            result_no_bonds, result_with_bonds
-        );
-        // Both should be positive
-        assert!(
-            result_no_bonds > 0.0,
-            "Expected positive restoration without bonds, got {}",
-            result_no_bonds
-        );
+    #[test]
+    fn test_isolation_binds_and_bonds_hold() {
+        let mut pool = AgentPool::new(8);
+        let alone = pool.spawn(0, 0, Occupation::Farmer, 40, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let bonded = pool.spawn(0, 0, Occupation::Farmer, 40, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let mut region = make_region(0);
+        region.population = 60;
+        let regions = vec![region];
+        let signals = peacetime_signals();
+        let wp = vec![0.5_f32; 2];
+        let slots = vec![alone, bonded];
+        let mut co = vec![0u32; 2];
+        co[bonded] = 2;
+        let mut bound_at = None;
+        for t in 0..40 {
+            decay_needs(&mut pool, &slots);
+            restore_needs_with_bonds(&mut pool, &slots, &regions, &signals, &wp, &co);
+            clamp_needs(&mut pool, &slots);
+            if bound_at.is_none() && pool.need_social[alone] < agent::SOCIAL_THRESHOLD {
+                bound_at = Some(t + 1);
+            }
+        }
+        let t = bound_at.expect("an isolated agent's social need binds");
+        assert!(t <= 15, "binds within 15 turns, took {}", t);
+        assert!((pool.need_social[bonded] - 0.615).abs() < 0.02, "bonded {}", pool.need_social[bonded]);
+    }
+
+    #[test]
+    fn test_material_want_moves_non_farmers_to_other_work_not_farmers() {
+        let mut pool = AgentPool::new(8);
+        let farmer = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let smith = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        for &s in &[farmer, smith] {
+            pool.need_safety[s] = 0.9;
+            pool.need_social[s] = 0.9;
+            pool.need_spiritual[s] = 0.9;
+            pool.need_autonomy[s] = 0.9;
+            pool.need_purpose[s] = 0.9;
+            pool.need_material[s] = 0.1;
+        }
+        let expected = 0.2 * agent::MATERIAL_WEIGHT;
+        let f = compute_need_utility_modifiers(&pool, farmer);
+        let m = compute_need_utility_modifiers(&pool, smith);
+        assert!((f.migrate - expected).abs() < 1e-6 && (m.migrate - expected).abs() < 1e-6);
+        assert_eq!(f.switch_occ, 0.0);
+        assert!((m.switch_occ - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_social_deficit_pushes_migration_not_staying() {
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_safety[slot] = 0.9;
+        pool.need_material[slot] = 0.9;
+        pool.need_spiritual[slot] = 0.9;
+        pool.need_autonomy[slot] = 0.9;
+        pool.need_purpose[slot] = 0.9;
+        pool.need_social[slot] = 0.05;
+        let mods = compute_need_utility_modifiers(&pool, slot);
+        let expected = 0.20 * agent::SOCIAL_WEIGHT;
+        assert!((mods.migrate - expected).abs() < 1e-6, "migrate {}", mods.migrate);
+        assert!((mods.migrate_push[3] - expected).abs() < 1e-6);
+        assert_eq!(mods.stay, 0.0);
+        assert_eq!((mods.rebel, mods.switch_occ), (0.0, 0.0));
+    }
+
+    fn run_turns(pool: &mut AgentPool, slots: &[usize], regions: &[RegionState],
+                 signals: &TickSignals, wp: &[f32], turns: usize) {
+        let co = vec![2u32; pool.capacity()];
+        for _ in 0..turns {
+            decay_needs(pool, slots);
+            restore_needs_with_bonds(pool, slots, regions, signals, wp, &co);
+            clamp_needs(pool, slots);
+        }
+    }
+
+    #[test]
+    fn test_material_binds_in_famine_by_wealth() {
+        // Poor, median and rich agents; a fed region, then a famine at 0.4.
+        let mut pool = AgentPool::new(8);
+        let poor = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let mid = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let rich = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let slots = vec![poor, mid, rich];
+        let wp = vec![0.1_f32, 0.5, 0.9];
+        let signals = peacetime_signals();
+        let fed = vec![make_region(0)];
+        run_turns(&mut pool, &slots, &fed, &signals, &wp, 60);
+        for &s in &slots {
+            assert!(pool.need_material[s] > agent::MATERIAL_THRESHOLD + 0.1,
+                "fed agents stay well above the threshold: {}", pool.need_material[s]);
+        }
+        assert!((pool.need_material[mid] - 0.62).abs() < 0.02, "fed median {}", pool.need_material[mid]);
+
+        let mut famine = make_region(0);
+        famine.food_sufficiency = 0.4;
+        famine.food_severe_turns = 5;
+        let famine = vec![famine];
+        run_turns(&mut pool, &slots, &famine, &signals, &wp, 6);
+        assert!(pool.need_material[poor] < agent::MATERIAL_THRESHOLD, "poor bind within 6 turns");
+        run_turns(&mut pool, &slots, &famine, &signals, &wp, 14);
+        assert!(pool.need_material[mid] < agent::MATERIAL_THRESHOLD, "median binds within 20 turns");
+        assert!(pool.need_material[rich] > agent::MATERIAL_THRESHOLD,
+            "the rich do not: {}", pool.need_material[rich]);
+    }
+
+    #[test]
+    fn test_material_dearth_binds_the_poor_only() {
+        let mut pool = AgentPool::new(8);
+        let poor = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let mid = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let slots = vec![poor, mid];
+        let wp = vec![0.1_f32, 0.5];
+        let mut dearth = make_region(0);
+        dearth.food_sufficiency = 0.8;
+        run_turns(&mut pool, &slots, &[dearth], &peacetime_signals(), &wp, 60);
+        assert!(pool.need_material[poor] < agent::MATERIAL_THRESHOLD);
+        assert!(pool.need_material[mid] > agent::MATERIAL_THRESHOLD + 0.1);
+    }
+
+    #[test]
+    fn test_safety_binds_in_a_war_zone_not_at_home() {
+        let mut pool = AgentPool::new(8);
+        let front = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let home = pool.spawn(1, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let slots = vec![front, home];
+        let wp = vec![0.5_f32; 2];
+        let mut calm = make_region(0);
+        calm.endemic_severity = 0.0;
+        let mut calm1 = make_region(1);
+        calm1.endemic_severity = 0.0;
+        let regions = vec![calm, calm1];
+        let mut peace = peacetime_signals();
+        peace.contested_regions = vec![false, false];
+        run_turns(&mut pool, &slots, &regions, &peace, &wp, 60);
+        assert!((pool.need_safety[front] - 0.667).abs() < 0.02, "peace {}", pool.need_safety[front]);
+        // Armies in the region of a civ at peace: no war zone.
+        let mut armies = peacetime_signals();
+        armies.contested_regions = vec![true, false];
+        run_turns(&mut pool, &slots, &regions, &armies, &wp, 60);
+        assert!(pool.need_safety[front] > agent::SAFETY_THRESHOLD + 0.15, "armies in peace {}", pool.need_safety[front]);
+        let mut war = peacetime_signals();
+        war.civs[0].is_at_war = true;
+        war.contested_regions = vec![true, false];
+        run_turns(&mut pool, &slots, &regions, &war, &wp, 6);
+        assert!(pool.need_safety[front] < agent::SAFETY_THRESHOLD, "front {}", pool.need_safety[front]);
+        run_turns(&mut pool, &slots, &regions, &war, &wp, 48);
+        assert!(pool.need_safety[home] > agent::SAFETY_THRESHOLD + 0.15, "home front {}", pool.need_safety[home]);
+    }
+
+    #[test]
+    fn test_safety_shocks_from_conquest_and_raids() {
+        let mut calm = make_region(0);
+        calm.endemic_severity = 0.0;
+        let signals = peacetime_signals();
+        let wp = vec![0.5_f32];
+        let mut base = AgentPool::new(8);
+        let s0 = base.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        base.need_safety[s0] = 0.6;
+        restore_needs_with_bonds(&mut base, &[s0], &[calm.clone()], &signals, &wp, &[0]);
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_safety[slot] = 0.6;
+        let mut hit = calm.clone();
+        hit.controller_changed_this_turn = true;
+        hit.raided_this_turn = true;
+        hit.catastrophe_deaths_this_turn = 3; // epidemic or war deaths: no shock of their own
+        restore_needs_with_bonds(&mut pool, &[slot], &[hit], &signals, &wp, &[0]);
+        let drop = base.need_safety[s0] - pool.need_safety[slot];
+        let expected = agent::SAFETY_CONQUEST_SHOCK + agent::SAFETY_RAID_SHOCK;
+        assert!((drop - expected).abs() < 1e-5, "drop {} expected {}", drop, expected);
+    }
+
+    #[test]
+    fn test_autonomy_persecution_targets_the_faith_not_the_region() {
+        let mut pool = AgentPool::new(8);
+        // Belief 3 is persecuted by a ruler enforcing belief 1.
+        let target = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 3);
+        let faithful = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 1);
+        let slots = vec![target, faithful];
+        let mut region = make_region(0);
+        region.persecution_intensity = 0.5;
+        region.persecuting_faith = 1;
+        region.majority_belief = 1;
+        let wp = vec![0.5_f32; 2];
+        run_turns(&mut pool, &slots, &[region], &peacetime_signals(), &wp, 40);
+        assert!(pool.need_autonomy[target] < agent::AUTONOMY_THRESHOLD,
+            "persecuted {}", pool.need_autonomy[target]);
+        assert!((pool.need_autonomy[faithful] - 0.75).abs() < 0.02,
+            "the ruler's faith {}", pool.need_autonomy[faithful]);
+    }
+
+    #[test]
+    fn test_autonomy_conquest_memory_and_harsh_rule_press_the_conquered() {
+        let mut pool = AgentPool::new(8);
+        let conquered = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let settler = pool.spawn(0, 1, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        for &s in &[conquered, settler] {
+            pool.need_autonomy[s] = 0.5;
+            pool.memory_event_types[s][0] = crate::memory::MemoryEventType::Conquest as u8;
+            pool.memory_source_civs[s][0] = 1; // conquered by civ 1
+            pool.memory_intensities[s][0] = -127;
+            pool.memory_count[s] = 1;
+        }
+        let mut region = make_region(0);
+        region.controller_civ = 1;
+        let wp = vec![0.5_f32; 2];
+        let mut signals = peacetime_signals();
+        signals.civs.push(signals.civs[0].clone());
+        signals.civs[1].civ_id = 1;
+        restore_needs_with_bonds(&mut pool, &[conquered, settler], &[region.clone()], &signals, &wp, &[0, 0]);
+        // conquered: foreign rule (no self-government), not persecuted, full grievance
+        let exp_c = 0.5 + agent::AUTONOMY_RESTORE_NO_PERSC * 0.5 - agent::AUTONOMY_CONQUEST_PRESSURE;
+        let exp_s = 0.5 + (agent::AUTONOMY_RESTORE_SELF_GOV + agent::AUTONOMY_RESTORE_NO_PERSC) * 0.5;
+        assert!((pool.need_autonomy[conquered] - exp_c).abs() < 1e-5);
+        assert!((pool.need_autonomy[settler] - exp_s).abs() < 1e-5, "the conqueror's own people are free");
+        // Martial law weighs on everyone in the region; it binds the
+        // conquered, not the ruler's own people.
+        region.harsh_rule = 1.0;
+        let slots = [conquered, settler];
+        pool.memory_count[conquered] = 0;
+        pool.memory_count[settler] = 0;
+        run_turns(&mut pool, &slots, &[region.clone()], &signals, &wp, 80);
+        assert!(pool.need_autonomy[conquered] < agent::AUTONOMY_THRESHOLD);
+        assert!((pool.need_autonomy[settler] - 0.42).abs() < 0.02, "settler {}", pool.need_autonomy[settler]);
+        // The turn of a conquest caps the conquered's autonomy, not the conqueror's.
+        region.harsh_rule = 0.0;
+        region.controller_changed_this_turn = true;
+        pool.need_autonomy[conquered] = 0.8;
+        pool.need_autonomy[settler] = 0.8;
+        restore_needs_with_bonds(&mut pool, &slots, &[region], &signals, &wp, &[0, 0]);
+        assert_eq!(pool.need_autonomy[conquered], agent::AUTONOMY_CONQUEST_CAP);
+        assert!(pool.need_autonomy[settler] > 0.75);
     }
 
     #[test]
@@ -583,11 +947,11 @@ mod tests {
 
         let result = social_restoration_proxy(&pool, slot, &region);
 
-        // pop_ratio = 30/60 = 0.5, base_rate = 0.010 * 0.5 = 0.005
+        // pop_ratio = 30/60 = 0.5, base_rate = 0.019 * 0.5 = 0.0095
         // occ_mult = 1.0 (Farmer), age_mult = min(40/40, 1.0) = 1.0
         // deficit = 1.0 - 0.4 = 0.6
-        // expected = 0.005 * 1.0 * 1.0 * 0.6 = 0.003
-        let expected = 0.003;
+        // expected = 0.0095 * 1.0 * 1.0 * 0.6 = 0.0057
+        let expected = 0.0057;
         assert!(
             (result - expected).abs() < 0.0001,
             "Expected ~{}, got {}",
@@ -607,7 +971,7 @@ mod tests {
         region.carrying_capacity = 100;
         // pop_ratio = 10/100 = 0.1, below SOCIAL_RESTORE_POP_THRESHOLD (0.3)
 
-        let result = social_restoration(&pool, slot, &region);
+        let result = social_restoration(&pool, slot, &region, 0);
         assert!(
             result == 0.0,
             "Below pop threshold should return 0.0, got {}",
@@ -635,7 +999,7 @@ mod tests {
 
         for _ in 0..200 {
             decay_needs(&mut pool, &alive_slots);
-            restore_needs(&mut pool, &alive_slots, &regions, &signals, &wealth_pct);
+            restore_needs_with_bonds(&mut pool, &alive_slots, &regions, &signals, &wealth_pct, &[0]);
             clamp_needs(&mut pool, &alive_slots);
         }
 
@@ -645,7 +1009,7 @@ mod tests {
         // Run one more tick and check delta is very small
         let before_last = pool.need_safety[slot];
         decay_needs(&mut pool, &alive_slots);
-        restore_needs(&mut pool, &alive_slots, &regions, &signals, &wealth_pct);
+        restore_needs_with_bonds(&mut pool, &alive_slots, &regions, &signals, &wealth_pct, &[0]);
         clamp_needs(&mut pool, &alive_slots);
         let last_delta = (pool.need_safety[slot] - before_last).abs();
 

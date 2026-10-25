@@ -120,6 +120,14 @@ pub struct RegionState {
     /// below it (`demographics::hunger_components`). 0 when the batch carries
     /// no `food_severe_turns` column.
     pub food_severe_turns: u16,
+    /// Harsh rule by the region's controller, 0..1 (1 under martial law):
+    /// pressure on its people's autonomy need. 0 when the batch carries no
+    /// `harsh_rule` column.
+    pub harsh_rule: f32,
+    /// A successful raid struck the region this turn (one-turn signal,
+    /// cleared by Python's builder). False when the batch has no
+    /// `raided_this_turn` column.
+    pub raided_this_turn: bool,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -256,6 +264,8 @@ impl RegionState {
             market_demand: [0.0; 3],
             market_supply: [0.0; 3],
             food_severe_turns: 0,
+            harsh_rule: 0.0,
+            raided_this_turn: false,
         }
     }
 }

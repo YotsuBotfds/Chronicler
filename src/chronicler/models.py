@@ -1056,6 +1056,7 @@ MIGRATION_DRIVER_NAMES: tuple[str, ...] = (
     "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river", "opp_news",
     "persecution", "famine_memory", "battle_memory", "conquest_memory", "persecution_memory",
     "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain", "urban",
+    "social_need",
 )
 #: Drivers of moves people choose in a living world (healthy-world migration
 #: and the cities' urban pull): settling new land, seeking work, joining kin,
