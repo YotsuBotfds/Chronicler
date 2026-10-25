@@ -481,6 +481,8 @@ fn test_region_input(
         production_caps: [None; 3],
         stockpile,
         subsistence_yield: 0.0,
+        farm_labor_factor: 1.0,
+        craft_raw_demand: 0.0,
     }
 }
 

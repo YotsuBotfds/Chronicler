@@ -310,6 +310,16 @@ def _null_free(snapshot, field_names) -> bool:
         return False
 
 
+def _city_route_graph(world: WorldState, batch):
+    """``--cities``: cities an enemy besieges or occupies are cut off from the
+    merchant graph (``cities.merchant_route_graph``); unchanged otherwise."""
+    from chronicler.cities_state import cities_on
+    if not cities_on(world):
+        return batch
+    from chronicler.cities import merchant_route_graph
+    return merchant_route_graph(world, batch)
+
+
 _MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
 
@@ -1238,6 +1248,7 @@ class AgentBridge:
             # Maritime: blockaded lanes removed, per-lane raid risk attached.
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
+        route_batch = _city_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
@@ -1262,6 +1273,7 @@ class AgentBridge:
             # Maritime: blockaded lanes removed, per-lane raid risk attached.
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
+        route_batch = _city_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,

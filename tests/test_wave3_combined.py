@@ -279,17 +279,49 @@ def _cities_live(world: WorldState) -> bool:
                 and any(city.wealth > 0 for city in c.cities))
 
 
+def _market_inputs(world: WorldState):
+    """What the city markets read from the world (city-markets.md): the
+    economy columns for a fixed set of agent rows (two farmers and a
+    merchant in every living city, two rural farmers per region), the
+    cut-off cities and the merchant graph after the cities' filter. With
+    --agents off nothing calls them; read here, they show that every input
+    comes from persisted state."""
+    import pyarrow as pa
+    import chronicler.cities as ct
+    from chronicler.economy import build_merchant_route_graph
+    region, occupation, sid = [], [], []
+    for city in world.cities.cities:
+        region += [city.region] * 3
+        occupation += [0, 0, 2]
+        sid += [city.settlement_id] * 3
+    for r in range(len(world.regions)):
+        region += [r, r]
+        occupation += [0, 0]
+        sid += [0, 0]
+    rows = pa.record_batch({"region": pa.array(region, type=pa.uint16()),
+                            "occupation": pa.array(occupation, type=pa.uint8()),
+                            "settlement_id": pa.array(sid, type=pa.uint16())})
+    graph = ct.merchant_route_graph(world, build_merchant_route_graph(world))
+    return ct.economy_columns(world, rows), sorted(ct.cut_off_regions(world)), graph.to_pydict()
+
+
 def test_save_load_resume_identity_with_cities_and_everything_on(tmp_path):
     first = _advance(_cities_world(), 30)
     while not (_cities_live(first) and _nomads_live(first) and first.finance.loans
                and first.diplomacy.treaties):
         assert first.turn < 120, "no turn with live cities, nomads, loans and treaties"
         _advance(first, 1)
-    straight = _advance(_cities_world(), first.turn + 15)
+    straight = _advance(_cities_world(), first.turn)
     path = tmp_path / "state.json"
     first.save(path)
     resumed = WorldState.load(path)
     assert resumed.cities == first.cities
-    _advance(resumed, 15)
+    # City markets: every input the economy and the merchant graph would read
+    # matches the uninterrupted run, turn by turn.
+    for _ in range(15):
+        assert _market_inputs(resumed) == _market_inputs(straight)
+        _advance(resumed, 1)
+        _advance(straight, 1)
+    assert _market_inputs(resumed) == _market_inputs(straight)
     assert resumed.model_dump_json() == straight.model_dump_json()
     assert resumed.cities.counters["founded"] >= 4

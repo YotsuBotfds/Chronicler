@@ -625,7 +625,8 @@ def test_feature_off_never_runs_city_code(monkeypatch):
         raise AssertionError("city code ran with the switch off")
 
     for name in ("tick_cities", "pay_dues", "region_pulls", "epidemic_susceptibility_factors",
-                 "credit_factor", "snapshot_summary"):
+                 "credit_factor", "snapshot_summary", "economy_columns", "with_economy_columns",
+                 "merchant_route_graph", "cut_off_regions"):
         monkeypatch.setattr(C, name, boom)
     world = generate_world(seed=42)
     world.campaigns_enabled = True

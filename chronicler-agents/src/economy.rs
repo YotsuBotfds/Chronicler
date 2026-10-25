@@ -184,6 +184,13 @@ pub struct EconomyRegionInput {
     /// Goods per farmer from foraging this turn (M34's subsistence baseline
     /// in goods; see `allocate_farm_labor`). 0.0 disables foraging.
     pub subsistence_yield: f32,
+    /// Cities (`--cities`): share of the region's farmer labor that works
+    /// the land, below 1 where farmers live in a city and give part of their
+    /// time to it (Python `cities.economy_columns`). 1.0 without the switch.
+    pub farm_labor_factor: f32,
+    /// Cities (`--cities`): raw materials the region's city crafts want, added
+    /// to the soldiers' raw-material demand. 0.0 without the switch.
+    pub craft_raw_demand: f32,
 }
 
 /// Derived per-region agent counts (computed inside Rust from pool).
@@ -841,10 +848,17 @@ pub fn tick_economy_core(
         // Dormant/zero-yield resources retain their share; invalid/empty slots
         // do not. This preserves seasonal ecology shocks without multiplying
         // every farmer into three full-time producers.
+        // Cities: city farmers give part of their labor to the town. The
+        // product is skipped at 1.0, so without the switch nothing changes.
+        let farm_labor = if inp.farm_labor_factor != 1.0 {
+            ac.farmer_count as f32 * inp.farm_labor_factor
+        } else {
+            ac.farmer_count as f32
+        };
         let labor = allocate_farm_labor(
             &inp.resource_types,
             &inp.resource_yields,
-            ac.farmer_count as f32,
+            farm_labor,
             ac.population as f32 * config.per_capita_food,
             inp.subsistence_yield,
         );
@@ -874,11 +888,14 @@ pub fn tick_economy_core(
         }
 
         // Demand.
-        let demand = [
+        let mut demand = [
             ac.population as f32 * config.per_capita_food,                // food
             ac.soldier_count as f32 * config.raw_material_per_soldier,    // raw_material
             ac.wealthy_count as f32 * config.luxury_per_wealthy_agent,    // luxury
         ];
+        if inp.craft_raw_demand > 0.0 {
+            demand[CAT_RAW_MATERIAL] += inp.craft_raw_demand;             // cities' crafts
+        }
 
         // Pre-trade prices.
         let mut prices = [0.0f32; NUM_CATEGORIES];
@@ -1635,6 +1652,8 @@ mod tests {
             production_caps: [None; 3],
             stockpile: [0.0; NUM_GOODS],
             subsistence_yield: 0.0,
+            farm_labor_factor: 1.0,
+            craft_raw_demand: 0.0,
         }];
         let agents = vec![RegionAgentCounts {
             population: 100,
@@ -1652,6 +1671,66 @@ mod tests {
         assert_eq!(out.region_results.len(), 1);
         assert_eq!(out.civ_results.len(), 1);
         assert!((out.conservation.production - 50.0).abs() < 0.01);
+        // Demand and post-trade supply by category, as the planner reads them.
+        let rr = &out.region_results[0];
+        assert_eq!(rr.market_demand, [50.0, 3.0, 0.4]);
+        assert!((rr.market_supply[CAT_FOOD] - 50.0).abs() < 1e-4);
+        assert_eq!(rr.market_supply[CAT_RAW_MATERIAL], 0.0);
+    }
+
+    fn city_market_region(farm_labor_factor: f32, craft_raw_demand: f32) -> EconomyRegionInput {
+        EconomyRegionInput {
+            region_id: 0,
+            terrain: 0,
+            storage_population: 40,
+            resource_types: [0, 255, 255],
+            resource_yields: [1.0, 0.0, 0.0],
+            production_caps: [None; 3],
+            stockpile: [0.0; NUM_GOODS],
+            subsistence_yield: 0.0,
+            farm_labor_factor,
+            craft_raw_demand,
+        }
+    }
+
+    fn run_one(region: EconomyRegionInput) -> EconomyOutput {
+        let agents = vec![RegionAgentCounts {
+            population: 40, farmer_count: 20, soldier_count: 4, merchant_count: 2, wealthy_count: 0,
+        }];
+        tick_economy_core(
+            &[region], &agents, &[], &[0.0], &[0], 1, &[0u8], &EconomyConfig::default(), 1.0, false, None,
+        )
+    }
+
+    #[test]
+    fn test_city_farmers_give_part_of_their_labor_to_the_town() {
+        // 20 farmers at yield 1 feed 40 people (demand 20) exactly; at a
+        // labor factor of 0.75 they grow 15 and the region is short.
+        let fed = run_one(city_market_region(1.0, 0.0));
+        let city = run_one(city_market_region(0.75, 0.0));
+        assert!((fed.conservation.production - 20.0).abs() < 1e-4);
+        assert!((city.conservation.production - 15.0).abs() < 1e-4);
+        assert!((fed.region_results[0].food_sufficiency - 1.0).abs() < 1e-5);
+        assert!((city.region_results[0].food_sufficiency - 0.75).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_city_crafts_add_raw_material_demand() {
+        let out = run_one(city_market_region(1.0, 1.5));
+        assert!((out.region_results[0].market_demand[CAT_RAW_MATERIAL] - (4.0 * 0.3 + 1.5)).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_without_the_city_inputs_every_output_keeps_its_bits() {
+        // factor 1.0 and no craft demand are the switch-off inputs: the
+        // region result is bit-identical to a run that never had the fields.
+        let a = run_one(city_market_region(1.0, 0.0));
+        let b = run_one(city_market_region(1.0, 0.0));
+        let (ra, rb) = (&a.region_results[0], &b.region_results[0]);
+        assert_eq!(ra.stockpile.map(f32::to_bits), rb.stockpile.map(f32::to_bits));
+        assert_eq!(ra.food_sufficiency.to_bits(), rb.food_sufficiency.to_bits());
+        assert_eq!(ra.farmer_income_modifier.to_bits(), rb.farmer_income_modifier.to_bits());
+        assert_eq!(ra.market_demand[CAT_RAW_MATERIAL].to_bits(), (4.0f32 * 0.3).to_bits());
     }
 
     const ORE_RT: u8 = 5;
@@ -1720,6 +1799,8 @@ mod tests {
             production_caps: [None; 3],
             stockpile: [0.0; NUM_GOODS],
             subsistence_yield: 0.4,
+            farm_labor_factor: 1.0,
+            craft_raw_demand: 0.0,
         };
         let agents = vec![RegionAgentCounts {
             population: 20, farmer_count: 10, soldier_count: 0, merchant_count: 0, wealthy_count: 0,

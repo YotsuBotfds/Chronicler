@@ -2177,6 +2177,8 @@ impl AgentSimulator {
                 production_caps: [None; 3],
                 stockpile,
                 subsistence_yield: 0.0,
+                farm_labor_factor: 1.0,
+                craft_raw_demand: 0.0,
             });
         }
 
@@ -2192,6 +2194,32 @@ impl AgentSimulator {
                     return Err(PyValueError::new_err("invalid subsistence_yield"));
                 }
                 region_inputs[i].subsistence_yield = v;
+            }
+        }
+
+        // Optional (--cities): city farmers' labor share and city crafts'
+        // raw-material demand (Python `cities.economy_columns`). Absent
+        // columns leave every region at 1.0 and 0.0.
+        if let Some(column) = ri_rb.column_by_name("farm_labor_factor") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("farm_labor_factor must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || !(0.0..=1.0).contains(&v) {
+                    return Err(PyValueError::new_err("invalid farm_labor_factor"));
+                }
+                region_inputs[i].farm_labor_factor = v;
+            }
+        }
+        if let Some(column) = ri_rb.column_by_name("craft_raw_demand") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("craft_raw_demand must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || v < 0.0 {
+                    return Err(PyValueError::new_err("invalid craft_raw_demand"));
+                }
+                region_inputs[i].craft_raw_demand = v;
             }
         }
 

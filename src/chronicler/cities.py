@@ -25,6 +25,14 @@ Population drawn from the hinterland
     batch; the Rust urban driver (``migration_drivers.rs``) draws rural
     adults of the same realm toward it.
 
+Markets (docs/integration/city-markets.md)
+    City farmers give part of their labour to the town and the crafts want
+    raw materials (:func:`economy_columns`, goods-economy inputs), so a
+    city eats more than its region grows and merchants, routing by price,
+    bring grain from the hinterland. A city an enemy besieges or occupies
+    is cut off from the merchant graph (:func:`merchant_route_graph`).
+    Merchant imports raise commerce.
+
 Political voice
     Patricians raise the lord's merchant faction; cities petition for
     charters; unrest from hunger, misery, dues, occupation and grievance
@@ -167,6 +175,19 @@ URBAN_SUSCEPTIBILITY = 0.5
 CREDIT_PER_CHARTER = 0.1
 CREDIT_CAP = 1.5
 
+# Markets (docs/integration/city-markets.md). A farmer who lives in a city
+# gives part of his labour to the town: the goods economy counts this share
+# of it on the land, by rank (-, town, city, great city). The city then eats
+# more than its region grows and merchants bring grain from the hinterland.
+URBAN_FARM_LABOR = (1.0, 0.8, 0.7, 0.6)
+#: Raw materials (timber, ore) a resident who is not a soldier wants for the
+#: city's crafts each turn; a soldier wants 0.3 (economy demand).
+CRAFT_RAW_PER_RESIDENT = 0.1
+#: Commerce: market access per unit of merchant imports (every category)
+#: over the region's food demand, at most TURNOVER_CAP (the routes' cap).
+TURNOVER_ACCESS = 2.0
+TURNOVER_CAP = 0.6
+
 #: Stored floats are rounded to this many decimals.
 QUANTUM_DIGITS = 4
 
@@ -261,6 +282,19 @@ class _Tick:
         if self.economy is None:
             return 0
         return int(self.economy.trade_route_counts.get(region.name, 0))
+
+    def turnover(self, region) -> float:
+        """Goods merchants delivered to the region this turn (every category,
+        after transit losses) over its food demand, at most 1; 0 without an
+        economy result. (Commerce counts TURNOVER_ACCESS x this, at most
+        TURNOVER_CAP.)"""
+        if self.economy is None:
+            return 0.0
+        imports = sum((getattr(self.economy, "imports_by_region", None) or {})
+                      .get(region.name, {}).values())
+        demand = (getattr(self.economy, "market_demand", None) or {}).get(region.name)
+        food_demand = demand[0] if demand else 0.5 * region.population
+        return min(1.0, imports / max(0.1, food_demand))
 
 
 def _emit(t: _Tick, event_type: str, actors: Iterable[str], description: str, *,
@@ -610,7 +644,8 @@ def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None
 
 def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
     base = city.size / k * sum(w * m for w, m in zip(COMMERCE_WEIGHTS, city.mix))
-    access = 1.0 + ROUTE_ACCESS * min(t.routes(region), ROUTE_ACCESS_CAP)
+    access = (1.0 + ROUTE_ACCESS * min(t.routes(region), ROUTE_ACCESS_CAP)
+              + min(TURNOVER_CAP, TURNOVER_ACCESS * t.turnover(region)))
     commerce = base * access * food * (OCCUPIED_COMMERCE if _occupied(region) else 1.0)
     dues = commerce * DUES[city.charter] if city.lord >= 0 else 0.0
     _owe(t, city.lord, dues)
@@ -923,6 +958,98 @@ def region_pulls(world: "WorldState") -> list[float]:
         if city.region < len(pulls):
             pulls[city.region] = max(pulls[city.region], city.pull)
     return pulls
+
+
+def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | None:
+    """Phase 2 goods-economy inputs of the cities, per region index, from the
+    agent rows the economy reads (the last tick's):
+
+    ``farm_labor_factor``
+        1 - sum over the region's cities of (1 - URBAN_FARM_LABOR[rank]) x
+        the share of the region's farmers living in that city;
+    ``craft_raw_demand``
+        CRAFT_RAW_PER_RESIDENT x the city's residents who are not soldiers.
+
+    None (no columns) with the switch off or without agent rows; with the
+    switch on and no city every region is at 1.0 and 0.0."""
+    if not cities_on(world) or snapshot is None:
+        return None
+    from chronicler.columnar import batch_arrays
+    arrays = batch_arrays(snapshot, ("region", "occupation", "settlement_id"))
+    if arrays is None:
+        return None
+    import numpy as np
+    region, occupation, sid = (a.astype(np.int64) for a in arrays)
+    n = len(world.regions)
+    factor = [1.0] * n
+    craft = [0.0] * n
+    cities = [c for c in world.cities.cities if c.region < n]
+    if not cities or sid.size == 0:
+        return {"farm_labor_factor": factor, "craft_raw_demand": craft}
+    farmer = occupation == 0
+    region_farmers = np.bincount(region[farmer], minlength=n)
+    span = int(sid.max()) + 1
+    city_farmers = np.bincount(sid[farmer], minlength=span)
+    city_civilians = np.bincount(sid[occupation != 1], minlength=span)
+    for city in sorted(cities, key=lambda c: c.settlement_id):
+        s, r = city.settlement_id, city.region
+        if s <= 0 or s >= span:
+            continue
+        if region_farmers[r] > 0:
+            factor[r] -= (1.0 - URBAN_FARM_LABOR[city.rank]) * float(city_farmers[s]) / float(region_farmers[r])
+        craft[r] += CRAFT_RAW_PER_RESIDENT * float(city_civilians[s])
+    return {"farm_labor_factor": [min(1.0, max(0.0, f)) for f in factor], "craft_raw_demand": craft}
+
+
+def with_economy_columns(world: "WorldState", region_input, snapshot):
+    """The economy region-input batch with :func:`economy_columns` appended
+    (unchanged when there are none)."""
+    columns = economy_columns(world, snapshot)
+    if columns is None:
+        return region_input
+    import pyarrow as pa
+    data = {name: region_input.column(name) for name in region_input.schema.names}
+    for name, values in columns.items():
+        data[name] = pa.array(values, type=pa.float32())
+    return pa.record_batch(data)
+
+
+def _besieged(world, region) -> bool:
+    """An enemy army lies before the region (``sieging`` there)."""
+    war = getattr(world, "war_state", None)
+    if war is None:
+        return False
+    return any(a.phase == "sieging" and a.region == region.name and a.civ != region.controller
+               for a in war.armies)
+
+
+def cut_off_regions(world: "WorldState") -> set[int]:
+    """Region indices of cities an enemy besieges or occupies."""
+    out = set()
+    for city in world.cities.cities:
+        if city.region < len(world.regions):
+            region = world.regions[city.region]
+            if _occupied(region) or _besieged(world, region):
+                out.add(city.region)
+    return out
+
+
+def merchant_route_graph(world: "WorldState", batch):
+    """Native merchant graph with ``--cities``: a city that an enemy besieges
+    or occupies is cut off from its hinterland; no merchant enters or leaves
+    its region (merchants on the way are rerouted or turned back by the
+    mobility phase). Unchanged with the switch off or without such a city."""
+    if not cities_on(world) or not world.cities.cities:
+        return batch
+    cut = cut_off_regions(world)
+    if not cut or batch.num_rows == 0:
+        return batch
+    import pyarrow as pa
+    from chronicler.columnar import pylist
+    src = pylist(batch.column("from_region"))
+    dst = pylist(batch.column("to_region"))
+    keep = pa.array([a not in cut and b not in cut for a, b in zip(src, dst)], type=pa.bool_())
+    return batch.filter(keep)
 
 
 def epidemic_susceptibility_factors(world: "WorldState") -> list[float]:
