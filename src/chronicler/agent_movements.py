@@ -624,8 +624,12 @@ def suppress_chance(m: Movement, civ) -> float:
 def _demand_text(world, m: Movement) -> str:
     region = world.regions[m.home_region].name
     faith = _faith_name(world, m.faith)
-    if m.creed == SECT and faith is None:
-        return "freedom to worship as they believe"
+    if m.creed == SECT:
+        if faith is None:
+            return "freedom to worship as they believe"
+        target = world.civilizations[m.target] if 0 <= m.target < len(world.civilizations) else None
+        if target is not None and getattr(target, "civ_majority_faith", NO_FAITH) == m.faith:
+            return f"the reform of the {faith}"
     return _DEMANDS[m.creed].format(region=region, faith=faith)
 
 
@@ -833,7 +837,7 @@ def _schism(t: _Tick, i: int, m: Movement, civ) -> bool:
     _bump(t.state, "schisms")
     replaced = f" in place of the vanished '{retired.name}'" if retired is not None else ""
     ev = _emit(t, "Schism", [civ.name],
-               f"{m.name} breaks with the {old_name} church in {region.name}: "
+               f"{m.name} breaks away from the {old_name} in {region.name}: "
                f"'{new.name}' is founded{replaced}",
                importance=7, region=region.name,
                causes=(_recall(t, i, "refused", within=40), _recall(t, i, "crackdown", within=40)))
