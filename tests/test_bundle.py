@@ -13,9 +13,13 @@ from chronicler.bundle import assemble_bundle, write_bundle, write_agent_events_
 from chronicler.models import ChronicleEntry, NarrativeRole
 
 VIEWER_SAMPLE_BUNDLE = Path("viewer/src/__fixtures__/sample_bundle.json")
-# Trimmed real run with every default-off system on (scripts/build_viewer_systems_fixture.py).
+# Trimmed real hybrid run with every system on (scripts/build_viewer_systems_fixture.py).
 VIEWER_SYSTEMS_BUNDLE = Path("viewer/src/__fixtures__/systems_bundle.json")
 VIEWER_SYSTEM_FIELDS = {"epidemics", "finance", "diplomacy", "techniques", "maritime"}
+# Later system panels; written with --agents off too (campaign and contact by default).
+VIEWER_LATER_SYSTEM_FIELDS = {"campaign", "contact", "nomads", "gp_agendas"}
+# Viewer-only fields written in agent modes (tests/test_viewer_snapshot_fields.py).
+VIEWER_AGENT_FIELDS = {"food", "migration"}
 VIEWER_REQUIRED_TOP_LEVEL_KEYS = {
     "world_state",
     "history",
@@ -359,9 +363,16 @@ class TestViewerFixtureContract:
 
         assert VIEWER_REQUIRED_TOP_LEVEL_KEYS.issubset(fixture.keys())
         assert VIEWER_REQUIRED_METADATA_KEYS.issubset(fixture["metadata"].keys())
+        n_regions = len(fixture["world_state"]["regions"])
         for snapshot in fixture["history"]:
             assert VIEWER_REQUIRED_HISTORY_KEYS.issubset(snapshot.keys())
             assert VIEWER_SYSTEM_FIELDS.issubset(snapshot.keys())
+            assert VIEWER_LATER_SYSTEM_FIELDS.issubset(snapshot.keys())
+            assert VIEWER_AGENT_FIELDS.issubset(snapshot.keys())
+            assert len(snapshot["food"]["sufficiency"]) == n_regions
+            assert all(len(row) == 3 for row in snapshot["food"]["aid"] + snapshot["migration"])
+        assert any(row.get("governance") for snapshot in fixture["history"]
+                   for row in snapshot["civ_stats"].values())
 
     def test_systems_fixture_matches_generated_system_snapshots(self, tmp_path):
         """The viewer's systems fixture keeps the shape snapshot_summary() writes today."""
@@ -373,6 +384,7 @@ class TestViewerFixtureContract:
             resume=None, reflection_interval=10, llm_actions=False, scenario=None,
             pause_every=None, simulate_only=True, agents="off",
             epidemiology=True, finance=True, diplomacy=True, techniques=True, maritime=True,
+            nomads=True, gp_agendas=True,
         )
         execute_run(args)
 
@@ -388,8 +400,14 @@ class TestViewerFixtureContract:
                     return values[0]
             return None
 
-        for field in VIEWER_SYSTEM_FIELDS:
+        for field in VIEWER_SYSTEM_FIELDS | VIEWER_LATER_SYSTEM_FIELDS:
             assert set(fixture["history"][-1][field]) == set(generated["history"][-1][field]), field
+        # The governance keys the fixture keeps are ones a fresh run writes.
+        kept = {k for snap in fixture["history"] for row in snap["civ_stats"].values()
+                for k in (row.get("governance") or {})}
+        written = {k for snap in generated["history"] for row in snap["civ_stats"].values()
+                   for k in (row.get("governance") or {})}
+        assert kept and kept <= written
         nested = [("epidemics", "active"), ("finance", "civs"), ("diplomacy", "treaties"),
                   ("diplomacy", "subjects"), ("diplomacy", "top_grievances"), ("diplomacy", "pairs"),
                   ("techniques", "regions"), ("maritime", "zones"), ("maritime", "fleets"),

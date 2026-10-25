@@ -73,7 +73,8 @@ one of them.
   crushed agent-backed general's death uses the existing targeted-death
   queue.
 * **Viewer panels.** `history[n].gp_agendas` is in the bundle; the viewer
-  does not display it.
+  does not display it. (Since added on `feat/viewer-systems` as an Agendas
+  tab: see [viewer-systems.md](viewer-systems.md).)
 * **Ruler legitimacy from great persons.** Agendas use a neutral
   calibration (completion and failure legitimacy 0): governance alone owns
   legitimacy. A loyal general's conquest does not count as the ruler's.

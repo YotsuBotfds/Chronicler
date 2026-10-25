@@ -144,6 +144,11 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     diplomacy: msg.diplomacy as TurnSnapshot["diplomacy"],
     techniques: msg.techniques as TurnSnapshot["techniques"],
     maritime: msg.maritime as TurnSnapshot["maritime"],
+    contact: msg.contact as TurnSnapshot["contact"],
+    gp_agendas: msg.gp_agendas as TurnSnapshot["gp_agendas"],
+    nomads: msg.nomads as TurnSnapshot["nomads"],
+    food: msg.food as TurnSnapshot["food"],
+    migration: msg.migration as TurnSnapshot["migration"],
   }), []);
 
   useEffect(() => {

@@ -17,10 +17,16 @@ function snap(turn: number, extra: Partial<TurnSnapshot> = {}): TurnSnapshot {
 
 describe("systems helpers", () => {
   it("finds the systems a bundle records, and none in a bundle without them", () => {
-    expect(presentSystems(systems.history)).toEqual(["epidemics", "finance", "diplomacy", "techniques", "maritime"]);
-    expect(presentSystems(sample.history)).toEqual([]);
-    const partial = systems.history.map((snapshot) => ({ ...snapshot, finance: undefined }));
+    expect(presentSystems(systems.history, systems.events_timeline)).toEqual([
+      "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas",
+      "governance", "contact",
+    ]);
+    expect(presentSystems(sample.history, sample.events_timeline)).toEqual([]);
+    const partial = systems.history.map((snapshot) => ({ ...snapshot, finance: undefined, food: undefined }));
     expect(presentSystems(partial)).not.toContain("finance");
+    // Without the food field, famines that name their region still make a food tab.
+    expect(presentSystems(partial)).not.toContain("food");
+    expect(presentSystems(partial, systems.events_timeline)).toContain("food");
   });
 
   it("merges consecutive snapshots into segments that end at the next recorded turn", () => {
@@ -97,8 +103,13 @@ describe("systems helpers", () => {
 
   it("builds ladder, era and sea-zone rows from the real fixture", () => {
     const ladder = ladderRows(systems.history);
-    expect(ladder.map((row) => row.label)).toEqual(["Doguri Republic → League of Fewen"]);
+    expect(ladder.map((row) => row.label)).toEqual([
+      "Hiholdi Kingdom → Empire of Budun", "Doguri Republic → League of Fewen",
+      "Glewahami Confederacy → Hiholdi Kingdom", "Empire of Budun → League of Fewen",
+    ]);
     expect(ladder[0].segments[0].text).toBe("client");
+    // The client becomes a vassal, then a personal union.
+    expect(ladder[2].segments.map((segment) => segment.text)).toEqual(["client", "vassal", "union"]);
 
     const eras = eraRows(systems.history, ["Thyrodori Confederacy"], () => "#fff");
     expect(eras[0].segments[0].text).toBe("Tribal");
@@ -107,7 +118,8 @@ describe("systems helpers", () => {
     expect(zones).toHaveLength(7);
     const morendor = zones.find((row) => row.id === "the Morendor Bight");
     expect(morendor?.segments.some((segment) => segment.label.includes("controlled by"))).toBe(true);
-    expect(morendor?.marks?.[0].label).toContain("Thyrodori Confederacy blockades League of Fewen");
+    const thacindor = zones.find((row) => row.id === "the Thacindor Sound");
+    expect(thacindor?.marks?.[0].label).toContain("Thyrodori Confederacy blockades Yitli Theocracy");
 
     const ports = zonePorts(systems.world_state.maritime?.zones, systems.world_state.regions.map((region) => region.name));
     expect(ports.get("the Morendor Bight")).toHaveLength(6);

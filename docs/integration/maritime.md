@@ -47,7 +47,8 @@ was not run.
   a zone where they expect a region.
 * *Viewer panels*: `history[n].maritime` is in the bundle; the viewer does
   not display it. (Since added on `feat/viewer-systems` as tables and a
-  zone-control strip: see [viewer-systems.md](viewer-systems.md).)
+  zone-control strip, then a Sea map layer: see
+  [viewer-systems.md](viewer-systems.md).)
 
 ## Sea model
 
