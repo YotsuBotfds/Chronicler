@@ -52,6 +52,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from chronicler.bundle_codec import decode_bundle
+
 PRUNED_BUNDLE_VERSION = 5
 PRUNED_CIV_STATS_KEY = "pruned_civ_stats"
 # Snapshot fields keyed by civilization name.
@@ -301,10 +303,12 @@ def restore_history(history: list[Mapping[str, Any]], pruned_civ_stats: Mapping[
 def restore_bundle(bundle: Any) -> Any:
     """A bundle whose history carries every civ row, as version 4 wrote it.
 
+    A version-6 file layout is decoded first (``chronicler.bundle_codec``).
     Version-4 bundles (and anything that is not a bundle) are returned as is.
     Otherwise a shallow copy is returned with ``history`` restored and
     ``pruned_civ_stats`` removed; metadata keeps the bundle version.
     """
+    bundle = decode_bundle(bundle)
     if not isinstance(bundle, dict) or PRUNED_CIV_STATS_KEY not in bundle:
         return bundle
     history = bundle.get("history")

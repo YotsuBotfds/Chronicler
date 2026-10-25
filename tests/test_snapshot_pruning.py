@@ -12,6 +12,7 @@ import json
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 from chronicler.snapshot_pruning import (
     PRUNED_BUNDLE_VERSION,
     SnapshotPruner,
@@ -248,7 +249,7 @@ def _run(tmp_path, monkeypatch, *, turns=75):
                               maritime=False, gp_agendas=False, nomads=False)
     with contextlib.redirect_stdout(io.StringIO()):
         execute_run(args, on_turn=lambda snap, *_: snapshots.append(snap.model_dump(mode="json")))
-    return snapshots, json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+    return snapshots, load_bundle(tmp_path / "chronicle_bundle.json")
 
 
 @pytest.fixture(scope="module")
@@ -258,9 +259,10 @@ def real_run(tmp_path_factory):
 
 
 class TestRealRun:
-    def test_bundle_is_version_5_and_prunes_the_dead(self, real_run):
+    def test_bundle_prunes_the_dead(self, real_run):
         in_memory, bundle = real_run
-        assert bundle["metadata"]["bundle_version"] == 5
+        # Pruning arrived in version 5; version 6 writes the pruned history as deltas.
+        assert bundle["metadata"]["bundle_version"] == 6
         segments = bundle["pruned_civ_stats"]["Thornwall Confederacy"]
         assert segments[0]["from_turn"] == 71
         # A civ without land earns nothing, so its pruned rows never change.

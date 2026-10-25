@@ -1,6 +1,7 @@
 # Chronicler Viewer
 
-Open a local legacy `chronicle_bundle.json` with **Open Existing**. Expand
+Open a local legacy `chronicle_bundle.json` with **Open Existing** (any bundle
+version; version 6 is decoded on load by `src/lib/bundleCodec.ts`). Expand
 **Inspect region history** to filter exported region observations and events by
 turn, region, and metric, with original-file identity and missing-data labels.
 See [the inspector guide](../docs/experiment-inspector.md) for evidence semantics,

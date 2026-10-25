@@ -7,6 +7,7 @@ import json
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.contact_ledger as cl
 import chronicler.techniques as T
 from chronicler import provenance as prov
@@ -621,7 +622,7 @@ def test_cli_flag_persists_and_bundle_carries_technique_history(tmp_path):
     execute_run(_cli_args(tmp_path, techniques=True, turns=30))
     state = json.loads((tmp_path / "state.json").read_text())
     assert "techniques" in state
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     assert all("techniques" in snap for snap in bundle["history"])
     assert set(bundle["history"][-1]["techniques"]) == {"known", "practised", "rows", "regions"}
     assert "techniques" in bundle["world_state"]

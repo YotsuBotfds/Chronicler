@@ -13,6 +13,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 
 def collect_rust_constants(agent_rs: Path) -> dict:
     """Extract all [CALIBRATE M53] tagged constants from agent.rs."""
@@ -63,8 +65,7 @@ def collect_python_constants(src_dir: Path) -> dict:
 
 def extract_bundle_metrics(bundle_path: Path) -> dict:
     """Extract key metrics from a single bundle."""
-    with open(bundle_path, encoding="utf-8") as f:
-        bundle = json.load(f)
+    bundle = load_bundle(bundle_path)
 
     metrics = {}
     ws = bundle.get("world_state", {})

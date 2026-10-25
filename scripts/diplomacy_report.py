@@ -24,6 +24,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 TREATY_KINDS = ("peace", "non_aggression", "alliance", "trade_pact", "tribute")
 
 
@@ -45,7 +47,7 @@ def run_numbers(run_dir: Path) -> dict:
     stage_turns: Counter = Counter()
     bundle_path = run_dir / "chronicle_bundle.json"
     if bundle_path.exists():
-        history = json.loads(bundle_path.read_text(encoding="utf-8")).get("history", [])
+        history = load_bundle(bundle_path).get("history", [])
         for snap in history:
             rels = snap.get("vassal_relations", [])
             subjects_per_turn += len(rels)

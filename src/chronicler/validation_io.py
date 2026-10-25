@@ -236,9 +236,10 @@ def _bundle_paths(batch_dir: Path) -> list[Path]:
 def _load_bundle(bundle_path: Path) -> dict:
     """Load a bundle with every civ row in its history.
 
-    Version-5 bundles leave dead civilizations out of the history snapshots;
-    the oracles measure over every civ row (dead civs' series included), so
-    the omitted rows are restored exactly (``snapshot_pruning.restore_bundle``).
+    Version-6 files are decoded (``bundle_codec``). Version-5 bundles leave
+    dead civilizations out of the history snapshots; the oracles measure over
+    every civ row (dead civs' series included), so the omitted rows are
+    restored exactly (``snapshot_pruning.restore_bundle`` does both).
     """
     try:
         return restore_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))

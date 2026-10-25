@@ -7,6 +7,7 @@ import math
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.finance as F
 from chronicler.accumulator import StatAccumulator
 from chronicler.action_engine import ActionEngine
@@ -526,7 +527,7 @@ def test_cli_flag_persists_and_bundle_carries_finance_history(tmp_path):
     execute_run(_cli_args(tmp_path, finance=True))
     state = json.loads((tmp_path / "state.json").read_text())
     assert "finance" in state
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     assert all("finance" in snap for snap in bundle["history"])
     row = next(iter(bundle["history"][-1]["finance"]["civs"].values()))
     assert {"debt", "price_index", "fiscal_stress", "defaults", "debasements"} <= set(row)

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.nomads as N
 from chronicler import provenance as prov
 from chronicler.action_engine import ActionEngine
@@ -792,7 +793,7 @@ def test_cli_flag_gate_forwarding_snapshot_analytics_and_report(tmp_path):
     execute_run(args)
     state = json.loads((out / "state.json").read_text())
     assert "nomads" in state
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert all("nomads" in h for h in bundle["history"])
     metrics = N.extract_nomad_metrics([bundle])
     assert metrics["runs"][0]["pastoral_civs_peak"] >= 1

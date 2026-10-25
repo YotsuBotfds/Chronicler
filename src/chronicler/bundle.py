@@ -1,14 +1,14 @@
 """Bundle assembly — writes chronicle_bundle.json for the viewer."""
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from chronicler.models import ChronicleEntry, GapSummary, TurnSnapshot, WorldState
-from chronicler.snapshot_pruning import PRUNED_BUNDLE_VERSION, PRUNED_CIV_STATS_KEY, prune_history
+from chronicler.bundle_codec import BUNDLE_VERSION, dumps_bundle
+from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, prune_history
 
 try:
     import pyarrow as pa
@@ -31,7 +31,11 @@ logger = logging.getLogger(__name__)
 # ``version``) and chronicle entries' optional ``accounts`` need no bump:
 # readers that do not know them ignore them. The same holds for the optional
 # ``languages`` field (in-world languages and names, its own ``version``).
-LEGACY_BUNDLE_VERSION = PRUNED_BUNDLE_VERSION
+# 6: the file writes the history as changes between snapshots
+# (``history_delta``) and does not repeat the timeline and named events inside
+# ``world_state`` (chronicler.bundle_codec). Decoded, it is the version-5
+# layout; assemble_bundle returns that layout and write_bundle encodes it.
+LEGACY_BUNDLE_VERSION = BUNDLE_VERSION
 
 
 def _strip_llm_fields(world_dict: dict) -> dict:
@@ -101,18 +105,16 @@ def assemble_bundle(
 
 def write_bundle(bundle: dict[str, Any], path: Path,
                   world: WorldState | None = None) -> None:
-    """Write assembled bundle to a JSON file.
+    """Write an assembled bundle to a JSON file, in the version-6 layout.
 
-    If *world* is provided and contains agent_events_raw, an Arrow IPC
-    sidecar file ``agent_events.arrow`` is written next to the JSON bundle.
+    Read it back with ``chronicler.bundle_codec.load_bundle``. If *world* is
+    provided and contains agent_events_raw, an Arrow IPC sidecar file
+    ``agent_events.arrow`` is written next to the JSON bundle.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Bundles are machine-consumed and timeline-heavy; compact encoding keeps
-    # the legacy single-file artifact within the current size budget.
-    path.write_text(
-        json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
+    # Bundles are machine-consumed and timeline-heavy; compact encoding and
+    # the snapshot deltas keep the single-file artifact within its size budget.
+    path.write_text(dumps_bundle(bundle), encoding="utf-8")
 
     if world is not None:
         write_agent_events_arrow(world, path.parent)

@@ -26,6 +26,8 @@ import argparse
 import json
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 SYSTEMS = ("epidemics", "finance", "diplomacy", "techniques", "maritime")
 #: Fields of the systems added to the viewer later (campaign, contact ledger,
 #: nomads, agendas) and the viewer-only food and migration fields.
@@ -160,7 +162,7 @@ def main() -> int:
     parser.add_argument("out", type=Path)
     parser.add_argument("--every", type=int, default=10, help="keep every N-th snapshot (default 10)")
     args = parser.parse_args()
-    bundle = json.loads(args.bundle.read_text(encoding="utf-8"))
+    bundle = load_bundle(args.bundle)
     missing = [s for s in SYSTEMS if not any(s in snap for snap in bundle["history"])]
     if missing:
         raise SystemExit(f"source bundle lacks {', '.join(missing)}: run it with every system on")

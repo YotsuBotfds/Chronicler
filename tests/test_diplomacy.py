@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.diplomacy as dp
 from chronicler import provenance as prov
 from chronicler.action_engine import ActionEngine
@@ -659,7 +660,7 @@ def test_cli_flag_persists_and_bundle_carries_diplomacy_history(tmp_path):
     execute_run(_cli_args(tmp_path, diplomacy=True, turns=20))
     state = json.loads((tmp_path / "state.json").read_text())
     assert "diplomacy" in state
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     assert all("diplomacy" in snap for snap in bundle["history"])
     assert set(bundle["history"][-1]["diplomacy"]) == {"treaties", "subjects", "top_grievances", "counts",
                                                        "pairs"}

@@ -14,6 +14,7 @@ from chronicler.interactive import VALID_STATS, CORE_STATS
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
+from chronicler.bundle_codec import decode_bundle
 from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, SnapshotPruner, restore_history
 
 _SUPPORTED_NARRATORS = {"local", "api", "gemini"}
@@ -41,6 +42,8 @@ def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
 
     if not isinstance(payload, dict):
         raise ValueError("Bundle must be a JSON object")
+    # Version 6 writes the history as deltas; the viewer and narration read it decoded.
+    payload = decode_bundle(payload)
     if "manifest_version" in payload and "layers" in payload:
         raise ValueError(
             "Bundle v2 manifests are not supported in live mode yet; load a legacy single-artifact bundle instead"

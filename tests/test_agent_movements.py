@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pyarrow as pa
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.agent_movements as M
 from chronicler.action_engine import ActionEngine
 from chronicler.agent_movements_state import (
@@ -900,7 +901,7 @@ def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
     execute_run(args(on, "--agent-movements"))
     state = json.loads((on / "state.json").read_text())
     assert state["agent_movements"]["movements"] == []   # nothing founds without agents
-    bundle = json.loads((on / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(on / "chronicle_bundle.json")
     assert all("agent_movements" in h for h in bundle["history"])
     from chronicler.analytics import generate_report
     assert generate_report(tmp_path)["agent_movements"]["runs"] == 1
@@ -1050,5 +1051,5 @@ def test_native_hybrid_run_founds_movements(tmp_path):
     world = WorldState.load(out / "state.json")
     assert world.agent_movements.counters["founded"] >= 1
     assert max(m.peak_members for m in world.agent_movements.movements) >= 3
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert any(h.get("agent_movements", {}).get("living") for h in bundle["history"])

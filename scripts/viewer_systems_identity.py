@@ -27,13 +27,15 @@ import json
 import sys
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 IGNORED_NAMES = frozenset({"run_manifest.json"})
 #: Snapshot fields added for the viewer panels and map layers.
 ADDED = ("food", "migration")
 
 
 def _bundle_bytes(path: Path, *, strip: bool, side: str) -> bytes:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_bundle(path)  # version 6: history as deltas, decoded here
     data.get("metadata", {}).pop("generated_at", None)
     for snap in data.get("history", []):
         for field in ADDED:
@@ -59,7 +61,7 @@ def compare(base: Path, new: Path, *, additive: bool) -> tuple[int, list[str]]:
             a = _bundle_bytes(base / rel, strip=False, side="base")
             b = _bundle_bytes(new / rel, strip=additive, side="new")
             if additive:
-                raw = json.loads((new / rel).read_text(encoding="utf-8"))
+                raw = load_bundle(new / rel)
                 stripped += sum(1 for s in raw.get("history", []) for f in ADDED if f in s)
         else:
             a, b = (base / rel).read_bytes(), (new / rel).read_bytes()
