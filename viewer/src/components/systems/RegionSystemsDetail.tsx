@@ -1,4 +1,5 @@
 import type { TurnSnapshot } from "../../types";
+import { faminesAt, sufficiencyByRegion, type FamineSpan } from "../../lib/food";
 import {
   formatShare, pathogenColor, pathogenLabel, regionOutbreaks, regionPractice, techniqueLabel,
 } from "../../lib/systems";
@@ -6,23 +7,73 @@ import {
 const PRACTICE_LIMIT = 6;
 
 /**
- * Per-region epidemic and technique state at the scrubbed snapshot, for the
- * shell's region inspector. Each block renders only when the snapshot carries
- * that system.
+ * Per-region food, war, epidemic and technique state at the scrubbed
+ * snapshot, for the shell's region inspector. Each block renders only when
+ * the bundle carries that system (food: the food field or recorded famines).
  */
-export function RegionSystemsDetail({ snapshot, region }: { snapshot: TurnSnapshot | null; region: string }) {
+export function RegionSystemsDetail({
+  snapshot,
+  region,
+  famine = [],
+  regionNames = [],
+}: {
+  snapshot: TurnSnapshot | null;
+  region: string;
+  /** Famine spans of the run (`lib/food.famineSpans`). */
+  famine?: FamineSpan[];
+  /** Region names in world order, to read the food field by index. */
+  regionNames?: string[];
+}) {
   const epidemics = snapshot?.epidemics;
   const techniques = snapshot?.techniques;
-  if (!epidemics && !techniques) {
+  const campaign = snapshot?.campaign;
+  const turn = snapshot?.turn ?? 0;
+  const span = faminesAt(famine.filter((entry) => entry.region === region), turn)[0] ?? null;
+  const sufficiency = snapshot?.food ? sufficiencyByRegion(snapshot, regionNames).get(region) : undefined;
+  const showFood = !!snapshot?.food || famine.length > 0;
+  if (!epidemics && !techniques && !campaign && !showFood) {
     return null;
   }
-  const turn = snapshot?.turn;
   const controller = snapshot?.region_control?.[region] ?? null;
   const outbreaks = regionOutbreaks(snapshot, region);
   const practice = regionPractice(snapshot, region);
+  const armies = campaign?.armies.filter((army) => army.region === region) ?? [];
+  const occupation = campaign?.occupations.find((entry) => entry.region === region) ?? null;
 
   return (
     <div className="systems-region-detail" aria-label={`Systems in ${region}`}>
+      {showFood && (
+        <div className="systems-region-block" aria-label={`Food in ${region}`}>
+          <div className="phase75-overline">Food · turn {turn}</div>
+          {snapshot?.food && (
+            <div className="phase75-stat-row">
+              <span>Food ÷ need</span>
+              <strong>{sufficiency === undefined ? "Not observed" : sufficiency.toFixed(2)}</strong>
+            </div>
+          )}
+          <div className="phase75-stat-row">
+            <span>Famine</span>
+            <strong>{span ? `Since turn ${span.start}` : "None"}</strong>
+          </div>
+        </div>
+      )}
+      {campaign && (armies.length > 0 || occupation) && (
+        <div className="systems-region-block" aria-label={`War in ${region}`}>
+          <div className="phase75-overline">War · turn {turn}</div>
+          {occupation && (
+            <div className="phase75-stat-row">
+              <span>Occupied by</span>
+              <strong>{occupation.occupier} since turn {occupation.since_turn}</strong>
+            </div>
+          )}
+          {armies.map((army) => (
+            <div key={army.id} className="phase75-mini-card">
+              <strong>{army.name}</strong>
+              <span>{army.soldiers} soldiers · {army.phase.replace(/_/g, " ")}{army.objective && army.objective !== region ? ` toward ${army.objective}` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {epidemics && (
         <div className="systems-region-block" aria-label={`Epidemics in ${region}`}>
           <div className="phase75-overline">Epidemics · turn {turn}</div>

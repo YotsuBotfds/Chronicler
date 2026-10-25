@@ -5,6 +5,7 @@ import type {
   Bundle,
   Command,
   Event,
+  LanguagesField,
   LobbyInit,
   NamedEvent,
   PauseContext,
@@ -27,9 +28,18 @@ import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
+import { LanguagesPanel } from "./LanguagesPanel";
+import { famineSpans, type FamineSpan } from "../../lib/food";
 import {
-  buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
+  availableMapLayers, buildMapLayer, defaultTechnique, MAP_LAYER_LABELS, NO_DATA_FILL, NO_DATA_OPACITY,
+  practisedTechniques, type MapLayerKey, type MapLayerView,
+} from "../../lib/mapLayers";
+import { techniqueLabel } from "../../lib/systems";
+import {
+  atlasPoint, buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius, turnToPercent,
+  type PinFrame,
 } from "./appShellHelpers";
+import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -392,19 +402,21 @@ function buildRunSignalSummary(summary: BatchRunSummary | null): string {
   return summary.signal_flags.join(" · ");
 }
 
-function computeAtlasLayout(regions: RegionLike[], controllers: Record<string, string | null>): MapNode[] {
+function computeAtlasLayout(
+  regions: RegionLike[],
+  controllers: Record<string, string | null>,
+  frame: PinFrame,
+): MapNode[] {
   if (regions.length === 0) {
     return [];
   }
 
   const hasPins = regions.some((region) => region.x !== null && region.y !== null);
   if (hasPins) {
-    const scale = pinScale(regions.flatMap((region) => [region.x, region.y]));
     return regions.map((region) => ({
       region,
       controller: controllers[region.name] ?? null,
-      x: 90 + ((region.x ?? 0.5 * scale) / scale) * 820,
-      y: 80 + ((region.y ?? 0.5 * scale) / scale) * 480,
+      ...atlasPoint(region.x ?? frame.x0 + frame.sx / 2, region.y ?? frame.y0 + frame.sy / 2, frame),
     }));
   }
 
@@ -651,8 +663,11 @@ export function AppShell({
   const [leftRailTabSelection, setLeftRailTabSelection] = useState<LeftRailTab>("launch");
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   const [activeOverlays, setActiveOverlays] = useState<OverlayKey[]>(["borders", "settlements", "chronicle"]);
+  const [mapLayerSelection, setMapLayerSelection] = useState<MapLayerKey>("control");
+  const [techniqueSelection, setTechniqueSelection] = useState<string | null>(null);
   const [inspectorSections, setInspectorSections] = useState<Record<string, boolean>>({
     selection: true,
+    languages: true,
     metrics: true,
     network: true,
     signals: true,
@@ -682,6 +697,8 @@ export function AppShell({
     setNarrativeModel(primaryModel);
   });
   const syncOverlayPreset = useEffectEvent(() => {
+    // The campaign surface opens on the war layer (when the bundle has it); the others on control.
+    setMapLayerSelection(surface === "campaign" ? "wars" : "control");
     if (surface === "trade") {
       setActiveOverlays(["borders", "settlements", "trade"]);
     } else if (surface === "campaign") {
@@ -733,7 +750,23 @@ export function AppShell({
   const atlasRegions: RegionLike[] = bundle
     ? bundle.world_state.regions
     : previewRegions;
-  const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers);
+  // Fit the atlas to the region pins (and procedural sea zones, drawn on the sea layer).
+  const atlasFrame = pinFrame([
+    ...atlasRegions.filter((region) => region.x !== null && region.y !== null),
+    ...(bundle?.world_state.geography?.sea_zones ?? []),
+  ]);
+  const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers, atlasFrame);
+  const mapLayers = useMemo(() => availableMapLayers(bundle), [bundle]);
+  const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
+  const famine = useMemo(() => (bundle ? famineSpans(bundle.events_timeline) : []), [bundle]);
+  const regionNames = useMemo(() => (bundle ? bundle.world_state.regions.map((region) => region.name) : []), [bundle]);
+  const techniqueOptions = useMemo(() => (bundle ? practisedTechniques(bundle.history) : []), [bundle]);
+  const technique = techniqueSelection && techniqueOptions.includes(techniqueSelection)
+    ? techniqueSelection
+    : (mapLayer === "techniques" ? defaultTechnique(currentSnapshot, techniqueOptions) : null);
+  const mapLayerView = bundle
+    ? buildMapLayer(mapLayer, { bundle, snapshot: currentSnapshot, famine, technique })
+    : null;
   const atlasConnections = buildRegionConnections(atlasNodes);
   const controllerCentroids = computeControllerCentroids(atlasNodes);
   const worldRelationships = bundle?.world_state.relationships ?? null;
@@ -929,6 +962,21 @@ export function AppShell({
     [historiography],
   );
   const selectedEventAccounts = accountsForEvent(historiography, selectedEvent?.event_id, accountRows);
+  // The pinned region or civ by index, for the languages panel's names.
+  const languageSelection = useMemo(() => {
+    if (!bundle?.languages || !selectedEntity) {
+      return null;
+    }
+    if (selectedEntity.kind === "region") {
+      const ref = bundle.world_state.regions.findIndex((region) => region.name === selectedEntity.id);
+      return ref >= 0 ? { kind: "region" as const, ref } : null;
+    }
+    if (selectedEntity.kind === "civilization") {
+      const ref = bundle.world_state.civilizations.findIndex((civ) => civ.name === selectedEntity.id);
+      return ref >= 0 ? { kind: "civ" as const, ref } : null;
+    }
+    return null;
+  }, [bundle, selectedEntity]);
 
   const viewerReady = bundle !== null;
   const canActivateSurface = (candidate: AppSurface): boolean => {
@@ -1085,6 +1133,14 @@ export function AppShell({
           controllerCentroids={controllerCentroids}
           activeOverlays={activeOverlays}
           onToggleOverlay={toggleOverlay}
+          mapLayers={mapLayers}
+          mapLayer={mapLayer}
+          onMapLayerChange={setMapLayerSelection}
+          mapLayerView={mapLayerView}
+          toAtlas={(x, y) => atlasPoint(x, y, atlasFrame)}
+          techniqueOptions={techniqueOptions}
+          technique={technique}
+          onTechniqueChange={setTechniqueSelection}
           civilizations={civilizations}
           tradeLinks={tradeLinks}
           campaignLinks={campaignLinks}
@@ -1110,6 +1166,9 @@ export function AppShell({
           selectedEvent={selectedEvent}
           selectedEventProvenance={selectedEventProvenance}
           selectedEventAccounts={selectedEventAccounts}
+          languages={bundle?.languages}
+          languageSelection={languageSelection}
+          currentTurn={currentTurn}
           selectedBatchSummary={selectedBatchSummary}
           civilizations={civilizations}
           previewCivilizations={previewCivilizations}
@@ -1131,6 +1190,8 @@ export function AppShell({
             livePaused: livePaused ?? false,
           }}
           currentSnapshot={currentSnapshot}
+          famine={famine}
+          regionNames={regionNames}
         />
       </div>
 
@@ -1962,6 +2023,14 @@ function MapViewport({
   controllerCentroids,
   activeOverlays,
   onToggleOverlay,
+  mapLayers = ["control"],
+  mapLayer = "control",
+  onMapLayerChange,
+  mapLayerView = null,
+  toAtlas,
+  techniqueOptions = [],
+  technique = null,
+  onTechniqueChange,
   civilizations,
   tradeLinks,
   campaignLinks,
@@ -1984,6 +2053,14 @@ function MapViewport({
   controllerCentroids: Record<string, { x: number; y: number }>;
   activeOverlays: OverlayKey[];
   onToggleOverlay: (overlay: OverlayKey) => void;
+  mapLayers?: MapLayerKey[];
+  mapLayer?: MapLayerKey;
+  onMapLayerChange?: (layer: MapLayerKey) => void;
+  mapLayerView?: MapLayerView | null;
+  toAtlas?: (x: number, y: number) => { x: number; y: number };
+  techniqueOptions?: string[];
+  technique?: string | null;
+  onTechniqueChange?: (technique: string) => void;
   civilizations: CivilizationView[];
   tradeLinks: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; strength: number }>;
   campaignLinks: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; disposition: string }>;
@@ -2001,6 +2078,21 @@ function MapViewport({
   batchProgress: { completed: number; total: number; currentSeed: number } | null;
 }) {
   const maxCapacity = Math.max(0, ...atlasNodes.map((node) => node.region.carrying_capacity ?? 0));
+  const nodeRadius = (node: MapNode) => regionNodeRadius(node.region.carrying_capacity, maxCapacity, atlasNodes.length);
+  const placedNodes = mapLayerView
+    ? atlasNodes.map((node) => ({ name: node.region.name, x: node.x, y: node.y, r: nodeRadius(node) }))
+    : [];
+  const layerFill = (node: MapNode): { fill: string; opacity: number } => {
+    const control = node.controller ? factionColor(node.controller) : UNCONTROLLED_COLOR;
+    if (!mapLayerView) {
+      return { fill: control, opacity: 1 };
+    }
+    const fill = mapLayerView.fills.get(node.region.name);
+    if (fill) {
+      return { fill, opacity: mapLayerView.opacity.get(node.region.name) ?? 1 };
+    }
+    return mapLayerView.dimControl ? { fill: control, opacity: 0.32 } : { fill: NO_DATA_FILL, opacity: NO_DATA_OPACITY };
+  };
   const highlightedEventRegions = new Set(
     namedEvents
       .filter((event) => event.region)
@@ -2046,6 +2138,36 @@ function MapViewport({
           ))}
         </div>
       </div>
+
+      {viewerReady && mapLayers.length > 1 && onMapLayerChange && (
+        <div className="phase75-layer-bar phase75-panel">
+          <span className="phase75-overline">Map layer</span>
+          <div className="phase75-overlay-chips" role="radiogroup" aria-label="Map layer">
+            {mapLayers.map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={mapLayer === key}
+                className={`phase75-layer-chip${mapLayer === key ? " active" : ""}`}
+                onClick={() => onMapLayerChange(key)}
+              >
+                {MAP_LAYER_LABELS[key]}
+              </button>
+            ))}
+          </div>
+          {mapLayer === "techniques" && techniqueOptions.length > 0 && onTechniqueChange && (
+            <label className="phase75-layer-select">
+              <span>Technique</span>
+              <select value={technique ?? ""} onChange={(event) => onTechniqueChange(event.target.value)}>
+                {techniqueOptions.map((key) => (
+                  <option key={key} value={key}>{techniqueLabel(key)}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       <div className="phase75-map-stage phase75-panel">
         <div className="phase75-map-overlay-copy">
@@ -2137,8 +2259,8 @@ function MapViewport({
 
             {atlasNodes.map((node) => {
               const isSelected = selectedEntity?.kind === "region" && selectedEntity.id === node.region.name;
-              const fill = node.controller ? factionColor(node.controller) : UNCONTROLLED_COLOR;
-              const radius = regionNodeRadius(node.region.carrying_capacity, maxCapacity, atlasNodes.length);
+              const { fill, opacity } = layerFill(node);
+              const radius = nodeRadius(node);
               return (
                 <g key={node.region.name}>
                   <circle
@@ -2147,28 +2269,37 @@ function MapViewport({
                     cy={node.y}
                     r={radius}
                     fill={fill}
+                    fillOpacity={opacity === 1 ? undefined : opacity}
                     onClick={() => onSelectEntity({
                       kind: "region",
                       id: node.region.name,
                       label: node.region.name,
                     })}
-                  />
+                  >
+                    {mapLayerView && <title>{mapLayerView.titles.get(node.region.name) ?? node.region.name}</title>}
+                  </circle>
                   {activeOverlays.includes("settlements") && (
                     <text className="phase75-region-label" x={node.x} y={node.y + radius + 14}>
                       {node.region.name}
                     </text>
                   )}
-                  {activeOverlays.includes("chronicle") && highlightedEventRegions.has(node.region.name) && (
+                  {/* Named-event markers would read as a data layer's marks, so a layer hides them. */}
+                  {activeOverlays.includes("chronicle") && !mapLayerView && highlightedEventRegions.has(node.region.name) && (
                     <circle className="phase75-event-marker" cx={node.x + radius - 2} cy={node.y - radius + 2} r={7} />
                   )}
                 </g>
               );
             })}
 
-            {activeOverlays.includes("fog") && (
+            {mapLayerView && toAtlas && <MapLayerMarks view={mapLayerView} nodes={placedNodes} toAtlas={toAtlas} />}
+
+            {/* The fog mask is decorative; it never covers a data layer. */}
+            {activeOverlays.includes("fog") && !mapLayerView && (
               <path className="phase75-fog-mask" d="M 664 112 L 962 164 L 962 612 L 612 612 L 566 288 Z" />
             )}
           </svg>
+
+          {mapLayerView && <MapLayerLegend items={mapLayerView.legend} note={mapLayerView.note} />}
 
           {bundleLoading && (
             <div className="phase75-map-loading">Loading bundle...</div>
@@ -2229,6 +2360,9 @@ function RightInspector({
   selectedEvent,
   selectedEventProvenance,
   selectedEventAccounts = null,
+  languages,
+  languageSelection = null,
+  currentTurn = 0,
   selectedBatchSummary,
   civilizations,
   previewCivilizations,
@@ -2245,6 +2379,8 @@ function RightInspector({
   viewerReady,
   liveState,
   currentSnapshot = null,
+  famine = [],
+  regionNames = [],
 }: {
   surface: AppSurface;
   selection: SelectedEntity | null;
@@ -2253,6 +2389,9 @@ function RightInspector({
   selectedEvent: Event | null;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
+  languages?: LanguagesField;
+  languageSelection?: { kind: "region" | "civ"; ref: number } | null;
+  currentTurn?: number;
   selectedBatchSummary: BatchRunSummary | null;
   civilizations: CivilizationView[];
   previewCivilizations: Array<{ name: string; values: string[] }>;
@@ -2274,6 +2413,8 @@ function RightInspector({
     livePaused: boolean;
   };
   currentSnapshot?: TurnSnapshot | null;
+  famine?: FamineSpan[];
+  regionNames?: string[];
 }) {
   return (
     <aside className="phase75-right-rail phase75-panel">
@@ -2367,7 +2508,12 @@ function RightInspector({
                   <span>Resources</span>
                   <strong>{selectedRegion.resources ?? "Unknown"}</strong>
                 </div>
-                <RegionSystemsDetail snapshot={currentSnapshot} region={selectedRegion.name} />
+                <RegionSystemsDetail
+                  snapshot={currentSnapshot}
+                  region={selectedRegion.name}
+                  famine={famine}
+                  regionNames={regionNames}
+                />
               </>
             )}
 
@@ -2438,6 +2584,16 @@ function RightInspector({
           </>
         )}
       </InspectorSection>
+
+      {languages && surface !== "setup" && surface !== "batch" && (
+        <InspectorSection
+          title="Languages"
+          open={inspectorSections.languages}
+          onToggle={() => onToggleSection("languages")}
+        >
+          <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+        </InspectorSection>
+      )}
 
       <InspectorSection
         title={surface === "batch" ? "Report Health" : "Metrics"}

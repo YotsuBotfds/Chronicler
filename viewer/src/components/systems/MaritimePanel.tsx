@@ -60,8 +60,8 @@ export function MaritimePanel({
       <section className="systems-section">
         <h3>Sea-zone control</h3>
         <p className="systems-note">
-          The map has no sea geometry, so zones are listed here. A bar is a zone controlled by one civilization (its
-          colour) or contested; uncontested turns are blank; the red line under a row marks a blockade.
+          A bar is a zone controlled by one civilization (its colour) or contested; uncontested turns are blank; the
+          red line under a row marks a blockade. The map&apos;s Sea layer draws the zones and their ports.
         </p>
         <StripLegend items={[
           ...controllers.map((civ) => ({ label: civ, color: factionColor(civ) })),

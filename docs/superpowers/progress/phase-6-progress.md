@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn)
+> **Last updated:** 2026-10-25 (`integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
 
@@ -57,6 +57,110 @@ HARD constant justification: `docs/integration/healthy-migration.md`.
   labelling it needs a driver on migration events (own review).
 
 ---
+
+## Viewer: systems tabs and map layers (2026-10-25, `feat/viewer-systems`)
+
+`feat/viewer-systems` from `origin/main` (`6e6fae6`), no rebase. An audit
+of every system against the bundle and the viewer (table in
+[`docs/integration/viewer-systems.md`](../../integration/viewer-systems.md)),
+then the gaps a reader of a run meets first:
+
+- **Tabs** in the systems panel for Wars (campaign layer), Food (famine
+  spans, hunger over time, hungry regions, relief), Nomads, Agendas,
+  Governance and Contact, next to the first five.
+- **Map layers**, one at a time with a legend: Food, Epidemics, Wars,
+  Migration, Techniques, Sea. The atlas fits the pins' bounds; the region
+  inspector gains food and war blocks.
+- **Two viewer-only snapshot fields**, written only in agent modes:
+  `food` (per-region sufficiency mutual aid observed, relief convoys) and
+  `migration` (the turn's agent moves by region pair). No simulation change.
+- **Identity** (`scripts/viewer_systems_identity.py`, base `6e6fae6`): the
+  bundle-size guard world, agents off, 500 turns: 10 files, 0 differences
+  (`compare`). Five hybrid runs (guard world 300 turns; procedural 48x10
+  and template 10x5, all on, 200 turns; template and procedural defaults,
+  150 turns): every file identical once the two fields are removed
+  (`compare-additive`, 62 files, 0 differences).
+- **Bundle size:** the guard bundle is unchanged (18,519,396 bytes, 17.66 MB
+  native; the no-Rust guard cannot change, not re-measured). Hybrid runs
+  grow 0.27-0.37% (guard world 300 turns +33.8 KB).
+- **Tests** (Linux, Python 3.13, fresh native build):
+  - `pytest -m "not slow" -n 2`: 5,946 passed, 3 skipped (+7 in
+    `tests/test_viewer_snapshot_fields.py`).
+  - `pytest -m slow -n 2`: 11 passed, 3 skipped.
+  - No-Rust lane (slow included): 5,743 passed, 206 skipped.
+  - Oracle lane (the new file in `systems-2`): 1,948 passed, 12 skipped,
+    guard PASS, 77.0 s (largest chunk 26.0 s).
+  - Viewer: 262 tests (+33), lint, build (existing large-chunk warning).
+  - Browser: headless Chromium on the production build with the audit
+    bundles, every new tab and layer, no console errors.
+- **Open:**
+  - Per-turn region population, fish stocks, merchant food deliveries and
+    per-region herds are not in the snapshot.
+  - Elevation, moisture and real adjacency are not drawn.
+  - Hashed faction colours can collide.
+  - The full 200-seed gate was not run (the simulation is unchanged).
+
+## In-world languages and names (2026-10-25, `feat/languages`)
+
+`feat/languages` from `origin/main` (`baabafb`, Wave 6), no rebase. It adds
+an observational layer modelled on the historiography. Each founding
+culture group gets a proto-language (sound inventory, syllable templates,
+phonotactics, a 78-morpheme naming lexicon); founding civs that share a
+style are sister languages of a reconstructed proto. Languages undergo a
+regular sound change every 25-55 turns (lenition, umlaut, apocope,
+syncope, cluster simplification, mergers, ...), recorded per word.
+Daughters branch on secession (detected from regions' previous rulers)
+and after a century of separation (exclaves; conquered provinces that keep
+their language). Changes spread between related languages in contact.
+Contact-ledger flows bring loanwords by channel (trade, migrants,
+soldiers, pilgrims) and exonyms (borrowed self-names or descriptive
+names). Civs, regions, settlements, faiths, rulers and great persons get
+names in the languages that know them; a conqueror takes over the local
+name, and a people that shifts language keeps its old name adapted
+(substrate). Canonical names stay the identifiers: nothing is renamed.
+Narration gains an IN-WORLD NAMES prompt block, an "In their own tongues"
+mechanical gloss, and historiography accounts told in their chroniclers'
+own names; the viewer a Languages inspector (glossary, family tree,
+etymology). `--languages` is **on for new worlds** (`--no-languages`
+opts out); state lives in a `state.languages.json` sidecar. No Rust
+change. Evidence: `docs/integration/languages.md`.
+
+- **Identity** (`scripts/languages_identity.py`, base `baabafb` exported):
+  - Template seeds 42/7/1234 (off 300, hybrid 200) and procedural 48x10
+    seed 7 (off 200, hybrid 120), `--no-languages`: 80 files, 0 differences.
+  - Default (on): the same 80 files identical apart from narration
+    (8 `chronicle.md`, bundles identical apart from `languages` and the
+    entries' prose; historiography sidecar and field identical), plus 8
+    sidecars.
+  - Subset gates (20 x 200 hybrid, `--parallel 1`) base / off / on: all
+    PASS, 2,184 files identical, validation reports and gate decisions
+    identical (batch path normalized).
+  - Frozen exact-trajectory oracles hold with the layer on; a CLI resume
+    (150 + 150 turns) equals the straight run.
+- **Default on, justified as narration-only:** about 4% run time on the
+  500-turn guard world, +1.4% bundle on the subset, 135 KB sidecar per
+  200-turn run. The frozen benchmark workloads pin it off.
+- **Tests:**
+  - `pytest -m "not slow" -n 2` (fresh native build): 5,939 passed, 3
+    skipped (34 in `tests/test_languages.py`).
+  - `pytest -m slow -n 2`: 11 passed, 3 skipped.
+  - No-Rust lane (slow included): 5,737 passed, 205 skipped.
+  - Oracle lane (`tests/test_languages.py` in `systems-2`): 1,942 passed,
+    11 skipped, 2 deselected, guard PASS, 79.5 s.
+  - Viewer: 229 tests (+10), lint, build.
+  - Bundle guard unchanged at 24 MB: 17.66 MB native, 18.28 MB no-Rust
+    (field 0.20 / 0.21 MB).
+- **Open:**
+  - Separation dialects are mostly exclaves of template civs whose founding
+    regions are not adjacent (about one per 200-turn run).
+  - Substrate names at conquest are rare: conquerors usually know the land
+    by loan already.
+  - Persons' names are adapted, not translated; no morphology beyond
+    compounding; rivers and seas are not named.
+  - The per-turn local narrator prompt does not use the names.
+  - Live-mode resume (from a client-sent state dict) starts without
+    languages.
+  - The full 200-seed gate was not run (the simulation is unchanged).
 
 ## Food logistics (2026-10-24, `fix/food-logistics`)
 

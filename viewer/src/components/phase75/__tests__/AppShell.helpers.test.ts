@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinScale, regionNodeRadius, turnToPercent,
+  atlasPoint, buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius, turnToPercent,
 } from "../appShellHelpers";
 
 describe("AppShell helpers", () => {
@@ -37,11 +37,19 @@ describe("AppShell helpers", () => {
     expect(percentToTurn(1, 10)).toBe(10);
   });
 
-  it("scales generated 0-100 map pins and leaves 0-1 pins alone", () => {
-    expect(pinScale([12.5, 99.1, null, 40])).toBe(100);
-    expect(pinScale([0.2, 0.9, undefined])).toBe(1);
-    expect(pinScale([])).toBe(1);
-    expect(pinScale([150, 20])).toBe(150);
+  it("fits the atlas to the pins' bounds, whatever their coordinate range", () => {
+    const generated = pinFrame([{ x: 18, y: 13 }, { x: 91, y: 90 }, { x: null, y: 40 }, { x: 50, y: 50 }]);
+    expect(generated).toEqual({ x0: 18, y0: 13, sx: 73, sy: 77 });
+    expect(atlasPoint(18, 13, generated)).toEqual({ x: 90, y: 80 });
+    expect(atlasPoint(91, 90, generated)).toEqual({ x: 910, y: 560 });
+    // Hand-made 0-1 pins land on the same canvas as 0-100 pins.
+    const demo = pinFrame([{ x: 0.18, y: 0.13 }, { x: 0.91, y: 0.9 }]);
+    expect(atlasPoint(0.91, 0.9, demo).x).toBeCloseTo(910);
+    expect(pinFrame([])).toEqual({ x0: 0, y0: 0, sx: 1, sy: 1 });
+    // One pin sits in the middle of the canvas.
+    const single = atlasPoint(5, 5, pinFrame([{ x: 5, y: 5 }]));
+    expect(single.x).toBeCloseTo(500);
+    expect(single.y).toBeCloseTo(320);
   });
 
   it("sizes region nodes by relative capacity under a density ceiling", () => {

@@ -194,6 +194,39 @@ export interface CivSnapshot {
   last_action?: string | null;
   war_weariness?: number;
   peace_momentum?: number;
+  /** Governance runtime stats; present only while governance is on. */
+  governance?: GovernanceSnapshot;
+}
+
+/** `civ_stats[civ].governance` (`governance_runtime.governance_snapshot`). */
+export interface GovernanceSnapshot {
+  institutions: string[];
+  institution_legitimacy: number[];
+  funding_ratio: number;
+  enforcement_cost: number;
+  ruler_legitimacy: number;
+  political_capital: number;
+  legitimacy_sources: Record<string, number>;
+  reign_id: string | null;
+  ambitions: Array<{ type: string; target: string | null; deadline: number; status: string }>;
+  elite_positions: number;
+  elite_qualifiers: number;
+  office_holders: number;
+  frustrated_aspirants: number;
+  consumption_index: number;
+  mmp: number;
+  emp: number;
+  sfd: number;
+  /** Political stress index (Turchin-style; higher is more unrest). */
+  psi: number;
+  psi_crisis: boolean;
+  institutional_regime: string;
+  cycle_phase: string;
+  government_form: string;
+  selectorate_ratio: number;
+  revolts_total: number;
+  civil_wars_total: number;
+  secession_suppressions: number;
 }
 
 export interface RelationshipSnapshot {
@@ -245,7 +278,86 @@ export interface TurnSnapshot {
   techniques?: TechniquesSnapshot;
   /** Fleets, sea zones and blockades; present only with --maritime. */
   maritime?: MaritimeSnapshot;
+  /** Contact and trade-flow ledger summary; present only with the contact ledger. */
+  contact?: ContactSnapshot;
+  /** Great-person agendas; present only with --gp-agendas. */
+  gp_agendas?: GpAgendasSnapshot;
+  /** Subsistence modes, herds, tribute and hordes; present only with --nomads. */
+  nomads?: NomadsSnapshot;
+  /**
+   * Regional food sufficiency and relief convoys of the completed turn;
+   * present only when mutual aid runs on an agent-backed economy (bundles
+   * written after the viewer map layers).
+   */
+  food?: FoodSnapshot;
+  /**
+   * Agent migrations of the completed turn as [from region index, to region
+   * index, agents]; present only in hybrid and shadow runs written after the
+   * viewer map layers.
+   */
+  migration?: MigrationFlow[];
 }
+
+export interface ContactTradePair {
+  a: string;
+  b: string;
+  trade: number;
+  /** How much of a's trade goes through b (0-1), and the reverse. */
+  dependence_ab: number;
+  dependence_ba: number;
+}
+
+export interface ContactSnapshot {
+  edges: number;
+  contact_pairs: number;
+  trade_pairs: number;
+  /** Flow added this turn per channel (trade, people, soldiers, pilgrims). */
+  inflow: Record<string, number>;
+  /** Decayed stock per channel. */
+  stock: Record<string, number>;
+  top_trade_pairs: ContactTradePair[];
+}
+
+export interface GpAgenda {
+  gp: string;
+  /** general, merchant, prophet or scientist. */
+  role: string;
+  /** Civilization index in `world_state.civilizations`. */
+  civ: number;
+  kind: string;
+  /** Civ index (trade routes), region name, technique key, era or null, by kind. */
+  target: string | null;
+  deadline: number;
+  renown: number;
+}
+
+export interface GpAgendasSnapshot {
+  open: GpAgenda[];
+  bonds: Record<string, number>;
+  /** Running totals: declared, fulfilled, failed, coups, coups_failed. */
+  totals: Record<string, number>;
+}
+
+export interface NomadsSnapshot {
+  /** Living civilization -> sedentary, agro_pastoral or nomadic. */
+  modes: Record<string, string>;
+  /** Civilization -> herd head on the regions it controls. */
+  herds: Record<string, number>;
+  herd_total: number;
+  tributes: Array<{ payer: string; recipient: string; amount: number }>;
+  hordes: Array<{ name: string; khan: string; members: string[] }>;
+  counters: Record<string, number>;
+}
+
+export interface FoodSnapshot {
+  /** Per region index: food on hand over need (0-2), null where not observed. */
+  sufficiency: Array<number | null>;
+  /** Relief convoys: [donor region index, recipient region index, food delivered]. */
+  aid: Array<[number, number, number]>;
+}
+
+/** [from region index, to region index, agents]. */
+export type MigrationFlow = [number, number, number];
 
 // --- Default-off simulation systems (history[n].<field>) ---
 // Shapes follow each system's snapshot_summary() in src/chronicler/. Every
@@ -474,6 +586,14 @@ export interface WorldState {
   scenario_name: string | null;
   /** Final maritime state (present only with --maritime); the viewer reads zone ports. */
   maritime?: { zones?: Array<{ name: string; kind?: string; ports?: number[] }> } | null;
+  /**
+   * Procedural geography (absent on template worlds); the viewer reads the
+   * sea zones' map positions, in the regions' coordinate space.
+   */
+  geography?: {
+    generator?: string;
+    sea_zones?: Array<{ name: string; kind?: string; x?: number; y?: number; coastal_regions?: string[] }>;
+  } | null;
 }
 
 // --- Bundle ---
@@ -508,6 +628,8 @@ export interface Bundle {
   metadata: BundleMetadata;
   /** In-world chroniclers' accounts (runs with historiography on; absent otherwise). */
   historiography?: HistoriographyField;
+  /** In-world languages and names (runs with languages on; absent otherwise). */
+  languages?: LanguagesField;
 }
 
 // --- Live mode types ---
@@ -677,6 +799,60 @@ export interface HistoriographyField {
   /** chronicler id -> event ids it told plainly (no transformation, uncontested). */
   plain: Record<string, string[]>;
   contested: HistoriographyContested[];
+}
+
+// --- In-world languages and names (optional bundle field; docs/integration/languages.md) ---
+
+/** A sound change: [turn, rule id, description, words changed, spread from (language id) or null, prehistoric]. */
+export type LanguageChange = [number, string, string, number, number | null, boolean];
+
+export interface LanguageInfo {
+  id: number;
+  name: string; // "Kethani", "Proto-Highland", "Iron Peaks Kethani"
+  parent: number | null;
+  family: number;
+  origin: "proto" | "founding" | "prehistory" | "secession" | "separation" | string;
+  turn: number;
+  status: "living" | "extinct" | "reconstructed" | string;
+  last_spoken: number | null;
+  style: string;
+  civs: number[];
+  native: string | null; // its speakers' name for themselves
+  phonology: {
+    consonants: string;
+    vowels: string;
+    onsets: string[];
+    finals: string;
+    syllables: string[];
+    order: "mh" | "hm" | string;
+    join: string;
+    stress: string;
+  };
+  changes: LanguageChange[];
+}
+
+/** One row of ``words``, in the order named by ``word_columns``. */
+export type LanguageWordRow = unknown[];
+
+export interface LanguagesField {
+  version: number;
+  enabled_turn: number;
+  counts: Record<string, number>;
+  languages: LanguageInfo[];
+  word_columns: string[];
+  words: LanguageWordRow[];
+  /** civ index -> [[turn, language id], ...] */
+  civs: Array<{ civ: number; name: string | null; lang: Array<[number, number]> }>;
+  /** region index -> speech history and story ([turn, kind, civ index or language id]). */
+  regions: Array<{
+    region: number;
+    name: string | null;
+    speech: Array<[number, number]>;
+    story: Array<[number, string, number]>;
+  }>;
+  settlements: Array<{ id: number; name: string; region: number }>;
+  faiths: Array<{ faith: number; name: string; civ: number }>;
+  persons: Array<{ key: string; name: string; civ: number; role: string }>;
 }
 
 export interface GapSummary {

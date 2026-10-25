@@ -57,7 +57,8 @@ threshold; see [Supplementary seed sets](#supplementary-seed-sets-not-the-gates-
   every agent mode's goods economy). One food hook was the constraint; a
   second, off-mode-only hook would be needed.
 * *Viewer panels.* `history[n].nomads` is in the bundle; the viewer does not
-  display it.
+  display it. (Since added on `feat/viewer-systems` as a Nomads tab, with raids
+  on the Wars map layer: see [viewer-systems.md](viewer-systems.md).)
 
 ## Turn placement
 
@@ -593,4 +594,4 @@ ways (`251:secession:0`, `254:secession:0`).
   through a slow asabiya decline.
 * Nomads seldom release land (the loose-hold rule fired 0 times in the
   procedural runs).
-* No viewer panels.
+* No viewer panels (since added: [viewer-systems.md](viewer-systems.md)).

@@ -2,29 +2,42 @@ import { useMemo, useState } from "react";
 import {
   preferredSystem, presentSystems, SYSTEM_LABELS, type SystemKey, type SystemPanelProps,
 } from "../../lib/systems";
+import { AgendasPanel } from "./AgendasPanel";
+import { ContactPanel } from "./ContactPanel";
 import { DiplomacyPanel } from "./DiplomacyPanel";
 import { EpidemicsPanel } from "./EpidemicsPanel";
 import { FinancePanel } from "./FinancePanel";
+import { FoodPanel } from "./FoodPanel";
+import { GovernancePanel } from "./GovernancePanel";
 import { MaritimePanel } from "./MaritimePanel";
+import { NomadsPanel } from "./NomadsPanel";
 import { TechniquesPanel } from "./TechniquesPanel";
+import { WarsPanel } from "./WarsPanel";
 import "./systems.css";
 
 const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement> = {
   epidemics: EpidemicsPanel,
+  food: FoodPanel,
+  wars: WarsPanel,
   finance: FinancePanel,
   diplomacy: DiplomacyPanel,
   techniques: TechniquesPanel,
   maritime: MaritimePanel,
+  nomads: NomadsPanel,
+  agendas: AgendasPanel,
+  governance: GovernancePanel,
+  contact: ContactPanel,
 };
 
 /**
- * Panels for the default-off systems a bundle records. Renders nothing for a
+ * One tab per simulation system the bundle records. Renders nothing for a
  * bundle without any of them, so older bundles and runs with every system off
  * look exactly as before.
  */
 export function SystemsPanel(props: SystemPanelProps & { surface: string }) {
   const { bundle, surface, ...panelProps } = props;
-  const present = useMemo(() => presentSystems(bundle.history), [bundle.history]);
+  const present = useMemo(
+    () => presentSystems(bundle.history, bundle.events_timeline), [bundle.history, bundle.events_timeline]);
   const [chosen, setChosen] = useState<SystemKey | null>(null);
   if (present.length === 0) {
     return null;
@@ -37,7 +50,7 @@ export function SystemsPanel(props: SystemPanelProps & { surface: string }) {
       <header className="systems-header">
         <div>
           <div className="phase75-overline">Simulation systems</div>
-          <h2>Default-off systems recorded in this run</h2>
+          <h2>Systems recorded in this run</h2>
           <p>Values are the bundle&apos;s own per-turn records at the scrubbed turn; selecting an event pins it in the inspector.</p>
         </div>
         <div className="phase75-rail-tabs systems-tabs" role="tablist" aria-label="Simulation systems">

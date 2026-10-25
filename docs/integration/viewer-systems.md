@@ -1,164 +1,199 @@
-# Viewer panels for the default-off systems
+# Viewer panels and map layers for the simulation systems
 
-Branch `feat/viewer-systems`, based on `integrate/wave-4` at `1a6cacb`
-(epidemiology, money and credit, diplomacy, techniques and the maritime
-layer, all default off, plus causal provenance). Code: `viewer/src/lib/systems.ts`
-(read-only helpers), `viewer/src/components/systems/` (panels), two additive
-snapshot fields in `src/chronicler/diplomacy.py` and `src/chronicler/techniques.py`.
+Two rounds on branch `feat/viewer-systems`:
 
-The production viewer (the phase 7.5 `AppShell`) now shows each system when a
-bundle records it, and nothing new when it does not: a bundle without any
-`history[n].epidemics`, `.finance`, `.diplomacy`, `.techniques` or `.maritime`
-renders pixel-identically to the base viewer (see [Evidence](#evidence)).
-The synthetic demonstration pages are unchanged.
+1. From `integrate/wave-4` (`1a6cacb`, merged as `893ec1c`): panels for
+   epidemiology, money and credit, diplomacy, techniques and the maritime
+   layer, plus two additive snapshot fields (`diplomacy.pairs`,
+   `techniques.regions`). Details under [First round](#first-round).
+2. From `main` `6e6fae6` (Wave 6 and languages): an audit of every system
+   against the bundle and the viewer, panels for the systems that had none
+   (campaign warfare, food, nomads, great-person agendas, governance, the
+   contact ledger), thematic map layers, and two viewer-only snapshot fields
+   (`food`, `migration`).
 
-## Where it lives
+Code: `viewer/src/lib/systems.ts` (registry and the first five systems),
+`viewer/src/lib/food.ts`, `wars.ts`, `polity.ts`, `mapLayers.ts`;
+`viewer/src/components/systems/` (one panel per system);
+`viewer/src/components/phase75/MapLayerMarks.tsx` and the map in `AppShell.tsx`;
+`src/chronicler/mutual_aid.py` (`snapshot_summary`) and `src/chronicler/main.py`
+(`_food_snapshot_fields`, `_migration_snapshot_fields`).
 
-* **Simulation systems panel.** A full-width panel below the map workspace on
-  the Overview, Character, Trade and Campaign surfaces, with one tab per
-  recorded system (absent systems have no tab). It opens on the system that
-  fits the surface (Trade: finance; Campaign: diplomacy, then maritime;
-  Character: techniques; otherwise the first present) until the viewer picks
-  one. Every value is the bundle's own record for the snapshot the shell shows
-  at the scrubbed turn (the latest at or before it); gaps stay gaps.
-* **Events.** Each panel lists its system's events up to the scrubbed turn as
-  the shell's event rows. Selecting one pins it in the right inspector and
-  seeks to its turn, so the existing causal-provenance rows ("Because" and
-  "Led to") explain it; provenance is not re-implemented.
-* **Region inspector.** With a region selected, the inspector's selection
-  block adds the region's outbreaks (pathogen, prevalence, immunity, new
-  cases, deaths, virgin soil), whether its controller is in quarantine, its
-  practised techniques with their share of the population, and how many
-  techniques the controller knows. Each block appears only when the snapshot
-  carries that system. Panel tables name regions and civilizations as links
-  that select them.
-* **Live mode.** `useLiveConnection` passes the five fields through from the
-  live server's turn messages.
+## Audit
 
-| Tab | Shows |
-| --- | --- |
-| Epidemics | Active outbreaks, deaths this turn and so far, quarantined states; a strip with one row per region and pathogen across the run (hover: peak prevalence, deaths, virgin soil; click a row to select the region); the scrubbed turn's outbreak table, quarantines and mutated strains; arrival, epidemic, mutation and quarantine events. |
-| Finance | Open credit lines and the world ledger (lent, repaid, written off, seigniorage); two charts per civilization, debt in turns of smoothed revenue and the price index (one measure per chart); the scrubbed turn's public-finance table (debt, foreign debt, revenue, prices, coin fineness, fiscal stress, arrears, defaults, debasements); loans, defaults (with write-offs) and debasements as a filterable event list. |
-| Diplomacy | Treaties in force (kind, parties, start, expiry); the vassal ladder (client, vassal, union) with the subjects at the scrubbed turn and a strip of every overlord-subject pair's stage over the run; trust and total grievance matrices between living civilizations at the scrubbed turn, plus the five largest grievances by kind; treaty and ladder events. |
-| Techniques | Known techniques per civilization over time; the era timeline (eras derived from practised techniques), one strip row per civilization with the era named in the bar; the scrubbed turn's known and widely practised counts per civilization; regional practice per technique (regions practising it, where it is strongest); inventions, adoptions ("learned X from Y's merchants"), losses, advances and regressions. |
-| Maritime | Fleets, ships, controlled and contested zones, blockades and closed lanes; a sea-zone control strip (controller's colour and initials, contested grey, a red line under blockaded turns); zones with status, ships by civilization, pirate pressure, sea trade, piracy and ports; fleets and blockades at the scrubbed turn; run counters; naval events. A world without sea zones says the layer is idle. |
+Bundles checked: four runs on `main` `6e6fae6` (fresh native build, Linux,
+Python 3.13): procedural 48 regions x 10 civs seed 42, 200 hybrid turns, and
+template 10 regions x 5 civs seed 7, 200 hybrid turns, both with
+`--maritime --nomads --gp-agendas` (every other system is on by default);
+and the defaults alone on template seed 42 (150 hybrid turns) and procedural
+30 x 8 seed 7 (150 hybrid turns). "Before" is the viewer on `main`; "after"
+is this branch. Every bundle field named here is per snapshot
+(`history[n]`) unless it says `world_state` or top level.
 
-The map draws regions only (no sea geometry, and Geography 2.0's sea zones
-are not projected onto it), so sea zones are tables and strips rather than a
-map layer.
+| System | Bundle data | Viewer before | Viewer after |
+| --- | --- | --- | --- |
+| Epidemiology (SEIRS) | `epidemics` (outbreaks by region and pathogen, deaths, quarantines, strains), `pandemic_regions`; events | Epidemics tab; region inspector block | + **Epidemics map layer**: each region's strongest outbreak, fill strength by prevalence, quarantine in the hover |
+| Money and credit | `finance` (per civ debt, revenue, prices, coin, stress, defaults); events | Finance tab | Unchanged |
+| Diplomacy | `diplomacy` (treaties, subjects and ladder stage, pair memory, top grievances); events | Diplomacy tab | Unchanged |
+| Techniques | `techniques` (known, practised, regional practice); events | Techniques tab; region block | + **Techniques map layer**: practice share of a chosen technique per region (opens on the one spreading most) |
+| Maritime | `maritime` (zones, fleets, blockades, counters); `world_state.maritime` zone ports and lanes; `world_state.geography.sea_zones` positions | Maritime tab (tables and strips; "the map has no sea geometry") | + **Sea map layer**: zones at their procedural positions (template: between their ports) with spokes to the ports, the holder's colour, ships, a red ring under blockade |
+| Nomads | `nomads` (modes, herds per civ, tributes, hordes, counters); events | None | **Nomads tab**: ways of life over time, herds per civ, hordes and tribute, counters, raid/horde/dzud events; raids on the Wars layer |
+| Great-person agendas | `gp_agendas` (open vows with civ index and target, bonds, totals); events | None | **Agendas tab**: running totals declared/fulfilled/failed, open vows in the simulation's phrasing with targets resolved, bonds, events |
+| Historiography | top-level `historiography`; chronicle entries' `accounts` | In-world accounts of a pinned event | Unchanged |
+| Languages | top-level `languages` | Languages inspector | Unchanged |
+| Contact ledger | `contact` (edges, contact and trade pairs, inflow and stock by channel, top trade pairs with dependence); final `world_state.contact_ledger` | None | **Contact tab**: pairs in contact and trading over time, largest partnerships with each side's dependence, embargoes |
+| Causal provenance | events' `event_id`, `causes`, `region`, `episode`, `duration`; chronicle `causal_chains` | Inspector "Because" / "Led to" | Unchanged; famine spans are read from `region` and `episode` |
+| Fisheries and mutual aid | `fishery_collapse`/`fishery_recovery` and `mutual_aid` events; final `world_state` fish stocks, `mutual_aid_state`, last turn's transfers | None (event log only) | New **`food`** field (regional sufficiency, relief convoys); fishery and relief events in the Food tab; convoys on the Food layer |
+| Food balance and logistics | `famine` (onset, repeats) and `famine_ended` events with region and duration; `supply_shock` | Event log only | **Food tab**: famine spans by region, regions short of food and in famine over time, hungry regions with food ÷ need; **Food map layer**; food block in the region inspector |
+| Governance | `civ_stats[civ].governance` (form, cycle, regime, legitimacy, PSI, institutions, elites, revolts) | None | **Governance tab**: forms of government over time with PSI-crisis marks, PSI per civ, realms at the turn, reform and crisis events |
+| Campaign warfare | `campaign` (armies, the turn's battles, occupations, wars with score); events | Typed only; the Campaign surface drew disposition links | **Wars tab**: wars over time coloured by the side ahead, wars, armies, occupations and battles at the turn; **Wars map layer** (default on the Campaign surface); war block in the region inspector |
+| Procedural geography | regions' `x`/`y` and `geo`; `world_state.geography` sea zones and lanes | Pins scaled to the canvas, but a world using part of the 0-100 map sat in its middle | The atlas fits the pins' bounds (and sea zones); elevation, moisture and biome are still not drawn |
+| Migration | agent moves only in the `agent_events.arrow` sidecar; `mass_migration` and `notable_migration` events | None | New **`migration`** field; **Migration map layer** (moves summed over the last 10 recorded turns, arrow width by people) |
+
+## What changed in the viewer
+
+* **Map layers.** A "Map layer" chip row under the overlay chips (shown when
+  the bundle has data for a layer): Control (the default, unchanged), Food,
+  Epidemics, Wars, Migration, Techniques, Sea. One layer at a time; each
+  recolours the region nodes, adds its marks and a legend with one line on
+  what it shows, and every node and mark has hover text. Layers with marks
+  (Wars, Migration, Sea) keep the controller colours dimmed underneath. The
+  decorative fog mask and the named-event dots are hidden while a layer is
+  drawn, so they cannot be read as data. The Campaign surface opens on the
+  Wars layer.
+* **Atlas fit.** Region pins are fitted to their own bounding box
+  (`pinFrame`/`atlasPoint` in `appShellHelpers.ts`, replacing `pinScale`),
+  so procedural worlds fill the canvas. The map column no longer stretches
+  its rows when the inspector is long (the civ chips were drawn as tall
+  pills).
+* **Panels.** The systems panel (now "Systems recorded in this run") gains
+  Food, Wars, Nomads, Agendas, Governance and Contact tabs, in that order
+  around the first five; a tab appears only when the bundle records the
+  system. Each tab answers one question (where food is short; who is
+  fighting and who is ahead; who lives by herds; what great persons vowed;
+  how close each realm is to breaking; who depends on whom for trade) with
+  tiles, one strip or chart, the scrubbed turn's table and the system's
+  events, which pin in the inspector as before.
+* **Region inspector.** With a region selected: its food ÷ need and famine
+  (since when), and the armies in it or its occupier, next to the existing
+  epidemic and technique blocks.
+* **Live mode.** `useLiveConnection` passes `contact`, `gp_agendas`,
+  `nomads`, `food` and `migration` through.
+
+The synthetic demonstration pages are unchanged; nothing here is synthetic.
 
 ## Bundle contract
 
-`viewer/src/types.ts` types every field as optional on `TurnSnapshot`
-(`EpidemicSnapshot`, `FinanceSnapshot`, `DiplomacySnapshot`,
-`TechniquesSnapshot`, `MaritimeSnapshot`) after each system's
-`snapshot_summary()`. The viewer also reads the final
-`world_state.maritime.zones[i].ports` (zones and ports are fixed once built).
+All new fields are optional and the bundle version stays 5; older bundles
+load and show what they carry. Types are in `viewer/src/types.ts`
+(`ContactSnapshot`, `GpAgendasSnapshot`, `NomadsSnapshot`, `FoodSnapshot`,
+`MigrationFlow`, `GovernanceSnapshot`, `WorldState.geography`).
 
-Two fields were missing for the panels and are added, optional and additive,
-only when the system is on:
+Two fields were added because the data existed in the simulation but was
+not in the bundle. Both are viewer-only, read after the turn from state the
+simulation keeps, touch no state or RNG, and are omitted while `None`:
 
-| Field | Shape | Why |
-| --- | --- | --- |
-| `history[n].diplomacy.pairs` | holder -> target -> `[trust, total grievance]`, one decimal, every directed pair of living civilizations that has a memory, in civilization index order | `top_grievances` covers only five pairs, so trust and grievance between all pairs at a turn were not recorded |
-| `history[n].techniques.regions` | region -> technique key -> practice share, two decimals, rows at or above `LOSE_LEVEL` (0.03), in practice-table order | `known`/`practised` are per civilization, so per-region technique state at a turn was not recorded |
+| Field | Shape | Written when | Source |
+| --- | --- | --- | --- |
+| `history[n].food` | `{"sufficiency": [per region index: food on hand ÷ the turn's need, 0-2, two decimals, or null], "aid": [[donor, recipient, food delivered], ...]}` | mutual aid runs on an agent-backed economy (default on in agent modes) | `world.mutual_aid_state` observed in the completed turn; `world.mutual_aid_last_transfers` of that turn |
+| `history[n].migration` | `[[from region index, to region index, agents], ...]`, sorted | `--agents hybrid` or `shadow` | the completed turn's `migration` agent events, through the exact history index |
 
-Both are read-only: no RNG, no state or cache is touched. With the switches
-off nothing changes (the summaries are not called). Size with every system on:
-the template seed-42 hybrid 120-turn bundle grows by 55 KB (3.55 to 3.60 MB,
-1.5%), the procedural 48-region 10-civ bundle by 183 KB (8.91 to 9.10 MB, 2.1%).
+Without `food`, the Food tab and layer show famines only and say so; without
+`migration` there is no Migration layer. Famine spans need events with
+`region` and `episode` (bundle version 4+); older bundles get no Food tab.
 
-The bundle version stays 4: every new field is optional, and v3 and v4
-bundles load as before. Bundles written before these fields fall back
-honestly: the trust and grievance view shows the five recorded grievances and
-says the other pairs are not recorded; the region inspector and the
-techniques tab say regional practice is not exported.
+### Size
+
+* Bundle-size guard world (`tests/test_bundle.py::TestBundleSize`: seed 1,
+  5 civs, 10 regions, 500 turns, agents off): **18,519,396 bytes (17.66 MB)
+  on both `main` and this branch, byte-identical**. Neither field is written
+  with agents off, so the no-Rust guard (18.28 MB) cannot change; it was not
+  re-measured.
+* The same world in hybrid, 300 turns: 11,192,915 to 11,226,728 bytes
+  (+33.8 KB, +0.30%).
+* Audit runs: procedural 48 x 10 all on, 200 turns +72.4 KB (+0.36%);
+  template 10 x 5 all on, 200 turns +22.8 KB (+0.30%); template defaults,
+  150 turns +15.7 KB (+0.37%); procedural 30 x 8 defaults, 150 turns
+  +35.8 KB (+0.27%).
 
 ## Evidence
 
-Linux, Python 3.13, a fresh `maturin develop --release` build of the
+Linux, Python 3.13.17, a fresh `maturin develop --release` build of the
 unchanged Rust tree (compiled `AgentSimulator`, `EcologySimulator`,
 `PoliticsSimulator` verified), Node 22.
 
-**Python identity** (`scripts/viewer_systems_identity.py`, base `1a6cacb`
-on `PYTHONPATH` against this branch, same interpreter and extension,
+**Identity** (`scripts/viewer_systems_identity.py`, base `6e6fae6` source on
+`PYTHONPATH` against this branch, same interpreter and extension,
 `PYTHONHASHSEED=0`):
 
 | Run | Mode | Files | Differences |
 | --- | --- | --- | --- |
-| template seed 42, hybrid, 120 turns, default (systems off) | `compare` | 8 | 0 |
-| template seed 7, off, 150 turns, default | `compare` | 7 | 0 |
-| procedural 48 regions x 10 civs, seed 42, hybrid, 120 turns, default | `compare` | 14 | 0 |
-| template seed 42, hybrid, 120 turns, `--no-diplomacy --no-techniques` | `compare` | 8 | 0 |
-| template seed 42, hybrid, 120 turns, all five systems on | `compare-additive` | 8 | 0 |
-| procedural 48 x 10, seed 42, hybrid, 120 turns, all five on | `compare-additive` | 14 | 0 |
+| guard world, agents off, 500 turns | `compare` | 10 | 0 |
+| guard world, hybrid, 300 turns | `compare-additive` | 11 | 0 |
+| procedural 48 x 10 seed 42, hybrid, 200 turns, all on | `compare-additive` | 16 | 0 |
+| template 10 x 5 seed 7, hybrid, 200 turns, all on | `compare-additive` | 11 | 0 |
+| template seed 42, hybrid, 150 turns, defaults | `compare-additive` | 10 | 0 |
+| procedural 30 x 8 seed 7, hybrid, 150 turns, defaults | `compare-additive` | 14 | 0 |
 
-`compare` is byte identity of every output (bundles without
-`metadata.generated_at`). `compare-additive` removes only the two new fields
-from the branch bundle (and requires the base bundle to lack them): with every
-system on, all outputs, states, agent events and the rest of every bundle are
-identical, so no simulation outcome changed.
+`compare` is byte identity of every output (bundle without
+`metadata.generated_at`): states, memories, agent events, chronicles,
+historiography and languages sidecars. `compare-additive` removes only
+`history[n].food` and `history[n].migration` from the branch bundle (and
+requires the base bundle to lack them).
 
-**Tests.** `pytest -m "not slow" -n 2`: 5,699 passed, 3 skipped (base about
-5,697; the two new tests extend `TestViewerFixtureContract`). The diplomacy and
-techniques bundle tests now pin the new keys and check them against the final
-world state. Viewer: 25 test files, 197 tests (base 22 files, 166 tests),
-ESLint clean, `tsc -b && vite build` passes with the existing large-chunk
-warning.
+**Tests**: see the ledger entry (`docs/superpowers/progress/phase-6-progress.md`).
+Python: `tests/test_viewer_snapshot_fields.py` (the two fields' contents,
+turn scoping, omission, agents-off bundles, a native hybrid bundle);
+`TestViewerFixtureContract` checks the fixture carries every field and that
+its later-system fields still have the shape a fresh run writes. Viewer:
+`lib/__tests__/food.test.ts`, `polity.test.ts`, `mapLayers.test.ts`, the new
+panels in `SystemsPanel.test.tsx`, `AppShell.mapLayers.test.tsx`.
 
-* `viewer/src/lib/__tests__/systems.test.ts`: segments, rows, series gaps,
-  the pair-matrix fallback, colour scales, event ordering, surface preference.
-* `viewer/src/components/systems/__tests__/SystemsPanel.test.tsx`: each panel
-  renders from the real-shaped fixture; tabs exist only for recorded systems;
-  the panel renders nothing for `sample_bundle.json`; older-bundle fallbacks;
-  the sealess maritime message; the region inspector block.
-* `viewer/src/components/phase75/__tests__/AppShell.systems.test.tsx`: no
-  panel and no region block for a systems-off bundle; region selection from a
-  panel; a panel event pinned in the inspector with its recorded causes.
-* `useLiveConnection`: the five fields pass through live turn messages.
+**Fixture.** `viewer/src/__fixtures__/systems_bundle.json` is regenerated by
+`scripts/build_viewer_systems_fixture.py` from procedural 48 x 10 seed 42,
+120 hybrid turns, all systems on, on this branch: every 10th snapshot and
+the last (14), every system field as exported, the governance keys the panel
+reads, famines in the first eight regions (whole spans) and the first 12
+events of every other system type, plus the events they cite. 685 KB (was
+437 KB).
 
-`viewer/src/__fixtures__/systems_bundle.json` is the procedural all-on run
-above, trimmed by `scripts/build_viewer_systems_fixture.py` (every 8th
-snapshot and the last, system fields as exported, system events and the events
-they cite). `tests/test_bundle.py::TestViewerFixtureContract` checks it carries
-the viewer contract and that its system fields still have the shape a fresh
-all-on run writes.
+**Browser.** The production build (`vite preview`) driven by headless
+Chromium (Playwright) on the audit bundles: every new tab, each map layer,
+the region inspector and the default-flag Campaign surface, with no console
+errors or warnings.
+Screenshots stay outside the repository with the run outputs.
 
-**Browser.** The production build served by `vite preview`, driven by
-headless Chromium (Playwright): every tab of both all-on bundles, a 300-turn
-all-on bundle (eras move), the region inspector and an inspector-pinned
-finance event were captured with no console errors or warnings. The base
-viewer build (`1a6cacb`) and this build render three systems-off bundles
-(template seed 42 hybrid, procedural 48 x 10 hybrid, `sample_bundle.json`)
-pixel-identically on the Overview, Trade and Campaign surfaces with a region
-selected (9 of 9 screenshots byte-equal). Screenshots stay outside the
-repository with the run outputs.
+## Cut and remaining gaps
 
-## Cut
+* **Per-turn region population, fish stocks and merchant food deliveries**
+  are not in the snapshot; the Food layer shows sufficiency and relief
+  convoys, not where merchants carried food.
+* **Nomad herds per region** are per civ in the snapshot (the final state
+  has them per region), so there is no herd map layer.
+* **Geography detail.** Elevation, moisture, biome and the land outline are
+  not drawn; the "borders" overlay still links regions within a controller,
+  not real adjacency.
+* **Colour collisions.** Faction colours are hashed hues, so two civs can
+  share one; strips and tables name civs, the map layers do in hover text.
+* The fixture keeps every 10th snapshot, so its migration window and battle
+  list are thinner than a real bundle's.
+* Phone layout is not tuned (the shell is a desktop layout).
 
-* **Map layers.** No sea-zone, fleet, blockade or outbreak overlay: the map
-  has no sea geometry. Sea zones are tables and strips instead. The existing
-  `pandemic_regions` field (which epidemiology also fills) is still not drawn.
-* **Contact ledger panel.** `history[n].contact` already existed and is not
-  one of the five systems; it has no panel.
-* **Per-lender loan book.** The finance snapshot records the number of credit
-  lines and per-civilization debt, not each line; loans, defaults and
-  debasements are listed from their events (amounts and lenders are in the
-  descriptions). No snapshot field was added for it.
-* **Technique names per civilization over time** (the snapshot has counts) and
-  per-pathogen death charts.
-* **Legacy `Layout`** (not used by the app) and the synthetic demo pages are
-  untouched.
-* **Phone layout.** The shell is a desktop layout; the panel collapses to one
-  column below 1,100 px but was not tuned for phones.
+## First round
 
-## Known gaps
+Branch `feat/viewer-systems` from `integrate/wave-4` at `1a6cacb`. Panels for
+epidemics, finance, diplomacy, techniques and maritime; the region
+inspector's epidemic and technique blocks; event rows that pin in the
+inspector so causal provenance explains them; live-mode pass-through. Two
+additive fields, written only with the system on:
 
-* Faction colours are the viewer's hashed hues, so two civilizations can share
-  a colour (two greens in the procedural run). Strips name controllers in the
-  bar and tables name civilizations; the palette itself is unchanged.
-* Pre-existing, unchanged: for generated worlds (template and procedural
-  alike) the shell's map places region nodes far outside the canvas (their
-  `x`/`y` run 0-100 while `computeAtlasLayout` expects 0-1), so regions cannot
-  be clicked on the map. The panels' region links select regions for the
-  inspector regardless.
+| Field | Shape | Why |
+| --- | --- | --- |
+| `history[n].diplomacy.pairs` | holder -> target -> `[trust, total grievance]`, one decimal, every directed pair of living civilizations with a memory | `top_grievances` covers five pairs only |
+| `history[n].techniques.regions` | region -> technique key -> practice share, two decimals, rows at or above 0.03 | known/practised are per civilization |
+
+Size then: template seed 42 hybrid 120 turns +55 KB (1.5%), procedural
+48 x 10 +183 KB (2.1%). Identity was proven with the same script (then
+stripping these two fields): every output identical over six runs. Tests
+then: `pytest -m "not slow" -n 2` 5,699 passed, 3 skipped; viewer 25 files,
+197 tests.
