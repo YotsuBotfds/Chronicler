@@ -1,28 +1,32 @@
 # Cities as historical actors (`--cities`)
 
 Branch `feat/cities`, from `integrate/wave-7` at `bcf14d8` (healthy-world
-migration and the persecution fix). Code: `src/chronicler/cities.py`
-(behaviour), `src/chronicler/cities_state.py` (persisted state), one
-migration driver in `chronicler-agents/src/migration_drivers.rs`, and
-`scripts/cities_report.py` / `scripts/cities_identity.py`.
+migration and the persecution fix), merged with `origin/main` at `a95e4d7`
+(PR #27, Wave 8 defaults: great-person agendas, maritime and nomads on for
+new worlds) without rebase. Code: `src/chronicler/cities.py` (behaviour),
+`src/chronicler/cities_state.py` (persisted state), one migration driver in
+`chronicler-agents/src/migration_drivers.rs`, and `scripts/cities_report.py`
+/ `scripts/cities_identity.py`.
 
 **Status.** Default off behind `WorldState.cities` (CLI `--cities`). With
-the switch off every output is byte-identical to `bcf14d8`, agents off and
+the switch off every output is byte-identical to `a95e4d7`, agents off and
 hybrid (see [Identity](#feature-off-identity)). With it on, both 20-seed
-subset gates pass with no comparator regression (see [Gates](#switch-on-subset-gates)).
-The full 200-seed gate was not run.
+subset gates pass with no comparator regression (see
+[Gates](#switch-on-subset-gates)). The full 200-seed gate was not run.
 
 ## Result
 
-| | off (= base) | `--cities` |
+Merged tree (Wave 8 defaults), switch off (= `a95e4d7`) against on:
+
+| | off | `--cities` |
 | --- | ---: | ---: |
 | subset 42-61: gate / comparator | PASS | PASS / NO REGRESSION |
 | subset 62-81: gate / comparator | PASS | PASS / NO REGRESSION |
-| migration per agent-turn, 42-61 / 62-81 | 0.0600 / 0.0571 | 0.0635 / 0.0580 |
-| rebellion per agent-turn, 42-61 / 62-81 | 0.0343 / 0.0189 | 0.0395 / 0.0207 |
-| cities founded / fallen per world (200 turns, 40 worlds) | - | 4.7 / 1.1 |
-| epidemic deaths, 42-61 / 62-81 | 3,397 / 2,846 | 3,584 / 3,210 |
-| urban pull, share of migration units (with household followers) | - | 1.9% (4.7%) |
+| migration per agent-turn, 42-61 / 62-81 | 0.0599 / 0.0549 | 0.0622 / 0.0558 |
+| rebellion per agent-turn, 42-61 / 62-81 | 0.0350 / 0.0130 | 0.0341 / 0.0138 |
+| epidemic deaths, 42-61 / 62-81 | 2,890 / 2,760 | 3,156 / 3,237 |
+| cities founded / fallen per world (200 turns, 40 worlds) | - | 4.5 / 0.85 |
+| urban pull, share of migration units (with household followers) | - | 1.9% (4.3%) |
 
 ## What exists
 
@@ -233,72 +237,68 @@ gives the name each people uses, and `scripts/cities_report.py` prints it:
 `scripts/cities_report.py RUN_DIR` prints each city's record with the event
 text the simulation wrote. Template world, seed 70, 300 turns, hybrid,
 `--cities`, everything else at its default (`--simulate-only`,
-`PYTHONHASHSEED=0`, final head); plague and famine entries are shown where
-they bear on the story:
+`PYTHONHASHSEED=0`, merged head):
 
 ```
-Verdant Plains Settlement 1 (Skabrilpu in Dorrathi, 'green town'), Verdant Plains;
-founded turn 15 under Dorrathi Clans; peak great city (53 people), purse peak 96;
-charter self-government; standing: city of 33, lord Kethani Empire
-  15: founded: Verdant Plains Settlement 1 in Verdant Plains has grown into a great city of 46 people
+Verdant Plains Settlement 1 (Skārīpu in Dorrathi, 'green town'), Verdant Plains;
+founded turn 15 under Dorrathi Clans; peak great city (44 people), purse peak 105;
+charter free city; standing: town of 6, lord Free City of Verdant Plains
+  15: founded: Verdant Plains Settlement 1 in Verdant Plains has grown into a great city of 41 people
   18: charter: Dorrathi Clans grants Verdant Plains Settlement 1 market rights for 15
   33: refused: Dorrathi Clans refuses Verdant Plains Settlement 1 self-government
   48: refused: Dorrathi Clans refuses Verdant Plains Settlement 1 self-government
-  52: famine: Famine strikes Verdant Plains, devastating Dorrathi Clans.
+  53: famine: Famine strikes Verdant Plains, devastating Dorrathi Clans.
   59: revolt: The people of Verdant Plains Settlement 1 in Verdant Plains rise against Dorrathi Clans
   59: free_city: Verdant Plains Settlement 1 throws off Dorrathi Clans's rule: the Free City of Verdant Plains
-  77: declined: Verdant Plains Settlement 1 in Verdant Plains has shrunk to a city of 24 people
- 161: plague: The pox sweeps through Verdant Plains, whose people have never known it.
- 207: declined: Verdant Plains Settlement 1 in Verdant Plains has shrunk to a town of 14 people
- 230: sacked: Kethani Empire sack Verdant Plains Settlement 1 in Verdant Plains and carry off 18 in plunder
- 271: grew: Verdant Plains Settlement 1 in Verdant Plains has grown into a city of 23 people again
- 271: refused: Kethani Empire refuses Verdant Plains Settlement 1 self-government
- 286: charter: Kethani Empire grants Verdant Plains Settlement 1 self-government for 40
+  87: declined: Verdant Plains Settlement 1 in Verdant Plains has shrunk to a city of 18 people
+ 126: famine: Famine strikes Verdant Plains, devastating Free City of Verdant Plains.
+ 174: declined: Verdant Plains Settlement 1 in Verdant Plains has shrunk to a town of 12 people
+ 205: famine: Famine strikes Verdant Plains, devastating Free City of Verdant Plains.
+ 278: famine: Famine strikes Verdant Plains, devastating Free City of Verdant Plains.
 ```
 
-The recorded causes link it to the rest of the run: the revolt cites the
+The recorded causes tie it to the rest of the run: the revolt cites the
 second refusal and the famine (`59:urban_revolt:0` -> `48:charter_refused:0`,
-`57:famine:2`), the free city cites the revolt. The Free City of Verdant
-Plains lives 171 turns as its own polity (trade, treaties, a Reformation).
-At turn 225 it goes to war with the Selurian Republic for Sapphire Coast;
-the Kethani Empire and the Vrashni Dominion join in Selurian's defence; the
-Kethani Second Host besieges Verdant Plains (`226:siege_begun:1`), wins
-three battles, occupies it, and the Storm Convention cedes it
-(`230:annexation:0`); the free city is extinguished (`230:civ_conquered:0`)
-and the city is sacked (`230:city_sacked:0` -> the annexation). It shrank to
-a town under famine and the pox, recovers under its new lord, is refused
-self-government once and buys it 15 turns later.
+`58:famine:1`), the free city cites the revolt. The Free City of Verdant
+Plains then acts as a state: at turn 185 it goes to war with the Vrashni
+Dominion for Amber Valley (citing an embargo), makes peace, goes back to war
+at 211, besieges and occupies Amber Valley (213), occupies Obsidian Shore
+and sacks its town (`219:city_sacked:0` -> `219:occupation:0`, 17 in
+plunder), and in the Ivory Concord (220) takes Amber Valley and Mistwood.
+At turn 300 it holds three regions while its own city has shrunk, through
+recurring famine, from a great city of 41 to a town of 6. A second
+settlement in Verdant Plains, founded under the free city at 210, rises
+against the patrician government at 226 (conceded: market rights), buys
+self-government at 268 and rises again at 299.
 
-Rise, fall and refounding (seed 53, same settings): `Sunfire Steppe
-Settlement 1` (Sokre in Vrashni, 'sun town') is founded at turn 15 as a city
-of 25, refused market rights twice and granted them at turn 54, shrinks to
-a town by turn 89 and is abandoned in famine at turn 165 (M56a dissolves its
-settlement). At turn 210 `Sunfire Steppe Settlement 2` (Sudrādhi, in the
-Dorrathi tongue of the region's new rulers) is founded "where Sunfire Steppe
-Settlement 1 once stood", grows into a city at 229 and a great city of 36
-at 256, and buys market rights (230) and self-government (274) from the
-Dorrathi Clans.
+Rise and fall in 120 turns (seed 53, same settings): `Amber Valley
+Settlement 3` (Suvagha, 'gold town', in the Vrashni dialect of Amber Valley)
+is founded at turn 150, refused market rights at once and sold them at 168;
+its revolt at 180 is put down with a fine, its second at 247 wins
+self-government, and the town is abandoned at 270 (the fall cites
+`266:epidemic:2`, marsh fever, which cites the famine of 261).
 
-Over the 40 gate worlds (200 turns), per world: 4.7 cities founded, 1.1
-fallen, 4.0 charters granted and 2.5 refused, 0.75 revolts (0.63
-concessions, 0.05 suppressions, 0.075 free cities), 0.3 walls.
+Over the 40 gate worlds (200 turns), per world: 4.5 cities founded, 0.85
+fallen, 4.0 charters granted and 2.7 refused, 0.58 revolts (0.3
+concessions, 0.2 suppressions, 0.075 free cities), 0.2 walls, 0.075 sacks.
 
 ## Feature-off identity
 
-Base: `bcf14d8` exported with `git archive` (its `src/` and `scripts/`)
-and its own extension (built from the base tree before any change, SHA-256
-`3d47d60f...91a51`), on `PYTHONPATH`; branch: this tree and its extension
-(`96cad2b5...4abe62`). Same interpreter, `PYTHONHASHSEED=0`.
+Base: `a95e4d7` (`origin/main`, which contains `integrate/wave-7`) exported
+with `git archive` (its `src/` and `scripts/`) and its extension (no Rust
+change since `bcf14d8`; built from the base tree before any change, SHA-256
+`3d47d60f...91a51`), on `PYTHONPATH`; branch: the merged head and its
+extension (`96cad2b5...4abe62`). Same interpreter, `PYTHONHASHSEED=0`.
 `scripts/cities_identity.py` (as `scripts/diplomacy_identity.py`).
 
-1. **Direct runs**, final head: template seeds 42 / 7 / 1234 with `--agents
-   off` 300 turns and hybrid 200 turns; procedural 48 regions x 10 civs,
-   seed 7, off 200 and hybrid 120 turns. Every file (`state.json` and its
-   historiography and languages sidecars, `chronicle.md`, `memories_*.json`,
+1. **Direct runs**: template seeds 42 / 7 / 1234 with `--agents off` 300
+   turns and hybrid 200 turns; procedural 48 regions x 10 civs, seed 7, off
+   200 and hybrid 120 turns. Every file (`state.json` and its historiography
+   and languages sidecars, `chronicle.md`, `memories_*.json`,
    `agent_events.arrow`, the bundle without `metadata.generated_at`): **88
    files, 0 differences** with the default switch and **88 files, 0
-   differences** with `--no-cities`. `origin/main` (`2a49040`, PR #26) has
-   the tree of `bcf14d8`, so this holds against it too.
+   differences** with `--no-cities`. Before the merge the same matrix
+   against `bcf14d8` gave the same: 88 / 0 and 88 / 0.
 2. **Switch on, agents off.** The four `--agents off` runs with `--cities`:
    **42 files, 0 differences** once the layer's own fields are removed
    (`compare-inert`: `cities` in the state and in every bundle snapshot);
@@ -308,6 +308,7 @@ and its own extension (built from the base tree before any change, SHA-256
    exported tree) against this branch's switch-off gate: all 2,200 run files
    identical; the validation report, gate decision, gate summary and summary
    identical once the batch path is normalized (4 files, 0 differences).
+   Same result before the merge against `bcf14d8`.
 4. **In the suite.** The frozen exact-trajectory oracles
    (`test_performance_equivalence`, `test_governance_dormancy`) pass with no
    fixture change; `test_feature_off_never_runs_city_code` forbids every
@@ -324,68 +325,69 @@ and its own extension (built from the base tree before any change, SHA-256
 (20 seeds x 200 turns, hybrid), compared by `validation_compare`
 (`--baseline-report`) with the switch-off gate of the same seeds (42-61:
 this branch, shown identical to the base above; 62-81: the exported base).
-Final head.
+Merged head, Wave 8 defaults.
 
 | | 42-61 off | 42-61 on | 62-81 base | 62-81 on |
 | --- | ---: | ---: | ---: | ---: |
 | gate / comparator | PASS / - | **PASS / NO REGRESSION** | PASS / - | **PASS / NO REGRESSION** |
-| regression oracle (informational at subset) | PASS strict | PASS strict | FAIL: rebellion floor, civ survival | FAIL: civ survival |
-| migration per agent-turn | 0.0600 | 0.0635 | 0.0571 | 0.0580 |
-| rebellion per agent-turn (floor 0.02) | 0.0343 | 0.0395 | 0.0189 | 0.0207 |
-| satisfaction mean / latest | 0.597 / 0.623 | 0.598 / 0.623 | 0.599 / 0.609 | 0.602 / 0.610 |
-| needs (seeds with the expected sign; 12 required) | 13 | 19 | 15 | 17 |
+| regression oracle (informational at subset) | PASS strict | PASS strict | FAIL: rebellion floor, civ survival | FAIL: rebellion floor, civ survival |
+| migration per agent-turn | 0.0599 | 0.0622 | 0.0549 | 0.0558 |
+| rebellion per agent-turn (floor 0.02) | 0.0350 | 0.0341 | 0.0130 | 0.0138 |
+| satisfaction mean / latest | 0.595 / 0.615 | 0.599 / 0.619 | 0.611 / 0.620 | 0.608 / 0.616 |
+| needs (seeds with the expected sign; 12 required) | 13 | 16 | 14 | 16 |
 | cohort / community | PASS / PASS | PASS / PASS | PASS / PASS | PASS / PASS |
-| arcs (informational) | PASS | FAIL: cinderella 40.2% | PASS | FAIL: cinderella 40.2% |
+| arcs (informational) | PASS | PASS | FAIL | PASS |
 | artifacts | PASS | PASS | PARTIAL | PARTIAL |
-| epidemic deaths / outbreaks | 3,397 / 1,765 | 3,584 / 1,829 | 2,846 / 1,545 | 3,210 / 1,669 |
-| extinct worlds / polities alive at the end (mean) | 0 / 3.05 | 0 / 3.05 | 0 / 3.05 | 0 / 3.20 |
-| cities founded / fallen | - | 101 / 26 | - | 86 / 17 |
-| charters granted / refused | - | 91 / 58 | - | 70 / 43 |
-| revolts: concession / suppression / free city | - | 14 / 0 / 1 | - | 11 / 2 / 2 |
-| walls / sacks | - | 4 / 0 | - | 8 / 0 |
+| epidemic deaths / outbreaks | 2,890 / 1,452 | 3,156 / 1,641 | 2,760 / 1,392 | 3,237 / 1,617 |
+| extinct worlds / polities alive at the end (mean) | 0 / 2.85 | 0 / 2.95 | 0 / 3.10 | 0 / 3.15 |
+| cities founded / fallen | - | 92 / 18 | - | 89 / 16 |
+| charters granted / refused | - | 79 / 55 | - | 82 / 52 |
+| revolts: concession / suppression / free city | - | 9 / 5 / 1 | - | 3 / 3 / 2 |
+| walls / sacks | - | 2 / 0 | - | 6 / 3 |
 
-- **Migration** rises in both sets (+0.0035, +0.0009): the urban pull adds
-  moves without displacing the other drivers. The strict 0.05 floor holds
-  with more room.
-- **Epidemics**: deaths +5.5% and +12.8%, outbreaks +3.6% and +8.0%, from
+- **Migration** rises in both sets (+0.0023, +0.0009): the urban pull adds
+  moves without displacing the other drivers; the strict 0.05 floor holds.
+- **Epidemics**: deaths +9.2% and +17.3%, outbreaks +13.0% and +16.2%, from
   the urban susceptibility factor (and divergence).
-- **Rebellion** (agent rebellion per agent-turn) rises in both sets, +0.0052
-  and +0.0018; 62-81 now clears the 0.02 floor the base failed. Per-seed
-  differences mix the mechanism (revolt and free-city stability shocks,
-  crowding in city regions) with divergence; it is not attributed further
-  here. Satisfaction is unchanged within 0.003.
-- **Arcs.** Cinderella arcs are 33 of 82 civ arcs in both switched-on sets
-  (40.2%) against the oracle's 40% dominance ceiling; the bases had 31 of
-  83 and 31 of 81. The arcs oracle is informational in the subset profile
-  and the comparator does not count it. It is two arcs per 20 worlds; the
-  full gate should show whether it is systematic (free cities add young
-  polities).
-- **Extinction**: no world went extinct in any of the 80 gate runs;
-  polities alive at the end 3.05 -> 3.05 and 3.05 -> 3.20 (free cities add
-  polities; ordinary secessions fell from 3 to 1 and 1 to 0).
-- Revolts end in concessions most of the time: hybrid lords sit near 30
-  stability (in an 8-seed, 300-turn probe the lords' stability over
-  city-turns had median 40 and lower quartile 30), so the concession and
-  free-city rules apply often.
+- **Rebellion**: -0.0009 and +0.0008. Before the merge (Wave 7 defaults,
+  `a8b4b6d` against `bcf14d8`) the same comparison gave +0.0052 and
+  +0.0018 (0.0343 -> 0.0395, 0.0189 -> 0.0207); the sign does not hold
+  across the two baselines, so the change is within run-to-run divergence.
+  Satisfaction moves by at most 0.004.
+- **Arcs** pass in both switched-on sets. Before the merge both
+  switched-on sets had cinderella arcs at 40.2% of civ arcs against the
+  oracle's 40% dominance ceiling (bases 37-38%); the base 62-81 fails it
+  here. The arcs oracle is informational in the subset profile.
+- **Extinction**: no world went extinct in any of the 80 gate runs (160
+  with the pre-merge runs); free cities add polities.
+- Before the merge, both gates also passed with NO REGRESSION (migration
+  0.0600 -> 0.0635 and 0.0571 -> 0.0580, needs 13 -> 19 and 15 -> 17,
+  epidemic deaths +5.5% and +12.8%).
+- Revolts end in concessions or suppression roughly evenly here (12 / 8);
+  hybrid lords sit near 30 stability (in an 8-seed, 300-turn probe the
+  lords' stability over city-turns had median 40 and lower quartile 30), so
+  the concession and free-city rules apply often.
 
 ### Urban pull in the migration budget
 
-Seeds 42-61 x 200 turns, hybrid, `--cities`, the native budget summed over
-every tick (`AgentSimulator.get_migration_driver_stats`; an observer, not
-committed):
+Seeds 42-61 x 200 turns, hybrid, `--cities`, merged head, the native budget
+summed over every tick (`AgentSimulator.get_migration_driver_stats`; an
+observer, not committed):
 
 | driver | share of migration units | gate open (per evaluated agent-turn) | pull beyond roots |
 | --- | ---: | ---: | ---: |
-| frontier | 1.48% | 1.22% | 0.89% |
-| wage | 3.23% | 2.95% | 2.29% |
-| chain | 0.25% | 0.86% | 0.36% |
-| **urban** | **1.93%** (4.68% with household followers) | 1.72% | 1.53% |
+| frontier | 1.78% | 1.34% | 1.03% |
+| wage | 3.09% | 2.64% | 2.09% |
+| chain | 0.25% | 0.86% | 0.38% |
+| **urban** | **1.90%** (4.34% with household followers) | 1.79% | 1.58% |
 
 Urban moves are 3.4% of decided migrations. Voluntary moves are led by
-young adults (42% of voluntary-led decisions aged 20-34, 28% 35-49).
+young adults (41% of voluntary-led decisions aged 20-34, 29% 35-49).
 
 ## Tick time
 
+Measured before the merge (`a8b4b6d` against `bcf14d8`, Wave 7 defaults;
+the merge changes no city or Rust code).
 `scripts/agent_scale_benchmark.py` (gains `--cli-arg` to forward CLI
 switches), seed 42, 12 regions, starting targets 18,800 and 43,700 so that
 about 23,500 and 54,000 agents are alive when measured; 20 warm-up turns
@@ -415,9 +417,9 @@ evaluation.
 
 The 500-turn guard world (`tests/test_bundle.py`, seed 1, 5 civs, 10
 regions) runs with `--agents off`, where the layer is inert, so the guard is
-unchanged. The same world in hybrid mode: 15.11 MB without and 17.81 MB with
-`--cities` (under the 24 MB guard); the `cities` field is 0.38 MB, the rest
-is the diverged world (more events and snapshot content).
+unchanged. The same world in hybrid mode (merged head): 16.40 MB without and
+17.50 MB with `--cities` (under the 24 MB guard); the `cities` field is
+0.32 MB, the rest is the diverged world.
 
 ## Tests
 
@@ -459,22 +461,24 @@ Linux, Python 3.13; native extension built fresh (`maturin develop
 --release --locked`) from this tree into the worktree environment and
 checked as the compiled `chronicler_agents.chronicler_agents` with real
 `AgentSimulator`, `EcologySimulator` and `PoliticsSimulator` classes
-(SHA-256 `96cad2b5...4abe62`); Python lanes at `a8b4b6d` (later commits
-change documentation only).
+(SHA-256 `96cad2b5...4abe62`). Python lanes at the merged head `d3d53a4`
+(later commits change documentation only); `cargo test` on the same Rust
+source (the merge changes none).
 
 | Check | Result |
 | --- | --- |
 | `cargo test --locked` | 933 passed, 0 failed, 2 ignored (base 927; +3 unit, +3 multi-tick) |
-| `pytest -m "not slow" -n 2` | 5,999 passed, 3 skipped, 526 subtests |
+| `pytest -m "not slow" -n 2` | 6,002 passed, 3 skipped, 526 subtests (`a95e4d7`: 5,967) |
 | `pytest -m slow -n 2` | 11 passed, 3 skipped |
-| no-Rust lane (the same environment with `chronicler_agents` removed, slow included) | 5,789 passed, 213 skipped |
-| `scripts/run_python_oracle_checks.py` | PASS in 79.6 s: core 1,055, governance 568, systems-1 157 (with `tests/test_cities.py`; its native tests skip), systems-2 199 passed; slowest chunk 26.7 s of 110 s |
+| no-Rust lane (the same environment with `chronicler_agents` removed, slow included) | 5,792 passed, 213 skipped |
+| `scripts/run_python_oracle_checks.py` | PASS in 82.9 s: core 1,055, governance 568, systems-1 158 (with `tests/test_cities.py`; its native tests skip), systems-2 201 passed; slowest chunk 30.2 s of 110 s |
 | frozen exact-trajectory oracles | pass, no fixture changed |
 | identity, switch-on gates, resume identity | above |
 
-The offline lane does not qualify native execution; the native checks are
-the cargo tests, the native pytest lanes and the gates above. The full
-200-seed gate was not run.
+Before the merge (`a8b4b6d`): not-slow 5,999 passed, slow 11, no-Rust
+5,789, oracle lane PASS (79.6 s). The offline lane does not qualify native
+execution; the native checks are the cargo tests, the native pytest lanes
+and the gates above. The full 200-seed gate was not run.
 
 ## Roadmap
 
