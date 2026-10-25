@@ -2,9 +2,63 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## City markets and cities on by default (2026-10-25, `feat/city-markets`)
+
+`feat/city-markets` from `main` `cee5013` (PR #28, cities default off),
+merged with `main` `3355289` (PR #29) without rebase. Details and tables:
+[`docs/integration/city-markets.md`](../../integration/city-markets.md).
+
+- **Routing correction** (`0d4df97`, every run): the economy reports demand
+  and post-trade supply per category (region batch `market_demand_*` /
+  `market_supply_*`); non-food cargo travels by its price gap (activity
+  proxy retired); trade packets advertise markets (`market_signal`), not
+  export margins; merchants plan sequentially against a per-tick tally of
+  committed cargo (herding). Template 42-51 x 200 against `cee5013`: food
+  deliveries to short regions 62.5% -> 80.3% (eaten short next turn 31% ->
+  61%), to empty 3.3% -> 1.5%; famine events 140 -> 131; deliveries-per-market
+  Gini 0.79 -> 0.73; herding 0.91 -> 0.80; merchant income +10%;
+  satisfaction 0.589 -> 0.599; migration 0.0591 -> 0.0562. No golden
+  fixture moved (agent modes only); mutual-aid adversarial scenario
+  reactivates a turn later.
+- **Cities as markets** (`bada9a5`, `--cities`): city farmers give part of
+  their labour to the town (0.8 / 0.7 / 0.6 by rank; economy column
+  `farm_labor_factor`), crafts want raw materials (`craft_raw_demand`), a
+  besieged or occupied city is cut off from the merchant graph, imports add
+  to commerce. City regions' sufficiency 1.22 -> 1.16; more of their grain
+  from same-realm neighbours (39% -> 45%); hinterland farmer income +11%
+  (others +8%). Imports stay about 2% of a city's food (one-unit merchants,
+  thin surplus). A tested premium variant was dropped (cities stopped
+  exporting).
+- **Viewer** (`b2f8353`): Cities tab (ranks over time, the turn's table, a
+  city's purse, unrest and recorded moments).
+- **Gates** (merged tree): full 200 x 500 with cities on: PASS strict, 0
+  extinct, NO REGRESSION against main `3355289` and Wave 8 (migration
+  0.0580, rebellion 0.0308, needs 189 of 200, final population median 177
+  against 199.5). Subsets, routing against main / cities on against off:
+  42-61 PASS / NO REGRESSION both; 62-81 routing FAILS needs (8 of 12; also
+  before the merge), cities on PASS / NO REGRESSION. Pre-merge 82-101
+  routing PASS.
+- **Flip** (`e979fd9`): cities on by default for new worlds;
+  `--no-cities` opts out; saved worlds keep their setting; benchmark pin.
+  `7f54112` gives the cities' agent reads a row-path fallback.
+- **Identity**: switch off equals `3355289` + routing (hybrid) and
+  `3355289` (agents off): 172 files, 0 differences; pre-merge 145 / 0.
+- **Tests** (`e979fd9`, extension `46f4fa81…c52b9b`): cargo 945 passed, 2
+  ignored; not-slow 6,046 passed, 3 skipped; slow 11 passed, 3 skipped;
+  no-Rust 5,831 passed, 218 skipped; oracle lane PASS in 67.6 s (2,021
+  passed, 20 skipped); viewer 276 tests, lint, build. Guard world 18.78 MB
+  native (cities field 0.12 MB), 19.92 MB no-Rust. Tick time: equal to
+  main at ~22k alive; at ~54k about 20% more Rust CPU in the measured turns
+  from the diverged world (first turns, same population, equal or
+  cheaper).
+- **Open**: needs oracle noise at subset scale (62-81); migration margin
+  (routing -0.0015 on subsets); city imports capped by merchant capacity;
+  no craft good; city map layer; city proxy for `--agents off`; ~20% more
+  Rust CPU per turn at ~54k from the diverged world (unprofiled by phase).
 
 ## Navigation, famine labels, migration drivers (2026-10-25, `fix/navigation-famine-labels`)
 

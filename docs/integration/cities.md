@@ -8,11 +8,17 @@ new worlds) without rebase. Code: `src/chronicler/cities.py` (behaviour),
 `chronicler-agents/src/migration_drivers.rs`, and `scripts/cities_report.py`
 / `scripts/cities_identity.py`.
 
-**Status.** Default off behind `WorldState.cities` (CLI `--cities`). With
-the switch off every output is byte-identical to `a95e4d7`, agents off and
-hybrid (see [Identity](#feature-off-identity)). With it on, both 20-seed
-subset gates pass with no comparator regression (see
-[Gates](#switch-on-subset-gates)). The full 200-seed gate was not run.
+**Status.** **On by default for new worlds** since the city-markets full
+gate (`feat/city-markets`, [city-markets.md](city-markets.md): 200 x 500
+with the switch on, PASS strict, NO REGRESSION against main `3355289` and
+Wave 8); `--no-cities` opts out and saved worlds keep their setting. That
+branch also made cities markets in the goods economy (city farmers'
+labour, craft demand, sieges cutting supply, imports in commerce) and added
+the viewer Cities tab. The rest of this page describes the first slice
+(`feat/cities`, then default off): with the switch off every output was
+byte-identical to `a95e4d7`, agents off and hybrid (see
+[Identity](#feature-off-identity)); with it on, both 20-seed subset gates
+passed with no comparator regression (see [Gates](#switch-on-subset-gates)).
 
 ## Result
 
@@ -226,9 +232,9 @@ gives the name each people uses, and `scripts/cities_report.py` prints it:
 | --- | --- |
 | CLI | `--cities` / `--no-cities` (`BooleanOptionalAction`) |
 | World field | `WorldState.cities: CityState \| None` (presence = on), omitted while `None` |
-| Default | off (`cities.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and supplied worlds keep their setting |
+| Default | on (`cities.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since `feat/city-markets`; off before) for `execute_run`, batch and the live server; resumed, forked and supplied worlds keep their setting; `scripts/benchmark_headless.run` pins it off |
 | Gate runner | `scripts/m53b_run_validation.py --cities` forwards the switch and records it in `run_manifest.json` |
-| Bundle | `history[n].cities`: living cities (id, name, region, lord, rank, residents, purse, charter, unrest, satisfaction), the fallen count and counters; omitted while off. No viewer change |
+| Bundle | `history[n].cities`: living cities (id, name, region, lord, rank, residents, purse, charter, unrest, satisfaction), the fallen count and counters; omitted while off. The viewer Cities tab reads it with `world_state.cities` (city-markets.md) |
 | Analytics | `generate_report` gains `cities` for runs that carry it |
 | State | living and fallen cities (each with its history as `(turn, kind, event id)`), dues owed and carried per civ index, counters |
 
@@ -478,14 +484,18 @@ source (the merge changes none).
 Before the merge (`a8b4b6d`): not-slow 5,999 passed, slow 11, no-Rust
 5,789, oracle lane PASS (79.6 s). The offline lane does not qualify native
 execution; the native checks are the cargo tests, the native pytest lanes
-and the gates above. The full 200-seed gate was not run.
+and the gates above. The full 200-seed gate was not run on this slice; it
+ran with the city markets ([city-markets.md](city-markets.md)).
 
 ## Roadmap
 
-1. **Urban economy, deeper.** Cities as markets in the goods economy:
-   merchants routing toward city regions (`merchant.rs` reading a market
-   weight), urban food demand drawing grain from the hinterland, a craft
-   output; finance's merchant lenders by city rather than by realm.
+1. **Urban economy, deeper.** Done in part by
+   [city-markets.md](city-markets.md): urban food demand drawing grain from
+   the hinterland through merchant routing by price, craft demand for raw
+   materials, sieges cutting a city's supply, imports in commerce. Open: a
+   craft output good, bulk grain trade (merchant capacity caps imports at
+   about 2% of a city's food), finance's merchant lenders by city rather
+   than by realm.
 2. **Guilds and patricians as a faction.** A city faction in `factions.py`
    needs a new `FactionType` value (an enum and state-shape change); this
    slice routes the voice through the merchant faction instead.
@@ -497,7 +507,9 @@ and the gates above. The full 200-seed gate was not run.
    held in cities, burned in sacks.
 5. **War.** Sieges that pick city regions as targets by wealth; sacks that
    kill residents and destroy buildings; walls as their own level.
-6. **Viewer.** A Cities tab and map layer from `history[n].cities`.
-7. **Calibration.** The full 200-seed gate with the switch on (rebellion
-   and the arcs ceiling to watch), and a city proxy for `--agents off`.
+6. **Viewer.** The Cities tab exists ([city-markets.md](city-markets.md));
+   a map layer does not.
+7. **Calibration.** The full 200-seed gate with the switch on passed
+   ([city-markets.md](city-markets.md); rebellion 0.0308, arcs pass); a
+   city proxy for `--agents off` is still open.
 

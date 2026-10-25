@@ -706,6 +706,10 @@ class TestBundleSize:
         # Maritime navigation reading the known navigation techniques
         # (docs/integration/navigation-famine-labels.md) changes this world's
         # history: 18.66MB native (13 polities over the run) and 19.80MB no-Rust.
+        # Cities on by default (docs/integration/city-markets.md) add their
+        # history field with no city founded (agents off: no settlement forms):
+        # 18.78MB native and 19.92MB no-Rust (field 0.12MB); --no-cities writes
+        # the sizes above.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
