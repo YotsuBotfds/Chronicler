@@ -132,6 +132,10 @@ pub const KNOWLEDGE_STREAM_OFFSET: u64 = 1800;
 // Maritime: merchant cargo raided on sea lanes (consumed only when the
 // merchant route graph carries sea-lane raid risks).
 pub const MERCHANT_RAID_STREAM_OFFSET: u64 = 2300;
+// Agent movements (consumed only after Python sets a movement table):
+// members' lapse draws and recruitment draws, one stream per region each.
+pub const MOVEMENT_LAPSE_STREAM_OFFSET: u64 = 2400;
+pub const MOVEMENT_RECRUIT_STREAM_OFFSET: u64 = 2500;
 // M57a: Marriage formation
 #[allow(dead_code)] // reserved for marriage RNG; kept even though v1 does not consume it yet
 pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
@@ -491,6 +495,8 @@ mod tests {
             KNOWLEDGE_STREAM_OFFSET,         // 1800
             CATASTROPHE_STREAM_OFFSET,       // 2200
             MERCHANT_RAID_STREAM_OFFSET,     // 2300
+            MOVEMENT_LAPSE_STREAM_OFFSET,    // 2400
+            MOVEMENT_RECRUIT_STREAM_OFFSET,  // 2500
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {

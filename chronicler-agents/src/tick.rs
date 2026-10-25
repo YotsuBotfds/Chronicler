@@ -338,9 +338,46 @@ pub fn try_tick_agents_with_options(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_movements(
+        pool,
+        regions,
+        signals,
+        master_seed,
+        turn,
+        wealth_percentiles,
+        spatial_grids,
+        attractors,
+        spatial_diag,
+        settlement_grids,
+        merchant_state,
+        targeted_deaths,
+        options,
+        &mut crate::movements::MovementRuntime::default(),
+    )
+}
+
+/// As [`try_tick_agents_with_options`] with the agent-movement runtime. A
+/// runtime that was never enabled (the default) runs no movement pass, so the
+/// tick is exactly the plain one.
+pub fn try_tick_agents_with_movements(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
     targeted_deaths: &[u32],
     options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let scale_mode = options.scale_mode;
     let num_regions = regions.len();
@@ -446,6 +483,10 @@ pub fn try_tick_agents_with_options(
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
     let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    // Agent movements: membership and spread, while merchants that delivered
+    // are still in the market they reached (no-op unless a table was set).
+    let movement_effects = crate::movements::movement_pass(pool, regions, movements, master_seed, turn);
+    memory_intents.extend(movement_effects.memory_intents);
     // Merchants that delivered this turn have observed the market; they go home.
     crate::merchant::return_delivering_merchants_home(pool, &master_seed);
 
@@ -453,7 +494,7 @@ pub fn try_tick_agents_with_options(
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     let sat_inputs = compute_satisfaction_region_inputs(pool, regions, signals);
-    update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs);
+    update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs, &movement_effects.relief);
 
     // -----------------------------------------------------------------------
     // M48: Famine + Prosperity intents (post-satisfaction, post-wealth)
@@ -491,7 +532,9 @@ pub fn try_tick_agents_with_options(
     // -----------------------------------------------------------------------
     // 2. Pre-compute region stats for decisions
     // -----------------------------------------------------------------------
-    let stats = compute_region_stats(pool, regions, signals);
+    let mut stats = compute_region_stats(pool, regions, signals);
+    // Agent movements: rebel utility of members in a rising's stronghold.
+    stats.movement_rebel_boost = movement_effects.rebel_boost;
 
     // -----------------------------------------------------------------------
     // M57b: Pre-decision id_to_slot map for household_effective_wealth and consolidation.
@@ -1188,6 +1231,9 @@ pub fn try_tick_agents_with_options(
     formation_stats.cross_faith_marriages = marriage_stats.cross_faith_marriages;
     formation_stats.same_faith_marriages = marriage_stats.same_faith_marriages;
 
+    // Agent movements: the grievance census Phase 10 reads (no-op unless enabled).
+    crate::movements::census(pool, num_regions, movements);
+
     // M59b: Merge consumer counters into knowledge_stats
     knowledge_stats.merchant_plans_packet_driven = merchant_stats.plans_packet_driven;
     knowledge_stats.merchant_plans_bootstrap = merchant_stats.plans_bootstrap;
@@ -1407,6 +1453,7 @@ fn update_satisfaction(
     signals: &TickSignals,
     wealth_percentiles: &[f32],
     sat_inputs: &SatisfactionRegionInputs,
+    movement_relief: &[f32],
 ) {
 
     // Partition agents by region
@@ -1541,6 +1588,18 @@ fn update_satisfaction(
     for region_updates in &updates {
         for &(slot, sat) in region_updates {
             pool.set_satisfaction(slot, sat);
+        }
+    }
+    // Agent movements: reform relief of members (empty unless a reform was
+    // granted; on-trip merchants keep their preserved value).
+    if !movement_relief.is_empty() {
+        for region_updates in &updates {
+            for &(slot, sat) in region_updates {
+                let relief = movement_relief.get(slot).copied().unwrap_or(0.0);
+                if relief > 0.0 && !pool.is_on_trip(slot) {
+                    pool.set_satisfaction(slot, (sat + relief).min(1.0));
+                }
+            }
         }
     }
 }
@@ -2283,8 +2342,8 @@ mod tests {
         let wealth_pcts_b = vec![0.5f32; cap_b];
         let sat_inputs_a = compute_satisfaction_region_inputs(&pool_a, &regions, &signals);
         let sat_inputs_b = compute_satisfaction_region_inputs(&pool_b, &regions, &signals);
-        update_satisfaction(&mut pool_a, &regions, &signals, &wealth_pcts_a, &sat_inputs_a);
-        update_satisfaction(&mut pool_b, &regions, &signals, &wealth_pcts_b, &sat_inputs_b);
+        update_satisfaction(&mut pool_a, &regions, &signals, &wealth_pcts_a, &sat_inputs_a, &[]);
+        update_satisfaction(&mut pool_b, &regions, &signals, &wealth_pcts_b, &sat_inputs_b, &[]);
 
         // Verify computation actually happened (not still at default 0.5)
         let any_changed = (0..pool_a.capacity())

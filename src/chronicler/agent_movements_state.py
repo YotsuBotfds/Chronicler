@@ -1,0 +1,98 @@
+"""Persisted state of agent movements (see :mod:`chronicler.agent_movements`).
+
+Pure data with no simulation imports, so :mod:`chronicler.models` can import
+it. A movement is identified by its index in ``MovementState.movements``
+(ended movements stay in the list); agents carry that index + 1 as their
+``movement_id``. Regions are indices in ``world.regions``, civilizations
+indices in ``world.civilizations``.
+
+Tuple orders below are declaration orders: append new values at the end,
+never reorder (stored values index into them). ``CREED_NAMES`` and the first
+five ``STAGE_NAMES`` mirror the native constants in ``movements.rs``.
+"""
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+#: ``Movement.creed`` names: the grievance a movement carries.
+CREED_NAMES: tuple[str, ...] = ("commons", "liberty", "sect")
+COMMONS, LIBERTY, SECT = range(len(CREED_NAMES))
+
+#: ``Movement.stage`` names (all but ``ended`` are sent to the agent tick).
+STAGE_NAMES: tuple[str, ...] = ("gathering", "pressing", "suppressed", "rising", "satisfied", "ended")
+GATHERING, PRESSING, SUPPRESSED, RISING, SATISFIED, ENDED = range(len(STAGE_NAMES))
+
+#: ``Movement.end`` names (0 while living).
+END_NAMES: tuple[str, ...] = ("", "faded", "won", "seceded", "schism", "crushed", "dissolved")
+LIVING, FADED, WON, SECEDED, SCHISM, CRUSHED, DISSOLVED = range(len(END_NAMES))
+
+#: ``Movement.history`` entry kinds.
+HISTORY_KINDS: tuple[str, ...] = (
+    "founded", "spread", "demand", "reform", "refused", "crackdown", "martyr", "rising",
+    "concession", "crushed", "seceded", "schism", "ended", "dispersed",
+)
+
+#: Cumulative counters kept on ``MovementState.counters`` (insertion order).
+COUNTER_KEYS: tuple[str, ...] = (
+    "founded", "demands", "reforms", "refusals", "crackdowns", "martyrs", "risings",
+    "concessions", "crushed", "secessions", "schisms", "faded", "won", "broken",
+    "dissolved", "relief_cost",
+)
+
+
+class Movement(BaseModel):
+    """One movement, from its founding to its end."""
+
+    name: str
+    creed: int
+    founded_turn: int
+    home_region: int                 # region index of the founding
+    target: int                      # civ index of the ruler it opposes
+    leader: str = ""                 # great person who founded it ("" none)
+    leader_agent: int = 0            # the leader's agent id (0 none)
+    idea: str = ""                   # M16b movement id it carries ("" none)
+    faith: int = 255                 # members' commonest faith (255 unknown)
+    stage: int = GATHERING
+    stage_turn: int = 0
+    members: int = 0                 # at the last Phase 10
+    peak_members: int = 0
+    # [region index, members] for regions with members, ascending region.
+    member_regions: list[list[int]] = Field(default_factory=list)
+    strength: float = 0.0            # members' share of the target realm's adults
+    stronghold: int = -1             # realm region with the largest member share
+    stronghold_share: float = 0.0
+    grievance: float = 0.0           # refusals and crackdowns, 0..1.5
+    martyrs: int = 0
+    low_turns: int = 0               # consecutive turns below the fade floor
+    demands: int = 0
+    last_demand: int = -1000
+    last_rising: int = -1000
+    reform_turn: int | None = None
+    crackdown_turn: int | None = None
+    crackdown_region: int = -1
+    rising_turn: int | None = None
+    rising_region: int = -1
+    rising_members: int = 0          # members in the stronghold when it rose
+    schism_turn: int | None = None
+    schism_from: int = 255
+    schism_to: int = 255
+    leader_mourned: bool = False
+    ended_turn: int | None = None
+    end: int = LIVING
+    successor: int = -1              # civ index (seceded) or faith id (schism)
+    regions_reached: list[int] = Field(default_factory=list)
+    # (turn, kind, event id) in order; kinds from HISTORY_KINDS.
+    history: list[tuple[int, str, str]] = Field(default_factory=list)
+
+
+class MovementState(BaseModel):
+    """World-level switch and bookkeeping (``WorldState.agent_movements``)."""
+
+    movements: list[Movement] = Field(default_factory=list)
+    counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
+    last_tick_turn: int | None = None
+
+
+def agent_movements_on(world) -> bool:
+    """True only for a real movement state on ``world`` (mocks and None read as off)."""
+    return isinstance(getattr(world, "agent_movements", None), MovementState)

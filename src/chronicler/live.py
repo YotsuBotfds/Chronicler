@@ -1180,6 +1180,13 @@ def run_live(
         )
         _cities = getattr(args, "cities", None)
         set_cities_enabled(world, _CITIES_DEFAULT if _cities is None else bool(_cities))
+        # Agent movements: new live worlds follow the CLI default (off).
+        from chronicler.agent_movements import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT, set_agent_movements_enabled,
+        )
+        _movements = getattr(args, "agent_movements", None)
+        set_agent_movements_enabled(
+            world, _MOVEMENTS_DEFAULT if _movements is None else bool(_movements))
         # Historiography: new live worlds follow the CLI default (observational).
         from chronicler.historiography import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,

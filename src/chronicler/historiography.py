@@ -164,6 +164,7 @@ DISGRACE = frozenset({
     "succession_crisis", "twilight", "collapse", "tech_regression", "ambition_failed",
     "dynasty_split", "dynasty_extinct", "horde_fragmented", "federation_collapsed",
     "congress_collapse", "fiscal_crisis", "intelligence_failure", "secession_defection",
+    "movement_rising", "movement_concession",
 })
 GLORY = frozenset({
     "great_person_born", "cultural_work", "cultural_renaissance", "discovery",
@@ -179,7 +180,7 @@ RULER = frozenset({"leader_death", "succession_crisis_resolved"})
 FAITH = frozenset({
     "Persecution", "Mass Migration", "Schism", "Reformation", "temple_destroyed",
     "religious_movement", "movement_adoption", "movement_emergence", "movement_schism",
-    "martyrdom", "pilgrimage_departure", "pilgrimage_return",
+    "martyrdom", "pilgrimage_departure", "pilgrimage_return", "movement_martyr",
 })
 PEACE = frozenset({
     "peace_treaty", "war_ended", "congress_peace", "congress_ceasefire", "treaty_signed",

@@ -32,6 +32,8 @@ pub fn snapshot_schema() -> Schema {
         Field::new("x", DataType::Float32, false),
         Field::new("y", DataType::Float32, false),
         Field::new("settlement_id", DataType::UInt16, false),
+        // Agent movements: 0 = none, else movement index + 1.
+        Field::new("movement_id", DataType::UInt16, false),
     ])
 }
 

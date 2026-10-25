@@ -325,3 +325,52 @@ def test_save_load_resume_identity_with_cities_and_everything_on(tmp_path):
     assert _market_inputs(resumed) == _market_inputs(straight)
     assert resumed.model_dump_json() == straight.model_dump_json()
     assert resumed.cities.counters["founded"] >= 4
+
+
+# --- Agent movements on top of everything (members as a world saves them) -------------
+
+def _movements_world() -> WorldState:
+    """Everything above, cities included, plus agent movements. With --agents
+    off nothing recruits or founds, so two movements are placed as a saved
+    world carries them (members by region, strength, stronghold): their
+    demands, the rulers' responses, crackdowns and risings run from the
+    persisted state."""
+    import chronicler.agent_movements as am
+    from chronicler.agent_movements_state import COMMONS, LIBERTY, Movement
+    world = _cities_world()
+    am.set_agent_movements_enabled(world, True)
+    held = sorted((i for i, r in enumerate(world.regions) if r.controller),
+                  key=lambda i: (-world.regions[i].population, i))
+    for creed, ri in ((LIBERTY, held[0]), (COMMONS, held[1])):
+        target = world.civ_index_map[world.regions[ri].controller]
+        world.agent_movements.movements.append(Movement(
+            name=f"movement {ri}", creed=creed, founded_turn=0, home_region=ri, target=target,
+            members=12, member_regions=[[ri, 12]], strength=0.3, stronghold=ri,
+            stronghold_share=0.4, regions_reached=[ri]))
+    return world
+
+
+def _movements_live(world: WorldState) -> bool:
+    c = world.agent_movements.counters
+    return c["demands"] >= 2 and c["refusals"] + c["reforms"] + c["crackdowns"] >= 2
+
+
+def test_save_load_resume_identity_with_movements_and_everything_on(tmp_path):
+    first = _advance(_movements_world(), 30)
+    while not (_movements_live(first) and _cities_live(first) and first.finance.loans
+               and first.diplomacy.treaties):
+        assert first.turn < 120, "no turn with live movements, cities, loans and treaties"
+        _advance(first, 1)
+    straight = _advance(_movements_world(), first.turn)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = WorldState.load(path)
+    assert resumed.agent_movements == first.agent_movements
+    import chronicler.agent_movements as am
+    for _ in range(15):
+        # The native table each tick would read is the same, turn by turn.
+        assert am.movement_table(resumed).to_pydict() == am.movement_table(straight).to_pydict()
+        _advance(resumed, 1)
+        _advance(straight, 1)
+    assert resumed.model_dump_json() == straight.model_dump_json()
+    assert resumed.agent_movements.counters["demands"] >= 2

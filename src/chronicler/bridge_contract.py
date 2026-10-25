@@ -41,8 +41,9 @@ import pyarrow as pa
 IntColumn = Literal[
     "id", "region", "civ_affinity", "occupation", "belief",
     "cultural_value_0", "cultural_value_1", "cultural_value_2", "settlement_id",
+    "movement_id", "age",
 ]
-FloatColumn = Literal["x", "y", "loyalty_trait", "loyalty"]
+FloatColumn = Literal["x", "y", "loyalty_trait", "loyalty", "boldness"]
 
 SNAPSHOT_SCHEMA = pa.schema([
     pa.field("id", pa.uint32(), nullable=False),
@@ -68,6 +69,8 @@ SNAPSHOT_SCHEMA = pa.schema([
     pa.field("x", pa.float32(), nullable=False),
     pa.field("y", pa.float32(), nullable=False),
     pa.field("settlement_id", pa.uint16(), nullable=False),
+    # Agent movements: 0 = none, else movement index + 1 (all 0 while off).
+    pa.field("movement_id", pa.uint16(), nullable=False),
 ])
 SNAPSHOT_FIELD_NAMES = tuple(SNAPSHOT_SCHEMA.names)
 
