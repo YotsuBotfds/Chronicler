@@ -508,6 +508,9 @@ pub struct RegionStats {
     pub has_internal_neighbour: Vec<bool>,
     /// Frontier gate input: `migration_drivers::food_potential` per region.
     pub food_potential: Vec<f32>,
+    /// Agent movements: rebel utility added per slot (members in the
+    /// stronghold of a rising). Empty unless a rising was sent.
+    pub movement_rebel_boost: Vec<f32>,
 }
 
 /// Wage-gap peer index of an adult farmer or merchant. Children carry an
@@ -742,6 +745,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
         peer_count,
         has_internal_neighbour,
         food_potential: regions.iter().map(food_potential).collect(),
+        movement_rebel_boost: Vec::new(),
     }
 }
 
@@ -901,6 +905,13 @@ pub fn evaluate_region_decisions(
         // M49: Need-driven utility modifiers — additive, applied after memory, before gate
         let need_mods = crate::needs::compute_need_utility_modifiers(pool, slot);
         rebel_util += need_mods.rebel;
+
+        // Agent movements: members in the stronghold of a rising.
+        if let Some(&boost) = stats.movement_rebel_boost.get(slot) {
+            if boost > 0.0 {
+                rebel_util += boost;
+            }
+        }
         if !is_displaced {
             migrate_util += need_mods.migrate;
         }

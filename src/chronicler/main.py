@@ -358,6 +358,15 @@ def _cities_snapshot_fields(world) -> dict:
     return {"cities": snapshot_summary(world)}
 
 
+def _agent_movements_snapshot_fields(world) -> dict:
+    """Agent movements per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.agent_movements_state import agent_movements_on
+    if not agent_movements_on(world):
+        return {}
+    from chronicler.agent_movements import snapshot_summary
+    return {"agent_movements": snapshot_summary(world)}
+
+
 def _food_snapshot_fields(world) -> dict:
     """Viewer-only food summary (empty unless mutual aid observes regional food)."""
     from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
@@ -672,6 +681,15 @@ def execute_run(
     if cities is not None:
         from chronicler.cities import set_cities_enabled
         set_cities_enabled(world, cities)
+    # Agent movements switch (persisted on the world): movements grounded in
+    # people, with demands, reforms, crackdowns, risings, schisms, secession.
+    agent_movements = getattr(args, "agent_movements", None)
+    if agent_movements is None and fresh_world:
+        from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT
+        agent_movements = _MOVEMENTS_DEFAULT
+    if agent_movements is not None:
+        from chronicler.agent_movements import set_agent_movements_enabled
+        set_agent_movements_enabled(world, agent_movements)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -948,6 +966,7 @@ def execute_run(
             **_gp_agendas_snapshot_fields(world),
             **_nomads_snapshot_fields(world),
             **_cities_snapshot_fields(world),
+            **_agent_movements_snapshot_fields(world),
             **_food_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
@@ -1516,6 +1535,13 @@ def _build_parser() -> argparse.ArgumentParser:
                              "falls; city markets that draw grain from the hinterland; needs an "
                              "agent mode to found cities (default on for new worlds; --no-cities "
                              "opts out; saved on resume)")
+    parser.add_argument("--agent-movements", action=argparse.BooleanOptionalAction, default=None,
+                        help="Movements grounded in people: agents with shared grievances (hunger, "
+                             "foreign rule, an unanswered faith) join leagues, autonomist currents "
+                             "and sects through their bonds, towns, migrants and merchants; at "
+                             "scale they press factions and rulers, win reforms, suffer crackdowns "
+                             "and martyrs, split faiths or rise and secede; needs an agent mode to "
+                             "found movements (default off for new worlds; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

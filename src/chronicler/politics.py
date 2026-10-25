@@ -399,6 +399,58 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
     return events
 
 
+def transfer_regions_to_new_civ(
+    world: WorldState,
+    lord: Civilization,
+    new_civ: Civilization,
+    region_names: list[str],
+    *,
+    add_stat,
+    split_military: int,
+    split_economy: int,
+    lord_stability_loss: int,
+    bridge=None,
+) -> list[Event]:
+    """Give ``region_names`` of ``lord`` to ``new_civ``, appended as the next
+    civ index, the way a secession does: the lord's military and economy
+    split (``guard``) and its stability loss (``guard-shock``) through
+    ``add_stat(civ, stat, delta, category)``, the regions' agents transferred
+    in hybrid mode, the regions' controller and one-turn secession signal,
+    hostility with the old lord and neutrality with everyone else. Used by
+    the cities' free cities and the agent movements' secessions. Returns the
+    agent-transition events."""
+    lord_idx = civ_index(world, lord.name)
+    new_idx = len(world.civilizations)
+    add_stat(lord, "military", -split_military, "guard")
+    add_stat(lord, "economy", -split_economy, "guard")
+    add_stat(lord, "stability", -lord_stability_loss, "guard-shock")
+    events: list[Event] = []
+    if bridge is None:
+        bridge = getattr(world, "_agent_bridge", None)
+    if world.agent_mode == "hybrid" and bridge is not None:
+        events = bridge.apply_secession_transitions(
+            lord, new_civ, list(region_names), new_idx, turn=world.turn, world=world,
+            old_civ_id=lord_idx,
+        )
+    leaving = set(region_names)
+    lord.regions = [r for r in lord.regions if r not in leaving]
+    region_map = world.region_map
+    for name in region_names:
+        region = region_map[name]
+        region.controller = new_civ.name
+        region._seceded_this_turn = True
+    sync_civ_population(lord, world)
+    rels = world.relationships
+    rels.setdefault(lord.name, {})[new_civ.name] = Relationship(disposition=Disposition.HOSTILE)
+    rels.setdefault(new_civ.name, {})[lord.name] = Relationship(disposition=Disposition.HOSTILE)
+    for other in world.civilizations:
+        if other.name != lord.name:
+            rels.setdefault(other.name, {})[new_civ.name] = Relationship(disposition=Disposition.NEUTRAL)
+            rels[new_civ.name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
+    world.civilizations.append(new_civ)
+    return events
+
+
 def check_capital_loss(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any civ lost its capital and handle reassignment."""
     _require_acc_for_hybrid(world, acc, "check_capital_loss()")

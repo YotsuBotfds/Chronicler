@@ -141,6 +141,9 @@ pub struct AgentSimulator {
     hybrid_economy_mode: bool,
     /// M60b: stable agent ids queued by Python war casualties; drained by the next tick.
     pending_targeted_deaths: Vec<u32>,
+    /// Agent movements: the table Python sends each tick (enabled by the
+    /// first `set_movement_table`), re-seeding requests and the last stats.
+    movements: crate::movements::MovementRuntime,
     /// M48: Promotion memories queued by `get_promotions()` as (promotion
     /// turn, intent). Written at the start of the next `tick()` so the
     /// same-turn Python Mule roll still sees only pre-promotion memories.
@@ -200,6 +203,7 @@ impl AgentSimulator {
             knowledge_stats: crate::knowledge::KnowledgeStats::default(),
             hybrid_economy_mode: false,
             pending_targeted_deaths: Vec::new(),
+            movements: crate::movements::MovementRuntime::default(),
             pending_promotion_memories: Vec::new(),
             tick_options: crate::scale::TickOptions::default(),
             snapshot_cache: None,
@@ -210,6 +214,39 @@ impl AgentSimulator {
     /// (war casualties). The queue is consumed and cleared by `tick()`.
     pub fn queue_targeted_deaths(&mut self, ids: Vec<u32>) {
         self.pending_targeted_deaths.extend(ids);
+    }
+
+    /// Agent movements: replace the movement table (one row per living
+    /// movement; see `movements::parse_movement_table`). The first call
+    /// enables the movement pass for every later tick.
+    pub fn set_movement_table(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
+        let rb: RecordBatch = batch.into_inner();
+        self.movements.rows = crate::movements::parse_movement_table(&rb).map_err(arrow_err)?;
+        self.movements.enabled = true;
+        Ok(())
+    }
+
+    /// Agent movements: members to re-seed per region on the next tick
+    /// (movement_id u16, region u16, count u32), after a resume rebuilt the
+    /// pool from region populations.
+    pub fn seed_movement_members(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
+        let rb: RecordBatch = batch.into_inner();
+        self.movements.seeds.extend(crate::movements::parse_movement_seeds(&rb).map_err(arrow_err)?);
+        Ok(())
+    }
+
+    /// Agent movements: the last pass's stats, (per region, per movement).
+    pub fn get_movement_stats(&self) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        let (regions, movements) =
+            crate::movements::movement_stats_batches(&self.movements.stats).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(regions), PyRecordBatch::new(movements)))
+    }
+
+    /// Whether the movement pass is enabled (a table was set).
+    pub fn movements_enabled(&self) -> bool {
+        self.movements.enabled
     }
 
     /// M60b: number of queued targeted deaths not yet consumed by a tick.
@@ -927,7 +964,7 @@ impl AgentSimulator {
         let tick_options = self.tick_options;
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents_with_options(
+                crate::tick::try_tick_agents_with_movements(
                     &mut self.pool,
                     &self.regions,
                     &signals,
@@ -941,6 +978,7 @@ impl AgentSimulator {
                     merchant_state,
                     &targeted_deaths,
                     tick_options,
+                    &mut self.movements,
                 )
             }).map_err(PyRuntimeError::new_err)?;
 

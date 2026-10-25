@@ -840,10 +840,8 @@ def _free_city(t: _Tick, city: City, region, lord, revolt) -> None:
     """The city's region secedes as a city-state, built as ``check_secession``
     builds a breakaway (one region, hostile to its old lord)."""
     from chronicler.leaders import _compose_regnal_name, _pick_regnal_name
-    from chronicler.models import Civilization, Disposition, Leader, Relationship
-    from chronicler.utils import sync_civ_population
+    from chronicler.models import Civilization, Leader
     world = t.world
-    lord_idx = t.index[lord.name]
     name = _free_city_name(world, region)
     share = region.population / max(1, lord.population)
     split_mil = math.floor(lord.military * share)
@@ -873,27 +871,13 @@ def _free_city(t: _Tick, city: City, region, lord, revolt) -> None:
     new.traditions = list(lord.traditions)
     new_idx = len(world.civilizations)
 
-    _add_stat(t, lord, "military", -split_mil, "guard")
-    _add_stat(t, lord, "economy", -split_eco, "guard")
-    _add_stat(t, lord, "stability", -FREE_CITY_LORD_LOSS, "guard-shock")
-    events: list = []
-    bridge = t.bridge if t.bridge is not None else getattr(world, "_agent_bridge", None)
-    if world.agent_mode == "hybrid" and bridge is not None:
-        events = bridge.apply_secession_transitions(
-            lord, new, [region.name], new_idx, turn=world.turn, world=world, old_civ_id=lord_idx,
-        )
-    lord.regions = [r for r in lord.regions if r != region.name]
-    region.controller = name
-    region._seceded_this_turn = True
-    sync_civ_population(lord, world)
-    rels = world.relationships
-    rels.setdefault(lord.name, {})[name] = Relationship(disposition=Disposition.HOSTILE)
-    rels.setdefault(name, {})[lord.name] = Relationship(disposition=Disposition.HOSTILE)
-    for other in world.civilizations:
-        if other.name != lord.name:
-            rels.setdefault(other.name, {})[name] = Relationship(disposition=Disposition.NEUTRAL)
-            rels[name][other.name] = Relationship(disposition=Disposition.NEUTRAL)
-    world.civilizations.append(new)
+    from chronicler.politics import transfer_regions_to_new_civ
+    events = transfer_regions_to_new_civ(
+        world, lord, new, [region.name],
+        add_stat=lambda civ, stat, delta, category: _add_stat(t, civ, stat, delta, category),
+        split_military=split_mil, split_economy=split_eco,
+        lord_stability_loss=FREE_CITY_LORD_LOSS, bridge=t.bridge,
+    )
     t.index[name] = new_idx
     city.charter = FREE_CITY
     city.lord = new_idx

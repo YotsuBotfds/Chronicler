@@ -24,6 +24,7 @@ from chronicler.maritime_state import MaritimeState
 from chronicler.gp_agendas_state import GPAgendaState
 from chronicler.nomads_state import NomadState
 from chronicler.cities_state import CityState
+from chronicler.agent_movements_state import MovementState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1207,6 +1208,10 @@ class WorldState(BaseModel):
     # Cities as actors: wealth, charters, revolts, sacks and falls of M56a
     # settlements (chronicler.cities; None = disabled; omitted from output).
     cities: CityState | None = None
+    # Movements grounded in people: members by agent, demands, reforms,
+    # crackdowns, risings, schisms and secessions (chronicler.agent_movements;
+    # None = disabled; omitted from output).
+    agent_movements: MovementState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1316,6 +1321,8 @@ class WorldState(BaseModel):
             data.pop("nomads", None)
         if isinstance(data, dict) and self.cities is None:
             data.pop("cities", None)
+        if isinstance(data, dict) and self.agent_movements is None:
+            data.pop("agent_movements", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1462,6 +1469,8 @@ class TurnSnapshot(BaseModel):
     nomads: dict | None = None
     # Cities per-turn summary; None (and omitted) when cities are off.
     cities: dict | None = None
+    # Agent movements per-turn summary; None (and omitted) when off.
+    agent_movements: dict | None = None
     # Viewer only: per-region food sufficiency and the completed turn's relief
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
@@ -1497,6 +1506,8 @@ class TurnSnapshot(BaseModel):
             data.pop("nomads")
         if isinstance(data, dict) and data.get("cities", 0) is None:
             data.pop("cities")
+        if isinstance(data, dict) and data.get("agent_movements", 0) is None:
+            data.pop("agent_movements")
         return data
 
 

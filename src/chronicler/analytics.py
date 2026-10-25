@@ -1450,6 +1450,12 @@ def generate_report(
     cities = extract_city_metrics(bundles)
     if cities.get("runs"):
         report["cities"] = cities
+    # Agent movements: present only for runs whose bundles carry
+    # history[n].agent_movements.
+    from chronicler.agent_movements import extract_movement_metrics
+    movements = extract_movement_metrics(bundles)
+    if movements.get("runs"):
+        report["agent_movements"] = movements
 
     report["anomalies"] = detect_anomalies(report)
     return report

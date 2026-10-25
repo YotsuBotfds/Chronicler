@@ -166,6 +166,14 @@ def _cities_args(args: argparse.Namespace) -> list[str]:
     return ["--cities" if cities else "--no-cities"]
 
 
+def _agent_movements_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit agent-movements switch; omitted keeps the CLI default."""
+    movements = getattr(args, "agent_movements", None)
+    if movements is None:
+        return []
+    return ["--agent-movements" if movements else "--no-agent-movements"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -228,6 +236,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_gp_agendas_args(args),
         *_nomads_args(args),
         *_cities_args(args),
+        *_agent_movements_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -265,6 +274,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_gp_agendas_args(args),
         *_nomads_args(args),
         *_cities_args(args),
+        *_agent_movements_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -308,6 +318,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_gp_agendas_args(args))
         cmd.extend(_nomads_args(args))
         cmd.extend(_cities_args(args))
+        cmd.extend(_agent_movements_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -649,6 +660,13 @@ def main() -> None:
         help="Forward --cities/--no-cities to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--agent-movements",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --agent-movements/--no-agent-movements to every simulation run "
+             "(default: CLI default).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -756,6 +774,7 @@ def main() -> None:
         "gp_agendas": args.gp_agendas,
         "nomads": args.nomads,
         "cities": args.cities,
+        "agent_movements": args.agent_movements,
         "historiography": args.historiography,
         "languages": args.languages,
         "pythonhashseed": env["PYTHONHASHSEED"],

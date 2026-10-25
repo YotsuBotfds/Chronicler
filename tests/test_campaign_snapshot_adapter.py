@@ -1,6 +1,7 @@
 """Read-only snapshot-to-campaign admission seam. No worlds, RNG or native calls.
 
-Real Arrow tables carry the existing 23-field native schema and the existing
+Real Arrow tables carry the 24-field native schema (``movement_id`` appended
+last by the agent movements) and the existing
 three-region adjacency from ``chronicler-agents/tests/test_behavior.rs:63-65``.
 Soldier/civ selection, kits, morale and stocks are explicit caller data, and
 the reviewed ``chronicler.campaign_logistics.admit`` seam stays the only place a
@@ -73,12 +74,12 @@ DEFAULT_SIDE_VALUES = (7, 8, 9, 10, 11, 99)
 
 
 def rows(*, ids, regions, civs, occupations, extra=None):
-    """One real Arrow record batch over the untouched 23-field native schema.
+    """One real Arrow record batch over the 24-field native schema.
 
     ``extra`` fills only fields outside the four demanded columns, so an
     ordinary table stays a plausible native capture.
     """
-    assert len(SNAPSHOT_FIELD_NAMES) == 23
+    assert len(SNAPSHOT_FIELD_NAMES) == 24
     assert not set(extra or {}) & set(DEMANDED_COLUMNS)
     count = len(ids)
     data = {
@@ -320,7 +321,7 @@ def test_duplicate_and_missing_ids_are_rejected():
 
 
 def test_zero_row_snapshot_has_no_admissible_roster():
-    # A real Arrow table: a valid 23-field schema with zero rows.
+    # A real Arrow table: a valid 24-field schema with zero rows.
     empty = rows(ids=[], regions=[], civs=[], occupations=[])
     assert empty.num_rows == 0
     with pytest.raises(CampaignSnapshotError, match="absent"):
@@ -334,7 +335,9 @@ def test_zero_row_snapshot_has_no_admissible_roster():
 
 # ----------------------------------------------------------------- schema gate
 
-@pytest.mark.parametrize("name", SNAPSHOT_FIELD_NAMES)
+# The last field (``movement_id``) is the one a capture written before agent
+# movements lacks; that layout stays valid (test_bridge_contract).
+@pytest.mark.parametrize("name", SNAPSHOT_FIELD_NAMES[:-1])
 def test_exact_snapshot_schema_ratchet_rejects_a_missing_field(name):
     # Zero rows and a missing field: the reviewed ratchet rejects the schema
     # itself, so a partial capture can never be planned from.
@@ -1227,5 +1230,6 @@ def test_kernel_and_existing_fixtures_are_reused_not_copied():
         "src/chronicler/snapshot_campaign_sessions.py"}
     # Existing snapshot-contract and campaign fixtures are reused unchanged.
     assert SNAPSHOT_FIELD_NAMES == tuple(SNAPSHOT_SCHEMA.names)
-    assert len(SNAPSHOT_FIELD_NAMES) == 23 and SNAPSHOT_FIELD_NAMES[0] == "id"
+    assert len(SNAPSHOT_FIELD_NAMES) == 24 and SNAPSHOT_FIELD_NAMES[0] == "id"
+    assert SNAPSHOT_FIELD_NAMES[-1] == "movement_id"
     assert rows_for(snapshot()).ints("id") == (7, 8, 9, 10, 11)

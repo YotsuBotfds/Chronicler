@@ -104,6 +104,7 @@ from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
 from chronicler.maritime import maritime_enabled as _maritime_on
 from chronicler.nomads_state import nomads_on as _nomads_on
 from chronicler.cities_state import cities_on as _cities_on
+from chronicler.agent_movements_state import agent_movements_on as _agent_movements_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -2279,6 +2280,16 @@ def run_turn_result(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
             economy_result=artifacts.economy,
+        ))
+
+    # Agent movements (--agent-movements): members from this turn's rows,
+    # pressure, demands and responses, risings, schisms, secessions and
+    # emergence; before the Phase 10 flush below.
+    if _agent_movements_on(world):
+        from chronicler.agent_movements import tick_agent_movements
+        _emit(tick_agent_movements(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
         ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,

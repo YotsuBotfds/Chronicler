@@ -83,6 +83,9 @@ pub struct AgentPool {
     pub y: Vec<f32>,
     // M56b: Per-agent settlement assignment (0 = rural, >0 = settlement_id)
     pub settlement_ids: Vec<u16>,
+    // Agent movements: membership (0 = none, else movement index + 1;
+    // `movements.rs`). Written only by the movement pass.
+    pub movement_ids: Vec<u16>,
     // M58a: Merchant mobility trip state
     pub trip_phase: Vec<u8>,           // Idle=0, Loading=1, Transit=2
     pub trip_dest_region: Vec<u16>,
@@ -167,6 +170,7 @@ impl AgentPool {
             x: Vec::with_capacity(capacity),
             y: Vec::with_capacity(capacity),
             settlement_ids: Vec::with_capacity(capacity),
+            movement_ids: Vec::with_capacity(capacity),
             trip_phase: Vec::with_capacity(capacity),
             trip_dest_region: Vec::with_capacity(capacity),
             trip_origin_region: Vec::with_capacity(capacity),
@@ -263,6 +267,7 @@ impl AgentPool {
             self.x[slot] = 0.5;
             self.y[slot] = 0.5;
             self.settlement_ids[slot] = 0;
+            self.movement_ids[slot] = 0;
             self.trip_phase[slot] = crate::agent::TRIP_PHASE_IDLE;
             self.trip_dest_region[slot] = 0;
             self.trip_origin_region[slot] = 0;
@@ -333,6 +338,7 @@ impl AgentPool {
             self.x.push(0.5);
             self.y.push(0.5);
             self.settlement_ids.push(0);
+            self.movement_ids.push(0);
             self.trip_phase.push(crate::agent::TRIP_PHASE_IDLE);
             self.trip_dest_region.push(0);
             self.trip_origin_region.push(0);
@@ -403,6 +409,7 @@ impl AgentPool {
             self.rel_count[slot] = 0;
             self.parent_id_0[slot] = crate::agent::PARENT_NONE;
             self.parent_id_1[slot] = crate::agent::PARENT_NONE;
+            self.movement_ids[slot] = 0;
             self.count -= 1;
             self.free_slots.push(slot);
         }
@@ -661,6 +668,7 @@ impl AgentPool {
         let mut x_col = Float32Builder::with_capacity(live);
         let mut y_col = Float32Builder::with_capacity(live);
         let mut settlement_id_col = UInt16Builder::with_capacity(live);
+        let mut movement_id_col = UInt16Builder::with_capacity(live);
 
         for slot in 0..self.capacity() {
             if !self.is_alive(slot) {
@@ -693,6 +701,7 @@ impl AgentPool {
             x_col.append_value(self.x[slot]);
             y_col.append_value(self.y[slot]);
             settlement_id_col.append_value(self.settlement_ids[slot]);
+            movement_id_col.append_value(self.movement_ids[slot]);
         }
 
         let schema = Arc::new(ffi::snapshot_schema());
@@ -722,6 +731,7 @@ impl AgentPool {
                 Arc::new(x_col.finish()) as _,
                 Arc::new(y_col.finish()) as _,
                 Arc::new(settlement_id_col.finish()) as _,
+                Arc::new(movement_id_col.finish()) as _,
             ],
         )
     }
