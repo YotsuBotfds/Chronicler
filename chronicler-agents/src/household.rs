@@ -326,6 +326,13 @@ pub fn consolidate_household_migrations(
                 continue;
             }
 
+            // Migration budget: followers count under the lead's largest term
+            // (`migration_dominant` is in slot order: the region's slots are).
+            let lead_term = bucket
+                .migration_dominant
+                .binary_search_by_key(&lead_slot, |&(s, _)| s)
+                .map_or(crate::migration_drivers::MIGRATION_TERMS as u8, |i| bucket.migration_dominant[i].1);
+
             // APPROVED: trailing spouse follows
             // Remove trailing's existing migration (if different destination)
             bucket.migrations.retain(|m| m.0 != trailing_slot);
@@ -334,6 +341,7 @@ pub fn consolidate_household_migrations(
             bucket.rebellions.retain(|&(s, _)| s != trailing_slot);
             bucket.occupation_switches.retain(|&(s, _)| s != trailing_slot);
             stats.household_migrations_follow += 1;
+            stats.migration_drivers.record_follower(lead_term);
 
             // APPROVED: dependents follow
             for &dep in &dep_slots {
@@ -343,6 +351,7 @@ pub fn consolidate_household_migrations(
                 bucket.occupation_switches.retain(|&(s, _)| s != dep);
                 stats.household_migrations_follow += 1;
                 stats.household_dependent_overrides += 1;
+                stats.migration_drivers.record_follower(lead_term);
             }
         }
 

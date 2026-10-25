@@ -53,6 +53,8 @@ fn frontier_world(second_ruler: u8) -> (AgentPool, Vec<RegionState>) {
             r.water = 0.6;
             r.resource_types[0] = 0;
             r.resource_base_yield[0] = 2.5;
+            // This turn's yield, so farmers earn (the same in both regions).
+            r.resource_yields[0] = 0.9;
             // One faith with a temple keeps the spiritual need met, so no
             // deprivation push muddies the test.
             r.majority_belief = 0;
@@ -154,16 +156,16 @@ fn frontier_settlement_is_deterministic() {
     assert_eq!(regions_a, regions_b);
 }
 
-/// Two half-full regions of one realm (no frontier gradient); region 1 holds
-/// settled emigrants from region 0. Their kin in region 0 follow them, and
-/// nobody is pulled back.
+/// Two regions of one realm with room to spare (no frontier gradient);
+/// region 1 holds settled emigrants from region 0. Their kin in region 0
+/// follow them, and the chain pulls nobody back.
 #[test]
 fn chain_migration_follows_settled_emigrants_and_stays() {
     use chronicler_agents::migration_drivers::TERM_CHAIN;
     use chronicler_agents::relationships::BondType;
     let (_, mut regions) = frontier_world(0);
-    regions[0].carrying_capacity = 60;
-    regions[1].carrying_capacity = 60;
+    regions[0].carrying_capacity = 100;
+    regions[1].carrying_capacity = 100;
     let mut pool = AgentPool::new(64);
     let mut stay = Vec::new();
     let mut emigrants = Vec::new();
@@ -192,7 +194,7 @@ fn chain_migration_follows_settled_emigrants_and_stays() {
     seed[0] = 5;
     let mut percentiles: Vec<f32> = Vec::new();
     let mut budget = MigrationDriverStats::default();
-    let mut back = 0;
+    let mut chain_back = 0.0;
     for turn in 0..20u32 {
         sync_populations(&pool, &mut regions);
         percentiles.resize(pool.capacity().max(percentiles.len()), 0.0);
@@ -200,7 +202,12 @@ fn chain_migration_follows_settled_emigrants_and_stays() {
             &mut pool, &regions, &signals, seed, turn, &mut percentiles,
             &mut Vec::new(), &[], &mut SpatialDiagnostics::default(), &[], None,
         );
-        back += events.iter().filter(|e| e.event_type == 2 && e.region == 1).count();
+        // Ticks with a move back may hold no chain decision. Other drivers
+        // may move people back: births refill the regions and some scholars
+        // take up farming, which opens the wage gate.
+        if events.iter().any(|e| e.event_type == 2 && e.region == 1) {
+            chain_back += household.migration_drivers.share[TERM_CHAIN];
+        }
         budget.merge(&household.migration_drivers);
     }
     let followed = kin_ids
@@ -209,5 +216,5 @@ fn chain_migration_follows_settled_emigrants_and_stays() {
         .count();
     assert!(followed >= 4, "kin should follow the emigrants: {followed} of 8 ({budget:?})");
     assert!(budget.share[TERM_CHAIN] > 0.0);
-    assert_eq!(back, 0, "no one is pulled back");
+    assert_eq!(chain_back, 0.0, "chain migration pulls no one back");
 }

@@ -315,6 +315,15 @@ fn best_migration_target_for_agent(
             river = RIVER_MIGRATION_BONUS;
         }
         let pre_news_score = adj_score;
+        // A voluntary pull counts only toward a region the agent would not
+        // leave again at once: seen from there, home must score less than
+        // the hysteresis better (the river bonus counts from both sides).
+        // Otherwise the opportunity term would carry the mover back.
+        let (voluntary, pull) = if own_score + river - (adj_score - river) < MIGRATE_HYSTERESIS {
+            (voluntary, pull)
+        } else {
+            (VoluntaryPull::default(), 0.0)
+        };
 
         // M59b: Track baseline (pre-penalty) best for diagnostic comparison.
         // Baseline includes ALL existing modifiers (region score, polity, river)
@@ -487,9 +496,9 @@ pub struct RegionStats {
     pub migration_opportunity: Vec<f32>,
     /// Region id of the best adjacent migration target (own id if none better).
     pub best_migration_target: Vec<u16>,
-    /// Wage gap inputs: mean wealth and count of the region's farmers and
-    /// merchants (index `migration_drivers::wage_index`), merchants away on
-    /// a trip counted in the region they set out from.
+    /// Wage gap inputs: mean wealth and count of the region's adult farmers
+    /// and merchants (index `migration_drivers::wage_index`), merchants away
+    /// on a trip counted in the region they set out from.
     pub peer_wealth: Vec<[f32; WAGE_OCCUPATIONS]>,
     pub peer_count: Vec<[u16; WAGE_OCCUPATIONS]>,
     /// Whether the region has a ruler and a neighbour under the same ruler
@@ -497,6 +506,17 @@ pub struct RegionStats {
     pub has_internal_neighbour: Vec<bool>,
     /// Frontier gate input: `migration_drivers::food_potential` per region.
     pub food_potential: Vec<f32>,
+}
+
+/// Wage-gap peer index of an adult farmer or merchant. Children carry an
+/// occupation and earn from birth, but start from `STARTING_WEALTH`: counting
+/// them would make a region with many births look poorly paid.
+#[inline]
+fn wage_peer(pool: &AgentPool, slot: usize) -> Option<usize> {
+    if pool.ages[slot] < MOBILITY_MIN_AGE {
+        return None;
+    }
+    wage_index(pool.occupation(slot))
 }
 
 /// Single O(n) pass over alive agents to build all region stats.
@@ -540,7 +560,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
                     occupation_supply[origin][occ] += 1;
                 }
                 occupational_pop[origin] += 1;
-                if let Some(k) = wage_index(pool.occupation(slot)) {
+                if let Some(k) = wage_peer(pool, slot) {
                     peer_wealth_sum[origin][k] += pool.wealth[slot];
                     peer_count[origin][k] = peer_count[origin][k].saturating_add(1);
                 }
@@ -552,7 +572,7 @@ pub fn compute_region_stats(pool: &AgentPool, regions: &[RegionState], signals: 
             continue;
         }
         occupational_pop[r] += 1;
-        if let Some(k) = wage_index(pool.occupation(slot)) {
+        if let Some(k) = wage_peer(pool, slot) {
             peer_wealth_sum[r][k] += pool.wealth[slot];
             peer_count[r][k] = peer_count[r][k].saturating_add(1);
         }
@@ -745,6 +765,10 @@ pub struct PendingDecisions {
     pub loyalty_drifts_damped_by_rally: u32,
     /// Diagnostics: what moved the migrants decided here (migration budget).
     pub migration_drivers: MigrationDriverStats,
+    /// Diagnostics: (slot, largest term) of each migration decided here, so
+    /// household consolidation can attribute followers to their lead; in
+    /// slot order, like the region's slots.
+    pub migration_dominant: Vec<(usize, u8)>,
 }
 
 impl PendingDecisions {
@@ -758,6 +782,7 @@ impl PendingDecisions {
             migration_changed_by_religion: 0,
             loyalty_drifts_damped_by_rally: 0,
             migration_drivers: MigrationDriverStats::default(),
+            migration_dominant: Vec::new(),
         }
     }
 }
@@ -933,6 +958,9 @@ pub fn evaluate_region_decisions(
                         persecution_push, &mem_mods, &need_mods,
                     );
                     pending.migration_drivers.record(&terms);
+                    let dominant = dominant_term(&terms);
+                    pending.migration_drivers.record_age(pool.ages[slot], dominant);
+                    pending.migration_dominant.push((slot, dominant));
                 }
             }
             2 => {
@@ -2202,12 +2230,32 @@ mod tests {
             "frontier is the only positive term");
     }
 
+    /// An unmarried age, without bonds, whose roots alone outweigh the full
+    /// frontier pull.
+    fn rooted_age() -> u16 {
+        ROOTS_FREE_AGE + (FRONTIER_PULL / ROOTS_PER_YEAR).ceil() as u16 + 1
+    }
+
     #[test]
     fn test_frontier_pull_does_not_reach_elders_dependants_or_other_realms() {
-        // Roots at 65 (0.35) exceed the full frontier pull (0.30).
-        assert!(frontier_decisions(65, false).migrations.is_empty());
-        let elders = frontier_decisions(65, false).migration_drivers;
+        let old = rooted_age();
+        assert!(roots(old, false, 0.0) > FRONTIER_PULL);
+        assert!(frontier_decisions(old, false).migrations.is_empty());
+        let elders = frontier_decisions(old, false).migration_drivers;
         assert_eq!((elders.gate[0], elders.open[0]), (20, 0), "the gate opens, the roots hold");
+        // Below that age the net pull shrinks with every year past the free age.
+        let net = |age: u16| {
+            let (pool, regions, movers) = frontier_world(age, false);
+            let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+            let ids = std::collections::HashMap::new();
+            let m = Mobility::for_agent(&pool, movers[0], &regions, 0, stats.has_internal_neighbour[0], &ids)
+                .expect("an adult farmer is mobile");
+            best_migration_target_for_agent(&pool, &regions, &stats, 0, movers[0], Some(&m))
+                .voluntary.total()
+        };
+        assert_eq!(net(25), net(ROOTS_FREE_AGE));
+        assert!(net(ROOTS_FREE_AGE) > net(50) && net(50) > net(70) && net(70) > 0.0);
+        assert_eq!(net(old), 0.0);
         // Dependants move only with their household.
         assert!(frontier_decisions(crate::migration_drivers::MOBILITY_MIN_AGE - 1, false).migrations.is_empty());
         // Settlement is internal: the emptier region belongs to another civ.
@@ -2230,11 +2278,11 @@ mod tests {
         assert!(young.migrations.iter().all(|&(_, _, to)| to == 1));
         assert!(young.migration_drivers.share[TERM_FRONTIER] > 0.0);
         // Without a pull the empty region keeps its old score and draws nobody.
-        let (pool, regions, movers) = frontier_world_with(65, false, 0);
+        let (pool, regions, movers) = frontier_world_with(25, false, 0);
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         let choice = best_migration_target_for_agent(&pool, &regions, &stats, 0, movers[0], None);
         assert_eq!(choice.target, 0);
-        assert!(decide(65).migrations.is_empty());
+        assert!(decide(rooted_age()).migrations.is_empty());
     }
 
     #[test]
@@ -2252,6 +2300,29 @@ mod tests {
         assert!(without.opportunity < MIGRATE_HYSTERESIS);
         assert!((with.voluntary.frontier - crate::migration_drivers::FRONTIER_PULL).abs() < 1e-6);
         assert_eq!(without.voluntary, VoluntaryPull::default());
+    }
+
+    #[test]
+    fn test_no_voluntary_pull_toward_a_region_the_mover_would_leave_again() {
+        let (mut pool, regions, movers) = frontier_world(25, false);
+        let ids = std::collections::HashMap::new();
+        let choose = |pool: &AgentPool| {
+            let stats = compute_region_stats(pool, &regions, &default_signals(regions.len()));
+            let m = Mobility::for_agent(pool, movers[0], &regions, 0, stats.has_internal_neighbour[0], &ids);
+            best_migration_target_for_agent(pool, &regions, &stats, 0, movers[0], m.as_ref())
+        };
+        assert_eq!(choose(&pool).target, 1);
+        // The settlers there are unhappy: from region 1, home would score more
+        // than the hysteresis better, so the frontier pull does not count.
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) && pool.region(slot) == 1 {
+                pool.set_satisfaction(slot, 0.2);
+            }
+        }
+        let choice = choose(&pool);
+        assert_eq!(choice.target, 0);
+        assert_eq!(choice.voluntary, VoluntaryPull::default());
+        assert!(choice.gate_open[0], "the gate is open; the move would not last");
     }
 }
 

@@ -9,8 +9,8 @@
 //! - **Frontier settlement.** A farmer whose home is near capacity, next to
 //!   a markedly emptier region of the same realm whose land would feed
 //!   settlers: the draw is land, not stored food.
-//! - **Wage gap.** A farmer or merchant whose occupational peers next door
-//!   are markedly better off (mean wealth, the income they accumulated).
+//! - **Wage gap.** A farmer or merchant whose adult occupational peers next
+//!   door are markedly better off (mean wealth, the income they accumulated).
 //!   Only these two occupations earn by location: farmers by yield and
 //!   price, merchants by regional arbitrage; soldier, scholar and priest pay
 //!   is flat or set per civ.
@@ -18,9 +18,11 @@
 //!   region and settled in a neighbouring region of the same realm, when they
 //!   outweigh the bonds the agent keeps at home.
 //! - **Roots (life course).** The pulls count only beyond a threshold that
-//!   is zero for adults up to 30 and grows with age, marriage and bonds at
-//!   home. Dependants (under 20) take no voluntary moves; married agents'
-//!   households move with them (`household.rs`).
+//!   is zero for unattached adults up to 35 and grows with age, marriage and
+//!   bonds at home. A pull opens at `PULL_AT_GATE` of its full size, so a
+//!   gate that opens is a real draw, not a marginal one. Dependants (under
+//!   20) take no voluntary moves; married agents' households move with them
+//!   (`household.rs`).
 //!
 //! All three are internal migration: source and destination are ruled by
 //! the same civ. Moving does not change an agent's civ affinity; crossing a
@@ -28,6 +30,10 @@
 //! cross-border move in the hybrid civ migration hazard. Unclaimed land has
 //! no controller values, which the cultural penalty reads as a full
 //! mismatch. Distress moves keep crossing borders as before.
+//!
+//! A pull counts only toward a region the agent would not leave again at
+//! once: seen from there, home must score less than the 0.18 hysteresis
+//! better (`behavior.rs`), or the opportunity term would carry it back.
 //!
 //! The pulls are deterministic functions of the tick's region stats and the
 //! agent's own fields: no new random draws, and the decision keeps its four
@@ -57,47 +63,48 @@ pub const UNCONTROLLED: u8 = 255;
 /// Voluntary pulls apply from adulthood; dependants move with their household.
 pub const MOBILITY_MIN_AGE: u16 = AGE_ADULT;
 /// Roots carry no age term through this age (peak mobility).
-pub const ROOTS_FREE_AGE: u16 = 30;
-/// Roots per year of age beyond `ROOTS_FREE_AGE` (0.30 at 60).
-pub const ROOTS_PER_YEAR: f32 = 0.01;
+pub const ROOTS_FREE_AGE: u16 = 35;
+/// Roots per year of age beyond `ROOTS_FREE_AGE` (0.15 at 60).
+pub const ROOTS_PER_YEAR: f32 = 0.006;
 /// Roots of a married agent, who moves the whole household.
-pub const ROOTS_MARRIED: f32 = 0.08;
+pub const ROOTS_MARRIED: f32 = 0.02;
 /// Roots per unit of positive bond strength kept at home (sentiment / 127),
 /// counted up to `ROOTS_HOME_BOND_CAP` units. The spouse is not counted: the
 /// spouse moves with the household.
-pub const ROOTS_PER_HOME_BOND: f32 = 0.06;
+pub const ROOTS_PER_HOME_BOND: f32 = 0.02;
 pub const ROOTS_HOME_BOND_CAP: f32 = 2.0;
 /// Positive bonds below this sentiment neither anchor nor pull.
 pub const BOND_MIN_SENTIMENT: i8 = 20;
 
 /// Frontier: home at or above this share of carrying capacity ...
-pub const FRONTIER_SOURCE_MIN_RATIO: f32 = 0.85;
+pub const FRONTIER_SOURCE_MIN_RATIO: f32 = 0.80;
 /// ... and the destination at least this much emptier (share of capacity);
 /// the pull grows to `FRONTIER_PULL` at `FRONTIER_FULL_GAP`.
-pub const FRONTIER_MIN_GAP: f32 = 0.30;
-pub const FRONTIER_FULL_GAP: f32 = 0.70;
-/// Settlers go only where a farmer's year of food (`food_potential`) feeds
-/// the people a farmer has to: 0.5 food a head (the economy's per-capita
-/// food) over the 0.66 ceiling on the farmers' share of the target labor
-/// mix, 0.75. Stored food would not do: an under-filled region's stores
-/// reflect how few farmers work there now, not what settlers could grow.
-pub const FRONTIER_MIN_FOOD_POTENTIAL: f32 = 0.75;
-pub const FRONTIER_PULL: f32 = 0.30;
+pub const FRONTIER_MIN_GAP: f32 = 0.25;
+pub const FRONTIER_FULL_GAP: f32 = 0.65;
+/// Settlers go only where a farmer's year of food (`food_potential`) at
+/// least feeds the farmer: 0.5, the economy's per-capita food. Stored food
+/// would not do: an under-filled region's stores reflect how few farmers
+/// work there now, not what settlers could grow.
+pub const FRONTIER_MIN_FOOD_POTENTIAL: f32 = 0.5;
+pub const FRONTIER_PULL: f32 = 0.6;
 
-/// Wage gap: peers' mean wealth there over peers' mean wealth here (the
+/// Wage gap: adult peers' mean wealth there over their mean wealth here (the
 /// denominator floored at `WAGE_WEALTH_FLOOR`), from `WAGE_MIN_RATIO`, full
 /// at `WAGE_FULL_RATIO`, with at least `WAGE_MIN_PEERS` peers there and room
-/// below carrying capacity.
-pub const WAGE_MIN_RATIO: f32 = 1.5;
+/// there: below `WAGE_MAX_TARGET_RATIO` of capacity, the share at which the
+/// frontier gate counts a region as full, so the wage gap does not refill a
+/// region that frontier settlement is leaving.
+pub const WAGE_MIN_RATIO: f32 = 1.25;
 pub const WAGE_FULL_RATIO: f32 = 3.0;
 pub const WAGE_WEALTH_FLOOR: f32 = 1.0;
-pub const WAGE_MIN_PEERS: u16 = 3;
-pub const WAGE_MAX_TARGET_RATIO: f32 = 1.0;
-pub const WAGE_PULL: f32 = 0.25;
+pub const WAGE_MIN_PEERS: u16 = 5;
+pub const WAGE_MAX_TARGET_RATIO: f32 = FRONTIER_SOURCE_MIN_RATIO;
+pub const WAGE_PULL: f32 = 0.55;
 
 /// Chain: pull per unit of bond strength toward settled emigrants, capped.
-pub const CHAIN_PULL_PER_BOND: f32 = 0.20;
-pub const CHAIN_PULL_CAP: f32 = 0.30;
+pub const CHAIN_PULL_PER_BOND: f32 = 0.30;
+pub const CHAIN_PULL_CAP: f32 = 0.45;
 
 const _: () = assert!(FRONTIER_FULL_GAP > FRONTIER_MIN_GAP);
 const _: () = assert!(WAGE_FULL_RATIO > WAGE_MIN_RATIO);
@@ -158,9 +165,16 @@ impl VoluntaryPull {
     }
 }
 
+/// Share of a driver's full pull that an open gate gives at its threshold;
+/// the rest grows with the gap. A gate marks a real opportunity: a pull
+/// that started from zero would be held by any roots, so in effect the gate
+/// would sit wherever an agent's roots put it.
+pub const PULL_AT_GATE: f32 = 0.75;
+
+/// From `PULL_AT_GATE` at `lo` to 1 at `hi` (the caller has checked x >= lo).
 #[inline]
 fn ramp(x: f32, lo: f32, hi: f32) -> f32 {
-    ((x - lo) / (hi - lo)).clamp(0.0, 1.0)
+    PULL_AT_GATE + (1.0 - PULL_AT_GATE) * ((x - lo) / (hi - lo)).clamp(0.0, 1.0)
 }
 
 /// Roots: the share of a pull an agent does not act on.
@@ -390,6 +404,40 @@ pub struct MigrationDriverStats {
     /// Evaluated agents for whom some neighbour opens the driver's gate,
     /// before roots: `gate - open` is what the roots hold back.
     pub gate: [u32; 3],
+    /// Household followers (spouses, dependants) by the largest term of the
+    /// decision they follow.
+    pub followers: [u32; MIGRATION_TERMS],
+    /// Decided migrations by the decider's age band (`AGE_BANDS`), all and
+    /// those whose largest term is a voluntary driver.
+    pub decided_by_age: [u32; AGE_BANDS],
+    pub voluntary_by_age: [u32; AGE_BANDS],
+}
+
+/// Age bands of the budget: under 20, 20-34, 35-49, 50-64, 65 and over.
+pub const AGE_BANDS: usize = 5;
+
+#[inline]
+pub fn age_band(age: u16) -> usize {
+    match age {
+        0..=19 => 0,
+        20..=34 => 1,
+        35..=49 => 2,
+        50..=64 => 3,
+        _ => 4,
+    }
+}
+
+/// The largest positive term of a decision (`MIGRATION_TERMS` if none).
+pub fn dominant_term(terms: &[f32; MIGRATION_TERMS]) -> u8 {
+    let mut best = MIGRATION_TERMS;
+    let mut best_value = 0.0f32;
+    for (i, &t) in terms.iter().enumerate() {
+        if t > best_value {
+            best_value = t;
+            best = i;
+        }
+    }
+    best as u8
 }
 
 impl MigrationDriverStats {
@@ -434,6 +482,31 @@ impl MigrationDriverStats {
         for i in 0..3 {
             self.open[i] += other.open[i];
             self.gate[i] += other.gate[i];
+        }
+        for i in 0..MIGRATION_TERMS {
+            self.followers[i] += other.followers[i];
+        }
+        for i in 0..AGE_BANDS {
+            self.decided_by_age[i] += other.decided_by_age[i];
+            self.voluntary_by_age[i] += other.voluntary_by_age[i];
+        }
+    }
+
+    /// Count one decided migration in its decider's age band.
+    pub fn record_age(&mut self, age: u16, dominant: u8) {
+        let band = age_band(age);
+        self.decided_by_age[band] += 1;
+        let d = dominant as usize;
+        if d == TERM_FRONTIER || d == TERM_WAGE || d == TERM_CHAIN {
+            self.voluntary_by_age[band] += 1;
+        }
+    }
+
+    /// Count one household follower of a decision whose largest term is
+    /// `term` (from `dominant_term`).
+    pub fn record_follower(&mut self, term: u8) {
+        if (term as usize) < MIGRATION_TERMS {
+            self.followers[term as usize] += 1;
         }
     }
 }
@@ -489,14 +562,15 @@ mod driver_tests {
     }
 
     const EVEN: [[f32; 2]; 2] = [[10.0, 10.0], [10.0, 10.0]];
-    const PEERS: [u16; 2] = [5, 5];
+    const PEERS: [u16; 2] = [WAGE_MIN_PEERS; 2];
 
     #[test]
     fn roots_are_zero_for_young_adults_and_grow_with_age_marriage_and_home_bonds() {
         assert_eq!(roots(20, false, 0.0), 0.0);
-        assert_eq!(roots(30, false, 0.0), 0.0);
-        assert!((roots(40, false, 0.0) - 0.10).abs() < 1e-6);
-        assert!((roots(60, false, 0.0) - 0.30).abs() < 1e-6);
+        assert_eq!(roots(ROOTS_FREE_AGE, false, 0.0), 0.0);
+        let ten_years = roots(ROOTS_FREE_AGE + 10, false, 0.0);
+        assert!((ten_years - 10.0 * ROOTS_PER_YEAR).abs() < 1e-6);
+        assert!(roots(ROOTS_FREE_AGE + 30, false, 0.0) > ten_years);
         assert!((roots(25, true, 0.0) - ROOTS_MARRIED).abs() < 1e-6);
         assert!((roots(25, false, 1.0) - ROOTS_PER_HOME_BOND).abs() < 1e-6);
         // Home bonds count up to the cap.
@@ -596,11 +670,16 @@ mod driver_tests {
         assert!(m > 0.0 && m < WAGE_PULL, "2x: part of the pull");
         assert_eq!(wage(priest, &rich_there, &PEERS, 0.5), 0.0, "priest pay is set per civ");
         assert_eq!(wage(farmer, &EVEN, &PEERS, 0.5), 0.0, "no gap");
-        assert_eq!(wage(farmer, &rich_there, &[2, 2], 0.5), 0.0, "too few peers to go by");
+        assert_eq!(wage(farmer, &rich_there, &[WAGE_MIN_PEERS - 1; 2], 0.5), 0.0, "too few peers to go by");
         assert_eq!(wage(farmer, &rich_there, &PEERS, WAGE_MAX_TARGET_RATIO), 0.0, "no room there");
         // A poor home is floored, so a small absolute gap is not a large ratio.
-        let poor = [[0.1, 0.1], [1.4, 1.4]];
+        let below = WAGE_WEALTH_FLOOR * (WAGE_MIN_RATIO - 0.05);
+        let poor = [[0.1, 0.1], [below, below]];
         assert_eq!(wage(farmer, &poor, &PEERS, 0.5), 0.0);
+        // At the gate an open gate gives PULL_AT_GATE of the full pull.
+        let at_gate = WAGE_MIN_RATIO * 4.0;
+        let at = wage(farmer, &[[4.0, 4.0], [at_gate, at_gate]], &PEERS, 0.5);
+        assert!((at - WAGE_PULL * PULL_AT_GATE).abs() < 1e-5);
     }
 
     #[test]

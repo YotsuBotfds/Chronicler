@@ -1507,9 +1507,13 @@ impl AgentSimulator {
     /// which it was positive (`present_<term>`). Per voluntary driver
     /// (frontier, wage, chain): `gate_<driver>`, agents for whom some
     /// neighbour opens the gate, and `open_<driver>`, agents whose chosen
-    /// target carries that pull beyond their roots. Household followers are
-    /// `household_migrations_follow` in `get_household_stats`. Diagnostic
-    /// only; production Python does not read it.
+    /// target carries that pull beyond their roots. `decided_age_<band>` and
+    /// `voluntary_age_<band>` count decisions by the decider's age band (all,
+    /// and those led by a voluntary driver). `follow_<term>` counts
+    /// household followers by the largest term of the decision they follow
+    /// (their total is `household_migrations_follow` in
+    /// `get_household_stats`). Diagnostic only; production Python does not
+    /// read it.
     #[pyo3(name = "get_migration_driver_stats")]
     pub fn get_migration_driver_stats(&self) -> std::collections::HashMap<String, f64> {
         let d = &self.household_stats.migration_drivers;
@@ -1520,10 +1524,15 @@ impl AgentSimulator {
         for (i, name) in crate::migration_drivers::MIGRATION_TERM_NAMES.iter().enumerate() {
             m.insert(format!("share_{name}"), d.share[i]);
             m.insert(format!("present_{name}"), d.present[i] as f64);
+            m.insert(format!("follow_{name}"), d.followers[i] as f64);
         }
         for (i, name) in ["frontier", "wage", "chain"].iter().enumerate() {
             m.insert(format!("open_{name}"), d.open[i] as f64);
             m.insert(format!("gate_{name}"), d.gate[i] as f64);
+        }
+        for (i, band) in ["under20", "20_34", "35_49", "50_64", "65plus"].iter().enumerate() {
+            m.insert(format!("decided_age_{band}"), d.decided_by_age[i] as f64);
+            m.insert(format!("voluntary_age_{band}"), d.voluntary_by_age[i] as f64);
         }
         m
     }
