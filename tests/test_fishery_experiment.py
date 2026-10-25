@@ -25,6 +25,9 @@ def fish_world(make_world):
     region.resource_effective_yields = [1.0, 0.5, 0.0]
     region.resource_current_yields = [1.0, 0.5, 0.0]
     world.civilizations[0].population = region.population
+    # Constant returns to farm labour: catch per fisher is the fishery
+    # model's own (2026-10 farmland: economy.farm_reference_density).
+    world.tuning_overrides = {"economy.farm_reference_density": 0.0}
     return world
 
 

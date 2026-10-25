@@ -158,6 +158,9 @@ RESEARCH_BONUS: dict[str, float] = {"writing": 0.10, "law_codes": 0.10, "printin
                                     "telegraph": 0.30}
 GRAIN_YIELD: dict[str, float] = {"irrigation": 0.05, "ox_plough": 0.05, "heavy_plough": 0.08}
 FISH_YIELD: dict[str, float] = {"sailing": 0.04}
+# Farmland (2026-10): farming techniques raise the land's arable capacity, the
+# ceiling of the diminishing-returns curve (economy.arable_capacity).
+FARM_CEILING: dict[str, float] = {"irrigation": 0.10, "ox_plough": 0.10, "heavy_plough": 0.15}
 
 _K = len(TECHNIQUES)
 _PREREQS: tuple[tuple[int, ...], ...] = tuple(
@@ -1063,6 +1066,18 @@ def yield_multiplier(world, region, rtype: int) -> float:
         return 1.0
     pm = world.techniques.practice_map()
     return 1.0 + sum(b * pm.get((r, TECHNIQUE_INDEX[key]), 0.0) for key, b in table.items())
+
+
+def farm_ceiling_multiplier(world, region) -> float:
+    """Arable capacity multiplier of a region's farming techniques (1.0 with
+    techniques off): irrigation and the ploughs, weighted by its practice."""
+    if not techniques_on(world):
+        return 1.0
+    r = _region_index(world, region)
+    if r < 0:
+        return 1.0
+    pm = world.techniques.practice_map()
+    return 1.0 + sum(b * pm.get((r, TECHNIQUE_INDEX[key]), 0.0) for key, b in FARM_CEILING.items())
 
 
 def extend_trade_routes(world, routes: set, embargo_set: set, region_map: dict) -> None:

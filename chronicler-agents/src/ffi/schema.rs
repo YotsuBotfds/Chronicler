@@ -198,6 +198,8 @@ pub fn economy_region_result_schema() -> Schema {
             fields.push(Field::new(format!("{prefix}_{cat}"), DataType::Float32, false));
         }
     }
+    // Diminishing returns to farm labour: output per farmer against constant returns.
+    fields.push(Field::new("farm_productivity", DataType::Float32, false));
     Schema::new(fields)
 }
 

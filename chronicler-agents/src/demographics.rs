@@ -45,22 +45,24 @@ const FERTILITY_SATISFACTION_RAMP: f32 = 0.10;
 // `ecology.FAMINE_SEVERE_SUFFICIENCY`, `FAMINE_SEVERE_TURNS`). Mortality
 // gains `1 + vulnerability * (DEARTH * dearth + FAMINE * famine)`; fertility
 // is scaled by `(1 - DEARTH * dearth) * (1 - FAMINE * famine)`. Magnitudes
-// sit at the low end of pre-industrial demography (high-price years: deaths
-// up a few percent, births down 5-15%; famines: crude death rates two to
-// four times normal, most among young children, the old and the poor, births
-// down a quarter to a half). Simulated famines last longer and recur more
-// often than historical famine years, so the per-turn terms compound; twice
-// these magnitudes pushed long, world-wide famines towards extinction.
+// (high-price years: deaths up a few percent to 10-20%, births down 5-15%;
+// famines: crude death rates two to four times normal, most among young
+// children, the old and the poor, births down a quarter to a half) were first
+// held at the low end because world-wide climate famines with constant returns
+// to farm labour could not end. With diminishing returns and regional climate
+// (2026-10, docs/integration/farmland-climate.md) they are raised part of the
+// way to the middle: the mid-range famine terms (deaths 1.5, births 0.6)
+// failed the needs subset gate.
 pub const HUNGER_SEVERE_SUFFICIENCY: f32 = crate::agent::FAMINE_MEMORY_THRESHOLD;
 pub const HUNGER_FAMINE_TURNS: u16 = 3;
 /// Mortality multiplier at the edge of the dearth band (vulnerability 1).
-pub const HUNGER_DEARTH_MORTALITY: f32 = 0.05;
+pub const HUNGER_DEARTH_MORTALITY: f32 = 0.10;
 /// Added mortality multiplier of a total, sustained famine (vulnerability 1).
-pub const HUNGER_FAMINE_MORTALITY: f32 = 0.50;
+pub const HUNGER_FAMINE_MORTALITY: f32 = 1.00;
 /// Births withheld at the edge of the dearth band.
-pub const HUNGER_DEARTH_FERTILITY: f32 = 0.10;
+pub const HUNGER_DEARTH_FERTILITY: f32 = 0.15;
 /// Further share of births withheld in a total, sustained famine.
-pub const HUNGER_FAMINE_FERTILITY: f32 = 0.30;
+pub const HUNGER_FAMINE_FERTILITY: f32 = 0.45;
 /// Vulnerability by age band: young children and the old carry the full
 /// hunger hazard, older children and working-age adults half of it.
 pub const HUNGER_CHILD_AGE: u16 = 5;

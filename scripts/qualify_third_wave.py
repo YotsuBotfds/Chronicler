@@ -203,11 +203,18 @@ class ObservedRuntime:
         for rid, row in enumerate(rows):
             values = {g: row[f"stockpile_{g}"] for g in GOODS}
             # Farmer labor is split equally across occupied valid slots; each
-            # fish slot's output is capped by its prior catch budget.
+            # fish slot's output is capped by its prior catch budget. Farm
+            # labor is effective labor on the land when the batch carries the
+            # diminishing-returns curve (2026-10 farmland).
             occupied = [s for s in range(3) if RT_GOOD.get(row[f"resource_type_{s}"])]
+            labor = farmers[rid]
+            labor_ref = row.get("farm_labor_ref") or 0.
+            labor_half = row.get("farm_labor_half") or 0.
+            if labor_ref > 0. and labor > 0:
+                labor = labor * (labor_ref + labor_half) / (labor + labor_half)
             for s in occupied:
                 good = RT_GOOD[row[f"resource_type_{s}"]]
-                production = row[f"resource_yield_{s}"] * farmers[rid] / len(occupied)
+                production = row[f"resource_yield_{s}"] * labor / len(occupied)
                 budget = row.get(f"fishery_catch_budget_{s}")
                 if budget is not None:
                     production = min(production, budget)

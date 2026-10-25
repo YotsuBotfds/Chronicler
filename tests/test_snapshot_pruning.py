@@ -231,10 +231,12 @@ class TestBundle:
 # great-person agendas or nomads on, Thornwall survives these 50 turns, so the
 # three Wave 8 switches are pinned off.
 
-# 60 turns: the Thornwall Confederacy loses its land and is pruned from turn
-# 55 (it fell at turn 44 before the 2026-10 hunger corrections scaled the
-# aggregate famine toll and growth; docs/integration/hunger-mortality.md).
-def _run(tmp_path, monkeypatch, *, turns=60):
+# 75 turns: the Thornwall Confederacy loses its last region at turn 70 with
+# no exile and is pruned from turn 71; the Kethani Empire loses its land at
+# turn 60, is kept through its exile and is restored at turn 64 (unpruned).
+# Thornwall fell at turn 44 and was pruned from 55 before the 2026-10
+# farmland and regional-climate corrections (docs/integration/farmland-climate.md).
+def _run(tmp_path, monkeypatch, *, turns=75):
     from chronicler.main import execute_run
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
@@ -260,16 +262,18 @@ class TestRealRun:
         in_memory, bundle = real_run
         assert bundle["metadata"]["bundle_version"] == 5
         segments = bundle["pruned_civ_stats"]["Thornwall Confederacy"]
-        assert segments[0]["from_turn"] == 55
+        assert segments[0]["from_turn"] == 71
         # A civ without land earns nothing, so its pruned rows never change.
         assert segments[0]["changes"] == {}
         by_turn = {snap["turn"]: snap for snap in bundle["history"]}
-        final = by_turn[54]["civ_stats"]["Thornwall Confederacy"]
+        final = by_turn[70]["civ_stats"]["Thornwall Confederacy"]
         assert final["regions"] == [] and final["alive"] is False
-        assert all("Thornwall Confederacy" not in by_turn[t]["civ_stats"] for t in range(55, 61))
-        assert all("Thornwall Confederacy" not in by_turn[t]["relationships"] for t in range(55, 61))
-        # Its exile kept it recorded between losing its land and the final row.
-        assert any(e["original_civ_name"] == "Thornwall Confederacy" for e in by_turn[50]["exile_modifiers"])
+        assert all("Thornwall Confederacy" not in by_turn[t]["civ_stats"] for t in range(71, 76))
+        assert all("Thornwall Confederacy" not in by_turn[t]["relationships"] for t in range(71, 76))
+        # An exile keeps a landless civ recorded: Kethani is never pruned.
+        assert "Kethani Empire" not in bundle["pruned_civ_stats"]
+        assert by_turn[61]["civ_stats"]["Kethani Empire"]["regions"] == []
+        assert any(e["original_civ_name"] == "Kethani Empire" for e in by_turn[61]["exile_modifiers"])
         # Snapshots handed to callbacks still carry every civ (the simulation's view).
         assert all("Thornwall Confederacy" in snap["civ_stats"] for snap in in_memory)
 
@@ -344,7 +348,7 @@ class TestRealRun:
             assert moments
         # Gap summaries no longer report a dead civ's treasury drift.
         _, gaps = curate(events=events, named_events=named, history=pruned, budget=8, seed=1)
-        late = [g for g in gaps if g.turn_range[0] >= 44]
+        late = [g for g in gaps if g.turn_range[0] >= 71]
         assert all("Thornwall Confederacy" not in g.stat_deltas for g in late)
 
 

@@ -277,6 +277,8 @@ def test_native_city_economy_columns_are_consumed_and_reset_each_call(make_world
     world = make_world(num_civs=1)
     world.agent_mode = "hybrid"
     world.regions[0].population = 40
+    # Constant returns to farm labour, so half the labour grows half the food.
+    world.tuning_overrides = {"economy.farm_reference_density": 0.0}
     bridge = AgentBridge(world, mode="hybrid")
     world.turn = 1
     bridge.tick(world)

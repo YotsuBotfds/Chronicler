@@ -366,6 +366,10 @@ def _make_test_world():
     plains.terrain = "plains"
     plains.population = 70
     plains.stockpile = RegionStockpile(goods={"grain": 10.0})
+    # Land terms of the farm production curve (diminishing returns).
+    plains.carrying_capacity = 120
+    plains.capacity_modifier = 1.0
+    plains.infrastructure = []
 
     hills = MagicMock()
     hills.name = "Hills"
@@ -376,6 +380,9 @@ def _make_test_world():
     hills.terrain = "mountains"
     hills.population = 65
     hills.stockpile = RegionStockpile(goods={"ore": 5.0})
+    hills.carrying_capacity = 60
+    hills.capacity_modifier = 1.0
+    hills.infrastructure = []
 
     civ0 = MagicMock()
     civ0.regions = ["Plains"]

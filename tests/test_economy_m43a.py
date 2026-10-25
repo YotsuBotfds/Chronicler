@@ -553,6 +553,9 @@ def test_compute_economy_stockpile_integration():
     world.civilizations = [civ]
     world.rivers = []
     world.turn = 10
+    # Constant returns to farm labour (M42 arithmetic; the farm curve has its
+    # own tests in test_farmland_climate.py).
+    world.tuning_overrides = {"economy.farm_reference_density": 0.0}
 
     n_agents = 15
     regions_arr = np.array([0]*10 + [1]*5, dtype=np.int32)
@@ -679,6 +682,8 @@ def test_food_sufficiency_backward_compat_full_path():
     world.civilizations = [civ]
     world.rivers = []
     world.turn = 10
+    # Constant returns to farm labour: the M42 equilibrium this test pins.
+    world.tuning_overrides = {"economy.farm_reference_density": 0.0}
 
     regions_arr = np.zeros(pop, dtype=np.int32)
     occ_arr = np.zeros(pop, dtype=np.int32)

@@ -45,9 +45,11 @@ def _world(*, mode="hybrid", turn=0, minerals=False):
         culture=30, stability=80, regions=[region.name],
         leader=Leader(name="Farmer", trait="cautious", reign_start=0),
     )
+    # The global climate schedule alone (2026-10 regional climate off): the
+    # tests pin the phase's own harvest and water arithmetic.
     return WorldState(
         name="Harvest", seed=42, turn=turn, agent_mode=mode,
-        regions=[region], civilizations=[civ],
+        regions=[region], civilizations=[civ], tuning_overrides={"climate.trend_share": 1.0},
     )
 
 

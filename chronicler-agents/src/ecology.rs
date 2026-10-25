@@ -152,6 +152,11 @@ pub struct EcologyConfig {
     // River cascade
     pub deforestation_threshold: f32,
     pub deforestation_water_loss: f32,
+    // Regional climate (2026-10): the global phase's share of the crop and
+    // water effects, and the water a unit of harvest shock takes per turn.
+    // 1.0 and 0.0 are the global schedule alone (`set_climate_config`).
+    pub climate_trend_share: f32,
+    pub harvest_shock_water_loss: f32,
 }
 
 impl Default for EcologyConfig {
@@ -197,6 +202,8 @@ impl Default for EcologyConfig {
             workers_per_yield_unit: 200,
             deforestation_threshold: 0.2,
             deforestation_water_loss: 0.05,
+            climate_trend_share: 1.0,
+            harvest_shock_water_loss: 0.0,
         }
     }
 }
@@ -530,6 +537,18 @@ fn tick_soil_uncontrolled(region: &mut RegionState, config: &EcologyConfig) {
     }
 }
 
+/// Regional climate (2026-10, docs/integration/farmland-climate.md): a
+/// region's crop climate factor from the global phase's crop modifier, the
+/// trend share and its harvest shock; the modifier itself (bit for bit) at
+/// share 1.0 without a shock. Mirrors Python `climate.regional_crop_climate`.
+#[inline]
+pub fn regional_crop_climate(crop_mod: f32, trend_share: f32, shock: f32) -> f32 {
+    if trend_share >= 1.0 && shock == 0.0 {
+        return crop_mod;
+    }
+    (1.0 - trend_share * (1.0 - crop_mod) - shock).max(0.0)
+}
+
 fn tick_water_controlled(
     region: &mut RegionState,
     config: &EcologyConfig,
@@ -541,11 +560,15 @@ fn tick_water_controlled(
         if region.has_irrigation {
             rate *= config.irrigation_drought_mult;
         }
-        region.water -= rate;
+        region.water -= rate * config.climate_trend_share;
     } else if climate_phase == CLIMATE_COOLING {
-        region.water -= config.cooling_water_loss * region.climate_exposure;
+        region.water -= config.cooling_water_loss * region.climate_exposure * config.climate_trend_share;
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
+    }
+    // Regional climate: a bad harvest year dries the land.
+    if region.harvest_shock > 0.0 {
+        region.water -= region.harvest_shock * config.harvest_shock_water_loss;
     }
 
     // Recovery (temperate only), climatic like the losses. Correction (2026-10,
@@ -569,10 +592,13 @@ fn tick_water_uncontrolled(
     config: &EcologyConfig,
     climate_phase: u8,
 ) {
+    if region.harvest_shock > 0.0 {
+        region.water -= region.harvest_shock * config.harvest_shock_water_loss;
+    }
     if climate_phase == CLIMATE_DROUGHT {
-        region.water -= config.water_drought * region.climate_exposure;
+        region.water -= config.water_drought * region.climate_exposure * config.climate_trend_share;
     } else if climate_phase == CLIMATE_COOLING {
-        region.water -= config.cooling_water_loss * region.climate_exposure;
+        region.water -= config.cooling_water_loss * region.climate_exposure * config.climate_trend_share;
     } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
         region.water += config.warming_tundra_water_gain;
     } else if climate_phase == CLIMATE_TEMPERATE {
@@ -736,7 +762,10 @@ fn compute_yields_inner(
         let rt_idx = (rtype as usize).min(7);
         let season_mod = SEASON_MOD[rt_idx][sid];
         let class_idx = resource_class_index(rtype);
-        let climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx];
+        let mut climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx];
+        if class_idx == CLASS_CROP {
+            climate_mod = regional_crop_climate(climate_mod, config.climate_trend_share, region.harvest_shock);
+        }
 
         // Ecology mod by class
         let ecology_mod = match class_idx {
@@ -940,6 +969,68 @@ mod tests {
         tick_water_controlled(&mut unit, &config, CLIMATE_TEMPERATE);
         tick_water_controlled(&mut scaled, &config, CLIMATE_TEMPERATE);
         assert_eq!(unit.water, scaled.water);
+    }
+
+    #[test]
+    fn test_regional_crop_climate_is_the_phase_modifier_at_full_trend() {
+        for &m in &[1.0f32, 0.9, 0.5, 0.7] {
+            assert_eq!(regional_crop_climate(m, 1.0, 0.0).to_bits(), m.to_bits());
+        }
+        assert!((regional_crop_climate(0.5, 0.5, 0.0) - 0.75).abs() < 1e-6);
+        assert!((regional_crop_climate(1.0, 0.5, 0.4) - 0.6).abs() < 1e-6);
+        assert_eq!(regional_crop_climate(0.5, 0.5, 0.9), 0.0);
+    }
+
+    #[test]
+    fn test_harvest_shock_cuts_crops_and_dries_the_land() {
+        let mut config = EcologyConfig::default();
+        config.climate_trend_share = 0.5;
+        config.harvest_shock_water_loss = 0.0667;
+        let mut good = make_plains_region(0);
+        good.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+        good.resource_base_yield = [1.0, 0.0, 0.0];
+        let mut bad = good.clone();
+        bad.harvest_shock = 0.4;
+        let yg = compute_yields(&mut good, &config, 2, CLIMATE_DROUGHT);
+        let yb = compute_yields(&mut bad, &config, 2, CLIMATE_DROUGHT);
+        // Trend: drought crop 1 - 0.5 x 0.5 = 0.75; the bad year takes 0.4 more.
+        assert!((yb[0] / yg[0] - 0.35 / 0.75).abs() < 1e-5);
+        for &controlled in &[true, false] {
+            let mut g = make_plains_region(0);
+            let mut b = make_plains_region(1);
+            b.harvest_shock = 0.4;
+            if !controlled {
+                g.controller_civ = UNCONTROLLED;
+                b.controller_civ = UNCONTROLLED;
+            }
+            let w0 = g.water;
+            if controlled {
+                tick_water_controlled(&mut g, &config, CLIMATE_DROUGHT);
+                tick_water_controlled(&mut b, &config, CLIMATE_DROUGHT);
+            } else {
+                tick_water_uncontrolled(&mut g, &config, CLIMATE_DROUGHT);
+                tick_water_uncontrolled(&mut b, &config, CLIMATE_DROUGHT);
+            }
+            // The trend takes half the drought's loss; the shock 0.4 x 0.0667.
+            assert!((w0 - g.water - 0.5 * config.water_drought).abs() < 1e-6);
+            assert!((g.water - b.water - 0.4 * 0.0667).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_default_climate_config_is_the_global_schedule() {
+        let config = EcologyConfig::default();
+        assert_eq!(config.climate_trend_share, 1.0);
+        assert_eq!(config.harvest_shock_water_loss, 0.0);
+        let mut r = make_plains_region(0);
+        r.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+        r.resource_base_yield = [1.0, 0.0, 0.0];
+        let ecology_mod = r.soil * r.water;
+        let y = compute_yields(&mut r, &config, 2, CLIMATE_COOLING);
+        let expected = 1.0f32 * SEASON_MOD[RT_GRAIN as usize][2]
+            * CLIMATE_CLASS_MOD[CLASS_CROP][CLIMATE_COOLING as usize]
+            * ecology_mod * 1.0 * config.resource_abundance_multiplier;
+        assert_eq!(y[0].to_bits(), expected.to_bits());
     }
 
     #[test]

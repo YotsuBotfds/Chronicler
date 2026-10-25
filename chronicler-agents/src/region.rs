@@ -74,6 +74,9 @@ pub struct RegionState {
     pub merchant_margin: f32,
     pub merchant_route_margin: f32,
     pub merchant_trade_income: f32,
+    /// Output per farmer against constant returns (economy `farm_productivity`;
+    /// 1.0 without the column): scales farmer income.
+    pub farm_productivity: f32,
     // M48: Per-region transient memory signals (cleared each turn by Python via set_region_state)
     pub controller_changed_this_turn: bool,
     pub war_won_this_turn: bool,
@@ -101,6 +104,10 @@ pub struct RegionState {
     // (drought water, cooling water and forest). 1.0 = unscaled, which keeps
     // template-world arithmetic bit-identical.
     pub climate_exposure: f32,
+    /// Regional climate: this turn's harvest shock, the crop loss of the
+    /// region's bad harvest year (Python `climate.region_harvest_shocks`;
+    /// 0.0 without the `harvest_shock` column).
+    pub harvest_shock: f32,
     /// Cities (`--cities`): this region's draw on rural migrants of the realm
     /// (`migration_drivers` urban pull), recomputed by Python for every batch.
     /// 0 when the batch carries no `city_pull` column (the switch off).
@@ -230,6 +237,7 @@ impl RegionState {
             merchant_margin: 0.0,
             merchant_route_margin: 0.0,
             merchant_trade_income: 0.0,
+            farm_productivity: 1.0,
             controller_changed_this_turn: false,
             war_won_this_turn: false,
             seceded_this_turn: false,
@@ -252,6 +260,7 @@ impl RegionState {
             // M58a: Stockpile
             stockpile: [0.0; 8],
             climate_exposure: 1.0,
+            harvest_shock: 0.0,
             city_pull: 0.0,
             market_demand: [0.0; 3],
             market_supply: [0.0; 3],

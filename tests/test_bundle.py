@@ -713,6 +713,10 @@ class TestBundleSize:
         # The aggregate famine toll scaled by hunger
         # (docs/integration/hunger-mortality.md) changes this world's history:
         # 16.44MB native (11 polities over the run) and 22.21MB no-Rust (16).
+        # Diminishing returns to farm labour and regional climate
+        # (docs/integration/farmland-climate.md) keep more of this world's
+        # polities alive at once: 21.55MB native (11 over the run, 5.5 alive per
+        # snapshot against 4.2) and 22.67MB no-Rust (10, 5.6 against 5.4).
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
