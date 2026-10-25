@@ -215,7 +215,7 @@ def test_commerce_fills_the_purse_and_dues_are_paid_next_turn_as_keep():
     s = _settle(world, THORNWOOD, 30)
     _tick(world, economy=_economy(routes={"Thornwood": 2}))
     city = _city(world, s.settlement_id)
-    base = city.size * sum(w * m for w, m in zip(C.COMMERCE_WEIGHTS, city.mix))
+    base = city.size / C.scale(world) * sum(w * m for w, m in zip(C.COMMERCE_WEIGHTS, city.mix))
     assert city.commerce == pytest.approx(base * (1 + 2 * C.ROUTE_ACCESS), abs=1e-3)
     owed = world.cities.owed[THORNWALL]
     assert owed == pytest.approx(city.commerce * C.DUES[NO_CHARTER], abs=1e-4)
@@ -235,6 +235,20 @@ def test_commerce_fills_the_purse_and_dues_are_paid_next_turn_as_keep():
     world.turn = 2
     _tick(world)
     assert hungry == pytest.approx(city.commerce * 0.5, rel=0.05)
+
+
+def test_commerce_does_not_grow_with_the_agent_scale():
+    small, large = _world(), _world()
+    for region in large.regions:
+        region.carrying_capacity *= 100
+        region.population *= 100
+    a = _settle(small, THORNWOOD, 30)
+    b = _settle(large, THORNWOOD, 3000)
+    _tick(small)
+    _tick(large)
+    assert _city(small, a.settlement_id).rank == _city(large, b.settlement_id).rank
+    assert _city(small, a.settlement_id).commerce == pytest.approx(
+        _city(large, b.settlement_id).commerce, rel=0.01)
 
 
 def test_dues_owed_to_a_dead_lord_are_dropped():
@@ -367,11 +381,18 @@ def test_a_revolt_against_a_strong_lord_is_put_down(monkeypatch):
 
 
 def test_a_weak_lord_yields_a_charter(monkeypatch):
+    # A town without a charter cannot go free; its weak lord concedes one.
     world = _world()
-    city = _restless(world, stability=35)
+    city = _restless(world, stability=28)
+    city.charter = NO_CHARTER
     events = [e for e in _revolt_turn(world, city, monkeypatch) if e.event_type != "city_walls"]
     assert _types(events) == ["urban_revolt", "urban_concession"]
-    assert city.charter == SELF_GOVERNMENT and city.grievance == 0.0
+    assert city.charter == MARKET_RIGHTS and city.grievance == 0.0
+    # A strong lord concedes only by chance.
+    world = _world()
+    city = _restless(world, stability=80)
+    events = [e for e in _revolt_turn(world, city, monkeypatch, concede=True) if e.event_type != "city_walls"]
+    assert _types(events) == ["urban_revolt", "urban_concession"] and city.charter == SELF_GOVERNMENT
 
 
 def test_a_city_wins_its_freedom_from_a_failing_lord(monkeypatch):
@@ -407,6 +428,8 @@ def test_a_city_wins_its_freedom_from_a_failing_lord(monkeypatch):
 def test_no_free_city_from_a_capital_or_a_small_realm(monkeypatch):
     world = _world()
     city = _restless(world, regions=2, stability=20)
+    world.civilizations[THORNWALL].regions.remove("Verdant Plains")   # Thornwood alone
+    world.regions[VERDANT].controller = None
     events = _revolt_turn(world, city, monkeypatch)
     assert "free_city" not in _types(events)
     world = _world()
@@ -458,8 +481,10 @@ def test_a_conqueror_at_war_sacks_and_revokes_a_charter():
     world.active_wars.clear()
     _give(world, THORNWOOD, THORNWALL)
     world.turn = 30
-    assert "city_sacked" not in _types(_tick(world))
+    events = _tick(world)
+    assert "city_sacked" not in _types(events) and "city_lord_changed" in _types(events)
     assert city.charter == MARKET_RIGHTS and city.lord == THORNWALL
+    assert city.history[-1][1] == "lord" and city.history[-1][2]
 
 
 def test_a_rich_city_builds_walls_through_the_infrastructure_pipeline():
@@ -639,6 +664,28 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert m53b._cities_args(argparse.Namespace(cities=False)) == ["--no-cities"]
     assert m53b._cities_args(argparse.Namespace(cities=None)) == []
     assert "set_cities_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+
+
+def test_identity_script_strips_only_the_cities_fields(tmp_path):
+    spec = importlib.util.spec_from_file_location("cities_identity", ROOT / "scripts" / "cities_identity.py")
+    ident = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ident)
+    base, new = tmp_path / "base", tmp_path / "new"
+    for d in (base, new):
+        d.mkdir()
+    (base / "state.json").write_text(json.dumps({"turn": 3}))
+    (new / "state.json").write_text(json.dumps({"turn": 3, "cities": {"cities": []}}))
+    bundle = {"metadata": {"generated_at": "x"}, "history": [{"turn": 1}], "world_state": {"turn": 3}}
+    (base / "chronicle_bundle.json").write_text(json.dumps(bundle))
+    bundle["history"][0]["cities"] = {"cities": []}
+    bundle["world_state"]["cities"] = {}
+    bundle["metadata"]["generated_at"] = "y"
+    (new / "chronicle_bundle.json").write_text(json.dumps(bundle))
+    assert ident.compare(base, new, inert=True) == (2, [])
+    assert len(ident.compare(base, new)[1]) == 2
+    (base / "chronicle.md").write_text("a")
+    (new / "chronicle.md").write_text("b")
+    assert ident.compare(base, new, inert=True)[1][0].startswith("differs: chronicle.md")
 
 
 def test_cli_run_off_mode_keeps_bytes_and_the_switch_persists(tmp_path):

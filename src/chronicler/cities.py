@@ -77,9 +77,11 @@ HISTORY_CAP = 60                     # history entries kept per city (the foundi
 MISFORTUNE_GAP = 30                  # turns between plague (or famine) entries in a history
 MISFORTUNE_IMPORTANCE = 7            # epidemics entered in a history (plague, pox, pestilence)
 
-# Commerce: weight per resident by occupation (farmer, soldier, merchant,
-# scholar, priest), times market access and food.
-COMMERCE_WEIGHTS = (0.03, 0.06, 0.36, 0.15, 0.12)
+# Commerce: treasury per resident by occupation (farmer, soldier, merchant,
+# scholar, priest), times market access and food. Residents are counted at
+# the reference scale (size / scale(world)), so a city's commerce does not
+# grow with the agent count of the world, only with its standing in it.
+COMMERCE_WEIGHTS = (0.025, 0.05, 0.3, 0.12, 0.1)
 #: Occupation mix assumed until agents are counted (and with --agents off).
 OFF_MODE_MIX = (0.45, 0.15, 0.15, 0.15, 0.10)
 ROUTE_ACCESS = 0.15                  # per goods trade route of the region ...
@@ -134,10 +136,10 @@ SUPPRESSED_UNREST = 0.4              # unrest removed
 SUPPRESSED_GRIEVANCE = 0.1
 
 # Free cities.
-FREE_CITY_LORD_STABILITY = 25        # a lord below this loses the city
+FREE_CITY_LORD_STABILITY = 30        # a lord below this loses the city
 FREE_CITY_MIN_RANK = CITY
 FREE_CITY_MIN_CHARTER = MARKET_RIGHTS
-FREE_CITY_MIN_LORD_REGIONS = 3
+FREE_CITY_MIN_LORD_REGIONS = 2
 FREE_CITY_STABILITY = 50
 FREE_CITY_ASABIYA = 0.6
 FREE_CITY_TREASURY_SHARE = 0.5       # of the purse
@@ -431,7 +433,7 @@ def tick_cities(world: "WorldState", events: Iterable["Event"] = (), acc=None, *
             _fall(t, city, "deserted")
             continue
         food = t.food(region)
-        _commerce(t, city, region, food)
+        _commerce(t, city, region, food, k)
         _unrest(t, city, region, food)
         _walls(t, city, region)
         _petition(t, city, region)
@@ -513,7 +515,18 @@ def _lord_change(t: _Tick, city: City, region) -> None:
     if new_civ is not None and (conquest or at_war):
         _sack(t, city, region, ctrl, conquest, conquered=True, victim_idx=old)
     else:
-        _note(city, world.turn, "lord")
+        _new_lord(t, city, region, old_civ, new_civ, None)
+
+
+def _new_lord(t: _Tick, city: City, region, old_civ, new_civ, cause: str | None) -> None:
+    """A lord change without plunder (peaceful, or a conquest within the
+    sack cooldown)."""
+    old_name = old_civ.name if old_civ is not None else "no one"
+    new_name = new_civ.name if new_civ is not None else "no one"
+    ev = _emit(t, "city_lord_changed", [new_civ.name if new_civ else "", old_civ.name if old_civ else ""],
+               f"{city.name} in {region.name} passes from {old_name} to {new_name}",
+               importance=3, region=region.name, causes=(cause,))
+    _note(city, t.world.turn, "lord", ev.event_id)
 
 
 def _occupation_sack(t: _Tick, city: City, region) -> None:
@@ -534,7 +547,7 @@ def _sack(t: _Tick, city: City, region, sacker_idx: int, cause: str | None, *,
         city.charter -= 1
     if world.turn - city.last_sack < SACK_COOLDOWN:
         if conquered:
-            _note(city, world.turn, "lord")
+            _new_lord(t, city, region, t.civ(victim_idx), t.civ(sacker_idx), cause)
         return
     sacker = t.civ(sacker_idx)
     loot = city.wealth * SACK_SHARE
@@ -595,8 +608,8 @@ def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None
         city.below_turns = 0
 
 
-def _commerce(t: _Tick, city: City, region, food: float) -> None:
-    base = city.size * sum(w * m for w, m in zip(COMMERCE_WEIGHTS, city.mix))
+def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
+    base = city.size / k * sum(w * m for w, m in zip(COMMERCE_WEIGHTS, city.mix))
     access = 1.0 + ROUTE_ACCESS * min(t.routes(region), ROUTE_ACCESS_CAP)
     commerce = base * access * food * (OCCUPIED_COMMERCE if _occupied(region) else 1.0)
     dues = commerce * DUES[city.charter] if city.lord >= 0 else 0.0
@@ -726,8 +739,10 @@ def _revolt(t: _Tick, city: City, region) -> None:
                    f"The people of {city.name} in {region.name} rise against {lord.name}",
                    importance=6, region=region.name, causes=causes)
     _note(city, world.turn, "revolt", revolt.event_id)
-    _add_stat(t, lord, "stability", -REVOLT_STABILITY, "guard-shock")
+    # The lord's standing after the revolt, read before the change is applied
+    # (directly with --agents off, through the accumulator in hybrid mode).
     projected = lord.stability - REVOLT_STABILITY
+    _add_stat(t, lord, "stability", -REVOLT_STABILITY, "guard-shock")
     if (projected < FREE_CITY_LORD_STABILITY and city.rank >= FREE_CITY_MIN_RANK
             and city.charter >= FREE_CITY_MIN_CHARTER and len(lord.regions) >= FREE_CITY_MIN_LORD_REGIONS
             and lord.capital_region != region.name and not _occupied(region)
