@@ -89,6 +89,7 @@ MASS_MIGRATION_BY_DRIVER = {
     "frontier": "{count} {occ_majority} left {source_region} to settle {target_region}",
     "wage": "{count} {occ_majority} left {source_region} for work in {target_region}",
     "chain": "{count} {occ_majority} followed kin from {source_region} to {target_region}",
+    "urban": "{count} {occ_majority} left {source_region} for the city in {target_region}",
     "famine_memory": "{count} {occ_majority} fled hunger in {source_region} for {target_region}",
     "opp_food": "{count} {occ_majority} fled hunger in {source_region} for {target_region}",
     "persecution": "{count} {occ_majority} fled persecution in {source_region} for {target_region}",
@@ -631,6 +632,13 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         columns["climate_exposure"] = pa.array(
             [climate_exposure(r.latitude_band, phase) for r in world.regions], type=pa.float32(),
         )
+    from chronicler.cities_state import cities_on
+    if cities_on(world):
+        # --cities: each region's draw on its hinterland (the Rust urban
+        # driver), recomputed from persisted city state for every batch;
+        # without the column Rust reads 0.
+        from chronicler.cities import region_pulls
+        columns["city_pull"] = pa.array(region_pulls(world), type=pa.float32())
     return pa.record_batch(columns)
 
 

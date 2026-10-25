@@ -428,6 +428,10 @@ impl AgentSimulator {
             .column_by_name("temple_prestige")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         // Geography 2.0: latitude climate exposure (absent on template worlds = 1.0)
+        // Cities: per-region urban pull (absent when the switch is off = 0.0)
+        let city_pull_col = rb
+            .column_by_name("city_pull")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -577,6 +581,7 @@ impl AgentSimulator {
                     is_capital: is_capital_col.map_or(false, |arr| arr.value(i)),
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
+                    city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -780,6 +785,7 @@ impl AgentSimulator {
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
+                r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
@@ -1526,7 +1532,7 @@ impl AgentSimulator {
             m.insert(format!("present_{name}"), d.present[i] as f64);
             m.insert(format!("follow_{name}"), d.followers[i] as f64);
         }
-        for (i, name) in ["frontier", "wage", "chain"].iter().enumerate() {
+        for (i, name) in crate::migration_drivers::VOLUNTARY_DRIVER_NAMES.iter().enumerate() {
             m.insert(format!("open_{name}"), d.open[i] as f64);
             m.insert(format!("gate_{name}"), d.gate[i] as f64);
         }

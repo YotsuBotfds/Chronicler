@@ -158,6 +158,14 @@ def _nomads_args(args: argparse.Namespace) -> list[str]:
     return ["--nomads" if nomads else "--no-nomads"]
 
 
+def _cities_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit cities switch; omitted keeps the CLI default."""
+    cities = getattr(args, "cities", None)
+    if cities is None:
+        return []
+    return ["--cities" if cities else "--no-cities"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -219,6 +227,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_maritime_args(args),
         *_gp_agendas_args(args),
         *_nomads_args(args),
+        *_cities_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -255,6 +264,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_maritime_args(args),
         *_gp_agendas_args(args),
         *_nomads_args(args),
+        *_cities_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -297,6 +307,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_maritime_args(args))
         cmd.extend(_gp_agendas_args(args))
         cmd.extend(_nomads_args(args))
+        cmd.extend(_cities_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -632,6 +643,12 @@ def main() -> None:
         help="Forward --nomads/--no-nomads to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--cities",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --cities/--no-cities to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -738,6 +755,7 @@ def main() -> None:
         "maritime": args.maritime,
         "gp_agendas": args.gp_agendas,
         "nomads": args.nomads,
+        "cities": args.cities,
         "historiography": args.historiography,
         "languages": args.languages,
         "pythonhashseed": env["PYTHONHASHSEED"],

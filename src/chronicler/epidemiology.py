@@ -502,6 +502,12 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
         from chronicler.techniques import epidemic_cfr_factors
         factors = epidemic_cfr_factors(world)
         mods = [(susc, cfr * factors[i], famine) for i, (susc, cfr, famine) in enumerate(mods)]
+    from chronicler.cities_state import cities_on
+    if cities_on(world):
+        # --cities: density raises susceptibility in proportion to the urban share.
+        from chronicler.cities import epidemic_susceptibility_factors
+        urban = epidemic_susceptibility_factors(world)
+        mods = [(susc * urban[i], cfr, famine) for i, (susc, cfr, famine) in enumerate(mods)]
 
     _introduce(world, state, rows, mods)
 

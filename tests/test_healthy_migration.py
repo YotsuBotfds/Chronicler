@@ -14,7 +14,7 @@ DRIVER_TERMS = (
     "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river",
     "opp_news", "persecution", "famine_memory", "battle_memory", "conquest_memory",
     "persecution_memory", "safety_need", "material_need", "spiritual_need",
-    "frontier", "wage", "chain",
+    "frontier", "wage", "chain", "urban",
 )
 
 
@@ -71,7 +71,7 @@ def test_native_migration_budget_reports_every_term(make_world):
     expected = {"evaluated", "decided", "unexplained"}
     expected |= {f"{kind}_{t}" for kind in ("share", "present", "follow") for t in DRIVER_TERMS}
     expected |= {f"{kind}_{driver}" for kind in ("open", "gate")
-                 for driver in ("frontier", "wage", "chain")}
+                 for driver in ("frontier", "wage", "chain", "urban")}
     expected |= {f"{kind}_age_{band}" for kind in ("decided", "voluntary")
                  for band in ("under20", "20_34", "35_49", "50_64", "65plus")}
     assert set(budget) == expected

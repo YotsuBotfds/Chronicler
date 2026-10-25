@@ -103,6 +103,7 @@ from chronicler.contact_ledger import ledger_enabled as _contact_ledger_on
 from chronicler.epidemiology import epidemiology_enabled as _epidemiology_on
 from chronicler.maritime import maritime_enabled as _maritime_on
 from chronicler.nomads_state import nomads_on as _nomads_on
+from chronicler.cities_state import cities_on as _cities_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -2059,6 +2060,10 @@ def run_turn_result(
 
     # M42: Apply treasury tax (keep category)
     _apply_treasury_tax_from_economy(world, acc, economy_result)
+    if _cities_on(world):
+        # Cities: dues assessed in last turn's Phase 10, paid to the lords.
+        from chronicler.cities import pay_dues
+        pay_dues(world, acc)
 
     # Phase 3: Production
     phase_production(world, acc=acc)
@@ -2258,6 +2263,17 @@ def run_turn_result(
         _emit(tick_gp_agendas(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+        ))
+
+    # Cities (--cities): ranks, commerce and dues, unrest, charters, revolts
+    # and free cities, sacks and walls, from this turn's agent rows; before
+    # the Phase 10 flush below.
+    if _cities_on(world):
+        from chronicler.cities import tick_cities
+        _emit(tick_cities(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+            economy_result=artifacts.economy,
         ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,

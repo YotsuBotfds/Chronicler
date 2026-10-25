@@ -656,6 +656,10 @@ def _domestic_capacity(world, civ_idx: int, civ, f: CivFinance) -> int:
         # --gp-agendas: great merchants who vowed to lend to the crown.
         from chronicler.gp_agendas import crown_credit_factor
         capacity *= crown_credit_factor(world, civ_idx)
+    if getattr(world, "cities", None) is not None:
+        # --cities: chartered cities' merchant lenders deepen domestic credit.
+        from chronicler.cities import credit_factor as city_credit_factor
+        capacity *= city_credit_factor(world, civ_idx)
     return max(0, int(capacity) - outstanding_debt(world, civ_idx, DOMESTIC))
 
 

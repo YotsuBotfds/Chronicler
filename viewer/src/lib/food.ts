@@ -221,6 +221,7 @@ export const MIGRATION_DRIVER_KINDS: Record<string, string> = {
   frontier: "settling new land",
   wage: "seeking work",
   chain: "joining kin",
+  urban: "moving to the city",
   famine_memory: "fleeing hunger",
   opp_food: "fleeing hunger",
   persecution: "fleeing persecution",

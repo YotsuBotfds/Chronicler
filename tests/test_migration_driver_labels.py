@@ -68,6 +68,7 @@ def _bridge(events: list[AgentEventRecord]):
     ("frontier", "left {src} to settle {dst}"),
     ("wage", "left {src} for work in {dst}"),
     ("chain", "followed kin from {src} to {dst}"),
+    ("urban", "left {src} for the city in {dst}"),
     ("famine_memory", "fled hunger in {src} for {dst}"),
     ("persecution_memory", "fled persecution in {src} for {dst}"),
     ("battle_memory", "fled war in {src} for {dst}"),

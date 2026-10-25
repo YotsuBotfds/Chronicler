@@ -276,8 +276,8 @@ their lead.
 Change (native): `AgentEvent.migration_driver`, the decision's largest term
 (index into `MIGRATION_TERM_NAMES`); spouses and dependants that household
 consolidation moves carry their lead's (`PendingDecisions.migration_followers`,
-read by `migration_driver_of`); 17 when no term was positive; 255 on every
-other event. The events batch gains a `migration_driver` column. No
+read by `migration_driver_of`); `MIGRATION_TERMS` when no term was
+positive; 255 on every other event. The events batch gains a `migration_driver` column. No
 decision reads it and no random draw is added.
 
 Python: `AgentEventRecord.migration_driver` (255 when an extension or file
@@ -290,6 +290,7 @@ text reads it:
 | frontier | N farmers left X to settle Y |
 | wage | ... left X for work in Y |
 | chain | ... followed kin from X to Y |
+| urban (the cities' pull, `--cities`; merged from `main`) | ... left X for the city in Y |
 | famine_memory, opp_food | ... fled hunger in X for Y |
 | persecution, persecution_memory | ... fled persecution in X for Y |
 | battle_memory, conquest_memory | ... fled war in X for Y |
@@ -298,7 +299,7 @@ text reads it:
 | none recorded | ... fled X for Y (as before) |
 
 `notable_migration` (a named character moving) carries its agent's
-driver. Moves driven by settling, work or kin cite no distress as causes
+driver. Moves driven by settling, work, kin or a city cite no distress as causes
 (provenance) and are not a calamity to the chroniclers; the episode label
 "exodus" is now "wave of departures". The viewer's Migration layer names
 the drivers of the window's mass departures (older bundles: no driver,
@@ -318,6 +319,19 @@ opp_satisfaction 2, persecution and its memory 4, low satisfaction 1 (105). Proc
 x 10 seed 7, 100 turns: famine memory 41, opp_food 11, low satisfaction
 10, frontier 9, wage 5, other 15 (91). 13 of 105 and 14 of 91 mass
 migrations were settling or seeking work and used to read as flight.
+
+## Merge with `main`
+
+Before the push `origin/main` had moved to `cee5013` (PR #27, Wave 8, same
+tree as the base, and PR #28, cities, default off). The merge (no rebase)
+resolves the ledger and the oracle lane's `systems-1` chunk (both new test
+files and `tests/test_cities.py`) and adapts two things: the cities' urban
+pull is migration term 17 (`MIGRATION_TERMS` 18), so `urban` joins
+`MIGRATION_DRIVER_NAMES` and the voluntary drivers; and cities record a
+famine report (onset or a dearth deepening into famine, at most one per 30
+turns) as a city's misfortune, not a dearth, and name a fall's crisis by its
+label. Cities stay default off, so the gates above stand for the merged
+tree; the merged head's tests are in the ledger.
 
 ## Bundle size
 

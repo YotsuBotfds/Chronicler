@@ -197,7 +197,7 @@ struct MigrationChoice {
     voluntary: VoluntaryPull,
     /// Whether any admissible neighbour opened each driver's gate before
     /// roots (frontier, wage, chain), for the migration budget.
-    gate_open: [bool; 3],
+    gate_open: [bool; VOLUNTARY_DRIVERS],
 }
 
 impl MigrationChoice {
@@ -210,7 +210,7 @@ impl MigrationChoice {
             river: 0.0,
             news: 0.0,
             voluntary: VoluntaryPull::default(),
-            gate_open: [false; 3],
+            gate_open: [false; VOLUNTARY_DRIVERS],
         }
     }
 }
@@ -253,7 +253,7 @@ fn best_migration_target_for_agent(
     let mut best_river = 0.0f32;
     let mut best_news = 0.0f32;
     let mut best_voluntary = VoluntaryPull::default();
-    let mut gate_open = [false; 3];
+    let mut gate_open = [false; VOLUNTARY_DRIVERS];
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -294,6 +294,7 @@ fn best_migration_target_for_agent(
                 gate_open[0] |= gross.frontier > 0.0;
                 gate_open[1] |= gross.wage > 0.0;
                 gate_open[2] |= gross.chain > 0.0;
+                gate_open[3] |= gross.urban > 0.0;
                 gross.net_of_roots(m.roots)
             }
             None => VoluntaryPull::default(),
@@ -444,6 +445,7 @@ fn migration_terms(
     terms[TERM_FRONTIER] = choice.voluntary.frontier;
     terms[TERM_WAGE] = choice.voluntary.wage;
     terms[TERM_CHAIN] = choice.voluntary.chain;
+    terms[TERM_URBAN] = choice.voluntary.urban;
     terms
 }
 

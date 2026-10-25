@@ -23,6 +23,7 @@ from chronicler.techniques_state import TechniqueState
 from chronicler.maritime_state import MaritimeState
 from chronicler.gp_agendas_state import GPAgendaState
 from chronicler.nomads_state import NomadState
+from chronicler.cities_state import CityState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1044,11 +1045,12 @@ class DemandSignal:
 MIGRATION_DRIVER_NAMES: tuple[str, ...] = (
     "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river", "opp_news",
     "persecution", "famine_memory", "battle_memory", "conquest_memory", "persecution_memory",
-    "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain",
+    "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain", "urban",
 )
-#: Drivers of moves people choose in a living world (healthy-world migration):
-#: settling new land, seeking work, joining kin.
-VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain"})
+#: Drivers of moves people choose in a living world (healthy-world migration
+#: and the cities' urban pull): settling new land, seeking work, joining kin,
+#: moving to a city.
+VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain", "urban"})
 #: ``AgentEventRecord.migration_driver`` of events that are not migrations
 #: (and of every event read from an extension or file without the column).
 NO_MIGRATION_DRIVER = 255
@@ -1193,6 +1195,9 @@ class WorldState(BaseModel):
     # hordes and sedentarization (chronicler.nomads; None = disabled;
     # omitted from output).
     nomads: NomadState | None = None
+    # Cities as actors: wealth, charters, revolts, sacks and falls of M56a
+    # settlements (chronicler.cities; None = disabled; omitted from output).
+    cities: CityState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1300,6 +1305,8 @@ class WorldState(BaseModel):
             data.pop("gp_agendas", None)
         if isinstance(data, dict) and self.nomads is None:
             data.pop("nomads", None)
+        if isinstance(data, dict) and self.cities is None:
+            data.pop("cities", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1444,6 +1451,8 @@ class TurnSnapshot(BaseModel):
     gp_agendas: dict | None = None
     # Nomads per-turn summary; None (and omitted) when nomads are off.
     nomads: dict | None = None
+    # Cities per-turn summary; None (and omitted) when cities are off.
+    cities: dict | None = None
     # Viewer only: per-region food sufficiency and the completed turn's relief
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
@@ -1477,6 +1486,8 @@ class TurnSnapshot(BaseModel):
             data.pop("gp_agendas")
         if isinstance(data, dict) and data.get("nomads", 0) is None:
             data.pop("nomads")
+        if isinstance(data, dict) and data.get("cities", 0) is None:
+            data.pop("cities")
         return data
 
 
