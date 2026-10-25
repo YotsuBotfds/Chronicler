@@ -27,7 +27,7 @@ This layer adds what the peoples call things, as a gloss.
   to every word of the language, roots and names alike, and is recorded,
   so every name keeps its history of forms.
 * **Splits.** A seceding civ speaks a daughter of its regions' language. A
-  province cut off from its people's state for 40 turns grows its own
+  province cut off from its people's state for 100 turns grows its own
   dialect: an exclave with no path to the capital through the civ's own
   land, or a conquered province that keeps the language of a people still
   ruling elsewhere, unless contact-ledger flow with the home land is
@@ -87,7 +87,7 @@ SIDECAR_SUFFIX = ".languages.json"
 
 CHANGE_INTERVAL = (25, 55)    # turns between a language's own sound changes
 PREHISTORIC_CHANGES = (1, 2)  # changes a daughter of a founding family starts with
-SEPARATION_TURNS = 40         # a cut-off province grows its own dialect after this long ...
+SEPARATION_TURNS = 100        # a cut-off province grows its own dialect after this long ...
 SEPARATION_CONTACT = 2.0      # ... unless its contact with the rest of its civ is this strong
 CONTACT_WEIGHTS = (1.0, 1.0, 0.25, 2.0)  # trade, people, soldiers, pilgrims (the ledger's)
 BORDER_WEIGHT = 0.5           # contact per shared border (people channel)
