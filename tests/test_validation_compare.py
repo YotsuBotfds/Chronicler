@@ -596,3 +596,103 @@ def test_compare_cli_rejects_bad_inputs_and_output_collisions(tmp_path, capsys):
         str(current_path),
     ]) == 1
     assert "decision-output must be different from current-report" in json.loads(capsys.readouterr().out)["reason"]
+
+
+# --- Needs oracle method 2 against method 1 reports ----------------------
+
+
+def _needs_method(report, status, version):
+    report["results"]["needs"] = {"status": status, "method_version": version}
+    return report
+
+
+def test_compare_does_not_count_a_needs_method_change_as_a_new_failure():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _report(determinism="SKIP")  # method 1: no method_version
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 2)
+
+    result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+
+    assert result["new_required_failures"] == []
+    assert result["regression_detected"] is False
+    assert result["exit_code"] == 0
+    assert result["rebaseline_required"] is True
+    assert result["oracle_method_changes"] == [{
+        "oracle": "needs",
+        "baseline_method_version": 1,
+        "current_method_version": 2,
+        "baseline_status": "PASS",
+        "current_status": "FAIL",
+    }]
+    assert result["method_changed_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    # The current report still fails its own gate.
+    assert result["current_decision"]["ok"] is False
+
+
+def test_compare_does_not_count_a_needs_method_change_as_resolved():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _report(needs="FAIL", determinism="SKIP")
+    current = _needs_method(_report(determinism="SKIP"), "PASS", 2)
+
+    result = compare_validation_reports("subset", baseline, current)
+
+    assert result["resolved_required_failures"] == []
+    assert result["method_changed_required_failures"] == []
+    assert result["rebaseline_required"] is True
+
+
+def test_compare_same_needs_method_keeps_new_failure_detection():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 2)
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 2)
+
+    result = compare_validation_reports("subset", baseline, current)
+
+    assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    assert result["regression_reasons"] == ["new_required_failures"]
+    assert result["oracle_method_changes"] == []
+    assert result["rebaseline_required"] is False
+
+
+def test_compare_rejects_a_malformed_method_version():
+    import pytest
+    from chronicler.validation_compare import compare_validation_reports
+    from chronicler.validation_gate import ValidationGateInputError
+
+    current = _needs_method(_report(determinism="SKIP"), "PASS", "2")
+    with pytest.raises(ValidationGateInputError, match="invalid method_version for oracle needs"):
+        compare_validation_reports("subset", _report(determinism="SKIP"), current)
+
+
+def test_compare_cli_old_needs_report_against_new_one(tmp_path, capsys):
+    from chronicler import validation_compare
+
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["needs"].update(
+        seeds_with_expected_sign=16, required_seed_count=12, total_pairs=34, median_effect_size=1.17,
+    )
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 2)
+    current["results"]["needs"].update(net_concordance=0.02, net_concordance_lower_bound=-0.05)
+    baseline_path = tmp_path / "baseline.json"
+    current_path = tmp_path / "current.json"
+    summary_path = tmp_path / "compare.md"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    current_path.write_text(json.dumps(current), encoding="utf-8")
+
+    assert validation_compare.main([
+        "--profile", "subset",
+        "--baseline-report", str(baseline_path),
+        "--current-report", str(current_path),
+        "--summary-output", str(summary_path),
+        "--fail-on-regression",
+    ]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["regression_detected"] is False
+    assert payload["rebaseline_required"] is True
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "## Oracle method changes" in summary
+    assert "| needs | 1 | PASS | 2 | FAIL |" in summary
