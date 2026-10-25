@@ -5,7 +5,9 @@ use std::collections::VecDeque;
 use crate::agent::{
     MAX_PATH_LEN, TRIP_PHASE_IDLE, TRIP_PHASE_LOADING, TRIP_PHASE_TRANSIT, TRIP_GOOD_SLOT_NONE,
 };
-use crate::economy::NUM_GOODS;
+use crate::economy::{
+    CAT_FOOD, CAT_LUXURY, CAT_RAW_MATERIAL, GOOD_CATEGORY, NUM_CATEGORIES, NUM_GOODS,
+};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 
@@ -400,44 +402,203 @@ pub const MERCHANT_CARGO_CAP: f32 = 1.0; // [CALIBRATE]
 // median margin 1.0, the clamp, in empty regions against 0.0 in fed ones).
 // The cargo was the origin's largest stock whatever the destination needed.
 // About a quarter of food deliveries landed in regions with no people and
-// under a third in regions short of food.
+// under a third in regions short of food. Food then travelled by the food
+// price gap, demand / supply = 1 / sufficiency (the economy's own
+// post-trade price).
 //
-// Food now travels by the food price gap, demand / supply = 1 / sufficiency
-// (the economy's own post-trade price); other goods keep the activity proxy,
-// which is all the planner knows about them, and never displace food. A
-// region with no people is never a destination. Packets still decide which
-// markets a merchant knows (M59b gating, unchanged); the price at a known
-// market is read live, as M58b's perfect-information price source does.
+// Correction (2026-10, city markets): every good travels by its price gap.
+//
+// - Non-food goods. The economy's demand and post-trade supply per category
+//   (`RegionState::market_demand` / `market_supply`, from the last economy
+//   tick) price raw materials and luxuries at a market as demand / supply,
+//   the economy's own post-trade price; the activity proxy is not read. A
+//   market without demand for a good pays nothing for it. Food keeps
+//   1 / sufficiency and still goes first.
+// - Trade packets advertise markets: a region's packet strength is its
+//   dearest good's price above balance (`market_signal`), not its export
+//   margin, and packet-known markets are scored like any other market (the
+//   price at a known market is read live, as before for food). M59b's
+//   gating and its no-fallback rule are unchanged.
+// - Herding. Merchants plan one at a time in (origin, agent id) order, the
+//   order intents were applied in, and each sees the cargo already
+//   committed to and from every market this tick (`MarketTally`): loading
+//   and in-transit cargo bound there, this tick's arrivals, and the plans
+//   made before it. The price at a market is read as if that cargo had
+//   arrived, so merchants at one origin no longer all choose the same
+//   market, and an exporter stops before it ships away its own food.
+//
+// A region with no people is never a destination and emits no packet. No
+// new random draws; the tie-breaks are unchanged (lower region, then lower
+// category).
 
 /// Sufficiency floor in the planner's food price, the economy's supply floor
 /// (`SUPPLY_FLOOR`) applied to sufficiency: a region with no food at all
 /// prices it at 10.
 pub const FOOD_PRICE_SUFFICIENCY_FLOOR: f32 = 0.1;
-/// Scales a food price gap into the units of `merchant_route_margin` (the
+/// Scales a price gap into the units of `merchant_route_margin` (the
 /// economy's default `merchant_margin_normalizer`), so `MIN_TRIP_PROFIT`
-/// means the same for food trips as for other trips.
-pub const FOOD_PRICE_GAP_SCALE: f32 = 5.0;
+/// keeps its meaning for every good.
+pub const PRICE_GAP_SCALE: f32 = 5.0;
+/// The economy's supply floor in the planner's non-food prices.
+pub const PRICE_SUPPLY_FLOOR: f32 = 0.1;
+/// The highest price the planner gives any good: food's with no food at all.
+pub const MAX_PLANNER_PRICE: f32 = 1.0 / FOOD_PRICE_SUFFICIENCY_FLOOR;
+/// The economy's base price: a market whose supply equals its demand.
+pub const BALANCED_PRICE: f32 = 1.0;
+
+/// Cargo committed this tick to and from each market, by goods category,
+/// that the last economy tick has not seen yet. Built once per mobility
+/// phase and extended by every plan; the planner reads a market's price as
+/// if this cargo had arrived (or left).
+#[derive(Clone, Debug)]
+pub struct MarketTally {
+    /// Cargo bound for each region: loading and in transit, arrived this
+    /// tick, and planned this tick.
+    pub inbound: Vec<[f32; NUM_CATEGORIES]>,
+    /// Cargo leaving each region: reserved by loading merchants and
+    /// departed this tick (`departure_debits`).
+    pub outbound: Vec<[f32; NUM_CATEGORIES]>,
+}
+
+impl MarketTally {
+    pub fn new(num_regions: usize) -> Self {
+        Self {
+            inbound: vec![[0.0; NUM_CATEGORIES]; num_regions],
+            outbound: vec![[0.0; NUM_CATEGORIES]; num_regions],
+        }
+    }
+
+    /// The tally at the start of planning: every loading or in-transit
+    /// cargo by destination, this tick's arrivals, and each origin's
+    /// reservations and departures since the last economy tick.
+    pub fn observe(
+        pool: &AgentPool,
+        ledger: &ShadowLedger,
+        delivery_buf: Option<&DeliveryBuffer>,
+        num_regions: usize,
+    ) -> Self {
+        let mut tally = Self::new(num_regions);
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) {
+                continue;
+            }
+            let phase = pool.trip_phase[slot];
+            if phase != TRIP_PHASE_LOADING && phase != TRIP_PHASE_TRANSIT {
+                continue;
+            }
+            let good = pool.trip_good_slot[slot] as usize;
+            let dest = pool.trip_dest_region[slot] as usize;
+            if good < NUM_GOODS && dest < num_regions {
+                tally.inbound[dest][GOOD_CATEGORY[good]] += pool.trip_cargo_qty[slot];
+            }
+        }
+        if let Some(buf) = delivery_buf {
+            for rec in &buf.arrival_imports {
+                let (dest, good) = (rec.dest_region as usize, rec.good_slot as usize);
+                if dest < num_regions && good < NUM_GOODS {
+                    tally.inbound[dest][GOOD_CATEGORY[good]] += rec.qty;
+                }
+            }
+        }
+        for region in 0..num_regions.min(ledger.reserved.len()) {
+            for good in 0..NUM_GOODS {
+                let mut out = ledger.reserved[region][good];
+                if let Some(debits) = delivery_buf.and_then(|buf| buf.departure_debits.get(region)) {
+                    out += debits[good];
+                }
+                tally.outbound[region][GOOD_CATEGORY[good]] += out;
+            }
+        }
+        tally
+    }
+
+    /// Record a committed plan.
+    pub fn commit(&mut self, origin: u16, dest: u16, good_slot: u8, qty: f32) {
+        let good = good_slot as usize;
+        if good >= NUM_GOODS {
+            return;
+        }
+        let cat = GOOD_CATEGORY[good];
+        if let Some(row) = self.inbound.get_mut(dest as usize) {
+            row[cat] += qty;
+        }
+        if let Some(row) = self.outbound.get_mut(origin as usize) {
+            row[cat] += qty;
+        }
+    }
+
+    /// Cargo committed to `region` less cargo committed out of it.
+    #[inline]
+    pub fn net(&self, region: usize, cat: usize) -> f32 {
+        match (self.inbound.get(region), self.outbound.get(region)) {
+            (Some(i), Some(o)) => i[cat] - o[cat],
+            _ => 0.0,
+        }
+    }
+}
+
+/// The planner's price of goods category `cat` at `region`, read as if
+/// `net_inflow` more of it had arrived. Food: demand / supply =
+/// 1 / sufficiency, the economy's food price, with the sufficiency raised by
+/// `net_inflow` over the food demand (when the demand is known). Raw
+/// materials and luxuries: demand / (post-trade supply + `net_inflow`), the
+/// economy's post-trade price; 0 without demand. A region without people
+/// has no price. At most `MAX_PLANNER_PRICE`.
+#[inline]
+pub fn market_price(region: &RegionState, cat: usize, net_inflow: f32) -> f32 {
+    if region.population == 0 || cat >= NUM_CATEGORIES {
+        return 0.0;
+    }
+    let demand = region.market_demand[cat];
+    if cat == CAT_FOOD {
+        let mut sufficiency = region.food_sufficiency;
+        if net_inflow != 0.0 && demand > 0.0 {
+            sufficiency += net_inflow / demand.max(PRICE_SUPPLY_FLOOR);
+        }
+        return 1.0 / sufficiency.max(FOOD_PRICE_SUFFICIENCY_FLOOR);
+    }
+    if demand <= 0.0 {
+        return 0.0;
+    }
+    (demand / (region.market_supply[cat] + net_inflow).max(PRICE_SUPPLY_FLOOR)).min(MAX_PLANNER_PRICE)
+}
 
 /// The economy's food price in `region`: demand / supply, which is
 /// 1 / food_sufficiency. A region without people has no demand and no price.
 #[inline]
 pub fn food_price(region: &RegionState) -> f32 {
-    if region.population == 0 {
-        return 0.0;
-    }
-    1.0 / region.food_sufficiency.max(FOOD_PRICE_SUFFICIENCY_FLOOR)
+    market_price(region, CAT_FOOD, 0.0)
 }
 
-/// Score of carrying food from `origin` to `dest`: the food price gap in
-/// margin units. Positive only where food is dearer at the destination.
+/// A region's strength as a market, the content of its trade packets: its
+/// dearest good's price above balance, in margin units, within [0, 1].
+/// Zero for a region without people or without a good it is short of.
+pub fn market_signal(region: &RegionState) -> f32 {
+    let dearest = (0..NUM_CATEGORIES)
+        .map(|cat| market_price(region, cat, 0.0))
+        .fold(0.0f32, f32::max);
+    ((dearest - BALANCED_PRICE) / PRICE_GAP_SCALE).clamp(0.0, 1.0)
+}
+
+/// Score of carrying goods of category `cat` from `origin` to `dest`: the
+/// price gap in margin units, both prices read with the tally. Positive only
+/// where the goods are dearer at the destination.
 #[inline]
-pub fn food_trip_score(origin: &RegionState, dest: &RegionState) -> f32 {
-    (food_price(dest) - food_price(origin)) / FOOD_PRICE_GAP_SCALE
+pub fn trip_score(
+    regions: &[RegionState],
+    tally: &MarketTally,
+    origin: usize,
+    dest: usize,
+    cat: usize,
+) -> f32 {
+    (market_price(&regions[dest], cat, tally.net(dest, cat))
+        - market_price(&regions[origin], cat, tally.net(origin, cat)))
+        / PRICE_GAP_SCALE
 }
 
 #[inline]
 fn is_food_slot(slot: usize) -> bool {
-    slot < NUM_GOODS && crate::economy::GOOD_CATEGORY[slot] == crate::economy::CAT_FOOD
+    slot < NUM_GOODS && GOOD_CATEGORY[slot] == CAT_FOOD
 }
 
 /// The good slot with the most uncommitted cargo at `origin` among the slots
@@ -475,11 +636,11 @@ fn best_cargo_slot(
 }
 
 /// Best destination among `candidates` (region, score) above
-/// `MIN_TRIP_PROFIT`, ties to the lower (region, agent) pair.
+/// `MIN_TRIP_PROFIT`, ties to the lower (region, agent) pair, with its score.
 fn best_destination(
     agent_id: u32,
     candidates: impl Iterator<Item = (u16, f32)>,
-) -> Option<u16> {
+) -> Option<(u16, f32)> {
     let mut best_dest: Option<u16> = None;
     let mut best_score: f32 = MIN_TRIP_PROFIT;
     let mut best_tiebreak: (u16, u32) = (u16::MAX, u32::MAX);
@@ -491,7 +652,7 @@ fn best_destination(
             best_tiebreak = tiebreak;
         }
     }
-    best_dest
+    best_dest.map(|d| (d, best_score))
 }
 
 fn trip_intent(
@@ -513,8 +674,8 @@ fn trip_intent(
     })
 }
 
-/// A reservation intent collected during parallel evaluation,
-/// applied in deterministic order.
+/// A planned trip, committed by `apply_trip_intent` (which re-checks the
+/// cargo).
 #[derive(Clone, Debug)]
 pub struct TripIntent {
     pub agent_slot: usize,
@@ -526,9 +687,60 @@ pub struct TripIntent {
     pub path_len: u8,
 }
 
+/// The trip a merchant at `origin_region` plans among `markets` (populated,
+/// reachable regions): food to the market where it is dearest, if any is
+/// dearer than home; otherwise the non-food category and market with the
+/// largest price gap (ties: lower region, then raw materials before
+/// luxuries). The cargo is the origin's largest uncommitted stock of the
+/// chosen category.
+#[allow(clippy::too_many_arguments)]
+fn plan_trip<I: Iterator<Item = u16>>(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    tally: &MarketTally,
+    markets: impl Fn() -> I,
+) -> Option<TripIntent> {
+    let origin = origin_region as usize;
+    // Food goes where it is dearer than at home.
+    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
+        let scored = markets().map(|d| (d, trip_score(regions, tally, origin, d as usize, CAT_FOOD)));
+        if let Some((dest, _)) = best_destination(agent_id, scored) {
+            if let Some(intent) = trip_intent(agent_slot, origin_region, dest, cargo, path_table) {
+                return Some(intent);
+            }
+        }
+    }
+    // Other goods go where they are dearest, by category.
+    let mut best: Option<(u16, f32, (u8, f32))> = None;
+    for cat in [CAT_RAW_MATERIAL, CAT_LUXURY] {
+        let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| GOOD_CATEGORY[s] == cat)
+        else {
+            continue;
+        };
+        let scored = markets().map(|d| (d, trip_score(regions, tally, origin, d as usize, cat)));
+        if let Some((dest, score)) = best_destination(agent_id, scored) {
+            let better = match best {
+                None => true,
+                Some((d, s, _)) => score > s || (score == s && dest < d),
+            };
+            if better {
+                best = Some((dest, score, cargo));
+            }
+        }
+    }
+    let (dest, _, cargo) = best?;
+    trip_intent(agent_slot, origin_region, dest, cargo, path_table)
+}
+
 /// Evaluate route candidates for an idle merchant at `origin_region`.
 /// Returns a TripIntent if a profitable route with available cargo exists.
 /// When `delivery_buf` is `Some`, uses hybrid availability (departure_debits).
+/// Prices are read without a delivery tally (see `evaluate_route_with_tally`).
 pub fn evaluate_route(
     agent_slot: usize,
     agent_id: u32,
@@ -538,8 +750,26 @@ pub fn evaluate_route(
     ledger: &ShadowLedger,
     delivery_buf: Option<&DeliveryBuffer>,
 ) -> Option<TripIntent> {
-    let origin = origin_region as usize;
-    if origin >= regions.len() {
+    let tally = MarketTally::new(regions.len());
+    evaluate_route_with_tally(
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, &tally,
+    )
+}
+
+/// [`evaluate_route`] with this tick's delivery tally: every populated
+/// region within reach is a candidate market.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_route_with_tally(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    tally: &MarketTally,
+) -> Option<TripIntent> {
+    if origin_region as usize >= regions.len() {
         return None;
     }
     let reachable = || {
@@ -547,25 +777,9 @@ pub fn evaluate_route(
             .filter(|&(dest, &dist)| dist != 0 && dist != u16::MAX && regions[dest].population > 0)
             .map(|(dest, _)| dest as u16)
     };
-
-    // Food goes where it is dearer than at home.
-    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
-        let scored = reachable()
-            .map(|d| (d, food_trip_score(&regions[origin], &regions[d as usize])));
-        if let Some(dest) = best_destination(agent_id, scored) {
-            if let Some(intent) = trip_intent(agent_slot, origin_region, dest, cargo, path_table) {
-                return Some(intent);
-            }
-        }
-    }
-
-    // Other goods by the market-activity proxy.
-    let origin_margin = regions[origin].merchant_route_margin;
-    let scored = reachable()
-        .map(|d| (d, origin_margin + regions[d as usize].merchant_route_margin));
-    let dest = best_destination(agent_id, scored)?;
-    let cargo = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| !is_food_slot(s))?;
-    trip_intent(agent_slot, origin_region, dest, cargo, path_table)
+    plan_trip(
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, reachable,
+    )
 }
 
 /// M59b: Packet-gated route evaluation. When usable nonlocal trade packets
@@ -575,6 +789,9 @@ pub fn evaluate_route(
 /// Returns (Option<TripIntent>, had_usable_packets: bool).
 /// Counter increments happen in merchant_mobility_phase AFTER apply_trip_intent
 /// succeeds, not here — "successful plan" means surviving reservation.
+/// Prices are read without a delivery tally (see
+/// `evaluate_route_packet_aware_with_tally`).
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_route_packet_aware(
     agent_slot: usize,
     agent_id: u32,
@@ -585,6 +802,27 @@ pub fn evaluate_route_packet_aware(
     ledger: &ShadowLedger,
     delivery_buf: Option<&DeliveryBuffer>,
 ) -> (Option<TripIntent>, bool) {
+    let tally = MarketTally::new(regions.len());
+    evaluate_route_packet_aware_with_tally(
+        agent_slot, agent_id, origin_region, pool, regions, path_table, ledger, delivery_buf, &tally,
+    )
+}
+
+/// [`evaluate_route_packet_aware`] with this tick's delivery tally. A
+/// packet-known market is scored as the oracle planner scores any market;
+/// the packet decides only which markets the merchant knows.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_route_packet_aware_with_tally(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    pool: &AgentPool,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    tally: &MarketTally,
+) -> (Option<TripIntent>, bool) {
     let origin = origin_region as usize;
     if origin >= regions.len() {
         return (None, false);
@@ -594,9 +832,10 @@ pub fn evaluate_route_packet_aware(
     let raw_packets = crate::knowledge::usable_trade_packets(pool, agent_slot, origin_region);
 
     // Reachability filter: only keep packets whose source_region is reachable
-    let reachable_packets: Vec<(u16, f32)> = raw_packets
+    let reachable_packets: Vec<u16> = raw_packets
         .into_iter()
-        .filter(|&(src_region, _)| {
+        .map(|(src_region, _)| src_region)
+        .filter(|&src_region| {
             let idx = src_region as usize;
             idx < path_table.dist.len()
                 && path_table.dist[idx] != 0
@@ -606,8 +845,8 @@ pub fn evaluate_route_packet_aware(
 
     if reachable_packets.is_empty() {
         // Bootstrap fallback: no usable packets, use oracle planner
-        let intent = evaluate_route(
-            agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf,
+        let intent = evaluate_route_with_tally(
+            agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally,
         );
         return (intent, false); // false = no usable packets
     }
@@ -618,27 +857,11 @@ pub fn evaluate_route_packet_aware(
     let known = || {
         reachable_packets.iter()
             .copied()
-            .filter(|&(src_region, _)| regions[src_region as usize].population > 0)
+            .filter(|&src_region| regions[src_region as usize].population > 0)
     };
-
-    // Food goes to a known market where it is dearer than at home.
-    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
-        let scored = known()
-            .map(|(d, _)| (d, food_trip_score(&regions[origin], &regions[d as usize])));
-        if let Some(dest) = best_destination(agent_id, scored) {
-            if let Some(intent) = trip_intent(agent_slot, origin_region, dest, cargo, path_table) {
-                return (Some(intent), true);
-            }
-        }
-    }
-
-    // Other goods by the packet's strength (market-activity proxy).
-    let origin_margin = regions[origin].merchant_route_margin;
-    let scored = known().map(|(d, packet_strength)| (d, origin_margin + packet_strength));
-    let intent = best_destination(agent_id, scored).and_then(|dest| {
-        let cargo = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| !is_food_slot(s))?;
-        trip_intent(agent_slot, origin_region, dest, cargo, path_table)
-    });
+    let intent = plan_trip(
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, known,
+    );
     (intent, true) // true = had usable packets
 }
 
@@ -1045,32 +1268,35 @@ pub fn merchant_mobility_phase_at(
 
     // Phase f-g: Route evaluation for idle merchants + cargo reservation
     // M59b: Use packet-aware route evaluation (packet-gated with bootstrap fallback)
+    // City markets (2026-10): one merchant at a time in (origin, agent id)
+    // order, each plan committed before the next merchant plans, against the
+    // tick's delivery tally (see `MarketTally`).
     let mut origin_tables: std::collections::HashMap<u16, PathTable> = std::collections::HashMap::new();
-    let mut intents: Vec<(TripIntent, bool)> = Vec::new(); // (intent, had_usable_packets)
+    let mut planners: Vec<usize> = Vec::new();
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
         // A merchant that delivered this turn is still at the market; it
         // returns home before planning again.
         if pool.trip_home_region[slot] != crate::agent::TRIP_HOME_NONE { continue; }
+        planners.push(slot);
+    }
+    planners.sort_by_key(|&slot| (pool.regions[slot], pool.ids[slot]));
+    let mut tally = MarketTally::observe(pool, ledger, delivery_buf.as_deref(), regions.len());
+    for slot in planners {
         let origin = pool.regions[slot];
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
-        let (intent, had_packets) = evaluate_route_packet_aware(
+        let (intent, had_packets) = evaluate_route_packet_aware_with_tally(
             slot, pool.ids[slot], origin, pool, regions, table, ledger,
-            delivery_buf.as_deref(),
+            delivery_buf.as_deref(), &tally,
         );
         if !had_packets {
             stats.no_usable_packets += 1;
         }
-        if let Some(i) = intent {
-            intents.push((i, had_packets));
-        }
-    }
-    intents.sort_by_key(|(i, _)| (i.origin_region, pool.ids[i.agent_slot]));
-    for (intent, had_packets) in &intents {
-        let applied = apply_trip_intent(intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref());
-        if applied {
-            if *had_packets {
+        let Some(intent) = intent else { continue };
+        if apply_trip_intent(&intent, pool, ledger, regions, &mut stats, delivery_buf.as_deref()) {
+            tally.commit(intent.origin_region, intent.dest_region, intent.good_slot, pool.trip_cargo_qty[slot]);
+            if had_packets {
                 stats.plans_packet_driven += 1;
             } else {
                 stats.plans_bootstrap += 1;
@@ -1335,27 +1561,168 @@ mod tests {
     }
 
     #[test]
-    fn test_food_stays_home_without_a_dearer_market_and_others_use_the_proxy() {
+    fn test_food_stays_home_without_a_dearer_market_and_timber_goes_where_it_is_wanted() {
         // Every market is as well fed as home: grain and fish do not travel.
         let mut regions = make_test_regions(3);
         let graph = line_graph(3);
         let table = bfs_from(&graph, 0);
         let ledger = ShadowLedger::new(3);
         assert!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).is_none());
-        // Timber travels by the market-activity proxy, to a populated market.
+        // Timber travels by its price (city markets correction): region 2
+        // wants raw materials and has few; region 1's export margin, the old
+        // activity proxy, is not read.
         regions[0].stockpile[3] = 2.0;
-        regions[2].merchant_route_margin = 0.6;
+        regions[1].merchant_route_margin = 1.0;
+        regions[2].market_demand[CAT_RAW_MATERIAL] = 1.5;
+        regions[2].market_supply[CAT_RAW_MATERIAL] = 0.5;
         let intent = evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap();
         assert_eq!(intent.good_slot, 3);
         assert_eq!(intent.dest_region, 2);
+        // A region without people, or without demand for it, is no market.
         regions[2].population = 0;
-        let intent = evaluate_route(0, 7, 0, &regions, &table, &ledger, None).unwrap();
-        assert_eq!(intent.dest_region, 1, "an empty region is not a market");
+        assert!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).is_none());
+        regions[2].population = 20;
+        regions[2].market_demand[CAT_RAW_MATERIAL] = 0.0;
+        assert!(evaluate_route(0, 7, 0, &regions, &table, &ledger, None).is_none());
+    }
+
+    #[test]
+    fn test_non_food_price_is_demand_over_supply() {
+        let mut r = crate::region::RegionState::new(0);
+        r.population = 10;
+        assert_eq!(market_price(&r, CAT_RAW_MATERIAL, 0.0), 0.0, "no demand, no price");
+        r.market_demand[CAT_RAW_MATERIAL] = 3.0;
+        r.market_supply[CAT_RAW_MATERIAL] = 2.0;
+        assert_eq!(market_price(&r, CAT_RAW_MATERIAL, 0.0), 1.5);
+        assert_eq!(market_price(&r, CAT_RAW_MATERIAL, 1.0), 1.0, "committed cargo counts as supply");
+        r.market_supply[CAT_RAW_MATERIAL] = 0.0;
+        assert_eq!(market_price(&r, CAT_RAW_MATERIAL, 0.0), MAX_PLANNER_PRICE, "capped like food");
+        r.market_demand[CAT_LUXURY] = 0.4;
+        r.market_supply[CAT_LUXURY] = 0.8;
+        assert_eq!(market_price(&r, CAT_LUXURY, 0.0), 0.5);
+        r.population = 0;
+        assert_eq!(market_price(&r, CAT_RAW_MATERIAL, 0.0), 0.0);
+    }
+
+    #[test]
+    fn test_food_price_reads_committed_cargo_against_demand() {
+        let mut r = crate::region::RegionState::new(0);
+        r.population = 10;
+        r.food_sufficiency = 0.5;
+        // Without the demand the tally is ignored (the bare 1 / sufficiency).
+        assert_eq!(market_price(&r, CAT_FOOD, 2.5), 2.0);
+        r.market_demand[CAT_FOOD] = 5.0;
+        assert_eq!(market_price(&r, CAT_FOOD, 0.0), 2.0);
+        assert_eq!(market_price(&r, CAT_FOOD, 2.5), 1.0, "2.5 more food on a demand of 5");
+        assert_eq!(market_price(&r, CAT_FOOD, -2.5), 1.0 / FOOD_PRICE_SUFFICIENCY_FLOOR);
+    }
+
+    #[test]
+    fn test_market_signal_is_the_dearest_good_above_balance() {
+        let mut r = crate::region::RegionState::new(0);
+        r.population = 10;
+        r.food_sufficiency = 1.0;
+        assert_eq!(market_signal(&r), 0.0, "a balanced, fed market");
+        r.food_sufficiency = 0.5;
+        assert!((market_signal(&r) - 0.2).abs() < 1e-6, "food at 2.0: (2 - 1) / 5");
+        r.market_demand[CAT_RAW_MATERIAL] = 3.0;
+        r.market_supply[CAT_RAW_MATERIAL] = 0.5;
+        assert!((market_signal(&r) - 1.0).abs() < 1e-6, "raw materials at 6.0, clamped");
+        r.population = 0;
+        assert_eq!(market_signal(&r), 0.0, "nobody to sell to");
+        // An empty, cheap region has the largest export margin and no signal.
+        r.merchant_route_margin = 1.0;
+        assert_eq!(market_signal(&r), 0.0);
+    }
+
+    /// Origin 0 with plenty of grain next to two short markets (star 0-1,
+    /// 0-2); merchants at the origin, no packets.
+    fn herding_world(merchants: usize) -> (AgentPool, Vec<crate::region::RegionState>, RouteGraph) {
+        let mut pool = AgentPool::new(merchants);
+        for _ in 0..merchants {
+            pool.spawn(0, 0, crate::agent::Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        }
+        let mut regions = make_test_regions(3);
+        for r in regions.iter_mut() {
+            r.stockpile = [0.0; NUM_GOODS];
+            r.population = 10;
+            r.market_demand[CAT_FOOD] = 5.0;
+        }
+        regions[0].stockpile[0] = 20.0;
+        regions[0].food_sufficiency = 2.0;
+        regions[1].food_sufficiency = 0.5;
+        regions[2].food_sufficiency = 0.6;
+        let graph = RouteGraph::from_edges(&[0, 1, 0, 2], &[1, 0, 2, 0], &[false; 4], &[1.0; 4], 3);
+        (pool, regions, graph)
+    }
+
+    fn planned_destinations(pool: &AgentPool) -> Vec<u16> {
+        (0..pool.capacity())
+            .filter(|&s| pool.trip_phase[s] == TRIP_PHASE_LOADING)
+            .map(|s| pool.trip_dest_region[s])
+            .collect()
+    }
+
+    #[test]
+    fn test_merchants_at_one_origin_spread_over_markets_by_need() {
+        let (mut pool, regions, graph) = herding_world(4);
+        let mut ledger = ShadowLedger::new(3);
+        let mut buf = DeliveryBuffer::new(3);
+        buf.physical_stock = true;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+        let dests = planned_destinations(&pool);
+        assert_eq!(dests.len(), 4);
+        // Region 1 (price 2.0) first; one unit lifts it to 0.7 (1.43), below
+        // region 2 (1.67); then region 2, and so on: two each. Without the
+        // tally all four went to region 1.
+        let to_1 = dests.iter().filter(|&&d| d == 1).count();
+        let to_2 = dests.iter().filter(|&&d| d == 2).count();
+        assert_eq!((to_1, to_2), (2, 2));
+        // The plans reserve four units of the origin's grain.
+        assert_eq!(ledger.reserved[0][0], 4.0);
+    }
+
+    #[test]
+    fn test_an_exporter_stops_before_it_ships_away_its_own_food() {
+        // Home holds 1.4 turns of food (demand 5): after two units leave it
+        // is at 1.0 and after three at 0.8 (price 1.25), when a market at
+        // 0.7 (1.43) no longer pays for the trip (gap 0.18 < 0.25).
+        let (mut pool, mut regions, graph) = herding_world(5);
+        regions[0].food_sufficiency = 1.4;
+        regions[1].food_sufficiency = 0.7;
+        regions[2].food_sufficiency = 0.7;
+        let mut ledger = ShadowLedger::new(3);
+        let mut buf = DeliveryBuffer::new(3);
+        buf.physical_stock = true;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+        let dests = planned_destinations(&pool);
+        assert!(!dests.is_empty() && dests.len() < 5, "some merchants stay home: {dests:?}");
+    }
+
+    #[test]
+    fn test_cargo_already_on_the_road_counts_against_its_market() {
+        // A merchant carrying three units to region 1 from an earlier turn:
+        // the next merchant goes to region 2.
+        let (mut pool, regions, graph) = herding_world(2);
+        let ledger = ShadowLedger::new(3);
+        pool.trip_phase[0] = TRIP_PHASE_TRANSIT;
+        pool.trip_origin_region[0] = 0;
+        pool.trip_dest_region[0] = 1;
+        pool.trip_good_slot[0] = 0;
+        pool.trip_cargo_qty[0] = 3.0;
+        let tally = MarketTally::observe(&pool, &ledger, None, 3);
+        assert_eq!(tally.inbound[1][CAT_FOOD], 3.0);
+        let table = bfs_from(&graph, 0);
+        let intent = evaluate_route_with_tally(1, pool.ids[1], 0, &regions, &table, &ledger, None, &tally)
+            .unwrap();
+        assert_eq!(intent.dest_region, 2);
+        let intent = evaluate_route(1, pool.ids[1], 0, &regions, &table, &ledger, None).unwrap();
+        assert_eq!(intent.dest_region, 1, "without the tally: the dearest market");
     }
 
     #[test]
     fn test_small_food_price_gaps_do_not_pay_for_a_trip() {
-        // Gap 1/0.85 - 1 = 0.176 < MIN_TRIP_PROFIT x FOOD_PRICE_GAP_SCALE = 0.25.
+        // Gap 1/0.85 - 1 = 0.176 < MIN_TRIP_PROFIT x PRICE_GAP_SCALE = 0.25.
         let mut regions = make_test_regions(2);
         regions[1].food_sufficiency = 0.85;
         let graph = line_graph(2);

@@ -114,7 +114,11 @@ pub const INTENSITY_WAR_WON: u8 = 180;
 pub const INTENSITY_SECESSION: u8 = 150;
 pub const INTENSITY_SCHISM: u8 = 160;
 
-/// Minimum merchant_route_margin to emit a trade_opportunity packet.
+/// Minimum market signal (`merchant::market_signal`: the observed region's
+/// dearest good above balance, in margin units) to emit a trade_opportunity
+/// packet. Until the 2026-10 city-markets correction the packet carried the
+/// region's export margin (`merchant_route_margin`), which is high where a
+/// region is cheap, so cheap and empty regions were advertised as markets.
 pub const TRADE_MARGIN_THRESHOLD: f32 = 0.10;
 
 /// Minimum conversion_rate to emit a religious_signal packet.
@@ -430,8 +434,9 @@ pub fn observe_packets(
         } else {
             false
         };
-        if is_trade_eligible && region.merchant_route_margin > TRADE_MARGIN_THRESHOLD {
-            let scaled = ((region.merchant_route_margin - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0).clamp(0.0, 255.0) as u8;
+        let market = if is_trade_eligible { crate::merchant::market_signal(region) } else { 0.0 };
+        if is_trade_eligible && market > TRADE_MARGIN_THRESHOLD {
+            let scaled = ((market - TRADE_MARGIN_THRESHOLD) / 0.90 * 230.0).clamp(0.0, 255.0) as u8;
             let intensity = scaled.max(50).min(230);
             let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
                 info_type: InfoType::TradeOpportunity as u8,

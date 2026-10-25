@@ -321,7 +321,7 @@ fn test_observe_trade_requires_eligible_merchant_and_margin() {
     let slot = pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.5;
+    set_market(&mut regions[0], 0.5);
 
     // M59b: Idle merchant (no arrival flag) should now observe local trade
     let (created, _, _, _, _, created_trade, _) = observe_packets(&mut pool, &regions, &[slot], 5);
@@ -341,7 +341,7 @@ fn test_observe_trade_below_margin_threshold_no_packet() {
     pool.arrived_this_turn[slot] = true;
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.05; // below 0.10 threshold
+    set_market(&mut regions[0], 0.05); // below the 0.10 threshold
 
     let (created, _, _, _, _, _, _) = observe_packets(&mut pool, &regions, &[slot], 5);
     assert_eq!(created, 0);
@@ -414,7 +414,7 @@ fn test_observe_drop_counts_when_full_and_not_better() {
     }
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.5;
+    set_market(&mut regions[0], 0.5);
 
     let (created, refreshed, evicted, dropped, _, created_trade, _) =
         observe_packets(&mut pool, &regions, &[slot], 20);
@@ -555,6 +555,15 @@ fn test_propagation_channel_filtering() {
 
 use chronicler_agents::knowledge::knowledge_phase;
 
+/// Make `region` a market of the given strength (`merchant::market_signal`):
+/// populated and short of food, food price 1 + 5 x `signal`. Trade packets
+/// advertise markets since the 2026-10 city-markets correction (they carried
+/// the export margin before).
+fn set_market(region: &mut RegionState, signal: f32) {
+    region.population = 20;
+    region.food_sufficiency = 1.0 / (1.0 + 5.0 * signal);
+}
+
 #[test]
 fn test_knowledge_phase_full_cycle() {
     let mut pool = AgentPool::new(10);
@@ -664,7 +673,7 @@ fn test_knowledge_phase_packet_state_deterministic() {
         let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
         regions[0].controller_changed_this_turn = true;
         regions[0].persecution_intensity = 0.5;
-        regions[1].merchant_route_margin = 0.4;
+        set_market(&mut regions[1], 0.4);
 
         for t in 1..=3u32 {
             if t > 1 { regions[0].controller_changed_this_turn = false; }
@@ -742,7 +751,7 @@ fn test_knowledge_phase_does_not_modify_non_packet_fields() {
     let mut regions = vec![RegionState::new(0), RegionState::new(1)];
     regions[0].controller_changed_this_turn = true;
     regions[0].persecution_intensity = 0.5;
-    regions[1].merchant_route_margin = 0.5;
+    set_market(&mut regions[1], 0.5);
 
     // Snapshot ALL non-packet pool fields before knowledge_phase
     let ids_before = pool.ids.clone();
@@ -926,7 +935,7 @@ fn test_arrival_flag_consumed_by_knowledge_phase() {
     pool.arrived_this_turn[a] = true;
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.5;
+    set_market(&mut regions[0], 0.5);
 
     let stats = knowledge_phase(&mut pool, &regions, &[0u8; 32], 1);
     assert!(!pool.arrived_this_turn[a], "flag should be cleared");
@@ -1034,7 +1043,7 @@ fn test_local_trade_observation_idle_merchant() {
     pool.arrived_this_turn[slot] = false;
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.50; // above TRADE_MARGIN_THRESHOLD (0.10)
+    set_market(&mut regions[0], 0.50); // above TRADE_MARGIN_THRESHOLD (0.10)
 
     let (created, _, _, _, _, created_trade, _) =
         observe_packets(&mut pool, &regions, &[slot], 10);
@@ -1057,7 +1066,7 @@ fn test_local_trade_observation_skips_transit() {
     pool.arrived_this_turn[slot] = false;
 
     let mut regions = vec![RegionState::new(0), RegionState::new(1)];
-    regions[1].merchant_route_margin = 0.50;
+    set_market(&mut regions[1], 0.50);
 
     let (_created, _, _, _, _, created_trade, _) =
         observe_packets(&mut pool, &regions, &[slot], 10);
@@ -1074,7 +1083,7 @@ fn test_local_trade_observation_skips_arrived_this_turn() {
     pool.arrived_this_turn[slot] = true; // arrived this turn — arrival path handles it
 
     let mut regions = vec![RegionState::new(0)];
-    regions[0].merchant_route_margin = 0.50;
+    set_market(&mut regions[0], 0.50);
 
     let (created, _, _, dropped, _, _, _) =
         observe_packets(&mut pool, &regions, &[slot], 10);

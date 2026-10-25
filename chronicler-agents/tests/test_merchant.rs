@@ -219,11 +219,13 @@ fn test_agents_off_default_stats() {
 }
 
 #[test]
-fn test_route_evaluation_uses_planning_margin_signal() {
+fn test_route_evaluation_reads_the_non_food_price_not_the_margin() {
     let mut pool = AgentPool::new(10);
     pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
 
-    // Timber (not food) travels by the market-activity proxy.
+    // Timber (not food) travels by its price, the economy's demand over its
+    // post-trade supply (city-markets correction); the planning margin, the
+    // former market-activity proxy, does not draw it.
     let mut regions: Vec<RegionState> = (0..3)
         .map(|i| {
             let mut r = RegionState::new(i);
@@ -248,9 +250,16 @@ fn test_route_evaluation_uses_planning_margin_signal() {
     let table = bfs_from(&graph, 0);
     let ledger = ShadowLedger::new(3);
 
+    // Every region has timber and no demand for it: no trip, whatever the margin.
+    assert!(evaluate_route(0, 1, 0, &regions, &table, &ledger, None).is_none());
+
+    // Region 1 garrisons soldiers (raw-material demand) and holds little timber.
+    regions[1].market_demand[1] = 3.0;
+    regions[1].market_supply[1] = 1.0;
     let intent = evaluate_route(0, 1, 0, &regions, &table, &ledger, None)
-        .expect("route planning should use merchant_route_margin");
-    assert_eq!(intent.dest_region, 2);
+        .expect("timber goes where it is dear");
+    assert_eq!(intent.dest_region, 1);
+    assert_eq!(intent.good_slot, 3);
 }
 
 #[test]
@@ -472,6 +481,8 @@ fn test_region_input(
         production_caps: [None; 3],
         stockpile,
         subsistence_yield: 0.0,
+        farm_labor_factor: 1.0,
+        craft_raw_demand: 0.0,
     }
 }
 
@@ -950,6 +961,78 @@ fn test_packet_gated_food_goes_to_the_known_short_market() {
 }
 
 #[test]
+fn test_packet_gated_non_food_goes_to_the_dearest_known_market() {
+    // City-markets correction: a packet-known market is scored by its price,
+    // as the oracle planner scores any market; the packet's strength no
+    // longer stands in for it. Home has timber and no food to spare.
+    let (mut pool, mut regions, graph) = setup_linear_world();
+    for r in regions.iter_mut() {
+        r.food_sufficiency = 1.0;
+    }
+    regions[0].stockpile = [0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0];
+    regions[1].market_demand[1] = 1.2; // raw-material price 1.2 / 1.0 = 1.2
+    regions[1].market_supply[1] = 1.0;
+    regions[2].market_demand[1] = 3.0; // 3.0
+    regions[2].market_supply[1] = 1.0;
+    let ledger = ShadowLedger::new(4);
+    let table = bfs_from(&graph, 0);
+    // The weaker market carries the stronger packet.
+    for (source_region, intensity) in [(1u16, 250u8), (2, 60)] {
+        admit_packet(&mut pool, 0, &PacketCandidate {
+            info_type: InfoType::TradeOpportunity as u8,
+            source_region,
+            source_turn: 5,
+            intensity,
+            hop_count: 1,
+        });
+    }
+    let (intent, had_packets) = evaluate_route_packet_aware(
+        0, pool.ids[0], 0, &pool, &regions, &table, &ledger, None,
+    );
+    assert!(had_packets);
+    let intent = intent.expect("timber to the dearer known market");
+    assert_eq!((intent.dest_region, intent.good_slot), (2, 3));
+}
+
+#[test]
+fn test_deliveries_spread_over_short_markets_across_turns() {
+    // Six merchants in a fed exporter between two equally short markets
+    // (star 0-1, 0-2), several turns: the tally splits the cargo instead of
+    // sending every merchant to the lower-numbered market.
+    let mut pool = AgentPool::new(8);
+    for _ in 0..6 {
+        pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    }
+    let mut regions: Vec<RegionState> = (0..3)
+        .map(|i| {
+            let mut r = RegionState::new(i);
+            r.controller_civ = 0;
+            r.population = 20;
+            r.market_demand[0] = 10.0;
+            r
+        })
+        .collect();
+    regions[0].stockpile[0] = 50.0;
+    regions[0].food_sufficiency = 2.0;
+    regions[1].food_sufficiency = 0.5;
+    regions[2].food_sufficiency = 0.5;
+    let graph = RouteGraph::from_edges(&[0, 1, 0, 2], &[1, 0, 2, 0], &[false; 4], &[1.0; 4], 3);
+    let mut ledger = ShadowLedger::new(3);
+    let mut delivered = [0.0f32; 3];
+    for turn in 0..6u32 {
+        let mut buf = DeliveryBuffer::new(3);
+        buf.physical_stock = true;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[turn as u8; 32], Some(&mut buf));
+        for rec in &buf.arrival_imports {
+            delivered[rec.dest_region as usize] += rec.qty;
+        }
+        return_delivering_merchants_home(&mut pool, &[turn as u8; 32]);
+    }
+    assert!(delivered[1] > 0.0 && delivered[2] > 0.0, "both markets supplied: {delivered:?}");
+    assert!((delivered[1] - delivered[2]).abs() <= 1.0, "in proportion to equal need: {delivered:?}");
+}
+
+#[test]
 fn test_bootstrap_when_no_usable_packets() {
     let (pool, regions, graph) = setup_linear_world();
     let ledger = ShadowLedger::new(4);
@@ -1134,8 +1217,13 @@ fn test_local_observation_seeds_packet_network() {
     pool.trip_phase[slot] = 0; // TRIP_PHASE_IDLE
     pool.arrived_this_turn[slot] = false;
 
+    // The merchant's home is a market (short of food, price 3.5): since the
+    // city-markets correction a trade packet advertises a market, not an
+    // export margin.
     let mut regions = vec![RegionState::new(0), RegionState::new(1)];
-    regions[0].merchant_route_margin = 0.50;
+    regions[0].population = 20;
+    regions[0].food_sufficiency = 1.0 / 3.5;
+    regions[0].merchant_route_margin = 0.0;
 
     let pre_check = chronicler_agents::knowledge::usable_trade_packets(&pool, slot, 99);
     assert!(pre_check.is_empty() || pre_check.iter().all(|(r, _)| *r == 0),

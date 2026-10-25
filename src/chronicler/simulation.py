@@ -2007,6 +2007,11 @@ def run_turn_result(
             from chronicler.tuning import get_multiplier, K_TRADE_FRICTION
             economic_routes = filter_goods_trade_routes(world, phase2_trade_routes)
             region_input = build_economy_region_input_batch(world)
+            if _cities_on(world):
+                # Cities: city farmers' labour on the land and the crafts'
+                # raw-material demand (optional economy columns).
+                from chronicler.cities import with_economy_columns
+                region_input = with_economy_columns(world, region_input, snapshot)
             trade_route_input = build_economy_trade_route_batch(
                 world, active_trade_routes=economic_routes,
             )

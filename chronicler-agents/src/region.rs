@@ -105,6 +105,14 @@ pub struct RegionState {
     /// (`migration_drivers` urban pull), recomputed by Python for every batch.
     /// 0 when the batch carries no `city_pull` column (the switch off).
     pub city_pull: f32,
+    /// The goods economy's demand and post-trade supply per category (food,
+    /// raw material, luxury; `economy::GOOD_CATEGORY`) at the last economy
+    /// tick: the merchant planner's market prices (`merchant::market_price`).
+    /// 0 when the batch carries no `market_demand_*` / `market_supply_*`
+    /// columns: no non-food market, and food prices without the delivery
+    /// tally.
+    pub market_demand: [f32; 3],
+    pub market_supply: [f32; 3],
     /// Consecutive turns, up to the previous turn, that the region's food
     /// sufficiency stayed below the famine severity threshold (Python's
     /// `Region.food_severe_turns`, written in Phase 9 after this batch was
@@ -245,6 +253,8 @@ impl RegionState {
             stockpile: [0.0; 8],
             climate_exposure: 1.0,
             city_pull: 0.0,
+            market_demand: [0.0; 3],
+            market_supply: [0.0; 3],
             food_severe_turns: 0,
         }
     }
