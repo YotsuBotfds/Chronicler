@@ -288,16 +288,8 @@ pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;               // [FROZEN M53 SOF
 pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [FROZEN M53 SOFT]
 pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [FROZEN M53 SOFT]
 
-// M49: Needs system — starting value of founders (and of a newborn's
-// spiritual and purpose needs).
+// M49: Needs system — starting value
 pub const STARTING_NEED: f32 = 0.5;  // [FROZEN M53 SOFT]
-// Needs calibration (2026-10): a newborn's safety, material, social and
-// autonomy start at their fed, peaceful, self-ruled fixed points (the
-// restoration notes below); its conditions take hold within its first years.
-pub const BIRTH_SAFETY_NEED: f32 = 0.67;     // [CALIBRATE] new
-pub const BIRTH_MATERIAL_NEED: f32 = 0.62;   // [CALIBRATE] new
-pub const BIRTH_SOCIAL_NEED: f32 = 0.62;     // [CALIBRATE] new
-pub const BIRTH_AUTONOMY_NEED: f32 = 0.75;   // [CALIBRATE] new
 
 // M49: Need decay rates. Needs calibration (2026-10, docs/integration/
 // needs-calibration.md): decay and restoration were raised together, so a
@@ -348,15 +340,15 @@ pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [FROZEN M53 SOFT]
 // Material: food sufficiency and civ wealth percentile restore it, wealth
 // the more the shorter food is (the wealthy buy food in a dearth); dearth
 // and famine (demographics::hunger_components, the hunger mortality bands)
-// add pressure. Poorest, median and richest: fed 0.59, 0.62, 0.64; dearth
-// at 0.8 sufficiency 0.27, 0.44, 0.54; famine at 0.4 for a season 0, 0.12,
-// 0.44.
-pub const MATERIAL_RESTORE_FOOD: f32 = 0.126;         // [CALIBRATE] was 0.018
-pub const MATERIAL_RESTORE_WEALTH: f32 = 0.020;       // [CALIBRATE] was 0.022
+// add pressure. Fed: 0.56 poorest, 0.62 median, 0.67 richest; dearth at
+// 0.8 sufficiency: 0.26, 0.44, 0.56; famine at 0.4 for a season: 0, 0.13,
+// 0.43.
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.115;         // [CALIBRATE] was 0.018
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.044;       // [CALIBRATE] was 0.022
 /// Added wealth restoration per unit of food shortfall (1 - sufficiency).
-pub const MATERIAL_RESTORE_WEALTH_SHORTAGE: f32 = 0.26; // [CALIBRATE] new
-pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.051;      // [CALIBRATE] new
-pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.057;      // [CALIBRATE] new
+pub const MATERIAL_RESTORE_WEALTH_SHORTAGE: f32 = 0.15; // [CALIBRATE] new
+pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.039;      // [CALIBRATE] new
+pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.018;      // [CALIBRATE] new
 // Social: bonds with people living in the same region restore it (bonds
 // with people elsewhere no longer count), and the community proxy
 // (population, occupation, age) adds a little. One co-resident bond or

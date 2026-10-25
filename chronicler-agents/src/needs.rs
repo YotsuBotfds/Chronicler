@@ -111,24 +111,6 @@ pub fn decay_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 }
 
 // ---------------------------------------------------------------------------
-// Birth — a newborn's starting needs
-// ---------------------------------------------------------------------------
-
-/// A newborn's safety, material, social and autonomy needs start at their
-/// fed, peaceful, self-ruled fixed points (`BIRTH_*_NEED`); spiritual and
-/// purpose keep the spawn value. Needs calibration (2026-10): at the neutral
-/// STARTING_NEED, 0.1-0.25 under those fixed points, children's needs read
-/// as their age for their first years. Copying the parent's needs instead
-/// made them read as their family's state, which their household's moves
-/// follow through other channels (the needs oracle's residual).
-pub fn set_newborn_needs(pool: &mut AgentPool, child: usize) {
-    pool.need_safety[child] = agent::BIRTH_SAFETY_NEED;
-    pool.need_material[child] = agent::BIRTH_MATERIAL_NEED;
-    pool.need_social[child] = agent::BIRTH_SOCIAL_NEED;
-    pool.need_autonomy[child] = agent::BIRTH_AUTONOMY_NEED;
-}
-
-// ---------------------------------------------------------------------------
 // Clamp — ensure all 6 needs stay in [0.0, 1.0]
 // ---------------------------------------------------------------------------
 
@@ -240,45 +222,13 @@ fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
 
 /// Co-resident bond counts (`co_resident_bonds`) of the given slots,
 /// indexed by slot.
-fn co_resident_counts_with(
-    pool: &AgentPool,
-    alive_slots: &[usize],
-    id_to_slot: &HashMap<u32, usize>,
-) -> Vec<u32> {
+pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
+    let id_to_slot = pool.build_id_to_slot();
     let mut co_resident = vec![0u32; pool.capacity()];
     for &slot in alive_slots {
-        co_resident[slot] = co_resident_bonds(pool, slot, id_to_slot);
+        co_resident[slot] = co_resident_bonds(pool, slot, &id_to_slot);
     }
     co_resident
-}
-
-/// The wealth percentile a need reads: a dependant's (under `AGE_ADULT`) is
-/// its living birth parent's, since a child's means are its household's;
-/// everyone else's is their own. Needs calibration (2026-10): children own
-/// almost nothing, so on their own percentile every child read as the
-/// poorest in a dearth.
-pub fn household_wealth_percentiles(
-    pool: &AgentPool,
-    alive_slots: &[usize],
-    wealth_percentiles: &[f32],
-    id_to_slot: &HashMap<u32, usize>,
-) -> Vec<f32> {
-    let mut out = wealth_percentiles.to_vec();
-    for &slot in alive_slots {
-        if pool.ages[slot] >= agent::AGE_ADULT || slot >= out.len() {
-            continue;
-        }
-        let parent_id = pool.parent_id_0[slot];
-        if parent_id == agent::PARENT_NONE {
-            continue;
-        }
-        if let Some(&p) = id_to_slot.get(&parent_id) {
-            if p < wealth_percentiles.len() && pool.is_alive(p) && pool.ids[p] == parent_id {
-                out[slot] = wealth_percentiles[p];
-            }
-        }
-    }
-    out
 }
 
 /// Apply proportional restoration to all 6 needs for alive agents, and the
@@ -292,10 +242,8 @@ pub fn restore_needs(
     signals: &TickSignals,
     wealth_percentiles: &[f32],
 ) {
-    let id_to_slot = pool.build_id_to_slot();
-    let co_resident = co_resident_counts_with(pool, alive_slots, &id_to_slot);
-    let household_wp = household_wealth_percentiles(pool, alive_slots, wealth_percentiles, &id_to_slot);
-    restore_needs_with_bonds(pool, alive_slots, regions, signals, &household_wp, &co_resident);
+    let co_resident = co_resident_counts(pool, alive_slots);
+    restore_needs_with_bonds(pool, alive_slots, regions, signals, wealth_percentiles, &co_resident);
 }
 
 /// [`restore_needs`] with the co-resident bond counts given (indexed by
@@ -782,73 +730,6 @@ mod tests {
         let t = bound_at.expect("an isolated agent's social need binds");
         assert!(t <= 15, "binds within 15 turns, took {}", t);
         assert!((pool.need_social[bonded] - 0.615).abs() < 0.02, "bonded {}", pool.need_social[bonded]);
-    }
-
-    #[test]
-    fn test_dependants_read_their_parents_wealth() {
-        let mut pool = AgentPool::new(8);
-        let parent = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        let child = pool.spawn(0, 0, Occupation::Farmer, 5, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        let orphan = pool.spawn(0, 0, Occupation::Farmer, 5, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        let grown = pool.spawn(0, 0, Occupation::Farmer, agent::AGE_ADULT, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        pool.parent_id_0[child] = pool.ids[parent];
-        pool.parent_id_0[grown] = pool.ids[parent];
-        let gone = pool.spawn(0, 0, Occupation::Farmer, 60, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        pool.parent_id_0[orphan] = pool.ids[gone];
-        pool.kill(gone);
-        let wp = vec![0.9_f32, 0.0, 0.1, 0.2, 0.5];
-        let map = pool.build_id_to_slot();
-        let slots = [parent, child, orphan, grown];
-        let out = household_wealth_percentiles(&pool, &slots, &wp, &map);
-        assert_eq!(out[child], 0.9, "a child reads its parent's");
-        assert_eq!(out[orphan], 0.1, "an orphan reads its own");
-        assert_eq!(out[grown], 0.2, "an adult reads its own");
-        assert_eq!(out[parent], 0.9);
-    }
-
-    #[test]
-    fn test_need_modifiers_stay_within_the_cap() {
-        let mut pool = AgentPool::new(8);
-        let adult = pool.spawn(0, 0, Occupation::Merchant, agent::AGE_ADULT, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        pool.need_safety[adult] = 0.0;
-        pool.need_material[adult] = 0.0;
-        pool.need_social[adult] = 0.0;
-        pool.need_spiritual[adult] = 0.0;
-        pool.need_autonomy[adult] = 0.0;
-        pool.need_purpose[adult] = 0.0;
-        let a = compute_need_utility_modifiers(&pool, adult);
-        assert!(a.rebel > 0.0 && a.migrate > 0.0 && a.switch_occ > 0.0 && a.stay < 0.0);
-        for v in [a.rebel, a.migrate, a.switch_occ, a.stay.abs()] {
-            assert!(v <= agent::NEEDS_MODIFIER_CAP + 1e-6);
-        }
-    }
-
-    #[test]
-    fn test_newborn_needs_start_at_the_fed_peaceful_fixed_points() {
-        let mut pool = AgentPool::new(8);
-        let child = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        assert_eq!(pool.need_material[child], agent::STARTING_NEED);
-        set_newborn_needs(&mut pool, child);
-        let got = [pool.need_safety[child], pool.need_material[child], pool.need_social[child],
-                   pool.need_spiritual[child], pool.need_autonomy[child], pool.need_purpose[child]];
-        assert_eq!(got, [agent::BIRTH_SAFETY_NEED, agent::BIRTH_MATERIAL_NEED, agent::BIRTH_SOCIAL_NEED,
-                         agent::STARTING_NEED, agent::BIRTH_AUTONOMY_NEED, agent::STARTING_NEED]);
-        // They are the fed, peaceful, self-ruled fixed points (within 0.01).
-        let mut region = make_region(0);
-        region.endemic_severity = 0.0;
-        region.population = 60;
-        let mut adult = AgentPool::new(8);
-        let a = adult.spawn(0, 0, Occupation::Farmer, 40, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        let co = vec![1u32; adult.capacity()];
-        for _ in 0..300 {
-            decay_needs(&mut adult, &[a]);
-            restore_needs_with_bonds(&mut adult, &[a], &[region.clone()], &peacetime_signals(), &[0.5], &co);
-            clamp_needs(&mut adult, &[a]);
-        }
-        assert!((adult.need_safety[a] - agent::BIRTH_SAFETY_NEED).abs() < 0.01, "{}", adult.need_safety[a]);
-        assert!((adult.need_material[a] - agent::BIRTH_MATERIAL_NEED).abs() < 0.01, "{}", adult.need_material[a]);
-        assert!((adult.need_social[a] - agent::BIRTH_SOCIAL_NEED).abs() < 0.01, "{}", adult.need_social[a]);
-        assert!((adult.need_autonomy[a] - agent::BIRTH_AUTONOMY_NEED).abs() < 0.01, "{}", adult.need_autonomy[a]);
     }
 
     #[test]

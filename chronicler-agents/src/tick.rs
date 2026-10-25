@@ -974,9 +974,6 @@ pub fn try_tick_agents_with_movements(
                 birth.belief,
             )?;
             pool.set_loyalty(new_slot, birth.parent_loyalty);
-            // Needs calibration: a newborn's needs of conditions start at
-            // their fed, peaceful fixed points.
-            crate::needs::set_newborn_needs(pool, new_slot);
             pool.parent_id_0[new_slot] = birth.birth_parent_id;
             pool.parent_id_1[new_slot] = birth.other_parent_id;
             // M57b: Count births by marital status
