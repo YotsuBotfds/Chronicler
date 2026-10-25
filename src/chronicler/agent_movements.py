@@ -142,7 +142,7 @@ RISE_SHARE = (0.25, 0.25, 0.20)
 RISE_MIN = (5, 5, 4)
 RISE_COOLDOWN = 20
 RISING_STABILITY = 5
-SECEDE_STABILITY = 25
+SECEDE_STABILITY = 30            # = cities' free-city threshold
 SECEDE_TURNOUT = 0.3
 SECEDE_LORD_LOSS = 10
 CONCESSION_STABILITY = 30
@@ -773,26 +773,68 @@ def _rise(t: _Tick, i: int, m: Movement, civ) -> None:
     _note(m, world.turn, "rising", ev.event_id)
 
 
+def _extinct_faith_slot(t: _Tick) -> int | None:
+    """Registry position of a faith no agent holds and nothing references
+    (regions, rulers, temples and builds, the one-turn signals), lowest faith
+    id first; None without agent rows or when every faith is alive."""
+    obs = t.obs
+    if obs is None:
+        return None
+    world = t.world
+    used = set(int(b) for b in set(obs.belief.tolist()))
+    for r in world.regions:
+        used.update((r.majority_belief, r.conversion_target_signal, r.schism_convert_from,
+                     r.schism_convert_to))
+        if r.persecuting_faith is not None:
+            used.add(r.persecuting_faith)
+        used.update(inf.faith_id for inf in r.infrastructure)
+        if r.pending_build is not None:
+            used.add(r.pending_build.faith_id)
+    for c in world.civilizations:
+        used.update((c.civ_majority_faith, c.previous_majority_faith))
+    free = [(b.faith_id, k) for k, b in enumerate(world.belief_registry) if b.faith_id not in used]
+    return min(free)[1] if free else None
+
+
 def _schism(t: _Tick, i: int, m: Movement, civ) -> bool:
-    """A sect of the ruler's faith breaks with the church through the
-    religion path. Returns False when it cannot (other faith, full registry)."""
+    """A sect of the ruler's or the stronghold's faith breaks with that church
+    through the religion path (``religion.fire_schism``). When the 16-faith
+    registry is full, the sect takes the place of a faith no one holds any
+    more (same id and registry position). Returns False when it cannot (a
+    minority's sect, or no free place)."""
     from chronicler.religion import MAX_FAITHS, fire_schism
     world = t.world
-    faith = getattr(civ, "civ_majority_faith", NO_FAITH)
-    if m.faith == NO_FAITH or m.faith != faith or len(world.belief_registry) >= MAX_FAITHS:
-        return False
     region = world.regions[m.stronghold]
-    new = fire_schism(region, m.faith, world.belief_registry, civ, world.turn, civ_origin=m.target)
-    if new is None:
+    churches = {getattr(civ, "civ_majority_faith", NO_FAITH), region.majority_belief}
+    if m.faith == NO_FAITH or m.faith not in churches:
         return False
+    if not any(b.faith_id == m.faith for b in world.belief_registry):
+        return False
+    registry = world.belief_registry
+    slot = retired = None
+    if len(registry) >= MAX_FAITHS:
+        slot = _extinct_faith_slot(t)
+        if slot is None:
+            return False
+        retired = registry.pop(slot)
+    old_name = _faith_name(world, m.faith)
+    new = fire_schism(region, m.faith, registry, civ, world.turn, civ_origin=m.target)
+    if new is None:
+        if slot is not None:
+            registry.insert(slot, retired)
+        return False
+    if slot is not None:
+        # fire_schism appended the sect with the freed id; keep the position.
+        registry.insert(slot, registry.pop())
     m.schism_turn = world.turn
     m.schism_from = m.faith
     m.schism_to = new.faith_id
     m.successor = new.faith_id
     _bump(t.state, "schisms")
+    replaced = f" in place of the vanished '{retired.name}'" if retired is not None else ""
     ev = _emit(t, "Schism", [civ.name],
-               f"{m.name} breaks with the {_faith_name(world, m.faith)} church in {region.name}: "
-               f"'{new.name}' is founded",
+               f"{m.name} breaks with the {old_name} church in {region.name}: "
+               f"'{new.name}' is founded{replaced}",
                importance=7, region=region.name,
                causes=(_recall(t, i, "refused", within=40), _recall(t, i, "crackdown", within=40)))
     _note(m, world.turn, "schism", ev.event_id)

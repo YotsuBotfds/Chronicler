@@ -23,7 +23,7 @@ from chronicler.agent_movements_state import (
     COMMONS, CRUSHED, DISSOLVED, ENDED, FADED, GATHERING, LIBERTY, PRESSING, RISING, SATISFIED,
     SCHISM, SECEDED, SECT, SUPPRESSED, WON, Movement, MovementState,
 )
-from chronicler.models import FactionType, GreatPerson, TurnSnapshot, WorldState
+from chronicler.models import FactionType, GreatPerson, Infrastructure, TurnSnapshot, WorldState
 from chronicler.simulation import run_turn
 from chronicler.turn_artifacts import AgentRows, Phase10Inputs, Stamp
 from chronicler.world_gen import generate_world
@@ -410,6 +410,63 @@ def test_a_sect_of_the_rulers_faith_breaks_away_through_the_religion_path():
     m2 = _restless(other, creed=SECT, stability=60)
     m2.grievance = 0.25
     assert _types(_tick(other, members={(0, THORNWOOD): 8}, belief=0)) == ["movement_rising"]
+
+
+def test_narration_gets_the_recorded_chain_of_a_rising(monkeypatch):
+    """The narrator's "because" chain for a rising runs back through the
+    refusal to the demand: every movement event carries its causes."""
+    from chronicler.curator import CauseGraph, build_causal_chain
+    world = _world()
+    monkeypatch.setattr(M, "grant_chance", lambda t, m, civ: 0.0)
+    monkeypatch.setattr(M, "suppress_chance", lambda m, civ: 0.0)
+    m = _place(world, creed=LIBERTY, grievance=0.25)
+    world.civilizations[THORNWALL].stability = 60
+    _tick(world, members={(0, THORNWOOD): 12})
+    world.turn += M.DEMAND_INTERVAL
+    events = _tick(world, members={(0, THORNWOOD): 12})
+    assert m.stage == RISING and _types(events) == ["movement_rising"]
+    graph = CauseGraph(world.events_timeline)
+    j = next(k for k, e in enumerate(world.events_timeline) if e.event_type == "movement_rising")
+    chain = [step.event_type for step in build_causal_chain(graph, j).steps]
+    assert chain == ["movement_demand", "movement_refused", "movement_rising"]
+
+
+def test_a_schism_in_a_full_registry_takes_the_place_of_a_vanished_faith():
+    from chronicler.models import Belief
+    world = _world()
+    civ = world.civilizations[THORNWALL]
+    faith = civ.civ_majority_faith
+    used = {b.faith_id for b in world.belief_registry}
+    for fid in range(16):
+        if fid not in used:
+            world.belief_registry.append(Belief(faith_id=fid, name=f"Old Faith {fid}", civ_origin=0,
+                                                doctrines=[0, 0, 0, 0, 0]))
+    # Faith 9 still has a temple; faiths 4-8 and 10-15 have no one. The sect
+    # takes the lowest free id's place.
+    world.regions[AMBER].infrastructure.append(
+        Infrastructure(type="temples", builder_civ="Kethani Empire", built_turn=1, faith_id=9))
+    for r in world.regions:
+        r.majority_belief = faith if r.controller else 0xFF
+    m = _restless(world, creed=SECT, stability=60)
+    m.grievance = 0.25
+    position = next(k for k, b in enumerate(world.belief_registry) if b.faith_id == 4)
+    events = _tick(world, members={(0, THORNWOOD): 8})
+    assert "Schism" in _types(events) and m.end == SCHISM
+    assert len(world.belief_registry) == 16 and m.schism_to == 4
+    assert world.belief_registry[position].faith_id == 4
+    assert world.belief_registry[position].name.endswith("(Reformed)")
+    assert "Old Faith 4" in next(e for e in events if e.event_type == "Schism").description
+    # With every faith held or referenced, the sect rises instead.
+    full = _world()
+    full.belief_registry = [b.model_copy() for b in world.belief_registry]
+    for k, region in enumerate(full.regions):
+        region.infrastructure.append(
+            Infrastructure(type="temples", builder_civ="x", built_turn=1, faith_id=4 + k))
+    for k, c in enumerate(full.civilizations):
+        c.previous_majority_faith = 12 + k
+    m2 = _restless(full, creed=SECT, stability=60)
+    m2.grievance = 0.25
+    assert _types(_tick(full, members={(0, THORNWOOD): 8})) == ["movement_rising"]
 
 
 # --- decay -------------------------------------------------------------------------
