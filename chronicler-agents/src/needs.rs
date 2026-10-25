@@ -28,13 +28,8 @@ pub struct NeedUtilityModifiers {
 // ---------------------------------------------------------------------------
 
 /// Compute threshold-gated utility modifiers from an agent's need state.
-/// Dependants (under `AGE_ADULT`) do not act on their needs: their household
-/// moves them (`household::consolidate_household_migrations`).
 pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtilityModifiers {
     let mut mods = NeedUtilityModifiers::default();
-    if pool.ages[slot] < agent::AGE_ADULT {
-        return mods;
-    }
 
     // Safety → migrate +, stay -
     let safety_deficit = (agent::SAFETY_THRESHOLD - pool.need_safety[slot]).max(0.0);
@@ -116,7 +111,7 @@ pub fn decay_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 }
 
 // ---------------------------------------------------------------------------
-// Birth — a newborn shares its household's conditions
+// Birth — a newborn's starting needs
 // ---------------------------------------------------------------------------
 
 /// A newborn's safety, material, social and autonomy needs start at their
@@ -245,11 +240,6 @@ fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
 
 /// Co-resident bond counts (`co_resident_bonds`) of the given slots,
 /// indexed by slot.
-pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
-    let id_to_slot = pool.build_id_to_slot();
-    co_resident_counts_with(pool, alive_slots, &id_to_slot)
-}
-
 fn co_resident_counts_with(
     pool: &AgentPool,
     alive_slots: &[usize],
@@ -817,23 +807,17 @@ mod tests {
     }
 
     #[test]
-    fn test_dependants_do_not_act_on_needs() {
+    fn test_need_modifiers_stay_within_the_cap() {
         let mut pool = AgentPool::new(8);
-        let child = pool.spawn(0, 0, Occupation::Farmer, agent::AGE_ADULT - 1, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
         let adult = pool.spawn(0, 0, Occupation::Merchant, agent::AGE_ADULT, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        for &s in &[child, adult] {
-            pool.need_safety[s] = 0.0;
-            pool.need_material[s] = 0.0;
-            pool.need_social[s] = 0.0;
-            pool.need_spiritual[s] = 0.0;
-            pool.need_autonomy[s] = 0.0;
-            pool.need_purpose[s] = 0.0;
-        }
-        let c = compute_need_utility_modifiers(&pool, child);
-        assert_eq!((c.rebel, c.migrate, c.switch_occ, c.stay), (0.0, 0.0, 0.0, 0.0));
+        pool.need_safety[adult] = 0.0;
+        pool.need_material[adult] = 0.0;
+        pool.need_social[adult] = 0.0;
+        pool.need_spiritual[adult] = 0.0;
+        pool.need_autonomy[adult] = 0.0;
+        pool.need_purpose[adult] = 0.0;
         let a = compute_need_utility_modifiers(&pool, adult);
         assert!(a.rebel > 0.0 && a.migrate > 0.0 && a.switch_occ > 0.0 && a.stay < 0.0);
-        // Every channel stays within the needs cap.
         for v in [a.rebel, a.migrate, a.switch_occ, a.stay.abs()] {
             assert!(v <= agent::NEEDS_MODIFIER_CAP + 1e-6);
         }
