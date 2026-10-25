@@ -349,6 +349,15 @@ def _nomads_snapshot_fields(world) -> dict:
     return {"nomads": snapshot_summary(world)}
 
 
+def _cities_snapshot_fields(world) -> dict:
+    """Cities per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.cities_state import cities_on
+    if not cities_on(world):
+        return {}
+    from chronicler.cities import snapshot_summary
+    return {"cities": snapshot_summary(world)}
+
+
 def _food_snapshot_fields(world) -> dict:
     """Viewer-only food summary (empty unless mutual aid observes regional food)."""
     from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
@@ -654,6 +663,15 @@ def execute_run(
     if nomads is not None:
         from chronicler.nomads import set_nomads_enabled
         set_nomads_enabled(world, nomads)
+    # Cities switch (persisted on the world): settlements grown into towns
+    # and cities with commerce, dues, charters, revolts, sacks and falls.
+    cities = getattr(args, "cities", None)
+    if cities is None and fresh_world:
+        from chronicler.cities import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT
+        cities = _CITIES_DEFAULT
+    if cities is not None:
+        from chronicler.cities import set_cities_enabled
+        set_cities_enabled(world, cities)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -929,6 +947,7 @@ def execute_run(
             **_maritime_snapshot_fields(world),
             **_gp_agendas_snapshot_fields(world),
             **_nomads_snapshot_fields(world),
+            **_cities_snapshot_fields(world),
             **_food_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
@@ -1490,6 +1509,12 @@ def _build_parser() -> argparse.ArgumentParser:
                              "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
                              "that fragment on his death, and sedentarization of conquerors (default "
                              "on for new worlds; --no-nomads opts out; saved on resume)")
+    parser.add_argument("--cities", action=argparse.BooleanOptionalAction, default=None,
+                        help="Cities as actors: settlements grown into towns and cities with "
+                             "commerce and dues to their lord, a pull on rural migrants of the "
+                             "realm, charters, urban revolts and free cities, sacks, walls and "
+                             "falls; needs an agent mode to found cities (default off for new "
+                             "worlds; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

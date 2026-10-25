@@ -1445,6 +1445,11 @@ def generate_report(
     nomads = extract_nomad_metrics(bundles)
     if nomads.get("runs"):
         report["nomads"] = nomads
+    # Cities: present only for runs whose bundles carry history[n].cities.
+    from chronicler.cities import extract_city_metrics
+    cities = extract_city_metrics(bundles)
+    if cities.get("runs"):
+        report["cities"] = cities
 
     report["anomalies"] = detect_anomalies(report)
     return report

@@ -17,6 +17,11 @@
 //! - **Chain migration.** Bonds to people who emigrated from the agent's
 //!   region and settled in a neighbouring region of the same realm, when they
 //!   outweigh the bonds the agent keeps at home.
+//! - **Urban pull** (`--cities`, default off). A rural adult who is not a
+//!   soldier, next to a region of the same realm whose city draws markedly
+//!   more than home's (Python's `city_pull`, from the city's rank, unrest
+//!   and food), when that region is fed and has room. Without the switch
+//!   every region's `city_pull` is 0 and the gate never opens.
 //! - **Roots (life course).** The pulls count only beyond a threshold that
 //!   is zero for unattached adults up to 35 and grows with age, marriage and
 //!   bonds at home. A pull opens at `PULL_AT_GATE` of its full size, so a
@@ -24,7 +29,7 @@
 //!   20) take no voluntary moves; married agents' households move with them
 //!   (`household.rs`).
 //!
-//! All three are internal migration: source and destination are ruled by
+//! All four are internal migration: source and destination are ruled by
 //! the same civ. Moving does not change an agent's civ affinity; crossing a
 //! border makes it a minority under a foreign ruler and counts as a
 //! cross-border move in the hybrid civ migration hazard. Unclaimed land has
@@ -106,6 +111,22 @@ pub const WAGE_PULL: f32 = 0.55;
 pub const CHAIN_PULL_PER_BOND: f32 = 0.30;
 pub const CHAIN_PULL_CAP: f32 = 0.45;
 
+/// Urban pull (`--cities`): the destination's `city_pull` over home's, from
+/// `URBAN_MIN_GAP` (a town next to land without one: rank weight 0.4 at
+/// low unrest), full at `URBAN_FULL_GAP`; the destination fed (food
+/// sufficiency at least `URBAN_MIN_FOOD_SUFFICIENCY`) and below
+/// `URBAN_MAX_TARGET_RATIO` of capacity (farmers: below the frontier gate's
+/// 0.80, so the pull does not refill a region frontier settlement is
+/// leaving). Rural adults only (`settlement_id` 0); soldiers stay posted.
+/// [CALIBRATE cities] (see docs/integration/cities.md)
+pub const URBAN_MIN_GAP: f32 = 0.25;
+pub const URBAN_FULL_GAP: f32 = 0.75;
+pub const URBAN_MIN_FOOD_SUFFICIENCY: f32 = 1.0;
+pub const URBAN_MAX_TARGET_RATIO: f32 = 1.0;
+pub const URBAN_FARMER_MAX_TARGET_RATIO: f32 = FRONTIER_SOURCE_MIN_RATIO;
+pub const URBAN_PULL: f32 = 0.5;
+
+const _: () = assert!(URBAN_FULL_GAP > URBAN_MIN_GAP);
 const _: () = assert!(FRONTIER_FULL_GAP > FRONTIER_MIN_GAP);
 const _: () = assert!(WAGE_FULL_RATIO > WAGE_MIN_RATIO);
 const _: () = assert!(WAGE_MIN_RATIO > 1.0);
@@ -138,18 +159,25 @@ pub fn food_potential(region: &RegionState) -> f32 {
     best
 }
 
+/// Voluntary drivers, in the order of the budget's `open` and `gate` tallies.
+pub const VOLUNTARY_DRIVERS: usize = 4;
+pub const VOLUNTARY_DRIVER_NAMES: [&str; VOLUNTARY_DRIVERS] = ["frontier", "wage", "chain", "urban"];
+
 /// Voluntary pull toward one destination, by driver.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct VoluntaryPull {
     pub frontier: f32,
     pub wage: f32,
     pub chain: f32,
+    pub urban: f32,
 }
 
 impl VoluntaryPull {
+    /// Sum of the pulls. The urban pull is added last, so with it at 0 the
+    /// sum has the bits it had without the driver.
     #[inline]
     pub fn total(&self) -> f32 {
-        self.frontier + self.wage + self.chain
+        self.frontier + self.wage + self.chain + self.urban
     }
 
     /// What remains of the pull beyond the agent's roots, split across the
@@ -161,7 +189,18 @@ impl VoluntaryPull {
             return VoluntaryPull::default();
         }
         let k = (gross - roots) / gross;
-        VoluntaryPull { frontier: self.frontier * k, wage: self.wage * k, chain: self.chain * k }
+        VoluntaryPull {
+            frontier: self.frontier * k,
+            wage: self.wage * k,
+            chain: self.chain * k,
+            urban: self.urban * k,
+        }
+    }
+
+    /// Which drivers carry a positive pull, in `VOLUNTARY_DRIVER_NAMES` order.
+    #[inline]
+    pub fn open(&self) -> [bool; VOLUNTARY_DRIVERS] {
+        [self.frontier > 0.0, self.wage > 0.0, self.chain > 0.0, self.urban > 0.0]
     }
 }
 
@@ -193,6 +232,8 @@ pub struct Mobility {
     /// Positive bond strength at home, spouse excluded.
     pub home_bonds: f32,
     occupation: u8,
+    /// Outside every settlement footprint (`settlement_id` 0).
+    rural: bool,
     chain_regions: [u16; REL_SLOTS],
     chain_strength: [f32; REL_SLOTS],
     chain_len: usize,
@@ -221,6 +262,7 @@ impl Mobility {
             roots: 0.0,
             home_bonds: 0.0,
             occupation: pool.occupations[slot],
+            rural: pool.settlement_ids[slot] == 0,
             chain_regions: [0; REL_SLOTS],
             chain_strength: [0.0; REL_SLOTS],
             chain_len: 0,
@@ -335,6 +377,21 @@ pub fn pull_toward(
     if chain > m.home_bonds {
         pull.chain = (CHAIN_PULL_PER_BOND * chain).min(CHAIN_PULL_CAP);
     }
+    // Urban pull: rural people drawn to the city of a neighbouring region.
+    let urban_gap = dst.city_pull - src.city_pull;
+    if m.rural
+        && m.occupation != Occupation::Soldier as u8
+        && urban_gap >= URBAN_MIN_GAP
+        && dst.food_sufficiency >= URBAN_MIN_FOOD_SUFFICIENCY
+        && inputs.adj_ratio
+            < if m.occupation == Occupation::Farmer as u8 {
+                URBAN_FARMER_MAX_TARGET_RATIO
+            } else {
+                URBAN_MAX_TARGET_RATIO
+            }
+    {
+        pull.urban = URBAN_PULL * ramp(urban_gap, URBAN_MIN_GAP, URBAN_FULL_GAP);
+    }
     pull
 }
 
@@ -360,7 +417,8 @@ pub const TERM_SPIRITUAL_NEED: usize = 13;
 pub const TERM_FRONTIER: usize = 14;
 pub const TERM_WAGE: usize = 15;
 pub const TERM_CHAIN: usize = 16;
-pub const MIGRATION_TERMS: usize = 17;
+pub const TERM_URBAN: usize = 17;
+pub const MIGRATION_TERMS: usize = 18;
 
 /// Names exported by `AgentSimulator.get_migration_driver_stats`.
 pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
@@ -381,6 +439,7 @@ pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
     "frontier",
     "wage",
     "chain",
+    "urban",
 ];
 
 /// Per-tick migration decision tally.
@@ -398,12 +457,12 @@ pub struct MigrationDriverStats {
     /// Decided migrations in which the term was positive.
     pub present: [u32; MIGRATION_TERMS],
     /// Evaluated agents whose best target carries a voluntary pull beyond
-    /// their roots, by driver (frontier, wage, chain), whatever the agent
+    /// their roots, by driver (`VOLUNTARY_DRIVER_NAMES`), whatever the agent
     /// then chooses.
-    pub open: [u32; 3],
+    pub open: [u32; VOLUNTARY_DRIVERS],
     /// Evaluated agents for whom some neighbour opens the driver's gate,
     /// before roots: `gate - open` is what the roots hold back.
-    pub gate: [u32; 3],
+    pub gate: [u32; VOLUNTARY_DRIVERS],
     /// Household followers (spouses, dependants) by the largest term of the
     /// decision they follow.
     pub followers: [u32; MIGRATION_TERMS],
@@ -441,11 +500,10 @@ pub fn dominant_term(terms: &[f32; MIGRATION_TERMS]) -> u8 {
 }
 
 impl MigrationDriverStats {
-    pub fn count_open_pulls(&mut self, pull: &VoluntaryPull, gate_open: &[bool; 3]) {
-        self.open[0] += (pull.frontier > 0.0) as u32;
-        self.open[1] += (pull.wage > 0.0) as u32;
-        self.open[2] += (pull.chain > 0.0) as u32;
-        for i in 0..3 {
+    pub fn count_open_pulls(&mut self, pull: &VoluntaryPull, gate_open: &[bool; VOLUNTARY_DRIVERS]) {
+        let open = pull.open();
+        for i in 0..VOLUNTARY_DRIVERS {
+            self.open[i] += open[i] as u32;
             self.gate[i] += gate_open[i] as u32;
         }
     }
@@ -479,7 +537,7 @@ impl MigrationDriverStats {
             self.share[i] += other.share[i];
             self.present[i] += other.present[i];
         }
-        for i in 0..3 {
+        for i in 0..VOLUNTARY_DRIVERS {
             self.open[i] += other.open[i];
             self.gate[i] += other.gate[i];
         }
@@ -497,7 +555,7 @@ impl MigrationDriverStats {
         let band = age_band(age);
         self.decided_by_age[band] += 1;
         let d = dominant as usize;
-        if d == TERM_FRONTIER || d == TERM_WAGE || d == TERM_CHAIN {
+        if d == TERM_FRONTIER || d == TERM_WAGE || d == TERM_CHAIN || d == TERM_URBAN {
             self.voluntary_by_age[band] += 1;
         }
     }
@@ -579,7 +637,7 @@ mod driver_tests {
 
     #[test]
     fn net_of_roots_drops_pulls_the_roots_hold_and_scales_the_rest() {
-        let pull = VoluntaryPull { frontier: 0.2, wage: 0.1, chain: 0.0 };
+        let pull = VoluntaryPull { frontier: 0.2, wage: 0.1, chain: 0.0, urban: 0.0 };
         assert_eq!(pull.net_of_roots(0.3), VoluntaryPull::default());
         assert_eq!(pull.net_of_roots(0.5), VoluntaryPull::default());
         let net = pull.net_of_roots(0.15);
@@ -742,6 +800,61 @@ mod driver_tests {
         let m = mobility(&pool, a, &regions).unwrap();
         assert_eq!(m.chain_strength_toward(1), 0.0, "a bond across the border does not pull");
     }
+
+    #[test]
+    fn urban_pull_draws_rural_adults_to_a_fed_city_of_the_realm_with_room() {
+        let mut regions = realm();
+        regions[1].city_pull = 1.0; // a great city next door, no city at home
+        let mut pool = AgentPool::new(8);
+        let scholar = agent(&mut pool, 0, Occupation::Scholar, 25);
+        let farmer = agent(&mut pool, 0, Occupation::Farmer, 25);
+        let soldier = agent(&mut pool, 0, Occupation::Soldier, 25);
+        let townsman = agent(&mut pool, 0, Occupation::Merchant, 25);
+        pool.settlement_ids[townsman] = 3; // lives in a settlement already
+        let urban = |regions: &[RegionState], slot: usize, adj_ratio: f32| {
+            let m = mobility(&pool, slot, regions).unwrap();
+            pull_toward(&m, &regions[0], &regions[1], &inputs(0.5, adj_ratio, &EVEN, &PEERS)).urban
+        };
+        assert!((urban(&regions, scholar, 0.5) - URBAN_PULL).abs() < 1e-6, "gap 1.0: full pull");
+        assert!((urban(&regions, farmer, 0.5) - URBAN_PULL).abs() < 1e-6);
+        assert_eq!(urban(&regions, soldier, 0.5), 0.0, "soldiers stay posted");
+        assert_eq!(urban(&regions, townsman, 0.5), 0.0, "already urban");
+        // Room: farmers only below the frontier gate's threshold, others below capacity.
+        assert_eq!(urban(&regions, farmer, URBAN_FARMER_MAX_TARGET_RATIO), 0.0);
+        assert!(urban(&regions, scholar, URBAN_FARMER_MAX_TARGET_RATIO) > 0.0);
+        assert_eq!(urban(&regions, scholar, URBAN_MAX_TARGET_RATIO), 0.0, "no room");
+        // A hungry city does not draw.
+        regions[1].food_sufficiency = URBAN_MIN_FOOD_SUFFICIENCY - 0.01;
+        assert_eq!(urban(&regions, scholar, 0.5), 0.0, "not fed");
+        regions[1].food_sufficiency = 1.0;
+        // The gap, not the level: a city at home draws less, and a small gap none.
+        regions[0].city_pull = 1.0 - URBAN_MIN_GAP;
+        let at_gate = urban(&regions, scholar, 0.5);
+        assert!((at_gate - URBAN_PULL * PULL_AT_GATE).abs() < 1e-5, "{at_gate}");
+        regions[0].city_pull = 1.0 - URBAN_MIN_GAP + 0.01;
+        assert_eq!(urban(&regions, scholar, 0.5), 0.0, "gap too small");
+        regions[0].city_pull = 0.0;
+        // Internal only.
+        regions[1].controller_civ = 1;
+        assert_eq!(urban(&regions, scholar, 0.5), 0.0, "another realm");
+    }
+
+    #[test]
+    fn without_city_pull_the_urban_driver_adds_nothing_and_the_sum_keeps_its_bits() {
+        let regions = realm(); // city_pull 0 everywhere: the switch off
+        let mut pool = AgentPool::new(2);
+        let farmer = agent(&mut pool, 0, Occupation::Farmer, 25);
+        let m = mobility(&pool, farmer, &regions).unwrap();
+        let mut i = inputs(1.0, 0.3, &[[4.0, 4.0], [12.0, 8.0]], &PEERS);
+        i.adj_ratio = 0.3;
+        let pull = pull_toward(&m, &regions[0], &regions[1], &i);
+        assert_eq!(pull.urban, 0.0);
+        assert!(pull.frontier > 0.0 && pull.wage > 0.0);
+        assert_eq!(pull.total().to_bits(), (pull.frontier + pull.wage + pull.chain).to_bits());
+        assert_eq!(pull.open(), [true, true, false, false]);
+        let net = pull.net_of_roots(0.1);
+        assert_eq!(net.urban, 0.0);
+    }
 }
 
 #[cfg(test)]
@@ -772,6 +885,19 @@ mod tests {
         stats.record(&[0.0; MIGRATION_TERMS]);
         assert_eq!((stats.decided, stats.unexplained), (1, 1));
         assert_eq!(stats.share.iter().sum::<f64>(), 0.0);
+    }
+
+    #[test]
+    fn urban_is_the_last_term_and_counts_as_voluntary_by_age() {
+        assert_eq!(MIGRATION_TERM_NAMES[TERM_URBAN], "urban");
+        assert_eq!(TERM_URBAN, MIGRATION_TERMS - 1);
+        assert_eq!(VOLUNTARY_DRIVER_NAMES, ["frontier", "wage", "chain", "urban"]);
+        let mut stats = MigrationDriverStats::default();
+        stats.record_age(25, TERM_URBAN as u8);
+        assert_eq!((stats.decided_by_age[1], stats.voluntary_by_age[1]), (1, 1));
+        let pull = VoluntaryPull { urban: 0.3, ..Default::default() };
+        stats.count_open_pulls(&pull, &[false, false, false, true]);
+        assert_eq!((stats.open[3], stats.gate[3]), (1, 1));
     }
 
     #[test]

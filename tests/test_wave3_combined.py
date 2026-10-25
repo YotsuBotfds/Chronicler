@@ -243,3 +243,53 @@ def test_save_load_resume_identity_with_everything_on(tmp_path):
     first.save(path)
     resumed = _advance(WorldState.load(path), 15)
     assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+# --- Cities on top of everything (settlements as M56a leaves them) --------------------
+
+def _cities_world() -> WorldState:
+    """Everything above plus cities. With --agents off nothing detects
+    settlements, so the four most populous held regions get one each, as
+    M56a records them (its id allocator and names); their cities found,
+    trade, owe dues, petition and build from the first tick."""
+    import chronicler.cities as ct
+    from chronicler.models import Settlement, SettlementStatus
+    world = _everything_world()
+    ct.set_cities_enabled(world, True)
+    held = sorted((i for i, r in enumerate(world.regions) if r.controller),
+                  key=lambda i: (-world.regions[i].population, i))[:4]
+    for i in held:
+        region = world.regions[i]
+        seq = world.settlement_naming_counters.get(region.name, 1)
+        region.settlements.append(Settlement(
+            settlement_id=world.next_settlement_id, name=f"{region.name} Settlement {seq}",
+            region_name=region.name, last_seen_turn=0, population_estimate=40,
+            peak_population=40, centroid_x=0.5, centroid_y=0.5, footprint_cells=[(5, 5)],
+            status=SettlementStatus.ACTIVE, inertia=1,
+        ))
+        world.next_settlement_id += 1
+        world.settlement_naming_counters[region.name] = seq + 1
+    return world
+
+
+def _cities_live(world: WorldState) -> bool:
+    c = world.cities
+    return bool(c.cities and c.counters["charters"] + c.counters["refusals"] > 0
+                and any(o > 0 for o in c.owed) and c.counters["dues"] > 0
+                and any(city.wealth > 0 for city in c.cities))
+
+
+def test_save_load_resume_identity_with_cities_and_everything_on(tmp_path):
+    first = _advance(_cities_world(), 30)
+    while not (_cities_live(first) and _nomads_live(first) and first.finance.loans
+               and first.diplomacy.treaties):
+        assert first.turn < 120, "no turn with live cities, nomads, loans and treaties"
+        _advance(first, 1)
+    straight = _advance(_cities_world(), first.turn + 15)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = WorldState.load(path)
+    assert resumed.cities == first.cities
+    _advance(resumed, 15)
+    assert resumed.model_dump_json() == straight.model_dump_json()
+    assert resumed.cities.counters["founded"] >= 4
