@@ -429,7 +429,7 @@ fn test_utility_modifier_safety_migrate() {
 fn test_utility_modifier_above_threshold_zero() {
     let mut pool = AgentPool::new(16);
     let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-    // All needs at spawn (0.5) are above all thresholds (0.25-0.35)
+    // All needs at spawn (0.5) are above all thresholds (0.30-0.35)
     let mods = compute_need_utility_modifiers(&pool, slot);
     assert_eq!(mods.migrate, 0.0);
     assert_eq!(mods.rebel, 0.0);
@@ -456,7 +456,7 @@ fn test_autonomy_rebel_independently() {
     let slot = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
     pool.need_autonomy[slot] = 0.0;
     let mods = compute_need_utility_modifiers(&pool, slot);
-    let expected = 0.25 * 0.45;
+    let expected = 0.35 * 0.45; // AUTONOMY_THRESHOLD x AUTONOMY_WEIGHT
     assert!((mods.rebel - expected).abs() < 0.01,
         "Expected rebel ~{}, got {}", expected, mods.rebel);
 }
