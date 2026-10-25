@@ -377,6 +377,14 @@ def _market_columns(world: WorldState, economy_result) -> dict[str, pa.Array]:
     return columns
 
 
+def _send_movement_table(world: WorldState, bridge) -> None:
+    """Agent movements (switch on only): this tick's movement table."""
+    from chronicler.agent_movements_state import agent_movements_on
+    if agent_movements_on(world):
+        from chronicler.agent_movements import send_to_native
+        send_to_native(world, bridge)
+
+
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -1077,6 +1085,8 @@ class AgentBridge:
         self._merchant_trip_stats_history: list = []
         # M59a: Knowledge stats collection (always in agent modes)
         self._knowledge_stats_history: list = []
+        # Agent movements: a fresh pool is re-seeded from the saved members once.
+        self._movements_seeded = False
 
     def set_economy_result(self, result):
         """Store M42 economy result for signal wiring."""
@@ -1292,6 +1302,7 @@ class AgentBridge:
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
+        _send_movement_table(world, self)
         agent_events = self._sim.tick(world.turn, signals)
         return self._process_tick_results(agent_events, world, death_output=death_output)
 
@@ -1317,6 +1328,7 @@ class AgentBridge:
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
+        _send_movement_table(world, self)
         agent_events = self._sim.tick(world.turn, signals)
         return self._process_tick_results(agent_events, world, death_output=death_output)
 

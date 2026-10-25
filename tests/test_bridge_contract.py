@@ -27,11 +27,23 @@ def test_explicit_check_is_schema_only_and_accepts_metadata(rows):
     assert not probe.accesses and not probe.calls
 
 
-@pytest.mark.parametrize("name", SNAPSHOT_FIELD_NAMES)
+@pytest.mark.parametrize("name", SNAPSHOT_FIELD_NAMES[:-1])
 def test_missing_native_field_is_rejected_even_without_rows(name):
     schema = pa.schema([field for field in SNAPSHOT_SCHEMA if field.name != name])
     with pytest.raises(KeyError, match=name):
         validate_snapshot_schema(schema)
+
+
+def test_a_capture_from_before_the_movement_column_is_accepted():
+    """The snapshot without ``movement_id`` (its last field) is the layout
+    every capture had before agent movements; it stays valid. Dropping any
+    other field from it is still rejected."""
+    legacy = pa.schema([field for field in SNAPSHOT_SCHEMA if field.name != "movement_id"])
+    validate_snapshot_schema(legacy)
+    with pytest.raises(KeyError, match="settlement_id"):
+        validate_snapshot_schema(pa.schema([f for f in legacy if f.name != "settlement_id"]))
+    with pytest.raises(ValueError, match="order"):
+        validate_snapshot_schema(pa.schema([SNAPSHOT_SCHEMA.field("movement_id"), *legacy]))
 
 
 @pytest.mark.parametrize("name", SNAPSHOT_FIELD_NAMES)

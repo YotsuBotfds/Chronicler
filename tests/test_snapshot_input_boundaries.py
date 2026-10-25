@@ -429,6 +429,14 @@ def test_supported_workflow_matches_accepted_q_full_streams_and_post_bytes_at_tw
     directory = tmp_path / "inputs"
     directory.mkdir()
     args = files(directory)
+    # The frozen baseline predates the agent-movements snapshot column: both
+    # sources read the same capture in the earlier 23-field layout, which the
+    # current contract still accepts.
+    from chronicler.bridge_contract import LEGACY_SNAPSHOT_SCHEMA
+    legacy = snapshot().select(list(LEGACY_SNAPSHOT_SCHEMA.names))
+    with pa.OSFile(str(args["snapshot"]), "wb") as sink:
+        with pa.ipc.new_file(sink, LEGACY_SNAPSHOT_SCHEMA) as writer:
+            writer.write_batch(legacy)
     tick_path = directory / "tick.json"
     tick_path.write_text(json.dumps(dict(turn=8, orders=[], credits=[],
         conditions=[dict(agent_id=i, unmet_needs=0, information_quality=1000) for i in (7, 8)],

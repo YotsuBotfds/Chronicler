@@ -2,8 +2,10 @@
 
 The producer is ``chronicler-agents/src/ffi/schema.rs::snapshot_schema``.
 This is a snapshot-only ratchet, not a new wire version or batch builder.
-All 23 native fields are required and non-nullable. The explicit validator
+All 24 native fields are required and non-nullable. The explicit validator
 checks names, count, order, Arrow types and nullability, ignoring metadata.
+A capture written before the agent-movements column (the first 23 fields,
+``LEGACY_SNAPSHOT_SCHEMA``) is still accepted.
 
 Runtime consumers intentionally demand smaller subsets after their own gates:
 * culture: civ_affinity/region and cultural_value_0/1/2;
@@ -25,6 +27,8 @@ Runtime consumers intentionally demand smaller subsets after their own gates:
 * legacy relationship formation: belief/region/id whenever a snapshot exists,
   including empty batches; the coordinator skips it when Rust owns formation;
 * experimental fisheries: region/occupation when its snapshot path is active.
+* agent movements (switch on): movement_id/region/age/id/boldness/belief; the
+  layer reads no rows when any is absent.
 
 The full native contract has no optional fields. The consumer compatibility
 paths above remain independent: do not call this validator from AgentRows,
@@ -41,8 +45,9 @@ import pyarrow as pa
 IntColumn = Literal[
     "id", "region", "civ_affinity", "occupation", "belief",
     "cultural_value_0", "cultural_value_1", "cultural_value_2", "settlement_id",
+    "movement_id", "age",
 ]
-FloatColumn = Literal["x", "y", "loyalty_trait", "loyalty"]
+FloatColumn = Literal["x", "y", "loyalty_trait", "loyalty", "boldness"]
 
 SNAPSHOT_SCHEMA = pa.schema([
     pa.field("id", pa.uint32(), nullable=False),
@@ -68,8 +73,13 @@ SNAPSHOT_SCHEMA = pa.schema([
     pa.field("x", pa.float32(), nullable=False),
     pa.field("y", pa.float32(), nullable=False),
     pa.field("settlement_id", pa.uint16(), nullable=False),
+    # Agent movements: 0 = none, else movement index + 1 (all 0 while off).
+    pa.field("movement_id", pa.uint16(), nullable=False),
 ])
 SNAPSHOT_FIELD_NAMES = tuple(SNAPSHOT_SCHEMA.names)
+#: The snapshot before the agent-movements column (still accepted).
+LEGACY_SNAPSHOT_SCHEMA = pa.schema(list(SNAPSHOT_SCHEMA)[:-1])
+LEGACY_SNAPSHOT_FIELD_NAMES = tuple(LEGACY_SNAPSHOT_SCHEMA.names)
 
 
 def validate_snapshot_schema(schema: pa.Schema) -> None:
@@ -80,15 +90,19 @@ def validate_snapshot_schema(schema: pa.Schema) -> None:
     an intentional update alongside the native schema; metadata is unrestricted.
     """
     names = tuple(schema.names)
-    missing = [name for name in SNAPSHOT_FIELD_NAMES if name not in names]
+    if names == LEGACY_SNAPSHOT_FIELD_NAMES:
+        expected_schema, expected_names = LEGACY_SNAPSHOT_SCHEMA, LEGACY_SNAPSHOT_FIELD_NAMES
+    else:
+        expected_schema, expected_names = SNAPSHOT_SCHEMA, SNAPSHOT_FIELD_NAMES
+    missing = [name for name in expected_names if name not in names]
     if missing:
         raise KeyError(f"snapshot missing required columns {missing!r}")
-    extra = [name for name in names if name not in SNAPSHOT_FIELD_NAMES]
+    extra = [name for name in names if name not in expected_names]
     if extra:
         raise ValueError(f"snapshot has unexpected columns {extra!r}")
     if len(names) != len(set(names)):
         raise ValueError("snapshot has duplicate columns")
-    for expected in SNAPSHOT_SCHEMA:
+    for expected in expected_schema:
         actual = schema.field(expected.name)
         if actual.type != expected.type:
             raise TypeError(
@@ -96,5 +110,5 @@ def validate_snapshot_schema(schema: pa.Schema) -> None:
             )
         if actual.nullable != expected.nullable:
             raise ValueError(f"snapshot column {expected.name!r} must be non-nullable")
-    if names != SNAPSHOT_FIELD_NAMES:
+    if names != expected_names:
         raise ValueError("snapshot column order differs from the native contract")

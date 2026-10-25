@@ -2,9 +2,68 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/agent-movements`: movements grounded in people behind `--agent-movements`, default off: per-agent membership (a Rust pool and snapshot column), commons, liberty and sect creeds founded where grievances cluster, recruitment through bonds, co-residence and settlements, demands, reforms, refusals, crackdowns with martyrs, risings, secession through the shared free-city transfer, schisms through the religion path; switch off byte-identical (88 files and the subset gate 42-61); subset gates 42-61, 62-81 and 82-101 PASS / NO REGRESSION with it on (needs 16 -> 12, 13, 14); full gate not run. `feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Agent movements (2026-10-25, `feat/agent-movements`)
+
+`feat/agent-movements` from `origin/feat/city-markets` `b4ce043`,
+fast-forwarded to `main` `ec229b5` (PR #30, same tree). Default off behind
+`WorldState.agent_movements` (`--agent-movements`). Details, parameters and
+a movement's history: [`docs/integration/agent-movements.md`](../../integration/agent-movements.md).
+
+- **Slice.** Movements live in the population: a per-agent `movement_id`
+  (Rust pool and snapshot column, appended last; the contract accepts the
+  earlier 23-field captures). Three creeds from the needs: commons
+  (material), liberty (autonomy), sect (spiritual). Founded (Python, from an
+  end-of-tick native census) where 20% of a region's adults are aggrieved
+  and a carrier exists (a great person, a city, the boldest aggrieved); an
+  adopted M16b idea of the creed's values is carried. Recruitment through
+  bonds, co-residence and settlements, gated by grievance, boldness and
+  loyalty; spread with migrants, bonds and travelling merchants. Strength
+  presses the creed's ally faction; at 10% the movement demands; the ruler
+  grants (relief: need and satisfaction recovery), refuses or cracks down
+  (persecution memory, martyrs through queued deaths, martyrdom boost for
+  sects). Risings (rebel utility in the stronghold, a failed outcome for
+  legitimacy) end in secession (liberty, ruler under 30 stability, through
+  `politics.transfer_regions_to_new_civ`, now shared with the cities' free
+  city), concession or a crushing; sects break away through
+  `religion.fire_schism`. Fading, winning, breaking, dissolving.
+- **Finding.** The religion detector fills the 16-faith registry in the
+  first dozen turns of every gate world; most of those faiths later have no
+  believer. A movement schism takes the place of such a faith (same id and
+  position); the detector keeps its cap.
+- **Identity** (switch off, `scripts/agent_movements_identity.py`, base
+  `ec229b5` with its own extension): 88 files, 0 differences (template
+  42/7/1234 off 300 and hybrid 200, procedural 48x10 seed 7 off 200 and
+  hybrid 120); 73 / 0 with `--no-agent-movements`; switch on with agents
+  off 27 / 0 inert; subset gate 42-61 base against the switch-off branch:
+  20 x 110 run files and the four reports identical.
+- **Gates** (subset, `--parallel 1`, switch on against the base): 42-61,
+  62-81, 82-101 PASS / NO REGRESSION. Migration 0.0619 -> 0.0608, 0.0548 ->
+  0.0546, 0.0619 -> 0.0603; rebellion 0.0376 -> 0.0350, 0.0153 -> 0.0162,
+  0.0353 -> 0.0319; satisfaction latest +0.009, +0.012, +0.006; needs 16 ->
+  12, 13, 14 (12 required; a probe without the need restoration on reforms
+  gives 14 on 42-61); schisms 12.0 -> 12.25, 12.2, 12.1 per world; no
+  movement secession in 60 worlds; 0 extinct. About 7 movements founded per
+  200-turn world; per 20 worlds 73-94 demands, 36-42 reforms, 13-17
+  crackdowns, 5-13 risings, 2-5 movement schisms.
+- **Tick time**: within the run-to-run spread at ~22,800 and ~54,500 alive
+  (Rust tick 104-117 ms and 434-469 ms wall in every arm, with 1 and 2
+  movements of 108 and 671 members in the timed turns).
+- **Bundle guard**: 18.78 MB off (unchanged), 18.90 MB with the switch on
+  (field 0.13 MB); hybrid 20.06 / 19.10 MB.
+- **Tests**: at `c93e87e` with a fresh extension (`cde64b3e...b5cf6a`): `cargo test`
+  959 passed, 2 ignored (main 945); not-slow 6,080 passed, 3 skipped (main
+  6,046); slow 11 / 3; no-Rust 5,861 / 222; oracle lane PASS in 75.5 s
+  (2,050 passed, 24 skipped; largest chunk 26.4 s of 110 s). Full gate
+  not run.
+- **Open**: the needs oracle's 2-4 seed drop and the rarity of liberty
+  secessions at the full gate (not run); information packets as a spread
+  channel; lasting reforms through governance institutions; guild
+  movements and a city faction; movement leaders as great persons; a
+  viewer tab.
 
 ## City markets and cities on by default (2026-10-25, `feat/city-markets`)
 
