@@ -667,6 +667,8 @@ export interface Bundle {
    * Bundle version 5 leaves civilizations that are dead at a turn out of
    * that snapshot's civ_stats, capitals and pairwise tables (each keeps its
    * final row in the snapshot of its death); read rows with lib/civRows.
+   * Version-6 files store it as deltas (`history_delta`); the loader
+   * decodes them into this field (lib/bundleCodec).
    */
   history: TurnSnapshot[];
   /** Version 5: the omitted civ_stats rows as change runs (Python restores them; the viewer does not). */

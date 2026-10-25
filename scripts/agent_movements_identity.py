@@ -24,6 +24,8 @@ import json
 import sys
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 IGNORED_NAMES = frozenset({"run_manifest.json"})
 FIELD = "agent_movements"
 
@@ -43,7 +45,7 @@ def _strip(data, inert: bool):
 
 def _content(path: Path, inert: bool) -> bytes:
     if path.name == "chronicle_bundle.json":
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = load_bundle(path)  # version 6: history as deltas, decoded here
         data.get("metadata", {}).pop("generated_at", None)
         return json.dumps(_strip(data, inert), sort_keys=True).encode("utf-8")
     if inert and path.name.startswith("state") and path.suffix == ".json" and path.name.count(".") == 1:

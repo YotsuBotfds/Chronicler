@@ -12,6 +12,7 @@ import json
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 from chronicler.main import _food_snapshot_fields, _migration_snapshot_fields
 from chronicler.models import AgentEventRecord, MutualAidState, MutualAidTransfer, Region, TurnSnapshot
 from chronicler.mutual_aid import snapshot_summary
@@ -118,7 +119,7 @@ def _run(tmp_path, **flags):
         pause_every=None, simulate_only=True, **flags,
     )
     execute_run(args)
-    return json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+    return load_bundle(tmp_path / "chronicle_bundle.json")
 
 
 def test_agents_off_bundles_carry_neither_field(tmp_path):

@@ -1620,8 +1620,9 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
     with open(bundle_path) as f:
         bundle = _json.load(f)
-    # Version-5 histories leave dead civs out: restore their rows so curation
-    # and narration read the history the run itself held in memory.
+    # Version 6 writes the history as deltas and version-5 histories leave dead
+    # civs out: decode and restore their rows so curation and narration read
+    # the history the run itself held in memory.
     from chronicler.snapshot_pruning import restore_bundle
     bundle = restore_bundle(bundle)
 

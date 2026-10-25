@@ -19,6 +19,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from chronicler.bundle_codec import load_bundle
+
 
 def _pct(values: list[float], q: float) -> float:
     if not values:
@@ -172,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     rows = []
     for name, path in _bundles(args.paths):
-        row = census(json.loads(path.read_text(encoding="utf-8")))
+        row = census(load_bundle(path))
         row["run"] = name
         rows.append(row)
     result = {"pooled": pooled(rows), "by_run": rows}

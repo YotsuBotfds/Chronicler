@@ -67,8 +67,9 @@ describe("civ rows over pruned histories", () => {
     }
   });
 
-  it("reads the real version-5 systems fixture", () => {
-    expect(systems.metadata.bundle_version).toBe(5);
+  it("reads the real pruned systems fixture", () => {
+    // Pruned at version 5; version 6 decodes to the same layout.
+    expect(systems.metadata.bundle_version).toBe(6);
     // Khorain Kingdom loses its land by turn 4 and leaves the history after it.
     const final = systems.history.find((s) => s.turn === 4)!.civ_stats["Khorain Kingdom"];
     expect(final).toMatchObject({ alive: false, regions: [] });

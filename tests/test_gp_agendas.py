@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pyarrow as pa
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.gp_agendas as G
 from chronicler import provenance as prov
 from chronicler import ruler_ambitions as g04
@@ -969,7 +970,7 @@ def test_cli_flag_gate_forwarding_snapshot_and_report(tmp_path):
                                    "--state", str(out / "state.json")]))
     state = json.loads((out / "state.json").read_text())
     assert "gp_agendas" in state
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert all("gp_agendas" in h for h in bundle["history"])
     spec = importlib.util.spec_from_file_location("gp_report", ROOT / "scripts" / "gp_agendas_report.py")
     report = importlib.util.module_from_spec(spec)
