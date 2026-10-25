@@ -99,6 +99,18 @@ def check_food_yield(
     subsistence_base: float = 0.15,
 ) -> bool:
     """Return True if region should enter famine (food yield below threshold)."""
+    return aggregate_food_yield(region, yields, climate_phase, subsistence_base) < threshold
+
+
+def aggregate_food_yield(
+    region: "Region",
+    yields: list[float],
+    climate_phase: "ClimatePhase",
+    subsistence_base: float = 0.15,
+) -> float:
+    """The aggregate model's food yield of a region: its best food slot, or
+    climate-scaled subsistence without one (or with every food slot
+    suspended)."""
     phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
     crop_climate_mod = CLIMATE_CLASS_MOD[0][phase_idx]  # Crop class index = 0
 
@@ -118,7 +130,7 @@ def check_food_yield(
         # Subsistence baseline affected by climate (for non-food terrains)
         food_yield = subsistence_base * crop_climate_mod
 
-    return food_yield < threshold
+    return food_yield
 
 
 # Food-crisis labels (2026-10, docs/integration/navigation-famine-labels.md).
@@ -133,13 +145,73 @@ def check_food_yield(
 FAMINE_SEVERE_SUFFICIENCY = 0.6
 FAMINE_SEVERE_TURNS = 3
 
+# Hunger severity (2026-10, docs/integration/hunger-mortality.md). Two
+# components in [0, 1] of a region's food sufficiency ``s`` and its severe run
+# (turns below FAMINE_SEVERE_SUFFICIENCY, this turn included):
+#   dearth = min(1, (1 - s) / (1 - 0.6))           the shortfall across the dearth band
+#   famine = (0.6 - s) / 0.6 * min(1, run / 3)      depth below it, ramped over a season
+# The native demographic tick computes the same components (Rust
+# ``demographics::hunger_components``, which is handed the run up to the
+# previous turn) for agent mortality and fertility. The mortality constants
+# below are its own, mirrored for the Python-owned population models
+# (``--agents off`` and shadow), whose famine toll they scale. That toll is a
+# famine's whole population effect in those models (deaths, flight and the
+# births it costs), so their growth is left alone.
+HUNGER_DEARTH_MORTALITY = 0.05
+HUNGER_FAMINE_MORTALITY = 0.50
+# A dearth report's effects that are not rates (its stability drain and what
+# reads the five-turn cooldown) are this share of a famine's.
+DEARTH_EFFECT_WEIGHT = 1.0 / 3.0
+
+
+def hunger_components(sufficiency: float | None, run: int | None) -> tuple[float, float]:
+    """(dearth, famine) components of a food sufficiency and its severe run
+    (turns below ``FAMINE_SEVERE_SUFFICIENCY``, the measured turn included)."""
+    if sufficiency is None or not sufficiency < 1.0:
+        return 0.0, 0.0
+    s = float(sufficiency)
+    dearth = min(1.0, max(0.0, (1.0 - s) / (1.0 - FAMINE_SEVERE_SUFFICIENCY)))
+    if not s < FAMINE_SEVERE_SUFFICIENCY:
+        return dearth, 0.0
+    ramp = min(1.0, max(1, int(run or 0)) / FAMINE_SEVERE_TURNS)
+    depth = min(1.0, max(0.0, (FAMINE_SEVERE_SUFFICIENCY - s) / FAMINE_SEVERE_SUFFICIENCY))
+    return dearth, depth * ramp
+
+
+def region_hunger(region: "Region") -> tuple[float, float]:
+    """Hunger components of a region at its last measurement (agent modes:
+    the economy's food sufficiency, saved as ``Region.food_shortfall``)."""
+    if region.food_shortfall is None:
+        return 0.0, 0.0
+    return hunger_components(1.0 - region.food_shortfall, region.food_severe_turns)
+
+
+def hunger_toll_share(dearth: float, famine: float) -> float:
+    """A Python-owned famine toll's share of the full toll: the agents' added
+    mortality at these components over that of a total, sustained famine."""
+    full = HUNGER_DEARTH_MORTALITY + HUNGER_FAMINE_MORTALITY
+    return (HUNGER_DEARTH_MORTALITY * dearth + HUNGER_FAMINE_MORTALITY * famine) / full
+
+
+def food_crisis_weight(region: "Region") -> float:
+    """Weight of a region's food-crisis cooldown for what reads it: 0 without
+    a report in the last five turns, ``DEARTH_EFFECT_WEIGHT`` after a dearth
+    report that has not deepened into famine, 1 otherwise (famine, the
+    aggregate model's famine, saves before the labels)."""
+    if region.famine_cooldown <= 0:
+        return 0.0
+    return DEARTH_EFFECT_WEIGHT if region.dearth_cooldown else 1.0
+
 
 def _update_severe_food_turns(world: WorldState, economy_result: EconomyResult | None) -> None:
     """Count, per region, the consecutive turns of severe food shortage.
 
     Agent modes only. ``Region.food_severe_turns`` is None while the region is
     not severely short; an uncontrolled or empty region, or one the economy
-    did not measure this turn, resets.
+    did not measure this turn, resets. ``Region.food_shortfall`` keeps the
+    measured shortfall (1 - sufficiency, None when fed or not measured) for
+    the next turn's epidemics. A dearth cooldown whose region has since
+    reached famine severity counts as a famine's.
     """
     sufficiency = economy_result.food_sufficiency if economy_result is not None else {}
     for region in world.regions:
@@ -150,6 +222,14 @@ def _update_severe_food_turns(world: WorldState, economy_result: EconomyResult |
             region.food_severe_turns = (region.food_severe_turns or 0) + 1
         else:
             region.food_severe_turns = None
+        if value is not None and value < 1.0 - 1e-6:
+            region.food_shortfall = round(min(1.0, 1.0 - float(value)), 4)
+        else:
+            region.food_shortfall = None
+        if region.dearth_cooldown and (
+            region.famine_cooldown <= 0 or (region.food_severe_turns or 0) >= FAMINE_SEVERE_TURNS
+        ):
+            region.dearth_cooldown = None
 
 
 def _check_famine_yield(
@@ -168,7 +248,13 @@ def _check_famine_yield(
     delivered imports. Raw yields cannot determine whether those people ate.
     Missing agent economy data is not evidence of famine, and a previous turn's
     result must never be reused here. Agent-mode reports are labelled famine
-    or dearth (see ``FAMINE_SEVERE_SUFFICIENCY``); both have the same effects.
+    or dearth (see ``FAMINE_SEVERE_SUFFICIENCY``). A dearth drains a third of
+    a famine's stability and weighs a third as much while its cooldown runs
+    (``food_crisis_weight``). Where Python owns population (``--agents off``,
+    shadow) the toll is the full toll scaled by the report's hunger
+    (``hunger_toll_share``): in agent modes the food sufficiency and its
+    severe run, in the aggregate model the depth of the food yield below the
+    famine threshold.
     """
     from chronicler.utils import drain_region_pop, sync_civ_population, add_region_pop, clamp, STAT_FLOOR
     from chronicler.emergence import get_severity_multiplier
@@ -192,10 +278,17 @@ def _check_famine_yield(
             # Native f32 arithmetic can put a fully covered meal just below 1.
             if sufficiency is None or sufficiency >= 1.0 - 1e-6:
                 continue
+            hunger = hunger_components(sufficiency, region.food_severe_turns)
         else:
             yields = region_yields.get(region.name, [0.0, 0.0, 0.0])
-            if not check_food_yield(region, yields, climate_phase, threshold, subsistence_base):
+            food_yield = aggregate_food_yield(region, yields, climate_phase, subsistence_base)
+            if not food_yield < threshold:
                 continue
+            # The aggregate famine is below the severity line by construction;
+            # its depth is how far the yield fell below the threshold.
+            hunger = (1.0, min(1.0, max(0.0, 1.0 - food_yield / threshold)) if threshold > 0 else 1.0)
+        dearth = agent_mode and (region.food_severe_turns or 0) < FAMINE_SEVERE_TURNS
+        weight = DEARTH_EFFECT_WEIGHT if dearth else 1.0
 
         civ = next((c for c in world.civilizations if c.name == region.controller), None)
         if civ is None:
@@ -210,16 +303,17 @@ def _check_famine_yield(
         # agent behavior. Aggregate and shadow retain macro population effects.
         actual_drain = 0
         if not agents_own_population:
-            famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5) * mult)
+            famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5) * mult * hunger_toll_share(*hunger))
             actual_drain = drain_region_pop(region, famine_pop)
             sync_civ_population(civ, world)
         drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         if acc is not None:
             civ_idx = civ_index(world, civ.name)
-            acc.add(civ_idx, civ, "stability", -int(drain * mult), "signal")
+            acc.add(civ_idx, civ, "stability", -int(drain * mult * weight), "signal")
         else:
-            civ.stability = clamp(civ.stability - int(drain * mult), STAT_FLOOR["stability"], 100)
+            civ.stability = clamp(civ.stability - int(drain * mult * weight), STAT_FLOOR["stability"], 100)
         region.famine_cooldown = 5
+        region.dearth_cooldown = True if dearth else None
 
         # Collect eligible neighbors for refugee distribution
         eligible = []
@@ -242,7 +336,7 @@ def _check_famine_yield(
                 else:
                     neighbor.stability = clamp(neighbor.stability - int(5 * neighbor_mult), STAT_FLOOR["stability"], 100)
 
-        if agent_mode and (region.food_severe_turns or 0) < FAMINE_SEVERE_TURNS:
+        if dearth:
             events.append(Event(
                 turn=world.turn, event_type="dearth", actors=[civ.name],
                 description=f"Dearth in {region.name}: food runs short and dear for {civ.name}.",

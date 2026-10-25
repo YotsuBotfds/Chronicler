@@ -231,7 +231,10 @@ class TestBundle:
 # great-person agendas or nomads on, Thornwall survives these 50 turns, so the
 # three Wave 8 switches are pinned off.
 
-def _run(tmp_path, monkeypatch, *, turns=50):
+# 60 turns: the Thornwall Confederacy loses its land and is pruned from turn
+# 55 (it fell at turn 44 before the 2026-10 hunger corrections scaled the
+# aggregate famine toll and growth; docs/integration/hunger-mortality.md).
+def _run(tmp_path, monkeypatch, *, turns=60):
     from chronicler.main import execute_run
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)
     monkeypatch.setattr("chronicler.main._create_politics_runtime", lambda world: None)
@@ -257,16 +260,16 @@ class TestRealRun:
         in_memory, bundle = real_run
         assert bundle["metadata"]["bundle_version"] == 5
         segments = bundle["pruned_civ_stats"]["Thornwall Confederacy"]
-        assert segments[0]["from_turn"] == 44
+        assert segments[0]["from_turn"] == 55
         # A civ without land earns nothing, so its pruned rows never change.
         assert segments[0]["changes"] == {}
         by_turn = {snap["turn"]: snap for snap in bundle["history"]}
-        final = by_turn[43]["civ_stats"]["Thornwall Confederacy"]
+        final = by_turn[54]["civ_stats"]["Thornwall Confederacy"]
         assert final["regions"] == [] and final["alive"] is False
-        assert all("Thornwall Confederacy" not in by_turn[t]["civ_stats"] for t in range(44, 51))
-        assert all("Thornwall Confederacy" not in by_turn[t]["relationships"] for t in range(44, 51))
+        assert all("Thornwall Confederacy" not in by_turn[t]["civ_stats"] for t in range(55, 61))
+        assert all("Thornwall Confederacy" not in by_turn[t]["relationships"] for t in range(55, 61))
         # Its exile kept it recorded between losing its land and the final row.
-        assert any(e["original_civ_name"] == "Thornwall Confederacy" for e in by_turn[40]["exile_modifiers"])
+        assert any(e["original_civ_name"] == "Thornwall Confederacy" for e in by_turn[50]["exile_modifiers"])
         # Snapshots handed to callbacks still carry every civ (the simulation's view).
         assert all("Thornwall Confederacy" in snap["civ_stats"] for snap in in_memory)
 

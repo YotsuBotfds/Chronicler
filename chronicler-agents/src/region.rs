@@ -113,6 +113,13 @@ pub struct RegionState {
     /// tally.
     pub market_demand: [f32; 3],
     pub market_supply: [f32; 3],
+    /// Consecutive turns, up to the previous turn, that the region's food
+    /// sufficiency stayed below the famine severity threshold (Python's
+    /// `Region.food_severe_turns`, written in Phase 9 after this batch was
+    /// built). The demographic tick adds this turn when sufficiency is still
+    /// below it (`demographics::hunger_components`). 0 when the batch carries
+    /// no `food_severe_turns` column.
+    pub food_severe_turns: u16,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -248,6 +255,7 @@ impl RegionState {
             city_pull: 0.0,
             market_demand: [0.0; 3],
             market_supply: [0.0; 3],
+            food_severe_turns: 0,
         }
     }
 }

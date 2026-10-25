@@ -412,7 +412,10 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit) ->
             if region.occupied_by:
                 disruption = OCCUPIED_GROWTH
             elif region.famine_cooldown > 0:
-                disruption = FAMINE_GROWTH
+                # A dearth disrupts a third as much as a famine.
+                from chronicler.ecology import food_crisis_weight
+                weight = food_crisis_weight(region)
+                disruption = FAMINE_GROWTH if weight >= 1.0 else 1.0 - (1.0 - FAMINE_GROWTH) * weight
             growth = 0.0
             inflow = 0.0
             if prereq_ok:
