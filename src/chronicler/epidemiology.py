@@ -31,7 +31,9 @@ Mortality
     pool tracks population, so hybrid deaths reach the agents.
 
 Second-order effects
-    Famine and crowding raise susceptibility (famine also raises fatality);
+    Hunger and crowding raise susceptibility (hunger also raises fatality):
+    in agent modes with the depth and duration of the food shortage, in the
+    aggregate model while a famine report's cooldown runs;
     states facing a foreign epidemic close their borders (quarantine cuts
     foreign imports and costs treasury); epidemic deaths leave a decaying
     labour scarcity that eases popular immiseration in the governance PSI.
@@ -145,10 +147,21 @@ MAJOR_CFR = 0.08
 #: Virgin-soil fatality multiplier (the pathogen never reached the population).
 VIRGIN_SOIL_CFR = 1.5
 #: Susceptibility: famine and crowding (population over carrying capacity).
+#: The flat famine terms are the aggregate model's (``--agents off``): they
+#: apply while a famine report's cooldown runs.
 FAMINE_SUSCEPTIBILITY = 0.2
 CROWDING_SUSCEPTIBILITY = 0.5
 CROWDING_THRESHOLD = 0.8
 FAMINE_CFR = 0.25
+#: Agent modes: hunger raises susceptibility and fatality with its depth
+#: (``ecology.region_hunger`` of the last measured food sufficiency and its
+#: severe run): dearth component x first, famine component x second. A total,
+#: sustained famine adds +0.5 susceptibility and x1.5 fatality; a lean season
+#: at the severity line +0.15 and x1.1. Hunger weakens resistance to
+#: dysentery, typhus and relapsing fever, and famine's crowding and flight
+#: spread them (2026-10, docs/integration/hunger-mortality.md).
+HUNGER_SUSCEPTIBILITY = (0.15, 0.35)
+HUNGER_CFR = (0.10, 0.40)
 MAX_CFR = 0.9
 #: Safety bound on one region's epidemic deaths in a turn (share of its people).
 MAX_TURN_MORTALITY = 0.25
@@ -326,14 +339,34 @@ def _circulating(row: RegionInfection) -> bool:
     return (row.e + row.i) * row.n >= EXTINCT_PEOPLE
 
 
-def _modifiers(region) -> tuple[float, float, bool]:
-    """(susceptibility multiplier, fatality multiplier, famine) of a region."""
-    famine = region.famine_cooldown > 0
+def _modifiers(region, hunger_aware: bool = False) -> tuple[float, float, bool]:
+    """(susceptibility multiplier, fatality multiplier, hunger) of a region.
+
+    ``hunger_aware`` (agent modes, where the economy measures food every
+    turn): susceptibility and fatality rise with the region's hunger. Else
+    (the aggregate model) a famine report's cooldown adds the flat terms.
+    The flag says whether hunger raised either.
+    """
+    if hunger_aware:
+        from chronicler.ecology import region_hunger
+        dearth, famine_c = region_hunger(region)
+        hungry_susc = HUNGER_SUSCEPTIBILITY[0] * dearth + HUNGER_SUSCEPTIBILITY[1] * famine_c
+        hungry_cfr = HUNGER_CFR[0] * dearth + HUNGER_CFR[1] * famine_c
+        famine = dearth > 0.0
+    else:
+        famine = region.famine_cooldown > 0
+        hungry_susc = FAMINE_SUSCEPTIBILITY if famine else 0.0
+        hungry_cfr = FAMINE_CFR if famine else 0.0
     crowd = region.population / max(1, region.carrying_capacity) - CROWDING_THRESHOLD
     crowd = 0.0 if crowd < 0.0 else 1.0 if crowd > 1.0 else crowd
-    susc = 1.0 + (FAMINE_SUSCEPTIBILITY if famine else 0.0) + CROWDING_SUSCEPTIBILITY * crowd
-    cfr = 1.0 + (FAMINE_CFR if famine else 0.0)
+    susc = 1.0 + hungry_susc + CROWDING_SUSCEPTIBILITY * crowd
+    cfr = 1.0 + hungry_cfr
     return susc, cfr, famine
+
+
+def _hunger_aware(world) -> bool:
+    """Agent modes measure every region's food each turn (``food_shortfall``)."""
+    return getattr(world, "agent_mode", None) in ("hybrid", "shadow", "demographics-only")
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +528,8 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
             continue
         _absorb_population(row, int(regions[row.region].population))
         rows[_row_key(row)] = row
-    mods = [_modifiers(region) for region in regions]
+    hunger_aware = _hunger_aware(world)
+    mods = [_modifiers(region, hunger_aware) for region in regions]
     from chronicler.techniques_state import techniques_on
     if techniques_on(world):
         # --techniques: practised medicine lowers case fatality region by region.
@@ -846,7 +880,8 @@ def _reports(world, state: EpidemicState) -> tuple[list["Event"], dict[tuple[int
             region=region.name, shock_category=pathogen.name,
         )
         causes = [row.cause] if row.cause else []
-        if region.famine_cooldown > 0:
+        if _modifiers(region, _hunger_aware(world))[2]:
+            # Hunger raised susceptibility: cite the open food crisis.
             causes.append(provenance.open_episode(world, "famine", region.name))
         provenance.cite(ev, *causes)
         if onset:
@@ -882,7 +917,8 @@ def _civ_responses(world, state: EpidemicState, reports: dict, deaths: dict, acc
     for key in sorted(reports):
         ctrl = regions[key[0]].controller
         row = rows[key]
-        cfr = _effective_cfr(row, PATHOGENS[row.pathogen], _modifiers(regions[row.region])[1])
+        cfr = _effective_cfr(row, PATHOGENS[row.pathogen],
+                             _modifiers(regions[row.region], _hunger_aware(world))[1])
         if ctrl and cfr >= MAJOR_CFR:
             by_civ.setdefault(ctrl, []).append(key)
     for civ_idx, civ in enumerate(world.civilizations):

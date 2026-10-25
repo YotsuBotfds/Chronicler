@@ -9,6 +9,8 @@ from chronicler.ecology import (
     _check_famine_yield,
     compute_resource_yields,
     effective_capacity,
+    hunger_components,
+    hunger_toll_share,
     refresh_resource_yields,
     tick_ecology,
 )
@@ -150,9 +152,13 @@ def test_agent_famine_uses_food_sufficiency_instead_of_raw_yield(mode, sufficien
     yields = {"Fields": [1.0 if famine else 0.01, 0.0, 0.0]}
     events = _famine(world, result, yields=yields)
     assert bool(events) is famine
-    assert world.regions[0].population == (15 if famine and mode == "shadow" else 20)
+    # A first short turn reports a dearth: a third of a famine's stability
+    # drain (1), and in shadow the toll its hunger carries (none in a lean
+    # season, some at no food).
+    toll = int(5 * hunger_toll_share(*hunger_components(sufficiency, 1))) if famine else 0
+    assert world.regions[0].population == (20 - toll if mode == "shadow" else 20)
     assert world.regions[0].famine_cooldown == (5 if famine else 0)
-    assert world.civilizations[0].stability == (77 if famine else 80)
+    assert world.civilizations[0].stability == (79 if famine else 80)
 
 
 @pytest.mark.parametrize("mode", ["hybrid", "shadow", "demographics-only", "off"])
@@ -172,7 +178,12 @@ def test_only_macro_population_modes_move_famine_population_and_refugees(mode):
     result = EconomyResult(food_sufficiency={region.name: 0.0, neighbor.name: 1.0})
     events = _famine(world, result, yields={region.name: [0.01, 0.0, 0.0], neighbor.name: [1.0, 0.0, 0.0]})
     assert len(events) == 1
-    expected = [15, 25] if mode in ("off", "shadow") else [20, 20]
+    # The toll is scaled by the report's hunger: shadow reads the measured
+    # sufficiency (no food, first turn), off mode the yield's depth below 0.12.
+    hunger = hunger_components(0.0, 1) if mode == "shadow" else (1.0, 1.0 - 0.01 / 0.12)
+    toll = int(5 * hunger_toll_share(*hunger))
+    assert toll > 0
+    expected = [20 - toll, 20 + toll] if mode in ("off", "shadow") else [20, 20]
     assert [r.population for r in world.regions] == expected
     assert [c.population for c in world.civilizations] == expected
 

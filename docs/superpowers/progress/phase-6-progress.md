@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`fix/needs-oracle-power`: the needs oracle pools every snapshot and pairing (need gap 0.1, matching otherwise unchanged) and passes on a seed-clustered 95% lower bound of net concordance plus the 60% seed fraction; main subsets 42-61, 62-81, 82-101 PASS (+0.18, +0.20, +0.33), routing `--no-cities` 62-81 FAIL -> PASS, `--agent-movements` 42-61 PASS; needs shuffled in cells FAIL 15 of 15 (method 1 passed 10); need terms zeroed in Rust not reliably caught (1 of 3); comparator flags a method change instead of a new failure; full gate not run. `feat/agent-movements`: movements grounded in people behind `--agent-movements`, default off: per-agent membership (a Rust pool and snapshot column), commons, liberty and sect creeds founded where grievances cluster, recruitment through bonds, co-residence and settlements, demands, reforms, refusals, crackdowns with martyrs, risings, secession through the shared free-city transfer, schisms through the religion path; switch off byte-identical (88 files and the subset gate 42-61); subset gates 42-61, 62-81 and 82-101 PASS / NO REGRESSION with it on (needs 16 -> 12, 13, 14); full gate not run. `feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/hunger-mortality`: hunger kills and lowers births in agent modes, graded by severity: deaths of the young, the old and the poor up to +55% in a sustained total famine (famine death rate 1.54 -> 1.96 times fed), births down by up to 10% in dearth and 37% in famine, a rebound after, epidemic susceptibility and fatality follow measured hunger, a dearth weighs a third of a famine in unrest; the `--agents off` famine toll scales with severity; golden oracles rolled forward; full gate PASS strict, NO REGRESSION against city markets (migration 0.0554, rebellion 0.0301, needs 186 of 200, 0 extinct). `fix/needs-oracle-power`: the needs oracle pools every snapshot and pairing (need gap 0.1, matching otherwise unchanged) and passes on a seed-clustered 95% lower bound of net concordance plus the 60% seed fraction; main subsets 42-61, 62-81, 82-101 PASS (+0.18, +0.20, +0.33), routing `--no-cities` 62-81 FAIL -> PASS, `--agent-movements` 42-61 PASS; needs shuffled in cells FAIL 15 of 15 (method 1 passed 10); need terms zeroed in Rust not reliably caught (1 of 3); comparator flags a method change instead of a new failure; full gate not run. `feat/agent-movements`: movements grounded in people behind `--agent-movements`, default off: per-agent membership (a Rust pool and snapshot column), commons, liberty and sect creeds founded where grievances cluster, recruitment through bonds, co-residence and settlements, demands, reforms, refusals, crackdowns with martyrs, risings, secession through the shared free-city transfer, schisms through the religion path; switch off byte-identical (88 files and the subset gate 42-61); subset gates 42-61, 62-81 and 82-101 PASS / NO REGRESSION with it on (needs 16 -> 12, 13, 14); full gate not run. `feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
 
@@ -53,6 +53,67 @@ and tests only; simulation, Rust and sidecars unchanged. Details:
   migration, against the Rust term (-0.09 on subsets, -0.40 at 500 turns).
   Spiritual has no pairing. Matching cannot see wealth, age or urban
   status. The full gate with method 2 has not been run.
+
+---
+
+## Hunger by severity (2026-10-25, `feat/hunger-mortality`)
+
+`feat/hunger-mortality` from `main` `3355289`, merged with `main` `ec229b5`
+(PR #30, city markets) and `48b72be` (PR #31, agent movements) without
+rebase. A correction, on by default, no switch. Details, sources and tables:
+[`docs/integration/hunger-mortality.md`](../../integration/hunger-mortality.md).
+
+- **Finding.** In agent modes hunger killed no one and did not lower births:
+  famine death rates were 1.5 times the fed rate only through soil, water
+  and disease; famine births matched or beat fed births (fed regions sit in
+  the crowding brake); dearth and famine reports had the same effects; the
+  epidemic boost followed the report's cooldown, not hunger.
+- **Design.** Dearth `min(1, (1 - s) / 0.4)`, famine
+  `(0.6 - s) / 0.6 x min(1, run / 3)` (run below 0.6; Rust reads the new
+  optional region column `food_severe_turns`). Deaths
+  `x (1 + v (0.05 dearth + 0.50 famine))`, `v` 1 under 5 and at 60+, 0.5
+  otherwise, adults x1.25 poorest to x0.75 richest by civ wealth percentile.
+  Births `x (1 - 0.10 dearth)(1 - 0.30 famine)`, no new draw; the rebound
+  comes from the crowding brake. Agent-mode epidemics read measured hunger
+  (`Region.food_shortfall`, saved): susceptibility `+0.15 dearth + 0.35
+  famine`, fatality `x (1 + 0.10 dearth + 0.40 famine)`; `--agents off`
+  keeps the flat cooldown terms. A dearth report drains 1 stability (famine
+  3) and weighs a third of a famine in the cooldown readers
+  (`Region.dearth_cooldown`). `--agents off` and shadow: the famine toll
+  scales with hunger (the old 5 x mult at a total famine), no second term.
+- **Magnitudes** at the low end of the historical ranges. The mid-range
+  design (deaths F 1.50, births F 0.60) failed the needs subset 62-81 (9 of
+  12) and took a world to 30 people; on `ec229b5` an intermediate one took
+  seed 111 to 24: climate phases keep whole worlds in famine for 20-25
+  turns and farm labour has constant returns, so deaths never end a famine.
+- **Effect** (template 42-51 x 200 against `ec229b5`): famine death rate
+  1.54 -> 1.96 times fed (under 5: 2.28, 60+: 1.80); the term is 22% of
+  famine deaths and 2% of dearth deaths; famine births 1.39 -> 1.00 times
+  fed (27% withheld, dearth 5%); births after a famine 1.41 -> 1.59 times
+  fed; epidemic susceptibility in famine 1.21 -> 1.37, fed 1.07 -> 1.05.
+  Procedural 7-11 x 300: deaths 1.49 -> 1.77, births 1.01 -> 0.84.
+- **Gates.** Full 200 x 500 (merged head `223e23a`) against the city-markets
+  report: PASS strict, NO REGRESSION; migration 0.0580 -> 0.0554, rebellion
+  0.0308 -> 0.0301, needs 189 -> 186, latest satisfaction 0.618 -> 0.622,
+  0 extinct, one silent collapse (limit 20); final population median
+  177 -> 165. Subsets 42-61 and 62-81 PASS / NO REGRESSION (needs 16 -> 15
+  both). On `3355289` (cities off) the full gate and both subsets PASS / NO
+  REGRESSION as well. `ca859b7` (aggregate growth term removed) and the
+  movements merge leave hybrid runs byte-identical.
+- **Golden oracles** rolled forward (`corrected_hunger_2026_10*`,
+  `ORACLE_CHAIN` link `hunger`): the scaled aggregate toll changes
+  `standard` from turn 0 and `wide` from turn 9; `single` unchanged.
+- **Tests** (`be99dbe`, extension `5d58881c...bf21da`): cargo 963 passed, 2
+  ignored; not-slow 6,099 passed, 3 skipped; slow 11 passed, 3 skipped;
+  no-Rust 5,879 passed, 223
+  skipped; oracle lane PASS in 76.0 s (2,068 passed, 25 skipped; largest
+  chunk 27.0 s of 110 s). Bundle guard 16.44 MB native, 22.21 MB no-Rust. Tick
+  time within run-to-run spread at ~22k and ~52k alive.
+- **Open**: magnitudes stay low until famines can end themselves
+  (diminishing returns on land) or climate famines shorten; no marriage,
+  flight term or household wealth for children; the dearth weight is a
+  judgment; report effects still wait for the cooldown; the aggregate model
+  has no dearth tier; migration 0.0054 above the strict floor.
 
 ## Agent movements (2026-10-25, `feat/agent-movements`)
 

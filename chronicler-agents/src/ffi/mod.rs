@@ -482,6 +482,10 @@ impl AgentSimulator {
         let market_row = |cols: &[Option<&arrow::array::Float32Array>; 3], i: usize| -> [f32; 3] {
             [0, 1, 2].map(|c| cols[c].map_or(0.0, |arr| arr.value(i)))
         };
+        // Hunger: the severe-shortage run up to the previous turn (absent = 0)
+        let food_severe_turns_col = rb
+            .column_by_name("food_severe_turns")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt16Array>());
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -634,6 +638,7 @@ impl AgentSimulator {
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
                     market_demand: market_row(&market_demand_cols, i),
                     market_supply: market_row(&market_supply_cols, i),
+                    food_severe_turns: food_severe_turns_col.map_or(0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -840,6 +845,7 @@ impl AgentSimulator {
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
                 r.market_demand = market_row(&market_demand_cols, i);
                 r.market_supply = market_row(&market_supply_cols, i);
+                r.food_severe_turns = food_severe_turns_col.map_or(0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
@@ -1379,6 +1385,8 @@ impl AgentSimulator {
         m.insert("fertile_age_total".into(), d.fertile_age_total as f64);
         m.insert("expected_deaths".into(), d.expected_deaths as f64);
         m.insert("expected_births".into(), d.expected_births as f64);
+        m.insert("expected_hunger_deaths".into(), d.expected_hunger_deaths as f64);
+        m.insert("hunger_births_withheld".into(), d.hunger_births_withheld as f64);
         m.insert("sat_near_threshold".into(), d.sat_near_threshold as f64);
         m
     }

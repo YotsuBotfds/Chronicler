@@ -1109,8 +1109,11 @@ def raid_chance(world, ci: int) -> float:
         return 0.0
     hunger = max(0.0, min(1.0, (0.6 - herd_ratio(world, ci)) / 0.6))
     region_map = world.region_map
-    if any(region_map[n].famine_cooldown > 0 for n in civ.regions if n in region_map):
-        hunger = max(hunger, 0.5)
+    from chronicler.ecology import food_crisis_weight
+    crisis = max((food_crisis_weight(region_map[n]) for n in civ.regions if n in region_map),
+                 default=0.0)
+    if crisis > 0.0:
+        hunger = max(hunger, 0.5 * crisis)
     p = RAID_BASE[mode] * (1.0 + RAID_HUNGER * hunger) * (0.5 + max(0.0, min(1.0, civ.asabiya)))
     if _horde_of(state, ci) is not None:
         p *= RAID_HORDE

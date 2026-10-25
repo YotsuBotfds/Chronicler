@@ -384,13 +384,15 @@ class TestSeverityMultiplierWiring:
         world.regions = [r]
         events = _check_famine_yield(
             world,
-            {"R1": [0.0, 0.0, 0.0]},
+            {"R1": [0.0012, 0.0, 0.0]},
             ClimatePhase.DROUGHT,
             threshold=0.12,
             subsistence_base=0.15,
         )
         # V4: Base famine pop loss is 5, severity mult = 1.5 (stress=20).
-        # Population loss: int(5 * 1.5) = 7. So 80 - 7 = 73.
+        # The aggregate toll is scaled by the yield's depth below the famine
+        # threshold (1 - 0.0012 / 0.12 = 0.99 of a total failure):
+        # int(5 * 1.5 * share) = 7. So 80 - 7 = 73.
         assert len(events) == 1
         assert civ.population == 73
 
