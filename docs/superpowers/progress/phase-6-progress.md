@@ -2,7 +2,75 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/cities` from `integrate/wave-7` `bcf14d8`: cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on. Before: `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+
+---
+
+## Cities as actors (2026-10-25, `feat/cities`)
+
+`feat/cities` from `integrate/wave-7` (`bcf14d8`; `origin/main` `2a49040`
+has the same tree), merged with `origin/main` without rebase. Default off
+behind `WorldState.cities` (`--cities`). Details, parameters and an example
+history: `docs/integration/cities.md`.
+
+- **Slice.** A city is an M56a settlement grown to town size, keyed by its
+  `settlement_id`: ranks town / city / great city from M56a's estimate
+  (smoothed), decline, falls (abandoned when M56a dissolves the settlement,
+  deserted when nearly empty), refounding that names its predecessor.
+  Commerce from residents by occupation, trade routes and food; dues by
+  charter to the lord, paid next Phase 2 as `keep` (finance counts them);
+  a civic purse for charters and walls, plundered in sacks. Patricians raise
+  the lord's merchant faction; charter petitions (granted by trait,
+  treasury, weakness, merchant influence; refusals leave grievance); unrest
+  from misery, hunger, dues, occupation and grievance; urban revolts end in
+  suppression, concession or, against a lord under 30 stability, a free
+  city (a new civ built as secession builds one). Sacks on occupation or
+  conquest; walls through the infrastructure pipeline; epidemics hotter by
+  urban share; chartered cities deepen domestic credit. City events name
+  the settlement, so narration gets its in-world name.
+- **Rust.** A fourth healthy-world driver, urban pull, with its own gate
+  (rural non-soldier adults; a neighbouring region of the realm whose
+  `city_pull` exceeds home's by 0.25, fed, with room; farmers only below
+  0.80): pull 0.5 x ramp, net of roots, reach rule. `city_pull` is an
+  optional region-batch column (absent = 0). Budget term `urban`. No
+  existing weight changed; no new draw.
+- **Identity** (`scripts/cities_identity.py`, base `bcf14d8` exported with
+  its own extension): template seeds 42/7/1234 (off 300, hybrid 200),
+  procedural 48x10 seed 7 (off 200, hybrid 120): 88 files, 0 differences,
+  default and `--no-cities`; `--cities` with `--agents off`: 42 files
+  identical apart from the layer's own field. Subset gate 42-61 base
+  against switch-off: 2,200 run files and 4 report files (batch path
+  normalized) identical.
+- **Gates** (switch on against off, 20 x 200 hybrid, `--parallel 1`): both
+  PASS / NO REGRESSION. 42-61 / 62-81: migration 0.0600 -> 0.0635 / 0.0571
+  -> 0.0580; rebellion 0.0343 -> 0.0395 / 0.0189 -> 0.0207; satisfaction
+  within 0.003; needs 13 -> 19 / 15 -> 17 seeds; epidemic deaths +5.5% /
+  +12.8%; no extinct world; arcs (informational) cinderella 40.2% against
+  the 40% ceiling in both (bases 37-38%). Per world: 4.7 cities founded,
+  1.1 fallen, 4.0 charters, 0.75 revolts, 0.075 free cities.
+- **Urban pull**: 1.9% of migration units (4.7% with household followers);
+  gate open for 1.7% of evaluated agent-turns.
+- **Tick time** (~23.5k and ~54k agents, cities live): process CPU
+  unchanged within noise. Hybrid guard world 500 turns: 15.11 -> 17.81 MB,
+  the field 0.38 MB; the agents-off guard is unchanged.
+- **Tests:**
+  - `cargo test --locked`: 933 passed, 2 ignored (+6: the urban gate, the
+    bit identity without `city_pull`, the budget term, `tests/test_urban_pull.rs`).
+  - `pytest -m "not slow" -n 2` (fresh native build, `96cad2b5...`): 5,999
+    passed, 3 skipped (34 in `tests/test_cities.py`, 1 resume test in
+    `tests/test_wave3_combined.py`).
+  - `pytest -m slow -n 2`: 11 passed, 3 skipped.
+  - No-Rust lane (slow included): 5,789 passed, 213 skipped.
+  - Oracle lane (`tests/test_cities.py` in `systems-1`): PASS in 79.6 s,
+    slowest chunk 26.7 s of 110 s.
+  - Full 200-seed gate: not run.
+- **Open:** the full 200-seed gate with the switch on (watch rebellion and
+  the arcs ceiling); no viewer panel (`history[n].cities` is in the
+  bundle); revolts mostly end in concessions because hybrid lords sit near
+  30 stability; cities need agents (a world without settlements founds
+  none with `--agents off`). Next slices: city markets in the goods economy
+  and merchant routing, a guild faction, leagues and protectors for free
+  cities, places for scholars and archives, siege targeting by wealth.
 
 ---
 
