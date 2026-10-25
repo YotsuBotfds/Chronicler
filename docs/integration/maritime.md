@@ -8,7 +8,10 @@ base for every result below. Code: `src/chronicler/maritime.py`
 (behavior) and `src/chronicler/maritime_state.py` (persisted state); native
 change in `chronicler-agents/src/merchant.rs` and `src/ffi/mod.rs`.
 
-**Status.** Default off behind `WorldState.maritime` (CLI `--maritime`).
+**Status.** On by default for new worlds since the Wave 8 full gate
+([defaults-wave8.md](defaults-wave8.md)); `--no-maritime` opts out and saved
+worlds keep their setting. Originally default off behind
+`WorldState.maritime` (CLI `--maritime`).
 With the switch off no maritime code runs and every output is byte-identical
 to `92b6122` (see [Identity](#feature-off-identity)). The 20-seed subset gate
 passes with the switch on (see [Results](#results)); the full 200-seed gate
@@ -246,7 +249,7 @@ so on a world without sea nothing changes.
 | --- | --- |
 | CLI | `--maritime` / `--no-maritime` (`BooleanOptionalAction`) |
 | World field | `WorldState.maritime: MaritimeState \| None` (presence = on) |
-| Default | **Off** (`maritime.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and caller-supplied worlds keep their setting; `--no-maritime` drops the state |
+| Default | **On** (`maritime.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the full gate in [defaults-wave8.md](defaults-wave8.md)) for `execute_run`, batch and the live server; `--no-maritime` opts out and drops the state; resumed, forked and caller-supplied worlds keep their setting. `scripts/benchmark_headless.run` pins it off so the frozen performance oracles replay the same worlds |
 | Gate runner | `scripts/m53b_run_validation.py --maritime` forwards the switch to every run and records it in `run_manifest.json` |
 | Dormant fields | `WorldState.maritime` and `TurnSnapshot.maritime` are `None` by default and omitted from serialized output, so flag-off saves, bundles and fixtures keep their bytes and old saves load unchanged |
 | State | zones (status, controller, pirates, status event), lanes, land masses, fleets, battles, blockades, colonies, blocked lanes, escort requests, landings, pending measurements, counters; region, civ and zone identity by index |
@@ -550,7 +553,8 @@ Chumapa Wilds (turn 77) and holds the colony to the end.
 
 ## Known gaps
 
-* The full 200-seed gate has not been run with `--maritime`.
+* The full 200-seed gate ran with maritime on in
+  [defaults-wave8.md](defaults-wave8.md), together with agendas and nomads.
 * Piracy is small in these worlds: most sea lanes have an unclaimed end for
   long stretches, patrols command trade zones early, and one cargo unit per
   merchant trip keeps sea cargo low. The pressure model and the native raid

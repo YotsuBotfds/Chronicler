@@ -815,16 +815,39 @@ def test_cli_flag_gate_forwarding_and_snapshot(tmp_path):
     row = report.run_metrics(out / "state.json")
     assert row["maritime"] and row["zones"] == len(state["maritime"]["zones"])
     assert row["fleets"] == int(state["maritime"]["counters"]["fleets_commissioned"])
-    # Default off for new worlds.
+    # --no-maritime leaves the layer out.
     out2 = tmp_path / "off"
     args = parser.parse_args(["--seed", "7", "--turns", "3", "--regions", "24", "--civs", "6",
-                              "--worldgen", "procedural", "--simulate-only",
+                              "--worldgen", "procedural", "--simulate-only", "--no-maritime",
                               "--output", str(out2 / "chronicle.md"), "--state", str(out2 / "state.json")])
     execute_run(args)
     assert "maritime" not in json.loads((out2 / "state.json").read_text())
     # A flag-off run is measured with a sea model derived from its saved world.
     row = report.run_metrics(out2 / "state.json")
     assert not row["maritime"] and row["zones"] == len(state["maritime"]["zones"]) and row["fleets"] == 0
+
+
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
+    from chronicler.main import _build_parser, execute_run
+    assert M.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    parser = _build_parser()
+
+    def args(out, *extra, turns=3):
+        return parser.parse_args(["--seed", "7", "--turns", str(turns), "--regions", "24", "--civs", "6",
+                                  "--worldgen", "procedural", "--simulate-only", *extra,
+                                  "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
+    fresh = tmp_path / "fresh"
+    execute_run(args(fresh))
+    assert "maritime" in json.loads((fresh / "state.json").read_text())
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-maritime"))
+    assert "maritime" not in json.loads((off / "state.json").read_text())
+    for run, kept in ((off, False), (fresh, True)):
+        resumed = args(run, turns=5)
+        resumed.resume = str(run / "state.json")
+        resumed.state = str(run / "resumed.json")
+        execute_run(resumed)
+        assert ("maritime" in json.loads((run / "resumed.json").read_text())) is kept
 
 
 def test_naval_battles_and_blockades_feed_diplomatic_memory():

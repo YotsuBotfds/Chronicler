@@ -2,7 +2,7 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/cities` from `integrate/wave-7` `bcf14d8`: cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on. Before: `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
 
@@ -71,6 +71,42 @@ history: `docs/integration/cities.md`.
   none with `--agents off`). Next slices: city markets in the goods economy
   and merchant routing, a guild faction, leagues and protectors for free
   cities, places for scholars and archives, siege targeting by wealth.
+
+---
+
+## Wave 8 defaults: agendas, maritime, nomads (2026-10-25, `feat/defaults-wave8`)
+
+`feat/defaults-wave8` from `integrate/wave-7` (`bcf14d8`; on `main` as
+`2a49040`, same tree), no rebase. Details and tables:
+[`docs/integration/defaults-wave8.md`](../../integration/defaults-wave8.md).
+No oracle, threshold or system parameter changed.
+
+- **Subset gates** (all three on against all three off, `bcf14d8`): 42-61
+  and 62-81 PASS, NO REGRESSION, 0 extinct. Rebellion 0.0343 -> 0.0350 and
+  0.0189 -> 0.0130; migration 0.0600 -> 0.0599 and 0.0571 -> 0.0549;
+  latest satisfaction 0.623 -> 0.615 and 0.609 -> 0.620; needs 13 -> 13
+  and 15 -> 14. The off batches equal the Wave 7 subset reports.
+- **Full gate** (200 x 500, the flipped defaults, no switch) against the
+  Wave 7 full report: PASS strict, NO REGRESSION. Migration 0.0570 ->
+  0.0576, satisfaction 0.608 / 0.619 -> 0.607 / 0.619, rebellion 0.0307 ->
+  0.0317, needs 185 -> 194, cohort and community 200, artifacts 1.29 ->
+  1.49, founders all surviving 0.115 -> 0.110, 0 extinct.
+- **Flips**, one commit each (`884f28d` maritime, `29e2dce` agendas,
+  `b21c215` nomads): `DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, CLI help,
+  live comments, a default-and-resume test each; `benchmark_headless.run`
+  pins the three off (without the pins 9 golden tests fail). Agendas lean on
+  governance, finance and techniques, all on by default; none is required.
+- **Identity**: flags off against `bcf14d8` 69 files, 0 differences; new
+  defaults against `bcf14d8` with the three flags 25 files, 0; an old save
+  resumed by both 24 files, 0, and stays off.
+- **Bundle guard** (takes the defaults): 17.66 -> 20.35 MB native, 18.28 ->
+  19.72 MB no-Rust, under 24. Golden fixtures unchanged.
+- **Tests** (`ba5ceef`, fresh native build): not-slow 5,967 passed, 3
+  skipped; slow 11 passed, 3 skipped; no-Rust 5,760 passed, 210 skipped;
+  oracle lane PASS (79.7 s, largest chunk 29.4 s of 110 s). The pruning
+  test world pins the three off (its history needs a civ to die).
+- **Open**: rebellion floor on low-rebellion seed sets; migration margin
+  0.0076; maritime `navigation_level` still 0.
 
 ---
 

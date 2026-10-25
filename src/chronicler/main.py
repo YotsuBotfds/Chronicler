@@ -1494,20 +1494,21 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--maritime", action=argparse.BooleanOptionalAction, default=None,
                         help="Maritime layer: fleets built at coastal ports, sea-zone control, "
                              "blockades of enemy sea lanes and sea supply, escorted crossings and "
-                             "amphibious landings, piracy and colonization by sea (default off for "
-                             "new worlds; saved on resume)")
+                             "amphibious landings, piracy and colonization by sea (default on for "
+                             "new worlds; --no-maritime opts out; saved on resume)")
     parser.add_argument("--gp-agendas", action=argparse.BooleanOptionalAction, default=None,
                         help="Great-person agendas: generals seek campaigns and may seize the throne, "
                              "merchants open and protect trade routes, found trading houses and lend "
                              "to the crown, prophets spread the faith and found shrines, scientists "
                              "pursue the next era or an invention; alliances and rivalries weigh on "
-                             "coups and succession (default off for new worlds; saved on resume)")
+                             "coups and succession (default on for new worlds; --no-gp-agendas opts out; "
+                             "saved on resume)")
     parser.add_argument("--nomads", action=argparse.BooleanOptionalAction, default=None,
                         help="Pastoral and nomadic peoples: subsistence modes seeded from terrain "
                              "(steppe, desert and tundra favour herding), herds with drought and "
                              "dzud, seasonal pastures, raids and tribute, hordes under a strong khan "
                              "that fragment on his death, and sedentarization of conquerors (default "
-                             "off for new worlds; saved on resume)")
+                             "on for new worlds; --no-nomads opts out; saved on resume)")
     parser.add_argument("--cities", action=argparse.BooleanOptionalAction, default=None,
                         help="Cities as actors: settlements grown into towns and cities with "
                              "commerce and dues to their lord, a pull on rural migrants of the "

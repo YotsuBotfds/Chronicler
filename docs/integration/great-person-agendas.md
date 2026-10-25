@@ -12,7 +12,10 @@ identity and gate base for every result below. Code:
 extension of the M66b kernel `src/chronicler/ruler_ambitions.py`. No Rust
 changed.
 
-**Status.** Default off behind `WorldState.gp_agendas` (CLI
+**Status.** On by default for new worlds since the Wave 8 full gate
+([defaults-wave8.md](defaults-wave8.md)); `--no-gp-agendas` opts out and
+saved worlds keep their setting. The paragraphs below record the state at
+each step. Originally default off behind `WorldState.gp_agendas` (CLI
 `--gp-agendas`). With the switch off no agenda code runs and every output is
 byte-identical to `705fe2e` (see [Feature-off identity](#feature-off-identity)).
 With the switch on, on top of the new defaults (epidemiology, finance and
@@ -255,7 +258,7 @@ loyalists and a crowned great person's rivals its opposition.
 | --- | --- |
 | CLI | `--gp-agendas` / `--no-gp-agendas` (`BooleanOptionalAction`) |
 | World field | `WorldState.gp_agendas: GPAgendaState \| None` (presence = on) |
-| Default | **Off** (`gp_agendas.DEFAULT_ENABLED_FOR_NEW_WORLDS = False`) for `execute_run`, batch and the live server; resumed, forked and caller-supplied worlds keep their setting; `--no-gp-agendas` drops the state |
+| Default | **On** (`gp_agendas.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, since the full gate in [defaults-wave8.md](defaults-wave8.md)) for `execute_run`, batch and the live server; `--no-gp-agendas` opts out and drops the state; resumed, forked and caller-supplied worlds keep their setting. `scripts/benchmark_headless.run` pins it off so the frozen performance oracles replay the same worlds |
 | Gate runner | `scripts/m53b_run_validation.py --gp-agendas` forwards the switch to every run and records it in `run_manifest.json` |
 | Dormant fields | `WorldState.gp_agendas` and `TurnSnapshot.gp_agendas` are `None` by default and omitted from serialized output, so flag-off saves, bundles and fixtures keep their bytes and old saves load unchanged; crisis candidates carry `backers`/`opponents` only with the switch on |
 | State | records (agenda, cursors, renown, cooldown, declaration and motive ids), bonds, the evidence cursor, counters, the outcome log, trading houses |
@@ -392,7 +395,8 @@ community, needs and cohort are required; the rest is informational.
   seed 42 rerun (hybrid with the sidecar, and `--agents off` 300 turns)
   gives states and bundles identical to the gated ones apart from `causes`
   and the causal index, and an identical agent-event log.
-* **Not run:** the 200-seed x 500-turn full gate. Default stays off.
+* **Not run** on this base: the 200-seed x 500-turn full gate. It ran
+  later, in [defaults-wave8.md](defaults-wave8.md).
 
 ## On and off
 
@@ -764,8 +768,9 @@ with any rebellion in either arm.
 
 ## Open
 
-* **Full gate not run.** The 200-seed x 500-turn gate is required before
-  any default flip; the default stays off.
+* **Full gate.** Run in [defaults-wave8.md](defaults-wave8.md) with
+  maritime and nomads, on the persecution fix and healthy-world migration;
+  the default is on since then.
 * **Left-over persecution intensity (outside this feature).** Fixed on
   `fix/leftover-persecution`, together with the oddity below; see
   [persecution-fix-2026-10.md](persecution-fix-2026-10.md) for the fix and
