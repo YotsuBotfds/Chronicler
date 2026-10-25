@@ -978,7 +978,7 @@ def test_cli_flag_gate_forwarding_snapshot_and_report(tmp_path):
     assert row["on"] and row["declared"] == state["gp_agendas"]["counts"].get("declared", 0)
     off = tmp_path / "off"
     execute_run(parser.parse_args(["--seed", "42", "--turns", "3", "--regions", "8", "--civs", "4",
-                                   "--agents", "off", "--simulate-only",
+                                   "--agents", "off", "--simulate-only", "--no-gp-agendas",
                                    "--output", str(off / "chronicle.md"), "--state", str(off / "state.json")]))
     assert "gp_agendas" not in json.loads((off / "state.json").read_text())
     assert not report.run_metrics(off)["on"]
@@ -987,6 +987,29 @@ def test_cli_flag_gate_forwarding_snapshot_and_report(tmp_path):
     assert resumed.gp_agendas is not None
     G.set_gp_agendas_enabled(resumed, False)
     assert resumed.gp_agendas is None
+
+
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
+    from chronicler.main import _build_parser, execute_run
+    assert G.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    parser = _build_parser()
+
+    def args(out, *extra, turns=3):
+        return parser.parse_args(["--seed", "42", "--turns", str(turns), "--regions", "8", "--civs", "4",
+                                  "--agents", "off", "--simulate-only", *extra,
+                                  "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
+    fresh = tmp_path / "fresh"
+    execute_run(args(fresh))
+    assert "gp_agendas" in json.loads((fresh / "state.json").read_text())
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-gp-agendas"))
+    assert "gp_agendas" not in json.loads((off / "state.json").read_text())
+    for run, kept in ((off, False), (fresh, True)):
+        resumed = args(run, turns=5)
+        resumed.resume = str(run / "state.json")
+        resumed.state = str(run / "resumed.json")
+        execute_run(resumed)
+        assert ("gp_agendas" in json.loads((run / "resumed.json").read_text())) is kept
 
 
 def test_hybrid_runs_with_agendas_are_deterministic(tmp_path):

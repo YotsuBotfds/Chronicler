@@ -100,6 +100,7 @@ def run(workload: dict, output: Path, on_turn=None):
         diplomacy=False,  # frozen pre-diplomacy oracles; see docs/integration/diplomacy.md
         techniques=False,  # frozen pre-techniques oracles; see docs/integration/techniques.md
         maritime=False,  # frozen pre-maritime oracles; see docs/integration/maritime.md
+        gp_agendas=False,  # frozen pre-agenda oracles; see docs/integration/great-person-agendas.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

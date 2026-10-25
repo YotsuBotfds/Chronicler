@@ -1482,7 +1482,8 @@ def _build_parser() -> argparse.ArgumentParser:
                              "merchants open and protect trade routes, found trading houses and lend "
                              "to the crown, prophets spread the faith and found shrines, scientists "
                              "pursue the next era or an invention; alliances and rivalries weigh on "
-                             "coups and succession (default off for new worlds; saved on resume)")
+                             "coups and succession (default on for new worlds; --no-gp-agendas opts out; "
+                             "saved on resume)")
     parser.add_argument("--nomads", action=argparse.BooleanOptionalAction, default=None,
                         help="Pastoral and nomadic peoples: subsistence modes seeded from terrain "
                              "(steppe, desert and tundra favour herding), herds with drought and "

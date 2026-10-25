@@ -1162,7 +1162,7 @@ def run_live(
         )
         _maritime = getattr(args, "maritime", None)
         set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
-        # Great-person agendas: new live worlds follow the CLI default (--gp-agendas opts in).
+        # Great-person agendas: new live worlds follow the CLI default (--no-gp-agendas opts out).
         from chronicler.gp_agendas import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
         )
