@@ -48,6 +48,13 @@
   no-Rust 5,792 passed, 211 skipped; oracle lane PASS (77.3 s, largest
   chunk 27.2 s of 110 s); viewer 267 tests, lint and build. Golden
   fixtures unchanged.
+- **Merged with `main`** (`cee5013`: PR #27 and PR #28 cities, default off),
+  no rebase: `urban` joins the driver names; cities record famine, not
+  dearth, as a misfortune. Merged head: `cargo test` 934 passed, 2 ignored;
+  not-slow 6,036 passed, 3 skipped; slow 11 passed, 3 skipped; no-Rust
+  5,825 passed, 214 skipped; oracle lane PASS (83.8 s, largest chunk
+  30.3 s); viewer 267 tests, lint, build; bundle guard bytes unchanged.
+  The full gate ran on `9930dbc` (cities off, so it stands).
 - **Open**: hunger kills no one in agent modes; the cooldown effects do not
   scale with severity; a famine is declared up to five turns late; the
   famine-memory threshold needs the migration probe before any change;

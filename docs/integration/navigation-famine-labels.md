@@ -415,6 +415,19 @@ host (`-n 2`):
 | Viewer `npm test`, `npm run lint`, `npm run build` | 267 tests passed; lint clean; build passed (the existing large-chunk warning) |
 | Golden fixtures | unchanged |
 
+After the merge with `main` (`2bd2c53`, extension `6df1c3e1…19c33f0`,
+cities' Rust included):
+
+| Check | Result |
+| --- | --- |
+| `cargo test --locked` (debug info off) | 934 passed, 2 ignored |
+| `pytest -m "not slow" -n 2` | 6,036 passed, 3 skipped, 526 subtests |
+| `pytest -m slow -n 2` | 11 passed, 3 skipped |
+| No-Rust lane | 5,825 passed, 214 skipped |
+| `scripts/run_python_oracle_checks.py` | PASS in 83.8 s: 2,015 passed, 16 skipped in four chunks; largest chunk 30.3 s of 110 s |
+| Viewer tests, lint, build | 267 tests passed; lint clean; build passed |
+| Bundle-size guard world | 18.66 MB native, 19.80 MB no-Rust (the same bytes as `9930dbc`) |
+
 New tests: `tests/test_food_crisis_labels.py` (14) and
 `tests/test_migration_driver_labels.py` (16, one native) in the oracle
 lane's `systems-1` chunk; three navigation tests in `test_maritime.py` and
