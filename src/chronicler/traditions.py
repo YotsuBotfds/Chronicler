@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from chronicler.history_index import history_index
 from chronicler.contact_ledger import MERCHANT_HUB_PARTNERS, ledger_enabled, trade_partner_count
-from chronicler.models import WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition
+from chronicler.models import (
+    FOOD_CRISIS_EVENT_TYPES, WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition,
+)
 from chronicler.utils import stable_hash_int
 
 
@@ -22,7 +24,7 @@ def update_event_counts(world: WorldState) -> None:
         if event.event_type == "war" and "attacker_wins" in event.description:
             civ.event_counts["wars_won"] = civ.event_counts.get("wars_won", 0) + 1
             civ.war_win_turns.append(world.turn)
-        elif event.event_type == "famine":
+        elif event.event_type in FOOD_CRISIS_EVENT_TYPES:  # famine or dearth, as before the labels
             civ.event_counts["famines_survived"] = civ.event_counts.get("famines_survived", 0) + 1
 
     # Prune old war wins (only keep last 20 turns — matches _WAR_WIN_WINDOW in great_persons.py)

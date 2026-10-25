@@ -9,7 +9,7 @@ def test_render_legacy_memory():
     assert result is not None
     assert "ancestral" in result.lower() or "inherited" in result.lower()
     # Should still mention the event content, not just generic "legacy"
-    assert "famine" in result.lower()
+    assert "hunger" in result.lower()
 
 
 def test_render_normal_memory_no_ancestral():

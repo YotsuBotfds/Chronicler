@@ -973,6 +973,26 @@ def _region_index(world, region) -> int:
     return index.get(region.name, -1)
 
 
+def technique_level(world, civ, domain: str) -> int:
+    """How many techniques of ``domain`` the civ knows; 0 with techniques off.
+
+    A read-only accessor for other systems. It reads the known sets saved at
+    the last technique tick (``TechniqueState.known``, with the gain/loss
+    hysteresis), so a resumed run reads what an uninterrupted one does. For
+    ``"navigation"`` it counts coastal sailing, celestial navigation, the
+    compass and ocean navigation (0 to 4). An unknown domain, a civ that is
+    not on the world, or one with no known set reads 0.
+    """
+    if not techniques_on(world) or domain not in DOMAINS:
+        return 0
+    known = world.techniques.known
+    ci = _civ_index_of(world, civ)
+    if ci < 0 or ci >= len(known):
+        return 0
+    d = DOMAINS.index(domain)
+    return sum(1 for k in known[ci] if 0 <= k < _K and TECHNIQUES[k].domain == d)
+
+
 def military_factor(world, civ, attacking: bool) -> float:
     """Battle strength multiplier from the civ's practised arms techniques."""
     levels = _civ_levels(world, _civ_index_of(world, civ))

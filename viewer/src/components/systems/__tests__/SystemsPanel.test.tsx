@@ -18,7 +18,7 @@ import { NomadsPanel } from "../NomadsPanel";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
 import { WarsPanel } from "../WarsPanel";
-import { famineSpans } from "../../../lib/food";
+import { famineSpans, foodCrisisSpans } from "../../../lib/food";
 import { TechniquesPanel } from "../TechniquesPanel";
 
 afterEach(cleanup);
@@ -222,6 +222,23 @@ describe("FoodPanel", () => {
       .toBe(snapshot.food!.aid.length);
     fireEvent.click(within(strip).getByRole("button", { name: "Bredoham Wetlands" }));
     expect(p.onSelectRegion).toHaveBeenCalledWith("Bredoham Wetlands");
+  });
+
+  it("separates dearth from famine when the bundle labels its reports", () => {
+    // Relabel every onset a dearth: its episode is a dearth until a later report says famine.
+    const labelled = {
+      ...fixture,
+      events_timeline: fixture.events_timeline.map((event) => (
+        event.event_type === "famine" && event.episode === "onset" ? { ...event, event_type: "dearth" } : event)),
+    };
+    const spans = foodCrisisSpans(labelled.events_timeline);
+    const snapshot = labelled.history.find((entry) => spans.some((span) => span.kind === "dearth"
+      && span.start <= entry.turn && (span.end === null || span.end > entry.turn)))!;
+    render(<FoodPanel {...props(labelled, snapshot)} />);
+    expect(screen.getByText("Regions in dearth")).toBeInTheDocument();
+    const hungry = screen.getByRole("table", { name: `Hungry regions at turn ${snapshot.turn}` });
+    expect(within(hungry).getAllByText(/^Dearth since T/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("dearth").length).toBeGreaterThan(0);
   });
 
   it("counts famines only when the bundle has no food field", () => {

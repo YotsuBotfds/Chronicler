@@ -17,7 +17,9 @@ from chronicler.ffi_constants import (
 from chronicler.great_persons import _append_deed
 from chronicler.history_index import history_index
 from chronicler.leaders import _pick_name, strip_title, ALL_TRAITS
-from chronicler.models import AgentEventRecord, CivShock, Event, GreatPerson
+from chronicler.models import (
+    NO_MIGRATION_DRIVER, AgentEventRecord, CivShock, Event, GreatPerson, migration_driver_name,
+)
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
 from chronicler.utils import resolve_civ_faith_id
@@ -69,6 +71,7 @@ MULE_MAPPING = {
 }
 
 SUMMARY_TEMPLATES = {
+    # Without a recorded driver (extensions and files before it).
     "mass_migration": "{count} {occ_majority} fled {source_region} for {target_region}",
     "local_rebellion": "Rebellion erupted in {region} as {count} discontented {occ_majority} rose up",
     "demographic_crisis": "{region} lost {pct}% of its population over {window} turns",
@@ -77,6 +80,42 @@ SUMMARY_TEMPLATES = {
     "economic_boom": "Economic boom in {region}: {count} workers switched to merchant trades over {window} turns",
     "brain_drain": "{count} scholars fled {region} over {window} turns",
 }
+
+
+# A mass migration's description by its dominant driver (the largest utility
+# term of most of its moves, ``models.MIGRATION_DRIVER_NAMES``). The
+# simulation decides the driver; the description only reads it.
+MASS_MIGRATION_BY_DRIVER = {
+    "frontier": "{count} {occ_majority} left {source_region} to settle {target_region}",
+    "wage": "{count} {occ_majority} left {source_region} for work in {target_region}",
+    "chain": "{count} {occ_majority} followed kin from {source_region} to {target_region}",
+    "urban": "{count} {occ_majority} left {source_region} for the city in {target_region}",
+    "famine_memory": "{count} {occ_majority} fled hunger in {source_region} for {target_region}",
+    "opp_food": "{count} {occ_majority} fled hunger in {source_region} for {target_region}",
+    "persecution": "{count} {occ_majority} fled persecution in {source_region} for {target_region}",
+    "persecution_memory": "{count} {occ_majority} fled persecution in {source_region} for {target_region}",
+    "battle_memory": "{count} {occ_majority} fled war in {source_region} for {target_region}",
+    "conquest_memory": "{count} {occ_majority} fled war in {source_region} for {target_region}",
+    "low_satisfaction": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
+    "safety_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
+    "material_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
+    "spiritual_need": "{count} {occ_majority} left hardship in {source_region} for {target_region}",
+    "opp_satisfaction": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
+    "opp_capacity": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
+    "opp_river": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
+    "opp_news": "{count} {occ_majority} left {source_region} for better prospects in {target_region}",
+}
+
+
+def dominant_migration_driver(events) -> str | None:
+    """The driver most of these migration records carry (ties: the lower
+    term index); None when none carries one."""
+    counts = Counter(e.migration_driver for e in events
+                     if migration_driver_name(e.migration_driver) is not None)
+    if not counts:
+        return None
+    code = min(counts, key=lambda c: (-counts[c], c))
+    return migration_driver_name(code)
 
 
 VALUE_PERSONALITY_MAP = {
@@ -1772,7 +1811,7 @@ class AgentBridge:
         type_names = {code: type_map.get(code, f"unknown_{code}") for code in set(event_type_codes)}
         # Positional construction in AgentEventRecord field order: turn,
         # agent_id, event_type, region, target_region, civ_affinity,
-        # occupation, belief, target_agent_id, formed_turn.
+        # occupation, belief, target_agent_id, formed_turn, migration_driver.
         return list(starmap(AgentEventRecord, zip(
             repeat(turn, num_rows),
             column("agent_id"),
@@ -1784,6 +1823,7 @@ class AgentBridge:
             optional_column("belief", None),
             optional_column("target_agent_id", 0),
             optional_column("formed_turn", 0),
+            optional_column("migration_driver", NO_MIGRATION_DRIVER),
         )))
 
     def _process_promotions(self, batch, world) -> list:
@@ -2019,6 +2059,7 @@ class AgentBridge:
                 description=f"{name} migrated from {source_name} to {target_name}",
                 importance=4,
                 source="agent",
+                driver=migration_driver_name(e.migration_driver),
                 **self._character_place(e.agent_id, source_name),
             ))
             if e.agent_id in self.gp_by_agent_id:
@@ -2381,15 +2422,17 @@ class AgentBridge:
                 occ_majority = OCCUPATION_NAMES[occ_counts.most_common(1)[0][0]]
                 targets = Counter(e.target_region for e in events)
                 target_id = targets.most_common(1)[0][0]
+                driver = dominant_migration_driver(events)
+                template = MASS_MIGRATION_BY_DRIVER.get(driver, SUMMARY_TEMPLATES["mass_migration"])
                 summaries.append(Event(
                     turn=world.turn, event_type="mass_migration",
                     actors=self._named_actors_in_region(region_id, named_agents, current),
-                    description=SUMMARY_TEMPLATES["mass_migration"].format(
+                    description=template.format(
                         count=len(events), occ_majority=occ_majority,
                         source_region=region_names.get(region_id, f"region {region_id}"),
                         target_region=region_names.get(target_id, f"region {target_id}"),
                     ),
-                    importance=5, source="agent", **self._summary_place(world, region_id),
+                    importance=5, source="agent", driver=driver, **self._summary_place(world, region_id),
                 ))
 
         # Local rebellion: >=5 agents rebel in one region

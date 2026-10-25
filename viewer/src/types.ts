@@ -144,6 +144,10 @@ export interface Event {
   civs?: string[];
   episode?: "onset" | "tick" | "repeat" | "end" | null;
   duration?: number | null;
+  // Agent migration events (`mass_migration`, `notable_migration`): the
+  // largest utility term of the moves (e.g. "frontier", "famine_memory").
+  // Absent on bundles written before it and on every other event.
+  driver?: string | null;
 }
 
 export interface NamedEvent {

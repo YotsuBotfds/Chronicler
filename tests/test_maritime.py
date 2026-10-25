@@ -116,9 +116,58 @@ def test_template_world_without_a_clique_has_no_sea():
     assert _tick(world) == []
 
 
-def test_navigation_level_is_neutral_without_a_registry():
+def test_navigation_level_is_neutral_with_techniques_off():
     world = _proc()
+    assert world.techniques is None
     assert M.navigation_level(world, world.civilizations[0]) == 0
+
+
+def _knowing(world: WorldState, civ: int, keys: list[str]) -> None:
+    """Techniques on, with ``civ`` knowing ``keys`` and every other civ nothing."""
+    from chronicler.techniques_state import TECHNIQUE_INDEX, TechniqueState
+    known = [[] for _ in world.civilizations]
+    known[civ] = sorted(TECHNIQUE_INDEX[k] for k in keys)
+    world.techniques = TechniqueState(initialized_turn=0, last_tick_turn=0, known=known)
+
+
+def test_navigation_level_counts_the_known_navigation_techniques():
+    world = _proc()
+    _knowing(world, 0, ["sailing", "celestial_navigation", "writing", "bronze_working"])
+    knows, other = world.civilizations[0], world.civilizations[1]
+    assert M.navigation_level(world, knows) == 2  # writing and bronze are other domains
+    assert M.navigation_level(world, other) == 0
+    _knowing(world, 0, ["sailing", "celestial_navigation", "compass", "ocean_navigation"])
+    assert M.navigation_level(world, knows) == 4
+
+
+def test_navigation_level_reaches_quality_range_ships_and_storms(monkeypatch):
+    world = _proc()
+    civ = world.civilizations[0]
+    base_quality, base_range = M.fleet_quality(world, civ), M._fleet_range(world, civ)
+    _knowing(world, 0, ["sailing", "celestial_navigation"])
+    assert M.fleet_quality(world, civ) == pytest.approx(base_quality * (1 + 2 * M.NAVIGATION_QUALITY))
+    assert M._fleet_range(world, civ) == base_range + 2
+    # Storms: two known navigation techniques scale the chance by 0.7, so a
+    # roll at 0.8 of the base chance sinks ships only without them.
+    zone = world.maritime.zones[ZONE]
+    fleet = _fleet(world, 0, ZONE, 10, zone.ports[0])
+    civ.active_focus = None
+    chance = M.STORM_CHANCE * M.STORM_KIND.get(zone.kind, 1.0)
+
+    class _Rng:
+        def random(self):
+            return chance * 0.8
+
+        def uniform(self, a, b):
+            return a
+
+    monkeypatch.setattr(M, "_rng", lambda *a, **k: _Rng())
+    world.turn = 1  # spring: no winter factor
+    M._storms(M._Tick(world, None, None))
+    assert fleet.ships == 10
+    world.techniques = None
+    M._storms(M._Tick(world, None, None))
+    assert fleet.ships < 10
 
 
 # --- switch, dormancy, persistence ------------------------------------------------------------

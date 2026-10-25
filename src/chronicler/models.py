@@ -373,7 +373,7 @@ _DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
 # Optional region fields omitted from serialized output while None, so worlds
 # that never use them keep their exact bytes.
 _DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending",
-                            "persecuting_faith")
+                            "persecuting_faith", "food_severe_turns")
 
 
 class Region(BaseModel):
@@ -402,6 +402,11 @@ class Region(BaseModel):
     # nothing is pending (omitted from output).
     stockpile_bootstrap_pending: bool | None = None
     famine_cooldown: int = 0
+    # Agent modes: consecutive turns food sufficiency has stayed below the
+    # famine severity threshold (``ecology.FAMINE_SEVERE_SUFFICIENCY``); it
+    # labels a food-crisis report famine or dearth. None while the region is
+    # not severely short (omitted from output).
+    food_severe_turns: int | None = None
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
     resource_suspensions: dict[int, int] = Field(default_factory=dict)
@@ -696,7 +701,7 @@ class ShockContext(BaseModel):
 # provenance (old saves, bundles, fixtures) keep their exact bytes.
 _EVENT_PROVENANCE_DEFAULTS: tuple[tuple[str, object], ...] = (
     ("event_id", ""), ("causes", []), ("region", None), ("civs", []),
-    ("episode", None), ("duration", None),
+    ("episode", None), ("duration", None), ("driver", None),
 )
 
 
@@ -706,6 +711,12 @@ def _omit_empty_fields(data, defaults: tuple[tuple[str, object], ...]):
             if key in data and data[key] == empty:
                 del data[key]
     return data
+
+
+#: Reports of a region's food crisis (``ecology._check_famine_yield``):
+#: "famine" (sustained severe shortage) and "dearth" (a lean season). Both
+#: have the same effects; every simulation consumer reads both.
+FOOD_CRISIS_EVENT_TYPES: frozenset[str] = frozenset({"famine", "dearth"})
 
 
 class Event(BaseModel):
@@ -732,6 +743,9 @@ class Event(BaseModel):
     # per-turn consumer) or "end" (closing event; ``duration`` in turns).
     episode: str | None = None
     duration: int | None = None
+    # Agent migration events (mass_migration, notable_migration): the largest
+    # utility term of the moves (``MIGRATION_DRIVER_NAMES``). Omitted while None.
+    driver: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_empty_provenance(self, handler):
@@ -1025,6 +1039,30 @@ class DemandSignal:
     turns_remaining: int  # starts at 3
 
 
+#: The native migration budget's utility terms, in its index order
+#: (``chronicler-agents/src/migration_drivers.rs`` ``MIGRATION_TERM_NAMES``).
+#: An agent migration event's ``migration_driver`` indexes this tuple.
+MIGRATION_DRIVER_NAMES: tuple[str, ...] = (
+    "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river", "opp_news",
+    "persecution", "famine_memory", "battle_memory", "conquest_memory", "persecution_memory",
+    "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain", "urban",
+)
+#: Drivers of moves people choose in a living world (healthy-world migration
+#: and the cities' urban pull): settling new land, seeking work, joining kin,
+#: moving to a city.
+VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain", "urban"})
+#: ``AgentEventRecord.migration_driver`` of events that are not migrations
+#: (and of every event read from an extension or file without the column).
+NO_MIGRATION_DRIVER = 255
+
+
+def migration_driver_name(code: int | None) -> str | None:
+    """Name of a migration event's driver code; None when it has none."""
+    if code is None or not 0 <= code < len(MIGRATION_DRIVER_NAMES):
+        return None
+    return MIGRATION_DRIVER_NAMES[code]
+
+
 @dataclass(slots=True)
 class AgentEventRecord:
     turn: int
@@ -1037,6 +1075,9 @@ class AgentEventRecord:
     belief: int | None = None
     target_agent_id: int = 0
     formed_turn: int = 0
+    # Migrations: index into MIGRATION_DRIVER_NAMES of the decision's largest
+    # utility term (a household follower carries its lead's).
+    migration_driver: int = NO_MIGRATION_DRIVER
 
 
 @dataclass

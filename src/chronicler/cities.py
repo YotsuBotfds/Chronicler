@@ -518,7 +518,8 @@ def _fall(t: _Tick, city: City, how: str) -> None:
     elif causes[1]:
         cause_label = f"{how} after plague"
     elif causes[2]:
-        cause_label = f"{how} in famine"
+        episode = world.provenance.episodes.get(prov.episode_key("famine", rname))
+        cause_label = f"{how} in {'dearth' if episode is not None and episode.event_type == 'dearth' else 'famine'}"
     verb = "is abandoned" if how == "abandoned" else "stands deserted"
     ev = _emit(t, "city_fell", [region.controller or ""],
                f"The {_label(city)} of {city.name} in {rname} {verb}",
@@ -904,7 +905,10 @@ def _record_misfortune(t: _Tick, city: City, region, turn_events: list) -> None:
             continue
         if ev.event_type == "epidemic" and ev.importance >= MISFORTUNE_IMPORTANCE:
             kind = "plague"
-        elif ev.event_type == "famine" and ev.episode != "tick":
+        elif ev.event_type == "famine":
+            # Famine opens its episode or deepens a dearth into famine (a
+            # tick); MISFORTUNE_GAP keeps one entry per crisis. A dearth is
+            # no misfortune.
             kind = "famine"
         else:
             continue

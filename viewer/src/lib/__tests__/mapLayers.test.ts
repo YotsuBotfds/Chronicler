@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../types";
-import { famineSpans, FAMINE_COLOR } from "../food";
+import { DEARTH_COLOR, famineSpans, FAMINE_COLOR } from "../food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniques, type MapLayerKey,
 } from "../mapLayers";
@@ -49,6 +49,26 @@ describe("map layers", () => {
     expect(view.legend.map((item) => item.label)).toContain("relief convoy");
   });
 
+  it("tells dearth from famine on the food layer", () => {
+    const snapshot = systems.history.find((entry) => (entry.food?.aid.length ?? 0) > 0)!;
+    const observed = names.filter((_, index) => snapshot.food!.sufficiency[index] != null);
+    const [hungry, lean] = [observed[0], observed[1]];
+    const spans = [
+      { region: hungry, start: 0, end: null, reports: 3, kind: "famine" as const },
+      { region: lean, start: 0, end: null, reports: 1, kind: "dearth" as const },
+    ];
+    const withFood = buildMapLayer("food", { bundle: systems, snapshot, famine: spans, technique: null })!;
+    expect(withFood.fills.get(hungry)).toBe(FAMINE_COLOR);
+    expect(withFood.titles.get(lean)).toContain("dearth since T0");
+    // With the food field a dearth keeps the region's shortage shading.
+    expect(withFood.fills.get(lean)).not.toBe(DEARTH_COLOR);
+    const bare = { ...snapshot, food: undefined };
+    const noFood = buildMapLayer("food", { bundle: systems, snapshot: bare, famine: spans, technique: null })!;
+    expect(noFood.fills.get(lean)).toBe(DEARTH_COLOR);
+    expect(noFood.fills.get(hungry)).toBe(FAMINE_COLOR);
+    expect(noFood.legend.map((item) => item.label)).toEqual(["famine", "dearth", "not observed"]);
+  });
+
   it("fills each outbreak region with its strongest pathogen", () => {
     const snapshot = systems.history.find((entry) => (entry.epidemics?.active.length ?? 0) > 1)!;
     const view = layer("epidemics", snapshot);
@@ -77,6 +97,27 @@ describe("map layers", () => {
     expect(view.flows.length).toBeGreaterThan(0);
     const widths = view.flows.map((flow) => flow.width);
     expect([...widths].sort((left, right) => right - left)).toEqual(widths);
+  });
+
+  it("names what moved the mass departures of the window when the bundle records it", () => {
+    const wave = (turn: number, region: string, driver?: string) => ({
+      turn, event_type: "mass_migration", region, actors: [], description: "", consequences: [], importance: 5,
+      ...(driver ? { driver } : {}),
+    });
+    const bundle = {
+      ...systems,
+      events_timeline: [
+        ...systems.events_timeline.filter((event) => event.event_type !== "mass_migration"),
+        wave(118, names[0], "frontier"), wave(119, names[1], "famine_memory"), wave(119, names[2], "frontier"),
+        wave(117, names[3]), wave(100, names[4], "chain"),
+      ],
+    };
+    const view = buildMapLayer("migration", { bundle, snapshot: at(120), famine, technique: null })!;
+    expect(view.note).toContain("Mass departures: 2 settling new land, 1 fleeing hunger.");
+    expect(view.titles.get(names[1])).toContain("mass departure T119: fleeing hunger");
+    expect(view.titles.get(names[3])).toContain("mass departure T117");
+    expect(view.titles.get(names[3])).not.toContain(":");
+    expect(view.titles.get(names[4])).not.toContain("mass departure");  // outside the window
   });
 
   it("shades regions by the chosen technique and picks a spreading one by default", () => {

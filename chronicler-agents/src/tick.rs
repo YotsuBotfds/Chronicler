@@ -39,7 +39,15 @@ pub struct AgentEvent {
     pub turn: u32,
     pub target_agent_id: u32,
     pub formed_turn: u32,
+    /// Migrations: the largest utility term of the decision that moved the
+    /// agent (`migration_drivers::MIGRATION_TERM_NAMES` index; a household
+    /// follower carries its lead's; `MIGRATION_TERMS` when no term was
+    /// positive). [`NO_MIGRATION_DRIVER`] on every other event.
+    pub migration_driver: u8,
 }
+
+/// `AgentEvent::migration_driver` of events that are not migrations.
+pub const NO_MIGRATION_DRIVER: u8 = 255;
 
 struct DeathApplyContext {
     id_to_slot: std::collections::HashMap<u32, usize>,
@@ -113,6 +121,7 @@ fn apply_death_batch(
             turn,
             target_agent_id: 0,
             formed_turn: 0,
+            migration_driver: NO_MIGRATION_DRIVER,
         });
 
         let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
@@ -575,11 +584,13 @@ pub fn try_tick_agents_with_options(
                 turn,
                 target_agent_id: 0,
                 formed_turn: 0,
+                migration_driver: NO_MIGRATION_DRIVER,
             });
         }
 
         // Migrations
         for &(slot, from, to) in &pd.migrations {
+            let driver = pd.migration_driver_of(slot);
             pool.set_region(slot, to);
             pool.set_displacement_turns(slot, 5);
             pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
@@ -594,6 +605,7 @@ pub fn try_tick_agents_with_options(
                 turn,
                 target_agent_id: 0,
                 formed_turn: 0,
+                migration_driver: driver,
             });
         }
 
@@ -619,6 +631,7 @@ pub fn try_tick_agents_with_options(
                 turn,
                 target_agent_id: 0,
                 formed_turn: 0,
+                migration_driver: NO_MIGRATION_DRIVER,
             });
             let _ = old_occ; // suppress unused warning
         }
@@ -639,6 +652,7 @@ pub fn try_tick_agents_with_options(
                 turn,
                 target_agent_id: 0,
                 formed_turn: 0,
+                migration_driver: NO_MIGRATION_DRIVER,
             });
         }
 
@@ -970,6 +984,7 @@ pub fn try_tick_agents_with_options(
                 turn,
                 target_agent_id: 0,
                 formed_turn: 0,
+                migration_driver: NO_MIGRATION_DRIVER,
             });
 
             // M48/M57a: BirthOfKin intent for both parents

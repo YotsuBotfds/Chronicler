@@ -68,6 +68,9 @@ pub fn events_schema() -> Schema {
         Field::new("turn", DataType::UInt32, false),
         Field::new("target_agent_id", DataType::UInt32, false),
         Field::new("formed_turn", DataType::UInt32, false),
+        // Migrations: the decision's largest utility term (index into
+        // `MIGRATION_TERM_NAMES`); 255 on other events.
+        Field::new("migration_driver", DataType::UInt8, false),
     ])
 }
 
