@@ -28,7 +28,8 @@ Runtime consumers intentionally demand smaller subsets after their own gates:
   including empty batches; the coordinator skips it when Rust owns formation;
 * experimental fisheries: region/occupation when its snapshot path is active.
 * agent movements (switch on): movement_id/region/age/id/boldness/belief; the
-  layer reads no rows when any is absent.
+  layer reads no rows when any is absent. Leaders also read civ_affinity and
+  occupation; without them no leader is raised.
 
 The full native contract has no optional fields. The consumer compatibility
 paths above remain independent: do not call this validator from AgentRows,

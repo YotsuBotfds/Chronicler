@@ -88,6 +88,11 @@ pub const RELIEF_TURNS: u16 = 20;
 /// Rebel utility of a member in the stronghold of a rising.
 pub const RISING_REBEL_BOOST: f32 = 0.4;
 
+/// Lasting reforms: an agent a reform in force covers reads its creed need
+/// as `need + REFORM_NEED_CREDIT x (1 - need)` for grievance and commitment
+/// (the institution answers part of the want; deep want stays aggrieved).
+pub const REFORM_NEED_CREDIT: f32 = 0.3;
+
 // RNG streams (registry in agent.rs).
 pub use crate::agent::{MOVEMENT_LAPSE_STREAM_OFFSET, MOVEMENT_RECRUIT_STREAM_OFFSET};
 
@@ -144,6 +149,18 @@ impl MovementRow {
     }
 }
 
+/// One lasting reform in force, as Python sends it each tick (one row per
+/// covered region, or `region` NO_REGION for the whole realm of `civ`;
+/// `faith` NO_FAITH for every believer). Standing state, rebuilt from the
+/// persisted reforms every tick, not a one-shot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReformRow {
+    pub creed: u8,
+    pub civ: u8,
+    pub region: u16,
+    pub faith: u8,
+}
+
 /// Members to re-seed in a region (a resumed world whose native pool was
 /// rebuilt from region populations). Consumed by the next tick.
 #[derive(Debug, Clone)]
@@ -175,6 +192,11 @@ pub struct MovementRuntime {
     pub rows: Vec<MovementRow>,
     pub seeds: Vec<MovementSeed>,
     pub stats: MovementStats,
+    /// Lasting reforms in force (`set_movement_reforms`).
+    pub reforms: Vec<ReformRow>,
+    /// Per region, the (creed, faith) the reforms cover there, derived from
+    /// `reforms` and the controllers by the last pass for its census.
+    pub cover: Vec<Vec<(u8, u8)>>,
 }
 
 /// Per-agent effects for the later tick steps. Empty vectors mean none.
@@ -197,6 +219,24 @@ pub struct MovementEffects {
 /// threshold; else the mean of the two normalized deficits (0..1].
 #[inline]
 pub fn grievance(pool: &AgentPool, slot: usize, creed: u8) -> f32 {
+    grievance_credited(pool, slot, creed, 0.0)
+}
+
+/// The creed's need of an agent, read with a reform's credit (0 none).
+#[inline]
+fn creed_need(pool: &AgentPool, slot: usize, creed: u8, credit: f32) -> Option<f32> {
+    let need = match creed {
+        CREED_COMMONS => pool.need_material[slot],
+        CREED_LIBERTY => pool.need_autonomy[slot],
+        CREED_SECT => pool.need_spiritual[slot],
+        _ => return None,
+    };
+    Some(if credit > 0.0 { need + credit * (1.0 - need) } else { need })
+}
+
+/// [`grievance`] for an agent a lasting reform covers (`credit`, 0 none).
+#[inline]
+pub fn grievance_credited(pool: &AgentPool, slot: usize, creed: u8, credit: f32) -> f32 {
     if pool.ages[slot] < ADULT_AGE {
         return 0.0;
     }
@@ -204,12 +244,10 @@ pub fn grievance(pool: &AgentPool, slot: usize, creed: u8) -> f32 {
     if sat >= GRIEVANCE_SAT {
         return 0.0;
     }
-    let (need, threshold) = match creed {
-        CREED_COMMONS => (pool.need_material[slot], GRIEVANCE_NEED[0]),
-        CREED_LIBERTY => (pool.need_autonomy[slot], GRIEVANCE_NEED[1]),
-        CREED_SECT => (pool.need_spiritual[slot], GRIEVANCE_NEED[2]),
-        _ => return 0.0,
+    let Some(need) = creed_need(pool, slot, creed, credit) else {
+        return 0.0;
     };
+    let threshold = GRIEVANCE_NEED[creed as usize];
     if need >= threshold {
         return 0.0;
     }
@@ -220,14 +258,50 @@ pub fn grievance(pool: &AgentPool, slot: usize, creed: u8) -> f32 {
 /// creed need within LAPSE_MARGIN of the grievance thresholds.
 #[inline]
 pub fn committed(pool: &AgentPool, slot: usize, creed: u8) -> bool {
-    let need = match creed {
-        CREED_COMMONS => pool.need_material[slot],
-        CREED_LIBERTY => pool.need_autonomy[slot],
-        CREED_SECT => pool.need_spiritual[slot],
-        _ => return false,
+    committed_credited(pool, slot, creed, 0.0)
+}
+
+/// [`committed`] for an agent a lasting reform covers (`credit`, 0 none).
+#[inline]
+pub fn committed_credited(pool: &AgentPool, slot: usize, creed: u8, credit: f32) -> bool {
+    let Some(need) = creed_need(pool, slot, creed, credit) else {
+        return false;
     };
     pool.satisfactions[slot] < GRIEVANCE_SAT + LAPSE_MARGIN
         && need < GRIEVANCE_NEED[creed as usize] + LAPSE_MARGIN
+}
+
+/// Per region, the (creed, faith) the reforms in force cover: a row covers
+/// the regions its civ controls (all of them, or its own region).
+pub fn reform_cover(reforms: &[ReformRow], regions: &[RegionState]) -> Vec<Vec<(u8, u8)>> {
+    let mut cover = vec![Vec::new(); regions.len()];
+    for row in reforms {
+        if row.civ == 255 {
+            continue;
+        }
+        for (r, region) in regions.iter().enumerate() {
+            if region.controller_civ == row.civ && (row.region == NO_REGION || row.region as usize == r) {
+                cover[r].push((row.creed, row.faith));
+            }
+        }
+    }
+    cover
+}
+
+/// The reform credit an agent has for a creed: REFORM_NEED_CREDIT when a
+/// reform covers its region, creed and faith, else 0.
+#[inline]
+pub fn reform_credit(cover: &[Vec<(u8, u8)>], pool: &AgentPool, slot: usize, creed: u8) -> f32 {
+    match cover.get(pool.regions[slot] as usize) {
+        Some(list)
+            if list
+                .iter()
+                .any(|&(c, f)| c == creed && (f == NO_FAITH || f == pool.beliefs[slot])) =>
+        {
+            REFORM_NEED_CREDIT
+        }
+        _ => 0.0,
+    }
 }
 
 fn stream(region: usize, turn: u32, offset: u64) -> u64 {
@@ -241,13 +315,19 @@ fn founding_score(pool: &AgentPool, slot: usize, g: f32) -> f32 {
 /// Agents of `slots` without a movement, ordered for seeding: aggrieved
 /// first by founding score, then (when `fill`) the rest by boldness; ties by
 /// agent id.
-fn seed_candidates(pool: &AgentPool, slots: &[usize], creed: u8, fill: bool) -> Vec<usize> {
+fn seed_candidates(
+    pool: &AgentPool,
+    slots: &[usize],
+    creed: u8,
+    fill: bool,
+    cover: &[Vec<(u8, u8)>],
+) -> Vec<usize> {
     let mut ranked: Vec<(f32, f32, u32, usize)> = Vec::new();
     for &slot in slots {
         if !pool.is_alive(slot) || pool.movement_ids[slot] != 0 || pool.ages[slot] < ADULT_AGE {
             continue;
         }
-        let g = grievance(pool, slot, creed);
+        let g = grievance_credited(pool, slot, creed, reform_credit(cover, pool, slot, creed));
         if g > 0.0 {
             ranked.push((1.0, founding_score(pool, slot, g), pool.ids[slot], slot));
         } else if fill {
@@ -283,6 +363,7 @@ pub fn movement_pass(
     }
     let num_regions = regions.len();
     let groups = pool.partition_by_region(num_regions as u16);
+    let cover = reform_cover(&runtime.reforms, regions);
     let rows = &runtime.rows;
     let nrows = rows.len();
 
@@ -335,7 +416,7 @@ pub fn movement_pass(
             if row.stage == STAGE_SATISFIED {
                 stay *= 1.0 - LAPSE_SATISFIED;
             }
-            if !committed(pool, slot, row.creed) {
+            if !committed_credited(pool, slot, row.creed, reform_credit(&cover, pool, slot, row.creed)) {
                 stay *= 1.0 - LAPSE_CONTENT;
             }
             let travelling = pool.is_on_trip(slot)
@@ -369,7 +450,7 @@ pub fn movement_pass(
             }
         }
         let size = FOUND_MIN.max((FOUND_SHARE * stats.adults[r] as f32).ceil() as usize);
-        for slot in seed_candidates(pool, &groups[r], row.creed, false).into_iter().take(size) {
+        for slot in seed_candidates(pool, &groups[r], row.creed, false, &cover).into_iter().take(size) {
             pool.movement_ids[slot] = row.movement_id;
             stats.founded[i] += 1;
         }
@@ -382,7 +463,7 @@ pub fn movement_pass(
             continue;
         }
         let creed = rows[i].creed;
-        for slot in seed_candidates(pool, &groups[r], creed, true).into_iter().take(seed.count as usize) {
+        for slot in seed_candidates(pool, &groups[r], creed, true, &cover).into_iter().take(seed.count as usize) {
             pool.movement_ids[slot] = seed.movement_id;
             stats.founded[i] += 1;
         }
@@ -431,7 +512,7 @@ pub fn movement_pass(
                 offers.clear();
                 for &i in &candidates {
                     let row = &rows[i];
-                    let g = grievance(pool, slot, row.creed);
+                    let g = grievance_credited(pool, slot, row.creed, reform_credit(&cover, pool, slot, row.creed));
                     if g <= 0.0 {
                         continue;
                     }
@@ -560,6 +641,7 @@ pub fn movement_pass(
     // The grievance census is taken at the end of the tick (`census`).
     stats.aggrieved = runtime.stats.aggrieved.clone();
     runtime.stats = stats;
+    runtime.cover = cover;
     runtime.seeds.clear();
     for row in runtime.rows.iter_mut() {
         row.clear_one_shots();
@@ -585,7 +667,8 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
         }
         adults[r] += 1;
         for creed in 0..CREED_COUNT as u8 {
-            if grievance(pool, slot, creed) > 0.0 {
+            let credit = reform_credit(&runtime.cover, pool, slot, creed);
+            if grievance_credited(pool, slot, creed, credit) > 0.0 {
                 aggrieved[r][creed as usize] += 1;
             }
         }
@@ -654,6 +737,26 @@ pub fn parse_movement_table(rb: &RecordBatch) -> Result<Vec<MovementRow>, ArrowE
         });
     }
     Ok(rows)
+}
+
+/// Lasting reforms in force: creed u8, civ u8, region u16 (NO_REGION the
+/// realm), faith u8 (NO_FAITH every believer).
+pub fn parse_reform_table(rb: &RecordBatch) -> Result<Vec<ReformRow>, ArrowError> {
+    if rb.num_rows() == 0 {
+        return Ok(Vec::new());
+    }
+    let creeds = column::<UInt8Array>(rb, "creed")?;
+    let civs = column::<UInt8Array>(rb, "civ")?;
+    let regions = column::<UInt16Array>(rb, "region")?;
+    let faiths = column::<UInt8Array>(rb, "faith")?;
+    Ok((0..rb.num_rows())
+        .map(|i| ReformRow {
+            creed: creeds.value(i),
+            civ: civs.value(i),
+            region: regions.value(i),
+            faith: faiths.value(i),
+        })
+        .collect())
 }
 
 /// Re-seeding batch: movement_id u16, region u16, count u32.
@@ -960,6 +1063,83 @@ mod tests {
         movement_pass(&mut pool, &regions, &mut rt, [1; 32], 1);
         assert_eq!(rt.stats.founded[0], 6);
         assert!(rt.seeds.is_empty());
+    }
+
+    #[test]
+    fn a_reform_credit_lowers_grievance_where_and_for_whom_it_covers() {
+        let mut pool = AgentPool::new(16);
+        // Region 0 (civ 0): a want the credit answers and a deep one.
+        let mild = aggrieved(&mut pool, 0, 0.0);
+        pool.need_material[mild] = 0.4;
+        let deep = aggrieved(&mut pool, 0, 0.0);
+        // Region 1 (civ 1): believers of faiths 0 and 1.
+        let believer = aggrieved(&mut pool, 1, 0.0);
+        pool.need_spiritual[believer] = 0.3;
+        pool.beliefs[believer] = 0;
+        let heretic = aggrieved(&mut pool, 1, 0.0);
+        pool.need_spiritual[heretic] = 0.3;
+        pool.beliefs[heretic] = 1;
+        let regions = vec![region(0, 0), region(1, 1)];
+        let reforms = vec![
+            ReformRow { creed: CREED_COMMONS, civ: 0, region: NO_REGION, faith: NO_FAITH },
+            ReformRow { creed: CREED_SECT, civ: 1, region: NO_REGION, faith: 0 },
+            ReformRow { creed: CREED_LIBERTY, civ: 1, region: 0, faith: NO_FAITH }, // not its region
+        ];
+        let cover = reform_cover(&reforms, &regions);
+        assert_eq!(cover[0], vec![(CREED_COMMONS, NO_FAITH)]);
+        assert_eq!(cover[1], vec![(CREED_SECT, 0)]);
+        let credit = |slot, creed| reform_credit(&cover, &pool, slot, creed);
+        assert_eq!(credit(mild, CREED_COMMONS), REFORM_NEED_CREDIT);
+        assert_eq!(credit(mild, CREED_SECT), 0.0);
+        assert_eq!(credit(believer, CREED_SECT), REFORM_NEED_CREDIT);
+        assert_eq!(credit(heretic, CREED_SECT), 0.0);
+        // 0.4 + 0.3 x 0.6 = 0.58 is above the commons threshold; 0.2 reads 0.44.
+        assert!(grievance(&pool, mild, CREED_COMMONS) > 0.0);
+        assert_eq!(grievance_credited(&pool, mild, CREED_COMMONS, credit(mild, CREED_COMMONS)), 0.0);
+        let g = grievance_credited(&pool, deep, CREED_COMMONS, credit(deep, CREED_COMMONS));
+        assert!(g > 0.0 && g < grievance(&pool, deep, CREED_COMMONS));
+        assert!(!committed_credited(&pool, mild, CREED_COMMONS, REFORM_NEED_CREDIT + 0.2));
+        // A zero credit is the plain reading, bit for bit.
+        for slot in [mild, deep, believer, heretic] {
+            for creed in 0..CREED_COUNT as u8 {
+                assert_eq!(grievance_credited(&pool, slot, creed, 0.0).to_bits(),
+                           grievance(&pool, slot, creed).to_bits());
+            }
+        }
+        // The census counts with the credit the pass derived.
+        let mut rt = runtime(vec![MovementRow::new(1, CREED_SECT, STAGE_GATHERING, 1)]);
+        rt.reforms = reforms;
+        movement_pass(&mut pool, &regions, &mut rt, [1; 32], 1);
+        census(&pool, 2, &mut rt);
+        assert_eq!(rt.stats.aggrieved[0][CREED_COMMONS as usize], 1); // deep only
+        assert_eq!(rt.stats.aggrieved[1][CREED_SECT as usize], 1); // the heretic
+        // Without reforms nothing is credited.
+        rt.reforms.clear();
+        movement_pass(&mut pool, &regions, &mut rt, [1; 32], 2);
+        census(&pool, 2, &mut rt);
+        assert_eq!(rt.stats.aggrieved[0][CREED_COMMONS as usize], 2);
+        assert_eq!(rt.stats.aggrieved[1][CREED_SECT as usize], 2);
+    }
+
+    #[test]
+    fn covered_agents_are_not_recruited_for_the_answered_creed() {
+        let mut pool = AgentPool::new(64);
+        let member = aggrieved(&mut pool, 0, 0.5);
+        pool.movement_ids[member] = 1;
+        let mut friends = Vec::new();
+        for _ in 0..20 {
+            let f = aggrieved(&mut pool, 0, 0.5);
+            pool.need_material[f] = 0.4; // answered by the relief
+            crate::relationships::upsert_symmetric(&mut pool, member, f, 6, 50, 0);
+            friends.push(f);
+        }
+        let regions = vec![region(0, 0)];
+        let mut rt = runtime(vec![MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0)]);
+        rt.reforms = vec![ReformRow { creed: CREED_COMMONS, civ: 0, region: NO_REGION, faith: NO_FAITH }];
+        for t in 1..30 {
+            movement_pass(&mut pool, &regions, &mut rt, [3; 32], t);
+        }
+        assert!(friends.iter().all(|&s| pool.movement_ids[s] == 0));
     }
 
     #[test]

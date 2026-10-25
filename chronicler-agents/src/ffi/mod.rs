@@ -144,6 +144,9 @@ pub struct AgentSimulator {
     /// Agent movements: the table Python sends each tick (enabled by the
     /// first `set_movement_table`), re-seeding requests and the last stats.
     movements: crate::movements::MovementRuntime,
+    /// Agent movements: (agent id, role) queued by `queue_movement_leaders`
+    /// for the next `get_promotions()`, which drains it.
+    pending_movement_leaders: Vec<(u32, u8)>,
     /// M48: Promotion memories queued by `get_promotions()` as (promotion
     /// turn, intent). Written at the start of the next `tick()` so the
     /// same-turn Python Mule roll still sees only pre-promotion memories.
@@ -204,6 +207,7 @@ impl AgentSimulator {
             hybrid_economy_mode: false,
             pending_targeted_deaths: Vec::new(),
             movements: crate::movements::MovementRuntime::default(),
+            pending_movement_leaders: Vec::new(),
             pending_promotion_memories: Vec::new(),
             tick_options: crate::scale::TickOptions::default(),
             snapshot_cache: None,
@@ -224,6 +228,34 @@ impl AgentSimulator {
         let rb: RecordBatch = batch.into_inner();
         self.movements.rows = crate::movements::parse_movement_table(&rb).map_err(arrow_err)?;
         self.movements.enabled = true;
+        Ok(())
+    }
+
+    /// Agent movements: replace the lasting reforms in force (creed u8, civ
+    /// u8, region u16, faith u8; see `movements::parse_reform_table`). Sent
+    /// with every table; the agents they cover read their creed need with
+    /// `movements::REFORM_NEED_CREDIT`.
+    pub fn set_movement_reforms(&mut self, batch: PyRecordBatch) -> PyResult<()> {
+        let rb: RecordBatch = batch.into_inner();
+        self.movements.reforms = crate::movements::parse_reform_table(&rb).map_err(arrow_err)?;
+        Ok(())
+    }
+
+    /// Agent movements: agents (stable ids) to promote as movement leaders
+    /// with the next `get_promotions()`, with their role (0 general, 3
+    /// prophet). Consumed and cleared by that call; an agent that died, is
+    /// already named, or whose civ is at the caps on living named characters
+    /// is skipped.
+    pub fn queue_movement_leaders(&mut self, ids: Vec<u32>, roles: Vec<u8>) -> PyResult<()> {
+        if ids.len() != roles.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err("ids and roles differ in length"));
+        }
+        for (id, role) in ids.into_iter().zip(roles) {
+            if crate::named_characters::CharacterRole::from_leader_u8(role).is_none() {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!("bad leader role {role}")));
+            }
+            self.pending_movement_leaders.push((id, role));
+        }
         Ok(())
     }
 
@@ -1050,7 +1082,36 @@ impl AgentSimulator {
     }
 
     pub fn get_promotions(&mut self) -> PyResult<PyRecordBatch> {
-        let candidates = self.registry.find_candidates(&self.pool, self.turn);
+        let mut candidates = Vec::new();
+        if !self.pending_movement_leaders.is_empty() {
+            // Movement leaders first (trigger TRIGGER_MOVEMENT_LEADER): alive,
+            // not yet named, their civ under the registry's caps. Empty
+            // unless Python queued some, so the regular path is unchanged.
+            let leaders = std::mem::take(&mut self.pending_movement_leaders);
+            let mut taken: std::collections::HashSet<u32> =
+                self.registry.characters.iter().map(|c| c.agent_id).collect();
+            let mut leader_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
+            for (id, role) in leaders {
+                let (Some(slot), Some(role)) = (
+                    self.pool.find_slot_by_id(id),
+                    crate::named_characters::CharacterRole::from_leader_u8(role),
+                ) else {
+                    continue;
+                };
+                if !self.pool.is_alive(slot)
+                    || !self.registry.can_promote_living(&self.pool, self.pool.civ_affinity(slot))
+                    || !taken.insert(id)
+                {
+                    continue;
+                }
+                leader_ids.insert(id);
+                candidates.push((slot, role, crate::named_characters::TRIGGER_MOVEMENT_LEADER));
+            }
+            let regular = self.registry.find_candidates(&self.pool, self.turn);
+            candidates.extend(regular.into_iter().filter(|&(slot, _, _)| !leader_ids.contains(&self.pool.id(slot))));
+        } else {
+            candidates = self.registry.find_candidates(&self.pool, self.turn);
+        }
         let n = candidates.len();
         let mut agent_ids = UInt32Builder::with_capacity(n);
         let mut roles = UInt8Builder::with_capacity(n);
@@ -3243,6 +3304,47 @@ mod tests {
         assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
         sim.flush_pending_promotion_memories();
         assert_eq!(sim.pool.memory_count[slot], 1);
+    }
+
+    #[test]
+    fn test_movement_leaders_are_promoted_once_from_the_queue() {
+        let mut sim = AgentSimulator::new(1, 42);
+        // No life events and no skill: the regular gates promote no one.
+        let leader = sim.pool.spawn(
+            0, 2, crate::agent::Occupation::Farmer, 30,
+            0.5, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        let other = sim.pool.spawn(
+            0, 2, crate::agent::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 0, 0, crate::agent::BELIEF_NONE,
+        );
+        sim.turn = 9;
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
+        assert!(sim.queue_movement_leaders(vec![1], vec![1]).is_err()); // merchant is no leader role
+        let id = sim.pool.ids[leader];
+        sim.queue_movement_leaders(vec![id, 999_999], vec![3, 0]).unwrap();
+        let batch = sim.get_promotions().unwrap().into_inner();
+        assert_eq!(batch.num_rows(), 1); // the unknown id is skipped
+        let col = |name: &str| batch.column_by_name(name).unwrap().as_any()
+            .downcast_ref::<UInt8Array>().unwrap().value(0);
+        assert_eq!(col("role"), crate::named_characters::CharacterRole::Prophet as u8);
+        assert_eq!(col("trigger"), crate::named_characters::TRIGGER_MOVEMENT_LEADER);
+        assert_eq!(col("civ_id"), 2);
+        assert!(sim.pending_movement_leaders.is_empty());
+        // The queue is drained and the leader registered: not promoted again,
+        // even when queued again.
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
+        sim.queue_movement_leaders(vec![id], vec![3]).unwrap();
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
+        assert_eq!(sim.pool.movement_ids[other], 0);
+        // A registry full of the dead still admits a leader (living caps).
+        for k in 0..60u32 {
+            sim.registry.register(1_000_000 + k, crate::named_characters::CharacterRole::General,
+                                  2, 2, 0, 1, 0, 0, 0);
+        }
+        assert!(!sim.registry.can_promote(2));
+        sim.queue_movement_leaders(vec![sim.pool.ids[other]], vec![0]).unwrap();
+        assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 1);
     }
 
     #[test]

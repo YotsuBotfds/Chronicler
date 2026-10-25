@@ -22,6 +22,22 @@ pub enum CharacterRole {
     Exile = 4,
 }
 
+impl CharacterRole {
+    /// The roles a movement leader can take (general or prophet), from the
+    /// wire id; None for any other id.
+    pub fn from_leader_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::General),
+            3 => Some(Self::Prophet),
+            _ => None,
+        }
+    }
+}
+
+/// Promotion trigger of an agent movement's leader (queued by Python
+/// through `queue_movement_leaders`); 0 skill, 1 rebellion, 2-4 reserved.
+pub const TRIGGER_MOVEMENT_LEADER: u8 = 5;
+
 /// Compact record of a promoted named character.
 #[derive(Clone, Debug)]
 pub struct NamedCharacter {
@@ -31,7 +47,7 @@ pub struct NamedCharacter {
     pub origin_civ_id: u8,
     pub born_turn: u16,
     pub promotion_turn: u16,
-    pub promotion_trigger: u8, // 0=skill, 1=rebellion; 2-4 reserved (Python relabels roles, not triggers)
+    pub promotion_trigger: u8, // 0=skill, 1=rebellion; 2-4 reserved (Python relabels roles, not triggers); 5=movement leader
     pub parent_id_0: u32,
     pub parent_id_1: u32,
     pub history: Vec<(u16, u8, u16)>, // (turn, event_type, region)
@@ -62,6 +78,24 @@ impl NamedCharacterRegistry {
     /// Check if adding a character for this civ would exceed caps.
     pub fn can_promote(&self, civ_id: u8) -> bool {
         self.characters.len() < GLOBAL_CAP && self.count_for_civ(civ_id) < PER_CIV_CAP
+    }
+
+    /// The caps over living characters only, for movement leaders: the
+    /// registry keeps the dead, so `can_promote` closes for good once fifty
+    /// have been named in a long run.
+    pub fn can_promote_living(&self, pool: &AgentPool, civ_id: u8) -> bool {
+        let mut total = 0usize;
+        let mut civ = 0usize;
+        for c in &self.characters {
+            let alive = pool.find_slot_by_id(c.agent_id).is_some_and(|slot| pool.is_alive(slot));
+            if alive {
+                total += 1;
+                if c.civ_id == civ_id {
+                    civ += 1;
+                }
+            }
+        }
+        total < GLOBAL_CAP && civ < PER_CIV_CAP
     }
 
     /// Find promotion candidates from the pool.

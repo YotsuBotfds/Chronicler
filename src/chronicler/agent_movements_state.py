@@ -29,15 +29,26 @@ LIVING, FADED, WON, SECEDED, SCHISM, CRUSHED, DISSOLVED = range(len(END_NAMES))
 #: ``Movement.history`` entry kinds.
 HISTORY_KINDS: tuple[str, ...] = (
     "founded", "spread", "demand", "reform", "refused", "crackdown", "martyr", "rising",
-    "concession", "crushed", "seceded", "schism", "ended", "dispersed",
+    "concession", "crushed", "seceded", "schism", "ended", "dispersed", "leader",
 )
 
 #: Cumulative counters kept on ``MovementState.counters`` (insertion order).
 COUNTER_KEYS: tuple[str, ...] = (
     "founded", "demands", "reforms", "refusals", "crackdowns", "martyrs", "risings",
     "concessions", "crushed", "secessions", "schisms", "faded", "won", "broken",
-    "dissolved", "relief_cost",
+    "dissolved", "relief_cost", "enacted", "extended", "repealed", "lapsed", "restored",
+    "upkeep", "leaders", "charters",
 )
+
+#: ``Reform.kind`` names: the lasting reform a creed wins (index = creed).
+REFORM_NAMES: tuple[str, ...] = ("relief", "home_rule", "toleration")
+RELIEF, HOME_RULE, TOLERATION = range(len(REFORM_NAMES))
+
+#: ``Reform.repeal`` names (0 while in force). ``lapsed`` ends a reform
+#: without a grievance (its realm, region or faith is gone).
+REPEAL_NAMES: tuple[str, ...] = ("", "neglect", "opposition", "ruler", "fiscal", "inquisition",
+                                 "lapsed")
+IN_FORCE, NEGLECT, OPPOSITION, RULER, FISCAL, INQUISITION, LAPSED = range(len(REPEAL_NAMES))
 
 
 class Movement(BaseModel):
@@ -83,6 +94,37 @@ class Movement(BaseModel):
     regions_reached: list[int] = Field(default_factory=list)
     # (turn, kind, event id) in order; kinds from HISTORY_KINDS.
     history: list[tuple[int, str, str]] = Field(default_factory=list)
+    reform: int = -1                 # index in MovementState.reforms of the reform it won
+    restores: int = -1               # index of the repealed reform it wants restored
+    leader_candidate: int = 0        # agent id queued for promotion as its leader (0 none)
+    leader_turn: int | None = None   # turn its leader was queued
+
+
+class Reform(BaseModel):
+    """A lasting reform: what a movement won, in force until repealed.
+
+    ``kind`` is the creed it answers (``REFORM_NAMES``). Coverage: ``relief``
+    the realm of ``civ``; ``home_rule`` the realm's regions in ``regions``;
+    ``toleration`` the believers of ``faith`` in the realm. ``institution``
+    names the governance institution it enacted or upholds ("" none)."""
+
+    kind: int
+    civ: int                         # civ index of the ruler who granted it
+    movement: int = -1               # movement index that won it
+    enacted_turn: int
+    regions: list[int] = Field(default_factory=list)
+    faith: int = 255
+    institution: str = ""
+    founded_institution: bool = False  # the grant enacted it (a ruler's repeal takes it)
+    cities: list[int] = Field(default_factory=list)  # settlement ids its charters raised
+    ruler: str = ""                  # the reign it was last judged under
+    ruler_start: int = 0
+    arrears: int = 0                 # consecutive turns its upkeep went unpaid
+    restores: int = -1               # index of the repealed reform it restores
+    event_id: str = ""               # the grant
+    repealed_turn: int | None = None
+    repeal: int = IN_FORCE
+    repeal_event_id: str = ""
 
 
 class MovementState(BaseModel):
@@ -91,6 +133,7 @@ class MovementState(BaseModel):
     movements: list[Movement] = Field(default_factory=list)
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     last_tick_turn: int | None = None
+    reforms: list[Reform] = Field(default_factory=list)
 
 
 def agent_movements_on(world) -> bool:
