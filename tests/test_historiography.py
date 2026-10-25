@@ -817,11 +817,11 @@ _FIXTURES = ROOT / "tests" / "fixtures" / "performance"
 
 
 def _frozen():
-    # The live oracle: the food-logistics locust recalibration rolled the
-    # standard and wide trajectories forward from the food-balance and
-    # dead-civ-pruning fixtures (docs/integration/food-logistics-2026-10.md).
-    baseline = json.loads((_FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
-    artifacts = json.loads((_FIXTURES / "corrected_artifacts_food_logistics_2026_10.json").read_text())
+    # The live oracle: the hunger corrections rolled the standard and wide
+    # trajectories forward from the food-logistics fixtures
+    # (docs/integration/hunger-mortality.md).
+    baseline = json.loads((_FIXTURES / "corrected_hunger_2026_10.json").read_text())
+    artifacts = json.loads((_FIXTURES / "corrected_artifacts_hunger_2026_10.json").read_text())
     return baseline, artifacts
 
 

@@ -63,11 +63,13 @@ def compute_civ_stress(civ: Civilization, world: WorldState) -> int:
     stress += sum(1 for w in world.active_wars if civ.name in w) * war_weight
 
     # Famine in controlled regions: per famine region
+    # (a dearth counts a third of a famine region)
+    from chronicler.ecology import food_crisis_weight
     famine_weight = int(get_override(world, K_STRESS_FAMINE_WEIGHT, 2))
-    stress += sum(
-        1 for r in world.regions
-        if r.controller == civ.name and r.famine_cooldown > 0
-    ) * famine_weight
+    stress += int(round(sum(
+        food_crisis_weight(r) for r in world.regions
+        if r.controller == civ.name
+    ) * famine_weight))
 
     # Active secession risk: if stability < 20 with 3+ regions
     secession_risk = int(get_override(world, K_STRESS_SECESSION_RISK, 4))

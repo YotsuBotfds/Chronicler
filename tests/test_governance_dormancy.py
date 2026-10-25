@@ -14,17 +14,20 @@ from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
 # Rolled forward from the frozen corrected_423a67c oracles by the 2026-10
 # deferred-backlog corrections, the 2026-10 extinction fix, the 2026-10
-# food-balance corrections and then the 2026-10 food-logistics changes; see
-# the fixture provenance and tests/test_performance_equivalence.py for the
-# scoped-difference proofs.
-BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
+# food-balance corrections, the 2026-10 food-logistics changes and then the
+# 2026-10 hunger corrections; see the fixture provenance and
+# tests/test_performance_equivalence.py for the scoped-difference proofs.
+BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
+FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
 # Bundle version 5 (dead civs pruned from history snapshots) rolled the
 # artifact oracle forward as a format change; the food-balance artifacts stay
-# frozen as its pre-pruning reference. The food-logistics artifact oracle is
-# live and records both projections of the same run.
+# frozen as its pre-pruning reference. The food-logistics artifact oracle
+# records both projections of the same run and stays frozen; the hunger
+# artifact oracle is live.
 ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_dead_civ_pruning_2026_10.json").read_text())
 PRE_PRUNING_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
-LIVE_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_logistics_2026_10.json").read_text())
+FOOD_LOGISTICS_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_logistics_2026_10.json").read_text())
+LIVE_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_hunger_2026_10.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])
@@ -100,12 +103,28 @@ def test_food_logistics_artifacts_change_only_the_declared_workloads():
     oracle declares; the others keep the frozen bundle-v5 and pre-pruning
     artifacts byte for byte."""
     declared = set()
+    for correction in FOOD_LOGISTICS_BASELINE["provenance"]["corrections"]:
+        declared |= set(correction["workloads"])
+    assert set(FOOD_LOGISTICS_ARTIFACTS["workloads"]) == set(ARTIFACTS["workloads"])
+    for name in ARTIFACTS["workloads"]:
+        same_v5 = FOOD_LOGISTICS_ARTIFACTS["workloads"][name] == ARTIFACTS["workloads"][name]
+        same_pre = (FOOD_LOGISTICS_ARTIFACTS["pre_pruning_workloads"][name]
+                    == PRE_PRUNING_ARTIFACTS["workloads"][name])
+        assert same_v5 == same_pre == (name not in declared), name
+
+
+def test_hunger_artifacts_change_only_the_declared_workloads():
+    """The hunger roll-forward moves only the workloads its turn oracle
+    declares; the others keep the food-logistics artifacts byte for byte in
+    both projections."""
+    declared = set()
     for correction in BASELINE["provenance"]["corrections"]:
         declared |= set(correction["workloads"])
-    assert set(LIVE_ARTIFACTS["workloads"]) == set(ARTIFACTS["workloads"])
-    for name in ARTIFACTS["workloads"]:
-        same_v5 = LIVE_ARTIFACTS["workloads"][name] == ARTIFACTS["workloads"][name]
-        same_pre = LIVE_ARTIFACTS["pre_pruning_workloads"][name] == PRE_PRUNING_ARTIFACTS["workloads"][name]
+    assert set(LIVE_ARTIFACTS["workloads"]) == set(FOOD_LOGISTICS_ARTIFACTS["workloads"])
+    for name in FOOD_LOGISTICS_ARTIFACTS["workloads"]:
+        same_v5 = LIVE_ARTIFACTS["workloads"][name] == FOOD_LOGISTICS_ARTIFACTS["workloads"][name]
+        same_pre = (LIVE_ARTIFACTS["pre_pruning_workloads"][name]
+                    == FOOD_LOGISTICS_ARTIFACTS["pre_pruning_workloads"][name])
         assert same_v5 == same_pre == (name not in declared), name
 
 

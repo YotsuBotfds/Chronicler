@@ -1,0 +1,220 @@
+{
+  "provenance": {
+    "derived_from": [
+      "corrected_food_logistics_2026_10.json",
+      "corrected_artifacts_food_logistics_2026_10.json"
+    ],
+    "base_revision": "3355289",
+    "description": "Corrected oracle rolled forward by the 2026-10 hunger corrections (docs/integration/hunger-mortality.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. Each workload index is the first turn that correction moves relative to the oracle with all earlier corrections applied (consecutive captures). corrected_food_logistics_2026_10 and older fixtures remain frozen; workloads not named in 'corrections' are byte-identical to it.",
+    "corrections": [
+      {
+        "id": "HM-DEARTH-WEIGHT",
+        "summary": "A dearth report drains a third of a famine's stability, and its five-turn cooldown weighs a third of a famine's in hazard hardship, civ stress, technique growth and nomad raid hunger.",
+        "workloads": {},
+        "note": "Dearth labels exist only in agent modes; an aggregate famine keeps the full weight."
+      },
+      {
+        "id": "HM-EPIDEMIC-HUNGER",
+        "summary": "Agent modes: epidemic susceptibility (+0.15 dearth, +0.35 famine) and fatality (x1 + 0.10 dearth + 0.40 famine) follow the region's last measured hunger instead of a report's cooldown.",
+        "workloads": {},
+        "note": "The aggregate model keeps the flat famine terms; the oracle lane also runs with epidemiology off."
+      },
+      {
+        "id": "HM-NATIVE-DEMOGRAPHY",
+        "summary": "Native agent mortality gains a hunger hazard for young children, the old and the poor, and fertility a hunger multiplier, from food sufficiency and the severe-shortage run (region batch column food_severe_turns).",
+        "workloads": {},
+        "note": "Native agent runtime only."
+      },
+      {
+        "id": "HM-AGGREGATE-TOLL",
+        "summary": "The aggregate famine toll (5 x stress multiplier, a famine's whole population effect in the aggregate model) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold (0.12).",
+        "workloads": {
+          "standard": 0,
+          "wide": 9
+        }
+      }
+    ],
+    "environment": {
+      "python": "3.13.17",
+      "platform": "Linux"
+    },
+    "comparison": "complete emitted file set, byte count and SHA256; no field filtering or tolerance",
+    "projections": "workloads: bundle version 5 bytes (scripts/third_wave_controls.py projection); pre_pruning_workloads: the same run projected to bundle version 4 (legacy_artifact_bytes(pre_pruning=True))."
+  },
+  "workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "268c294713025f0f21d09e01131a4b4ca7d36c0fbda45dcd515164c087296ff3",
+        "bytes": 73617
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "fc66cac7089b4a190bc9ca3b6f3fcf53a237b0ab24c76a077148dedfdb762c4d",
+        "bytes": 5578
+      },
+      "state.json": {
+        "sha256": "7ce53ad072906f26eb586a2cecfc4ed1f668435f65b0418b5d349d386a0418d6",
+        "bytes": 25666
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "2754a91160faae41960e18967acf9a6c5634fee6d7bd9a060b628b4a718d9327",
+        "bytes": 853194
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "af69fab31e315f415ed7661b6591bbeb64c3564aa22a4e6a99c15f07ac303501",
+        "bytes": 24663
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d7a99a48926d3249e331640129bfcaf21ee5b3316109cae3e3b7ca753481177c",
+        "bytes": 18463
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "efe39bdbaa61d57ba9e14f3f762fb3997e8eb398abc33c48f6408edf851e0020",
+        "bytes": 19721
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "74ff9e636d9a6bfad2eaa804966d905b79ef01129d8f49f8cd4f4ac1c0af7de9",
+        "bytes": 24211
+      },
+      "state.json": {
+        "sha256": "8e13edaad757517d545d076aa6ad25d1adb8969cb8903387c62953d84adec397",
+        "bytes": 253692
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "efee4685f68cfeab351b5374d0811bede5a71a7bfeaeaade6aba2d7496b87f04",
+        "bytes": 918551
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "9a03f1127a68a96924de0802d0a7f4e4c74df39390ab7040dba15489e9fcb281",
+        "bytes": 16168
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "b6143172833146109d380a5bd66de2cde18c799a6de8079238cda13942a75fa9",
+        "bytes": 14932
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d22780fa80e3666ff372005a2670d4edca0dd12ce4ecb1fd0223862dd1bdd694",
+        "bytes": 14890
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "131ac543406d19d985d04e8c2b8ee944886c0f2089ee6ad69996ac1165892a62",
+        "bytes": 15395
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "8f13540d04700d14e564dfef942fc2502bc4b846b9325d293ec2d448146f7086",
+        "bytes": 14340
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "75010a51e3f45c096a4669c69f3d69b477cec63382478a842406cfff5ac31923",
+        "bytes": 9227
+      },
+      "state.json": {
+        "sha256": "d5c20366242f3024c53811429ec4110a74298a8afd428d48d525b93a2bb6b417",
+        "bytes": 287867
+      }
+    }
+  },
+  "pre_pruning_workloads": {
+    "single": {
+      "chronicle.md": {
+        "sha256": "2a5c675a34ac846abad82f6bb1ef975473fb9b1f67d183f3c72e2f27ccbdd922",
+        "bytes": 214
+      },
+      "chronicle_bundle.json": {
+        "sha256": "870897476f1696ab598fb4f2328a0036219da18519b3b4201a372d549c719e79",
+        "bytes": 73595
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "fc66cac7089b4a190bc9ca3b6f3fcf53a237b0ab24c76a077148dedfdb762c4d",
+        "bytes": 5578
+      },
+      "state.json": {
+        "sha256": "7ce53ad072906f26eb586a2cecfc4ed1f668435f65b0418b5d349d386a0418d6",
+        "bytes": 25666
+      }
+    },
+    "standard": {
+      "chronicle.md": {
+        "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee",
+        "bytes": 588
+      },
+      "chronicle_bundle.json": {
+        "sha256": "098508fef87dfb59c1dfbacab65c02265c1c79e7c6fdbddeb4d1c513d25a61da",
+        "bytes": 853172
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "af69fab31e315f415ed7661b6591bbeb64c3564aa22a4e6a99c15f07ac303501",
+        "bytes": 24663
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d7a99a48926d3249e331640129bfcaf21ee5b3316109cae3e3b7ca753481177c",
+        "bytes": 18463
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "efe39bdbaa61d57ba9e14f3f762fb3997e8eb398abc33c48f6408edf851e0020",
+        "bytes": 19721
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "74ff9e636d9a6bfad2eaa804966d905b79ef01129d8f49f8cd4f4ac1c0af7de9",
+        "bytes": 24211
+      },
+      "state.json": {
+        "sha256": "8e13edaad757517d545d076aa6ad25d1adb8969cb8903387c62953d84adec397",
+        "bytes": 253692
+      }
+    },
+    "wide": {
+      "chronicle.md": {
+        "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f",
+        "bytes": 500
+      },
+      "chronicle_bundle.json": {
+        "sha256": "c616483ace2a6d93f4b118e6e912ab3b6c78e62bef4f36ce1eb999c6eb0c7ffe",
+        "bytes": 918529
+      },
+      "memories_ashkari_nomads.json": {
+        "sha256": "9a03f1127a68a96924de0802d0a7f4e4c74df39390ab7040dba15489e9fcb281",
+        "bytes": 16168
+      },
+      "memories_dorrathi_clans.json": {
+        "sha256": "b6143172833146109d380a5bd66de2cde18c799a6de8079238cda13942a75fa9",
+        "bytes": 14932
+      },
+      "memories_kethani_empire.json": {
+        "sha256": "d22780fa80e3666ff372005a2670d4edca0dd12ce4ecb1fd0223862dd1bdd694",
+        "bytes": 14890
+      },
+      "memories_selurian_republic.json": {
+        "sha256": "131ac543406d19d985d04e8c2b8ee944886c0f2089ee6ad69996ac1165892a62",
+        "bytes": 15395
+      },
+      "memories_thornwall_confederacy.json": {
+        "sha256": "8f13540d04700d14e564dfef942fc2502bc4b846b9325d293ec2d448146f7086",
+        "bytes": 14340
+      },
+      "memories_vrashni_dominion.json": {
+        "sha256": "75010a51e3f45c096a4669c69f3d69b477cec63382478a842406cfff5ac31923",
+        "bytes": 9227
+      },
+      "state.json": {
+        "sha256": "d5c20366242f3024c53811429ec4110a74298a8afd428d48d525b93a2bb6b417",
+        "bytes": 287867
+      }
+    }
+  }
+}

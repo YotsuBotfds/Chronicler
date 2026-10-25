@@ -373,9 +373,11 @@ class TestFamineSeverityScaling:
         # Low stress (mult ~1.0)
         w_low = self._make_famine_world(pop=50, civ_stress=0)
         pop_before_low = w_low.regions[0].population
+        # A near-total failure (the toll scales with the yield's depth below
+        # the famine threshold; 0.0 would fall back to subsistence).
         _check_famine_yield(
             w_low,
-            {"TestRegion": [0.0, 0.0, 0.0]},
+            {"TestRegion": [0.0012, 0.0, 0.0]},
             ClimatePhase.DROUGHT,
             threshold=0.12,
             subsistence_base=0.15,
@@ -388,7 +390,7 @@ class TestFamineSeverityScaling:
         pop_before_high = w_high.regions[0].population
         _check_famine_yield(
             w_high,
-            {"TestRegion": [0.0, 0.0, 0.0]},
+            {"TestRegion": [0.0012, 0.0, 0.0]},
             ClimatePhase.DROUGHT,
             threshold=0.12,
             subsistence_base=0.15,
@@ -401,8 +403,9 @@ class TestFamineSeverityScaling:
             f"High-severity civ should lose more pop ({loss_high}) "
             f"than low-severity civ ({loss_low})"
         )
-        # Verify exact values: base=5, low mult=1.0 -> loss=5; high mult=1.5 -> loss=int(7.5)=7
-        assert loss_low == 5, f"Expected 5 pop loss at zero stress, got {loss_low}"
+        # Exact values: base 5 x the depth share (1 - 0.0012 / 0.12 = 0.99 of a
+        # total failure); low mult 1.0 -> int(4.9) = 4; high 1.5 -> int(7.4) = 7.
+        assert loss_low == 4, f"Expected 4 pop loss at zero stress, got {loss_low}"
         assert loss_high == 7, f"Expected 7 pop loss at stress=20 (mult=1.5), got {loss_high}"
 
 
