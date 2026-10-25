@@ -1,8 +1,10 @@
 /**
- * Read-only helpers for the default-off simulation systems carried by a
- * bundle's history snapshots (`history[n].epidemics`, `.finance`,
- * `.diplomacy`, `.techniques`, `.maritime`). Nothing here infers a value the
- * bundle does not record: missing snapshots stay missing.
+ * Read-only helpers for the simulation systems carried by a bundle's history
+ * snapshots (`history[n].epidemics`, `.finance`, `.diplomacy`, `.techniques`,
+ * `.maritime`, `.campaign`, `.food`, `.nomads`, `.gp_agendas`, `.contact`,
+ * civ rows' `governance`) and its event timeline. Nothing here infers a value
+ * the bundle does not record: missing snapshots stay missing. Helpers for the
+ * later systems live in `food.ts`, `wars.ts` and `polity.ts`.
  */
 import type {
   Bundle,
@@ -13,7 +15,18 @@ import type {
 } from "../types";
 import { ERA_LABELS, ERA_ORDER } from "./format";
 
-export type SystemKey = "epidemics" | "finance" | "diplomacy" | "techniques" | "maritime";
+export type SystemKey =
+  | "epidemics"
+  | "food"
+  | "wars"
+  | "finance"
+  | "diplomacy"
+  | "techniques"
+  | "maritime"
+  | "nomads"
+  | "agendas"
+  | "governance"
+  | "contact";
 
 /** What every system panel receives from the shell. */
 export interface SystemPanelProps {
@@ -32,9 +45,9 @@ export interface SystemPanelProps {
 /** The system a shell surface opens on when the viewer has not picked one. */
 export function preferredSystem(surface: string, present: SystemKey[]): SystemKey | null {
   const preferences: Record<string, SystemKey[]> = {
-    trade: ["finance", "maritime"],
-    campaign: ["diplomacy", "maritime"],
-    character: ["techniques", "diplomacy"],
+    trade: ["finance", "contact", "maritime"],
+    campaign: ["wars", "diplomacy", "maritime"],
+    character: ["techniques", "agendas", "governance", "diplomacy"],
   };
   for (const key of preferences[surface] ?? []) {
     if (present.includes(key)) {
@@ -52,19 +65,55 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 }
 
 /** Display order of the systems panel tabs. */
-export const SYSTEM_KEYS: SystemKey[] = ["epidemics", "finance", "diplomacy", "techniques", "maritime"];
+export const SYSTEM_KEYS: SystemKey[] = [
+  "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
+  "contact",
+];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
   epidemics: "Epidemics",
+  food: "Food",
+  wars: "Wars",
   finance: "Finance",
   diplomacy: "Diplomacy",
   techniques: "Techniques",
   maritime: "Maritime",
+  nomads: "Nomads",
+  agendas: "Agendas",
+  governance: "Governance",
+  contact: "Contact",
 };
 
-/** Systems recorded by at least one history snapshot, in tab order. */
-export function presentSystems(history: TurnSnapshot[]): SystemKey[] {
-  return SYSTEM_KEYS.filter((key) => history.some((snapshot) => snapshot[key] != null));
+/** Snapshot field each system writes (governance lives on civ rows; food may come from events alone). */
+const SNAPSHOT_FIELDS: Partial<Record<SystemKey, keyof TurnSnapshot>> = {
+  epidemics: "epidemics",
+  food: "food",
+  wars: "campaign",
+  finance: "finance",
+  diplomacy: "diplomacy",
+  techniques: "techniques",
+  maritime: "maritime",
+  nomads: "nomads",
+  agendas: "gp_agendas",
+  contact: "contact",
+};
+
+/**
+ * Systems the bundle records, in tab order: a snapshot field in at least one
+ * snapshot, governance stats on a civ row, or (food) famine events that name
+ * their region and episode (bundle version 4+).
+ */
+export function presentSystems(history: TurnSnapshot[], events: Event[] = []): SystemKey[] {
+  return SYSTEM_KEYS.filter((key) => {
+    if (key === "governance") {
+      return history.some((snapshot) => Object.values(snapshot.civ_stats).some((row) => row.governance != null));
+    }
+    const field = SNAPSHOT_FIELDS[key];
+    if (field && history.some((snapshot) => snapshot[field] != null)) {
+      return true;
+    }
+    return key === "food" && events.some((event) => event.event_type === "famine" && !!event.region && !!event.episode);
+  });
 }
 
 /** Event types each system emits (see each system's doc in docs/integration/). */
@@ -82,6 +131,29 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "fleet_commissioned", "fleet_storm", "fleet_lost", "naval_battle", "sea_control", "sea_contested",
     "sea_control_lost", "blockade", "blockade_lifted", "piracy", "piracy_ended", "amphibious_landing",
   ],
+  food: [
+    "famine", "famine_ended", "aid_convoy", "mutual_aid", "locust_swarm", "fishery_collapse", "fishery_recovery",
+  ],
+  wars: [
+    "war_declared", "peace_treaty", "war_ended", "army_raised", "army_destroyed", "siege_begun", "occupation",
+    "occupation_revolt", "liberation", "civ_conquered", "annexation", "general_fallen", "scorched_earth",
+    "congress_peace", "congress_ceasefire", "congress_collapse",
+  ],
+  nomads: [
+    "raid", "raid_repulsed", "tribute_agreed", "tribute_ended", "horde_formed", "horde_rides", "horde_fragmented",
+    "horde_dissolved", "dzud", "pasture_drought", "pasture_abandoned", "sedentarization",
+  ],
+  agendas: [
+    "agenda_declared", "agenda_fulfilled", "agenda_failed", "war_agitation", "campaign_victory", "gp_coup",
+    "gp_coup_failed", "trade_mission", "trading_house_founded", "crown_loan", "preaching", "shrine_commissioned",
+    "shrine_consecrated", "gp_alliance_formed", "gp_rivalry_formed", "succession_backed",
+  ],
+  governance: [
+    "government_transition", "psi_crisis", "psi_recovery", "institution_enacted", "institution_repealed",
+    "institution_enforcement_lapse", "institutional_regime_shift", "elite_overproduction", "legitimacy_crisis",
+    "revolt", "reform_pressure", "ambition_declared", "ambition_fulfilled", "ambition_failed", "secession_suppressed",
+  ],
+  contact: ["embargo", "first_contact"],
 };
 
 /** Events of the given types up to `upToTurn`, latest first (stable within a turn). */

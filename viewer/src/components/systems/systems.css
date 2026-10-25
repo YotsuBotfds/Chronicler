@@ -389,13 +389,15 @@ button.systems-strip-label:hover {
 }
 
 .systems-grievances .phase75-mini-card,
-.systems-region-block .phase75-mini-card {
+.systems-region-block .phase75-mini-card,
+.systems-section > .phase75-mini-card {
   display: grid;
   gap: 4px;
 }
 
 .systems-grievances span,
-.systems-region-block .phase75-mini-card span {
+.systems-region-block .phase75-mini-card span,
+.systems-section > .phase75-mini-card span {
   color: var(--phase75-muted-strong);
   font-size: 0.82rem;
 }

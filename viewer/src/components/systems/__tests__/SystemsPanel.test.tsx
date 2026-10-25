@@ -3,13 +3,20 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
-import type { SystemKey, SystemPanelProps } from "../../../lib/systems";
+import type { SystemPanelProps } from "../../../lib/systems";
+import { AgendasPanel } from "../AgendasPanel";
+import { ContactPanel } from "../ContactPanel";
 import { DiplomacyPanel } from "../DiplomacyPanel";
 import { EpidemicsPanel } from "../EpidemicsPanel";
 import { FinancePanel } from "../FinancePanel";
+import { FoodPanel } from "../FoodPanel";
+import { GovernancePanel } from "../GovernancePanel";
 import { MaritimePanel } from "../MaritimePanel";
+import { NomadsPanel } from "../NomadsPanel";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
+import { WarsPanel } from "../WarsPanel";
+import { famineSpans } from "../../../lib/food";
 import { TechniquesPanel } from "../TechniquesPanel";
 
 afterEach(cleanup);
@@ -31,7 +38,7 @@ function props(bundle: Bundle = fixture, snapshot: TurnSnapshot | null = LAST): 
   };
 }
 
-function without(bundle: Bundle, ...keys: SystemKey[]): Bundle {
+function without(bundle: Bundle, ...keys: Array<keyof TurnSnapshot>): Bundle {
   return {
     ...bundle,
     history: bundle.history.map((snapshot) => {
@@ -113,10 +120,10 @@ describe("DiplomacyPanel", () => {
   });
 
   it("shows the subject and its ladder stage at a turn that has one", () => {
-    render(<DiplomacyPanel {...props(fixture, at(25))} />);
-    const subjects = screen.getByRole("table", { name: "Subjects at turn 25" });
-    expect(within(subjects).getByText("client")).toBeInTheDocument();
-    expect(within(subjects).getByText("League of Fewen")).toBeInTheDocument();
+    render(<DiplomacyPanel {...props(fixture, at(91))} />);
+    const subjects = screen.getByRole("table", { name: "Subjects at turn 91" });
+    expect(within(subjects).getByText("vassal")).toBeInTheDocument();
+    expect(within(subjects).getByText("Hiholdi Kingdom")).toBeInTheDocument();
   });
 
   it("falls back to the five largest grievances on bundles without the pair matrix", () => {
@@ -148,15 +155,16 @@ describe("TechniquesPanel", () => {
 
 describe("MaritimePanel", () => {
   it("renders sea-zone control, zones with their ports, fleets and blockades", () => {
-    const p = props();
+    const blockaded = at(101);
+    const p = props(fixture, blockaded);
     render(<MaritimePanel {...p} />);
     expect(screen.getAllByRole("img", { name: /^the Morendor Bight: / }).length).toBe(1);
-    const zones = screen.getByRole("table", { name: "Sea zones at turn 120" });
-    expect(within(zones).getAllByRole("row")).toHaveLength(1 + LAST.maritime!.zones.length);
-    const fleets = screen.getByRole("table", { name: "Fleets at turn 120" });
-    expect(within(fleets).getAllByRole("row")).toHaveLength(1 + LAST.maritime!.fleets.length);
-    const blockades = screen.getByRole("table", { name: "Blockades at turn 120" });
-    expect(within(blockades).getAllByRole("row")).toHaveLength(1 + LAST.maritime!.blockades.length);
+    const zones = screen.getByRole("table", { name: "Sea zones at turn 101" });
+    expect(within(zones).getAllByRole("row")).toHaveLength(1 + blockaded.maritime!.zones.length);
+    const fleets = screen.getByRole("table", { name: "Fleets at turn 101" });
+    expect(within(fleets).getAllByRole("row")).toHaveLength(1 + blockaded.maritime!.fleets.length);
+    const blockades = screen.getByRole("table", { name: "Blockades at turn 101" });
+    expect(within(blockades).getAllByRole("row")).toHaveLength(1 + blockaded.maritime!.blockades.length);
     const port = fixture.world_state.regions[fixture.world_state.maritime!.zones![0].ports![0]].name;
     fireEvent.click(within(zones).getAllByRole("button", { name: port })[0]);
     expect(p.onSelectRegion).toHaveBeenCalledWith(port);
@@ -175,11 +183,113 @@ describe("MaritimePanel", () => {
   });
 });
 
+describe("WarsPanel", () => {
+  it("renders wars over time, the scrubbed turn's wars and armies, and the battles so far", () => {
+    const snapshot = at(101);
+    const p = props(fixture, snapshot);
+    render(<WarsPanel {...p} />);
+    expect(within(screen.getByRole("group", { name: "Wars over time" })).getAllByRole("img").length).toBeGreaterThan(0);
+    const wars = screen.getByRole("table", { name: "Wars at turn 101" });
+    expect(within(wars).getAllByRole("row")).toHaveLength(1 + snapshot.campaign!.wars.length);
+    const armies = screen.getByRole("table", { name: "Armies at turn 101" });
+    expect(within(armies).getAllByRole("row")).toHaveLength(1 + snapshot.campaign!.armies.length);
+    const army = snapshot.campaign!.armies[0];
+    fireEvent.click(within(armies).getAllByRole("button", { name: army.region })[0]);
+    expect(p.onSelectRegion).toHaveBeenCalledWith(army.region);
+    expect(screen.getByRole("table", { name: "Battles up to turn 101" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "War events" })).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+
+  it("lists occupations at a turn that has one", () => {
+    render(<WarsPanel {...props(fixture, at(11))} />);
+    expect(screen.getByRole("table", { name: "Occupations at turn 11" })).toBeInTheDocument();
+  });
+});
+
+describe("FoodPanel", () => {
+  it("renders famines by region, hungry regions with food over need, and relief", () => {
+    const snapshot = fixture.history.find((entry) => (entry.food?.aid.length ?? 0) > 0)!;
+    const p = props(fixture, snapshot);
+    render(<FoodPanel {...p} />);
+    expect(screen.getByLabelText("Regions short of food and regions in famine")).toBeInTheDocument();
+    const strip = screen.getByRole("group", { name: "Famines by region over time" });
+    expect(within(strip).getByText("Bredoham Wetlands")).toBeInTheDocument();
+    const hungry = screen.getByRole("table", { name: `Hungry regions at turn ${snapshot.turn}` });
+    expect(within(hungry).getByText("Food ÷ need")).toBeInTheDocument();
+    expect(within(screen.getByLabelText(`Relief convoys at turn ${snapshot.turn}`)).getAllByText(/→/).length)
+      .toBe(snapshot.food!.aid.length);
+    fireEvent.click(within(strip).getByRole("button", { name: "Bredoham Wetlands" }));
+    expect(p.onSelectRegion).toHaveBeenCalledWith("Bredoham Wetlands");
+  });
+
+  it("counts famines only when the bundle has no food field", () => {
+    const older = without(fixture, "food");
+    render(<FoodPanel {...props(older, older.history[older.history.length - 1])} />);
+    expect(screen.getByText(/does not export regional food sufficiency/)).toBeInTheDocument();
+    expect(screen.queryByText("Food ÷ need")).not.toBeInTheDocument();
+  });
+});
+
+describe("NomadsPanel", () => {
+  it("renders ways of life, herds and the nomad counters", () => {
+    const p = props();
+    render(<NomadsPanel {...p} />);
+    const strip = screen.getByRole("group", { name: "Subsistence mode of each civilization over time" });
+    expect(within(strip).getByText("Hiholdi Kingdom")).toBeInTheDocument();
+    expect(screen.getByLabelText("Herd head on each civilization's land")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Nomad totals by turn 120")).getByText("Raids")).toBeInTheDocument();
+    fireEvent.click(within(strip).getByRole("button", { name: "Hiholdi Kingdom" }));
+    expect(p.onSelectCivilization).toHaveBeenCalledWith("Hiholdi Kingdom");
+  });
+});
+
+describe("AgendasPanel", () => {
+  it("phrases open vows with their targets resolved and lists agenda events", () => {
+    const p = props();
+    render(<AgendasPanel {...p} />);
+    const table = screen.getByRole("table", { name: "Open agendas at turn 120" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + LAST.gp_agendas!.open.length);
+    expect(within(table).getByText("discover bronze working")).toBeInTheDocument();
+    const civ = fixture.world_state.civilizations[2].name;
+    expect(within(table).getByText(`keep the trade road to ${civ} open`)).toBeInTheDocument();
+    expect(screen.getByLabelText("Agendas so far (running totals)")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Agenda events" })).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+});
+
+describe("GovernancePanel", () => {
+  it("renders forms of government, political stress and each realm at the turn", () => {
+    const p = props();
+    render(<GovernancePanel {...p} />);
+    const strip = screen.getByRole("group", { name: "Form of government of each civilization over time" });
+    expect(within(strip).getAllByRole("img").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Political stress index (higher is closer to unrest)")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Governance at turn 120" });
+    const living = Object.values(LAST.civ_stats).filter((row) => row.governance && row.alive !== false).length;
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + living);
+    expect(within(table).getByText("merchant republic")).toBeInTheDocument();
+  });
+});
+
+describe("ContactPanel", () => {
+  it("renders contact over time and the largest trade partnerships with their dependence", () => {
+    render(<ContactPanel {...props()} />);
+    const table = screen.getByRole("table", { name: "Trade partnerships at turn 120" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + LAST.contact!.top_trade_pairs.length);
+    const top = LAST.contact!.top_trade_pairs[0];
+    expect(within(table).getAllByText(`${(top.dependence_ab * 100).toFixed(0)}%`).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Pairs of living civilizations in contact, and trading")).toBeInTheDocument();
+  });
+});
+
 describe("SystemsPanel", () => {
   it("offers one tab per recorded system and switches between them", () => {
     render(<SystemsPanel {...props()} surface="overview" />);
     const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent);
-    expect(tabs).toEqual(["Epidemics", "Finance", "Diplomacy", "Techniques", "Maritime"]);
+    expect(tabs).toEqual([
+      "Epidemics", "Food", "Wars", "Finance", "Diplomacy", "Techniques", "Maritime", "Nomads", "Agendas",
+      "Governance", "Contact",
+    ]);
     expect(screen.getByRole("tab", { name: "Epidemics" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Maritime" }));
     expect(screen.getByRole("table", { name: "Sea zones at turn 120" })).toBeInTheDocument();
@@ -196,10 +306,17 @@ describe("SystemsPanel", () => {
   });
 
   it("drops the tab of a system the bundle does not carry", () => {
-    const partial = without(fixture, "finance", "maritime");
+    const partial = without(fixture, "finance", "maritime", "contact", "campaign", "nomads", "gp_agendas", "food");
     render(<SystemsPanel {...props(partial, partial.history[partial.history.length - 1])} surface="trade" />);
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Epidemics", "Diplomacy", "Techniques"]);
+    // Food stays: the timeline still records famines by region.
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent))
+      .toEqual(["Epidemics", "Food", "Diplomacy", "Techniques", "Governance"]);
     expect(screen.getByRole("tab", { name: "Epidemics" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens the war tab on the campaign surface", () => {
+    render(<SystemsPanel {...props()} surface="campaign" />);
+    expect(screen.getByRole("tab", { name: "Wars" })).toHaveAttribute("aria-selected", "true");
   });
 });
 
@@ -213,7 +330,8 @@ describe("RegionSystemsDetail", () => {
     expect(within(epidemics).getByText("Borders open")).toBeInTheDocument();
     const techniques = screen.getByLabelText(`Techniques in ${region}`);
     expect(within(techniques).getByText("Writing")).toBeInTheDocument();
-    expect(within(techniques).getByText("96%")).toBeInTheDocument();
+    const writing = LAST.techniques!.regions![region].writing;
+    expect(within(techniques).getByText(`${(writing * 100).toFixed(0)}%`)).toBeInTheDocument();
   });
 
   it("names a quarantining controller and an empty region", () => {
@@ -226,6 +344,25 @@ describe("RegionSystemsDetail", () => {
     expect(screen.getByText("Glewahami Confederacy has closed its borders")).toBeInTheDocument();
     expect(screen.getByText("None reportable")).toBeInTheDocument();
     expect(screen.getByText("None recorded")).toBeInTheDocument();
+  });
+
+  it("shows a region's food, famine and the armies in it", () => {
+    const spans = famineSpans(fixture.events_timeline);
+    const names = fixture.world_state.regions.map((region) => region.name);
+    const snapshot = at(101);
+    const army = snapshot.campaign!.armies[0];
+    render(<RegionSystemsDetail snapshot={snapshot} region={army.region} famine={spans} regionNames={names} />);
+    const food = screen.getByLabelText(`Food in ${army.region}`);
+    expect(within(food).getByText("Food ÷ need")).toBeInTheDocument();
+    expect(within(screen.getByLabelText(`War in ${army.region}`)).getByText(army.name)).toBeInTheDocument();
+    cleanup();
+    const hungry = fixture.history.flatMap((entry) => spans
+      .filter((span) => span.start <= entry.turn && (span.end === null || span.end > entry.turn))
+      .map((span) => ({ entry, span })))[0];
+    expect(hungry).toBeDefined();
+    render(<RegionSystemsDetail snapshot={hungry.entry} region={hungry.span.region} famine={spans} regionNames={names} />);
+    expect(within(screen.getByLabelText(`Food in ${hungry.span.region}`)).getByText(`Since turn ${hungry.span.start}`))
+      .toBeInTheDocument();
   });
 
   it("renders nothing when the snapshot carries neither system", () => {

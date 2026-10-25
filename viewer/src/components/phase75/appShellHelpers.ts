@@ -5,18 +5,44 @@ export function turnToPercent(turn: number, maxTurn: number): number {
   return ((turn - 1) / (maxTurn - 1)) * 100;
 }
 
+/** The box the region pins occupy, in their own coordinates. */
+export interface PinFrame {
+  x0: number;
+  y0: number;
+  /** Width and height of the box (never zero). */
+  sx: number;
+  sy: number;
+}
+
 /**
- * Divisor that brings region map pins into 0-1. Generated worlds place
- * regions on a 0-100 map; hand-made demo data already uses 0-1.
+ * Bounds of the region map pins, so the atlas fills its canvas whatever the
+ * coordinate range: generated worlds place regions on a 0-100 map (often
+ * using only part of it), hand-made demo data uses 0-1. Missing coordinates
+ * are ignored; with no pins the frame is the unit square.
  */
-export function pinScale(coords: Array<number | null | undefined>): number {
-  let max = 0;
-  for (const value of coords) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      max = Math.max(max, Math.abs(value));
-    }
+export function pinFrame(points: Array<{ x?: number | null; y?: number | null }>): PinFrame {
+  const finite = (value: number | null | undefined): value is number => typeof value === "number" && Number.isFinite(value);
+  const xs = points.map((point) => point.x).filter(finite);
+  const ys = points.map((point) => point.y).filter(finite);
+  if (xs.length === 0 || ys.length === 0) {
+    return { x0: 0, y0: 0, sx: 1, sy: 1 };
   }
-  return max > 1 ? Math.max(100, max) : 1;
+  const span = (values: number[]) => Math.max(...values) - Math.min(...values);
+  // A single pin, or pins on one line, keep a nominal extent around them.
+  const fallback = Math.max(span(xs), span(ys), 1e-6);
+  const sx = span(xs) > 0 ? span(xs) : fallback;
+  const sy = span(ys) > 0 ? span(ys) : fallback;
+  return {
+    x0: span(xs) > 0 ? Math.min(...xs) : Math.min(...xs) - sx / 2,
+    y0: span(ys) > 0 ? Math.min(...ys) : Math.min(...ys) - sy / 2,
+    sx,
+    sy,
+  };
+}
+
+/** A map position in the pins' coordinates, placed in the atlas viewBox (1000 x 640). */
+export function atlasPoint(x: number, y: number, frame: PinFrame): { x: number; y: number } {
+  return { x: 90 + ((x - frame.x0) / frame.sx) * 820, y: 80 + ((y - frame.y0) / frame.sy) * 480 };
 }
 
 /**

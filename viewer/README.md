@@ -7,10 +7,12 @@ See [the inspector guide](../docs/experiment-inspector.md) for evidence semantic
 the deterministic fixture, and local browser QA. The panel is closed by default
 and limited to static artifacts.
 
-Bundles written with any default-off system (`--epidemiology`, `--finance`,
-`--diplomacy`, `--techniques`, `--maritime`) also get a **Simulation systems**
-panel below the map and per-region epidemic and technique rows in the
-inspector; bundles without them look as before. See
+Bundles that record the simulation systems (epidemics, food, wars, finance,
+diplomacy, techniques, maritime, nomads, agendas, governance, contact) also
+get a **Simulation systems** panel below the map with one tab per recorded
+system, a **Map layer** row (food, epidemics, wars, migration, techniques,
+sea) and per-region food, war, epidemic and technique rows in the inspector;
+bundles without them get none of these. See
 [viewer-systems.md](../docs/integration/viewer-systems.md).
 
 ## React + TypeScript + Vite scaffold notes
