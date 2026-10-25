@@ -80,6 +80,19 @@ def test_native_migration_budget_reports_every_term(make_world):
         budget["decided"] - budget["unexplained"])
 
 
+def test_native_migration_budget_is_reset_every_tick(make_world):
+    _require_native()
+    world = _frontier_world(make_world, internal=True)
+    bridge = AgentBridge(world, mode="hybrid")
+    for turn in range(1, 4):
+        alive_before = bridge.get_snapshot().num_rows
+        world.turn = turn
+        bridge.tick(world)
+        budget = bridge._sim.get_migration_driver_stats()
+        assert 0 < budget["evaluated"] <= alive_before
+        assert budget["decided"] <= budget["evaluated"]
+
+
 def test_native_frontier_settlement_stays_inside_the_realm(make_world):
     """Young farmers leave the full region for the emptier land of their own
     realm; a foreign-ruled neighbour draws no frontier settlers."""
