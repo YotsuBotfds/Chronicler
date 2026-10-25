@@ -148,21 +148,15 @@ def set_maritime_enabled(world: "WorldState", enabled: bool) -> None:
 
 
 def navigation_level(world, civ) -> int:
-    """The civ's navigation technique level; 0 (neutral) when no registry exists.
+    """The civ's navigation level: the navigation techniques it knows (0-4).
 
-    The technique registry is owned by another line of work. This is the only
-    place maritime reads it, so the rest of the layer is neutral until a
-    registry exposing ``chronicler.techniques.technique_level(world, civ,
-    name)`` lands.
+    The only place maritime reads the techniques: coastal sailing, celestial
+    navigation, the compass and ocean navigation in the civ's known set
+    (``chronicler.techniques.technique_level``). 0 with techniques off, so
+    the layer is then neutral to navigation. Techniques never read maritime.
     """
-    try:
-        from chronicler import techniques  # type: ignore[attr-defined]
-    except ImportError:
-        return 0
-    getter = getattr(techniques, "technique_level", None)
-    if getter is None:
-        return 0
-    return max(0, int(getter(world, civ, "navigation") or 0))
+    from chronicler.techniques import technique_level
+    return technique_level(world, civ, "navigation")
 
 
 # ---------------------------------------------------------------------------

@@ -40,11 +40,15 @@ was not run.
   risk is pirate pressure only; war at sea raises it through contested zones.
 * *Fleet movement between unconnected water bodies*: fleets sail only along
   zone neighbours; derived template zones have none.
-* *Navigation techniques*: `navigation_level(world, civ)` is the only
-  reader and returns 0 (neutral) until the technique registry (another line
-  of work) exposes `chronicler.techniques.technique_level`. The existing
-  tech focuses still count: `naval_power` raises fleet quality, `navigation`
-  lowers storm risk.
+* *Navigation techniques* (wired 2026-10, see
+  [navigation-famine-labels.md](navigation-famine-labels.md)): until then
+  `navigation_level(world, civ)` returned 0. It now counts the navigation
+  techniques in the civ's known set (`chronicler.techniques.technique_level`:
+  coastal sailing, celestial navigation, the compass, ocean navigation; 0-4;
+  0 with techniques off). It is the only reader; techniques never read
+  maritime. The level adds fleet range (zone hops), quality, the ship cap
+  and storm safety below. The tech focuses still count: `naval_power`
+  raises fleet quality, `navigation` lowers storm risk.
 * *Naval battles in `war_state.battles`*: they live in `MaritimeState.battles`
   so land-battle consumers (contested regions, viewer battle lists) never see
   a zone where they expect a region.
@@ -107,7 +111,8 @@ tick and the campaign tick read this turn's.
 ## Fleets
 
 **Naval programme** (per living civ with ports or fleets). For every zone
-within reach (3 zone hops of its ports, plus where its fleets are) it wants:
+within reach (3 zone hops of its ports plus one per navigation level, and
+where its fleets are) it wants:
 
 | Need | Ships | Condition |
 | --- | --- | --- |
@@ -116,7 +121,8 @@ within reach (3 zone hops of its ports, plus where its fleets are) it wants:
 | war | 6 + 1.25 x enemy ships there | an enemy (at war) holds a port or has ships in the zone |
 | escort | the ships its waiting armies asked for | escort requests from the campaign tick |
 
-Total wanted is capped at 6 per port plus military / 5 (max 60). It builds
+Total wanted is capped at 6 per port plus military / 5 plus 2 per navigation
+level (max 60). It builds
 up to 4 ships a turn, spending at most 30% of the treasury above a reserve of
 30: 8 coin per ship plus 2 timber, taken from its regions' free stocks
 (stock minus merchant reservations and pending departures, port first) in
@@ -323,7 +329,7 @@ turn, ...))` (`storm`, `battle`, `piracy`) plus the native raid stream.
 
 * sea model: procedural zones and lanes, the template coast clique (one zone
   "the Obsidian Sea" on 12-region worlds), no sea without a clique, the
-  neutral navigation level;
+  the navigation level (0 with techniques off; known navigation techniques);
 * switch: dormancy and omitted fields, old saves, a monkeypatched switch-off
   campaign run that forbids every entry point, round trips with a warm
   cache, the CLI flag, gate forwarding, the snapshot, analytics and the

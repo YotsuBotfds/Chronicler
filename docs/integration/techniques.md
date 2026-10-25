@@ -174,6 +174,7 @@ paradigm-shift named events); regressions replay the M18 consequences
 | Epidemic fatality (`--epidemiology`) | `epidemiology.tick_epidemics` | the region's fatality multiplier x(1 - herbal lore 0.05 - physicians 0.10 - lazarets 0.05 - vaccination 0.30), at least 0.5 |
 | Quarantine (`--epidemiology`) | `epidemiology._introduce` | efficacy 0.7 + written law 0.05 + lazarets 0.15 (civ practice), at most 0.9 |
 | Credit (`--finance`) | `finance._domestic_capacity`, `finance._borrow` | domestic credit capacity and the debt ceiling x(1 + coinage 0.10 + banking 0.30 + double entry 0.20) |
+| Navigation (`--maritime`) | `maritime.navigation_level`, through the read-only `technique_level(world, civ, "navigation")` | the navigation techniques the civ knows (sailing, celestial navigation, compass, ocean navigation: level 0-4) add fleet range, quality, the ship cap and storm safety ([maritime.md](maritime.md)); wired 2026-10 ([navigation-famine-labels.md](navigation-famine-labels.md)) |
 
 Civ-wide effects read the civ practice measured at the tick
 (`TechniqueState.civ_levels`, saved), region effects the saved practice
