@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
+import citiesFixture from "../../../__fixtures__/cities_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
+import { CitiesPanel } from "../CitiesPanel";
 import { ContactPanel } from "../ContactPanel";
 import { DiplomacyPanel } from "../DiplomacyPanel";
 import { EpidemicsPanel } from "../EpidemicsPanel";
@@ -317,6 +319,64 @@ describe("SystemsPanel", () => {
   it("opens the war tab on the campaign surface", () => {
     render(<SystemsPanel {...props()} surface="campaign" />);
     expect(screen.getByRole("tab", { name: "Wars" })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+/**
+ * A trimmed template run with --cities (seed 70, 250 hybrid turns): every
+ * snapshot's `cities` field, the city events and `world_state.cities`.
+ */
+const cities = citiesFixture as unknown as Bundle;
+const CITIES_LAST = cities.history[cities.history.length - 1];
+
+function citiesAt(turn: number): TurnSnapshot {
+  const snapshot = cities.history.find((entry) => entry.turn === turn);
+  if (!snapshot) {
+    throw new Error(`cities fixture has no turn ${turn}`);
+  }
+  return snapshot;
+}
+
+describe("CitiesPanel", () => {
+  it("renders the cities over time, the scrubbed turn's table and the first city's history", () => {
+    const p = props(cities, CITIES_LAST);
+    render(<CitiesPanel {...p} />);
+    const strip = screen.getByRole("group", { name: "Rank of each city over time" });
+    expect(within(strip).getByText("Verdant Plains Settlement 2")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Cities at turn 250" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + CITIES_LAST.cities!.cities.length);
+    expect(within(table).getAllByText("self-government")).toHaveLength(2);
+    fireEvent.click(within(table).getAllByRole("button", { name: "Kethani Empire" })[0]);
+    expect(p.onSelectCivilization).toHaveBeenCalledWith("Kethani Empire");
+    fireEvent.click(within(table).getByRole("button", { name: "Sunfire Steppe" }));
+    expect(p.onSelectRegion).toHaveBeenCalledWith("Sunfire Steppe");
+    // The first living city is followed: its purse, unrest and recorded moments.
+    const history = screen.getByRole("region", { name: "History of Sunfire Steppe Settlement 1" });
+    expect(within(history).getByLabelText("Civic purse of Sunfire Steppe Settlement 1")).toBeInTheDocument();
+    const moments = within(history).getByRole("list", { name: "Recorded moments of Sunfire Steppe Settlement 1" });
+    expect(within(moments).getByText(/has grown into a great city/)).toBeInTheDocument();
+    fireEvent.click(within(moments).getAllByRole("listitem")[0]);
+    expect(p.onSelectEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows the city chosen in the table, including one that fell", () => {
+    render(<CitiesPanel {...props(cities, citiesAt(150))} />);
+    const table = screen.getByRole("table", { name: "Cities at turn 150" });
+    fireEvent.click(within(table).getByRole("button", { name: "Verdant Plains Settlement 2" }));
+    const history = screen.getByRole("region", { name: "History of Verdant Plains Settlement 2" });
+    expect(within(history).getByText(/fell at turn 165 \(abandoned\)/)).toBeInTheDocument();
+    // Its famine is a recorded moment; the fall (turn 165) is not shown at turn 150.
+    const moments = within(history).getByRole("list", { name: "Recorded moments of Verdant Plains Settlement 2" });
+    expect(within(moments).getByText(/Famine/)).toBeInTheDocument();
+    expect(within(moments).queryByText(/is abandoned/)).not.toBeInTheDocument();
+  });
+
+  it("says so before the first city and is a tab only when the run records cities", () => {
+    render(<CitiesPanel {...props(cities, citiesAt(5))} />);
+    expect(screen.getByText("No city stands at turn 5.")).toBeInTheDocument();
+    cleanup();
+    render(<SystemsPanel {...props(cities, CITIES_LAST)} surface="overview" />);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Cities"]);
   });
 });
 
