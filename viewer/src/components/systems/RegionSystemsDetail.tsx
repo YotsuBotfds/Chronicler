@@ -19,7 +19,7 @@ export function RegionSystemsDetail({
 }: {
   snapshot: TurnSnapshot | null;
   region: string;
-  /** Famine spans of the run (`lib/food.famineSpans`). */
+  /** Food-crisis spans of the run, famine and dearth (`lib/food.foodCrisisSpans`). */
   famine?: FamineSpan[];
   /** Region names in world order, to read the food field by index. */
   regionNames?: string[];
@@ -52,7 +52,7 @@ export function RegionSystemsDetail({
             </div>
           )}
           <div className="phase75-stat-row">
-            <span>Famine</span>
+            <span>{span?.kind === "dearth" ? "Dearth" : "Famine"}</span>
             <strong>{span ? `Since turn ${span.start}` : "None"}</strong>
           </div>
         </div>

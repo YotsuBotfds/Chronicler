@@ -555,4 +555,6 @@ the cargo tests, the native pytest lanes and the gates above.
   driver on each migration event (a new or repurposed agent-event column
   and household followers inheriting the lead's label), which changes
   `agent_events` content and hybrid bundle text; left for its own review.
+  Done on `fix/navigation-famine-labels` (a `migration_driver` event
+  column; [navigation-famine-labels.md](navigation-famine-labels.md)).
 - The 0.06-0.08 aim is not reached (above).

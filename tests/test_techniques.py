@@ -437,6 +437,25 @@ def test_effects_follow_practice():
     assert T.yield_multiplier(None, world.regions[0], ResourceType.GRAIN) == 1.0
 
 
+def test_technique_level_counts_known_techniques_of_a_domain():
+    world = _pair()
+    world.regions[0].terrain = "coast"
+    _seed_practice(world, 0, ["sailing", "writing", "celestial_navigation"])
+    _tick(world, 1)
+    x, y = world.civilizations
+    assert set(world.techniques.known[0]) >= {K["sailing"], K["celestial_navigation"]}
+    assert T.technique_level(world, x, "navigation") == 2
+    assert T.technique_level(world, y, "navigation") == 0
+    assert T.technique_level(world, x, "writing") == 1
+    assert T.technique_level(world, x, "no such domain") == 0
+    # Read-only: the accessor changes nothing it reads.
+    before = world.techniques.model_dump()
+    T.technique_level(world, x, "navigation")
+    assert world.techniques.model_dump() == before
+    T.set_techniques_enabled(world, False)
+    assert T.technique_level(world, x, "navigation") == 0
+
+
 def test_navigation_extends_trade_routes_two_hops_across_the_coast():
     from chronicler.resources import get_active_trade_routes
     world = _pair()

@@ -337,6 +337,7 @@ pub fn consolidate_household_migrations(
             // Remove trailing's existing migration (if different destination)
             bucket.migrations.retain(|m| m.0 != trailing_slot);
             bucket.migrations.push((trailing_slot, lead_from, lead_to));
+            bucket.migration_followers.push((trailing_slot, lead_term));
             // Remove trailing from rebellion/switch (primary action replaced)
             bucket.rebellions.retain(|&(s, _)| s != trailing_slot);
             bucket.occupation_switches.retain(|&(s, _)| s != trailing_slot);
@@ -347,6 +348,7 @@ pub fn consolidate_household_migrations(
             for &dep in &dep_slots {
                 bucket.migrations.retain(|m| m.0 != dep);
                 bucket.migrations.push((dep, lead_from, lead_to));
+                bucket.migration_followers.push((dep, lead_term));
                 bucket.rebellions.retain(|&(s, _)| s != dep);
                 bucket.occupation_switches.retain(|&(s, _)| s != dep);
                 stats.household_migrations_follow += 1;

@@ -7,8 +7,9 @@
 import type { Bundle, TurnSnapshot } from "../types";
 import { factionColor, UNCONTROLLED_COLOR } from "./colors";
 import {
-  AID_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord, MIGRATION_COLOR,
-  migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD, sufficiencyByRegion, type FamineSpan,
+  AID_COLOR, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
+  massMigrations, MIGRATION_COLOR, migrationDriverKind, migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD,
+  sufficiencyByRegion, type FamineSpan,
 } from "./food";
 import {
   BLOCKADE_COLOR, CONTESTED_COLOR, formatShare, pathogenColor, pathogenLabel, techniqueLabel,
@@ -112,6 +113,7 @@ export interface MapLayerView {
 export interface MapLayerInput {
   bundle: Bundle;
   snapshot: TurnSnapshot | null;
+  /** Food-crisis spans of the run, both labels (`lib/food.foodCrisisSpans`). */
   famine: FamineSpan[];
   technique: string | null;
 }
@@ -141,20 +143,25 @@ function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
   const names = bundle.world_state.regions.map((region) => region.name);
   const view = emptyView("food", snapshot?.food
     ? "Food on hand over need at this turn: amber where short (brighter is shorter), orange in famine; green arrows are relief convoys within a realm."
-    : "Regions in famine at this turn (this bundle does not export regional food sufficiency).");
+    : "Regions in famine (orange) and dearth (pale amber) at this turn (this bundle does not export regional food sufficiency).");
   const sufficiency = sufficiencyByRegion(snapshot, names);
-  const famines = new Map(faminesAt(famine, at).map((span) => [span.region, span]));
+  const crises = new Map(faminesAt(famine, at).map((span) => [span.region, span]));
   for (const name of names) {
     const value = sufficiency.get(name);
-    const span = famines.get(name);
+    const span = crises.get(name);
     const parts: string[] = [name];
     if (value !== undefined) {
       parts.push(`food ${value.toFixed(2)} of need`);
       view.fills.set(name, value < SHORT_OF_FOOD ? mixHex("#6b5a2a", SHORT_COLOR, 1 - value) : FED_COLOR);
     }
     if (span) {
-      parts.push(`famine since T${span.start}`);
-      view.fills.set(name, FAMINE_COLOR);
+      parts.push(`${span.kind} since T${span.start}`);
+      // A dearth keeps its food shading where the bundle has it; a famine is always orange.
+      if (span.kind === "famine") {
+        view.fills.set(name, FAMINE_COLOR);
+      } else if (value === undefined) {
+        view.fills.set(name, DEARTH_COLOR);
+      }
     }
     if (value === undefined && !span && snapshot?.food) {
       parts.push("not observed (no owner or nobody living there)");
@@ -171,6 +178,8 @@ function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
   }
   view.legend = [
     { label: "famine", color: FAMINE_COLOR, kind: "fill" },
+    ...(!snapshot?.food && famine.some((span) => span.kind === "dearth")
+      ? [{ label: "dearth", color: DEARTH_COLOR, kind: "fill" as const }] : []),
     ...(snapshot?.food ? [
       { label: "short of food", color: SHORT_COLOR, kind: "fill" as const },
       { label: "fed", color: FED_COLOR, kind: "fill" as const },
@@ -284,14 +293,31 @@ function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
       title: `${flow.amount} moved from ${flow.from} to ${flow.to}` });
   }
   const net = netMigration(flows);
+  // Mass departures in the window, with what moved them when the bundle records it.
+  const waves = new Map<string, string[]>();
+  const kinds = new Map<string, number>();
+  for (const event of massMigrations(bundle.events_timeline, at, MIGRATION_WINDOW)) {
+    const kind = migrationDriverKind(event.driver);
+    const region = event.region as string;
+    waves.set(region, [...(waves.get(region) ?? []), `mass departure T${event.turn}${kind ? `: ${kind}` : ""}`]);
+    if (kind) {
+      kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+    }
+  }
   for (const name of names) {
     const value = net.get(name);
-    view.titles.set(name, value === undefined ? `${name} · no recorded moves` : `${name} · net ${value > 0 ? "+" : ""}${value} people`);
+    const parts = [value === undefined ? `${name} · no recorded moves` : `${name} · net ${value > 0 ? "+" : ""}${value} people`,
+      ...(waves.get(name) ?? [])];
+    view.titles.set(name, parts.join(" · "));
   }
   if (flows.length === 0) {
     view.note = `No agent moved between regions in the ${MIGRATION_WINDOW} turns to ${at}.`;
   } else if (flows.length > MIGRATION_FLOW_LIMIT) {
     view.note += ` The ${MIGRATION_FLOW_LIMIT} largest of ${flows.length} are drawn.`;
+  }
+  if (kinds.size > 0) {
+    view.note += ` Mass departures: ${[...kinds.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([kind, count]) => `${count} ${kind}`).join(", ")}.`;
   }
   view.legend = [{ label: "people moving", color: MIGRATION_COLOR, kind: "line" }];
   return view;

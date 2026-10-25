@@ -29,7 +29,7 @@ import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
 import { LanguagesPanel } from "./LanguagesPanel";
-import { famineSpans, type FamineSpan } from "../../lib/food";
+import { foodCrisisSpans, type FamineSpan } from "../../lib/food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, MAP_LAYER_LABELS, NO_DATA_FILL, NO_DATA_OPACITY,
   practisedTechniques, type MapLayerKey, type MapLayerView,
@@ -758,7 +758,7 @@ export function AppShell({
   const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers, atlasFrame);
   const mapLayers = useMemo(() => availableMapLayers(bundle), [bundle]);
   const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
-  const famine = useMemo(() => (bundle ? famineSpans(bundle.events_timeline) : []), [bundle]);
+  const famine = useMemo(() => (bundle ? foodCrisisSpans(bundle.events_timeline) : []), [bundle]);
   const regionNames = useMemo(() => (bundle ? bundle.world_state.regions.map((region) => region.name) : []), [bundle]);
   const techniqueOptions = useMemo(() => (bundle ? practisedTechniques(bundle.history) : []), [bundle]);
   const technique = techniqueSelection && techniqueOptions.includes(techniqueSelection)

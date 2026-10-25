@@ -241,7 +241,7 @@ class TestRenderMemory:
         mem = {"event_type": 0, "source_civ": 0, "turn": 50, "intensity": -80, "decay_factor": 10}
         result = render_memory(mem, ["Kethani", "Tessaran"])
         assert result is not None
-        assert "famine" in result
+        assert "hunger" in result
         assert "vivid" in result
         assert "Kethani" in result
 

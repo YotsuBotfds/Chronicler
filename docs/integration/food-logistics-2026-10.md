@@ -240,7 +240,10 @@ In agent modes a famine event fires whenever sufficiency is below 1.0 (any
 shortfall, 5-turn cooldown) since PR #11; the aggregate model fires below a
 0.12 yield index. Famine counts therefore move little when food improves
 unless regions cross 1.0, and the severity distribution says more. The
-definition is unchanged; the tables report both.
+definition is unchanged; the tables report both. Since
+`fix/navigation-famine-labels` each such report is labelled famine (below
+0.6 for a season) or dearth, with the same effects
+([navigation-famine-labels.md](navigation-famine-labels.md)).
 
 ## Before and after
 

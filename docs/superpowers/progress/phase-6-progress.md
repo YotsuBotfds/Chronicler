@@ -2,7 +2,63 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+
+---
+
+## Navigation, famine labels, migration drivers (2026-10-25, `fix/navigation-famine-labels`)
+
+`fix/navigation-famine-labels` from `feat/defaults-wave8` (`7f055d6`; on
+`main` as `a95e4d7`, same tree), no rebase. Details and tables:
+[`docs/integration/navigation-famine-labels.md`](../../integration/navigation-famine-labels.md).
+
+- **Navigation** (`47bd9d9`, behavior change): `techniques.technique_level`
+  (read-only) counts a civ's known techniques of a domain;
+  `maritime.navigation_level` reads navigation (sailing, celestial
+  navigation, compass, ocean navigation; 0-4) for range, quality, the ship
+  cap and storms. Subsets 42-61 and 62-81 against Wave 8: PASS, NO
+  REGRESSION; 2 and 4 of 20 histories change; migration 0.0599 -> 0.0597
+  and 0.0549 -> 0.0550, latest satisfaction 0.615 -> 0.616 and 0.620 ->
+  0.618, rebellion unchanged; storm losses down a third.
+- **Famine** (`3ffa444`, labels only): the agent-mode check reports any
+  shortfall; on template worlds 44% of controlled region-turns sat in a
+  viewer famine span and 41% of reports were at 0.6 sufficiency or more. A
+  report is now famine when sufficiency stayed below 0.6 for 3 turns, else
+  dearth (`Region.food_severe_turns`); one provenance episode per region;
+  every consumer reads both (`FOOD_CRISIS_EVENT_TYPES`). Famine spans 44% ->
+  16% (template) and 47% -> 13% (procedural) of region-turns. Agents-off
+  runs byte-identical; hybrid agent events identical. No mechanic changed:
+  the famine-memory threshold stays (migration margin).
+- **Drivers** (`9930dbc`, Rust, labels only): `AgentEvent.migration_driver`
+  (followers carry the lead's) and the `migration_driver` column;
+  `mass_migration` and `notable_migration` carry `driver`, the text reads it
+  (settle, work, kin, hunger, persecution, war, hardship, prospects). Files
+  without the column read as no driver. Agents-off byte-identical; hybrid
+  agent events identical in every existing column.
+- **Full gate** (200 x 500, `9930dbc`) against Wave 8: PASS strict, NO
+  REGRESSION; migration 0.0576 -> 0.0576, satisfaction 0.607 / 0.619 ->
+  0.607 / 0.620, rebellion 0.0317 -> 0.0314, needs 194 -> 196, 0 extinct; 55
+  of 200 histories change, all with a sea; naval battles 1.16 -> 0.90 and
+  storm losses 2.42 -> 2.02 per run, sea cargo +3%; 40% of food-crisis
+  reports famine; 21% of mass migrations settling or seeking work.
+- **Bundle guard**: 20.35 -> 18.66 MB native, 19.72 -> 19.80 MB no-Rust,
+  under 24 (navigation changes the guard world's history).
+- **Tests** (`9930dbc`, fresh native build): `cargo test` 928 passed, 2
+  ignored; not-slow 6,000 passed, 3 skipped; slow 11 passed, 3 skipped;
+  no-Rust 5,792 passed, 211 skipped; oracle lane PASS (77.3 s, largest
+  chunk 27.2 s of 110 s); viewer 267 tests, lint and build. Golden
+  fixtures unchanged.
+- **Merged with `main`** (`cee5013`: PR #27 and PR #28 cities, default off),
+  no rebase: `urban` joins the driver names; cities record famine, not
+  dearth, as a misfortune. Merged head: `cargo test` 934 passed, 2 ignored;
+  not-slow 6,036 passed, 3 skipped; slow 11 passed, 3 skipped; no-Rust
+  5,825 passed, 214 skipped; oracle lane PASS (83.8 s, largest chunk
+  30.3 s); viewer 267 tests, lint, build; bundle guard bytes unchanged.
+  The full gate ran on `9930dbc` (cities off, so it stands).
+- **Open**: hunger kills no one in agent modes; the cooldown effects do not
+  scale with severity; a famine is declared up to five turns late; the
+  famine-memory threshold needs the migration probe before any change;
+  the viewer-only migration field has no drivers.
 
 ---
 

@@ -15,6 +15,7 @@ from chronicler.ecology import (
 from chronicler.economy import EconomyResult, compute_economy
 from chronicler.models import (
     EMPTY_SLOT,
+    FOOD_CRISIS_EVENT_TYPES,
     ActionType,
     Civilization,
     ClimatePhase,
@@ -221,7 +222,7 @@ def test_rust_ecology_postpass_uses_current_economy_food_result(sufficiency):
     runtime = EcologyRuntime()
     result = EconomyResult(food_sufficiency={"Fields": sufficiency})
     events = tick_ecology(world, ClimatePhase.DROUGHT, ecology_runtime=runtime, economy_result=result)
-    assert any(event.event_type == "famine" for event in events) is (sufficiency < 1.0)
+    assert any(event.event_type in FOOD_CRISIS_EVENT_TYPES for event in events) is (sufficiency < 1.0)
     assert runtime.calls == 1
     assert runtime.patch is not None
     assert world.regions[0].population == 20
@@ -263,7 +264,8 @@ def test_stored_food_and_delivered_imports_avert_drought_famine(protection):
     assert (result.food_sufficiency[region.name] >= 1.0) is (protection != "none")
 
     events = tick_ecology(world, ClimatePhase.DROUGHT, economy_result=result)
-    field_famines = [event for event in events if event.event_type == "famine" and "Farmers" in event.actors]
+    field_famines = [event for event in events
+                     if event.event_type in FOOD_CRISIS_EVENT_TYPES and "Farmers" in event.actors]
     assert bool(field_famines) is (protection == "none")
 
 

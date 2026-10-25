@@ -405,6 +405,7 @@ pub fn death_cleanup_sweep(
                     turn,
                     target_agent_id: target_id,
                     formed_turn: pool.rel_formed_turns[slot][i] as u32,
+                    migration_driver: crate::tick::NO_MIGRATION_DRIVER,
                 });
                 crate::relationships::swap_remove_rel(pool, slot, i);
                 removed += 1;
