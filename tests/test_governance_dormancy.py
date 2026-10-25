@@ -14,20 +14,23 @@ from scripts.third_wave_controls import legacy_artifact_bytes, legacy_event_dump
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
 # Rolled forward from the frozen corrected_423a67c oracles by the 2026-10
 # deferred-backlog corrections, the 2026-10 extinction fix, the 2026-10
-# food-balance corrections, the 2026-10 food-logistics changes and then the
-# 2026-10 hunger corrections; see the fixture provenance and
+# food-balance corrections, the 2026-10 food-logistics changes, the 2026-10
+# hunger corrections and then the 2026-10 farmland and regional-climate
+# corrections; see the fixture provenance and
 # tests/test_performance_equivalence.py for the scoped-difference proofs.
-BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_farmland_2026_10.json").read_text())
+HUNGER_BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
 FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
 # Bundle version 5 (dead civs pruned from history snapshots) rolled the
 # artifact oracle forward as a format change; the food-balance artifacts stay
 # frozen as its pre-pruning reference. The food-logistics artifact oracle
-# records both projections of the same run and stays frozen; the hunger
-# artifact oracle is live.
+# records both projections of the same run and stays frozen, as does the
+# hunger one; the farmland artifact oracle is live.
 ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_dead_civ_pruning_2026_10.json").read_text())
 PRE_PRUNING_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
 FOOD_LOGISTICS_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_logistics_2026_10.json").read_text())
-LIVE_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_hunger_2026_10.json").read_text())
+HUNGER_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_hunger_2026_10.json").read_text())
+LIVE_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_farmland_2026_10.json").read_text())
 
 
 @pytest.mark.parametrize("name", BASELINE["workloads"])
@@ -118,13 +121,28 @@ def test_hunger_artifacts_change_only_the_declared_workloads():
     declares; the others keep the food-logistics artifacts byte for byte in
     both projections."""
     declared = set()
+    for correction in HUNGER_BASELINE["provenance"]["corrections"]:
+        declared |= set(correction["workloads"])
+    assert set(HUNGER_ARTIFACTS["workloads"]) == set(FOOD_LOGISTICS_ARTIFACTS["workloads"])
+    for name in FOOD_LOGISTICS_ARTIFACTS["workloads"]:
+        same_v5 = HUNGER_ARTIFACTS["workloads"][name] == FOOD_LOGISTICS_ARTIFACTS["workloads"][name]
+        same_pre = (HUNGER_ARTIFACTS["pre_pruning_workloads"][name]
+                    == FOOD_LOGISTICS_ARTIFACTS["pre_pruning_workloads"][name])
+        assert same_v5 == same_pre == (name not in declared), name
+
+
+def test_farmland_artifacts_change_only_the_declared_workloads():
+    """The farmland roll-forward moves only the workloads its turn oracle
+    declares; the others keep the hunger artifacts byte for byte in both
+    projections."""
+    declared = set()
     for correction in BASELINE["provenance"]["corrections"]:
         declared |= set(correction["workloads"])
-    assert set(LIVE_ARTIFACTS["workloads"]) == set(FOOD_LOGISTICS_ARTIFACTS["workloads"])
-    for name in FOOD_LOGISTICS_ARTIFACTS["workloads"]:
-        same_v5 = LIVE_ARTIFACTS["workloads"][name] == FOOD_LOGISTICS_ARTIFACTS["workloads"][name]
+    assert set(LIVE_ARTIFACTS["workloads"]) == set(HUNGER_ARTIFACTS["workloads"])
+    for name in HUNGER_ARTIFACTS["workloads"]:
+        same_v5 = LIVE_ARTIFACTS["workloads"][name] == HUNGER_ARTIFACTS["workloads"][name]
         same_pre = (LIVE_ARTIFACTS["pre_pruning_workloads"][name]
-                    == FOOD_LOGISTICS_ARTIFACTS["pre_pruning_workloads"][name])
+                    == HUNGER_ARTIFACTS["pre_pruning_workloads"][name])
         assert same_v5 == same_pre == (name not in declared), name
 
 
