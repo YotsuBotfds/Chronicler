@@ -111,6 +111,23 @@ pub fn decay_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 }
 
 // ---------------------------------------------------------------------------
+// Birth — a newborn shares its household's conditions
+// ---------------------------------------------------------------------------
+
+/// Copy the birth parent's six needs to a newborn. Needs calibration
+/// (2026-10): newborns took the neutral STARTING_NEED, about 0.1-0.25 under
+/// the fed, peaceful equilibria (and above a starving parent's), so for their
+/// first years every child's needs read as their age, not their conditions.
+pub fn inherit_needs(pool: &mut AgentPool, parent: usize, child: usize) {
+    pool.need_safety[child] = pool.need_safety[parent];
+    pool.need_material[child] = pool.need_material[parent];
+    pool.need_social[child] = pool.need_social[parent];
+    pool.need_spiritual[child] = pool.need_spiritual[parent];
+    pool.need_autonomy[child] = pool.need_autonomy[parent];
+    pool.need_purpose[child] = pool.need_purpose[parent];
+}
+
+// ---------------------------------------------------------------------------
 // Clamp — ensure all 6 needs stay in [0.0, 1.0]
 // ---------------------------------------------------------------------------
 
@@ -730,6 +747,25 @@ mod tests {
         let t = bound_at.expect("an isolated agent's social need binds");
         assert!(t <= 15, "binds within 15 turns, took {}", t);
         assert!((pool.need_social[bonded] - 0.615).abs() < 0.02, "bonded {}", pool.need_social[bonded]);
+    }
+
+    #[test]
+    fn test_newborn_inherits_parent_needs() {
+        let mut pool = AgentPool::new(8);
+        let parent = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let child = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let values = [0.11_f32, 0.22, 0.33, 0.44, 0.55, 0.66];
+        pool.need_safety[parent] = values[0];
+        pool.need_material[parent] = values[1];
+        pool.need_social[parent] = values[2];
+        pool.need_spiritual[parent] = values[3];
+        pool.need_autonomy[parent] = values[4];
+        pool.need_purpose[parent] = values[5];
+        assert_eq!(pool.need_material[child], agent::STARTING_NEED);
+        inherit_needs(&mut pool, parent, child);
+        let got = [pool.need_safety[child], pool.need_material[child], pool.need_social[child],
+                   pool.need_spiritual[child], pool.need_autonomy[child], pool.need_purpose[child]];
+        assert_eq!(got, values);
     }
 
     #[test]

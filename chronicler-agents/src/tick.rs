@@ -986,6 +986,8 @@ pub fn try_tick_agents_with_movements(
             if birth.birth_parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
+                        // Needs calibration: born into the household's conditions.
+                        crate::needs::inherit_needs(pool, parent_slot, new_slot);
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
                         }
