@@ -703,6 +703,9 @@ class TestBundleSize:
         # (docs/integration/defaults-wave8.md) add their history fields (0.83MB
         # together) and, in this world, 14 polities over the run instead of 11:
         # 20.35MB native and 19.72MB no-Rust; with the three off, the sizes above.
+        # Maritime navigation reading the known navigation techniques
+        # (docs/integration/navigation-famine-labels.md) changes this world's
+        # history: 18.66MB native (13 polities over the run) and 19.80MB no-Rust.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
