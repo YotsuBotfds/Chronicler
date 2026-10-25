@@ -349,6 +349,32 @@ def _nomads_snapshot_fields(world) -> dict:
     return {"nomads": snapshot_summary(world)}
 
 
+def _food_snapshot_fields(world) -> dict:
+    """Viewer-only food summary (empty unless mutual aid observes regional food)."""
+    from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
+    if not mutual_aid_active(world):
+        return {}
+    return {"food": snapshot_summary(world)}
+
+
+def _migration_snapshot_fields(world) -> dict:
+    """Viewer-only agent migrations of the completed turn (empty without agent events).
+
+    ``[from region index, to region index, agents]`` rows sorted by region
+    pair, read through the exact history index; no state or RNG is touched.
+    """
+    if world.agent_mode not in ("hybrid", "shadow"):
+        return {}
+    from chronicler.history_index import history_index
+    n_regions = len(world.regions)
+    counts: dict[tuple[int, int], int] = {}
+    for e in history_index(world).agent_migrations_for_turn(world, world.turn - 1):
+        src, dst = int(e.region), int(e.target_region)
+        if 0 <= src < n_regions and 0 <= dst < n_regions and src != dst:
+            counts[(src, dst)] = counts.get((src, dst), 0) + 1
+    return {"migration": [[src, dst, n] for (src, dst), n in sorted(counts.items())]}
+
+
 def _war_snapshot_fields(world) -> dict:
     """M60 campaign fields for the viewer snapshot (empty when disabled)."""
     if not world.campaigns_enabled:
@@ -903,6 +929,8 @@ def execute_run(
             **_maritime_snapshot_fields(world),
             **_gp_agendas_snapshot_fields(world),
             **_nomads_snapshot_fields(world),
+            **_food_snapshot_fields(world),
+            **_migration_snapshot_fields(world),
         )
 
         # M56b: Urban fraction aggregation from agent snapshot

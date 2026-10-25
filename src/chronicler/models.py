@@ -1399,10 +1399,21 @@ class TurnSnapshot(BaseModel):
     gp_agendas: dict | None = None
     # Nomads per-turn summary; None (and omitted) when nomads are off.
     nomads: dict | None = None
+    # Viewer only: per-region food sufficiency and the completed turn's relief
+    # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
+    # mutual aid runs on an agent-backed economy.
+    food: dict | None = None
+    # Viewer only: the completed turn's agent migrations as
+    # [from region index, to region index, agents]; None (and omitted)
+    # without an agent pool that records events (hybrid, shadow).
+    migration: list | None = None
 
     @model_serializer(mode="wrap")
     def _omit_dormant_campaign(self, handler):
         data = handler(self)
+        for key in ("food", "migration"):
+            if isinstance(data, dict) and data.get(key, 0) is None:
+                data.pop(key)
         if isinstance(data, dict) and data.get("campaign", 0) is None:
             data.pop("campaign")
         if isinstance(data, dict) and data.get("contact", 0) is None:

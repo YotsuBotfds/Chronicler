@@ -235,3 +235,31 @@ def dispatch_mutual_aid(world: WorldState, snapshot, acc=None, *, commitments=No
                              f"(treasury cost {cost})."),
             ))
     return events
+
+
+def snapshot_summary(world: WorldState) -> dict:
+    """Viewer-only per-turn food summary for ``TurnSnapshot.food``.
+
+    Called after the turn (``world.turn`` is the completed turn + 1). Reads
+    the sufficiency each owned, populated region was observed at during the
+    completed turn and that turn's relief convoys; touches no state or RNG.
+
+    * ``sufficiency``: one entry per region index, two decimals (0 to 2;
+      1 means food on hand covers the people); ``None`` where the region was
+      not observed (no owner, nobody living there or no economy data).
+    * ``aid``: ``[donor index, recipient index, food delivered]`` per convoy.
+    """
+    observed = world.turn - 1
+    states = world.mutual_aid_state
+    sufficiency = []
+    for region in world.regions:
+        state = states.get(region.name)
+        sufficiency.append(round(state.food_sufficiency, 2)
+                           if state is not None and state.last_observed_turn == observed else None)
+    index = {region.name: i for i, region in enumerate(world.regions)}
+    aid = [
+        [index[t.donor], index[t.recipient], round(math.fsum(t.received.values()), 1)]
+        for t in world.mutual_aid_last_transfers
+        if t.turn == observed and t.donor in index and t.recipient in index
+    ]
+    return {"sufficiency": sufficiency, "aid": aid}

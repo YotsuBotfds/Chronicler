@@ -7,12 +7,14 @@
     Use it for runs with the systems switched off.
 
 ``compare-additive BASE_DIR NEW_DIR``
-    The same, except that ``history[n].diplomacy.pairs`` and
-    ``history[n].techniques.regions`` are removed from the NEW bundle before
-    comparing, and the BASE bundle must not carry them. Use it for runs with
-    ``--diplomacy --techniques`` (and the other systems) switched on: it shows
+    The same, except that the snapshot fields added for the viewer
+    (``ADDED``: ``history[n].food`` and ``history[n].migration``) are removed
+    from the NEW bundle before comparing, and the BASE bundle must not carry
+    them. Use it for agent-mode runs, where the fields are written: it shows
     the new fields are the only change, so every simulation outcome and every
-    other output byte is unchanged.
+    other output byte is unchanged. (The first round's fields,
+    ``diplomacy.pairs`` and ``techniques.regions``, are in ``main`` since
+    ``893ec1c``.)
 
 Run BASE with the base commit's source on ``PYTHONPATH`` and NEW with this
 branch, same interpreter, native extension, arguments and
@@ -26,22 +28,19 @@ import sys
 from pathlib import Path
 
 IGNORED_NAMES = frozenset({"run_manifest.json"})
-#: (snapshot field, key) pairs added for the viewer panels.
-ADDED = (("diplomacy", "pairs"), ("techniques", "regions"))
+#: Snapshot fields added for the viewer panels and map layers.
+ADDED = ("food", "migration")
 
 
 def _bundle_bytes(path: Path, *, strip: bool, side: str) -> bytes:
     data = json.loads(path.read_text(encoding="utf-8"))
     data.get("metadata", {}).pop("generated_at", None)
     for snap in data.get("history", []):
-        for field, key in ADDED:
-            section = snap.get(field)
-            if not isinstance(section, dict):
-                continue
-            if side == "base" and key in section:
-                raise SystemExit(f"{path}: base bundle already carries {field}.{key}")
+        for field in ADDED:
+            if side == "base" and field in snap:
+                raise SystemExit(f"{path}: base bundle already carries {field}")
             if strip:
-                section.pop(key, None)
+                snap.pop(field, None)
     return json.dumps(data, sort_keys=True).encode("utf-8")
 
 
@@ -61,8 +60,7 @@ def compare(base: Path, new: Path, *, additive: bool) -> tuple[int, list[str]]:
             b = _bundle_bytes(new / rel, strip=additive, side="new")
             if additive:
                 raw = json.loads((new / rel).read_text(encoding="utf-8"))
-                stripped += sum(1 for s in raw.get("history", []) for f, k in ADDED
-                                if isinstance(s.get(f), dict) and k in s[f])
+                stripped += sum(1 for s in raw.get("history", []) for f in ADDED if f in s)
         else:
             a, b = (base / rel).read_bytes(), (new / rel).read_bytes()
         checked += 1
@@ -70,7 +68,7 @@ def compare(base: Path, new: Path, *, additive: bool) -> tuple[int, list[str]]:
             problems.append(f"differs: {rel} ({hashlib.sha256(a).hexdigest()[:12]} != "
                             f"{hashlib.sha256(b).hexdigest()[:12]})")
     if additive and not stripped:
-        problems.append("no added viewer field found in the new bundle (were the systems on?)")
+        problems.append("no added viewer field found in the new bundle (was an agent mode on?)")
     return checked, problems
 
 
