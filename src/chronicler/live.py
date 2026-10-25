@@ -1174,7 +1174,7 @@ def run_live(
         )
         _nomads = getattr(args, "nomads", None)
         set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
-        # Cities: new live worlds follow the CLI default (--cities opts in).
+        # Cities: new live worlds follow the CLI default (--no-cities opts out).
         from chronicler.cities import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT, set_cities_enabled,
         )

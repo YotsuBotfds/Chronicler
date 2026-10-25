@@ -571,6 +571,11 @@ class EconomyResult:
     trade_dependent: dict[str, bool] = field(default_factory=dict)
     # M58b: Oracle shadow imports (from observability batch oracle columns)
     oracle_imports: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Merchant routing (2026-10): demand and post-trade supply per category
+    # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
+    # the native economy; empty for the Python oracle.
+    market_demand: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    market_supply: dict[str, tuple[float, float, float]] = field(default_factory=dict)
 
 
 def compute_production(
@@ -1309,6 +1314,18 @@ def reconstruct_economy_result(
     trc_vals = pylist(region_result_batch.column("trade_route_count"))
     for i, rid in enumerate(rr_ids):
         result.trade_route_counts[region_names[rid]] = trc_vals[i]
+
+    # Merchant routing: demand and post-trade supply per category (absent
+    # from extensions built before 2026-10 city markets).
+    rr_names = set(region_result_batch.schema.names)
+    for prefix, target in (("market_demand", result.market_demand),
+                           ("market_supply", result.market_supply)):
+        cols = [f"{prefix}_{cat}" for cat in CATEGORIES]
+        if not all(c in rr_names for c in cols):
+            continue
+        vals = [pylist(region_result_batch.column(c)) for c in cols]
+        for i, rid in enumerate(rr_ids):
+            target[region_names[rid]] = (vals[0][i], vals[1][i], vals[2][i])
 
     # --- Civ result batch → fiscal outputs ---
     cr_ids = pylist(civ_result_batch.column("civ_id"))

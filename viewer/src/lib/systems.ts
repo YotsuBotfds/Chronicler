@@ -26,7 +26,8 @@ export type SystemKey =
   | "nomads"
   | "agendas"
   | "governance"
-  | "contact";
+  | "contact"
+  | "cities";
 
 /** What every system panel receives from the shell. */
 export interface SystemPanelProps {
@@ -67,7 +68,7 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 /** Display order of the systems panel tabs. */
 export const SYSTEM_KEYS: SystemKey[] = [
   "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
-  "contact",
+  "contact", "cities",
 ];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
@@ -82,6 +83,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   agendas: "Agendas",
   governance: "Governance",
   contact: "Contact",
+  cities: "Cities",
 };
 
 /** Snapshot field each system writes (governance lives on civ rows; food may come from events alone). */
@@ -96,6 +98,7 @@ const SNAPSHOT_FIELDS: Partial<Record<SystemKey, keyof TurnSnapshot>> = {
   nomads: "nomads",
   agendas: "gp_agendas",
   contact: "contact",
+  cities: "cities",
 };
 
 /**
@@ -156,6 +159,11 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "revolt", "reform_pressure", "ambition_declared", "ambition_fulfilled", "ambition_failed", "secession_suppressed",
   ],
   contact: ["embargo", "first_contact"],
+  cities: [
+    "city_founded", "city_grew", "city_declined", "city_fell", "city_lord_changed", "city_charter",
+    "charter_refused", "urban_revolt", "urban_concession", "revolt_suppressed", "free_city", "city_sacked",
+    "city_walls",
+  ],
 };
 
 /** Events of the given types up to `upToTurn`, latest first (stable within a turn). */

@@ -349,6 +349,34 @@ def _null_free(snapshot, field_names) -> bool:
         return False
 
 
+def _city_route_graph(world: WorldState, batch):
+    """``--cities``: cities an enemy besieges or occupies are cut off from the
+    merchant graph (``cities.merchant_route_graph``); unchanged otherwise."""
+    from chronicler.cities_state import cities_on
+    if not cities_on(world):
+        return batch
+    from chronicler.cities import merchant_route_graph
+    return merchant_route_graph(world, batch)
+
+
+_MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
+
+
+def _market_columns(world: WorldState, economy_result) -> dict[str, pa.Array]:
+    """``market_demand_<category>`` and ``market_supply_<category>`` per region:
+    the native economy's demand and post-trade supply (0 without a result).
+    The merchant planner prices every good from them (``merchant::market_price``)."""
+    columns = {}
+    for prefix, attr in (("market_demand", "market_demand"), ("market_supply", "market_supply")):
+        values = getattr(economy_result, attr, None) or {}
+        for c, cat in enumerate(_MARKET_CATEGORIES):
+            columns[f"{prefix}_{cat}"] = pa.array(
+                [float(values[r.name][c]) if r.name in values else 0.0 for r in world.regions],
+                type=pa.float32(),
+            )
+    return columns
+
+
 def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch:
     """Build extended region state Arrow batch (M26: adds controller, adjacency, etc.)."""
     civ_name_to_id = {c.name: i for i, c in enumerate(world.civilizations)}
@@ -603,6 +631,9 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
             [economy_result.merchant_trade_incomes.get(r.name, 0.0) if economy_result else 0.0
              for r in world.regions], type=pa.float32(),
         ),
+        # Merchant routing (2026-10): the economy's demand and post-trade
+        # supply per category, the planner's market prices (0 = no market).
+        **_market_columns(world, economy_result),
         # M48: Per-region transient memory signals
         "controller_changed_this_turn": pa.array(controller_changed_vals, type=pa.bool_()),
         "war_won_this_turn": pa.array(war_won_vals, type=pa.bool_()),
@@ -1256,6 +1287,7 @@ class AgentBridge:
             # Maritime: blockaded lanes removed, per-lane raid risk attached.
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
+        route_batch = _city_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
@@ -1280,6 +1312,7 @@ class AgentBridge:
             # Maritime: blockaded lanes removed, per-lane raid risk attached.
             from chronicler.maritime import merchant_route_graph
             route_batch = merchant_route_graph(world, route_batch)
+        route_batch = _city_route_graph(world, route_batch)
         self._sim.set_merchant_route_graph(route_batch)
 
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,

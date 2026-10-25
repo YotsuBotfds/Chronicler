@@ -102,6 +102,7 @@ def run(workload: dict, output: Path, on_turn=None):
         maritime=False,  # frozen pre-maritime oracles; see docs/integration/maritime.md
         gp_agendas=False,  # frozen pre-agenda oracles; see docs/integration/great-person-agendas.md
         nomads=False,  # frozen pre-nomad oracles; see docs/integration/nomads.md
+        cities=False,  # frozen pre-cities oracles; see docs/integration/cities.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

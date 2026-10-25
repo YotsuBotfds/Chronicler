@@ -96,6 +96,7 @@ CHUNKS = {
         "tests/test_food_crisis_labels.py",
         "tests/test_migration_driver_labels.py",
         "tests/test_cities.py",
+        "tests/test_city_markets.py",
     ],
     "systems-2": [
         "tests/test_gp_agendas.py",

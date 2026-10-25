@@ -3,6 +3,7 @@ import {
   preferredSystem, presentSystems, SYSTEM_LABELS, type SystemKey, type SystemPanelProps,
 } from "../../lib/systems";
 import { AgendasPanel } from "./AgendasPanel";
+import { CitiesPanel } from "./CitiesPanel";
 import { ContactPanel } from "./ContactPanel";
 import { DiplomacyPanel } from "./DiplomacyPanel";
 import { EpidemicsPanel } from "./EpidemicsPanel";
@@ -27,6 +28,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
   agendas: AgendasPanel,
   governance: GovernancePanel,
   contact: ContactPanel,
+  cities: CitiesPanel,
 };
 
 /**

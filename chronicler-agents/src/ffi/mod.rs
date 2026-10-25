@@ -432,6 +432,19 @@ impl AgentSimulator {
         let city_pull_col = rb
             .column_by_name("city_pull")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Merchant routing: the economy's demand and post-trade supply per
+        // goods category (absent = 0: no non-food market, no food tally).
+        let market_cols = |prefix: &str| -> [Option<&arrow::array::Float32Array>; 3] {
+            ["food", "raw_material", "luxury"].map(|cat| {
+                rb.column_by_name(&format!("{prefix}_{cat}"))
+                    .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>())
+            })
+        };
+        let market_demand_cols = market_cols("market_demand");
+        let market_supply_cols = market_cols("market_supply");
+        let market_row = |cols: &[Option<&arrow::array::Float32Array>; 3], i: usize| -> [f32; 3] {
+            [0, 1, 2].map(|c| cols[c].map_or(0.0, |arr| arr.value(i)))
+        };
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -582,6 +595,8 @@ impl AgentSimulator {
                     temple_prestige: temple_prestige_col.map_or(0.0, |arr| arr.value(i)),
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
+                    market_demand: market_row(&market_demand_cols, i),
+                    market_supply: market_row(&market_supply_cols, i),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -786,6 +801,8 @@ impl AgentSimulator {
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
+                r.market_demand = market_row(&market_demand_cols, i);
+                r.market_supply = market_row(&market_supply_cols, i);
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
@@ -2160,6 +2177,8 @@ impl AgentSimulator {
                 production_caps: [None; 3],
                 stockpile,
                 subsistence_yield: 0.0,
+                farm_labor_factor: 1.0,
+                craft_raw_demand: 0.0,
             });
         }
 
@@ -2175,6 +2194,32 @@ impl AgentSimulator {
                     return Err(PyValueError::new_err("invalid subsistence_yield"));
                 }
                 region_inputs[i].subsistence_yield = v;
+            }
+        }
+
+        // Optional (--cities): city farmers' labor share and city crafts'
+        // raw-material demand (Python `cities.economy_columns`). Absent
+        // columns leave every region at 1.0 and 0.0.
+        if let Some(column) = ri_rb.column_by_name("farm_labor_factor") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("farm_labor_factor must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || !(0.0..=1.0).contains(&v) {
+                    return Err(PyValueError::new_err("invalid farm_labor_factor"));
+                }
+                region_inputs[i].farm_labor_factor = v;
+            }
+        }
+        if let Some(column) = ri_rb.column_by_name("craft_raw_demand") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("craft_raw_demand must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || v < 0.0 {
+                    return Err(PyValueError::new_err("invalid craft_raw_demand"));
+                }
+                region_inputs[i].craft_raw_demand = v;
             }
         }
 
@@ -2365,8 +2410,14 @@ impl AgentSimulator {
         let mut rr_mti = Float32Builder::with_capacity(n_out);
         let mut rr_trc = UInt16Builder::with_capacity(n_out);
         let mut rr_stockpile: Vec<Float32Builder> = (0..8).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        // market_demand_{food,raw_material,luxury}, then market_supply_*.
+        let mut rr_market: Vec<Float32Builder> = (0..6).map(|_| Float32Builder::with_capacity(n_out)).collect();
 
         for rr in &output.region_results {
+            for c in 0..3 {
+                rr_market[c].append_value(rr.market_demand[c]);
+                rr_market[3 + c].append_value(rr.market_supply[c]);
+            }
             rr_region_id.append_value(rr.region_id);
             rr_fim.append_value(rr.farmer_income_modifier);
             rr_fs.append_value(rr.food_sufficiency);
@@ -2391,6 +2442,9 @@ impl AgentSimulator {
             Arc::new(rr_mti.finish()),
             Arc::new(rr_trc.finish()),
         ]);
+        for builder in rr_market.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
 
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),

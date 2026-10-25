@@ -288,6 +288,8 @@ export interface TurnSnapshot {
   gp_agendas?: GpAgendasSnapshot;
   /** Subsistence modes, herds, tribute and hordes; present only with --nomads. */
   nomads?: NomadsSnapshot;
+  /** Living cities, the fallen count and running totals; present only with --cities. */
+  cities?: CitiesSnapshot;
   /**
    * Regional food sufficiency and relief convoys of the completed turn;
    * present only when mutual aid runs on an agent-backed economy (bundles
@@ -351,6 +353,49 @@ export interface NomadsSnapshot {
   tributes: Array<{ payer: string; recipient: string; amount: number }>;
   hordes: Array<{ name: string; khan: string; members: string[] }>;
   counters: Record<string, number>;
+}
+
+/** One living city at a turn (`cities.snapshot_summary`). */
+export interface CitySnapshotRow {
+  /** The M56a settlement id, the city's identity. */
+  id: number;
+  name: string;
+  region: string | null;
+  lord: string | null;
+  /** 1 town, 2 city, 3 great city. */
+  rank: number;
+  residents: number;
+  /** Civic purse. */
+  wealth: number;
+  /** 0 none, 1 market rights, 2 self-government, 3 free city. */
+  charter: number;
+  unrest: number;
+  satisfaction: number | null;
+}
+
+export interface CitiesSnapshot {
+  cities: CitySnapshotRow[];
+  fallen: number;
+  /** Running totals (founded, charters, revolts, sacks, dues, commerce, ...). */
+  counters: Record<string, number>;
+}
+
+/** A city in the final `world_state.cities` (living or fallen). */
+export interface CityRecord {
+  settlement_id: number;
+  name: string;
+  /** Region index. */
+  region: number;
+  founded_turn: number;
+  rank: number;
+  peak_rank: number;
+  peak_residents: number;
+  peak_wealth: number;
+  charter: number;
+  fallen_turn: number | null;
+  fall_cause: string;
+  /** (turn, kind, event id) in order. */
+  history: Array<[number, string, string]>;
 }
 
 export interface FoodSnapshot {
@@ -590,6 +635,8 @@ export interface WorldState {
   scenario_name: string | null;
   /** Final maritime state (present only with --maritime); the viewer reads zone ports. */
   maritime?: { zones?: Array<{ name: string; kind?: string; ports?: number[] }> } | null;
+  /** Final city state (present only with --cities); the viewer reads each city's history. */
+  cities?: { cities?: CityRecord[]; fallen?: CityRecord[] } | null;
   /**
    * Procedural geography (absent on template worlds); the viewer reads the
    * sea zones' map positions, in the regions' coordinate space.
