@@ -678,6 +678,9 @@ class TestBundleSize:
         # The locust recalibration (docs/integration/food-logistics-2026-10.md)
         # leaves this world with 11 polities over the run instead of 17-18:
         # 17.47MB native and 18.07MB no-Rust.
+        # In-world languages on by default (docs/integration/languages.md) add
+        # their field: 17.66MB native (field 0.20MB) and 18.28MB no-Rust (field
+        # 0.21MB); --no-languages writes the sizes above.
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 
