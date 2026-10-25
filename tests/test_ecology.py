@@ -451,7 +451,9 @@ class TestFeedbackLoops:
             culture=30, stability=50, leader=Leader(name="L", trait="cautious", reign_start=0),
             regions=["T"],
         )
-        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ])
+        # The phase's full drought (the global schedule alone, 2026-10 regional climate off).
+        w = WorldState(name="T", seed=42, regions=[r], civilizations=[civ],
+                       tuning_overrides={"climate.trend_share": 1.0})
         self._run_turns(w, ClimatePhase.DROUGHT, 10)
         assert r.ecology.water < 0.3
 

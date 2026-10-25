@@ -21,7 +21,7 @@ from chronicler.tuning import (
     K_MIGRATION_CAPACITY_RATIO,
     get_override,
 )
-from chronicler.utils import civ_index
+from chronicler.utils import civ_index, stable_hash_int
 from chronicler.emergence import get_severity_multiplier
 
 
@@ -45,6 +45,168 @@ def get_climate_phase(turn: int, config: ClimateConfig) -> ClimatePhase:
         if position >= threshold:
             phase = p
     return phase
+
+
+# --- Regional climate (2026-10, docs/integration/farmland-climate.md) --------
+#
+# Correction. The phase above is one schedule for the whole world, so its
+# drought and cooling (40% of every cycle) cut every region's crops and water
+# at once, and long world-wide famines followed. The global phase is kept as
+# the long trend at CLIMATE_TREND_SHARE of its crop and water effects; the
+# rest of the same climate pressure comes as regional harvest shocks. Regions
+# are grouped into clusters of neighbours (``climate_clusters``). Each
+# cluster's harvest years (HARVEST_YEAR turns) are good or bad: a two-state
+# chain in which a bad year follows a bad one with BAD_YEAR_PERSISTENCE and a
+# good one with the probability that keeps the stationary share of bad years
+# at ``bad_year_share``. A bad year takes a depth drawn from BAD_YEAR_DEPTH off
+# the region's crop climate factor and dries its land. The shares are derived
+# so that the mean crop climate factor and the water lost over a cycle match
+# the global schedule's. Every draw is a namespaced ``stable_hash_int`` of the
+# world seed, the cluster's founding region and the year: no state, no RNG.
+# ``climate.trend_share`` 1.0 restores the global schedule alone.
+
+CLIMATE_TREND_SHARE = 0.5
+HARVEST_YEAR = 12          # turns: the season calendar (resources.get_season_id)
+BAD_YEAR_PERSISTENCE = 0.4  # P(bad | bad): a run of bad years, rarely more than three
+BAD_YEAR_DEPTH = (0.2, 0.6)  # crop loss of a bad year, uniform
+CLIMATE_CLUSTER_SIZE = 3   # a region and up to two of its neighbours
+_CROP_PHASE_MOD = {
+    ClimatePhase.TEMPERATE: 1.0, ClimatePhase.WARMING: 0.9,
+    ClimatePhase.DROUGHT: 0.5, ClimatePhase.COOLING: 0.7,
+}  # resources.CLIMATE_CLASS_MOD crop row (checked by the tests)
+
+
+def _phase_shares() -> dict[ClimatePhase, float]:
+    bounds = [t for t, _ in PHASE_SCHEDULE] + [1.0]
+    return {p: bounds[i + 1] - bounds[i] for i, (_, p) in enumerate(PHASE_SCHEDULE)}
+
+
+def climate_trend_share(world) -> float:
+    """Share of the global phase's crop and water effects (1.0: no regional climate)."""
+    from chronicler.tuning import K_CLIMATE_TREND_SHARE
+    return min(1.0, max(0.0, float(get_override(world, K_CLIMATE_TREND_SHARE, CLIMATE_TREND_SHARE))))
+
+
+def mean_harvest_shock(trend_share: float) -> float:
+    """Mean shock depth that keeps the cycle-mean crop climate factor: the
+    regional share of the global schedule's mean crop loss."""
+    shares = _phase_shares()
+    mean_loss = sum(shares[p] * (1.0 - m) for p, m in _CROP_PHASE_MOD.items())
+    return (1.0 - trend_share) * mean_loss
+
+
+def bad_year_share(trend_share: float) -> float:
+    """Stationary share of bad harvest years (mean depth x share = mean shock)."""
+    lo, hi = BAD_YEAR_DEPTH
+    return min(0.95, mean_harvest_shock(trend_share) / (0.5 * (lo + hi)))
+
+
+def harvest_shock_water_loss(world, trend_share: float) -> float:
+    """Water a region loses per turn and unit of shock depth: the regional
+    share of the water the global drought and cooling take over a cycle,
+    spread over the mean shock."""
+    from chronicler.tuning import K_COOLING_WATER_LOSS, K_WATER_DROUGHT
+    mean_shock = mean_harvest_shock(trend_share)
+    if mean_shock <= 0.0:
+        return 0.0
+    shares = _phase_shares()
+    per_turn = (shares[ClimatePhase.DROUGHT] * get_override(world, K_WATER_DROUGHT, 0.04)
+                + shares[ClimatePhase.COOLING] * get_override(world, K_COOLING_WATER_LOSS, 0.02))
+    return (1.0 - trend_share) * per_turn / mean_shock
+
+
+_YEAR_CACHE: dict[tuple, list[float]] = {}
+
+
+def harvest_shock(seed: int, cluster: str, turn: int, trend_share: float = CLIMATE_TREND_SHARE) -> float:
+    """Pure. Crop loss of ``cluster``'s harvest year at ``turn`` (0.0 in a good
+    year). ``cluster`` names the cluster's founding region."""
+    if trend_share >= 1.0 or turn < 0:
+        return 0.0
+    pi = bad_year_share(trend_share)
+    if pi <= 0.0:
+        return 0.0
+    rho = BAD_YEAR_PERSISTENCE
+    q = pi * (1.0 - rho) / (1.0 - pi)
+    lo, hi = BAD_YEAR_DEPTH
+    year = turn // HARVEST_YEAR
+    key = (int(seed), cluster, round(pi, 12))
+    years = _YEAR_CACHE.setdefault(key, [])
+    while len(years) <= year:
+        y = len(years)
+        h = stable_hash_int("climate.harvest_year", int(seed), cluster, y)
+        u = (h >> 32) / 4294967296.0
+        prev_bad = years[-1] > 0.0 if years else None
+        p_bad = pi if prev_bad is None else (rho if prev_bad else q)
+        years.append(lo + (hi - lo) * ((h & 0xFFFFFFFF) / 4294967296.0) if u < p_bad else 0.0)
+    if len(_YEAR_CACHE) > 4096:  # many worlds in one process (tests): start afresh
+        _YEAR_CACHE.clear()
+        _YEAR_CACHE[key] = years
+    return years[year]
+
+
+_CLUSTER_CACHE: dict[tuple, tuple[str, ...]] = {}
+
+
+def climate_clusters(world) -> tuple[str, ...]:
+    """Pure in the world's seed and geography. The founding region's name of
+    each region's climate cluster (by region index): regions taken in hashed
+    order found a cluster with up to ``CLIMATE_CLUSTER_SIZE - 1`` of their
+    unassigned neighbours."""
+    names = tuple(r.name for r in world.regions)
+    key = (int(world.seed), names)
+    cached = _CLUSTER_CACHE.get(key)
+    if cached is not None:
+        return cached
+    index = {name: i for i, name in enumerate(names)}
+    rank = {name: stable_hash_int("climate.cluster", int(world.seed), name) for name in names}
+    founder: list[str | None] = [None] * len(names)
+    for i in sorted(range(len(names)), key=lambda k: (rank[names[k]], names[k])):
+        if founder[i] is not None:
+            continue
+        founder[i] = names[i]
+        free = sorted((index[a] for a in world.regions[i].adjacencies
+                       if a in index and founder[index[a]] is None),
+                      key=lambda k: (rank[names[k]], names[k]))
+        for j in free[:CLIMATE_CLUSTER_SIZE - 1]:
+            founder[j] = names[i]
+    out = tuple(f or n for f, n in zip(founder, names))
+    if len(_CLUSTER_CACHE) > 256:
+        _CLUSTER_CACHE.clear()
+    _CLUSTER_CACHE[key] = out
+    return out
+
+
+def region_harvest_shocks(world, turn: int | None = None) -> list[float]:
+    """Harvest shock of every region (by index) at ``turn`` (default: now)."""
+    trend = climate_trend_share(world)
+    if trend >= 1.0:
+        return [0.0] * len(world.regions)
+    t = world.turn if turn is None else turn
+    return [harvest_shock(world.seed, c, t, trend) for c in climate_clusters(world)]
+
+
+def region_harvest_shock(world, region) -> float:
+    """Harvest shock of one region now (0.0 without regional climate)."""
+    if world is None:
+        return 0.0
+    trend = climate_trend_share(world)
+    if trend >= 1.0:
+        return 0.0
+    clusters = climate_clusters(world)
+    for i, r in enumerate(world.regions):
+        if r is region or r.name == region.name:
+            return harvest_shock(world.seed, clusters[i], world.turn, trend)
+    return 0.0
+
+
+def regional_crop_climate(crop_mod: float, trend_share: float, shock: float) -> float:
+    """A region's crop climate factor from the global phase's crop modifier,
+    the trend share and its harvest shock (the modifier itself at share 1.0
+    without a shock). Mirrors Rust ``ecology::regional_crop_climate``."""
+    if trend_share >= 1.0 and shock == 0.0:
+        return crop_mod
+    return max(0.0, 1.0 - trend_share * (1.0 - crop_mod) - shock)
 
 
 # Base degradation multipliers by terrain x phase.

@@ -107,12 +107,16 @@ def aggregate_food_yield(
     yields: list[float],
     climate_phase: "ClimatePhase",
     subsistence_base: float = 0.15,
+    world: "WorldState | None" = None,
 ) -> float:
     """The aggregate model's food yield of a region: its best food slot, or
     climate-scaled subsistence without one (or with every food slot
-    suspended)."""
+    suspended). With ``world`` the subsistence reads the region's crop climate
+    factor (regional climate)."""
     phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
     crop_climate_mod = CLIMATE_CLASS_MOD[0][phase_idx]  # Crop class index = 0
+    if world is not None:
+        crop_climate_mod = _regional_crop_mod(world, region, crop_climate_mod)
 
     # Check if region has any food slots
     has_food_slot = any(rtype in FOOD_TYPES for rtype in region.resource_types)
@@ -157,8 +161,8 @@ FAMINE_SEVERE_TURNS = 3
 # (``--agents off`` and shadow), whose famine toll they scale. That toll is a
 # famine's whole population effect in those models (deaths, flight and the
 # births it costs), so their growth is left alone.
-HUNGER_DEARTH_MORTALITY = 0.05
-HUNGER_FAMINE_MORTALITY = 0.50
+HUNGER_DEARTH_MORTALITY = 0.10
+HUNGER_FAMINE_MORTALITY = 1.00
 # A dearth report's effects that are not rates (its stability drain and what
 # reads the five-turn cooldown) are this share of a famine's.
 DEARTH_EFFECT_WEIGHT = 1.0 / 3.0
@@ -281,7 +285,11 @@ def _check_famine_yield(
             hunger = hunger_components(sufficiency, region.food_severe_turns)
         else:
             yields = region_yields.get(region.name, [0.0, 0.0, 0.0])
-            food_yield = aggregate_food_yield(region, yields, climate_phase, subsistence_base)
+            food_yield = aggregate_food_yield(region, yields, climate_phase, subsistence_base, world)
+            # Diminishing returns to farm labour (2026-10): food per head falls
+            # as the population crowds its arable capacity and rises as it thins.
+            from chronicler.economy import aggregate_farm_productivity
+            food_yield *= aggregate_farm_productivity(world, region)
             if not food_yield < threshold:
                 continue
             # The aggregate famine is below the severity line by construction;
@@ -478,6 +486,15 @@ def _materialize_ecology_events(event_batch, world: "WorldState") -> list[Event]
     return events
 
 
+def _regional_crop_mod(world, region, crop_mod: float) -> float:
+    """The region's crop climate factor (climate.regional_crop_climate)."""
+    from chronicler.climate import climate_trend_share, region_harvest_shock, regional_crop_climate
+    trend = climate_trend_share(world)
+    if trend >= 1.0:
+        return crop_mod
+    return regional_crop_climate(crop_mod, trend, region_harvest_shock(world, region))
+
+
 def compute_resource_yields(
     region: "Region",
     season_id: int,
@@ -509,6 +526,10 @@ def compute_resource_yields(
         season_mod = SEASON_MOD[rtype][season_id]
         class_idx = resource_class_index(rtype)
         climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx]
+        if class_idx == 0 and world is not None:
+            # Regional climate: the trend's share of the phase plus the
+            # region's harvest shock (the phase's modifier at share 1.0).
+            climate_mod = _regional_crop_mod(world, region, climate_mod)
 
         # ecology_mod by class
         if class_idx == 0:  # Crop
@@ -608,7 +629,9 @@ def goods_per_worker(rtype: int, harvest_index: float) -> float:
     return harvest_index / harvest_normal_index(int(rtype))
 
 
-def subsistence_goods_per_worker(world: "WorldState | None", climate_phase: ClimatePhase) -> float:
+def subsistence_goods_per_worker(
+    world: "WorldState | None", climate_phase: ClimatePhase, region: "Region | None" = None,
+) -> float:
     """M34's subsistence baseline as grain goods per foraging farmer-turn.
 
     Correction (2026-10, food logistics). The aggregate famine check
@@ -622,6 +645,8 @@ def subsistence_goods_per_worker(world: "WorldState | None", climate_phase: Clim
     """
     base = get_override(world, K_SUBSISTENCE_BASELINE, 0.15)
     crop_climate = CLIMATE_CLASS_MOD[0][_CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)]
+    if world is not None and region is not None:
+        crop_climate = _regional_crop_mod(world, region, crop_climate)
     return goods_per_worker(int(ResourceType.GRAIN), base * crop_climate)
 
 
@@ -700,6 +725,20 @@ def _tick_soil(region: Region, civ, climate_phase: ClimatePhase, world: WorldSta
         region.ecology.soil += rate
 
 
+def _climate_trend(world) -> float:
+    from chronicler.climate import climate_trend_share
+    return climate_trend_share(world)
+
+
+def _harvest_shock_water(world, region, trend: float) -> float:
+    """Water a region's harvest shock takes this turn (0.0 without one)."""
+    if trend >= 1.0:
+        return 0.0
+    from chronicler.climate import harvest_shock_water_loss, region_harvest_shock
+    shock = region_harvest_shock(world, region)
+    return shock * harvest_shock_water_loss(world, trend) if shock > 0.0 else 0.0
+
+
 def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
     has_irrigation = any(
         i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure
@@ -707,16 +746,19 @@ def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldSt
 
     # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)
     exposure = climate_exposure(region.latitude_band, climate_phase)
+    trend = _climate_trend(world)
     if climate_phase == ClimatePhase.DROUGHT:
         rate = get_override(world, K_WATER_DROUGHT, 0.04) * exposure
         if has_irrigation:
             rate *= get_override(world, K_IRRIGATION_DROUGHT_MULT, 1.5)
-        region.ecology.water -= rate
+        region.ecology.water -= rate * trend
     elif climate_phase == ClimatePhase.COOLING:
-        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure
+        region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure * trend
     elif climate_phase == ClimatePhase.WARMING:
         if region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
+    # Regional climate: a bad harvest year dries the land.
+    region.ecology.water -= _harvest_shock_water(world, region, trend)
 
     # Recovery: climatic, like the losses. Correction (2026-10, food balance):
     # temperate recovery used to be scaled by the population pressure
@@ -950,10 +992,12 @@ def _tick_ecology_python(
             region.ecology.soil += rate
         # Water: climate effects only (scaled by latitude exposure)
         exposure = climate_exposure(region.latitude_band, climate_phase)
+        trend = _climate_trend(world)
+        region.ecology.water -= _harvest_shock_water(world, region, trend)
         if climate_phase == ClimatePhase.DROUGHT:
-            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04) * exposure
+            region.ecology.water -= get_override(world, K_WATER_DROUGHT, 0.04) * exposure * trend
         elif climate_phase == ClimatePhase.COOLING:
-            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure
+            region.ecology.water -= get_override(world, K_COOLING_WATER_LOSS, 0.02) * exposure * trend
         elif climate_phase == ClimatePhase.WARMING and region.terrain == "tundra":
             region.ecology.water += get_override(world, K_WARMING_TUNDRA_WATER_GAIN, 0.05)
         elif climate_phase == ClimatePhase.TEMPERATE:

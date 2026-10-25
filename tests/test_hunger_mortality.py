@@ -187,6 +187,9 @@ def test_dearth_drain_routes_through_the_accumulator_as_signal():
 def test_aggregate_toll_scales_with_the_yield_depth():
     def lost(food_yield: float) -> int:
         world = _world(mode="off")
+        # Constant returns: the yield alone sets the depth (the aggregate
+        # food-per-head factor has its own test in test_farmland_climate.py).
+        world.tuning_overrides = {"economy.farm_reference_density": 0.0}
         assert [e.event_type for e in _turn(world, None, food_yield=food_yield)] == ["famine"]
         return 40 - world.regions[0].population
 

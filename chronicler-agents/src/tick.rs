@@ -1320,7 +1320,10 @@ pub fn wealth_tick(
             0 => {
                 // Farmer — M42: market-derived modifier replaces is_extractive() dispatch
                 let yield_val = region.resource_yields[0];
-                crate::agent::BASE_FARMER_INCOME * region.farmer_income_modifier * yield_val
+                let income = crate::agent::BASE_FARMER_INCOME * region.farmer_income_modifier * yield_val;
+                // Diminishing returns: a farmer earns the region's output per
+                // farmer (the product is skipped at constant returns).
+                if region.farm_productivity != 1.0 { income * region.farm_productivity } else { income }
             }
             1 => {
                 // Soldier — war bonus + conquest bonus
@@ -2549,6 +2552,25 @@ mod m41_tests {
         let after_income = STARTING_WEALTH + expected_income;
         let expected = after_income * (1.0 - WEALTH_DECAY);
         assert!((pool.wealth[slot] - expected).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_farmer_income_follows_output_per_farmer() {
+        // Diminishing returns: a crowded region's farmers earn its lower
+        // output per head (farm_productivity), an emptied one's more.
+        for &fp in &[0.6f32, 1.4] {
+            let mut pool = AgentPool::new(4);
+            let slot = pool.spawn(0, 0, agent::Occupation::Farmer, 20,
+                0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+            let mut region = make_region_organic(0.8);
+            region.farm_productivity = fp;
+            let regions = vec![region];
+            let signals = make_test_signals(false, false, 0.0);
+            let mut percentiles = vec![0.0f32; pool.capacity()];
+            wealth_tick(&mut pool, &regions, &signals, &mut percentiles);
+            let expected = (STARTING_WEALTH + BASE_FARMER_INCOME * 0.8 * fp) * (1.0 - WEALTH_DECAY);
+            assert!((pool.wealth[slot] - expected).abs() < 0.001, "fp {fp}");
+        }
     }
 
     #[test]

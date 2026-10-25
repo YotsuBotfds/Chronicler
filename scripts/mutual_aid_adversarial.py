@@ -54,6 +54,11 @@ def _world(enabled: bool, treasury: int) -> WorldState:
     # The Mine is food-less by design (the stress the aid must answer): no
     # 2026-10 goods-economy foraging. Older sources ignore the key.
     world.tuning_overrides["ecology.subsistence_baseline"] = 0.0
+    # The Granary's harvest is designed in goods per farmer under the global
+    # climate schedule: constant returns to farm labour and no regional
+    # harvest shocks (2026-10 farmland and regional climate).
+    world.tuning_overrides["economy.farm_reference_density"] = 0.0
+    world.tuning_overrides["climate.trend_share"] = 1.0
     return world
 
 

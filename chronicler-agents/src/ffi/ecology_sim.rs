@@ -181,6 +181,9 @@ impl EcologySimulator {
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let harvest_shock_col = rb
+            .column_by_name("harvest_shock")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
 
         if self.regions.is_empty() {
             // First call: initialize regions.
@@ -241,6 +244,7 @@ impl EcologySimulator {
                     r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                     r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                     r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
+                    r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
                     r
                 })
                 .collect();
@@ -292,6 +296,7 @@ impl EcologySimulator {
                 r.is_capital = is_capital_col.map_or(false, |arr| arr.value(i));
                 r.temple_prestige = temple_prestige_col.map_or(0.0, |arr| arr.value(i));
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
+                r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
             }
         }
         Ok(())
@@ -383,7 +388,22 @@ impl EcologySimulator {
             workers_per_yield_unit,
             deforestation_threshold,
             deforestation_water_loss,
+            // Kept: set by `set_climate_config`.
+            climate_trend_share: self.ecology_config.climate_trend_share,
+            harvest_shock_water_loss: self.ecology_config.harvest_shock_water_loss,
         };
+    }
+
+    /// Regional climate: see `AgentSimulator::set_climate_config`.
+    pub fn set_climate_config(&mut self, trend_share: f32, harvest_shock_water_loss: f32) -> PyResult<()> {
+        if !trend_share.is_finite() || !(0.0..=1.0).contains(&trend_share)
+            || !harvest_shock_water_loss.is_finite() || harvest_shock_water_loss < 0.0
+        {
+            return Err(PyValueError::new_err("invalid climate config"));
+        }
+        self.ecology_config.climate_trend_share = trend_share;
+        self.ecology_config.harvest_shock_water_loss = harvest_shock_water_loss;
+        Ok(())
     }
 
     /// Set the river topology.

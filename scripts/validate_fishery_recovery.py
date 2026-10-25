@@ -70,8 +70,10 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
                        culture=30, stability=50, tech_era=TechEra.IRON, treasury=50,
                        leader=Leader(name="Coastal keeper", trait="cautious", reign_start=0),
                        regions=[region.name])
+    # Constant returns to farm labour (2026-10 farmland): catch per fisher is
+    # the fishery model's own (economy.farm_reference_density 0).
     world = WorldState(name="Fixed coastal pair", seed=42, regions=[region], civilizations=[civ],
-                       tuning_overrides={K_FAMINE_POP_LOSS: 0.0})
+                       tuning_overrides={K_FAMINE_POP_LOSS: 0.0, "economy.farm_reference_density": 0.0})
     if enabled:
         world.fishery_experiment.enabled = True
     trace = []

@@ -576,6 +576,9 @@ class EconomyResult:
     # the native economy; empty for the Python oracle.
     market_demand: dict[str, tuple[float, float, float]] = field(default_factory=dict)
     market_supply: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    # Diminishing returns to farm labour (2026-10): output per farmer against
+    # constant returns, by region; regions at exactly 1.0 are omitted.
+    farm_productivity: dict[str, float] = field(default_factory=dict)
 
 
 def compute_production(
@@ -693,6 +696,77 @@ def farm_labor(
     return labor, forage, forage_yield
 
 
+# ---------------------------------------------------------------------------
+# Diminishing returns to farm labour (2026-10, docs/integration/farmland-climate.md)
+# ---------------------------------------------------------------------------
+#
+# Correction. The goods economy had constant returns to farm labour: every
+# farmer grew the slot's yield however many worked the land, so food per head
+# did not rise when people died or left and a famine ended only when the
+# season, climate or trade changed. Farm labour is now effective labour on
+# the region's land,
+#   E(L) = L (L_ref + L_h) / (L + L_h),
+# L_ref = FARM_REFERENCE_DENSITY x arable capacity: the labour at which a farmer
+# grows what constant returns gave (the density of today's well-fed regions);
+# L_h = L_ref x eps / (1 - eps), so the output elasticity to labour is eps at
+# the reference. Fewer farmers grow more each (at most 1 / eps times), more grow
+# less, and the land's output never exceeds L_ref + L_h. Arable capacity is the
+# undegraded potential capacity raised by farming techniques and irrigation;
+# soil, water, season and climate stay in the yield.
+
+FARM_REFERENCE_DENSITY: float = 0.33   # farm labour per unit of arable capacity
+FARM_LABOR_ELASTICITY: float = 0.5     # output elasticity to labour at the reference
+FARM_CEILING_IRRIGATION: float = 0.10  # active irrigation works: arable capacity +10%
+# --agents off: the aggregate model has no farmers; its farm labour is this
+# share of the population (the mean farmer share of hybrid worlds, 0.54).
+AGGREGATE_FARMER_SHARE: float = 0.54
+
+
+def arable_capacity(world, region) -> float:
+    """The land a region's farmers work: potential capacity (carrying capacity
+    x capacity modifier) raised by its farming techniques and irrigation."""
+    from chronicler.ecology import potential_capacity
+    from chronicler.models import InfrastructureType
+    from chronicler.techniques import farm_ceiling_multiplier
+
+    mult = farm_ceiling_multiplier(world, region)
+    if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):
+        mult += FARM_CEILING_IRRIGATION
+    return potential_capacity(region) * mult
+
+
+def farm_labor_curve(world, region) -> tuple[float, float]:
+    """(L_ref, L_h) of a region's farm production curve; (0, 0) keeps constant
+    returns (tuning ``economy.farm_reference_density`` 0)."""
+    from chronicler.tuning import K_FARM_LABOR_ELASTICITY, K_FARM_REFERENCE_DENSITY, get_override
+
+    density = get_override(world, K_FARM_REFERENCE_DENSITY, FARM_REFERENCE_DENSITY)
+    if not density > 0.0:
+        return 0.0, 0.0
+    eps = min(0.95, max(0.05, get_override(world, K_FARM_LABOR_ELASTICITY, FARM_LABOR_ELASTICITY)))
+    labor_ref = density * arable_capacity(world, region)
+    return labor_ref, labor_ref * eps / (1.0 - eps)
+
+
+def effective_farm_labor(labor: float, labor_ref: float, labor_half: float) -> float:
+    """Effective farm labour of ``labor`` farmers (see above); ``labor`` itself
+    when ``labor_ref`` is 0. Mirrors Rust ``economy::effective_farm_labor``."""
+    if labor_ref <= 0.0 or labor <= 0.0:
+        return labor
+    return labor * (labor_ref + labor_half) / (labor + labor_half)
+
+
+def aggregate_farm_productivity(world, region) -> float:
+    """``--agents off``: food per head against constant returns for the
+    region's population, whose farm labour is ``AGGREGATE_FARMER_SHARE`` of it.
+    Scales the aggregate model's food yield in the famine check."""
+    labor_ref, labor_half = farm_labor_curve(world, region)
+    labor = max(region.population, 0) * AGGREGATE_FARMER_SHARE
+    if labor_ref <= 0.0 or labor <= 0.0:
+        return 1.0
+    return (labor_ref + labor_half) / (labor + labor_half)
+
+
 def region_subsistence_yield(world, region, slot_yields: list[float]) -> float:
     """Foraging rate for ``region`` this turn: 0.0 when some food slot yields."""
     if any(slot_yields[s] > 0.0 for s, rt in enumerate(region.resource_types)
@@ -700,7 +774,7 @@ def region_subsistence_yield(world, region, slot_yields: list[float]) -> float:
         return 0.0
     from chronicler.climate import get_climate_phase
     from chronicler.ecology import subsistence_goods_per_worker
-    return subsistence_goods_per_worker(world, get_climate_phase(world.turn, world.climate_config))
+    return subsistence_goods_per_worker(world, get_climate_phase(world.turn, world.climate_config), region)
 
 
 def compute_allocated_production(
@@ -1075,6 +1149,11 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
         data[f"stockpile_{good}"] = pa.array(
             [r.stockpile.goods.get(good, 0.0) for r in regions], type=pa.float32(),
         )
+    curves = [farm_labor_curve(world, r) for r in regions]
+    if any(ref > 0.0 for ref, _ in curves):
+        # Diminishing returns to farm labour (absent columns: constant returns).
+        data["farm_labor_ref"] = pa.array([c[0] for c in curves], type=pa.float32())
+        data["farm_labor_half"] = pa.array([c[1] for c in curves], type=pa.float32())
     if fishery_enabled(world):
         # Optional nullable per-slot production caps: the previous ecology tick's
         # fish catch. Null (non-fish) slots stay uncapped in the kernel.
@@ -1327,6 +1406,13 @@ def reconstruct_economy_result(
         for i, rid in enumerate(rr_ids):
             target[region_names[rid]] = (vals[0][i], vals[1][i], vals[2][i])
 
+    # Diminishing returns: output per farmer against constant returns (absent
+    # from extensions built before 2026-10 farmland; read only below 1 or above).
+    if "farm_productivity" in rr_names:
+        for i, v in enumerate(pylist(region_result_batch.column("farm_productivity"))):
+            if v != 1.0:
+                result.farm_productivity[region_names[rr_ids[i]]] = v
+
     # --- Civ result batch → fiscal outputs ---
     cr_ids = pylist(civ_result_batch.column("civ_id"))
     for field_name, target in [
@@ -1478,10 +1564,15 @@ def compute_economy(
             agent_data["population"], agent_data["soldier_count"], agent_data["wealthy_count"],
         )
         slot_yields = [economy_yield(world, region, slot) for slot in range(3)]
+        farmers = agent_data["farmer_count"]
+        labor_ref, labor_half = farm_labor_curve(world, region)
+        farm_labor = effective_farm_labor(farmers, labor_ref, labor_half)
+        if labor_ref > 0.0 and farmers > 0 and farm_labor != farmers:
+            result.farm_productivity[rname] = farm_labor / farmers
         produced = compute_allocated_production(
             region.resource_types,
             slot_yields,
-            agent_data["farmer_count"],
+            farm_labor,
             production_caps=[catch_budget(world, region, slot) for slot in range(3)],
             food_demand=demand["food"],
             subsistence_yield=region_subsistence_yield(world, region, slot_yields),

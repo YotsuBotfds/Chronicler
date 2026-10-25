@@ -89,7 +89,10 @@ def _plains(population: int, soil: float, water: float = 0.6) -> Region:
 
 
 def _world_with(region: Region) -> WorldState:
-    return WorldState(name="T", seed=1, regions=[region], civilizations=[_civ("Rome", ["P"])])
+    # The global climate schedule alone (2026-10 regional climate off): these
+    # tests pin the phase's own water and harvest arithmetic.
+    return WorldState(name="T", seed=1, regions=[region], civilizations=[_civ("Rome", ["P"])],
+                      tuning_overrides={"climate.trend_share": 1.0})
 
 
 def test_degraded_soil_below_potential_capacity_does_not_degrade_further():

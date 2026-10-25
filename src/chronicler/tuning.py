@@ -108,6 +108,14 @@ K_METALLURGY_MINE_REDUCTION = "ecology.metallurgy_mine_reduction"
 K_SOIL_PRESSURE_DEGRADATION_MULT = "ecology.soil_pressure_degradation_multiplier"
 K_FAMINE_POP_LOSS = "ecology.famine_pop_loss"
 K_FAMINE_REFUGEE_POP = "ecology.famine_refugee_pop"
+# Farmland (2026-10): diminishing returns to farm labour. Farm labour per unit
+# of arable capacity at which a farmer grows the constant-returns output (0
+# keeps constant returns), and the output elasticity to labour there.
+K_FARM_REFERENCE_DENSITY = "economy.farm_reference_density"
+K_FARM_LABOR_ELASTICITY = "economy.farm_labor_elasticity"
+# Regional climate (2026-10): share of the global phase's crop and water effects
+# (1.0: the global schedule alone; the rest comes as regional harvest shocks).
+K_CLIMATE_TREND_SHARE = "climate.trend_share"
 
 # Politics
 K_SECESSION_STABILITY_THRESHOLD = "politics.secession_stability_threshold"
@@ -278,6 +286,8 @@ KNOWN_OVERRIDES: set[str] = {
     K_EXHAUSTED_TRICKLE_FRACTION, K_RESERVE_RAMP_THRESHOLD,
     K_METALLURGY_MINE_REDUCTION, K_SOIL_PRESSURE_DEGRADATION_MULT,
     K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
+    K_FARM_REFERENCE_DENSITY, K_FARM_LABOR_ELASTICITY,
+    K_CLIMATE_TREND_SHARE,
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,
