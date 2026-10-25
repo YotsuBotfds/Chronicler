@@ -11,7 +11,7 @@ import json
 import statistics
 import sys
 from collections import Counter, defaultdict
-from math import ceil
+from math import ceil, comb
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
@@ -79,6 +79,38 @@ REGRESSION_OCCUPATION_EVIDENCE_RUN_MIN = 0.80
 # shift does not decay.
 # See docs/integration/needs-oracle-autonomy.md. False restores the old pairing.
 NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
+
+# Needs oracle method 2 (docs/integration/needs-oracle-power.md). Pairs are
+# matched as before (same civ affinity, region and occupation; boldness,
+# ambition and loyalty trait within 0.1; prior rebels left out of the autonomy
+# pairing), at every snapshot whose 20-turn outcome window fits the run, for
+# every pairing below. A pair is concordant when its lower-need agent has more
+# of the paired event than its partner, discordant when fewer. The verdict
+# pools all pairs of all seeds, with the seed as the unit of replication.
+# Method 1 kept one best snapshot and pairing per seed (``run_needs_oracle_best_of``).
+NEEDS_ORACLE_METHOD_VERSION = 2
+NEEDS_PAIRINGS = (
+    ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
+    ("social", EVENT_NAME_TO_CODE["migration"]),
+    ("purpose", EVENT_NAME_TO_CODE["occupation_switch"]),
+    ("material", EVENT_NAME_TO_CODE["migration"]),
+    ("safety", EVENT_NAME_TO_CODE["migration"]),
+)
+NEEDS_OUTCOME_WINDOW_TURNS = 20
+NEEDS_PERSONALITY_TOLERANCE = 0.1
+# The need gap a pair must exceed. Method 1 used 0.2: within a matched cell a
+# need's spread is 0.03-0.10 (median standard deviation), so a 0.2 gap left
+# about three informative pairs per 200-turn template world. The gap sets the
+# contrast, not a confound control; the matching above does that.
+NEEDS_NEED_DIVERGENCE = 0.1
+NEEDS_LEGACY_NEED_DIVERGENCE = 0.2
+# PASS needs both: the one-sided 95% lower bound of the pooled net concordance
+# above zero (seed-clustered standard error, Student t with one degree of
+# freedom fewer than the seeds with informative pairs), and at least 60% of
+# analyzed seeds with more concordant than discordant pairs (the M53 seed
+# fraction, now on each seed's pooled pairs instead of its best candidate).
+NEEDS_CONFIDENCE = 0.95
+NEEDS_SEED_FRACTION_MIN = 0.60
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
 # (docs/integration/wave3-defaults.md). A silent collapse is a population
@@ -1041,13 +1073,67 @@ def detect_communities(
     return result
 
 
+def _match_needs_pairs(
+    needs_data: dict,
+    need_name: str,
+    need_divergence: float,
+    personality_tolerance: float,
+) -> list[tuple[int, int]]:
+    """Matched ``(low_need_id, high_need_id)`` pairs of one needs snapshot.
+
+    Two agents match when civ_affinity, region and occupation are equal,
+    boldness, ambition and loyalty_trait each differ by at most
+    ``personality_tolerance``, and the need differs by more than
+    ``need_divergence``. Greedy first match in snapshot order; each agent is
+    in at most one pair. Candidates are scanned within the agent's own
+    (civ, region, occupation) cell, which gives the same pairs as scanning
+    every later agent.
+    """
+    ids = needs_data["agent_id"]
+    need_vals = needs_data[need_name]
+    boldness = needs_data["boldness"]
+    ambition = needs_data["ambition"]
+    loyalty = needs_data["loyalty_trait"]
+    cells: dict[tuple, list[int]] = defaultdict(list)
+    position: list[int] = []
+    keys = list(zip(needs_data["civ_affinity"], needs_data["region"], needs_data["occupation"]))
+    for index, key in enumerate(keys):
+        members = cells[key]
+        position.append(len(members))
+        members.append(index)
+
+    pairs: list[tuple[int, int]] = []
+    used: set = set()
+    for i, aid in enumerate(ids):
+        if aid in used:
+            continue
+        members = cells[keys[i]]
+        for j in members[position[i] + 1:]:
+            bid = ids[j]
+            if bid in used:
+                continue
+            if (
+                abs(boldness[i] - boldness[j]) > personality_tolerance
+                or abs(ambition[i] - ambition[j]) > personality_tolerance
+                or abs(loyalty[i] - loyalty[j]) > personality_tolerance
+            ):
+                continue
+            if abs(need_vals[i] - need_vals[j]) <= need_divergence:
+                continue
+            used.add(aid)
+            used.add(bid)
+            pairs.append((aid, bid) if need_vals[i] < need_vals[j] else (bid, aid))
+            break  # each agent used in at most one pair
+    return pairs
+
+
 def compute_needs_diversity(
     needs_data: dict,
     events_data: list[dict],
     need_name: str,
     event_type: int = 1,
-    need_divergence: float = 0.2,
-    personality_tolerance: float = 0.1,
+    need_divergence: float = NEEDS_LEGACY_NEED_DIVERGENCE,
+    personality_tolerance: float = NEEDS_PERSONALITY_TOLERANCE,
 ) -> dict:
     """Oracle 2: Validate that need levels influence agent behavioral event rates.
 
@@ -1083,29 +1169,6 @@ def compute_needs_diversity(
         high_need_event_rate – events per agent in high-need group
         rate_difference     – low - high (positive = low-need has more events)
     """
-    # --- Build per-agent records -------------------------------------------
-    ids = needs_data["agent_id"]
-    need_vals = needs_data[need_name]
-    civ_aff = needs_data["civ_affinity"]
-    regions = needs_data["region"]
-    occupations = needs_data["occupation"]
-    boldness = needs_data["boldness"]
-    ambition = needs_data["ambition"]
-    loyalty = needs_data["loyalty_trait"]
-
-    agents = []
-    for i, aid in enumerate(ids):
-        agents.append({
-            "id": aid,
-            "need": need_vals[i],
-            "civ_affinity": civ_aff[i],
-            "region": regions[i],
-            "occupation": occupations[i],
-            "boldness": boldness[i],
-            "ambition": ambition[i],
-            "loyalty": loyalty[i],
-        })
-
     # --- Count events per agent --------------------------------------------
     event_counts: dict[int, int] = {}
     for ev in events_data:
@@ -1114,46 +1177,10 @@ def compute_needs_diversity(
             event_counts[aid] = event_counts.get(aid, 0) + 1
 
     # --- Find matched pairs ------------------------------------------------
-    low_ids: list[int] = []
-    high_ids: list[int] = []
-    pairs_found = 0
-
-    used: set[int] = set()
-    for i, a in enumerate(agents):
-        if a["id"] in used:
-            continue
-        for j in range(i + 1, len(agents)):
-            b = agents[j]
-            if b["id"] in used:
-                continue
-            # Must match on categorical context
-            if (
-                a["civ_affinity"] != b["civ_affinity"]
-                or a["region"] != b["region"]
-                or a["occupation"] != b["occupation"]
-            ):
-                continue
-            # Must match on personality within tolerance
-            if (
-                abs(a["boldness"] - b["boldness"]) > personality_tolerance
-                or abs(a["ambition"] - b["ambition"]) > personality_tolerance
-                or abs(a["loyalty"] - b["loyalty"]) > personality_tolerance
-            ):
-                continue
-            # Must diverge sufficiently on the target need
-            if abs(a["need"] - b["need"]) <= need_divergence:
-                continue
-            # Pair qualifies
-            pairs_found += 1
-            used.add(a["id"])
-            used.add(b["id"])
-            if a["need"] < b["need"]:
-                low_ids.append(a["id"])
-                high_ids.append(b["id"])
-            else:
-                high_ids.append(a["id"])
-                low_ids.append(b["id"])
-            break  # each agent used in at most one pair
+    pairs = _match_needs_pairs(needs_data, need_name, need_divergence, personality_tolerance)
+    pairs_found = len(pairs)
+    low_ids = [low for low, _high in pairs]
+    high_ids = [high for _low, high in pairs]
 
     # --- Compute event rates -----------------------------------------------
     def _rate(id_list: list[int]) -> float:
@@ -1984,10 +2011,235 @@ def _without_agents_with_event_by(columns: dict, first_event_turn: dict[int, int
     return {name: [values[idx] for idx in keep] for name, values in columns.items()}
 
 
+def _student_t_quantile(probability: float, degrees_of_freedom: int) -> float:
+    from scipy.stats import t as student_t
+
+    return float(student_t.ppf(probability, degrees_of_freedom))
+
+
+def _sign_test_p(concordant: int, discordant: int) -> float:
+    """One-sided exact sign test: P(X >= concordant) for X ~ Binomial(n, 1/2)."""
+    n = concordant + discordant
+    if n == 0:
+        return 1.0
+    return sum(comb(n, k) for k in range(concordant, n + 1)) / 2 ** n
+
+
+def _pooled_net_concordance(per_seed: list[tuple[int, int]], confidence: float) -> dict:
+    """Pooled (C - D) / (C + D) over seeds, with a seed-clustered bound.
+
+    Each seed is a cluster: its pairs share agents across snapshots and
+    overlapping outcome windows, seeds do not. The ratio estimator's variance
+    is ``S / (S - 1) * sum((C_s - D_s - net * n_s)^2) / n^2`` over the ``S``
+    seeds with informative pairs; the bound is one-sided Student t with
+    ``S - 1`` degrees of freedom.
+    """
+    clusters = [(c, d) for c, d in per_seed if c + d > 0]
+    total = sum(c + d for c, d in clusters)
+    if not clusters:
+        return {"net_concordance": None, "standard_error": None, "lower_bound": None, "clusters": 0}
+    net = sum(c - d for c, d in clusters) / total
+    count = len(clusters)
+    if count < 2:
+        return {"net_concordance": net, "standard_error": None, "lower_bound": None, "clusters": count}
+    residual = sum(((c - d) - net * (c + d)) ** 2 for c, d in clusters)
+    standard_error = (count / (count - 1) * residual) ** 0.5 / total
+    lower_bound = net - _student_t_quantile(confidence, count - 1) * standard_error
+    return {
+        "net_concordance": net,
+        "standard_error": standard_error,
+        "lower_bound": lower_bound,
+        "clusters": count,
+    }
+
+
+def _needs_seed_pairs(
+    run: dict,
+    needs_snapshots: list[dict],
+    *,
+    exclude_prior_rebels: bool,
+    need_divergence: float,
+    personality_tolerance: float,
+    window: int,
+) -> tuple[int, dict[str, list[tuple[int, int]]]]:
+    """Every matched pair of one seed: eligible snapshot count, and per need
+    the (low-need agent's, high-need agent's) event counts in the window."""
+    total_turns = _total_turns(run)
+    first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
+    events_by_turn: dict[int, list[dict]] = defaultdict(list)
+    for event in run["events"]:
+        events_by_turn[int(event.get("turn", -1))].append(event)
+    outcomes: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in NEEDS_PAIRINGS}
+    snapshots = 0
+    for needs_snapshot in needs_snapshots:
+        snapshot_turn = int(needs_snapshot["turn"])
+        if total_turns and snapshot_turn + window > total_turns:
+            continue
+        snapshots += 1
+        counts: dict[tuple[int, int], int] = defaultdict(int)
+        for turn in range(snapshot_turn, snapshot_turn + window):
+            for event in events_by_turn.get(turn, ()):
+                counts[(event["agent_id"], event["event_type"])] += 1
+        for need_name, event_type in NEEDS_PAIRINGS:
+            columns = needs_snapshot["columns"]
+            if need_name not in columns:
+                continue
+            if need_name == "autonomy" and exclude_prior_rebels:
+                columns = _without_agents_with_event_by(columns, first_rebellion, snapshot_turn)
+            for low, high in _match_needs_pairs(columns, need_name, need_divergence, personality_tolerance):
+                outcomes[need_name].append((counts.get((low, event_type), 0), counts.get((high, event_type), 0)))
+    return snapshots, outcomes
+
+
+def _concordance(outcomes: list[tuple[int, int]]) -> tuple[int, int]:
+    concordant = sum(1 for low, high in outcomes if low > high)
+    discordant = sum(1 for low, high in outcomes if low < high)
+    return concordant, discordant
+
+
 def run_needs_oracle(
     seed_runs: list[dict],
     exclude_prior_rebels: bool = NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS,
+    *,
+    need_divergence: float = NEEDS_NEED_DIVERGENCE,
+    personality_tolerance: float = NEEDS_PERSONALITY_TOLERANCE,
+    window: int = NEEDS_OUTCOME_WINDOW_TURNS,
+    confidence: float = NEEDS_CONFIDENCE,
+    seed_fraction: float = NEEDS_SEED_FRACTION_MIN,
 ) -> dict:
+    """M53 oracle 2, method 2: lower need, more of its event, pooled over seeds.
+
+    Hypothesis: an agent whose need is lower than a matched agent's has more
+    of the event that need drives over the next ``window`` turns (autonomy:
+    rebellion; social, material, safety: migration; purpose: occupation
+    switch). Every eligible snapshot and pairing of every seed contributes its
+    matched pairs. PASS when the one-sided ``confidence`` lower bound of the
+    pooled net concordance is above zero and at least ``seed_fraction`` of the
+    analyzed seeds have more concordant than discordant pairs.
+    """
+    if not seed_runs:
+        return {"status": "SKIP", "reason": "no_bundles"}
+
+    per_seed: list[dict] = []
+    seed_counts: list[tuple[int, int]] = []
+    by_pairing = {
+        need: {"event_type": event, "pairs": 0, "concordant": 0, "discordant": 0,
+               "low_need_events": 0, "high_need_events": 0}
+        for need, event in NEEDS_PAIRINGS
+    }
+    for run in seed_runs:
+        needs_snapshots = _iter_needs_snapshots(run, min_turn=0)
+        if not needs_snapshots:
+            continue
+        snapshots, outcomes = _needs_seed_pairs(
+            run,
+            needs_snapshots,
+            exclude_prior_rebels=exclude_prior_rebels,
+            need_divergence=need_divergence,
+            personality_tolerance=personality_tolerance,
+            window=window,
+        )
+        seed_pairs = 0
+        seed_concordant = 0
+        seed_discordant = 0
+        seed_by_pairing: dict[str, list[int]] = {}
+        for need_name, pairs in outcomes.items():
+            concordant, discordant = _concordance(pairs)
+            seed_pairs += len(pairs)
+            seed_concordant += concordant
+            seed_discordant += discordant
+            if pairs:
+                seed_by_pairing[need_name] = [len(pairs), concordant, discordant]
+            totals = by_pairing[need_name]
+            totals["pairs"] += len(pairs)
+            totals["concordant"] += concordant
+            totals["discordant"] += discordant
+            totals["low_need_events"] += sum(low for low, _high in pairs)
+            totals["high_need_events"] += sum(high for _low, high in pairs)
+        informative = seed_concordant + seed_discordant
+        seed_counts.append((seed_concordant, seed_discordant))
+        per_seed.append({
+            "seed": run.get("seed"),
+            "snapshots": snapshots,
+            "pairs_found": seed_pairs,
+            "informative_pairs": informative,
+            "concordant": seed_concordant,
+            "discordant": seed_discordant,
+            "net_concordance": round((seed_concordant - seed_discordant) / informative, 4) if informative else None,
+            "sign_test_p": round(_sign_test_p(seed_concordant, seed_discordant), 4),
+            "by_pairing": seed_by_pairing,
+        })
+
+    analyzed_seeds = len(per_seed)
+    if analyzed_seeds == 0:
+        return {"status": "SKIP", "reason": "no_needs_sidecars"}
+
+    pooled = _pooled_net_concordance(seed_counts, confidence)
+    required = required_seed_count(analyzed_seeds, seed_fraction)
+    seeds_with_expected_sign = sum(1 for c, d in seed_counts if c > d)
+    seeds_with_reversed_sign = sum(1 for c, d in seed_counts if c < d)
+    lower_bound = pooled["lower_bound"]
+    bound_ok = lower_bound is not None and lower_bound > 0.0
+    seeds_ok = seeds_with_expected_sign >= required
+    failed_criteria = []
+    if not bound_ok:
+        failed_criteria.append("net_concordance_lower_bound")
+    if not seeds_ok:
+        failed_criteria.append("seed_fraction")
+
+    def _rounded(value: float | None) -> float | None:
+        return round(value, 4) if value is not None else None
+
+    # Per pairing, informational: the same estimate and bound on its own pairs.
+    for need_name, totals in by_pairing.items():
+        pairing_counts = [
+            tuple(record["by_pairing"].get(need_name, (0, 0, 0))[1:]) for record in per_seed
+        ]
+        pairing_pooled = _pooled_net_concordance(pairing_counts, confidence)
+        totals["net_concordance"] = _rounded(pairing_pooled["net_concordance"])
+        totals["net_concordance_lower_bound"] = _rounded(pairing_pooled["lower_bound"])
+
+    return {
+        "status": "PASS" if bound_ok and seeds_ok else "FAIL",
+        "method": "pooled_matched_pairs",
+        "method_version": NEEDS_ORACLE_METHOD_VERSION,
+        "criterion": (
+            f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0 "
+            f"and >= {seed_fraction:.0%} of analyzed seeds with net concordance > 0"
+        ),
+        "failed_criteria": failed_criteria,
+        "analyzed_seeds": analyzed_seeds,
+        "seeds_with_informative_pairs": pooled["clusters"],
+        "required_seed_count": required,
+        "seeds_with_expected_sign": seeds_with_expected_sign,
+        "seeds_with_reversed_sign": seeds_with_reversed_sign,
+        "total_pairs": sum(record["pairs_found"] for record in per_seed),
+        "informative_pairs": sum(c + d for c, d in seed_counts),
+        "concordant_pairs": sum(c for c, _d in seed_counts),
+        "discordant_pairs": sum(d for _c, d in seed_counts),
+        "net_concordance": _rounded(pooled["net_concordance"]),
+        "net_concordance_se": _rounded(pooled["standard_error"]),
+        "net_concordance_lower_bound": _rounded(lower_bound),
+        "confidence": confidence,
+        "need_divergence": need_divergence,
+        "personality_tolerance": personality_tolerance,
+        "outcome_window_turns": window,
+        "autonomy_excludes_prior_rebels": exclude_prior_rebels,
+        "by_pairing": by_pairing,
+        "per_seed": per_seed,
+    }
+
+
+def run_needs_oracle_best_of(
+    seed_runs: list[dict],
+    exclude_prior_rebels: bool = NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS,
+) -> dict:
+    """Needs oracle method 1 (before 2026-10-25), kept for re-scoring old batches.
+
+    Per seed, the best (snapshot, pairing) candidate by ``_needs_candidate_priority``;
+    PASS when 60% of seeds have a positive rate difference with |d| > 0.10 and
+    the median |d| exceeds 0.10. Output equals the method 1 reports.
+    """
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
@@ -1996,13 +2248,7 @@ def run_needs_oracle(
     total_pairs = 0
     effect_sizes: list[float] = []
     per_seed: list[dict] = []
-    need_event_configs = [
-        ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
-        ("social", EVENT_NAME_TO_CODE["migration"]),
-        ("purpose", EVENT_NAME_TO_CODE["occupation_switch"]),
-        ("material", EVENT_NAME_TO_CODE["migration"]),
-        ("safety", EVENT_NAME_TO_CODE["migration"]),
-    ]
+    need_event_configs = list(NEEDS_PAIRINGS)
 
     for run in seed_runs:
         needs_snapshots = _iter_needs_snapshots(run, min_turn=0)
@@ -3204,4 +3450,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']
+__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']

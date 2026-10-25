@@ -41,6 +41,38 @@ def _oracle_item(report: dict[str, Any], oracle: str) -> dict[str, Any]:
     return item
 
 
+def _oracle_method_version(report: dict[str, Any], oracle: str) -> int | None:
+    """An oracle result's ``method_version``; a result without one is method 1."""
+    result = report.get("results", {}).get(oracle)
+    if not isinstance(result, dict):
+        return None
+    version = result.get("method_version", 1)
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise ValidationGateInputError(f"invalid method_version for oracle {oracle}: {version!r}")
+    return version
+
+
+def _oracle_method_changes(baseline: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
+    """Oracles scored by different methods in the two reports (needs: method 1 before 2026-10-25).
+
+    Their statuses are not comparable: re-score the baseline batch with the
+    current oracle to compare them.
+    """
+    changes: list[dict[str, Any]] = []
+    for oracle in sorted(set(baseline.get("results", {})) & set(current.get("results", {}))):
+        left = _oracle_method_version(baseline, oracle)
+        right = _oracle_method_version(current, oracle)
+        if left is not None and right is not None and left != right:
+            changes.append({
+                "oracle": oracle,
+                "baseline_method_version": left,
+                "current_method_version": right,
+                "baseline_status": _oracle_item(baseline, oracle)["status"],
+                "current_status": _oracle_item(current, oracle)["status"],
+            })
+    return changes
+
+
 def _oracle_status_changes(baseline: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
     names = sorted(set(baseline.get("results", {})) | set(current.get("results", {})))
     changes: list[dict[str, Any]] = []
@@ -168,12 +200,23 @@ def compare_validation_reports(
         current_report,
         require_strict_regression=require_strict_regression,
     )
+    method_changes = _oracle_method_changes(baseline_report, current_report)
+    method_changed = {item["oracle"] for item in method_changes}
     baseline_failures = baseline_decision["required_failures"]
     current_failures = current_decision["required_failures"]
     baseline_keys = {_failure_key(item) for item in baseline_failures}
     current_keys = {_failure_key(item) for item in current_failures}
-    new_required_failures = [item for item in current_failures if _failure_key(item) not in baseline_keys]
-    resolved_required_failures = [item for item in baseline_failures if _failure_key(item) not in current_keys]
+    new_required_failures = [
+        item for item in current_failures
+        if _failure_key(item) not in baseline_keys and item.get("oracle") not in method_changed
+    ]
+    resolved_required_failures = [
+        item for item in baseline_failures
+        if _failure_key(item) not in current_keys and item.get("oracle") not in method_changed
+    ]
+    method_changed_required_failures = [
+        item for item in current_failures if item.get("oracle") in method_changed
+    ]
 
     baseline_regression = _regression_result(baseline_report)
     current_regression = _regression_result(current_report)
@@ -213,6 +256,9 @@ def compare_validation_reports(
         "current_decision": current_decision,
         "new_required_failures": new_required_failures,
         "resolved_required_failures": resolved_required_failures,
+        "oracle_method_changes": method_changes,
+        "method_changed_required_failures": method_changed_required_failures,
+        "rebaseline_required": bool(method_changes),
         "oracle_status_changes": _oracle_status_changes(baseline_report, current_report),
         "regression_adjudication_change": adjudication_change,
         "strict_regression_downgrade": strict_downgrade,
@@ -328,6 +374,20 @@ def format_comparison_markdown(result: dict[str, Any]) -> str:
                 + " | ".join(_markdown_cell(item.get(field, "")) for field in ("oracle", "status", "reason"))
                 + " |"
             )
+    if result.get("oracle_method_changes"):
+        lines.extend([
+            "",
+            "## Oracle method changes",
+            "",
+            "Scored by different methods; their statuses are not compared. Re-score the "
+            "baseline batch with the current oracle (re-baseline) to compare them.",
+            "",
+            "| Oracle | Baseline method | Baseline status | Current method | Current status |",
+            "| --- | --- | --- | --- | --- |",
+        ])
+        for item in result["oracle_method_changes"]:
+            fields = ("oracle", "baseline_method_version", "baseline_status", "current_method_version", "current_status")
+            lines.append("| " + " | ".join(_markdown_cell(item.get(field, "")) for field in fields) + " |")
     if result["regression_adjudication_change"]:
         lines.extend([
             "",

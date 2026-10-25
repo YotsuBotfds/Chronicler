@@ -22,6 +22,7 @@ from .validation_io import (
     run_determinism_gate,
     run_community_oracle,
     run_needs_oracle,
+    run_needs_oracle_best_of,
     run_era_oracle,
     run_cohort_oracle,
     run_artifact_oracle,
@@ -29,4 +30,4 @@ from .validation_io import (
     run_regression_summary,
 )
 
-__all__ = ['detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary']
+__all__ = ['detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary']

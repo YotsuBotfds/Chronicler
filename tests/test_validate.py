@@ -708,8 +708,8 @@ def test_run_community_oracle_uses_best_sampled_turn():
     assert result["per_seed"][0]["qualifying_communities"] == 1
 
 
-def test_run_needs_oracle_uses_all_sampled_turns():
-    from chronicler.validate import run_needs_oracle
+def test_needs_best_of_uses_all_sampled_turns():
+    from chronicler.validate import run_needs_oracle_best_of as run_needs_oracle
 
     turn_10 = {
         "agent_id": list(range(10)),
@@ -835,8 +835,8 @@ def _autonomy_confound_run():
     }
 
 
-def test_needs_oracle_autonomy_confound_reverses_then_exclusion_restores():
-    from chronicler.validate import run_needs_oracle
+def test_needs_best_of_autonomy_confound_reverses_then_exclusion_restores():
+    from chronicler.validate import run_needs_oracle_best_of as run_needs_oracle
 
     run = _autonomy_confound_run()
 
@@ -882,8 +882,8 @@ def test_needs_autonomy_exclusion_counts_rebellions_through_the_snapshot_turn():
     assert _without_agents_with_event_by(columns, first, 11) is columns
 
 
-def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
-    from chronicler.validate import run_needs_oracle
+def test_needs_best_of_rebel_exclusion_leaves_other_pairings_unchanged():
+    from chronicler.validate import run_needs_oracle_best_of as run_needs_oracle
 
     # Material -> migration among agents who all rebelled just before the
     # snapshot: only the autonomy pairing drops prior rebels.
@@ -904,6 +904,238 @@ def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
     assert before["per_seed"] == after["per_seed"]
     assert after["per_seed"][0]["need_name"] == "material"
     assert after["per_seed"][0]["pairs_found"] == 3
+    assert after["status"] == "PASS"
+
+
+# --- Needs oracle method 2: pooled matched pairs -------------------------
+
+
+def _seed_copies(run, seeds):
+    return [{**run, "seed": seed} for seed in seeds]
+
+
+def _reference_needs_pairs(needs_data, need_name, need_divergence, personality_tolerance):
+    """Method 1's all-agents scan, verbatim, as the matching reference."""
+    agents = [
+        {
+            "id": aid, "need": needs_data[need_name][i], "civ_affinity": needs_data["civ_affinity"][i],
+            "region": needs_data["region"][i], "occupation": needs_data["occupation"][i],
+            "boldness": needs_data["boldness"][i], "ambition": needs_data["ambition"][i],
+            "loyalty": needs_data["loyalty_trait"][i],
+        }
+        for i, aid in enumerate(needs_data["agent_id"])
+    ]
+    pairs, used = [], set()
+    for i, a in enumerate(agents):
+        if a["id"] in used:
+            continue
+        for b in agents[i + 1:]:
+            if b["id"] in used:
+                continue
+            if (a["civ_affinity"], a["region"], a["occupation"]) != (b["civ_affinity"], b["region"], b["occupation"]):
+                continue
+            if any(abs(a[k] - b[k]) > personality_tolerance for k in ("boldness", "ambition", "loyalty")):
+                continue
+            if abs(a["need"] - b["need"]) <= need_divergence:
+                continue
+            used.update((a["id"], b["id"]))
+            pairs.append((a["id"], b["id"]) if a["need"] < b["need"] else (b["id"], a["id"]))
+            break
+    return pairs
+
+
+@pytest.mark.parametrize("gap", [0.1, 0.2])
+def test_match_needs_pairs_equals_the_all_agents_scan(gap):
+    import random
+    from chronicler.validation_io import _match_needs_pairs
+
+    rng = random.Random(11)
+    count = 400
+    columns = {
+        "agent_id": rng.sample(range(10_000), count),
+        "civ_affinity": [rng.randrange(3) for _ in range(count)],
+        "region": [rng.randrange(4) for _ in range(count)],
+        "occupation": [rng.randrange(2) for _ in range(count)],
+        # Coarse grids put many trait gaps exactly at the tolerance.
+        "boldness": [rng.randrange(5) / 10 for _ in range(count)],
+        "ambition": [rng.randrange(4) / 10 for _ in range(count)],
+        "loyalty_trait": [rng.randrange(4) / 10 for _ in range(count)],
+        "material": [rng.random() for _ in range(count)],
+    }
+    expected = _reference_needs_pairs(columns, "material", gap, 0.1)
+    assert len(expected) > 20
+    assert _match_needs_pairs(columns, "material", gap, 0.1) == expected
+
+
+def test_pooled_net_concordance_and_sign_test_by_hand():
+    from chronicler.validation_io import _pooled_net_concordance, _sign_test_p
+
+    pooled = _pooled_net_concordance([(5, 1), (3, 3), (0, 0), (4, 0)], 0.95)
+    # (4 + 0 + 4) / 16; residuals 1, 9, 4; SE sqrt(3/2 * 14) / 16; t(0.95, 2) = 2.919986.
+    assert pooled["clusters"] == 3
+    assert pooled["net_concordance"] == pytest.approx(0.5)
+    assert pooled["standard_error"] == pytest.approx(21 ** 0.5 / 16)
+    assert pooled["lower_bound"] == pytest.approx(0.5 - 2.919986 * 21 ** 0.5 / 16, abs=1e-5)
+    assert _pooled_net_concordance([(3, 1)], 0.95)["lower_bound"] is None
+    assert _pooled_net_concordance([(0, 0)], 0.95)["net_concordance"] is None
+    assert _sign_test_p(5, 0) == pytest.approx(1 / 32)
+    assert _sign_test_p(3, 3) == pytest.approx(42 / 64)
+    assert _sign_test_p(0, 0) == 1.0
+
+
+def _material_world(seed: int, low_movers: int, high_movers: int, *, turn: int = 100, total_turns: int = 140):
+    """One seed: cells of two matched agents, material 0.2 against 0.7.
+
+    In the first ``low_movers`` cells the low-material agent migrates once in
+    the outcome window; in the next ``high_movers`` cells its partner does.
+    """
+    rows, events = [], []
+    cells = low_movers + high_movers + 2
+    for region in range(cells):
+        low, high = 2 * region, 2 * region + 1
+        rows += [(low, region, {"material": 0.2}), (high, region, {"material": 0.7})]
+        if region < low_movers:
+            events.append({"agent_id": low, "event_type": MIGRATION, "turn": turn + 5})
+        elif region < low_movers + high_movers:
+            events.append({"agent_id": high, "event_type": MIGRATION, "turn": turn + 5})
+    return {
+        "seed": seed,
+        "bundle": {"metadata": {"total_turns": total_turns}},
+        "needs_columns": {"turn": [turn] * len(rows), **_needs_rows(rows)},
+        "events": events,
+    }
+
+
+def test_needs_oracle_passes_when_lower_need_agents_act_more():
+    from chronicler.validate import run_needs_oracle
+
+    runs = [_material_world(seed, 8 + seed % 3, 2) for seed in range(10)]
+    result = run_needs_oracle(runs)
+
+    assert result["status"] == "PASS"
+    assert result["method_version"] == 2
+    assert result["failed_criteria"] == []
+    assert result["seeds_with_expected_sign"] == 10
+    assert (result["concordant_pairs"], result["discordant_pairs"]) == (sum(8 + s % 3 for s in range(10)), 20)
+    assert result["net_concordance_lower_bound"] > 0.5
+    material = result["by_pairing"]["material"]
+    assert material["pairs"] == sum(12 + s % 3 for s in range(10))
+    assert result["per_seed"][0]["by_pairing"] == {"material": [12, 8, 2]}
+    assert result["per_seed"][0]["sign_test_p"] == pytest.approx(56 / 1024, abs=1e-4)
+
+
+@pytest.mark.parametrize("break_kind", ["no_link", "reversed", "shuffled"])
+def test_needs_oracle_fails_when_needs_no_longer_predict_behavior(break_kind):
+    import random
+    from chronicler.validate import run_needs_oracle
+
+    if break_kind == "no_link":
+        # The event falls on either agent: as many seeds one way as the other.
+        runs = [_material_world(seed, 7, 5) if seed % 2 else _material_world(seed, 5, 7) for seed in range(10)]
+    elif break_kind == "reversed":
+        runs = [_material_world(seed, 2, 8 + seed % 3) for seed in range(10)]
+    else:
+        # The passing world above with each cell's needs permuted among its agents.
+        runs = [_material_world(seed, 8 + seed % 3, 2) for seed in range(20)]
+        rng = random.Random(5)
+        for run in runs:
+            columns = run["needs_columns"]
+            for start in range(0, len(columns["agent_id"]), 2):
+                if rng.random() < 0.5:
+                    pair = columns["material"][start:start + 2]
+                    columns["material"][start:start + 2] = pair[::-1]
+    result = run_needs_oracle(runs)
+
+    assert result["status"] == "FAIL"
+    assert "net_concordance_lower_bound" in result["failed_criteria"]
+    assert result["net_concordance_lower_bound"] <= 0
+    if break_kind == "reversed":
+        assert result["net_concordance"] < -0.5
+        assert result["seeds_with_reversed_sign"] == 10
+
+
+def test_needs_oracle_seed_fraction_fails_when_few_seeds_carry_the_pool():
+    from chronicler.validate import run_needs_oracle
+
+    # Four seeds with a strong effect, six balanced: the pooled bound is above
+    # zero, but 4 of 10 seeds is below the 60% fraction.
+    runs = [_material_world(seed, 20, 0) for seed in range(4)]
+    runs += [_material_world(seed, 1, 1) for seed in range(4, 10)]
+    result = run_needs_oracle(runs)
+
+    assert result["net_concordance_lower_bound"] > 0
+    assert (result["seeds_with_expected_sign"], result["required_seed_count"]) == (4, 6)
+    assert result["failed_criteria"] == ["seed_fraction"]
+    assert result["status"] == "FAIL"
+
+
+def test_needs_oracle_needs_two_seeds_with_informative_pairs():
+    from chronicler.validate import run_needs_oracle
+
+    result = run_needs_oracle([_material_world(1, 10, 0)])
+    assert result["net_concordance"] == 1.0
+    assert result["net_concordance_lower_bound"] is None
+    assert result["status"] == "FAIL"
+
+
+def test_needs_oracle_pools_every_snapshot_whose_window_fits():
+    from chronicler.validate import run_needs_oracle
+
+    early = _material_world(0, 3, 0, turn=10)
+    middle = _material_world(0, 2, 0, turn=100)
+    # Turn 130: 130 + 20 > 140 turns, so its discordant pairs are not scored.
+    late = _material_world(0, 0, 4, turn=130)
+    columns = {name: early["needs_columns"][name] + middle["needs_columns"][name] + late["needs_columns"][name]
+               for name in early["needs_columns"]}
+    run = {"bundle": {"metadata": {"total_turns": 140}}, "needs_columns": columns,
+           "events": early["events"] + middle["events"] + late["events"]}
+    result = run_needs_oracle(_seed_copies(run, [1, 2]))
+
+    seed = result["per_seed"][0]
+    assert seed["snapshots"] == 2
+    assert (seed["concordant"], seed["discordant"]) == (5, 0)
+    assert seed["by_pairing"] == {"material": [9, 5, 0]}
+    assert result["status"] == "PASS"
+
+
+def test_needs_oracle_autonomy_confound_reverses_then_exclusion_restores():
+    from chronicler.validate import run_needs_oracle
+
+    runs = _seed_copies(_autonomy_confound_run(), [3, 4, 5])
+
+    confounded = run_needs_oracle(runs, exclude_prior_rebels=False)
+    assert confounded["status"] == "FAIL"
+    autonomy = confounded["by_pairing"]["autonomy"]
+    # Per seed: four quiet pairs with a rebellious low agent, four recidivists.
+    assert (autonomy["pairs"], autonomy["concordant"], autonomy["discordant"]) == (24, 12, 12)
+    assert confounded["net_concordance"] == 0.0
+
+    fixed = run_needs_oracle(runs)
+    assert fixed["autonomy_excludes_prior_rebels"] is True
+    assert fixed["status"] == "PASS"
+    autonomy = fixed["by_pairing"]["autonomy"]
+    assert (autonomy["pairs"], autonomy["concordant"], autonomy["discordant"]) == (12, 12, 0)
+
+
+def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
+    from chronicler.validate import run_needs_oracle
+
+    rows = []
+    for region in range(3):
+        rows += [(2 * region, region, {"material": 0.1}), (2 * region + 1, region, {"material": 0.6})]
+    events = [{"agent_id": agent_id, "event_type": REBELLION, "turn": 99} for agent_id in range(6)]
+    events += [{"agent_id": 2 * region, "event_type": MIGRATION, "turn": 104} for region in range(3)]
+    run = {
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **_needs_rows(rows)},
+        "events": events,
+    }
+    runs = _seed_copies(run, [4, 5])
+
+    before = run_needs_oracle(runs, exclude_prior_rebels=False)
+    after = run_needs_oracle(runs)
+    assert before["per_seed"] == after["per_seed"]
+    assert after["per_seed"][0]["by_pairing"] == {"material": [3, 3, 0]}
     assert after["status"] == "PASS"
 
 
