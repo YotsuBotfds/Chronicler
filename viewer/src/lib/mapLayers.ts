@@ -8,7 +8,8 @@ import type { Bundle, TurnSnapshot } from "../types";
 import { factionColor, UNCONTROLLED_COLOR } from "./colors";
 import {
   AID_COLOR, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
-  MIGRATION_COLOR, migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD, sufficiencyByRegion, type FamineSpan,
+  massMigrations, MIGRATION_COLOR, migrationDriverKind, migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD,
+  sufficiencyByRegion, type FamineSpan,
 } from "./food";
 import {
   BLOCKADE_COLOR, CONTESTED_COLOR, formatShare, pathogenColor, pathogenLabel, techniqueLabel,
@@ -292,14 +293,31 @@ function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
       title: `${flow.amount} moved from ${flow.from} to ${flow.to}` });
   }
   const net = netMigration(flows);
+  // Mass departures in the window, with what moved them when the bundle records it.
+  const waves = new Map<string, string[]>();
+  const kinds = new Map<string, number>();
+  for (const event of massMigrations(bundle.events_timeline, at, MIGRATION_WINDOW)) {
+    const kind = migrationDriverKind(event.driver);
+    const region = event.region as string;
+    waves.set(region, [...(waves.get(region) ?? []), `mass departure T${event.turn}${kind ? `: ${kind}` : ""}`]);
+    if (kind) {
+      kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+    }
+  }
   for (const name of names) {
     const value = net.get(name);
-    view.titles.set(name, value === undefined ? `${name} · no recorded moves` : `${name} · net ${value > 0 ? "+" : ""}${value} people`);
+    const parts = [value === undefined ? `${name} · no recorded moves` : `${name} · net ${value > 0 ? "+" : ""}${value} people`,
+      ...(waves.get(name) ?? [])];
+    view.titles.set(name, parts.join(" · "));
   }
   if (flows.length === 0) {
     view.note = `No agent moved between regions in the ${MIGRATION_WINDOW} turns to ${at}.`;
   } else if (flows.length > MIGRATION_FLOW_LIMIT) {
     view.note += ` The ${MIGRATION_FLOW_LIMIT} largest of ${flows.length} are drawn.`;
+  }
+  if (kinds.size > 0) {
+    view.note += ` Mass departures: ${[...kinds.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([kind, count]) => `${count} ${kind}`).join(", ")}.`;
   }
   view.legend = [{ label: "people moving", color: MIGRATION_COLOR, kind: "line" }];
   return view;

@@ -4,7 +4,8 @@ import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import {
   aidFlows, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, famineSpans, foodCrisisSpans, foodSeries,
-  hasFamineRecord, hasFoodRecord, hasMigrationRecord, migrationFlows, netMigration, spansOfKind, sufficiencyByRegion,
+  hasFamineRecord, hasFoodRecord, hasMigrationRecord, massMigrations, migrationDriverKind, migrationFlows, netMigration,
+  spansOfKind, sufficiencyByRegion,
 } from "../food";
 
 const systems = systemsFixture as unknown as Bundle;
@@ -102,6 +103,21 @@ describe("food field", () => {
       { turn: 1, "Short of food": 1, "In dearth": 0, "In famine": 1 },
       { turn: 2, "Short of food": null, "In dearth": 1, "In famine": 1 },
     ]);
+  });
+});
+
+describe("migration drivers", () => {
+  it("names the simulation's driver and keeps older bundles unlabelled", () => {
+    expect(migrationDriverKind("frontier")).toBe("settling new land");
+    expect(migrationDriverKind("wage")).toBe("seeking work");
+    expect(migrationDriverKind("chain")).toBe("joining kin");
+    expect(migrationDriverKind("famine_memory")).toBe("fleeing hunger");
+    expect(migrationDriverKind("persecution")).toBe("fleeing persecution");
+    expect(migrationDriverKind("some_new_term")).toBe("some new term");
+    expect(migrationDriverKind(undefined)).toBeNull();
+    const events = [famine(3, "A", null, "mass_migration"), famine(9, "B", null, "mass_migration"),
+      famine(9, null, null, "mass_migration"), famine(9, "C", "onset")];
+    expect(massMigrations(events, 9, 5).map((event) => event.region)).toEqual(["B"]);
   });
 });
 

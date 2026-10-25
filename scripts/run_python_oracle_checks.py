@@ -94,6 +94,7 @@ CHUNKS = {
         "tests/test_maritime.py",
         "tests/test_food_logistics.py",
         "tests/test_food_crisis_labels.py",
+        "tests/test_migration_driver_labels.py",
     ],
     "systems-2": [
         "tests/test_gp_agendas.py",

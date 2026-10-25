@@ -53,6 +53,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 from pydantic import BaseModel, Field
 
+from chronicler.models import VOLUNTARY_MIGRATION_DRIVERS
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -917,6 +918,8 @@ def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
             return "grievance", actors[0]
         return "neutral", None
     if t in DISASTER:
+        if ev.driver in VOLUNTARY_MIGRATION_DRIVERS:
+            return "neutral", None  # settlers, workers and kin moving: no calamity
         return "disaster", None
     if t in DISGRACE:
         return "disgrace", None

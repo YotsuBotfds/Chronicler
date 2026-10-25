@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Iterable, NamedTuple
 
-from chronicler.models import ChronicEpisode, Event, Exciter, OpenCondition
+from chronicler.models import VOLUNTARY_MIGRATION_DRIVERS, ChronicEpisode, Event, Exciter, OpenCondition
 
 if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import WorldState
@@ -285,7 +285,11 @@ def _rule_famine(world: "WorldState", ev: Event) -> list:
 
 def _rule_regional_flight(world: "WorldState", ev: Event) -> list:
     """People leave a region (climate flight, agent mass migration, brain
-    drain, demographic collapse): hunger, war, disease and persecution there."""
+    drain, demographic collapse): hunger, war, disease and persecution there.
+    Agent moves whose recorded driver is a living world's pull (settling new
+    land, seeking work, joining kin) cite none of these."""
+    if ev.driver in VOLUNTARY_MIGRATION_DRIVERS:
+        return []
     region = event_region(ev)
     civ = _first_civ(world, ev)
     out: list[str | None] = []
@@ -836,7 +840,8 @@ CHRONIC: dict[str, ChronicSpec] = {
     "demographic_crisis": ChronicSpec(1, False, None, "population collapse"),
     "loyalty_cascade": ChronicSpec(1, False, None, "shift of allegiance"),
     "occupation_shift": ChronicSpec(1, False, None, "change of trades"),
-    "mass_migration": ChronicSpec(1, False, None, "exodus"),
+    # Labelled neutrally: its onset says what moved the people (Event.driver).
+    "mass_migration": ChronicSpec(1, False, None, "wave of departures"),
     "local_rebellion": ChronicSpec(1, False, None, "uprising"),
     "migration": ChronicSpec(1, False, None, "flight"),
     "soil_exhaustion": ChronicSpec(1, False, None, "exhaustion of the soil"),

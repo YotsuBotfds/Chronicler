@@ -212,6 +212,42 @@ export function migrationFlows(
     || left.to.localeCompare(right.to));
 }
 
+/**
+ * What a migration driver (the simulation's largest utility term of the
+ * moves, `Event.driver`) means for the people moving. Terms are the
+ * native migration budget's (`migration_drivers.rs`).
+ */
+export const MIGRATION_DRIVER_KINDS: Record<string, string> = {
+  frontier: "settling new land",
+  wage: "seeking work",
+  chain: "joining kin",
+  famine_memory: "fleeing hunger",
+  opp_food: "fleeing hunger",
+  persecution: "fleeing persecution",
+  persecution_memory: "fleeing persecution",
+  battle_memory: "fleeing war",
+  conquest_memory: "fleeing war",
+  low_satisfaction: "leaving hardship",
+  safety_need: "leaving hardship",
+  material_need: "leaving hardship",
+  spiritual_need: "leaving hardship",
+  opp_satisfaction: "seeking better prospects",
+  opp_capacity: "seeking better prospects",
+  opp_river: "seeking better prospects",
+  opp_news: "seeking better prospects",
+};
+
+/** The kind of a driver, or null when the bundle records none (older bundles). */
+export function migrationDriverKind(driver: string | null | undefined): string | null {
+  return driver ? (MIGRATION_DRIVER_KINDS[driver] ?? driver.replace(/_/g, " ")) : null;
+}
+
+/** Mass migrations whose turn is in (turn - window, turn], oldest first. */
+export function massMigrations(events: Event[], turn: number, window: number): Event[] {
+  return events.filter((event) => event.event_type === "mass_migration" && !!event.region
+    && event.turn <= turn && event.turn > turn - window);
+}
+
 /** Net agents gained per region over the same window (arrivals minus departures). */
 export function netMigration(flows: NamedFlow[]): Map<string, number> {
   const net = new Map<string, number>();

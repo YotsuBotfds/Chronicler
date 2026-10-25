@@ -769,6 +769,10 @@ pub struct PendingDecisions {
     /// household consolidation can attribute followers to their lead; in
     /// slot order, like the region's slots.
     pub migration_dominant: Vec<(usize, u8)>,
+    /// (slot, lead's largest term) of each household follower that
+    /// consolidation added, in the order it added them (a later entry for a
+    /// slot replaces an earlier one, as the migration list does).
+    pub migration_followers: Vec<(usize, u8)>,
 }
 
 impl PendingDecisions {
@@ -783,7 +787,20 @@ impl PendingDecisions {
             loyalty_drifts_damped_by_rally: 0,
             migration_drivers: MigrationDriverStats::default(),
             migration_dominant: Vec::new(),
+            migration_followers: Vec::new(),
         }
+    }
+
+    /// The label of a migration in this bucket: the lead's largest term for a
+    /// household follower, else the agent's own decision's largest term
+    /// (`MIGRATION_TERMS` when it has none). Read-only; no decision uses it.
+    pub fn migration_driver_of(&self, slot: usize) -> u8 {
+        if let Some(&(_, term)) = self.migration_followers.iter().rev().find(|&&(s, _)| s == slot) {
+            return term;
+        }
+        self.migration_dominant
+            .binary_search_by_key(&slot, |&(s, _)| s)
+            .map_or(MIGRATION_TERMS as u8, |i| self.migration_dominant[i].1)
     }
 }
 

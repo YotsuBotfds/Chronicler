@@ -141,6 +141,9 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None
         "belief": pa.array([e.belief for e in events], type=pa.uint8()),
         "target_agent_id": pa.array([e.target_agent_id for e in events], type=pa.uint32()),
         "formed_turn": pa.array([e.formed_turn for e in events], type=pa.uint32()),
+        # Migrations: index into models.MIGRATION_DRIVER_NAMES (255 elsewhere).
+        # Readers treat a file without the column as recording no driver.
+        "migration_driver": pa.array([e.migration_driver for e in events], type=pa.uint8()),
     })
 
     out_path = bundle_dir / "agent_events.arrow"

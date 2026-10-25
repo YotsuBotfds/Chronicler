@@ -99,6 +99,27 @@ describe("map layers", () => {
     expect([...widths].sort((left, right) => right - left)).toEqual(widths);
   });
 
+  it("names what moved the mass departures of the window when the bundle records it", () => {
+    const wave = (turn: number, region: string, driver?: string) => ({
+      turn, event_type: "mass_migration", region, actors: [], description: "", consequences: [], importance: 5,
+      ...(driver ? { driver } : {}),
+    });
+    const bundle = {
+      ...systems,
+      events_timeline: [
+        ...systems.events_timeline.filter((event) => event.event_type !== "mass_migration"),
+        wave(118, names[0], "frontier"), wave(119, names[1], "famine_memory"), wave(119, names[2], "frontier"),
+        wave(117, names[3]), wave(100, names[4], "chain"),
+      ],
+    };
+    const view = buildMapLayer("migration", { bundle, snapshot: at(120), famine, technique: null })!;
+    expect(view.note).toContain("Mass departures: 2 settling new land, 1 fleeing hunger.");
+    expect(view.titles.get(names[1])).toContain("mass departure T119: fleeing hunger");
+    expect(view.titles.get(names[3])).toContain("mass departure T117");
+    expect(view.titles.get(names[3])).not.toContain(":");
+    expect(view.titles.get(names[4])).not.toContain("mass departure");  // outside the window
+  });
+
   it("shades regions by the chosen technique and picks a spreading one by default", () => {
     const options = practisedTechniques(systems.history);
     expect(options).toContain("writing");

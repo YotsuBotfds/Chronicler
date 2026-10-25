@@ -296,6 +296,45 @@ fn test_spouse_follows_lead_migration() {
 }
 
 #[test]
+fn test_household_followers_carry_the_leads_migration_driver() {
+    use chronicler_agents::migration_drivers::{MIGRATION_TERMS, TERM_FAMINE_MEMORY, TERM_FRONTIER};
+    let mut pool = AgentPool::new(20);
+    let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 30);
+    let b = spawn(&mut pool, 0, 0, Occupation::Farmer, 28);
+    let child = spawn(&mut pool, 0, 0, Occupation::Farmer, 5);
+    pool.parent_id_0[child] = pool.ids[a];
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    let loner = spawn(&mut pool, 0, 0, Occupation::Farmer, 40);
+    let unlabelled = spawn(&mut pool, 0, 0, Occupation::Farmer, 40);
+    let id_to_slot = build_id_to_slot(&pool);
+    let regions = vec![RegionState::new(0), RegionState::new(1)];
+    let contested = vec![false, false];
+
+    let mut pds = vec![PendingDecisions::new(), PendingDecisions::new()];
+    // A settles a frontier; B had decided to flee hunger on her own, elsewhere.
+    pds[0].migrations.push((a, 0, 1));
+    pds[0].migrations.push((b, 0, 0));
+    pds[0].migrations.push((loner, 0, 1));
+    pds[0].migrations.push((unlabelled, 0, 1));
+    let mut dominant = vec![
+        (a, TERM_FRONTIER as u8), (b, TERM_FAMINE_MEMORY as u8), (loner, TERM_FAMINE_MEMORY as u8),
+    ];
+    dominant.sort_unstable();
+    pds[0].migration_dominant = dominant;
+
+    let mut stats = HouseholdStats::default();
+    consolidate_household_migrations(&pool, &mut pds, &regions, &contested, &id_to_slot, &mut stats);
+
+    assert!(pds[0].migrations.iter().any(|&(s, _, t)| s == b && t == 1));
+    assert!(pds[0].migrations.iter().any(|&(s, _, t)| s == child && t == 1));
+    assert_eq!(pds[0].migration_driver_of(a), TERM_FRONTIER as u8);
+    assert_eq!(pds[0].migration_driver_of(b), TERM_FRONTIER as u8, "spouse takes the lead's label");
+    assert_eq!(pds[0].migration_driver_of(child), TERM_FRONTIER as u8, "dependant takes the lead's label");
+    assert_eq!(pds[0].migration_driver_of(loner), TERM_FAMINE_MEMORY as u8);
+    assert_eq!(pds[0].migration_driver_of(unlabelled), MIGRATION_TERMS as u8);
+}
+
+#[test]
 fn test_spouse_rebellion_cancels_migration() {
     let mut pool = AgentPool::new(20);
     let a = spawn(&mut pool, 0, 0, Occupation::Farmer, 25);
