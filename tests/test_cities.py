@@ -96,8 +96,9 @@ def _give(world: WorldState, region_idx: int, civ_idx: int) -> None:
 
 # --- switch and persistence ------------------------------------------------------
 
-def test_default_off_and_dormant_fields_are_omitted():
-    assert C.DEFAULT_ENABLED_FOR_NEW_WORLDS is False
+def test_off_worlds_omit_the_dormant_fields():
+    # Entry points turn cities on for new worlds (DEFAULT_ENABLED_FOR_NEW_WORLDS);
+    # a generated or loaded world without the state stays off.
     world = generate_world(seed=42)
     assert world.cities is None and not C.cities_enabled(world)
     assert "cities" not in json.loads(world.model_dump_json())
@@ -667,6 +668,31 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert "set_cities_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
 
 
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
+    """On by default for new worlds since the city-markets full gate;
+    --no-cities opts out and a resumed world keeps what it saved."""
+    from chronicler.main import _build_parser, execute_run
+    assert C.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    parser = _build_parser()
+
+    def args(out, *extra, turns=3):
+        return parser.parse_args(["--seed", "42", "--turns", str(turns), "--regions", "8", "--civs", "4",
+                                  "--agents", "off", "--simulate-only", *extra,
+                                  "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
+    fresh = tmp_path / "fresh"
+    execute_run(args(fresh))
+    assert "cities" in json.loads((fresh / "state.json").read_text())
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-cities"))
+    assert "cities" not in json.loads((off / "state.json").read_text())
+    for run, kept in ((off, False), (fresh, True)):
+        resumed = args(run, turns=5)
+        resumed.resume = str(run / "state.json")
+        resumed.state = str(run / "resumed.json")
+        execute_run(resumed)
+        assert ("cities" in json.loads((run / "resumed.json").read_text())) is kept
+
+
 def test_identity_script_strips_only_the_cities_fields(tmp_path):
     spec = importlib.util.spec_from_file_location("cities_identity", ROOT / "scripts" / "cities_identity.py")
     ident = importlib.util.module_from_spec(spec)
@@ -703,7 +729,7 @@ def test_cli_run_off_mode_keeps_bytes_and_the_switch_persists(tmp_path):
     assert all("cities" in h for h in bundle["history"])
     off = tmp_path / "off"
     execute_run(parser.parse_args(["--seed", "42", "--turns", "3", "--civs", "4", "--regions", "8",
-                                   "--simulate-only", "--output", str(off / "chronicle.md"),
+                                   "--simulate-only", "--no-cities", "--output", str(off / "chronicle.md"),
                                    "--state", str(off / "state.json")]))
     assert "cities" not in json.loads((off / "state.json").read_text())
     from chronicler.analytics import generate_report

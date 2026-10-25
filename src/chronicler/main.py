@@ -1513,8 +1513,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Cities as actors: settlements grown into towns and cities with "
                              "commerce and dues to their lord, a pull on rural migrants of the "
                              "realm, charters, urban revolts and free cities, sacks, walls and "
-                             "falls; needs an agent mode to found cities (default off for new "
-                             "worlds; saved on resume)")
+                             "falls; city markets that draw grain from the hinterland; needs an "
+                             "agent mode to found cities (default on for new worlds; --no-cities "
+                             "opts out; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

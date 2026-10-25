@@ -1,7 +1,8 @@
 """Cities as historical actors (``--cities``).
 
-Default off behind ``WorldState.cities`` (CLI ``--cities``, persisted on the
-world so a resumed run keeps it). With the switch off nothing in this module
+On by default for new worlds behind ``WorldState.cities`` (CLI ``--cities`` /
+``--no-cities``, persisted on the world so a resumed run keeps its
+setting). With the switch off nothing in this module
 runs and every output is identical to the simulation without it. See
 ``docs/integration/cities.md``.
 
@@ -69,8 +70,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/cities.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points (on since
+#: the 2026-10 city-markets full gate, docs/integration/city-markets.md;
+#: ``--no-cities`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Ranks (residents at a mean region carrying capacity of REFERENCE_CAPACITY).
 REFERENCE_CAPACITY = 60.0
