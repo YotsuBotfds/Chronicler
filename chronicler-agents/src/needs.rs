@@ -883,7 +883,7 @@ mod tests {
         pool.need_purpose[slot] = 0.9;
         pool.need_social[slot] = 0.05;
         let mods = compute_need_utility_modifiers(&pool, slot);
-        let expected = 0.20 * agent::SOCIAL_WEIGHT;
+        let expected = (agent::SOCIAL_THRESHOLD - 0.05) * agent::SOCIAL_WEIGHT;
         assert!((mods.migrate - expected).abs() < 1e-6, "migrate {}", mods.migrate);
         assert!((mods.migrate_push[3] - expected).abs() < 1e-6);
         assert_eq!(mods.stay, 0.0);

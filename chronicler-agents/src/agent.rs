@@ -314,9 +314,9 @@ pub const PURPOSE_DECAY: f32 = 0.012;    // [FROZEN M53 SOFT]
 // M49: Need behavioral thresholds [FROZEN M53 SOFT]
 pub const SAFETY_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const MATERIAL_THRESHOLD: f32 = 0.3;  // [FROZEN M53 SOFT]
-pub const SOCIAL_THRESHOLD: f32 = 0.25;   // [FROZEN M53 SOFT]
+pub const SOCIAL_THRESHOLD: f32 = 0.35;   // [CALIBRATE] was 0.25: isolation binds within about 9 turns
 pub const SPIRITUAL_THRESHOLD: f32 = 0.3; // [FROZEN M53 SOFT]
-pub const AUTONOMY_THRESHOLD: f32 = 0.25;  // [FROZEN M53 SOFT]
+pub const AUTONOMY_THRESHOLD: f32 = 0.35;  // [CALIBRATE] was 0.25: foreign rule (0.61) stays above it
 pub const PURPOSE_THRESHOLD: f32 = 0.35;  // [FROZEN M53 SOFT]
 
 // M49: Need behavioral weights [FROZEN M53 SOFT]
