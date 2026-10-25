@@ -15,6 +15,9 @@ pub struct NeedUtilityModifiers {
     pub migrate: f32,
     pub switch_occ: f32,
     pub stay: f32,
+    /// The positive parts of `migrate` before the cap (safety, material,
+    /// spiritual). Diagnostic only, for the migration budget.
+    pub migrate_push: [f32; 3],
 }
 
 // ---------------------------------------------------------------------------
@@ -29,6 +32,7 @@ pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtil
     let safety_deficit = (agent::SAFETY_THRESHOLD - pool.need_safety[slot]).max(0.0);
     if safety_deficit > 0.0 {
         mods.migrate += safety_deficit * agent::SAFETY_WEIGHT;
+        mods.migrate_push[0] = safety_deficit * agent::SAFETY_WEIGHT;
         mods.stay -= safety_deficit * agent::SAFETY_WEIGHT;
     }
 
@@ -36,6 +40,7 @@ pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtil
     let material_deficit = (agent::MATERIAL_THRESHOLD - pool.need_material[slot]).max(0.0);
     if material_deficit > 0.0 {
         mods.migrate += material_deficit * agent::MATERIAL_WEIGHT;
+        mods.migrate_push[1] = material_deficit * agent::MATERIAL_WEIGHT;
         mods.switch_occ += material_deficit * agent::MATERIAL_WEIGHT;
     }
 
@@ -50,6 +55,7 @@ pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtil
     let spiritual_deficit = (agent::SPIRITUAL_THRESHOLD - pool.need_spiritual[slot]).max(0.0);
     if spiritual_deficit > 0.0 {
         mods.migrate += spiritual_deficit * agent::SPIRITUAL_WEIGHT;
+        mods.migrate_push[2] = spiritual_deficit * agent::SPIRITUAL_WEIGHT;
     }
 
     // Autonomy → rebel +

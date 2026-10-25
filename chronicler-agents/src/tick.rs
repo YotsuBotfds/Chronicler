@@ -535,6 +535,10 @@ pub fn try_tick_agents_with_options(
         pending_decisions.iter().map(|pd| pd.migration_changed_by_religion).sum();
     let loyalty_rally_damped: u32 =
         pending_decisions.iter().map(|pd| pd.loyalty_drifts_damped_by_rally).sum();
+    // Migration budget: merged in region order (deterministic).
+    for pd in &pending_decisions {
+        household_stats.migration_drivers.merge(&pd.migration_drivers);
+    }
 
     // -----------------------------------------------------------------------
     // M57b: Household migration consolidation (post-decision, pre-apply)
@@ -1093,11 +1097,8 @@ pub fn try_tick_agents_with_options(
                         decay_factor_override: None,
                     });
                 }
-                // Persecution: minority belief + nonzero persecution intensity
-                if region.persecution_intensity > 0.0
-                    && pool.beliefs[slot] != region.majority_belief
-                    && pool.beliefs[slot] != crate::agent::BELIEF_NONE
-                {
+                // Persecution: outside the persecuting ruler's faith + nonzero intensity
+                if region.persecutes(pool.beliefs[slot]) {
                     memory_intents.push(crate::memory::MemoryIntent {
                         agent_slot: slot,
                         expected_agent_id: pool.ids[slot],
@@ -1504,6 +1505,7 @@ fn update_satisfaction(
                                 majority_belief: region.majority_belief,
                                 has_temple: region.has_temple,
                                 persecution_intensity: region.persecution_intensity,
+                                persecuting_faith: region.persecuting_faith,
                                 gini_coefficient: gini,
                                 wealth_percentile: wealth_pct,
                                 food_sufficiency: region.food_sufficiency,

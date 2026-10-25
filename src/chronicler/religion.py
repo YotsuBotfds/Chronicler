@@ -515,6 +515,14 @@ def compute_persecution(
     inspect every region that civ controls and compute a persecution intensity based
     on the minority ratio among agents.
 
+    The builder owns every region's intensity. Persecution is the current
+    ruler's policy, so each call first clears all regions and then writes the
+    militant-held ones. A region whose ruler's faith is no longer militant, that
+    changed hands, or that has no ruler carries no persecution from the next
+    Rust tick on. Its aftermath is carried by ``martyrdom_boost`` and by the
+    agents' persecution memories, which decay on their own clocks; the
+    intensity itself does not linger.
+
     Args:
         regions:            List of Region objects (indexed by position).
         civilizations:      List of Civilization objects.
@@ -560,6 +568,13 @@ def compute_persecution(
                 region_belief_counts[region_idx] = Counter()
             region_belief_counts[region_idx][faith_id] += 1
 
+    # Reset every region before the militant rulers write theirs: an intensity
+    # left from an earlier ruler or an earlier faith must not reach the agent
+    # tick. The persecuting faith is reset with it.
+    for region in regions:
+        region.persecution_intensity = 0.0
+        region.persecuting_faith = None
+
     for civ in civilizations:
         # Skip dead civs
         if len(civ.regions) == 0:
@@ -604,6 +619,10 @@ def compute_persecution(
             # and multiplier.religion_intensity > 1 must not push past it.
             intensity = min(1.0, minority_ratio * (_gm(world, _KRI) if world else 1.0))
             region.persecution_intensity = intensity
+            # The minority was counted against the ruler's faith; the agent tick
+            # persecutes the same people (everyone outside it), even where that
+            # faith is itself a local minority.
+            region.persecuting_faith = majority_faith_id if intensity > 0 else None
 
             # One-shot "Persecution" event per region
             if region_name not in persecuted_regions:
@@ -670,12 +689,17 @@ def compute_martyrdom_boosts(
         # Only boost martyrdom in regions with active persecution
         if region.persecution_intensity <= 0.0:
             continue
-        # Only minority-faith deaths trigger martyrdom
+        # Only deaths of the persecuted trigger martyrdom: everyone outside the
+        # persecuting ruler's faith, as in the agent tick (the region's
+        # majority belief stands in when no persecuting faith is recorded).
         if isinstance(agent, dict):
             belief = agent.get("belief", 0xFF)
         else:
             belief = getattr(agent, "belief", 0xFF)
-        if belief == region.majority_belief or belief == 0xFF:
+        enforced = region.persecuting_faith
+        if enforced is None:
+            enforced = region.majority_belief
+        if belief == enforced or belief == 0xFF:
             continue
         region.martyrdom_boost = min(
             MARTYRDOM_BOOST_CAP,

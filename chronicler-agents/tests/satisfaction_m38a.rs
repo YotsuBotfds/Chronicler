@@ -13,7 +13,7 @@ fn m38a_base_inputs(occupation: u8) -> SatisfactionInputs {
         shock: CivShock::default(),
         agent_values: [0xFF, 0xFF, 0xFF], controller_values: [0xFF, 0xFF, 0xFF],
         agent_belief: 0xFF, majority_belief: 0xFF,
-        has_temple: false, persecution_intensity: 0.0,
+        has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
         gini_coefficient: 0.0, wealth_percentile: 0.5,
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,

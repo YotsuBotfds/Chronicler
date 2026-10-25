@@ -275,6 +275,26 @@ fn resource_class_index(rtype: u8) -> usize {
     }
 }
 
+/// A slot's yield over a year as the land stands: base yield x the mean
+/// season modifier x the ecology modifier (soil x water for crops, forest
+/// cover for forestry), with no climate phase, reserve ramp or abundance
+/// multiplier. Zero for an empty or suspended slot. Read by the frontier
+/// settlement gate (what settlers could grow); the ecology tick does not use it.
+pub fn annual_yield_potential(region: &RegionState, slot: usize) -> f32 {
+    let rtype = region.resource_types[slot];
+    if rtype == EMPTY_SLOT || region.resource_suspension[slot] {
+        return 0.0;
+    }
+    let seasons = SEASON_MOD[(rtype as usize).min(7)];
+    let mean_season = (seasons[0] + seasons[1] + seasons[2] + seasons[3]) / 4.0;
+    let ecology_mod = match resource_class_index(rtype) {
+        CLASS_CROP => region.soil * region.water,
+        CLASS_FORESTRY => region.forest_cover,
+        _ => 1.0,
+    };
+    region.resource_base_yield[slot] * mean_season * ecology_mod
+}
+
 /// Is this resource type a mineral (depletable reserves)?
 #[inline]
 fn is_mineral(rtype: u8) -> bool {

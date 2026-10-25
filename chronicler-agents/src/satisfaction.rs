@@ -171,6 +171,8 @@ pub struct SatisfactionInputs {
     pub majority_belief: u8,
     pub has_temple: bool,
     pub persecution_intensity: f32,
+    /// The persecuting ruler's faith (BELIEF_NONE: use `majority_belief`).
+    pub persecuting_faith: u8,
     pub gini_coefficient: f32,
     pub wealth_percentile: f32,
     // M42: Goods economy
@@ -209,11 +211,10 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     } else {
         0.0
     };
-    // M38b: Persecution penalty — skip for BELIEF_NONE agents (no faith to persecute)
+    // M38b: Persecution penalty for everyone outside the persecuting ruler's
+    // faith; never for BELIEF_NONE agents (no faith to persecute)
     let mut penalty = 0.0f32;
-    if inp.agent_belief != crate::agent::BELIEF_NONE
-        && inp.agent_belief != inp.majority_belief
-    {
+    if crate::region::persecuted_belief(inp.agent_belief, inp.persecuting_faith, inp.majority_belief) {
         penalty += crate::agent::PERSECUTION_SAT_WEIGHT * inp.persecution_intensity;
     }
     // M38a: temple priest bonus — faith-blind (Decision 6)
@@ -408,7 +409,7 @@ mod m36_tests {
             shock,
             agent_values: [4, 3, 2], controller_values: [4, 3, 2],
             agent_belief: 0xFF, majority_belief: 0xFF,
-            has_temple: false, persecution_intensity: 0.0,
+            has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
@@ -432,7 +433,7 @@ mod m37_tests {
             shock: CivShock::default(),
             agent_values: [0, 1, 2], controller_values: [0, 1, 2],
             agent_belief: 0xFF, majority_belief: 0xFF,
-            has_temple: false, persecution_intensity: 0.0,
+            has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
@@ -497,14 +498,14 @@ mod m37_tests {
         let sat_none_belief = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_belief: crate::agent::BELIEF_NONE,
             majority_belief: 3,
-            persecution_intensity: 1.0,  // max persecution
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,  // max persecution
             ..m37_base_inputs()
         });
         // Agent with matching belief (also no persecution)
         let sat_matching = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_belief: 3,
             majority_belief: 3,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             ..m37_base_inputs()
         });
         // Both should have the same satisfaction (no persecution penalty)
@@ -519,13 +520,13 @@ mod m37_tests {
         let sat_minority = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_belief: 5,
             majority_belief: 3,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             ..m37_base_inputs()
         });
         let sat_majority = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_belief: 3,
             majority_belief: 3,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             ..m37_base_inputs()
         });
         let expected_diff = crate::agent::PERSECUTION_SAT_WEIGHT * 1.0
@@ -533,6 +534,32 @@ mod m37_tests {
         assert!((sat_majority - sat_minority - expected_diff).abs() < 0.001,
             "Real minority belief should receive both persecution and religious mismatch penalties; \
              diff={}, expected={}", sat_majority - sat_minority, expected_diff);
+    }
+
+    /// M38b: a militant ruler of faith 7 over a faith-3 majority persecutes the
+    /// faith-3 majority, not its own co-religionists who are the local minority.
+    #[test]
+    fn test_persecution_follows_the_rulers_faith_not_the_local_majority() {
+        let persecuted = |agent_belief: u8, persecuting_faith: u8| {
+            let with = compute_satisfaction_with_culture(&SatisfactionInputs {
+                agent_belief, majority_belief: 3,
+                persecution_intensity: 1.0, persecuting_faith,
+                ..m37_base_inputs()
+            });
+            let without = compute_satisfaction_with_culture(&SatisfactionInputs {
+                agent_belief, majority_belief: 3,
+                persecution_intensity: 0.0, persecuting_faith,
+                ..m37_base_inputs()
+            });
+            without - with
+        };
+        let w = crate::agent::PERSECUTION_SAT_WEIGHT;
+        assert!((persecuted(3, 7) - w).abs() < 1e-6, "local majority outside the ruler's faith");
+        assert!(persecuted(7, 7).abs() < 1e-6, "the ruler's own faith");
+        assert!((persecuted(5, 7) - w).abs() < 1e-6, "a third faith");
+        // Without a persecuting faith the region majority stands in (old rule).
+        assert!(persecuted(3, 0xFF).abs() < 1e-6);
+        assert!((persecuted(7, 0xFF) - w).abs() < 1e-6);
     }
 }
 
@@ -753,7 +780,7 @@ mod m41_tests {
             shock: CivShock::default(),
             agent_values: [0, 1, 2], controller_values: [0, 1, 2],
             agent_belief: 0xFF, majority_belief: 0xFF,
-            has_temple: false, persecution_intensity: 0.0,
+            has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
@@ -797,14 +824,14 @@ mod m41_tests {
         let sat = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_values: [4, 3, 2], controller_values: [0, 1, 5],
             agent_belief: 3, majority_belief: 5,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             gini_coefficient: 1.0, wealth_percentile: 0.0,
             ..m41_base_inputs()
         });
         let sat_no_class = compute_satisfaction_with_culture(&SatisfactionInputs {
             agent_values: [4, 3, 2], controller_values: [0, 1, 5],
             agent_belief: 3, majority_belief: 5,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             gini_coefficient: 0.0, wealth_percentile: 0.0,
             ..m41_base_inputs()
         });
@@ -832,7 +859,7 @@ mod audit_tests {
             shock: CivShock::default(),
             agent_values: [0, 1, 2], controller_values: [0, 1, 2],
             agent_belief: 0xFF, majority_belief: 0xFF,
-            has_temple: false, persecution_intensity: 0.0,
+            has_temple: false, persecution_intensity: 0.0, persecuting_faith: 0xFF,
             gini_coefficient: 0.0, wealth_percentile: 0.5,
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
@@ -882,7 +909,7 @@ mod audit_tests {
             soil: 0.0,
             water: 0.0,
             civ_stability: 0,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             gini_coefficient: 1.0,
             wealth_percentile: 0.0,
             shock: CivShock {
@@ -901,7 +928,7 @@ mod audit_tests {
             soil: 0.0,
             water: 0.0,
             civ_stability: 0,
-            persecution_intensity: 1.0,
+            persecution_intensity: 1.0, persecuting_faith: 0xFF,
             gini_coefficient: 1.0,
             wealth_percentile: 0.0,
             shock: CivShock {
