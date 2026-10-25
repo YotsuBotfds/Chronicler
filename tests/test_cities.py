@@ -347,7 +347,7 @@ def _restless(world: WorldState, *, regions: int = 3, stability: int = 60):
 def _revolt_turn(world: WorldState, city: City, monkeypatch, *, concede: bool = False):
     monkeypatch.setattr(C, "REVOLT_CHANCE", 1.0)
     monkeypatch.setattr(C, "CONCESSION_CHANCE", 1.0 if concede else 0.0)
-    world.turn = 1
+    world.turn += 1
     return _tick(world)
 
 
@@ -739,3 +739,33 @@ def test_native_budget_reports_the_urban_term(make_world):
     stats = bridge._sim.get_migration_driver_stats()
     for key in ("share_urban", "present_urban", "follow_urban", "open_urban", "gate_urban"):
         assert key in stats
+
+
+def test_a_free_city_lives_on_with_every_system_on(monkeypatch):
+    """A free city is a polity the other systems take up: it runs with the
+    ledger, epidemics, finance, diplomacy, techniques, maritime, agendas and
+    nomads on, and can be found again after a save/load."""
+    import chronicler.contact_ledger as cl
+    import chronicler.diplomacy as dp
+    import chronicler.epidemiology as ep
+    import chronicler.finance as F
+    import chronicler.gp_agendas as ga
+    import chronicler.maritime as mt
+    import chronicler.nomads as nm
+    import chronicler.techniques as tq
+    world = _world()
+    world.campaigns_enabled = True
+    for setter in (cl.set_contact_ledger_enabled, ep.set_epidemiology_enabled, F.set_finance_enabled,
+                   dp.set_diplomacy_enabled, tq.set_techniques_enabled, mt.set_maritime_enabled,
+                   ga.set_gp_agendas_enabled, nm.set_nomads_enabled):
+        setter(world, True)
+    _advance(world, 3)
+    city = _restless(world, stability=20)
+    events = _revolt_turn(world, city, monkeypatch)
+    assert "free_city" in _types(events)
+    free = world.civilizations[-1]
+    monkeypatch.setattr(C, "REVOLT_CHANCE", 0.0)
+    _advance(world, 8)
+    assert free.regions == ["Thornwood"] or world.regions[THORNWOOD].controller != free.name
+    loaded = WorldState.model_validate_json(world.model_dump_json())
+    assert loaded.model_dump_json() == world.model_dump_json()
