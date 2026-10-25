@@ -2,9 +2,57 @@
 
 > Forward-looking decisions and active items only. Implemented/merged content lives in git history.
 >
-> **Last updated:** 2026-10-25 (`feat/agent-movements`: movements grounded in people behind `--agent-movements`, default off: per-agent membership (a Rust pool and snapshot column), commons, liberty and sect creeds founded where grievances cluster, recruitment through bonds, co-residence and settlements, demands, reforms, refusals, crackdowns with martyrs, risings, secession through the shared free-city transfer, schisms through the religion path; switch off byte-identical (88 files and the subset gate 42-61); subset gates 42-61, 62-81 and 82-101 PASS / NO REGRESSION with it on (needs 16 -> 12, 13, 14); full gate not run. `feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
+> **Last updated:** 2026-10-25 (`fix/needs-oracle-power`: the needs oracle pools every snapshot and pairing (need gap 0.1, matching otherwise unchanged) and passes on a seed-clustered 95% lower bound of net concordance plus the 60% seed fraction; main subsets 42-61, 62-81, 82-101 PASS (+0.18, +0.20, +0.33), routing `--no-cities` 62-81 FAIL -> PASS, `--agent-movements` 42-61 PASS; needs shuffled in cells FAIL 15 of 15 (method 1 passed 10); need terms zeroed in Rust not reliably caught (1 of 3); comparator flags a method change instead of a new failure; full gate not run. `feat/agent-movements`: movements grounded in people behind `--agent-movements`, default off: per-agent membership (a Rust pool and snapshot column), commons, liberty and sect creeds founded where grievances cluster, recruitment through bonds, co-residence and settlements, demands, reforms, refusals, crackdowns with martyrs, risings, secession through the shared free-city transfer, schisms through the religion path; switch off byte-identical (88 files and the subset gate 42-61); subset gates 42-61, 62-81 and 82-101 PASS / NO REGRESSION with it on (needs 16 -> 12, 13, 14); full gate not run. `feat/city-markets`: merchant routing by price for every good, market packets and a committed-cargo tally against herding (food to short regions 62% -> 80%); cities as markets (city farmers' labour, craft demand, sieges cut supply); viewer Cities tab; cities on by default for new worlds after a full gate with them on: PASS strict, NO REGRESSION against main `3355289` and Wave 8 (migration 0.0580, rebellion 0.0308, needs 189 of 200, 0 extinct). `fix/navigation-famine-labels`: maritime navigation reads the known navigation techniques (full gate PASS strict, NO REGRESSION against Wave 8: migration 0.0576, rebellion 0.0314, needs 196 of 200, 0 extinct); food-crisis reports labelled famine (below 0.6 for a season) or dearth with unchanged effects; mass_migration carries its migration driver. `feat/cities` from `integrate/wave-7` `bcf14d8`, merged with `main` `a95e4d7` (Wave 8 defaults): cities as historical actors behind `--cities`, default off: M56a settlements grown into towns and cities with commerce, dues, charters, urban revolts and free cities, sacks, walls and falls, a Rust urban pull migration driver; switch off byte-identical (88 files); subset gates 42-61 and 62-81 PASS / NO REGRESSION with it on, before and after the merge. Before: `feat/defaults-wave8`: great-person agendas, maritime and nomads on by default for new worlds; full gate PASS strict, NO REGRESSION against Wave 7 (migration 0.0576, rebellion 0.0317, needs 194 of 200, 0 extinct). `integrate/wave-7`: `feat/healthy-migration`: frontier (land, farmers), wage-gap and chain migration behind their own gates, net of life-course roots; calibrated on the merged world, full gate PASS with migration 0.0570 (strict floor). `fix/food-logistics`: merchants route food by the destination's food price; subsistence floor; locust rate 0.15 -> 0.02. `fix/needs-oracle-confound`: the needs oracle pairs autonomy only among agents that have not rebelled. `fix/leftover-persecution`: persecution follows the current ruler every turn Merged with `main` plus `feat/viewer-systems`: `feat/viewer-systems` from `main` `6e6fae6`: viewer tabs for wars, food, nomads, agendas, governance and the contact ledger; six thematic map layers; viewer-only `food` and `migration` snapshot fields. `feat/languages` from `main` `baabafb`: in-world languages and names, observational, on by default. 2026-10-24: `fix/food-logistics`: merchants route food by the destination's food price; the goods economy gets M34's subsistence floor; locust swarms recalibrated 0.15 -> 0.02 per eligible turn; merged with `integrate/wave-6`. `fix/needs-oracle-confound`: the needs oracle's autonomy pairing leaves out prior rebels; the offline oracle lane runs in four guarded chunks. `fix/agenda-preaching`: great-person agendas' rebellion tail traced to left-over persecution intensity; prophets kept out of persecution and foreign faiths' realms. `feat/historiography` on `integrate/wave-5`: in-world chroniclers and archives, observational, on by default; techniques on by default; great-person agendas and nomads default off; bundle version 5 prunes dead civs from history snapshots; dead civs earn no income)
 
 ---
+
+## Needs oracle power (2026-10-25, `fix/needs-oracle-power`)
+
+`fix/needs-oracle-power` from `main` `48b72be` (PR #31). Oracle, comparator
+and tests only; simulation, Rust and sidecars unchanged. Details:
+[`docs/integration/needs-oracle-power.md`](../../integration/needs-oracle-power.md).
+
+- **Why pairs were scarce:** template worlds hold about 185 agents per
+  snapshot in about 55 (civ, region, occupation) cells, and a need spreads
+  0.03-0.10 (SD) within a cell. The 0.2 gap plus three traits within 0.1
+  left 45-63 informative pairs per subset even over all snapshots. Best-of
+  selection then judged each seed on one of 95 candidates (1-4 pairs).
+- **Method 2** (`method_version` 2): every eligible snapshot and pairing
+  pooled; gap 0.1 (cells, traits and the prior-rebel exclusion unchanged);
+  a pair is concordant when the lower-need agent has more of the event.
+  PASS: the one-sided 95% seed-clustered lower bound of the pooled net
+  concordance above 0, and at least 60% of seeds with C > D. Method 1 is
+  kept as `run_needs_oracle_best_of`.
+- **Subsets** (method 1 seeds of 12 -> method 2 net, lower bound, seeds):
+  main 42-61 16 -> +0.18, +0.10, 15; 62-81 16 -> +0.20, +0.10, 15; 82-101
+  16 -> +0.33, +0.24, 18; routing `--no-cities` 62-81 FAIL 8 -> PASS +0.18,
+  +0.10, 13; `--agent-movements` 42-61 12 -> PASS +0.14, +0.05, 17. Every
+  other oracle result identical.
+- **Sensitivity:** needs shuffled within cells: method 2 FAIL 15 of 15,
+  method 1 PASS 10 of 15. Rust need-driven terms zeroed: method 2 FAIL 1 of
+  3 subsets, method 1 FAIL 1 of 3; pooled net +0.24 -> +0.14, purpose +0.26
+  -> -0.09. Only purpose (15% of agents) and spiritual (7%, unpaired) drop
+  below their thresholds; safety, material, social and autonomy 0-0.09%.
+- **500-turn probe** (142-161, not the full gate): +0.166, bound +0.121, 17
+  of 20 seeds (method 1: 19).
+- **Compatibility:** the comparator reads `method_version` (absent = 1). A
+  needs status change across methods is not counted as a new or resolved
+  failure: `rebaseline_required` plus an "Oracle method changes" section.
+  With `origin/main`'s comparator, method 1 PASS against method 2 FAIL was a
+  new required failure.
+- **Identity:** seeds 42-44 x 200, hybrid with sidecars, `origin/main`
+  source against the branch: 330 files, 0 differences.
+- **Cost:** needs scoring 4.0-5.0 s -> 0.4-1.0 s per subset batch, 12.2 ->
+  1.5 s per 20 x 500.
+- **Tests (Linux, Python 3.13.17, extension fresh from `48b72be`):**
+  not-slow 6,097 passed, 3 skipped (17 new); slow 11 passed, 3 skipped;
+  no-Rust 5,878 passed, 222 skipped; oracle lane PASS in 72.1 s (2,062
+  passed, 24 skipped). Rust unchanged.
+- **Open:** about 60% of the pooled association survives zeroing the need
+  terms, so it is not specific to them. Social is paired with more
+  migration, against the Rust term (-0.09 on subsets, -0.40 at 500 turns).
+  Spiritual has no pairing. Matching cannot see wealth, age or urban
+  status. The full gate with method 2 has not been run.
 
 ## Agent movements (2026-10-25, `feat/agent-movements`)
 
