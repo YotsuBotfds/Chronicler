@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.cities as C
 from chronicler import provenance as prov
 from chronicler.accumulator import StatAccumulator
@@ -725,7 +726,7 @@ def test_cli_run_off_mode_keeps_bytes_and_the_switch_persists(tmp_path):
     execute_run(args)
     state = json.loads((out / "state.json").read_text())
     assert state["cities"]["cities"] == []   # no settlements without agents
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert all("cities" in h for h in bundle["history"])
     off = tmp_path / "off"
     execute_run(parser.parse_args(["--seed", "42", "--turns", "3", "--civs", "4", "--regions", "8",
@@ -765,7 +766,7 @@ def test_native_hybrid_run_founds_cities(tmp_path):
     assert world.cities.counters["founded"] >= 1
     city = (world.cities.cities + world.cities.fallen)[0]
     assert city.satisfaction is not None and abs(sum(city.mix) - 1.0) < 0.01
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert any(h.get("cities", {}).get("cities") for h in bundle["history"])
 
 

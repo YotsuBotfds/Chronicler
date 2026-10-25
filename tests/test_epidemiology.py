@@ -8,6 +8,7 @@ import math
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.contact_ledger as cl
 import chronicler.epidemiology as ep
 from chronicler.action_engine import ActionEngine
@@ -232,7 +233,7 @@ def test_cli_flag_persists_and_bundle_carries_epidemic_history(tmp_path):
     execute_run(_cli_args(tmp_path, epidemiology=True, turns=40))
     state = json.loads((tmp_path / "state.json").read_text())
     assert "epidemics" in state
-    bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     assert all("epidemics" in snap for snap in bundle["history"])
     assert set(bundle["history"][-1]["epidemics"]) == {
         "active", "deaths", "deaths_by_pathogen", "deaths_total", "quarantine", "strains"}

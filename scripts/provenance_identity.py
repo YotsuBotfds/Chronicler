@@ -33,6 +33,8 @@ import json
 import os
 import sys
 
+from chronicler.bundle_codec import load_bundle
+
 EVENT_FIELDS = ("event_id", "causes", "region", "civs", "episode", "duration")
 COND_FIELDS = ("condition_id", "cause_id", "onset_turn")
 
@@ -115,8 +117,8 @@ def compare(base: str, new: str, mode: str) -> bool:
     d = first_diff(strip_world(sb), strip_world(sn))
     print("  state.json (excl. timeline):", d or "IDENTICAL")
     ok &= d is None
-    bb = json.load(open(os.path.join(base, "chronicle_bundle.json")))
-    bn = json.load(open(os.path.join(new, "chronicle_bundle.json")))
+    bb = load_bundle(os.path.join(base, "chronicle_bundle.json"))
+    bn = load_bundle(os.path.join(new, "chronicle_bundle.json"))
     d = first_diff(bb["history"], bn["history"], "history")
     print(f"  bundle history ({len(bb['history'])} snapshots):", d or "IDENTICAL")
     ok &= d is None

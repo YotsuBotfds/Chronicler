@@ -6,6 +6,8 @@ import sys
 
 import pytest
 
+from chronicler.bundle_codec import load_bundle
+
 
 def _require_chronicler_agents():
     chronicler_agents = pytest.importorskip("chronicler_agents")
@@ -176,7 +178,7 @@ def test_hybrid_determinism_with_knowledge_stats(tmp_path):
         execute_run(args)
         bundle_path = run_dir / "chronicle_bundle.json"
         assert bundle_path.exists(), f"Run {run_idx} did not produce a bundle"
-        results.append(json.loads(bundle_path.read_text()))
+        results.append(load_bundle(bundle_path))
 
     b0, b1 = results
     assert b0["history"] == b1["history"], "history diverged"

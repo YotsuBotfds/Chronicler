@@ -7,6 +7,8 @@ field, change order, round numbers, or change production serialization.
 import json
 from pydantic_core import to_json
 
+from chronicler.bundle_codec import decode_bundle
+
 WORLD_DEFAULTS = {
     "fishery_experiment": {"enabled": False, "reserve_turns": 8.0, "recovery_rate": .04,
                            "harvest_fraction": .25, "reference_workers": 200},
@@ -75,12 +77,16 @@ def legacy_artifact_bytes(path, *, pre_pruning=False):
     keeps version 5 and its ``pruned_civ_stats``. With ``pre_pruning`` it
     projects to version 3 as well, which requires that no civ was pruned:
     then ``pruned_civ_stats`` is empty and the history is the version-4
-    history byte for byte.
+    history byte for byte. A version-6 file (snapshot deltas,
+    docs/performance/bundle-v6.md) is decoded and projects as version 5.
     """
     raw = path.read_bytes()
     if path.name not in ("state.json", "chronicle_bundle.json"):
         return raw
     data = json.loads(raw)
+    if path.name == "chronicle_bundle.json" and data["metadata"]["bundle_version"] == 6:
+        data = decode_bundle(data)
+        data["metadata"]["bundle_version"] = 5
     strip_dormant_fields(data["world_state"] if path.name == "chronicle_bundle.json" else data)
     strip_provenance(data["world_state"] if path.name == "chronicle_bundle.json" else data)
     if path.name == "chronicle_bundle.json":

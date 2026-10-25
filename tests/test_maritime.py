@@ -8,6 +8,7 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
+from chronicler.bundle_codec import load_bundle
 import chronicler.maritime as M
 from chronicler.action_engine import ActionEngine
 from chronicler.maritime_state import CONTESTED, CONTROLLED, UNCONTESTED, Fleet, MaritimeState
@@ -854,7 +855,7 @@ def test_cli_flag_gate_forwarding_and_snapshot(tmp_path):
     execute_run(args)
     state = json.loads((out / "state.json").read_text())
     assert "maritime" in state
-    bundle = json.loads((out / "chronicle_bundle.json").read_text())
+    bundle = load_bundle(out / "chronicle_bundle.json")
     assert all("maritime" in h for h in bundle["history"])
     assert M.extract_maritime_metrics([bundle])["runs"][0]["zones"] == len(state["maritime"]["zones"])
     spec = importlib.util.spec_from_file_location(

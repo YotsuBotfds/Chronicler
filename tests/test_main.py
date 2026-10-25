@@ -5,6 +5,7 @@ import logging
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+from chronicler.bundle_codec import load_bundle
 from chronicler.main import execute_run, run_chronicle, DEFAULT_CONFIG, _build_parser
 from chronicler.llm import AnthropicClient
 from chronicler.types import RunResult
@@ -321,7 +322,7 @@ class TestExecuteRun:
 
         execute_run(args, sim_client=sim, narrative_client=narr, world=world)
 
-        bundle = json.loads((tmp_path / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        bundle = load_bundle(tmp_path / "chronicle_bundle.json")
         first_snapshot = bundle["history"][0]
         assert first_snapshot["civ_stats"][dead_civ.name]["alive"] is False
 
@@ -651,8 +652,7 @@ class TestAgentsWiring:
         import json
         bundle_path = tmp_path / "chronicle_bundle.json"
         assert bundle_path.exists()
-        with open(bundle_path) as f:
-            bundle = json.load(f)
+        bundle = load_bundle(bundle_path)
         assert len(bundle["history"]) == 5
 
     def test_agents_off_no_agent_mode(self, tmp_path):
@@ -933,7 +933,7 @@ class TestApiNarrationIntegration:
                 sim_client=MagicMock(model="test", complete=MagicMock(return_value="DEVELOP")),
                 narrative_client=api_client,
             )
-            metas.append(json.loads((run_dir / "chronicle_bundle.json").read_text())["metadata"])
+            metas.append(load_bundle(run_dir / "chronicle_bundle.json")["metadata"])
 
         first, second = metas
         assert first["narrative_input_tokens"] > 0
