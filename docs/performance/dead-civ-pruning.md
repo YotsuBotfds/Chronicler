@@ -1,5 +1,8 @@
 # Dead civilizations leave the history snapshots (bundle version 5)
 
+Bundle version 6 ([bundle-v6.md](bundle-v6.md)) writes this pruned history
+as changes between snapshots; decoded, it is the version-5 history below.
+
 Branch `perf/prune-dead-civ-snapshots`, based on `integrate/wave-5` at
 `7fbe8c0`. This changes the viewer bundle format only. The simulation, its RNG
 draws, `state.json`, `chronicle.md`, the memories, `agent_events.arrow`, the

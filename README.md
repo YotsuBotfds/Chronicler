@@ -240,7 +240,10 @@ tests/                # Python test suite
 
 Each run produces:
 - **chronicle.md** — the narrated history as readable text
-- **chronicle_bundle.json** — structured run data for post-run narration, analysis, and the viewer
+- **chronicle_bundle.json** — structured run data for post-run narration, analysis, and the viewer.
+  Version 6 stores the history as changes between snapshots; read it with
+  `chronicler.bundle_codec.load_bundle`, or write the plain layout with
+  `scripts/bundle_v6.py decode` (see `docs/performance/bundle-v6.md`)
 - **state.json** — serialized world state (for resume/fork)
 - **memories_*.json** — per-civilization memory streams
 
