@@ -288,9 +288,16 @@ pub const PROSPERITY_SWITCH_PENALTY: f32 = 0.1;               // [FROZEN M53 SOF
 pub const VICTORY_STAY_BOOST: f32 = 0.1;                      // [FROZEN M53 SOFT]
 pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [FROZEN M53 SOFT]
 
-// M49: Needs system — starting value of founders (a newborn takes its birth
-// parent's needs of conditions: needs::inherit_needs).
+// M49: Needs system — starting value of founders (and of a newborn's
+// spiritual and purpose needs).
 pub const STARTING_NEED: f32 = 0.5;  // [FROZEN M53 SOFT]
+// Needs calibration (2026-10): a newborn's safety, material, social and
+// autonomy start at their fed, peaceful, self-ruled fixed points (the
+// restoration notes below); its conditions take hold within its first years.
+pub const BIRTH_SAFETY_NEED: f32 = 0.67;     // [CALIBRATE] new
+pub const BIRTH_MATERIAL_NEED: f32 = 0.62;   // [CALIBRATE] new
+pub const BIRTH_SOCIAL_NEED: f32 = 0.62;     // [CALIBRATE] new
+pub const BIRTH_AUTONOMY_NEED: f32 = 0.75;   // [CALIBRATE] new
 
 // M49: Need decay rates. Needs calibration (2026-10, docs/integration/
 // needs-calibration.md): decay and restoration were raised together, so a

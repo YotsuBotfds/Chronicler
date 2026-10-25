@@ -119,18 +119,18 @@ pub fn decay_needs(pool: &mut AgentPool, alive_slots: &[usize]) {
 // Birth — a newborn shares its household's conditions
 // ---------------------------------------------------------------------------
 
-/// Copy the birth parent's needs of its conditions (safety, material,
-/// social, spiritual, autonomy) to a newborn; purpose, earned by the agent's
-/// own skill, keeps the spawn value. Needs calibration (2026-10): newborns
-/// took the neutral STARTING_NEED, 0.1-0.25 under the fed, peaceful
-/// equilibria (and above a starving parent's), so for their first years
-/// children's needs read as their age, not their conditions.
-pub fn inherit_needs(pool: &mut AgentPool, parent: usize, child: usize) {
-    pool.need_safety[child] = pool.need_safety[parent];
-    pool.need_material[child] = pool.need_material[parent];
-    pool.need_social[child] = pool.need_social[parent];
-    pool.need_spiritual[child] = pool.need_spiritual[parent];
-    pool.need_autonomy[child] = pool.need_autonomy[parent];
+/// A newborn's safety, material, social and autonomy needs start at their
+/// fed, peaceful, self-ruled fixed points (`BIRTH_*_NEED`); spiritual and
+/// purpose keep the spawn value. Needs calibration (2026-10): at the neutral
+/// STARTING_NEED, 0.1-0.25 under those fixed points, children's needs read
+/// as their age for their first years. Copying the parent's needs instead
+/// made them read as their family's state, which their household's moves
+/// follow through other channels (the needs oracle's residual).
+pub fn set_newborn_needs(pool: &mut AgentPool, child: usize) {
+    pool.need_safety[child] = agent::BIRTH_SAFETY_NEED;
+    pool.need_material[child] = agent::BIRTH_MATERIAL_NEED;
+    pool.need_social[child] = agent::BIRTH_SOCIAL_NEED;
+    pool.need_autonomy[child] = agent::BIRTH_AUTONOMY_NEED;
 }
 
 // ---------------------------------------------------------------------------
@@ -840,22 +840,31 @@ mod tests {
     }
 
     #[test]
-    fn test_newborn_inherits_parent_needs() {
+    fn test_newborn_needs_start_at_the_fed_peaceful_fixed_points() {
         let mut pool = AgentPool::new(8);
-        let parent = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
         let child = pool.spawn(0, 0, Occupation::Farmer, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        let values = [0.11_f32, 0.22, 0.33, 0.44, 0.55, agent::STARTING_NEED];
-        pool.need_safety[parent] = values[0];
-        pool.need_material[parent] = values[1];
-        pool.need_social[parent] = values[2];
-        pool.need_spiritual[parent] = values[3];
-        pool.need_autonomy[parent] = values[4];
-        pool.need_purpose[parent] = 0.66;
         assert_eq!(pool.need_material[child], agent::STARTING_NEED);
-        inherit_needs(&mut pool, parent, child);
+        set_newborn_needs(&mut pool, child);
         let got = [pool.need_safety[child], pool.need_material[child], pool.need_social[child],
                    pool.need_spiritual[child], pool.need_autonomy[child], pool.need_purpose[child]];
-        assert_eq!(got, values);
+        assert_eq!(got, [agent::BIRTH_SAFETY_NEED, agent::BIRTH_MATERIAL_NEED, agent::BIRTH_SOCIAL_NEED,
+                         agent::STARTING_NEED, agent::BIRTH_AUTONOMY_NEED, agent::STARTING_NEED]);
+        // They are the fed, peaceful, self-ruled fixed points (within 0.01).
+        let mut region = make_region(0);
+        region.endemic_severity = 0.0;
+        region.population = 60;
+        let mut adult = AgentPool::new(8);
+        let a = adult.spawn(0, 0, Occupation::Farmer, 40, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        let co = vec![1u32; adult.capacity()];
+        for _ in 0..300 {
+            decay_needs(&mut adult, &[a]);
+            restore_needs_with_bonds(&mut adult, &[a], &[region.clone()], &peacetime_signals(), &[0.5], &co);
+            clamp_needs(&mut adult, &[a]);
+        }
+        assert!((adult.need_safety[a] - agent::BIRTH_SAFETY_NEED).abs() < 0.01, "{}", adult.need_safety[a]);
+        assert!((adult.need_material[a] - agent::BIRTH_MATERIAL_NEED).abs() < 0.01, "{}", adult.need_material[a]);
+        assert!((adult.need_social[a] - agent::BIRTH_SOCIAL_NEED).abs() < 0.01, "{}", adult.need_social[a]);
+        assert!((adult.need_autonomy[a] - agent::BIRTH_AUTONOMY_NEED).abs() < 0.01, "{}", adult.need_autonomy[a]);
     }
 
     #[test]

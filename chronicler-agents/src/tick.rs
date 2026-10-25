@@ -974,6 +974,9 @@ pub fn try_tick_agents_with_movements(
                 birth.belief,
             )?;
             pool.set_loyalty(new_slot, birth.parent_loyalty);
+            // Needs calibration: a newborn's needs of conditions start at
+            // their fed, peaceful fixed points.
+            crate::needs::set_newborn_needs(pool, new_slot);
             pool.parent_id_0[new_slot] = birth.birth_parent_id;
             pool.parent_id_1[new_slot] = birth.other_parent_id;
             // M57b: Count births by marital status
@@ -986,8 +989,6 @@ pub fn try_tick_agents_with_movements(
             if birth.birth_parent_id != crate::agent::PARENT_NONE {
                 if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
-                        // Needs calibration: born into the household's conditions.
-                        crate::needs::inherit_needs(pool, parent_slot, new_slot);
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
                         }
