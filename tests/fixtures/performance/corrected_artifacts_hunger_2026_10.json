@@ -27,17 +27,10 @@
       },
       {
         "id": "HM-AGGREGATE-TOLL",
-        "summary": "The aggregate famine toll (5 x stress multiplier) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold.",
+        "summary": "The aggregate famine toll (5 x stress multiplier, a famine's whole population effect in the aggregate model) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold (0.12).",
         "workloads": {
           "standard": 0,
           "wide": 9
-        }
-      },
-      {
-        "id": "HM-AGGREGATE-GROWTH",
-        "summary": "Aggregate population growth in a region under a famine report's cooldown is scaled by the agents' famine birth multiplier (0.63).",
-        "workloads": {
-          "standard": 50
         }
       }
     ],
@@ -73,8 +66,8 @@
         "bytes": 588
       },
       "chronicle_bundle.json": {
-        "sha256": "1ea12cf5d854aaca98a513d096666e38fb1297126455e9c0ae205cc0b6ba4d28",
-        "bytes": 853191
+        "sha256": "2754a91160faae41960e18967acf9a6c5634fee6d7bd9a060b628b4a718d9327",
+        "bytes": 853194
       },
       "memories_ashkari_nomads.json": {
         "sha256": "af69fab31e315f415ed7661b6591bbeb64c3564aa22a4e6a99c15f07ac303501",
@@ -89,11 +82,11 @@
         "bytes": 19721
       },
       "memories_thornwall_confederacy.json": {
-        "sha256": "efaa0b9ac0b9eb123b78165e2840bb5c6aa803822cad73ddcc675963607c2a1c",
+        "sha256": "74ff9e636d9a6bfad2eaa804966d905b79ef01129d8f49f8cd4f4ac1c0af7de9",
         "bytes": 24211
       },
       "state.json": {
-        "sha256": "5abcf6321e0c199720a6451e7d1943eab942dc6dcdd52b83323b58a64b5457ba",
+        "sha256": "8e13edaad757517d545d076aa6ad25d1adb8969cb8903387c62953d84adec397",
         "bytes": 253692
       }
     },
@@ -161,8 +154,8 @@
         "bytes": 588
       },
       "chronicle_bundle.json": {
-        "sha256": "1d2a8dea0c03b3806a99c30601f9bef1dc9ce892ea5c9f3ea5e299be9ddeccda",
-        "bytes": 853169
+        "sha256": "098508fef87dfb59c1dfbacab65c02265c1c79e7c6fdbddeb4d1c513d25a61da",
+        "bytes": 853172
       },
       "memories_ashkari_nomads.json": {
         "sha256": "af69fab31e315f415ed7661b6591bbeb64c3564aa22a4e6a99c15f07ac303501",
@@ -177,11 +170,11 @@
         "bytes": 19721
       },
       "memories_thornwall_confederacy.json": {
-        "sha256": "efaa0b9ac0b9eb123b78165e2840bb5c6aa803822cad73ddcc675963607c2a1c",
+        "sha256": "74ff9e636d9a6bfad2eaa804966d905b79ef01129d8f49f8cd4f4ac1c0af7de9",
         "bytes": 24211
       },
       "state.json": {
-        "sha256": "5abcf6321e0c199720a6451e7d1943eab942dc6dcdd52b83323b58a64b5457ba",
+        "sha256": "8e13edaad757517d545d076aa6ad25d1adb8969cb8903387c62953d84adec397",
         "bytes": 253692
       }
     },

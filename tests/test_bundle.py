@@ -710,6 +710,9 @@ class TestBundleSize:
         # history field with no city founded (agents off: no settlement forms):
         # 18.78MB native and 19.92MB no-Rust (field 0.12MB); --no-cities writes
         # the sizes above.
+        # The aggregate famine toll scaled by hunger
+        # (docs/integration/hunger-mortality.md) changes this world's history:
+        # 16.44MB native (11 polities over the run) and 22.21MB no-Rust (16).
         assert size_mb < 24, f"Bundle is {size_mb:.2f}MB, expected < 24MB"
 
 

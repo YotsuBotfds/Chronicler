@@ -152,13 +152,13 @@ FAMINE_SEVERE_TURNS = 3
 #   famine = (0.6 - s) / 0.6 * min(1, run / 3)      depth below it, ramped over a season
 # The native demographic tick computes the same components (Rust
 # ``demographics::hunger_components``, which is handed the run up to the
-# previous turn) for agent mortality and fertility; the constants below are
-# its own, mirrored for the Python-owned population models (``--agents off``
-# and shadow), whose famine toll and growth they scale.
+# previous turn) for agent mortality and fertility. The mortality constants
+# below are its own, mirrored for the Python-owned population models
+# (``--agents off`` and shadow), whose famine toll they scale. That toll is a
+# famine's whole population effect in those models (deaths, flight and the
+# births it costs), so their growth is left alone.
 HUNGER_DEARTH_MORTALITY = 0.05
 HUNGER_FAMINE_MORTALITY = 0.50
-HUNGER_DEARTH_FERTILITY = 0.10
-HUNGER_FAMINE_FERTILITY = 0.30
 # A dearth report's effects that are not rates (its stability drain and what
 # reads the five-turn cooldown) are this share of a famine's.
 DEARTH_EFFECT_WEIGHT = 1.0 / 3.0
@@ -191,24 +191,6 @@ def hunger_toll_share(dearth: float, famine: float) -> float:
     mortality at these components over that of a total, sustained famine."""
     full = HUNGER_DEARTH_MORTALITY + HUNGER_FAMINE_MORTALITY
     return (HUNGER_DEARTH_MORTALITY * dearth + HUNGER_FAMINE_MORTALITY * famine) / full
-
-
-def hunger_fertility_multiplier(dearth: float, famine: float) -> float:
-    """Share of births hunger leaves (the agents' fertility multiplier)."""
-    return (1.0 - HUNGER_DEARTH_FERTILITY * dearth) * (1.0 - HUNGER_FAMINE_FERTILITY * famine)
-
-
-def population_growth_share(region: "Region") -> float:
-    """Share of the aggregate model's population growth a region keeps under
-    hunger (Python-owned population: ``--agents off`` and shadow). Agent modes
-    read the measured hunger; the aggregate model reads a famine cooldown as a
-    famine's."""
-    if region.food_shortfall is not None:
-        return hunger_fertility_multiplier(*region_hunger(region))
-    weight = food_crisis_weight(region)
-    if weight <= 0.0:
-        return 1.0
-    return hunger_fertility_multiplier(1.0, 1.0 if weight >= 1.0 else 0.0)
 
 
 def food_crisis_weight(region: "Region") -> float:

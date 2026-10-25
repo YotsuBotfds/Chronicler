@@ -4,7 +4,7 @@ Agent modes read the economy's food sufficiency and the run of severely
 short turns (``chronicler.ecology.hunger_components``; the native
 demographic tick computes the same components for agent mortality and
 fertility). The Python-owned population models (``--agents off``, shadow)
-scale their famine toll and growth by the same hunger. A dearth report's
+scale their famine toll by the same hunger. A dearth report's
 stability drain and cooldown weigh a third of a famine's. See
 docs/integration/hunger-mortality.md.
 """
@@ -25,9 +25,7 @@ from chronicler.ecology import (
     _check_famine_yield,
     food_crisis_weight,
     hunger_components,
-    hunger_fertility_multiplier,
     hunger_toll_share,
-    population_growth_share,
     region_hunger,
 )
 from chronicler.economy import EconomyResult
@@ -91,12 +89,7 @@ def test_components_are_zero_when_fed_and_grade_across_dearth_and_famine():
     assert hunger_components(0.0, 10) == (1.0, 1.0)
 
 
-def test_fertility_never_reaches_zero_and_toll_share_is_one_at_total_famine():
-    assert hunger_fertility_multiplier(0.0, 0.0) == 1.0
-    worst = hunger_fertility_multiplier(1.0, 1.0)
-    assert worst == pytest.approx((1.0 - eco.HUNGER_DEARTH_FERTILITY) * (1.0 - eco.HUNGER_FAMINE_FERTILITY))
-    assert 0.0 < worst < hunger_fertility_multiplier(1.0, 0.0) < 1.0
-    assert hunger_fertility_multiplier(1.0, 0.0) == pytest.approx(1.0 - eco.HUNGER_DEARTH_FERTILITY)
+def test_toll_share_is_one_at_total_famine():
     assert hunger_toll_share(0.0, 0.0) == 0.0
     assert hunger_toll_share(1.0, 1.0) == pytest.approx(1.0)
     assert hunger_toll_share(1.0, 0.0) < 0.1
@@ -110,8 +103,7 @@ def test_python_constants_mirror_the_native_demographics():
         assert m, name
         return float(m.group(1))
 
-    for name in ("HUNGER_DEARTH_MORTALITY", "HUNGER_FAMINE_MORTALITY",
-                 "HUNGER_DEARTH_FERTILITY", "HUNGER_FAMINE_FERTILITY"):
+    for name in ("HUNGER_DEARTH_MORTALITY", "HUNGER_FAMINE_MORTALITY"):
         assert native(name) == pytest.approx(getattr(eco, name)), name
     assert native("HUNGER_FAMINE_TURNS") == FAMINE_SEVERE_TURNS
     agent = (ROOT / "chronicler-agents/src/agent.rs").read_text(encoding="utf-8")
@@ -190,7 +182,7 @@ def test_dearth_drain_routes_through_the_accumulator_as_signal():
     assert [(c.delta, c.category) for c in changes] == [(-1, "signal")]
 
 
-# --- Python-owned population: toll and growth --------------------------------------------------
+# --- Python-owned population: the toll -------------------------------------------------------
 
 def test_aggregate_toll_scales_with_the_yield_depth():
     def lost(food_yield: float) -> int:
@@ -227,19 +219,9 @@ def test_hybrid_reports_never_touch_population():
     assert world.regions[0].population == 40
 
 
-def test_growth_share_reads_hunger_or_the_aggregate_cooldown():
-    region = _world().regions[0]
-    assert population_growth_share(region) == 1.0
-    region.food_shortfall = 0.2  # sufficiency 0.8
-    assert population_growth_share(region) == pytest.approx(hunger_fertility_multiplier(0.5, 0.0))
-    region.food_shortfall = None
-    region.famine_cooldown = 3  # the aggregate model's famine
-    assert population_growth_share(region) == pytest.approx(hunger_fertility_multiplier(1.0, 1.0))
-    region.dearth_cooldown = True
-    assert population_growth_share(region) == pytest.approx(hunger_fertility_multiplier(1.0, 0.0))
-
-
-def test_off_mode_growth_is_withheld_in_a_famine_region():
+def test_aggregate_growth_is_left_alone_under_a_famine_cooldown():
+    """The scaled toll is a famine's whole effect in the aggregate model: its
+    growth rule keeps running (no second hunger term)."""
     from chronicler.simulation import phase_production
 
     def grown(cooldown: int) -> int:
@@ -250,9 +232,7 @@ def test_off_mode_growth_is_withheld_in_a_famine_region():
         phase_production(world)
         return world.regions[0].population - 10
 
-    fed, starving = grown(0), grown(3)
-    assert fed == 5
-    assert starving == round(5 * hunger_fertility_multiplier(1.0, 1.0))
+    assert grown(0) == grown(3) == 5
 
 
 # --- epidemics ---------------------------------------------------------------------------------

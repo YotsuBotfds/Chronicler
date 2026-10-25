@@ -27,17 +27,10 @@
       },
       {
         "id": "HM-AGGREGATE-TOLL",
-        "summary": "The aggregate famine toll (5 x stress multiplier) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold.",
+        "summary": "The aggregate famine toll (5 x stress multiplier, a famine's whole population effect in the aggregate model) is scaled by the report's hunger: the share of a total, sustained famine's added mortality carried by the depth of the food yield below the famine threshold (0.12).",
         "workloads": {
           "standard": 0,
           "wide": 9
-        }
-      },
-      {
-        "id": "HM-AGGREGATE-GROWTH",
-        "summary": "Aggregate population growth in a region under a famine report's cooldown is scaled by the agents' famine birth multiplier (0.63).",
-        "workloads": {
-          "standard": 50
         }
       }
     ],
@@ -144,15 +137,15 @@
         "b87b2438644ce301ce5656e726a86af94478b19cdbf9be3870c406c9184b8cff",
         "cb20d3c6b6433359e1e272f8365aed9a5e652162c1395e37f047d9913176a345",
         "3fc3ef616ec28f534c4e587637e66bb5271d094b3b025f1eddfc4d0364c60bf6",
-        "62d066c3d869b3e7c06f22111b8eaf7d18ad2d1b3c9c59fe6fe0774d3257c37f",
-        "b4e2a447dbd7467e941858e066022f85e87a54b3776f27ce3596f6f2a085aa51",
-        "a1f1bb553ddaef262f3cd2f001df2e3ed00958b4fb91f3a725e83b833e8ade4b",
-        "b13340646d5da61993bf5218ccee9694cf5e57a24d6e9f60bad117676da8f3fa",
-        "26aab5d15f484404af9c29e352d2645f8472fe49621bf9be2008828475b7e4ce",
-        "32558b2f04d577b2f82efc59fcf92ce502b5c53fd06d9ac528706d1dd961046f",
-        "cb1bdfdb018b01c40ba04416bfe07226e7d4b731be862dbdacad824daa22855e",
-        "e1cf122234dd3cf11bdeff78df386a0b6822e9001f6b43411b1697cea6883ccd",
-        "d7f4e7afc5b5c67e01ee10ef28e8458d1c615f5ce589d5698853637021a73d3f",
+        "d874ef2a4df322a6048aa42d38f46449df628eec5ef8c030e943d7890c3f75da",
+        "e6ed6018e16675e551100c20008d0215c82f6a6dffce0bead2b17e93b918bfc5",
+        "3728e9c0b551e23c78b9671675ac551f86f071980b0d7cc498ec1b84393e46f8",
+        "8e8da7b06c8737e4e8876b0ea52014a543b3a5cda19be660435d3557a08dd7f9",
+        "191058aa8937dc0aed61441100129d40111961375255acb0f3801f7c3e034884",
+        "7e8258d2b339b8411ad77d1a8e959b68df2d3071de09f925ae8dd437de26f8da",
+        "0376fa91e9c872dde2c5263ed641c026c55efa8479c34ded89b957222e966946",
+        "55fb9bc297631639295d5b401b27e327f8f993f249a25aeade43837667f9d73c",
+        "22849b3cfe024188d762c5f18b62a38081233077313d7938356d06b80a246a42",
         "0dffeb9f2ad07b46fd939aecdde767abd95f239d19749914b5bfa2c7530fbbe6"
       ],
       "rng": {
