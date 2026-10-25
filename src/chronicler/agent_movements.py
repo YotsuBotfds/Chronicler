@@ -229,9 +229,9 @@ def _living(state: MovementState) -> list[tuple[int, Movement]]:
     return [(i, m) for i, m in enumerate(state.movements) if m.stage != ENDED]
 
 
-def _faith_name(world, faith_id: int) -> str:
+def _faith_name(world, faith_id: int) -> str | None:
     belief = next((b for b in world.belief_registry if b.faith_id == faith_id), None)
-    return belief.name if belief is not None else "true"
+    return belief.name if belief is not None else None
 
 
 class _Observation:
@@ -623,7 +623,10 @@ def suppress_chance(m: Movement, civ) -> float:
 
 def _demand_text(world, m: Movement) -> str:
     region = world.regions[m.home_region].name
-    return _DEMANDS[m.creed].format(region=region, faith=_faith_name(world, m.faith))
+    faith = _faith_name(world, m.faith)
+    if m.creed == SECT and faith is None:
+        return "freedom to worship as they believe"
+    return _DEMANDS[m.creed].format(region=region, faith=faith)
 
 
 def _demand(t: _Tick, i: int, m: Movement, civ) -> None:
@@ -1011,7 +1014,7 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int) -> No
     civ = world.civilizations[cidx]
     i = len(state.movements)
     faith = region.majority_belief if region.majority_belief is not None else NO_FAITH
-    name = _movement_name(world, creed, region.name, _faith_name(world, faith), i)
+    name = _movement_name(world, creed, region.name, _faith_name(world, faith) or "", i)
     m = Movement(
         name=name, creed=creed, founded_turn=world.turn, home_region=ri, target=cidx,
         leader=gp.name if gp is not None else "",
