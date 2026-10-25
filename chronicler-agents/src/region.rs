@@ -101,6 +101,10 @@ pub struct RegionState {
     // (drought water, cooling water and forest). 1.0 = unscaled, which keeps
     // template-world arithmetic bit-identical.
     pub climate_exposure: f32,
+    /// Cities (`--cities`): this region's draw on rural migrants of the realm
+    /// (`migration_drivers` urban pull), recomputed by Python for every batch.
+    /// 0 when the batch carries no `city_pull` column (the switch off).
+    pub city_pull: f32,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -233,6 +237,7 @@ impl RegionState {
             // M58a: Stockpile
             stockpile: [0.0; 8],
             climate_exposure: 1.0,
+            city_pull: 0.0,
         }
     }
 }

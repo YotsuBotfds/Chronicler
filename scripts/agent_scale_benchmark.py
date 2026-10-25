@@ -142,6 +142,7 @@ def _child(opts: argparse.Namespace) -> dict:
         argv += ["--worldgen", opts.worldgen]
     if opts.agent_scale_mode:
         argv += ["--agent-scale-mode", opts.agent_scale_mode]
+    argv += list(opts.cli_arg)
     args = cm._build_parser().parse_args(argv)
 
     turn_marks: list[tuple[float, float]] = []
@@ -210,6 +211,7 @@ def _child(opts: argparse.Namespace) -> dict:
             for i in range(len(turn_wall))
         ],
         "rayon_threads": os.environ.get("RAYON_NUM_THREADS", "default"),
+        "cli_args": list(opts.cli_arg),
         **({"social": _social_summary(social_log)} if opts.social else {}),
     }
 
@@ -271,6 +273,8 @@ def _parse(argv=None) -> argparse.Namespace:
     p.add_argument("--profile-dir", type=Path, default=None,
                    help="write a cProfile of each child's measured turns here "
                         "(timings then include profiler overhead)")
+    p.add_argument("--cli-arg", action="append", default=[],
+                   help="extra CLI argument for every run (repeatable; e.g. --cli-arg=--cities)")
     p.add_argument("--profile-out", default=None, help=argparse.SUPPRESS)
     p.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     return p.parse_args(argv)
@@ -291,6 +295,7 @@ def _child_cmd(opts: argparse.Namespace, target: int, seed: int) -> list[str]:
         cmd.append("--keep-runs")
     if opts.social:
         cmd.append("--social")
+    cmd += [f"--cli-arg={arg}" for arg in opts.cli_arg]
     if opts.profile_dir:
         name = f"t{target}_s{seed}_{opts.agent_scale_mode or 'default'}.prof"
         cmd += ["--profile-out", str((opts.profile_dir / name).resolve())]

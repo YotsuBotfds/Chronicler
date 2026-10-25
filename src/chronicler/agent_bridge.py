@@ -593,6 +593,13 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         columns["climate_exposure"] = pa.array(
             [climate_exposure(r.latitude_band, phase) for r in world.regions], type=pa.float32(),
         )
+    from chronicler.cities_state import cities_on
+    if cities_on(world):
+        # --cities: each region's draw on its hinterland (the Rust urban
+        # driver), recomputed from persisted city state for every batch;
+        # without the column Rust reads 0.
+        from chronicler.cities import region_pulls
+        columns["city_pull"] = pa.array(region_pulls(world), type=pa.float32())
     return pa.record_batch(columns)
 
 
