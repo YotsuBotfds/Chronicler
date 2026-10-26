@@ -171,7 +171,7 @@ async def test_connect_and_receive_turns(live_env):
     """Connect to live server, receive turn messages."""
     env = live_env.start(turns=5)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         # Launch simulation only after WS client is connected
         env.launch_sim()
 
@@ -199,7 +199,7 @@ async def test_pause_and_continue(live_env):
     """Server sends paused message at interval, continues on command."""
     env = live_env.start(turns=10, pause_every=3)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         messages = []
         try:
@@ -229,7 +229,7 @@ async def test_inject_round_trip(live_env):
     """Inject at pause, verify ack, continue, verify event in next turn."""
     env = live_env.start(turns=10, pause_every=3)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         messages = []
         try:
@@ -263,7 +263,7 @@ async def test_set_round_trip(live_env):
     """Set stat at pause, verify ack includes new value."""
     env = live_env.start(turns=10, pause_every=3)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         messages = []
         set_ack = None
@@ -299,7 +299,7 @@ async def test_fork_round_trip(live_env):
     """Fork at pause, verify response with save_path and cli_hint."""
     env = live_env.start(turns=10, pause_every=3)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         forked_msg = None
         try:
@@ -331,7 +331,7 @@ async def test_quit_while_paused(live_env):
     """Quit while paused produces completed message and bundle."""
     env = live_env.start(turns=50, pause_every=3)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         completed = None
         try:
@@ -358,7 +358,7 @@ async def test_quit_while_running(live_env):
     """Quit during execution: current turn completes, bundle written."""
     env = live_env.start(turns=50)  # no pause_every
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         turn_count = 0
         completed = None
@@ -388,7 +388,7 @@ async def test_commands_while_running_rejected(live_env):
     """Commands sent while running get error (except quit and speed)."""
     env = live_env.start(turns=20)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws:
+    async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         error_msg = None
         injected = False
@@ -421,8 +421,8 @@ async def test_single_client_enforcement(live_env):
     """Second client gets error and is closed."""
     env = live_env.start(turns=20, pause_every=5)
 
-    async with ws_client.connect(f"ws://localhost:{env.port}") as ws1:
-        async with ws_client.connect(f"ws://localhost:{env.port}") as ws2:
+    async with ws_client.connect(env.server.ws_url()) as ws1:
+        async with ws_client.connect(env.server.ws_url()) as ws2:
             raw = await asyncio.wait_for(ws2.recv(), timeout=5.0)
             msg = json.loads(raw)
             assert msg["type"] == "error"
@@ -472,7 +472,7 @@ async def test_batch_load_bundle_round_trip(tmp_path, monkeypatch):
     server.start()
 
     try:
-        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+        async with ws_client.connect(server.ws_url()) as ws:
             await ws.send(json.dumps({
                 "type": "batch_load_bundle",
                 "path": str(bundle_path),
@@ -509,7 +509,7 @@ async def test_batch_load_bundle_rejects_unsupported_manifest(tmp_path, monkeypa
     server.start()
 
     try:
-        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+        async with ws_client.connect(server.ws_url()) as ws:
             await ws.send(json.dumps({
                 "type": "batch_load_bundle",
                 "path": str(bundle_path),
@@ -528,7 +528,7 @@ async def test_batch_load_bundle_rejects_unsupported_manifest(tmp_path, monkeypa
 @pytest.mark.asyncio
 async def test_rejects_non_object_and_bad_narrate_range(running_live_server):
     """Malformed live messages get explicit errors instead of disappearing."""
-    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+    async with ws_client.connect(running_live_server.ws_url()) as ws:
         init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
         init_msg = json.loads(init_raw)
         assert init_msg["state"] == "running"
@@ -573,7 +573,7 @@ async def test_start_and_batch_path_type_validation():
     server.start()
 
     try:
-        async with ws_client.connect(f"ws://localhost:{server._actual_port}") as ws:
+        async with ws_client.connect(server.ws_url()) as ws:
             lobby_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
             lobby_msg = json.loads(lobby_raw)
             assert lobby_msg["state"] == "lobby"
@@ -681,7 +681,7 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
         lambda *args, **kwargs: ([known_moment], []),
     )
 
-    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+    async with ws_client.connect(running_live_server.ws_url()) as ws:
         init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
 
         await ws.send(json.dumps({
@@ -773,7 +773,7 @@ async def test_narrate_range_offloads_work_and_keeps_queue_drain_alive(running_l
 
     monkeypatch.setattr(NarrativeEngine, "narrate_batch", slow_narrate_batch)
 
-    async with ws_client.connect(f"ws://localhost:{running_live_server._actual_port}") as ws:
+    async with ws_client.connect(running_live_server.ws_url()) as ws:
         init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
         assert json.loads(init_raw)["state"] == "running"
 

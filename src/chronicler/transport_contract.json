@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "about": "What a bundle and the live protocol carry. Read by chronicler.transport and viewer/src/lib/transport.ts; see docs/integration/historical-parity.md.",
+  "snapshot_fields": [
+    "turn",
+    "civ_stats",
+    "region_control",
+    "relationships",
+    "trade_routes",
+    "active_wars",
+    "embargoes",
+    "ecology",
+    "mercenary_companies",
+    "vassal_relations",
+    "federations",
+    "proxy_wars",
+    "exile_modifiers",
+    "capitals",
+    "peace_turns",
+    "region_cultural_identity",
+    "movements_summary",
+    "stress_index",
+    "pandemic_regions",
+    "climate_phase",
+    "active_conditions",
+    "per_pair_accuracy",
+    "perception_errors",
+    "settlement_source_turn",
+    "settlement_count",
+    "candidate_count",
+    "total_settlement_population",
+    "active_settlements",
+    "founded_this_turn",
+    "dissolved_this_turn",
+    "urban_agent_count",
+    "urban_fraction"
+  ],
+  "snapshot_systems": [
+    "campaign",
+    "contact",
+    "epidemics",
+    "finance",
+    "diplomacy",
+    "techniques",
+    "maritime",
+    "gp_agendas",
+    "nomads",
+    "cities",
+    "agent_movements",
+    "guilds",
+    "food",
+    "migration"
+  ],
+  "bundle_systems": [
+    "historiography",
+    "languages"
+  ],
+  "bundle_carriers": [
+    "pruned_civ_stats"
+  ],
+  "turn_message_keys": [
+    "type",
+    "chronicle_text",
+    "events",
+    "named_events"
+  ]
+}
