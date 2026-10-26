@@ -1,24 +1,444 @@
 # Movements grounded in people (`--agent-movements`)
 
-Branch `feat/agent-movements`, from `origin/feat/city-markets` `b4ce043`,
-fast-forwarded to `origin/main` `ec229b5` (PR #30, the same tree). Code:
-`src/chronicler/agent_movements.py` (decisions),
+Two slices. Slice 1, branch `feat/agent-movements` (PR #31, from `ec229b5`):
+members, creeds, founding, recruitment, demands, crackdowns, risings,
+schisms and secession ([below](#slice-1-result)). Slice 2, branch
+`feat/movements-2` from `main` `ea08126`, merged with `main` after bundle
+version 6 (PR #35) and needs calibration (PR #36), without rebase: lasting
+reforms that governance institutions carry and rulers repeal, restoration
+movements, leaders promoted from the members, the viewer's Movements tab,
+and the grievance thresholds recalibrated for the corrected needs.
+
+Code: `src/chronicler/agent_movements.py` (decisions),
 `src/chronicler/agent_movements_state.py` (persisted state),
-`chronicler-agents/src/movements.rs` (membership and spread),
-`politics.transfer_regions_to_new_civ` (secession, shared with the cities'
-free cities), `scripts/agent_movements_report.py` and
-`scripts/agent_movements_identity.py`.
+`chronicler-agents/src/movements.rs` (membership, spread, the reform credit),
+`chronicler-agents/src/ffi/mod.rs` (`set_movement_reforms`,
+`queue_movement_leaders`), `politics.transfer_regions_to_new_civ`
+(secession), `viewer/src/components/systems/MovementsPanel.tsx`,
+`viewer/src/lib/movements.ts`; scripts `agent_movements_report.py`,
+`agent_movements_identity.py`, `agent_movements_probe.py` (distributions),
+`build_movements_fixture.py` (the viewer fixture).
 
-**Status.** Default off (`DEFAULT_ENABLED_FOR_NEW_WORLDS = False`). With the
-switch off every output is byte-identical to `ec229b5`, agents off and
-hybrid, direct runs and the subset gate ([Identity](#feature-off-identity)).
-With it on, the subset gates 42-61, 62-81 and 82-101 pass with no comparator
-regression ([Gates](#switch-on-subset-gates)); the needs oracle loses 2 to 4
-seeds in each set (still above the 12 required), the open item for the full
-gate. The full 200-seed gate was not run.
+**Status.** On by default for new worlds since slice 2
+(`DEFAULT_ENABLED_FOR_NEW_WORLDS = True`; `--no-agent-movements` opts out;
+saved worlds keep their setting). The full gate with the switch on passes
+strict with no regression against the needs-calibration full gate
+([Gates](#gates)). With the switch off every output is byte-identical to the
+base ([Identity](#feature-off-identity)).
 
-## Result
+## Slice 2: lasting reforms, repeal, restoration, leaders
 
+### Lasting reforms
+
+A granted demand (or a concession after a rising) still gives the members
+slice 1's one-off relief, and it now enacts a lasting reform
+(`MovementState.reforms`, `Reform`; kinds `REFORM_NAMES`, append-only):
+
+| creed | reform | covers | governance institution | city | opposed by (without an institution) |
+| --- | --- | --- | --- | --- | --- |
+| commons | poor relief | the realm | Commons Management, enacted or upheld | - | merchant faction; upkeep 0.75 treasury per region a turn (`keep`), ended after 3 unpaid turns |
+| liberty | home rule | the stronghold (later grants add regions) | Written Law, enacted or upheld | the realm's city there gains one charter level (self-government at most, at the cities' rank floors) | military faction |
+| sect | toleration of the members' faith, or the reform of the church when that is the ruler's own faith | the faith's believers in the realm | none; an active Holy Inquisition is abolished by the grant | - | clergy faction |
+
+- **Institutions.** With governance on, the grant appends the institution to
+  the ruler's `CivGovernance.institutions` (enacted that turn, legitimacy 1,
+  the runtime's enforcement cost; logged as enacted), effective N+1: the
+  next Phase 2 funds it and the next late Phase 10 resolves it like any
+  other. It has its usual effects (Commons Management: action weights and
+  soil recovery; Written Law: stability and a governing-cost rebate). No
+  institution when the realm already holds three, or for toleration; the
+  reform then stands alone. A reform in force of the same kind is extended
+  instead (home rule adds the region).
+- **Grievance.** Rust reads the creed need of an agent the reform covers as
+  `need + 0.3 (1 - need)` (`REFORM_NEED_CREDIT`) for grievance, commitment,
+  founding seeds and recruitment: material 0.40 reads 0.58 (no longer
+  aggrieved), 0.20 reads 0.44 (still aggrieved). The needs themselves are
+  untouched. Python sends the reforms in force every tick
+  (`set_movement_reforms`: creed, civ, region or the realm, faith or every
+  believer); Rust derives the covered regions from the controllers in the
+  pass and the census uses the same cover. Standing state, rebuilt every
+  tick from the persisted reforms.
+
+### Repeal and restoration
+
+Checked every Phase 10 before the movements, in this order:
+
+| cause | `REPEAL_NAMES` | rule |
+| --- | --- | --- |
+| realm gone; home rule's regions lost | lapsed | no grievance follows |
+| the institution collapsed (unpaid) or was forced out by its opposing faction | neglect / opposition | read from the governance institution log |
+| a Holy Inquisition is active again | inquisition | toleration only |
+| a new reign | ruler | once per reign: chance 0.25 for an aggressive, zealous, stubborn or bold ruler, else 0.03; takes the institution the grant enacted |
+| without an institution: the opposing faction above 0.40 | opposition | chance 0.03 a turn |
+| without an institution: relief unpaid 3 turns | fiscal | |
+
+A repeal (not a lapse) is remembered against its realm for 60 turns. A
+region it covered (relief: any of the realm's; home rule: its regions;
+toleration: where the faith is the majority) then founds a movement of the
+creed with twice the chance, even inside the creed's 20-turn cooldown, while
+no other movement seeks the same restoration; the movement's demand is "the
+restoration of" the reform and its founding cites the repeal. Its grant
+enacts a new reform that `restores` the old one (counter `restored`). A home
+rule repeal revokes the charter level it gave.
+
+### Leaders
+
+A movement that has made a demand or risen, has at least 8 members and no
+living leader raises one: its boldest member in the stronghold (ties by
+agent id) whose civ still holds land. A great person already is one; anyone
+else is queued for a native promotion (`queue_movement_leaders`, trigger 5,
+a prophet for a sect or a civilian, a general for a soldier). For leaders
+the registry's caps (10 per civ, 50 in all) count living named characters
+only: the registry keeps the dead, so its own check closes for good after
+fifty promotions in a long run. Other promotions are unchanged. The person
+appears in the next turn's promotions (with an agenda when agendas are on)
+and is installed then (`movement_leader` event, a deed). A leader raises
+the movement's appeal by half, a crackdown in the stronghold usually kills
+them first, and their death makes a martyr; a secession crowns a living
+leader as the new state's ruler (fate `ascended`).
+
+### Viewer
+
+A Movements tab when a snapshot records `agent_movements`: tiles (living
+movements, members, reforms in force, founded and ended so far), each
+movement's stage over time, living movements by creed, the scrubbed turn's
+movements (creed, ruler, stage, members, strength, stronghold, leader,
+martyrs) and lasting reforms (realm, since, institution, the movement that
+won it), running totals, one movement's members and recorded moments with
+its reform's repeal, and the movement and reform events, which pin in the
+inspector. Snapshot rows gain optional `leader`, `restores` and a
+`reforms` list (id, kind, civ, since, movement; regions, faith, church,
+institution when set); `world_state.agent_movements` carries the records.
+Live mode passes the field through. Fixture
+`viewer/src/__fixtures__/movements_bundle.json` (115 KB): template seed 48,
+500 hybrid turns on this branch, every fifth snapshot.
+
+### Calibration after needs calibration
+
+Needs calibration made material bind in dearth and famine and autonomy under
+persecution, martial law and conquest; foreign rule settles at 0.61, the fed
+poorest at 0.56, a dearth's median at 0.44. Movement grievance thresholds
+were set for the old needs. `scripts/agent_movements_probe.py --grid`
+samples every agent's needs every 10 turns and scores, per region with 5+
+adults, whether a creed reaches the founding share (20%, 5 adults) under a
+grid of thresholds and under each bad condition: an open famine episode,
+occupation or conquest within 20 turns, persecution, a majority faith not the
+ruler's. Template seeds 42-51, 500 hybrid turns, needs calibration with the
+slice 1 thresholds. Region samples there: famine 43%, foreign rule 0.8%,
+persecution 9%, minority faith 49%, none of these 28%.
+
+Founding share reached (share of region samples), satisfaction below 0.45:
+
+| creed, need threshold | all | famine | foreign | persecuted | minority faith | none of these |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| commons, material 0.55 (slice 1) | 17.6% | 28.5% | 14.3% | 22.8% | 17.9% | 1.5% |
+| commons, material 0.45 (slice 2) | 11.0% | 18.2% | 4.8% | 13.8% | 11.0% | 0% |
+| liberty, autonomy 0.60 (slice 1) | 19.5% | 26.2% | 33.3% | 33.1% | 20.7% | 7.0% |
+| liberty, autonomy 0.50 (slice 2) | 7.6% | 11.3% | 19.0% | 18.3% | 8.6% | 0.9% |
+| sect, spiritual 0.45 (both) | 7.5% | 9.3% | 14.3% | 12.9% | 8.3% | 4.4% |
+
+Material 0.55 -> 0.45 and autonomy 0.60 -> 0.50 (both above the behaviour
+thresholds, 0.30 and 0.35) take grievance out of good conditions and keep
+it where conditions are bad; spiritual is unchanged by needs calibration and
+stays. Repeal was made gentler at the same time (a new ruler 0.05 -> 0.03,
+harsh 0.4 -> 0.25, the opposing faction 0.05 -> 0.03): median reform life
+45 -> 61 turns.
+
+Distributions per 500-turn world (template 42-51, hybrid; "significant": a
+demand made and at least 10 members at the peak):
+
+| | slice 1, before needs calibration | slice 2, before | slice 2, needs calibration, slice 1 thresholds | slice 2, shipped |
+| --- | ---: | ---: | ---: | ---: |
+| movements founded | 11.9 | 11.8 | 26.9 | 20.5 |
+| significant (range over worlds) | 1.6 (0-3) | 1.0 (0-4) | 5.2 (3-8) | 3.0 (1-5) |
+| commons / liberty / sect founded | 3.6 / 1.6 / 6.7 | 3.6 / 1.7 / 6.5 | 13.2 / 9.9 / 3.8 | 8.7 / 5.1 / 6.7 |
+| living movement-turns per civ-turn | 0.23 | 0.21 | 0.47 | 0.37 |
+| region samples at the founding share: commons / liberty / sect | 4.0% / 2.5% / 9.8% | 4.4% / 2.3% / 8.2% | 16.2% / 17.5% / 7.3% | 10.5% / 9.3% / 9.2% |
+| foundings in a region with none of the bad conditions: commons / liberty / sect | - | - | 0% / 3.0% / 7.9% | 0% / 0% / 4.5% |
+| demands / grants / refusals / crackdowns | 6.7 / 2.5 / 2.5 / 1.7 | 5.5 / 2.4 / 2.1 / 1.0 | 20.5 / 8.1 / 7.7 / 4.7 | 13.8 / 6.3 / 4.9 / 2.6 |
+| risings; schisms; secessions | 0.5; 0.9; 0 | 0.5; 0.6; 0 | 1.7; 0.3; 0 | 0.8; 0.5; 0 |
+| lasting reforms enacted / repealed / restored / in force at turn 500 | - | 2.6 / 1.5 / 0.2 / 0.7 | 8.4 / 6.9 / 1.2 / 1.2 | 6.3 / 4.7 / 0.7 / 1.2 |
+| leaders raised | - | 0.7 | 4.5 | 3.4 |
+
+So needs calibration more than doubled founding with the old thresholds:
+0.47 living movements per civ-turn, against 0.21-0.23 before. Shipped: three
+significant movements a world (one to five), founded where conditions are
+bad: every commons founding in a famine region (44% of region samples),
+liberty foundings under persecution at 2.4 times its base rate (26% against
+11%), no commons or liberty founding in a region with none of the four
+conditions (26% of region samples). Shipped reforms (63): 27 poor relief,
+9 home rule, 22 toleration, 5 church reforms; of the 36 relief and home
+rule reforms 11 carried an institution (7 Commons Management, 4 Written
+Law) and 25 found three institutions in place; median life 61 turns
+(quartiles 22 and 167); repealed by a new ruler 28, by opposition 19,
+lapsed 4, in force at turn 500 12. The first column is slice 1 as merged
+(`ea08126`), the second slice 2 before its recalibration.
+
+### A 500-turn example
+
+`scripts/agent_movements_report.py RUN_DIR --reforms` prints each movement's
+record and the reform it won with the event text the simulation wrote.
+Template world, seed 48, 500 turns, hybrid, `--agent-movements`, every other
+system at its default (`--simulate-only`, `PYTHONHASHSEED=0`); spread lines
+left out:
+
+```
+the Penitents of Crystalfen Marsh (sect), founded turn 56 in Crystalfen Marsh against Selurian
+Republic, led by King Grammaris; peak 13 members, 1 demands, 1 martyrs; ended won turn 79
+    56: founded: In Crystalfen Marsh, the discontented found the Penitents of Crystalfen Marsh:
+         7 of 23 people there want freedom to worship in the Faith of Selurian Republic (Reformed 2)
+    61: demand: the Penitents of Crystalfen Marsh, 7 strong (12% of the people of Selurian
+         Republic), demands freedom to worship in the Faith of Selurian Republic (Reformed 2)
+    61: refused: Selurian Republic refuses the Penitents of Crystalfen Marsh
+    65: leader: King Grammaris rises to lead the Penitents of Crystalfen Marsh in Crystalfen Marsh
+    65: rising: the Penitents of Crystalfen Marsh rises against Selurian Republic in Crystalfen
+         Marsh (6 members)
+    66: concession: After the rising, Selurian Republic tolerates the Penitents of Crystalfen
+         Marsh and its worship; the Faith of Selurian Republic (Reformed 2) is tolerated in the
+         realm and the Holy Inquisition is abolished
+    71: martyr: The death of King Grammaris makes a martyr for the Penitents of Crystalfen Marsh
+    79: ended: the Penitents of Crystalfen Marsh disbands, its demand met
+  reform 3: the toleration of the Faith of Selurian Republic (Reformed 2) in Selurian Republic,
+  enacted turn 66; in force
+```
+
+A sect of a minority faith, refused, raises a leader from its boldest
+member (a promoted prophet; the name generator's title is not a rank),
+rises the same turn and wins toleration in a concession, which also ends
+the realm's Holy Inquisition. The movement disbands, its demand met; the
+toleration is still in force at turn 500, 434 turns later, through every
+later reign of the Selurian Republic: its believers read their spiritual
+need with the reform's credit for the rest of the run.
+
+The same realm's poor relief shows repeal and restoration:
+
+```
+    26: reform: Selurian Republic grants the Ploughmen's League of Ashara Desert relief: remitted
+         dues and grain from the stores (12 from the treasury); poor relief becomes law under
+         Commons Management
+    71: reform_repealed: Elder Harbright of Selurian Republic repeals the poor relief
+    72: founded: In Crystalfen Marsh, the discontented found the Levellers of Crystalfen Marsh:
+         18 of 29 people there want the restoration of the poor relief
+    77: refused: Selurian Republic refuses the Levellers of Crystalfen Marsh
+    80: leader: Chancellor Mongke rises to lead the Levellers of Crystalfen Marsh in Crystalfen Marsh
+    89: reform: Selurian Republic grants the Levellers of Crystalfen Marsh relief: remitted dues
+         and grain from the stores (14 from the treasury); the poor relief is restored
+   120: reform_repealed: The merchant faction of Selurian Republic has the poor relief repealed
+   134: founded: In Crystalfen Marsh, the discontented found the Commons of Crystalfen Marsh:
+         11 of 20 people there want the restoration of the poor relief
+   139: reform: Selurian Republic grants the Commons of Crystalfen Marsh relief: remitted dues
+         and grain from the stores (12 from the treasury); the poor relief is restored
+   161: reform_repealed: The merchant faction of Selurian Republic has the poor relief repealed
+```
+
+A new ruler's repeal takes Commons Management with it (turn 71); the
+restoration movement is founded the next turn, its founding citing the
+repeal. The restored relief holds no institution (the realm holds three)
+and the merchant faction, above 0.40, has it repealed twice.
+
+### Gates
+
+Every gate is hybrid, `PYTHONHASHSEED=0`, Linux, Python 3.13, with a native
+extension built fresh from the gated source (`maturin develop --release
+--locked`; compiled `AgentSimulator`, `EcologySimulator` and
+`PoliticsSimulator` verified). Movement counts come from the runs' bundles.
+
+**Full gate** (`--profile full`, 200 seeds x 500 turns, `--parallel 3`,
+`--agent-movements`, 2,551 s on a shared machine) on `7315a81` (extension
+SHA-256 `028c1fd1...248fc52a`), compared with the needs-calibration full
+gate (`main` after PR #36; the same seeds and profile):
+
+| | needs calibration (movements off) | `--agent-movements` |
+| --- | ---: | ---: |
+| gate / comparator | PASS / - | PASS / NO REGRESSION |
+| regression adjudication | strict | strict |
+| migration per agent-turn (strict floor 0.05) | 0.0626 | 0.0629 |
+| rebellion per agent-turn | 0.0385 | 0.0409 |
+| satisfaction mean / latest (ceiling 0.65) | 0.614 / 0.622 | 0.616 / 0.631 |
+| needs: seeds with the expected sign; pooled lower bound | 190; 0.195 | 188; 0.192 |
+| cohort (seeds; median effect) | 200; 1.73 | 200; 1.58 |
+| era (seeds with inflections; silent collapses) | 200; 1 | 200; 0 |
+| arcs (seeds with three types) | 165 | 164 |
+| artifacts (creation per civ per 100 turns; loss) | 1.47; 6.1% | 1.62; 6.6% |
+| extinct worlds; worlds whose founders all survive | 0; 17.5% | 0; 12.0% |
+| final population min / median / max | 46 / 177 / 277 | 40 / 177 / 342 |
+| movements founded (per world); significant | - | 4,323 (21.6); 678 (3.4) |
+| demands / grants / refusals / crackdowns | - | 2,578 / 1,105 / 901 / 572 |
+| martyrs | - | 1,695 |
+| risings: concession / crushed / secession | - | 191: 95 / 88 / 8 |
+| movement schisms; all schisms per world | - | 111; 12.6 |
+| secessions per world (all) | - | 0.125 |
+| lasting reforms enacted / extended / repealed / lapsed / restored | - | 1,138 / 62 / 850 / 47 / 163 |
+| repeals: ruler / opposition / inquisition / neglect / fiscal | - | 493 / 340 / 11 / 4 / 2 |
+| reforms in force at turn 500; city charters raised | - | 241; 88 |
+| leaders raised | - | 667 |
+
+The comparator reports no regression reason, no new required failure, no
+oracle method or status change and no strict-regression downgrade. Rebellion
+rises 0.0024 (risings add rebels in their strongholds; the band is
+0.02-0.08); the needs oracle loses two seeds and 0.003 of its lower bound,
+against 2-4 seeds per subset in slice 1 at 200 turns. The first movement
+secessions appear: 8 in 200 worlds (liberty risings against rulers under
+30 stability). The gated configuration is now the default
+([below](#default-on)).
+
+**Subset gates** (`--profile subset`, 20 seeds x 200 turns, `--parallel 2`;
+the 62-81 on arm `--parallel 3`), `--no-agent-movements` against
+`--agent-movements` on the final head, compared with `validation_compare`
+(the off arms are identical to the base, below). The same reports came from
+the preview of `7315a81` before the flip:
+
+| | 42-61 off | 42-61 on | 62-81 off | 62-81 on |
+| --- | ---: | ---: | ---: | ---: |
+| gate / comparator | PASS / - | PASS / NO REGRESSION | PASS / - | PASS / NO REGRESSION |
+| regression adjudication (informational in the subset) | strict | strict | fail (civ_survival) | fail (civ_survival) |
+| migration per agent-turn | 0.0705 | 0.0689 | 0.0614 | 0.0621 |
+| rebellion per agent-turn | 0.0521 | 0.0489 | 0.0229 | 0.0252 |
+| satisfaction mean / latest | 0.594 / 0.614 | 0.599 / 0.619 | 0.606 / 0.619 | 0.610 / 0.625 |
+| needs: seeds with the expected sign; pooled lower bound | 18; 0.170 | 15; 0.075 | 14; 0.097 | 15; 0.110 |
+| schisms; secessions per world (all) | 12.00; 0.05 | 12.10; 0.05 | 12.00; 0.05 | 12.35; 0.05 |
+| extinct worlds; polities alive at turn 200 | 0; 3.05 | 0; 3.10 | 0; 3.50 | 0; 3.60 |
+| movements founded; significant | - | 229; 34 | - | 224; 29 |
+| demands / grants / refusals / crackdowns | - | 139 / 58 / 58 / 23 | - | 127 / 49 / 44 / 34 |
+| risings: concession / crushed / secession | - | 10: 7 / 3 / 0 | - | 7: 3 / 4 / 0 |
+| lasting reforms enacted / repealed / restored / in force at turn 200 | - | 63 / 34 / 5 / 26 | - | 51 / 25 / 2 / 26 |
+| leaders raised; martyrs | - | 32; 104 | - | 24; 110 |
+
+The needs oracle's lower bound moves -0.095 on 42-61 and +0.013 on 62-81;
+the full gate reads it on 200 seeds of 500 turns (above).
+
+### Default on
+
+`DEFAULT_ENABLED_FOR_NEW_WORLDS = True` in a separate commit (`3ed9bc0` on
+the preview branch, replayed onto this branch), as
+[defaults-wave8.md](defaults-wave8.md) did: CLI help ("default on for new
+worlds; --no-agent-movements opts out; saved on resume"), the live server
+comment, `test_new_worlds_default_on_and_resume_keeps_saved_setting` (a fresh
+world has movements, `--no-agent-movements` leaves them out, an on world
+stays on and an off world stays off on resume), the mock-bridge CLI tests
+(`tests/test_main.py`, a MagicMock simulator) pass the switch off
+explicitly, and `scripts/benchmark_headless.run` pins `agent_movements=False`
+so the frozen performance oracles replay the same worlds. Worlds from
+`generate_world`, resumed and forked worlds keep their own setting.
+`scripts/m53b_run_validation.py` already forwards both forms.
+
+### Feature-off identity
+
+Base: `e1b6a13` (PR #36's head, whose tree `main` takes when it merges
+without conflict; it contains `main` `7fa364a`) exported as a source tree
+and its extension built from that tree (SHA-256 `0cb2948c...7cdb8d`, the one
+needs calibration recorded), `PYTHONPATH` on the export. Branch: the
+worktree at the final head and its extension. Same interpreter,
+`PYTHONHASHSEED=0`, `scripts/agent_movements_identity.py compare`:
+
+| Comparison | Runs | Result |
+| --- | --- | --- |
+| base (no flags; movements off there) against the branch `--no-agent-movements` | template seeds 42 / 7 / 1234, `--agents off` 300 turns and hybrid 200; procedural 48 regions x 10 civs, seed 7, off 200 and hybrid 120 | 88 files, **0 differences** |
+| the branch with no flags against `--agent-movements` | template 42 hybrid 200; procedural 48 x 10 seed 7 off 150 | 25 files, **0 differences**: the defaults are the gated configuration |
+| an old save resumed: base save at turn 30 (agents off, no flags), resumed to turn 60 by the base and by the branch, no flags | template 42; procedural 48 x 10 seed 13 | 6 files, **0 differences**; the resumed worlds carry no movement field |
+| subset gate 42-61 x 200 hybrid: base against the branch `--no-agent-movements` | 20 seeds | 2,201 run files, **0 differences**; validation report, gate decision, gate summary and summary identical once the batch path is normalised |
+
+With the switch off the native pass never runs, `get_promotions` takes its
+old path (no queued leader) and no reform table is sent. In the suite,
+`test_feature_off_never_runs_movement_code`, the frozen exact-trajectory
+oracles and the benchmark pin cover the same ground.
+
+### Tick time
+
+`scripts/agent_scale_benchmark.py`, seed 42, 12 regions, starting targets
+18,800 and 43,700 (about 23,000 and 51,600 alive when measured), 30 warm-up
+turns and 8 timed turns, two repeats, one child at a time, release builds;
+base the `e1b6a13` export with its extension. The 4-core machine was shared
+(other agents' gates and test runs, load average 4-6), so wall times
+scatter; CPU is steadier. Per run, wall / process CPU, in ms:
+
+| agents | | base `e1b6a13` | branch, `--no-agent-movements` | branch, `--agent-movements` |
+| ---: | --- | ---: | ---: | ---: |
+| ~23,000 | Rust tick | 153, 183 / 298, 292 | 142, 122 / 290, 292 | 186, 180 / 318, 294 |
+| | whole turn | 265, 284 / 430, 411 | 230, 198 / 393, 390 | 289, 261 / 444, 375 |
+| ~51,600 | Rust tick | 1,028, 690 / 1,688, 1,701 | 768, 797 / 1,628, 1,618 | 818, 619 / 1,663, 1,579 |
+| | whole turn | 1,324, 917 / 2,136, 2,227 | 957, 1,041 / 2,043, 2,084 | 1,041, 860 / 1,990, 2,102 |
+
+A kept rerun of the switched-on arm: the timed turns carried one or two
+living movements of 168-297 members and no reform yet (they are founded
+from turn 10; reforms come later). Every arm is within the run-to-run
+spread (the switch-off branch runs the base's path). Slice 2 adds per agent
+and creed a lookup in its region's list of covering reforms (empty until a
+reform is in force, then a few entries) in the census and the recruitment
+loop; leader promotion is one queued id per movement at most.
+
+### Bundle size
+
+The guard world (`tests/test_bundle.py::TestBundleSize`: seed 1, 5 civs,
+10 regions, 500 turns, agents off, every default) now has movements on
+(nothing is founded without agents). Bundle version 6, bytes of
+`chronicle_bundle.json`:
+
+| Guard world | base `e1b6a13` | branch (movements on by default) |
+| --- | ---: | ---: |
+| native, agents off | 8,276,564 (7.893 MB) | 8,277,349 (7.894 MB) |
+| no-Rust, agents off | 9,029,934 (8.612 MB) | 9,030,719 (8.612 MB) |
+| native, hybrid | 7,970,438 (7.601 MB) | 6,852,390 (6.535 MB) |
+
+Agents off: +785 bytes, the `agent_movements` field (168 KB per history
+decoded, a few hundred bytes as changes between snapshots). Hybrid: the
+movements change the world's history (the field is 259 KB decoded). The
+guard is 10.5 MB (MB here is 2^20 bytes); the no-Rust guard world stays at
+8.61 MB.
+
+### Tests and verification
+
+Tests added or changed:
+
+- `tests/test_agent_movements.py` (40 tests; offline lane chunk `systems-2`):
+  a grant enacts relief with Commons Management (enacted turn, enforcement
+  cost, the institution log) and a second grant extends it; the institution
+  runs through the governance runtime's Phase 2 and Phase 10 for real turns;
+  a reform falls with its institution (neglect, opposition); a new ruler
+  repeals once per reign and takes the institution the grant enacted; relief
+  without an institution pays upkeep until three unpaid turns end it, and the
+  merchant faction repeals it; home rule raises the city's charter, a repeal
+  revokes it, losing the region lapses it; toleration ends an Inquisition and
+  falls to a new one; a church reform is named as one; a repeal founds a
+  restoration movement inside the cooldown (and only then) whose grant
+  restores the reform; a pressing movement queues its boldest member (a
+  prophet, or a general for a soldier; none under 8 members) and installs
+  the person on promotion; a secession crowns its leader;
+  `test_new_worlds_default_on_and_resume_keeps_saved_setting`.
+- `tests/test_wave3_combined.py`: the save/load resume identity world carries
+  a lasting reform in force; the reform table is compared turn by turn and
+  every byte of the world after 15 more turns.
+- `tests/test_main.py`: three mock-bridge CLI tests pass the switch off.
+- Rust: `movements` unit tests (the reform credit by region, creed and faith,
+  the zero credit bit for bit, the census with and without reforms, covered
+  agents not recruited) and `ffi` (leaders promoted once from the queue with
+  trigger 5, unknown ids skipped, a registry full of the dead still admits a
+  leader).
+- Viewer: `lib/__tests__/movements.test.ts` (8) and three `MovementsPanel`
+  tests in `SystemsPanel.test.tsx`.
+
+Verification on the final head (Linux, Python 3.13.17, Node 22; extension
+built fresh from the branch's Rust, unchanged since `7315a81`, SHA-256
+`028c1fd1...248fc52a`, compiled submodule and classes verified):
+
+| Check | Result |
+| --- | --- |
+| `cargo test --locked` (debug info off) | 982 passed, 0 failed, 2 ignored |
+| `pytest -m "not slow" -n 2` | 6,178 passed, 3 skipped, 526 subtests |
+| `pytest -m slow -n 2` | 11 passed, 3 skipped |
+| No-Rust lane (venv without `chronicler_agents`, every test) | 5,953 passed, 228 skipped |
+| `scripts/run_python_oracle_checks.py` | PASS in 84.7 s: 2,134 passed, 28 skipped; largest chunk 32.4 s of 110 s |
+| Viewer `npm test` / `npm run lint` / `npm run build` | 38 files, 291 tests passed / clean / built (the existing large-chunk warning) |
+| Golden and exact-trajectory fixtures | unchanged |
+| Identity (switch off), resume, subset and full gates, tick time, bundle | above |
+
+Not done: browser QA of the new tab; procedural-world distributions; the
+tick benchmark with reforms in force.
+
+## Slice 1 result
+
+Slice 1 as recorded on `feat/agent-movements` (`c93e87e`, `d5e3bf5`); its
+grievance thresholds, defaults and roadmap have since changed (above).
 Subset gates (20 seeds x 200 turns, hybrid), base `ec229b5` against the
 switch on:
 
@@ -105,6 +525,10 @@ crackdowns. Guild, craft and cross-border movements are later slices
 
 ### Grievance
 
+(Slice 2 sets material 0.45 and autonomy 0.50 for the corrected needs, see
+[Calibration](#calibration-after-needs-calibration), and credits agents a
+lasting reform covers.)
+
 An adult (16+) is aggrieved for a creed when its satisfaction is below 0.45
 and the creed's need is below 0.55 (material), 0.60 (autonomy) or 0.45
 (spiritual); intensity `g` is the mean of the two normalized deficits. The
@@ -172,7 +596,8 @@ with the largest member share).
   (0.5 - legitimacy); within 0.05-0.9. Otherwise a crackdown with chance
   0.35 (+0.2 harsh traits, +0.5 x (military - 0.25), sects also +0.5 x
   (clergy - 0.25)), else a refusal.
-- **Reform.** Commons cost the treasury `8 + 40 x strength` (`keep`);
+- **Reform** (slice 2 adds the [lasting reform](#lasting-reforms)). Commons
+  cost the treasury `8 + 40 x strength` (`keep`);
   liberty costs 3 stability (`guard-shock`); a sect lowers the clergy by
   0.03. On the next tick members regain half their creed need's deficit;
   their satisfaction gains 0.08, falling to 0 over 20 turns. The movement is
@@ -272,7 +697,7 @@ its demand; a rising its refusals and crackdowns; a secession its rising),
 so the curator's recorded chain reaches the narrator; sect schisms and
 secessions use the existing `Schism` and `secession` event types.
 
-## A movement's history
+## Slice 1: a movement's history
 
 `scripts/agent_movements_report.py RUN_DIR` prints each movement's record
 with the event text the simulation wrote. Template world, seed 46, 300
@@ -334,7 +759,7 @@ Over the twelve 300-turn runs of this probe (seeds 42-53): 147 movements,
 risings (5 concessions, 7 crushed), 6 movement schisms, no secession; 47
 ended as won, 76 faded, 5 broken, 2 dissolved.
 
-## Feature-off identity
+## Slice 1 feature-off identity
 
 Base: `ec229b5` exported with `git archive` and its extension built from
 that tree (SHA-256 `46f4fa81...c52b9b`, the one city-markets recorded),
@@ -364,7 +789,7 @@ interpreter, `PYTHONHASHSEED=0`, `scripts/agent_movements_identity.py`.
    pass. In Rust, `without_a_table_the_tick_is_unchanged` compares the plain
    tick with a disabled and an enabled-but-empty runtime bit for bit.
 
-## Switch-on subset gates
+## Slice 1 switch-on subset gates
 
 `scripts/m53b_run_validation.py --profile subset --parallel 1
 --agent-movements`, compared by `validation_compare` with the base gate of
@@ -413,7 +838,7 @@ Gate head `c93e87e`; its three switch-on validation reports equal those of
 - **Extinction**: no world went extinct; polities alive at the end
   2.95 -> 3.2, 3.2 -> 3.1, 2.8 -> 2.85.
 
-## Tick time
+## Slice 1 tick time
 
 `scripts/agent_scale_benchmark.py`, seed 42, 12 regions, starting targets
 18,800 and 43,700 (about 22,800 and 54,500 alive when measured), 30 warm-up
@@ -435,7 +860,7 @@ from it by up to 5% CPU). The pass is a census, a lapse loop over members,
 and, for aggrieved adults only, a bond scan through an id map built once a
 tick; Phase 10 adds a few `bincount` passes over the rows per movement.
 
-## Bundle size
+## Slice 1 bundle size
 
 The 500-turn guard world (`tests/test_bundle.py`: seed 1, 5 civs, 10
 regions, agents off) has the switch off by default: 18.78 MB, unchanged.
@@ -444,7 +869,7 @@ MB, the `agent_movements` field 0.13 MB. The same world in hybrid mode:
 20.06 MB off, 19.10 MB on (field 0.14 MB, the rest the diverged world). All
 under the 24 MB guard.
 
-## Tests
+## Slice 1 tests
 
 - `tests/test_agent_movements.py` (30 tests, in the offline lane's
   `systems-2` chunk; the four native ones skip there): switch, dormancy and
@@ -481,7 +906,7 @@ under the 24 MB guard.
   layout; `test_a_capture_from_before_the_movement_column_is_accepted`; the
   frozen-baseline workflow comparison reads a 23-field capture.
 
-## Verification
+## Slice 1 verification
 
 Verification on `c93e87e` (Linux, Python 3.13; extension built fresh from
 the branch's Rust source, SHA-256 `cde64b3e...b5cf6a`, compiled submodule
@@ -502,16 +927,26 @@ gates are not a milestone qualification.
 
 ## Roadmap
 
+Done in slice 2: lasting reforms through governance institutions, with
+repeal and restoration; leaders as great persons, crowned by a secession;
+the viewer's Movements tab; the full gate with the switch on, now default.
+Next:
+
 1. **Information packets** as a spread channel (word of a movement crossing
-   regions with packets), and movements across borders (co-religionists and
-   kin abroad).
-2. **Lasting reforms**: a granted demand that enacts a governance
-   institution (commons management, written law, toleration of a faith)
-   instead of a one-off relief, and taxes and dues as a direct grievance.
-3. **Guilds and craft leagues** in cities: a city faction (a new
-   `FactionType`, a state change) and urban movements for charters.
-4. **Leaders**: members promoted to great persons; prophets' agendas
-   leading sects; movement leaders as rulers of the states they found.
-5. **Viewer**: a Movements tab and map layer from `history[n].agent_movements`.
-6. **Calibration**: the needs oracle's 2-4 seed drop and the rarity of
-   liberty secessions at the full gate; an `--agents off` proxy.
+   regions with packets) and movements across borders (co-religionists and
+   kin abroad). Packets share four slots per agent with threat warnings
+   that drive migration, so this needs its own gate.
+2. **Guilds and craft leagues** in cities: a city faction (a new
+   `FactionType`, a state change every faction-weighted path reads) and
+   urban movements for charters; home rule already raises charters.
+3. **Taxes and dues as a direct grievance**, and reforms that change the
+   needs themselves (granaries in a famine, officers under foreign rule)
+   rather than how a grievance reads.
+4. **Agendas for leaders**: a leader takes the agendas of its role
+   (prophet, general); an agenda of its own (lead the movement, found the
+   state) needs a great-person ambition type in the M66b kernel.
+5. **Viewer**: a map layer of strongholds and reforms by region.
+6. **Calibration**: liberty secessions stay rare (8 in 200 full-gate
+   worlds); the founding share and the cooldown are unchanged since slice 1;
+   template worlds dominate the gate, so the procedural distributions are
+   not measured here.
