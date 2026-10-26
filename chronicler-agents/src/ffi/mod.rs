@@ -272,6 +272,35 @@ impl AgentSimulator {
         Ok(())
     }
 
+    /// Agent movements: enrol a new movement's founders now. Python founds
+    /// it in Phase 10, after this turn's tick; enrolling then keeps a living
+    /// movement from standing without members until the next tick (see
+    /// `movements::seed_founding`; draws nothing). Returns (regions, counts)
+    /// of the members enrolled; nothing before the first movement table.
+    pub fn found_movement(
+        &mut self,
+        movement_id: u16,
+        creed: u8,
+        target_civ: u8,
+        region: u16,
+        founder_id: u32,
+        settlement: u16,
+    ) -> PyResult<(Vec<u16>, Vec<u32>)> {
+        if creed > crate::movements::CREED_GUILD {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!("bad creed {creed}")));
+        }
+        if !self.movements.enabled || region as usize >= self.num_regions {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        self.snapshot_cache = None; // pool changes: drop the cached snapshot
+        let mut row = crate::movements::MovementRow::new(
+            movement_id, creed, crate::movements::STAGE_GATHERING, target_civ);
+        row.settlement = settlement;
+        let enrolled = crate::movements::seed_founding(
+            &mut self.pool, &self.movements, &row, region, founder_id);
+        Ok(enrolled.into_iter().unzip())
+    }
+
     /// Agent movements: the last pass's stats, (per region, per movement).
     pub fn get_movement_stats(&self) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
         let (regions, movements) =

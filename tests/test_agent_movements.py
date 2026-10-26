@@ -58,6 +58,7 @@ class _Sim:
         self.seeds: list = []
         self.reforms: list = []
         self.leaders: list = []
+        self.foundings: list = []
 
     def get_movement_stats(self):
         rows = {"region_id": [], "adults": [], "aggrieved_commons": [], "aggrieved_liberty": [],
@@ -86,6 +87,14 @@ class _Sim:
 
     def seed_movement_members(self, batch):
         self.seeds.append(batch.to_pydict())
+
+    def found_movement(self, movement_id, creed, target, region, founder_id, settlement):
+        """As ``movements::seed_founding``: the founder, then 15% of the
+        region's adults (at least 3) from its aggrieved of the creed."""
+        self.foundings.append((movement_id, creed, target, region, founder_id, settlement))
+        aggrieved = self.aggrieved.get(region, (0, 0, 0))[creed] if creed < 3 else self.adults
+        n = min(aggrieved, max(3, math.ceil(0.15 * self.adults))) + (1 if founder_id else 0)
+        return ([region], [n]) if n else ([], [])
 
 
 def _bridge(world, aggrieved=None, rebels=None, adults=30):
@@ -225,7 +234,7 @@ def test_caps_per_ruler_and_the_creed_cooldown(monkeypatch):
     _place(world, creed=COMMONS)
     _place(world, creed=SECT)
     bridge = _bridge(world, aggrieved={THORNWOOD: (0, 12, 0), AMBER: (0, 0, 12)})
-    _tick(world, members={}, bridge=bridge)
+    _tick(world, members={(0, THORNWOOD): 4, (1, VERDANT): 4}, bridge=bridge)
     new = world.agent_movements.movements[2:]
     assert [(m.creed, m.target) for m in new] == [(SECT, KETHANI)]   # Thornwall is at its cap
     # An ended movement of the creed blocks the creed against that ruler for a while.
@@ -250,12 +259,77 @@ def test_a_great_person_carries_and_leads_and_an_idea_is_carried(monkeypatch):
     m = world.agent_movements.movements[0]
     assert m.creed == SECT and m.leader == "Brother Ansel" and m.leader_agent == 77
     assert m.idea == "movement_0" and "Brother Ansel founds" in events[0].description
+    # The founder and the most aggrieved (15% of 30 adults, 5) are enrolled
+    # at founding, so the next tick has no founding one-shot.
+    assert m.members == 6 and m.member_regions == [[THORNWOOD, 6]] and m.peak_members == 6
+    assert m.stronghold == THORNWOOD and m.strength == pytest.approx(6 / 60)
     world.turn += 1
     table = M.movement_table(world).to_pydict()
-    assert table["found_region"] == [THORNWOOD] and table["founder_id"] == [77]
+    assert table["found_region"] == [M.NO_REGION] and table["founder_id"] == [0]
     assert table["appeal"][0] == pytest.approx(M.APPEAL_LEADER * M.IDEA_APPEAL)
+
+
+class _OldSim(_Sim):
+    """A simulator without ``found_movement`` (founders seeded by the next tick)."""
+
+    def __getattribute__(self, name):
+        if name == "found_movement":
+            raise AttributeError(name)
+        return super().__getattribute__(name)
+
+
+def test_founders_join_at_founding_or_on_the_next_tick_without_the_native_call(monkeypatch):
+    monkeypatch.setattr(M, "EMERGE_CHANCE", 1.0)
+    monkeypatch.setattr(M, "EMERGE_CHANCE_CAP", 1.0)
+    world = _world()
+    bridge = _bridge(world, aggrieved={THORNWOOD: (12, 0, 0)})
+    events = _tick(world, members={}, bridge=bridge)
+    m = world.agent_movements.movements[0]
+    assert bridge._sim.foundings == [(1, COMMONS, THORNWALL, THORNWOOD, 0, 0)]
+    assert "12 of 30 people there" in events[0].description and m.members == 5
+    assert M.snapshot_summary(world)["living"][0]["members"] == 5
     world.turn += 1
-    assert M.movement_table(world).to_pydict()["found_region"] == [M.NO_REGION]
+    # Resumed on the next turn: the saved founders are re-seeded.
+    assert M.movement_seeds(world).to_pydict()["count"] == [5]
+    # Nobody free to join: no founding, no event, no counter.
+    world2 = _world()
+    bridge2 = _bridge(world2, aggrieved={THORNWOOD: (12, 0, 0)})
+    bridge2._sim.found_movement = lambda *a: ([], [])
+    assert _tick(world2, members={}, bridge=bridge2) == []
+    assert world2.agent_movements.movements == []
+    assert world2.agent_movements.counters.get("founded", 0) == 0
+    # Without the call the table seeds them on the next tick, and resume
+    # seeds leave them to it.
+    world3 = _world()
+    sim3 = _OldSim(len(world3.regions), {THORNWOOD: (12, 0, 0)})
+    bridge3 = SimpleNamespace(_sim=sim3, last_tick_unrest_by_region=lambda: ({}, {}))
+    _tick(world3, members={}, bridge=bridge3)
+    m3 = world3.agent_movements.movements[0]
+    assert m3.members == 0 and m3.peak_members == 0
+    world3.turn += 1
+    assert M.movement_table(world3).to_pydict()["found_region"] == [THORNWOOD]
+    assert M.movement_seeds(world3).num_rows == 0
+    with pytest.raises(RuntimeError, match="rebuild it"):
+        M.send_to_native(world3, SimpleNamespace(_sim=sim3))
+
+
+def test_a_movement_with_no_member_left_ends_at_once():
+    world = _world()
+    m = _place(world, member_regions=[[THORNWOOD, 4]], members=4)
+    sat = _place(world, creed=SECT, stage=SATISFIED, member_regions=[[VERDANT, 2]], members=2)
+    events = _tick(world, members={})
+    assert [e.description for e in events] == [
+        "the Test 0 fades away", "the Test 2 disbands, its demand met"]
+    assert m.stage == ENDED and m.end == FADED and sat.end == WON
+    # The founding turn itself is never ended, nor a world without agent rows.
+    fresh = _world()
+    young = _place(fresh, founded_turn=fresh.turn)
+    old = _place(fresh, creed=SECT)
+    _tick(fresh, members={})
+    assert young.stage != ENDED and old.stage == ENDED
+    off = _world()
+    kept = _place(off, members=0)
+    assert _tick(off) == [] and kept.stage != ENDED
 
 
 # --- observation, pressure, demands ---------------------------------------------
@@ -1011,6 +1085,46 @@ def test_native_founding_seeds_members_and_an_ended_movement_releases_them():
     world.turn = 4
     bridge.tick(world)
     assert _snapshot_members(bridge, 1) == 0
+
+
+@pytest.mark.native
+def test_native_founders_are_enrolled_at_founding():
+    _require_native()
+    from chronicler.agent_bridge import AgentBridge
+    world = _native_world()
+    M.set_agent_movements_enabled(world, True)
+    bridge = AgentBridge(world, mode="hybrid")
+    world.turn = 1
+    bridge.tick(world)
+    regions, _ = bridge._sim.get_movement_stats()
+    batch = pa.record_batch(regions)
+    adults = batch.column("adults").to_pylist()
+    region = max(range(len(world.regions)), key=lambda r: world.regions[r].population)
+    aggrieved = batch.column("aggrieved_commons").to_pylist()[region]
+    snap = pa.record_batch(bridge._sim.get_snapshot())
+    founder = next(i for i, r in zip(snap.column("id").to_pylist(), snap.column("region").to_pylist())
+                   if r == region)
+    civ = world.civ_index_map[world.regions[region].controller]
+    m = Movement(name="the League", creed=COMMONS, founded_turn=1, home_region=region, target=civ,
+                 regions_reached=[region], leader_agent=founder)
+    assert M._seed_founders(M._Tick(world, None, bridge, None), 0, m, adults)
+    world.agent_movements.movements.append(m)
+    # The founder joins whatever their grievance; then the most aggrieved.
+    expected = 1 + min(aggrieved, max(3, math.ceil(0.15 * adults[region])))
+    assert m.members == expected == _snapshot_members(bridge, 1)
+    assert m.member_regions == [[region, expected]] and m.stronghold == region
+    assert m.peak_members == expected and m.strength > 0
+    # The next tick founds nothing more.
+    world.turn = 2
+    assert M.movement_table(world).to_pydict()["found_region"] == [M.NO_REGION]
+    bridge.tick(world)
+    _, movements = bridge._sim.get_movement_stats()
+    assert pa.record_batch(movements).column("founded").to_pylist() == [0]
+    # Nobody free to join (the founder taken, no one aggrieved): nothing enrolled.
+    if aggrieved == 0:
+        other = Movement(name="the Other", creed=COMMONS, founded_turn=2, home_region=region,
+                         target=civ, regions_reached=[region], leader_agent=founder)
+        assert not M._seed_founders(M._Tick(world, None, bridge, None), 1, other, adults)
 
 
 @pytest.mark.native

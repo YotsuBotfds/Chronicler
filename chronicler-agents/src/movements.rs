@@ -433,6 +433,47 @@ fn seed_candidates(
     ranked.into_iter().map(|(_, _, _, slot)| slot).collect()
 }
 
+/// Founding seeds placed when Python founds the movement (Phase 10 of the
+/// founding turn, on the pool the end-of-tick census counted), so a living
+/// movement always has its founders: the founder, then FOUND_SHARE of the
+/// region's adults (at least FOUND_MIN) by `seed_candidates`. Draws
+/// nothing. Returns the members enrolled per region, by region.
+pub fn seed_founding(
+    pool: &mut AgentPool,
+    runtime: &MovementRuntime,
+    row: &MovementRow,
+    region: u16,
+    founder_id: u32,
+) -> Vec<(u16, u32)> {
+    let mut enrolled: Vec<(u16, u32)> = Vec::new();
+    if row.movement_id == 0 {
+        return enrolled;
+    }
+    let mut add = |r: u16| match enrolled.iter_mut().find(|e| e.0 == r) {
+        Some(e) => e.1 += 1,
+        None => enrolled.push((r, 1)),
+    };
+    if founder_id != 0 {
+        if let Some(slot) = pool.find_slot_by_id(founder_id) {
+            if pool.is_alive(slot) && pool.movement_ids[slot] == 0 {
+                pool.movement_ids[slot] = row.movement_id;
+                add(pool.regions[slot]);
+            }
+        }
+    }
+    let slots: Vec<usize> = (0..pool.capacity())
+        .filter(|&s| pool.is_alive(s) && pool.regions[s] == region)
+        .collect();
+    let adults = slots.iter().filter(|&&s| pool.ages[s] >= ADULT_AGE).count();
+    let size = FOUND_MIN.max((FOUND_SHARE * adults as f32).ceil() as usize);
+    for slot in seed_candidates(pool, &slots, row, false, &runtime.cover).into_iter().take(size) {
+        pool.movement_ids[slot] = row.movement_id;
+        add(region);
+    }
+    enrolled.sort_unstable();
+    enrolled
+}
+
 // ---------------------------------------------------------------------------
 // The pass
 // ---------------------------------------------------------------------------
@@ -1037,6 +1078,46 @@ mod tests {
         assert_eq!(rt.rows[0].found_region, NO_REGION);
         movement_pass(&mut pool, &regions, &mut rt, [7; 32], 4);
         assert_eq!(rt.stats.founded[0], 0);
+    }
+
+    #[test]
+    fn founding_now_enrols_what_the_next_tick_would_and_draws_nothing() {
+        // The same pool seeded at founding and by the next tick's one-shot.
+        let build = || {
+            let mut pool = AgentPool::new(32);
+            let mut slots = Vec::new();
+            for k in 0..20 {
+                slots.push(aggrieved(&mut pool, 0, -0.5 + 0.05 * k as f32));
+            }
+            let leader = content(&mut pool, 1); // the founder lives elsewhere
+            content(&mut pool, 0);
+            (pool, slots, leader)
+        };
+        let (mut now, slots, leader) = build();
+        let row = MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0);
+        let rt = runtime(vec![]);
+        let founder = now.ids[leader];
+        let enrolled = seed_founding(&mut now, &rt, &row, 0, founder);
+        // ceil(15% of 21 adults) = 4 from the most aggrieved, plus the founder.
+        assert_eq!(enrolled, vec![(0, 4), (1, 1)]);
+        assert_eq!(now.movement_ids[leader], 1);
+        for &s in &slots[16..] {
+            assert_eq!(now.movement_ids[s], 1);
+        }
+        let (mut next, _, leader2) = build();
+        let regions = vec![region(0, 0), region(1, 0)];
+        let mut row2 = MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0);
+        row2.found_region = 0;
+        row2.founder_id = next.ids[leader2];
+        let mut rt2 = runtime(vec![row2]);
+        // Recruitment off (satisfied stage): only the seeds join.
+        rt2.rows[0].stage = STAGE_SATISFIED;
+        movement_pass(&mut next, &regions, &mut rt2, [3; 32], 5);
+        assert_eq!(now.movement_ids, next.movement_ids);
+        // Members already enrolled are not taken twice; id 0 enrols nobody.
+        let again = seed_founding(&mut now, &rt, &MovementRow::new(2, CREED_COMMONS, STAGE_GATHERING, 0), 0, 0);
+        assert_eq!(again, vec![(0, 4)]);
+        assert!(seed_founding(&mut now, &rt, &MovementRow::new(0, CREED_COMMONS, 0, 0), 0, 0).is_empty());
     }
 
     #[test]

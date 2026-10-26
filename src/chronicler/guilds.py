@@ -568,7 +568,9 @@ def _threatened(t: _Tick, gi: int, guild: Guild, city, threat: int, causes, rest
         return
     from chronicler.agent_movements import found_guild_movement
     i, events = found_guild_movement(world, guild, city, THREAT_NAMES[threat], restores=restores,
-                                     causes=causes)
+                                     causes=causes, agent_bridge=t.bridge, phase10=t.phase10)
+    if i < 0:
+        return   # no aggrieved resident free to join
     t.events.extend(events)
     guild.movement = i
     _bump(t.state, "movements")

@@ -556,18 +556,18 @@ def _update(t: _Tick, i: int, m: Movement) -> None:
         _end(t, i, m, DISSOLVED, f"{m.name} dissolves: the realm it opposed is gone")
         return
     _observe_movement(t, i, m, civ)
+    if t.obs is not None and m.members == 0 and turn > m.founded_turn:
+        # No member left (observed after its founders' tick): it ends now,
+        # never standing empty until the fade count runs out.
+        _fade(t, i, m, civ)
+        return
     _record_spread(t, i, m)
     _mourn_leader(t, i, m, civ)
     _lead(t, i, m, civ)
     if turn - m.founded_turn > FOUNDING_GRACE:
         m.low_turns = m.low_turns + 1 if m.members < FADE_MEMBERS else 0
         if m.low_turns >= FADE_TURNS:
-            if m.stage == SATISFIED:
-                _end(t, i, m, WON, f"{m.name} disbands, its demand met")
-            elif m.stage == SUPPRESSED:
-                _end(t, i, m, CRUSHED, f"{m.name} is broken by {civ.name}")
-            else:
-                _end(t, i, m, FADED, f"{m.name} fades away")
+            _fade(t, i, m, civ)
             return
     if m.stage in (GATHERING, PRESSING, SUPPRESSED, RISING):
         _pressure(t, m, civ)
@@ -591,6 +591,17 @@ def _update(t: _Tick, i: int, m: Movement) -> None:
             and turn - m.founded_turn >= DEMAND_MIN_AGE
             and turn - m.last_demand >= DEMAND_INTERVAL):
         _demand(t, i, m, civ)
+
+
+def _fade(t: _Tick, i: int, m: Movement, civ) -> None:
+    """End a movement that lost its members: won when satisfied, broken
+    when suppressed, else faded."""
+    if m.stage == SATISFIED:
+        _end(t, i, m, WON, f"{m.name} disbands, its demand met")
+    elif m.stage == SUPPRESSED:
+        _end(t, i, m, CRUSHED, f"{m.name} is broken by {civ.name}")
+    else:
+        _end(t, i, m, FADED, f"{m.name} fades away")
 
 
 def _record_spread(t: _Tick, i: int, m: Movement) -> None:
@@ -1584,19 +1595,21 @@ def _emerge(t: _Tick, census) -> None:
     candidates.sort(key=lambda c: (c[0], c[1], c[2]))
     for _score, ri, creed, chance, gp, a, n, restores in candidates:
         if _rng(world, "emerge", ri, creed).random() < chance:
-            _found(t, ri, creed, gp, a, n, restores=restores)
+            if not _found(t, ri, creed, gp, a, n, adults, restores=restores):
+                continue   # every aggrieved there already belongs to a movement
             if informed is not None and informed[ri][creed]:
                 world.guilds.counters["news_foundings"] = world.guilds.counters.get("news_foundings", 0) + 1
             return
 
 
 def found_guild_movement(world: "WorldState", guild, city, threat: str, *, restores: int = -1,
-                         causes: Iterable[str | None] = ()) -> tuple[int, list]:
+                         causes: Iterable[str | None] = (), agent_bridge=None,
+                         phase10=None) -> tuple[int, list]:
     """Guilds: a threatened guild rises as a movement of the guild creed
-    against its city's lord (founded in the city's region, seeded natively
-    from its civilian residents on the next tick). Returns (movement index,
-    events)."""
-    t = _Tick(world, None, None, None)
+    against its city's lord (founded in the city's region; its founders are
+    the city's aggrieved civilian residents, enrolled at once). Returns
+    (movement index, events), (-1, []) when no resident could join."""
+    t = _Tick(world, None, agent_bridge, phase10)
     state = t.state
     ri = guild.region
     region = world.regions[ri]
@@ -1608,6 +1621,10 @@ def found_guild_movement(world: "WorldState", guild, city, threat: str, *, resto
     m = Movement(name=name, creed=GUILD, founded_turn=world.turn, home_region=ri, target=cidx,
                  faith=NO_FAITH, stage=GATHERING, stage_turn=world.turn, regions_reached=[ri],
                  restores=restores)
+    adults = t.obs.adults if t.obs is not None else None
+    settlement = guild.city if 0 < guild.city < 0xFFFF else 0
+    if not _seed_founders(t, i, m, adults, settlement=settlement):
+        return -1, []
     state.movements.append(m)
     _bump(state, "founded")
     why = {"levy": "against the new dues", "charter": "for its lost charter",
@@ -1633,8 +1650,40 @@ def _movement_name(world, creed: int, region: str, faith: str, i: int) -> str:
     return name
 
 
-def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, *,
-           restores: int = -1) -> None:
+def _seed_founders(t: _Tick, i: int, m: Movement, region_adults, *, settlement: int = 0) -> bool:
+    """Enrol a new movement's founders now (native ``found_movement``), so
+    the snapshot after its founding turn shows them: the founder and 15% of
+    the region's adults (at least 3), the most aggrieved first. Sets members,
+    regions, strength and stronghold. False when nobody could join. Without
+    the native call (an older extension) the next tick seeds them from the
+    table's founding one-shot."""
+    sim = getattr(t.bridge, "_sim", None) if t.bridge is not None else None
+    if sim is None or not hasattr(sim, "found_movement"):
+        return True
+    regions, counts = sim.found_movement(
+        i + 1, m.creed, m.target if 0 <= m.target < 255 else 255, m.home_region,
+        m.leader_agent, settlement)
+    pairs = sorted((int(r), int(c)) for r, c in zip(regions, counts) if c > 0)
+    if not pairs:
+        return False
+    m.members = sum(c for _r, c in pairs)
+    m.peak_members = m.members
+    m.member_regions = [[r, c] for r, c in pairs]
+    civ = t.civ(m.target)
+    if civ is not None and region_adults is not None:
+        held = {ri for ri, r in enumerate(t.world.regions) if r.controller == civ.name}
+        realm_adults = sum(int(region_adults[ri]) for ri in held if ri < len(region_adults))
+        realm_members = sum(c for r, c in pairs if r in held)
+        m.strength = _q(realm_members / realm_adults) if realm_adults else 0.0
+        home = _members_in(m, m.home_region)
+        n = int(region_adults[m.home_region]) if m.home_region < len(region_adults) else 0
+        if home and n:
+            m.stronghold, m.stronghold_share = m.home_region, _q(home / n)
+    return True
+
+
+def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, region_adults=None, *,
+           restores: int = -1) -> bool:
     world = t.world
     state = t.state
     region = world.regions[ri]
@@ -1650,6 +1699,8 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, *,
         idea=_idea_for(world, civ, creed), faith=faith if 0 <= faith < NO_FAITH else NO_FAITH,
         stage=GATHERING, stage_turn=world.turn, regions_reached=[ri], restores=restores,
     )
+    if not _seed_founders(t, i, m, region_adults):
+        return False
     state.movements.append(m)
     _bump(state, "founded")
     founder = f"{gp.name} founds" if gp is not None else "the discontented found"
@@ -1661,6 +1712,7 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, *,
                importance=5, region=region.name, causes=(repeal, *_region_causes(t, region.name)))
     _remember(t, i, "founded", ev)
     _note(m, world.turn, "founded", ev.event_id)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1699,7 +1751,9 @@ def movement_table(world: "WorldState"):
             if guild is not None:
                 a *= movement_appeal(world, i)
         cols["appeal"].append(a)
-        founding = m.founded_turn == turn - 1
+        # Founders not enrolled at founding (an extension without
+        # ``found_movement``, or an older save) are seeded by this tick.
+        founding = m.founded_turn == turn - 1 and m.peak_members == 0
         cols["found_region"].append(m.home_region if founding else NO_REGION)
         cols["founder_id"].append(m.leader_agent if founding else 0)
         age = turn - m.reform_turn if m.reform_turn is not None else None
@@ -1743,12 +1797,13 @@ def reform_table(world: "WorldState"):
 
 def movement_seeds(world: "WorldState"):
     """Members to re-seed per region for a native pool built fresh (a
-    resumed world): the saved members of every living movement."""
+    resumed world): the saved members of every living movement (one whose
+    founders the table's founding one-shot seeds is left to it)."""
     import pyarrow as pa
     ids, regions, counts = [], [], []
     state = world.agent_movements
     for i, m in enumerate(state.movements if state is not None else ()):
-        if m.stage == ENDED or m.founded_turn >= world.turn - 1:
+        if m.stage == ENDED or (m.founded_turn >= world.turn - 1 and m.peak_members == 0):
             continue
         for r, c in m.member_regions:
             ids.append(i + 1)
@@ -1767,10 +1822,12 @@ def send_to_native(world: "WorldState", agent_bridge) -> None:
     if not agent_movements_on(world):
         return
     sim = agent_bridge._sim
-    if not hasattr(sim, "set_movement_table") or not hasattr(sim, "set_movement_reforms"):
+    if not all(hasattr(sim, name) for name in ("set_movement_table", "set_movement_reforms",
+                                               "found_movement")):
         raise RuntimeError(
             "the installed chronicler_agents extension predates agent movements (or their "
-            "lasting reforms); rebuild it to use --agent-movements"
+            "lasting reforms, or founders enrolled at founding); rebuild it to use "
+            "--agent-movements"
         )
     if not getattr(agent_bridge, "_movements_seeded", False):
         seeds = movement_seeds(world)

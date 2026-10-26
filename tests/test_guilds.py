@@ -592,7 +592,7 @@ def _emerge_with(monkeypatch, world, informed, roll):
     """Run emergence over one candidate (commons, Thornwood, 10 of 30
     aggrieved: chance 0.05) with a fixed roll; returns the foundings."""
     founded = []
-    monkeypatch.setattr(M, "_found", lambda t, ri, creed, *a, **k: founded.append((ri, creed)))
+    monkeypatch.setattr(M, "_found", lambda t, ri, creed, *a, **k: founded.append((ri, creed)) or True)
     monkeypatch.setattr(M, "_carrier", lambda *a, **k: (None, 1.0))
     monkeypatch.setattr(M, "_rng", lambda *a, **k: SimpleNamespace(random=lambda: roll))
     nreg = len(world.regions)
