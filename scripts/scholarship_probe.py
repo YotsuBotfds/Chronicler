@@ -9,7 +9,8 @@
     and losses (the bundle's ``historiography`` field: accounts lost, and
     per loss cause the accounts that survived an episode against those lost),
     agent migrations led by the learning pull, and the seats' counters.
-    For the war losses of courts' and temples' archives it also gives the
+    The courts' and temples' accounts and the share of them lost. For the
+    war losses of courts' and temples' archives it also gives the
     accounts expected to survive with the copies kept and without the
     copies seats of learning kept (``seat_copies``), from ``SURVIVAL``.
 
@@ -112,6 +113,12 @@ def seed_metrics(run: Path) -> dict:
     out["war_loss_seat_expected"] = expect
     out["war_loss_seat_expected_without"] = expect_without
     out["seat_chroniclers"] = sum(1 for c in hist.get("chroniclers", []) if c.get("kind") == "seat")
+    # The courts' and temples' own accounts (every loss cause), lost share.
+    kept_by = [c for c in hist.get("chroniclers", []) if c.get("kind") != "seat"]
+    written = sum(c.get("accounts", 0) for c in kept_by)
+    out["court_temple_accounts"] = written
+    out["court_temple_lost_share"] = (
+        1.0 - sum(c.get("surviving", 0) for c in kept_by) / written if written else 0.0)
     moves = _learning_moves(run / "agent_events.arrow")
     if moves is not None:
         out["learning_moves"] = moves
