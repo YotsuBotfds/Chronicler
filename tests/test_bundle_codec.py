@@ -274,7 +274,7 @@ class TestRealRun:
             seed_dir = tmp_path / tag / "seed_1"
             seed_dir.mkdir(parents=True)
             (seed_dir / "chronicle_bundle.json").write_text(text, encoding="utf-8")
-            report = run_oracles(tmp_path / tag, ["era", "arcs", "regression", "artifacts"])
+            report = run_oracles(tmp_path / tag, ["era", "arcs", "regression", "artifacts"], legacy_batch=True)
             report.pop("batch_dir")
             reports.append(report)
             seed_runs.append([{k: v for k, v in run.items() if k not in ("bundle_path", "seed_dir")}

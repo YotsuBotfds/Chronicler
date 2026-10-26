@@ -33,7 +33,7 @@ REQUIRED_ORACLES_BY_PROFILE = {
 
 PROFILE_CHOICES = tuple(REQUIRED_ORACLES_BY_PROFILE)
 
-# Needs oracle method 3 (docs/integration/needs-followups.md): the binding
+# Needs oracle methods 3 and 4 (docs/integration/needs-followups.md): the binding
 # component decides PASS only in these profiles. A subset has about 200
 # informative binding pairs and its bound sits within one or two standard
 # errors of zero, so elsewhere it is reported as informational.
@@ -75,7 +75,7 @@ def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str
     """Needs status under ``profile`` and, when the binding component fails
     but is informational there, an informational item for it.
 
-    A method 3 result counts its binding component only in
+    A method 3 or later result counts its binding component only in
     ``NEEDS_BINDING_REQUIRED_PROFILES``, whatever profile it was scored for
     (``binding_required`` records that). Other results keep their status.
     """
@@ -233,6 +233,19 @@ def _oracle_statuses(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return statuses
 
 
+def batch_manifest_summary(report: dict[str, Any]) -> str:
+    """One line on whether the report's batch was checked against its manifest."""
+    manifest = report.get("batch_manifest")
+    if not isinstance(manifest, dict):
+        return "not recorded (the report predates batch manifests; its runs were not checked)"
+    status = manifest.get("status")
+    if status == "verified":
+        seeds = manifest.get("seeds")
+        count = len(seeds) if isinstance(seeds, list) else "?"
+        return f"verified ({count} runs x {manifest.get('turns')} turns)"
+    return f"{status} ({manifest.get('reason') or 'runs not checked'})"
+
+
 def build_gate_decision_payload(
     decision: dict[str, Any],
     report: dict[str, Any],
@@ -255,6 +268,7 @@ def build_gate_decision_payload(
         "informational_non_pass": decision["informational_non_pass"],
         "oracle_statuses": oracle_statuses,
         "require_strict_regression": decision.get("require_strict_regression", False),
+        "batch_manifest": batch_manifest_summary(report),
     }
 
 
@@ -302,6 +316,7 @@ def format_gate_markdown(
         lines.append(f"**Report:** `{report_path}`")
     if report.get("batch_dir"):
         lines.append(f"**Batch:** `{report['batch_dir']}`")
+    lines.append(f"**Batch manifest:** {_markdown_cell(batch_manifest_summary(report))}")
     lines.extend(["", "## Required failures", ""])
     lines.extend(_markdown_table(decision["required_failures"]))
     lines.extend(["", "## Informational non-PASS", ""])
@@ -462,6 +477,7 @@ __all__ = [
     "NEEDS_BINDING_REQUIRED_PROFILES",
     "ValidationGateInputError",
     "adjudicate_validation_report",
+    "batch_manifest_summary",
     "build_gate_decision_payload",
     "format_gate_failure",
     "format_gate_markdown",

@@ -12,6 +12,12 @@ Worlds (``--worldgen``):
 - procedural: heightmap/Voronoi geography with a fixed region and civ count
   per seed (``PROCEDURAL_WORLD``); its own seed and turn defaults
   (``PROCEDURAL_PROFILE_DEFAULTS``). See docs/integration/procedural-gates.md.
+
+Every profile writes a new batch directory under ``--output-root`` (a used
+one is refused before anything runs) with its ``batch_manifest.json``, which
+``chronicler.validate`` checks; a baseline report of another cohort is
+compared only with ``--exploratory-comparison``.
+See docs/integration/validation-integrity.md.
 """
 from __future__ import annotations
 
@@ -34,6 +40,17 @@ from chronicler.artifact_io import (
     atomic_write_text,
     strict_json_dumps,
     strict_json_loads,
+)
+from chronicler.batch_manifest import (
+    BUNDLE_FILENAME,
+    MANIFEST_FILENAME,
+    BatchDestinationError,
+    check_batch_destination,
+    finish_batch_manifest,
+    new_batch_manifest,
+    prepare_batch_dir,
+    record_batch_run,
+    write_batch_manifest,
 )
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
@@ -344,10 +361,45 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
     return _batch_dir_for(output_root, args.seed_start)
 
 
+def _determinism_manifest_args(args: argparse.Namespace, agents: str) -> argparse.Namespace:
+    """The run arguments of a determinism pair, for its batch manifest."""
+    run_args = argparse.Namespace(**vars(args))
+    run_args.agents = agents
+    run_args.simulate_only = True
+    run_args.validation_sidecar = agents == "hybrid"
+    if (getattr(args, "worldgen", None) or "template") != "procedural":
+        run_args.worldgen = run_args.regions = run_args.civs = None
+    run_args.parallel = None
+    return run_args
+
+
+def _bundle_total_turns(seed_dir: Path) -> int | None:
+    try:
+        metadata = json.loads((seed_dir / BUNDLE_FILENAME).read_text(encoding="utf-8")).get("metadata", {})
+    except (OSError, ValueError):
+        return None
+    turns = metadata.get("total_turns") if isinstance(metadata, dict) else None
+    return turns if isinstance(turns, int) and not isinstance(turns, bool) else None
+
+
+def _profile_batch_dir(args: argparse.Namespace) -> Path:
+    """The batch directory the selected profile writes."""
+    if args.profile == "subset":
+        return _batch_dir_for(args.output_root / "oracle_subset", args.seed_start)
+    if args.profile == "full":
+        return _batch_dir_for(args.output_root / "full_gate", args.seed_start)
+    agents = "off" if args.profile == "determinism-off" else "hybrid"
+    return args.output_root / f"determinism_{agents}" / "batch_42"
+
+
 def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], agents: str) -> Path:
     output_root = args.output_root / f"determinism_{agents}"
     batch_dir = output_root / "batch_42"
-    for suffix in ("a", "b"):
+    prepare_batch_dir(batch_dir)
+    run_dirs = ["seed_42_a", "seed_42_b"]
+    manifest = new_batch_manifest(_determinism_manifest_args(args, agents), [42, 42], run_dirs=run_dirs)
+    write_batch_manifest(batch_dir, manifest)
+    for index, suffix in enumerate(("a", "b")):
         seed_dir = batch_dir / f"seed_42_{suffix}"
         seed_dir.mkdir(parents=True, exist_ok=True)
         cmd = [
@@ -387,6 +439,8 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
+        record_batch_run(batch_dir, manifest, index, _bundle_total_turns(seed_dir))
+    finish_batch_manifest(batch_dir, manifest)
     return batch_dir
 
 
@@ -525,6 +579,7 @@ def compare_batch_report(
     *,
     require_strict_regression: bool = False,
     fail_on_regression: bool = False,
+    exploratory: bool = False,
 ) -> dict[str, Any]:
     try:
         baseline = load_validation_report(baseline_report)
@@ -535,6 +590,7 @@ def compare_batch_report(
             current,
             require_strict_regression=require_strict_regression,
             fail_on_regression=fail_on_regression,
+            exploratory=exploratory,
         )
     except ValidationGateInputError as exc:
         return _comparison_error_result(
@@ -554,10 +610,11 @@ def compare_batch_report(
     atomic_write_text(comparison_summary_path, format_comparison_markdown(comparison))
     print(f"Validation comparison decision written to {comparison_path}")
     print(f"Validation comparison summary written to {comparison_summary_path}")
+    label = "EXPLORATORY " if comparison.get("exploratory") else ""
     if comparison["regression_detected"]:
-        print("Validation comparison: REGRESSION " + ",".join(comparison["regression_reasons"]))
+        print(f"Validation comparison: {label}REGRESSION " + ",".join(comparison["regression_reasons"]))
     else:
-        print("Validation comparison: NO REGRESSION")
+        print(f"Validation comparison: {label}NO REGRESSION (no newly failing required gates)")
     return {
         "comparison_path": comparison_path,
         "comparison_summary_path": comparison_summary_path,
@@ -575,6 +632,7 @@ def validate_batch(
     require_strict_regression: bool = False,
     baseline_report: Path | None = None,
     fail_on_regression: bool = False,
+    exploratory_comparison: bool = False,
 ) -> dict[str, Any]:
     report_path = batch_dir / report_name
     decision_path = batch_dir / f"gate_decision_{profile}.json"
@@ -625,12 +683,15 @@ def validate_batch(
             batch_dir,
             require_strict_regression=require_strict_regression,
             fail_on_regression=fail_on_regression,
+            exploratory=exploratory_comparison,
         )
+    manifest_entry = report.get("batch_manifest")
     result = {
         "report_path": report_path,
         "decision_path": decision_path,
         "summary_path": summary_path,
         "decision": decision_payload,
+        "batch_manifest_status": manifest_entry.get("status") if isinstance(manifest_entry, dict) else None,
     }
     result.update(comparison_result)
     return result
@@ -784,12 +845,24 @@ def main() -> None:
         action="store_true",
         help="When --baseline-report is set, exit 2 for comparator-detected regressions.",
     )
+    parser.add_argument(
+        "--exploratory-comparison",
+        action="store_true",
+        help="When --baseline-report is set, compare even if the baseline measured a different cohort "
+             "(seeds, turns, world, simulation configuration); the comparison is labelled exploratory.",
+    )
     parsed = parser.parse_args()
     if parsed.worldgen != "procedural" and (parsed.regions is not None or parsed.civs is not None):
         parser.error("--regions and --civs require --worldgen procedural")
     args = apply_profile_defaults(parsed)
     if args.fail_on_regression and args.baseline_report is None:
         parser.error("--fail-on-regression requires --baseline-report")
+    if args.exploratory_comparison and args.baseline_report is None:
+        parser.error("--exploratory-comparison requires --baseline-report")
+    try:
+        check_batch_destination(_profile_batch_dir(args))
+    except BatchDestinationError as exc:
+        parser.error(str(exc))
 
     cwd = Path.cwd()
     env = _build_env()
@@ -805,6 +878,7 @@ def main() -> None:
             require_strict_regression=args.require_strict_regression,
             baseline_report=args.baseline_report,
             fail_on_regression=args.fail_on_regression,
+            exploratory_comparison=args.exploratory_comparison,
         )
     elif args.profile == "full":
         batch_dir = run_full(args, cwd, env)
@@ -817,6 +891,7 @@ def main() -> None:
             require_strict_regression=args.require_strict_regression,
             baseline_report=args.baseline_report,
             fail_on_regression=args.fail_on_regression,
+            exploratory_comparison=args.exploratory_comparison,
         )
     elif args.profile == "determinism-off":
         batch_dir = run_determinism(args, cwd, env, "off")
@@ -829,6 +904,7 @@ def main() -> None:
             require_strict_regression=args.require_strict_regression,
             baseline_report=args.baseline_report,
             fail_on_regression=args.fail_on_regression,
+            exploratory_comparison=args.exploratory_comparison,
         )
     else:
         batch_dir = run_determinism(args, cwd, env, "hybrid")
@@ -841,6 +917,7 @@ def main() -> None:
             require_strict_regression=args.require_strict_regression,
             baseline_report=args.baseline_report,
             fail_on_regression=args.fail_on_regression,
+            exploratory_comparison=args.exploratory_comparison,
         )
 
     comparison = validation_result.get("comparison")
@@ -882,10 +959,13 @@ def main() -> None:
         "fail_on_regression": args.fail_on_regression,
         "comparison_path": str(validation_result["comparison_path"]) if comparison is not None else None,
         "comparison_summary_path": str(validation_result["comparison_summary_path"]) if comparison is not None else None,
+        "batch_manifest_path": str(batch_dir / MANIFEST_FILENAME),
+        "batch_manifest_status": validation_result.get("batch_manifest_status"),
+        "exploratory_comparison": args.exploratory_comparison,
         "comparison_status": (
             "ERROR" if comparison and comparison.get("status") == "ERROR"
-            else "REGRESSION" if comparison and comparison["regression_detected"]
-            else "NO_REGRESSION" if comparison else None
+            else ("EXPLORATORY_" if comparison and comparison.get("exploratory") else "")
+            + ("REGRESSION" if comparison["regression_detected"] else "NO_REGRESSION") if comparison else None
         ),
         "comparison_exit_code": comparison["exit_code"] if comparison is not None else None,
         "comparison_reasons": comparison["regression_reasons"] if comparison is not None else [],

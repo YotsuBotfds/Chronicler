@@ -106,6 +106,21 @@ python scripts/m53b_run_validation.py --profile subset --worldgen procedural --p
 python scripts/m53b_run_validation.py --profile full --worldgen procedural --parallel 3 --output-root output/m53/procedural-full
 ```
 
+A batch (`--batch`, `--seed-range`, the gate runner, Batch Lab) writes
+`batch_<first seed>` next to `--output` and refuses a directory that already
+holds files: use a new `--output-root` for every gate. Its
+`batch_manifest.json` records the expected seeds and turns, the requested
+simulation configuration, the source revision and package digest, the native
+extension's SHA-256, the interpreter and thread environment, and the SHA-256
+of every file the validator reads. `python -m chronicler.validate` refuses a
+directory whose bundles, horizons or validation inputs differ from its
+manifest; `--legacy-batch` validates a directory written before manifests
+without checking its runs. `python -m chronicler.validation_compare` refuses
+reports of different seeds, turns, worlds, simulation configuration or
+profile unless `--exploratory` (the runner's `--exploratory-comparison`), and
+NO REGRESSION means no newly failing required gate, not unchanged
+distributions. See `docs/integration/validation-integrity.md`.
+
 ## Continuing on another machine
 
 Fetch the continuation, create a personal branch from its current remote SHA,
