@@ -1,5 +1,10 @@
 # Needs calibration (2026-10)
 
+> Follow-ups in [`needs-followups.md`](needs-followups.md): needs oracle
+> method 3 (a required binding component that reads the terms), newborns
+> start from the birth parent's needs, and a move no longer blocks autonomy
+> restoration. The open items of §4 and §10 on these three point there.
+
 Branch `fix/needs-calibration` from `origin/main` `48b72be`, merged with
 `feat/hunger-mortality` (PR #32), `fix/needs-oracle-power` (PR #33) and
 `feat/farmland-climate` (PR #34) through `main` `ea08126`, without rebase.
@@ -440,16 +445,19 @@ test-only changes after it):
 
 ## 10. Open
 
-- **The oracle does not see the terms** (§4). Candidates for an oracle
-  change, not made here: count a pair only when its lower agent is below
+- **The oracle does not see the terms** (§4; addressed by method 3,
+  `needs-followups.md` §1). Candidates for an oracle change, not made here: count a pair only when its lower agent is below
   the threshold (terms on +0.27 against off +0.08 on these subsets), match
   within the condition (famine, war zone, persecution) as well as the
   cell, or run a terms-off control arm in the gate.
-- **Newborns start every need at 0.5**, so needs still carry age.
+- **Newborns start every need at 0.5**, so needs still carry age
+  (addressed: newborns start from the birth parent's needs,
+  `needs-followups.md` §2).
   Fixed-point newborns removed that channel but cost the strict PASS with
   the terms on.
 - **Autonomy in good conditions** binds 5.7%, mostly the five-turn block
-  on restoration after each move, unchanged from base.
+  on restoration after each move, unchanged from base (addressed: the
+  block is gone, `needs-followups.md` §3).
 - **Material** raises the will to move, not the pull of any destination;
   where a whole world starves, its push has nowhere better to send people.
 - **Safety** has few pairs below the threshold (war zones are 3.7% of
