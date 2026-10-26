@@ -722,7 +722,8 @@ def _found_academies(t: _Tick) -> None:
         region = world.regions[ri]
         add_stat(t, civ, "treasury", -ACADEMY_FEE, "keep")
         _bump(t.state, "fees", ACADEMY_FEE)
-        seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci, region.majority_belief)
+        # The court's scholars keep the court's faith.
+        seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci, civ.civ_majority_faith)
         ruler = f"{civ.leader.name} of {civ.name}" if civ.leader is not None else civ.name
         ev = _emit(t, "seat_founded", [civ.name],
                    f"{ruler} founds {seat.name} at the court in {region.name}", importance=5,
@@ -739,6 +740,11 @@ def _found_schools(t: _Tick) -> None:
             continue
         temple = _any_temple(region)
         if temple is None or temple.temple_prestige < SCHOOL_PRESTIGE + SCHOOL_COST:
+            continue
+        # A temple of the realm's own faith (one of another faith is the
+        # first a ruler replaces or persecutes).
+        ruler = t.civ(t.lord_of(region))
+        if ruler is None or temple.faith_id != ruler.civ_majority_faith:
             continue
         if _persecuted(region, temple.faith_id):
             continue

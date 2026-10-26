@@ -274,6 +274,16 @@ def test_a_prestigious_temple_founds_a_school_paid_in_prestige(monkeypatch):
     assert "the Faith of Thornwall open the Temple School of Thornwood" in events[0].description
 
 
+def test_no_school_at_a_temple_of_another_faith_than_the_realms(monkeypatch):
+    _no_draw(monkeypatch)
+    world = _world()
+    for civ in world.civilizations:
+        civ.treasury = 0
+    _temple(world.regions[THORNWOOD], 1, prestige=100)   # Kethani faith under Thornwall
+    _tick(world)
+    assert world.scholarship.seats == []
+
+
 def test_a_rich_city_founds_a_library_from_its_purse(monkeypatch):
     _no_draw(monkeypatch)
     world = _world()
