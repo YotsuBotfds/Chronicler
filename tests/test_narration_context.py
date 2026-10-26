@@ -62,6 +62,17 @@ def test_events_recorded_without_a_description_get_a_label():
     assert nc.event_text(_ev(3, "strange_new_thing", ["A"], desc="", region="R")) == "Strange new thing in A (R)"
 
 
+def test_the_label_historiography_writes_with_is_unchanged():
+    """historiography writes its accounts during the run with curator.event_label:
+    its text is saved output, so narration's labels must not leak into it."""
+    from chronicler.curator import event_label
+    assert event_label(_ev(3, "famine", desc="Famine strikes R.")) == "Famine strikes R."
+    assert event_label(_ev(3, "drought", ["A", "B"], desc="")) == "drought strikes A and B"
+    assert event_label(_ev(3, "proxy_detected", ["A", "B"], desc="")) == "proxy detected in A, B"
+    assert event_label(_ev(3, "mass_migration", desc="12 farmers fled Hills for Plains")) == \
+        "12 farmers fled Hills for Plains"
+
+
 def test_a_recorded_description_is_kept_without_its_full_stop():
     assert nc.event_text(_ev(3, "famine", desc="Famine strikes R, devastating A.")) == \
         "Famine strikes R, devastating A"
@@ -78,6 +89,18 @@ def test_misleading_descriptions_say_no_more_than_the_record():
     assert nc.event_text(driven) == "12 farmers fled hunger in Hills for Plains"
     scholars = _ev(3, "brain_drain", desc="6 scholars fled Hills over 10 turns")
     assert nc.event_text(scholars) == "6 scholars left Hills over 10 turns"
+    faithful = _ev(3, "Mass Migration",
+                   desc="Religious minorities flee Hills due to persecution (minority_ratio=0.43)")
+    assert nc.event_text(faithful) == ("Persecution presses the religious minorities of Hills "
+                                       "(43% of its people) to flee")
+
+
+def test_a_temple_recorded_by_faith_id_is_named_by_its_faith():
+    ev = _ev(9, "temple_destroyed", desc="Temple of faith 3 replaced in Ashara Desert")
+    assert nc.event_text(ev, {3: "Faith of Thornwall"}) == \
+        "The temple of the Faith of Thornwall is replaced in Ashara Desert"
+    assert nc.event_text(ev) == "Temple of faith 3 replaced in Ashara Desert"  # no registry: as recorded
+    assert nc.event_text(ev, {4: "Other"}) == "Temple of faith 3 replaced in Ashara Desert"
 
 
 def test_a_prompt_line_names_the_migration_driver_and_unnamed_actors():
@@ -294,3 +317,62 @@ def test_a_lone_catastrophe_is_curated_against_long_routine_chains():
     moments, _ = curate(events, [], [], budget=2, seed=0)
     assert any(e.event_type == "supervolcano" for m in moments for e in m.events)
     assert 0 < CHAIN_CURATION_WEIGHT < 1
+
+
+# --- agent context ---------------------------------------------------------------
+
+def test_agent_context_keeps_the_moment_s_characters():
+    """Characters the events name, then active characters of the civs involved;
+    not every active character of the world."""
+    from chronicler.models import GreatPerson
+    from chronicler.narrative import build_agent_context_for_moment
+
+    def gp(name, civ, agent_id, active=True):
+        return GreatPerson(name=name, role="general", trait="bold", civilization=civ,
+                           origin_civilization=civ, born_turn=0, source="agent", agent_id=agent_id,
+                           active=active)
+
+    events = [_ev(5, "local_rebellion", ["Named Rebel"], imp=7, source="agent", civs=["A"])]
+    people = [gp("Elsewhere", "Z", 1), gp("Of A", "A", 2), gp("Named Rebel", "A", 3, active=False)]
+    ctx = build_agent_context_for_moment(_moment(events), people, {})
+    assert [c["name"] for c in ctx.named_characters] == ["Named Rebel", "Of A"]
+
+
+# --- scripts ----------------------------------------------------------------------
+
+def test_prompt_report_counts_listed_turning_points():
+    from scripts.narration_prompts import impact_ranking, summarize
+
+    events = [
+        {"turn": 1, "event_type": "war_declared", "actors": ["A"], "importance": 8, "event_id": "1:w:0"},
+        {"turn": 2, "event_type": "war", "actors": ["A"], "importance": 6, "event_id": "2:w:0",
+         "causes": ["1:w:0"]},
+        {"turn": 3, "event_type": "famine_ended", "actors": ["A"], "importance": 9, "event_id": "3:e:0",
+         "episode": "end"},
+    ]
+    assert [e["event_type"] for _s, e in impact_ranking(events)] == ["war_declared", "war"]
+    records = [{"prompt": "x" * 400, "system": "", "event_ids": ["1:w:0", "2:w:0"],
+                "shown_event_ids": ["1:w:0"], "event_types": ["war_declared", "war"]}]
+    out = summarize(records, {"events_timeline": events, "named_events": []}, top=5)
+    assert out["turning_points"] == 1 and out["turning_points_listed"] == 1
+    assert out["tokens_max_est"] == 100 and out["event_lines"] == 1
+
+
+def test_narration_identity_ignores_only_the_narration(tmp_path):
+    import json
+
+    from scripts.narration_identity import compare
+
+    for side, text in (("base", "old prose"), ("new", "new prose")):
+        d = tmp_path / side
+        d.mkdir()
+        (d / "chronicle.md").write_text(text)
+        (d / "state.json").write_text('{"turn": 3}')
+        bundle = {"metadata": {"generated_at": side}, "events_timeline": [], "history": [],
+                  "chronicle_entries": [{"narrative": text}], "gap_summaries": []}
+        (d / "chronicle_bundle.json").write_text(json.dumps(bundle))
+    checked, problems = compare(tmp_path / "base", tmp_path / "new")
+    assert checked == 2 and problems == []
+    (tmp_path / "new" / "state.json").write_text('{"turn": 4}')
+    checked, problems = compare(tmp_path / "base", tmp_path / "new")
+    assert len(problems) == 1 and problems[0].startswith("differs: state.json")

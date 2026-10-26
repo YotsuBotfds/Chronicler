@@ -69,20 +69,30 @@ _SAME_CAPITAL = re.compile(r"^(?P<civ>.+) relocated capital from (?P<old>.+) to 
 # is not known to be flight.
 _UNDRIVEN_FLIGHT = re.compile(r"^(?P<count>\d+) (?P<who>\w+) fled (?P<rest>.+ for .+)$")
 _SCHOLARS_FLED = re.compile(r"^(?P<count>\d+) scholars fled (?P<rest>.+)$")
+# religion.py records "Mass Migration" when the persecuted share of a region
+# passes a threshold; it counts no one leaving.
+_FAITHFUL_FLEE = re.compile(r"^Religious minorities flee (?P<region>.+) due to persecution "
+                            r"\(minority_ratio=(?P<ratio>[\d.]+)\)$")
+# infrastructure.py names a temple's faith by its id.
+_TEMPLE_OF_FAITH = re.compile(r"^Temple of faith (?P<id>\d+) (?P<what>destroyed|replaced) in (?P<region>.+)$")
 
 
 def _words(event_type: str) -> str:
     return event_type.replace("_", " ").strip().lower()
 
 
-def event_text(ev: "Event") -> str:
+def event_text(ev: "Event", faiths: dict[int, str] | None = None) -> str:
     """The event's narrator line, without a trailing full stop.
 
+    With ``faiths`` (faith id -> name, from ``world.belief_registry``) a
+    temple recorded by faith id is named by its faith.
+
     The recorded description, or a label for types recorded without one.
-    Three recorded descriptions are reworded to say no more than the record:
+    Four recorded descriptions are reworded to say no more than the record:
     a capital "relocated" to the region it already stood in (the cost was paid,
     the seat did not move), a mass migration without a recorded driver (it
-    "left", not "fled"), and scholars who migrated (they "left").
+    "left", not "fled"), scholars who migrated (they "left"), and religious
+    minorities said to "flee" where the record is only their persecuted share.
     """
     desc = (ev.description or "").strip()
     if desc:
@@ -98,6 +108,17 @@ def event_text(ev: "Event") -> str:
             m = _SCHOLARS_FLED.match(desc)
             if m:
                 return f"{m.group('count')} scholars left {m.group('rest')}".rstrip(".")
+        elif ev.event_type == "temple_destroyed" and faiths:
+            m = _TEMPLE_OF_FAITH.match(desc)
+            name = faiths.get(int(m.group("id"))) if m else None
+            if m and name:
+                return f"The temple of the {name} is {m.group('what')} in {m.group('region')}"
+        elif ev.event_type == "Mass Migration":
+            m = _FAITHFUL_FLEE.match(desc)
+            if m:
+                share = round(100 * float(m.group("ratio")))
+                return (f"Persecution presses the religious minorities of {m.group('region')} "
+                        f"({share}% of its people) to flee")
         return desc.rstrip(".").rstrip()
     actors = [a for a in ev.actors if a]
     template = EVENT_LABELS.get(ev.event_type)
@@ -335,11 +356,11 @@ def places_of(events: Sequence["Event"]) -> list[str]:
     return out
 
 
-def render_prompt_line(line: PromptLine) -> str:
+def render_prompt_line(line: PromptLine, faiths: dict[int, str] | None = None) -> str:
     """``- [turn 31] famine: Famine strikes X, devastating Y (importance 8; 2 more
     reports: Thornwood, Amber Valley)``."""
     ev = line.event
-    text = event_text(ev)
+    text = event_text(ev, faiths)
     notes = [f"importance {ev.importance}"]
     driver = getattr(ev, "driver", None)
     if driver:

@@ -24,11 +24,8 @@ from chronicler.models import (
     TurnSnapshot,
 )
 from chronicler.narration_context import (
-    EVENT_LABELS,
-    ROUTINE_TYPES,
     TURNING_POINT_IMPORTANCE,
     event_text,
-    is_bookkeeping,
     is_routine,
 )
 from chronicler.utils import stable_hash_int
@@ -524,14 +521,41 @@ def compute_causal_links(
     return links
 
 
-# Labels for events recorded without a description (hazard rolls, native
-# politics triggers) live in ``narration_context.EVENT_LABELS``.
-_HAZARD_LABELS = EVENT_LABELS
+# Labels for hazard-rolled events, which carry no description (the narrator
+# fills it in): "{a}" is the first actor, "{b}" the second, "{all}" all.
+# The historiography layer writes its accounts during the run with
+# ``event_label``, so its text is part of the run's saved output: keep it as
+# it is. Narration reads ``narration_context.event_text`` (more labels and
+# corrections) instead.
+_HAZARD_LABELS: dict[str, str] = {
+    "drought": "drought strikes {all}",
+    "plague": "plague strikes {all}",
+    "earthquake": "an earthquake shakes {all}",
+    "border_incident": "a border incident between {a} and {b}",
+    "rebellion": "rebellion breaks out in {a}",
+    "migration": "a wave of emigration leaves {a}",
+    "religious_movement": "a religious movement stirs {a}",
+    "discovery": "{a} makes a discovery",
+    "cultural_renaissance": "a cultural renaissance flowers in {a}",
+    "leader_death": "the ruler of {a} dies",
+}
 
 
 def event_label(ev: Event) -> str:
-    """A readable one-line label (``narration_context.event_text``)."""
-    return event_text(ev)
+    """A readable one-line label (hazard events carry no description).
+
+    Read by the historiography layer while the run is observed: its output
+    must not change. Narration uses ``narration_context.event_text``.
+    """
+    if ev.description:
+        return ev.description
+    actors = [a for a in ev.actors if a]
+    template = _HAZARD_LABELS.get(ev.event_type)
+    if template is not None and actors:
+        return template.format(a=actors[0], b=actors[1] if len(actors) > 1 else "its neighbours",
+                               all=" and ".join(actors))
+    what = ev.event_type.replace("_", " ")
+    return f"{what} in {', '.join(actors)}" if actors else what
 
 
 def build_causal_chain(graph: CauseGraph, j: int) -> CausalChain:
@@ -541,7 +565,7 @@ def build_causal_chain(graph: CauseGraph, j: int) -> CausalChain:
         ev = graph.events[i]
         steps.append(ChainStep(
             event_id=ev.event_id, turn=ev.turn, event_type=ev.event_type,
-            description=event_label(ev), region=ev.region or ev.shock_region,
+            description=event_text(ev), region=ev.region or ev.shock_region,
         ))
     return CausalChain(steps=steps)
 

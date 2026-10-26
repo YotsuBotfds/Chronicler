@@ -973,8 +973,8 @@ def _landmark_line(ne: NamedEvent) -> str:
     return f"{ne.name} (turn {ne.turn}): {desc}"
 
 
-def _mechanical_sentence(line) -> str:
-    text = nc.event_text(line.event)
+def _mechanical_sentence(line, faiths: dict[int, str] | None = None) -> str:
+    text = nc.event_text(line.event, faiths)
     if line.folded:
         places = [p for p in nc.places_of(line.folded) if p != (line.event.region or line.event.shock_region)]
         if places:
@@ -1006,7 +1006,8 @@ def _entry_for(moment: NarrativeMoment, narrative: str,
 
 def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
                          accounts=None, names=None, glossed: set | None = None,
-                         type_counts: dict[str, int] | None = None) -> str:
+                         type_counts: dict[str, int] | None = None,
+                         faiths: dict[int, str] | None = None) -> str:
     """No-LLM chronicle text for a moment: its event descriptions, then the
     recorded causal chains behind them ("... because ..."), then, with an
     ``accounts`` index (``historiography.AccountIndex``), how the world's own
@@ -1016,7 +1017,7 @@ def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
     The events are the ones a prompt lists (``narration_context``), each a
     sentence."""
     lines, _omitted, listed = _listed_events(moment, type_counts)
-    sentences = [_mechanical_sentence(line) for line in lines]
+    sentences = [_mechanical_sentence(line, faiths) for line in lines]
     text = " ".join(sentences) if sentences else "Events unfolded."
     because = [s for s in (render_because(c, told) for c in moment.causal_chains) if s]
     if because:
@@ -1053,6 +1054,12 @@ class NarrativeEngine:
         self.narrative_client = narrative_client
         self.event_flavor = event_flavor
         self.narrative_style = narrative_style
+
+    def _faiths(self) -> dict[int, str] | None:
+        """Faith id -> name from the world's belief registry (None without a world)."""
+        world = getattr(self, "_world", None)
+        registry = getattr(world, "belief_registry", None) if world is not None else None
+        return {b.faith_id: b.name for b in registry} if registry else None
 
     def _type_counts(self) -> dict[str, int] | None:
         """The run's count of each event kind (set by the last prompt build)."""
@@ -1169,6 +1176,7 @@ class NarrativeEngine:
         timeline = nc.TimelineView(recorded)
         self._timeline = timeline
         type_counts = timeline.type_counts
+        faiths = self._faiths()
 
         # M50b: Build gp_by_agent_id for bond-source narration
         gp_by_agent_id: dict | None = None
@@ -1209,7 +1217,7 @@ class NarrativeEngine:
                         consequences.append(c)
 
             lines, omitted, listed = _listed_events(moment, type_counts)
-            event_text = "".join(f"\n{nc.render_prompt_line(line)}" for line in lines)
+            event_text = "".join(f"\n{nc.render_prompt_line(line, faiths)}" for line in lines)
             if omitted:
                 event_text += f"\n{nc.render_omitted(omitted)}"
 
@@ -1229,7 +1237,7 @@ class NarrativeEngine:
             if later:
                 causal_text += "\n\nLATER CONSEQUENCES recorded by the simulation (after these turns):\n"
                 for ev in later:
-                    causal_text += f"- [turn {ev.turn}] {nc.event_text(ev)}\n"
+                    causal_text += f"- [turn {ev.turn}] {nc.event_text(ev, faiths)}\n"
             if causes:
                 causal_text += "\n\nCAUSES leading to this moment:\n"
                 for c in causes[:_MAX_PATTERN_LINKS]:
@@ -1386,7 +1394,8 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         noted: set[str] = set()  # archive losses already told, in chronicle order
         glossed: set = set()  # entities whose names were glossed, in chronicle order
         for idx, moment in enumerate(moments):
-            text = mechanical_narrative(moment, told, type_counts=self._type_counts())
+            text = mechanical_narrative(moment, told, type_counts=self._type_counts(),
+                                        faiths=self._faiths())
             listed = _listed_events(moment, self._type_counts())[2]
             ids: list[str] = []
             if accounts:
@@ -1423,7 +1432,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
             account_ids = prepared[idx].get("account_ids", [])
             if narrative is None:
                 narrative = mechanical_narrative(moment, accounts=accounts, names=names,
-                                                 type_counts=self._type_counts())
+                                                 type_counts=self._type_counts(), faiths=self._faiths())
                 account_ids = _moment_account_ids(moment, accounts, self._type_counts())
 
             entries.append(_entry_for(moment, narrative, account_ids))
@@ -1470,7 +1479,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 accounts = getattr(self, "_accounts", None)
                 narrative = mechanical_narrative(moment, accounts=accounts,
                                                  names=getattr(self, "_names", None),
-                                                 type_counts=self._type_counts())
+                                                 type_counts=self._type_counts(), faiths=self._faiths())
                 account_ids = _moment_account_ids(moment, accounts, self._type_counts())
 
             previous_prose = narrative
