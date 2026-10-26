@@ -46,6 +46,9 @@ ARTIFACT_CREATION_RATE_MAX = 3.00
 # without an absorber mark every artifact LOST). Living 500-turn worlds lose
 # 2-3%; a broken lifecycle loses ~0%, which the floor plus loss_channels_ok
 # (both LOST and DESTROYED present) still rejects. The 30% ceiling is unchanged.
+# Starting civs of the template world, the artifact creation band's
+# denominator when a seed run records no world shape.
+ARTIFACT_TEMPLATE_STARTING_CIVS = 4
 ARTIFACT_LOSS_RATE_MIN = 0.02
 ARTIFACT_LOSS_RATE_MAX = 0.30
 REGRESSION_SATISFACTION_MEAN_MIN = 0.45
@@ -660,6 +663,50 @@ def _civ_crisis_event_turns(bundle: dict) -> dict[str, list[int]]:
     return {name: sorted(values) for name, values in turns.items()}
 
 
+TEMPLATE_WORLD_GENERATOR = "template"
+
+
+def _world_shape(bundle: dict) -> dict:
+    """The world a seed ran on: its generator (``template`` without Geography
+    2.0 metadata), its region count and its starting civilizations (the civ
+    rows of the first history snapshot)."""
+    world = bundle.get("world_state")
+    world = world if isinstance(world, dict) else {}
+    geography = world.get("geography")
+    generator = (
+        str(geography.get("generator") or "procedural")
+        if isinstance(geography, dict) else TEMPLATE_WORLD_GENERATOR
+    )
+    regions = world.get("regions")
+    history = bundle.get("history")
+    first = history[0] if isinstance(history, list) and history and isinstance(history[0], dict) else {}
+    civ_stats = first.get("civ_stats")
+    return {
+        "generator": generator,
+        "regions": len(regions) if isinstance(regions, list) else None,
+        "civs": len(civ_stats) if isinstance(civ_stats, dict) and civ_stats else None,
+    }
+
+
+def summarize_world_shapes(seed_runs: list[dict]) -> list[dict] | None:
+    """Distinct world shapes of a batch with their seed counts, or None when
+    every seed ran on the template world (template reports keep their bytes)."""
+    counts: Counter[tuple[str, int | None, int | None]] = Counter()
+    for run in seed_runs:
+        shape = run.get("world")
+        if not isinstance(shape, dict):
+            continue
+        counts[(str(shape.get("generator")), shape.get("regions"), shape.get("civs"))] += 1
+    if not counts or all(generator == TEMPLATE_WORLD_GENERATOR for generator, _r, _c in counts):
+        return None
+    return [
+        {"generator": generator, "regions": regions, "civs": civs, "seeds": seeds}
+        for (generator, regions, civs), seeds in sorted(
+            counts.items(), key=lambda item: (item[0][0], item[0][1] or 0, item[0][2] or 0)
+        )
+    ]
+
+
 def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) -> list[dict]:
     """Load exported bundle + sidecar data for each seed in a batch."""
     if not batch_dir.exists():
@@ -707,6 +754,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
             "bundle_path": bundle_path,
             "seed_dir": seed_dir,
             "seed": bundle.get("metadata", {}).get("seed"),
+            "world": _world_shape(bundle),
             "bundle": _oracle_bundle_view(bundle),
             "events": _load_agent_events(seed_dir),
             "relationship_columns": relationship_columns,
@@ -1539,6 +1587,7 @@ def _cohort_candidate_priority(
 def check_artifact_lifecycle(
     bundles: list[dict],
     num_civs: int = 4,
+    starting_civs: list[int] | None = None,
 ) -> dict:
     """Oracle 5: Validate artifact lifecycle rates and diversity.
 
@@ -1561,6 +1610,11 @@ def check_artifact_lifecycle(
         metadata.total_turns.
     num_civs:
         Number of civilizations (used as denominator for creation rate).
+    starting_civs:
+        Optional starting civilizations per bundle (aligned with ``bundles``),
+        used instead of ``num_civs``: the rate is artifacts per starting civ
+        per 100 turns whatever the world size. The band was calibrated on the
+        4-civ template world, where both give the same denominator.
 
     Returns
     -------
@@ -1584,10 +1638,14 @@ def check_artifact_lifecycle(
     total_turns_sum = 0
     type_counts: dict[str, int] = {}
 
-    for bundle in bundles:
+    if starting_civs is not None and len(starting_civs) != len(bundles):
+        raise ValueError("starting_civs must have one entry per bundle")
+    civ_turns_sum = 0
+    for index, bundle in enumerate(bundles):
         artifacts = bundle.get("world_state", {}).get("artifacts", [])
         total_turns = bundle.get("metadata", {}).get("total_turns", 0)
         total_turns_sum += total_turns
+        civ_turns_sum += (starting_civs[index] if starting_civs is not None else num_civs) * total_turns
 
         for art in artifacts:
             total_artifacts += 1
@@ -1606,8 +1664,8 @@ def check_artifact_lifecycle(
                 mule_artifact_count += 1
 
     # Creation rate: artifacts per civ per 100 turns
-    if num_civs > 0 and total_turns_sum > 0:
-        creation_rate = total_artifacts / (num_civs * total_turns_sum / 100.0)
+    if civ_turns_sum > 0 and total_turns_sum > 0:
+        creation_rate = total_artifacts / (civ_turns_sum / 100.0)
     else:
         creation_rate = 0.0
 
@@ -2757,7 +2815,13 @@ def run_artifact_oracle(seed_runs: list[dict]) -> dict:
     bundles = [run["bundle"] for run in seed_runs]
     if not bundles:
         return {"status": "SKIP", "reason": "no_bundles"}
-    result = check_artifact_lifecycle(bundles)
+    # Per starting civ: procedural worlds start with more than the template
+    # world's 4 civs (docs/integration/procedural-gates.md).
+    starting_civs = [
+        int((run.get("world") or {}).get("civs") or ARTIFACT_TEMPLATE_STARTING_CIVS)
+        for run in seed_runs
+    ]
+    result = check_artifact_lifecycle(bundles, starting_civs=starting_civs)
     all_pass = (
         result["creation_rate_ok"]
         and result["type_diversity_ok"]
@@ -3577,11 +3641,17 @@ def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None)
                 "reason": f"{type(exc).__name__}: {exc}",
             }
 
-    return {
+    report = {
         "batch_dir": str(batch_dir),
         "oracles": sorted(selected),
         "results": results,
     }
+    # Non-template worlds are named in the report so that a comparison
+    # cannot mix them with template reports (template reports keep their bytes).
+    worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
+    if worlds is not None:
+        report["worlds"] = worlds
+    return report
 
 
 def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:
