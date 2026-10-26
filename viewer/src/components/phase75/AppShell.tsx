@@ -17,7 +17,9 @@ import { isLegacyBundle } from "../../types";
 import type { BatchConfig } from "../../types";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
-import { civRowAt, type CivRowAt } from "../../lib/civRows";
+import {
+  buildCivilizationViews, isFounded, type CivilizationEntry, type CivilizationView,
+} from "../../lib/civilizationViews";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
 import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
@@ -98,26 +100,6 @@ interface AppShellProps {
   liveReconnecting?: boolean;
 }
 
-interface CivilizationView {
-  name: string;
-  population: number;
-  military: number;
-  economy: number;
-  culture: number;
-  stability: number;
-  treasury: number;
-  asabiya: number;
-  techEra: string;
-  leaderName: string;
-  leaderTrait: string;
-  values: string[];
-  goal: string;
-  regions: string[];
-  alive: boolean;
-  /** "Active", "Fallen", "Fallen (final record, turn N)" or "Not yet founded". */
-  status: string;
-}
-
 interface RegionLike {
   name: string;
   terrain: string;
@@ -154,6 +136,8 @@ const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
 ];
 
 const SPEED_OPTIONS = [1, 2, 5, 10];
+/** Inspector text for a value the history does not hold yet at the snapshot. */
+const UNAVAILABLE = "Unavailable";
 
 function findCurrentSnapshot(bundle: Bundle | null, currentTurn: number): TurnSnapshot | null {
   if (!bundle || bundle.history.length === 0) {
@@ -168,47 +152,6 @@ function findCurrentSnapshot(bundle: Bundle | null, currentTurn: number): TurnSn
     latest = snapshot;
   }
   return latest ?? bundle.history[bundle.history.length - 1];
-}
-
-function buildCivilizationViews(bundle: Bundle | null, snapshot: TurnSnapshot | null): CivilizationView[] {
-  if (!bundle) {
-    return [];
-  }
-
-  return bundle.world_state.civilizations.map((civilization) => {
-    // A dead civilization leaves later snapshots (bundle version 5): show its
-    // final row, not the end-of-run world state.
-    const found = snapshot ? civRowAt(bundle.history, civilization.name, snapshot.turn) : null;
-    const snap = found ? (found.recorded ? found.row : { ...found.row, alive: false, regions: [] }) : null;
-    return {
-      name: civilization.name,
-      population: snap?.population ?? civilization.population,
-      military: snap?.military ?? civilization.military,
-      economy: snap?.economy ?? civilization.economy,
-      culture: snap?.culture ?? civilization.culture,
-      stability: snap?.stability ?? civilization.stability,
-      treasury: snap?.treasury ?? civilization.treasury,
-      asabiya: snap?.asabiya ?? civilization.asabiya,
-      techEra: snap?.tech_era ?? civilization.tech_era,
-      leaderName: snap?.leader_name ?? civilization.leader.name,
-      leaderTrait: snap?.trait ?? civilization.leader.trait,
-      values: civilization.values,
-      goal: civilization.goal,
-      regions: snap?.regions ?? civilization.regions,
-      alive: snap?.alive ?? civilization.regions.length > 0,
-      status: civilizationStatus(found),
-    };
-  });
-}
-
-function civilizationStatus(found: CivRowAt | null): string {
-  if (!found) {
-    return "Not yet founded";
-  }
-  if (!found.recorded) {
-    return `Fallen (final record, turn ${found.turn})`;
-  }
-  return found.row.alive === false || found.row.regions.length === 0 ? "Fallen" : "Active";
 }
 
 function dominantCivilization(civilizations: CivilizationView[]): CivilizationView | null {
@@ -711,7 +654,10 @@ export function AppShell({
   });
 
   const currentSnapshot = findCurrentSnapshot(bundle, currentTurn);
-  const civilizations = sortCivilizations(buildCivilizationViews(bundle, currentSnapshot));
+  // Every world civ at the snapshot; only those founded by then rank, show
+  // chips and summaries and can be the default focus.
+  const civilizationEntries = buildCivilizationViews(bundle, currentSnapshot);
+  const civilizations = sortCivilizations(civilizationEntries.filter(isFounded));
   const leadCivilization = dominantCivilization(civilizations);
   const totalTurns = totalTurnsFor(bundle);
   const eraBands = buildEraBands(bundle?.history ?? [], totalTurns);
@@ -807,7 +753,7 @@ export function AppShell({
     const selectedStillExists = selectedEntity?.kind === "region"
       ? bundle.world_state.regions.some((region) => region.name === selectedEntity.id)
       : selectedEntity?.kind === "civilization"
-        ? civilizations.some((civilization) => civilization.name === selectedEntity.id)
+        ? civilizationEntries.some((civilization) => civilization.name === selectedEntity.id)
         : selectedEntity?.kind === "event"
           ? bundle.events_timeline.some((event) => eventKey(event) === selectedEntity.id)
           : true;
@@ -950,7 +896,7 @@ export function AppShell({
     ? atlasRegions.find((region) => region.name === selectedEntity.id) ?? null
     : null;
   const selectedCivilization = selectedEntity?.kind === "civilization"
-    ? civilizations.find((civilization) => civilization.name === selectedEntity.id) ?? null
+    ? civilizationEntries.find((civilization) => civilization.name === selectedEntity.id) ?? null
     : null;
   const selectedEvent = selectedEntity?.kind === "event"
     ? (bundle?.events_timeline.find((event) => eventKey(event) === selectedEntity.id) ?? null)
@@ -1504,16 +1450,17 @@ function ValidationRibbon({
   visible: boolean;
   bundle: Bundle | null;
   batchReport: BatchReport | null;
-  selectedCivilization: CivilizationView | null;
+  selectedCivilization: CivilizationEntry | null;
   civilizations: CivilizationView[];
 }) {
   if (!visible) {
     return null;
   }
+  const focus = selectedCivilization && isFounded(selectedCivilization) ? selectedCivilization : null;
 
   const anomalies = batchReport?.anomalies.length ?? 0;
   const lateEraCount = civilizations.filter((civilization) => civilization.techEra === "industrial" || civilization.techEra === "information").length;
-  const focusValue = selectedCivilization ? selectedCivilization.stability.toFixed(1) : "none";
+  const focusValue = focus ? focus.stability.toFixed(1) : selectedCivilization ? UNAVAILABLE : "none";
 
   const checks = [
     {
@@ -1533,7 +1480,7 @@ function ValidationRibbon({
     },
     {
       label: "Focus Stability",
-      status: selectedCivilization && selectedCivilization.stability <= 1 ? "warn" : "pass",
+      status: focus && focus.stability <= 1 ? "warn" : "pass",
       value: focusValue,
     },
   ];
@@ -2385,7 +2332,7 @@ function RightInspector({
   surface: AppSurface;
   selection: SelectedEntity | null;
   selectedRegion: RegionLike | null;
-  selectedCivilization: CivilizationView | null;
+  selectedCivilization: CivilizationEntry | null;
   selectedEvent: Event | null;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
@@ -2529,11 +2476,11 @@ function RightInspector({
                 </div>
                 <div className="phase75-stat-row">
                   <span>Leader</span>
-                  <strong>{selectedCivilization.leaderName}</strong>
+                  <strong>{isFounded(selectedCivilization) ? selectedCivilization.leaderName : UNAVAILABLE}</strong>
                 </div>
                 <div className="phase75-stat-row">
                   <span>Era</span>
-                  <strong>{selectedCivilization.techEra}</strong>
+                  <strong>{isFounded(selectedCivilization) ? selectedCivilization.techEra : UNAVAILABLE}</strong>
                 </div>
                 <div className="phase75-stat-row">
                   <span>Values</span>
@@ -2616,6 +2563,16 @@ function RightInspector({
                 Open Overlay
               </button>
             </div>
+          </>
+        ) : selectedCivilization && !isFounded(selectedCivilization) ? (
+          // No history row yet: no values to show (not the end-of-run ones).
+          <>
+            {["Economy", "Culture", "Military", "Stability", "Treasury"].map((label) => (
+              <div key={label} className="phase75-stat-row">
+                <span>{label}</span>
+                <strong>{UNAVAILABLE}</strong>
+              </div>
+            ))}
           </>
         ) : selectedCivilization ? (
           <>

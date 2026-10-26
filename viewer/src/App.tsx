@@ -53,7 +53,10 @@ class ErrorBoundary extends Component<
 }
 
 function App() {
-  const wsUrl = new URLSearchParams(window.location.search).get("ws");
+  const params = new URLSearchParams(window.location.search);
+  const wsUrl = params.get("ws");
+  // The live session token from the link the CLI prints (?ws=...&token=...).
+  const sessionToken = params.get("token");
   const isLive = wsUrl !== null;
 
   const {
@@ -63,7 +66,7 @@ function App() {
     loadFromFile,
     artifactIdentity,
   } = useBundle();
-  const liveConn = useLiveConnection(wsUrl || "");
+  const liveConn = useLiveConnection(wsUrl || "", sessionToken);
 
   const bundle = isLive ? liveConn.bundle : staticBundle;
   const error = isLive ? liveConn.error : staticError;
