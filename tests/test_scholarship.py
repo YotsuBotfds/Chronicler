@@ -646,6 +646,32 @@ def test_seats_keep_archive_copies():
     assert S.archive_copies(world, KETHANI, AMBER) == S.SEAT_COPIES_CAP
 
 
+def test_court_archives_record_the_copies_seats_keep(tmp_path):
+    from chronicler import historiography as H
+    world = _world()
+    H.set_historiography_enabled(world, True)
+    world.turn += 1
+    H.observe_turn(world)
+    st = H.state_of(world)
+    court = next(a for a in st.archives if a.owner == f"court:{THORNWALL}")
+    assert court.seat_copies is None and "seat_copies" not in court.model_dump_json()
+    plain = court.copies
+    _seat(world, VERDANT, level=2)    # at Thornwall's capital
+    world.turn += 1
+    H.observe_turn(world)
+    assert (court.copies, court.seat_copies) == (plain + 2, 2)
+    # A loss episode records the seats' part.
+    region = world.regions[VERDANT]
+    ev = Event(turn=world.turn, event_type="occupation", actors=["Selurian Republic", region.controller],
+               description="x", importance=7, region=region.name)
+    prov.ensure_id(world, ev)
+    world.events_timeline.append(ev)
+    world.turn += 1
+    H.observe_turn(world)
+    if court.losses:
+        assert court.losses[-1].seat_copies == 2
+
+
 # --- the bridge signals -----------------------------------------------------------------
 
 def test_seat_pull_and_flight_come_from_persisted_seats_and_reset():

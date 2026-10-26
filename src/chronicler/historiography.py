@@ -53,8 +53,10 @@ prompt, the mechanical chronicle and the curator.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
+import operator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
@@ -67,6 +69,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from chronicler.models import Event, WorldState
 
 logger = logging.getLogger(__name__)
+_is_none = functools.partial(operator.is_, None)
 
 NAMESPACE = "historiography"
 #: New worlds keep chronicles unless ``--no-historiography`` (see the doc's
@@ -281,6 +284,8 @@ class ArchiveLoss(BaseModel):
     copies: int = 1
     lost: int = 0
     survived: int = 0
+    # Of the copies, those seats of learning kept (--scholarship); omitted when none.
+    seat_copies: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class Archive(BaseModel):
@@ -289,6 +294,8 @@ class Archive(BaseModel):
     region: int | None = None       # where it stands (index in world.regions); None when homeless
     copies: int = 1
     losses: list[ArchiveLoss] = Field(default_factory=list)
+    # Of the copies, those seats of learning keep (--scholarship); omitted when none.
+    seat_copies: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class Chronicler(BaseModel):
@@ -777,10 +784,19 @@ class _Turn:
     def copies(self, civ_index: int | None, region: int | None = None) -> int:
         """Copies an archive keeps: literacy techniques of its owner, and
         seats of learning in its region and realm (``--scholarship``)."""
+        return self._literacy_copies(civ_index) + self.seat_copies(civ_index, region)
+
+    def seat_copies(self, civ_index: int | None, region: int | None = None) -> int:
         if getattr(self.world, "scholarship", None) is None:
-            return self._literacy_copies(civ_index)
+            return 0
         from chronicler.scholarship import archive_copies
-        return self._literacy_copies(civ_index) + archive_copies(self.world, civ_index, region)
+        return archive_copies(self.world, civ_index, region)
+
+    def keep(self, archive: "Archive", civ_index: int | None, region: int | None) -> None:
+        """Set an archive's copies (and the seats' part of them, when any)."""
+        archive.copies = self.copies(civ_index, region)
+        seats = self.seat_copies(civ_index, region)
+        archive.seat_copies = seats if seats > 0 else None
 
     def _literacy_copies(self, civ_index: int | None) -> int:
         world = self.world
@@ -857,8 +873,9 @@ def _update_roster(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
                                founded_turn=ctx.turn)
             st.chroniclers.append(chron)
             capital = ctx.region_index.get(civ.capital_region) if civ.capital_region else None
-            st.archives.append(Archive(archive_id=f"archive:{cid}", owner=cid, region=capital,
-                                       copies=ctx.copies(i, capital)))
+            archive = Archive(archive_id=f"archive:{cid}", owner=cid, region=capital)
+            ctx.keep(archive, i, capital)
+            st.archives.append(archive)
             _count(st, "chroniclers")
         chron.active = True
     for faith_id in sorted(temples):
@@ -871,8 +888,9 @@ def _update_roster(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
             st.chroniclers.append(chron)
             ri = temples[faith_id][0]
             ctrl = ctx.world.regions[ri].controller
-            st.archives.append(Archive(archive_id=f"archive:{cid}", owner=cid, region=ri,
-                                       copies=ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None, ri)))
+            archive = Archive(archive_id=f"archive:{cid}", owner=cid, region=ri)
+            ctx.keep(archive, ctx.civ_index.get(ctrl) if ctrl else None, ri)
+            st.archives.append(archive)
             _count(st, "chroniclers")
         chron.active = True
     for si, seat in _living_seats(ctx.world):
@@ -1649,7 +1667,7 @@ def _apply_losses(ctx: _Turn, new: Sequence["Event"]) -> None:
             if lost or survived:
                 archive.losses.append(ArchiveLoss(
                     turn=ctx.turn, cause=cause, event_id=ev.event_id, region=archive.region,
-                    copies=copies, lost=lost, survived=survived))
+                    copies=copies, lost=lost, survived=survived, seat_copies=archive.seat_copies))
                 _count(st, f"lost:{cause}", lost)
 
 
@@ -1667,7 +1685,7 @@ def _place_archives(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
                 if alive:
                     archive.region = (ctx.region_index.get(civ.capital_region)
                                       if civ.capital_region else archive.region)
-                    archive.copies = ctx.copies(chron.civ, archive.region)
+                    ctx.keep(archive, chron.civ, archive.region)
                 else:
                     archive.region = None
         elif chron.kind == "seat":
@@ -1692,7 +1710,7 @@ def _place_archives(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
                 else:
                     archive.region = spot[0]
                     ctrl = ctx.world.regions[spot[0]].controller
-                    archive.copies = ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None, spot[0])
+                    ctx.keep(archive, ctx.civ_index.get(ctrl) if ctrl else None, spot[0])
 
 
 # ---------------------------------------------------------------------------
