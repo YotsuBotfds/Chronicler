@@ -9,7 +9,7 @@ from .artifact_io import ArtifactIOError, strict_json_dumps
 from .validation_gate import PROFILE_CHOICES
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
-from .validation_io import summarize_world_shapes
+from .validation_io import LEGACY_BATCH_FLAG, MANIFEST_FILENAME, check_batch_manifest, summarize_world_shapes
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
 
@@ -40,11 +40,19 @@ def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     return selected
 
 
-def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None) -> dict:
+def run_oracles(
+    batch_dir: Path,
+    oracles: list[str],
+    profile: str | None = None,
+    *,
+    legacy_batch: bool = False,
+) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
-    component)."""
+    component). The batch directory is first checked against its manifest
+    (``check_batch_manifest``; ``legacy_batch`` admits one without)."""
     selected = _normalize_requested_oracles(oracles)
+    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
 
@@ -81,6 +89,9 @@ def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None)
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
+    report["batch_manifest"] = batch_manifest
+    if profile is not None:
+        report["profile"] = profile
     return report
 
 
@@ -108,9 +119,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--oracles", nargs="+", default=["all"])
     parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
                         help="gate profile the needs oracle scores for (default: binding required)")
+    parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
+                        help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
+                             "or a single bundle); its runs are not checked")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

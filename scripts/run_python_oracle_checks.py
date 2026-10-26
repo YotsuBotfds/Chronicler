@@ -126,6 +126,12 @@ CHUNKS = {
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
     ],
+    "validation-tooling": [
+        "tests/test_batch_manifest.py",
+        "tests/test_batch.py",
+        "tests/test_validation_gate.py",
+        "tests/test_validation_compare.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

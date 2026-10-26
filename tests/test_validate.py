@@ -2426,7 +2426,7 @@ def test_run_oracles_needs_skip_includes_reason_when_sidecars_absent(tmp_path):
     seed_dir = tmp_path / "seed_42"
     _write_minimal_bundle(seed_dir)
 
-    report = run_oracles(tmp_path, ["needs"])
+    report = run_oracles(tmp_path, ["needs"], legacy_batch=True)
 
     assert report["results"]["needs"]["status"] == "SKIP"
     assert report["results"]["needs"]["reason"] == "no_needs_sidecars"
@@ -2438,7 +2438,7 @@ def test_run_oracles_regression_skips_when_agent_events_sidecar_missing(tmp_path
     seed_dir = tmp_path / "seed_42"
     _write_minimal_bundle(seed_dir)
 
-    report = run_oracles(tmp_path, ["regression"])
+    report = run_oracles(tmp_path, ["regression"], legacy_batch=True)
 
     assert report["results"]["regression"]["status"] == "SKIP"
     assert report["results"]["regression"]["reason"] == "incomplete_agent_event_inputs"
@@ -2450,7 +2450,7 @@ def test_validate_main_rejects_nonfinite_serialized_report(monkeypatch, tmp_path
     monkeypatch.setattr(
         validate,
         "run_oracles",
-        lambda batch_dir, oracles, profile=None: {
+        lambda batch_dir, oracles, profile=None, **_options: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {"status": "PASS", "metric": float("nan")}},
@@ -2471,7 +2471,7 @@ def test_validation_io_main_rejects_nonfinite_serialized_report(monkeypatch, tmp
     monkeypatch.setattr(
         validation_io,
         "run_oracles",
-        lambda batch_dir, oracles, profile=None: {
+        lambda batch_dir, oracles, profile=None, **_options: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {"status": "PASS", "metric": float("nan")}},
@@ -2492,7 +2492,7 @@ def test_validate_main_rejects_nonstring_keys_that_would_duplicate_in_json(monke
     monkeypatch.setattr(
         validate,
         "run_oracles",
-        lambda batch_dir, oracles, profile=None: {
+        lambda batch_dir, oracles, profile=None, **_options: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {1: "int", "1": "str", "status": "PASS"}},
@@ -2514,7 +2514,7 @@ def test_validation_io_main_rejects_nonstring_keys_that_would_duplicate_in_json(
     monkeypatch.setattr(
         validation_io,
         "run_oracles",
-        lambda batch_dir, oracles, profile=None: {
+        lambda batch_dir, oracles, profile=None, **_options: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {None: "none", "null": "str", "status": "PASS"}},
@@ -2568,7 +2568,7 @@ def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_arrow_i
 
     monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
 
-    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", "regression"])
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", "regression", "--legacy-batch"])
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
 
@@ -2600,7 +2600,7 @@ def test_validate_main_skips_when_pyarrow_missing_but_oracle_has_no_other_inputs
     monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
     monkeypatch.setattr("chronicler.validation_io._load_agent_events", lambda _seed_dir: [])
 
-    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name])
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name, "--legacy-batch"])
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
 
@@ -2637,7 +2637,7 @@ def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_oracle_
 
     monkeypatch.setattr("chronicler.validation_io._has_pyarrow", lambda: False)
 
-    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name])
+    exit_code = validate.main(["--batch-dir", str(tmp_path), "--oracles", oracle_name, "--legacy-batch"])
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
 
@@ -2662,7 +2662,7 @@ def test_validate_cli_passes_the_profile_to_the_needs_oracle(monkeypatch, tmp_pa
     else:
         monkeypatch.setattr(module, "run_needs_oracle", fake_needs)
     monkeypatch.setattr(module, "load_seed_runs", lambda *args, **kwargs: [])
-    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs", "--profile", "subset"]) == 0
-    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs"]) == 0
+    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs", "--profile", "subset", "--legacy-batch"]) == 0
+    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs", "--legacy-batch"]) == 0
     assert seen == ["subset", None]
     capsys.readouterr()

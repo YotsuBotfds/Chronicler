@@ -616,3 +616,99 @@ def test_validate_batch_scores_the_needs_oracle_for_its_profile(monkeypatch, tmp
         runner.validate_batch(tmp_path, f"{profile}.json", Path.cwd(), {}, profile)
     assert [cmd[cmd.index("--profile") + 1] for cmd in commands] == ["subset", "full"]
     assert all(cmd[cmd.index("-m") + 1] == "chronicler.validate" for cmd in commands)
+
+
+# --- Fresh batch directories and manifests (validation-integrity) --------
+
+
+def test_main_refuses_a_used_batch_directory_before_running(monkeypatch, tmp_path):
+    runner = _load_runner()
+    used = tmp_path / "oracle_subset" / "batch_42" / "seed_42"
+    used.mkdir(parents=True)
+
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("the subset must not run into a used directory")
+
+    monkeypatch.setattr(runner, "run_subset", must_not_run)
+    monkeypatch.setattr(runner.sys, "argv", ["m53b_run_validation.py", "--profile", "subset", "--output-root", str(tmp_path)])
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 2
+
+
+def test_profile_batch_dirs_match_the_runs(tmp_path):
+    runner = _load_runner()
+    args = runner.argparse.Namespace(output_root=tmp_path, seed_start=7)
+    for profile, expected in (
+        ("subset", tmp_path / "oracle_subset" / "batch_7"),
+        ("full", tmp_path / "full_gate" / "batch_7"),
+        ("determinism-off", tmp_path / "determinism_off" / "batch_42"),
+        ("determinism-hybrid", tmp_path / "determinism_hybrid" / "batch_42"),
+    ):
+        args.profile = profile
+        assert runner._profile_batch_dir(args) == expected
+
+
+def test_determinism_pair_gets_a_manifest(monkeypatch, tmp_path):
+    from chronicler.validation_io import check_batch_manifest
+
+    runner = _load_runner()
+
+    def fake_run(cmd, cwd, env):
+        seed_dir = Path(cmd[cmd.index("--output") + 1]).parent
+        bundle = {"metadata": {"seed": 42, "total_turns": int(cmd[cmd.index("--turns") + 1])}}
+        (seed_dir / "chronicle_bundle.json").write_text(runner.json.dumps(bundle), encoding="utf-8")
+
+    monkeypatch.setattr(runner, "_run", fake_run)
+    args = runner.apply_profile_defaults(runner.argparse.Namespace(
+        profile="determinism-hybrid", output_root=tmp_path, seeds=None, turns=None, worldgen="template",
+        regions=None, civs=None, campaigns=None, cities=False, seed_start=42,
+    ))
+    batch_dir = runner.run_determinism(args, tmp_path, {}, "hybrid")
+    manifest = runner.json.loads((batch_dir / "batch_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "complete" and manifest["seeds"] == [42, 42]
+    assert [(run["dir"], run["total_turns"]) for run in manifest["runs"]] == [("seed_42_a", 200), ("seed_42_b", 200)]
+    assert (manifest["simulation"]["agents"], manifest["simulation"]["cities"]) == ("hybrid", False)
+    assert check_batch_manifest(batch_dir)["seeds"] == [42, 42]
+    # A second pair into the same directory is refused.
+    with pytest.raises(runner.BatchDestinationError):
+        runner.run_determinism(args, tmp_path, {}, "hybrid")
+
+
+@pytest.mark.parametrize("exploratory", [False, True])
+def test_main_compares_other_cohorts_only_when_exploratory(monkeypatch, tmp_path, exploratory):
+    runner = _load_runner()
+
+    def cohort(seeds):
+        report = _report(determinism="SKIP")
+        report["results"]["regression"]["final_living_population_by_seed"] = [
+            {"seed": seed, "population": 100, "turn": 200} for seed in seeds
+        ]
+        return report
+
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(runner.json.dumps(cohort(range(42, 142))), encoding="utf-8")
+    batch_dir = tmp_path / "batch"
+    batch_dir.mkdir()
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=runner.json.dumps(cohort([42])), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_subset", lambda args, cwd, env: batch_dir)
+    argv = ["m53b_run_validation.py", "--profile", "subset", "--output-root", str(tmp_path / "out"),
+            "--baseline-report", str(baseline_path)]
+    monkeypatch.setattr(runner.sys, "argv", argv + (["--exploratory-comparison"] if exploratory else []))
+    if exploratory:
+        runner.main()
+    else:
+        with pytest.raises(SystemExit) as exc_info:
+            runner.main()
+        assert exc_info.value.code == 1
+    manifest = runner.json.loads((batch_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    if exploratory:
+        assert manifest["comparison_status"] == "EXPLORATORY_NO_REGRESSION"
+        assert manifest["exploratory_comparison"] is True
+    else:
+        assert manifest["comparison_status"] == "ERROR"
+        assert "different cohorts" in manifest["comparison_error"]

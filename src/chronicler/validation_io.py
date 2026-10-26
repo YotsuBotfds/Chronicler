@@ -15,6 +15,14 @@ from math import ceil, comb
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
+from .batch_manifest import (
+    MANIFEST_FILENAME,
+    BatchManifestError,
+    batch_cohort,
+    file_sha256,
+    load_batch_manifest,
+    verify_batch_manifest,
+)
 from .validation_gate import NEEDS_BINDING_REQUIRED_PROFILES, PROFILE_CHOICES
 from .snapshot_pruning import restore_bundle
 
@@ -302,6 +310,42 @@ def iter_bundles(batch_dir: Path):
 def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
     """Load chronicle bundles from a batch directory or bundle path."""
     return list(iter_bundles(batch_dir))
+
+
+LEGACY_BATCH_FLAG = "--legacy-batch"
+
+
+def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict:
+    """The report's ``batch_manifest`` entry for ``batch_dir``, after
+    checking the directory against its ``batch_manifest.json``.
+
+    The batch must be complete and its bundles exactly the manifest's runs,
+    each run as long as the requested turns, every validation input
+    unchanged (``batch_manifest.verify_batch_manifest``); otherwise
+    ``ValidationRequestError``. A directory without a manifest (written
+    before manifests, or a single bundle) is refused unless
+    ``legacy_batch``; its entry is then ``unchecked``. A manifest that is
+    present is always checked.
+    """
+    batch_dir = Path(batch_dir)
+    if not batch_dir.exists():
+        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
+    try:
+        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
+    except BatchManifestError as exc:
+        raise ValidationRequestError(str(exc)) from exc
+    if manifest is None:
+        if legacy_batch:
+            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
+        raise ValidationRequestError(
+            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
+            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
+            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
+        )
+    problems = verify_batch_manifest(batch_dir, manifest, _bundle_paths(batch_dir))
+    if problems:
+        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
+    return batch_cohort(manifest, file_sha256(batch_dir / MANIFEST_FILENAME))
 
 
 # Bundle fields the seed-run oracles read: metadata, these per-snapshot
@@ -3640,11 +3684,19 @@ def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     return selected
 
 
-def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None) -> dict:
+def run_oracles(
+    batch_dir: Path,
+    oracles: list[str],
+    profile: str | None = None,
+    *,
+    legacy_batch: bool = False,
+) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
-    component)."""
+    component). The batch directory is first checked against its manifest
+    (``check_batch_manifest``; ``legacy_batch`` admits one without)."""
     selected = _normalize_requested_oracles(oracles)
+    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
 
@@ -3690,6 +3742,9 @@ def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None)
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
+    report["batch_manifest"] = batch_manifest
+    if profile is not None:
+        report["profile"] = profile
     return report
 
 
@@ -3717,9 +3772,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--oracles", nargs="+", default=["all"])
     parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
                         help="gate profile the needs oracle scores for (default: binding required)")
+    parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
+                        help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
+                             "or a single bundle); its runs are not checked")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1
@@ -3737,4 +3795,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']
+__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'check_batch_manifest', 'LEGACY_BATCH_FLAG', 'main']

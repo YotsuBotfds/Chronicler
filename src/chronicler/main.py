@@ -1955,7 +1955,12 @@ def main() -> None:
 
     elif args.batch:
         from chronicler.batch import run_batch
-        batch_dir = run_batch(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        from chronicler.batch_manifest import BatchDestinationError
+        try:
+            batch_dir = run_batch(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
+        except BatchDestinationError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         print(f"\nBatch complete: {batch_dir}")
 
     elif args.fork:
