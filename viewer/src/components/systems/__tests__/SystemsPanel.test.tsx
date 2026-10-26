@@ -491,7 +491,7 @@ describe("MovementsPanel", () => {
     expect(screen.getByLabelText("Living movements by creed")).toBeInTheDocument();
     // The creed chart says which line is which.
     const legends = screen.getAllByLabelText("Legend").map((legend) => legend.textContent);
-    expect(legends).toContain("commonslibertysect");
+    expect(legends.some((text) => text?.startsWith("commonslibertysect"))).toBe(true);  // and guild, with --guilds
     const living = busiest.agent_movements!.living;
     const table = screen.getByRole("table", { name: `Movements at turn ${busiest.turn}` });
     expect(within(table).getAllByRole("row")).toHaveLength(1 + living.length);
