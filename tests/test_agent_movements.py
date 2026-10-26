@@ -170,7 +170,9 @@ def test_off_worlds_omit_the_dormant_fields():
     assert M.tick_agent_movements(world, []) == []
     assert M.movement_table(world).num_rows == 0
     M.send_to_native(world, None)   # nothing to send, nothing touched
-    assert M.DEFAULT_ENABLED_FOR_NEW_WORLDS is False
+    # generate_world worlds stay off; the CLI, batch and live entry points
+    # turn movements on for the worlds they create.
+    assert M.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
 
 
 def test_enable_disable_and_state_round_trip():
@@ -895,7 +897,7 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert "set_agent_movements_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
 
 
-def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
     from chronicler.main import _build_parser, execute_run
     parser = _build_parser()
 
@@ -905,16 +907,17 @@ def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
                                   "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
     fresh = tmp_path / "fresh"
     execute_run(args(fresh))
-    assert "agent_movements" not in json.loads((fresh / "state.json").read_text())
-    on = tmp_path / "on"
-    execute_run(args(on, "--agent-movements"))
-    state = json.loads((on / "state.json").read_text())
+    state = json.loads((fresh / "state.json").read_text())
     assert state["agent_movements"]["movements"] == []   # nothing founds without agents
-    bundle = load_bundle(on / "chronicle_bundle.json")
+    bundle = load_bundle(fresh / "chronicle_bundle.json")
     assert all("agent_movements" in h for h in bundle["history"])
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-agent-movements"))
+    assert "agent_movements" not in json.loads((off / "state.json").read_text())
     from chronicler.analytics import generate_report
     assert generate_report(tmp_path)["agent_movements"]["runs"] == 1
-    for run, kept in ((fresh, False), (on, True)):
+    # A saved world keeps its setting on resume, either way, with no flag.
+    for run, kept in ((fresh, True), (off, False)):
         resumed = args(run, turns=5)
         resumed.resume = str(run / "state.json")
         resumed.state = str(run / "resumed.json")

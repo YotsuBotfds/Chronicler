@@ -1,10 +1,10 @@
 """Movements grounded in people (``--agent-movements``).
 
-Default off behind ``WorldState.agent_movements`` (CLI ``--agent-movements``
-/ ``--no-agent-movements``, persisted on the world so a resumed run keeps its
-setting). With the switch off nothing in this module runs, the bridge sends
-no movement table, and every output is identical to the simulation without
-it. See ``docs/integration/agent-movements.md``.
+On by default for new worlds behind ``WorldState.agent_movements`` (CLI
+``--agent-movements`` / ``--no-agent-movements``, persisted on the world so
+a resumed run keeps its setting). With the switch off nothing in this module
+runs, the bridge sends no movement table, and every output is identical to
+the simulation without it. See ``docs/integration/agent-movements.md``.
 
 A movement is a set of agents (per-agent ``movement_id`` in the native pool)
 sharing a grievance (its creed: ``commons`` for material, ``liberty`` for
@@ -64,8 +64,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/agent-movements.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points (on since
+#: the 2026-10 movements slice 2 full gate, docs/integration/agent-movements.md;
+#: ``--no-agent-movements`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Emergence (from the native grievance census).
 EMERGE_FROM_TURN = 10           # no founding in the start-up turns
