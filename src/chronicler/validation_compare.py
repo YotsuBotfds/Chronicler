@@ -54,7 +54,8 @@ def _oracle_method_version(report: dict[str, Any], oracle: str) -> int | None:
 
 def _oracle_method_changes(baseline: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
     """Oracles scored by different methods in the two reports (needs: method 1
-    before 2026-10-25, method 2 before the binding component of method 3).
+    before 2026-10-25, method 2 before the binding component of method 3,
+    method 3 before method 4's outcome window after the snapshot turn).
 
     Their statuses are not comparable: re-score the baseline batch with the
     current oracle to compare them.

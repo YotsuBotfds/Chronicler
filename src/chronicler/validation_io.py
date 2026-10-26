@@ -103,8 +103,21 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # NEEDS_BINDING_DIVERGENCE, and need their own seed-clustered lower bound
 # above zero. Above the threshold the terms do nothing, and an association
 # there comes from other channels (conditions, age, wealth).
-NEEDS_ORACLE_METHOD_VERSION = 3
+#
+# Method 4 (docs/integration/validation-integrity.md) keeps method 3 and
+# counts outcomes strictly after the snapshot: turns t+1 .. t+window. A
+# turn-t snapshot is written after turn t's agent tick (agent_bridge), whose
+# decisions already moved the agent (region), changed its occupation or
+# raised its autonomy (rebellion); the matching cell is observed after them,
+# so a turn-t action is not an outcome of the turn-t reading. A snapshot is
+# eligible when turn t + window was simulated (t + window < total turns:
+# a run of N turns ticks turns 0 .. N-1). The autonomy pairing's prior-rebel
+# rule (rebelled on or before t) already treats a turn-t rebellion this way.
+# Methods 2 and 3 counted turns t .. t+window-1.
+NEEDS_ORACLE_METHOD_VERSION = 4
+NEEDS_BINDING_METHOD_VERSION = 3
 NEEDS_POOLED_METHOD_VERSION = 2
+NEEDS_METHOD_VERSIONS = (NEEDS_POOLED_METHOD_VERSION, NEEDS_BINDING_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION)
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
     ("social", EVENT_NAME_TO_CODE["migration"]),
@@ -2198,10 +2211,17 @@ def _needs_seed_pairs(
     window: int,
     thresholds: dict[str, float] | None = None,
     binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
+    outcome_offset: int = 1,
 ) -> tuple[int, dict[str, list[tuple[int, int]]], dict[str, list[tuple[int, int]]]]:
     """Every matched pair of one seed: eligible snapshot count, and per need
     the (low-need agent's, high-need agent's) event counts in the window, for
-    method 2's pairs and for the binding pairs (``_match_binding_pairs``)."""
+    method 2's pairs and for the binding pairs (``_match_binding_pairs``).
+
+    The window of a turn-t snapshot is turns t + ``outcome_offset`` ..
+    t + ``outcome_offset`` + window - 1: 1 (method 4) counts strictly after
+    the snapshot, 0 (methods 2 and 3) from the snapshot turn. A snapshot is
+    eligible when the window's last turn was simulated (before total turns).
+    """
     thresholds = NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds
     total_turns = _total_turns(run)
     first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
@@ -2213,11 +2233,12 @@ def _needs_seed_pairs(
     snapshots = 0
     for needs_snapshot in needs_snapshots:
         snapshot_turn = int(needs_snapshot["turn"])
-        if total_turns and snapshot_turn + window > total_turns:
+        first_turn = snapshot_turn + outcome_offset
+        if total_turns and first_turn + window > total_turns:
             continue
         snapshots += 1
         counts: dict[tuple[int, int], int] = defaultdict(int)
-        for turn in range(snapshot_turn, snapshot_turn + window):
+        for turn in range(first_turn, first_turn + window):
             for event in events_by_turn.get(turn, ()):
                 counts[(event["agent_id"], event["event_type"])] += 1
         for need_name, event_type in NEEDS_PAIRINGS:
@@ -2257,8 +2278,9 @@ def run_needs_oracle(
     binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
     require_binding: bool = True,
     profile: str | None = None,
+    method_version: int | None = None,
 ) -> dict:
-    """M53 oracle 2, method 3: lower need, more of its event, pooled over seeds.
+    """M53 oracle 2, method 4: lower need, more of its event, pooled over seeds.
 
     Hypothesis: an agent whose need is lower than a matched agent's has more
     of the event that need drives over the next ``window`` turns (autonomy:
@@ -2270,17 +2292,29 @@ def run_needs_oracle(
     discordant pairs. Method 3 adds: the binding pairs, whose lower-need agent
     is below its behavioural threshold (``thresholds``) and whose partner is
     at or above it (``_match_binding_pairs``), have a pooled net concordance
-    whose seed-clustered lower bound is above zero.
+    whose seed-clustered lower bound is above zero. Method 4 counts the events
+    of turns t+1 .. t+window after a turn-t snapshot, not t .. t+window-1:
+    the snapshot is taken after turn t's actions (``NEEDS_ORACLE_METHOD_VERSION``).
 
     The binding component decides PASS only when ``profile`` is in
     ``NEEDS_BINDING_REQUIRED_PROFILES`` (the full gate) or is None; in the
     subset profile it is computed and reported (``binding.status``,
     ``informational_failed_criteria``) but does not decide. The gate applies
-    the same rule to any method 3 result (``validation_gate``).
+    the same rule to any method 3 or 4 result (``validation_gate``).
 
-    ``require_binding=False`` scores method 2 alone (``method_version`` 2),
-    for re-scoring and comparison.
+    ``method_version`` re-scores an earlier method exactly, for re-scoring
+    and comparison: 3 has method 4's criteria with the window t ..
+    t+window-1, 2 is method 3 without the binding component.
+    ``require_binding=False`` is method 2.
     """
+    if method_version is None:
+        method_version = NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION
+    if isinstance(method_version, bool) or method_version not in NEEDS_METHOD_VERSIONS:
+        raise ValueError(f"needs oracle method_version must be one of {NEEDS_METHOD_VERSIONS}: {method_version!r}")
+    if not require_binding and method_version != NEEDS_POOLED_METHOD_VERSION:
+        raise ValueError(f"require_binding=False is method {NEEDS_POOLED_METHOD_VERSION}, not {method_version}")
+    require_binding = method_version >= NEEDS_BINDING_METHOD_VERSION
+    outcome_offset = 1 if method_version >= NEEDS_ORACLE_METHOD_VERSION else 0
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
     thresholds = dict(NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds)
@@ -2311,6 +2345,7 @@ def run_needs_oracle(
             window=window,
             thresholds=thresholds,
             binding_divergence=binding_divergence,
+            outcome_offset=outcome_offset,
         )
 
         def _tally(pair_outcomes: dict[str, list[tuple[int, int]]], totals_by_need: dict[str, dict]):
@@ -2429,7 +2464,7 @@ def run_needs_oracle(
     result = {
         "status": "PASS" if bound_ok and seeds_ok and (binding_ok or not binding_decides) else "FAIL",
         "method": "pooled_matched_pairs",
-        "method_version": NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION,
+        "method_version": method_version,
         "criterion": criterion,
         "failed_criteria": failed_criteria,
         "analyzed_seeds": analyzed_seeds,
@@ -2451,6 +2486,10 @@ def run_needs_oracle(
         "autonomy_excludes_prior_rebels": exclude_prior_rebels,
         "by_pairing": by_pairing,
     }
+    if outcome_offset:
+        # Method 4: the window's first turn after the snapshot (methods 2
+        # and 3, 0, keep their report bytes without the key).
+        result["outcome_window_start_offset"] = outcome_offset
     if binding_result is not None:
         result["profile"] = profile
         result["binding_required"] = binding_decides

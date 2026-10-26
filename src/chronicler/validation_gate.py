@@ -33,7 +33,7 @@ REQUIRED_ORACLES_BY_PROFILE = {
 
 PROFILE_CHOICES = tuple(REQUIRED_ORACLES_BY_PROFILE)
 
-# Needs oracle method 3 (docs/integration/needs-followups.md): the binding
+# Needs oracle methods 3 and 4 (docs/integration/needs-followups.md): the binding
 # component decides PASS only in these profiles. A subset has about 200
 # informative binding pairs and its bound sits within one or two standard
 # errors of zero, so elsewhere it is reported as informational.
@@ -75,7 +75,7 @@ def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str
     """Needs status under ``profile`` and, when the binding component fails
     but is informational there, an informational item for it.
 
-    A method 3 result counts its binding component only in
+    A method 3 or later result counts its binding component only in
     ``NEEDS_BINDING_REQUIRED_PROFILES``, whatever profile it was scored for
     (``binding_required`` records that). Other results keep their status.
     """

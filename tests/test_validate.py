@@ -983,11 +983,13 @@ def test_pooled_net_concordance_and_sign_test_by_hand():
     assert _sign_test_p(0, 0) == 1.0
 
 
-def _material_world(seed: int, low_movers: int, high_movers: int, *, turn: int = 100, total_turns: int = 140):
+def _material_world(seed: int, low_movers: int, high_movers: int, *, turn: int = 100, total_turns: int = 140,
+                    event_offset: int = 5):
     """One seed: cells of two matched agents, material 0.2 against 0.7.
 
-    In the first ``low_movers`` cells the low-material agent migrates once in
-    the outcome window; in the next ``high_movers`` cells its partner does.
+    In the first ``low_movers`` cells the low-material agent migrates once,
+    ``event_offset`` turns after the snapshot; in the next ``high_movers``
+    cells its partner does.
     """
     rows, events = [], []
     cells = low_movers + high_movers + 2
@@ -995,9 +997,9 @@ def _material_world(seed: int, low_movers: int, high_movers: int, *, turn: int =
         low, high = 2 * region, 2 * region + 1
         rows += [(low, region, {"material": 0.2}), (high, region, {"material": 0.7})]
         if region < low_movers:
-            events.append({"agent_id": low, "event_type": MIGRATION, "turn": turn + 5})
+            events.append({"agent_id": low, "event_type": MIGRATION, "turn": turn + event_offset})
         elif region < low_movers + high_movers:
-            events.append({"agent_id": high, "event_type": MIGRATION, "turn": turn + 5})
+            events.append({"agent_id": high, "event_type": MIGRATION, "turn": turn + event_offset})
     return {
         "seed": seed,
         "bundle": {"metadata": {"total_turns": total_turns}},
@@ -1013,7 +1015,8 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     result = run_needs_oracle(runs)
 
     assert result["status"] == "PASS"
-    assert result["method_version"] == 3
+    assert result["method_version"] == 4
+    assert result["outcome_window_start_offset"] == 1
     assert result["failed_criteria"] == []
     assert result["seeds_with_expected_sign"] == 10
     assert (result["concordant_pairs"], result["discordant_pairs"]) == (sum(8 + s % 3 for s in range(10)), 20)
@@ -1077,7 +1080,7 @@ def test_needs_oracle_binding_pairs_must_carry_the_effect():
     assert pooled["method_version"] == 2
     assert "binding" not in pooled and "binding" not in pooled["per_seed"][0]
     method3_only = ("binding", "profile", "binding_required", "binding_required_profiles", "pooled_status",
-                    "informational_failed_criteria")
+                    "informational_failed_criteria", "outcome_window_start_offset")
     shared_skip = ("per_seed", "status", "failed_criteria", "method_version", "criterion")
     assert {k: v for k, v in result.items() if k not in method3_only + shared_skip} == {
         k: v for k, v in pooled.items() if k not in shared_skip}
@@ -1230,6 +1233,112 @@ def test_needs_oracle_pools_every_snapshot_whose_window_fits():
     assert (seed["concordant"], seed["discordant"]) == (5, 0)
     assert seed["by_pairing"] == {"material": [9, 5, 0]}
     assert result["status"] == "PASS"
+
+
+def test_needs_oracle_ignores_actions_on_the_snapshot_turn():
+    from chronicler.validate import run_needs_oracle
+
+    # The external review's case: two seeds whose only actions fall on the
+    # snapshot turn. A turn-t snapshot is written after turn t's agent tick,
+    # so those actions precede the reading (the mover is already in its new
+    # region). Method 3 counted them and passed both components.
+    same_turn = [_material_world(seed, 8, 0, event_offset=0) for seed in (1, 2)]
+    method3 = run_needs_oracle(same_turn, profile="full", method_version=3)
+    assert (method3["status"], method3["method_version"]) == ("PASS", 3)
+    assert method3["binding"]["net_concordance_lower_bound"] == 1.0
+    assert "outcome_window_start_offset" not in method3
+
+    result = run_needs_oracle(same_turn, profile="full")
+    assert (result["status"], result["method_version"]) == ("FAIL", 4)
+    assert result["informative_pairs"] == 0 and result["binding"]["informative_pairs"] == 0
+    assert result["failed_criteria"] == ["net_concordance_lower_bound", "seed_fraction", "binding_lower_bound"]
+    # Without those actions both methods fail alike.
+    removed = [_material_world(seed, 0, 0) for seed in (1, 2)]
+    assert run_needs_oracle(removed, profile="full", method_version=3)["status"] == "FAIL"
+
+    # The same actions one turn later are outcomes.
+    later = [_material_world(seed, 8, 0, event_offset=1) for seed in (1, 2)]
+    assert run_needs_oracle(later, profile="full")["status"] == "PASS"
+
+
+@pytest.mark.parametrize("offset, method3_counts, method4_counts", [
+    (-1, False, False), (0, True, False), (1, True, True), (19, True, True), (20, False, True), (21, False, False),
+])
+def test_needs_oracle_window_is_the_turns_after_the_snapshot(offset, method3_counts, method4_counts):
+    from chronicler.validate import run_needs_oracle
+
+    runs = [_material_world(seed, 4, 0, event_offset=offset) for seed in (1, 2)]
+    for version, counted in ((3, method3_counts), (4, method4_counts)):
+        result = run_needs_oracle(runs, method_version=version)
+        assert result["per_seed"][0]["snapshots"] == 1
+        assert result["concordant_pairs"] == (8 if counted else 0), version
+
+
+def test_needs_oracle_window_must_end_before_the_last_turn():
+    from chronicler.validate import run_needs_oracle
+
+    # A run of N turns ticks turns 0 .. N-1. Method 4's window of a turn-100
+    # snapshot ends at 120, so the snapshot needs 121 turns; method 3's
+    # ended at 119.
+    for total_turns, method3_snapshots, method4_snapshots in ((119, 0, 0), (120, 1, 0), (121, 1, 1)):
+        runs = [_material_world(seed, 4, 0, total_turns=total_turns) for seed in (1, 2)]
+        for version, expected in ((3, method3_snapshots), (4, method4_snapshots)):
+            result = run_needs_oracle(runs, method_version=version)
+            assert result["per_seed"][0]["snapshots"] == expected, (total_turns, version)
+    # Unknown run length: every snapshot is scored.
+    runs = [_material_world(seed, 4, 0, total_turns=0) for seed in (1, 2)]
+    assert run_needs_oracle(runs)["per_seed"][0]["snapshots"] == 1
+
+
+def test_needs_oracle_same_turn_rebels_are_prior_rebels():
+    from chronicler.validate import run_needs_oracle
+
+    # Autonomy -> rebellion at a turn-100 snapshot. Region 0: the low agent
+    # rebels on turn 100 (its autonomy already carries the +0.10) and again
+    # on 105: a prior rebel, left out with both rebellions. Region 1: the low
+    # agent first rebels on turn 101, an outcome. Region 2: the high agent
+    # rebels on turns 100 and 110, so its partner has no one to pair with.
+    rows = []
+    for region in range(3):
+        rows += [(2 * region, region, {"autonomy": 0.1}), (2 * region + 1, region, {"autonomy": 0.6})]
+    events = [
+        {"agent_id": 0, "event_type": REBELLION, "turn": 100},
+        {"agent_id": 0, "event_type": REBELLION, "turn": 105},
+        {"agent_id": 2, "event_type": REBELLION, "turn": 101},
+        {"agent_id": 5, "event_type": REBELLION, "turn": 100},
+        {"agent_id": 5, "event_type": REBELLION, "turn": 110},
+    ]
+    run = {
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **_needs_rows(rows)},
+        "events": events,
+    }
+    runs = _seed_copies(run, [1, 2])
+    for version in (3, 4):
+        autonomy = run_needs_oracle(runs, method_version=version)["by_pairing"]["autonomy"]
+        # Per seed one pair (region 1), concordant.
+        assert (autonomy["pairs"], autonomy["concordant"], autonomy["discordant"]) == (2, 2, 0), version
+        assert (autonomy["low_need_events"], autonomy["high_need_events"]) == (2, 0), version
+    # Without the exclusion, method 4 still does not count turn 100: per
+    # seed region 0 reads 1 against 0, region 1 1 against 0, region 2 0
+    # against 1 (method 3: 2-0, 1-0, 0-2).
+    for version, low, high in ((4, 4, 2), (3, 6, 4)):
+        autonomy = run_needs_oracle(runs, exclude_prior_rebels=False, method_version=version)["by_pairing"]["autonomy"]
+        assert (autonomy["pairs"], autonomy["low_need_events"], autonomy["high_need_events"]) == (6, low, high)
+
+
+def test_needs_oracle_method_version_argument():
+    from chronicler.validate import run_needs_oracle
+
+    runs = [_material_world(seed, 4, 0) for seed in (1, 2)]
+    assert run_needs_oracle(runs)["method_version"] == 4
+    assert run_needs_oracle(runs, require_binding=False)["method_version"] == 2
+    assert run_needs_oracle(runs, method_version=2) == run_needs_oracle(runs, require_binding=False)
+    for bad in (1, 5, True, "4"):
+        with pytest.raises(ValueError, match="method_version"):
+            run_needs_oracle(runs, method_version=bad)
+    with pytest.raises(ValueError, match="require_binding=False is method 2"):
+        run_needs_oracle(runs, require_binding=False, method_version=4)
 
 
 def test_needs_oracle_autonomy_confound_reverses_then_exclusion_restores():
