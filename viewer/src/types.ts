@@ -290,6 +290,8 @@ export interface TurnSnapshot {
   nomads?: NomadsSnapshot;
   /** Living cities, the fallen count and running totals; present only with --cities. */
   cities?: CitiesSnapshot;
+  /** Living movements, lasting reforms and running totals; present only with --agent-movements. */
+  agent_movements?: AgentMovementsSnapshot;
   /**
    * Regional food sufficiency and relief convoys of the completed turn;
    * present only when mutual aid runs on an agent-backed economy (bundles
@@ -380,6 +382,98 @@ export interface CitiesSnapshot {
   fallen: number;
   /** Running totals (founded, charters, revolts, sacks, dues, commerce, ...). */
   counters: Record<string, number>;
+}
+
+/** One living movement at a turn (`agent_movements.snapshot_summary`). */
+export interface MovementSnapshotRow {
+  /** Index in the world's movement list, the movement's identity. */
+  id: number;
+  name: string;
+  /** "commons", "liberty" or "sect". */
+  creed: string;
+  /** Civ index of the ruler it opposes. */
+  target: number;
+  /** "gathering", "pressing", "suppressed", "rising" or "satisfied". */
+  stage: string;
+  members: number;
+  /** Members' share of the target realm's adults. */
+  strength: number;
+  /** Region index of its stronghold, -1 none. */
+  stronghold: number;
+  martyrs: number;
+  /** The great person who leads it (bundles from slice 2 on). */
+  leader?: string;
+  /** Index of the repealed reform it wants restored. */
+  restores?: number;
+}
+
+/** A lasting reform in force at a turn. */
+export interface ReformSnapshotRow {
+  /** Index in the world's reform list. */
+  id: number;
+  /** "relief", "home_rule" or "toleration". */
+  kind: string;
+  /** Civ index of the ruler who granted it. */
+  civ: number;
+  since: number;
+  /** Index of the movement that won it. */
+  movement: number;
+  /** Home rule: the chartered region indices. */
+  regions?: number[];
+  /** Toleration: the tolerated faith id. */
+  faith?: number;
+  /** Toleration of the ruler's own faith: its church reformed. */
+  church?: boolean;
+  /** The governance institution it enacted or upholds. */
+  institution?: string;
+}
+
+export interface AgentMovementsSnapshot {
+  living: MovementSnapshotRow[];
+  ended: number;
+  /** Running totals (founded, demands, reforms, risings, repealed, ...). */
+  counters: Record<string, number>;
+  /** Lasting reforms in force (bundles from slice 2 on). */
+  reforms?: ReformSnapshotRow[];
+}
+
+/** A movement in the final `world_state.agent_movements` (fields the viewer reads). */
+export interface MovementRecord {
+  name: string;
+  /** Index into commons, liberty, sect. */
+  creed: number;
+  founded_turn: number;
+  home_region: number;
+  target: number;
+  leader: string;
+  peak_members: number;
+  demands: number;
+  martyrs: number;
+  ended_turn: number | null;
+  /** Index into `END_LABELS` (0 while living). */
+  end: number;
+  /** Index of the lasting reform it won, -1 none. */
+  reform?: number;
+  /** (turn, kind, event id) in order. */
+  history: Array<[number, string, string]>;
+}
+
+/** A lasting reform in the final `world_state.agent_movements` (fields the viewer reads). */
+export interface ReformRecord {
+  /** Index into relief, home rule, toleration. */
+  kind: number;
+  civ: number;
+  movement: number;
+  enacted_turn: number;
+  regions: number[];
+  faith: number;
+  church?: boolean;
+  institution: string;
+  repealed_turn: number | null;
+  /** Index into `REPEAL_LABELS` (0 in force). */
+  repeal: number;
+  event_id: string;
+  repeal_event_id: string;
 }
 
 /** A city in the final `world_state.cities` (living or fallen). */
@@ -639,6 +733,10 @@ export interface WorldState {
   maritime?: { zones?: Array<{ name: string; kind?: string; ports?: number[] }> } | null;
   /** Final city state (present only with --cities); the viewer reads each city's history. */
   cities?: { cities?: CityRecord[]; fallen?: CityRecord[] } | null;
+  /** Final movement state (present only with --agent-movements): records and lasting reforms. */
+  agent_movements?: { movements?: MovementRecord[]; reforms?: ReformRecord[] } | null;
+  /** Faiths by id; the viewer names tolerated faiths. */
+  belief_registry?: Array<{ faith_id: number; name: string }>;
   /**
    * Procedural geography (absent on template worlds); the viewer reads the
    * sea zones' map positions, in the regions' coordinate space.

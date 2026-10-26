@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import citiesFixture from "../../../__fixtures__/cities_bundle.json";
+import movementsFixture from "../../../__fixtures__/movements_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
@@ -14,6 +15,7 @@ import { FinancePanel } from "../FinancePanel";
 import { FoodPanel } from "../FoodPanel";
 import { GovernancePanel } from "../GovernancePanel";
 import { MaritimePanel } from "../MaritimePanel";
+import { MovementsPanel } from "../MovementsPanel";
 import { NomadsPanel } from "../NomadsPanel";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
@@ -411,6 +413,63 @@ describe("CitiesPanel", () => {
     cleanup();
     render(<SystemsPanel {...props(cities, CITIES_LAST)} surface="overview" />);
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Cities"]);
+  });
+});
+
+/**
+ * A trimmed template run with --agent-movements (500 hybrid turns, every
+ * fifth snapshot and the last): `agent_movements` per snapshot, the movement
+ * and reform events with the events they cite, `world_state.agent_movements`.
+ */
+const movements = movementsFixture as unknown as Bundle;
+const MOVEMENTS_LAST = movements.history[movements.history.length - 1];
+
+describe("MovementsPanel", () => {
+  const busiest = movements.history.reduce((best, snapshot) =>
+    (snapshot.agent_movements!.living.length > best.agent_movements!.living.length ? snapshot : best));
+
+  it("renders the movements over time and the scrubbed turn's table", () => {
+    const p = props(movements, busiest);
+    render(<MovementsPanel {...p} />);
+    expect(screen.getByRole("group", { name: "Stage of each movement over time" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Living movements by creed")).toBeInTheDocument();
+    const living = busiest.agent_movements!.living;
+    const table = screen.getByRole("table", { name: `Movements at turn ${busiest.turn}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + living.length);
+    const target = movements.world_state.civilizations[living[0].target].name;
+    fireEvent.click(within(table).getAllByRole("button", { name: target })[0]);
+    expect(p.onSelectCivilization).toHaveBeenCalledWith(target);
+    // The first living movement is followed: its members and recorded moments.
+    const history = screen.getByRole("region", { name: `History of ${living[0].name}` });
+    expect(within(history).getByLabelText(`Members of ${living[0].name}`)).toBeInTheDocument();
+    const moments = within(history).getByRole("list", { name: `Recorded moments of ${living[0].name}` });
+    expect(within(moments).getAllByRole("listitem").length).toBeGreaterThan(0);
+  });
+
+  it("lists the lasting reforms in force and follows the movement that won one", () => {
+    const snapshot = movements.history.find((entry) => (entry.agent_movements!.reforms ?? []).length > 0)!;
+    const p = props(movements, snapshot);
+    render(<MovementsPanel {...p} />);
+    const reforms = snapshot.agent_movements!.reforms!;
+    const table = screen.getByRole("table", { name: `Lasting reforms at turn ${snapshot.turn}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + reforms.length);
+    const winner = movements.world_state.agent_movements!.movements![reforms[0].movement].name;
+    fireEvent.click(within(table).getByRole("button", { name: winner }));
+    expect(screen.getByRole("region", { name: `History of ${winner}` })).toBeInTheDocument();
+    const totals = screen.getByLabelText(`Movement totals by turn ${snapshot.turn}`);
+    expect(within(totals).getByText("Lasting reforms enacted")).toBeInTheDocument();
+  });
+
+  it("says so before the first movement and is a tab only when the run records movements", () => {
+    const quiet = movements.history.find((snapshot) => snapshot.agent_movements!.living.length === 0)!;
+    render(<MovementsPanel {...props(movements, quiet)} />);
+    expect(screen.getByText(`No movement is living at turn ${quiet.turn}.`)).toBeInTheDocument();
+    cleanup();
+    render(<SystemsPanel {...props(movements, MOVEMENTS_LAST)} surface="overview" />);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Movements"]);
+    cleanup();
+    render(<MovementsPanel {...props(fixture, LAST)} />);
+    expect(screen.getByText(`No movement record at turn ${LAST.turn}.`)).toBeInTheDocument();
   });
 });
 

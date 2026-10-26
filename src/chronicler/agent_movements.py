@@ -1,10 +1,10 @@
 """Movements grounded in people (``--agent-movements``).
 
-Default off behind ``WorldState.agent_movements`` (CLI ``--agent-movements``
-/ ``--no-agent-movements``, persisted on the world so a resumed run keeps its
-setting). With the switch off nothing in this module runs, the bridge sends
-no movement table, and every output is identical to the simulation without
-it. See ``docs/integration/agent-movements.md``.
+On by default for new worlds behind ``WorldState.agent_movements`` (CLI
+``--agent-movements`` / ``--no-agent-movements``, persisted on the world so
+a resumed run keeps its setting). With the switch off nothing in this module
+runs, the bridge sends no movement table, and every output is identical to
+the simulation without it. See ``docs/integration/agent-movements.md``.
 
 A movement is a set of agents (per-agent ``movement_id`` in the native pool)
 sharing a grievance (its creed: ``commons`` for material, ``liberty`` for
@@ -48,9 +48,11 @@ import random
 from typing import TYPE_CHECKING, Iterable
 
 from chronicler.agent_movements_state import (
-    COMMONS, COUNTER_KEYS, CREED_NAMES, CRUSHED, DISSOLVED, ENDED, END_NAMES, FADED,
-    GATHERING, LIBERTY, LIVING, PRESSING, RISING, SATISFIED, SCHISM, SECEDED, SECT,
-    STAGE_NAMES, SUPPRESSED, WON, Movement, MovementState, agent_movements_on,
+    COMMONS, COUNTER_KEYS, CREED_NAMES, CRUSHED, DISSOLVED, ENDED, END_NAMES, FADED, FISCAL,
+    GATHERING, HOME_RULE, IN_FORCE, INQUISITION, LAPSED, LIBERTY, LIVING, NEGLECT, OPPOSITION,
+    PRESSING, REFORM_NAMES, RELIEF, REPEAL_NAMES, RISING, RULER, SATISFIED, SCHISM, SECEDED,
+    SECT, STAGE_NAMES, SUPPRESSED, TOLERATION, WON, Movement, MovementState, Reform,
+    agent_movements_on,
 )
 from chronicler.utils import stable_hash_int
 
@@ -62,8 +64,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/agent-movements.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points.
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points (on since
+#: the 2026-10 movements slice 2 full gate, docs/integration/agent-movements.md;
+#: ``--no-agent-movements`` opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Emergence (from the native grievance census).
 EMERGE_FROM_TURN = 10           # no founding in the start-up turns
@@ -158,6 +162,30 @@ CIV_HEADROOM = 4                # no new polity this close to the native civ lim
 APPEAL_LEADER = 1.5
 APPEAL_GRIEVANCE = 0.5
 
+# Lasting reforms (a grant enacts one; the agents it covers read their creed
+# need with movements.rs REFORM_NEED_CREDIT). Governance institutions they
+# enact or uphold (relief, home rule; toleration has none).
+REFORM_INSTITUTIONS = ("commons_management", "written_law", "")
+#: Faction that opposes a reform without an institution (relief, home rule,
+#: toleration); with an institution the governance opposition applies.
+REFORM_OPPONENTS = ("merchant", "military", "clergy")
+RELIEF_UPKEEP = 0.75             # treasury per realm region a turn (= the institution's rate)
+ARREARS_TURNS = 3                # unpaid turns that end a relief without an institution
+REPEAL_FACTION_SHARE = 0.40      # = institutions.FACTION_REPEAL_THRESHOLD
+REPEAL_FACTION = 0.03            # chance a turn while the opponent is above the share
+REPEAL_RULER = 0.03              # chance a new ruler repeals it ...
+REPEAL_RULER_HARSH = 0.25        # ... a harsh one
+REPEAL_MEMORY = 60               # turns a repeal is remembered against its ruler
+REPEAL_EMERGE = 2.0              # founding chance of a restoration movement
+
+# Leaders: a movement that presses its demand or rises without a living
+# leader raises one from its boldest member in the stronghold (a native
+# promotion; the person appears on the next turn).
+LEADER_MIN_MEMBERS = 8
+LEADER_RETRY = 3                 # turns before another candidate is queued
+LEADER_ROLE_GENERAL, LEADER_ROLE_PROPHET = 0, 3   # native CharacterRole ids
+SOLDIER = 1                      # occupation id
+
 HISTORY_CAP = 60
 QUANTUM_DIGITS = 4
 
@@ -237,10 +265,12 @@ def _faith_name(world, faith_id: int) -> str | None:
 class _Observation:
     """Phase 10 rows: adults per region and, per movement id, its members."""
 
-    def __init__(self, nreg: int, mid, region, age, ids, bold, belief) -> None:
+    def __init__(self, nreg: int, mid, region, age, ids, bold, belief, civ=None, occupation=None) -> None:
         import numpy as np
         self.nreg = nreg
         self.mid, self.region, self.ids, self.bold, self.belief = mid, region, ids, bold, belief
+        # Optional (leaders only): civ affinity and occupation.
+        self.civ, self.occupation = civ, occupation
         adult = age >= ADULT_AGE
         self.adults = np.bincount(region[adult], minlength=nreg)[:nreg]
 
@@ -268,10 +298,15 @@ def _observe(phase10, nreg: int) -> _Observation | None:
         mid, region, age, ids, belief = (np.asarray(c, dtype=np.int64) for c in cols)
         arrays = (mid, region, age, ids, np.asarray(bold, dtype=np.float64), belief)
     mid, region, age, ids, bold, belief = arrays
+    extra = rows.arrays("civ_affinity", "occupation") if hasattr(rows, "arrays") else None
+    civ = occupation = None
+    if extra is not None:
+        civ, occupation = (np.asarray(a, dtype=np.int64) for a in extra)
     return _Observation(
         nreg, np.asarray(mid, dtype=np.int64), np.asarray(region, dtype=np.int64),
         np.asarray(age, dtype=np.int64), np.asarray(ids, dtype=np.int64),
         np.asarray(bold, dtype=np.float64), np.asarray(belief, dtype=np.int64),
+        civ, occupation,
     )
 
 
@@ -423,12 +458,14 @@ def _leader_alive(world, m: Movement) -> bool:
 
 def tick_agent_movements(world: "WorldState", events: Iterable["Event"] = (), acc=None, *,
                          phase10=None, agent_bridge=None) -> list["Event"]:
-    """Phase 10: observe members, fade, pressure, demands and responses,
-    risings and their resolution, schisms and secessions, then emergence.
-    Returns the turn's movement events."""
+    """Phase 10: lasting reforms (upkeep, lapse, repeal), then each
+    movement: observe members, its leader, fade, pressure, demands and
+    responses, risings and their resolution, schisms and secessions; then
+    emergence. Returns the turn's movement events."""
     if not agent_movements_on(world):
         return []
     t = _Tick(world, acc, agent_bridge, phase10)
+    _tick_reforms(t)
     for i, m in _living(t.state):
         _update(t, i, m)
     census = _grievance_census(agent_bridge, len(world.regions))
@@ -494,6 +531,7 @@ def _update(t: _Tick, i: int, m: Movement) -> None:
     _observe_movement(t, i, m, civ)
     _record_spread(t, i, m)
     _mourn_leader(t, i, m, civ)
+    _lead(t, i, m, civ)
     if turn - m.founded_turn > FOUNDING_GRACE:
         m.low_turns = m.low_turns + 1 if m.members < FADE_MEMBERS else 0
         if m.low_turns >= FADE_TURNS:
@@ -553,6 +591,78 @@ def _mourn_leader(t: _Tick, i: int, m: Movement, civ) -> None:
                f"The death of {m.leader} makes a martyr for {m.name}",
                importance=5, region=region, causes=(_recall(t, i, "founded"),))
     _note(m, t.world.turn, "martyr", ev.event_id)
+
+
+def _gp_by_agent(world, agent_id: int):
+    """The living great person who is agent ``agent_id``, or None."""
+    for civ in world.civilizations:
+        for gp in civ.great_persons:
+            if gp.agent_id == agent_id and gp.alive and gp.active:
+                return gp
+    return None
+
+
+def _lead(t: _Tick, i: int, m: Movement, civ) -> None:
+    """A movement that has pressed its demand or risen, with no living
+    leader, raises one: its boldest member in the stronghold (a member of a
+    living civ). A great person already is one; anyone else is promoted
+    natively (a prophet for a sect or a civilian, a general for a soldier)
+    and leads from the next turn."""
+    world = t.world
+    if m.leader_candidate:
+        gp = _gp_by_agent(world, m.leader_candidate)
+        if gp is not None:
+            _install_leader(t, i, m, civ, gp)
+            return
+        if m.leader_turn is not None and world.turn - m.leader_turn < LEADER_RETRY:
+            return
+        m.leader_candidate, m.leader_turn = 0, None
+    if m.leader and _leader_alive(world, m):
+        return
+    if (m.demands < 1 and m.stage != RISING) or m.members < LEADER_MIN_MEMBERS or m.stage == SATISFIED:
+        return
+    obs = t.obs
+    sim = getattr(t.bridge, "_sim", None) if t.bridge is not None else None
+    if obs is None or obs.civ is None or sim is None or not hasattr(sim, "queue_movement_leaders"):
+        return
+    import numpy as np
+    mask = obs.mid == i + 1
+    if m.stronghold >= 0:
+        mask &= obs.region == m.stronghold
+    living = {ci for ci, c in enumerate(world.civilizations) if c.regions}
+    leading = {mm.leader_agent for mm in t.state.movements if mm.stage != ENDED and mm.leader}
+    sel = [j for j in np.flatnonzero(mask).tolist()
+           if int(obs.civ[j]) in living and int(obs.ids[j]) not in leading]
+    if not sel:
+        return
+    j = min(sel, key=lambda j: (-float(obs.bold[j]), int(obs.ids[j])))
+    agent_id = int(obs.ids[j])
+    gp = _gp_by_agent(world, agent_id)
+    if gp is not None:
+        _install_leader(t, i, m, civ, gp)
+        return
+    soldier = m.creed != SECT and int(obs.occupation[j]) == SOLDIER
+    sim.queue_movement_leaders([agent_id], [LEADER_ROLE_GENERAL if soldier else LEADER_ROLE_PROPHET])
+    m.leader_candidate, m.leader_turn = agent_id, world.turn
+
+
+def _install_leader(t: _Tick, i: int, m: Movement, civ, gp) -> None:
+    from chronicler.great_persons import _append_deed
+    world = t.world
+    region = world.regions[m.stronghold if m.stronghold >= 0 else m.home_region].name
+    m.leader, m.leader_agent = gp.name, int(gp.agent_id or 0)
+    m.leader_candidate, m.leader_turn = 0, None
+    m.leader_mourned = False
+    gp.region = region
+    _append_deed(gp, f"Rose to lead {m.name}", region=region, turn=world.turn, civ=gp.civilization)
+    _bump(t.state, "leaders")
+    ev = _emit(t, "movement_leader", [civ.name, gp.name],
+               f"{gp.name} rises to lead {m.name} in {region}", importance=5, region=region,
+               causes=(_recall(t, i, "rising", within=10), _recall(t, i, "demand", within=40),
+                       _recall(t, i, "founded")))
+    from chronicler import provenance as prov
+    prov.remember(world, prov.key("gp", gp.name), ev)
+    _note(m, world.turn, "leader", ev.event_id)
 
 
 def _end(t: _Tick, i: int, m: Movement, kind: int, text: str, *, causes=()) -> None:
@@ -623,6 +733,9 @@ def suppress_chance(m: Movement, civ) -> float:
 
 def _demand_text(world, m: Movement) -> str:
     region = world.regions[m.home_region].name
+    state = world.agent_movements
+    if state is not None and 0 <= m.restores < len(state.reforms):
+        return f"the restoration of {reform_name(world, state.reforms[m.restores])}"
     faith = _faith_name(world, m.faith)
     if m.creed == SECT:
         if faith is None:
@@ -681,11 +794,25 @@ def _reform(t: _Tick, i: int, m: Movement, civ, *, concession: bool = False, cau
     region = world.regions[m.home_region].name
     text = _REFORMS[m.creed].format(ruler=civ.name, name=m.name, region=region,
                                     cost=f" ({cost} from the treasury)" if cost else "")
+    lasting = _enact(t, i, m, civ)
+    if lasting is not None:
+        text += lasting[2]
     if concession:
         text = f"After the rising, {text}"
+    restored = t.state.reforms[m.restores] if 0 <= m.restores < len(t.state.reforms) else None
     ev = _emit(t, "movement_concession" if concession else "movement_reform", [civ.name], text,
-               importance=6, region=region, causes=causes)
+               importance=6, region=region,
+               causes=(*causes, restored.repeal_event_id if restored is not None else None))
     _note(m, world.turn, "concession" if concession else "reform", ev.event_id)
+    if lasting is not None:
+        k, created, _suffix, charter_region = lasting
+        r = t.state.reforms[k]
+        if created:
+            r.event_id = ev.event_id
+            from chronicler import provenance as prov
+            prov.remember(world, _reform_key(k), ev)
+        if charter_region >= 0:
+            _charter(t, k, r, charter_region, ev)
 
 
 def _refuse(t: _Tick, i: int, m: Movement, civ, demand) -> None:
@@ -697,6 +824,311 @@ def _refuse(t: _Tick, i: int, m: Movement, civ, demand) -> None:
                importance=4, region=demand.region, causes=(demand.event_id,))
     _remember(t, i, "refused", ev)
     _note(m, world.turn, "refused", ev.event_id)
+
+
+# ---------------------------------------------------------------------------
+# Lasting reforms
+# ---------------------------------------------------------------------------
+
+_PRETTY_INSTITUTION = {"commons_management": "Commons Management", "written_law": "Written Law"}
+
+
+def _reform_key(k: int, what: str = "granted") -> str:
+    from chronicler import provenance as prov
+    return prov.key("agent_reform", f"{k}:{what}")
+
+
+def _join(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def reform_name(world, r: Reform) -> str:
+    """How the record and the narration name a reform."""
+    if r.kind == RELIEF:
+        return "the poor relief"
+    if r.kind == HOME_RULE:
+        names = [world.regions[ri].name for ri in r.regions if 0 <= ri < len(world.regions)]
+        return f"the home rule of {_join(names)}" if names else "the home rule"
+    faith = _faith_name(world, r.faith)
+    if r.church:
+        return f"the reform of the {faith}" if faith else "the reform of the church"
+    return f"the toleration of the {faith}" if faith else "the toleration"
+
+
+def _in_force(state: MovementState, civ: int, kind: int, faith: int) -> int | None:
+    """Index of the reform of ``kind`` in force in ``civ`` (toleration: of ``faith``)."""
+    for k, r in enumerate(state.reforms):
+        if r.repeal == IN_FORCE and r.civ == civ and r.kind == kind and (kind != TOLERATION or r.faith == faith):
+            return k
+    return None
+
+
+def _governance(world, civ):
+    """The civ's governance carry, or None with governance off."""
+    if getattr(world, "governance", None) is None:
+        return None
+    return getattr(civ, "governance", None)
+
+
+def _active_institutions(gov) -> set[str]:
+    return {inst.institution_type for inst in gov.institutions} if gov is not None else set()
+
+
+def _institutionalize(t: _Tick, civ, kind: int) -> tuple[str, bool]:
+    """Enact the reform's governance institution, or uphold it when active:
+    (institution, enacted here). ("", False) without one: toleration, no
+    governance, or no free place (three institutions, or a conflict).
+    Effective N+1, funded and resolved by the governance runtime."""
+    name = REFORM_INSTITUTIONS[kind]
+    gov = _governance(t.world, civ)
+    if not name or gov is None:
+        return "", False
+    if name in _active_institutions(gov):
+        return name, False
+    from chronicler import institutions as g01
+    from chronicler.governance_runtime import INSTITUTION_COEFFICIENTS, _log_institution
+    from chronicler.governance_state import GovernanceInstitution
+    itype = g01.InstitutionType(name)
+    active = {g01.InstitutionType(x) for x in _active_institutions(gov)}
+    if len(active) >= g01.MAX_ACTIVE_INSTITUTIONS or g01.INSTITUTION_CONFLICTS[itype] & active:
+        return "", False
+    cost = g01.enforcement_cost(institution_type=itype, coefficients=INSTITUTION_COEFFICIENTS,
+                                region_count=len(civ.regions), trade_route_count=0)
+    gov.institutions.append(GovernanceInstitution(
+        institution_type=name, enacted_turn=t.world.turn, legitimacy=1.0, enforcement_cost=cost,
+        opposing_faction=INSTITUTION_COEFFICIENTS.rule(itype).opposing_faction.value))
+    order = list(g01.InstitutionType)
+    gov.institutions.sort(key=lambda x: order.index(g01.InstitutionType(x.institution_type)))
+    gov.institutions_enacted_total += 1
+    _log_institution(gov, t.world.turn, itype, "enacted")
+    return name, True
+
+
+def _abolish_institution(t: _Tick, civ, name: str) -> None:
+    """A ruler's repeal takes the institution the reform enacted with it."""
+    gov = _governance(t.world, civ)
+    if gov is None or name not in _active_institutions(gov):
+        return
+    from chronicler import institutions as g01
+    from chronicler.governance_runtime import _log_institution
+    gov.institutions = [x for x in gov.institutions if x.institution_type != name]
+    gov.institutions_repealed_total += 1
+    _log_institution(gov, t.world.turn, g01.InstitutionType(name), "repealed")
+
+
+def _last_institution_kind(gov, name: str) -> str:
+    for entry in reversed(gov.institution_log if gov is not None else []):
+        if len(entry) >= 3 and entry[1] == name:
+            return str(entry[2])
+    return ""
+
+
+def _enact(t: _Tick, i: int, m: Movement, civ):
+    """Make a grant a lasting reform: a new one, or one in force extended.
+    Returns (reform index, created, text for the grant, region whose city
+    gains a charter or -1), or None when nothing lasting can be granted."""
+    world, state = t.world, t.state
+    kind = m.creed
+    region = m.stronghold if m.stronghold >= 0 else m.home_region
+    if kind == HOME_RULE and world.regions[region].controller != civ.name:
+        return None
+    if kind == TOLERATION and m.faith == NO_FAITH:
+        return None
+    k = _in_force(state, m.target, kind, m.faith)
+    if k is not None:
+        r = state.reforms[k]
+        m.reform = k
+        _bump(state, "extended")
+        if kind == HOME_RULE and region not in r.regions:
+            r.regions = sorted(r.regions + [region])
+            return k, False, f"; home rule extends to {world.regions[region].name}", region
+        return k, False, f"; {reform_name(world, r)} stands", -1
+    r = Reform(kind=kind, civ=m.target, movement=i, enacted_turn=world.turn,
+               regions=[region] if kind == HOME_RULE else [],
+               faith=m.faith if kind == TOLERATION else NO_FAITH,
+               ruler=civ.leader.name, ruler_start=civ.leader.reign_start, restores=m.restores)
+    r.church = kind == TOLERATION and getattr(civ, "civ_majority_faith", NO_FAITH) == m.faith
+    r.institution, r.founded_institution = _institutionalize(t, civ, kind)
+    state.reforms.append(r)
+    k = len(state.reforms) - 1
+    m.reform = k
+    _bump(state, "enacted")
+    law = _PRETTY_INSTITUTION.get(r.institution)
+    under = f" under {law}" if law else ""
+    if m.restores >= 0:
+        _bump(state, "restored")
+        suffix = f"; {reform_name(world, r)} is restored{under}"
+    elif kind == RELIEF:
+        suffix = f"; poor relief becomes law{under}"
+    elif kind == HOME_RULE:
+        suffix = f"; {law} guarantees it" if law else "; a charter guarantees it"
+    elif r.church:
+        suffix = f"; the {_faith_name(world, r.faith)} is reformed"
+    else:
+        suffix = f"; the {_faith_name(world, r.faith)} is tolerated in the realm"
+    if kind == TOLERATION and "holy_inquisition" in _active_institutions(_governance(world, civ)):
+        # Toleration ends the Inquisition (enacting it again ends the toleration).
+        _abolish_institution(t, civ, "holy_inquisition")
+        suffix += " and the Holy Inquisition is abolished"
+    return k, True, suffix, region if kind == HOME_RULE else -1
+
+
+def _charter(t: _Tick, k: int, r: Reform, region: int, grant) -> None:
+    """Home rule raises the realm's city in the region one charter level
+    (self-government at most, at the cities' rank floors)."""
+    from chronicler.cities_state import CHARTER_NAMES, SELF_GOVERNMENT, cities_on
+    world = t.world
+    if not cities_on(world):
+        return
+    from chronicler.cities import CHARTER_MIN_RANK, _note as city_note
+    city = next((c for c in world.cities.cities if c.region == region and c.lord == r.civ
+                 and c.charter < SELF_GOVERNMENT and c.rank >= CHARTER_MIN_RANK[c.charter + 1]), None)
+    if city is None:
+        return
+    city.charter += 1
+    r.cities.append(city.settlement_id)
+    _bump(t.state, "charters")
+    civ = t.civ(r.civ)
+    ev = _emit(t, "city_charter", [civ.name],
+               f"{civ.name} grants {city.name} {CHARTER_NAMES[city.charter]} with "
+               f"{reform_name(world, r)}", importance=4, region=world.regions[region].name,
+               causes=(grant.event_id,))
+    city_note(city, world.turn, "charter", ev.event_id)
+
+
+def _revoke_charters(t: _Tick, r: Reform, repeal) -> None:
+    from chronicler.cities_state import MARKET_RIGHTS, SELF_GOVERNMENT, cities_on
+    world = t.world
+    if not cities_on(world) or not r.cities:
+        return
+    from chronicler.cities import _note as city_note
+    for city in world.cities.cities:
+        if (city.settlement_id in r.cities and city.lord == r.civ
+                and MARKET_RIGHTS <= city.charter <= SELF_GOVERNMENT):
+            city.charter -= 1
+            city_note(city, world.turn, "charter", repeal.event_id)
+
+
+def _treasury(t: _Tick, civ) -> int:
+    from chronicler.war.common import projected_treasury
+    return projected_treasury(t, civ)
+
+
+def _tick_reforms(t: _Tick) -> None:
+    """Upkeep, lapse and repeal of the lasting reforms in force (before the
+    movements, so a repeal this turn is a cause for this turn's foundings)."""
+    from chronicler.models import FactionType
+    world, state = t.world, t.state
+    for k, r in enumerate(state.reforms):
+        if r.repeal != IN_FORCE:
+            continue
+        civ = t.civ(r.civ)
+        if civ is None or not civ.regions:
+            _repeal(t, k, r, LAPSED)
+            continue
+        if r.kind == HOME_RULE:
+            held = [ri for ri in r.regions if world.regions[ri].controller == civ.name]
+            if not held:
+                _repeal(t, k, r, LAPSED)
+                continue
+            if held != r.regions:
+                r.regions = held
+        gov = _governance(world, civ)
+        if r.institution and gov is None:
+            r.institution, r.founded_institution = "", False   # governance off: it stands alone
+        if r.institution and r.institution not in _active_institutions(gov):
+            kind = _last_institution_kind(gov, r.institution)
+            _repeal(t, k, r, NEGLECT if kind == "collapsed" else OPPOSITION)
+            continue
+        if r.kind == TOLERATION and "holy_inquisition" in _active_institutions(gov):
+            _repeal(t, k, r, INQUISITION)
+            continue
+        leader = civ.leader
+        if (leader.name, leader.reign_start) != (r.ruler, r.ruler_start):
+            r.ruler, r.ruler_start = leader.name, leader.reign_start
+            p = REPEAL_RULER_HARSH if leader.trait in HARSH_TRAITS else REPEAL_RULER
+            if _rng(world, "repeal_ruler", k).random() < p:
+                _repeal(t, k, r, RULER)
+                continue
+        if r.institution:
+            continue
+        opponent = FactionType(REFORM_OPPONENTS[r.kind])
+        if (_influence(civ, opponent) > REPEAL_FACTION_SHARE
+                and _rng(world, "repeal_faction", k).random() < REPEAL_FACTION):
+            _repeal(t, k, r, OPPOSITION)
+            continue
+        if r.kind == RELIEF:
+            due = math.ceil(RELIEF_UPKEEP * len(civ.regions))
+            if _treasury(t, civ) >= due:
+                _add_stat(t, civ, "treasury", -due, "keep")
+                _bump(state, "upkeep", due)
+                r.arrears = 0
+            else:
+                r.arrears += 1
+                if r.arrears >= ARREARS_TURNS:
+                    _repeal(t, k, r, FISCAL)
+
+
+def _repeal(t: _Tick, k: int, r: Reform, why: int) -> None:
+    world, state = t.world, t.state
+    civ = t.civ(r.civ)
+    civ_name = civ.name if civ is not None else "the fallen realm"
+    name = reform_name(world, r)
+    law = _PRETTY_INSTITUTION.get(r.institution, "")
+    r.repeal, r.repealed_turn = why, world.turn
+    if why == RULER and r.founded_institution and civ is not None:
+        _abolish_institution(t, civ, r.institution)
+    if why == LAPSED:
+        _bump(state, "lapsed")
+        text = f"{name[0].upper()}{name[1:]} of {civ_name} lapses"
+    else:
+        _bump(state, "repealed")
+        if why == NEGLECT:
+            text = f"{law} lapses in {civ_name} for want of pay, and with it {name}"
+        elif why == OPPOSITION and law:
+            from chronicler.governance_runtime import _OPPOSITION_AND_COST
+            from chronicler import institutions as g01
+            opp = _OPPOSITION_AND_COST[g01.InstitutionType(r.institution)][0].value
+            text = f"The {opp} faction of {civ_name} forces the repeal of {law}, and with it {name}"
+        elif why == OPPOSITION:
+            text = f"The {REFORM_OPPONENTS[r.kind]} faction of {civ_name} has {name} repealed"
+        elif why == RULER:
+            text = f"{civ.leader.name} of {civ_name} repeals {name}"
+        elif why == FISCAL:
+            text = f"{civ_name} can no longer pay for {name}; it is abandoned"
+        else:
+            text = f"The Holy Inquisition of {civ_name} ends {name}"
+    if r.kind == HOME_RULE and r.regions:
+        region = world.regions[r.regions[0]].name
+    else:
+        region = civ.capital_region if civ is not None and civ.capital_region else None
+    ev = _emit(t, "reform_lapsed" if why == LAPSED else "reform_repealed", [civ_name], text,
+               importance=3 if why == LAPSED else 6, region=region, causes=(r.event_id,))
+    r.repeal_event_id = ev.event_id
+    if why != LAPSED:
+        from chronicler import provenance as prov
+        prov.remember(world, _reform_key(k, "repealed"), ev)
+        if r.kind == HOME_RULE:
+            _revoke_charters(t, r, ev)
+
+
+def _restoration(world, state: MovementState, cidx: int, creed: int, ri: int, region) -> int:
+    """The repealed reform of the creed a founding in region ``ri`` would
+    seek to restore (repealed by ``cidx`` within REPEAL_MEMORY, covering the
+    region, not yet restored or sought), else -1."""
+    sought = {m.restores for m in state.movements if m.stage != ENDED and m.restores >= 0}
+    sought.update(r.restores for r in state.reforms if r.restores >= 0)
+    best = -1
+    for k, r in enumerate(state.reforms):
+        if (r.civ != cidx or r.kind != creed or r.repeal in (IN_FORCE, LAPSED) or k in sought
+                or r.repealed_turn is None or world.turn - r.repealed_turn > REPEAL_MEMORY):
+            continue
+        if r.kind == HOME_RULE and ri not in r.regions:
+            continue
+        if r.kind == TOLERATION and region.majority_belief != r.faith:
+            continue
+        best = k
+    return best
 
 
 def _martyrs(t: _Tick, i: int, m: Movement, region: int, cap: int) -> int:
@@ -938,6 +1370,17 @@ def _secede(t: _Tick, i: int, m: Movement, civ, rising) -> None:
         region_map[n].asabiya_state.asabiya = NEW_CIV_ASABIYA
     regnal = random.Random(stable_hash_int("agent_movements", "regnal", world.seed, world.turn, name))
     title, throne, ordinal = _pick_regnal_name(new, world, regnal)
+    founder = _find_great_person(world, m.leader) if m.leader else None
+    if founder is not None and founder.alive and founder.active:
+        # The movement's leader takes the throne of the state it founded.
+        from chronicler.leaders import strip_title
+        new.regnal_name_counts.pop(throne, None)
+        throne = getattr(founder, "base_name", None) or strip_title(founder.name)
+        ordinal = 0
+        new.regnal_name_counts[throne] = 1
+        new.leader.trait = founder.trait
+    else:
+        founder = None
     new.leader.name = _compose_regnal_name(title, throne, ordinal)
     new.leader.throne_name = throne
     new.leader.regnal_ordinal = ordinal
@@ -955,8 +1398,20 @@ def _secede(t: _Tick, i: int, m: Movement, civ, rising) -> None:
     civ.event_counts["secession_occurred"] = civ.event_counts.get("secession_occurred", 0) + 1
     m.successor = new_idx
     _bump(t.state, "secessions")
+    ruled = ""
+    if founder is not None:
+        from chronicler.great_persons import _append_deed
+        _append_deed(founder, f"Took the throne of the {name}", region=home.name, turn=world.turn,
+                     civ=name)
+        founder.active = False
+        founder.fate = "ascended"
+        for owner in world.civilizations:
+            if founder in owner.great_persons:
+                owner.great_persons.remove(founder)
+        world.retired_persons.append(founder)
+        ruled = f", and {founder.name} takes its throne as {new.leader.name}"
     ev = _emit(t, "secession", [civ.name, name],
-               f"{m.name} carries {', '.join(leaving)} out of {civ.name}: the {name}",
+               f"{m.name} carries {', '.join(leaving)} out of {civ.name}: the {name}{ruled}",
                importance=9, region=home.name, causes=(rising,))
     _note(m, world.turn, "seceded", ev.event_id)
     t.events.extend(transitions)
@@ -1005,17 +1460,20 @@ def _emerge(t: _Tick, census) -> None:
         return
     adults, aggrieved = census
     per_civ: dict[int, int] = {}
-    creeds: dict[int, set[int]] = {}
+    alive: dict[int, set[int]] = {}
+    cooling: dict[int, set[int]] = {}
     for _i, m in living:
         per_civ[m.target] = per_civ.get(m.target, 0) + 1
-        creeds.setdefault(m.target, set()).add(m.creed)
+        alive.setdefault(m.target, set()).add(m.creed)
     leaders = {m.leader for _i, m in living if m.leader}
     for m in state.movements:
         # A ruler who just faced a movement of a creed does not face another
-        # at once (the end, or the founding while it lives, starts the clock).
+        # at once (the end, or the founding while it lives, starts the clock);
+        # a repealed reform's restoration is not held back.
         if world.turn - (m.ended_turn if m.ended_turn is not None else m.founded_turn) < EMERGE_COOLDOWN:
-            creeds.setdefault(m.target, set()).add(m.creed)
+            cooling.setdefault(m.target, set()).add(m.creed)
     index = {c.name: i for i, c in enumerate(world.civilizations)}
+    repeals = any(r.repeal not in (IN_FORCE, LAPSED) for r in state.reforms)
     candidates = []
     for ri, region in enumerate(world.regions):
         cidx = index.get(region.controller) if region.controller else None
@@ -1029,16 +1487,21 @@ def _emerge(t: _Tick, census) -> None:
             a = aggrieved[ri][creed]
             if n <= 0 or a < EMERGE_MIN_AGGRIEVED or a / n < EMERGE_SHARE:
                 continue
-            if creed in creeds.get(cidx, ()):
+            if creed in alive.get(cidx, ()):
+                continue
+            restores = _restoration(world, state, cidx, creed, ri, region) if repeals else -1
+            if restores < 0 and creed in cooling.get(cidx, ()):
                 continue
             gp, mult = _carrier(world, civ, region.name, creed, leaders)
+            if restores >= 0:
+                mult *= REPEAL_EMERGE
             share = a / n
             chance = min(EMERGE_CHANCE_CAP, EMERGE_CHANCE * share / EMERGE_SHARE * mult)
-            candidates.append((-share * mult, ri, creed, chance, gp, a, n))
+            candidates.append((-share * mult, ri, creed, chance, gp, a, n, restores))
     candidates.sort(key=lambda c: (c[0], c[1], c[2]))
-    for _score, ri, creed, chance, gp, a, n in candidates:
+    for _score, ri, creed, chance, gp, a, n, restores in candidates:
         if _rng(world, "emerge", ri, creed).random() < chance:
-            _found(t, ri, creed, gp, a, n)
+            _found(t, ri, creed, gp, a, n, restores=restores)
             return
 
 
@@ -1052,7 +1515,8 @@ def _movement_name(world, creed: int, region: str, faith: str, i: int) -> str:
     return name
 
 
-def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int) -> None:
+def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, *,
+           restores: int = -1) -> None:
     world = t.world
     state = t.state
     region = world.regions[ri]
@@ -1066,16 +1530,17 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int) -> No
         leader=gp.name if gp is not None else "",
         leader_agent=int(gp.agent_id) if gp is not None and gp.agent_id is not None else 0,
         idea=_idea_for(world, civ, creed), faith=faith if 0 <= faith < NO_FAITH else NO_FAITH,
-        stage=GATHERING, stage_turn=world.turn, regions_reached=[ri],
+        stage=GATHERING, stage_turn=world.turn, regions_reached=[ri], restores=restores,
     )
     state.movements.append(m)
     _bump(state, "founded")
     founder = f"{gp.name} founds" if gp is not None else "the discontented found"
     idea = f", carrying the idea of {next(x.value_affinity for x in world.movements if x.id == m.idea)}" if m.idea else ""
+    repeal = state.reforms[restores].repeal_event_id if restores >= 0 else None
     ev = _emit(t, "movement_founded", [civ.name] + ([gp.name] if gp is not None else []),
                f"In {region.name}, {founder} {name}{idea}: {aggrieved} of {adults} "
                f"people there want {_demand_text(world, m)}",
-               importance=5, region=region.name, causes=_region_causes(t, region.name))
+               importance=5, region=region.name, causes=(repeal, *_region_causes(t, region.name)))
     _remember(t, i, "founded", ev)
     _note(m, world.turn, "founded", ev.event_id)
 
@@ -1124,6 +1589,27 @@ def movement_table(world: "WorldState"):
     return pa.record_batch({k: pa.array(v, type=types[k]) for k, v in cols.items()})
 
 
+def reform_table(world: "WorldState"):
+    """The lasting reforms in force for this turn's tick: one row per
+    chartered region of a home rule, one per realm for relief (every
+    believer) and toleration (its faith)."""
+    import pyarrow as pa
+    cols: dict[str, list] = {k: [] for k in ("creed", "civ", "region", "faith")}
+    state = world.agent_movements
+    for r in (state.reforms if state is not None else ()):
+        if r.repeal != IN_FORCE or not 0 <= r.civ < 255:
+            continue
+        rows = ([(ri, NO_FAITH) for ri in r.regions] if r.kind == HOME_RULE
+                else [(NO_REGION, r.faith if r.kind == TOLERATION else NO_FAITH)])
+        for region, faith in rows:
+            cols["creed"].append(r.kind)
+            cols["civ"].append(r.civ)
+            cols["region"].append(region)
+            cols["faith"].append(faith)
+    types = {"creed": pa.uint8(), "civ": pa.uint8(), "region": pa.uint16(), "faith": pa.uint8()}
+    return pa.record_batch({k: pa.array(v, type=types[k]) for k, v in cols.items()})
+
+
 def movement_seeds(world: "WorldState"):
     """Members to re-seed per region for a native pool built fresh (a
     resumed world): the saved members of every living movement."""
@@ -1150,10 +1636,10 @@ def send_to_native(world: "WorldState", agent_bridge) -> None:
     if not agent_movements_on(world):
         return
     sim = agent_bridge._sim
-    if not hasattr(sim, "set_movement_table"):
+    if not hasattr(sim, "set_movement_table") or not hasattr(sim, "set_movement_reforms"):
         raise RuntimeError(
-            "the installed chronicler_agents extension predates agent movements; "
-            "rebuild it to use --agent-movements"
+            "the installed chronicler_agents extension predates agent movements (or their "
+            "lasting reforms); rebuild it to use --agent-movements"
         )
     if not getattr(agent_bridge, "_movements_seeded", False):
         seeds = movement_seeds(world)
@@ -1161,6 +1647,7 @@ def send_to_native(world: "WorldState", agent_bridge) -> None:
             sim.seed_movement_members(seeds)
         agent_bridge._movements_seeded = True
     sim.set_movement_table(movement_table(world))
+    sim.set_movement_reforms(reform_table(world))
 
 
 # ---------------------------------------------------------------------------
@@ -1172,16 +1659,39 @@ def snapshot_summary(world: "WorldState") -> dict:
     state = world.agent_movements
     living = []
     for i, m in _living(state):
-        living.append({
+        row = {
             "id": i, "name": m.name, "creed": CREED_NAMES[m.creed], "target": m.target,
             "stage": STAGE_NAMES[m.stage], "members": m.members, "strength": m.strength,
             "stronghold": m.stronghold, "martyrs": m.martyrs,
-        })
-    return {
+        }
+        if m.leader:
+            row["leader"] = m.leader
+        if m.restores >= 0:
+            row["restores"] = m.restores
+        living.append(row)
+    summary = {
         "living": living,
         "ended": sum(1 for m in state.movements if m.stage == ENDED),
         "counters": {k: state.counters.get(k, 0) for k in COUNTER_KEYS},
     }
+    reforms = []
+    for k, r in enumerate(state.reforms):
+        if r.repeal != IN_FORCE:
+            continue
+        row = {"id": k, "kind": REFORM_NAMES[r.kind], "civ": r.civ, "since": r.enacted_turn,
+               "movement": r.movement}
+        if r.regions:
+            row["regions"] = list(r.regions)
+        if r.kind == TOLERATION:
+            row["faith"] = r.faith
+            if r.church:
+                row["church"] = True
+        if r.institution:
+            row["institution"] = r.institution
+        reforms.append(row)
+    if reforms or state.reforms:
+        summary["reforms"] = reforms
+    return summary
 
 
 def movement_history(world: "WorldState", index: int) -> list[str]:
@@ -1202,6 +1712,27 @@ def movement_history(world: "WorldState", index: int) -> list[str]:
     for turn, kind, eid in m.history:
         ev = by_id.get(eid)
         lines.append(f"  {turn:>4}: {kind}: {ev.description if ev is not None else ''}")
+    state = world.agent_movements
+    if 0 <= m.reform < len(state.reforms):
+        lines.extend(f"  {line}" for line in reform_history(world, m.reform, by_id))
+    return lines
+
+
+def reform_history(world: "WorldState", index: int, by_id: dict | None = None) -> list[str]:
+    """One lasting reform's record: what it is, its grant and its end."""
+    r = world.agent_movements.reforms[index]
+    if by_id is None:
+        by_id = {e.event_id: e for e in world.events_timeline if e.event_id}
+    civ = world.civilizations[r.civ].name if 0 <= r.civ < len(world.civilizations) else "?"
+    law = f", {_PRETTY_INSTITUTION[r.institution]}" if r.institution in _PRETTY_INSTITUTION else ""
+    status = (f"repealed ({REPEAL_NAMES[r.repeal]}) turn {r.repealed_turn}" if r.repeal
+              else "in force")
+    lines = [f"reform {index}: {reform_name(world, r)} in {civ}{law}, enacted turn "
+             f"{r.enacted_turn}; {status}"]
+    for eid in (r.event_id, r.repeal_event_id):
+        ev = by_id.get(eid) if eid else None
+        if ev is not None:
+            lines.append(f"  {ev.turn:>4}: {ev.event_type}: {ev.description}")
     return lines
 
 

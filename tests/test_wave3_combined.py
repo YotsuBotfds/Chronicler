@@ -334,9 +334,11 @@ def _movements_world() -> WorldState:
     off nothing recruits or founds, so two movements are placed as a saved
     world carries them (members by region, strength, stronghold): their
     demands, the rulers' responses, crackdowns and risings run from the
-    persisted state."""
+    persisted state. A lasting reform (relief without an institution) is in
+    force from the start: its upkeep, the rulers' judgement of it and any
+    repeal run from the persisted state too."""
     import chronicler.agent_movements as am
-    from chronicler.agent_movements_state import COMMONS, LIBERTY, Movement
+    from chronicler.agent_movements_state import COMMONS, LIBERTY, RELIEF, Movement, Reform
     world = _cities_world()
     am.set_agent_movements_enabled(world, True)
     held = sorted((i for i, r in enumerate(world.regions) if r.controller),
@@ -347,6 +349,10 @@ def _movements_world() -> WorldState:
             name=f"movement {ri}", creed=creed, founded_turn=0, home_region=ri, target=target,
             members=12, member_regions=[[ri, 12]], strength=0.3, stronghold=ri,
             stronghold_share=0.4, regions_reached=[ri]))
+    civ = world.civilizations[world.civ_index_map[world.regions[held[2]].controller]]
+    world.agent_movements.reforms.append(Reform(
+        kind=RELIEF, civ=world.civ_index_map[civ.name], enacted_turn=0, ruler=civ.leader.name,
+        ruler_start=civ.leader.reign_start))
     return world
 
 
@@ -370,7 +376,9 @@ def test_save_load_resume_identity_with_movements_and_everything_on(tmp_path):
     for _ in range(15):
         # The native table each tick would read is the same, turn by turn.
         assert am.movement_table(resumed).to_pydict() == am.movement_table(straight).to_pydict()
+        assert am.reform_table(resumed).to_pydict() == am.reform_table(straight).to_pydict()
         _advance(resumed, 1)
         _advance(straight, 1)
     assert resumed.model_dump_json() == straight.model_dump_json()
     assert resumed.agent_movements.counters["demands"] >= 2
+    assert resumed.agent_movements.reforms and resumed.agent_movements.counters["upkeep"] > 0

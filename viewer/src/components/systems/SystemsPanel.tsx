@@ -11,6 +11,7 @@ import { FinancePanel } from "./FinancePanel";
 import { FoodPanel } from "./FoodPanel";
 import { GovernancePanel } from "./GovernancePanel";
 import { MaritimePanel } from "./MaritimePanel";
+import { MovementsPanel } from "./MovementsPanel";
 import { NomadsPanel } from "./NomadsPanel";
 import { TechniquesPanel } from "./TechniquesPanel";
 import { WarsPanel } from "./WarsPanel";
@@ -29,6 +30,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
   governance: GovernancePanel,
   contact: ContactPanel,
   cities: CitiesPanel,
+  movements: MovementsPanel,
 };
 
 /**
