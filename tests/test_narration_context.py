@@ -127,6 +127,10 @@ def test_a_founding_sparked_by_news_names_the_won_demand():
     local = _ev(30, "movement_founded", ["Thornwall"], region="Amber Valley",
                 causes=["25:movement_reform:0"])
     assert nc.news_spark(local, timeline) is None and nc.news_spark(famine, timeline) is None
+    # The link weighs like a named event when the prompt's lines are chosen.
+    plain = _ev(30, "movement_founded", ["Thornwall"], region="Thornwood", causes=["29:famine:0"])
+    assert nc.news_sparked(founded) and not nc.news_sparked(plain)
+    assert nc.salience(founded) == nc.salience(plain) + 2.0
 
 
 # --- bounded event lists ----------------------------------------------------------
