@@ -333,6 +333,9 @@ def test_placeholder_movement_names_stay_out_of_landmarks():
     ne = NamedEvent(name="Schism of movement 3", event_type="movement_schism", turn=5, actors=["A", "B"],
                     description="[movement_3] Schism between A and B", importance=7)
     assert _landmark_line(ne) == "(turn 5): Schism between A and B"
+    lit = NamedEvent(name="Universal Enlightenment (movement_1)", event_type="universal_enlightenment",
+                     turn=85, actors=["A", "B"], description="All civilizations adopt the idea", importance=10)
+    assert _landmark_line(lit) == "Universal Enlightenment (turn 85): All civilizations adopt the idea"
 
 
 # --- curator weights ------------------------------------------------------------------

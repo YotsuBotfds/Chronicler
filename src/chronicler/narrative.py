@@ -965,12 +965,18 @@ def _landmarks(named_events: Sequence[NamedEvent]) -> list[NamedEvent]:
     return [named_events[i] for i in keep]
 
 
+_PLACEHOLDER_SUFFIX = re.compile(r"\s*\(movement[ _]\d+\)", re.IGNORECASE)
+
+
 def _landmark_line(ne: NamedEvent) -> str:
-    """``Name (turn T): description``; a placeholder name ("Movement 3") is left out."""
+    """``Name (turn T): description``. A placeholder id is cut from the name
+    ("Universal Enlightenment (movement_1)"); a name that is only a
+    placeholder ("Rise of Movement 0") is left out."""
     desc = _PLACEHOLDER_TAG.sub("", ne.description).strip().rstrip(".")
-    if _PLACEHOLDER_NAME.search(ne.name):
+    name = _PLACEHOLDER_SUFFIX.sub("", ne.name).strip()
+    if not name or _PLACEHOLDER_NAME.search(name):
         return f"(turn {ne.turn}): {desc}"
-    return f"{ne.name} (turn {ne.turn}): {desc}"
+    return f"{name} (turn {ne.turn}): {desc}"
 
 
 def _mechanical_sentence(line, faiths: dict[int, str] | None = None) -> str:
