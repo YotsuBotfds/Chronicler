@@ -219,6 +219,16 @@ python scripts/m53b_run_validation.py --profile full --output-root output/m53/fu
 python scripts/m53b_run_validation.py --profile full --output-root output/m53/full-compare \
   --baseline-report output/m53/previous/full_gate/batch_42/validate_report_full.json \
   --fail-on-regression
+
+# Procedural worlds (32 regions x 10 civs per seed; --regions/--civs override):
+# subset = 20 seeds x 200 turns; full = 100 seeds x 300 turns. Compare a
+# procedural report only with a procedural baseline of the same world size.
+python scripts/m53b_run_validation.py --profile subset --worldgen procedural --output-root output/m53/procedural-subset
+python scripts/m53b_run_validation.py --profile full --worldgen procedural --output-root output/m53/procedural-full
+
+# Per-system activity of batches (from their bundles), side by side.
+python scripts/world_systems_report.py template=output/m53/full/full_gate/batch_42 \
+  procedural=output/m53/procedural-full/full_gate/batch_42
 ```
 
 For focused iteration, prefer targeted test runs and rebuild the Rust extension inside the active virtual environment before hybrid-mode validation. The native lane should verify the real extension in-process before pytest to avoid stale wheels or test stubs masking native coverage.
