@@ -165,7 +165,8 @@ class ReviewedBaseTests(ReviewedFixture):
                replace(self.guard, kernel_contract='other'), replace(self.guard, kernel=True)]
         before=r.inventory(self.folder)
         for guard in bad:
-            with self.subTest(guard=guard):
+            # subTest parameters are plain values: pytest-xdist serializes them.
+            with self.subTest(guard=repr(guard)):
                 with ExitStack() as stack:
                     stack.enter_context(mock.patch.object(es,'load_session',side_effect=AssertionError('no IO')))
                     forbid_after_load(stack)

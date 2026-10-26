@@ -249,7 +249,8 @@ class SessionOperationsTests(_SessionCase):
         patchers = (mock.patch.object(es.os, "fsync", fail_file_fsync),
                     mock.patch.object(es.os, "replace", side_effect=OSError("injected replace failure")))
         for patcher in patchers:
-            with self.subTest(patcher=patcher):
+            # The patched name: subTest parameters are plain values (pytest-xdist serializes them).
+            with self.subTest(patcher=patcher.attribute):
                 with patcher, self.assertRaises(es.PersistenceError) as caught:
                     self.apply(first_input(session))
                 self.assertNotIsInstance(caught.exception, es.DurabilityUncertain)
