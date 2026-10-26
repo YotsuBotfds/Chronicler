@@ -428,7 +428,8 @@ at 52k (8.3%) and knowledge at 22k (10.1%).
   30,000 and 100,000). A hybrid run whose civ has more than 10,000 agents
   is therefore not reproducible across machines with different core counts
   or thread settings. Not changed here (it would change outputs); a fixed
-  summation order would fix it.
+  summation order would fix it. Fixed later in `fix/procedural-open-items`:
+  both sums use `math.fsum` ([procedural-gates.md](../integration/procedural-gates.md#7-the-gini-coefficient-depended-on-the-machine-fixed)).
 * **`--parallel 1` runs `cpu_count - 1` workers** (`batch.run_batch` treats
   a value of 1 as unset), so the subset gate above ran 3 workers.
 * **`uv.lock` is stale**: its `requires-dist` lists 5 of the 9 runtime

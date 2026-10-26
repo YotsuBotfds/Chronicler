@@ -593,12 +593,49 @@ from chronicler.politics import trigger_federation_defense, war_key
 from chronicler.models import Federation
 
 
+def _federation_world(ally_links: dict[str, list[str]]):
+    """Attacker holds A, Defender B (A-B border), Ally C; ``ally_links`` adds
+    regions (name -> adjacencies) so C lies near or far from the war."""
+    from chronicler.models import Region
+    adj = {"A": ["B"], "B": ["A"], "C": []}
+    for name, links in ally_links.items():
+        adj.setdefault(name, [])
+        for other in links:
+            adj[name].append(other)
+            adj.setdefault(other, []).append(name)
+    regions = [Region(name=n, terrain="plains", carrying_capacity=50, resources="fertile",
+                      adjacencies=sorted(set(a)))
+               for n, a in adj.items()]
+    leaders = [Leader(name=f"L{i}", trait="bold", reign_start=0) for i in range(3)]
+    civs = [Civilization(name=name, population=50, military=40, economy=40, culture=30,
+                         stability=50, leader=leader, regions=[r], capital_region=r)
+            for name, r, leader in zip(("Attacker", "Defender", "Ally"), "ABC", leaders)]
+    world = WorldState(name="test", seed=42, turn=10, regions=regions, civilizations=civs)
+    world.federations = [Federation(name="The Iron Pact", members=["Defender", "Ally"], founded_turn=5)]
+    world.active_wars = [("Attacker", "Defender")]
+    world.war_start_turns = {war_key("Attacker", "Defender"): 10}
+    return world
+
+
+def test_federation_defense_calls_members_within_reach_only():
+    """2026-10: a member joins if it borders either side or lies within two
+    land steps of the attacker (docs/integration/procedural-gates.md)."""
+    for links, joins in (({"C": ["B"]}, True),                    # borders the defender
+                         ({"C": ["M"], "M": ["A"]}, True),        # two steps from the attacker
+                         ({"C": ["M"], "M": ["N"], "N": ["A"]}, False)):  # three steps
+        world = _federation_world(links)
+        events = trigger_federation_defense("Attacker", "Defender", world)
+        joined = ("Attacker", "Ally") in world.active_wars
+        assert joined == joins, links
+        assert len(events) == (1 if joins else 0)
+
+
 def test_federation_defense_adds_allies_to_war():
     from chronicler.models import Region, Relationship, Disposition
     regions = [
-        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile"),
-        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile"),
-        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile"),
+        Region(name="A", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["B"]),
+        Region(name="B", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["A", "C"]),
+        Region(name="C", terrain="plains", carrying_capacity=50, resources="fertile", adjacencies=["B"]),
     ]
     la = Leader(name="LA", trait="bold", reign_start=0)
     lb = Leader(name="LB", trait="bold", reign_start=0)
@@ -1453,9 +1490,11 @@ def test_federation_defense_triggers(make_world):
     attacker = world.civilizations[0]
     defender = world.civilizations[1]
     ally = world.civilizations[2]
-    # Set up adjacencies so attacker can perceive defender (intelligence system)
+    # Set up adjacencies so attacker can perceive defender (intelligence system),
+    # and the ally borders the defender (federation members within reach join).
     world.regions[0].adjacencies = [world.regions[1].name]
-    world.regions[1].adjacencies = [world.regions[0].name]
+    world.regions[1].adjacencies = [world.regions[0].name, world.regions[2].name]
+    world.regions[2].adjacencies = [world.regions[1].name]
     # Set up federation between defender and ally
     from chronicler.models import Federation
     world.federations = [Federation(name="Alliance", members=[defender.name, ally.name], founded_turn=1)]

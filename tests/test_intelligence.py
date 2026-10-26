@@ -369,6 +369,70 @@ class TestComputeAccuracy:
         assert compute_accuracy(c1, c2, world) == pytest.approx(0.5)
 
 
+class TestBonusesNeedContact:
+    """2026-10: faction and merchant bonuses sharpen knowledge of civs in
+    contact; they reveal no civ never met (docs/integration/procedural-gates.md)."""
+
+    @staticmethod
+    def _informed_civ(name="Civ1", **kw):
+        gp = GreatPerson(name="Trader", role="merchant", trait="shrewd",
+                         civilization=name, origin_civilization=name,
+                         alive=True, active=True, born_turn=1, is_hostage=False)
+        factions = FactionState(influence={
+            FactionType.MILITARY: 0.2, FactionType.MERCHANT: 0.6, FactionType.CULTURAL: 0.2,
+        })
+        return _civ(name, great_persons=[gp], factions=factions, **kw)
+
+    def test_stranger_stays_unknown(self):
+        c1, c2 = self._informed_civ(), _civ("Civ2")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        assert compute_accuracy(c1, c2, world) == 0.0
+        assert get_perceived_stat(c1, c2, "military", world) is None
+
+    def test_cultural_faction_stranger_stays_unknown(self):
+        factions = FactionState(influence={
+            FactionType.MILITARY: 0.2, FactionType.MERCHANT: 0.3, FactionType.CULTURAL: 0.5,
+        })
+        c1, c2 = _civ("Civ1", factions=factions), _civ("Civ2")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        assert compute_accuracy(c1, c2, world) == 0.0
+
+    def test_bonuses_apply_on_contact(self):
+        r1 = _region("A", controller="Civ1", adjacencies=["B"])
+        r2 = _region("B", controller="Civ2", adjacencies=["A"])
+        c1, c2 = self._informed_civ(regions=["A"]), _civ("Civ2", regions=["B"])
+        world = WorldState(name="t", seed=42, regions=[r1, r2], civilizations=[c1, c2])
+        # adjacent(0.3) + default-neutral trade(0.2) + merchant(0.1) + merchant gp(0.05)
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.65)
+
+    def test_contact_ledger_flow_counts_as_contact(self):
+        from chronicler.contact_ledger import ContactLedgerState
+        c1, c2, c3 = self._informed_civ(), _civ("Civ2"), _civ("Civ3")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2, c3])
+        world.contact_ledger = ContactLedgerState(pairs=[("Civ1", "Civ2", 0.0, 2.0, 0.0, 0.0)])
+        # Migrants reached Civ2 (people channel); Civ3 was never met.
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.15)
+        assert compute_accuracy(c1, c3, world) == 0.0
+
+    def test_hostage_counts_as_contact(self):
+        prince = GreatPerson(name="Prince", role="general", trait="noble",
+                             civilization="Civ2", origin_civilization="Civ1",
+                             alive=True, active=True, born_turn=1, is_hostage=True)
+        c1, c2 = self._informed_civ(), _civ("Civ2", great_persons=[prince])
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        # merchant(0.1) + merchant gp(0.05) + hostage(0.3)
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.45)
+
+    def test_grudge_alone_still_informs(self):
+        leader = Leader(name="L", trait="bold", reign_start=0,
+                        grudges=[{"rival_civ": "Civ2", "intensity": 0.5, "reason": "war"}])
+        c1 = self._informed_civ(leader=leader)
+        c2 = _civ("Civ2")
+        world = WorldState(name="t", seed=42, civilizations=[c1, c2])
+        # A remembered rival is a civ met in war: the grudge is not gated.
+        assert compute_accuracy(c1, c2, world) == pytest.approx(0.1)
+
+
 # --- Task 4: get_perceived_stat tests ---
 
 class TestGetPerceivedStat:

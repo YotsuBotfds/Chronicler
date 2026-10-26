@@ -928,9 +928,11 @@ class TestGPPromotionIntent:
         assert len(world._artifact_intents) == 1
         assert world._artifact_intents[0].artifact_type == ArtifactType.RELIC
 
-    def test_agent_prophet_promotion_burst_emits_one_relic_per_civ_type_tick(self):
+    def test_agent_prophet_promotion_burst_emits_one_relic_per_civ_type_tick(self, monkeypatch):
+        import chronicler.artifacts as artifacts_mod
         from chronicler.artifacts import GP_PRESTIGE_THRESHOLD, emit_gp_artifact_intent
 
+        monkeypatch.setattr(artifacts_mod, "AGENT_GP_ARTIFACT_CHANCE", 1.0)
         world = _make_world_with_civ()
         civ = world.civilizations[0]
         civ.prestige = GP_PRESTIGE_THRESHOLD + 10
@@ -996,6 +998,39 @@ class TestGPPromotionIntent:
             assert world._artifact_intents[0].artifact_type == ArtifactType.TREATISE
         else:
             assert len(world._artifact_intents) == 0
+
+    def test_agent_promotion_uses_deterministic_gate(self):
+        """2026-10: an agent-born person's promotion yields an artifact with
+        AGENT_GP_ARTIFACT_CHANCE; aggregate persons are not rolled."""
+        from chronicler.artifacts import (
+            AGENT_GP_ARTIFACT_CHANCE,
+            GP_PRESTIGE_THRESHOLD,
+            emit_gp_artifact_intent,
+        )
+        from chronicler.utils import stable_hash_int
+
+        emitted = 0
+        for idx in range(40):
+            world = _make_world_with_civ()
+            civ = world.civilizations[0]
+            civ.prestige = GP_PRESTIGE_THRESHOLD + 10
+            world._artifact_intents = []
+            world.turn = 60 + idx
+            gp = GreatPerson(
+                name=f"Rebel {idx}", role="prophet", trait="wise", civilization="TestCiv",
+                origin_civilization="TestCiv", born_turn=world.turn, source="agent",
+                agent_id=500 + idx,
+            )
+            roll = (stable_hash_int("gp_agent_artifact", world.seed, world.turn, civ.name,
+                                    gp.name, gp.born_turn) % 10_000) / 10_000.0
+            emit_gp_artifact_intent(world, civ, gp)
+            assert len(world._artifact_intents) == (1 if roll < AGENT_GP_ARTIFACT_CHANCE else 0)
+            emitted += len(world._artifact_intents)
+            aggregate = gp.model_copy(update={"source": "aggregate", "agent_id": None})
+            world._artifact_intents = []
+            emit_gp_artifact_intent(world, civ, aggregate)
+            assert len(world._artifact_intents) == 1
+        assert 0 < emitted < 40
 
     def test_exile_promotion_no_artifact(self):
         from chronicler.artifacts import GP_PRESTIGE_THRESHOLD

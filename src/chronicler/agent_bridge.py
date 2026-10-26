@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import logging
 from collections import Counter, deque
 from itertools import repeat, starmap
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 import numpy as np
@@ -174,10 +175,13 @@ def compute_gini(wealth_array: np.ndarray) -> float:
     # these nonnegative pairwise differences avoids cancellation near equality.
     # Scale before reductions to avoid overflow, but subtract before scaling to
     # preserve adjacent-float gaps that normalizing each value could round away.
-    total = (sorted_w / scale).sum()
+    # Both sums are exactly rounded (math.fsum), so they do not depend on the
+    # order of summation: np.dot (BLAS, threaded above 10,000 values) and SIMD
+    # reductions sum in an order that can differ between machines.
+    total = math.fsum((sorted_w / scale).tolist())
     index = np.arange(1, n, dtype=np.float64)
     gaps = np.diff(sorted_w) / scale
-    return float(np.dot(index * (n - index), gaps) / (n * total))
+    return float(math.fsum((index * (n - index) * gaps).tolist()) / (n * total))
 
 
 def civ_personality_mean(

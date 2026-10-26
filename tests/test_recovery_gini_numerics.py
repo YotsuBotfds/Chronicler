@@ -99,3 +99,51 @@ def test_nonfinite_wealth_remains_invalid_for_signals(make_world, values):
     assert np.isnan(result)
     with pytest.raises(ValueError, match="gini_coefficient"):
         build_signals(make_world(num_civs=1), gini_by_civ={0: result})
+
+
+def _correctly_rounded_sum(values) -> float:
+    return float(sum(Fraction(v) for v in values))
+
+
+def test_gini_sums_are_exactly_rounded_so_the_order_does_not_matter():
+    """2026-10: both reductions are exactly rounded (math.fsum), so the result
+    does not depend on summation order, BLAS threads or CPU (np.dot did)."""
+    rng = np.random.default_rng(7)
+    wealth = rng.lognormal(0.0, 2.0, 12_000).astype(np.float32)
+    sorted_w = np.sort(wealth.astype(np.float64))
+    n, scale = len(sorted_w), sorted_w[-1]
+    total = _correctly_rounded_sum((sorted_w / scale).tolist())
+    index = np.arange(1, n, dtype=np.float64)
+    pairwise = _correctly_rounded_sum((index * (n - index) * (np.diff(sorted_w) / scale)).tolist())
+    assert compute_gini(wealth) == pairwise / (n * total)
+    for _ in range(3):
+        assert compute_gini(rng.permutation(wealth)) == compute_gini(wealth)
+
+
+def test_gini_does_not_use_blas(monkeypatch):
+    def no_blas(*args, **kwargs):
+        raise AssertionError("compute_gini must not sum through BLAS")
+
+    monkeypatch.setattr(np, "dot", no_blas)
+    monkeypatch.setattr(np, "matmul", no_blas)
+    assert compute_gini(np.array([0.0, 1.0, 2.0, 4.0])) == pytest.approx(_exact_pairwise_gini([0, 1, 2, 4]))
+
+
+def test_gini_is_the_same_for_any_blas_thread_count():
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = ("import numpy as np; from chronicler.agent_bridge import compute_gini; "
+            "w = np.random.default_rng(3).lognormal(0.0, 2.0, 50_000).astype(np.float32); "
+            "print(compute_gini(w).hex())")
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    results = set()
+    for threads in ("1", "4"):
+        env = dict(os.environ, OPENBLAS_NUM_THREADS=threads, OMP_NUM_THREADS=threads,
+                   MKL_NUM_THREADS=threads, PYTHONPATH=src)
+        out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True,
+                             text=True, check=True, timeout=120)
+        results.add(out.stdout.strip())
+    assert len(results) == 1, results
