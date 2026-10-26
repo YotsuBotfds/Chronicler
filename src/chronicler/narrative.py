@@ -98,8 +98,8 @@ NEED_DESCRIPTIONS = {
 
 # Thresholds must match agent.rs constants
 _NEED_THRESHOLDS = {
-    "safety": 0.3, "material": 0.3, "social": 0.25,
-    "spiritual": 0.3, "autonomy": 0.25, "purpose": 0.35,
+    "safety": 0.3, "material": 0.3, "social": 0.35,
+    "spiritual": 0.3, "autonomy": 0.35, "purpose": 0.35,
 }
 
 

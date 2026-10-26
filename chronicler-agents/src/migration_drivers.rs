@@ -418,7 +418,10 @@ pub const TERM_FRONTIER: usize = 14;
 pub const TERM_WAGE: usize = 15;
 pub const TERM_CHAIN: usize = 16;
 pub const TERM_URBAN: usize = 17;
-pub const MIGRATION_TERMS: usize = 18;
+/// Needs calibration (2026-10): the social need's push (appended, so the
+/// earlier codes of saved migration events keep their meaning).
+pub const TERM_SOCIAL_NEED: usize = 18;
+pub const MIGRATION_TERMS: usize = 19;
 
 /// Names exported by `AgentSimulator.get_migration_driver_stats`.
 pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
@@ -440,6 +443,7 @@ pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
     "wage",
     "chain",
     "urban",
+    "social_need",
 ];
 
 /// Per-tick migration decision tally.
@@ -888,9 +892,10 @@ mod tests {
     }
 
     #[test]
-    fn urban_is_the_last_term_and_counts_as_voluntary_by_age() {
+    fn social_need_is_appended_after_urban_and_urban_counts_as_voluntary_by_age() {
         assert_eq!(MIGRATION_TERM_NAMES[TERM_URBAN], "urban");
-        assert_eq!(TERM_URBAN, MIGRATION_TERMS - 1);
+        assert_eq!(MIGRATION_TERM_NAMES[TERM_SOCIAL_NEED], "social_need");
+        assert_eq!(TERM_SOCIAL_NEED, MIGRATION_TERMS - 1);
         assert_eq!(VOLUNTARY_DRIVER_NAMES, ["frontier", "wage", "chain", "urban"]);
         let mut stats = MigrationDriverStats::default();
         stats.record_age(25, TERM_URBAN as u8);

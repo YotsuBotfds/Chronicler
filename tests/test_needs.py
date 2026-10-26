@@ -37,7 +37,7 @@ class TestNeedsRendering:
 
     def test_threshold_boundary(self):
         """Need at exactly threshold should be satisfied, not LOW."""
-        needs = {"safety": 0.3, "material": 0.3, "social": 0.25,
-                 "spiritual": 0.3, "autonomy": 0.3, "purpose": 0.35}
+        needs = {"safety": 0.3, "material": 0.3, "social": 0.35,
+                 "spiritual": 0.3, "autonomy": 0.35, "purpose": 0.35}
         lines = render_needs(needs)
         assert "LOW" not in lines[0]
