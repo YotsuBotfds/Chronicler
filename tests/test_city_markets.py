@@ -71,8 +71,8 @@ def test_native_economy_reports_demand_and_supply_by_category(tmp_path, monkeypa
     assert len(seen) >= 4
     for pops, result in seen[1:]:
         assert set(result.market_demand) == set(pops)
-        for name, (food, raw, lux) in result.market_demand.items():
-            assert food >= 0 and raw >= 0 and lux >= 0
+        for name, (food, raw, lux, wares) in result.market_demand.items():
+            assert food >= 0 and raw >= 0 and lux >= 0 and wares >= 0
             supply = result.market_supply[name]
             assert all(s >= 0 for s in supply)
         assert any(d[0] > 0 for d in result.market_demand.values())
@@ -199,7 +199,9 @@ def test_economy_input_batch_gains_the_city_columns_only_when_on():
     rows = _rows((4, VERDANT, 0, 3), (4, VERDANT, 0, 0))
     base = build_economy_region_input_batch(world)
     batch = C.with_economy_columns(world, base, rows)
-    assert batch.schema.names == base.schema.names + ["farm_labor_factor", "craft_raw_demand"]
+    assert batch.schema.names == base.schema.names + ["farm_labor_factor", "craft_raw_demand", "craft_demand"]
+    # Every region's people want wares, city or not.
+    assert batch.column("craft_demand").to_pylist()[VERDANT] == pytest.approx(8 * C.CRAFT_DEMAND_PER_CAPITA)
     assert batch.column("farm_labor_factor").to_pylist()[VERDANT] == pytest.approx(
         1.0 - (1.0 - C.URBAN_FARM_LABOR[CITY]) * 0.5)
     C.set_cities_enabled(world, False)

@@ -59,6 +59,11 @@ def _world(enabled: bool, treasury: int) -> WorldState:
     # harvest shocks (2026-10 farmland and regional climate).
     world.tuning_overrides["economy.farm_reference_density"] = 0.0
     world.tuning_overrides["climate.trend_share"] = 1.0
+    # The stress schedule is designed with one-load merchant trips (2026-10
+    # bulk trade: larger loads relieve the Mine before aid is tested).
+    for mode in ("land", "river", "sea"):
+        world.tuning_overrides[f"economy.{mode}_cargo_cap"] = 1.0
+    world.tuning_overrides["economy.cargo_fill"] = 0.0
     return world
 
 

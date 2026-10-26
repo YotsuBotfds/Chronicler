@@ -354,6 +354,12 @@ pub fn restore_needs_with_bonds(
             }
             delta += wealth_contribution;
 
+            // Crafts (2026-10): wares in use (tools, cloth, pots), up to the
+            // people's demand; 0 without a wares market.
+            if region.craft_sufficiency > 0.0 {
+                delta += agent::MATERIAL_RESTORE_CRAFTS * region.craft_sufficiency.min(1.0) * deficit;
+            }
+
             // Pressure: dearth and famine, graded as the hunger mortality
             // bands grade them (the severe run includes this turn).
             let (dearth, famine) = crate::demographics::hunger_components(
@@ -623,6 +629,24 @@ mod tests {
             "Should stay below 0.3, got {}",
             pool.need_spiritual[slot]
         );
+    }
+
+    #[test]
+    fn test_wares_in_use_restore_the_material_need() {
+        let signals = peacetime_signals();
+        let material_after = |craft_sufficiency: f32| {
+            let mut pool = AgentPool::new(8);
+            let slot = pool.spawn(0, 0, Occupation::Merchant, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+            pool.need_material[slot] = 0.2;
+            let mut region = make_region(0);
+            region.craft_sufficiency = craft_sufficiency;
+            restore_needs(&mut pool, &[slot], &[region], &signals, &[0.5]);
+            pool.need_material[slot]
+        };
+        let (none, full, glut) = (material_after(0.0), material_after(1.0), material_after(2.0));
+        // deficit 0.8: full supply adds MATERIAL_RESTORE_CRAFTS x 0.8; a glut no more.
+        assert!((full - none - agent::MATERIAL_RESTORE_CRAFTS * 0.8).abs() < 1e-6, "{none} {full}");
+        assert_eq!(glut, full);
     }
 
     #[test]

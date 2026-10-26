@@ -6,7 +6,7 @@ use crate::agent::{
     MAX_PATH_LEN, TRIP_PHASE_IDLE, TRIP_PHASE_LOADING, TRIP_PHASE_TRANSIT, TRIP_GOOD_SLOT_NONE,
 };
 use crate::economy::{
-    CAT_FOOD, CAT_LUXURY, CAT_RAW_MATERIAL, GOOD_CATEGORY, NUM_CATEGORIES, NUM_GOODS,
+    CAT_CRAFT, CAT_FOOD, CAT_LUXURY, CAT_RAW_MATERIAL, GOOD_CATEGORY, NUM_CATEGORIES, NUM_GOODS,
 };
 use crate::pool::AgentPool;
 use crate::region::RegionState;
@@ -246,6 +246,36 @@ pub struct MerchantTripStats {
 // Route graph — adjacency list built from Python edge-list batch
 // ---------------------------------------------------------------------------
 
+/// Bulk trade (2026-10, docs/integration/bulk-trade-crafts.md): what one
+/// merchant carries on one trip, by the way it travels, and whether the load
+/// is filled against the tick's committed deliveries.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CargoConfig {
+    /// A cart or pack train overland.
+    pub land: f32,
+    /// A barge between two regions on a common river.
+    pub river: f32,
+    /// A ship on a sea lane (maritime graphs only).
+    pub sea: f32,
+    /// Plan bulk trips (`plan_bulk_trip`): loads filled against the tick's
+    /// committed deliveries. `false`: one-load planning, loading the path's
+    /// capacity or the stock.
+    pub fill: bool,
+}
+
+impl CargoConfig {
+    /// Before bulk trade: one load per trip whatever the route, no fill.
+    pub const LEGACY: CargoConfig = CargoConfig {
+        land: MERCHANT_CARGO_CAP, river: MERCHANT_CARGO_CAP, sea: MERCHANT_CARGO_CAP, fill: false,
+    };
+}
+
+impl Default for CargoConfig {
+    fn default() -> Self {
+        Self { land: LAND_CARGO_CAP, river: RIVER_CARGO_CAP, sea: SEA_CARGO_CAP, fill: true }
+    }
+}
+
 /// Adjacency list built from the Python edge-list batch.
 #[derive(Clone, Debug)]
 pub struct RouteGraph {
@@ -258,6 +288,10 @@ pub struct RouteGraph {
     /// probability. Empty unless Python sent the optional `sea_raid_risk`
     /// column, in which case the mobility phase behaves exactly as before.
     pub sea_lanes: std::collections::HashMap<(u16, u16), f32>,
+    /// Bulk trade: cargo per trip by mode of travel. A graph built here
+    /// carries one load per trip (`CargoConfig::LEGACY`); the simulator
+    /// applies its configuration (`with_cargo`, bulk by default).
+    pub cargo: CargoConfig,
 }
 
 impl RouteGraph {
@@ -284,7 +318,38 @@ impl RouteGraph {
             num_regions,
             edge_count: from_regions.len(),
             sea_lanes: std::collections::HashMap::new(),
+            cargo: CargoConfig::LEGACY,
         }
+    }
+
+    /// The same graph with another cargo configuration.
+    pub fn with_cargo(mut self, cargo: CargoConfig) -> Self {
+        self.cargo = cargo;
+        self
+    }
+
+    /// Cargo one merchant carries across the edge `from -> to`: a ship's on
+    /// a sea lane, a barge's on a river edge, a cart's otherwise.
+    pub fn hop_cargo_cap(&self, from: u16, to: u16) -> f32 {
+        if self.sea_lanes.contains_key(&(from, to)) {
+            return self.cargo.sea;
+        }
+        let river = self.adj.get(from as usize)
+            .and_then(|nbs| nbs.iter().find(|&&(r, _, _)| r == to))
+            .is_some_and(|&(_, is_river, _)| is_river);
+        if river { self.cargo.river } else { self.cargo.land }
+    }
+
+    /// Cargo of a trip: the capacity of its narrowest leg (goods carried by
+    /// ship or barge go by cart on a land leg).
+    pub fn path_cargo_cap(&self, origin: u16, path: &[u16; MAX_PATH_LEN], path_len: u8) -> f32 {
+        let mut cap = f32::INFINITY;
+        let mut from = origin;
+        for &to in path.iter().take(path_len as usize) {
+            cap = cap.min(self.hop_cargo_cap(from, to));
+            from = to;
+        }
+        if cap.is_finite() { cap } else { self.cargo.land }
     }
 
     /// Maritime: mark sea-lane edges. Rows with a negative risk are land edges;
@@ -384,10 +449,36 @@ pub fn trace_path(
 
 /// Minimum margin sum (origin + dest) for a trip to be worthwhile.
 pub const MIN_TRIP_PROFIT: f32 = 0.05; // [CALIBRATE]
-/// Maximum cargo a single merchant can carry per trip.
-/// Keep aligned with the abstract economy's per-merchant carry budget so
-/// realized mobility doesn't bake in a systematic volume surplus.
+/// One load: what a merchant carried per trip before bulk trade
+/// (`CargoConfig::LEGACY`), the abstract economy's per-merchant carry budget,
+/// and the load when a market's food demand is not known yet.
 pub const MERCHANT_CARGO_CAP: f32 = 1.0; // [CALIBRATE]
+
+// Bulk trade (2026-10, docs/integration/bulk-trade-crafts.md). A merchant
+// carried one load per trip. Grain moved in bulk where water carried it:
+// barges and ships took many cart-loads. With `CargoConfig::fill` a trip
+// carries up to the capacity of its narrowest leg (`RouteGraph::
+// path_cargo_cap`), and loads are added only while the next one still
+// earns the one-load threshold (`LOAD_MARGIN`), with the prices read as if
+// this tick's committed cargo and the load itself had arrived
+// (`plan_load`): a trip is worth making where it was before, one merchant
+// does not overshoot a market, and an exporter stops where its own price
+// meets the market's. The merchant takes the market where its cargo earns
+// the most. Larger sea cargoes are larger prizes for raiders (the whole
+// cargo is seized); blockades still remove the lanes.
+/// Loads per trip overland (a cart or pack train).
+pub const LAND_CARGO_CAP: f32 = 2.0; // [CALIBRATE]
+/// Loads per trip between two regions on a common river (a barge).
+pub const RIVER_CARGO_CAP: f32 = 5.0; // [CALIBRATE]
+/// Loads per trip on a sea lane (a ship).
+pub const SEA_CARGO_CAP: f32 = 10.0; // [CALIBRATE]
+/// Price gap each load must earn, in price units: the one-load threshold
+/// (`MIN_TRIP_PROFIT` x `PRICE_GAP_SCALE`).
+pub const LOAD_MARGIN: f32 = MIN_TRIP_PROFIT * PRICE_GAP_SCALE;
+/// Bisection steps of `plan_load` (resolution capacity / 2^16).
+const FILL_STEPS: u32 = 16;
+/// A load below this is not worth a trip.
+pub const MIN_CARGO: f32 = 0.01;
 
 // Correction (2026-10, food logistics): destinations are scored by what the
 // destination pays for the cargo, not by its own export margin.
@@ -573,8 +664,12 @@ pub fn food_price(region: &RegionState) -> f32 {
 /// A region's strength as a market, the content of its trade packets: its
 /// dearest good's price above balance, in margin units, within [0, 1].
 /// Zero for a region without people or without a good it is short of.
+/// Wares (crafts) are left out: everyone wants them and only cities make
+/// them, so every other region would advertise at full strength; merchants
+/// carry wares to the markets they know.
 pub fn market_signal(region: &RegionState) -> f32 {
     let dearest = (0..NUM_CATEGORIES)
+        .filter(|&cat| cat != CAT_CRAFT)
         .map(|cat| market_price(region, cat, 0.0))
         .fold(0.0f32, f32::max);
     ((dearest - BALANCED_PRICE) / PRICE_GAP_SCALE).clamp(0.0, 1.0)
@@ -596,6 +691,53 @@ pub fn trip_score(
         / PRICE_GAP_SCALE
 }
 
+/// Bulk trade: the load of a trip carrying category `cat` from `origin` to
+/// `dest`, at most `cap`, and the price gap the load earns. Both prices are
+/// read as if the tally's committed cargo and the load had arrived; loads are
+/// added while the last one still earns `LOAD_MARGIN` (the largest such
+/// quantity, by bisection, since the gap falls as the load grows). The
+/// earnings are the trapezoid estimate over the load. A market whose food
+/// demand is not known yet (no economy tick since it was settled) cannot be
+/// filled against and takes one load. Returns (0, 0) when no load pays.
+pub fn plan_load(
+    regions: &[RegionState],
+    tally: &MarketTally,
+    origin: usize,
+    dest: usize,
+    cat: usize,
+    cap: f32,
+) -> (f32, f32) {
+    if cap <= 0.0 || cat >= NUM_CATEGORIES {
+        return (0.0, 0.0);
+    }
+    let (net_o, net_d) = (tally.net(origin, cat), tally.net(dest, cat));
+    let gap = |q: f32| market_price(&regions[dest], cat, net_d + q) - market_price(&regions[origin], cat, net_o - q);
+    let first = gap(0.0);
+    if first / PRICE_GAP_SCALE < MIN_TRIP_PROFIT {
+        return (0.0, 0.0);
+    }
+    if cat == CAT_FOOD
+        && (regions[origin].market_demand[CAT_FOOD] <= 0.0 || regions[dest].market_demand[CAT_FOOD] <= 0.0)
+    {
+        let q = cap.min(MERCHANT_CARGO_CAP);
+        return (q, q * first);
+    }
+    let q = if gap(cap) >= LOAD_MARGIN {
+        cap
+    } else {
+        let (mut lo, mut hi) = (0.0f32, cap);
+        for _ in 0..FILL_STEPS {
+            let mid = 0.5 * (lo + hi);
+            if gap(mid) >= LOAD_MARGIN { lo = mid } else { hi = mid }
+        }
+        lo
+    };
+    if q < MIN_CARGO {
+        return (0.0, 0.0);
+    }
+    (q, 0.5 * q * (first + gap(q)))
+}
+
 #[inline]
 fn is_food_slot(slot: usize) -> bool {
     slot < NUM_GOODS && GOOD_CATEGORY[slot] == CAT_FOOD
@@ -612,7 +754,7 @@ fn best_cargo_slot(
 ) -> Option<(u8, f32)> {
     let mut best_slot: Option<u8> = None;
     let mut best_avail: f32 = 0.0;
-    for slot in 0..8u8 {
+    for slot in 0..NUM_GOODS as u8 {
         if !wanted(slot as usize) {
             continue;
         }
@@ -669,13 +811,15 @@ fn trip_intent(
         dest_region: dest,
         good_slot: cargo.0,
         cargo_qty: cargo.1.min(MERCHANT_CARGO_CAP),
+        available: cargo.1,
         path,
         path_len,
     })
 }
 
 /// A planned trip, committed by `apply_trip_intent` (which re-checks the
-/// cargo).
+/// cargo). Without a bulk graph the intent carries one load
+/// (`MERCHANT_CARGO_CAP`).
 #[derive(Clone, Debug)]
 pub struct TripIntent {
     pub agent_slot: usize,
@@ -683,18 +827,118 @@ pub struct TripIntent {
     pub dest_region: u16,
     pub good_slot: u8,
     pub cargo_qty: f32,
+    /// The origin's uncommitted stock of the good when the trip was planned.
+    pub available: f32,
     pub path: [u16; MAX_PATH_LEN],
     pub path_len: u8,
 }
 
+/// Categories other than food, in the order ties are broken.
+const NON_FOOD_CATEGORIES: [usize; 3] = [CAT_RAW_MATERIAL, CAT_LUXURY, CAT_CRAFT];
+
 /// The trip a merchant at `origin_region` plans among `markets` (populated,
-/// reachable regions): food to the market where it is dearest, if any is
-/// dearer than home; otherwise the non-food category and market with the
-/// largest price gap (ties: lower region, then raw materials before
-/// luxuries). The cargo is the origin's largest uncommitted stock of the
-/// chosen category.
+/// reachable regions). With a bulk graph (`CargoConfig::fill`) see
+/// `plan_bulk_trip`. Otherwise food goes to the market where it is dearest,
+/// if any is dearer than home by `MIN_TRIP_PROFIT`; else the non-food
+/// category and market with the largest price gap (ties: lower region, then
+/// raw materials, luxuries, wares). The cargo is the origin's largest
+/// uncommitted stock of the chosen category: one load, or with a graph that
+/// does not fill, the path's capacity.
 #[allow(clippy::too_many_arguments)]
 fn plan_trip<I: Iterator<Item = u16>>(
+    agent_slot: usize,
+    agent_id: u32,
+    origin_region: u16,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    tally: &MarketTally,
+    bulk: Option<&RouteGraph>,
+    markets: impl Fn() -> I,
+) -> Option<TripIntent> {
+    if let Some(graph) = bulk.filter(|g| g.cargo.fill) {
+        return plan_bulk_trip(
+            agent_slot, origin_region, regions, path_table, ledger, delivery_buf, tally, graph, markets,
+        );
+    }
+    let mut intent = plan_one_load_trip(
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, markets,
+    )?;
+    if let Some(graph) = bulk {
+        intent.cargo_qty = graph.path_cargo_cap(origin_region, &intent.path, intent.path_len).min(intent.available);
+    }
+    Some(intent)
+}
+
+/// Bulk trade: the trip whose cargo earns the most. For each market the
+/// load and its earnings come from `plan_load` with the path's capacity (at
+/// most the origin's uncommitted stock). Food first, as before; otherwise the
+/// best non-food trip (ties: lower region, then the category order). Ties
+/// between markets go to the lower region.
+#[allow(clippy::too_many_arguments)]
+fn plan_bulk_trip<I: Iterator<Item = u16>>(
+    agent_slot: usize,
+    origin_region: u16,
+    regions: &[RegionState],
+    path_table: &PathTable,
+    ledger: &ShadowLedger,
+    delivery_buf: Option<&DeliveryBuffer>,
+    tally: &MarketTally,
+    graph: &RouteGraph,
+    markets: impl Fn() -> I,
+) -> Option<TripIntent> {
+    let origin = origin_region as usize;
+    // (earnings, dest, load, path, path_len) of the best market for a cargo.
+    let best_market = |cat: usize, cargo: (u8, f32)| {
+        let mut best: Option<(f32, u16, f32, [u16; MAX_PATH_LEN], u8)> = None;
+        for dest in markets() {
+            let Some((path, path_len)) = trace_path(path_table, origin_region, dest) else { continue };
+            let cap = graph.path_cargo_cap(origin_region, &path, path_len).min(cargo.1);
+            let (load, margin) = plan_load(regions, tally, origin, dest as usize, cat, cap);
+            if load <= 0.0 {
+                continue;
+            }
+            if best.is_none_or(|(m, d, ..)| margin > m || (margin == m && dest < d)) {
+                best = Some((margin, dest, load, path, path_len));
+            }
+        }
+        best
+    };
+    let intent = |cargo: (u8, f32), dest: u16, load: f32, path: [u16; MAX_PATH_LEN], path_len: u8| TripIntent {
+        agent_slot,
+        origin_region,
+        dest_region: dest,
+        good_slot: cargo.0,
+        cargo_qty: load,
+        available: cargo.1,
+        path,
+        path_len,
+    };
+    if let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, is_food_slot) {
+        if let Some((_, dest, load, path, path_len)) = best_market(CAT_FOOD, cargo) {
+            return Some(intent(cargo, dest, load, path, path_len));
+        }
+    }
+    let mut best: Option<(f32, u16, f32, [u16; MAX_PATH_LEN], u8, (u8, f32))> = None;
+    for cat in NON_FOOD_CATEGORIES {
+        let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| GOOD_CATEGORY[s] == cat)
+        else {
+            continue;
+        };
+        if let Some((margin, dest, load, path, path_len)) = best_market(cat, cargo) {
+            if best.is_none_or(|(m, d, ..)| margin > m || (margin == m && dest < d)) {
+                best = Some((margin, dest, load, path, path_len, cargo));
+            }
+        }
+    }
+    let (_, dest, load, path, path_len, cargo) = best?;
+    Some(intent(cargo, dest, load, path, path_len))
+}
+
+/// One load to the market with the largest price gap (see `plan_trip`).
+#[allow(clippy::too_many_arguments)]
+fn plan_one_load_trip<I: Iterator<Item = u16>>(
     agent_slot: usize,
     agent_id: u32,
     origin_region: u16,
@@ -717,7 +961,7 @@ fn plan_trip<I: Iterator<Item = u16>>(
     }
     // Other goods go where they are dearest, by category.
     let mut best: Option<(u16, f32, (u8, f32))> = None;
-    for cat in [CAT_RAW_MATERIAL, CAT_LUXURY] {
+    for cat in NON_FOOD_CATEGORIES {
         let Some(cargo) = best_cargo_slot(origin, regions, ledger, delivery_buf, |s| GOOD_CATEGORY[s] == cat)
         else {
             continue;
@@ -752,12 +996,13 @@ pub fn evaluate_route(
 ) -> Option<TripIntent> {
     let tally = MarketTally::new(regions.len());
     evaluate_route_with_tally(
-        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, &tally,
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, &tally, None,
     )
 }
 
 /// [`evaluate_route`] with this tick's delivery tally: every populated
-/// region within reach is a candidate market.
+/// region within reach is a candidate market. With `bulk` (the route graph)
+/// the trip is a bulk trip (`plan_trip`).
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_route_with_tally(
     agent_slot: usize,
@@ -768,6 +1013,7 @@ pub fn evaluate_route_with_tally(
     ledger: &ShadowLedger,
     delivery_buf: Option<&DeliveryBuffer>,
     tally: &MarketTally,
+    bulk: Option<&RouteGraph>,
 ) -> Option<TripIntent> {
     if origin_region as usize >= regions.len() {
         return None;
@@ -778,7 +1024,7 @@ pub fn evaluate_route_with_tally(
             .map(|(dest, _)| dest as u16)
     };
     plan_trip(
-        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, reachable,
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, bulk, reachable,
     )
 }
 
@@ -804,7 +1050,7 @@ pub fn evaluate_route_packet_aware(
 ) -> (Option<TripIntent>, bool) {
     let tally = MarketTally::new(regions.len());
     evaluate_route_packet_aware_with_tally(
-        agent_slot, agent_id, origin_region, pool, regions, path_table, ledger, delivery_buf, &tally,
+        agent_slot, agent_id, origin_region, pool, regions, path_table, ledger, delivery_buf, &tally, None,
     )
 }
 
@@ -822,6 +1068,7 @@ pub fn evaluate_route_packet_aware_with_tally(
     ledger: &ShadowLedger,
     delivery_buf: Option<&DeliveryBuffer>,
     tally: &MarketTally,
+    bulk: Option<&RouteGraph>,
 ) -> (Option<TripIntent>, bool) {
     let origin = origin_region as usize;
     if origin >= regions.len() {
@@ -846,7 +1093,7 @@ pub fn evaluate_route_packet_aware_with_tally(
     if reachable_packets.is_empty() {
         // Bootstrap fallback: no usable packets, use oracle planner
         let intent = evaluate_route_with_tally(
-            agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally,
+            agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, bulk,
         );
         return (intent, false); // false = no usable packets
     }
@@ -860,7 +1107,7 @@ pub fn evaluate_route_packet_aware_with_tally(
             .filter(|&src_region| regions[src_region as usize].population > 0)
     };
     let intent = plan_trip(
-        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, known,
+        agent_slot, agent_id, origin_region, regions, path_table, ledger, delivery_buf, tally, bulk, known,
     );
     (intent, true) // true = had usable packets
 }
@@ -1288,7 +1535,7 @@ pub fn merchant_mobility_phase_at(
         let table = origin_tables.entry(origin).or_insert_with(|| bfs_from(graph, origin));
         let (intent, had_packets) = evaluate_route_packet_aware_with_tally(
             slot, pool.ids[slot], origin, pool, regions, table, ledger,
-            delivery_buf.as_deref(), &tally,
+            delivery_buf.as_deref(), &tally, Some(graph),
         );
         if !had_packets {
             stats.no_usable_packets += 1;
@@ -1323,7 +1570,7 @@ mod tests {
     #[test]
     fn test_shadow_ledger_availability() {
         let mut ledger = ShadowLedger::new(2);
-        let stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         assert_eq!(ledger.available(0, 0, &stockpile), 10.0);
         ledger.reserve(0, 0, 3.0);
         assert_eq!(ledger.available(0, 0, &stockpile), 7.0);
@@ -1357,7 +1604,7 @@ mod tests {
     #[test]
     fn test_shadow_ledger_overcommit_guard() {
         let mut ledger = ShadowLedger::new(1);
-        let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         ledger.reserve(0, 0, 6.0);
         ledger.depart(0, 0, 6.0, None);
         assert!(!ledger.is_overcommitted(0, 0, &stockpile)); // 6 < 10
@@ -1507,7 +1754,7 @@ mod tests {
                 let mut r = crate::region::RegionState::new(i as u16);
                 r.merchant_margin = 0.3;
                 r.merchant_route_margin = 0.3;
-                r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+                r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
                 r.population = 20;
                 r
             })
@@ -1713,7 +1960,7 @@ mod tests {
         let tally = MarketTally::observe(&pool, &ledger, None, 3);
         assert_eq!(tally.inbound[1][CAT_FOOD], 3.0);
         let table = bfs_from(&graph, 0);
-        let intent = evaluate_route_with_tally(1, pool.ids[1], 0, &regions, &table, &ledger, None, &tally)
+        let intent = evaluate_route_with_tally(1, pool.ids[1], 0, &regions, &table, &ledger, None, &tally, None)
             .unwrap();
         assert_eq!(intent.dest_region, 2);
         let intent = evaluate_route(1, pool.ids[1], 0, &regions, &table, &ledger, None).unwrap();
@@ -1797,6 +2044,185 @@ mod tests {
         let i2 = evaluate_route(0, 100, 0, &regions, &table, &ledger, None).unwrap();
         assert_eq!(i1.dest_region, i2.dest_region);
         assert_eq!(i1.dest_region, 1, "equal food prices tie to the lower region");
+    }
+
+    // -------------------------------------------------------------------
+    // Bulk trade tests
+    // -------------------------------------------------------------------
+
+    /// Origin 0 with `stock` grain at sufficiency 1.5 next to one market at
+    /// `dest_suff` (demand 5 each), with the default bulk cargo.
+    fn bulk_world(stock: f32, dest_suff: f32) -> (Vec<crate::region::RegionState>, RouteGraph) {
+        let mut regions = make_test_regions(2);
+        for r in regions.iter_mut() {
+            r.stockpile = [0.0; NUM_GOODS];
+            r.population = 10;
+            r.market_demand[CAT_FOOD] = 5.0;
+        }
+        regions[0].stockpile[0] = stock;
+        regions[0].food_sufficiency = 1.5;
+        regions[1].food_sufficiency = dest_suff;
+        let graph = RouteGraph::from_edges(&[0, 1], &[1, 0], &[false; 2], &[0.1; 2], 2)
+            .with_cargo(CargoConfig::default());
+        (regions, graph)
+    }
+
+    fn bulk_plan(regions: &[crate::region::RegionState], graph: &RouteGraph) -> Option<TripIntent> {
+        let table = bfs_from(graph, 0);
+        let ledger = ShadowLedger::new(regions.len());
+        let tally = MarketTally::new(regions.len());
+        evaluate_route_with_tally(0, 7, 0, regions, &table, &ledger, None, &tally, Some(graph))
+    }
+
+    #[test]
+    fn test_hop_capacity_by_mode_and_path_capacity_of_the_narrowest_leg() {
+        // 0 -river- 1 -sea- 2 -land- 3
+        let graph = RouteGraph::from_edges(
+            &[0, 1, 1, 2, 2, 3], &[1, 0, 2, 1, 3, 2], &[true, true, false, false, false, false],
+            &[0.05, 0.05, 0.04, 0.04, 0.1, 0.1], 4,
+        )
+        .with_sea_lanes(&[0, 1, 1, 2, 2, 3], &[1, 0, 2, 1, 3, 2], &[-1.0, -1.0, 0.0, 0.0, -1.0, -1.0])
+        .with_cargo(CargoConfig::default());
+        assert_eq!(graph.hop_cargo_cap(0, 1), RIVER_CARGO_CAP);
+        assert_eq!(graph.hop_cargo_cap(1, 2), SEA_CARGO_CAP);
+        assert_eq!(graph.hop_cargo_cap(2, 3), LAND_CARGO_CAP);
+        let mut path = [u16::MAX; MAX_PATH_LEN];
+        path[0] = 1;
+        path[1] = 2;
+        assert_eq!(graph.path_cargo_cap(0, &path, 2), RIVER_CARGO_CAP, "river then sea: the barge's load");
+        path[2] = 3;
+        assert_eq!(graph.path_cargo_cap(0, &path, 3), LAND_CARGO_CAP, "a land leg: the cart's load");
+        let mut path = [u16::MAX; MAX_PATH_LEN];
+        path[0] = 2;
+        assert_eq!(graph.path_cargo_cap(1, &path, 1), SEA_CARGO_CAP);
+        // A graph built directly carries one load whatever the route.
+        let legacy = RouteGraph::from_edges(&[0, 1], &[1, 0], &[true; 2], &[0.05; 2], 2);
+        assert_eq!(legacy.cargo, CargoConfig::LEGACY);
+        assert_eq!(legacy.hop_cargo_cap(0, 1), MERCHANT_CARGO_CAP);
+    }
+
+    #[test]
+    fn test_bulk_load_fills_while_each_load_earns_the_one_load_margin() {
+        // Home 1.5 (price 0.67), market 0.4 (2.5): after a cart's two loads the
+        // gap is still 0.34, so the trip carries the capacity.
+        let (regions, mut graph) = bulk_world(10.0, 0.4);
+        let intent = bulk_plan(&regions, &graph).unwrap();
+        assert_eq!(intent.dest_region, 1);
+        assert_eq!(intent.cargo_qty, LAND_CARGO_CAP);
+        // A barge's five loads would close the gap: it stops where the last
+        // load earns `LOAD_MARGIN` (about 2.2 loads).
+        graph.cargo.land = RIVER_CARGO_CAP;
+        let q = bulk_plan(&regions, &graph).unwrap().cargo_qty;
+        assert!(q > LAND_CARGO_CAP && q < RIVER_CARGO_CAP, "{q}");
+        let last = market_price(&regions[1], CAT_FOOD, q) - market_price(&regions[0], CAT_FOOD, -q);
+        assert!(last >= LOAD_MARGIN && last - LOAD_MARGIN < 1e-3, "{last}");
+        // Never more than the uncommitted stock.
+        let (regions, graph) = bulk_world(1.5, 0.4);
+        assert_eq!(bulk_plan(&regions, &graph).unwrap().cargo_qty, 1.5);
+    }
+
+    #[test]
+    fn test_bulk_trips_are_made_where_one_load_trips_were() {
+        // Gap 1 / 1.1 - 1 / 1.5 = 0.24, below the one-load threshold: no trip,
+        // however much the merchant could carry.
+        let (regions, mut graph) = bulk_world(30.0, 1.1);
+        graph.cargo.land = SEA_CARGO_CAP;
+        assert!(bulk_plan(&regions, &graph).is_none());
+        let table = bfs_from(&graph, 0);
+        assert!(evaluate_route(0, 7, 0, &regions, &table, &ShadowLedger::new(2), None).is_none());
+        assert_eq!(plan_load(&regions, &MarketTally::new(2), 0, 1, CAT_FOOD, SEA_CARGO_CAP), (0.0, 0.0));
+        // At 0.75 (gap 0.67) both plan the trip to the same market.
+        let (regions, graph) = bulk_world(30.0, 0.75);
+        let bulk = bulk_plan(&regions, &graph).unwrap();
+        let one = evaluate_route(0, 7, 0, &regions, &bfs_from(&graph, 0), &ShadowLedger::new(2), None).unwrap();
+        assert_eq!((bulk.dest_region, bulk.good_slot), (one.dest_region, one.good_slot));
+        assert!(bulk.cargo_qty > one.cargo_qty);
+    }
+
+    #[test]
+    fn test_bulk_trip_goes_where_the_cargo_earns_most() {
+        // Market 1 is dearer (0.4) but small (demand 2): a barge earns more
+        // in market 2 (0.5, demand 20), which takes the whole cargo.
+        let mut regions = make_test_regions(3);
+        for r in regions.iter_mut() {
+            r.stockpile = [0.0; NUM_GOODS];
+            r.population = 10;
+        }
+        regions[0].stockpile[0] = 30.0;
+        regions[0].food_sufficiency = 1.5;
+        regions[0].market_demand[CAT_FOOD] = 20.0;
+        regions[1].food_sufficiency = 0.4;
+        regions[1].market_demand[CAT_FOOD] = 2.0;
+        regions[2].food_sufficiency = 0.5;
+        regions[2].market_demand[CAT_FOOD] = 20.0;
+        let graph = RouteGraph::from_edges(&[0, 1, 0, 2], &[1, 0, 2, 0], &[true; 4], &[0.05; 4], 3)
+            .with_cargo(CargoConfig::default());
+        let intent = bulk_plan(&regions, &graph).unwrap();
+        assert_eq!(intent.dest_region, 2);
+        assert_eq!(intent.cargo_qty, RIVER_CARGO_CAP);
+        let table = bfs_from(&graph, 0);
+        let one = evaluate_route(0, 7, 0, &regions, &table, &ShadowLedger::new(3), None).unwrap();
+        assert_eq!(one.dest_region, 1, "one load goes to the dearest market");
+    }
+
+    #[test]
+    fn test_bulk_loads_count_against_the_market_for_the_next_merchant() {
+        // Two merchants with room for 20 loads, one market: the first fills it
+        // to the one-load margin; the second finds no trip left.
+        let (regions, mut graph) = bulk_world(30.0, 0.4);
+        graph.cargo.land = 20.0;
+        let mut pool = AgentPool::new(2);
+        for _ in 0..2 {
+            pool.spawn(0, 0, crate::agent::Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+        }
+        let mut ledger = ShadowLedger::new(2);
+        let mut buf = DeliveryBuffer::new(2);
+        buf.physical_stock = true;
+        merchant_mobility_phase(&mut pool, &regions, &graph, &mut ledger, &[0; 32], Some(&mut buf));
+        assert_eq!(planned_destinations(&pool), vec![1], "one merchant fills the market");
+        let q = ledger.reserved[0][0];
+        assert!(q > 2.0 && q < 3.0, "{q}");
+    }
+
+    #[test]
+    fn test_unknown_food_demand_takes_one_load_and_legacy_cargo_is_one_load() {
+        let (mut regions, graph) = bulk_world(10.0, 0.4);
+        regions[1].market_demand[CAT_FOOD] = 0.0;
+        assert_eq!(bulk_plan(&regions, &graph).unwrap().cargo_qty, MERCHANT_CARGO_CAP);
+        // CargoConfig::LEGACY plans one load as `evaluate_route` does.
+        let (regions, graph) = bulk_world(10.0, 0.4);
+        let graph = graph.with_cargo(CargoConfig::LEGACY);
+        let bulk = bulk_plan(&regions, &graph).unwrap();
+        let table = bfs_from(&graph, 0);
+        let one = evaluate_route(0, 7, 0, &regions, &table, &ShadowLedger::new(2), None).unwrap();
+        assert_eq!((bulk.dest_region, bulk.good_slot, bulk.cargo_qty), (one.dest_region, one.good_slot, one.cargo_qty));
+        assert_eq!(bulk.cargo_qty, MERCHANT_CARGO_CAP);
+    }
+
+    #[test]
+    fn test_wares_travel_to_markets_that_want_them_but_are_not_advertised() {
+        // A city (region 0) with wares in stock and none wanted at home; a
+        // market (region 1) whose people want wares and have none.
+        let mut regions = make_test_regions(2);
+        for r in regions.iter_mut() {
+            r.stockpile = [0.0; NUM_GOODS];
+            r.food_sufficiency = 1.0;
+            r.market_demand[CAT_FOOD] = 10.0;
+        }
+        regions[0].stockpile[crate::economy::SLOT_CRAFTS] = 6.0;
+        regions[0].market_supply[CAT_CRAFT] = 6.0;
+        regions[1].market_demand[CAT_CRAFT] = 1.0;
+        let graph = line_graph(2).with_cargo(CargoConfig::default());
+        let table = bfs_from(&graph, 0);
+        let tally = MarketTally::new(2);
+        let intent = evaluate_route_with_tally(0, 7, 0, &regions, &table, &ShadowLedger::new(2), None, &tally, Some(&graph))
+            .unwrap();
+        assert_eq!((intent.dest_region, intent.good_slot as usize), (1, crate::economy::SLOT_CRAFTS));
+        assert!(intent.cargo_qty > 0.0 && intent.cargo_qty <= LAND_CARGO_CAP);
+        // The market's price for wares is at the cap, but its packets do not
+        // advertise them.
+        assert_eq!(market_price(&regions[1], CAT_CRAFT, 0.0), MAX_PLANNER_PRICE);
+        assert_eq!(market_signal(&regions[1]), 0.0);
     }
 
     // -------------------------------------------------------------------

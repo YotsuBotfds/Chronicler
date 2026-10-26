@@ -7,7 +7,9 @@
 // ---------------------------------------------------------------------------
 
 /// Number of fixed good slots in the stockpile array.
-pub const NUM_GOODS: usize = 8;
+pub const NUM_GOODS: usize = 9;
+/// Number of M34 resource types (the harvested goods; crafts are made).
+pub const NUM_RESOURCE_TYPES: usize = 8;
 
 /// Good slot indices.
 pub const SLOT_GRAIN: usize = 0;
@@ -18,12 +20,16 @@ pub const SLOT_ORE: usize = 4;
 pub const SLOT_BOTANICALS: usize = 5;
 pub const SLOT_PRECIOUS: usize = 6;
 pub const SLOT_EXOTIC: usize = 7;
+/// Crafts (2026-10, docs/integration/bulk-trade-crafts.md): wares made in
+/// cities from raw materials (tools, cloth, pottery, metalwork).
+pub const SLOT_CRAFTS: usize = 8;
 
 /// Category indices.
 pub const CAT_FOOD: usize = 0;
 pub const CAT_RAW_MATERIAL: usize = 1;
 pub const CAT_LUXURY: usize = 2;
-pub const NUM_CATEGORIES: usize = 3;
+pub const CAT_CRAFT: usize = 3;
+pub const NUM_CATEGORIES: usize = 4;
 
 /// Good slot → category mapping.
 pub const GOOD_CATEGORY: [usize; NUM_GOODS] = [
@@ -35,10 +41,11 @@ pub const GOOD_CATEGORY: [usize; NUM_GOODS] = [
     CAT_FOOD,         // 5: botanicals
     CAT_LUXURY,       // 6: precious
     CAT_FOOD,         // 7: exotic
+    CAT_CRAFT,        // 8: crafts
 ];
 
 /// Resource type enum → good slot index.
-const RT_TO_SLOT: [usize; NUM_GOODS] = [
+const RT_TO_SLOT: [usize; NUM_RESOURCE_TYPES] = [
     SLOT_GRAIN,      // RT 0 (GRAIN)
     SLOT_TIMBER,     // RT 1 (TIMBER)
     SLOT_BOTANICALS, // RT 2 (BOTANICALS)
@@ -59,6 +66,7 @@ const IS_FOOD: [bool; NUM_GOODS] = [
     true,  // botanicals
     false, // precious
     true,  // exotic
+    false, // crafts
 ];
 
 /// Terrain cost for transport.  Indexed by terrain u8 encoding.
@@ -76,6 +84,7 @@ pub const TRANSIT_DECAY: [f32; NUM_GOODS] = [
     0.04, // botanicals
     0.0,  // precious
     0.06, // exotic
+    0.0,  // crafts
 ];
 
 /// Per-good storage decay rate.
@@ -88,6 +97,7 @@ const STORAGE_DECAY: [f32; NUM_GOODS] = [
     0.02,  // botanicals
     0.0,   // precious
     0.04,  // exotic
+    0.01,  // crafts (wear)
 ];
 
 /// Terrain encoding for coast (used for both_coastal check).
@@ -189,13 +199,26 @@ pub struct EconomyRegionInput {
     /// time to it (Python `cities.economy_columns`). 1.0 without the switch.
     pub farm_labor_factor: f32,
     /// Cities (`--cities`): raw materials the region's city crafts want, added
-    /// to the soldiers' raw-material demand. 0.0 without the switch.
+    /// to the soldiers' raw-material demand, and (2026-10 crafts) the most the
+    /// crafts can work into wares this turn, one raw load per load of wares.
+    /// 0.0 without the switch.
     pub craft_raw_demand: f32,
+    /// Crafts (`--cities`): wares the region's people want this turn. 0.0
+    /// without the switch (no market for wares).
+    pub craft_demand: f32,
     /// Diminishing returns to farm labour (see `effective_farm_labor`): the
     /// labour at which a farmer produces today's constant-returns output, and
     /// the curve's half-saturation labour. 0.0 keeps constant returns.
     pub farm_labor_ref: f32,
     pub farm_labor_half: f32,
+    /// Mines and forests (2026-10, docs/integration/bulk-trade-crafts.md):
+    /// with `slot_curves` the farm curve applies to the food labour only and
+    /// each non-food slot's labour has its own curve (`slot_labor_ref` /
+    /// `slot_labor_half`, 0 keeps that slot at constant returns). Without it
+    /// the farm curve applies to all farm labour.
+    pub slot_curves: bool,
+    pub slot_labor_ref: [f32; 3],
+    pub slot_labor_half: [f32; 3],
 }
 
 /// Derived per-region agent counts (computed inside Rust from pool).
@@ -287,6 +310,10 @@ pub struct EconomyRegionResult {
     /// headcount labour, `effective_farm_labor`); 1.0 without the curve or
     /// without farmers. Scales farmer income in the agent tick.
     pub farm_productivity: f32,
+    /// Crafts: wares made this turn, and wares on hand before the people
+    /// used them over their demand (0..2; 0 without demand).
+    pub craft_output: f32,
+    pub craft_sufficiency: f32,
 }
 
 /// Output row per civ.
@@ -303,9 +330,11 @@ pub struct EconomyObservability {
     pub imports_food: f32,
     pub imports_raw_material: f32,
     pub imports_luxury: f32,
+    pub imports_craft: f32,
     pub stockpile_food: f32,
     pub stockpile_raw_material: f32,
     pub stockpile_luxury: f32,
+    pub stockpile_craft: f32,
     pub import_share: f32,
     pub trade_dependent: bool,
 }
@@ -388,6 +417,8 @@ struct RegionWorkState {
     exports: [f32; NUM_CATEGORIES],
     /// Per-good stockpile (mutable copy from input).
     stockpile: [f32; NUM_GOODS],
+    /// Crafts: raw materials worked into wares this turn, per good.
+    craft_input: [f32; NUM_GOODS],
 }
 
 /// Per-route working data for trade kernel.
@@ -461,6 +492,36 @@ pub fn food_first_slot_labor(
     food_demand: f32,
     equal_share: f32,
 ) -> [f32; 3] {
+    food_first_slot_labor_curved(resource_types, resource_yields, farmers, food_demand, equal_share, (0.0, 0.0))
+}
+
+/// Headcount labour that does the work of `effective` labour on the curve
+/// (`effective_farm_labor` inverted); infinite at or above the land's
+/// ceiling, `effective` itself without a curve.
+#[inline]
+pub fn farm_labor_for_effective(effective: f32, labor_ref: f32, labor_half: f32) -> f32 {
+    if labor_ref <= 0.0 || effective <= 0.0 {
+        return effective;
+    }
+    let ceiling = labor_ref + labor_half;
+    if effective >= ceiling {
+        return f32::INFINITY;
+    }
+    effective * labor_half / (ceiling - effective)
+}
+
+/// [`food_first_slot_labor`] in headcount labour when the food labour works
+/// on the curve `food_curve` (L_ref, L_h): the labour the harvest needs is
+/// the headcount whose effective labour covers demand. (0, 0) is
+/// `food_first_slot_labor`.
+pub fn food_first_slot_labor_curved(
+    resource_types: &[u8; 3],
+    resource_yields: &[f32; 3],
+    farmers: f32,
+    food_demand: f32,
+    equal_share: f32,
+    food_curve: (f32, f32),
+) -> [f32; 3] {
     let mut labor = [0.0f32; 3];
     let mut n_food = 0usize;
     let mut n_other = 0usize;
@@ -483,7 +544,7 @@ pub fn food_first_slot_labor(
     }
     let mean_food_yield = food_yield_sum / n_food as f32;
     let equal_food_labor = equal_share * n_food as f32;
-    let needed = food_demand.max(0.0) / mean_food_yield;
+    let needed = farm_labor_for_effective(food_demand.max(0.0) / mean_food_yield, food_curve.0, food_curve.1);
     if needed <= equal_food_labor {
         return labor;
     }
@@ -538,6 +599,19 @@ pub fn allocate_farm_labor(
     food_demand: f32,
     subsistence_yield: f32,
 ) -> FarmLabor {
+    allocate_farm_labor_curved(resource_types, resource_yields, farmers, food_demand, subsistence_yield, (0.0, 0.0))
+}
+
+/// [`allocate_farm_labor`] in headcount labour with the food labour on the
+/// curve `food_curve` (see `food_first_slot_labor_curved`).
+pub fn allocate_farm_labor_curved(
+    resource_types: &[u8; 3],
+    resource_yields: &[f32; 3],
+    farmers: f32,
+    food_demand: f32,
+    subsistence_yield: f32,
+    food_curve: (f32, f32),
+) -> FarmLabor {
     let mut n_valid = 0usize;
     let mut n_food = 0usize;
     let mut food_output = false;
@@ -556,8 +630,8 @@ pub fn allocate_farm_labor(
     if forage_yield <= 0.0 || farmers <= 0.0 {
         let equal_share = farmers / n_valid.max(1) as f32;
         return FarmLabor {
-            slot_labor: food_first_slot_labor(
-                resource_types, resource_yields, farmers, food_demand, equal_share,
+            slot_labor: food_first_slot_labor_curved(
+                resource_types, resource_yields, farmers, food_demand, equal_share, food_curve,
             ),
             forage_labor: 0.0,
             forage_yield: 0.0,
@@ -578,7 +652,7 @@ pub fn allocate_farm_labor(
         }
         let equal_share = farmers / n_valid as f32;
         let mut slot_labor =
-            food_first_slot_labor(resource_types, &yields, farmers, food_demand, equal_share);
+            food_first_slot_labor_curved(resource_types, &yields, farmers, food_demand, equal_share, food_curve);
         let mut forage_labor = 0.0;
         for i in 0..3 {
             if is_food(i) {
@@ -591,7 +665,7 @@ pub fn allocate_farm_labor(
     // No food slot: foraging joins the split as one food share.
     let n_other = n_valid;
     let equal_share = farmers / (n_other + 1) as f32;
-    let needed = food_demand.max(0.0) / forage_yield;
+    let needed = farm_labor_for_effective(food_demand.max(0.0) / forage_yield, food_curve.0, food_curve.1);
     let max_food_labor = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * n_other as f32;
     let forage_labor = needed.min(max_food_labor).max(equal_share).min(farmers);
     let per_other = if n_other > 0 { (farmers - forage_labor).max(0.0) / n_other as f32 } else { 0.0 };
@@ -621,6 +695,53 @@ pub fn effective_farm_labor(labor: f32, labor_ref: f32, labor_half: f32) -> f32 
         return labor;
     }
     labor * (labor_ref + labor_half) / (labor + labor_half)
+}
+
+/// Mines and forests (2026-10, docs/integration/bulk-trade-crafts.md): farm
+/// labour split by headcount (food-first, the food labour's needs read
+/// through the farm curve), then the food labour (food slots and foraging)
+/// works the farmland on the farm curve and each non-food slot's labour its
+/// own deposit or forest (`slot_labor_ref` / `slot_labor_half`). Returns the
+/// effective labour per slot and on foraging, and output per farmer against
+/// constant returns (1.0 without farmers). Mirrors Python
+/// `economy.slot_curve_labor`.
+pub fn split_labor_on_slot_curves(
+    inp: &EconomyRegionInput,
+    headcount_labor: f32,
+    food_demand: f32,
+) -> (FarmLabor, f32) {
+    let food_curve = (inp.farm_labor_ref, inp.farm_labor_half);
+    let mut labor = allocate_farm_labor_curved(
+        &inp.resource_types, &inp.resource_yields, headcount_labor, food_demand, inp.subsistence_yield, food_curve,
+    );
+    let mut food_head = labor.forage_labor;
+    for i in 0..3 {
+        let slot = rt_to_slot(inp.resource_types[i]);
+        if slot < NUM_GOODS && IS_FOOD[slot] {
+            food_head += labor.slot_labor[i];
+        }
+    }
+    let food_scale = if food_head > 0.0 {
+        effective_farm_labor(food_head, food_curve.0, food_curve.1) / food_head
+    } else {
+        1.0
+    };
+    let mut effective = labor.forage_labor * food_scale;
+    labor.forage_labor *= food_scale;
+    for i in 0..3 {
+        let slot = rt_to_slot(inp.resource_types[i]);
+        if slot >= NUM_GOODS {
+            continue;
+        }
+        labor.slot_labor[i] = if IS_FOOD[slot] {
+            labor.slot_labor[i] * food_scale
+        } else {
+            effective_farm_labor(labor.slot_labor[i], inp.slot_labor_ref[i], inp.slot_labor_half[i])
+        };
+        effective += labor.slot_labor[i];
+    }
+    let productivity = if headcount_labor > 0.0 { effective / headcount_labor } else { 1.0 };
+    (labor, productivity)
 }
 
 /// Compute transport cost for a single route.
@@ -654,7 +775,7 @@ fn route_good_shipments(origin: &RegionWorkState, route: &RouteWork) -> [f32; NU
     for g in 0..NUM_GOODS {
         let cat = GOOD_CATEGORY[g];
         if origin.available[cat] > 0.0 {
-            let inventory = origin.stockpile[g] + origin.per_good_production[g];
+            let inventory = origin.stockpile[g] + origin.per_good_production[g] - origin.craft_input[g];
             shipments[g] = route.flow[cat] * (inventory / origin.available[cat]);
         }
     }
@@ -871,6 +992,7 @@ pub fn tick_economy_core(
 
     let mut work: Vec<RegionWorkState> = Vec::with_capacity(n_regions);
     let mut farm_productivity: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut craft_output: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -884,22 +1006,28 @@ pub fn tick_economy_core(
         } else {
             ac.farmer_count as f32
         };
-        // Diminishing returns: the labour budget is effective labour on the
-        // region's land, concave in the farmers working it.
-        let farm_labor =
-            effective_farm_labor(headcount_labor, inp.farm_labor_ref, inp.farm_labor_half);
-        farm_productivity.push(if headcount_labor > 0.0 && inp.farm_labor_ref > 0.0 {
-            farm_labor / headcount_labor
+        let (labor, productivity) = if inp.slot_curves {
+            split_labor_on_slot_curves(inp, headcount_labor, ac.population as f32 * config.per_capita_food)
         } else {
-            1.0
-        });
-        let labor = allocate_farm_labor(
-            &inp.resource_types,
-            &inp.resource_yields,
-            farm_labor,
-            ac.population as f32 * config.per_capita_food,
-            inp.subsistence_yield,
-        );
+            // Diminishing returns: the labour budget is effective labour on the
+            // region's land, concave in the farmers working it.
+            let farm_labor =
+                effective_farm_labor(headcount_labor, inp.farm_labor_ref, inp.farm_labor_half);
+            let productivity = if headcount_labor > 0.0 && inp.farm_labor_ref > 0.0 {
+                farm_labor / headcount_labor
+            } else {
+                1.0
+            };
+            let labor = allocate_farm_labor(
+                &inp.resource_types,
+                &inp.resource_yields,
+                farm_labor,
+                ac.population as f32 * config.per_capita_food,
+                inp.subsistence_yield,
+            );
+            (labor, productivity)
+        };
+        farm_productivity.push(productivity);
         let slot_labor = labor.slot_labor;
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
@@ -925,11 +1053,43 @@ pub fn tick_economy_core(
             available[GOOD_CATEGORY[g]] += inp.stockpile[g];
         }
 
+        // Crafts (2026-10): the city crafts work raw materials on hand (stock
+        // and this turn's output, less this tick's merchant departures) into
+        // wares, one load of each, up to the crafts' raw demand.
+        let mut craft_input = [0.0f32; NUM_GOODS];
+        let mut crafted = 0.0f32;
+        if inp.craft_raw_demand > 0.0 {
+            let departures = hybrid_delivery.and_then(|d| d.departure_debits.get(i));
+            let mut on_hand = [0.0f32; NUM_GOODS];
+            let mut total = 0.0f32;
+            for g in 0..NUM_GOODS {
+                if GOOD_CATEGORY[g] != CAT_RAW_MATERIAL {
+                    continue;
+                }
+                let left = departures.map_or(0.0, |d| d[g]);
+                on_hand[g] = (inp.stockpile[g] + per_good_production[g] - left).max(0.0);
+                total += on_hand[g];
+            }
+            crafted = inp.craft_raw_demand.min(total);
+            if crafted > 0.0 {
+                for g in 0..NUM_GOODS {
+                    craft_input[g] = on_hand[g] / total * crafted;
+                }
+                available[CAT_RAW_MATERIAL] = (available[CAT_RAW_MATERIAL] - crafted).max(0.0);
+                available[CAT_CRAFT] += crafted;
+                per_good_production[SLOT_CRAFTS] += crafted;
+                conservation.production += crafted as f64;
+                conservation.consumption += crafted as f64;
+            }
+        }
+        craft_output.push(crafted);
+
         // Demand.
         let mut demand = [
             ac.population as f32 * config.per_capita_food,                // food
             ac.soldier_count as f32 * config.raw_material_per_soldier,    // raw_material
             ac.wealthy_count as f32 * config.luxury_per_wealthy_agent,    // luxury
+            inp.craft_demand.max(0.0),                                    // wares
         ];
         if inp.craft_raw_demand > 0.0 {
             demand[CAT_RAW_MATERIAL] += inp.craft_raw_demand;             // cities' crafts
@@ -958,6 +1118,7 @@ pub fn tick_economy_core(
             imports: [0.0; NUM_CATEGORIES],
             exports: [0.0; NUM_CATEGORIES],
             stockpile: inp.stockpile,
+            craft_input,
         });
     }
 
@@ -1316,7 +1477,7 @@ pub fn tick_economy_core(
                 let mut shadow_stockpile = region_inputs[ri].stockpile;
                 for g in 0..NUM_GOODS {
                     let new_val = shadow_stockpile[g] + sw.per_good_production[g]
-                        - oracle_per_good_exports[ri][g] + oracle_per_good_imports[ri][g];
+                        - oracle_per_good_exports[ri][g] + oracle_per_good_imports[ri][g] - sw.craft_input[g];
                     shadow_stockpile[g] = new_val.max(0.0);
                 }
 
@@ -1365,10 +1526,10 @@ pub fn tick_economy_core(
         let mut stockpile = w.stockpile;
         for g in 0..NUM_GOODS {
             let new_val = if hybrid_delivery.is_some() {
-                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g]
+                stockpile[g] + w.per_good_production[g] + per_good_net_mobility[ri][g] - w.craft_input[g]
             } else {
                 stockpile[g] + w.per_good_production[g] - per_good_exports[ri][g]
-                    + per_good_imports[ri][g]
+                    + per_good_imports[ri][g] - w.craft_input[g]
             };
             if new_val < 0.0 {
                 conservation.clamp_floor_loss += (-new_val) as f64;
@@ -1403,6 +1564,19 @@ pub fn tick_economy_core(
                 stockpile[g] -= consumed;
                 conservation.consumption += consumed as f64;
             }
+        }
+
+        // Step 3b (crafts): the people use wares up to their demand.
+        let craft_demand = w.demand[CAT_CRAFT];
+        let craft_sufficiency = if craft_demand > 0.0 {
+            (stockpile[SLOT_CRAFTS] / craft_demand).clamp(0.0, 2.0)
+        } else {
+            0.0
+        };
+        if craft_demand > 0.0 && stockpile[SLOT_CRAFTS] > 0.0 {
+            let used = craft_demand.min(stockpile[SLOT_CRAFTS]);
+            stockpile[SLOT_CRAFTS] -= used;
+            conservation.consumption += used as f64;
         }
 
         // Step 4: Storage decay with salt preservation.
@@ -1565,6 +1739,8 @@ pub fn tick_economy_core(
             market_demand: w.demand,
             market_supply,
             farm_productivity: farm_productivity[ri],
+            craft_output: craft_output[ri],
+            craft_sufficiency,
         });
 
         // Step 7: Derive observability.
@@ -1572,16 +1748,19 @@ pub fn tick_economy_core(
         let imports_food = w.imports[CAT_FOOD];
         let imports_raw_material = w.imports[CAT_RAW_MATERIAL];
         let imports_luxury = w.imports[CAT_LUXURY];
+        let imports_craft = w.imports[CAT_CRAFT];
 
         // stockpile_levels: post-lifecycle goods aggregated by category.
         let mut stockpile_food = 0.0f32;
         let mut stockpile_raw_material = 0.0f32;
         let mut stockpile_luxury = 0.0f32;
+        let mut stockpile_craft = 0.0f32;
         for g in 0..NUM_GOODS {
             match GOOD_CATEGORY[g] {
                 CAT_FOOD => stockpile_food += stockpile[g],
                 CAT_RAW_MATERIAL => stockpile_raw_material += stockpile[g],
                 CAT_LUXURY => stockpile_luxury += stockpile[g],
+                CAT_CRAFT => stockpile_craft += stockpile[g],
                 _ => {}
             }
         }
@@ -1595,9 +1774,11 @@ pub fn tick_economy_core(
             imports_food,
             imports_raw_material,
             imports_luxury,
+            imports_craft,
             stockpile_food,
             stockpile_raw_material,
             stockpile_luxury,
+            stockpile_craft,
             import_share,
             trade_dependent,
         });
@@ -1693,8 +1874,12 @@ mod tests {
             subsistence_yield: 0.0,
             farm_labor_factor: 1.0,
             craft_raw_demand: 0.0,
+            craft_demand: 0.0,
             farm_labor_ref: 0.0,
             farm_labor_half: 0.0,
+            slot_curves: false,
+            slot_labor_ref: [0.0; 3],
+            slot_labor_half: [0.0; 3],
         }];
         let agents = vec![RegionAgentCounts {
             population: 100,
@@ -1714,7 +1899,7 @@ mod tests {
         assert!((out.conservation.production - 50.0).abs() < 0.01);
         // Demand and post-trade supply by category, as the planner reads them.
         let rr = &out.region_results[0];
-        assert_eq!(rr.market_demand, [50.0, 3.0, 0.4]);
+        assert_eq!(rr.market_demand, [50.0, 3.0, 0.4, 0.0]);
         assert!((rr.market_supply[CAT_FOOD] - 50.0).abs() < 1e-4);
         assert_eq!(rr.market_supply[CAT_RAW_MATERIAL], 0.0);
     }
@@ -1731,8 +1916,12 @@ mod tests {
             subsistence_yield: 0.0,
             farm_labor_factor,
             craft_raw_demand,
+            craft_demand: 0.0,
             farm_labor_ref: 0.0,
             farm_labor_half: 0.0,
+            slot_curves: false,
+            slot_labor_ref: [0.0; 3],
+            slot_labor_half: [0.0; 3],
         }
     }
 
@@ -1761,6 +1950,78 @@ mod tests {
     fn test_city_crafts_add_raw_material_demand() {
         let out = run_one(city_market_region(1.0, 1.5));
         assert!((out.region_results[0].market_demand[CAT_RAW_MATERIAL] - (4.0 * 0.3 + 1.5)).abs() < 1e-5);
+    }
+
+    /// A city region with `ore` in stock, crafts able to work `craft_raw`
+    /// and its people wanting `wares` (no farmers, so no harvest).
+    fn crafts_region(ore: f32, craft_raw: f32, wares: f32) -> EconomyOutput {
+        let mut r = city_market_region(1.0, craft_raw);
+        r.craft_demand = wares;
+        r.stockpile[SLOT_ORE] = ore;
+        let agents = vec![RegionAgentCounts {
+            population: 40, farmer_count: 0, soldier_count: 0, merchant_count: 0, wealthy_count: 0,
+        }];
+        tick_economy_core(
+            &[r], &agents, &[], &[0.0], &[0], 1, &[0u8], &EconomyConfig::default(), 1.0, false, None,
+        )
+    }
+
+    #[test]
+    fn test_city_crafts_work_raw_materials_into_wares_the_people_use() {
+        // Ore 10, crafts for 3, people wanting 2: 3 wares made from 3 ore; 2
+        // used, 1 left (less 1% wear); sufficiency 3 / 2.
+        let out = crafts_region(10.0, 3.0, 2.0);
+        let rr = &out.region_results[0];
+        assert!((rr.craft_output - 3.0).abs() < 1e-6);
+        assert!((rr.craft_sufficiency - 1.5).abs() < 1e-6);
+        assert!((rr.stockpile[SLOT_ORE] - 7.0).abs() < 1e-5);
+        assert!((rr.stockpile[SLOT_CRAFTS] - 0.99).abs() < 1e-5);
+        assert_eq!(rr.market_demand[CAT_CRAFT], 2.0);
+        // Conservation: 3 wares made, 3 ore and 2 wares used.
+        assert!((out.conservation.production - 3.0).abs() < 1e-6);
+        assert!((out.conservation.consumption - 5.0).abs() < 1e-6);
+        assert_eq!(out.conservation.clamp_floor_loss, 0.0);
+        // Raw materials short: the crafts make what the ore allows.
+        let short = crafts_region(1.0, 3.0, 2.0);
+        assert!((short.region_results[0].craft_output - 1.0).abs() < 1e-6);
+        assert_eq!(short.region_results[0].stockpile[SLOT_ORE], 0.0);
+        assert!((short.region_results[0].craft_sufficiency - 0.5).abs() < 1e-6);
+        // No crafts, no wares; no demand, no sufficiency.
+        let none = crafts_region(10.0, 0.0, 0.0);
+        assert_eq!(none.region_results[0].craft_output, 0.0);
+        assert_eq!(none.region_results[0].craft_sufficiency, 0.0);
+        assert_eq!(none.region_results[0].stockpile[SLOT_ORE], 10.0);
+    }
+
+    #[test]
+    fn test_crafts_leave_farmer_income_and_hybrid_departures_alone() {
+        // Farmer income is the price of what farmers grow, not of wares.
+        let run = |craft_raw: f32| {
+            let mut r = city_market_region(1.0, craft_raw);
+            r.resource_types = [GRAIN_RT, ORE_RT, 255];
+            r.resource_yields = [1.0, 1.0, 0.0];
+            r.craft_demand = 1.0;
+            run_one(r)
+        };
+        let (plain, crafty) = (run(0.0), run(2.0));
+        assert!(crafty.region_results[0].craft_output > 0.0);
+        let (a, b) = (plain.region_results[0].farmer_income_modifier, crafty.region_results[0].farmer_income_modifier);
+        assert!(b >= a, "the crafts' raw demand can only raise the ore price: {a} {b}");
+        // Ore a merchant has taken out this tick is not worked into wares.
+        let mut r = city_market_region(1.0, 5.0);
+        r.stockpile[SLOT_ORE] = 4.0;
+        let mut buf = crate::merchant::DeliveryBuffer::new(1);
+        buf.record_departure(0, SLOT_ORE, 3.0);
+        let delivery = HybridDeliveryInput::from_buffer(&buf, 1);
+        let agents = vec![RegionAgentCounts {
+            population: 40, farmer_count: 0, soldier_count: 0, merchant_count: 1, wealthy_count: 0,
+        }];
+        let out = tick_economy_core(
+            &[r], &agents, &[], &[0.0], &[0], 1, &[0u8], &EconomyConfig::default(), 1.0, false, Some(&delivery),
+        );
+        assert!((out.region_results[0].craft_output - 1.0).abs() < 1e-6);
+        assert_eq!(out.region_results[0].stockpile[SLOT_ORE], 0.0);
+        assert_eq!(out.conservation.clamp_floor_loss, 0.0);
     }
 
     #[test]
@@ -1817,6 +2078,84 @@ mod tests {
     const PRECIOUS_RT: u8 = 6;
     const GRAIN_RT: u8 = 0;
     const FISH_RT: u8 = 3;
+
+    /// Grain and ore, 40 farmers, 10 people (demand 5, so no food-first
+    /// shift), the farm curve at reference 20.
+    fn mine_region(slot_curves: bool, ore_ref: f32) -> EconomyRegionInput {
+        let mut r = city_market_region(1.0, 0.0);
+        r.resource_types = [GRAIN_RT, ORE_RT, 255];
+        r.resource_yields = [1.0, 1.0, 0.0];
+        r.farm_labor_ref = 20.0;
+        r.farm_labor_half = 20.0;
+        r.slot_curves = slot_curves;
+        r.slot_labor_ref = [0.0, ore_ref, 0.0];
+        r.slot_labor_half = [0.0, ore_ref, 0.0];
+        r
+    }
+
+    fn run_mine(region: EconomyRegionInput) -> EconomyOutput {
+        let agents = vec![RegionAgentCounts {
+            population: 10, farmer_count: 40, soldier_count: 0, merchant_count: 0, wealthy_count: 0,
+        }];
+        tick_economy_core(
+            &[region], &agents, &[], &[0.0], &[0], 1, &[0u8], &EconomyConfig::default(), 1.0, false, None,
+        )
+    }
+
+    #[test]
+    fn test_mines_saturate_on_their_deposit_not_on_the_farmland() {
+        // One curve for all farm labour: 40 farmers do 40 x 40 / 60 = 26.7
+        // effective labour, half on each slot.
+        let one = run_mine(mine_region(false, 0.0));
+        let grain = one.region_results[0].stockpile[SLOT_GRAIN] / (1.0 - STORAGE_DECAY[SLOT_GRAIN]);
+        assert!((one.conservation.production - 80.0 / 3.0).abs() < 1e-3);
+        assert!(grain > 0.0);
+        // Separate curves: the 20 field hands work the farmland at its
+        // reference (20) and the 20 miners a deposit of reference 40
+        // (20 x 80 / 60 = 26.7).
+        let two = run_mine(mine_region(true, 40.0));
+        assert!((two.conservation.production - (20.0 + 80.0 / 3.0)).abs() < 1e-3);
+        assert!((two.region_results[0].stockpile[SLOT_ORE] - 80.0 / 3.0).abs() < 1e-3);
+        let fp = two.region_results[0].farm_productivity;
+        assert!((fp - (20.0 + 80.0 / 3.0) / 40.0).abs() < 1e-5, "{fp}");
+        // A small deposit (reference 5) saturates: 20 x 10 / 25 = 8.
+        let small = run_mine(mine_region(true, 5.0));
+        assert!((small.region_results[0].stockpile[SLOT_ORE] - 8.0).abs() < 1e-3);
+        // A slot without its own curve (reference 0) keeps constant returns.
+        let free = run_mine(mine_region(true, 0.0));
+        assert!((free.region_results[0].stockpile[SLOT_ORE] - 20.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_farm_labor_for_effective_inverts_the_curve() {
+        for e in [0.5f32, 5.0, 19.0, 30.0, 39.0] {
+            let l = farm_labor_for_effective(e, 20.0, 20.0);
+            assert!((effective_farm_labor(l, 20.0, 20.0) - e).abs() < 1e-3, "{e} {l}");
+        }
+        assert_eq!(farm_labor_for_effective(40.0, 20.0, 20.0), f32::INFINITY, "the land's ceiling");
+        assert_eq!(farm_labor_for_effective(7.5, 0.0, 0.0), 7.5);
+    }
+
+    #[test]
+    fn test_food_first_reads_the_food_need_through_the_farm_curve() {
+        // Grain and ore, 40 farmers, demand 25 at yield 1: 25 effective food
+        // labour on a curve of reference 20 takes 25 x 20 / 15 = 33.3
+        // farmers, more than the 25 at constant returns (ore keeps its 5).
+        let types = [GRAIN_RT, ORE_RT, 255];
+        let yields = [1.0, 1.0, 0.0];
+        let flat = food_first_slot_labor(&types, &yields, 40.0, 25.0, 20.0);
+        assert!((flat[0] - 25.0).abs() < 1e-4);
+        let curved = food_first_slot_labor_curved(&types, &yields, 40.0, 25.0, 20.0, (20.0, 20.0));
+        assert!((curved[0] - 100.0 / 3.0).abs() < 1e-3, "{curved:?}");
+        assert!((curved[1] - 20.0 / 3.0).abs() < 1e-3, "{curved:?}");
+        // Demand 30 would take 60 farmers: the food slot gets all but ore's
+        // floor (40 - 0.25 x 20).
+        let curved = food_first_slot_labor_curved(&types, &yields, 40.0, 30.0, 20.0, (20.0, 20.0));
+        assert!((curved[0] - 35.0).abs() < 1e-4, "{curved:?}");
+        // (0, 0) is the plain split, bit for bit.
+        let plain = food_first_slot_labor_curved(&types, &yields, 40.0, 25.0, 20.0, (0.0, 0.0));
+        assert_eq!(plain.map(f32::to_bits), flat.map(f32::to_bits));
+    }
 
     #[test]
     fn test_farm_labor_without_foraging_is_the_food_first_split() {
@@ -1881,8 +2220,12 @@ mod tests {
             subsistence_yield: 0.4,
             farm_labor_factor: 1.0,
             craft_raw_demand: 0.0,
+            craft_demand: 0.0,
             farm_labor_ref: 0.0,
             farm_labor_half: 0.0,
+            slot_curves: false,
+            slot_labor_ref: [0.0; 3],
+            slot_labor_half: [0.0; 3],
         };
         let agents = vec![RegionAgentCounts {
             population: 20, farmer_count: 10, soldier_count: 0, merchant_count: 0, wealthy_count: 0,

@@ -28,12 +28,21 @@ RAW_MATERIAL_PER_SOLDIER: float = 0.3
 LUXURY_PER_WEALTHY_AGENT: float = 0.2
 LUXURY_DEMAND_THRESHOLD: float = 10.0
 CARRY_PER_MERCHANT: float = 1.0
+# Bulk trade (2026-10, docs/integration/bulk-trade-crafts.md): loads one
+# merchant carries per trip overland, by river and by sea, and whether trips
+# are planned in bulk, filled against the tick's committed deliveries (1.0) or
+# not (0.0). Mirrors Rust ``merchant::CargoConfig::default`` (tuning keys
+# ``economy.{land,river,sea}_cargo_cap`` and ``economy.cargo_fill``).
+MERCHANT_CARGO: tuple[float, float, float, float] = (2.0, 5.0, 10.0, 1.0)
 FARMER_INCOME_MODIFIER_FLOOR: float = 0.5
 FARMER_INCOME_MODIFIER_CAP: float = 3.0
 MERCHANT_MARGIN_NORMALIZER: float = 5.0
 TAX_RATE: float = 0.05
 
-CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
+CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
+#: Categories whose stock drops are reported as supply shocks (wares are left
+#: out: a city's stock of wares swings with its own trade every turn).
+SHOCK_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
 # ---------------------------------------------------------------------------
 # M43a Constants  [CALIBRATE]
@@ -41,7 +50,7 @@ CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
 FOOD_GOODS: frozenset[str] = frozenset({"grain", "fish", "botanicals", "exotic", "salt"})
 ALL_GOODS: frozenset[str] = frozenset({
-    "grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic",
+    "grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic", "crafts",
 })
 
 TERRAIN_COST: dict[str, float] = {
@@ -65,11 +74,11 @@ WINTER_MODIFIER: float = 1.5
 
 TRANSIT_DECAY: dict[str, float] = {
     "grain": 0.05, "fish": 0.08, "botanicals": 0.04, "exotic": 0.06,
-    "salt": 0.0, "timber": 0.01, "ore": 0.0, "precious": 0.0,
+    "salt": 0.0, "timber": 0.01, "ore": 0.0, "precious": 0.0, "crafts": 0.0,
 }
 STORAGE_DECAY: dict[str, float] = {
     "grain": 0.03, "fish": 0.06, "botanicals": 0.02, "exotic": 0.04,
-    "salt": 0.0, "timber": 0.005, "ore": 0.0, "precious": 0.0,
+    "salt": 0.0, "timber": 0.005, "ore": 0.0, "precious": 0.0, "crafts": 0.01,
 }
 
 SALT_PRESERVATION_FACTOR: float = 2.5
@@ -79,6 +88,9 @@ CATEGORY_GOODS: dict[str, frozenset[str]] = {
     "food": frozenset({"grain", "fish", "botanicals", "exotic", "salt"}),
     "raw_material": frozenset({"timber", "ore"}),
     "luxury": frozenset({"precious"}),
+    # Crafts (2026-10, docs/integration/bulk-trade-crafts.md): wares made in
+    # cities from raw materials. Not a resource type: no region harvests them.
+    "craft": frozenset({"crafts"}),
 }
 
 TRADE_DEPENDENCY_THRESHOLD: float = 0.6  # [CALIBRATE] >60% food import share
@@ -89,7 +101,7 @@ CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
 
 # M54b: Fixed good slot ordering for FFI — no variable-length dicts cross the boundary
 FIXED_GOODS: tuple[str, ...] = (
-    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts",
 )
 
 _CATEGORY_MAP: dict[int, str] = {
@@ -312,8 +324,8 @@ def detect_supply_shocks(
         if region is None or region.controller is None:
             continue
         owner_civ_name = region.controller
-        for cat, goods in CATEGORY_GOODS.items():
-            current = sum(sp.goods.get(g, 0.0) for g in goods)
+        for cat in SHOCK_CATEGORIES:
+            current = sum(sp.goods.get(g, 0.0) for g in CATEGORY_GOODS[cat])
             avg = economy_tracker.trailing_avg.get(name, {}).get(cat, current)
             if avg <= 0 or current / avg >= (1.0 - SHOCK_DELTA_THRESHOLD):
                 continue
@@ -574,11 +586,16 @@ class EconomyResult:
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
-    market_demand: dict[str, tuple[float, float, float]] = field(default_factory=dict)
-    market_supply: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    market_demand: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    market_supply: dict[str, tuple[float, ...]] = field(default_factory=dict)
     # Diminishing returns to farm labour (2026-10): output per farmer against
     # constant returns, by region; regions at exactly 1.0 are omitted.
     farm_productivity: dict[str, float] = field(default_factory=dict)
+    # Crafts (2026-10): wares made this turn and wares on hand over demand
+    # (0..2), by region; regions at 0 are omitted. Filled by the native
+    # economy; the Python oracle has no crafts.
+    craft_output: dict[str, float] = field(default_factory=dict)
+    craft_sufficiency: dict[str, float] = field(default_factory=dict)
 
 
 def compute_production(
@@ -607,7 +624,7 @@ FOOD_FIRST_NONFOOD_FLOOR: float = 0.25  # share of its equal labor a non-food sl
 
 def food_first_slot_labor(
     resource_types: list[int], resource_yields: list[float], farmer_count: int,
-    food_demand: float | None,
+    food_demand: float | None, food_curve: tuple[float, float] = (0.0, 0.0),
 ) -> list[float]:
     """Farmer labor per slot: equal split, then food-first when food is short.
 
@@ -617,8 +634,11 @@ def food_first_slot_labor(
     slots until the harvest covers demand, but each non-food slot keeps at
     least ``FOOD_FIRST_NONFOOD_FLOOR`` of its equal share. Food slots never
     receive less than their equal share; total labor is unchanged.
-    ``food_demand=None`` keeps the plain equal split. Mirrors Rust
-    ``food_first_slot_labor``.
+    ``food_demand=None`` keeps the plain equal split. With ``food_curve``
+    (L_ref, L_h) the labour is headcount and the food labour works on that
+    curve: the harvest needs the headcount whose effective labour covers
+    demand (``farm_labor_for_effective``). Mirrors Rust
+    ``food_first_slot_labor_curved``.
     """
     occupied = occupied_resource_slot_count(resource_types)
     labor = [0.0, 0.0, 0.0]
@@ -639,7 +659,8 @@ def food_first_slot_labor(
     food_yield_sum = sum(max(resource_yields[s], 0.0) for s in food_slots)
     if food_yield_sum <= 0.0:
         return labor
-    needed = max(food_demand, 0.0) / (food_yield_sum / len(food_slots))
+    needed = farm_labor_for_effective(
+        max(food_demand, 0.0) / (food_yield_sum / len(food_slots)), *food_curve)
     if needed <= equal_share * len(food_slots):
         return labor
     max_food_labor = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * len(other_slots)
@@ -654,6 +675,7 @@ def food_first_slot_labor(
 def farm_labor(
     resource_types: list[int], resource_yields: list[float], farmer_count: int,
     food_demand: float | None, subsistence_yield: float = 0.0,
+    food_curve: tuple[float, float] = (0.0, 0.0),
 ) -> tuple[list[float], float, float]:
     """Farmer labor per slot and on foraging: (slot labor, forage labor, forage yield).
 
@@ -663,7 +685,8 @@ def farm_labor(
     grain each: barren food slots' labor forages; without a food slot,
     foraging joins the food-first split as one food share, every non-food
     slot keeping ``FOOD_FIRST_NONFOOD_FLOOR`` of its equal share. Otherwise
-    this is ``food_first_slot_labor``. Mirrors Rust ``allocate_farm_labor``.
+    this is ``food_first_slot_labor``. ``food_curve`` as there. Mirrors Rust
+    ``allocate_farm_labor_curved``.
     """
     occupied = occupied_resource_slot_count(resource_types)
     food_slots = [s for s, rt in enumerate(resource_types)
@@ -672,12 +695,13 @@ def farm_labor(
     forage_yield = 0.0 if food_output else max(subsistence_yield, 0.0)
     farmers = max(farmer_count, 0)
     if forage_yield <= 0.0 or farmers <= 0:
-        return food_first_slot_labor(resource_types, resource_yields, farmer_count, food_demand), 0.0, 0.0
+        return (food_first_slot_labor(resource_types, resource_yields, farmer_count, food_demand, food_curve),
+                0.0, 0.0)
     if food_slots:
         yields = list(resource_yields)
         for s in food_slots:
             yields[s] = forage_yield
-        labor = food_first_slot_labor(resource_types, yields, farmer_count, food_demand)
+        labor = food_first_slot_labor(resource_types, yields, farmer_count, food_demand, food_curve)
         forage = 0.0
         for s in food_slots:
             forage += labor[s]
@@ -688,7 +712,7 @@ def farm_labor(
     if food_demand is None:
         forage = equal_share
     else:
-        needed = max(food_demand, 0.0) / forage_yield
+        needed = farm_labor_for_effective(max(food_demand, 0.0) / forage_yield, *food_curve)
         max_food = farmers - FOOD_FIRST_NONFOOD_FLOOR * equal_share * n_other
         forage = min(max(min(needed, max_food), equal_share), farmers)
     per_other = max(farmers - forage, 0.0) / n_other if n_other else 0.0
@@ -756,6 +780,102 @@ def effective_farm_labor(labor: float, labor_ref: float, labor_half: float) -> f
     return labor * (labor_ref + labor_half) / (labor + labor_half)
 
 
+def farm_labor_for_effective(effective: float, labor_ref: float, labor_half: float) -> float:
+    """Headcount labour that does the work of ``effective`` labour on the
+    curve (``effective_farm_labor`` inverted); infinite at or above the land's
+    ceiling, ``effective`` itself without a curve. Mirrors Rust
+    ``economy::farm_labor_for_effective``."""
+    if labor_ref <= 0.0 or effective <= 0.0:
+        return effective
+    ceiling = labor_ref + labor_half
+    if effective >= ceiling:
+        return math.inf
+    return effective * labor_half / (ceiling - effective)
+
+
+# ---------------------------------------------------------------------------
+# Mines and forests (2026-10, docs/integration/bulk-trade-crafts.md)
+# ---------------------------------------------------------------------------
+#
+# Correction. The farm curve took all farm labour, so miners and woodcutters
+# crowded the farmland: ore and timber output fell with the fields' crowding
+# and the field hands' output with the mines'. Each non-food slot now has its
+# own capacity: a mine its deposit (potential capacity x the reserves left,
+# at least MINE_RESERVE_FLOOR), a forest its woodland (potential capacity x
+# forest cover over the healthy woodland cover); the farm curve applies to the
+# food labour (food slots and foraging) alone. The curve's form, elasticity
+# and reference density are farmland's.
+
+RAW_REFERENCE_DENSITY: float = 0.33   # labour per unit of deposit or woodland capacity
+MINE_RESERVE_FLOOR: float = 0.1       # an exhausted deposit keeps a tenth of its workings
+
+
+def slot_labor_curves(world, region) -> list[tuple[float, float]] | None:
+    """(L_ref, L_h) per resource slot for the non-food slots' own curves, (0, 0)
+    for food and empty slots (their labour is on the farm curve). None keeps
+    the farm curve on all farm labour: tuning ``economy.raw_reference_density``
+    0, or no farm curve (``economy.farm_reference_density`` 0, constant
+    returns everywhere)."""
+    from chronicler.ecology import TERRAIN_ECOLOGY_DEFAULTS, potential_capacity
+    from chronicler.models import MINERAL_TYPES, ResourceType
+    from chronicler.tuning import (
+        K_FARM_LABOR_ELASTICITY, K_FARM_REFERENCE_DENSITY, K_RAW_REFERENCE_DENSITY, get_override,
+    )
+
+    density = get_override(world, K_RAW_REFERENCE_DENSITY, RAW_REFERENCE_DENSITY)
+    if not density > 0.0 or not get_override(world, K_FARM_REFERENCE_DENSITY, FARM_REFERENCE_DENSITY) > 0.0:
+        return None
+    eps = min(0.95, max(0.05, get_override(world, K_FARM_LABOR_ELASTICITY, FARM_LABOR_ELASTICITY)))
+    land = potential_capacity(region)
+    woodland_ref = TERRAIN_ECOLOGY_DEFAULTS["forest"].forest_cover
+    curves = []
+    for slot, rtype in enumerate(region.resource_types):
+        good = map_resource_to_good(rtype)
+        if good is None or good in FOOD_GOODS:
+            curves.append((0.0, 0.0))
+            continue
+        if rtype == ResourceType.TIMBER:
+            capacity = land * region.ecology.forest_cover / woodland_ref
+        elif rtype in MINERAL_TYPES:
+            capacity = land * max(region.resource_reserves[slot], MINE_RESERVE_FLOOR)
+        else:
+            capacity = land
+        ref = density * capacity
+        curves.append((ref, ref * eps / (1.0 - eps)))
+    return curves
+
+
+def slot_curve_labor(
+    resource_types: list[int], resource_yields: list[float], headcount: float,
+    food_demand: float | None, subsistence_yield: float,
+    food_curve: tuple[float, float], slot_curves: list[tuple[float, float]],
+) -> tuple[list[float], float, float, float]:
+    """Effective labour per slot and on foraging, the forage yield, and output
+    per farmer against constant returns, with mines and forests on their own
+    curves (see above): the headcount is split food-first (the food need read
+    through the farm curve), the food labour works the farmland on the farm
+    curve and each non-food slot's labour its own. Mirrors Rust
+    ``economy::split_labor_on_slot_curves``."""
+    labor, forage, forage_yield = farm_labor(
+        resource_types, resource_yields, headcount, food_demand, subsistence_yield, food_curve,
+    )
+    food_slots = [s for s, rt in enumerate(resource_types) if map_resource_to_good(rt) in FOOD_GOODS]
+    food_head = forage + sum(labor[s] for s in food_slots)
+    scale = effective_farm_labor(food_head, *food_curve) / food_head if food_head > 0.0 else 1.0
+    forage *= scale
+    effective = forage
+    for s, rt in enumerate(resource_types):
+        if map_resource_to_good(rt) is None:
+            continue
+        if s in food_slots:
+            labor[s] *= scale
+        else:
+            labor[s] = effective_farm_labor(labor[s], *slot_curves[s])
+        effective += labor[s]
+    productivity = effective / headcount if headcount > 0 else 1.0
+    return labor, forage, forage_yield, productivity
+
+
 def aggregate_farm_productivity(world, region) -> float:
     """``--agents off``: food per head against constant returns for the
     region's population, whose farm labour is ``AGGREGATE_FARMER_SHARE`` of it.
@@ -782,6 +902,7 @@ def compute_allocated_production(
     *, production_caps: list[float | None] | None = None,
     food_demand: float | None = None,
     subsistence_yield: float = 0.0,
+    slot_labor: tuple[list[float], float, float] | None = None,
 ) -> dict[str, float]:
     """Split finite farmer labor across occupied, valid resource slots.
 
@@ -792,13 +913,16 @@ def compute_allocated_production(
     slot's unused labor is not reassigned. With ``food_demand`` the split is
     food-first (see ``food_first_slot_labor``); without it, equal. A positive
     ``subsistence_yield`` lets farmers forage grain when no food slot yields
-    (see ``farm_labor``).
+    (see ``farm_labor``). ``slot_labor`` (slot labour, forage labour, forage
+    yield) replaces the split, e.g. effective labour from ``slot_curve_labor``.
     """
     occupied = occupied_resource_slot_count(resource_types)
     goods: dict[str, float] = {}
-    slot_labor, forage_labor, forage_yield = farm_labor(
-        resource_types, resource_yields, farmer_count, food_demand, subsistence_yield,
-    )
+    if slot_labor is None:
+        slot_labor = farm_labor(
+            resource_types, resource_yields, farmer_count, food_demand, subsistence_yield,
+        )
+    slot_labor, forage_labor, forage_yield = slot_labor
     if forage_labor > 0.0:
         goods["grain"] = forage_labor * forage_yield
     if occupied == 0:
@@ -848,6 +972,9 @@ def compute_demand(
         "food": population * PER_CAPITA_FOOD,
         "raw_material": soldier_count * RAW_MATERIAL_PER_SOLDIER,
         "luxury": wealthy_count * LUXURY_PER_WEALTHY_AGENT,
+        # Wares: the cities' input (``cities.economy_columns``), not modelled
+        # by this oracle.
+        "craft": 0.0,
     }
 
 
@@ -1115,7 +1242,7 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
 
     One row per region. Columns: region_id, terrain, storage_population,
     resource_type_<slot>, resource_yield_<slot> x3, subsistence_yield (goods
-    per foraging farmer, ``region_subsistence_yield``), stockpile_<good> x8, and,
+    per foraging farmer, ``region_subsistence_yield``), stockpile_<good> x9, and,
     only when the fishery experiment is enabled, nullable
     fishery_catch_budget_<slot> x3.
     Yields are ``economy_yield()``: the read-only, current-turn ecology preview
@@ -1154,6 +1281,15 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
         # Diminishing returns to farm labour (absent columns: constant returns).
         data["farm_labor_ref"] = pa.array([c[0] for c in curves], type=pa.float32())
         data["farm_labor_half"] = pa.array([c[1] for c in curves], type=pa.float32())
+        slot_curves = [slot_labor_curves(world, r) for r in regions]
+        if all(c is not None for c in slot_curves):
+            # Mines and forests on their own curves (absent: the farm curve
+            # on all farm labour).
+            for kind, k in (("ref", 0), ("half", 1)):
+                for slot in range(3):
+                    data[f"slot_labor_{kind}_{slot}"] = pa.array(
+                        [c[slot][k] for c in slot_curves], type=pa.float32(),
+                    )
     if fishery_enabled(world):
         # Optional nullable per-slot production caps: the previous ecology tick's
         # fish catch. Null (non-fish) slots stay uncapped in the kernel.
@@ -1373,11 +1509,16 @@ def reconstruct_economy_result(
 
     # --- Region result batch → stockpile write-back + signals ---
     rr_ids = pylist(region_result_batch.column("region_id"))
+    rr_names = set(region_result_batch.schema.names)
     for col_good in FIXED_GOODS:
+        if f"stockpile_{col_good}" not in rr_names:
+            continue   # crafts, from extensions built before 2026-10
         vals = pylist(region_result_batch.column(f"stockpile_{col_good}"))
         for i, rid in enumerate(rr_ids):
-            rname = region_names[rid]
-            world.regions[rid].stockpile.goods[col_good] = vals[i]
+            goods = world.regions[rid].stockpile.goods
+            if col_good == "crafts" and not vals[i] and col_good not in goods:
+                continue   # no wares: the region's stock keeps its old keys
+            goods[col_good] = vals[i]
 
     for signal in ("farmer_income_modifier", "food_sufficiency", "merchant_margin", "merchant_trade_income"):
         vals = pylist(region_result_batch.column(signal))
@@ -1395,16 +1536,25 @@ def reconstruct_economy_result(
         result.trade_route_counts[region_names[rid]] = trc_vals[i]
 
     # Merchant routing: demand and post-trade supply per category (absent
-    # from extensions built before 2026-10 city markets).
-    rr_names = set(region_result_batch.schema.names)
+    # from extensions built before 2026-10 city markets; wares before 2026-10
+    # crafts read 0).
     for prefix, target in (("market_demand", result.market_demand),
                            ("market_supply", result.market_supply)):
         cols = [f"{prefix}_{cat}" for cat in CATEGORIES]
-        if not all(c in rr_names for c in cols):
+        if not all(c in rr_names for c in cols[:3]):
             continue
-        vals = [pylist(region_result_batch.column(c)) for c in cols]
+        vals = [pylist(region_result_batch.column(c)) if c in rr_names else [0.0] * len(rr_ids)
+                for c in cols]
         for i, rid in enumerate(rr_ids):
-            target[region_names[rid]] = (vals[0][i], vals[1][i], vals[2][i])
+            target[region_names[rid]] = tuple(v[i] for v in vals)
+
+    # Crafts: wares made and wares on hand over demand (absent before 2026-10).
+    for name, target in (("craft_output", result.craft_output),
+                         ("craft_sufficiency", result.craft_sufficiency)):
+        if name in rr_names:
+            for i, v in enumerate(pylist(region_result_batch.column(name))):
+                if v:
+                    target[region_names[rr_ids[i]]] = v
 
     # Diminishing returns: output per farmer against constant returns (absent
     # from extensions built before 2026-10 farmland; read only below 1 or above).
@@ -1428,8 +1578,12 @@ def reconstruct_economy_result(
     # Each column is decoded once (it was decoded again for every region).
     obs_ids = pylist(observability_batch.column("region_id"))
     if obs_ids:
-        obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}")) for cat in CATEGORIES}
-        obs_stockpiles = {cat: pylist(observability_batch.column(f"stockpile_{cat}")) for cat in CATEGORIES}
+        obs_names = set(observability_batch.schema.names)
+        zeros = [0.0] * len(obs_ids)
+        obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}"))
+                       if f"imports_{cat}" in obs_names else zeros for cat in CATEGORIES}
+        obs_stockpiles = {cat: pylist(observability_batch.column(f"stockpile_{cat}"))
+                          if f"stockpile_{cat}" in obs_names else zeros for cat in CATEGORIES}
         obs_import_share = pylist(observability_batch.column("import_share"))
         obs_trade_dependent = pylist(observability_batch.column("trade_dependent"))
     for i, rid in enumerate(obs_ids):
@@ -1566,16 +1720,29 @@ def compute_economy(
         slot_yields = [economy_yield(world, region, slot) for slot in range(3)]
         farmers = agent_data["farmer_count"]
         labor_ref, labor_half = farm_labor_curve(world, region)
-        farm_labor = effective_farm_labor(farmers, labor_ref, labor_half)
-        if labor_ref > 0.0 and farmers > 0 and farm_labor != farmers:
-            result.farm_productivity[rname] = farm_labor / farmers
+        subsistence = region_subsistence_yield(world, region, slot_yields)
+        slot_curves = slot_labor_curves(world, region) if labor_ref > 0.0 else None
+        split = None
+        if slot_curves is not None:
+            *split, productivity = slot_curve_labor(
+                region.resource_types, slot_yields, farmers, demand["food"], subsistence,
+                (labor_ref, labor_half), slot_curves,
+            )
+            farm_labor = farmers
+            if farmers > 0 and productivity != 1.0:
+                result.farm_productivity[rname] = productivity
+        else:
+            farm_labor = effective_farm_labor(farmers, labor_ref, labor_half)
+            if labor_ref > 0.0 and farmers > 0 and farm_labor != farmers:
+                result.farm_productivity[rname] = farm_labor / farmers
         produced = compute_allocated_production(
             region.resource_types,
             slot_yields,
             farm_labor,
             production_caps=[catch_budget(world, region, slot) for slot in range(3)],
             food_demand=demand["food"],
-            subsistence_yield=region_subsistence_yield(world, region, slot_yields),
+            subsistence_yield=subsistence,
+            slot_labor=tuple(split) if split is not None else None,
         )
         region_per_good_production[rname] = produced
         region_production[rname] = _category_totals(produced)

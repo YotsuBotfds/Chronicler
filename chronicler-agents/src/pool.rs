@@ -90,7 +90,7 @@ pub struct AgentPool {
     pub trip_phase: Vec<u8>,           // Idle=0, Loading=1, Transit=2
     pub trip_dest_region: Vec<u16>,
     pub trip_origin_region: Vec<u16>,
-    pub trip_good_slot: Vec<u8>,       // good slot 0..7, 255=none
+    pub trip_good_slot: Vec<u8>,       // good slot 0..8 (economy::NUM_GOODS), 255=none
     pub trip_cargo_qty: Vec<f32>,
     pub trip_turns_elapsed: Vec<u16>,
     pub trip_path: Vec<[u16; crate::agent::MAX_PATH_LEN]>,

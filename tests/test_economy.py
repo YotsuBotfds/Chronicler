@@ -57,8 +57,8 @@ def test_map_resource_lookup_ignores_empty_and_unknown_slots():
 
 
 def test_categories_constant():
-    """Three categories, ordered."""
-    assert CATEGORIES == ("food", "raw_material", "luxury")
+    """Four categories, ordered (wares since 2026-10 crafts)."""
+    assert CATEGORIES == ("food", "raw_material", "luxury", "craft")
 
 
 # --- Task 2: Data containers ---
@@ -66,10 +66,10 @@ def test_categories_constant():
 def test_region_goods_construction():
     """RegionGoods holds per-category production, imports, exports, prices."""
     rg = RegionGoods()
-    assert rg.production == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.imports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.exports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.prices == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
+    assert rg.production == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.imports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.exports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.prices == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
 
 
 def test_economy_result_construction():
@@ -370,6 +370,9 @@ def _make_test_world():
     plains.carrying_capacity = 120
     plains.capacity_modifier = 1.0
     plains.infrastructure = []
+    # Woodland and deposits of the mines' and forests' own curves.
+    plains.ecology.forest_cover = 0.2
+    plains.resource_reserves = [1.0, 1.0, 1.0]
 
     hills = MagicMock()
     hills.name = "Hills"
@@ -383,6 +386,8 @@ def _make_test_world():
     hills.carrying_capacity = 60
     hills.capacity_modifier = 1.0
     hills.infrastructure = []
+    hills.ecology.forest_cover = 0.3
+    hills.resource_reserves = [1.0, 1.0, 1.0]
 
     civ0 = MagicMock()
     civ0.regions = ["Plains"]

@@ -97,6 +97,7 @@ CHUNKS = {
         "tests/test_migration_driver_labels.py",
         "tests/test_cities.py",
         "tests/test_city_markets.py",
+        "tests/test_bulk_trade.py",
     ],
     "systems-2": [
         "tests/test_gp_agendas.py",
@@ -109,6 +110,8 @@ CHUNKS = {
         "tests/test_agent_movements.py",
         "tests/test_hunger_mortality.py",
         "tests/test_farmland_climate.py",
+        "tests/test_mines_forests.py",
+        "tests/test_crafts.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
