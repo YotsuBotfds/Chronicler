@@ -366,7 +366,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
     receiving-civ stability penalties for moves that never happened.
     """
     from chronicler.ecology import effective_capacity
-    from chronicler.utils import add_region_pop, get_region_map, sync_all_populations
+    from chronicler.utils import add_region_pop, drain_region_pop, get_region_map, sync_all_populations
 
     events: list[Event] = []
     if getattr(world, "agent_mode", None) in ("hybrid", "demographics-only"):
@@ -416,7 +416,9 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
                 amount = share + (1 if remainder > 0 else 0)
                 if remainder > 0:
                     remainder -= 1
-                add_region_pop(adj_region, amount)
+                # Migrants who find no room die on the way (the destination's
+                # residents stay; see utils.add_region_pop).
+                add_region_pop(adj_region, amount, flow="immigrated")
                 if ctrl_name is not None:
                     recv_civ = civ_by_name.get(ctrl_name)
                     if recv_civ:
@@ -427,7 +429,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
                         else:
                             recv_civ.stability = max(recv_civ.stability - int(3 * mult), 0)
 
-            region.population = max(region.population - surplus, 0)
+            drain_region_pop(region, surplus, flow="emigrated")
             importance = min(5 + surplus // 10, 9)
             events.append(Event(
                 turn=world.turn, event_type="migration", region=region.name,
@@ -436,7 +438,7 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
                 importance=importance,
             ))
         else:
-            region.population = max(region.population - surplus, 0)
+            drain_region_pop(region, surplus)
             events.append(Event(
                 turn=world.turn, event_type="famine_starvation", region=region.name,
                 actors=[civ.name],

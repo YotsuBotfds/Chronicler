@@ -87,6 +87,72 @@ def stage_region_catastrophe_deaths(region, amount: int) -> None:
     region._catastrophe_deaths_this_turn = current + int(amount)
 
 
+# --- Python-owned population ---------------------------------------------------------
+#
+# Where Python owns population (``--agents off`` and shadow), a region's
+# population changes only through these helpers (and the restorations that set
+# a region's population with ``set_region_pop``). Each change is one flow:
+# ``added`` (births and arrivals from outside the regions), ``removed``
+# (deaths), ``emigrated`` (people leaving a region for others) and
+# ``immigrated`` (those of them who settle). Migrants who find no room die on
+# the way: they emigrated but never immigrated.
+
+POPULATION_FLOWS = ("added", "removed", "emigrated", "immigrated")
+
+#: Environment switch for the debug population ledger (``run_turn`` checks
+#: the aggregate turn's population against it).
+POPULATION_CHECK_ENV = "CHRONICLER_CHECK_POPULATION"
+
+
+class PopulationLedger:
+    """Debug accounting of one aggregate turn's population flows.
+
+    ``check`` holds when the regions' total changed by exactly ``added -
+    removed + immigrated - emigrated`` and migration created no one
+    (``immigrated <= emigrated``)."""
+
+    __slots__ = POPULATION_FLOWS
+
+    def __init__(self) -> None:
+        for flow in POPULATION_FLOWS:
+            setattr(self, flow, 0)
+
+    def record(self, flow: str, amount: int) -> None:
+        if amount:
+            setattr(self, flow, getattr(self, flow) + amount)
+
+    def net(self) -> int:
+        return self.added - self.removed + self.immigrated - self.emigrated
+
+    def check(self, before: int, after: int, turn: object = None) -> None:
+        if after - before != self.net() or self.immigrated > self.emigrated:
+            flows = ", ".join(f"{f} {getattr(self, f)}" for f in POPULATION_FLOWS)
+            raise AssertionError(
+                f"population not conserved at turn {turn}: total {before} -> {after} "
+                f"({after - before:+d}) against flows {flows} (net {self.net():+d})"
+            )
+
+
+_population_ledger: PopulationLedger | None = None
+
+
+def start_population_ledger() -> PopulationLedger:
+    """Record every population flow until :func:`stop_population_ledger`."""
+    global _population_ledger
+    _population_ledger = PopulationLedger()
+    return _population_ledger
+
+
+def stop_population_ledger() -> None:
+    global _population_ledger
+    _population_ledger = None
+
+
+def _record_flow(flow: str, amount: int) -> None:
+    if _population_ledger is not None:
+        _population_ledger.record(flow, amount)
+
+
 def distribute_pop_loss(regions, total_loss: int) -> list[int]:
     """Distribute population loss proportionally across regions and return per-region drains."""
     total_pop = sum(r.population for r in regions)
@@ -103,22 +169,48 @@ def distribute_pop_loss(regions, total_loss: int) -> list[int]:
         r.population = max(r.population - actual, 0)
         remaining -= actual
         actual_drains.append(actual)
+        _record_flow("removed", actual)
     return actual_drains
 
 
-def drain_region_pop(region, amount: int) -> int:
-    """Remove up to *amount* population from a region. Returns actual drained."""
+def drain_region_pop(region, amount: int, flow: str = "removed") -> int:
+    """Remove up to *amount* population from a region. Returns actual drained.
+
+    ``flow`` is ``removed`` (deaths) or ``emigrated`` (people who leave for
+    other regions)."""
     actual = min(amount, region.population)
     region.population -= actual
+    _record_flow(flow, actual)
     return actual
 
 
-def add_region_pop(region, amount: int, cap=None) -> None:
-    """Add population to a region, capped at effective_capacity."""
+def add_region_pop(region, amount: int, cap=None, flow: str = "added") -> int:
+    """Add up to *amount* people to a region, never beyond ``cap`` (default
+    its effective capacity). Returns the number accepted.
+
+    Correction (2026-10, population-entities): this set the population to
+    ``min(population + amount, cap)``, so an arrival in a region already above
+    its capacity removed residents (one person added to 100 on room for 48
+    left 48). Only the increment is capped now: ``max(0, min(amount, cap -
+    population))`` arrive and the residents stay. ``flow`` is ``added``
+    (births, arrivals from outside) or ``immigrated`` (migrants from other
+    regions); callers account for those not accepted.
+    """
     if cap is None:
         from chronicler.ecology import effective_capacity
         cap = effective_capacity(region)
-    region.population = min(region.population + amount, cap)
+    accepted = max(0, min(amount, cap - region.population))
+    region.population += accepted
+    _record_flow(flow, accepted)
+    return accepted
+
+
+def set_region_pop(region, population: int) -> None:
+    """Set a region's population outright (a restored realm's settlers),
+    recording the difference as people added or removed."""
+    delta = population - region.population
+    region.population = population
+    _record_flow("added" if delta > 0 else "removed", abs(delta))
 
 
 def civ_index(world, name: str) -> int:

@@ -236,6 +236,30 @@ def _update_severe_food_turns(world: WorldState, economy_result: EconomyResult |
             region.dearth_cooldown = None
 
 
+def refugee_shares(world: WorldState, eligible: list, refugees: int) -> list[int]:
+    """Split ``refugees`` people among the ``eligible`` (region, civ) pairs.
+
+    Correction (2026-10, population-entities): each neighbour received
+    ``max(1, drain // neighbours)``, so one refugee among three neighbours
+    became three people, and the remainder of an uneven split (two of five
+    among three) vanished. The total is now exactly ``refugees``: an equal
+    share each, the remainder one at a time to the neighbours lowest in
+    ``world.regions`` order. Shares follow ``eligible``'s order; a share can
+    be 0 when there are fewer refugees than neighbours. Refugees a full
+    neighbour cannot take die on the way (``utils.add_region_pop``).
+    """
+    n = len(eligible)
+    if n == 0 or refugees <= 0:
+        return [0] * n
+    base, remainder = divmod(refugees, n)
+    index = {r.name: k for k, r in enumerate(world.regions)}
+    order = sorted(range(n), key=lambda j: index.get(eligible[j][0].name, len(index)))
+    shares = [base] * n
+    for j in order[:remainder]:
+        shares[j] += 1
+    return shares
+
+
 def _check_famine_yield(
     world: WorldState,
     region_yields: dict[str, list[float]],
@@ -305,6 +329,16 @@ def _check_famine_yield(
         # --- Famine effects ---
         mult = get_severity_multiplier(civ, world)
 
+        # Eligible neighbors for refugee distribution: foreign-held, in region
+        # index order (the remainder rule below follows it).
+        eligible = []
+        for adj_name in region.adjacencies:
+            adj = next((r for r in world.regions if r.name == adj_name), None)
+            if adj and adj.controller and adj.controller != civ.name:
+                neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
+                if neighbor:
+                    eligible.append((adj, neighbor))
+
         # Hybrid/demographics-only populations are owned by the Rust pool.
         # Python-only losses and refugees are overwritten by its write-back and
         # must not create a second population model. Food signals already reach
@@ -312,7 +346,8 @@ def _check_famine_yield(
         actual_drain = 0
         if not agents_own_population:
             famine_pop = int(get_override(world, K_FAMINE_POP_LOSS, 5) * mult * hunger_toll_share(*hunger))
-            actual_drain = drain_region_pop(region, famine_pop)
+            actual_drain = drain_region_pop(region, famine_pop,
+                                            flow="emigrated" if eligible else "removed")
             sync_civ_population(civ, world)
         drain = int(get_override(world, K_FAMINE_STABILITY, 3))
         if acc is not None:
@@ -323,19 +358,11 @@ def _check_famine_yield(
         region.famine_cooldown = 5
         region.dearth_cooldown = True if dearth else None
 
-        # Collect eligible neighbors for refugee distribution
-        eligible = []
-        for adj_name in region.adjacencies:
-            adj = next((r for r in world.regions if r.name == adj_name), None)
-            if adj and adj.controller and adj.controller != civ.name:
-                neighbor = next((c for c in world.civilizations if c.name == adj.controller), None)
-                if neighbor:
-                    eligible.append((adj, neighbor))
-
         if eligible and actual_drain > 0:
-            per_neighbor = max(1, actual_drain // len(eligible))
-            for adj, neighbor in eligible:
-                add_region_pop(adj, per_neighbor)
+            for (adj, neighbor), share in zip(eligible, refugee_shares(world, eligible, actual_drain)):
+                if share <= 0:
+                    continue
+                add_region_pop(adj, share, flow="immigrated")
                 sync_civ_population(neighbor, world)
                 neighbor_mult = get_severity_multiplier(neighbor, world)
                 if acc is not None:
