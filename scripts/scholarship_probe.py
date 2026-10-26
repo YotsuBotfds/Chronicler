@@ -74,6 +74,24 @@ def seed_metrics(run: Path) -> dict:
                     lost_n += loss.get("lost", 0)
         out[f"{cause}_episode_accounts"] = survived + lost_n
         out[f"{cause}_survived"] = survived
+    # The courts' and temples' archives (not the seats' own): accounts that
+    # survived a war loss (sack, conquest, collapse, absorption), episodes and
+    # the copies the archive kept at each.
+    episodes = copies = kept = at_risk = 0
+    for archive in hist.get("archives", []):
+        if archive.get("owner", "").startswith("seat:"):
+            continue
+        for loss in archive.get("losses", []):
+            if loss.get("cause") in ("conquest", "sack", "collapse", "absorption"):
+                episodes += 1
+                copies += loss.get("copies", 1)
+                kept += loss.get("survived", 0)
+                at_risk += loss.get("survived", 0) + loss.get("lost", 0)
+    out["war_loss_episodes"] = episodes
+    out["war_loss_copies_sum"] = copies
+    out["war_loss_accounts"] = at_risk
+    out["war_loss_survived"] = kept
+    out["seat_chroniclers"] = sum(1 for c in hist.get("chroniclers", []) if c.get("kind") == "seat")
     moves = _learning_moves(run / "agent_events.arrow")
     if moves is not None:
         out["learning_moves"] = moves
@@ -107,6 +125,15 @@ def compare(off: dict, on: dict) -> list[str]:
         se = math.sqrt(sum((x - mean) ** 2 for x in d) / (n - 1) / n) if n > 1 else 0.0
         lines.append(f"| {k} | {sum(a) / n:.3f} | {sum(b) / n:.3f} | {mean:+.3f} ({se:.3f}) |")
     # Survival per account of an archive loss episode, pooled.
+    for name, arm in (("off", off), ("on", on)):
+        episodes = sum(arm[s].get("war_loss_episodes", 0) for s in seeds)
+        if episodes:
+            copies = sum(arm[s].get("war_loss_copies_sum", 0) for s in seeds) / episodes
+            total = sum(arm[s].get("war_loss_accounts", 0) for s in seeds)
+            kept = sum(arm[s].get("war_loss_survived", 0) for s in seeds)
+            lines.append(f"- court and temple archives, war losses, {name}: {episodes} episodes, "
+                         f"{copies:.2f} copies on average, {kept} of {total} accounts survived "
+                         f"({kept / total:.1%})" if total else f"- {name}: {episodes} episodes")
     for cause in ("conquest", "sack", "collapse", "absorption"):
         for name, arm in (("off", off), ("on", on)):
             total = sum(arm[s].get(f"{cause}_episode_accounts", 0) for s in seeds)
