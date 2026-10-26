@@ -29,6 +29,10 @@ A patch turns a value ``a`` (the previous snapshot's) into ``b``:
 
 Data keys never start with ``~`` in these fields; the encoder checks, and a
 history that holds one of the reserved keys is written whole as ``history``.
+
+Decoding checks every patch against that format and raises
+:class:`BundleDecodeError` (a ``ValueError``) naming the snapshot and the
+problem, rather than failing inside a patch or returning a wrong history.
 """
 from __future__ import annotations
 
@@ -53,6 +57,10 @@ RESERVED_KEYS = frozenset({_DEL, _ORDER, _REPLACE, _LIST, _TAIL, _LEN})
 
 class _ReservedKey(Exception):
     pass
+
+
+class BundleDecodeError(ValueError):
+    """A version-6 bundle whose ``history_delta`` does not follow the patch format."""
 
 
 def _dumps(value: Any) -> str:
@@ -151,19 +159,34 @@ def _diff_list(a: list, b: list) -> Any:
     return _literal(b)
 
 
+def _is_int(value: Any) -> bool:
+    return type(value) is int
+
+
 def _apply(a: Any, patch: Any) -> Any:
     if type(patch) is dict:
         if _REPLACE in patch:
+            if len(patch) != 1:
+                raise BundleDecodeError(f"'{_REPLACE}' patch with other keys: {sorted(patch)}")
             return patch[_REPLACE]
         if type(a) is dict:
             return _apply_dict(a, patch)
         if type(a) is list:
             return _apply_list(a, patch)
+        reserved = sorted(key for key in patch if key in RESERVED_KEYS)
+        if reserved:
+            raise BundleDecodeError(f"patch {reserved} against a {type(a).__name__}")
     return patch
 
 
 def _apply_dict(a: dict, patch: dict) -> dict:
+    unexpected = sorted(key for key in patch if key in RESERVED_KEYS and key not in (_DEL, _ORDER))
+    if unexpected:
+        raise BundleDecodeError(f"object patch holds list keys {unexpected}")
     deleted = patch.get(_DEL)
+    if deleted is not None and (type(deleted) is not list
+                                or any(type(k) is not str or k not in a for k in deleted)):
+        raise BundleDecodeError(f"'{_DEL}' must list existing keys, got {deleted!r}")
     removed = set(deleted) if deleted else ()
     out: dict[str, Any] = {}
     for key, value in a.items():
@@ -175,18 +198,35 @@ def _apply_dict(a: dict, patch: dict) -> dict:
             out[key] = value
     order = patch.get(_ORDER)
     if order is not None:
+        if (type(order) is not list or len(order) != len(out)
+                or any(type(k) is not str for k in order) or set(order) != set(out)):
+            raise BundleDecodeError(f"'{_ORDER}' must list the object's keys once each, got {order!r}")
         out = {key: out[key] for key in order}
     return out
 
 
 def _apply_list(a: list, patch: dict) -> list:
+    unexpected = sorted(key for key in patch if key not in (_LIST, _TAIL, _LEN))
+    if unexpected or _LIST not in patch:
+        raise BundleDecodeError(f"list patch needs '{_LIST}' and only list keys, got {sorted(patch)}")
     out = list(a)
     length = patch.get(_LEN)
     if length is not None:
+        if not _is_int(length) or not 0 <= length <= len(out):
+            raise BundleDecodeError(f"'{_LEN}' must be a length up to {len(out)}, got {length!r}")
         del out[length:]
-    for index, item in patch[_LIST]:
+    changes = patch[_LIST]
+    if type(changes) is not list:
+        raise BundleDecodeError(f"'{_LIST}' must be a list, got {type(changes).__name__}")
+    for change in changes:
+        if type(change) is not list or len(change) != 2 or not _is_int(change[0]) \
+                or not 0 <= change[0] < len(out):
+            raise BundleDecodeError(f"'{_LIST}' item must be [index < {len(out)}, patch], got {change!r}")
+        index, item = change
         out[index] = _apply(out[index], item)
     tail = patch.get(_TAIL)
+    if tail is not None and type(tail) is not list:
+        raise BundleDecodeError(f"'{_TAIL}' must be a list, got {type(tail).__name__}")
     if tail:
         out.extend(tail)
     return out
@@ -211,12 +251,21 @@ def decode_history(encoded: list[Any]) -> list[Any]:
     """The serialized history of a ``history_delta``.
 
     Each snapshot is an independent JSON tree, as ``json.loads`` of a
-    version-5 bundle gives.
+    version-5 bundle gives. Raises :class:`BundleDecodeError` for a patch
+    that does not follow the format.
     """
+    if type(encoded) is not list:
+        raise BundleDecodeError(f"{HISTORY_DELTA_KEY} must be a list, got {type(encoded).__name__}")
     shared: list[Any] = []
     prev: Any = None
     for index, item in enumerate(encoded):
-        prev = item if index == 0 else _apply(prev, item)
+        try:
+            prev = item if index == 0 else _apply(prev, item)
+        except BundleDecodeError as exc:
+            raise BundleDecodeError(f"{HISTORY_DELTA_KEY}[{index}]: {exc}") from None
+        if type(prev) is not dict:
+            raise BundleDecodeError(
+                f"{HISTORY_DELTA_KEY}[{index}]: a snapshot must be an object, got {type(prev).__name__}")
         shared.append(prev)
     # Consecutive snapshots share their unchanged values; copy them apart so a
     # reader that edits one snapshot does not edit its neighbours.
@@ -264,14 +313,15 @@ def decode_bundle(bundle: Any) -> Any:
 
     Bundles that are not encoded (earlier versions, or already decoded) and
     anything that is not a bundle are returned as they are. Otherwise a new
-    dict is returned; ``metadata`` keeps the bundle version.
+    dict is returned; ``metadata`` keeps the bundle version. A malformed
+    ``history_delta`` raises :class:`BundleDecodeError`.
     """
     if not is_encoded(bundle):
         return bundle
     out: dict[str, Any] = {}
     for key, value in bundle.items():
         if key == HISTORY_DELTA_KEY:
-            out["history"] = decode_history(value) if isinstance(value, list) else value
+            out["history"] = decode_history(value)
         elif key == "world_state" and isinstance(value, Mapping):
             world = dict(value)
             for field in SHARED_WORLD_FIELDS:

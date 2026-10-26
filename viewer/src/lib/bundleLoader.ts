@@ -1,5 +1,5 @@
 import type { Bundle } from "../types";
-import { decodeBundlePayload } from "./bundleCodec";
+import { BundleDecodeError, decodeBundlePayload } from "./bundleCodec";
 import { looksLikeBundleV2Manifest, parseBundleV2Manifest, type BundleV2Manifest } from "./bundleV2";
 
 const LEGACY_REQUIRED_KEYS: (keyof Bundle)[] = [
@@ -16,6 +16,7 @@ export type BundleLoaderDiagnosticCode =
   | "INVALID_JSON"
   | "INVALID_ROOT_OBJECT"
   | "MISSING_REQUIRED_KEYS"
+  | "INVALID_HISTORY_DELTA"
   | "MANIFEST_SCHEMA_ERROR"
   | "BUNDLE_V2_NOT_ACTIVE";
 
@@ -84,7 +85,24 @@ export function classifyParsedBundlePayload(parsed: unknown): BundleLoaderResult
   }
 
   // Bundle version 6 writes the history as deltas (lib/bundleCodec.ts).
-  const obj = decodeBundlePayload(raw);
+  let obj: Record<string, unknown>;
+  try {
+    obj = decodeBundlePayload(raw);
+  } catch (error) {
+    if (!(error instanceof BundleDecodeError)) {
+      throw error;
+    }
+    return toErrorResult({
+      code: "INVALID_HISTORY_DELTA",
+      message: `Invalid bundle history: ${error.message}`,
+    });
+  }
+  if (!Array.isArray(obj.history) && "history" in obj) {
+    return toErrorResult({
+      code: "INVALID_HISTORY_DELTA",
+      message: "Invalid bundle history: history must be a list",
+    });
+  }
   const missing = LEGACY_REQUIRED_KEYS.filter((k) => !(k in obj));
   if (missing.length > 0) {
     return toErrorResult({

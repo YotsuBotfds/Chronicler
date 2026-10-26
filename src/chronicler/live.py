@@ -1,25 +1,46 @@
-"""Live mode — WebSocket server for real-time viewer connection."""
+"""Live mode — WebSocket server for real-time viewer connection.
+
+Security: the server binds to localhost and accepts a WebSocket handshake
+only from an allowed viewer origin (the Vite dev and preview servers on
+localhost, plus any ``--live-origin``; clients that send no Origin header,
+which browsers always send, are not browsers) and only with this session's
+token in the URL query (``?token=...``). The CLI prints a viewer link that
+carries both the server address and the token. See
+docs/integration/historical-parity.md.
+"""
 from __future__ import annotations
 
 import asyncio
 import copy
+import hmac
 import json
 import queue
+import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+from urllib.parse import parse_qs, urlsplit
 
 from chronicler.interactive import VALID_STATS, CORE_STATS
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
 from chronicler.bundle_codec import decode_bundle
-from chronicler.snapshot_pruning import PRUNED_CIV_STATS_KEY, SnapshotPruner, restore_history
+from chronicler.snapshot_pruning import SnapshotPruner
+from chronicler.transport import BUNDLE_SYSTEMS, bundle_systems, snapshot_from_turn_message
 
 _SUPPORTED_NARRATORS = {"local", "api", "gemini"}
 _SUPPORTED_AGENT_MODES = {"off", "demographics-only", "shadow", "hybrid"}
 _SUPPORTED_PRESETS = {"pangaea", "archipelago", "golden-age", "dark-age", "ice-age", "silk-road"}
+#: Viewer origins allowed by default: the Vite dev server (5173) and
+#: ``vite preview`` (4173) on the loopback names.
+DEFAULT_VIEWER_ORIGINS = tuple(
+    f"http://{host}:{port}"
+    for port in (5173, 4173)
+    for host in ("localhost", "127.0.0.1", "[::1]")
+)
+DEFAULT_VIEWER_URL = "http://localhost:5173"
 _REQUIRED_LIVE_BUNDLE_KEYS = (
     "world_state",
     "history",
@@ -79,11 +100,12 @@ def _validate_legacy_live_bundle(payload: Any) -> dict[str, Any]:
         "era_reflections": era_reflections,
         "metadata": metadata,
     }
-    # Version 5: the omitted rows of dead civs travel with the history so
-    # narration can restore them (snapshot_pruning.restore_history).
-    pruned = payload.get(PRUNED_CIV_STATS_KEY)
-    if isinstance(pruned, dict):
-        validated[PRUNED_CIV_STATS_KEY] = pruned
+    # Optional systems of the transport contract: the in-world historiography
+    # and languages, and (version 5) the omitted rows of dead civs, which
+    # narration restores (snapshot_pruning.restore_history).
+    for key, value in bundle_systems(payload).items():
+        if isinstance(value, dict):
+            validated[key] = value
     return validated
 
 
@@ -111,9 +133,34 @@ def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         "metadata": metadata,
         "current_turn": current_turn,
     }
-    if PRUNED_CIV_STATS_KEY in bundle:
-        init[PRUNED_CIV_STATS_KEY] = bundle[PRUNED_CIV_STATS_KEY]
+    init.update(bundle_systems(bundle))
     return init
+
+
+def apply_turn_message(init_data: dict[str, Any], message: dict[str, Any]) -> None:
+    """Append a live ``turn`` message to the reconnect ``init`` data."""
+    init_data["history"].append(snapshot_from_turn_message(message))
+    init_data["chronicle_entries"][str(message["turn"])] = message.get("chronicle_text", "")
+    init_data["events_timeline"].extend(message.get("events", []))
+    init_data["named_events"].extend(message.get("named_events", []))
+    init_data["current_turn"] = message["turn"]
+
+
+def apply_completed_message(init_data: dict[str, Any], message: dict[str, Any]) -> None:
+    """Merge a ``completed`` message's bundle systems into the reconnect ``init`` data."""
+    systems = message.get("systems")
+    if isinstance(systems, dict):
+        init_data.update(bundle_systems(systems))
+
+
+def completed_systems(bundle_path: Path) -> dict[str, Any]:
+    """The bundle systems of a finished run's bundle (empty when unreadable)."""
+    from chronicler.bundle_codec import load_bundle
+    try:
+        bundle = load_bundle(bundle_path)
+    except (OSError, ValueError):
+        return {}
+    return {key: value for key, value in bundle_systems(bundle).items() if key in BUNDLE_SYSTEMS}
 
 
 class LiveServer:
@@ -125,8 +172,13 @@ class LiveServer:
     - status_queue: simulation -> server (paused/ack/error messages)
     """
 
-    def __init__(self, port: int = 8765) -> None:
+    def __init__(self, port: int = 8765, token: str | None = None,
+                 allowed_origins: Iterable[str] | None = None) -> None:
         self.port = port
+        # Per-session secret for the control protocol (printed in the viewer link).
+        self.token = token or secrets.token_urlsafe(18)
+        self.allowed_origins: tuple[str, ...] = tuple(dict.fromkeys(
+            list(DEFAULT_VIEWER_ORIGINS) + [o.rstrip("/") for o in (allowed_origins or ())]))
         self.snapshot_queue: queue.Queue[dict] = queue.Queue()
         self.command_queue: queue.Queue[dict] = queue.Queue()
         self.status_queue: queue.Queue[dict] = queue.Queue()
@@ -156,6 +208,28 @@ class LiveServer:
         # Batch state
         self._batch_thread: threading.Thread | None = None
         self._batch_cancel_event = threading.Event()
+
+    def ws_url(self) -> str:
+        """The WebSocket URL a client opens, with the session token."""
+        return f"ws://localhost:{self._actual_port or self.port}/?token={self.token}"
+
+    def viewer_url(self, viewer_base: str = DEFAULT_VIEWER_URL) -> str:
+        """The viewer link the CLI prints: server address and session token."""
+        return (f"{viewer_base.rstrip('/')}/?ws=ws://localhost:{self._actual_port or self.port}"
+                f"&token={self.token}")
+
+    def handshake_error(self, origin: str | None, path: str) -> str | None:
+        """Why a WebSocket handshake is refused, or None to accept it.
+
+        Browsers always send ``Origin``; a request without one comes from a
+        local non-browser client and still needs the token.
+        """
+        if origin is not None and origin.rstrip("/") not in self.allowed_origins:
+            return f"Origin not allowed: {origin}"
+        supplied = parse_qs(urlsplit(path).query).get("token", [""])[0]
+        if not hmac.compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8")):
+            return "Missing or invalid session token"
+        return None
 
     @property
     def speed(self) -> float:
@@ -290,55 +364,24 @@ class LiveServer:
     ) -> dict[str, Any] | None:
         from chronicler.curator import curate
         from chronicler.llm import create_clients
-        from chronicler.models import Event, NamedEvent, TurnSnapshot
+        from chronicler.narration_inputs import from_bundle
         from chronicler.narrative import NarrativeEngine
 
-        all_events = [Event.model_validate(e) for e in init_data.get("events_timeline", [])]
-        all_named = [NamedEvent.model_validate(e) for e in init_data.get("named_events", [])]
-        # A loaded version-5 bundle carries its dead civs' omitted rows:
-        # restore them so curation reads the history the run held.
-        all_history = [
-            TurnSnapshot.model_validate(s)
-            for s in restore_history(init_data.get("history", []), init_data.get(PRUNED_CIV_STATS_KEY))
-        ]
-        seed = init_data.get("metadata", {}).get("seed", 0)
-        range_events = [e for e in all_events if start_turn <= e.turn <= end_turn]
-
-        named_chars = set()
-        for civ_data in init_data.get("world_state", {}).get("civilizations", []):
-            for gp in civ_data.get("great_persons", []):
-                if gp.get("active") and gp.get("agent_id") is not None:
-                    named_chars.add(gp.get("name", ""))
-
-        from chronicler.models import GreatPerson as _GP
-        all_great_persons = []
-        for civ_data in init_data.get("world_state", {}).get("civilizations", []):
-            for gp_data in civ_data.get("great_persons", []):
-                all_great_persons.append(_GP(**gp_data))
-        for gp_data in init_data.get("world_state", {}).get("retired_persons", []):
-            all_great_persons.append(_GP(**gp_data))
-
-        agent_name_map = (
-            {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
-            if all_great_persons else None
-        )
-
-        # In-world accounts and names, when the loaded bundle carries them.
-        from chronicler.historiography import AccountIndex
-        from chronicler.languages import NameIndex
-        name_index = NameIndex.from_bundle(init_data)
-        account_index = AccountIndex.from_bundle(init_data)
-        if account_index is not None and name_index:
-            account_index = AccountIndex(init_data["historiography"], names=name_index)
+        # The same inputs ``--narrate BUNDLE`` reads (chronicler.narration_inputs):
+        # the restored history, the world, the great persons and the in-world
+        # accounts and names the session carries. A live session's world
+        # that does not validate is skipped with a warning.
+        inputs = from_bundle(init_data, default_seed=0, strict_world=False)
+        all_history = inputs.history
+        range_events = [e for e in inputs.events if start_turn <= e.turn <= end_turn]
 
         moments, _ = curate(
             range_events,
-            all_named,
+            inputs.named_events,
             all_history,
             budget=1,
-            seed=seed,
-            named_characters=named_chars if named_chars else None,
-            contested=account_index.contested_bonus() if account_index else None,
+            seed=inputs.seed,
+            **inputs.curate_kwargs(),
         )
         if not moments:
             return None
@@ -350,20 +393,7 @@ class LiveServer:
             narrator=client_config.get("narrator", "local"),
         )
         engine = NarrativeEngine(sim_client=narrative_client, narrative_client=narrative_client)
-        entries = engine.narrate_batch(
-            moments,
-            all_history,
-            great_persons=all_great_persons if all_great_persons else None,
-            agent_name_map=agent_name_map,
-            social_edges=None,
-            dissolved_edges_by_turn=None,
-            displacement_by_region=None,
-            dynasty_registry=None,
-            economy_result=None,
-            gini_by_civ=None,
-            historiography=account_index,
-            languages=name_index,
-        )
+        entries = engine.narrate_batch(moments, all_history, **inputs.narrate_kwargs())
         if not entries:
             return None
         return entries[0].model_dump()
@@ -745,14 +775,7 @@ class LiveServer:
                             self._init_data = snapshot
                         elif snapshot.get("type") == "turn" and self._init_data is not None:
                             # Append turn data to init for reconnect
-                            self._init_data["history"].append({
-                                k: v for k, v in snapshot.items() if k != "type"
-                            })
-                            turn_str = str(snapshot["turn"])
-                            self._init_data["chronicle_entries"][turn_str] = snapshot.get("chronicle_text", "")
-                            self._init_data["events_timeline"].extend(snapshot.get("events", []))
-                            self._init_data["named_events"].extend(snapshot.get("named_events", []))
-                            self._init_data["current_turn"] = snapshot["turn"]
+                            apply_turn_message(self._init_data, snapshot)
                         async with client_lock:
                             if client_ws is not None:
                                 try:
@@ -771,6 +794,9 @@ class LiveServer:
                 try:
                     while True:
                         status = self.status_queue.get_nowait()
+                        if status.get("type") == "completed" and self._init_data is not None:
+                            # The finished run's historiography and languages, for reconnect.
+                            apply_completed_message(self._init_data, status)
                         if status.get("type") == "paused":
                             self._paused = True
                             self._last_paused_msg = status
@@ -793,12 +819,20 @@ class LiveServer:
 
                 await asyncio.sleep(0.05)
 
+        def process_request(connection, request):
+            reason = self.handshake_error(request.headers.get("Origin"), request.path)
+            if reason is not None:
+                import http
+                return connection.respond(http.HTTPStatus.FORBIDDEN, reason + "\n")
+            return None
+
         server = await ws_server.serve(
             handler,
             host="localhost",
             port=self.port,
             max_size=10 * 1024 * 1024,
             ping_interval=20,
+            process_request=process_request,
         )
 
         # Record actual port (useful when port=0)
@@ -1086,7 +1120,7 @@ def run_live(
     port = getattr(args, "live_port", 8765) or 8765
 
     # --- Phase 1: Lobby ---
-    server = LiveServer(port=port)
+    server = LiveServer(port=port, allowed_origins=getattr(args, "live_origin", None) or ())
     server._client_defaults = {
         "local_url": getattr(args, "local_url", "http://localhost:1234/v1"),
         "sim_model": getattr(args, "sim_model", None),
@@ -1098,8 +1132,11 @@ def run_live(
     server._lobby_init = build_lobby_init(args)
     server.start()
     actual_port = server._actual_port or port
-    print(f"Lobby ready on ws://localhost:{actual_port}")
-    print(f"Open viewer: http://localhost:5173?ws=ws://localhost:{actual_port}")
+    print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
+    print(f"Open viewer: {server.viewer_url()}")
+    extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
+    if extra:
+        print(f"Also accepting viewers served from: {', '.join(extra)}")
     print("Waiting for client to launch simulation...")
 
     # Block until client sends start (interruptible via Ctrl+C)
@@ -1328,10 +1365,13 @@ def run_live(
         quit_check=lambda: server.quit_event.is_set(),
     )
 
+    bundle_path = output_dir / "chronicle_bundle.json"
     server.status_queue.put({
         "type": "completed",
         "total_turns": result.total_turns,
-        "bundle_path": str(output_dir / "chronicle_bundle.json"),
+        "bundle_path": str(bundle_path),
+        # The run's in-world historiography and languages (transport contract).
+        "systems": completed_systems(bundle_path),
     })
 
     time.sleep(0.5)

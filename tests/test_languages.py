@@ -472,7 +472,8 @@ def test_observation_reads_only(make_civ):
 
 
 def test_no_simulation_module_imports_languages():
-    allowed = {"main.py", "models.py", "live.py", "languages.py"}
+    # narration_inputs.py reads saved bundles for --narrate and live range narration.
+    allowed = {"main.py", "models.py", "live.py", "languages.py", "narration_inputs.py"}
     importers = []
     for path in sorted((ROOT / "src" / "chronicler").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))

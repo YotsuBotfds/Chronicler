@@ -121,6 +121,7 @@ CHUNKS = {
         "tests/test_narrative.py",
         "tests/test_batch_narration.py",
         "tests/test_chronicle.py",
+        "tests/test_historical_parity.py",
     ],
     "turn-speed": [
         "tests/test_turn_speed.py",

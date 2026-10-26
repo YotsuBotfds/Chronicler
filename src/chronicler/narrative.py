@@ -18,6 +18,7 @@ from typing import Callable, Sequence
 logger = logging.getLogger(__name__)
 
 from chronicler import narration_context as nc
+from chronicler.historical_context import AsOf, HistoricalRecord, HistoricalView, snapshot_as_of
 from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
 from chronicler.models import (
     AgentContext,
@@ -134,8 +135,13 @@ def render_needs(needs: dict) -> list[str]:
     return lines
 
 
-def render_memory(mem: dict, civ_names: list) -> str | None:
-    """Render a memory slot as a natural language fragment."""
+def render_memory(mem: dict, civ_names: list, strength_observed: bool = True) -> str | None:
+    """Render a memory slot as a natural language fragment.
+
+    With ``strength_observed`` False the intensity is a later observation, a
+    lower bound of the memory's strength at the moment (memories only fade):
+    "vivid" is said only when the bound is vivid, "fading" never.
+    """
     intensity = abs(mem.get("intensity", 0))
     if intensity < MEMORY_NARRATION_FADING:
         return None  # too weak to mention
@@ -147,6 +153,8 @@ def render_memory(mem: dict, civ_names: list) -> str | None:
     text = template.format(civ=civ_name)
     if is_legacy:
         text = f"an ancestral memory of {text}"
+    if not strength_observed and descriptor != "vivid":
+        return f"{text} (turn {mem['turn']})"
     return f"{text} (turn {mem['turn']}, {descriptor})"
 
 
@@ -160,19 +168,6 @@ def compute_population_mood(events: list[Event]) -> str:
     return "content"
 
 
-def _character_status(gp) -> str:
-    """Render a stable status label from lifecycle fields."""
-    if gp.fate == "exile":
-        return "exiled"
-    if gp.fate == "retired":
-        return "retired"
-    if gp.fate in {"ascended", "ascended_to_leadership"}:
-        return "ascended"
-    if gp.fate == "dead" or not gp.alive:
-        return "dead"
-    return "active"
-
-
 def build_agent_context_block(ctx: AgentContext | None) -> str:
     """Build the agent context section for the narrator prompt."""
     if ctx is None:
@@ -180,7 +175,8 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
 
     lines = ["## Agent Context"]
     lines.append(f"Population mood: {ctx.population_mood}")
-    lines.append(f"Displacement: {int(ctx.displacement_fraction * 100)}% of population displaced")
+    if ctx.displacement_observed:
+        lines.append(f"Displacement: {int(ctx.displacement_fraction * 100)}% of population displaced")
     if abs(ctx.urban_fraction_delta_20t) > 1e-6:
         lines.append(f"Urbanization trend (20 turns): {ctx.urban_fraction_delta_20t * 100.0:+.1f}pp")
     if ctx.top_settlements:
@@ -234,9 +230,10 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
             # M48: Memory context
             if char.get("memories"):
                 civ_names = char.get("_civ_names", [])
+                observed = char.get("memory_strength_observed", True)
                 strongest = sorted(char["memories"],
                                    key=lambda m: (-abs(m.get("intensity", 0)), -m.get("turn", 0)))
-                rendered = [render_memory(m, civ_names) for m in strongest]
+                rendered = [render_memory(m, civ_names, observed) for m in strongest]
                 rendered = [r for r in rendered if r is not None][:_MAX_MEMORIES]
                 if rendered:
                     lines.append("  Memories:")
@@ -289,7 +286,7 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
     lines.append("- Refer to named characters BY NAME — do not anonymize or rename them")
     lines.append("- Use their recent history for callbacks")
     lines.append("- Use population mood to set atmospheric tone")
-    if ctx.displacement_fraction > 0.10:
+    if ctx.displacement_observed and ctx.displacement_fraction > 0.10:
         lines.append("- Weave refugee/exile themes into the narrative")
     if ctx.relationships:
         lines.append("- Weave character relationships into the narrative — mentorships, rivalries, alliances")
@@ -323,239 +320,168 @@ def build_agent_context_for_moment(
     history: Sequence[TurnSnapshot] | None = None,  # M56b: for urban delta
     current_snapshot: TurnSnapshot | None = None,  # M56b: for focal civ stats
     world: WorldState | None = None,  # M56b: for settlement enumeration
+    view: HistoricalView | None = None,
 ) -> AgentContext | None:
-    """Build AgentContext if the moment has agent-source or economy events."""
+    """Build AgentContext if the moment has agent-source or economy events.
+
+    Everything comes from ``view`` (``historical_context``), what the record
+    says after the moment's last turn: the characters born by then, their
+    status, deeds, memories and bonds as of then, the snapshot of that turn,
+    and the bridge's observations only when they describe it. ``view`` is
+    then the only source and the per-value arguments are ignored (except
+    ``gp_by_agent_id`` for dynasty lookups, ``civ_idx``, ``civ_names`` and
+    ``world_turn``). Without a view (direct callers) one is built from the
+    arguments, which the caller vouches describe the moment; the dated
+    filters still apply, and ``current_snapshot`` is the snapshot read.
+    """
+    legacy = view is None
+    if legacy:
+        record = HistoricalRecord(
+            history=history or (), great_persons=great_persons, world=world,
+            events=list(moment.events), observed_through=None,
+            gini_by_civ=gini_by_civ, displacement_by_region=displacement_by_region,
+            economy_result=economy_result, social_edges=social_edges,
+            dissolved_edges_by_turn=({moment.turn_range[0]: list(dissolved_edges)}
+                                     if dissolved_edges else None),
+            agent_name_map=agent_name_map, dynasty_registry=dynasty_registry,
+        )
+        view = record.view(AsOf.after(moment.turn_range[1]))
+        snap = current_snapshot
+    else:
+        snap = view.snapshot
+        history = view.record.history
+        hostage_data = None
+    economy_result = view.record.economy_result
+
     agent_events = [e for e in moment.events if e.source == "agent"]
     economy_events = [e for e in moment.events if e.source == "economy"]
     if not agent_events and not (economy_result is not None and economy_events):
         return None
 
     # Named characters of this moment: those its events name, and the active
-    # characters of the civs its events involve.
+    # characters of the civs its events involve, as of the moment's end.
     moment_actors = {actor for ev in moment.events for actor in ev.actors}
     moment_civs = moment_actors | {c for ev in moment.events for c in ev.civs}
+    present = view.moment_characters(moment_actors, moment_civs)
     chars = []
-    for gp in great_persons:
-        if gp.source != "agent":
-            continue
-        if gp.name not in moment_actors and not (gp.active and gp.civilization in moment_civs):
-            continue
+    for c in present:
         char = {
-            "name": gp.name,
-            "role": gp.role.title(),
-            "civ": gp.civilization,
-            "origin_civ": gp.origin_civilization,
-            "status": _character_status(gp),
+            "name": c.name,
+            "role": c.role.title(),
+            "civ": c.civilization,
+            "origin_civ": c.origin_civilization,
+            "status": c.status,
             "recent_history": [
                 {"event": d.text, "region": d.region or "unknown", "turn": d.turn}
-                for d in gp.deeds[-3:]
+                for d in c.deeds[-3:]
             ],
         }
         # M50b: include agent_id for bond lookups
-        if gp.agent_id is not None:
-            char["agent_id"] = gp.agent_id
-        # M39: dynasty context
-        if dynasty_registry is not None and gp_by_agent_id is not None and gp.agent_id:
-            dynasty = dynasty_registry.get_dynasty_for(gp.agent_id, gp_by_agent_id)
-            if dynasty is not None:
-                living_count = sum(1 for m in dynasty.members if m in gp_by_agent_id and gp_by_agent_id[m].alive)
-                char["dynasty"] = dynasty.founder_name
-                char["dynasty_living"] = living_count
-                char["dynasty_total"] = len(dynasty.members)
-                if dynasty.split_detected:
-                    char["dynasty_split"] = True
-            # M57a: Resolve lineage house (secondary dynasty from other parent)
-            if gp.lineage_house and gp.lineage_house != (gp.dynasty_id or 0):
-                try:
-                    lineage_dynasty = dynasty_registry._find(gp.lineage_house)
-                    char["lineage_house"] = lineage_dynasty.founder_name
-                except ValueError:
-                    pass  # Dynasty not found — skip silently
-
+        if c.agent_id is not None:
+            char["agent_id"] = c.agent_id
+        # M39/M57a: dynasty and lineage house, members counted as of the moment
+        if gp_by_agent_id is not None and c.agent_id:
+            dynasty = view.dynasty(c, gp_by_agent_id)
+            if dynasty:
+                char.update(dynasty)
         # M45: Arc context
-        if gp.arc_type:
-            char["arc_type"] = gp.arc_type
-        if gp.arc_phase:
-            char["arc_phase"] = gp.arc_phase
-        if gp.arc_summary:
-            char["arc_summary"] = gp.arc_summary
-        if gp.trait:
-            char["trait"] = gp.trait
-
-        # M48: Memory context
-        if hasattr(gp, "memories") and gp.memories:
-            char["memories"] = gp.memories
+        if c.arc_type:
+            char["arc_type"] = c.arc_type
+        if c.arc_phase:
+            char["arc_phase"] = c.arc_phase
+        if c.arc_summary:
+            char["arc_summary"] = c.arc_summary
+        if c.trait:
+            char["trait"] = c.trait
+        # M48: Memory context (recorded by the moment's end)
+        if c.memories:
+            char["memories"] = [dict(m) for m in c.memories]
             char["_civ_names"] = civ_names or []
-
-        # M49: Needs context
-        if gp.active and hasattr(gp, "needs") and gp.needs:
-            char["needs"] = gp.needs
-
+            if not c.memory_strength_observed:
+                char["memory_strength_observed"] = False
+        # M49: Needs context (observed values only)
+        if c.active and c.needs:
+            char["needs"] = dict(c.needs)
         # M48: Mule context
-        if getattr(gp, "mule", False) and gp.active:
+        if c.mule and c.active:
             from chronicler.action_engine import MULE_ACTIVE_WINDOW, MULE_FADE_TURNS
             char["mule"] = True
-            char["utility_overrides"] = getattr(gp, "utility_overrides", {})
-            remaining = (gp.born_turn + MULE_ACTIVE_WINDOW + MULE_FADE_TURNS) - world_turn
+            char["utility_overrides"] = dict(c.utility_overrides)
+            remaining = (c.born_turn + MULE_ACTIVE_WINDOW + MULE_FADE_TURNS) - world_turn
             char["mule_remaining"] = max(0, remaining)
-
         chars.append(char)
 
     mood = compute_population_mood(agent_events)
+    displacement = view.displacement()
 
-    # Average displacement across all tracked regions
-    disp_values = list(displacement_by_region.values())
-    avg_disp = sum(disp_values) / len(disp_values) if disp_values else 0.0
-
-    # M40+M50b: Merge relationship sources into AgentContext.relationships
-    relationships: list[dict] = []
-    rel_type_names = {
-        0: "mentor", 1: "rival", 2: "marriage", 3: "exile_bond", 4: "co_religionist",
-        5: "kin", 6: "friend", 7: "grudge",
-    }
-    name_map = agent_name_map or {}
+    # M40+M50b: relationships live at the moment's end, those dissolved
+    # during the moment, and hostages held then.
+    relationships = view.relationships(present, moment.turn_range,
+                                       per_character_bonds=bool(gp_by_agent_id))
     char_names = {c["name"] for c in chars}
-
-    if gp_by_agent_id:
-        # M50b path: use agent_bonds from Rust per-agent store
-        for c in chars:
-            aid = c.get("agent_id")
-            gp = gp_by_agent_id.get(aid) if aid is not None else None
-            if gp and gp.agent_bonds:
-                for bond in gp.agent_bonds:
-                    target_name = name_map.get(bond["target_id"])
-                    if target_name is None:
-                        continue  # Skip unnamed targets
-                    sentiment = bond.get("sentiment", 0)
-                    sent_desc = (
-                        "deep" if abs(sentiment) > 80 else
-                        "strong" if abs(sentiment) > 40 else
-                        "mild" if abs(sentiment) > 0 else
-                        "fading"
-                    )
-                    relationships.append({
-                        "type": rel_type_names.get(bond["bond_type"], "unknown"),
-                        "character_a": c["name"],
-                        "character_b": target_name,
-                        "sentiment": sent_desc,
-                        "since_turn": bond.get("formed_turn", 0),
-                    })
-        # Also include dissolved edges from Rust-side dissolution events
-        for edge in (dissolved_edges or []):
-            agent_a, agent_b, rel_type, formed_turn = edge
-            name_a = name_map.get(agent_a, "")
-            name_b = name_map.get(agent_b, "")
-            if name_a not in char_names and name_b not in char_names:
-                continue
-            relationships.append({
-                "type": rel_type_names.get(rel_type, "unknown") + " (dissolved)",
-                "character_a": name_a,
-                "character_b": name_b,
-                "since_turn": formed_turn,
-            })
-    else:
-        # Legacy M40 path: use social_edges
-        all_edges = list(social_edges or []) + list(dissolved_edges or [])
-        for edge in all_edges:
-            agent_a, agent_b, rel_type, formed_turn = edge
-            name_a = name_map.get(agent_a, "")
-            name_b = name_map.get(agent_b, "")
-            if name_a not in char_names and name_b not in char_names:
-                continue
-            rel = {
-                "type": rel_type_names.get(rel_type, "unknown"),
-                "character_a": name_a,
-                "character_b": name_b,
-                "role_a": "mentor" if rel_type == 0 else None,
-                "role_b": "apprentice" if rel_type == 0 else None,
-                "since_turn": formed_turn,
-            }
-            relationships.append(rel)
-
-    # Add hostage relationships
+    if hostage_data:  # legacy callers list hostages themselves
+        relationships = [r for r in relationships if r["type"] != "hostage"]
     for h in (hostage_data or []):
         if h.get("character_b") in char_names or h.get("character_a") in char_names:
             relationships.append(h)
 
     # M56b: Urbanization context — focal civ, urban delta, top settlements
     focal_civ = None
-    if current_snapshot is not None:
+    if snap is not None:
         for ev in moment.events:
             for actor in ev.actors:
-                if actor in current_snapshot.civ_stats:
+                if actor in snap.civ_stats:
                     focal_civ = actor
                     break
             if focal_civ is not None:
                 break
-        if focal_civ is None and current_snapshot.civ_stats:
-            focal_civ = sorted(current_snapshot.civ_stats.keys())[0]
+        if focal_civ is None and snap.civ_stats:
+            focal_civ = sorted(snap.civ_stats.keys())[0]
 
-    # M41: Gini coefficient for wealth inequality context
-    # Step 1: try live bridge data (gini_by_civ keyed by civ index)
-    gini = (gini_by_civ or {}).get(civ_idx, None) if civ_idx is not None else None
-    # Step 2: fallback to snapshot civ_stats (keyed by civ name)
-    if gini is None and current_snapshot is not None and focal_civ is not None:
-        snap_stats = current_snapshot.civ_stats.get(focal_civ)
-        if snap_stats is not None and snap_stats.gini is not None:
-            gini = snap_stats.gini
-    # Step 3: default — no signal
-    if gini is None:
-        gini = 0.0
+    # M41: Gini — the bridge's when it describes the moment, else the snapshot's.
+    if legacy:
+        gini = (gini_by_civ or {}).get(civ_idx) if civ_idx is not None else None
+        if gini is None and snap is not None and focal_civ is not None:
+            row = snap.civ_stats.get(focal_civ)
+            gini = row.gini if row is not None else None
+        gini = gini if gini is not None else 0.0
+    else:
+        gini = view.gini(civ_idx, focal_civ)
 
     urban_fraction_delta_20t = 0.0
-    if history is not None and current_snapshot is not None and focal_civ is not None:
-        current_stats = current_snapshot.civ_stats.get(focal_civ)
+    if history and snap is not None and focal_civ is not None:
+        current_stats = snap.civ_stats.get(focal_civ)
         if current_stats is not None:
             current_frac = current_stats.urban_fraction
-            past_turn = current_snapshot.turn - 20
+            past_turn = snap.turn - 20
             past_snapshot = next((s for s in history if s.turn == past_turn), None)
             if past_snapshot is not None and focal_civ in past_snapshot.civ_stats:
                 urban_fraction_delta_20t = current_frac - past_snapshot.civ_stats[focal_civ].urban_fraction
 
+    # Settlements from the snapshot of the moment (the world holds only the end).
     top_settlements: list[SettlementSummary] = []
-    if world is not None and focal_civ is not None:
-        candidates: list[SettlementSummary] = []
-        for region in world.regions:
-            if region.controller != focal_civ:
-                continue
-            for s in region.settlements:
-                if s.status.value not in ("active", "dissolving"):
-                    continue
-                candidates.append(
-                    SettlementSummary(
-                        settlement_id=s.settlement_id,
-                        name=s.name,
-                        region_name=s.region_name,
-                        population_estimate=s.population_estimate,
-                        centroid_x=s.centroid_x,
-                        centroid_y=s.centroid_y,
-                        founding_turn=s.founding_turn,
-                        status=s.status.value,
-                    )
-                )
-        candidates.sort(key=lambda ss: (-ss.population_estimate, ss.settlement_id))
-        top_settlements = candidates[:3]
+    if focal_civ is not None:
+        if not legacy:
+            top_settlements = view.settlements(focal_civ)
+        elif world is not None:
+            top_settlements = _world_settlements(world, focal_civ)
 
     # Characters the moment's events name come first; cap for the token budget.
     chars.sort(key=lambda c: c["name"] not in moment_actors)
     ctx = AgentContext(
         named_characters=chars[:_MAX_NAMED_CHARACTERS],
         population_mood=mood,
-        displacement_fraction=avg_disp,
+        displacement_fraction=displacement if displacement is not None else 0.0,
+        displacement_observed=displacement is not None,
         relationships=relationships,
         gini_coefficient=gini,
         urban_fraction_delta_20t=urban_fraction_delta_20t,
         top_settlements=top_settlements,
     )
 
-    # M43b: Populate trade dependency and shock context
+    # M43b: trade dependency (observed) and the moment's own supply shocks
     if economy_result is not None:
-        moment_civs = {ev.actors[0] for ev in moment.events if ev.actors}
-        trade_dep = getattr(economy_result, 'trade_dependent', {})
-        ctx.trade_dependent_regions = [
-            rname for rname, dep in trade_dep.items()
-            if dep
-        ]
+        ctx.trade_dependent_regions = view.trade_dependent_regions() or []
         ctx.active_shocks = [
             ShockContext(
                 region=ev.shock_region,
@@ -567,6 +493,31 @@ def build_agent_context_for_moment(
             if ev.event_type == "supply_shock" and ev.shock_region is not None and ev.shock_category is not None
         ]
     return ctx
+
+
+def _world_settlements(world: WorldState, civ_name: str) -> list[SettlementSummary]:
+    """The three largest active settlements of a civ in a world (current state)."""
+    candidates: list[SettlementSummary] = []
+    for region in world.regions:
+        if region.controller != civ_name:
+            continue
+        for s in region.settlements:
+            if s.status.value not in ("active", "dissolving"):
+                continue
+            candidates.append(
+                SettlementSummary(
+                    settlement_id=s.settlement_id,
+                    name=s.name,
+                    region_name=s.region_name,
+                    population_estimate=s.population_estimate,
+                    centroid_x=s.centroid_x,
+                    centroid_y=s.centroid_y,
+                    founding_turn=s.founding_turn,
+                    status=s.status.value,
+                )
+            )
+    candidates.sort(key=lambda ss: (-ss.population_estimate, ss.settlement_id))
+    return candidates[:3]
 
 
 def build_before_summary(
@@ -591,11 +542,15 @@ def build_before_summary(
 
     target_turn = moment.anchor_turn
 
-    # Find closest available snapshots
-    ref_snap = _closest_snap(snap_by_turn, ref_turn)
-    target_snap = _closest_snap(snap_by_turn, target_turn)
-
-    if ref_snap is None or target_snap is None:
+    # The snapshots labelled at (or the latest before) those turns: the
+    # state before the anchor turn ran, never a later one (historical_context).
+    target_snap = snapshot_as_of(history, AsOf.at_snapshot(target_turn))
+    if target_snap is None:
+        return ""
+    # A reference before the history starts reads from its first snapshot.
+    ref_snap = (snapshot_as_of(history, AsOf.at_snapshot(ref_turn))
+                or snap_by_turn[min(snap_by_turn)])
+    if ref_snap.turn > target_snap.turn:
         return ""
 
     bullets: list[str] = []
@@ -1116,6 +1071,9 @@ class NarrativeEngine:
         historiography=None,
         # In-world names (languages.NameIndex); None = not used
         languages=None,
+        # Completed turn the bridge values and final character fields
+        # describe; "auto" = the world's last completed turn (historical_context)
+        observed_through: int | None | str = "auto",
     ) -> list[ChronicleEntry]:
         """Narrate all selected moments.
 
@@ -1128,6 +1086,11 @@ class NarrativeEngine:
         the account ids they drew on. With ``languages`` the prompts gain an
         IN-WORLD NAMES block and the mechanical chronicle an "In their own
         tongues" gloss.
+
+        Each moment's prompt reads the record as of the end of its last turn
+        (``historical_context.AsOf.after``): characters born by then, their
+        deeds, memories, bonds and status then, and the bridge values and
+        final character fields only when ``observed_through`` is that turn.
         """
         # M52: Store world for artifact context
         self._world = world
@@ -1139,7 +1102,7 @@ class NarrativeEngine:
             moments, history, great_persons, social_edges,
             dissolved_edges_by_turn, agent_name_map, gini_by_civ,
             economy_result, displacement_by_region=displacement_by_region,
-            dynasty_registry=dynasty_registry,
+            dynasty_registry=dynasty_registry, observed_through=observed_through,
         )
 
         # No-LLM narrator: render moments mechanically (with their chains).
@@ -1169,10 +1132,13 @@ class NarrativeEngine:
         economy_result=None,
         displacement_by_region: dict[int, float] | None = None,
         dynasty_registry=None,
+        observed_through: int | None | str = "auto",
     ) -> list[dict]:
         """Build prompt/system pairs for each moment. Returns list of dicts
-        with keys: prompt, system, agent_ctx."""
-        snap_map = {s.turn: s for s in history}
+        with keys: prompt, system, agent_ctx.
+
+        One ``HistoricalRecord`` holds the run's record; each moment reads
+        its view after the moment's last turn."""
         total = len(moments)
         result = []
         world_obj = getattr(self, "_world", None)
@@ -1192,7 +1158,16 @@ class NarrativeEngine:
                 if gp.agent_id is not None:
                     gp_by_agent_id[gp.agent_id] = gp
 
+        record = HistoricalRecord(
+            history=history, events=recorded, great_persons=great_persons or (), world=world_obj,
+            observed_through=observed_through, gini_by_civ=gini_by_civ,
+            displacement_by_region=displacement_by_region, economy_result=economy_result,
+            social_edges=social_edges, dissolved_edges_by_turn=dissolved_edges_by_turn,
+            agent_name_map=agent_name_map, dynasty_registry=dynasty_registry,
+        )
+
         for idx, moment in enumerate(moments):
+            view = record.view(AsOf.after(moment.turn_range[1]))
             prev_moment = moments[idx - 1] if idx > 0 else None
             next_moment = moments[idx + 1] if idx < total - 1 else None
 
@@ -1254,7 +1229,7 @@ class NarrativeEngine:
                     causal_text += f"- {c}\n"
 
             # The snapshot of turn T + 1 holds the state after turn T.
-            snap = _closest_snap(snap_map, moment.turn_range[1] + 1)
+            snap = view.snapshot
             state_text = nc.render_standing_state(
                 nc.standing_state_lines(snap, listed, getattr(self, "_world", None), timeline,
                                         at_turn=moment.turn_range[1]),
@@ -1276,7 +1251,6 @@ class NarrativeEngine:
             if after_summary:
                 context_text += f"\n\nAFTER this moment (for foreshadowing):\n{after_summary}"
 
-            snap = _closest_snap(snap_map, moment.anchor_turn)
             focal_civ_name = None
             if snap is not None:
                 for ev in moment.events:
@@ -1304,50 +1278,22 @@ class NarrativeEngine:
             agent_context_text = ""
             agent_ctx = None
             if great_persons is not None:
-                hostage_data = []
-                for gp in great_persons:
-                    if gp.is_hostage and gp.captured_by:
-                        hostage_data.append({
-                            "type": "hostage",
-                            "character_a": gp.captured_by,
-                            "character_b": gp.name,
-                            "role_a": "captor",
-                            "role_b": "captive",
-                            "since_turn": gp.born_turn,
-                        })
-
-                moment_dissolved: list[tuple] = []
-                if dissolved_edges_by_turn:
-                    for t in range(moment.turn_range[0], moment.turn_range[1] + 1):
-                        moment_dissolved.extend(dissolved_edges_by_turn.get(t, []))
-
                 agent_ctx = build_agent_context_for_moment(
-                    moment, great_persons,
-                    displacement_by_region=displacement_by_region or {},
-                    dynasty_registry=dynasty_registry,
+                    moment, great_persons, {},
                     gp_by_agent_id=gp_by_agent_id,
-                    social_edges=social_edges,
-                    dissolved_edges=moment_dissolved if moment_dissolved else None,
-                    agent_name_map=agent_name_map,
-                    hostage_data=hostage_data,
                     civ_idx=civ_idx,
-                    gini_by_civ=gini_by_civ,
-                    economy_result=economy_result,
                     civ_names=civ_names,
                     world_turn=moment.anchor_turn,
-                    history=history,
-                    current_snapshot=snap,
-                    world=world_obj,
+                    view=view,
                 )
                 if agent_ctx is not None:
                     agent_context_text = "\n\n" + build_agent_context_block(agent_ctx)
 
             # M52: Artifact context
             artifact_context_text = ""
-            if hasattr(self, '_world') and self._world is not None:
-                from chronicler.artifacts import _get_relevant_artifacts, render_artifact_context
-                relevant_artifacts = _get_relevant_artifacts(self._world, moment)
-                artifact_context_text = render_artifact_context(relevant_artifacts)
+            if world_obj is not None:
+                from chronicler.artifacts import render_artifact_context
+                artifact_context_text = render_artifact_context(view.artifacts(moment))
                 if artifact_context_text:
                     artifact_context_text = "\n\n" + artifact_context_text
 

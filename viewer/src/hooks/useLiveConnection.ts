@@ -8,11 +8,20 @@ import type {
   NewChronicleEntry,
   PauseContext,
   StartCommand,
-  TurnSnapshot,
 } from "../types";
 import { isLegacyBundle } from "../types";
 import { useBatchConnection, type BatchConnectionState } from "./useBatchConnection";
 import { classifyParsedBundlePayload, formatBundleLoaderDiagnostics } from "../lib/bundleLoader";
+import {
+  applyCompletedMessage, bundleFromInitMessage, snapshotFromMessage, withSessionToken,
+} from "../lib/transport";
+
+/** Failed attempts without ever opening before the viewer explains the refusal. */
+const REFUSED_ATTEMPTS = 2;
+export const LIVE_REFUSED_MESSAGE =
+  "Could not connect to the live server. It accepts the viewer only from the link the CLI prints "
+  + "(it carries the session token) and from the local dev or preview origin; see "
+  + "docs/integration/historical-parity.md.";
 
 type ServerState = "connecting" | "lobby" | "starting" | "running" | "completed";
 
@@ -36,7 +45,12 @@ interface LiveConnectionState {
   wsRef: React.RefObject<WebSocket | null>;
 }
 
-export function useLiveConnection(wsUrl: string): LiveConnectionState {
+/**
+ * The live session at `wsUrl`. `token` is the session token from the
+ * viewer link (`?token=`), added to the WebSocket URL; the server refuses
+ * connections without it.
+ */
+export function useLiveConnection(wsUrl: string, token: string | null = null): LiveConnectionState {
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [connected, setConnected] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -105,67 +119,27 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     }
   }, []);
 
-  const buildLiveTurnSnapshot = useCallback((msg: Record<string, unknown>): TurnSnapshot => ({
-    turn: (msg.turn as number) ?? 0,
-    civ_stats: (msg.civ_stats as TurnSnapshot["civ_stats"]) ?? {},
-    region_control: (msg.region_control as TurnSnapshot["region_control"]) ?? {},
-    relationships: (msg.relationships as TurnSnapshot["relationships"]) ?? {},
-    trade_routes: msg.trade_routes as TurnSnapshot["trade_routes"],
-    active_wars: msg.active_wars as TurnSnapshot["active_wars"],
-    embargoes: msg.embargoes as TurnSnapshot["embargoes"],
-    ecology: msg.ecology as TurnSnapshot["ecology"],
-    mercenary_companies: msg.mercenary_companies as TurnSnapshot["mercenary_companies"],
-    vassal_relations: msg.vassal_relations as TurnSnapshot["vassal_relations"],
-    federations: msg.federations as TurnSnapshot["federations"],
-    proxy_wars: msg.proxy_wars as TurnSnapshot["proxy_wars"],
-    exile_modifiers: msg.exile_modifiers as TurnSnapshot["exile_modifiers"],
-    capitals: msg.capitals as TurnSnapshot["capitals"],
-    peace_turns: msg.peace_turns as TurnSnapshot["peace_turns"],
-    region_cultural_identity: msg.region_cultural_identity as TurnSnapshot["region_cultural_identity"],
-    movements_summary: msg.movements_summary as TurnSnapshot["movements_summary"],
-    stress_index: msg.stress_index as TurnSnapshot["stress_index"],
-    pandemic_regions: msg.pandemic_regions as TurnSnapshot["pandemic_regions"],
-    climate_phase: msg.climate_phase as TurnSnapshot["climate_phase"],
-    active_conditions: msg.active_conditions as TurnSnapshot["active_conditions"],
-    per_pair_accuracy: msg.per_pair_accuracy as TurnSnapshot["per_pair_accuracy"],
-    perception_errors: msg.perception_errors as TurnSnapshot["perception_errors"],
-    settlement_source_turn: msg.settlement_source_turn as TurnSnapshot["settlement_source_turn"],
-    settlement_count: msg.settlement_count as TurnSnapshot["settlement_count"],
-    candidate_count: msg.candidate_count as TurnSnapshot["candidate_count"],
-    total_settlement_population: msg.total_settlement_population as TurnSnapshot["total_settlement_population"],
-    active_settlements: msg.active_settlements as TurnSnapshot["active_settlements"],
-    founded_this_turn: msg.founded_this_turn as TurnSnapshot["founded_this_turn"],
-    dissolved_this_turn: msg.dissolved_this_turn as TurnSnapshot["dissolved_this_turn"],
-    urban_agent_count: msg.urban_agent_count as TurnSnapshot["urban_agent_count"],
-    urban_fraction: msg.urban_fraction as TurnSnapshot["urban_fraction"],
-    campaign: msg.campaign as TurnSnapshot["campaign"],
-    epidemics: msg.epidemics as TurnSnapshot["epidemics"],
-    finance: msg.finance as TurnSnapshot["finance"],
-    diplomacy: msg.diplomacy as TurnSnapshot["diplomacy"],
-    techniques: msg.techniques as TurnSnapshot["techniques"],
-    maritime: msg.maritime as TurnSnapshot["maritime"],
-    contact: msg.contact as TurnSnapshot["contact"],
-    gp_agendas: msg.gp_agendas as TurnSnapshot["gp_agendas"],
-    nomads: msg.nomads as TurnSnapshot["nomads"],
-    cities: msg.cities as TurnSnapshot["cities"],
-    agent_movements: msg.agent_movements as TurnSnapshot["agent_movements"],
-    food: msg.food as TurnSnapshot["food"],
-    migration: msg.migration as TurnSnapshot["migration"],
-  }), []);
 
   useEffect(() => {
     let unmounted = false;
 
     // No-op when wsUrl is empty (static mode — hook is always called per Rules of Hooks)
     if (!wsUrl) return;
+    const url = withSessionToken(wsUrl, token);
+    let opened = false;
+    let failures = 0;
 
     function connect() {
       if (unmounted) return;
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(url);
       wsRef.current = ws;
+      let thisOpened = false;
 
       ws.onopen = () => {
         if (unmounted) return;
+        opened = true;
+        thisOpened = true;
+        failures = 0;
         setConnected(true);
         setError(null);
         reconnectDelayRef.current = 1000;
@@ -173,6 +147,10 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
 
       ws.onclose = () => {
         if (unmounted) return;
+        // A handshake the server refuses (wrong origin or token) closes before opening.
+        if (!thisOpened && !opened && ++failures >= REFUSED_ATTEMPTS) {
+          setError(LIVE_REFUSED_MESSAGE);
+        }
         setConnected(false);
         wsRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
@@ -221,16 +199,8 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               setServerState("running");
               serverStateRef.current = "running";
               setError(null);
-              replaceBundle({
-                world_state: msg.world_state,
-                history: msg.history || [],
-                events_timeline: msg.events_timeline || [],
-                named_events: msg.named_events || [],
-                chronicle_entries: msg.chronicle_entries || [],
-                gap_summaries: msg.gap_summaries || [],
-                era_reflections: msg.era_reflections || {},
-                metadata: msg.metadata,
-              });
+              // Reconnect history rows and bundle systems through the transport contract.
+              replaceBundle(bundleFromInitMessage(msg));
               if (msg.speed !== undefined) {
                 setSpeedState(msg.speed);
               }
@@ -243,7 +213,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
               if (!liveBundle) {
                 break;
               }
-              liveBundle.history = [...liveBundle.history, buildLiveTurnSnapshot(msg as Record<string, unknown>)];
+              liveBundle.history = [...liveBundle.history, snapshotFromMessage(msg as Record<string, unknown>)];
               if (isLegacyBundle(liveBundle.chronicle_entries)) {
                 liveBundle.chronicle_entries = {
                   ...liveBundle.chronicle_entries,
@@ -317,6 +287,10 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
             serverStateRef.current = "completed";
             setPaused(false);
             setPauseContext(null);
+            if (bundleRef.current) {
+              // The finished run's historiography and languages.
+              replaceBundle(applyCompletedMessage(bundleRef.current, msg));
+            }
             break;
 
           case "bundle_loaded":
@@ -358,7 +332,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
-  }, [wsUrl, buildLiveTurnSnapshot, handleBatchMessage, publishBundleMutation, replaceBundle]);
+  }, [wsUrl, token, handleBatchMessage, publishBundleMutation, replaceBundle]);
 
   return {
     bundle,

@@ -6,6 +6,57 @@
 
 ---
 
+## Historical parity (2026-10-26, `fix/historical-parity`)
+
+> **Last updated:** 2026-10-26 (`fix/historical-parity` from `main` `fc01d6e`: narration, curation, live transport and viewer only; every simulation output byte identical. All six review findings reproduced on `fc01d6e` and fixed. Open: no native/hybrid run, no LLM, no browser QA.)
+
+`fix/historical-parity` from `main` `fc01d6e` (PR #44). Details:
+[`docs/integration/historical-parity.md`](../../integration/historical-parity.md).
+
+- **Convention.** `historical_context.py`: `AsOf(turn, phase)` (snapshot
+  `S` = state after turn `S - 1`; `after(T)` knows records `<= T`, snapshot
+  `T + 1`; `before(T)` knows `<= T - 1`, snapshot `T`; never a later
+  snapshot) and an immutable `HistoricalRecord.view`: characters born by
+  then with status, deeds, memories, bonds, hostage state and dynasty
+  counts as of then; final observations (needs, arc phase, memory strength,
+  bond sentiment, bridge Gini/displacement/trade dependency, artifact
+  holders) only at or after `observed_through`.
+- **Narration** (CLI inline, `--narrate`, live range) reads the view after
+  each moment's last turn; settlements and Gini from that snapshot;
+  artifacts described by their making; future only in the labelled AFTER
+  and LATER CONSEQUENCES sections. Live range narration and `--narrate`
+  share `narration_inputs.from_bundle` (the world now reaches live range
+  narration). Real 500-turn hybrid bundle: 40 future-dated deed, memory or
+  relationship lines and 5 premature deaths in 14 character moments -> 0.
+- **Curator gaps** run from `before(start)` to `after(end)` (a last-turn
+  change counts; 17 of 49 gaps change on that bundle); civs sorted (bytes
+  equal under `PYTHONHASHSEED` 1, 2, 3).
+- **Viewer.** Civs without a history row at the snapshot are left out of
+  rankings, chips, summaries and default focus; their inspector says
+  "Unavailable". One transport contract (`transport_contract.json`, read by
+  `transport.py` and `lib/transport.ts`); static, Batch Lab, streaming
+  (`guilds` and every later system) and reconnect carry every system of
+  one fixture; `completed` carries historiography and languages.
+- **Live server**: handshake needs an allowed origin (Vite 5173/4173 on
+  loopback, `--live-origin`) and the session token printed in the viewer
+  link (`?ws=...&token=...`); else HTTP 403.
+- **Codecs**: malformed `history_delta` patches raise `BundleDecodeError`
+  (Python, TypeScript); the viewer shows "Invalid bundle history: ..." and
+  ends loading in `finally`.
+- **Identity**: simulate-only template 42/7/1234 (200 turns) and procedural
+  11 (80 turns), 36 files byte-identical (bundles minus `generated_at`);
+  mechanical narrated runs 42/7: all but narration identical, prompts
+  differ (artifact lines, 3 era registers).
+- **Tests** (no-Rust Python 3.13.17): oracle lane PASS in 126.2 s
+  (narration chunk 139 passed, with `test_historical_parity.py`); 25
+  narration, history, live (socket suites included), codec, bundle and main
+  files 654 passed, 4 skipped; viewer 352 passed (44 files), lint and build;
+  entry chunk 777,454 -> 780,900 bytes. No cargo, native or 200-seed gate
+  (no simulation change).
+- **Open**: no hybrid run with live bridge values; undated lifecycle
+  changes (exile return) inferred from deeds; curator scoring still uses
+  final characters; viewer panels beyond civ views not audited.
+
 ## Turn speed (2026-10-26, `perf/turn-speed`)
 
 `perf/turn-speed` from `main` `b3ad9a4` (PR #42), merged without rebase with

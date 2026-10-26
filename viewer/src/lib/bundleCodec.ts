@@ -10,6 +10,10 @@
  *
  * Decoded snapshots share unchanged values with the snapshot before them;
  * the viewer treats bundles as read-only.
+ *
+ * Decoding checks every patch against the format and throws
+ * `BundleDecodeError` naming the snapshot and the problem (the Python codec
+ * raises the same errors); the loader turns it into a readable message.
  */
 
 export const HISTORY_DELTA_KEY = "history_delta";
@@ -25,6 +29,22 @@ const RESERVED = new Set([DEL, ORDER, REPLACE, LIST, TAIL, LEN]);
 
 type JsonObject = Record<string, unknown>;
 
+/** A version-6 bundle whose `history_delta` does not follow the patch format. */
+export class BundleDecodeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BundleDecodeError";
+  }
+}
+
+function kindOf(value: unknown): string {
+  return value === null ? "null" : Array.isArray(value) ? "list" : typeof value;
+}
+
+function isIndex(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value);
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -36,6 +56,9 @@ function hasOwn(object: JsonObject, key: string): boolean {
 function applyPatch(previous: unknown, patch: unknown): unknown {
   if (isObject(patch)) {
     if (hasOwn(patch, REPLACE)) {
+      if (Object.keys(patch).length !== 1) {
+        throw new BundleDecodeError(`'${REPLACE}' patch with other keys: ${Object.keys(patch).sort().join(", ")}`);
+      }
       return patch[REPLACE];
     }
     if (isObject(previous)) {
@@ -44,12 +67,25 @@ function applyPatch(previous: unknown, patch: unknown): unknown {
     if (Array.isArray(previous)) {
       return applyListPatch(previous, patch);
     }
+    const reserved = Object.keys(patch).filter((key) => RESERVED.has(key));
+    if (reserved.length > 0) {
+      throw new BundleDecodeError(`patch ${reserved.sort().join(", ")} against a ${kindOf(previous)}`);
+    }
   }
   return patch;
 }
 
 function applyObjectPatch(previous: JsonObject, patch: JsonObject): JsonObject {
-  const removed = Array.isArray(patch[DEL]) ? new Set(patch[DEL] as string[]) : null;
+  const unexpected = Object.keys(patch).filter((key) => RESERVED.has(key) && key !== DEL && key !== ORDER);
+  if (unexpected.length > 0) {
+    throw new BundleDecodeError(`object patch holds list keys ${unexpected.sort().join(", ")}`);
+  }
+  const deleted = patch[DEL];
+  if (deleted !== undefined && (!Array.isArray(deleted)
+      || deleted.some((key) => typeof key !== "string" || !hasOwn(previous, key)))) {
+    throw new BundleDecodeError(`'${DEL}' must list existing keys, got ${JSON.stringify(deleted)}`);
+  }
+  const removed = deleted ? new Set(deleted as string[]) : null;
   const out: JsonObject = {};
   for (const [key, value] of Object.entries(previous)) {
     if (removed?.has(key)) {
@@ -63,7 +99,13 @@ function applyObjectPatch(previous: JsonObject, patch: JsonObject): JsonObject {
     }
   }
   const order = patch[ORDER];
-  if (Array.isArray(order)) {
+  if (order !== undefined) {
+    const keys = Object.keys(out);
+    if (!Array.isArray(order) || order.length !== keys.length
+        || order.some((key) => typeof key !== "string" || !hasOwn(out, key))
+        || new Set(order).size !== order.length) {
+      throw new BundleDecodeError(`'${ORDER}' must list the object's keys once each, got ${JSON.stringify(order)}`);
+    }
     const ordered: JsonObject = {};
     for (const key of order as string[]) {
       ordered[key] = out[key];
@@ -74,15 +116,34 @@ function applyObjectPatch(previous: JsonObject, patch: JsonObject): JsonObject {
 }
 
 function applyListPatch(previous: unknown[], patch: JsonObject): unknown[] {
+  const keys = Object.keys(patch);
+  if (!hasOwn(patch, LIST) || keys.some((key) => key !== LIST && key !== TAIL && key !== LEN)) {
+    throw new BundleDecodeError(`list patch needs '${LIST}' and only list keys, got ${keys.sort().join(", ")}`);
+  }
   const out = previous.slice();
   const length = patch[LEN];
-  if (typeof length === "number") {
+  if (length !== undefined) {
+    if (!isIndex(length) || length < 0 || length > out.length) {
+      throw new BundleDecodeError(`'${LEN}' must be a length up to ${out.length}, got ${JSON.stringify(length)}`);
+    }
     out.length = length;
   }
-  for (const [index, item] of (patch[LIST] ?? []) as [number, unknown][]) {
+  const changes = patch[LIST];
+  if (!Array.isArray(changes)) {
+    throw new BundleDecodeError(`'${LIST}' must be a list, got ${kindOf(changes)}`);
+  }
+  for (const change of changes) {
+    if (!Array.isArray(change) || change.length !== 2 || !isIndex(change[0])
+        || change[0] < 0 || change[0] >= out.length) {
+      throw new BundleDecodeError(`'${LIST}' item must be [index < ${out.length}, patch], got ${JSON.stringify(change)}`);
+    }
+    const [index, item] = change as [number, unknown];
     out[index] = applyPatch(out[index], item);
   }
   const tail = patch[TAIL];
+  if (tail !== undefined && !Array.isArray(tail)) {
+    throw new BundleDecodeError(`'${TAIL}' must be a list, got ${kindOf(tail)}`);
+  }
   if (Array.isArray(tail)) {
     for (const item of tail) {
       out.push(item);
@@ -91,12 +152,25 @@ function applyListPatch(previous: unknown[], patch: JsonObject): unknown[] {
   return out;
 }
 
-/** The snapshots of a `history_delta`. */
-export function decodeHistory(encoded: unknown[]): unknown[] {
+/** The snapshots of a `history_delta`; throws `BundleDecodeError` for a malformed patch. */
+export function decodeHistory(encoded: unknown): unknown[] {
+  if (!Array.isArray(encoded)) {
+    throw new BundleDecodeError(`${HISTORY_DELTA_KEY} must be a list, got ${kindOf(encoded)}`);
+  }
   const history: unknown[] = [];
   let previous: unknown = undefined;
   encoded.forEach((item, index) => {
-    previous = index === 0 ? item : applyPatch(previous, item);
+    try {
+      previous = index === 0 ? item : applyPatch(previous, item);
+    } catch (error) {
+      if (error instanceof BundleDecodeError) {
+        throw new BundleDecodeError(`${HISTORY_DELTA_KEY}[${index}]: ${error.message}`);
+      }
+      throw error;
+    }
+    if (!isObject(previous)) {
+      throw new BundleDecodeError(`${HISTORY_DELTA_KEY}[${index}]: a snapshot must be an object, got ${kindOf(previous)}`);
+    }
     history.push(previous);
   });
   return history;
@@ -116,6 +190,7 @@ export function isEncodedBundle(bundle: JsonObject): boolean {
 /**
  * A parsed bundle in the layout the viewer reads. Version-6 files are
  * decoded; earlier versions (and decoded bundles) are returned unchanged.
+ * Throws `BundleDecodeError` for a malformed `history_delta`.
  */
 export function decodeBundlePayload(bundle: JsonObject): JsonObject {
   if (!isEncodedBundle(bundle)) {
@@ -124,7 +199,7 @@ export function decodeBundlePayload(bundle: JsonObject): JsonObject {
   const out: JsonObject = {};
   for (const [key, value] of Object.entries(bundle)) {
     if (key === HISTORY_DELTA_KEY) {
-      out.history = Array.isArray(value) ? decodeHistory(value) : value;
+      out.history = decodeHistory(value);
     } else if (key === "world_state" && isObject(value)) {
       const world: JsonObject = { ...value };
       for (const field of SHARED_WORLD_FIELDS) {
