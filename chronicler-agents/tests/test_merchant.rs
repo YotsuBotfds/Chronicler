@@ -26,7 +26,7 @@ fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
     let mut regions: Vec<RegionState> = (0..4)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r.population = 20;
             r
@@ -229,7 +229,7 @@ fn test_route_evaluation_reads_the_non_food_price_not_the_margin() {
     let mut regions: Vec<RegionState> = (0..3)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r.population = 20;
             r
@@ -270,7 +270,7 @@ fn test_route_evaluation_does_not_fall_back_to_realized_margin_when_planning_mar
     let mut regions: Vec<RegionState> = (0..2)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r.population = 20;
             r
@@ -310,7 +310,7 @@ fn test_full_trip_lifecycle() {
             let mut r = RegionState::new(i);
             r.merchant_margin = 0.5;
             r.merchant_route_margin = 0.5;
-            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r.population = 20;
             r
@@ -408,7 +408,7 @@ fn test_thread_count_determinism() {
 fn test_hybrid_availability_uses_departure_debits() {
     let mut ledger = ShadowLedger::new(2);
     let mut buf = DeliveryBuffer::new(2);
-    let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
     // Reserve + depart with delivery buffer
     ledger.reserve(0, 0, 3.0);
@@ -421,7 +421,7 @@ fn test_hybrid_availability_uses_departure_debits() {
     // Same result on same turn. Difference appears after economy drain.
 
     // Simulate economy drain: stockpile debited, departure_debits cleared
-    let debited_stockpile = [7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let debited_stockpile = [7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     buf.clear();
 
     // Hybrid: stockpile(7) - reserved(0) - departure_debits(0) = 7 ✓
@@ -435,7 +435,7 @@ fn test_hybrid_availability_uses_departure_debits() {
 fn test_hybrid_overcommitted_uses_departure_debits() {
     let ledger = ShadowLedger::new(2);
     let buf = DeliveryBuffer::new(2);
-    let stockpile = [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let stockpile = [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     assert!(!ledger.is_overcommitted_hybrid(0, 0, &stockpile, &buf));
 }
 
@@ -483,6 +483,7 @@ fn test_region_input(
         subsistence_yield: 0.0,
         farm_labor_factor: 1.0,
         craft_raw_demand: 0.0,
+        craft_demand: 0.0,
         farm_labor_ref: 0.0,
         farm_labor_half: 0.0,
         slot_curves: false,
@@ -520,8 +521,8 @@ fn test_hybrid_economy_consumes_delivery_buffer() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
 
     let region_inputs = vec![
-        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ];
     let agent_counts = vec![
         test_agent_counts(100, 80, 5, 10, 5),
@@ -612,8 +613,8 @@ fn test_oracle_shadow_produces_data_in_hybrid_mode() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
 
     let region_inputs = vec![
-        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ];
     let agent_counts = vec![
         test_agent_counts(100, 80, 5, 10, 5),
@@ -643,8 +644,8 @@ fn test_oracle_food_sufficiency_matches_realized_basis() {
 
     // Run abstract-only first to get the baseline food_sufficiency.
     let region_inputs = vec![
-        test_region_input(0, 0, 100, 0, 1.0, [30.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        test_region_input(1, 1, 100, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(0, 0, 100, 0, 1.0, [30.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ];
     let agent_counts = vec![
         test_agent_counts(100, 80, 5, 10, 5),
@@ -736,8 +737,8 @@ fn test_transit_decay_on_arrivals_only() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 2);
 
     let region_inputs = vec![
-        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(0, 0, 100, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 1, 100, 0, 1.0, [5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ];
     let agent_counts = vec![
         test_agent_counts(100, 80, 5, 10, 5),
@@ -787,8 +788,8 @@ fn test_hybrid_stockpile_net_mobility() {
 
     // Region 0 starts with 50 grain, region 1 starts with 10 grain.
     let region_inputs = vec![
-        test_region_input(0, 0, 200, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        test_region_input(1, 0, 200, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(0, 0, 200, 0, 1.0, [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        test_region_input(1, 0, 200, 0, 1.0, [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ];
     let agent_counts = vec![
         test_agent_counts(50, 40, 5, 3, 2),
@@ -974,7 +975,7 @@ fn test_packet_gated_non_food_goes_to_the_dearest_known_market() {
     for r in regions.iter_mut() {
         r.food_sufficiency = 1.0;
     }
-    regions[0].stockpile = [0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0];
+    regions[0].stockpile = [0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     regions[1].market_demand[1] = 1.2; // raw-material price 1.2 / 1.0 = 1.2
     regions[1].market_supply[1] = 1.0;
     regions[2].market_demand[1] = 3.0; // 3.0
@@ -1129,7 +1130,7 @@ fn test_no_usable_packets_increments_even_when_bootstrap_fails() {
     let mut regions: Vec<RegionState> = (0..4)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [0.0; 8];
+            r.stockpile = [0.0; NUM_GOODS];
             r.controller_civ = 0;
             r
         })
@@ -1285,7 +1286,7 @@ fn test_hybrid_loading_rechecks_stock_after_economy_consumption() {
     for consumers in [2, 5] {
         let (mut pool, mut regions, graph) = setup_linear_world();
         pool.spawn(0, 0, Occupation::Merchant, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
-        regions[0].stockpile = [2.5, 0., 0., 0., 0., 0., 0., 0.];
+        regions[0].stockpile = [2.5, 0., 0., 0., 0., 0., 0., 0., 0.];
         for r in &mut regions[1..] { r.stockpile = [0.; NUM_GOODS]; }
         let mut ledger = ShadowLedger::new(4);
         let mut buf = DeliveryBuffer::new(4);
@@ -1328,7 +1329,7 @@ fn test_shadow_loading_does_not_apply_physical_stock_recheck() {
 fn test_loading_cargo_revalidated_after_economy_consumption_and_debited_once() {
     let config = EconomyConfig::default();
     let (mut pool, mut regions, graph) = setup_linear_world();
-    regions[0].stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    regions[0].stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let mut ledger = ShadowLedger::new(4);
     let mut buf = DeliveryBuffer::new(4);
     buf.physical_stock = true;

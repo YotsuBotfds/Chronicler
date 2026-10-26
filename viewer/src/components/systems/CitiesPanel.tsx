@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   charterLabel, CITY_COUNTERS, cityHistory, cityKeys, cityRankRows, cityRecord, citySeries, RANK_COLORS,
-  RANK_LABELS, rankLabel,
+  RANK_LABELS, rankLabel, waresLabel,
 } from "../../lib/cities";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
@@ -76,7 +76,7 @@ export function CitiesPanel({
                 <thead>
                   <tr>
                     <th>City</th><th>Region</th><th>Lord</th><th>Rank</th><th>Residents</th><th>Purse</th>
-                    <th>Charter</th><th>Unrest</th>
+                    <th>Wares</th><th>Charter</th><th>Unrest</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -96,6 +96,7 @@ export function CitiesPanel({
                       <td>{rankLabel(row.rank)}</td>
                       <td>{row.residents}</td>
                       <td>{row.wealth.toFixed(1)}</td>
+                      <td>{waresLabel(row)}</td>
                       <td>{charterLabel(row.charter)}</td>
                       <td>{row.unrest.toFixed(2)}</td>
                     </tr>

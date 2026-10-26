@@ -371,6 +371,8 @@ export interface CitySnapshotRow {
   charter: number;
   unrest: number;
   satisfaction: number | null;
+  /** Wares the city made in the turn (2026-10 crafts); absent in older bundles. */
+  crafts?: number;
 }
 
 export interface CitiesSnapshot {

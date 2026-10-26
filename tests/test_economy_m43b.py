@@ -55,15 +55,16 @@ def test_category_goods_food_contains_salt():
     assert "salt" in CATEGORY_GOODS["food"]
 
 
-def test_category_goods_three_categories():
-    assert set(CATEGORY_GOODS.keys()) == {"food", "raw_material", "luxury"}
+def test_category_goods_four_categories():
+    """Food, raw materials, luxuries and wares (2026-10 crafts)."""
+    assert set(CATEGORY_GOODS.keys()) == {"food", "raw_material", "luxury", "craft"}
 
 
-def test_category_goods_all_8_goods_covered():
+def test_category_goods_all_9_goods_covered():
     all_goods = set()
     for goods in CATEGORY_GOODS.values():
         all_goods |= goods
-    assert len(all_goods) == 8
+    assert len(all_goods) == 9
 
 
 def test_import_share_above_threshold_is_trade_dependent():

@@ -6,7 +6,7 @@ use crate::agent::{
     MAX_PATH_LEN, TRIP_PHASE_IDLE, TRIP_PHASE_LOADING, TRIP_PHASE_TRANSIT, TRIP_GOOD_SLOT_NONE,
 };
 use crate::economy::{
-    CAT_FOOD, CAT_LUXURY, CAT_RAW_MATERIAL, GOOD_CATEGORY, NUM_CATEGORIES, NUM_GOODS,
+    CAT_CRAFT, CAT_FOOD, CAT_LUXURY, CAT_RAW_MATERIAL, GOOD_CATEGORY, NUM_CATEGORIES, NUM_GOODS,
 };
 use crate::pool::AgentPool;
 use crate::region::RegionState;
@@ -664,8 +664,12 @@ pub fn food_price(region: &RegionState) -> f32 {
 /// A region's strength as a market, the content of its trade packets: its
 /// dearest good's price above balance, in margin units, within [0, 1].
 /// Zero for a region without people or without a good it is short of.
+/// Wares (crafts) are left out: everyone wants them and only cities make
+/// them, so every other region would advertise at full strength; merchants
+/// carry wares to the markets they know.
 pub fn market_signal(region: &RegionState) -> f32 {
     let dearest = (0..NUM_CATEGORIES)
+        .filter(|&cat| cat != CAT_CRAFT)
         .map(|cat| market_price(region, cat, 0.0))
         .fold(0.0f32, f32::max);
     ((dearest - BALANCED_PRICE) / PRICE_GAP_SCALE).clamp(0.0, 1.0)
@@ -750,7 +754,7 @@ fn best_cargo_slot(
 ) -> Option<(u8, f32)> {
     let mut best_slot: Option<u8> = None;
     let mut best_avail: f32 = 0.0;
-    for slot in 0..8u8 {
+    for slot in 0..NUM_GOODS as u8 {
         if !wanted(slot as usize) {
             continue;
         }
@@ -830,14 +834,14 @@ pub struct TripIntent {
 }
 
 /// Categories other than food, in the order ties are broken.
-const NON_FOOD_CATEGORIES: [usize; 2] = [CAT_RAW_MATERIAL, CAT_LUXURY];
+const NON_FOOD_CATEGORIES: [usize; 3] = [CAT_RAW_MATERIAL, CAT_LUXURY, CAT_CRAFT];
 
 /// The trip a merchant at `origin_region` plans among `markets` (populated,
 /// reachable regions). With a bulk graph (`CargoConfig::fill`) see
 /// `plan_bulk_trip`. Otherwise food goes to the market where it is dearest,
 /// if any is dearer than home by `MIN_TRIP_PROFIT`; else the non-food
 /// category and market with the largest price gap (ties: lower region, then
-/// raw materials before luxuries). The cargo is the origin's largest
+/// raw materials, luxuries, wares). The cargo is the origin's largest
 /// uncommitted stock of the chosen category: one load, or with a graph that
 /// does not fill, the path's capacity.
 #[allow(clippy::too_many_arguments)]
@@ -1566,7 +1570,7 @@ mod tests {
     #[test]
     fn test_shadow_ledger_availability() {
         let mut ledger = ShadowLedger::new(2);
-        let stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         assert_eq!(ledger.available(0, 0, &stockpile), 10.0);
         ledger.reserve(0, 0, 3.0);
         assert_eq!(ledger.available(0, 0, &stockpile), 7.0);
@@ -1600,7 +1604,7 @@ mod tests {
     #[test]
     fn test_shadow_ledger_overcommit_guard() {
         let mut ledger = ShadowLedger::new(1);
-        let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let stockpile = [10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         ledger.reserve(0, 0, 6.0);
         ledger.depart(0, 0, 6.0, None);
         assert!(!ledger.is_overcommitted(0, 0, &stockpile)); // 6 < 10
@@ -1750,7 +1754,7 @@ mod tests {
                 let mut r = crate::region::RegionState::new(i as u16);
                 r.merchant_margin = 0.3;
                 r.merchant_route_margin = 0.3;
-                r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+                r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
                 r.population = 20;
                 r
             })
@@ -2193,6 +2197,32 @@ mod tests {
         let one = evaluate_route(0, 7, 0, &regions, &table, &ShadowLedger::new(2), None).unwrap();
         assert_eq!((bulk.dest_region, bulk.good_slot, bulk.cargo_qty), (one.dest_region, one.good_slot, one.cargo_qty));
         assert_eq!(bulk.cargo_qty, MERCHANT_CARGO_CAP);
+    }
+
+    #[test]
+    fn test_wares_travel_to_markets_that_want_them_but_are_not_advertised() {
+        // A city (region 0) with wares in stock and none wanted at home; a
+        // market (region 1) whose people want wares and have none.
+        let mut regions = make_test_regions(2);
+        for r in regions.iter_mut() {
+            r.stockpile = [0.0; NUM_GOODS];
+            r.food_sufficiency = 1.0;
+            r.market_demand[CAT_FOOD] = 10.0;
+        }
+        regions[0].stockpile[crate::economy::SLOT_CRAFTS] = 6.0;
+        regions[0].market_supply[CAT_CRAFT] = 6.0;
+        regions[1].market_demand[CAT_CRAFT] = 1.0;
+        let graph = line_graph(2).with_cargo(CargoConfig::default());
+        let table = bfs_from(&graph, 0);
+        let tally = MarketTally::new(2);
+        let intent = evaluate_route_with_tally(0, 7, 0, &regions, &table, &ShadowLedger::new(2), None, &tally, Some(&graph))
+            .unwrap();
+        assert_eq!((intent.dest_region, intent.good_slot as usize), (1, crate::economy::SLOT_CRAFTS));
+        assert!(intent.cargo_qty > 0.0 && intent.cargo_qty <= LAND_CARGO_CAP);
+        // The market's price for wares is at the cap, but its packets do not
+        // advertise them.
+        assert_eq!(market_price(&regions[1], CAT_CRAFT, 0.0), MAX_PLANNER_PRICE);
+        assert_eq!(market_signal(&regions[1]), 0.0);
     }
 
     // -------------------------------------------------------------------

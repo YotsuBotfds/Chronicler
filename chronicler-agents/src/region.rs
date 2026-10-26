@@ -99,7 +99,7 @@ pub struct RegionState {
     pub is_capital: bool,
     pub temple_prestige: f32,
     // M58a: Per-good stockpile levels (from Python RegionStockpile)
-    pub stockpile: [f32; 8],
+    pub stockpile: [f32; crate::economy::NUM_GOODS],
     // Geography 2.0: latitude-band scale on climate-driven ecology losses
     // (drought water, cooling water and forest). 1.0 = unscaled, which keeps
     // template-world arithmetic bit-identical.
@@ -118,8 +118,13 @@ pub struct RegionState {
     /// 0 when the batch carries no `market_demand_*` / `market_supply_*`
     /// columns: no non-food market, and food prices without the delivery
     /// tally.
-    pub market_demand: [f32; 3],
-    pub market_supply: [f32; 3],
+    pub market_demand: [f32; crate::economy::NUM_CATEGORIES],
+    pub market_supply: [f32; crate::economy::NUM_CATEGORIES],
+    /// Crafts: wares on hand over the people's demand at the last economy
+    /// tick (`economy::EconomyRegionResult::craft_sufficiency`, 0..2); 0
+    /// without the `craft_sufficiency` column (no wares market). Restores the
+    /// material need (`needs::restore_needs`).
+    pub craft_sufficiency: f32,
     /// Consecutive turns, up to the previous turn, that the region's food
     /// sufficiency stayed below the famine severity threshold (Python's
     /// `Region.food_severe_turns`, written in Phase 9 after this batch was
@@ -258,12 +263,13 @@ impl RegionState {
             is_capital: false,
             temple_prestige: 0.0,
             // M58a: Stockpile
-            stockpile: [0.0; 8],
+            stockpile: [0.0; crate::economy::NUM_GOODS],
             climate_exposure: 1.0,
             harvest_shock: 0.0,
             city_pull: 0.0,
-            market_demand: [0.0; 3],
-            market_supply: [0.0; 3],
+            market_demand: [0.0; crate::economy::NUM_CATEGORIES],
+            market_supply: [0.0; crate::economy::NUM_CATEGORIES],
+            craft_sufficiency: 0.0,
             food_severe_turns: 0,
         }
     }

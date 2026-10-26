@@ -57,8 +57,8 @@ def test_map_resource_lookup_ignores_empty_and_unknown_slots():
 
 
 def test_categories_constant():
-    """Three categories, ordered."""
-    assert CATEGORIES == ("food", "raw_material", "luxury")
+    """Four categories, ordered (wares since 2026-10 crafts)."""
+    assert CATEGORIES == ("food", "raw_material", "luxury", "craft")
 
 
 # --- Task 2: Data containers ---
@@ -66,10 +66,10 @@ def test_categories_constant():
 def test_region_goods_construction():
     """RegionGoods holds per-category production, imports, exports, prices."""
     rg = RegionGoods()
-    assert rg.production == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.imports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.exports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
-    assert rg.prices == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0}
+    assert rg.production == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.imports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.exports == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
+    assert rg.prices == {"food": 0.0, "raw_material": 0.0, "luxury": 0.0, "craft": 0.0}
 
 
 def test_economy_result_construction():

@@ -322,6 +322,9 @@ pub const SAFETY_RESTORE_FOOD: f32 = 0.008;           // [CALIBRATE M53] preserv
 pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [FROZEN M53 SOFT]
 pub const MATERIAL_RESTORE_FOOD: f32 = 0.018;         // [CALIBRATE M53] food availability should lift material need more decisively.
 pub const MATERIAL_RESTORE_WEALTH: f32 = 0.022;       // [CALIBRATE M53] wealth percentile signal was too weak to break low-material traps.
+/// Crafts (2026-10, docs/integration/bulk-trade-crafts.md): material need
+/// restored by wares in use at full supply, a third of food's weight.
+pub const MATERIAL_RESTORE_CRAFTS: f32 = 0.006; // [CALIBRATE]
 pub const SOCIAL_RESTORE_POP: f32 = 0.010;            // [FROZEN M53 SOFT]
 pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [FROZEN M53 SOFT]

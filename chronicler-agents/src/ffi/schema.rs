@@ -164,11 +164,19 @@ pub fn economy_region_input_schema() -> Schema {
         Field::new("resource_yield_1", DataType::Float32, false),
         Field::new("resource_yield_2", DataType::Float32, false),
     ];
-    for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
+    for good in &GOOD_NAMES[..8] {
         fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));
     }
     Schema::new(fields)
 }
+
+/// Good slot names, in slot order (`economy::SLOT_*`). Crafts (slot 8) are
+/// optional in the economy input batch (absent: no wares).
+pub const GOOD_NAMES: [&str; crate::economy::NUM_GOODS] =
+    ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts"];
+/// Goods category names, in category order (`economy::CAT_*`).
+pub const CATEGORY_NAMES: [&str; crate::economy::NUM_CATEGORIES] =
+    ["food", "raw_material", "luxury", "craft"];
 
 pub fn economy_trade_route_schema() -> Schema {
     Schema::new(vec![
@@ -182,7 +190,7 @@ pub fn economy_region_result_schema() -> Schema {
     let mut fields = vec![
         Field::new("region_id", DataType::UInt16, false),
     ];
-    for good in &["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"] {
+    for good in &GOOD_NAMES {
         fields.push(Field::new(format!("stockpile_{good}"), DataType::Float32, false));
     }
     fields.extend_from_slice(&[
@@ -194,12 +202,15 @@ pub fn economy_region_result_schema() -> Schema {
     ]);
     // Merchant routing: demand and post-trade supply per goods category.
     for prefix in ["market_demand", "market_supply"] {
-        for cat in ["food", "raw_material", "luxury"] {
+        for cat in CATEGORY_NAMES {
             fields.push(Field::new(format!("{prefix}_{cat}"), DataType::Float32, false));
         }
     }
     // Diminishing returns to farm labour: output per farmer against constant returns.
     fields.push(Field::new("farm_productivity", DataType::Float32, false));
+    // Crafts: wares made this turn and wares on hand over demand.
+    fields.push(Field::new("craft_output", DataType::Float32, false));
+    fields.push(Field::new("craft_sufficiency", DataType::Float32, false));
     Schema::new(fields)
 }
 
@@ -218,9 +229,11 @@ pub fn economy_observability_schema() -> Schema {
         Field::new("imports_food", DataType::Float32, false),
         Field::new("imports_raw_material", DataType::Float32, false),
         Field::new("imports_luxury", DataType::Float32, false),
+        Field::new("imports_craft", DataType::Float32, false),
         Field::new("stockpile_food", DataType::Float32, false),
         Field::new("stockpile_raw_material", DataType::Float32, false),
         Field::new("stockpile_luxury", DataType::Float32, false),
+        Field::new("stockpile_craft", DataType::Float32, false),
         Field::new("import_share", DataType::Float32, false),
         Field::new("trade_dependent", DataType::Boolean, false),
         // M58b: Oracle shadow columns (null/zero when oracle not active)

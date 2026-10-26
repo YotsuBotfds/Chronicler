@@ -39,7 +39,10 @@ FARMER_INCOME_MODIFIER_CAP: float = 3.0
 MERCHANT_MARGIN_NORMALIZER: float = 5.0
 TAX_RATE: float = 0.05
 
-CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
+CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
+#: Categories whose stock drops are reported as supply shocks (wares are left
+#: out: a city's stock of wares swings with its own trade every turn).
+SHOCK_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
 # ---------------------------------------------------------------------------
 # M43a Constants  [CALIBRATE]
@@ -47,7 +50,7 @@ CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
 
 FOOD_GOODS: frozenset[str] = frozenset({"grain", "fish", "botanicals", "exotic", "salt"})
 ALL_GOODS: frozenset[str] = frozenset({
-    "grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic",
+    "grain", "timber", "botanicals", "fish", "salt", "ore", "precious", "exotic", "crafts",
 })
 
 TERRAIN_COST: dict[str, float] = {
@@ -71,11 +74,11 @@ WINTER_MODIFIER: float = 1.5
 
 TRANSIT_DECAY: dict[str, float] = {
     "grain": 0.05, "fish": 0.08, "botanicals": 0.04, "exotic": 0.06,
-    "salt": 0.0, "timber": 0.01, "ore": 0.0, "precious": 0.0,
+    "salt": 0.0, "timber": 0.01, "ore": 0.0, "precious": 0.0, "crafts": 0.0,
 }
 STORAGE_DECAY: dict[str, float] = {
     "grain": 0.03, "fish": 0.06, "botanicals": 0.02, "exotic": 0.04,
-    "salt": 0.0, "timber": 0.005, "ore": 0.0, "precious": 0.0,
+    "salt": 0.0, "timber": 0.005, "ore": 0.0, "precious": 0.0, "crafts": 0.01,
 }
 
 SALT_PRESERVATION_FACTOR: float = 2.5
@@ -85,6 +88,9 @@ CATEGORY_GOODS: dict[str, frozenset[str]] = {
     "food": frozenset({"grain", "fish", "botanicals", "exotic", "salt"}),
     "raw_material": frozenset({"timber", "ore"}),
     "luxury": frozenset({"precious"}),
+    # Crafts (2026-10, docs/integration/bulk-trade-crafts.md): wares made in
+    # cities from raw materials. Not a resource type: no region harvests them.
+    "craft": frozenset({"crafts"}),
 }
 
 TRADE_DEPENDENCY_THRESHOLD: float = 0.6  # [CALIBRATE] >60% food import share
@@ -95,7 +101,7 @@ CONQUEST_STOCKPILE_SURVIVAL: float = 0.5
 
 # M54b: Fixed good slot ordering for FFI — no variable-length dicts cross the boundary
 FIXED_GOODS: tuple[str, ...] = (
-    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts",
 )
 
 _CATEGORY_MAP: dict[int, str] = {
@@ -318,8 +324,8 @@ def detect_supply_shocks(
         if region is None or region.controller is None:
             continue
         owner_civ_name = region.controller
-        for cat, goods in CATEGORY_GOODS.items():
-            current = sum(sp.goods.get(g, 0.0) for g in goods)
+        for cat in SHOCK_CATEGORIES:
+            current = sum(sp.goods.get(g, 0.0) for g in CATEGORY_GOODS[cat])
             avg = economy_tracker.trailing_avg.get(name, {}).get(cat, current)
             if avg <= 0 or current / avg >= (1.0 - SHOCK_DELTA_THRESHOLD):
                 continue
@@ -580,11 +586,16 @@ class EconomyResult:
     # Merchant routing (2026-10): demand and post-trade supply per category
     # (``CATEGORIES`` order), the merchant planner's market prices. Filled by
     # the native economy; empty for the Python oracle.
-    market_demand: dict[str, tuple[float, float, float]] = field(default_factory=dict)
-    market_supply: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    market_demand: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    market_supply: dict[str, tuple[float, ...]] = field(default_factory=dict)
     # Diminishing returns to farm labour (2026-10): output per farmer against
     # constant returns, by region; regions at exactly 1.0 are omitted.
     farm_productivity: dict[str, float] = field(default_factory=dict)
+    # Crafts (2026-10): wares made this turn and wares on hand over demand
+    # (0..2), by region; regions at 0 are omitted. Filled by the native
+    # economy; the Python oracle has no crafts.
+    craft_output: dict[str, float] = field(default_factory=dict)
+    craft_sufficiency: dict[str, float] = field(default_factory=dict)
 
 
 def compute_production(
@@ -961,6 +972,9 @@ def compute_demand(
         "food": population * PER_CAPITA_FOOD,
         "raw_material": soldier_count * RAW_MATERIAL_PER_SOLDIER,
         "luxury": wealthy_count * LUXURY_PER_WEALTHY_AGENT,
+        # Wares: the cities' input (``cities.economy_columns``), not modelled
+        # by this oracle.
+        "craft": 0.0,
     }
 
 
@@ -1228,7 +1242,7 @@ def build_economy_region_input_batch(world) -> "pa.RecordBatch":
 
     One row per region. Columns: region_id, terrain, storage_population,
     resource_type_<slot>, resource_yield_<slot> x3, subsistence_yield (goods
-    per foraging farmer, ``region_subsistence_yield``), stockpile_<good> x8, and,
+    per foraging farmer, ``region_subsistence_yield``), stockpile_<good> x9, and,
     only when the fishery experiment is enabled, nullable
     fishery_catch_budget_<slot> x3.
     Yields are ``economy_yield()``: the read-only, current-turn ecology preview
@@ -1495,11 +1509,16 @@ def reconstruct_economy_result(
 
     # --- Region result batch → stockpile write-back + signals ---
     rr_ids = pylist(region_result_batch.column("region_id"))
+    rr_names = set(region_result_batch.schema.names)
     for col_good in FIXED_GOODS:
+        if f"stockpile_{col_good}" not in rr_names:
+            continue   # crafts, from extensions built before 2026-10
         vals = pylist(region_result_batch.column(f"stockpile_{col_good}"))
         for i, rid in enumerate(rr_ids):
-            rname = region_names[rid]
-            world.regions[rid].stockpile.goods[col_good] = vals[i]
+            goods = world.regions[rid].stockpile.goods
+            if col_good == "crafts" and not vals[i] and col_good not in goods:
+                continue   # no wares: the region's stock keeps its old keys
+            goods[col_good] = vals[i]
 
     for signal in ("farmer_income_modifier", "food_sufficiency", "merchant_margin", "merchant_trade_income"):
         vals = pylist(region_result_batch.column(signal))
@@ -1517,16 +1536,25 @@ def reconstruct_economy_result(
         result.trade_route_counts[region_names[rid]] = trc_vals[i]
 
     # Merchant routing: demand and post-trade supply per category (absent
-    # from extensions built before 2026-10 city markets).
-    rr_names = set(region_result_batch.schema.names)
+    # from extensions built before 2026-10 city markets; wares before 2026-10
+    # crafts read 0).
     for prefix, target in (("market_demand", result.market_demand),
                            ("market_supply", result.market_supply)):
         cols = [f"{prefix}_{cat}" for cat in CATEGORIES]
-        if not all(c in rr_names for c in cols):
+        if not all(c in rr_names for c in cols[:3]):
             continue
-        vals = [pylist(region_result_batch.column(c)) for c in cols]
+        vals = [pylist(region_result_batch.column(c)) if c in rr_names else [0.0] * len(rr_ids)
+                for c in cols]
         for i, rid in enumerate(rr_ids):
-            target[region_names[rid]] = (vals[0][i], vals[1][i], vals[2][i])
+            target[region_names[rid]] = tuple(v[i] for v in vals)
+
+    # Crafts: wares made and wares on hand over demand (absent before 2026-10).
+    for name, target in (("craft_output", result.craft_output),
+                         ("craft_sufficiency", result.craft_sufficiency)):
+        if name in rr_names:
+            for i, v in enumerate(pylist(region_result_batch.column(name))):
+                if v:
+                    target[region_names[rr_ids[i]]] = v
 
     # Diminishing returns: output per farmer against constant returns (absent
     # from extensions built before 2026-10 farmland; read only below 1 or above).
@@ -1550,8 +1578,12 @@ def reconstruct_economy_result(
     # Each column is decoded once (it was decoded again for every region).
     obs_ids = pylist(observability_batch.column("region_id"))
     if obs_ids:
-        obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}")) for cat in CATEGORIES}
-        obs_stockpiles = {cat: pylist(observability_batch.column(f"stockpile_{cat}")) for cat in CATEGORIES}
+        obs_names = set(observability_batch.schema.names)
+        zeros = [0.0] * len(obs_ids)
+        obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}"))
+                       if f"imports_{cat}" in obs_names else zeros for cat in CATEGORIES}
+        obs_stockpiles = {cat: pylist(observability_batch.column(f"stockpile_{cat}"))
+                          if f"stockpile_{cat}" in obs_names else zeros for cat in CATEGORIES}
         obs_import_share = pylist(observability_batch.column("import_share"))
         obs_trade_dependent = pylist(observability_batch.column("trade_dependent"))
     for i, rid in enumerate(obs_ids):
