@@ -11,7 +11,8 @@
 ``compare BASE_DIR NEW_DIR``
     Every file of every case byte for byte (``chronicle_bundle.json``
     decoded, without ``metadata.generated_at``), as
-    ``scripts/cities_identity.py compare``.
+    ``scripts/cities_identity.py compare``; each bundle's raw bytes are
+    also compared with only the ``generated_at`` value blanked.
 
 Scaled cases multiply region capacities and starting populations before
 the first turn, as ``scripts/agent_scale_benchmark.py`` does.
@@ -21,6 +22,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -118,6 +120,21 @@ def run(out: Path, cases: list[str], source_root: Path | None, native_root: Path
     return int(status)
 
 
+_GENERATED_AT = re.compile(rb'"generated_at": ?"[^"]*"')
+
+
+def _raw_bundle_problems(base: Path, new: Path) -> list[str]:
+    """Raw bytes of every bundle, with only the wall-clock stamp blanked."""
+    problems = []
+    for a in sorted(base.rglob("chronicle_bundle.json")):
+        b = new / a.relative_to(base)
+        if not b.exists():
+            continue
+        if _GENERATED_AT.sub(b"", a.read_bytes()) != _GENERATED_AT.sub(b"", b.read_bytes()):
+            problems.append(f"raw bytes differ: {a.relative_to(base)}")
+    return problems
+
+
 def compare(base: Path, new: Path) -> int:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from cities_identity import compare as compare_dirs
@@ -127,6 +144,7 @@ def compare(base: Path, new: Path) -> int:
     cases = sorted(p.name for p in base.iterdir() if p.is_dir())
     for name in cases:
         checked, problems = compare_dirs(base / name, new / name)
+        problems += _raw_bundle_problems(base / name, new / name)
         total_checked += checked
         total_problems += len(problems)
         print(f"{name}: {checked} files, {len(problems)} differences")
