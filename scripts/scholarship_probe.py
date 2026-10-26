@@ -9,6 +9,9 @@
     and losses (the bundle's ``historiography`` field: accounts lost, and
     per loss cause the accounts that survived an episode against those lost),
     agent migrations led by the learning pull, and the seats' counters.
+    For the war losses of courts' and temples' archives it also gives the
+    accounts expected to survive with the copies kept and without the
+    copies seats of learning kept (``seat_copies``), from ``SURVIVAL``.
 
 ``scholarship_probe.py compare OFF.json ON.json``
     Paired by seed: the mean of each measure in both arms and the mean
@@ -77,20 +80,37 @@ def seed_metrics(run: Path) -> dict:
     # The courts' and temples' archives (not the seats' own): accounts that
     # survived a war loss (sack, conquest, collapse, absorption), episodes and
     # the copies the archive kept at each.
-    episodes = copies = kept = at_risk = 0
+    from chronicler.historiography import SURVIVAL
+    episodes = copies = kept = at_risk = seated = seated_risk = seated_kept = 0
+    expect = expect_without = 0.0
     for archive in hist.get("archives", []):
         if archive.get("owner", "").startswith("seat:"):
             continue
         for loss in archive.get("losses", []):
             if loss.get("cause") in ("conquest", "sack", "collapse", "absorption"):
+                n = loss.get("survived", 0) + loss.get("lost", 0)
+                c = loss.get("copies", 1)
                 episodes += 1
-                copies += loss.get("copies", 1)
+                copies += c
                 kept += loss.get("survived", 0)
-                at_risk += loss.get("survived", 0) + loss.get("lost", 0)
+                at_risk += n
+                k = loss.get("seat_copies") or 0
+                if k:
+                    s = SURVIVAL[loss["cause"]]
+                    seated += 1
+                    seated_risk += n
+                    seated_kept += loss.get("survived", 0)
+                    expect += n * (1.0 - (1.0 - s) ** max(1, c))
+                    expect_without += n * (1.0 - (1.0 - s) ** max(1, c - k))
     out["war_loss_episodes"] = episodes
     out["war_loss_copies_sum"] = copies
     out["war_loss_accounts"] = at_risk
     out["war_loss_survived"] = kept
+    out["war_loss_seat_episodes"] = seated
+    out["war_loss_seat_accounts"] = seated_risk
+    out["war_loss_seat_survived"] = seated_kept
+    out["war_loss_seat_expected"] = expect
+    out["war_loss_seat_expected_without"] = expect_without
     out["seat_chroniclers"] = sum(1 for c in hist.get("chroniclers", []) if c.get("kind") == "seat")
     moves = _learning_moves(run / "agent_events.arrow")
     if moves is not None:
@@ -134,6 +154,17 @@ def compare(off: dict, on: dict) -> list[str]:
             lines.append(f"- court and temple archives, war losses, {name}: {episodes} episodes, "
                          f"{copies:.2f} copies on average, {kept} of {total} accounts survived "
                          f"({kept / total:.1%})" if total else f"- {name}: {episodes} episodes")
+    # Switched on: the episodes where seats kept copies, with and without them.
+    seated = sum(on[s].get("war_loss_seat_episodes", 0) for s in seeds)
+    if seated:
+        total = sum(on[s].get("war_loss_seat_accounts", 0) for s in seeds)
+        kept = sum(on[s].get("war_loss_seat_survived", 0) for s in seeds)
+        expect = sum(on[s].get("war_loss_seat_expected", 0.0) for s in seeds)
+        without = sum(on[s].get("war_loss_seat_expected_without", 0.0) for s in seeds)
+        lines.append(f"- on, war losses where seats kept copies: {seated} episodes, {total} accounts; "
+                     f"{kept} survived ({kept / total:.1%}); expected {expect / total:.1%} with "
+                     f"the seats' copies and {without / total:.1%} without them" if total else
+                     f"- on: {seated} seated episodes")
     for cause in ("conquest", "sack", "collapse", "absorption"):
         for name, arm in (("off", off), ("on", on)):
             total = sum(arm[s].get(f"{cause}_episode_accounts", 0) for s in seeds)
