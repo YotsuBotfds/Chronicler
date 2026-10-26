@@ -15,6 +15,14 @@ from math import ceil, comb
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
+from .batch_manifest import (
+    MANIFEST_FILENAME,
+    BatchManifestError,
+    batch_cohort,
+    file_sha256,
+    load_batch_manifest,
+    verify_batch_manifest,
+)
 from .validation_gate import NEEDS_BINDING_REQUIRED_PROFILES, PROFILE_CHOICES
 from .snapshot_pruning import restore_bundle
 
@@ -103,8 +111,21 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # NEEDS_BINDING_DIVERGENCE, and need their own seed-clustered lower bound
 # above zero. Above the threshold the terms do nothing, and an association
 # there comes from other channels (conditions, age, wealth).
-NEEDS_ORACLE_METHOD_VERSION = 3
+#
+# Method 4 (docs/integration/validation-integrity.md) keeps method 3 and
+# counts outcomes strictly after the snapshot: turns t+1 .. t+window. A
+# turn-t snapshot is written after turn t's agent tick (agent_bridge), whose
+# decisions already moved the agent (region), changed its occupation or
+# raised its autonomy (rebellion); the matching cell is observed after them,
+# so a turn-t action is not an outcome of the turn-t reading. A snapshot is
+# eligible when turn t + window was simulated (t + window < total turns:
+# a run of N turns ticks turns 0 .. N-1). The autonomy pairing's prior-rebel
+# rule (rebelled on or before t) already treats a turn-t rebellion this way.
+# Methods 2 and 3 counted turns t .. t+window-1.
+NEEDS_ORACLE_METHOD_VERSION = 4
+NEEDS_BINDING_METHOD_VERSION = 3
 NEEDS_POOLED_METHOD_VERSION = 2
+NEEDS_METHOD_VERSIONS = (NEEDS_POOLED_METHOD_VERSION, NEEDS_BINDING_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION)
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
     ("social", EVENT_NAME_TO_CODE["migration"]),
@@ -289,6 +310,42 @@ def iter_bundles(batch_dir: Path):
 def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
     """Load chronicle bundles from a batch directory or bundle path."""
     return list(iter_bundles(batch_dir))
+
+
+LEGACY_BATCH_FLAG = "--legacy-batch"
+
+
+def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict:
+    """The report's ``batch_manifest`` entry for ``batch_dir``, after
+    checking the directory against its ``batch_manifest.json``.
+
+    The batch must be complete and its bundles exactly the manifest's runs,
+    each run as long as the requested turns, every validation input
+    unchanged (``batch_manifest.verify_batch_manifest``); otherwise
+    ``ValidationRequestError``. A directory without a manifest (written
+    before manifests, or a single bundle) is refused unless
+    ``legacy_batch``; its entry is then ``unchecked``. A manifest that is
+    present is always checked.
+    """
+    batch_dir = Path(batch_dir)
+    if not batch_dir.exists():
+        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
+    try:
+        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
+    except BatchManifestError as exc:
+        raise ValidationRequestError(str(exc)) from exc
+    if manifest is None:
+        if legacy_batch:
+            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
+        raise ValidationRequestError(
+            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
+            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
+            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
+        )
+    problems = verify_batch_manifest(batch_dir, manifest, _bundle_paths(batch_dir))
+    if problems:
+        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
+    return batch_cohort(manifest, file_sha256(batch_dir / MANIFEST_FILENAME))
 
 
 # Bundle fields the seed-run oracles read: metadata, these per-snapshot
@@ -2198,10 +2255,17 @@ def _needs_seed_pairs(
     window: int,
     thresholds: dict[str, float] | None = None,
     binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
+    outcome_offset: int = 1,
 ) -> tuple[int, dict[str, list[tuple[int, int]]], dict[str, list[tuple[int, int]]]]:
     """Every matched pair of one seed: eligible snapshot count, and per need
     the (low-need agent's, high-need agent's) event counts in the window, for
-    method 2's pairs and for the binding pairs (``_match_binding_pairs``)."""
+    method 2's pairs and for the binding pairs (``_match_binding_pairs``).
+
+    The window of a turn-t snapshot is turns t + ``outcome_offset`` ..
+    t + ``outcome_offset`` + window - 1: 1 (method 4) counts strictly after
+    the snapshot, 0 (methods 2 and 3) from the snapshot turn. A snapshot is
+    eligible when the window's last turn was simulated (before total turns).
+    """
     thresholds = NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds
     total_turns = _total_turns(run)
     first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
@@ -2213,11 +2277,12 @@ def _needs_seed_pairs(
     snapshots = 0
     for needs_snapshot in needs_snapshots:
         snapshot_turn = int(needs_snapshot["turn"])
-        if total_turns and snapshot_turn + window > total_turns:
+        first_turn = snapshot_turn + outcome_offset
+        if total_turns and first_turn + window > total_turns:
             continue
         snapshots += 1
         counts: dict[tuple[int, int], int] = defaultdict(int)
-        for turn in range(snapshot_turn, snapshot_turn + window):
+        for turn in range(first_turn, first_turn + window):
             for event in events_by_turn.get(turn, ()):
                 counts[(event["agent_id"], event["event_type"])] += 1
         for need_name, event_type in NEEDS_PAIRINGS:
@@ -2257,8 +2322,9 @@ def run_needs_oracle(
     binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
     require_binding: bool = True,
     profile: str | None = None,
+    method_version: int | None = None,
 ) -> dict:
-    """M53 oracle 2, method 3: lower need, more of its event, pooled over seeds.
+    """M53 oracle 2, method 4: lower need, more of its event, pooled over seeds.
 
     Hypothesis: an agent whose need is lower than a matched agent's has more
     of the event that need drives over the next ``window`` turns (autonomy:
@@ -2270,17 +2336,29 @@ def run_needs_oracle(
     discordant pairs. Method 3 adds: the binding pairs, whose lower-need agent
     is below its behavioural threshold (``thresholds``) and whose partner is
     at or above it (``_match_binding_pairs``), have a pooled net concordance
-    whose seed-clustered lower bound is above zero.
+    whose seed-clustered lower bound is above zero. Method 4 counts the events
+    of turns t+1 .. t+window after a turn-t snapshot, not t .. t+window-1:
+    the snapshot is taken after turn t's actions (``NEEDS_ORACLE_METHOD_VERSION``).
 
     The binding component decides PASS only when ``profile`` is in
     ``NEEDS_BINDING_REQUIRED_PROFILES`` (the full gate) or is None; in the
     subset profile it is computed and reported (``binding.status``,
     ``informational_failed_criteria``) but does not decide. The gate applies
-    the same rule to any method 3 result (``validation_gate``).
+    the same rule to any method 3 or 4 result (``validation_gate``).
 
-    ``require_binding=False`` scores method 2 alone (``method_version`` 2),
-    for re-scoring and comparison.
+    ``method_version`` re-scores an earlier method exactly, for re-scoring
+    and comparison: 3 has method 4's criteria with the window t ..
+    t+window-1, 2 is method 3 without the binding component.
+    ``require_binding=False`` is method 2.
     """
+    if method_version is None:
+        method_version = NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION
+    if isinstance(method_version, bool) or method_version not in NEEDS_METHOD_VERSIONS:
+        raise ValueError(f"needs oracle method_version must be one of {NEEDS_METHOD_VERSIONS}: {method_version!r}")
+    if not require_binding and method_version != NEEDS_POOLED_METHOD_VERSION:
+        raise ValueError(f"require_binding=False is method {NEEDS_POOLED_METHOD_VERSION}, not {method_version}")
+    require_binding = method_version >= NEEDS_BINDING_METHOD_VERSION
+    outcome_offset = 1 if method_version >= NEEDS_ORACLE_METHOD_VERSION else 0
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
     thresholds = dict(NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds)
@@ -2311,6 +2389,7 @@ def run_needs_oracle(
             window=window,
             thresholds=thresholds,
             binding_divergence=binding_divergence,
+            outcome_offset=outcome_offset,
         )
 
         def _tally(pair_outcomes: dict[str, list[tuple[int, int]]], totals_by_need: dict[str, dict]):
@@ -2429,7 +2508,7 @@ def run_needs_oracle(
     result = {
         "status": "PASS" if bound_ok and seeds_ok and (binding_ok or not binding_decides) else "FAIL",
         "method": "pooled_matched_pairs",
-        "method_version": NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION,
+        "method_version": method_version,
         "criterion": criterion,
         "failed_criteria": failed_criteria,
         "analyzed_seeds": analyzed_seeds,
@@ -2451,6 +2530,10 @@ def run_needs_oracle(
         "autonomy_excludes_prior_rebels": exclude_prior_rebels,
         "by_pairing": by_pairing,
     }
+    if outcome_offset:
+        # Method 4: the window's first turn after the snapshot (methods 2
+        # and 3, 0, keep their report bytes without the key).
+        result["outcome_window_start_offset"] = outcome_offset
     if binding_result is not None:
         result["profile"] = profile
         result["binding_required"] = binding_decides
@@ -3601,11 +3684,19 @@ def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     return selected
 
 
-def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None) -> dict:
+def run_oracles(
+    batch_dir: Path,
+    oracles: list[str],
+    profile: str | None = None,
+    *,
+    legacy_batch: bool = False,
+) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
-    component)."""
+    component). The batch directory is first checked against its manifest
+    (``check_batch_manifest``; ``legacy_batch`` admits one without)."""
     selected = _normalize_requested_oracles(oracles)
+    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
 
@@ -3651,6 +3742,9 @@ def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None)
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
+    report["batch_manifest"] = batch_manifest
+    if profile is not None:
+        report["profile"] = profile
     return report
 
 
@@ -3678,9 +3772,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--oracles", nargs="+", default=["all"])
     parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
                         help="gate profile the needs oracle scores for (default: binding required)")
+    parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
+                        help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
+                             "or a single bundle); its runs are not checked")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1
@@ -3698,4 +3795,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'main']
+__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'check_batch_manifest', 'LEGACY_BATCH_FLAG', 'main']

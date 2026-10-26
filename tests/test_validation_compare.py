@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 
+import pytest
+
 
 def _report(**statuses):
     names = [
@@ -722,6 +724,32 @@ def test_compare_needs_method_2_against_method_3_requires_rebaselining(tmp_path)
     assert result["rebaseline_required"] is False
 
 
+def test_compare_needs_method_3_against_method_4_requires_rebaselining():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    # Method 4 counts outcomes after the snapshot turn; a method 3 PASS
+    # against a method 4 FAIL is a method change, not a new failure.
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 3)
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 4)
+    current["results"]["needs"]["failed_criteria"] = ["net_concordance_lower_bound"]
+
+    for profile in ("subset", "full"):
+        result = compare_validation_reports(profile, baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == []
+        assert result["exit_code"] == 0
+        assert result["rebaseline_required"] is True
+        assert [(c["baseline_method_version"], c["current_method_version"]) for c in result["oracle_method_changes"]] == [
+            (3, 4)]
+        assert result["method_changed_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+        assert "| needs | 3 | PASS | 4 | FAIL |" in format_comparison_markdown(result)
+
+    # Method 4 against method 4 counts a new failure again.
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 4)
+    result = compare_validation_reports("subset", baseline, current)
+    assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    assert result["rebaseline_required"] is False
+
+
 def _needs_binding(report, lower_bound, *, required):
     binding_ok = lower_bound > 0
     report["results"]["needs"] = {
@@ -754,3 +782,197 @@ def test_compare_subset_informational_binding_failure_is_no_regression():
         result = compare_validation_reports("full", baseline, current, fail_on_regression=True)
         assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
         assert result["exit_code"] == 2
+
+
+# --- Comparable cohorts (docs/integration/validation-integrity.md) -------
+
+
+def _cohort_report(seeds, turns=200, **statuses):
+    """A report of an old batch: its seeds and final turns only in the
+    regression oracle's per-seed population rows."""
+    report = _report(determinism="SKIP", **statuses)
+    report["results"]["regression"]["final_living_population_by_seed"] = [
+        {"seed": seed, "population": 100, "turn": turns} for seed in seeds
+    ]
+    return report
+
+
+def _manifest_report(seeds=range(42, 62), turns=200, simulation=None, profile="subset", **statuses):
+    report = _cohort_report(seeds, turns, **statuses)
+    report["batch_manifest"] = {
+        "status": "verified", "seeds": list(seeds), "turns": turns,
+        "simulation": {"turns": turns, "agents": "hybrid", "cities": None, **(simulation or {})},
+    }
+    report["profile"] = profile
+    return report
+
+
+def test_compare_refuses_a_hundred_seeds_against_one():
+    import pytest
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+    from chronicler.validation_gate import ValidationGateInputError
+
+    baseline = _cohort_report(range(42, 142))
+    current = _cohort_report([42])
+    with pytest.raises(ValidationGateInputError, match="different cohorts: seeds: baseline 100 run\\(s\\) of seeds "
+                                                       "42-141, current 1 run\\(s\\) of seeds 42.*--exploratory"):
+        compare_validation_reports("subset", baseline, current)
+
+    result = compare_validation_reports("subset", baseline, current, exploratory=True)
+    assert result["exploratory"] is True and result["status"] == "NO_REGRESSION"
+    assert [item["field"] for item in result["cohort"]["mismatches"]] == ["seeds"]
+    summary = format_comparison_markdown(result)
+    assert "(EXPLORATORY)" in summary and "**Status:** EXPLORATORY, NO REGRESSION" in summary
+    assert "not regression evidence" in summary
+
+
+@pytest.mark.parametrize("change, field", [
+    (lambda: (_cohort_report(range(42, 62), 200), _cohort_report(range(42, 62), 500)), "turns"),
+    (lambda: (_cohort_report(range(42, 62)), _cohort_report(range(62, 82))), "seeds"),
+    (lambda: (_manifest_report(), _manifest_report(simulation={"cities": False})), "simulation"),
+    (lambda: (_manifest_report(), _manifest_report(profile="full")), "profile"),
+])
+def test_compare_refuses_other_cohort_differences(change, field):
+    from chronicler.validation_compare import compare_validation_reports
+    from chronicler.validation_gate import ValidationGateInputError
+
+    baseline, current = change()
+    with pytest.raises(ValidationGateInputError, match="different cohorts"):
+        compare_validation_reports("subset", baseline, current)
+    result = compare_validation_reports("subset", baseline, current, exploratory=True)
+    assert [item["field"] for item in result["cohort"]["mismatches"]] == [field]
+
+
+def test_compare_names_the_simulation_settings_that_differ():
+    from chronicler.validation_compare import compare_cohorts
+
+    cohort = compare_cohorts(_manifest_report(), _manifest_report(simulation={"cities": False, "agents": "off"}))
+    assert cohort["mismatches"] == [{
+        "field": "simulation",
+        "description": "simulation configuration: agents 'hybrid' vs 'off', cities None vs False",
+    }]
+
+
+def test_compare_a_setting_named_by_one_manifest_only_is_its_default():
+    from chronicler.validation_compare import compare_cohorts
+
+    newer = _manifest_report()
+    newer["batch_manifest"]["simulation"]["a_later_switch"] = None
+    assert compare_cohorts(_manifest_report(), newer)["mismatches"] == []
+    newer["batch_manifest"]["simulation"]["a_later_switch"] = True
+    assert compare_cohorts(_manifest_report(), newer)["mismatches"][0]["description"] == (
+        "simulation configuration: a_later_switch None vs True")
+
+
+def test_compare_same_cohort_and_unverified_fields():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    # Both from manifests: everything checked.
+    result = compare_validation_reports("subset", _manifest_report(), _manifest_report())
+    cohort = result["cohort"]
+    assert (cohort["comparable"], cohort["unverified"], result["exploratory"]) == (True, [], False)
+    # Markdown-escaped: "Same cohort: 20 run(s) of seeds 42-61, 200 turns."
+    assert "Same cohort: 20 run\\(s\\) of seeds 42-61, 200 turns." in format_comparison_markdown(result)
+
+    # An old baseline: seeds and turns from its per-seed rows; the
+    # simulation configuration and profile are not recorded there.
+    result = compare_validation_reports("subset", _cohort_report(range(42, 62)), _manifest_report())
+    cohort = result["cohort"]
+    assert cohort["comparable"] is True and result["exploratory"] is False
+    assert cohort["unverified"] == ["simulation", "profile"]
+    assert (cohort["baseline_source"], cohort["current_source"]) == ("per-seed results", "batch_manifest")
+    summary = format_comparison_markdown(result)
+    assert "so not checked: simulation, profile" in summary
+
+    # Reports that record nothing (synthetic or very old): nothing to refuse.
+    assert compare_validation_reports("subset", _report(), _report())["cohort"]["unverified"] == [
+        "seeds", "turns", "simulation", "profile"]
+
+
+def test_compare_determinism_pairs_keep_their_repeated_seed():
+    from chronicler.validation_compare import compare_cohorts, report_cohort
+
+    pair = _cohort_report([42, 42])
+    assert report_cohort(pair)["seeds"] == [42, 42]
+    assert compare_cohorts(pair, _cohort_report([42]))["mismatches"][0]["field"] == "seeds"
+
+
+def test_compare_old_needs_profile_is_read_from_the_needs_result():
+    from chronicler.validation_compare import compare_cohorts
+
+    baseline, current = _cohort_report(range(42, 62)), _cohort_report(range(42, 62))
+    baseline["results"]["needs"]["profile"] = "subset"
+    current["results"]["needs"]["profile"] = "full"
+    assert [item["field"] for item in compare_cohorts(baseline, current)["mismatches"]] == ["profile"]
+
+
+def test_compare_worlds_still_name_the_worlds_and_allow_exploration():
+    from chronicler.validation_compare import compare_validation_reports
+    from chronicler.validation_gate import ValidationGateInputError
+
+    procedural = _report(determinism="SKIP")
+    procedural["worlds"] = [{"generator": "procedural", "regions": 32, "civs": 10, "seeds": 20}]
+    with pytest.raises(ValidationGateInputError, match="measure different worlds: .*--exploratory"):
+        compare_validation_reports("subset", _report(determinism="SKIP"), procedural)
+    result = compare_validation_reports("subset", _report(determinism="SKIP"), procedural, exploratory=True)
+    assert [item["field"] for item in result["cohort"]["mismatches"]] == ["worlds"]
+
+
+def test_compare_status_says_what_no_regression_means():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    result = compare_validation_reports("subset", _manifest_report(), _manifest_report())
+    assert result["status"] == "NO_REGRESSION"
+    assert "no required gate newly fails" in result["status_meaning"]
+    summary = format_comparison_markdown(result)
+    assert "**Status:** NO REGRESSION" in summary
+    assert "does not mean the distributions are unchanged" in summary
+
+
+def test_compare_lists_evidence_by_category():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    baseline = _manifest_report()
+    current = _manifest_report(needs="FAIL")
+    result = compare_validation_reports("subset", baseline, current)
+    rows = {row["category"]: row for row in result["evidence_by_category"]}
+    assert list(rows) == ["execution", "determinism", "balance", "mechanism"]
+    assert rows["mechanism"]["current"] == "FAIL: needs FAIL"
+    assert rows["mechanism"]["baseline"] == "PASS"
+    assert rows["balance"]["current"] == "PASS"
+    # A skipped oracle is not a pass.
+    assert rows["determinism"]["current"] == "NOT PASSED (informational only): determinism SKIP"
+    assert rows["execution"]["current"] == "PASS (batch manifest verified: 20 runs x 200 turns)"
+    # Informational failures under the subset profile stay visible.
+    current = _manifest_report(era="FAIL", regression="FAIL", artifacts="FAIL", arcs="FAIL")
+    rows = {row["category"]: row for row in compare_validation_reports("subset", baseline, current)["evidence_by_category"]}
+    assert rows["mechanism"]["current"] == "PASS: needs, community, cohort; informational non-PASS: era FAIL"
+    assert rows["balance"]["current"] == (
+        "NOT PASSED (informational only): artifacts FAIL, arcs FAIL, regression FAIL")
+    assert result["unmeasured_categories"] == ["conservation", "performance", "rendering"]
+    summary = format_comparison_markdown(result)
+    assert "## Evidence by category" in summary
+    assert "Not measured by validation reports: conservation, performance, rendering." in summary
+    old = compare_validation_reports("subset", _report(), _report())
+    assert {row["category"]: row["current"] for row in old["evidence_by_category"]}["execution"] == (
+        "NOT CHECKED (report predates batch manifests)")
+
+
+def test_compare_cli_exploratory_flag(tmp_path, capsys):
+    from chronicler import validation_compare
+
+    baseline_path = tmp_path / "baseline.json"
+    current_path = tmp_path / "current.json"
+    summary_path = tmp_path / "compare.md"
+    baseline_path.write_text(json.dumps(_cohort_report(range(42, 142))), encoding="utf-8")
+    current_path.write_text(json.dumps(_cohort_report([42])), encoding="utf-8")
+    argv = ["--profile", "subset", "--baseline-report", str(baseline_path), "--current-report", str(current_path)]
+
+    assert validation_compare.main(argv) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ERROR" and "different cohorts" in payload["reason"]
+
+    assert validation_compare.main(argv + ["--exploratory", "--summary-output", str(summary_path)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["exploratory"] is True
+    assert "EXPLORATORY" in summary_path.read_text(encoding="utf-8")

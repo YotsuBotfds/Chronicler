@@ -323,7 +323,7 @@ class TestRealRun:
             seed_dir = tmp_path / tag / "seed_1"
             seed_dir.mkdir(parents=True)
             (seed_dir / "chronicle_bundle.json").write_text(_text(data), encoding="utf-8")
-            report = run_oracles(tmp_path / tag, ["era", "arcs", "regression", "artifacts"])
+            report = run_oracles(tmp_path / tag, ["era", "arcs", "regression", "artifacts"], legacy_batch=True)
             report.pop("batch_dir")
             reports[tag] = report
             runs = load_seed_runs(tmp_path / tag)
