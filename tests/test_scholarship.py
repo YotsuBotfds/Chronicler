@@ -778,6 +778,48 @@ def test_the_scholars_chronicle_their_seat_and_carry_their_archive(monkeypatch):
     assert all("seat" not in c for c in exported["chroniclers"] if c["kind"] != "seat")
 
 
+def test_the_narrators_seat_lines_are_the_seats_of_the_moment():
+    """The standing state reads the snapshot as of the moment's end
+    (``historical_context``): a seat founded later, and the run's final seats,
+    stay out of an earlier moment's prompt."""
+    from unittest.mock import MagicMock
+    from chronicler.models import CivSnapshot, NarrativeMoment, NarrativeRole, TechEra
+    from chronicler.narrative import NarrativeEngine
+    world = _world()
+    world.turn = 60
+    S.set_scholarship_enabled(world, True)
+    _seat(world, VERDANT, level=2)    # standing at the end of the run
+    civ = world.civilizations[THORNWALL]
+    region = world.regions[VERDANT].name
+    row = CivSnapshot(population=100, military=50, economy=50, culture=50, stability=50,
+                      treasury=100, asabiya=0.5, tech_era=TechEra.IRON, trait="bold",
+                      regions=[region], leader_name="L", alive=True)
+    seat = {"id": 0, "name": "the Academy of Verdant Plains", "kind": "academy", "region": region,
+            "lord": civ.name, "level": 2, "scholars": 6.0, "masters": 0}
+
+    def snap(turn):
+        summary = {"seats": [seat] if turn >= 31 else [], "fallen": 0, "counters": {}}
+        return TurnSnapshot(turn=turn, civ_stats={civ.name: row}, region_control={region: civ.name},
+                            relationships={}, scholarship=summary)
+
+    def moment(turn):
+        ev = Event(turn=turn, event_type="local_rebellion", actors=[civ.name], description="Unrest",
+                   importance=7, region=region)
+        return NarrativeMoment(anchor_turn=turn, turn_range=(turn, turn), events=[ev], named_events=[],
+                               score=8.0, causal_links=[], narrative_role=NarrativeRole.CLIMAX,
+                               bonus_applied=0.0)
+
+    engine = NarrativeEngine(sim_client=MagicMock(model="t"), narrative_client=MagicMock(model="t"))
+    engine._world = world
+    history = [snap(t) for t in range(1, 61)]
+    early, late = engine._prepare_narration_prompts([moment(10), moment(40)], history)
+    assert "Seat of learning" not in early["prompt"]     # founded after turn 30
+    assert "Seat of learning: The Academy of Verdant Plains (renowned academy" in late["prompt"]
+    # The snapshot after turn 30 (labelled 31) is the first to hold it.
+    edge = engine._prepare_narration_prompts([moment(29), moment(30)], history)
+    assert ["Seat of learning" in p["prompt"] for p in edge] == [False, True]
+
+
 def test_seat_events_are_readable_and_weighted():
     from chronicler.narration_context import ROUTINE_TYPES, event_text
     assert "seat_master" in ROUTINE_TYPES and "seat_patron" in ROUTINE_TYPES
