@@ -26,6 +26,102 @@ strict with no regression against the needs-calibration full gate
 ([Gates](#gates)). With the switch off every output is byte-identical to the
 base ([Identity](#feature-off-identity)).
 
+## Founders at founding, no empty movements
+
+Branch `fix/movements-narration-polish` from `main` `2dd47d4`. A viewer
+screenshot of the procedural 48 x 10 seed-7 run (400 hybrid turns, all
+defaults) showed "the Ploughmen's League of Yajak Downs (347)" living at
+turn 348 with 0 members and 0% strength, though its founding said "8 of 18
+people there want relief from hunger and dues".
+
+**Cause.** Not the viewer, which reads `members` as recorded. A movement
+was founded in Phase 10, after the turn's agent tick, and its founders were
+seeded by the next tick (the table's founding one-shot); a snapshot of turn
+T + 1 holds the state after turn T, so every movement stood in its first
+snapshot with 0 members, strength 0 and no stronghold. The founders are 15%
+of the region's adults (at least 3), the most aggrieved first, not the
+aggrieved the founding counts: the League seeded 3 of the 8, never grew and
+faded at turn 357. And a movement whose members lapsed, died or left stood
+living with none until its fade count (fewer than 3 for 5 turns) ran out.
+
+Zero-member living snapshots on `main` (one snapshot a turn):
+
+| | movements | living snapshots | at 0 members | first snapshot | later: snapshots (stretches; mean, max) |
+| --- | ---: | ---: | ---: | ---: | --- |
+| narration runs (template 42 500, procedural 7 400, template 1234 300) | 99 | 2,100 | 121 (5.8%) | 99 (all) | 22 (12; 1.8, 4), each ended by fading |
+| subsets 42-61 and 62-81 (200 turns) | 359 | 7,395 | 427 (5.8%) | 359 (all) | 68 (40; 1.7, 4), each ended by fading |
+
+Every movement had members by its second snapshot.
+
+**Fix.**
+
+- `movements.rs` `seed_founding` and `AgentSimulator.found_movement`
+  enrol the founders when Python founds the movement, on the pool the
+  end-of-tick census counted: the founder, then `FOUND_SHARE` of the
+  region's adults by `founding_score` and agent id, as the next tick did; no
+  draw. `_seed_founders` sets members, regions, strength and stronghold, so
+  the snapshot after the founding turn shows them. A founding nobody can
+  join (every aggrieved there already in a movement) is not made, for census
+  and guild foundings alike.
+- A movement observed with no member after its founding turn ends at once
+  (`_fade`: won when satisfied, broken when suppressed, else faded).
+- Founders not enrolled at founding (a save from before) are still seeded
+  by the next tick's one-shot (`peak_members == 0`); resume seeds re-seed
+  the others. `send_to_native` requires `found_movement`.
+
+After: no living movement at 0 members in the narration runs (104
+movements, 2,298 snapshots), the subsets (359, 7,147) or the procedural
+seed-7 run (74, 1,643).
+
+**Gates** (hybrid, `PYTHONHASHSEED=0`, Linux, Python 3.13; head `022deb2`
+with a fresh release extension `4e2f699d...a328e`, base `main` `2dd47d4`
+with `5ede10a9...8b07d6`, compiled `AgentSimulator`, `EcologySimulator`,
+`PoliticsSimulator` verified). Subsets (`--profile subset`, 20 seeds x 200
+turns, `--parallel 1`, compared with `--baseline-report` the base run):
+
+| | `main` 42-61 | head 42-61 | `main` 62-81 | head 62-81 |
+| --- | --- | --- | --- | --- |
+| gate; comparator | PASS | **PASS; NO REGRESSION** | PASS | **PASS; NO REGRESSION** |
+| needs: net; lower bound; seeds (12 needed) | 0.136; 0.035; 14 | 0.215; 0.121; 17 | 0.185; 0.080; 16 | 0.151; 0.067; 14 |
+| cohort; community; era (seeds) | 20; 20; 20 | 20; 20; 20 | 20; 20; 20 | 20; 20; 20 |
+| regression (informational) | FAIL (civ_survival) | FAIL (civ_survival) | FAIL (civ_survival) | FAIL (rebellion, civ_survival) |
+| satisfaction; latest | 0.606; 0.621 | 0.607; 0.622 | 0.617; 0.621 | 0.617; 0.624 |
+| migration; rebellion | 0.0693; 0.0439 | 0.0682; 0.0349 | 0.0632; 0.0218 | 0.0617; 0.0174 |
+| final population min / median / max; extinct | 86 / 190 / 292; 0 | 108 / 186 / 279; 0 | 128 / 197 / 236; 0 | 142 / 187 / 238; 0 |
+
+Full gate (`--profile full`, 200 x 500, `--parallel 3`) against the guilds
+full gate (the merged head `6431c35`, whose simulation `main` carries):
+
+| | guilds, `main` | **head `022deb2`** |
+| --- | --- | --- |
+| gate; comparator; adjudication | PASS; -; strict | **PASS; NO REGRESSION; strict** |
+| needs, all pairs: net; lower bound; seeds with C > D | 0.214; 0.196; 172 | 0.210; 0.191; 173 |
+| needs, binding pairs: net; lower bound; informative; seeds positive | 0.202; 0.178; 5,094; 157 | 0.195; 0.170; 4,986; 156 |
+| community; cohort; era (silent collapses) | 200; 200; 200 (0) | 200; 200; 200 (0) |
+| arcs (three types); artifacts (creation; loss) | 159; 1.71; 5.8% | 163; 1.71; 5.8% |
+| satisfaction mean; latest (ceiling 0.65) | 0.617; 0.627 | 0.615; 0.626 |
+| migration per agent-turn (strict floor 0.05) | 0.0644 | 0.0634 |
+| rebellion per agent-turn (0.02-0.08) | 0.0368 | 0.0329 |
+| final population min / median / max; extinct worlds | 63 / 183 / 304; 0 | 23 / 179 / 307; 0 |
+| worlds whose founders all survive | 18% | 18% |
+| per world: movements founded; significant; demands; reforms; risings | 18.2; 3.0; 10.96; 4.90; 0.91 | 17.6; 3.0; 10.97; 4.72; 0.91 |
+| living movement snapshots at 0 members | not measured | 0 of 82,037 (3,620 movements) |
+
+The comparator reports no regression reason, no new required failure and
+no strict-regression downgrade. Rebellion per agent-turn is lower in all
+three gates (-11% in the full gate, inside its band) while risings, demands
+and peak members are unchanged; membership feeds no agent decision outside
+the movement pass, so it comes through the worlds' changed trajectories.
+Run with one part at a time on 42-61, ending a movement at zero members
+leaves every validation figure equal to `main`'s (its 27 later empty
+snapshots end, and the worlds otherwise run alike); enrolling founders at
+founding alone gives the head's figures (rebellion 0.0439 -> 0.0349). The
+founders are picked from the end-of-tick pool the census counted rather
+than in the next tick's pass and are members a tick sooner, so each world
+diverges from its first founding on; no single mechanism was isolated. One
+world (seed 232) ends at 23 people (73 before); the next lowest are 52 and
+73.
+
 ## Slice 2: lasting reforms, repeal, restoration, leaders
 
 ### Lasting reforms
@@ -463,6 +559,7 @@ warnings that drive migration are untouched.
 | --- | --- | --- |
 | joining (Rust recruitment) | an aggrieved agent holding news of a like movement (same creed) from another region: p x (1 + strength) for a founding, rising or reform, x (1 - 0.5 strength) for a crackdown | x2 / x0.5, under the 0.5 cap; not applied without news |
 | founding (Python emergence) | the census counts the aggrieved holding inspiring news of a like movement elsewhere (`informed_*`); chance x (1 + min(1, 2 x informed / aggrieved)) | x2, under the founding cap |
+| provenance (Python emergence, since `fix/movements-narration-polish`) | the census names the news most of them hold (`news_source_*`); a founding where a quarter of the aggrieved hold news of a like movement's won demand in another region cites that event as a cause | no event, no draw, no state |
 
 Measured over 40 template worlds (seeds 42-81, 200 hybrid turns, `--guilds`
 on), news on against news off (tuning `guilds.movement_news: 0`), paired by
@@ -604,8 +701,11 @@ that creed in the last 20 turns, and the world has fewer than 8.
 - Carriers: an active great person of the ruler in the region (x2 for a
   prophet founding a sect, x1.5 otherwise; the person leads and is the first
   member), else a city (x(1 + unrest)), else the boldest aggrieved agents.
-- The next tick seeds 15% of the region's adults (at least 3), the most
-  aggrieved by `g x (1.5 + boldness)` then agent id, plus the leader.
+- The founders are enrolled at founding (`AgentSimulator.found_movement`,
+  since `fix/movements-narration-polish`; before, by the next tick): 15% of
+  the region's adults (at least 3), the most aggrieved by
+  `g x (1.5 + boldness)` then agent id, plus the leader. A founding nobody
+  can join (every aggrieved there already in a movement) is not made.
 - If the target has adopted an M16b idea whose value fits the creed
   (commons: wealth, progress, unity; liberty: freedom, independence, honor;
   sect: faith, tradition, knowledge), the movement carries it (named, appeal
@@ -700,9 +800,10 @@ for sects) and 5 of them (4), 20 turns after the last rising:
 ### Decay
 
 Fewer than 3 members for 5 turns ends a movement: won when satisfied,
-broken when suppressed, else faded. It dissolves when its target civ is
-gone. Ended movements stay in the list (identity by index); their members
-are released on the next tick.
+broken when suppressed, else faded; no member left (observed after its
+founding turn) ends it at once, by the same rule. It dissolves when its
+target civ is gone. Ended movements stay in the list (identity by index);
+their members are released on the next tick.
 
 ### Contracts
 
@@ -740,7 +841,7 @@ are released on the next tick.
 | Agent tick, after the knowledge phase | `movements::movement_pass`: release and lapse, founding and re-seeding, recruitment, relief, crackdown memories, rising boost, schism conversion |
 | Agent tick, step 1 / step 3 | members' reform relief on satisfaction / the rising's rebel utility |
 | Agent tick, end | `movements::census` |
-| Phase 10, after cities | `tick_agent_movements`: observe, fade, pressure, demands and responses, risings and their resolution, schisms, secessions, emergence |
+| Phase 10, after cities | `tick_agent_movements`: observe, fade, pressure, demands and responses, risings and their resolution, schisms, secessions, emergence (founders enrolled natively at once) |
 | Next tick | the table built from the state |
 
 Narration: every movement event carries its causes (the founding cites the

@@ -68,6 +68,17 @@ concerns: its actors, its `civs`, and the controller of its region.
 
 * **Importance.** Courts take events of importance 6 or more (5 for unrest,
   crises and rulers). Temples take 7 or more. An unclassified type needs 7.
+* **Guilds** (`--guilds`, since `fix/movements-narration-polish`): from
+  importance 3, so they sort after a turn's other picks. A guild formed, a
+  privilege won or a guild charter granted is glory (a loyal court praises
+  the ruler); a privilege lost or a guild charter repealed is the ruler's
+  decree (`decree`: a loyal court upholds it, "By the just decree of ...",
+  a disaffected one condemns it); a guild rising as a movement is disgrace.
+  `movement_founded`, `movement_reform` and `reform_repealed` count as guild
+  events only for a guild movement or a guild charter, read from the
+  movement record (`_Turn.guild_stance`). In three narrated runs (template
+  42 500 turns, procedural 48 x 10 seed 7 400, template 1234 300) this
+  adds 18 / 88 / 10 accounts and changes no earlier one.
 * **Skipped.** Routine actions and bookkeeping, `*_ended` closings, episode
   ticks and repeats, and a campaign `war` record without an outcome are not
   chronicled.
