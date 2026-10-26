@@ -1613,7 +1613,7 @@ def _batch_to_dict(batch) -> dict:
     types as ``to_pylist``). Most of the twelve op batches are empty on a
     given turn; their columns are empty lists.
     """
-    names = [batch.schema.field(i).name for i in range(batch.num_columns)]
+    names = list(batch.schema.names)  # one schema object, not one per column
     if batch.num_rows == 0:
         return {name: [] for name in names}
     return {name: pylist(batch.column(i)) for i, name in enumerate(names)}
