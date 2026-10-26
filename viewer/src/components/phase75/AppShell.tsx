@@ -1,4 +1,4 @@
-import { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { memo, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
   BatchReport,
   BatchRunSummary,
@@ -22,16 +22,14 @@ import {
 } from "../../lib/civilizationViews";
 import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
-import { BatchCompare } from "../BatchCompare";
-import { BatchPanel } from "../BatchPanel";
-import { InterventionPanel } from "../InterventionPanel";
-import { RegionHistoryInspector } from "../RegionHistoryInspector";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
-import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
-import { LanguagesPanel } from "./LanguagesPanel";
+import {
+  BatchCompare, BatchPanel, InterventionPanel, LanguagesPanel, preloadPanels, RegionHistoryInspector, SystemsPanel,
+} from "./lazyPanels";
+import { PanelLoading } from "./PanelLoading";
 import { foodCrisisSpans, type FamineSpan } from "../../lib/food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, MAP_LAYER_LABELS, NO_DATA_FILL, NO_DATA_OPACITY,
@@ -774,6 +772,28 @@ export function AppShell({
     }
   });
 
+  // The lazy panels' chunks: fetched once the first screen has painted (when
+  // the browser is idle), and at once when a bundle starts loading or arrives.
+  useEffect(() => {
+    const idle = typeof window.requestIdleCallback === "function";
+    const handle = idle
+      ? window.requestIdleCallback(() => void preloadPanels(), { timeout: 2000 })
+      : window.setTimeout(() => void preloadPanels(), 200);
+    return () => {
+      if (idle) {
+        window.cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bundle || bundleLoading) {
+      void preloadPanels();
+    }
+  }, [bundle, bundleLoading]);
+
   useEffect(() => {
     syncSetupDefaults();
   }, [defaults.turns, defaults.civs, defaults.regions, primaryModel]);
@@ -1015,14 +1035,16 @@ export function AppShell({
       {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
         <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
           <summary>Inspect region history</summary>
-          {historyOpen && <RegionHistoryInspector
-            key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
-            bundle={bundle}
-            artifactIdentity={artifactIdentity}
-            selectedRegion={selectedRegion?.name}
-            currentTurn={currentTurn}
-            onSeek={onSeek}
-          />}
+          {historyOpen && <Suspense fallback={<PanelLoading label="the region history inspector" />}>
+            <RegionHistoryInspector
+              key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+              bundle={bundle}
+              artifactIdentity={artifactIdentity}
+              selectedRegion={selectedRegion?.name}
+              currentTurn={currentTurn}
+              onSeek={onSeek}
+            />
+          </Suspense>}
         </details>
       )}
 
@@ -1155,19 +1177,21 @@ export function AppShell({
       </div>
 
       {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
-        <SystemsPanel
-          key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
-          bundle={bundle}
-          surface={surface}
-          snapshot={currentSnapshot}
-          currentTurn={currentTurn}
-          onSeek={onSeek}
-          onSelectEvent={selectEvent}
-          onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
-          onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
-          selectedRegion={selectedRegion?.name ?? null}
-          selectedCivilization={selectedCivilization?.name ?? null}
-        />
+        <Suspense fallback={<PanelLoading label="the simulation systems" className="phase75-panel systems-loading" />}>
+          <SystemsPanel
+            key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+            bundle={bundle}
+            surface={surface}
+            snapshot={currentSnapshot}
+            currentTurn={currentTurn}
+            onSeek={onSeek}
+            onSelectEvent={selectEvent}
+            onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
+            onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+            selectedRegion={selectedRegion?.name ?? null}
+            selectedCivilization={selectedCivilization?.name ?? null}
+          />
+        </Suspense>
       )}
 
       {error && surface !== "setup" && surface !== "batch" && (
@@ -1200,19 +1224,23 @@ export function AppShell({
               </button>
             </div>
             <div className="phase75-modal-content">
-              <BatchCompare initialRight={batchReport} />
+              <Suspense fallback={<PanelLoading label="the comparison workspace" />}>
+                <BatchCompare initialRight={batchReport} />
+              </Suspense>
             </div>
           </div>
         </div>
       )}
 
       {livePaused && livePauseContext && liveSendCommand && (
-        <InterventionPanel
-          pauseContext={livePauseContext}
-          sendCommand={liveSendCommand}
-          forkedPath={liveForkedPath}
-          forkedHint={liveForkedHint}
-        />
+        <Suspense fallback={<PanelLoading label="the intervention panel" className="phase75-panel" />}>
+          <InterventionPanel
+            pauseContext={livePauseContext}
+            sendCommand={liveSendCommand}
+            forkedPath={liveForkedPath}
+            forkedHint={liveForkedHint}
+          />
+        </Suspense>
       )}
     </div>
   );
@@ -1741,16 +1769,18 @@ function LeftRail({
               )}
             </div>
           ) : onBatchStart && onBatchCancel && onBatchReset ? (
-            <BatchPanel
-              batchState={batchState}
-              report={batchReport}
-              progress={batchProgress}
-              error={batchError}
-              runDefaults={batchRunDefaults}
-              onStart={onBatchStart}
-              onCancel={onBatchCancel}
-              onReset={onBatchReset}
-            />
+            <Suspense fallback={<PanelLoading label="the Batch Lab" />}>
+              <BatchPanel
+                batchState={batchState}
+                report={batchReport}
+                progress={batchProgress}
+                error={batchError}
+                runDefaults={batchRunDefaults}
+                onStart={onBatchStart}
+                onCancel={onBatchCancel}
+                onReset={onBatchReset}
+              />
+            </Suspense>
           ) : (
             <div className="phase75-empty-state">
               Batch execution needs the live viewer bridge. You can still open existing bundles from the header and use compare mode once a report is available.
@@ -2592,7 +2622,9 @@ function RightInspector({
           open={inspectorSections.languages}
           onToggle={() => onToggleSection("languages")}
         >
-          <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+          <Suspense fallback={<PanelLoading label="the languages" />}>
+            <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+          </Suspense>
         </InspectorSection>
       )}
 

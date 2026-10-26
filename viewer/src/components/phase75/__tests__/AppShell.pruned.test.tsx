@@ -1,9 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../../types";
 import { AppShell } from "../AppShell";
+import { preloadPanels } from "../lazyPanels";
 
+// Lazy panels render without a fallback once their chunks are loaded (lazyPanels.tsx).
+beforeAll(() => preloadPanels());
 afterEach(cleanup);
 
 // Bundle version 5: Khorain Kingdom dies by turn 4 and is left out of every

@@ -3,14 +3,17 @@
  * end-of-run state (consistency follow-ups; each case failed on main
  * dae4ba5). Synthetic records are added to the real-shaped systems fixture.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import { sampleField } from "../../../__fixtures__/historiographyField";
 import type { Bundle, Event, NewChronicleEntry } from "../../../types";
 import { UNCONTROLLED_COLOR } from "../../../lib/colors";
 import { AppShell, type AppSurface } from "../AppShell";
+import { preloadPanels } from "../lazyPanels";
 
+// Lazy panels render without a fallback once their chunks are loaded (lazyPanels.tsx).
+beforeAll(() => preloadPanels());
 afterEach(cleanup);
 
 const base = systemsFixture as unknown as Bundle;
