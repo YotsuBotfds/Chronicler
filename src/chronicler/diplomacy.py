@@ -357,6 +357,40 @@ def _adjacent(world, a: "Civilization", b: "Civilization") -> bool:
     return False
 
 
+#: A call to arms (alliance or overlord) or a federation's defence binds a
+#: partner only if the war is within its armies' reach: it borders the
+#: attacker or the defender, or holds land within this many land steps of the
+#: attacker's. 2026-10 correction (docs/integration/procedural-gates.md): on
+#: ten-civ worlds allies three to five regions from the enemy were drawn into
+#: wars they could not fight, and borrowed for the war chest.
+CALL_REACH_HOPS = 2
+
+
+def within_reach(world, joiner: "Civilization", attacker: "Civilization",
+                 defender: "Civilization") -> bool:
+    """Whether ``joiner`` can bring armies to ``attacker``'s war on ``defender``
+    (see ``CALL_REACH_HOPS``); land adjacency, as campaign armies march."""
+    region_map = world.region_map
+    enemy = set(attacker.regions)
+    friend = set(defender.regions)
+    frontier = list(joiner.regions)
+    seen = set(frontier)
+    for depth in range(1, CALL_REACH_HOPS + 1):
+        nxt: list[str] = []
+        for rn in frontier:
+            region = region_map.get(rn)
+            if region is None:
+                continue
+            for adj in region.adjacencies:
+                if adj in enemy or (depth == 1 and adj in friend):
+                    return True
+                if adj not in seen:
+                    seen.add(adj)
+                    nxt.append(adj)
+        frontier = nxt
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Memory
 # ---------------------------------------------------------------------------
@@ -790,6 +824,10 @@ def _calls_to_arms(world, attacker, defender, war_id, acc) -> list[Event]:
             continue
         if treaties_between(world, ally_idx, a_idx, ("alliance",)) or ally.name in subject_of:
             continue  # bound to both sides, or not free to make war: stays out
+        if not within_reach(world, ally, attacker, defender):
+            # Out of its armies' reach: not called; the alliance stands.
+            _bump(world.diplomacy, "excused:alliance")
+            continue
         if _join_utility(world, ally, defender, attacker) > 0:
             _join_war(world, ally, attacker, acc)
             adjust_trust(world, defender.name, ally.name, TRUST_DEFENDED)
@@ -808,8 +846,11 @@ def _calls_to_arms(world, attacker, defender, war_id, acc) -> list[Event]:
                                        reason=f"it abandons its ally to {attacker.name}"))
     vr = subject_of.get(defender.name)
     overlord = world.civ_map.get(vr.overlord) if vr is not None else None
-    if (overlord is not None and overlord.regions and overlord.name != attacker.name
-            and overlord.name not in subject_of and not _at_war(world, overlord.name, attacker.name)):
+    called = (overlord is not None and overlord.regions and overlord.name != attacker.name
+              and overlord.name not in subject_of and not _at_war(world, overlord.name, attacker.name))
+    if called and not within_reach(world, overlord, attacker, defender):
+        _bump(world.diplomacy, "excused:subject")  # out of reach: not called, no grievance
+    elif called:
         stage_bonus = {"client": 0.0, "vassal": 0.15, "union": 0.3}.get(vr.stage or "vassal", 0.15)
         ratio = power(attacker) / max(1.0, power(overlord))
         u = (0.4 + stage_bonus + min(0.3, defender.economy / 200.0)
