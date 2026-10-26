@@ -1164,7 +1164,10 @@ class NarrativeEngine:
             displacement_by_region=displacement_by_region, economy_result=economy_result,
             social_edges=social_edges, dissolved_edges_by_turn=dissolved_edges_by_turn,
             agent_name_map=agent_name_map, dynasty_registry=dynasty_registry,
+            accounts=getattr(self, "_accounts", None),
         )
+        # The mechanical chronicle and the fallbacks read the same views.
+        self._record = record
 
         for idx, moment in enumerate(moments):
             view = record.view(AsOf.after(moment.turn_range[1]))
@@ -1237,7 +1240,8 @@ class NarrativeEngine:
             causal_text += state_text
 
             account_ids: list[str] = []
-            accounts_index = getattr(self, "_accounts", None)
+            # The accounts as of the moment's end: losses dated after it are not told.
+            accounts_index = view.accounts
             if accounts_index:
                 accounts_text, account_ids = accounts_index.prompt_block(listed)
                 causal_text += accounts_text
@@ -1334,6 +1338,21 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
 
         return result
 
+    def _moment_accounts(self, moment: NarrativeMoment):
+        """The in-world accounts as of the moment's last turn (None when not used).
+
+        The prompts' record (``_prepare_narration_prompts``) when it holds
+        this index, so every path reads the same view.
+        """
+        accounts = getattr(self, "_accounts", None)
+        if not accounts:
+            return None
+        as_of = AsOf.after(moment.turn_range[1])
+        record = getattr(self, "_record", None)
+        if record is not None and record.accounts is accounts:
+            return record.view(as_of).accounts
+        return accounts.as_of(as_of)
+
     def _narrate_mechanical(
         self,
         moments: list[NarrativeMoment],
@@ -1341,7 +1360,6 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
     ) -> list[ChronicleEntry]:
         entries: list[ChronicleEntry] = []
         told: set[str] = set()  # chain steps already narrated, in chronicle order
-        accounts = getattr(self, "_accounts", None)
         names = getattr(self, "_names", None)
         noted: set[str] = set()  # archive losses already told, in chronicle order
         glossed: set = set()  # entities whose names were glossed, in chronicle order
@@ -1350,6 +1368,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                                         faiths=self._faiths())
             listed = _listed_events(moment, self._type_counts())[2]
             ids: list[str] = []
+            accounts = self._moment_accounts(moment)
             if accounts:
                 passage, ids = accounts.passage(listed, noted=noted)
                 if passage:
@@ -1378,11 +1397,11 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         results = self.narrative_client.batch_complete(requests)
 
         entries: list[ChronicleEntry] = []
-        accounts = getattr(self, "_accounts", None)
         names = getattr(self, "_names", None)
         for idx, (moment, narrative) in enumerate(zip(moments, results)):
             account_ids = prepared[idx].get("account_ids", [])
             if narrative is None:
+                accounts = self._moment_accounts(moment)
                 narrative = mechanical_narrative(moment, accounts=accounts, names=names,
                                                  type_counts=self._type_counts(), faiths=self._faiths())
                 account_ids = _moment_account_ids(moment, accounts, self._type_counts())
@@ -1428,7 +1447,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 if _first_failure:
                     logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
                     _first_failure = False
-                accounts = getattr(self, "_accounts", None)
+                accounts = self._moment_accounts(moment)
                 narrative = mechanical_narrative(moment, accounts=accounts,
                                                  names=getattr(self, "_names", None),
                                                  type_counts=self._type_counts(), faiths=self._faiths())

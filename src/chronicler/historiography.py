@@ -66,6 +66,7 @@ from chronicler.models import VOLUNTARY_MIGRATION_DRIVERS
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
+    from chronicler.historical_context import AsOf
     from chronicler.models import Event, WorldState
 
 logger = logging.getLogger(__name__)
@@ -1983,6 +1984,11 @@ class AccountIndex:
     With ``names`` (a ``languages.NameIndex``), each chronicler's quoted text
     uses its own language's names for peoples, places and persons
     ("Ashkel Vor [Verdant Plains]"); without it the text is as written.
+
+    The field is written after the run, so its losses are the final ones.
+    A narrated moment reads :meth:`as_of` its point
+    (``historical_context.HistoricalView.accounts``): only losses dated by
+    then.
     """
 
     def __init__(self, data: dict, names=None) -> None:
@@ -2005,26 +2011,47 @@ class AccountIndex:
     def __bool__(self) -> bool:
         return bool(self.by_event)
 
+    def _rows(self, event_id: str | None) -> list[dict] | None:
+        """An event's account rows (None without any)."""
+        return self.by_event.get(event_id) if event_id else None
+
+    def _divergence(self, event_id: str) -> list[str]:
+        return self.contested.get(event_id, {}).get("divergence", [])
+
+    def as_of(self, as_of: "AsOf") -> "AccountIndex":
+        """The accounts as the record knows them at ``as_of``
+        (``historical_context.AsOf``).
+
+        A copy whose loss is dated after the point still stands there (its
+        ``lost_turn`` and ``lost_cause`` are None), an archive's later
+        losses are left out, and an event's divergence is that of its
+        accounts as they stood (a later loss adds no ``lost``; a later loss
+        of every copy does not remove one). Accounts dated after the point
+        are left out. The view of the last loss's turn or later equals the
+        index.
+        """
+        return _AccountsAsOf(self, as_of)
+
     def contested_bonus(self) -> dict[str, float]:
         """Curator bonus per contested event id."""
         return {eid: min(CONTESTED_CAP, CONTESTED_WEIGHT * len(c["divergence"]))
                 for eid, c in self.contested.items()}
 
     def accounts_for(self, event_id: str) -> list[dict]:
-        return list(self.by_event.get(event_id, []))
+        return list(self._rows(event_id) or [])
 
     def telling_for(self, event_id: str) -> str:
-        return _telling(self.by_event.get(event_id, []), self.names, self.archives,
+        return _telling(self._rows(event_id) or [], self.names, self.archives,
                         localize=self.localize)[0]
 
     def select(self, events: Sequence["Event"], limit: int) -> list[tuple["Event", list[dict]]]:
         """The moment's events with notable accounts: contested first, then the most important."""
         ranked = []
         for order, ev in enumerate(events):
-            rows = self.by_event.get(ev.event_id) if ev.event_id else None
+            rows = self._rows(ev.event_id)
             if not rows:
                 continue
-            kinds = len(self.contested.get(ev.event_id, {}).get("divergence", []))
+            kinds = len(self._divergence(ev.event_id))
             ranked.append((-kinds, -ev.importance, order, ev, rows))
         ranked.sort(key=lambda r: r[:3])
         return [(r[3], r[4]) for r in ranked[:limit]]
@@ -2079,6 +2106,74 @@ class AccountIndex:
                 "disagree, tell it as their claims, e.g. \"as the X chronicles tell it ..., "
                 "though the Y records say ...\"):\n")
         return head + "\n".join(lines) + "\n", ids
+
+
+class _AccountsAsOf(AccountIndex):
+    """:meth:`AccountIndex.as_of`: the index's accounts as known at a point.
+
+    Rows are derived per event on first use. An event whose accounts all
+    stand as recorded keeps the index's divergence; otherwise it is
+    recomputed from the rows as they stood. That is exact: the bundle lists
+    every account of an event with a lost copy (a lost account is never a
+    ``plain`` one, and an event with both a lost and a surviving copy is
+    contested), and only the ``lost`` kind depends on losses.
+    """
+
+    def __init__(self, base: AccountIndex, as_of: "AsOf") -> None:
+        self.data = base.data
+        self.localize = base.localize
+        self.names = base.names
+        self.point = as_of
+        self._base = base
+        self.archives = {
+            owner: {**archive, "losses": [loss for loss in archive.get("losses", [])
+                                          if as_of.knows(loss.get("turn"))]}
+            for owner, archive in base.archives.items()
+        }
+        self._entries: dict[str, tuple[list[dict], list[str]]] = {}
+
+    def _entry(self, event_id: str) -> tuple[list[dict], list[str]]:
+        entry = self._entries.get(event_id)
+        if entry is None:
+            rows: list[dict] = []
+            changed = False
+            for row in self._base.by_event.get(event_id, ()):
+                turn = row.get("turn")
+                if turn is not None and not self.point.knows(turn):
+                    changed = True  # written after the point
+                    continue
+                lost = row.get("lost_turn")
+                if lost is not None and not self.point.knows(lost):
+                    row = {**row, "lost_turn": None, "lost_cause": None}
+                    changed = True
+                rows.append(row)
+            if changed:
+                kinds = divergence(rows) if len(rows) >= 2 else []
+            else:
+                kinds = self._base._divergence(event_id)
+            entry = self._entries[event_id] = (rows, kinds)
+        return entry
+
+    def __bool__(self) -> bool:
+        return bool(self._base)
+
+    def _rows(self, event_id: str | None) -> list[dict] | None:
+        return (self._entry(event_id)[0] or None) if event_id else None
+
+    def _divergence(self, event_id: str) -> list[str]:
+        return self._entry(event_id)[1]
+
+    def as_of(self, as_of: "AsOf") -> AccountIndex:
+        return _AccountsAsOf(self._base, as_of)
+
+    @property
+    def by_event(self) -> dict[str, list[dict]]:  # type: ignore[override]
+        return {eid: rows for eid in self._base.by_event if (rows := self._entry(eid)[0])}
+
+    @property
+    def contested(self) -> dict[str, dict]:  # type: ignore[override]
+        return {eid: {"event_id": eid, "divergence": kinds}
+                for eid in self._base.by_event if (kinds := self._entry(eid)[1])}
 
 
 def _decode(columns: Sequence[str], raw: Sequence) -> dict:
