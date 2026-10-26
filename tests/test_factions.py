@@ -1,6 +1,6 @@
 """Tests for faction system — influence, power struggles, weight modifiers, succession."""
 import pytest
-from chronicler.models import FactionType, FactionState, Civilization, Leader, CivSnapshot
+from chronicler.models import CLASSIC_FACTIONS, FactionType, FactionState, Civilization, Leader, CivSnapshot
 from chronicler.models import WorldState, Event
 from chronicler.factions import (
     normalize_influence,
@@ -64,9 +64,11 @@ class TestNormalization:
         fs.influence[FactionType.CLERGY] = 0.1
         normalize_influence(fs)
         assert sum(fs.influence.values()) == pytest.approx(1.0)
-        # All four factions should be present and at or above floor
-        for ft in FactionType:
+        # All four factions should be present and at or above floor; the
+        # burghers only join with --guilds.
+        for ft in CLASSIC_FACTIONS:
             assert ft in fs.influence
+        assert FactionType.BURGHER not in fs.influence
 
     def test_normalize_enforces_floor(self):
         fs = FactionState()
@@ -76,7 +78,7 @@ class TestNormalization:
         fs.influence[FactionType.CLERGY] = 0.05
         normalize_influence(fs)
         # FACTION_FLOOR is 0.08 — all factions must be at or above it
-        for ft in FactionType:
+        for ft in CLASSIC_FACTIONS:
             assert fs.influence[ft] >= 0.08, f"{ft} below floor"
         assert sum(fs.influence.values()) == pytest.approx(1.0)
 
@@ -95,11 +97,11 @@ class TestNormalization:
 
     def test_normalize_handles_all_zero_input(self):
         fs = FactionState()
-        for faction_type in FactionType:
+        for faction_type in CLASSIC_FACTIONS:
             fs.influence[faction_type] = 0.0
         normalize_influence(fs)
         assert sum(fs.influence.values()) == pytest.approx(1.0)
-        for faction_type in FactionType:
+        for faction_type in CLASSIC_FACTIONS:
             assert fs.influence[faction_type] == pytest.approx(0.25)
 
 
@@ -151,9 +153,10 @@ class TestCoreHelpers:
         )
 
     def test_all_four_factions_reachable_from_traits(self):
-        """H-27 regression: every FactionType must appear in TRAIT_FACTION_MAP values."""
+        """H-27 regression: every classic faction must appear in TRAIT_FACTION_MAP
+        values (the burghers, with --guilds, are no ruler's trait)."""
         reachable = set(TRAIT_FACTION_MAP.values())
-        for ft in FactionType:
+        for ft in CLASSIC_FACTIONS:
             assert ft in reachable, (
                 f"{ft} is not reachable from any leader trait in TRAIT_FACTION_MAP"
             )

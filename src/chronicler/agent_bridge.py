@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 _FIXED_GOODS: tuple[str, ...] = (
     "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts",
 )
-FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
+FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3, "burgher": 4}
 
 EVENT_TYPE_MAP = {0: "death", 1: "rebellion", 2: "migration",
                   3: "occupation_switch", 4: "loyalty_flip", 5: "birth",
@@ -722,6 +722,15 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # without the column Rust reads 0.
         from chronicler.cities import region_pulls
         columns["city_pull"] = pa.array(region_pulls(world), type=pa.float32())
+    from chronicler.guilds import movement_news_columns
+    news = movement_news_columns(world)
+    if news is not None:
+        # --guilds: news of last turn's movement events by region (observed
+        # as packets by the agents there), recomputed from persisted movement
+        # state for every batch; without the columns Rust reads no news.
+        codes, intensity = news
+        columns["movement_news"] = pa.array(codes, type=pa.uint8())
+        columns["movement_news_intensity"] = pa.array(intensity, type=pa.uint8())
     return pa.record_batch(columns)
 
 

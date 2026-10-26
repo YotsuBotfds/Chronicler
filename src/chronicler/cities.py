@@ -282,6 +282,9 @@ class _Tick:
         self.state: CityState = world.cities
         self.events: list = []
         self.index = {c.name: i for i, c in enumerate(world.civilizations)}
+        # Guilds (--guilds): living guilds by settlement id; None when off.
+        from chronicler.guilds import guild_index
+        self.guilds = guild_index(world)
 
     def civ(self, idx: int):
         civs = self.world.civilizations
@@ -681,14 +684,28 @@ def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
     city.crafts = _q(t.crafts(region) * (city.size / sizes if sizes > 0 else 1.0))
     demand = (getattr(t.economy, "market_demand", None) or {}).get(region.name) if t.economy else None
     food_demand = demand[0] if demand else 0.5 * region.population
+    guild = t.guilds.get(city.settlement_id) if t.guilds is not None else None
+    if guild is None:
+        craft_cap, craft_rate, share = CRAFT_ACCESS_CAP, CRAFT_ACCESS, DUES[city.charter]
+    else:
+        # Guilds: the wares monopoly raises the wares' term; the guild's say,
+        # its charter and any levy set the dues share.
+        from chronicler.guilds import craft_access, dues_share
+        craft_cap, craft_rate = craft_access(guild, CRAFT_ACCESS_CAP, CRAFT_ACCESS)
+        share = dues_share(t.world, guild, DUES[city.charter])
     access = (1.0 + ROUTE_ACCESS * min(t.routes(region), ROUTE_ACCESS_CAP)
               + min(TURNOVER_CAP, TURNOVER_ACCESS * t.turnover(region))
-              + min(CRAFT_ACCESS_CAP, CRAFT_ACCESS * city.crafts / max(0.1, food_demand)))
+              + min(craft_cap, craft_rate * city.crafts / max(0.1, food_demand)))
     commerce = base * access * food * (OCCUPIED_COMMERCE if _occupied(region) else 1.0)
-    dues = commerce * DUES[city.charter] if city.lord >= 0 else 0.0
+    dues = commerce * share if city.lord >= 0 else 0.0
     _owe(t, city.lord, dues)
     city.commerce = _q(commerce)
-    city.wealth = _q(city.wealth * (1.0 - WEALTH_DECAY) + commerce - dues)
+    if guild is None:
+        city.wealth = _q(city.wealth * (1.0 - WEALTH_DECAY) + commerce - dues)
+    else:
+        from chronicler.guilds import take
+        city.wealth = _q(city.wealth * (1.0 - WEALTH_DECAY) + commerce - dues
+                         - take(t.world.guilds, guild, commerce))
     city.peak_wealth = max(city.peak_wealth, city.wealth)
     _bump(t.state, "commerce", round(commerce, 4))
 
@@ -708,7 +725,14 @@ def _unrest(t: _Tick, city: City, region, food: float) -> None:
 def _walls(t: _Tick, city: City, region) -> None:
     from chronicler.models import InfrastructureType, PendingBuild
     lord = t.civ(city.lord)
-    if lord is None or city.wealth < WALL_COST or region.pending_build is not None or _occupied(region):
+    guild = t.guilds.get(city.settlement_id) if t.guilds is not None else None
+    help_ = 0.0
+    if guild is not None:
+        # Guilds press for protection: the guild pays what the purse lacks.
+        from chronicler.guilds import wall_help
+        help_ = wall_help(guild, city.wealth, WALL_COST)
+    if (lord is None or (city.wealth < WALL_COST and help_ <= 0.0)
+            or region.pending_build is not None or _occupied(region)):
         return
     if city.rank < WALL_MIN_RANK and not _civ_at_war(t.world, lord.name):
         return
@@ -719,12 +743,16 @@ def _walls(t: _Tick, city: City, region) -> None:
         type=InfrastructureType.FORTIFICATIONS, builder_civ=lord.name,
         started_turn=t.world.turn, turns_remaining=BUILD_SPECS[InfrastructureType.FORTIFICATIONS].turns,
     )
-    city.wealth = _q(city.wealth - WALL_COST)
+    city.wealth = _q(city.wealth - (WALL_COST - help_))
     _bump(t.state, "walls")
+    paid = f" with {guild.name}'s help" if help_ > 0.0 else " at its own cost"
     ev = _emit(t, "city_walls", [lord.name],
-               f"{city.name} in {region.name} begins walls at its own cost",
+               f"{city.name} in {region.name} begins walls{paid}",
                importance=3, region=region.name)
     _note(city, t.world.turn, "walls", ev.event_id)
+    if help_ > 0.0:
+        from chronicler.guilds import pay_walls
+        pay_walls(t.world.guilds, guild, help_, t.world.turn, ev.event_id)
 
 
 def grant_chance(lord, merchant_influence: float) -> float:
@@ -745,12 +773,21 @@ def grant_chance(lord, merchant_influence: float) -> float:
 
 def _merchant_influence(civ) -> float:
     from chronicler.models import FactionType
+    if FactionType.BURGHER in civ.factions.influence:
+        # Guilds: the burghers press for charters with the merchants.
+        from chronicler.guilds import urban_influence
+        return urban_influence(civ)
     return float(civ.factions.influence.get(FactionType.MERCHANT, 0.25))
 
 
 def _shift_merchants(civ, amount: float) -> None:
     from chronicler.factions import normalize_influence
     from chronicler.models import FactionType
+    if FactionType.BURGHER in civ.factions.influence:
+        # Guilds: the patricians' voice is the burghers'.
+        from chronicler.guilds import shift_urban
+        shift_urban(civ, amount)
+        return
     civ.factions.influence[FactionType.MERCHANT] = (
         civ.factions.influence.get(FactionType.MERCHANT, 0.0) + amount)
     normalize_influence(civ.factions)

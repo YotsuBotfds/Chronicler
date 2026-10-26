@@ -174,6 +174,14 @@ def _agent_movements_args(args: argparse.Namespace) -> list[str]:
     return ["--agent-movements" if movements else "--no-agent-movements"]
 
 
+def _guilds_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit guilds switch; omitted keeps the CLI default."""
+    guilds = getattr(args, "guilds", None)
+    if guilds is None:
+        return []
+    return ["--guilds" if guilds else "--no-guilds"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -237,6 +245,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_nomads_args(args),
         *_cities_args(args),
         *_agent_movements_args(args),
+        *_guilds_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -275,6 +284,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_nomads_args(args),
         *_cities_args(args),
         *_agent_movements_args(args),
+        *_guilds_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -319,6 +329,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_nomads_args(args))
         cmd.extend(_cities_args(args))
         cmd.extend(_agent_movements_args(args))
+        cmd.extend(_guilds_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -667,6 +678,12 @@ def main() -> None:
              "(default: CLI default).",
     )
     parser.add_argument(
+        "--guilds",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --guilds/--no-guilds to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -775,6 +792,7 @@ def main() -> None:
         "nomads": args.nomads,
         "cities": args.cities,
         "agent_movements": args.agent_movements,
+        "guilds": args.guilds,
         "historiography": args.historiography,
         "languages": args.languages,
         "pythonhashseed": env["PYTHONHASHSEED"],

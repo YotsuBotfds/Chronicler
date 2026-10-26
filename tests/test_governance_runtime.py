@@ -13,7 +13,7 @@ from chronicler import institutions as g01
 from chronicler.accumulator import StatAccumulator
 from chronicler.action_engine import ActionEngine
 from chronicler.governance_state import CivGovernance, GovernanceInstitution
-from chronicler.models import ActionType, FactionType, WorldState
+from chronicler.models import CLASSIC_FACTIONS, ActionType, FactionType, WorldState
 from chronicler.simulation import run_turn
 from chronicler.world_gen import generate_world
 
@@ -208,7 +208,7 @@ def test_underfunded_institutions_erode_and_low_capital_blocks_enactment():
     gov.last_institution_enforcement_cost = 2.0
     gov.last_institution_funding_ratio = 0.0
     gov.political_capital = 0.0
-    for ft in FactionType:
+    for ft in CLASSIC_FACTIONS:
         civ.factions.influence[ft] = 0.1
     civ.factions.influence[FactionType.CULTURAL] = 0.7
     ctx = gr._build_context(world, None)
@@ -223,7 +223,7 @@ def test_capital_funds_enactment_and_is_debited():
     world, civ = _single_civ_world()
     gov = civ.governance
     gov.political_capital = 0.5
-    for ft in FactionType:
+    for ft in CLASSIC_FACTIONS:
         civ.factions.influence[ft] = 0.1
     civ.factions.influence[FactionType.CULTURAL] = 0.7
     world_rng_state = random.getstate()

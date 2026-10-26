@@ -18,6 +18,11 @@ pub enum InfoType {
     ThreatWarning   = 1,
     TradeOpportunity = 2,
     ReligiousSignal = 3,
+    /// Guilds (`--guilds`): news of a movement's founding, rising, reform or
+    /// crackdown. It never displaces a packet of another type and yields its
+    /// slot to one (see `admit_packet_from_civ`), so the other types' packets
+    /// are those of a world without news.
+    MovementNews    = 4,
 }
 
 impl InfoType {
@@ -27,6 +32,7 @@ impl InfoType {
             1 => Some(Self::ThreatWarning),
             2 => Some(Self::TradeOpportunity),
             3 => Some(Self::ReligiousSignal),
+            4 => Some(Self::MovementNews),
             _ => None,
         }
     }
@@ -38,6 +44,7 @@ impl InfoType {
             Self::ThreatWarning => 3,
             Self::TradeOpportunity => 2,
             Self::ReligiousSignal => 1,
+            Self::MovementNews => 0,
         }
     }
 }
@@ -77,12 +84,14 @@ pub fn is_empty_slot(type_and_hops: u8) -> bool {
 pub const DECAY_THREAT: u8 = 15;
 pub const DECAY_TRADE: u8 = 8;
 pub const DECAY_RELIGIOUS: u8 = 5;
+pub const DECAY_NEWS: u8 = 10;
 
 pub fn decay_rate(info_type: u8) -> u8 {
     match info_type {
         1 => DECAY_THREAT,
         2 => DECAY_TRADE,
         3 => DECAY_RELIGIOUS,
+        4 => DECAY_NEWS,
         _ => 0,
     }
 }
@@ -94,6 +103,7 @@ pub fn decay_rate(info_type: u8) -> u8 {
 pub const BASE_RATE_THREAT: f32 = 0.7;
 pub const BASE_RATE_TRADE: f32 = 0.4;
 pub const BASE_RATE_RELIGIOUS: f32 = 0.25;
+pub const BASE_RATE_NEWS: f32 = 0.35;
 pub const HOP_ATTENUATION: f32 = 0.85;
 
 pub fn base_rate(info_type: u8) -> f32 {
@@ -101,6 +111,7 @@ pub fn base_rate(info_type: u8) -> f32 {
         1 => BASE_RATE_THREAT,
         2 => BASE_RATE_TRADE,
         3 => BASE_RATE_RELIGIOUS,
+        4 => BASE_RATE_NEWS,
         _ => 0.0,
     }
 }
@@ -129,6 +140,36 @@ pub const CONVERSION_RATE_THRESHOLD: f32 = 0.05;
 pub const PKT_CIV_NONE: u8 = 255;
 
 // ---------------------------------------------------------------------------
+// Movement news (guilds, docs/integration/guilds.md)
+// ---------------------------------------------------------------------------
+
+/// Kinds of movement news (append-only; Python `guilds.NEWS_KINDS`).
+pub const NEWS_FOUNDING: u8 = 0;
+pub const NEWS_RISING: u8 = 1;
+pub const NEWS_REFORM: u8 = 2;
+pub const NEWS_CRACKDOWN: u8 = 3;
+pub const NEWS_KIND_COUNT: u8 = 4;
+/// `RegionState.movement_news` without news.
+pub const NO_NEWS: u8 = 255;
+
+/// The news code a movement-news packet carries in `pkt_source_civ` (its
+/// provenance byte): creed x NEWS_KIND_COUNT + kind.
+#[inline]
+pub fn news_code(creed: u8, kind: u8) -> u8 {
+    creed * NEWS_KIND_COUNT + kind
+}
+
+#[inline]
+pub fn news_creed(code: u8) -> u8 {
+    code / NEWS_KIND_COUNT
+}
+
+#[inline]
+pub fn news_kind(code: u8) -> u8 {
+    code % NEWS_KIND_COUNT
+}
+
+// ---------------------------------------------------------------------------
 // Channel filter + weight tables
 // ---------------------------------------------------------------------------
 
@@ -152,6 +193,12 @@ pub fn channel_weight(bond_type: u8, info_type: u8) -> Option<f32> {
         (2, 3) => Some(0.6),  // Marriage
         (4, 3) => Some(1.0),  // CoReligionist
         (5, 3) => Some(0.7),  // Kin
+        // movement_news (type 4): what friends, kin and family tell each other
+        (0, 4) => Some(0.7),  // Mentor
+        (2, 4) => Some(0.8),  // Marriage
+        (4, 4) => Some(0.6),  // CoReligionist
+        (5, 4) => Some(0.8),  // Kin
+        (6, 4) => Some(1.0),  // Friend
         // Everything else: not eligible
         _ => None,
     }
@@ -175,9 +222,11 @@ pub struct KnowledgeStats {
     pub created_threat: u32,
     pub created_trade: u32,
     pub created_religious: u32,
+    pub created_news: u32,
     pub transmitted_threat: u32,
     pub transmitted_trade: u32,
     pub transmitted_religious: u32,
+    pub transmitted_news: u32,
     pub mean_age: f32,
     pub max_age: u32,
     pub mean_hops: f32,
@@ -266,9 +315,20 @@ pub fn admit_packet_from_civ(
         }
     }
 
-    // Step 2: Check for empty slot
+    // Movement news yields to every other type: it only takes an empty slot
+    // or another news slot, and another type takes a news slot as if it were
+    // empty. News therefore only ever holds slots that would be empty without
+    // it, and the other types' packets (slot by slot) are those of a world
+    // without news.
+    let news = info_type == InfoType::MovementNews as u8;
+    if news {
+        return admit_news(pool, slot, candidate, source_civ);
+    }
+
+    // Step 2: Check for empty slot (a news slot counts as empty)
     for i in 0..agent::PACKET_SLOTS {
-        if is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) || unpack_type(th) == InfoType::MovementNews as u8 {
             pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
             pool.pkt_source_region[slot][i] = source_region;
             pool.pkt_source_turn[slot][i] = candidate.source_turn;
@@ -321,6 +381,49 @@ pub fn admit_packet_from_civ(
         return AdmitResult::Evicted;
     }
 
+    AdmitResult::Dropped
+}
+
+/// Admission of a movement-news packet (after the identity check): an empty
+/// slot, else the oldest news slot when the incoming news is newer (or as
+/// new and stronger), never a slot of another type.
+fn admit_news(pool: &mut AgentPool, slot: usize, candidate: &PacketCandidate, source_civ: u8) -> AdmitResult {
+    let write = |pool: &mut AgentPool, i: usize| {
+        pool.pkt_type_and_hops[slot][i] = pack_type_hops(candidate.info_type, candidate.hop_count);
+        pool.pkt_source_region[slot][i] = candidate.source_region;
+        pool.pkt_source_turn[slot][i] = candidate.source_turn;
+        pool.pkt_intensity[slot][i] = candidate.intensity;
+        pool.pkt_source_civ[slot][i] = source_civ;
+    };
+    for i in 0..agent::PACKET_SLOTS {
+        if is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+            write(pool, i);
+            return AdmitResult::Inserted;
+        }
+    }
+    let mut worst: Option<usize> = None;
+    for i in 0..agent::PACKET_SLOTS {
+        if unpack_type(pool.pkt_type_and_hops[slot][i]) != InfoType::MovementNews as u8 {
+            continue;
+        }
+        let older = match worst {
+            None => true,
+            Some(w) => {
+                let (wt, it) = (pool.pkt_source_turn[slot][w], pool.pkt_source_turn[slot][i]);
+                it < wt || (it == wt && pool.pkt_intensity[slot][i] < pool.pkt_intensity[slot][w])
+            }
+        };
+        if older {
+            worst = Some(i);
+        }
+    }
+    if let Some(w) = worst {
+        let (wt, wi) = (pool.pkt_source_turn[slot][w], pool.pkt_intensity[slot][w]);
+        if candidate.source_turn > wt || (candidate.source_turn == wt && candidate.intensity > wi) {
+            write(pool, w);
+            return AdmitResult::Evicted;
+        }
+    }
     AdmitResult::Dropped
 }
 
@@ -502,6 +605,72 @@ pub fn observe_packets(
         created_trade,
         created_religious,
     )
+}
+
+/// Guilds: every agent in a region with movement news this turn observes a
+/// movement-news packet (`news_code` in the provenance byte). Returns
+/// (created, refreshed, evicted, dropped). No-op where `movement_news` is
+/// NO_NEWS (every region with the switch off).
+pub fn observe_news(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    alive_slots: &[usize],
+    current_turn: u16,
+) -> (u32, u32, u32, u32) {
+    let (mut created, mut refreshed, mut evicted, mut dropped) = (0u32, 0u32, 0u32, 0u32);
+    if !regions.iter().any(|r| r.movement_news != NO_NEWS && r.movement_news_intensity > 0) {
+        return (0, 0, 0, 0);
+    }
+    for &slot in alive_slots {
+        let Some(region) = regions.get(pool.regions[slot] as usize) else {
+            continue;
+        };
+        if region.movement_news == NO_NEWS || region.movement_news_intensity == 0 {
+            continue;
+        }
+        let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
+            info_type: InfoType::MovementNews as u8,
+            source_region: region.region_id,
+            source_turn: current_turn,
+            intensity: region.movement_news_intensity,
+            hop_count: 0,
+        }, region.movement_news);
+        match result {
+            AdmitResult::Inserted => created += 1,
+            AdmitResult::Refreshed => refreshed += 1,
+            AdmitResult::Evicted => {
+                created += 1;
+                evicted += 1;
+            }
+            AdmitResult::Dropped => dropped += 1,
+        }
+    }
+    (created, refreshed, evicted, dropped)
+}
+
+/// Guilds: the strongest nonlocal movement news an agent holds about a
+/// creed, as (inspiring, fearful) strengths in 0..1: a founding, rising or
+/// reform inspires, a crackdown frightens. (0, 0) without news.
+pub fn movement_news_for_creed(pool: &AgentPool, slot: usize, creed: u8) -> (f32, f32) {
+    let own = pool.regions[slot];
+    let (mut inspire, mut fear) = (0.0f32, 0.0f32);
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if unpack_type(th) != InfoType::MovementNews as u8 || pool.pkt_source_region[slot][i] == own {
+            continue;
+        }
+        let code = pool.pkt_source_civ[slot][i];
+        if news_creed(code) != creed {
+            continue;
+        }
+        let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;
+        if news_kind(code) == NEWS_CRACKDOWN {
+            fear = fear.max(strength);
+        } else {
+            inspire = inspire.max(strength);
+        }
+    }
+    (inspire, fear)
 }
 
 // ---------------------------------------------------------------------------
@@ -861,6 +1030,13 @@ pub fn knowledge_phase(
     stats.created_threat = ct;
     stats.created_trade = ctr;
     stats.created_religious = cr;
+    let (news_created, news_refreshed, news_evicted, news_dropped) =
+        observe_news(pool, regions, &alive_slots, current_turn);
+    stats.packets_created += news_created;
+    stats.packets_refreshed += news_refreshed;
+    stats.packets_evicted += news_evicted;
+    stats.packets_dropped += news_dropped;
+    stats.created_news = news_created;
 
     // Step 3: Propagation (buffered, reads post-observation snapshot)
     let slot_lookup: std::collections::HashMap<u32, usize> = alive_slots
@@ -874,6 +1050,10 @@ pub fn knowledge_phase(
     stats.transmitted_threat = tt;
     stats.transmitted_trade = ttr;
     stats.transmitted_religious = tr;
+    stats.transmitted_news = buffer
+        .iter()
+        .filter(|b| b.candidate.info_type == InfoType::MovementNews as u8)
+        .count() as u32;
 
     // Step 4: Commit buffered receives
     let (commit_refreshed, evicted, dropped) = commit_buffered(pool, buffer);

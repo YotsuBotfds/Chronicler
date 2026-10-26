@@ -112,6 +112,14 @@ pub struct RegionState {
     /// (`migration_drivers` urban pull), recomputed by Python for every batch.
     /// 0 when the batch carries no `city_pull` column (the switch off).
     pub city_pull: f32,
+    /// Guilds (`--guilds`): news of a movement event in this region last
+    /// turn (`knowledge::news_code`: creed and kind), observed as a
+    /// movement-news packet by the agents here. `knowledge::NO_NEWS` when the
+    /// batch carries no `movement_news` column (the switch off) or nothing
+    /// happened; recomputed by Python for every batch.
+    pub movement_news: u8,
+    /// Intensity of that news (0 none).
+    pub movement_news_intensity: u8,
     /// The goods economy's demand and post-trade supply per category (food,
     /// raw material, luxury; `economy::GOOD_CATEGORY`) at the last economy
     /// tick: the merchant planner's market prices (`merchant::market_price`).
@@ -275,6 +283,8 @@ impl RegionState {
             climate_exposure: 1.0,
             harvest_shock: 0.0,
             city_pull: 0.0,
+            movement_news: crate::knowledge::NO_NEWS,
+            movement_news_intensity: 0,
             market_demand: [0.0; crate::economy::NUM_CATEGORIES],
             market_supply: [0.0; crate::economy::NUM_CATEGORIES],
             craft_sufficiency: 0.0,

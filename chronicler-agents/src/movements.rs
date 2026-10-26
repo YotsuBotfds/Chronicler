@@ -31,7 +31,12 @@ use crate::region::RegionState;
 pub const CREED_COMMONS: u8 = 0; // material need
 pub const CREED_LIBERTY: u8 = 1; // autonomy need
 pub const CREED_SECT: u8 = 2; // spiritual need
+/// Creeds whose grievance is a need (the census counts these).
 pub const CREED_COUNT: usize = 3;
+/// Guilds (`--guilds`): a city's guild defending its privileges. Its people
+/// are the civilian adult residents of one city (`MovementRow.settlement`);
+/// Python founds it when the privileges are threatened, never from the census.
+pub const CREED_GUILD: u8 = 3;
 
 /// Stages sent in the table (an ended movement is not sent).
 pub const STAGE_GATHERING: u8 = 0;
@@ -98,6 +103,18 @@ pub const RISING_REBEL_BOOST: f32 = 0.4;
 /// (the institution answers part of the want; deep want stays aggrieved).
 pub const REFORM_NEED_CREDIT: f32 = 0.3;
 
+/// Guild creed: a civilian adult resident of the guild's city with
+/// satisfaction (read with a guild charter's credit) below GUILD_SAT is
+/// aggrieved, with intensity 0.5 + 0.5 x the normalized deficit.
+pub const GUILD_SAT: f32 = 0.65;
+
+/// Movement news (`knowledge::movement_news_for_creed`): news of a like
+/// movement's founding, rising or reform elsewhere raises the chance to join
+/// by up to NEWS_JOIN (x strength); news of a crackdown lowers it by up to
+/// NEWS_FEAR. Without news the factor is not applied.
+pub const NEWS_JOIN: f32 = 0.5;
+pub const NEWS_FEAR: f32 = 0.25;
+
 // RNG streams (registry in agent.rs).
 pub use crate::agent::{MOVEMENT_LAPSE_STREAM_OFFSET, MOVEMENT_RECRUIT_STREAM_OFFSET};
 
@@ -123,6 +140,9 @@ pub struct MovementRow {
     pub rising_region: u16,
     pub convert_from: u8,
     pub convert_to: u8,
+    /// Guild creed: the settlement id of the guild's city (0 otherwise;
+    /// optional table column `settlement`).
+    pub settlement: u16,
 }
 
 impl MovementRow {
@@ -140,6 +160,7 @@ impl MovementRow {
             rising_region: NO_REGION,
             convert_from: NO_FAITH,
             convert_to: NO_FAITH,
+            settlement: 0,
         }
     }
 
@@ -182,6 +203,9 @@ pub struct MovementSeed {
 pub struct MovementStats {
     pub adults: Vec<u32>,
     pub aggrieved: Vec<[u32; CREED_COUNT]>,
+    /// Per region and creed, the aggrieved holding inspiring news of a like
+    /// movement elsewhere (guilds' movement news; all 0 without news).
+    pub informed: Vec<[u32; CREED_COUNT]>,
     pub movement_ids: Vec<u16>,
     pub members: Vec<u32>,
     pub joined: Vec<u32>,
@@ -309,6 +333,63 @@ pub fn reform_credit(cover: &[Vec<(u8, u8)>], pool: &AgentPool, slot: usize, cre
     }
 }
 
+/// Guild creed grievance of an agent for the guild of `settlement` (`credit`:
+/// a guild charter in force there).
+#[inline]
+pub fn guild_grievance(pool: &AgentPool, slot: usize, settlement: u16, credit: f32) -> f32 {
+    if settlement == 0
+        || pool.settlement_ids[slot] != settlement
+        || pool.ages[slot] < ADULT_AGE
+        || pool.occupations[slot] == agent::Occupation::Soldier as u8
+    {
+        return 0.0;
+    }
+    let sat = pool.satisfactions[slot];
+    let sat = if credit > 0.0 { sat + credit * (1.0 - sat) } else { sat };
+    if sat >= GUILD_SAT {
+        return 0.0;
+    }
+    0.5 + 0.5 * (GUILD_SAT - sat) / GUILD_SAT
+}
+
+/// Grievance of an agent for a table row: the creed's need, or for a guild
+/// its city and satisfaction.
+#[inline]
+pub fn row_grievance(pool: &AgentPool, slot: usize, row: &MovementRow, cover: &[Vec<(u8, u8)>]) -> f32 {
+    let credit = reform_credit(cover, pool, slot, row.creed);
+    if row.creed == CREED_GUILD {
+        guild_grievance(pool, slot, row.settlement, credit)
+    } else {
+        grievance_credited(pool, slot, row.creed, credit)
+    }
+}
+
+/// [`committed_credited`] for a table row (a guild member stays committed
+/// while it lives in the city with satisfaction within LAPSE_MARGIN).
+#[inline]
+pub fn row_committed(pool: &AgentPool, slot: usize, row: &MovementRow, cover: &[Vec<(u8, u8)>]) -> bool {
+    let credit = reform_credit(cover, pool, slot, row.creed);
+    if row.creed == CREED_GUILD {
+        let sat = pool.satisfactions[slot];
+        let sat = if credit > 0.0 { sat + credit * (1.0 - sat) } else { sat };
+        return row.settlement != 0
+            && pool.settlement_ids[slot] == row.settlement
+            && sat < GUILD_SAT + LAPSE_MARGIN;
+    }
+    committed_credited(pool, slot, row.creed, credit)
+}
+
+/// Recruitment factor from movement news of the row's creed (None without
+/// news, so the probability keeps its bits).
+#[inline]
+fn news_factor(pool: &AgentPool, slot: usize, creed: u8) -> Option<f32> {
+    let (inspire, fear) = crate::knowledge::movement_news_for_creed(pool, slot, creed);
+    if inspire <= 0.0 && fear <= 0.0 {
+        return None;
+    }
+    Some((1.0 + NEWS_JOIN * inspire) * (1.0 - NEWS_FEAR * fear))
+}
+
 fn stream(region: usize, turn: u32, offset: u64) -> u64 {
     ((region as u64) << 48) | ((turn as u64) << 16) | offset
 }
@@ -323,7 +404,7 @@ fn founding_score(pool: &AgentPool, slot: usize, g: f32) -> f32 {
 fn seed_candidates(
     pool: &AgentPool,
     slots: &[usize],
-    creed: u8,
+    row: &MovementRow,
     fill: bool,
     cover: &[Vec<(u8, u8)>],
 ) -> Vec<usize> {
@@ -332,10 +413,14 @@ fn seed_candidates(
         if !pool.is_alive(slot) || pool.movement_ids[slot] != 0 || pool.ages[slot] < ADULT_AGE {
             continue;
         }
-        let g = grievance_credited(pool, slot, creed, reform_credit(cover, pool, slot, creed));
+        let g = row_grievance(pool, slot, row, cover);
         if g > 0.0 {
             ranked.push((1.0, founding_score(pool, slot, g), pool.ids[slot], slot));
-        } else if fill {
+        } else if fill
+            && (row.creed != CREED_GUILD
+                || (pool.settlement_ids[slot] == row.settlement
+                    && pool.occupations[slot] != agent::Occupation::Soldier as u8))
+        {
             ranked.push((0.0, pool.boldness[slot], pool.ids[slot], slot));
         }
     }
@@ -388,6 +473,7 @@ pub fn movement_pass(
     let mut stats = MovementStats {
         adults: vec![0; num_regions],
         aggrieved: vec![[0; CREED_COUNT]; num_regions],
+        informed: vec![[0; CREED_COUNT]; num_regions],
         movement_ids: rows.iter().map(|r| r.movement_id).collect(),
         members: vec![0; nrows],
         joined: vec![0; nrows],
@@ -421,7 +507,7 @@ pub fn movement_pass(
             if row.stage == STAGE_SATISFIED {
                 stay *= 1.0 - LAPSE_SATISFIED;
             }
-            if !committed_credited(pool, slot, row.creed, reform_credit(&cover, pool, slot, row.creed)) {
+            if !row_committed(pool, slot, row, &cover) {
                 stay *= 1.0 - LAPSE_CONTENT;
             }
             let travelling = pool.is_on_trip(slot)
@@ -455,7 +541,7 @@ pub fn movement_pass(
             }
         }
         let size = FOUND_MIN.max((FOUND_SHARE * stats.adults[r] as f32).ceil() as usize);
-        for slot in seed_candidates(pool, &groups[r], row.creed, false, &cover).into_iter().take(size) {
+        for slot in seed_candidates(pool, &groups[r], row, false, &cover).into_iter().take(size) {
             pool.movement_ids[slot] = row.movement_id;
             stats.founded[i] += 1;
         }
@@ -467,8 +553,7 @@ pub fn movement_pass(
         if r >= num_regions {
             continue;
         }
-        let creed = rows[i].creed;
-        for slot in seed_candidates(pool, &groups[r], creed, true, &cover).into_iter().take(seed.count as usize) {
+        for slot in seed_candidates(pool, &groups[r], &rows[i], true, &cover).into_iter().take(seed.count as usize) {
             pool.movement_ids[slot] = seed.movement_id;
             stats.founded[i] += 1;
         }
@@ -517,7 +602,7 @@ pub fn movement_pass(
                 offers.clear();
                 for &i in &candidates {
                     let row = &rows[i];
-                    let g = grievance_credited(pool, slot, row.creed, reform_credit(&cover, pool, slot, row.creed));
+                    let g = row_grievance(pool, slot, row, &cover);
                     if g <= 0.0 {
                         continue;
                     }
@@ -559,14 +644,17 @@ pub fn movement_pass(
                         STAGE_RISING => RISING_RECRUIT,
                         _ => 1.0,
                     };
-                    let p = (RECRUIT_RATE
+                    let mut p = RECRUIT_RATE
                         * row.appeal
                         * (0.5 + 0.5 * g)
                         * exposure
                         * crate::behavior::personality_modifier(pool.boldness[slot], BOLD_RECRUIT_WEIGHT)
                         * loyalty
-                        * stage)
-                        .min(RECRUIT_CAP);
+                        * stage;
+                    if let Some(f) = news_factor(pool, slot, row.creed) {
+                        p *= f;
+                    }
+                    let p = p.min(RECRUIT_CAP);
                     if p > 0.0 {
                         offers.push((i, p));
                     }
@@ -613,7 +701,8 @@ pub fn movement_pass(
             if relief_rows[i] {
                 let age = (row.relief_age - 1) as f32;
                 effects.relief[slot] = RELIEF_SAT * (1.0 - age / RELIEF_TURNS as f32);
-                if row.relief_age == 1 {
+                if row.relief_age == 1 && row.creed != CREED_GUILD {
+                    // A guild's relief is its members' satisfaction alone.
                     let need = match row.creed {
                         CREED_COMMONS => &mut pool.need_material[slot],
                         CREED_LIBERTY => &mut pool.need_autonomy[slot],
@@ -645,6 +734,7 @@ pub fn movement_pass(
 
     // The grievance census is taken at the end of the tick (`census`).
     stats.aggrieved = runtime.stats.aggrieved.clone();
+    stats.informed = runtime.stats.informed.clone();
     runtime.stats = stats;
     runtime.cover = cover;
     runtime.seeds.clear();
@@ -662,6 +752,7 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
     }
     let mut adults = vec![0u32; num_regions];
     let mut aggrieved = vec![[0u32; CREED_COUNT]; num_regions];
+    let mut informed = vec![[0u32; CREED_COUNT]; num_regions];
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) || pool.ages[slot] < ADULT_AGE {
             continue;
@@ -675,11 +766,15 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
             let credit = reform_credit(&runtime.cover, pool, slot, creed);
             if grievance_credited(pool, slot, creed, credit) > 0.0 {
                 aggrieved[r][creed as usize] += 1;
+                if crate::knowledge::movement_news_for_creed(pool, slot, creed).0 > 0.0 {
+                    informed[r][creed as usize] += 1;
+                }
             }
         }
     }
     runtime.stats.adults = adults;
     runtime.stats.aggrieved = aggrieved;
+    runtime.stats.informed = informed;
 }
 
 // ---------------------------------------------------------------------------
@@ -721,6 +816,15 @@ pub fn parse_movement_table(rb: &RecordBatch) -> Result<Vec<MovementRow>, ArrowE
     let rising = column::<UInt16Array>(rb, "rising_region")?;
     let convert_from = column::<UInt8Array>(rb, "convert_from")?;
     let convert_to = column::<UInt8Array>(rb, "convert_to")?;
+    // Guilds: optional (absent with the switch off: no guild row).
+    let settlements = rb
+        .column_by_name("settlement")
+        .map(|c| {
+            c.as_any()
+                .downcast_ref::<UInt16Array>()
+                .ok_or_else(|| ArrowError::CastError("column settlement has the wrong type".into()))
+        })
+        .transpose()?;
     let mut rows = Vec::with_capacity(n);
     for i in 0..n {
         if ids.value(i) == 0 {
@@ -739,6 +843,7 @@ pub fn parse_movement_table(rb: &RecordBatch) -> Result<Vec<MovementRow>, ArrowE
             rising_region: rising.value(i),
             convert_from: convert_from.value(i),
             convert_to: convert_to.value(i),
+            settlement: settlements.map_or(0, |a| a.value(i)),
         });
     }
     Ok(rows)
@@ -785,11 +890,13 @@ pub fn movement_stats_batches(stats: &MovementStats) -> Result<(RecordBatch, Rec
     let mut region_id = UInt16Builder::with_capacity(n);
     let mut adults = UInt32Builder::with_capacity(n);
     let mut aggrieved: Vec<UInt32Builder> = (0..CREED_COUNT).map(|_| UInt32Builder::with_capacity(n)).collect();
+    let mut informed: Vec<UInt32Builder> = (0..CREED_COUNT).map(|_| UInt32Builder::with_capacity(n)).collect();
     for r in 0..n {
         region_id.append_value(r as u16);
         adults.append_value(stats.adults[r]);
         for c in 0..CREED_COUNT {
             aggrieved[c].append_value(stats.aggrieved[r][c]);
+            informed[c].append_value(stats.informed.get(r).map_or(0, |v| v[c]));
         }
     }
     let region_schema = Arc::new(Schema::new(vec![
@@ -798,14 +905,21 @@ pub fn movement_stats_batches(stats: &MovementStats) -> Result<(RecordBatch, Rec
         Field::new("aggrieved_commons", DataType::UInt32, false),
         Field::new("aggrieved_liberty", DataType::UInt32, false),
         Field::new("aggrieved_sect", DataType::UInt32, false),
+        Field::new("informed_commons", DataType::UInt32, false),
+        Field::new("informed_liberty", DataType::UInt32, false),
+        Field::new("informed_sect", DataType::UInt32, false),
     ]));
     let mut agg = aggrieved.into_iter();
+    let mut inf = informed.into_iter();
     let regions = RecordBatch::try_new(region_schema, vec![
         Arc::new(region_id.finish()) as _,
         Arc::new(adults.finish()) as _,
         Arc::new(agg.next().unwrap().finish()) as _,
         Arc::new(agg.next().unwrap().finish()) as _,
         Arc::new(agg.next().unwrap().finish()) as _,
+        Arc::new(inf.next().unwrap().finish()) as _,
+        Arc::new(inf.next().unwrap().finish()) as _,
+        Arc::new(inf.next().unwrap().finish()) as _,
     ])?;
     let m = stats.movement_ids.len();
     let mut mid = UInt16Builder::with_capacity(m);

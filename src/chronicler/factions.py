@@ -73,6 +73,7 @@ FACTION_CANDIDATE_TYPE: dict[FactionType, str] = {
     FactionType.MERCHANT: "elected",
     FactionType.CULTURAL: "heir",
     FactionType.CLERGY: "clergy",
+    FactionType.BURGHER: "elected",   # a ruler the town councils elect
 }
 
 GP_ROLE_TO_FACTION: dict[str, FactionType] = {
@@ -91,25 +92,34 @@ GP_SUCCESSION_TYPE: dict[str, str] = {
 # Core functions
 # ---------------------------------------------------------------------------
 
+def present_factions(factions: FactionState) -> list[FactionType]:
+    """The factions a civ has, in declaration order: the four classic ones,
+    and the burghers only while guilds give them a place (``--guilds``)."""
+    return [ft for ft in FactionType if ft in factions.influence]
+
+
 def normalize_influence(factions: FactionState) -> None:
+    # Over the factions the civ has (the four classic ones without --guilds,
+    # in declaration order as before).
+    present = present_factions(factions)
     # First pass: normalize to sum-to-1
     total = sum(factions.influence.values())
     if total <= 0:
-        equal_share = 1.0 / len(FactionType)
-        for ft in FactionType:
+        equal_share = 1.0 / len(present)
+        for ft in present:
             factions.influence[ft] = equal_share
         return
-    for ft in FactionType:
+    for ft in present:
         factions.influence[ft] /= total
     # Iteratively enforce floor per faction and redistribute the "borrowed"
     # share from overvalued ones
     floor = FACTION_FLOOR
     for _ in range(10):
-        under = [ft for ft in FactionType if factions.influence[ft] < floor]
+        under = [ft for ft in present if factions.influence[ft] < floor]
         if not under:
             break
         deficit = sum(floor - factions.influence[ft] for ft in under)
-        over = [ft for ft in FactionType if factions.influence[ft] > floor]
+        over = [ft for ft in present if factions.influence[ft] > floor]
         over_total = sum(factions.influence[ft] for ft in over)
         if over_total <= 0:
             # No over-floor faction available to fund redistribution; keep equalized floor state.
@@ -121,11 +131,11 @@ def normalize_influence(factions: FactionState) -> None:
     # Final renormalize for floating-point safety
     total = sum(factions.influence.values())
     if total <= 0:
-        equal_share = 1.0 / len(FactionType)
-        for ft in FactionType:
+        equal_share = 1.0 / len(present)
+        for ft in present:
             factions.influence[ft] = equal_share
         return
-    for ft in FactionType:
+    for ft in present:
         factions.influence[ft] /= total
 
 
@@ -169,6 +179,10 @@ def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) ->
             return True
         if event_type_lower == "persecution":
             return len(event.actors) >= 1 and civ.name == event.actors[0]
+    elif faction_type == FactionType.BURGHER:
+        # Charters and guild privileges the realm grants its towns.
+        if event_type_lower in ("city_charter", "guild_privilege"):
+            return civ.name == event.actors[0]
     return False
 
 
@@ -206,6 +220,13 @@ FACTION_WEIGHTS: dict[FactionType, dict[ActionType, float]] = {
         ActionType.DIPLOMACY: 1.3,
         ActionType.WAR: 0.7,
         ActionType.TRADE: 0.8,
+    },
+    # Burghers and guild masters (--guilds): trade, low tolls, order and the
+    # towns' walls; within the range of the factions above, so the faction
+    # bucket's 1.5 ceiling and the global weight cap hold as before.
+    FactionType.BURGHER: {
+        ActionType.TRADE: 1.8, ActionType.DEVELOP: 1.3, ActionType.BUILD: 1.3,
+        ActionType.EMBARGO: 0.6, ActionType.WAR: 0.5,
     },
 }
 
