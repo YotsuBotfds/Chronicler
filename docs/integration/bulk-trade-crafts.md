@@ -1,14 +1,16 @@
 # Bulk trade, mines and forests, crafts (2026-10)
 
 Branch `feat/bulk-trade-crafts` from `main` `7fa364a` (PR #35, bundle
-version 6). Three parts, each its own commit, on by default, in commit
+version 6), merged without rebase with `main` `b5d41af` (PR #36, needs
+calibration) and `f5425dc` (PR #37, movements on by default); head
+`21c0e7e`. Three parts, each its own commit, on by default, in commit
 order:
 
 | Commit | Part | Restores the old behaviour |
 | --- | --- | --- |
 | `41a461c` | A. Bulk trade: merchant loads by mode of travel, filled against committed deliveries | `economy.{land,river,sea}_cargo_cap: 1`, `economy.cargo_fill: 0` |
 | `8ac3f08` | C. Mines and forests on their own curves, not the farmland's | `economy.raw_reference_density: 0` |
-| `f58076e` | B. Crafts: wares made in cities from raw materials, used everywhere, traded | `--no-cities` (no wares demand) |
+| `f58076e` | B. Crafts: wares made in cities from raw materials, used everywhere, traded | `--no-cities` (no wares demand; no cities either) |
 
 All three change hybrid runs only: `--agents off` has no goods economy, so
 the golden fixtures do not change (section 6).
@@ -17,8 +19,9 @@ Every run is Linux, Python 3.13, `PYTHONHASHSEED=0`, hybrid unless stated,
 each arm a `git archive` export with its own virtualenv and a release
 extension built fresh (`maturin develop --release --locked`; compiled
 `AgentSimulator`, `EcologySimulator`, `PoliticsSimulator` verified). SHA-256
-of the extensions: `main` `21344bb6…02ef`, A `badb986f…a14c`, C
-`8f6b4c3f…ae05b`, B (head) `fa666c6e…d2f7`. Probes: template worlds (8
+of the extensions: `main` `7fa364a` `21344bb6…02ef`, A `badb986f…a14c`, C
+`8f6b4c3f…ae05b`, B `fa666c6e…d2f7`; `main` `f5425dc` `028c1fd1…c52a`,
+head `21c0e7e` `cf109460…cd90e`. Probes: template worlds (8
 regions, 4 civs) seeds 42-51 and procedural worlds (64 regions, 16 civs)
 seeds 7-11, 200 turns, one read-only observer on every arm. Food
 sufficiency is the economy's pre-consumption food over demand; a famine
@@ -32,29 +35,39 @@ difference.
 
 ## Result
 
-| | `main` | head |
+The head against `main` `f5425dc`, each from its exported tree, probes of
+section 1's worlds; per-part tables (sections 1-3) were measured before the
+merges, each part against the one before it.
+
+| | `main` `f5425dc` | head `21c0e7e` |
 | --- | ---: | ---: |
-| food delivered / run, template; procedural | 372; 1,622 | 407; 2,024 |
-| food delivered to famine regions / run, template; procedural | 154; 664 | 172; 801 |
-| city import share of food demand, template; procedural | 1.04%; 1.36% | 1.43%; 1.81% |
-| famine episode mean, template; procedural (turns) | 8.10; 5.31 | 7.97; 5.31 |
-| famine episodes of 20+ turns, template; procedural | 10.7%; 2.2% | 10.4%; 1.6% |
-| ore per worker at slot density < 0.1 / 0.75-1, template (x constant returns) | 1.16 / 1.11 | 1.75 / 0.56 |
-| wares made / run, template; procedural | - | 161; 897 |
-| merchant income per turn (world), template; procedural | 1.60; 6.49 | 2.25; 10.9 |
-| herding, template; procedural | 0.775; 0.652 | 0.615; 0.535 |
-| subset gates 42-61 / 62-81 | PASS / PASS | needs FAIL / PASS (section 4) |
-| full gate (200 x 500) against `main`'s newest full report | PASS | PASS strict; NO REGRESSION |
-| needs method 2: seeds; lower bound (full gate) | 182; 0.178 | 171; 0.157 |
-| migration; rebellion; latest satisfaction (full gate) | 0.0610; 0.0308; 0.630 | 0.0600; 0.0327; 0.632 |
+| food delivered / run, template; procedural | 382; 1,629 | 403; 2,028 (+399 ± 142) |
+| food delivered to famine regions / run, template; procedural | 155; 705 | 189; 893 |
+| city import share of food demand, template; procedural | 1.12%; 1.38% | 1.41%; 2.11% (+0.68 ± 0.20 pp) |
+| famine episode mean, template; procedural (turns) | 7.98; 5.28 | 7.82; 4.99 |
+| famine episodes of 20+ turns, template; procedural | 10.6%; 1.4% | 10.3%; 1.2% |
+| region-turns in famine, template; procedural | 23.0%; 18.7% | 21.8%; 18.8% |
+| ore per worker at slot density < 0.1 / 0.5-0.75, template (x constant returns) | 1.15 / 1.03 | 1.75 / 0.71 |
+| timber; ore and precious output / run, template | 85; 247 | 115; 419 |
+| wares made / run, template; procedural | - | 174; 929 |
+| non-food qty delivered / run, template; procedural | 194; 1,046 | 260; 1,328 |
+| merchant income per turn (world), template; procedural | 1.61; 6.52 | 2.55; 10.4 |
+| herding, template; procedural | 0.800; 0.653 | 0.635; 0.535 |
+| final population, template; procedural | 182; 868 | 176 (-6 ± 9); 803 (-64 ± 40) |
+| subset gates 42-61 / 62-81 | PASS / PASS | PASS / PASS; NO REGRESSION |
+| full gate (200 x 500) against the movements-on report | PASS | PASS strict; NO REGRESSION |
+| needs method 2: seeds; lower bound (full gate) | 188; 0.192 | 190; 0.177 |
+| migration; rebellion; latest satisfaction (full gate) | 0.0629; 0.0409; 0.631 | 0.0615; 0.0388; 0.627 |
 | extinct worlds (full gate) | 0 | 0 |
 
 More food reaches cities and famine regions, but the gain is a fifth to a
-quarter, not a change of scale: most trips are limited by the destination's
+half, not a change of scale: most trips are limited by the destination's
 price, not by what the merchant can carry (section 1). Mines and forests
 saturate on their own capacity. Wares are made where cities are and sold
-everywhere, and merchants earn 40-70% more. The Part B subset 42-61 fails
-the needs oracle; 62-81, 82-101, 102-121 and the full gate pass (section 4).
+everywhere, and merchants earn 60% more. Before the merges the three parts
+failed the needs oracle in subset 42-61 (lower bound -0.05); after the
+needs-calibration merge 42-61 failed on the seed fraction (11 of 12); the
+head passes both subsets and every full gate (section 4).
 
 ## 1. Part A: bulk trade
 
@@ -248,9 +261,47 @@ materials (food deliveries -5%).
 
 ## 4. Gates
 
-Subset gates: 20 seeds x 200 turns, hybrid, `--parallel 1`, each part's
-exported tree, comparator against the previous part's own subset report
-(`main` for A). In the subset only community, needs and cohort are required.
+Subset gates: 20 seeds x 200 turns, hybrid, `--parallel 1`; full gates: 200
+seeds x 500 turns, hybrid, `--parallel 3`; each from an exported tree with
+its own extension. In the subset only community, needs and cohort are
+required; its regression oracle is informational.
+
+### 4.1 The head, after both merges
+
+The head `21c0e7e` (extension `cf109460…cd90e`) against `main` `f5425dc`
+(movements on by default): subsets against `main`'s own subset reports from
+its exported tree; the full gate against the movements-on full report
+(`feat/movements-2`), 2,337 s.
+
+| Subset | `main` 42-61 | head 42-61 | `main` 62-81 | head 62-81 |
+| --- | --- | --- | --- | --- |
+| gate; comparator | PASS | **PASS; NO REGRESSION** | PASS | **PASS; NO REGRESSION** |
+| needs: net; lower bound; seeds (of 12 needed) | 0.152; 0.075; 15 | 0.163; 0.081; 14 | 0.178; 0.110; 15 | 0.152; 0.090; 17 |
+| cohort; community; era | 20; 20; 20 | 20; 20; 20 | 20; 20; 20 | 20; 20; 20 |
+| artifacts; arcs | PASS; PASS | PARTIAL; PASS | PARTIAL; PASS | PARTIAL; PASS |
+| regression | PASS | FAIL (civ_survival) | FAIL (civ_survival) | FAIL (civ_survival) |
+| satisfaction; latest | 0.599; 0.619 | 0.603; 0.618 | 0.610; 0.625 | 0.614; 0.622 |
+| migration; rebellion | 0.0689; 0.0489 | 0.0657; 0.0418 | 0.0621; 0.0252 | 0.0612; 0.0266 |
+| final population min / median; extinct | 76 / 182; 0 | 102 / 167; 0 | 127 / 189; 0 | 116 / 186; 0 |
+
+| Full gate | `main` (movements on) | **head** `21c0e7e` |
+| --- | --- | --- |
+| gate; comparator | PASS | **PASS; NO REGRESSION** |
+| community; cohort; era (seeds) | 200; 200; 200 (0 silent) | 200; 200; 200 (0 silent) |
+| needs (method 2): seeds; net; lower bound; informative pairs | 188; 0.207; 0.192; 19,775 | 190; 0.191; 0.177; 19,746 |
+| arcs (three types; families) | 164; 6 | 158; 6 |
+| artifacts (status; creation; loss) | PASS; 1.62; 6.6% | PASS; 1.68; 6.0% |
+| regression | PASS (strict) | PASS (strict) |
+| satisfaction mean; latest (ceiling 0.65) | 0.616; 0.631 | 0.616; 0.627 |
+| migration per agent-turn (strict floor 0.05) | 0.0629 | 0.0615 |
+| rebellion per agent-turn (0.02-0.08) | 0.0409 | 0.0388 |
+| extinct worlds | 0 | 0 |
+| final population min / median / max | 40 / 177 / 342 | 78 / 185 / 331 |
+
+### 4.2 Each part, before the merges
+
+Comparator against the previous part's own subset report (`main` `7fa364a`
+for A).
 
 | 42-61 | `main` | A | C | B |
 | --- | --- | --- | --- | --- |
@@ -274,10 +325,10 @@ exported tree, comparator against the previous part's own subset report
 | migration; rebellion | 0.0596; 0.0178 | 0.0624; 0.0253 | 0.0615; 0.0195 | 0.0598; 0.0187 |
 | final population min / median; extinct | 135 / 175; 0 | 105 / 176; 0 | 137 / 179; 0 | 136 / 193; 0 |
 
-The subset's regression oracle is informational; the 62-81 rebellion and
-civ-survival failures are `main`'s own.
+The 62-81 rebellion and civ-survival failures are `main`'s own.
 
-**The Part B needs failure in 42-61.** The seed fraction holds (13 of the
+**The Part B needs failure in 42-61** (before the merges; the head passes,
+section 4.1). The seed fraction holds (13 of the
 12 needed); the pooled lower bound does not (-0.053). Material pairs carry
 it (218 concordant against 207 discordant; C 187 / 155). Checked:
 
@@ -293,12 +344,11 @@ and 102-121, and the full gate passes. Read as a draw of 20 seeds from a
 lower pooled concordance (full gate: 0.194 -> 0.173), not as a failure of
 the mechanism; recorded rather than tuned away.
 
-Full gate: 200 seeds x 500 turns, hybrid, `--parallel 3`, from the head's
-exported tree, against `main`'s newest full report (`feat/farmland-climate`
-`84bfb44`; bundle version 6 changed no simulation output). PR #36 (needs
-calibration) had not merged; its report is not `main`'s. 2,222 s.
+Full gate of the three parts, against `main` `7fa364a`'s newest full report
+(`feat/farmland-climate` `84bfb44`; bundle version 6 changed no simulation
+output), 2,222 s:
 
-| Oracle | `main` (farmland head) | **head** `f58076e` |
+| Oracle | `main` (farmland head) | B `f58076e` |
 | --- | --- | --- |
 | gate; comparator | PASS | **PASS; NO REGRESSION** |
 | community; cohort; era (seeds) | 200; 200; 200 (1 silent) | 200; 200; 200 (1 silent) |
@@ -312,6 +362,30 @@ calibration) had not merged; its report is not `main`'s. 2,222 s.
 | extinct worlds | 0 | 0 |
 | final population min / median / max | 46 / 179 / 325 | 37 / 188 / 331 |
 
+### 4.3 After merging needs calibration
+
+`ec246ab` merges `main` `b5d41af` (PR #36); its tree is that of a trial
+merge with the PR's head `e1b6a13` gated before the PR landed. Conflicts:
+the material-need block (the wares' term beside the new dearth and famine
+pressures; `MATERIAL_RESTORE_CRAFTS` stays 0.006 against food's new 0.115)
+and the maritime raid test's seed (13). Subsets against `e1b6a13`'s own;
+full gate against the needs-calibration full report, 1,863 s.
+
+| | needs-cal 42-61 | merged 42-61 | needs-cal 62-81 | merged 62-81 | needs-cal full | merged full |
+| --- | --- | --- | --- | --- | --- | --- |
+| gate; comparator | PASS | needs FAIL; REGRESSION | PASS | PASS; NO REGRESSION | PASS | PASS strict; NO REGRESSION |
+| needs: net; lower bound; seeds | 0.228; 0.170; 18 | 0.118; 0.042; **11** | 0.155; 0.097; 14 | 0.170; 0.077; 14 | 0.209; 0.195; 190 | 0.209; 0.194; 182 |
+| satisfaction latest | 0.614 | 0.613 | 0.619 | 0.636 | 0.622 | 0.628 |
+| migration; rebellion | 0.0705; 0.0521 | 0.0666; 0.0455 | 0.0614; 0.0229 | 0.0607; 0.0215 | 0.0626; 0.0385 | 0.0616; 0.0383 |
+| extinct | 0 | 0 | 0 | 0 | 0 | 0 |
+
+The merged 42-61 subset fails the seed fraction (11 of 12) with a positive
+lower bound; the full gate's seeds 42-61 at 500 turns have net concordance
+0.155 and 17 of 20 seeds with the expected sign (needs calibration 0.216,
+20). After the movements merge 42-61 passes (section 4.1). In full gates the
+three parts lower pooled needs concordance by 0.00-0.02 (0.194 -> 0.173,
+0.209 -> 0.209, 0.207 -> 0.191).
+
 ## 5. Identity and compatibility
 
 Each pair of exported trees with its own extension, every output file
@@ -320,10 +394,12 @@ state and bundle without the run's record of it):
 
 | Check | Worlds | Result |
 | --- | --- | --- |
-| A with `land/river/sea_cargo_cap: 1`, `cargo_fill: 0` against `main` | template 42, 43 (200 turns); procedural 7 (100 turns) | 42 files, 0 differ |
+| A with `land/river/sea_cargo_cap: 1`, `cargo_fill: 0` against `main` `7fa364a` | template 42, 43 (200 turns); procedural 7 (100 turns) | 42 files, 0 differ |
 | C with `raw_reference_density: 0` against A | same | 42 files, 0 differ |
 | B against C, both `--no-cities` | same | 42 files, 0 differ |
-| B against `main`, `--agents off` | template 42, 43 (200 turns) | 18 files, 0 differ |
+| B against `main` `7fa364a`, `--agents off` | template 42, 43 (200 turns) | 18 files, 0 differ |
+| head against `main` `f5425dc`, `--agents off` | template 42, 43 (200 turns) | 18 files, 0 differ |
+| head with all three switches off (the four cargo keys, `raw_reference_density: 0`, `--no-cities`) against `main` `f5425dc` `--no-cities` | template 42 (120 turns); procedural 7 (80 turns) | 32 files, 0 differ |
 
 - A state and a bundle written by `main` (seed 44, 60 turns, hybrid, cities
   on) load in the head: no wares keys in old stocks, old cities read
@@ -343,43 +419,51 @@ link.
 
 `scripts/agent_scale_benchmark.py`, seed 42, 12 regions, starting targets
 18,800 and 43,700, 20 warm-up and 8 timed turns, two repeats, one child at a
-time, `main` and head trees each with its own release extension, shared
-4-core host. Medians per run, wall / process CPU, in ms:
+time, each tree with its own release extension, shared 4-core host (another
+agent's runs alongside, so wall time is noisy). Medians per run, wall /
+process CPU, in ms:
 
 | alive (`main`; head) | | `main` | head |
 | --- | --- | ---: | ---: |
+| head `21c0e7e` against `main` `f5425dc` | | | |
+| 23,060; 22,440 | Rust tick | 183, 214 / 289, 298 | 150, 195 / 259, 268 |
+| | whole turn | 306, 332 / 406, 424 | 253, 306 / 359, 377 |
+| 50,462; 55,571 | Rust tick | 779, 778 / 1,327, 1,292 | 666, 673 / 1,248, 1,264 |
+| | whole turn | 1,006, 1,083 / 1,691, 1,616 | 939, 987 / 1,669, 1,770 |
+| B `f58076e` against `main` `7fa364a` | | | |
 | 22,110; 23,380 | Rust tick | 107, 104 / 270, 272 | 111, 103 / 271, 265 |
 | | whole turn | 174, 161 / 334, 333 | 178, 169 / 389, 371 |
 | 50,360; 54,494 | Rust tick | 423, 404 / 1,421, 1,324 | 448, 415 / 1,401, 1,325 |
 | | whole turn | 560, 513 / 1,788, 1,728 | 557, 525 / 1,805, 1,718 |
 
-Rust tick CPU per alive agent: 12.2-12.3 against 11.3-11.6 us at about 22k,
-26.3-28.2 against 24.3-25.7 us at about 52k. Whole-turn CPU per agent at
-22k: 15.1 against 15.9-16.6 us (+5-10%, not profiled); at 52k 34.3-35.5
-against 31.5-33.1 us. The worlds diverge from the first turn (the head holds
-6-8% more agents), so the arms are not the same work. New native work: a
-16-step bisection per market and cargo a merchant considers, three slot
-curves per region and the wares step in the economy.
+Rust tick CPU per alive agent, head against `main` `f5425dc`: 11.6-11.9
+against 12.6-12.9 us at about 23k, 22.5-22.8 against 25.6-26.3 us at about
+52k; whole-turn CPU per agent 16.0-16.8 against 17.6-18.4 us and 30.0-31.9
+against 32.0-33.5 us. Before the merges, at 22k, whole-turn CPU per agent
+was 5-10% above `main` (15.9-16.6 against 15.1 us; not profiled). The worlds
+diverge from the first turn, so the arms are not the same work. New native
+work: a 16-step bisection per market and cargo a merchant considers, three
+slot curves per region and the wares step in the economy.
 
 Bundle guard world (`tests/test_bundle.py::TestBundleSize`: seed 1, 500
-turns, 10 regions, 5 civs, `--agents off`): native 7.89 MB (8,276,564
-bytes), no-Rust 8.61 MB (9,029,934 bytes), both the same as `main` (agents
-off is byte-identical); guard 10.5 MB.
+turns, 10 regions, 5 civs, `--agents off`), head: native 7.89 MB (8,277,349
+bytes), no-Rust 8.61 MB (9,030,719 bytes), the same as `main` `f5425dc`
+(agents off is byte-identical); guard 10.5 MB.
 
 ## 8. Verification
 
-Head `f58076e` plus this document, extension built fresh (SHA-256
-`fa666c6e…d2f7`, the same as the head's exported tree), shared 4-core host.
+Head `21c0e7e` plus this document, extension built fresh (SHA-256
+`cf109460…cd90e`, the same as the head's exported tree), shared 4-core host.
 
 | Check | Result |
 | --- | --- |
-| `cargo test --locked` (debug info off) | 982 passed, 2 ignored (`main`: 969) |
-| `pytest -m "not slow" -n 2` | 6,181 passed, 3 skipped, 526 subtests (`main`: 6,163) |
+| `cargo test --locked` (debug info off) | 995 passed, 2 ignored (B before the merges: 982; `main` `7fa364a`: 969) |
+| `pytest -m "not slow" -n 2` | 6,196 passed, 3 skipped, 526 subtests |
 | `pytest -m slow -n 2` | 11 passed, 3 skipped |
-| No-Rust lane (virtualenv without `chronicler_agents`) | 5,953 passed, 231 skipped, 526 subtests (`main`: 5,940 / 226) |
-| `scripts/run_python_oracle_checks.py` | PASS in 82.7 s: 2,137 passed, 33 skipped; largest chunk `systems-2` 31.6 s of 110 s |
-| Viewer (`npm test`, `npm run lint`, `npm run build`) | 281 tests in 37 files (`main`: 280), lint clean, build passes |
-| Old state, cities and bundle | load and resume (section 5) |
+| No-Rust lane (virtualenv without `chronicler_agents`) | 5,966 passed, 233 skipped, 526 subtests |
+| `scripts/run_python_oracle_checks.py` | PASS in 96.2 s: 2,147 passed, 33 skipped; largest chunk `systems-2` 37.3 s of 110 s |
+| Viewer (`npm test`, `npm run lint`, `npm run build`) | 292 tests in 38 files, lint clean, build passes |
+| Old state, cities and bundle (written by `main` `7fa364a`) | load and resume (section 5) |
 
 New tests: `tests/test_bulk_trade.py` (4, native), `tests/test_mines_forests.py`
 (7), `tests/test_crafts.py` (7), in the oracle lane's `systems-1` and
@@ -396,7 +480,9 @@ Changed expectations:
 * Part A. `scripts/mutual_aid_adversarial.py` pins one-load trade (its
   convoys answer one-load merchants).
 * Part C. `test_maritime.py`: the raid run is seed 10, 40 turns (26
-  crossings, about 12 loads lost; seed 7 now crosses twice and loses none).
+  crossings, about 12 loads lost; seed 7 now crosses twice and loses none);
+  after the needs-calibration merge seed 13 (76 crossings, about 11 loads
+  lost; seeds 7, 8 and 11 lose none, seed 10 a fifth of a load).
   `test_economy.py`: mock regions get forest cover and reserves.
   `test_economy_bridge.py`: the economy batch has 26 columns (the six slot
   curve columns).
@@ -419,7 +505,8 @@ Changed expectations:
   demand. A price for wares would weigh them properly.
 * **Tools**: wares do not raise farm or mine output; no artisan occupation;
   no guilds (left to `feat/movements-2`).
-* **Needs subset 42-61 with Part B** fails on the pooled lower bound
-  (section 4); the full gate passes.
-* **PR #36** (needs calibration) was open; after it merges the branch needs
-  `main` merged in and its gates run again against its full report.
+* **Needs concordance** falls 0.00-0.02 in full gates with the three parts,
+  and subset 42-61 failed twice before the movements merge (section 4); the
+  head passes.
+* **Wares' material weight** stays 0.006, a third of food's weight before
+  the needs calibration raised food's to 0.115; not recalibrated.
