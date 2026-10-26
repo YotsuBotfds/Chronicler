@@ -2,6 +2,7 @@
  * Read-only helpers for the simulation systems carried by a bundle's history
  * snapshots (`history[n].epidemics`, `.finance`, `.diplomacy`, `.techniques`,
  * `.maritime`, `.campaign`, `.food`, `.nomads`, `.gp_agendas`, `.contact`,
+ * `.cities`, `.agent_movements`,
  * civ rows' `governance`) and its event timeline. Nothing here infers a value
  * the bundle does not record: missing snapshots stay missing. Helpers for the
  * later systems live in `food.ts`, `wars.ts` and `polity.ts`.
@@ -14,6 +15,7 @@ import type {
   TurnSnapshot,
 } from "../types";
 import { ERA_LABELS, ERA_ORDER } from "./format";
+import { MOVEMENT_EVENT_TYPES } from "./movementEvents";
 
 export type SystemKey =
   | "epidemics"
@@ -27,7 +29,8 @@ export type SystemKey =
   | "agendas"
   | "governance"
   | "contact"
-  | "cities";
+  | "cities"
+  | "movements";
 
 /** What every system panel receives from the shell. */
 export interface SystemPanelProps {
@@ -68,7 +71,7 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 /** Display order of the systems panel tabs. */
 export const SYSTEM_KEYS: SystemKey[] = [
   "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
-  "contact", "cities",
+  "contact", "cities", "movements",
 ];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
@@ -84,6 +87,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   governance: "Governance",
   contact: "Contact",
   cities: "Cities",
+  movements: "Movements",
 };
 
 /** Snapshot field each system writes (governance lives on civ rows; food may come from events alone). */
@@ -99,6 +103,7 @@ const SNAPSHOT_FIELDS: Partial<Record<SystemKey, keyof TurnSnapshot>> = {
   agendas: "gp_agendas",
   contact: "contact",
   cities: "cities",
+  movements: "agent_movements",
 };
 
 /**
@@ -164,6 +169,7 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "charter_refused", "urban_revolt", "urban_concession", "revolt_suppressed", "free_city", "city_sacked",
     "city_walls",
   ],
+  movements: MOVEMENT_EVENT_TYPES,
 };
 
 /** Events of the given types up to `upToTurn`, latest first (stable within a turn). */

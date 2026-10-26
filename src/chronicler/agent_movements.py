@@ -848,6 +848,8 @@ def reform_name(world, r: Reform) -> str:
         names = [world.regions[ri].name for ri in r.regions if 0 <= ri < len(world.regions)]
         return f"the home rule of {_join(names)}" if names else "the home rule"
     faith = _faith_name(world, r.faith)
+    if r.church:
+        return f"the reform of the {faith}" if faith else "the reform of the church"
     return f"the toleration of the {faith}" if faith else "the toleration"
 
 
@@ -943,6 +945,7 @@ def _enact(t: _Tick, i: int, m: Movement, civ):
                regions=[region] if kind == HOME_RULE else [],
                faith=m.faith if kind == TOLERATION else NO_FAITH,
                ruler=civ.leader.name, ruler_start=civ.leader.reign_start, restores=m.restores)
+    r.church = kind == TOLERATION and getattr(civ, "civ_majority_faith", NO_FAITH) == m.faith
     r.institution, r.founded_institution = _institutionalize(t, civ, kind)
     state.reforms.append(r)
     k = len(state.reforms) - 1
@@ -957,6 +960,8 @@ def _enact(t: _Tick, i: int, m: Movement, civ):
         suffix = f"; poor relief becomes law{under}"
     elif kind == HOME_RULE:
         suffix = f"; {law} guarantees it" if law else "; a charter guarantees it"
+    elif r.church:
+        suffix = f"; the {_faith_name(world, r.faith)} is reformed"
     else:
         suffix = f"; the {_faith_name(world, r.faith)} is tolerated in the realm"
     if kind == TOLERATION and "holy_inquisition" in _active_institutions(_governance(world, civ)):
@@ -1677,6 +1682,8 @@ def snapshot_summary(world: "WorldState") -> dict:
             row["regions"] = list(r.regions)
         if r.kind == TOLERATION:
             row["faith"] = r.faith
+            if r.church:
+                row["church"] = True
         if r.institution:
             row["institution"] = r.institution
         reforms.append(row)

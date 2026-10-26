@@ -699,9 +699,18 @@ def test_toleration_ends_the_inquisition_and_falls_to_a_new_one(monkeypatch):
     assert gov.institutions == [] and gov.institution_log[-1] == [world.turn, "holy_inquisition", "repealed"]
     assert M.reform_table(world).to_pydict() == {
         "creed": [SECT], "civ": [THORNWALL], "region": [M.NO_REGION], "faith": [0]}
+    assert not r.church and M.reform_name(world, r).startswith("the toleration of the ")
     world.turn += 1
     _tick(world, members={})
     assert r.repeal == 0
+    # A sect of the ruler's own faith wins the reform of its church.
+    church = _world()
+    m3, events = _grant(church, monkeypatch, creed=SECT)
+    r3 = church.agent_movements.reforms[0]
+    faith = church.civilizations[THORNWALL].civ_majority_faith
+    assert r3.church and r3.faith == faith
+    assert M.reform_name(church, r3) == f"the reform of the {M._faith_name(church, faith)}"
+    assert M.snapshot_summary(church)["reforms"][0]["church"] is True
     # The clergy enact it again: the toleration ends.
     world.turn += 1
     gov.institutions.append(inquisition(world.turn - 1))

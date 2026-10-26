@@ -105,7 +105,8 @@ class Reform(BaseModel):
 
     ``kind`` is the creed it answers (``REFORM_NAMES``). Coverage: ``relief``
     the realm of ``civ``; ``home_rule`` the realm's regions in ``regions``;
-    ``toleration`` the believers of ``faith`` in the realm. ``institution``
+    ``toleration`` the believers of ``faith`` in the realm (``church``: the
+    ruler's own faith, whose church the grant reformed). ``institution``
     names the governance institution it enacted or upholds ("" none)."""
 
     kind: int
@@ -114,6 +115,7 @@ class Reform(BaseModel):
     enacted_turn: int
     regions: list[int] = Field(default_factory=list)
     faith: int = 255
+    church: bool = False             # toleration of the ruler's own faith: its church reformed
     institution: str = ""
     founded_institution: bool = False  # the grant enacted it (a ruler's repeal takes it)
     cities: list[int] = Field(default_factory=list)  # settlement ids its charters raised
