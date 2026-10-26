@@ -83,6 +83,23 @@ def step_fishery(stock: float, base_yield: float, potential_yield: float,
     return FisheryStep(available - harvest, recovery, harvest, capacity, actual_yield)
 
 
+def _region_people_and_farmers(snapshot, n_regions: int) -> tuple[list[int], list[int]] | None:
+    """Agents and farmers (occupation 0) per region index ``0..n_regions``,
+    counted from null-free numeric columns; None for other batches."""
+    from chronicler.columnar import batch_arrays
+
+    arrays = batch_arrays(snapshot, ("region", "occupation"))
+    if arrays is None:
+        return None
+    import numpy as np
+
+    regions = arrays[0].astype(np.int64)
+    known = (regions >= 0) & (regions < n_regions)
+    people = np.bincount(regions[known], minlength=n_regions)
+    farmers = np.bincount(regions[known & (arrays[1] == 0)], minlength=n_regions)
+    return people.tolist(), farmers.tolist()
+
+
 def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[float]]) -> None:
     """Shared ecology post-pass. Disabled runs do not read or mutate experiment state."""
     config = world.fishery_experiment
@@ -101,14 +118,18 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
     if bridge is not None:
         snapshot = bridge.get_snapshot()
         if snapshot is not None:
-            worker_counts = [0] * len(world.regions)
-            populations = [0] * len(world.regions)
-            for rid, occupation in zip(snapshot.column("region").to_pylist(),
-                                       snapshot.column("occupation").to_pylist()):
-                if 0 <= rid < len(worker_counts):
-                    populations[rid] += 1
-                    if occupation == 0:
-                        worker_counts[rid] += 1
+            counts = _region_people_and_farmers(snapshot, len(world.regions))
+            if counts is not None:
+                populations, worker_counts = counts
+            else:
+                worker_counts = [0] * len(world.regions)
+                populations = [0] * len(world.regions)
+                for rid, occupation in zip(snapshot.column("region").to_pylist(),
+                                           snapshot.column("occupation").to_pylist()):
+                    if 0 <= rid < len(worker_counts):
+                        populations[rid] += 1
+                        if occupation == 0:
+                            worker_counts[rid] += 1
 
     for rid, region in enumerate(world.regions):
         yields = region_yields[region.name]
