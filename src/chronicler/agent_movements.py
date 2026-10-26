@@ -1585,6 +1585,8 @@ def _emerge(t: _Tick, census) -> None:
     for _score, ri, creed, chance, gp, a, n, restores in candidates:
         if _rng(world, "emerge", ri, creed).random() < chance:
             _found(t, ri, creed, gp, a, n, restores=restores)
+            if informed is not None and informed[ri][creed]:
+                world.guilds.counters["news_foundings"] = world.guilds.counters.get("news_foundings", 0) + 1
             return
 
 

@@ -92,6 +92,7 @@ LEVY_GRIEVANCE = 0.1          # the city's grievance (unrest)
 # Guild movements (agent_movements, creed "guild").
 MOVEMENT_MASTERS = 3.0        # a guild this strong (reference scale) can rise
 MOVEMENT_CHANCE = 0.5         # per threat
+MOVEMENT_SATISFACTION = 0.65  # residents' mean satisfaction below which a guild rises
 RESTORE_CHANCE = 0.8          # after a repeal of its guild charter
 MAX_GUILD_MOVEMENTS = 4       # living guild movements in the world
 WEALTH_APPEAL = 60.0          # guild purse that adds half to the movement's appeal
@@ -391,7 +392,7 @@ def _found_guilds(t: _Tick) -> None:
         _note(guild, world.turn, "founded", ev.event_id)
         state.guilds.append(guild)
         _bump(state, "founded")
-        _sync_privileges(t, len(state.guilds) - 1, guild, city, quiet=True)
+        _sync_privileges(t, len(state.guilds) - 1, guild, city)
 
 
 def _occupied(region) -> bool:
@@ -476,7 +477,7 @@ def _adopt_charter(t: _Tick, guild: Guild) -> None:
             return
 
 
-def _sync_privileges(t: _Tick, gi: int, guild: Guild, city, *, quiet: bool = False) -> None:
+def _sync_privileges(t: _Tick, gi: int, guild: Guild, city) -> None:
     """Privileges follow the city's charter (market rights: the monopoly;
     self-government: a say in dues) and the guild charter (both)."""
     from chronicler.cities_state import MARKET_RIGHTS, SELF_GOVERNMENT
@@ -493,9 +494,6 @@ def _sync_privileges(t: _Tick, gi: int, guild: Guild, city, *, quiet: bool = Fal
         what = "the monopoly of its wares" if name == "monopoly" else "a say in the city's dues"
         if now:
             _bump(t.state, "privileges")
-            if quiet:
-                _note(guild, world.turn, "privilege")
-                continue
             ev = _emit(t, "guild_privilege", [lord.name if lord is not None else ""],
                        f"{guild.name[0].upper()}{guild.name[1:]} wins {what}",
                        importance=3, region=region.name)
@@ -546,10 +544,13 @@ def _threatened(t: _Tick, gi: int, guild: Guild, city, threat: int, causes, rest
     world = t.world
     _bump(t.state, "threats")
     first = next((c for c in causes if c), "")
-    _note(guild, world.turn, "threat", first)
+    if threat != LEVY:   # a levy has its own entry
+        _note(guild, world.turn, "threat", first)
     guild.last_threat = world.turn
     if not agent_movements_on(world) or not t.agent_rows:
         return
+    if city.satisfaction is not None and city.satisfaction >= MOVEMENT_SATISFACTION:
+        return   # content townsmen do not rise (= movements.rs GUILD_SAT)
     movements = world.agent_movements.movements
     if 0 <= guild.movement < len(movements) and movements[guild.movement].stage != ENDED:
         return

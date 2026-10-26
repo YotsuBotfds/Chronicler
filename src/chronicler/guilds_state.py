@@ -33,6 +33,7 @@ LEVY, CHARTER_REVOKED, SACK, OCCUPATION, REPEAL = range(len(THREAT_NAMES))
 COUNTER_KEYS: tuple[str, ...] = (
     "founded", "dissolved", "privileges", "privileges_lost", "levies", "threats",
     "movements", "charters", "take", "walls", "burghers_formed", "burghers_dissolved",
+    "news_foundings",
 )
 
 

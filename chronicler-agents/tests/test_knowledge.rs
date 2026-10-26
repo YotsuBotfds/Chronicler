@@ -597,6 +597,38 @@ fn test_knowledge_phase_clears_arrival_flag() {
     assert!(!pool.arrived_this_turn[a], "arrived_this_turn should be cleared after knowledge phase");
 }
 
+/// Guilds: a region's movement news is observed on the tick its column is
+/// set and not again once the column is gone; the news then travels on its
+/// own bonds and decays (multi-tick set and reset of the bridge signal).
+#[test]
+fn test_movement_news_is_observed_while_set_and_travels_after() {
+    use chronicler_agents::knowledge::{news_code, NEWS_REFORM, NO_NEWS};
+    let mut pool = AgentPool::new(10);
+    let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b = pool.spawn(1, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 0, 0, 0);
+    let b_id = pool.ids[b];
+    set_bond(&mut pool, a, b_id, 6, 127); // a friend in region 1
+    let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+    regions[0].movement_news = news_code(0, NEWS_REFORM);
+    regions[0].movement_news_intensity = 220;
+    let first = knowledge_phase(&mut pool, &regions, &[0u8; 32], 5);
+    assert_eq!(first.created_news, 1);
+    // The column is rebuilt for every batch: next turn there is no news.
+    regions[0].movement_news = NO_NEWS;
+    regions[0].movement_news_intensity = 0;
+    let mut carried = false;
+    for turn in 6..12 {
+        let stats = knowledge_phase(&mut pool, &regions, &[0u8; 32], turn);
+        assert_eq!(stats.created_news, 0, "turn {turn}");
+        carried |= (0..4).any(|i| unpack_type(pool.pkt_type_and_hops[b][i]) == InfoType::MovementNews as u8);
+    }
+    assert!(carried, "the friend never heard the news");
+    for turn in 12..40 {
+        knowledge_phase(&mut pool, &regions, &[0u8; 32], turn);
+    }
+    assert!((0..4).all(|i| is_empty_slot(pool.pkt_type_and_hops[a][i])), "news decays");
+}
+
 #[test]
 fn test_knowledge_phase_zero_fill_no_packets() {
     let mut pool = AgentPool::new(10);

@@ -1284,4 +1284,184 @@ mod tests {
         };
         assert_eq!(run(), run());
     }
+
+    // --- guilds: the guild creed and movement news ---------------------------------
+
+    /// A city resident of settlement 7: occupation, satisfaction.
+    fn resident(pool: &mut AgentPool, occ: Occupation, sat: f32) -> usize {
+        let slot = pool.spawn(0, 0, occ, 30, 0.3, 0.0, 0.0, 0, 1, 2, 0);
+        pool.settlement_ids[slot] = 7;
+        pool.satisfactions[slot] = sat;
+        slot
+    }
+
+    fn guild_row(stage: u8) -> MovementRow {
+        let mut row = MovementRow::new(1, CREED_GUILD, stage, 0);
+        row.settlement = 7;
+        row
+    }
+
+    #[test]
+    fn the_guild_creed_aggrieves_discontented_civilians_of_its_city_only() {
+        let mut pool = AgentPool::new(8);
+        let merchant = resident(&mut pool, Occupation::Merchant, 0.4);
+        let soldier = resident(&mut pool, Occupation::Soldier, 0.4);
+        let content = resident(&mut pool, Occupation::Farmer, 0.7);
+        let rural = aggrieved(&mut pool, 0, 0.0); // every need low, but no city
+        let row = guild_row(STAGE_GATHERING);
+        let cover = vec![Vec::new()];
+        let g = row_grievance(&pool, merchant, &row, &cover);
+        assert!((g - (0.5 + 0.5 * (GUILD_SAT - 0.4) / GUILD_SAT)).abs() < 1e-6);
+        assert_eq!(row_grievance(&pool, soldier, &row, &cover), 0.0);
+        assert_eq!(row_grievance(&pool, content, &row, &cover), 0.0);
+        assert_eq!(row_grievance(&pool, rural, &row, &cover), 0.0);
+        // Its own need does not make anyone a guildsman; the census creeds are unchanged.
+        assert_eq!(grievance(&pool, merchant, CREED_GUILD), 0.0);
+        assert!(row_committed(&pool, merchant, &row, &cover));
+        assert!(!row_committed(&pool, rural, &row, &cover));
+        // A guild charter covering the region credits satisfaction: 0.4 reads 0.58.
+        let charter = vec![vec![(CREED_GUILD, NO_FAITH)]];
+        let credited = row_grievance(&pool, merchant, &row, &charter);
+        assert!(credited > 0.0 && credited < g);
+    }
+
+    #[test]
+    fn a_guild_founding_seeds_its_city_and_no_one_else() {
+        let mut pool = AgentPool::new(32);
+        let mut townsmen = Vec::new();
+        for _ in 0..6 {
+            townsmen.push(resident(&mut pool, Occupation::Merchant, 0.3));
+        }
+        let soldier = resident(&mut pool, Occupation::Soldier, 0.2);
+        let mut rural = Vec::new();
+        for _ in 0..10 {
+            rural.push(aggrieved(&mut pool, 0, 0.9));
+        }
+        let regions = vec![region(0, 0)];
+        let mut row = guild_row(STAGE_GATHERING);
+        row.found_region = 0;
+        let mut rt = runtime(vec![row]);
+        movement_pass(&mut pool, &regions, &mut rt, [5; 32], 1);
+        let seeded = townsmen.iter().filter(|&&s| pool.movement_ids[s] == 1).count();
+        assert!(seeded >= 3, "townsmen seeded: {seeded}");
+        assert_eq!(pool.movement_ids[soldier], 0);
+        assert!(rural.iter().all(|&s| pool.movement_ids[s] == 0));
+        // A member who leaves the city is no longer committed and may lapse.
+        let member = townsmen.iter().copied().find(|&s| pool.movement_ids[s] == 1).unwrap();
+        pool.settlement_ids[member] = 0;
+        assert!(!row_committed(&pool, member, &rt.rows[0], &[Vec::new()]));
+    }
+
+    /// Give `slot` a movement-news packet about `source` (another region).
+    fn news(pool: &mut AgentPool, slot: usize, source: u16, creed: u8, kind: u8, intensity: u8) {
+        let candidate = crate::knowledge::PacketCandidate {
+            info_type: crate::knowledge::InfoType::MovementNews as u8,
+            source_region: source,
+            source_turn: 1,
+            intensity,
+            hop_count: 1,
+        };
+        crate::knowledge::admit_packet_from_civ(pool, slot, &candidate, crate::knowledge::news_code(creed, kind));
+    }
+
+    #[test]
+    fn news_of_a_like_movement_elsewhere_raises_joining_and_a_crackdown_lowers_it() {
+        // 100 members among 400 adults: exposure by co-residence alone.
+        let build = |with: Option<u8>| {
+            let mut pool = AgentPool::new(512);
+            for _ in 0..100 {
+                let member = aggrieved(&mut pool, 0, 0.5);
+                pool.movement_ids[member] = 1;
+            }
+            let mut friends = Vec::new();
+            for _ in 0..300 {
+                let f = aggrieved(&mut pool, 0, 0.0);
+                if let Some(kind) = with {
+                    news(&mut pool, f, 3, CREED_COMMONS, kind, 255);
+                }
+                friends.push(f);
+            }
+            let regions = vec![region(0, 0)];
+            let mut rt = runtime(vec![MovementRow::new(1, CREED_COMMONS, STAGE_GATHERING, 0)]);
+            movement_pass(&mut pool, &regions, &mut rt, [11; 32], 1);
+            friends.iter().filter(|&&s| pool.movement_ids[s] == 1).count()
+        };
+        let none = build(None);
+        let reform = build(Some(crate::knowledge::NEWS_REFORM));
+        let crackdown = build(Some(crate::knowledge::NEWS_CRACKDOWN));
+        assert!(reform > none, "news of a reform: {reform} joined against {none}");
+        assert!(crackdown < none, "news of a crackdown: {crackdown} joined against {none}");
+        // News of another creed, or from the agent's own region, changes nothing.
+        let mut pool = AgentPool::new(4);
+        let a = aggrieved(&mut pool, 0, 0.0);
+        news(&mut pool, a, 3, CREED_SECT, crate::knowledge::NEWS_REFORM, 255);
+        news(&mut pool, a, 0, CREED_COMMONS, crate::knowledge::NEWS_REFORM, 255);
+        assert_eq!(news_factor(&pool, a, CREED_COMMONS), None);
+        assert!(news_factor(&pool, a, CREED_SECT).unwrap() > 1.0);
+    }
+
+    #[test]
+    fn the_census_counts_the_informed_aggrieved_by_creed() {
+        let mut pool = AgentPool::new(8);
+        let a = aggrieved(&mut pool, 0, 0.0);
+        let b = aggrieved(&mut pool, 0, 0.0);
+        let c = content(&mut pool, 0);
+        news(&mut pool, a, 2, CREED_LIBERTY, crate::knowledge::NEWS_RISING, 200);
+        news(&mut pool, b, 2, CREED_LIBERTY, crate::knowledge::NEWS_CRACKDOWN, 200);
+        news(&mut pool, c, 2, CREED_LIBERTY, crate::knowledge::NEWS_RISING, 200);
+        let mut rt = runtime(Vec::new());
+        census(&pool, 1, &mut rt);
+        assert_eq!(rt.stats.informed[0], [0, 1, 0]); // a crackdown informs no one; c is content
+        assert_eq!(rt.stats.aggrieved[0], [2, 2, 2]);
+        let (regions, _) = movement_stats_batches(&rt.stats).unwrap();
+        let col = regions
+            .column_by_name("informed_liberty")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap()
+            .value(0);
+        assert_eq!(col, 1);
+    }
+
+    #[test]
+    fn the_settlement_column_is_optional() {
+        let base = |extra: bool| {
+            let mut fields = vec![
+                Field::new("movement_id", DataType::UInt16, false),
+                Field::new("creed", DataType::UInt8, false),
+                Field::new("stage", DataType::UInt8, false),
+                Field::new("target_civ", DataType::UInt8, false),
+                Field::new("appeal", DataType::Float32, false),
+                Field::new("found_region", DataType::UInt16, false),
+                Field::new("founder_id", DataType::UInt32, false),
+                Field::new("relief_age", DataType::UInt16, false),
+                Field::new("crackdown_region", DataType::UInt16, false),
+                Field::new("rising_region", DataType::UInt16, false),
+                Field::new("convert_from", DataType::UInt8, false),
+                Field::new("convert_to", DataType::UInt8, false),
+            ];
+            let mut cols: Vec<Arc<dyn Array>> = vec![
+                Arc::new(UInt16Array::from(vec![1u16])),
+                Arc::new(UInt8Array::from(vec![CREED_GUILD])),
+                Arc::new(UInt8Array::from(vec![0u8])),
+                Arc::new(UInt8Array::from(vec![0u8])),
+                Arc::new(Float32Array::from(vec![1.0f32])),
+                Arc::new(UInt16Array::from(vec![NO_REGION])),
+                Arc::new(UInt32Array::from(vec![0u32])),
+                Arc::new(UInt16Array::from(vec![NO_RELIEF])),
+                Arc::new(UInt16Array::from(vec![NO_REGION])),
+                Arc::new(UInt16Array::from(vec![NO_REGION])),
+                Arc::new(UInt8Array::from(vec![NO_FAITH])),
+                Arc::new(UInt8Array::from(vec![NO_FAITH])),
+            ];
+            if extra {
+                fields.push(Field::new("settlement", DataType::UInt16, false));
+                cols.push(Arc::new(UInt16Array::from(vec![7u16])));
+            }
+            RecordBatch::try_new(Arc::new(Schema::new(fields)), cols).unwrap()
+        };
+        assert_eq!(parse_movement_table(&base(false)).unwrap()[0].settlement, 0);
+        assert_eq!(parse_movement_table(&base(true)).unwrap()[0].settlement, 7);
+    }
 }
