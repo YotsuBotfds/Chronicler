@@ -16,6 +16,14 @@ from chronicler.utils import stable_hash_int
 CULTURAL_PRODUCTION_CHANCE = 0.45
 GP_PRESTIGE_THRESHOLD = 25
 GP_SCIENTIST_ARTIFACT_CHANCE = 0.80  # [CALIBRATE P2] restore non-relic artifact volume after duplicate burst caps.
+# 2026-10 (docs/integration/procedural-gates.md): an agent-born great person's
+# promotion yields an artifact with this chance. Agent promotions used to stop
+# when the native registry filled (by turn 50); with living caps they continue
+# all run. With every promotion eligible, artifacts left their 1-3 band (3.1
+# per civ per century on templates, 4.5 on procedural worlds, relics near
+# half); at 0.25 they were 1.9 and 2.6 (relics 45%); 0.15 keeps them near
+# their earlier rates.
+AGENT_GP_ARTIFACT_CHANCE = 0.15
 PORTABLE_CAPTURE_LOSS_CHANCE = 0.14  # [CALIBRATE M57]
 # M60b campaigns: a region that falls to an enemy army is sacked
 # (war/occupation.py). Its anchored treasures (temple relics, monuments) are
@@ -523,12 +531,21 @@ def emit_gp_artifact_intent(world, civ, gp) -> None:
             return
 
     artifact_type, character_held = mapping
-    if getattr(gp, "source", "aggregate") == "agent" and _agent_gp_artifact_type_already_emitted_this_tick(
-        world,
-        civ.name,
-        artifact_type,
-    ):
-        return
+    if getattr(gp, "source", "aggregate") == "agent":
+        agent_roll = (
+            stable_hash_int(
+                "gp_agent_artifact",
+                world.seed,
+                world.turn,
+                civ.name,
+                gp.name,
+                gp.born_turn,
+            ) % 10_000
+        ) / 10_000.0
+        if agent_roll >= AGENT_GP_ARTIFACT_CHANCE:
+            return
+        if _agent_gp_artifact_type_already_emitted_this_tick(world, civ.name, artifact_type):
+            return
     region = gp.origin_region or civ.capital_region or (civ.regions[0] if civ.regions else "unknown")
 
     world._artifact_intents.append(ArtifactIntent(

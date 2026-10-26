@@ -184,9 +184,12 @@ living leader raises one: its boldest member in the stronghold (ties by
 agent id) whose civ still holds land. A great person already is one; anyone
 else is queued for a native promotion (`queue_movement_leaders`, trigger 5,
 a prophet for a sect or a civilian, a general for a soldier). For leaders
-the registry's caps (10 per civ, 50 in all) count living named characters
-only: the registry keeps the dead, so its own check closes for good after
-fifty promotions in a long run. Other promotions are unchanged. The person
+the registry's fixed caps (10 living named characters per civ, 50 in all)
+apply; since 2026-10 every promotion counts living characters only, and
+regular promotions also have a per-population cap (one living named
+character per 50 of the civ's agents, at least one;
+[procedural-gates.md](procedural-gates.md#named-character-registry-fixed)),
+which leaders are exempt from. The person
 appears in the next turn's promotions (with an agenda when agendas are on)
 and is installed then (`movement_leader` event, a deed). A leader raises
 the movement's appeal by half, a crackdown in the stronghold usually kills
