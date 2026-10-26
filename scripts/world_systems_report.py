@@ -14,7 +14,10 @@ and episodes of three turns or more, the report label's rule), the event
 counts of the timeline and the cumulative counters of every system state that
 keeps them (cities, guilds, movements, maritime, nomads, agendas, finance,
 diplomacy, techniques, epidemic deaths). The table gives, per label, the mean
-per world and (in brackets) the share of worlds where the value is above 0.
+per world and (in brackets) the share of worlds where the value is above 0;
+``--per-civ-century`` shows counts per starting civ per 100 turns instead,
+pooled over the label's worlds, so worlds of different sizes and lengths
+compare. ``LABEL=FILE.json`` reads the runs a previous ``--json`` saved.
 
 See docs/integration/procedural-gates.md.
 """
@@ -186,29 +189,37 @@ def run_metrics(bundle_path: Path) -> dict:
     return row
 
 
+_NOT_COUNTS = frozenset({"extinct", "pop_start", "pop_final", "pop_min_ratio", "civs_start", "civ_records",
+                         "civs_alive", "famine_share", "famine_episode_mean", "famine_long_share", "regions", "turns"})
+
+
 def summarize(rows: list[dict]) -> dict:
     keys = sorted({k for r in rows for k, v in r.items() if isinstance(v, (int, float)) and k != "seed"})
-    out: dict = {"worlds": len(rows)}
+    civ_centuries = sum(float(r.get("civs_start") or 0) * float(r.get("turns") or 0) / 100.0 for r in rows)
+    out: dict = {"worlds": len(rows), "civ_centuries": civ_centuries}
     for key in keys:
         values = [float(r.get(key, 0) or 0) for r in rows]
-        out[key] = {"mean": sum(values) / len(values), "any": sum(1 for v in values if v > 0) / len(values)}
+        out[key] = {"mean": sum(values) / len(values), "any": sum(1 for v in values if v > 0) / len(values),
+                    "rate": sum(values) / civ_centuries if civ_centuries else 0.0}
     return out
 
 
-def _cell(summary: dict, key: str) -> str:
+def _cell(summary: dict, key: str, per_civ_century: bool = False) -> str:
     item = summary.get(key)
     if item is None:
         return "-"
-    mean = item["mean"]
+    mean = item["rate"] if per_civ_century and key not in _NOT_COUNTS else item["mean"]
     text = f"{mean:.3f}" if abs(mean) < 10 else f"{mean:,.0f}" if abs(mean) >= 1000 else f"{mean:.1f}"
     return f"{text} ({100 * item['any']:.0f}%)"
 
 
-def markdown(labels: list[str], summaries: list[dict]) -> str:
+def markdown(labels: list[str], summaries: list[dict], per_civ_century: bool = False) -> str:
     lines = ["| Measure | " + " | ".join(labels) + " |", "| --- |" + " ---: |" * len(labels)]
     lines.append("| worlds | " + " | ".join(str(s["worlds"]) for s in summaries) + " |")
     for title, key in TABLE_ROWS:
-        lines.append(f"| {title} | " + " | ".join(_cell(s, key) for s in summaries) + " |")
+        if per_civ_century and key == "famine_episodes":
+            title = "famine episodes"
+        lines.append(f"| {title} | " + " | ".join(_cell(s, key, per_civ_century) for s in summaries) + " |")
     return "\n".join(lines) + "\n"
 
 
@@ -216,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("batches", nargs="+", help="LABEL=DIR")
     parser.add_argument("--json", type=Path, default=None)
+    parser.add_argument("--per-civ-century", action="store_true",
+                        help="counts per starting civ per 100 turns (pooled) instead of per world")
     args = parser.parse_args(argv)
     labels: list[str] = []
     summaries: list[dict] = []
@@ -224,14 +237,18 @@ def main(argv: list[str] | None = None) -> int:
         label, _, path = item.partition("=")
         if not path:
             label, path = Path(item).name, item
-        rows = [run_metrics(p) for p in _bundles(Path(path))]
+        if path.endswith(".json") and Path(path).is_file():
+            saved = json.loads(Path(path).read_text(encoding="utf-8"))["runs"]
+            rows = saved[label] if label in saved else next(iter(saved.values()))
+        else:
+            rows = [run_metrics(p) for p in _bundles(Path(path))]
         if not rows:
             print(f"{label}: no bundles under {path}", file=sys.stderr)
             return 1
         labels.append(label)
         summaries.append(summarize(rows))
         all_rows[label] = rows
-    sys.stdout.write(markdown(labels, summaries))
+    sys.stdout.write(markdown(labels, summaries, args.per_civ_century))
     if args.json is not None:
         args.json.write_text(json.dumps({"summaries": dict(zip(labels, summaries)), "runs": all_rows},
                                         indent=1, sort_keys=True), encoding="utf-8")
