@@ -31,7 +31,10 @@ def report(run_dir: Path, seat: int | None = None) -> list[str]:
     lines: list[str] = []
     for i in indices:
         lines.extend(seat_history(world, i))
+        fell = state.seats[i].fallen_turn
+        # Its refugees' techniques are taken up at the technique tick after the fall.
         carried = [e for e in world.events_timeline if e.event_type == "technique_adopted"
+                   and fell is not None and e.turn == fell + 1
                    and "from scholars fleeing" in e.description
                    and e.description.endswith(world.regions[state.seats[i].region].name)]
         for ev in carried:

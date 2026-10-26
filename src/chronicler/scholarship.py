@@ -639,10 +639,11 @@ def _fall(t: _Tick, si: int, seat: Seat, region, cause: int, what: str, causes, 
         _bump(t.state, "refuges")
         dst_region = world.regions[dst.region]
         dst_lord = t.civ(dst.lord)
+        # Learning that crosses into another ruler's realm weighs more.
         flight = _emit(t, "scholars_fled", [lord.name if lord is not None else "",
                                             dst_lord.name if dst_lord is not None else ""],
                        f"The scholars of {seat.name} flee to {dst.name} in {dst_region.name} "
-                       f"with their books", importance=4, region=region.name,
+                       "with their books", importance=4 + (dst.lord != seat.lord), region=region.name,
                        causes=[ev.event_id])
         prov.remember(world, prov.key("seat_flight", region.name), flight)
         _note(seat, world.turn, "fled", flight.event_id)
