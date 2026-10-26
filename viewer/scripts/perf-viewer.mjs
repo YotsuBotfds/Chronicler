@@ -55,7 +55,7 @@ const MIME = {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   const options = { command, builds: [], bundles: [], runs: 5, out: null, consecutive: 100, random: 100,
-    pinned: 50, seed: 20261026, headed: false };
+    pinned: 50, seed: 20261026, headed: false, loadOnly: false };
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
     const value = rest[index + 1];
@@ -74,6 +74,7 @@ function parseArgs(argv) {
       case "--pinned": options.pinned = Number(value); index += 1; break;
       case "--seed": options.seed = Number(value); index += 1; break;
       case "--headed": options.headed = true; break;
+      case "--load-only": options.loadOnly = true; break;
       default: throw new Error(`Unknown option ${flag}`);
     }
   }
@@ -324,7 +325,14 @@ async function sample(browser, url, bundle, options, total) {
     const start = marks.change;
     const end = marks.systemsFrame + 1000;
     const tasks = longTasks.slice(skip).filter((task) => task.start + task.duration >= start && task.start <= end);
+    const decoded = performance.getEntriesByName("chronicler:bundle-decoded").at(-1);
     return {
+      // The branch's worker phases (absent on a build without the worker).
+      worker: decoded ? {
+        ...decoded.detail,
+        startDelay: decoded.detail.startedAt - (performance.timeOrigin + start),
+        markedAt: decoded.startTime - start,
+      } : null,
       overview: marks.overview - start,
       overviewFrame: marks.overviewFrame - start,
       systems: marks.systems - start,
@@ -356,6 +364,11 @@ async function sample(browser, url, bundle, options, total) {
     });
     scrub[name] = result;
   };
+
+  if (options.loadOnly) {
+    await context.close();
+    return { pageLoad, load, heap, scrub, errors };
+  }
 
   await runScenario("overview-events", async () => {
     await page.getByRole("button", { name: "Overview", exact: true }).click();
