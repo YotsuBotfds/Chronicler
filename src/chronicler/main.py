@@ -1571,7 +1571,8 @@ def _build_parser() -> argparse.ArgumentParser:
                              "faction presses rulers for trade, low tolls, charters and order; "
                              "news of movements travels as information packets and draws people "
                              "to like movements; needs cities (and an agent mode for guild "
-                             "movements) (default off for new worlds; saved on resume)")
+                             "movements) (default on for new worlds; --no-guilds opts out; saved "
+                             "on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

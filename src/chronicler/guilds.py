@@ -1,7 +1,7 @@
 """Guilds and burghers (``--guilds``).
 
-Default off behind ``WorldState.guilds`` (CLI ``--guilds`` / ``--no-guilds``,
-persisted on the world so a resumed run keeps its setting). With the switch
+On by default for new worlds behind ``WorldState.guilds`` (CLI ``--guilds`` /
+``--no-guilds``, persisted on the world so a resumed run keeps its setting). With the switch
 off nothing in this module runs, no civ has a burgher faction, the bridge
 sends no movement news, and every output is identical to the simulation
 without it. See ``docs/integration/guilds.md``.
@@ -62,9 +62,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # Parameters ([CALIBRATE]; documented in docs/integration/guilds.md)
 # ---------------------------------------------------------------------------
 
-#: Default for worlds created by the CLI/batch/live entry points
-#: (``--guilds`` opts in; loaded worlds keep their saved setting).
-DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+#: Default for worlds created by the CLI/batch/live entry points (on since
+#: the 2026-10 guilds full gate, docs/integration/guilds.md; ``--no-guilds``
+#: opts out; loaded worlds keep their saved setting).
+DEFAULT_ENABLED_FOR_NEW_WORLDS = True
 
 # Formation and dissolution.
 GUILD_WARES = 0.05            # wares made last turn that found a craft guild

@@ -1190,7 +1190,7 @@ def run_live(
         _movements = getattr(args, "agent_movements", None)
         set_agent_movements_enabled(
             world, _MOVEMENTS_DEFAULT if _movements is None else bool(_movements))
-        # Guilds: new live worlds follow the CLI default (off; --guilds opts in).
+        # Guilds: new live worlds follow the CLI default (--no-guilds opts out).
         from chronicler.guilds import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT, set_guilds_enabled,
         )

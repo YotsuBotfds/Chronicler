@@ -204,10 +204,10 @@ def test_feature_off_never_runs_guild_code(monkeypatch):
     assert "settlement" not in M.movement_table(world).schema.names
 
 
-def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
     from chronicler.main import _build_parser, execute_run
     parser = _build_parser()
-    assert G.DEFAULT_ENABLED_FOR_NEW_WORLDS is False
+    assert G.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
 
     def run(name, *flags):
         out = tmp_path / name
@@ -217,11 +217,10 @@ def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
                                        "--state", str(out / "state.json"), *flags]))
         return WorldState.load(out / "state.json")
 
-    assert run("default").guilds is None
-    on = run("on", "--guilds")
-    assert on.guilds is not None
+    assert run("default").guilds is not None
+    assert run("off", "--no-guilds").guilds is None
     # A saved world keeps its setting on resume, either way, with no flag.
-    for name, kept in (("on", True), ("default", False)):
+    for name, kept in (("default", True), ("off", False)):
         out = tmp_path / name
         resumed = parser.parse_args(["--seed", "42", "--turns", "5", "--regions", "8", "--civs", "4",
                                      "--agents", "off", "--simulate-only",
