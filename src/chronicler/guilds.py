@@ -113,9 +113,11 @@ NEWS_KINDS: tuple[str, ...] = ("founding", "rising", "reform", "crackdown")   # 
 FOUNDING_NEWS, RISING_NEWS, REFORM_NEWS, CRACKDOWN_NEWS = range(len(NEWS_KINDS))
 NEWS_INTENSITY = (120, 180, 220, 160)
 NO_NEWS = 255
-#: Founding chance of a movement x (1 + NEWS_FOUND x the share of a region's
-#: aggrieved who hold inspiring news of a like movement elsewhere).
+#: Founding chance of a movement x (1 + NEWS_FOUND x min(1, share /
+#: NEWS_FULL_SHARE)), share: the region's aggrieved who hold inspiring news of
+#: a like movement elsewhere (half of them give the full factor, x2).
 NEWS_FOUND = 1.0
+NEWS_FULL_SHARE = 0.5
 
 QUANTUM_DIGITS = 4
 HISTORY_CAP = 60
@@ -683,7 +685,7 @@ def news_founding_factor(aggrieved: int, informed: int) -> float:
     """Founding chance factor of a candidate region and creed."""
     if aggrieved <= 0 or informed <= 0:
         return 1.0
-    return 1.0 + NEWS_FOUND * min(1.0, informed / aggrieved)
+    return 1.0 + NEWS_FOUND * min(1.0, informed / aggrieved / NEWS_FULL_SHARE)
 
 
 # ---------------------------------------------------------------------------

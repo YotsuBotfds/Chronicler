@@ -607,10 +607,16 @@ pub fn observe_packets(
     )
 }
 
+/// Share of a movement event's news intensity that the agents of the
+/// adjacent regions observe (word along the roads and through the markets).
+pub const NEWS_NEIGHBOUR_SHARE: f32 = 0.5;
+
 /// Guilds: every agent in a region with movement news this turn observes a
-/// movement-news packet (`news_code` in the provenance byte). Returns
-/// (created, refreshed, evicted, dropped). No-op where `movement_news` is
-/// NO_NEWS (every region with the switch off).
+/// movement-news packet (`news_code` in the provenance byte) at the news'
+/// intensity, and every agent of an adjacent region at NEWS_NEIGHBOUR_SHARE
+/// of it (its own region's news first, then its neighbours' by region id).
+/// Returns (created, refreshed, evicted, dropped). No-op where
+/// `movement_news` is NO_NEWS (every region with the switch off).
 pub fn observe_news(
     pool: &mut AgentPool,
     regions: &[RegionState],
@@ -618,31 +624,45 @@ pub fn observe_news(
     current_turn: u16,
 ) -> (u32, u32, u32, u32) {
     let (mut created, mut refreshed, mut evicted, mut dropped) = (0u32, 0u32, 0u32, 0u32);
-    if !regions.iter().any(|r| r.movement_news != NO_NEWS && r.movement_news_intensity > 0) {
+    let has_news = |r: &RegionState| r.movement_news != NO_NEWS && r.movement_news_intensity > 0;
+    if !regions.iter().any(has_news) {
         return (0, 0, 0, 0);
     }
     for &slot in alive_slots {
         let Some(region) = regions.get(pool.regions[slot] as usize) else {
             continue;
         };
-        if region.movement_news == NO_NEWS || region.movement_news_intensity == 0 {
-            continue;
+        let mut heard: Vec<(&RegionState, u8)> = Vec::new();
+        if has_news(region) {
+            heard.push((region, region.movement_news_intensity));
         }
-        let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
-            info_type: InfoType::MovementNews as u8,
-            source_region: region.region_id,
-            source_turn: current_turn,
-            intensity: region.movement_news_intensity,
-            hop_count: 0,
-        }, region.movement_news);
-        match result {
-            AdmitResult::Inserted => created += 1,
-            AdmitResult::Refreshed => refreshed += 1,
-            AdmitResult::Evicted => {
-                created += 1;
-                evicted += 1;
+        for &n in &region.adjacency {
+            if let Some(near) = regions.get(n as usize) {
+                if has_news(near) {
+                    let intensity = (near.movement_news_intensity as f32 * NEWS_NEIGHBOUR_SHARE) as u8;
+                    if intensity > 0 {
+                        heard.push((near, intensity));
+                    }
+                }
             }
-            AdmitResult::Dropped => dropped += 1,
+        }
+        for (source, intensity) in heard {
+            let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
+                info_type: InfoType::MovementNews as u8,
+                source_region: source.region_id,
+                source_turn: current_turn,
+                intensity,
+                hop_count: 0,
+            }, source.movement_news);
+            match result {
+                AdmitResult::Inserted => created += 1,
+                AdmitResult::Refreshed => refreshed += 1,
+                AdmitResult::Evicted => {
+                    created += 1;
+                    evicted += 1;
+                }
+                AdmitResult::Dropped => dropped += 1,
+            }
         }
     }
     (created, refreshed, evicted, dropped)
@@ -1248,6 +1268,24 @@ mod tests {
         assert!((inspire - 180.0 / 255.0).abs() < 1e-6 && fear == 0.0);
         assert_eq!(movement_news_for_creed(&pool, there, 0), (0.0, 0.0));
         assert_eq!((news_creed(news_code(3, 2)), news_kind(news_code(3, 2))), (3, 2));
+        // Neighbours hear it at half the intensity.
+        let mut pool = AgentPool::new(4);
+        let near = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let far = pool.spawn(2, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0, 2];
+        regions[2].adjacency = vec![1];
+        regions[1].movement_news = news_code(0, NEWS_REFORM);
+        regions[1].movement_news_intensity = 220;
+        regions[2].movement_news = news_code(2, NEWS_FOUNDING);
+        regions[2].movement_news_intensity = 120;
+        assert_eq!(observe_news(&mut pool, &regions, &[near, far], 4).0, 3);
+        assert_eq!((pool.pkt_source_region[near][0], pool.pkt_intensity[near][0]), (1, 110));
+        assert_eq!(movement_news_for_creed(&pool, near, 0).0, 110.0 / 255.0);
+        // The far agent: its own region's founding, then its neighbour's reform.
+        assert_eq!((pool.pkt_source_region[far][0], pool.pkt_intensity[far][0]), (2, 120));
+        assert_eq!((pool.pkt_source_region[far][1], pool.pkt_intensity[far][1]), (1, 110));
         // It decays at DECAY_NEWS and travels only on its own bonds.
         assert_eq!(decay_rate(NEWS), DECAY_NEWS);
         assert!(channel_weight(6, NEWS).is_some() && channel_weight(3, NEWS).is_none());

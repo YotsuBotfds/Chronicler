@@ -112,8 +112,8 @@ pub const GUILD_SAT: f32 = 0.65;
 /// movement's founding, rising or reform elsewhere raises the chance to join
 /// by up to NEWS_JOIN (x strength); news of a crackdown lowers it by up to
 /// NEWS_FEAR. Without news the factor is not applied.
-pub const NEWS_JOIN: f32 = 0.5;
-pub const NEWS_FEAR: f32 = 0.25;
+pub const NEWS_JOIN: f32 = 1.0;
+pub const NEWS_FEAR: f32 = 0.5;
 
 // RNG streams (registry in agent.rs).
 pub use crate::agent::{MOVEMENT_LAPSE_STREAM_OFFSET, MOVEMENT_RECRUIT_STREAM_OFFSET};

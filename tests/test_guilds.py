@@ -609,7 +609,8 @@ def _emerge_with(monkeypatch, world, informed, roll):
 
 def test_news_raises_the_founding_chance_within_its_bound(monkeypatch):
     assert G.news_founding_factor(10, 0) == 1.0
-    assert G.news_founding_factor(10, 5) == pytest.approx(1.0 + 0.5 * G.NEWS_FOUND)
+    assert G.news_founding_factor(10, 2) == pytest.approx(1.0 + 0.4 * G.NEWS_FOUND)
+    assert G.news_founding_factor(10, 5) == pytest.approx(1.0 + G.NEWS_FOUND)
     assert G.news_founding_factor(10, 50) == pytest.approx(1.0 + G.NEWS_FOUND)
     world = _world()
     assert _emerge_with(monkeypatch, world, None, 0.07) == []      # chance 0.05
