@@ -199,28 +199,24 @@ fn test_restoration_diminishes_near_max() {
 }
 
 #[test]
-fn test_autonomy_blocked_by_displacement() {
-    let mut pool = AgentPool::new(8);
-    let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-    pool.need_autonomy[slot] = 0.1;
-    pool.displacement_turns[slot] = 3;
-
+fn test_autonomy_restores_while_displaced() {
+    // The displacement turns after a move bar another move; they do not block
+    // autonomy restoration.
     let mut region = make_region(0);
     region.controller_civ = 0;
     region.persecution_intensity = 0.0;
-
     let signals = peacetime_signals();
     let wealth_pct = vec![0.5_f32];
-
-    let before = pool.need_autonomy[slot];
-    restore_needs(&mut pool, &[slot], &[region], &signals, &wealth_pct);
-    let after = pool.need_autonomy[slot];
-
-    assert!(
-        (after - before).abs() < 0.001,
-        "Autonomy should NOT change with displacement: before={}, after={}",
-        before, after
-    );
+    let after = |displacement: u8| {
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        pool.need_autonomy[slot] = 0.1;
+        pool.displacement_turns[slot] = displacement;
+        restore_needs(&mut pool, &[slot], &[region.clone()], &signals, &wealth_pct);
+        pool.need_autonomy[slot]
+    };
+    assert!(after(0) > 0.15, "settled agent restores: {}", after(0));
+    assert_eq!(after(3), after(0), "displaced agent restores the same");
 }
 
 #[test]

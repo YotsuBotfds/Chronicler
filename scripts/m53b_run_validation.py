@@ -544,6 +544,8 @@ def validate_batch(
         str(batch_dir),
         "--oracles",
         "all",
+        "--profile",
+        profile,
     ]
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)
     report, report_text = _report_from_validation_process(proc, batch_dir)

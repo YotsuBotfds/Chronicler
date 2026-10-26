@@ -497,3 +497,67 @@ def test_cli_text_summary_reports_informational_non_pass(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "Validation gate passed for profile subset" in output
     assert "Informational non-PASS statuses: determinism=SKIP" in output
+
+
+def _needs_v3(binding_lower_bound, *, pooled_failed=(), scored_for=None):
+    """A method 3 needs result: method 2's criteria by ``pooled_failed``, the
+    binding component by its bound, scored for ``scored_for`` (None: binding
+    decides, as the oracle does without a profile)."""
+    binding_ok = binding_lower_bound is not None and binding_lower_bound > 0
+    decides = scored_for in (None, "full")
+    failed = list(pooled_failed) + (["binding_lower_bound"] if not binding_ok and decides else [])
+    return {
+        "status": "PASS" if not failed else "FAIL",
+        "method_version": 3,
+        "failed_criteria": failed,
+        "informational_failed_criteria": [] if binding_ok or decides else ["binding_lower_bound"],
+        "binding_required": decides,
+        "binding": {"status": "PASS" if binding_ok else "FAIL", "net_concordance_lower_bound": binding_lower_bound},
+    }
+
+
+@pytest.mark.parametrize("scored_for", [None, "subset", "full"])
+def test_needs_binding_decides_only_in_the_full_profile(scored_for):
+    from chronicler.validation_gate import adjudicate_validation_report
+
+    report = _report()
+    report["results"]["needs"] = _needs_v3(-0.028, scored_for=scored_for)
+
+    subset = adjudicate_validation_report("subset", report)
+    assert subset["ok"] is True
+    assert [item["oracle"] for item in subset["informational_non_pass"]] == ["needs_binding"]
+    assert "informational in subset" in subset["informational_non_pass"][0]["reason"]
+
+    full = adjudicate_validation_report("full", report)
+    assert full["ok"] is False
+    assert full["required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+
+
+def test_needs_binding_pass_and_pooled_failures_keep_their_verdicts():
+    from chronicler.validation_gate import adjudicate_validation_report
+
+    report = _report()
+    report["results"]["needs"] = _needs_v3(0.168)
+    for profile in ("subset", "full"):
+        decision = adjudicate_validation_report(profile, report)
+        assert decision["ok"] is True
+        assert decision["informational_non_pass"] == []
+
+    # Method 2's criteria still decide in a subset.
+    report["results"]["needs"] = _needs_v3(0.2, pooled_failed=["seed_fraction"], scored_for="subset")
+    assert adjudicate_validation_report("subset", report)["required_failures"] == [
+        {"oracle": "needs", "status": "FAIL"}
+    ]
+    # Results without the binding component (method 2) keep their status.
+    report["results"]["needs"] = {"status": "PASS", "method_version": 2}
+    assert adjudicate_validation_report("full", report)["ok"] is True
+
+
+def test_gate_summaries_show_the_informational_binding_failure():
+    from chronicler.validation_gate import adjudicate_validation_report, format_gate_markdown, format_gate_summary
+
+    report = _report()
+    report["results"]["needs"] = _needs_v3(-0.028, scored_for="subset")
+    decision = adjudicate_validation_report("subset", report)
+    assert "needs_binding=FAIL" in format_gate_summary(decision)
+    assert "| needs_binding | FAIL |" in format_gate_markdown(decision, report)

@@ -344,3 +344,52 @@ fn test_war_mortality_soldiers() {
         war_survivors, peace_survivors, turns, n
     );
 }
+
+/// Needs follow-ups (2026-10): a newborn starts from its birth parent's
+/// safety, material, social, spiritual and autonomy needs (read after the
+/// tick's needs update, before its deaths); purpose starts at 0.5.
+#[test]
+fn test_newborns_start_from_the_birth_parents_needs() {
+    let mut regions = vec![make_region(0, 0.8, 0.7, 200)];
+    let signals = make_signals(1, 1);
+    let mut seed = [0u8; 32];
+    seed[0] = 50;
+    let mut pool = AgentPool::new(0);
+    for i in 0..30 {
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.5, 0.5, 0.5, 0, 1, 2, chronicler_agents::BELIEF_NONE);
+        pool.satisfactions[slot] = 0.7;
+        // Spread the needs so that a copy is told from a fresh 0.5.
+        let v = 0.1 + 0.025 * i as f32;
+        pool.need_safety[slot] = v;
+        pool.need_material[slot] = 0.9 - v;
+        pool.need_social[slot] = v;
+        pool.need_spiritual[slot] = 0.9 - v;
+        pool.need_autonomy[slot] = v;
+    }
+    let mut percentiles: Vec<f32> = Vec::new();
+    let mut checked = 0;
+    for turn in 0..20 {
+        regions[0].population = pool.alive_count() as u16;
+        percentiles.resize(pool.capacity(), 0.0);
+        tick_agents(
+            &mut pool, &mut regions, &signals, seed, turn,
+            &mut percentiles, &mut Vec::new(), &[], &mut SpatialDiagnostics::default(),
+            &[], None,
+        );
+        let id_to_slot = pool.build_id_to_slot();
+        for child in (0..pool.capacity()).filter(|&s| pool.is_alive(s) && pool.ages[s] == 0) {
+            let Some(&parent) = id_to_slot.get(&pool.parent_id_0[child]) else { continue };
+            if !pool.is_alive(parent) {
+                continue;
+            }
+            assert_eq!(pool.need_safety[child], pool.need_safety[parent]);
+            assert_eq!(pool.need_material[child], pool.need_material[parent]);
+            assert_eq!(pool.need_social[child], pool.need_social[parent]);
+            assert_eq!(pool.need_spiritual[child], pool.need_spiritual[parent]);
+            assert_eq!(pool.need_autonomy[child], pool.need_autonomy[parent]);
+            assert_eq!(pool.need_purpose[child], 0.5, "purpose starts at STARTING_NEED");
+            checked += 1;
+        }
+    }
+    assert!(checked >= 3, "only {checked} newborns checked");
+}

@@ -919,10 +919,12 @@ pub fn try_tick_agents_with_movements(
     let death_context = build_death_apply_context(pool, &all_demo_deaths);
 
     // -----------------------------------------------------------------------
-    // M55a: Snapshot parent positions before death pass for newborn placement
+    // M55a: Snapshot parent positions before death pass for newborn placement,
+    // and the parents' needs for the newborns' starting needs.
     // -----------------------------------------------------------------------
-    let parent_pos: std::collections::HashMap<u32, (f32, f32)> = {
-        let mut pmap = std::collections::HashMap::new();
+    let (parent_pos, parent_needs) = {
+        let mut pmap: std::collections::HashMap<u32, (f32, f32)> = std::collections::HashMap::new();
+        let mut nmap: std::collections::HashMap<u32, [f32; 5]> = std::collections::HashMap::new();
         for (dr, _) in &demo_results {
             for birth in &dr.births {
                 if birth.birth_parent_id != crate::agent::PARENT_NONE {
@@ -930,12 +932,14 @@ pub fn try_tick_agents_with_movements(
                         if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
                             pmap.entry(birth.birth_parent_id)
                                 .or_insert((pool.x[parent_slot], pool.y[parent_slot]));
+                            nmap.entry(birth.birth_parent_id)
+                                .or_insert_with(|| crate::needs::inherited_needs(pool, parent_slot));
                         }
                     }
                 }
             }
         }
-        pmap
+        (pmap, nmap)
     };
 
     // Sequential apply: deaths, age increments, births
@@ -974,6 +978,9 @@ pub fn try_tick_agents_with_movements(
                 birth.belief,
             )?;
             pool.set_loyalty(new_slot, birth.parent_loyalty);
+            if let Some(&inherited) = parent_needs.get(&birth.birth_parent_id) {
+                crate::needs::set_newborn_needs(pool, new_slot, inherited);
+            }
             pool.parent_id_0[new_slot] = birth.birth_parent_id;
             pool.parent_id_1[new_slot] = birth.other_parent_id;
             // M57b: Count births by marital status

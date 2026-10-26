@@ -696,3 +696,61 @@ def test_compare_cli_old_needs_report_against_new_one(tmp_path, capsys):
     summary = summary_path.read_text(encoding="utf-8")
     assert "## Oracle method changes" in summary
     assert "| needs | 1 | PASS | 2 | FAIL |" in summary
+
+
+def test_compare_needs_method_2_against_method_3_requires_rebaselining(tmp_path):
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 2)
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 3)
+    current["results"]["needs"]["failed_criteria"] = ["binding_lower_bound"]
+
+    result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+
+    assert result["new_required_failures"] == []
+    assert result["exit_code"] == 0
+    assert result["rebaseline_required"] is True
+    assert result["oracle_method_changes"][0]["baseline_method_version"] == 2
+    assert result["oracle_method_changes"][0]["current_method_version"] == 3
+    assert result["current_decision"]["ok"] is False
+    assert "| needs | 2 | PASS | 3 | FAIL |" in format_comparison_markdown(result)
+
+    # Method 3 against method 3 counts a new failure again.
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 3)
+    result = compare_validation_reports("subset", baseline, current)
+    assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    assert result["rebaseline_required"] is False
+
+
+def _needs_binding(report, lower_bound, *, required):
+    binding_ok = lower_bound > 0
+    report["results"]["needs"] = {
+        "status": "PASS" if binding_ok or not required else "FAIL",
+        "method_version": 3,
+        "failed_criteria": [] if binding_ok or not required else ["binding_lower_bound"],
+        "informational_failed_criteria": [] if binding_ok or required else ["binding_lower_bound"],
+        "binding_required": required,
+        "binding": {"status": "PASS" if binding_ok else "FAIL", "net_concordance_lower_bound": lower_bound},
+    }
+    return report
+
+
+def test_compare_subset_informational_binding_failure_is_no_regression():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _needs_binding(_report(determinism="SKIP"), 0.07, required=False)
+    # Scored for the subset (binding informational) or without a profile
+    # (binding decides the result's own status): the subset gate ignores it.
+    for required in (False, True):
+        current = _needs_binding(_report(determinism="SKIP"), -0.028, required=required)
+        result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == []
+        assert result["regression_detected"] is False
+        assert result["exit_code"] == 0
+        assert result["current_decision"]["ok"] is True
+        assert result["rebaseline_required"] is False
+
+        # The full profile requires the binding component: a new failure there.
+        result = compare_validation_reports("full", baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+        assert result["exit_code"] == 2

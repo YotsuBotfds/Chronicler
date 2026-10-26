@@ -1,5 +1,12 @@
 # Needs oracle: pooled matched pairs
 
+> **Superseded as the gate's method by method 3** (2026-10,
+> [`needs-followups.md`](needs-followups.md) §1): method 2's criteria stay
+> and a binding component is added, the pairs that straddle a need's
+> threshold with their own seed-clustered lower bound, required in the full
+> profile and informational in the subset profile.
+> `run_needs_oracle(..., require_binding=False)` scores method 2 alone.
+
 Branch `fix/needs-oracle-power` from `origin/main` `48b72be` (PR #31, agent
 movements, default off). Changed: the needs oracle
 (`src/chronicler/validation_io.py`), the report comparator
@@ -238,7 +245,7 @@ same effect would give a lower bound near +0.15 and about 170 seeds against
 ## Compatibility
 
 - **Result version.** The needs result carries `method: pooled_matched_pairs`
-  and `method_version: 2`. A result without `method_version` is method 1.
+  and `method_version: 2` (3 from `needs-followups.md`). A result without `method_version` is method 1.
   `status`, `analyzed_seeds`, `required_seed_count`,
   `seeds_with_expected_sign`, `total_pairs`, `autonomy_excludes_prior_rebels`
   and `per_seed` keep their names. `median_effect_size` is gone, and per-seed
@@ -331,7 +338,8 @@ verified compiled `AgentSimulator`, `EcologySimulator`,
   survives zeroing them. A mechanism test needs needs that drop below
   their thresholds (only purpose and spiritual do) or a contrast that
   pairs below-threshold agents with matched ones above. Both are for the
-  needs owners.
+  needs owners. (Done: needs bind since `needs-calibration.md`, and method
+  3's binding pairs are that contrast, `needs-followups.md`.)
 - Social is paired with more migration, but the Rust term makes a social
   deficit favor staying. Social pairs read -0.09 on the subsets and -0.40
   at 500 turns. The pairing and its direction are unchanged here.

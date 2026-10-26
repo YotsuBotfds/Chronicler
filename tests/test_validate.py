@@ -1013,7 +1013,7 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     result = run_needs_oracle(runs)
 
     assert result["status"] == "PASS"
-    assert result["method_version"] == 2
+    assert result["method_version"] == 3
     assert result["failed_criteria"] == []
     assert result["seeds_with_expected_sign"] == 10
     assert (result["concordant_pairs"], result["discordant_pairs"]) == (sum(8 + s % 3 for s in range(10)), 20)
@@ -1022,6 +1022,140 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     assert material["pairs"] == sum(12 + s % 3 for s in range(10))
     assert result["per_seed"][0]["by_pairing"] == {"material": [12, 8, 2]}
     assert result["per_seed"][0]["sign_test_p"] == pytest.approx(56 / 1024, abs=1e-4)
+    # Every low agent (0.2) is below the material threshold (0.30): the
+    # binding pairs are all the pairs.
+    binding = result["binding"]
+    assert (binding["concordant_pairs"], binding["discordant_pairs"]) == (
+        result["concordant_pairs"], result["discordant_pairs"])
+    assert binding["net_concordance_lower_bound"] == result["net_concordance_lower_bound"]
+    assert result["per_seed"][0]["binding"] == [12, 8, 2]
+    assert result["per_seed"][0]["binding_by_pairing"] == {"material": [12, 8, 2]}
+
+
+def _material_world_above_threshold(seed: int, binding_low_movers: int, binding_high_movers: int):
+    """The passing world, plus cells whose low agent is above the threshold.
+
+    Ten cells pair material 0.45 against 0.75 (neither binds) and the low
+    agent migrates; ``binding_*`` cells pair 0.2 against 0.7 as before.
+    """
+    run = _material_world(seed, binding_low_movers, binding_high_movers)
+    columns = run["needs_columns"]
+    first = len(columns["agent_id"])
+    rows = []
+    for cell in range(10):
+        low, high = first + 2 * cell, first + 2 * cell + 1
+        region = 1000 + cell
+        rows += [(low, region, {"material": 0.45}), (high, region, {"material": 0.75})]
+        run["events"].append({"agent_id": low, "event_type": MIGRATION, "turn": 105})
+    extra = _needs_rows(rows)
+    for name in columns:
+        columns[name] = columns[name] + (extra[name] if name != "turn" else [100] * len(rows))
+    return run
+
+
+def test_needs_oracle_binding_pairs_must_carry_the_effect():
+    from chronicler.validate import run_needs_oracle
+
+    # Above the threshold the low agents move (as when other channels carry
+    # the association); among binding pairs the event falls either way, as
+    # with the need terms zeroed.
+    runs = [_material_world_above_threshold(seed, 3 + seed % 2, 4 - seed % 2) for seed in range(10)]
+    result = run_needs_oracle(runs)
+
+    assert result["net_concordance_lower_bound"] > 0
+    assert result["seeds_with_expected_sign"] == 10
+    binding = result["binding"]
+    assert binding["thresholds"]["material"] == 0.30
+    assert (binding["concordant_pairs"], binding["discordant_pairs"]) == (35, 35)
+    assert binding["net_concordance"] == 0.0
+    assert result["failed_criteria"] == ["binding_lower_bound"]
+    assert result["status"] == "FAIL"
+
+    # Method 2 alone passes the same seeds.
+    pooled = run_needs_oracle(runs, require_binding=False)
+    assert pooled["status"] == "PASS"
+    assert pooled["method_version"] == 2
+    assert "binding" not in pooled and "binding" not in pooled["per_seed"][0]
+    method3_only = ("binding", "profile", "binding_required", "binding_required_profiles", "pooled_status",
+                    "informational_failed_criteria")
+    shared_skip = ("per_seed", "status", "failed_criteria", "method_version", "criterion")
+    assert {k: v for k, v in result.items() if k not in method3_only + shared_skip} == {
+        k: v for k, v in pooled.items() if k not in shared_skip}
+    assert result["pooled_status"] == "PASS"
+    assert (result["binding_required"], result["profile"]) == (True, None)
+    assert result["binding"]["status"] == "FAIL"
+
+    # Scored for the full gate the binding component decides; for a subset it
+    # is reported but does not.
+    full = run_needs_oracle(runs, profile="full")
+    assert (full["status"], full["binding_required"], full["failed_criteria"]) == (
+        "FAIL", True, ["binding_lower_bound"])
+    subset = run_needs_oracle(runs, profile="subset")
+    assert (subset["status"], subset["binding_required"], subset["profile"]) == ("PASS", False, "subset")
+    assert subset["failed_criteria"] == []
+    assert subset["informational_failed_criteria"] == ["binding_lower_bound"]
+    assert subset["binding"]["status"] == "FAIL" and subset["binding"]["required"] is False
+    assert subset["binding_required_profiles"] == ["full"]
+
+    # With the effect among the binding pairs too, method 3 passes.
+    runs = [_material_world_above_threshold(seed, 8 + seed % 3, 2) for seed in range(10)]
+    result = run_needs_oracle(runs)
+    assert result["status"] == "PASS"
+    assert result["binding"]["net_concordance_lower_bound"] > 0.5
+
+
+def test_needs_oracle_fails_without_binding_pairs():
+    from chronicler.validate import run_needs_oracle
+
+    # Only above-threshold pairs: no binding pairs, no bound.
+    runs = [_material_world_above_threshold(seed, 0, 0) for seed in range(10)]
+    result = run_needs_oracle(runs)
+    assert result["net_concordance_lower_bound"] > 0
+    assert result["binding"]["informative_pairs"] == 0
+    assert result["binding"]["net_concordance_lower_bound"] is None
+    assert result["failed_criteria"] == ["binding_lower_bound"]
+    assert result["status"] == "FAIL"
+
+
+def test_binding_pairs_straddle_the_threshold():
+    from chronicler.validation_io import _match_binding_pairs
+
+    rows = [
+        (0, 0, {"material": 0.10}),  # below; 1 is below too, so 2 is its partner
+        (1, 0, {"material": 0.20}),  # below; 2 is taken, 3 is 0.12 higher
+        (2, 0, {"material": 0.30}),  # at the threshold counts as above
+        (3, 0, {"material": 0.32}),
+        (4, 1, {"material": 0.28}),  # 5 within 0.05: no pair
+        (5, 1, {"material": 0.32}),
+        (6, 2, {"material": 0.05}),  # 7 above but traits too far apart
+        (7, 2, {"material": 0.60}),
+        (8, 3, {"material": 0.40}),  # no one below in region 3
+        (9, 3, {"material": 0.90}),
+    ]
+    columns = _needs_rows(rows)
+    columns["boldness"][7] = 0.75
+    pairs = _match_binding_pairs(columns, "material", 0.30, 0.05, 0.1)
+    assert pairs == [(0, 2), (1, 3)]
+    # A tighter gap keeps the close pair of region 1; a looser one drops 1-3.
+    assert (4, 5) in _match_binding_pairs(columns, "material", 0.30, 0.0, 0.1)
+    assert _match_binding_pairs(columns, "material", 0.30, 0.15, 0.1) == [(0, 2)]
+
+
+def test_needs_oracle_thresholds_mirror_the_native_constants():
+    import re
+    from pathlib import Path
+
+    from chronicler.narrative import _NEED_THRESHOLDS
+    from chronicler.validation_io import NEEDS_BEHAVIOUR_THRESHOLDS, NEEDS_PAIRINGS
+
+    root = Path(__file__).resolve().parents[1]
+    agent = (root / "chronicler-agents/src/agent.rs").read_text(encoding="utf-8")
+    assert set(NEEDS_BEHAVIOUR_THRESHOLDS) == {need for need, _event in NEEDS_PAIRINGS}
+    for need, threshold in NEEDS_BEHAVIOUR_THRESHOLDS.items():
+        match = re.search(rf"pub const {need.upper()}_THRESHOLD: f32 = ([0-9.]+);", agent)
+        assert match, need
+        assert float(match.group(1)) == pytest.approx(threshold), need
+        assert _NEED_THRESHOLDS[need] == pytest.approx(threshold), need
 
 
 @pytest.mark.parametrize("break_kind", ["no_link", "reversed", "shuffled"])
@@ -2207,7 +2341,7 @@ def test_validate_main_rejects_nonfinite_serialized_report(monkeypatch, tmp_path
     monkeypatch.setattr(
         validate,
         "run_oracles",
-        lambda batch_dir, oracles: {
+        lambda batch_dir, oracles, profile=None: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {"status": "PASS", "metric": float("nan")}},
@@ -2228,7 +2362,7 @@ def test_validation_io_main_rejects_nonfinite_serialized_report(monkeypatch, tmp
     monkeypatch.setattr(
         validation_io,
         "run_oracles",
-        lambda batch_dir, oracles: {
+        lambda batch_dir, oracles, profile=None: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {"status": "PASS", "metric": float("nan")}},
@@ -2249,7 +2383,7 @@ def test_validate_main_rejects_nonstring_keys_that_would_duplicate_in_json(monke
     monkeypatch.setattr(
         validate,
         "run_oracles",
-        lambda batch_dir, oracles: {
+        lambda batch_dir, oracles, profile=None: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {1: "int", "1": "str", "status": "PASS"}},
@@ -2271,7 +2405,7 @@ def test_validation_io_main_rejects_nonstring_keys_that_would_duplicate_in_json(
     monkeypatch.setattr(
         validation_io,
         "run_oracles",
-        lambda batch_dir, oracles: {
+        lambda batch_dir, oracles, profile=None: {
             "batch_dir": str(batch_dir),
             "oracles": list(oracles),
             "results": {"needs": {None: "none", "null": "str", "status": "PASS"}},
@@ -2401,3 +2535,25 @@ def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_oracle_
     assert exit_code == 1
     assert payload["status"] == "ERROR"
     assert expected_phrase in payload["reason"]
+
+
+@pytest.mark.parametrize("module_name", ["chronicler.validate", "chronicler.validation_io"])
+def test_validate_cli_passes_the_profile_to_the_needs_oracle(monkeypatch, tmp_path, capsys, module_name):
+    import importlib
+
+    module = importlib.import_module(module_name)
+    seen = []
+
+    def fake_needs(seed_runs, *args, profile=None, **kwargs):
+        seen.append(profile)
+        return {"status": "PASS"}
+
+    if module_name == "chronicler.validate":
+        monkeypatch.setitem(module.ORACLE_RUNNERS, "needs", fake_needs)
+    else:
+        monkeypatch.setattr(module, "run_needs_oracle", fake_needs)
+    monkeypatch.setattr(module, "load_seed_runs", lambda *args, **kwargs: [])
+    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs", "--profile", "subset"]) == 0
+    assert module.main(["--batch-dir", str(tmp_path), "--oracles", "needs"]) == 0
+    assert seen == ["subset", None]
+    capsys.readouterr()

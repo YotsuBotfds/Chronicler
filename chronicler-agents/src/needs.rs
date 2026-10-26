@@ -407,19 +407,20 @@ pub fn restore_needs_with_bonds(
         {
             let persecuted = region.persecutes(pool.beliefs[slot]);
             let mut delta = 0.0_f32;
-            // GATE: if displacement_turns > 0, ALL autonomy restoration blocked
-            if pool.displacement_turns[slot] == 0 {
-                let deficit = 1.0 - pool.need_autonomy[slot];
+            // A move does not oppress: every move is the agent's or its
+            // household's own decision. The displacement turns after a move
+            // still bar another move (behavior.rs) and cost satisfaction; they
+            // no longer block autonomy restoration (needs follow-ups, 2026-10).
+            let deficit = 1.0 - pool.need_autonomy[slot];
 
-                // Self-governance: controller matches civ affinity
-                if region.controller_civ == civ {
-                    delta += agent::AUTONOMY_RESTORE_SELF_GOV * deficit;
-                }
+            // Self-governance: controller matches civ affinity
+            if region.controller_civ == civ {
+                delta += agent::AUTONOMY_RESTORE_SELF_GOV * deficit;
+            }
 
-                // Not persecuted: the agent's faith is not the one targeted
-                if !persecuted {
-                    delta += agent::AUTONOMY_RESTORE_NO_PERSC * deficit;
-                }
+            // Not persecuted: the agent's faith is not the one targeted
+            if !persecuted {
+                delta += agent::AUTONOMY_RESTORE_NO_PERSC * deficit;
             }
 
             // Pressure: persecution of the agent's faith, harsh rule, and a
@@ -460,6 +461,35 @@ pub fn restore_needs_with_bonds(
             pool.need_purpose[slot] += delta;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Newborns
+// ---------------------------------------------------------------------------
+
+/// The needs a newborn takes from its birth parent: safety, material,
+/// social, spiritual and autonomy, in that order. They follow conditions the
+/// child is born into (region, war, food, faith, rule). Purpose follows the
+/// agent's own skill at its work, and a newborn's starts at STARTING_NEED.
+pub fn inherited_needs(pool: &AgentPool, parent: usize) -> [f32; 5] {
+    [
+        pool.need_safety[parent],
+        pool.need_material[parent],
+        pool.need_social[parent],
+        pool.need_spiritual[parent],
+        pool.need_autonomy[parent],
+    ]
+}
+
+/// Start a newborn from its birth parent's needs ([`inherited_needs`],
+/// read before the tick's deaths) instead of STARTING_NEED for all six, so
+/// that a need does not mark a young agent (needs follow-ups, 2026-10).
+pub fn set_newborn_needs(pool: &mut AgentPool, child: usize, inherited: [f32; 5]) {
+    pool.need_safety[child] = inherited[0];
+    pool.need_material[child] = inherited[1];
+    pool.need_social[child] = inherited[2];
+    pool.need_spiritual[child] = inherited[3];
+    pool.need_autonomy[child] = inherited[4];
 }
 
 // ---------------------------------------------------------------------------
@@ -652,28 +682,22 @@ mod tests {
     }
 
     #[test]
-    fn test_autonomy_blocked_by_displacement() {
-        let mut pool = AgentPool::new(8);
-        let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
-        pool.need_autonomy[slot] = 0.1;
-        pool.displacement_turns[slot] = 3; // displaced
-
-        let mut region = make_region(0);
-        region.controller_civ = 0; // self-gov would normally restore
-        region.persecution_intensity = 0.0; // no persecution would normally restore
-
+    fn test_autonomy_restores_after_a_move() {
+        // A displaced agent (just moved) restores autonomy as a settled one does.
+        let region = make_region(0);
         let signals = peacetime_signals();
         let wealth_pct = vec![0.5_f32];
-
-        let before = pool.need_autonomy[slot];
-        restore_needs_with_bonds(&mut pool, &[slot], &[region], &signals, &wealth_pct, &[0]);
-        let after = pool.need_autonomy[slot];
-
-        assert!(
-            (after - before).abs() < 0.001,
-            "Autonomy should NOT change with displacement: before={}, after={}",
-            before, after
-        );
+        let after = |displacement: u8| {
+            let mut pool = AgentPool::new(8);
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+            pool.need_autonomy[slot] = 0.1;
+            pool.displacement_turns[slot] = displacement;
+            restore_needs_with_bonds(&mut pool, &[slot], &[region.clone()], &signals, &wealth_pct, &[0]);
+            pool.need_autonomy[slot]
+        };
+        // self-rule and no persecution: (0.031 + 0.060) x deficit 0.9
+        assert!((after(0) - (0.1 + 0.091 * 0.9)).abs() < 1e-5, "{}", after(0));
+        assert_eq!(after(3), after(0));
     }
 
     #[test]
