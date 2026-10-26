@@ -206,12 +206,34 @@ pub struct MovementStats {
     /// Per region and creed, the aggrieved holding inspiring news of a like
     /// movement elsewhere (guilds' movement news; all 0 without news).
     pub informed: Vec<[u32; CREED_COUNT]>,
+    /// Per region and creed, the news most of those informed aggrieved hold
+    /// (its source region, turn and kind, and how many hold it).
+    pub news_source: Vec<[NewsSource; CREED_COUNT]>,
     pub movement_ids: Vec<u16>,
     pub members: Vec<u32>,
     pub joined: Vec<u32>,
     pub lapsed: Vec<u32>,
     pub founded: Vec<u32>,
     pub released: u32,
+}
+
+/// The source of the movement news the most informed aggrieved of a region
+/// hold for a creed (`knowledge::movement_news_source`): region NO_REGION
+/// and kind NO_NEWS_KIND when none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NewsSource {
+    pub region: u16,
+    pub turn: u16,
+    pub kind: u8,
+    pub count: u32,
+}
+
+pub const NO_NEWS_KIND: u8 = 255;
+
+impl Default for NewsSource {
+    fn default() -> Self {
+        Self { region: NO_REGION, turn: 0, kind: NO_NEWS_KIND, count: 0 }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -515,6 +537,7 @@ pub fn movement_pass(
         adults: vec![0; num_regions],
         aggrieved: vec![[0; CREED_COUNT]; num_regions],
         informed: vec![[0; CREED_COUNT]; num_regions],
+        news_source: Vec::new(),
         movement_ids: rows.iter().map(|r| r.movement_id).collect(),
         members: vec![0; nrows],
         joined: vec![0; nrows],
@@ -776,6 +799,7 @@ pub fn movement_pass(
     // The grievance census is taken at the end of the tick (`census`).
     stats.aggrieved = runtime.stats.aggrieved.clone();
     stats.informed = runtime.stats.informed.clone();
+    stats.news_source = runtime.stats.news_source.clone();
     runtime.stats = stats;
     runtime.cover = cover;
     runtime.seeds.clear();
@@ -794,6 +818,7 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
     let mut adults = vec![0u32; num_regions];
     let mut aggrieved = vec![[0u32; CREED_COUNT]; num_regions];
     let mut informed = vec![[0u32; CREED_COUNT]; num_regions];
+    let mut sources: HashMap<(usize, u8, u16, u16, u8), u32> = HashMap::new();
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) || pool.ages[slot] < ADULT_AGE {
             continue;
@@ -809,13 +834,28 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
                 aggrieved[r][creed as usize] += 1;
                 if crate::knowledge::movement_news_for_creed(pool, slot, creed).0 > 0.0 {
                     informed[r][creed as usize] += 1;
+                    if let Some((sr, st, sk)) = crate::knowledge::movement_news_source(pool, slot, creed) {
+                        *sources.entry((r, creed, sr, st, sk)).or_insert(0) += 1;
+                    }
                 }
             }
+        }
+    }
+    // The most held source per region and creed (more holders, then the
+    // newer, the lower region, the lower kind: a total order).
+    let mut news_source = vec![[NewsSource::default(); CREED_COUNT]; num_regions];
+    for (&(r, creed, region, turn, kind), &count) in &sources {
+        let best = &mut news_source[r][creed as usize];
+        let key = (count, turn, std::cmp::Reverse(region), std::cmp::Reverse(kind));
+        let old = (best.count, best.turn, std::cmp::Reverse(best.region), std::cmp::Reverse(best.kind));
+        if best.count == 0 || key > old {
+            *best = NewsSource { region, turn, kind, count };
         }
     }
     runtime.stats.adults = adults;
     runtime.stats.aggrieved = aggrieved;
     runtime.stats.informed = informed;
+    runtime.stats.news_source = news_source;
 }
 
 // ---------------------------------------------------------------------------
@@ -823,7 +863,7 @@ pub fn census(pool: &AgentPool, num_regions: usize, runtime: &mut MovementRuntim
 // ---------------------------------------------------------------------------
 
 use arrow::array::{Array, Float32Array, UInt16Array, UInt32Array, UInt8Array};
-use arrow::array::{UInt16Builder, UInt32Builder};
+use arrow::array::{UInt16Builder, UInt32Builder, UInt8Builder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
@@ -924,23 +964,33 @@ pub fn parse_movement_seeds(rb: &RecordBatch) -> Result<Vec<MovementSeed>, Arrow
 }
 
 /// The last pass's stats as two batches: per region (region_id, adults,
-/// aggrieved_commons, aggrieved_liberty, aggrieved_sect) and per movement
-/// (movement_id, members, joined, lapsed, founded). Empty before any pass.
+/// aggrieved_*, informed_* and news_source_{region,turn,kind,count}_* per
+/// creed commons, liberty, sect) and per movement (movement_id, members,
+/// joined, lapsed, founded). Empty before any pass.
 pub fn movement_stats_batches(stats: &MovementStats) -> Result<(RecordBatch, RecordBatch), ArrowError> {
     let n = stats.adults.len();
     let mut region_id = UInt16Builder::with_capacity(n);
     let mut adults = UInt32Builder::with_capacity(n);
     let mut aggrieved: Vec<UInt32Builder> = (0..CREED_COUNT).map(|_| UInt32Builder::with_capacity(n)).collect();
     let mut informed: Vec<UInt32Builder> = (0..CREED_COUNT).map(|_| UInt32Builder::with_capacity(n)).collect();
+    let mut src_region: Vec<UInt16Builder> = (0..CREED_COUNT).map(|_| UInt16Builder::with_capacity(n)).collect();
+    let mut src_turn: Vec<UInt16Builder> = (0..CREED_COUNT).map(|_| UInt16Builder::with_capacity(n)).collect();
+    let mut src_kind: Vec<UInt8Builder> = (0..CREED_COUNT).map(|_| UInt8Builder::with_capacity(n)).collect();
+    let mut src_count: Vec<UInt32Builder> = (0..CREED_COUNT).map(|_| UInt32Builder::with_capacity(n)).collect();
     for r in 0..n {
         region_id.append_value(r as u16);
         adults.append_value(stats.adults[r]);
         for c in 0..CREED_COUNT {
             aggrieved[c].append_value(stats.aggrieved[r][c]);
             informed[c].append_value(stats.informed.get(r).map_or(0, |v| v[c]));
+            let src = stats.news_source.get(r).map_or(NewsSource::default(), |v| v[c]);
+            src_region[c].append_value(src.region);
+            src_turn[c].append_value(src.turn);
+            src_kind[c].append_value(src.kind);
+            src_count[c].append_value(src.count);
         }
     }
-    let region_schema = Arc::new(Schema::new(vec![
+    let mut fields = vec![
         Field::new("region_id", DataType::UInt16, false),
         Field::new("adults", DataType::UInt32, false),
         Field::new("aggrieved_commons", DataType::UInt32, false),
@@ -949,19 +999,21 @@ pub fn movement_stats_batches(stats: &MovementStats) -> Result<(RecordBatch, Rec
         Field::new("informed_commons", DataType::UInt32, false),
         Field::new("informed_liberty", DataType::UInt32, false),
         Field::new("informed_sect", DataType::UInt32, false),
-    ]));
-    let mut agg = aggrieved.into_iter();
-    let mut inf = informed.into_iter();
-    let regions = RecordBatch::try_new(region_schema, vec![
-        Arc::new(region_id.finish()) as _,
-        Arc::new(adults.finish()) as _,
-        Arc::new(agg.next().unwrap().finish()) as _,
-        Arc::new(agg.next().unwrap().finish()) as _,
-        Arc::new(agg.next().unwrap().finish()) as _,
-        Arc::new(inf.next().unwrap().finish()) as _,
-        Arc::new(inf.next().unwrap().finish()) as _,
-        Arc::new(inf.next().unwrap().finish()) as _,
-    ])?;
+    ];
+    let mut columns: Vec<Arc<dyn Array>> = vec![Arc::new(region_id.finish()), Arc::new(adults.finish())];
+    columns.extend(aggrieved.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    columns.extend(informed.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    for (what, ty) in [("region", DataType::UInt16), ("turn", DataType::UInt16),
+                       ("kind", DataType::UInt8), ("count", DataType::UInt32)] {
+        for creed in ["commons", "liberty", "sect"] {
+            fields.push(Field::new(format!("news_source_{what}_{creed}"), ty.clone(), false));
+        }
+    }
+    columns.extend(src_region.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    columns.extend(src_turn.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    columns.extend(src_kind.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    columns.extend(src_count.iter_mut().map(|b| Arc::new(b.finish()) as Arc<dyn Array>));
+    let regions = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
     let m = stats.movement_ids.len();
     let mut mid = UInt16Builder::with_capacity(m);
     for &v in &stats.movement_ids {
@@ -1503,6 +1555,42 @@ mod tests {
             .unwrap()
             .value(0);
         assert_eq!(col, 1);
+    }
+
+    #[test]
+    fn the_census_names_the_news_most_informed_aggrieved_hold() {
+        use crate::knowledge::{NEWS_FOUNDING, NEWS_REFORM};
+        let mut pool = AgentPool::new(8);
+        let slots: Vec<usize> = (0..5).map(|_| aggrieved(&mut pool, 0, 0.0)).collect();
+        for &s in &slots[..3] {
+            news(&mut pool, s, 2, CREED_LIBERTY, NEWS_REFORM, 120);
+        }
+        // The strongest packet counts: a founding elsewhere outshines the reform.
+        news(&mut pool, slots[3], 2, CREED_LIBERTY, NEWS_REFORM, 60);
+        news(&mut pool, slots[3], 3, CREED_LIBERTY, NEWS_FOUNDING, 150);
+        // News of the agent's own region is not news from elsewhere.
+        news(&mut pool, slots[4], 0, CREED_LIBERTY, NEWS_REFORM, 200);
+        let mut rt = runtime(Vec::new());
+        census(&pool, 1, &mut rt);
+        assert_eq!(rt.stats.informed[0], [0, 4, 0]);
+        let src = rt.stats.news_source[0];
+        assert_eq!(src[1], NewsSource { region: 2, turn: 1, kind: NEWS_REFORM, count: 3 });
+        assert_eq!(src[0], NewsSource::default());
+        let (regions, _) = movement_stats_batches(&rt.stats).unwrap();
+        let u16col = |name: &str| {
+            regions.column_by_name(name).unwrap().as_any().downcast_ref::<UInt16Array>().unwrap().value(0)
+        };
+        let u8col = |name: &str| {
+            regions.column_by_name(name).unwrap().as_any().downcast_ref::<UInt8Array>().unwrap().value(0)
+        };
+        assert_eq!(u16col("news_source_region_liberty"), 2);
+        assert_eq!(u16col("news_source_turn_liberty"), 1);
+        assert_eq!(u8col("news_source_kind_liberty"), NEWS_REFORM);
+        assert_eq!(u16col("news_source_region_commons"), NO_REGION);
+        assert_eq!(u8col("news_source_kind_sect"), NO_NEWS_KIND);
+        let count = regions.column_by_name("news_source_count_liberty").unwrap()
+            .as_any().downcast_ref::<UInt32Array>().unwrap().value(0);
+        assert_eq!(count, 3);
     }
 
     #[test]

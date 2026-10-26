@@ -1223,7 +1223,7 @@ class NarrativeEngine:
                         consequences.append(c)
 
             lines, omitted, listed = _listed_events(moment, type_counts)
-            event_text = "".join(f"\n{nc.render_prompt_line(line, faiths)}" for line in lines)
+            event_text = "".join(f"\n{nc.render_prompt_line(line, faiths, timeline)}" for line in lines)
             if omitted:
                 event_text += f"\n{nc.render_omitted(omitted)}"
 

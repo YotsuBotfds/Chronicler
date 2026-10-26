@@ -88,6 +88,11 @@ IDEA_VALUES = (
 )
 IDEA_APPEAL = 1.25
 
+#: A founding is recorded as sparked by news of a like movement's success
+#: elsewhere (a cause on its event, nothing else) when at least this share of
+#: the region's aggrieved hold that news (the founding chance x1.5 or more).
+NEWS_CAUSE_SHARE = 0.25
+
 # Life cycle.
 FOUNDING_GRACE = 2              # turns before a movement can fade
 FADE_MEMBERS = 3
@@ -347,7 +352,19 @@ def _grievance_census(agent_bridge, nreg: int):
         for r, c, l, s in zip(cols[0], *(batch.column(n).to_pylist() for n in names)):
             if r < nreg:
                 informed[r] = [c, l, s]
-    return adults, aggrieved, informed
+    sources = None
+    keys = [f"news_source_{w}_{c}" for c in ("commons", "liberty", "sect")
+            for w in ("region", "turn", "kind", "count")]
+    if all(k in batch.schema.names for k in keys):
+        # Where that news came from (provenance only): per region and creed,
+        # (source region, source turn, kind, holders) of the news most of
+        # them hold.
+        values = [batch.column(k).to_pylist() for k in keys]
+        sources = [[None, None, None] for _ in range(nreg)]
+        for row, r in enumerate(cols[0]):
+            if r < nreg:
+                sources[r] = [tuple(int(values[4 * c + w][row]) for w in range(4)) for c in range(3)]
+    return adults, aggrieved, informed, sources
 
 
 class _Tick:
@@ -1544,11 +1561,12 @@ def _emerge(t: _Tick, census) -> None:
     living = [(i, m) for i, m in _living(state) if m.creed != GUILD]
     if len(living) >= MAX_LIVING:
         return
-    adults, aggrieved, informed = census
+    adults, aggrieved, informed, *rest = census
+    sources = rest[0] if rest else None
     if informed is not None:
         from chronicler.guilds import news_enabled
         if not news_enabled(world):
-            informed = None
+            informed = sources = None
     per_civ: dict[int, int] = {}
     alive: dict[int, set[int]] = {}
     cooling: dict[int, set[int]] = {}
@@ -1595,7 +1613,10 @@ def _emerge(t: _Tick, census) -> None:
     candidates.sort(key=lambda c: (c[0], c[1], c[2]))
     for _score, ri, creed, chance, gp, a, n, restores in candidates:
         if _rng(world, "emerge", ri, creed).random() < chance:
-            if not _found(t, ri, creed, gp, a, n, adults, restores=restores):
+            news = None
+            if informed is not None and informed[ri][creed] and sources is not None:
+                news = news_cause(world, ri, creed, a, sources[ri][creed])
+            if not _found(t, ri, creed, gp, a, n, adults, restores=restores, news=news):
                 continue   # every aggrieved there already belongs to a movement
             if informed is not None and informed[ri][creed]:
                 world.guilds.counters["news_foundings"] = world.guilds.counters.get("news_foundings", 0) + 1
@@ -1682,8 +1703,32 @@ def _seed_founders(t: _Tick, i: int, m: Movement, region_adults, *, settlement: 
     return True
 
 
+def news_cause(world, ri: int, creed: int, aggrieved: int, source) -> str | None:
+    """The event of a like movement's success elsewhere whose news clearly
+    sparked a founding in region ``ri`` (provenance only; None otherwise):
+    the news most of the region's informed aggrieved hold (the census's
+    ``source``: region, turn, kind, holders) is a reform won in another
+    region, held by at least NEWS_CAUSE_SHARE of the aggrieved. News a tick
+    observes tells of the turn before it."""
+    from chronicler.guilds import REFORM_NEWS
+    if source is None or aggrieved <= 0:
+        return None
+    region, turn, kind, holders = source
+    if (kind != REFORM_NEWS or region == ri or not 0 <= region < len(world.regions)
+            or holders < NEWS_CAUSE_SHARE * aggrieved):
+        return None
+    when = turn - 1
+    for m in world.agent_movements.movements:
+        if m.creed != creed or m.home_region != region:
+            continue
+        for turn_, kind_, event_id in reversed(m.history):
+            if turn_ == when and kind_ in ("reform", "concession") and event_id:
+                return event_id
+    return None
+
+
 def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, region_adults=None, *,
-           restores: int = -1) -> bool:
+           restores: int = -1, news: str | None = None) -> bool:
     world = t.world
     state = t.state
     region = world.regions[ri]
@@ -1709,7 +1754,8 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, regio
     ev = _emit(t, "movement_founded", [civ.name] + ([gp.name] if gp is not None else []),
                f"In {region.name}, {founder} {name}{idea}: {aggrieved} of {adults} "
                f"people there want {_demand_text(world, m)}",
-               importance=5, region=region.name, causes=(repeal, *_region_causes(t, region.name)))
+               importance=5, region=region.name,
+               causes=(repeal, *_region_causes(t, region.name), news))
     _remember(t, i, "founded", ev)
     _note(m, world.turn, "founded", ev.event_id)
     return True

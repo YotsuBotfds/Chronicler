@@ -370,15 +370,38 @@ def places_of(events: Sequence["Event"]) -> list[str]:
     return out
 
 
-def render_prompt_line(line: PromptLine, faiths: dict[int, str] | None = None) -> str:
+#: A like movement's success whose news can spark a founding elsewhere
+#: (``agent_movements.news_cause`` cites it on the founding).
+NEWS_SUCCESS_TYPES: frozenset[str] = frozenset({"movement_reform", "movement_concession"})
+
+
+def news_spark(ev: "Event", timeline: "TimelineView | None") -> "Event | None":
+    """The like movement's success in another region whose news the record
+    says sparked this founding, or None."""
+    if ev.event_type != "movement_founded" or timeline is None:
+        return None
+    for cid in ev.causes:
+        cause = timeline.by_id.get(cid)
+        if (cause is not None and cause.event_type in NEWS_SUCCESS_TYPES
+                and cause.region and cause.region != ev.region):
+            return cause
+    return None
+
+
+def render_prompt_line(line: PromptLine, faiths: dict[int, str] | None = None,
+                       timeline: "TimelineView | None" = None) -> str:
     """``- [turn 31] famine: Famine strikes X, devastating Y (importance 8; 2 more
-    reports: Thornwood, Amber Valley)``."""
+    reports: Thornwood, Amber Valley)``. With the run's ``timeline`` a founding
+    sparked by news names the success it heard of."""
     ev = line.event
     text = event_text(ev, faiths)
     notes = [f"importance {ev.importance}"]
     driver = getattr(ev, "driver", None)
     if driver:
         notes.append(f"driven by {DRIVER_WORDS.get(driver, driver.replace('_', ' '))}")
+    spark = news_spark(ev, timeline)
+    if spark is not None:
+        notes.append(f"stirred by news of the demand won in {spark.region} in turn {spark.turn}")
     unnamed = [a for a in ev.actors if a and a not in text]
     if unnamed:
         notes.append("with " + ", ".join(unnamed[:3]))
