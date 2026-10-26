@@ -636,3 +636,52 @@ class TestCurate:
 # ---------------------------------------------------------------------------
 # Relationship-aware scoring (1.2x boost) requires civ-to-agent mapping
 # not yet available at curation time. See compute_base_scores docstring.
+
+
+# ---------------------------------------------------------------------------
+# 10. Temporal spread
+# ---------------------------------------------------------------------------
+
+class TestSpread:
+    @staticmethod
+    def _m(turn: int, score: float, landmark: bool = False) -> NarrativeMoment:
+        return NarrativeMoment(
+            anchor_turn=turn, turn_range=(turn, turn + 5),
+            events=[_make_event(turn, "war", ["A"])],
+            named_events=[_make_named(turn, "war", ["A"], importance=7)] if landmark else [],
+            score=score, causal_links=[], narrative_role=NarrativeRole.ESCALATION,
+            bonus_applied=0.0)
+
+    def test_a_long_untold_stretch_gets_its_best_moment_in_place_of_the_weakest(self):
+        from chronicler.curator import spread_moments
+        # Four moments crowd turns 0-23; turns 24-59 are untold (limit 2 x 60 / 4 = 30).
+        sel = [self._m(0, 20), self._m(6, 19), self._m(12, 18), self._m(18, 30)]
+        pool = [self._m(30, 10), self._m(42, 15), self._m(54, 12)]
+        out = spread_moments(sel, pool, 0, 59)
+        assert [m.anchor_turn for m in out] == [0, 6, 18, 42]
+        # Not at any price: a stretch whose best scores under 75% stays untold.
+        weak = [self._m(30, 10), self._m(42, 13), self._m(54, 12)]
+        assert [m.anchor_turn for m in spread_moments(sel, weak, 0, 59)] == [0, 6, 12, 18]
+
+    def test_landmarks_stay_and_a_spread_run_is_left_alone(self):
+        from chronicler.curator import spread_moments
+        sel = [self._m(0, 20, True), self._m(6, 19, True), self._m(12, 18, True), self._m(18, 30)]
+        # Every moment is a landmark or borders the stretch: nothing can go.
+        assert [m.anchor_turn for m in spread_moments(sel, [self._m(42, 29)], 0, 59)] == [0, 6, 12, 18]
+        even = [self._m(t, 20) for t in (0, 15, 30, 45)]
+        assert spread_moments(even, [self._m(6, 50)], 0, 59) == even
+
+    def test_curate_is_deterministic_and_spreads_a_clustered_run(self, monkeypatch):
+        import chronicler.curator as C
+        events = [_make_event(t, "famine" if t < 40 else "drought", ["A" if t % 2 else "B"],
+                              importance=8 if t < 40 else 6) for t in range(120)]
+        hist = [_make_snapshot(t, {"r": "A"}) for t in range(0, 120, 10)]
+        first, _ = C.curate(events, [], hist, budget=8, seed=1)
+        again, _ = C.curate(events, [], hist, budget=8, seed=1)
+        assert [m.turn_range for m in first] == [m.turn_range for m in again]
+        monkeypatch.setattr(C, "SPREAD_GAP", 0.0)
+        before, _ = C.curate(events, [], hist, budget=8, seed=1)
+
+        def longest(moments):
+            return max(e - s + 1 for s, e in C._untold(moments, 0, 119))
+        assert longest(first) < longest(before)
