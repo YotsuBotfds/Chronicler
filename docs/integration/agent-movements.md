@@ -435,6 +435,37 @@ built fresh from the branch's Rust, unchanged since `36c5617`, SHA-256
 Not done: browser QA of the new tab; procedural-world distributions; the
 tick benchmark with reforms in force.
 
+## News-driven spread and the guild creed (`--guilds`)
+
+Branch `feat/guilds` adds two things to movements behind `--guilds`
+([guilds.md](guilds.md)); with the switch off neither runs and every output
+is identical to the base.
+
+**A guild creed** (`CREED_NAMES[3]`, `REFORM_NAMES[3]` guild charter):
+a city's guild rises when its privileges are threatened; its people are
+the city's civilian residents, recruited and released by the existing pass;
+its reform is a lasting guild charter repealed and restored like the
+others. Guild movements are founded by their guilds, never from the census,
+and count apart from the census caps (`MAX_LIVING`, `MAX_PER_CIV`).
+
+**Information packets as a spread channel** (roadmap item 1). Movement
+foundings, risings, reforms and crackdowns become packets of a new type
+(`knowledge.rs` `InfoType::MovementNews`). The agents of the event's region
+observe them at the event's intensity (founding 120, rising 180, reform
+220, crackdown 160 of 255), those of the adjacent regions at half of it;
+they then pass on friend, kin, family, mentor and co-religionist bonds and
+decay 10 a turn. News never displaces a threat, trade or religious packet,
+and those packets take a news slot as if it were empty, so the four slots
+hold for the other types exactly what they hold without news; the threat
+warnings that drive migration are untouched.
+
+| consumer | rule | bound |
+| --- | --- | --- |
+| joining (Rust recruitment) | an aggrieved agent holding news of a like movement (same creed) from another region: p x (1 + strength) for a founding, rising or reform, x (1 - 0.5 strength) for a crackdown | x2 / x0.5, under the 0.5 cap; not applied without news |
+| founding (Python emergence) | the census counts the aggrieved holding inspiring news of a like movement elsewhere (`informed_*`); chance x (1 + min(1, 2 x informed / aggrieved)) | x2, under the founding cap |
+
+<!-- NEWS-MEASURED -->
+
 ## Slice 1 result
 
 Slice 1 as recorded on `feat/agent-movements` (`c93e87e`, `d5e3bf5`); its
@@ -932,13 +963,14 @@ repeal and restoration; leaders as great persons, crowned by a secession;
 the viewer's Movements tab; the full gate with the switch on, now default.
 Next:
 
-1. **Information packets** as a spread channel (word of a movement crossing
-   regions with packets) and movements across borders (co-religionists and
-   kin abroad). Packets share four slots per agent with threat warnings
-   that drive migration, so this needs its own gate.
-2. **Guilds and craft leagues** in cities: a city faction (a new
-   `FactionType`, a state change every faction-weighted path reads) and
-   urban movements for charters; home rule already raises charters.
+1. **Information packets** as a spread channel: done behind `--guilds`
+   ([above](#news-driven-spread-and-the-guild-creed---guilds); news yields
+   its slots to the other packets). Open: movements across borders
+   (co-religionists and kin abroad; news already crosses borders, members
+   do not).
+2. **Guilds and craft leagues** in cities: done behind `--guilds`
+   ([guilds.md](guilds.md): guilds, the guild creed and charter, the burgher
+   faction). Open: craft leagues spanning several cities.
 3. **Taxes and dues as a direct grievance**, and reforms that change the
    needs themselves (granaries in a famine, officers under foreign rule)
    rather than how a grievance reads.
