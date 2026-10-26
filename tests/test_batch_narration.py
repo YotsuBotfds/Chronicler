@@ -98,7 +98,7 @@ def test_narrate_batch_fallback_on_error():
     history = [_make_snap(i, "A", 100, 50, 50, ["r1"]) for i in range(1, 15)]
     entries = engine.narrate_batch(moments, history)
     assert len(entries) == 1
-    assert entries[0].narrative == "battle"
+    assert entries[0].narrative == "Battle."  # the event's line, as a sentence
 
 
 def test_narrate_batch_progress_callback():

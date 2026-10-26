@@ -1,5 +1,5 @@
 import type { TurnSnapshot } from "../../types";
-import { faminesAt, sufficiencyByRegion, type FamineSpan } from "../../lib/food";
+import { crisesAtSnapshot, sufficiencyByRegion, type FamineSpan } from "../../lib/food";
 import {
   formatShare, pathogenColor, pathogenLabel, regionOutbreaks, regionPractice, techniqueLabel,
 } from "../../lib/systems";
@@ -28,7 +28,7 @@ export function RegionSystemsDetail({
   const techniques = snapshot?.techniques;
   const campaign = snapshot?.campaign;
   const turn = snapshot?.turn ?? 0;
-  const span = faminesAt(famine.filter((entry) => entry.region === region), turn)[0] ?? null;
+  const span = crisesAtSnapshot(famine.filter((entry) => entry.region === region), turn)[0] ?? null;
   const sufficiency = snapshot?.food ? sufficiencyByRegion(snapshot, regionNames).get(region) : undefined;
   const showFood = !!snapshot?.food || famine.length > 0;
   if (!epidemics && !techniques && !campaign && !showFood) {

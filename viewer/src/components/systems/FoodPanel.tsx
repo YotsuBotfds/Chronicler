@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import {
-  aidFlows, DEARTH_COLOR, FAMINE_COLOR, faminesAt, famineRows, foodCrisisSpans, foodSeries, regionNamesOf,
+  aidFlows, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, famineRows, foodCrisisSpans, foodSeries, regionNamesOf,
   SHORT_COLOR, SHORT_OF_FOOD, spansOfKind, sufficiencyByRegion,
 } from "../../lib/food";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
@@ -26,7 +26,8 @@ export function FoodPanel({
   const at = snapshot?.turn ?? currentTurn;
   const hasFood = !!snapshot?.food;
   const sufficiency = sufficiencyByRegion(snapshot, regionNames);
-  const running = faminesAt(spans, at);
+  // The snapshot holds the state after turn at - 1: its food and the crises reported by then.
+  const running = crisesAtSnapshot(spans, at);
   const famines = spansOfKind(running, "famine");
   const dearths = spansOfKind(running, "dearth");
   const crisisByRegion = new Map(running.map((span) => [span.region, span]));
@@ -37,12 +38,14 @@ export function FoodPanel({
   }
   const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.food, currentTurn);
   const convoys = events.filter((event) => event.turn === at - 1 && event.event_type === "aid_convoy").length;
-  const onsets = spansOfKind(spans, "famine").filter((span) => span.start <= at).length;
+  const onsets = spansOfKind(spans, "famine").filter((span) => span.start <= at - 1).length;
   const hasDearth = spans.some((span) => span.kind === "dearth");
   const short = [...sufficiency.values()].filter((value) => value < SHORT_OF_FOOD).length;
+  // Shortest food first; regions not observed at this turn after every observed one.
   const hungry = regionNames
     .filter((name) => crisisByRegion.has(name) || (sufficiency.get(name) ?? SHORT_OF_FOOD) < SHORT_OF_FOOD)
-    .sort((left, right) => (sufficiency.get(left) ?? 0) - (sufficiency.get(right) ?? 0) || left.localeCompare(right));
+    .sort((left, right) => (sufficiency.get(left) ?? Infinity) - (sufficiency.get(right) ?? Infinity)
+      || left.localeCompare(right));
   const shown = SERIES.filter((name) => (hasFood || CRISIS_SERIES.includes(name)) && (name !== "In dearth" || hasDearth));
   const showChart = series.some((row) => shown.some((name) => (row[name] ?? 0) > 0));
 
@@ -66,7 +69,7 @@ export function FoodPanel({
             civs={shown}
             color={(name) => SERIES_COLORS[name]}
             currentTurn={currentTurn}
-            label="Regions short of food and regions in famine"
+            label="Regions short of food, in dearth and in famine"
             step
           />
           {!hasFood && (

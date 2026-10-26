@@ -105,6 +105,16 @@ export function faminesAt(spans: FamineSpan[], turn: number): FamineSpan[] {
   return spans.filter((span) => span.start <= turn && (span.end === null || span.end > turn));
 }
 
+/**
+ * Spans running at a snapshot. A snapshot of turn T holds the state after turn
+ * T - 1: its food is what turn T - 1 observed, and a dearth or famine reported
+ * in turn T comes from turn T's observation (the next snapshot). So a snapshot
+ * shows the spans reported by turn T - 1 and not yet ended then.
+ */
+export function crisesAtSnapshot(spans: FamineSpan[], snapshotTurn: number): FamineSpan[] {
+  return faminesAt(spans, snapshotTurn - 1);
+}
+
 /** One strip row per region that had a famine or dearth, in region index order. */
 export function famineRows(spans: FamineSpan[], regionOrder: string[], lastTurn: number): StripRow[] {
   const byRegion = new Map<string, FamineSpan[]>();
@@ -167,7 +177,7 @@ export function foodSeries(history: TurnSnapshot[], spans: FamineSpan[]): Array<
     const short = snapshot.food
       ? snapshot.food.sufficiency.filter((value) => value !== null && value < SHORT_OF_FOOD).length
       : null;
-    const running = faminesAt(spans, snapshot.turn);
+    const running = crisesAtSnapshot(spans, snapshot.turn);
     return {
       turn: snapshot.turn,
       "Short of food": short,

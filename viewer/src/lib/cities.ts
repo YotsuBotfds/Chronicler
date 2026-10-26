@@ -30,9 +30,13 @@ export function charterLabel(charter: number): string {
   return CHARTER_LABELS[charter] ?? `charter ${charter}`;
 }
 
-/** Wares a city made in the snapshot's turn; "-" where the bundle predates crafts. */
+/**
+ * Wares a city made in the snapshot's turn, to the snapshot's two decimals (most
+ * loads are a fraction of a unit; one decimal showed 0.03 as "0.0"); "-" where
+ * the bundle predates crafts.
+ */
 export function waresLabel(row: CitySnapshotRow): string {
-  return row.crafts == null ? "-" : row.crafts.toFixed(1);
+  return row.crafts == null ? "-" : row.crafts.toFixed(2);
 }
 
 export interface CityKey {

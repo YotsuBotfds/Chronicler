@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import type { Bundle } from "../../../types";
-import { famineSpans, FAMINE_COLOR } from "../../../lib/food";
+import { crisesAtSnapshot, famineSpans, FAMINE_COLOR } from "../../../lib/food";
 import { AppShell, type AppSurface } from "../AppShell";
 
 afterEach(cleanup);
@@ -57,9 +57,8 @@ describe("AppShell map layers", () => {
 
   it("recolours regions by famine on the food layer and explains it in a legend", () => {
     const spans = famineSpans(systems.events_timeline);
-    const snapshot = systems.history.find((entry) =>
-      spans.some((span) => span.start <= entry.turn && (span.end === null || span.end > entry.turn)))!;
-    const span = spans.find((entry) => entry.start <= snapshot.turn && (entry.end === null || entry.end > snapshot.turn))!;
+    const snapshot = systems.history.find((entry) => crisesAtSnapshot(spans, entry.turn).length > 0)!;
+    const span = crisesAtSnapshot(spans, snapshot.turn)[0];
     renderShell(systems, snapshot.turn);
     const layers = screen.getByRole("radiogroup", { name: "Map layer" });
     expect(within(layers).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([

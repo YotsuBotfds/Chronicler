@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import {
-  civName, CREED_COLORS, CREED_LABELS, creedSeries, END_LABELS, institutionLabel, memberSeries, MOVEMENT_COUNTERS,
-  movementHistory, movementKeys, movementRecord, movementStageRows, reformName, reformsInForce, regionName,
-  STAGE_COLORS, STAGE_ORDER,
+  civName, CREED_COLORS, CREED_LABELS, creedSeries, institutionLabel, leaderLabel, martyrdoms, memberSeries,
+  MOVEMENT_COUNTERS, movementHistory, movementKeys, movementRecord, movementRecordNote, movementStageRows, reformName,
+  reformsInForce, regionName, STAGE_COLORS, STAGE_ORDER,
 } from "../../lib/movements";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
-import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { CivLegend, CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 
 const MEMBERS = "Members";
 
@@ -17,6 +17,10 @@ export function MovementsPanel({
   const keys = useMemo(() => movementKeys(history), [history]);
   const rows = useMemo(() => movementStageRows(history, keys), [history, keys]);
   const creeds = useMemo(() => creedSeries(history), [history]);
+  const martyred = useMemo(() => martyrdoms(bundle.events_timeline), [bundle.events_timeline]);
+  // The guild creed only where the run records guilds (--guilds); legend and chart agree.
+  const creedsShown = useMemo(
+    () => CREED_LABELS.filter((creed) => creed !== "guild" || history.some((h) => h.guilds)), [history]);
   const { first, end } = recordedSpan(history);
   const state = snapshot?.agent_movements;
   const at = snapshot?.turn ?? currentTurn;
@@ -61,9 +65,10 @@ export function MovementsPanel({
           onSelectRow={(row) => setChosen(Number(row.id))}
           isRowSelected={(row) => Number(row.id) === selected}
         />
+        <CivLegend civs={creedsShown} color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"} />
         <CivLineChart
           data={creeds}
-          civs={CREED_LABELS.filter((creed) => creed !== "guild" || history.some((h) => h.guilds))}
+          civs={creedsShown}
           color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"}
           currentTurn={currentTurn}
           label="Living movements by creed"
@@ -107,7 +112,7 @@ export function MovementsPanel({
                             <button type="button" className="systems-link" onClick={() => onSelectRegion(stronghold)}>{stronghold}</button>
                           ) : "-"}
                         </td>
-                        <td>{row.leader ?? "-"}</td>
+                        <td>{leaderLabel(row.leader, martyred, at)}</td>
                         <td>{row.martyrs}</td>
                       </tr>
                     );
@@ -172,11 +177,8 @@ export function MovementsPanel({
           <h3>{selectedName}</h3>
           {record && (
             <p className="systems-note">
-              {CREED_LABELS[record.creed] ?? "movement"} against {civName(bundle, record.target) ?? "?"}, founded
-              turn {record.founded_turn} in {regionName(bundle, record.home_region) ?? "?"}
-              {record.leader ? `, led by ${record.leader}` : ""}; peak {record.peak_members} members,{" "}
-              {record.demands} demands, {record.martyrs} martyrs
-              {record.end ? `; ended ${END_LABELS[record.end] ?? ""} at turn ${record.ended_turn}` : ""}.
+              {movementRecordNote(record, civName(bundle, record.target), regionName(bundle, record.home_region),
+                currentTurn)}
             </p>
           )}
           <CivLineChart

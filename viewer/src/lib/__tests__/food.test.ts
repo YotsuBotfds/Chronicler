@@ -3,7 +3,8 @@ import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import {
-  aidFlows, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, famineSpans, foodCrisisSpans, foodSeries,
+  aidFlows, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, famineSpans, foodCrisisSpans,
+  foodSeries,
   hasFamineRecord, hasFoodRecord, hasMigrationRecord, massMigrations, migrationDriverKind, migrationFlows, netMigration,
   spansOfKind, sufficiencyByRegion,
 } from "../food";
@@ -99,10 +100,41 @@ describe("food field", () => {
       snap(2),
     ];
     const spans = foodCrisisSpans([famine(1, "A", "onset"), famine(2, "B", "onset", "dearth")]);
+    // The snapshot of turn T holds the state after turn T - 1: turn 1's famine shows from snapshot 2.
     expect(foodSeries(history, spans)).toEqual([
-      { turn: 1, "Short of food": 1, "In dearth": 0, "In famine": 1 },
-      { turn: 2, "Short of food": null, "In dearth": 1, "In famine": 1 },
+      { turn: 1, "Short of food": 1, "In dearth": 0, "In famine": 0 },
+      { turn: 2, "Short of food": null, "In dearth": 0, "In famine": 1 },
     ]);
+  });
+
+  it("shows a crisis from the snapshot after its report, beside the food it was reported on", () => {
+    // A dearth reported in turn 5 comes from turn 5's food, which the snapshot of turn 6 holds.
+    const spans = foodCrisisSpans([famine(5, "A", "onset", "dearth"), famine(8, "A", "end", "dearth_ended")]);
+    expect(crisesAtSnapshot(spans, 5)).toEqual([]);
+    expect(crisesAtSnapshot(spans, 6).map((span) => span.region)).toEqual(["A"]);
+    expect(crisesAtSnapshot(spans, 8).map((span) => span.region)).toEqual(["A"]);
+    expect(crisesAtSnapshot(spans, 9)).toEqual([]);
+  });
+
+  it("finds a run's recorded crises beside the food that caused them", () => {
+    // In the fixture, a report's region is short of food in the snapshot after it, not the one at it.
+    const spans = foodCrisisSpans(systems.events_timeline);
+    let aligned = 0;
+    let checked = 0;
+    for (const snapshot of systems.history) {
+      if (!snapshot.food) {
+        continue;
+      }
+      const values = sufficiencyByRegion(snapshot, names);
+      for (const span of crisesAtSnapshot(spans, snapshot.turn).filter((entry) => entry.start === snapshot.turn - 1)) {
+        checked += 1;
+        if ((values.get(span.region) ?? 2) < 1) {
+          aligned += 1;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(aligned / checked).toBeGreaterThan(0.9);
   });
 });
 
