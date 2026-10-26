@@ -5,8 +5,10 @@
  * (lib/civRows), never from the end-of-run world state: a civilization with
  * no row yet is not yet founded there, so it has no values to show, takes no
  * place in rankings, chips or summaries and is not the default focus. Its
- * inspector says so ("Unavailable"). Without any history (a live session
- * before its first turn) the world state is the present and is shown.
+ * inspector says so ("Unavailable"). A turn before the first snapshot (a
+ * resumed run's history starts late) has no snapshot: every civilization is
+ * pending there, with status "Unavailable". Without any history (a live
+ * session before its first turn) the world state is the present and is shown.
  *
  * Turn convention: the scrubber's turn T shows snapshot T, the state after
  * turn T - 1 (chronicler/historical_context.py, `AsOf.at_snapshot`).
@@ -36,13 +38,17 @@ export interface CivilizationView {
   status: string;
 }
 
-/** A civilization the history does not hold yet at the snapshot. */
+/**
+ * A civilization the history does not hold yet at the snapshot: "Not yet
+ * founded", or "Unavailable" when no snapshot holds the turn at all (it
+ * precedes the recorded history).
+ */
 export interface PendingCivilizationView {
   founded: false;
   name: string;
   values: string[];
   goal: string;
-  status: "Not yet founded";
+  status: "Not yet founded" | "Unavailable";
 }
 
 export type CivilizationEntry = CivilizationView | PendingCivilizationView;
@@ -72,7 +78,7 @@ export function buildCivilizationViews(bundle: Bundle | null, snapshot: TurnSnap
         name: civilization.name,
         values: civilization.values,
         goal: civilization.goal,
-        status: "Not yet founded",
+        status: snapshot ? "Not yet founded" : "Unavailable",
       };
     }
     // A dead civilization leaves later snapshots (bundle version 5): show its

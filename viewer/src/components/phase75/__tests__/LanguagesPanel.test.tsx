@@ -35,6 +35,39 @@ describe("LanguagesPanel", () => {
     const { container } = render(<LanguagesPanel field={undefined} turn={0} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("shows the languages, status, sounds and changes known at the turn", () => {
+    // The field is the end-of-run record (main dae4ba5 showed it at every turn):
+    // Free Iron Peaks is born at turn 50, Kethani dies out at 40, Dorrathi
+    // changes its sounds at 60.
+    const view = render(<LanguagesPanel field={sampleLanguages()} turn={30} />);
+    const options = () => [...(screen.getByRole("combobox") as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(options().some((text) => text?.includes("Free Iron Peaks"))).toBe(false);
+    expect(options().find((text) => text?.includes("Kethani"))).toContain("(living, from turn 0)");
+    // The default is the first language living then: Kethani.
+    expect(screen.getByText(/Kethaniki to its speakers/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    expect(screen.getByText(/Sounds: Unavailable at this turn\. 1 sound change by turn 30\./)).toBeInTheDocument();
+
+    view.rerender(<LanguagesPanel field={sampleLanguages()} turn={70} />);
+    expect(options().some((text) => text?.includes("Free Iron Peaks (living, from turn 50)"))).toBe(true);
+    expect(options().find((text) => text?.includes("Kethani"))).toContain("(extinct, from turn 0)");
+    expect(screen.getByText(/Sounds: p t k m n s l r \/ a e i o u\. 2 sound changes by turn 70\./)).toBeInTheDocument();
+  });
+
+  it("shows a name's forms only up to the turn", () => {
+    const view = render(<LanguagesPanel field={sampleLanguages()} turn={70} selected={{ kind: "region", ref: 0 }} />);
+    fireEvent.click(within(screen.getByLabelText("Names of the selection")).getByRole("button", { name: "Eskelbor" }));
+    expect(screen.getByLabelText("Etymology")).toHaveTextContent("Eskelbor turn 60");
+    // Scrubbed back to turn 40: the turn-60 form had not arisen yet.
+    view.rerender(<LanguagesPanel field={sampleLanguages()} turn={40} selected={{ kind: "region", ref: 0 }} />);
+    const ety = screen.getByLabelText("Etymology");
+    expect(ety).toHaveTextContent("Askelbor turn 30");
+    expect(ety.textContent).not.toContain("Eskelbor");
+    // Before the word was coined (turn 30) there is no etymology.
+    view.rerender(<LanguagesPanel field={sampleLanguages()} turn={20} selected={{ kind: "region", ref: 0 }} />);
+    expect(screen.queryByLabelText("Etymology")).toBeNull();
+  });
 });
 
 function renderShell(bundle: Bundle) {

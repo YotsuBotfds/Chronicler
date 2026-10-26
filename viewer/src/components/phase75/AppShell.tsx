@@ -20,6 +20,7 @@ import { ERA_LABELS } from "../../lib/format";
 import {
   buildCivilizationViews, isFounded, type CivilizationEntry, type CivilizationView,
 } from "../../lib/civilizationViews";
+import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
 import { BatchCompare } from "../BatchCompare";
 import { BatchPanel } from "../BatchPanel";
@@ -39,7 +40,7 @@ import {
 import { techniqueLabel } from "../../lib/systems";
 import {
   atlasPoint, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius,
-  turnToPercent, type PinFrame,
+  terrainAt, turnToPercent, type PinFrame,
 } from "./appShellHelpers";
 import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
 import "./app-shell.css";
@@ -139,19 +140,18 @@ const SPEED_OPTIONS = [1, 2, 5, 10];
 /** Inspector text for a value the history does not hold yet at the snapshot. */
 const UNAVAILABLE = "Unavailable";
 
+/**
+ * The snapshot shown at `currentTurn`: the latest at or before it. Null
+ * without history and before the first snapshot (a resumed run's history
+ * starts late): a later snapshot never stands in, and the shell shows no
+ * per-turn values there.
+ */
 function findCurrentSnapshot(bundle: Bundle | null, currentTurn: number): TurnSnapshot | null {
-  if (!bundle || bundle.history.length === 0) {
+  if (!bundle) {
     return null;
   }
-
-  let latest = bundle.history[0];
-  for (const snapshot of bundle.history) {
-    if (snapshot.turn > currentTurn) {
-      break;
-    }
-    latest = snapshot;
-  }
-  return latest ?? bundle.history[bundle.history.length - 1];
+  const position = snapshotPositionAt(bundle.history, currentTurn);
+  return position >= 0 ? bundle.history[position] : null;
 }
 
 function dominantCivilization(civilizations: CivilizationView[]): CivilizationView | null {
@@ -262,8 +262,10 @@ function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): Chronic
     return items.sort((left, right) => left.turn - right.turn).slice(-14);
   }
 
+  // A curated entry narrates its moment through its last turn (the narrator
+  // reads the record after it), so it appears once that turn has passed.
   const items = bundle.chronicle_entries
-    .filter((entry) => entry.covers_turns[0] <= currentTurn)
+    .filter((entry) => entry.covers_turns[1] <= currentTurn)
     .map<ChronicleFeedItem>((entry, index) => ({
       id: `segment-${index}`,
       turn: entry.covers_turns[0],
@@ -289,8 +291,9 @@ function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): Chronic
     }))
     .filter((item) => !Number.isNaN(item.turn) && item.turn <= currentTurn);
 
+  // A gap's summary counts every turn of the gap: shown once the gap has passed.
   const gaps = (bundle.gap_summaries ?? [])
-    .filter((gap) => gap.turn_range[0] <= currentTurn)
+    .filter((gap) => gap.turn_range[1] <= currentTurn)
     .map<ChronicleFeedItem>((gap, index) => ({
       id: `gap-${index}`,
       turn: gap.turn_range[0],
@@ -478,6 +481,7 @@ function selectionDescription(
   surface: AppSurface,
   selection: SelectedEntity | null,
   summary: BatchRunSummary | null,
+  currentTurn: number,
 ): string {
   if (surface === "batch") {
     return buildRunSignalSummary(summary);
@@ -486,6 +490,10 @@ function selectionDescription(
     return "Map selection drives inspector context across Overview, Character, Trade, and Campaign.";
   }
   if (selection.kind === "event") {
+    // An event pinned at a later turn is not described before it happens.
+    if (selection.turn !== undefined && selection.turn > currentTurn) {
+      return `Pinned event not yet recorded at turn ${currentTurn}.`;
+    }
     return `Pinned to ${selection.label} at turn ${selection.turn ?? "?"}.`;
   }
   return `${selection.kind === "region" ? "Region" : "Focus"} selected: ${selection.label}.`;
@@ -689,9 +697,15 @@ export function AppShell({
       values: civilization.values ?? [],
     }))
     : selectedScenario?.civs ?? [];
+  // The world state is the present only for a bundle without history (a
+  // live session before its first turn); before the first snapshot of a
+  // recorded history no controller is known.
+  const worldIsPresent = !!bundle && bundle.history.length === 0;
   const regionControllers = currentSnapshot?.region_control
     ?? (bundle
-      ? Object.fromEntries(bundle.world_state.regions.map((region) => [region.name, region.controller]))
+      ? (worldIsPresent
+        ? Object.fromEntries(bundle.world_state.regions.map((region) => [region.name, region.controller]))
+        : {})
       : previewControllers);
   const atlasRegions: RegionLike[] = bundle
     ? bundle.world_state.regions
@@ -706,7 +720,11 @@ export function AppShell({
   const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
   const famine = useMemo(() => (bundle ? foodCrisisSpans(bundle.events_timeline) : []), [bundle]);
   const regionNames = useMemo(() => (bundle ? bundle.world_state.regions.map((region) => region.name) : []), [bundle]);
-  const techniqueOptions = useMemo(() => (bundle ? practisedTechniques(bundle.history) : []), [bundle]);
+  // Techniques practised by the scrubbed turn (a later invention is not offered).
+  const techniqueOptions = useMemo(
+    () => (bundle ? practisedTechniques(bundle.history.filter((snapshot) => snapshot.turn <= currentTurn)) : []),
+    [bundle, currentTurn],
+  );
   const technique = techniqueSelection && techniqueOptions.includes(techniqueSelection)
     ? techniqueSelection
     : (mapLayer === "techniques" ? defaultTechnique(currentSnapshot, techniqueOptions) : null);
@@ -715,7 +733,7 @@ export function AppShell({
     : null;
   const atlasConnections = buildRegionConnections(atlasNodes);
   const controllerCentroids = computeControllerCentroids(atlasNodes);
-  const worldRelationships = bundle?.world_state.relationships ?? null;
+  const worldRelationships = worldIsPresent ? (bundle?.world_state.relationships ?? null) : null;
   const snapshotRelationships = currentSnapshot?.relationships ?? null;
   const tradeRelationships = snapshotRelationships ?? worldRelationships;
   const tradeLinks = buildTradeLinks(
@@ -901,13 +919,25 @@ export function AppShell({
   const selectedEvent = selectedEntity?.kind === "event"
     ? (bundle?.events_timeline.find((event) => eventKey(event) === selectedEntity.id) ?? null)
     : null;
-  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? [], selectedEvent);
+  // An event pinned at a later turn stays selected while scrubbing back, but
+  // is not shown before its turn; its consequences and accounts are those
+  // recorded by the scrubbed turn (the event log's convention).
+  const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn;
+  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? [], selectedEvent, currentTurn);
   const historiography = bundle?.historiography;
   const accountRows = useMemo(
     () => (historiography ? decodeAccounts(historiography) : []),
     [historiography],
   );
-  const selectedEventAccounts = accountsForEvent(historiography, selectedEvent?.event_id, accountRows);
+  const selectedEventAccounts = selectedEventRecorded
+    ? accountsForEvent(historiography, selectedEvent?.event_id, accountRows, currentTurn)
+    : null;
+  // The region's terrain at the scrubbed turn (terrain transitions are dated events).
+  const selectedRegionTerrain = selectedRegion
+    ? (bundle && !worldIsPresent
+      ? terrainAt(bundle.events_timeline, selectedRegion.name, selectedRegion.terrain, currentTurn)
+      : selectedRegion.terrain)
+    : null;
   // The pinned region or civ by index, for the languages panel's names.
   const languageSelection = useMemo(() => {
     if (!bundle?.languages || !selectedEntity) {
@@ -1110,8 +1140,10 @@ export function AppShell({
           selectedRegion={selectedRegion}
           selectedCivilization={selectedCivilization}
           selectedEvent={selectedEvent}
+          selectedEventRecorded={selectedEventRecorded}
           selectedEventProvenance={selectedEventProvenance}
           selectedEventAccounts={selectedEventAccounts}
+          selectedRegionTerrain={selectedRegionTerrain}
           languages={bundle?.languages}
           languageSelection={languageSelection}
           currentTurn={currentTurn}
@@ -1120,7 +1152,7 @@ export function AppShell({
           previewCivilizations={previewCivilizations}
           selectedScenario={selectedScenario}
           resumeState={resumeState}
-          description={selectionDescription(surface, selectedEntity, selectedBatchSummary)}
+          description={selectionDescription(surface, selectedEntity, selectedBatchSummary, currentTurn)}
           inspectorSections={inspectorSections}
           onToggleSection={toggleInspectorSection}
           batchReport={batchReport}
@@ -2040,9 +2072,10 @@ function MapViewport({
     }
     return mapLayerView.dimControl ? { fill: control, opacity: 0.32 } : { fill: NO_DATA_FILL, opacity: NO_DATA_OPACITY };
   };
+  // Named events recorded by the scrubbed turn (a later landmark is not marked).
   const highlightedEventRegions = new Set(
     namedEvents
-      .filter((event) => event.region)
+      .filter((event) => event.region && event.turn <= currentTurn)
       .slice(0, 8)
       .map((event) => event.region as string),
   );
@@ -2305,8 +2338,10 @@ function RightInspector({
   selectedRegion,
   selectedCivilization,
   selectedEvent,
+  selectedEventRecorded = true,
   selectedEventProvenance,
   selectedEventAccounts = null,
+  selectedRegionTerrain,
   languages,
   languageSelection = null,
   currentTurn = 0,
@@ -2334,8 +2369,12 @@ function RightInspector({
   selectedRegion: RegionLike | null;
   selectedCivilization: CivilizationEntry | null;
   selectedEvent: Event | null;
+  /** False when the pinned event is dated after the scrubbed turn. */
+  selectedEventRecorded?: boolean;
   selectedEventProvenance?: { causes: Event[]; effects: Event[] };
   selectedEventAccounts?: EventAccounts | null;
+  /** The selected region's terrain at the scrubbed turn (null: unreadable record). */
+  selectedRegionTerrain?: string | null;
   languages?: LanguagesField;
   languageSelection?: { kind: "region" | "civ"; ref: number } | null;
   currentTurn?: number;
@@ -2449,7 +2488,7 @@ function RightInspector({
                 </div>
                 <div className="phase75-stat-row">
                   <span>Terrain</span>
-                  <strong>{selectedRegion.terrain}</strong>
+                  <strong>{selectedRegionTerrain === undefined ? selectedRegion.terrain : (selectedRegionTerrain ?? UNAVAILABLE)}</strong>
                 </div>
                 <div className="phase75-stat-row">
                   <span>Resources</span>
@@ -2489,7 +2528,18 @@ function RightInspector({
               </>
             )}
 
-            {selectedEvent && (
+            {selectedEvent && !selectedEventRecorded && (
+              // Pinned at a later turn: not recorded yet at the scrubbed turn.
+              <>
+                <div className="phase75-stat-row">
+                  <span>Event</span>
+                  <strong>{UNAVAILABLE}</strong>
+                </div>
+                <p className="phase75-detail-copy">Not yet recorded at turn {currentTurn}.</p>
+              </>
+            )}
+
+            {selectedEvent && selectedEventRecorded && (
               <>
                 <div className="phase75-stat-row">
                   <span>Event</span>

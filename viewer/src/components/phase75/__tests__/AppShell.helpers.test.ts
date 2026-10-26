@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   atlasPoint, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius,
-  turnToPercent,
+  terrainAt, turnToPercent,
 } from "../appShellHelpers";
 
 describe("AppShell helpers", () => {
@@ -85,5 +85,26 @@ describe("AppShell helpers", () => {
     const events = [war, battle, occupation, legacy];
     expect(eventProvenance(events, battle)).toEqual({ causes: [war], effects: [occupation] });
     expect(eventProvenance(events, legacy)).toEqual({ causes: [], effects: [] });
+    // Up to a turn: the consequences recorded by then.
+    const revolt = { turn: 9, event_type: "occupation_revolt", event_id: "9:occupation_revolt:0", causes: ["3:war:0"] };
+    expect(eventProvenance([...events, revolt], battle, 8)).toEqual({ causes: [war], effects: [occupation] });
+    expect(eventProvenance([...events, revolt], battle, 9)).toEqual({ causes: [war], effects: [occupation, revolt] });
+  });
+
+  it("gives a region's terrain at a turn from its dated transitions", () => {
+    const transition = (turn: number, region: string, from: string, to: string) => ({
+      turn, event_type: "terrain_transition", description: `${region} transforms from ${from} to ${to}`,
+    });
+    const events = [transition(40, "Green Vale", "forest", "plains"), transition(90, "Green Vale", "plains", "forest"),
+                    transition(60, "Green Vale East", "hills", "plains")];
+    expect(terrainAt(events, "Green Vale", "forest", 10)).toBe("forest");
+    expect(terrainAt(events, "Green Vale", "forest", 40)).toBe("plains");
+    expect(terrainAt(events, "Green Vale", "forest", 89)).toBe("plains");
+    expect(terrainAt(events, "Green Vale", "forest", 90)).toBe("forest");
+    expect(terrainAt(events, "Green Vale East", "plains", 10)).toBe("hills");
+    expect(terrainAt([], "Green Vale", "forest", 10)).toBe("forest");
+    // A later transition the viewer cannot read: unknown.
+    expect(terrainAt([{ turn: 50, event_type: "terrain_transition", description: "Green Vale changes" }],
+      "Green Vale", "forest", 10)).toBeNull();
   });
 });

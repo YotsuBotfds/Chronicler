@@ -150,10 +150,12 @@ export function eventKey(event: ProvenanceEventLike): string {
 /**
  * Recorded provenance of one event (bundle version 4+): the events it cites
  * as causes and the events that cite it. Both are empty for older bundles.
+ * With `upToTurn`, only the events recorded by then (as the event log).
  */
 export function eventProvenance<E extends ProvenanceEventLike>(
   events: E[],
   selected: E | null,
+  upToTurn?: number,
 ): { causes: E[]; effects: E[] } {
   if (!selected?.event_id) {
     return { causes: [], effects: [] };
@@ -163,6 +165,9 @@ export function eventProvenance<E extends ProvenanceEventLike>(
   const causes: E[] = [];
   const effects: E[] = [];
   for (const event of events) {
+    if (upToTurn !== undefined && event.turn > upToTurn) {
+      continue;
+    }
     if (event.event_id && wanted.has(event.event_id)) {
       causes.push(event);
     }
@@ -171,4 +176,39 @@ export function eventProvenance<E extends ProvenanceEventLike>(
     }
   }
   return { causes, effects };
+}
+
+const TERRAIN_TRANSITION = /^(.*) transforms from (\S+) to (\S+)$/;
+
+/**
+ * A region's terrain at `turn`. The world state holds the final terrain;
+ * `terrain_transition` events ("<region> transforms from <a> to <b>",
+ * emergence.py) date each change, so the terrain at `turn` is the `from`
+ * of the region's first transition after it (the event log's convention:
+ * an event of turn T has happened at T). Null when such an event cannot be
+ * read.
+ */
+export function terrainAt(
+  events: Array<{ turn: number; event_type: string; description: string }>,
+  region: string,
+  finalTerrain: string,
+  turn: number,
+): string | null {
+  let first: { turn: number; from: string | null } | null = null;
+  for (const event of events) {
+    if (event.event_type !== "terrain_transition" || event.turn <= turn) {
+      continue;
+    }
+    const match = TERRAIN_TRANSITION.exec(event.description ?? "");
+    if (match && match[1] !== region) {
+      continue;
+    }
+    if (!match && !(event.description ?? "").startsWith(region)) {
+      continue;
+    }
+    if (!first || event.turn < first.turn) {
+      first = { turn: event.turn, from: match ? match[2] : null };
+    }
+  }
+  return first ? first.from : finalTerrain;
 }

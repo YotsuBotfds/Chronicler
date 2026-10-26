@@ -109,6 +109,47 @@ export function cityRecord(bundle: Bundle, id: number): CityRecord | null {
   return [...(state.cities ?? []), ...(state.fallen ?? [])].find((city) => city.settlement_id === id) ?? null;
 }
 
+/** A city's record as known at `upToTurn` (never a value the record dates later). */
+export interface CityRecordAt {
+  record: CityRecord;
+  /** Highest rank, residents and purse in its history rows up to `upToTurn`; 0 before its first row. */
+  peakRank: number;
+  peakResidents: number;
+  peakWealth: number;
+  /** Whether it had fallen by `upToTurn`. */
+  fell: boolean;
+}
+
+/**
+ * The city's founding, its peaks so far and its fall if it fell by
+ * `upToTurn`; null before its founding. The final `world_state` record holds
+ * the whole run (its peaks and fall), so only what it dates at or before the
+ * turn is used, and the peaks come from the history rows (as
+ * `learning.seatRecordAt`).
+ */
+export function cityRecordAt(bundle: Bundle, id: number, upToTurn: number): CityRecordAt | null {
+  const record = cityRecord(bundle, id);
+  if (!record || record.founded_turn > upToTurn) {
+    return null;
+  }
+  let peakRank = 0;
+  let peakResidents = 0;
+  let peakWealth = 0;
+  for (const snapshot of bundle.history) {
+    if (snapshot.turn > upToTurn) {
+      continue;
+    }
+    const row = cityRow(snapshot, id);
+    if (row) {
+      peakRank = Math.max(peakRank, row.rank);
+      peakResidents = Math.max(peakResidents, row.residents);
+      peakWealth = Math.max(peakWealth, row.wealth);
+    }
+  }
+  const fell = record.fallen_turn != null && record.fallen_turn <= upToTurn;
+  return { record, peakRank, peakResidents, peakWealth, fell };
+}
+
 export interface CityMoment {
   turn: number;
   kind: string;

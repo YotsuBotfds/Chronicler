@@ -86,11 +86,41 @@ export function decodeAccounts(field: HistoriographyField): EventAccount[] {
   });
 }
 
-/** All accounts of one event (notable rows first, then plain tellings) and how they diverge. */
+/**
+ * The accounts as known at `turn`. The field is exported after the run, so
+ * its losses are the final ones: a copy lost after `turn` still stands
+ * there (told, or silent), and the `lost` divergence holds only while one
+ * copy is lost by then and another stands. The other kinds read the texts,
+ * which a loss does not change.
+ */
+export function accountsAsOf(entry: EventAccounts, turn: number): EventAccounts {
+  let changed = false;
+  const accounts = entry.accounts.map((account): EventAccount => {
+    if (account.lostTurn === null || account.lostTurn <= turn) {
+      return account;
+    }
+    changed = true;
+    return { ...account, status: account.text ? "told" : "silent", lostTurn: null, lostCause: null };
+  });
+  if (!changed) {
+    return entry;
+  }
+  const divergence = entry.divergence.filter((kind) => kind !== "lost");
+  if (accounts.some((a) => a.status === "lost") && accounts.some((a) => a.status !== "lost")) {
+    divergence.push("lost");
+  }
+  return { accounts, divergence: divergence.sort() };
+}
+
+/**
+ * All accounts of one event (notable rows first, then plain tellings) and how
+ * they diverge; with `upToTurn`, as known then (`accountsAsOf`).
+ */
 export function accountsForEvent(
   field: HistoriographyField | undefined,
   eventId: string | undefined,
   decoded?: EventAccount[],
+  upToTurn?: number,
 ): EventAccounts | null {
   if (!field || !eventId) {
     return null;
@@ -119,7 +149,8 @@ export function accountsForEvent(
     return null;
   }
   const contested = field.contested.find((c) => c.event_id === eventId);
-  return { accounts, divergence: contested?.divergence ?? [] };
+  const entry = { accounts, divergence: contested?.divergence ?? [] };
+  return upToTurn === undefined ? entry : accountsAsOf(entry, upToTurn);
 }
 
 /** "The Kethani chronicles" for the start of a sentence. */
