@@ -918,7 +918,7 @@ def repeat_key(ev: "Event") -> tuple | None:
 def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
     """How the event stands for civ ``name``: (stance, the other principal civ)."""
     t = ev.event_type
-    guild = ctx.guild_stance(ev)
+    guild = ctx.guild_stance(ev) if ctx is not None else None
     if guild is not None:
         return guild, None
     actors = list(ev.actors)
