@@ -1,6 +1,7 @@
 # Seats of learning (`--scholarship`)
 
-Branch `feat/scholarship` from `main` `fc01d6e` (PR #44, turn speed).
+Branch `feat/scholarship` from `main` `fc01d6e` (PR #44, turn speed), merged
+without rebase with `b8f0243` (PR #45, historical parity).
 Code: `src/chronicler/scholarship.py` (behaviour),
 `src/chronicler/scholarship_state.py` (persisted state), hooks in
 `techniques.py` (research, adoption, carried techniques), `historiography.py`
@@ -11,11 +12,41 @@ columns), `narration_context.py` (standing state), the Rust learning driver in
 `scholarship_probe.py` (what seats do to techniques and archives, per world),
 `scholarship_identity.py`, `build_learning_fixture.py`.
 
-**Status.** TBD
+**Status.** Finished, default off. Both full gates pass strict with no
+regression against main: template 200 x 500 and procedural 100 x 300, with
+the switch on. Every subset gate passes. With the switch off, every output
+byte is identical to `main` (`fc01d6e` and, after the merge, `b8f0243`). The
+default stays off: the review bar for merging asks for it, so no flip
+commit was made. A flip would follow
+[defaults-wave8.md](defaults-wave8.md) in its own commit.
 
 ## Result
 
-TBD
+- **Places and people.** Rulers found academies at their capitals,
+  temples of the realm's faith found temple schools and rich cities found
+  libraries (`--cities`). Each pays its seat's upkeep. A seat rises with
+  its scholars: agents of the scholar occupation and great-person
+  scientists teaching there. Famine, persecution of its faith, a sack and a
+  patron's failure strike it. When it falls its scholars flee to the
+  nearest seat, a rival's first, carrying up to three techniques and the
+  seat's archive. On the 200 template worlds: 16.3 seats founded per run,
+  2.9 standing at a time, 12.6 falls (half for loss of patronage), 11.9
+  flights.
+- **Archives.** Courts and temples lose a quarter fewer of their accounts
+  (20% to 15% on templates, 21% to 15% on procedural worlds; 6.5 and 4.4
+  standard errors). In a war loss where a seat kept copies, 10-13 points
+  more of the archive's accounts survive (expected 89.6% against 76.8%,
+  and 90.3% against 78.0%). Few war losses reach such an archive: 4 of 81
+  episodes on templates, 25 of 147 on procedural worlds.
+- **Techniques.** Knowledge moves with fleeing scholars (6.5 carries per
+  run; 0.27 civ adoptions through the new `scholars` channel). Civ-level
+  invention and adoption counts do not move beyond their noise (below).
+- **Migration.** A fifth healthy-world driver draws scholar agents
+  within a realm toward a better seat: 210 agent migrations per run on
+  templates and 199 per 200-turn procedural run. No existing weight changes.
+- **Cost.** Turn time with seats standing is within the machine's noise
+  (+1% and +6% of the off medians at 15.5k and 35.5k agents). The
+  guard-world bundle is 8.33 MB on (8.64 MB off; limit 10.5).
 
 ## Design
 
@@ -364,7 +395,27 @@ full report:
 | final population min / median / max | 23 / 180 / 307 | 58 / 184 / 306 |
 | era collapses (by the civ's signals / by crises only) | 4,509 (2,755 / 1,754) | 4,487 (2,744 / 1,743) |
 
-PROCEDURAL_FULL
+Procedural, 100 seeds x 300 turns (32 regions x 10 civs), `03a406a`,
+`--worldgen procedural --scholarship --require-strict-regression
+--parallel 2`, against main's newest procedural full report:
+
+| | main (switch absent) | branch, `--scholarship` |
+| --- | --- | --- |
+| gate; comparator | PASS; - | PASS; NO REGRESSION |
+| regression (adjudication; failed checks) | PASS (strict); - | PASS (strict); - |
+| needs: net; lower bound; seeds (needed) | 0.145; 0.120; 83 (60) | 0.161; 0.135; 83 (60) |
+| needs binding: net; lower bound | 0.149; 0.117 | 0.165; 0.130 |
+| cohort (seeds; median effect); community; era (inflections; silent) | 100; 1.00; 100; 100; 0 | 100; 0.99; 100; 100; 0 |
+| arcs (status; three types; families) | PASS; 99; 6 | PASS; 100; 6 |
+| artifacts (status; per civ per 100; loss) | PASS; 2.00; 4.9% | PASS; 2.07; 4.5% |
+| satisfaction mean; latest | 0.566; 0.567 | 0.565; 0.567 |
+| migration; rebellion per agent-turn | 0.0746; 0.0352 | 0.0751; 0.0333 |
+| all founders survive; extinct worlds | 0.130; 0 | 0.110; 0 |
+| final population min / median / max | 298 / 517.5 / 936 | 304 / 526 / 754 |
+| era collapses (by the civ's signals / by crises only) | 4,493 (2,732 / 1,761) | 4,475 (2,742 / 1,733) |
+
+Both full gates pass strict with no regression, analysing 200/200/200 and
+100/100/100 seeds with no duplicate seed pairs.
 
 What the seats did over the 200 template worlds (per run):
 
@@ -390,8 +441,13 @@ compared byte for byte (the bundle without `metadata.generated_at`).
 
 | Base | Branch | Result |
 | --- | --- | --- |
-| `fc01d6e` export, its own native build (`a6d0de13...726d31`) | `cd0ccfd` export (the head's simulation and Rust source; later commits change scripts and docs only), branch build (`5a9619cd...0262c`), no flags | 9 cases, 395 files, **0 differences** |
+| `fc01d6e` export, its own native build (`a6d0de13...726d31`) | `cd0ccfd` export (the gated simulation and Rust source), branch build (`5a9619cd...0262c`), no flags | 9 cases, 395 files, **0 differences** |
 | same | same, `--no-scholarship` | 9 cases, 395 files, **0 differences** |
+| `b8f0243` export (main after PR #45; Rust unchanged since `fc01d6e`, so the `fc01d6e` build) | `ec274cb` export (the merge with `b8f0243` plus the contract and viewer commits), branch build, no flags | 9 cases, 395 files, **0 differences** |
+| same | same, `--no-scholarship` | 9 cases, 395 files, **0 differences** |
+
+`b8f0243` against `fc01d6e` also gives 0 differences on this matrix, as
+PR #45 states.
 
 An earlier run of the same matrix, from the working tree between
 `9985b1a` and `21a2b51`, gave the same result. The branch's Rust (the learning driver and two
@@ -522,8 +578,54 @@ because the history differs, not because the field is free.
 
 ## Verification
 
-TBD
+Linux, Python 3.13, 4 shared cores. The native extension was rebuilt from
+a clean `chronicler-agents/target` at the head with `maturin develop
+--release --locked`. It is byte-identical to the build every gate and
+test used (`chronicler_agents...so` SHA-256 `5a9619cd...0262c`; the Rust
+is unchanged since `9985b1a`). `chronicler_agents.chronicler_agents`
+resolves to the compiled module; `AgentSimulator`, `EcologySimulator`
+and `PoliticsSimulator` are real classes.
+
+| Check | Result |
+| --- | --- |
+| `cargo test` (debug info off) | 1,017 passed, 0 failed, 2 ignored (Rust as at the head) |
+| `pytest -m "not slow" -n 2` at `ec274cb` | 6,403 passed, 3 skipped, 526 subtests (before the merge, at `faad2e2`: 6,357 passed, 3 skipped) |
+| `pytest -m slow -n 2` at `ec274cb` | 12 passed, 3 skipped (`TestBundleSize` with the switch off) |
+| No-Rust lane (`chronicler_agents` blocked; every test) at `ec274cb` | 6,168 passed, 239 skipped |
+| `scripts/run_python_oracle_checks.py` at `ec274cb` | PASS in 98.0 s; largest chunk 38.2 s of 110 s; `learning` chunk 40 passed, 2 skipped (native) |
+| Viewer at `ec274cb`: `npm test`, `npm run lint`, `npm run build` | 45 files, 363 tests passed; lint clean; build passes |
+| Identity, switch off | 0 differences against `fc01d6e` and `b8f0243` (above) |
+| Native integration | the two native tests above; 42,047 agent migrations led by the Rust learning driver on the template full gate (197 of 200 worlds) |
+| Gates | subsets and both full gates above, each in a fresh output root with exactly the requested seeds |
+
+Before the merge, the full viewer run at `faad2e2` had one timeout in an
+unrelated test (`GroupedEventLedger`, 5.7 s against 5 s) at load average
+12. It passed alone, and the whole suite passed at the head.
 
 ## Open items
 
-TBD
+- **Default.** Off. Both full gates pass strict with no regression. Turning
+  it on is a separate decision with its own commit (CLI help, live
+  comments, the default tests; the benchmark pin stays off).
+- **Techniques.** The effects act on a seat's region and ruler. Civ-level
+  technique counts do not show them beyond noise on 200-turn worlds (500
+  turns: below). A region-level measure (practice in seat regions against
+  their neighbours) would show the mechanism directly; the probe does not
+  read region practice from bundles.
+- **Adoption through fleeing scholars is rare** (0.27 per run against 6.5
+  carries). A refuge civ usually knows the carried technique already; the
+  carry then only raises the refuge region's practice.
+- **Accounts in narration.** Seat lines in the standing state come from the
+  snapshot as of the moment (`historical_context`). The in-world accounts
+  block (`historiography.AccountIndex.prompt_block`, unchanged by this
+  branch) still says "lost (archive ..., turn N)" when an account was
+  lost after the moment. This holds for every chronicler, the seats'
+  included.
+- **Faith names after schisms** read as the registry writes them ("the
+  Faith of Thornwall Confederacy (Reformed 2) (Reformed)") in temple
+  school foundings.
+- **Libraries need `--cities`** (on by default); with cities off only
+  academies and temple schools are founded.
+- **Viewer.** The Learning tab's level strip and scholars chart cover the
+  whole run with a cursor, as the other system tabs do. The selected
+  seat's note is dated to the scrubbed turn.
