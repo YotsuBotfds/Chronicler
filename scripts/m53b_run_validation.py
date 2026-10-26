@@ -6,6 +6,12 @@ Profiles:
 - full: 200 seeds x 500 turns, validation sidecars + condensed summaries
 - determinism-off: two duplicate-seed aggregate runs
 - determinism-hybrid: two duplicate-seed hybrid runs
+
+Worlds (``--worldgen``):
+- template (default): the CLI's default world, 8 template regions and 4 civs
+- procedural: heightmap/Voronoi geography with a fixed region and civ count
+  per seed (``PROCEDURAL_WORLD``); its own seed and turn defaults
+  (``PROCEDURAL_PROFILE_DEFAULTS``). See docs/integration/procedural-gates.md.
 """
 from __future__ import annotations
 
@@ -64,14 +70,48 @@ PROFILE_DEFAULTS = {
 }
 
 
+WORLDGEN_CHOICES = ("template", "procedural")
+
+# The procedural profile's world: every seed gets this many regions and civs
+# (`--worldgen procedural --regions R --civs C`). A mid-sized map, the size
+# range users pick once they leave the 12-region templates.
+PROCEDURAL_WORLD = {"regions": 32, "civs": 10}
+
+# A procedural seed costs about 3.2 template seeds of CPU, 2.6 of disk and 3-4
+# of validation memory (more regions, civs and agents), so the full profile
+# has half the seeds and 60% of the turns: about 45 minutes on three workers
+# and a 2.5 GB validation peak (docs/integration/procedural-gates.md).
+PROCEDURAL_PROFILE_DEFAULTS = {
+    "subset": {"seeds": 20, "turns": 200},
+    "full": {"seeds": 100, "turns": 300},
+    "determinism-off": {"seeds": 2, "turns": 200},
+    "determinism-hybrid": {"seeds": 2, "turns": 200},
+}
+
+
 def apply_profile_defaults(args: argparse.Namespace) -> argparse.Namespace:
-    """Fill omitted seeds/turns from the selected validation profile."""
-    defaults = PROFILE_DEFAULTS[args.profile]
+    """Fill omitted seeds/turns (and, for procedural worlds, regions/civs)
+    from the selected validation profile and world generator."""
+    worldgen = getattr(args, "worldgen", None) or "template"
+    table = PROCEDURAL_PROFILE_DEFAULTS if worldgen == "procedural" else PROFILE_DEFAULTS
+    defaults = table[args.profile]
     if args.seeds is None:
         args.seeds = defaults["seeds"]
     if args.turns is None:
         args.turns = defaults["turns"]
+    if worldgen == "procedural":
+        if getattr(args, "regions", None) is None:
+            args.regions = PROCEDURAL_WORLD["regions"]
+        if getattr(args, "civs", None) is None:
+            args.civs = PROCEDURAL_WORLD["civs"]
     return args
+
+
+def _world_args(args: argparse.Namespace) -> list[str]:
+    """World generator arguments; the template world forwards none (CLI default)."""
+    if (getattr(args, "worldgen", None) or "template") != "procedural":
+        return []
+    return ["--worldgen", "procedural", "--regions", str(args.regions), "--civs", str(args.civs)]
 
 
 def _feature_flags(args: argparse.Namespace) -> list[str]:
@@ -232,6 +272,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_world_args(args),
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
@@ -271,6 +312,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         str(args.parallel),
         "--output",
         str(output_root / "chronicle.md"),
+        *_world_args(args),
         *_feature_flags(args),
         *_governance_args(args),
         *_contact_ledger_args(args),
@@ -316,6 +358,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         ]
         if agents == "hybrid":
             cmd.insert(-4, "--validation-sidecar")
+        cmd.extend(_world_args(args))
         cmd.extend(_feature_flags(args))
         cmd.extend(_governance_args(args))
         cmd.extend(_contact_ledger_args(args))
@@ -595,6 +638,18 @@ def main() -> None:
     parser.add_argument("--turns", type=int, default=None)
     parser.add_argument("--parallel", type=int, default=12)
     parser.add_argument(
+        "--worldgen",
+        choices=WORLDGEN_CHOICES,
+        default="template",
+        help="World of every run: template (default, the CLI's 8-region template world) or "
+             "procedural (heightmap/Voronoi geography, PROCEDURAL_WORLD regions and civs, "
+             "PROCEDURAL_PROFILE_DEFAULTS seeds and turns).",
+    )
+    parser.add_argument("--regions", type=int, default=None,
+                        help=f"Procedural worlds only: regions per world (default {PROCEDURAL_WORLD['regions']}).")
+    parser.add_argument("--civs", type=int, default=None,
+                        help=f"Procedural worlds only: civs per world (default {PROCEDURAL_WORLD['civs']}).")
+    parser.add_argument(
         "--campaigns",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -712,7 +767,10 @@ def main() -> None:
         action="store_true",
         help="When --baseline-report is set, exit 2 for comparator-detected regressions.",
     )
-    args = apply_profile_defaults(parser.parse_args())
+    parsed = parser.parse_args()
+    if parsed.worldgen != "procedural" and (parsed.regions is not None or parsed.civs is not None):
+        parser.error("--regions and --civs require --worldgen procedural")
+    args = apply_profile_defaults(parsed)
     if args.fail_on_regression and args.baseline_report is None:
         parser.error("--fail-on-regression requires --baseline-report")
 
@@ -781,6 +839,9 @@ def main() -> None:
         "seeds": args.seeds,
         "turns": args.turns,
         "parallel": args.parallel,
+        "worldgen": args.worldgen,
+        "regions": getattr(args, "regions", None),
+        "civs": getattr(args, "civs", None),
         "campaigns": args.campaigns,
         "contact_ledger": args.contact_ledger,
         "finance": args.finance,

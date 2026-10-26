@@ -90,6 +90,22 @@ Full population/regression qualification remains the explicit validation-profile
 workflow and 200-seed gate. Do not activate experiments, deploy, or merge this
 draft continuation solely because the bounded gate passes.
 
+The gate runner also has a procedural world profile: `--worldgen procedural`
+runs every seed on a 32-region, 10-civ heightmap/Voronoi world (subset 20
+seeds x 200 turns, full 100 seeds x 300 turns; `--regions`/`--civs`
+override). A change to default behaviour should pass it as well as the
+template gates; compare a procedural report only with a procedural baseline
+of the same world size (the comparator refuses mixed worlds). The procedural
+full profile takes about 45 minutes on three workers; its batch holds about
+5 GB (2.8 GB without the seeds' `state.json` and memory streams, which the
+validator does not read) and validation peaks at 2.5 GB. See
+`docs/integration/procedural-gates.md`.
+
+```sh
+python scripts/m53b_run_validation.py --profile subset --worldgen procedural --parallel 2 --output-root output/m53/procedural-subset
+python scripts/m53b_run_validation.py --profile full --worldgen procedural --parallel 3 --output-root output/m53/procedural-full
+```
+
 ## Continuing on another machine
 
 Fetch the continuation, create a personal branch from its current remote SHA,

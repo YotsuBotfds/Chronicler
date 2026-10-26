@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from chronicler.history_index import history_index
-from chronicler.contact_ledger import MERCHANT_HUB_PARTNERS, ledger_enabled, trade_partner_count
+from chronicler.contact_ledger import ledger_enabled, merchant_hub_partners, trade_partner_count
 from chronicler.models import (
     FOOD_CRISIS_EVENT_TYPES, WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition,
 )
@@ -46,11 +46,12 @@ def update_event_counts(world: WorldState) -> None:
 
     # Track high trade route turns
     ledger_on = ledger_enabled(world)
+    hub_partners = merchant_hub_partners(world) if ledger_on else 0
     for civ in world.civilizations:
         if ledger_on:
             # Contact ledger: living partners with real (decayed) goods flow.
             active_routes = trade_partner_count(world, civ.name)
-            min_routes = MERCHANT_HUB_PARTNERS
+            min_routes = hub_partners
         else:
             active_routes = sum(
                 1 for other_name, rel in world.relationships.get(civ.name, {}).items()

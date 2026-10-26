@@ -181,6 +181,22 @@ def _proven_strict_regression(result: dict[str, Any]) -> bool:
     return result.get("regression_adjudication") == "strict"
 
 
+def _report_worlds(report: dict[str, Any]) -> list[tuple[str, Any, Any]]:
+    """The world shapes a report measured; a report without ``worlds`` ran
+    on the template world only (docs/integration/procedural-gates.md)."""
+    worlds = report.get("worlds")
+    if worlds is None:
+        return [("template", None, None)]
+    if not isinstance(worlds, list):
+        raise ValidationGateInputError("report worlds must be a list")
+    shapes = set()
+    for item in worlds:
+        if not isinstance(item, dict):
+            raise ValidationGateInputError("report worlds entries must be objects")
+        shapes.add((str(item.get("generator")), item.get("regions"), item.get("civs")))
+    return sorted(shapes, key=lambda shape: (shape[0], shape[1] or 0, shape[2] or 0))
+
+
 def compare_validation_reports(
     profile: str,
     baseline_report: dict[str, Any],
@@ -191,6 +207,12 @@ def compare_validation_reports(
 ) -> dict[str, Any]:
     _reject_nonfinite(baseline_report, "baseline_report")
     _reject_nonfinite(current_report, "current_report")
+    baseline_worlds = _report_worlds(baseline_report)
+    current_worlds = _report_worlds(current_report)
+    if baseline_worlds != current_worlds:
+        raise ValidationGateInputError(
+            f"baseline and current reports measure different worlds: {baseline_worlds} vs {current_worlds}"
+        )
     baseline_decision = adjudicate_validation_report(
         profile,
         baseline_report,
