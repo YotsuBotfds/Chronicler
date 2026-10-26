@@ -165,7 +165,12 @@ survives an episode if any of its copies does: p = 1 - (1 - s)^copies, one
 namespaced draw per account and episode. An archive keeps 1 copy, plus 1 per
 writing technique its owner civ knows when `--techniques` is on (now the
 default): writing +1, written law +1, printing +2, telegraph +1, so a
-printing culture keeps 5. Lost accounts keep their text and record
+printing culture keeps 5. With `--scholarship`, a seat of learning in the
+archive's region adds one copy per level, and another seat of the owner's
+realm one more (at most 3 more); every seat has its own chronicler, the
+scholars of the seat (`seat:<seat index>`), whose archive follows them when
+the seat falls (causes `flight`, 0.80, and `abandonment`, 0.50;
+[scholarship.md](scholarship.md#history)). Lost accounts keep their text and record
 `lost_turn` and `lost_cause`, so the viewer can show what was lost; the
 narration treats them as lost. A chronicler cites only causes it still holds
 (`holds`), so once an archive burns, later accounts cannot name what it held.

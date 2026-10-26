@@ -150,6 +150,14 @@ def table(src: Path, before: Path, after: Path) -> int:
             return "guild glory (3+)"
         if t in hg.GUILD_DECREE:
             return "guild decree (3+)"
+        # Seats of learning (--scholarship): courts tell these from importance
+        # 3; the seat's own scholars write every event of its record.
+        if t in getattr(hg, "SEAT_GLORY", ()):
+            return "seat glory (3+); its scholars"
+        if t in getattr(hg, "SEAT_LOSS", ()):
+            return "seat disaster (3+); its scholars"
+        if t in getattr(hg, "SEAT_STANCES", {}):
+            return "unclassified (7+); its scholars"
         guild = {"movement_founded": "a guild's: disgrace", "movement_reform": "a guild charter: glory",
                  "reform_repealed": "a guild charter: decree"}.get(t)
         return f"unclassified (7+); {guild} (3+)" if guild else "unclassified (7+)"

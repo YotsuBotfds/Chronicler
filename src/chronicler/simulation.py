@@ -106,6 +106,7 @@ from chronicler.nomads_state import nomads_on as _nomads_on
 from chronicler.cities_state import cities_on as _cities_on
 from chronicler.agent_movements_state import agent_movements_on as _agent_movements_on
 from chronicler.guilds_state import guilds_on as _guilds_on
+from chronicler.scholarship_state import scholarship_on as _scholarship_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -2299,6 +2300,16 @@ def run_turn_result(
     if _guilds_on(world):
         from chronicler.guilds import tick_guilds
         _emit(tick_guilds(
+            world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
+            acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+        ))
+
+    # Seats of learning (--scholarship): rulers, patrons and upkeep, sacks,
+    # famines and persecution, scholars, rises, falls and flight, foundings;
+    # after cities and guilds of this turn, before the Phase 10 flush below.
+    if _scholarship_on(world):
+        from chronicler.scholarship import tick_scholarship
+        _emit(tick_scholarship(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
         ))

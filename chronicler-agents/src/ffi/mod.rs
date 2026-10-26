@@ -536,6 +536,14 @@ impl AgentSimulator {
         let city_pull_col = rb
             .column_by_name("city_pull")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Seats of learning: per-region scholar pull and flight (absent when
+        // the switch is off = no pull, no flight).
+        let seat_pull_col = rb
+            .column_by_name("seat_pull")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        let seat_flight_col = rb
+            .column_by_name("seat_flight")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
         // Guilds: news of last turn's movement event per region (absent when
         // the switch is off = no news).
         let movement_news_col = rb
@@ -729,6 +737,8 @@ impl AgentSimulator {
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
+                    seat_pull: seat_pull_col.map_or(0.0, |arr| arr.value(i)),
+                    seat_flight: seat_flight_col.map_or(false, |arr| arr.value(i)),
                     movement_news: movement_news_col.map_or(crate::knowledge::NO_NEWS, |arr| arr.value(i)),
                     movement_news_intensity: movement_news_intensity_col.map_or(0, |arr| arr.value(i)),
                     market_demand: market_row(&market_demand_cols, i),
@@ -943,6 +953,8 @@ impl AgentSimulator {
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
+                r.seat_pull = seat_pull_col.map_or(0.0, |arr| arr.value(i));
+                r.seat_flight = seat_flight_col.map_or(false, |arr| arr.value(i));
                 r.movement_news = movement_news_col.map_or(crate::knowledge::NO_NEWS, |arr| arr.value(i));
                 r.movement_news_intensity = movement_news_intensity_col.map_or(0, |arr| arr.value(i));
                 r.market_demand = market_row(&market_demand_cols, i);

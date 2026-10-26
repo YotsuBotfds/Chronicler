@@ -448,3 +448,62 @@ def test_save_load_resume_identity_with_guilds_and_everything_on(tmp_path):
     assert resumed.model_dump_json() == straight.model_dump_json()
     assert "settlement" in am.movement_table(resumed).schema.names
     assert resumed.guilds.counters["founded"] >= 1
+
+
+# --- Seats of learning on top of everything (seats as a world saves them) ---------------
+
+def _scholarship_world() -> WorldState:
+    """Everything above, guilds included, plus seats of learning. Rulers found
+    academies from the first ticks (with --agents off the scholars are a share
+    of the people). A renowned academy and a temple school without its temple
+    are placed as a saved world carries them, so a fall, a flight to the
+    academy and a knowledge carry happen at the first tick."""
+    import chronicler.scholarship as sc
+    from chronicler.scholarship_state import ACADEMY, TEMPLE_SCHOOL, Seat
+    world = _guilds_world()
+    sc.set_scholarship_enabled(world, True)
+    held = sorted((i for i, r in enumerate(world.regions) if r.controller),
+                  key=lambda i: (-world.regions[i].population, i))
+    for ri, kind, level in ((held[0], ACADEMY, 2), (held[1], TEMPLE_SCHOOL, 1)):
+        lord = world.civ_index_map[world.regions[ri].controller]
+        world.scholarship.seats.append(Seat(
+            region=ri, kind=kind, name=f"seat {ri}", founded_turn=0, founder=lord, lord=lord,
+            faith=world.civilizations[lord].civ_majority_faith, level=level, peak_level=level))
+    return world
+
+
+def _scholarship_live(world: WorldState) -> bool:
+    c = world.scholarship.counters
+    return (c["upkeep"] > 0 and c["fallen"] >= 1 and c["refuges"] >= 1 and c["founded"] >= 1
+            and any(s.fallen_turn is None for s in world.scholarship.seats))
+
+
+def test_save_load_resume_identity_with_scholarship_and_everything_on(tmp_path):
+    from chronicler.agent_bridge import build_region_batch
+    first = _advance(_scholarship_world(), 30)
+    while not (_scholarship_live(first) and _guilds_live(first) and _cities_live(first)):
+        assert first.turn < 120, "no turn with live seats, guilds and cities"
+        _advance(first, 1)
+    straight = _advance(_scholarship_world(), first.turn)
+    # A seat that fell in the last Phase 10 leaves a knowledge carry for the
+    # next technique tick: saved between the two, as a world carries it.
+    for w in (first, straight):
+        fallen = next(i for i, s in enumerate(w.scholarship.seats) if s.fallen_turn is not None)
+        refuge = next(s for s in w.scholarship.seats if s.fallen_turn is None)
+        seat = w.scholarship.seats[fallen]
+        w.scholarship.carries.append((seat.region, refuge.region, seat.lord, fallen))
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = WorldState.load(path)
+    assert resumed.scholarship == first.scholarship and resumed.scholarship.carries
+    cols = ("seat_pull", "seat_flight")
+    for _ in range(15):
+        # What the native tick would read: the seats' pull and flight.
+        assert ({k: v for k, v in build_region_batch(resumed).to_pydict().items() if k in cols}
+                == {k: v for k, v in build_region_batch(straight).to_pydict().items() if k in cols})
+        _advance(resumed, 1)
+        _advance(straight, 1)
+        assert resumed.scholarship.carries == straight.scholarship.carries
+    assert resumed.model_dump_json() == straight.model_dump_json()
+    assert set(cols) <= set(build_region_batch(resumed).schema.names)
+    assert resumed.scholarship.counters["founded"] >= 1
