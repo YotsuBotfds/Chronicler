@@ -70,7 +70,7 @@ def test_world_state_omits_dormant_layers_and_empty_provenance():
     dumped = json.loads(world.model_dump_json())
     for name in ("governance", "geography", "contact_ledger", "epidemics", "finance", "diplomacy",
                  "techniques", "maritime", "gp_agendas", "nomads", "cities", "agent_movements",
-                 "guilds", "provenance"):
+                 "guilds", "scholarship", "provenance"):
         assert name not in dumped
     assert dumped == world.model_dump(mode="json")
     world.provenance.keys["k"] = "1:x:1"
@@ -81,7 +81,8 @@ def test_turn_snapshot_omits_dormant_summaries():
     snap = m.TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
     dumped = snap.model_dump()
     for name in ("campaign", "contact", "epidemics", "finance", "diplomacy", "techniques", "maritime",
-                 "gp_agendas", "nomads", "cities", "agent_movements", "guilds", "food", "migration"):
+                 "gp_agendas", "nomads", "cities", "agent_movements", "guilds", "scholarship", "food",
+                 "migration"):
         assert name not in dumped
     snap.food = {"r": 1.0}
     snap.migration = []
