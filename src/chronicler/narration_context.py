@@ -536,7 +536,8 @@ def _reform_label(world: "WorldState | None", row: dict) -> str:
         return f"the {str(kind).replace('_', ' ')}"
     from chronicler.agent_movements import reform_name
     r = SimpleNamespace(kind=index, regions=list(row.get("regions") or []),
-                        faith=row.get("faith", -1), church=bool(row.get("church")))
+                        faith=row.get("faith", -1), church=bool(row.get("church")),
+                        movement=int(row.get("movement", -1)), cities=list(row.get("cities") or []))
     return reform_name(world, r)
 
 
