@@ -122,6 +122,10 @@ CHUNKS = {
         "tests/test_batch_narration.py",
         "tests/test_chronicle.py",
     ],
+    "turn-speed": [
+        "tests/test_turn_speed.py",
+        "tests/test_serialization_dormant_fields.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
