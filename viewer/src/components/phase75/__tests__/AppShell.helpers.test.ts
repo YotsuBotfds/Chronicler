@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  atlasPoint, buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius, turnToPercent,
+  atlasPoint, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius,
+  turnToPercent,
 } from "../appShellHelpers";
 
 describe("AppShell helpers", () => {
+  it("names a loaded bundle's world as template or procedural, not as a setup", () => {
+    expect(bundleWorldKind({ geography: { seas: [] } })).toBe("Procedural world");
+    expect(bundleWorldKind({})).toBe("Template world");
+    expect(bundleWorldKind(null)).toBe("Template world");
+  });
+
   it("respects an empty timeline trade-route snapshot over final world relationships", () => {
     const centroids = {
       Alpha: { x: 100, y: 120 },

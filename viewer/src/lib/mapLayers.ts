@@ -7,7 +7,7 @@
 import type { Bundle, TurnSnapshot } from "../types";
 import { factionColor, UNCONTROLLED_COLOR } from "./colors";
 import {
-  AID_COLOR, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, faminesAt, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
+  AID_COLOR, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
   massMigrations, MIGRATION_COLOR, migrationDriverKind, migrationFlows, netMigration, SHORT_COLOR, SHORT_OF_FOOD,
   sufficiencyByRegion, type FamineSpan,
 } from "./food";
@@ -145,7 +145,7 @@ function foodLayer({ bundle, snapshot, famine }: MapLayerInput): MapLayerView {
     ? "Food on hand over need at this turn: amber where short (brighter is shorter), orange in famine; green arrows are relief convoys within a realm."
     : "Regions in famine (orange) and dearth (pale amber) at this turn (this bundle does not export regional food sufficiency).");
   const sufficiency = sufficiencyByRegion(snapshot, names);
-  const crises = new Map(faminesAt(famine, at).map((span) => [span.region, span]));
+  const crises = new Map(crisesAtSnapshot(famine, at).map((span) => [span.region, span]));
   for (const name of names) {
     const value = sufficiency.get(name);
     const span = crises.get(name);

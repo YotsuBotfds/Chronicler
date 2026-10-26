@@ -20,7 +20,7 @@ import { NomadsPanel } from "../NomadsPanel";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
 import { WarsPanel } from "../WarsPanel";
-import { famineSpans, foodCrisisSpans } from "../../../lib/food";
+import { crisesAtSnapshot, famineSpans, foodCrisisSpans } from "../../../lib/food";
 import { TechniquesPanel } from "../TechniquesPanel";
 
 afterEach(cleanup);
@@ -215,7 +215,7 @@ describe("FoodPanel", () => {
     const snapshot = fixture.history.find((entry) => (entry.food?.aid.length ?? 0) > 0)!;
     const p = props(fixture, snapshot);
     render(<FoodPanel {...p} />);
-    expect(screen.getByLabelText("Regions short of food and regions in famine")).toBeInTheDocument();
+    expect(screen.getByLabelText("Regions short of food, in dearth and in famine")).toBeInTheDocument();
     const strip = screen.getByRole("group", { name: "Famines by region over time" });
     expect(within(strip).getByText("Bredoham Wetlands")).toBeInTheDocument();
     const hungry = screen.getByRole("table", { name: `Hungry regions at turn ${snapshot.turn}` });
@@ -234,13 +234,29 @@ describe("FoodPanel", () => {
         event.event_type === "famine" && event.episode === "onset" ? { ...event, event_type: "dearth" } : event)),
     };
     const spans = foodCrisisSpans(labelled.events_timeline);
-    const snapshot = labelled.history.find((entry) => spans.some((span) => span.kind === "dearth"
-      && span.start <= entry.turn && (span.end === null || span.end > entry.turn)))!;
+    const snapshot = labelled.history.find((entry) => crisesAtSnapshot(spans, entry.turn)
+      .some((span) => span.kind === "dearth"))!;
     render(<FoodPanel {...props(labelled, snapshot)} />);
     expect(screen.getByText("Regions in dearth")).toBeInTheDocument();
     const hungry = screen.getByRole("table", { name: `Hungry regions at turn ${snapshot.turn}` });
     expect(within(hungry).getAllByText(/^Dearth since T/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("dearth").length).toBeGreaterThan(0);
+  });
+
+  it("lists hungry regions by their food, shortest first, and regions not observed last", () => {
+    const snapshot = fixture.history.find((entry) => (entry.food?.sufficiency ?? []).filter((v) => v != null && v < 1).length >= 2)!;
+    const names = fixture.world_state.regions.map((region) => region.name);
+    const short = names.filter((_, index) => (snapshot.food!.sufficiency[index] ?? 2) < 1);
+    const unobserved = names.find((_, index) => snapshot.food!.sufficiency[index] == null)!;
+    const dearth = { turn: snapshot.turn - 1, event_type: "dearth", region: unobserved, episode: "onset" as const,
+      actors: [], description: "", consequences: [], importance: 4 };
+    const bundle = { ...fixture, events_timeline: [...fixture.events_timeline, dearth] };
+    render(<FoodPanel {...props(bundle, snapshot)} />);
+    const table = screen.getByRole("table", { name: `Hungry regions at turn ${snapshot.turn}` });
+    const rows = within(table).getAllByRole("row").slice(1).map((row) => row.textContent ?? "");
+    expect(rows[0]).not.toContain("Not observed");
+    expect(rows.findIndex((row) => row.startsWith(unobserved))).toBeGreaterThan(
+      Math.max(...short.slice(0, 2).map((name) => rows.findIndex((row) => row.startsWith(name)))));
   });
 
   it("counts famines only when the bundle has no food field", () => {
@@ -396,14 +412,17 @@ describe("CitiesPanel", () => {
       ...snapshot,
       cities: {
         ...snapshot.cities!,
-        cities: snapshot.cities!.cities.map((row, i) => (i === 0 ? { ...row, crafts: 1.25 } : row)),
+        cities: snapshot.cities!.cities.map((row, i) => (i === 0 ? { ...row, crafts: 1.25 }
+          : i === 2 ? { ...row, crafts: 0.03 } : row)),
       },
     };
     render(<CitiesPanel {...props(cities, withWares)} />);
     const table = screen.getByRole("table", { name: "Cities at turn 150" });
     expect(within(table).getByRole("columnheader", { name: "Wares" })).toBeInTheDocument();
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(within(rows[0]).getByText("1.3")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("1.25")).toBeInTheDocument();
+    // A fraction of a unit is still wares made, not "0.0".
+    expect(within(rows[2]).getByText("0.03")).toBeInTheDocument();
     expect(within(rows[1]).getAllByText("-").length).toBeGreaterThan(0);
   });
 
@@ -433,6 +452,9 @@ describe("MovementsPanel", () => {
     render(<MovementsPanel {...p} />);
     expect(screen.getByRole("group", { name: "Stage of each movement over time" })).toBeInTheDocument();
     expect(screen.getByLabelText("Living movements by creed")).toBeInTheDocument();
+    // The creed chart says which line is which.
+    const legends = screen.getAllByLabelText("Legend").map((legend) => legend.textContent);
+    expect(legends).toContain("commonslibertysect");
     const living = busiest.agent_movements!.living;
     const table = screen.getByRole("table", { name: `Movements at turn ${busiest.turn}` });
     expect(within(table).getAllByRole("row")).toHaveLength(1 + living.length);
@@ -509,8 +531,7 @@ describe("RegionSystemsDetail", () => {
     expect(within(food).getByText("Food ÷ need")).toBeInTheDocument();
     expect(within(screen.getByLabelText(`War in ${army.region}`)).getByText(army.name)).toBeInTheDocument();
     cleanup();
-    const hungry = fixture.history.flatMap((entry) => spans
-      .filter((span) => span.start <= entry.turn && (span.end === null || span.end > entry.turn))
+    const hungry = fixture.history.flatMap((entry) => crisesAtSnapshot(spans, entry.turn)
       .map((span) => ({ entry, span })))[0];
     expect(hungry).toBeDefined();
     render(<RegionSystemsDetail snapshot={hungry.entry} region={hungry.span.region} famine={spans} regionNames={names} />);

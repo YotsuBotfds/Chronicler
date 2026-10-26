@@ -3,7 +3,7 @@ import movementsFixture from "../../__fixtures__/movements_bundle.json";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../types";
 import {
-  creedSeries, END_LABELS, memberSeries, movementHistory, movementKeys, movementRecord, movementRow,
+  creedSeries, END_LABELS, memberSeries, movementHistory, movementKeys, movementRecord, movementRecordNote, movementRow,
   movementStageRows, reformKind, reformName, reformRecord, reformsInForce, STAGE_COLORS,
 } from "../movements";
 import { presentSystems } from "../systems";
@@ -98,6 +98,17 @@ describe("movement helpers", () => {
     const living = movements.history[index].agent_movements!.living;
     expect(series[index].sect).toBe(living.filter((row) => row.creed === "sect").length);
     expect(creedSeries(systems.history)[0].commons).toBeNull();
+  });
+
+  it("reads a movement's final record as one sentence and marks an end after the scrubbed turn", () => {
+    const record = { ...records[0], creed: 2, founded_turn: 106, leader: "", peak_members: 19, demands: 1,
+      martyrs: 0, end: END_LABELS.indexOf("won"), ended_turn: 201 };
+    expect(movementRecordNote(record, "Thavigrimi Kingdom", "Magur Meadows", 191)).toBe(
+      "A sect movement against Thavigrimi Kingdom, founded turn 106 in Magur Meadows. "
+      + "Whole record: peak 19 members, 1 demand, 0 martyrs; won its demand at turn 201 (after turn 191).");
+    expect(movementRecordNote({ ...record, leader: "Ilra", end: 0, ended_turn: null }, null, null, 300)).toBe(
+      "A sect movement against ?, founded turn 106 in ?, led by Ilra. "
+      + "Whole record: peak 19 members, 1 demand, 0 martyrs.");
   });
 
   it("is a system of the bundle only when a snapshot records movements", () => {

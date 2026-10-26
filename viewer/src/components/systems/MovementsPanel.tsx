@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import {
-  civName, CREED_COLORS, CREED_LABELS, creedSeries, END_LABELS, institutionLabel, memberSeries, MOVEMENT_COUNTERS,
-  movementHistory, movementKeys, movementRecord, movementStageRows, reformName, reformsInForce, regionName,
-  STAGE_COLORS, STAGE_ORDER,
+  civName, CREED_COLORS, CREED_LABELS, creedSeries, institutionLabel, memberSeries, MOVEMENT_COUNTERS,
+  movementHistory, movementKeys, movementRecord, movementRecordNote, movementStageRows, reformName, reformsInForce,
+  regionName, STAGE_COLORS, STAGE_ORDER,
 } from "../../lib/movements";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
-import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { CivLegend, CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 
 const MEMBERS = "Members";
 
@@ -61,6 +61,7 @@ export function MovementsPanel({
           onSelectRow={(row) => setChosen(Number(row.id))}
           isRowSelected={(row) => Number(row.id) === selected}
         />
+        <CivLegend civs={[...CREED_LABELS]} color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"} />
         <CivLineChart
           data={creeds}
           civs={[...CREED_LABELS]}
@@ -172,11 +173,8 @@ export function MovementsPanel({
           <h3>{selectedName}</h3>
           {record && (
             <p className="systems-note">
-              {CREED_LABELS[record.creed] ?? "movement"} against {civName(bundle, record.target) ?? "?"}, founded
-              turn {record.founded_turn} in {regionName(bundle, record.home_region) ?? "?"}
-              {record.leader ? `, led by ${record.leader}` : ""}; peak {record.peak_members} members,{" "}
-              {record.demands} demands, {record.martyrs} martyrs
-              {record.end ? `; ended ${END_LABELS[record.end] ?? ""} at turn ${record.ended_turn}` : ""}.
+              {movementRecordNote(record, civName(bundle, record.target), regionName(bundle, record.home_region),
+                currentTurn)}
             </p>
           )}
           <CivLineChart
