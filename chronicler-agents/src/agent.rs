@@ -362,9 +362,9 @@ pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [FROZEN M53 SOFT]
 // Autonomy: self-rule and freedom from persecution (of this agent's faith,
 // not of anyone in the region) restore it; persecution, harsh rule
 // (martial law) and the remembered conquest by another civ add pressure; a
-// conquest caps the conquered's autonomy; displacement blocks restoration.
-// Free and self-ruled: 0.75; foreign rule: 0.61 (0.48 after a displaced
-// spell); persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5
+// conquest caps the conquered's autonomy. A move no longer blocks
+// restoration (needs follow-ups). Free and self-ruled: 0.75; foreign rule:
+// 0.61; persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5
 // (binds after about 20 turns from 0.75);
 // martial law: 0.42 self-ruled, 0.11 foreign; a fresh conquest by another
 // civ: capped at 0.20, fixed point 0.06 rising as the memory fades, back
