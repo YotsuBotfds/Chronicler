@@ -521,6 +521,14 @@ impl AgentSimulator {
         let food_severe_turns_col = rb
             .column_by_name("food_severe_turns")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt16Array>());
+        // Needs calibration: a raid this turn (absent = false)
+        let raided_col = rb
+            .column_by_name("raided_this_turn")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::BooleanArray>());
+        // Needs calibration: the controller's harsh rule (absent = 0)
+        let harsh_rule_col = rb
+            .column_by_name("harsh_rule")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         let climate_exposure_col = rb
             .column_by_name("climate_exposure")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
@@ -679,6 +687,8 @@ impl AgentSimulator {
                     market_demand: market_row(&market_demand_cols, i),
                     market_supply: market_row(&market_supply_cols, i),
                     food_severe_turns: food_severe_turns_col.map_or(0, |arr| arr.value(i)),
+                    harsh_rule: harsh_rule_col.map_or(0.0, |arr| arr.value(i)),
+                    raided_this_turn: raided_col.map_or(false, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; 8];
@@ -888,6 +898,8 @@ impl AgentSimulator {
                 r.market_demand = market_row(&market_demand_cols, i);
                 r.market_supply = market_row(&market_supply_cols, i);
                 r.food_severe_turns = food_severe_turns_col.map_or(0, |arr| arr.value(i));
+                r.harsh_rule = harsh_rule_col.map_or(0.0, |arr| arr.value(i));
+                r.raided_this_turn = raided_col.map_or(false, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {
