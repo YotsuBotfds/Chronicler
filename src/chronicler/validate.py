@@ -9,6 +9,7 @@ from .artifact_io import ArtifactIOError, strict_json_dumps
 from .validation_gate import PROFILE_CHOICES
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
+from .validation_io import summarize_world_shapes
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
 
@@ -70,11 +71,17 @@ def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None)
                 "reason": f"{type(exc).__name__}: {exc}",
             }
 
-    return {
+    report = {
         "batch_dir": str(batch_dir),
         "oracles": sorted(selected),
         "results": results,
     }
+    # Non-template worlds are named in the report so that a comparison
+    # cannot mix them with template reports (template reports keep their bytes).
+    worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
+    if worlds is not None:
+        report["worlds"] = worlds
+    return report
 
 
 def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:

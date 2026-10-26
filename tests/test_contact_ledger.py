@@ -170,7 +170,7 @@ def test_movement_spread_follows_contact_not_trade_volume():
 
 def test_merchant_trigger_counts_living_partners_with_real_flow():
     from chronicler.traditions import update_event_counts
-    world = generate_world(seed=5, num_regions=12, num_civs=6)
+    world = generate_world(seed=5, num_regions=12, num_civs=4)
     cl.set_contact_ledger_enabled(world, True)
     hub = world.civilizations[0]
     partners = world.civilizations[1:1 + cl.MERCHANT_HUB_PARTNERS]
@@ -178,11 +178,10 @@ def test_merchant_trigger_counts_living_partners_with_real_flow():
         _set_pair_flow(world, hub.name, other.name, trade=2.0)
         # Stale cumulative trade_volume is ignored.
         world.relationships[hub.name][other.name].trade_volume = 0
-    for other in world.civilizations[1 + cl.MERCHANT_HUB_PARTNERS:]:
-        world.relationships[hub.name][other.name].trade_volume = 50  # ever traded, no live flow
     update_event_counts(world)
     assert hub.event_counts["high_trade_route_turns"] == 1
     _set_pair_flow(world, hub.name, partners[-1].name, trade=0.5)  # below the partner floor
+    world.relationships[hub.name][partners[-1].name].trade_volume = 50  # ever traded, no live flow
     update_event_counts(world)
     assert hub.event_counts["high_trade_route_turns"] == 0
     # A dead partner does not count.
@@ -190,6 +189,35 @@ def test_merchant_trigger_counts_living_partners_with_real_flow():
     partners[-1].regions = []
     update_event_counts(world)
     assert hub.event_counts["high_trade_route_turns"] == 0
+
+
+def test_merchant_hub_threshold_scales_with_living_civs():
+    # Every other living civ, and at least three: with four living civs or
+    # fewer this is the template world's rule (three partners).
+    def needed(living, total=12):
+        world = generate_world(seed=5, num_regions=24, num_civs=total, worldgen="procedural")
+        for civ in world.civilizations[living:]:
+            civ.regions = []
+        return cl.merchant_hub_partners(world)
+
+    assert [needed(n) for n in (1, 2, 3, 4)] == [3, 3, 3, 3]
+    assert [needed(n) for n in (5, 6, 10, 12)] == [4, 5, 9, 11]
+
+
+def test_merchant_trigger_in_a_ten_civ_world_needs_every_partner():
+    from chronicler.traditions import update_event_counts
+    world = generate_world(seed=5, num_regions=24, num_civs=10, worldgen="procedural")
+    cl.set_contact_ledger_enabled(world, True)
+    hub = world.civilizations[0]
+    others = world.civilizations[1:]
+    for other in others[:8]:
+        _set_pair_flow(world, hub.name, other.name, trade=2.0)
+    update_event_counts(world)
+    assert cl.merchant_hub_partners(world) == 9
+    assert hub.event_counts.get("high_trade_route_turns", 0) == 0
+    _set_pair_flow(world, hub.name, others[8].name, trade=2.0)
+    update_event_counts(world)
+    assert hub.event_counts["high_trade_route_turns"] == 1
 
 
 def test_trade_warmth_upgrades_up_to_friendly_only():
