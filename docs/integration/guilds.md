@@ -1,6 +1,7 @@
 # Guilds and burghers (`--guilds`)
 
-Branch `feat/guilds` from `main` `2ef3097` (PR #38, bulk trade and crafts).
+Branch `feat/guilds` from `main` `2ef3097` (PR #38, bulk trade and crafts),
+merged without rebase with `main` `11238d5` (PR #39, needs follow-ups).
 Code: `src/chronicler/guilds.py` (behaviour), `src/chronicler/guilds_state.py`
 (persisted state), the guild creed in `agent_movements.py` and
 `chronicler-agents/src/movements.rs`, movement news in
@@ -9,11 +10,25 @@ and `factions.py`, hooks in `cities.py`; viewer `CitiesPanel.tsx`,
 `FactionDashboard.tsx`, `lib/guilds.ts`; scripts `guilds_report.py`
 (histories), `guilds_probe.py` (distributions).
 
-**Status.** <!-- STATUS -->
+**Status.** On by default for new worlds, in a separate commit (`efd0b3a`)
+after the full gate with the switch on passed strict with no regression;
+the merged head passed it again against the needs-followups report
+([Gates](#gates)). `--no-guilds` opts out and saved worlds keep their
+setting. With the switch off every output is byte-identical to `main`
+([Identity](#feature-off-identity)).
 
 ## Result
 
-<!-- RESULT -->
+| | |
+| --- | --- |
+| subset gates 42-61, 62-81 (on against off, `f0aa299`) | PASS; NO REGRESSION, both |
+| full gate against trade-crafts (`f0aa299`) | PASS strict; NO REGRESSION (needs lower bound 0.177 -> 0.201; migration 0.0615 -> 0.0619; rebellion 0.0388 -> 0.0379) |
+| full gate against needs-followups (merged head) | PASS strict; NO REGRESSION (needs 0.204 -> 0.196, binding 0.168 -> 0.178; migration 0.0642 -> 0.0644; rebellion 0.0360 -> 0.0368; 0 extinct) |
+| per 500-turn world (merged gate) | 7.0 guilds, 8.1 privileges, 2.7 levies, 0.50 guild movements, 0.11 guild charters; burghers in 2.2 realms, the dominant faction in 0.40 |
+| news against no news (40 paired 200-turn worlds) | significant movements +16% (+0.23, SE 0.12), risings +34% (+0.12, SE 0.05), foundings +4% (within noise); a movement's own reach unchanged |
+| `--no-guilds` against `main` `11238d5` | 88 files, 0 differences |
+| bundle guard world | +570 bytes (7.894 MB native, 8.613 MB no-Rust; guard 10.5 MB) |
+| tick time at ~23,700 and ~54,000 agents | within the shared machine's spread of the base |
 
 ## Design
 
@@ -207,7 +222,7 @@ comparison below).
 | --- | --- |
 | CLI | `--guilds` / `--no-guilds` (`BooleanOptionalAction`) |
 | World field | `WorldState.guilds: GuildState \| None` (presence = on), omitted while `None` |
-| Default | <!-- DEFAULT --> |
+| Default | on (`guilds.DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, in a separate commit after the full gate) for `execute_run`, batch and the live server; resumed, forked and supplied worlds keep their setting; `scripts/benchmark_headless.run` pins it off |
 | Gate runner | `scripts/m53b_run_validation.py --guilds` forwards the switch and records it in `run_manifest.json` |
 | Bundle | `history[n].guilds`: living guilds (id, name, city, region, kind, masters, purse, monopoly, say, levy, charter, movement), the dissolved count, burgher influence by realm, counters; omitted while off; civ rows' `factions.influence` gain `burgher` where a realm has one |
 | Analytics | `generate_report` gains `guilds` for runs that carry it |
@@ -361,22 +376,100 @@ movements, 0.13 guild charters, 0.15 walls the guild helped pay; at turn
 200, 2.3 realms have burghers (mean influence 0.22) and 0.23 are ruled by
 them as the dominant faction.
 
-<!-- FULL -->
+**Full gates** (`--profile full`, 200 seeds x 500 turns, `--parallel 3`,
+`--guilds`), each against the newest full report on `main` at the time:
+
+- before PR #39: `f0aa299` (extension `d93833d0...ec4bda`) against the
+  trade-crafts report (`main` `2ef3097`);
+- after merging PR #39 (needs follow-ups, needs oracle method 3): the merged
+  head `6431c35` (extension `5ede10a9...b8b07d6`) against the
+  needs-followups report (the tree `main` `11238d5` carries). The default
+  flip rests on this gate.
+
+| | trade-crafts (`2ef3097`) | `--guilds`, `f0aa299` | needs-followups (`11238d5`) | **`--guilds`, merged** |
+| --- | --- | --- | --- | --- |
+| gate; comparator | PASS | PASS; NO REGRESSION | PASS | **PASS; NO REGRESSION** |
+| regression adjudication | strict | strict | strict | **strict** |
+| needs, all pairs: net; lower bound; seeds with C > D | 0.191; 0.177; 190 | 0.217; 0.201; 187 | 0.222; 0.204; 176 | 0.214; 0.196; 172 |
+| needs, binding pairs (method 3): net; lower bound; informative; seeds positive | - | - | 0.192; 0.168; 5,060; 159 | 0.202; 0.178; 5,094; 157 |
+| informative pairs (all) | 19,746 | 19,687 | 9,902 | 10,051 |
+| cohort (median effect); community; era (silent collapses) | 1.67; 200; 200 (0) | 1.61; 200; 200 (1) | 1.53; 200; 200 (0) | 1.56; 200; 200 (0) |
+| arcs (three types; families); artifacts (creation; loss) | 158; 6; 1.68; 6.0% | 159; 6; 1.65; 6.2% | 159; 6; 1.66; 5.7% | 159; 6; 1.71; 5.8% |
+| satisfaction mean; latest (ceiling 0.65) | 0.616; 0.627 | 0.616; 0.630 | 0.618; 0.633 | 0.617; 0.627 |
+| migration per agent-turn (strict floor 0.05) | 0.0615 | 0.0619 | 0.0642 | 0.0644 |
+| rebellion per agent-turn (0.02-0.08) | 0.0388 | 0.0379 | 0.0360 | 0.0368 |
+| final population min / median / max; extinct worlds | 78 / 185 / 329; 0 | 57 / 180 / 320; 0 | 56 / 179 / 308; 0 | 63 / 183 / 304; 0 |
+| worlds whose founders all survive | 18.5% | 16.0% | 16.5% | 18.0% |
+
+The comparator reports no regression reason, no new required failure, no
+oracle method or status change and no strict-regression downgrade in either
+gate. Against needs-followups the needs oracle loses 0.008 of its all-pairs
+lower bound and four seeds while its binding component gains 0.010; the
+binding component, required in the full profile, passes.
+
+Guilds per 500-turn world (the `f0aa299` full gate, 200 worlds;
+`scripts/guilds_probe.py`): 6.9 guilds founded, 3.0 dissolved, 8.2
+privileges won, 3.1 levies, 4.3 threats, 0.68 guild movements, 0.19 guild
+charters, 0.24 walls helped; at turn 500, 2.1 realms have burghers (mean
+influence 0.29), 0.40 are ruled by them as the dominant faction. Movements
+founded 21.6 (2.6 with news raising the chance), 3.1 significant; 1,485
+news packets observed and 3,123 passed on. The merged gate's worlds
+(PR #39's needs found fewer movements): 7.0 guilds, 3.0 dissolved, 8.1 privileges, 2.7 levies, 3.9
+threats, 0.50 guild movements, 0.11 guild charters, 0.23 walls; burghers in
+2.2 realms at turn 500 (mean influence 0.27), 0.40 burgher-dominated;
+movements founded 18.2 (2.5 raised by news), 3.0 significant; 1,236 news
+packets observed and 2,722 passed on.
 
 ## Feature-off identity
 
-Base: `main` `2ef3097` (tree `e7dd6be`) exported with `git archive` and its
-extension built from that tree into a separate virtualenv (SHA-256
-`cf109460...cd90e`, the one trade-crafts recorded for the same tree),
-`PYTHONPATH` on the export. Branch: the worktree and its extension. Same
-interpreter, `PYTHONHASHSEED=0`, `--simulate-only`, compared with
-`scripts/agent_movements_identity.py compare` (every output file; the bundle
-without `metadata.generated_at`) and `scripts/guilds_identity.py` (the same
-with the `guilds` field).
+Base: `main` exported with `git archive` and its extension built from that
+tree into a separate virtualenv, `PYTHONPATH` on the export: `11238d5` (tree
+`305923e`, PR #39; extension SHA-256 `f8e1017e...c2f410`, the one
+needs-followups recorded) for the merged head, `2ef3097` (tree `e7dd6be`;
+`cf109460...cd90e`, as trade-crafts recorded) before the merge. Branch: the
+worktree and its extension. Same interpreter, `PYTHONHASHSEED=0`,
+`--simulate-only`, compared with `scripts/agent_movements_identity.py
+compare` (every output file; the bundle without `metadata.generated_at`) and
+`scripts/guilds_identity.py` (the same, or without the `guilds` field).
 
-<!-- IDENTITY-TABLE -->
+| Comparison | Runs | Merged head against `11238d5` | Before the merge (`efd0b3a` against `2ef3097`) |
+| --- | --- | --- | --- |
+| base (no flags) against the branch `--no-guilds` | template seeds 42 / 7 / 1234, `--agents off` 300 turns and hybrid 200; procedural 48 regions x 10 civs, seed 7, off 200 and hybrid 120 | 88 files, **0 differences** | 88 files, **0 differences** (also with guilds default off at `d4768bd`) |
+| the branch with no flags against `--guilds` | template 42 hybrid 200; procedural 48 x 10 seed 7 off 150 | 25 files, **0 differences**: the defaults are the gated configuration | 25 files, 0 differences |
+| an old save resumed: base save at turn 30 (agents off, no flags), resumed to turn 60 by the base and by the branch, no flags | template 42; procedural 48 x 10 seed 13 | 24 files, **0 differences**; the resumed worlds carry no `guilds` field | 24 files, 0 differences |
+| switch on, agents off: base against the branch `--guilds` | template 42 and 7, 200 turns | - | 18 files, 0 differences once the `guilds` field is removed (no city forms without agents) |
+| subset gates 42-61 and 62-81, the branch `--no-guilds` | 20 seeds x 200 hybrid | - | validation reports equal to `main`'s (trade-crafts' subset-final reports), 0 differences once the batch path is normalised |
 
-<!-- TICK -->
+The two bases' hybrid outputs differ (PR #39 changes the needs), so the
+merged comparison is not the pre-merge one repeated. With the switch off no
+guild code runs (`test_feature_off_never_runs_guild_code`), the bridge
+sends no news column and no `settlement` column, no civ has a burgher key,
+and the native admission rule and recruitment factor take their old paths
+without news (the frozen exact-trajectory oracles pass unchanged).
+
+## Tick time
+
+`scripts/agent_scale_benchmark.py`, seed 42, 12 regions, starting targets
+18,800 and 43,700, 20 warm-up and 8 timed turns, two repeats, one child at a
+time, release builds; base the `11238d5` export with its extension, the
+branch at the merged head with `--no-guilds` and with `--guilds`; shared
+4-core machine (a validation and another agent's probe alongside). Per run,
+wall / process CPU, in ms:
+
+| alive | | base `11238d5` | branch, `--no-guilds` | branch, `--guilds` |
+| ---: | --- | ---: | ---: | ---: |
+| ~23,700 | Rust tick | 151, 137 / 297, 280 | 123, 133 / 314, 316 | 126, 124 / 321, 306 |
+| | whole turn | 281, 250 / 436, 430 | 217, 227 / 473, 485 | 210, 232 / 435, 416 |
+| ~54,100 (53,300 with guilds) | Rust tick | 587, 468 / 1,379, 1,297 | 472, 471 / 1,403, 1,314 | 457, 510 / 1,376, 1,465 |
+| | whole turn | 761, 622 / 1,808, 1,791 | 611, 602 / 1,908, 1,822 | 597, 674 / 1,854, 2,014 |
+
+Every arm is within the run-to-run spread: the switch-off branch runs the
+base's code path and differs from it by as much as the switched-on arm
+does (whole-turn CPU +8-13% at 23,700 in this set, where the switched-on
+arm is at or below the base). New work with the switch on: news observed by
+the agents of a few regions on the turns after movement events, a scan of
+four packet slots per candidate in recruitment and per aggrieved adult in
+the census, a loop over the cities' guilds in Phase 10.
 
 ## Tests
 
@@ -417,7 +510,30 @@ with the `guilds` field).
 - Viewer: `lib/__tests__/guilds.test.ts` (3), a Cities panel guild test in
   `SystemsPanel.test.tsx`, a faction bar test in `components.test.tsx`.
 
-<!-- VERIFY -->
+## Verification
+
+Merged head (`6431c35` plus this document; Linux, Python 3.13.17, Node 22),
+extension built fresh from it (SHA-256 `5ede10a9...b8b07d6`; compiled
+`chronicler_agents.chronicler_agents` with real `AgentSimulator`,
+`EcologySimulator` and `PoliticsSimulator` verified):
+
+| Check | Result |
+| --- | --- |
+| `cargo test --locked` (debug info off) | 1,005 passed, 0 failed, 2 ignored (before the merge 1,004; `main` `2ef3097` 995) |
+| `pytest -m "not slow" -n 2` | 6,241 passed, 3 skipped, 526 subtests (before the merge 6,227) |
+| `pytest -m slow -n 2` | 11 passed, 3 skipped |
+| No-Rust lane (virtualenv without `chronicler_agents`, every test) | 6,009 passed, 235 skipped, 526 subtests |
+| `scripts/run_python_oracle_checks.py` | PASS in 95.5 s: 2,181 passed, 35 skipped; largest chunk `systems-2` 36.9 s of 110 s |
+| Viewer `npm test` / `npm run lint` / `npm run build` | 39 files, 297 tests / clean / built (the existing large-chunk warning); one run under the full gate's load failed a test that passed in the two reruns after it |
+| Golden and exact-trajectory fixtures | unchanged |
+| Identity (switch off), resume, subset and full gates, tick time, bundle | above |
+
+Bundle guard world (`tests/test_bundle.py::TestBundleSize`: seed 1, 500
+turns, 10 regions, 5 civs, `--agents off`, every default), bytes of
+`chronicle_bundle.json`: native 8,277,349 with `--no-guilds` (as `main`)
+and 8,277,919 with guilds (7.894 MB, +570 bytes: the empty `guilds` field;
+no city forms without agents); no-Rust 9,030,719 and 9,031,287 (8.613 MB).
+Guard 10.5 MB.
 
 ## Open items
 

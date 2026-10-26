@@ -464,7 +464,28 @@ warnings that drive migration are untouched.
 | joining (Rust recruitment) | an aggrieved agent holding news of a like movement (same creed) from another region: p x (1 + strength) for a founding, rising or reform, x (1 - 0.5 strength) for a crackdown | x2 / x0.5, under the 0.5 cap; not applied without news |
 | founding (Python emergence) | the census counts the aggrieved holding inspiring news of a like movement elsewhere (`informed_*`); chance x (1 + min(1, 2 x informed / aggrieved)) | x2, under the founding cap |
 
-<!-- NEWS-MEASURED -->
+Measured over 40 template worlds (seeds 42-81, 200 hybrid turns, `--guilds`
+on), news on against news off (tuning `guilds.movement_news: 0`), paired by
+seed; details in [guilds.md](guilds.md#news-and-movement-spread). Per
+world:
+
+| | news on | news off | difference (SE) |
+| --- | ---: | ---: | ---: |
+| movements founded (census creeds) | 10.65 | 10.22 | +0.42 (0.31), within noise |
+| of them with news raising the chance | 1.70 | - | |
+| significant | 1.62 | 1.40 | +0.23 (0.12), +16% |
+| demands | 6.28 | 5.78 | +0.50 (0.37), within noise |
+| reforms (grants) | 2.77 | 2.45 | +0.33 (0.26), within noise |
+| risings | 0.47 | 0.35 | +0.12 (0.05), +34% |
+| crackdowns | 1.32 | 1.38 | -0.05 (0.15) |
+| peak members per movement | 6.80 | 6.75 | +0.04 (0.11) |
+| regions reached per movement | 2.32 | 2.36 | -0.04 (0.04) |
+
+News makes movements likelier to reach significance and to rise where a like
+movement rose nearby; it does not widen a movement's own reach, since
+members still do not cross borders. A first build that kept news to the
+event's region and bonds changed nothing measurable; the shipped build adds
+the neighbours at half intensity.
 
 ## Slice 1 result
 
