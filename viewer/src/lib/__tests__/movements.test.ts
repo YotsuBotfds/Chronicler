@@ -3,7 +3,8 @@ import movementsFixture from "../../__fixtures__/movements_bundle.json";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../types";
 import {
-  creedSeries, END_LABELS, memberSeries, movementHistory, movementKeys, movementRecord, movementRecordNote, movementRow,
+  creedSeries, END_LABELS, leaderLabel, martyrdoms, memberSeries, movementHistory, movementKeys, movementRecord,
+  movementRecordNote, movementRow,
   movementStageRows, reformKind, reformName, reformRecord, reformsInForce, STAGE_COLORS,
 } from "../movements";
 import { presentSystems } from "../systems";
@@ -109,6 +110,19 @@ describe("movement helpers", () => {
     expect(movementRecordNote({ ...record, leader: "Ilra", end: 0, ended_turn: null }, null, null, 300)).toBe(
       "A sect movement against ?, founded turn 106 in ?, led by Ilra. "
       + "Whole record: peak 19 members, 1 demand, 0 martyrs.");
+  });
+
+  it("marks a leader the record says was martyred, from the turn of the martyrdom", () => {
+    const martyr = { turn: 62, event_type: "movement_martyr", actors: ["Selurian Republic", "Archon Banyaris"],
+      description: "The death of Archon Banyaris makes a martyr", consequences: [], importance: 5 };
+    const martyred = martyrdoms([martyr]);
+    expect(leaderLabel("Archon Banyaris", martyred, 72)).toBe("Archon Banyaris (martyred T62)");
+    expect(leaderLabel("Archon Banyaris", martyred, 61)).toBe("Archon Banyaris");
+    expect(leaderLabel(undefined, martyred, 72)).toBe("-");
+    // In the movements fixture every martyrdom names a movement's leader.
+    for (const [leader] of martyrdoms(movements.events_timeline)) {
+      expect(records.some((record) => record.leader === leader)).toBe(true);
+    }
   });
 
   it("is a system of the bundle only when a snapshot records movements", () => {

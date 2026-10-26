@@ -406,11 +406,15 @@ class TimelineView:
         self.type_counts: dict[str, int] = dict(Counter(ev.event_type for ev in self.timeline))
         self.by_id: dict[str, "Event"] = {}
         self.children: dict[str, list[int]] = {}
+        # A movement keeps its dead leader's name; the martyrdom is the record.
+        self.martyred: dict[str, int] = {}
         for i, ev in enumerate(self.timeline):
             if ev.event_id and ev.event_id not in self.by_id:
                 self.by_id[ev.event_id] = ev
             for cid in ev.causes:
                 self.children.setdefault(cid, []).append(i)
+            if ev.event_type == "movement_martyr" and len(ev.actors) > 1:
+                self.martyred.setdefault(ev.actors[1], ev.turn)
         self._crises = self._food_crises()
 
     def consequences(self, moment_events: Sequence["Event"], end_turn: int,
@@ -598,7 +602,11 @@ def standing_state_lines(
             text = (f"Movement: {row.get('name')} ({row.get('creed')}, {row.get('stage')}) against {civ}, "
                     f"{row.get('members')} members ({round(100 * float(row.get('strength', 0)))}% of its people)")
             if row.get("leader"):
-                text += f", led by {row['leader']}"
+                died = timeline.martyred.get(row["leader"]) if timeline is not None else None
+                if died is not None and died <= at_turn:
+                    text += f", its leader {row['leader']} martyred in turn {died}"
+                else:
+                    text += f", led by {row['leader']}"
             stronghold = _region_name(world, row.get("stronghold"))
             if stronghold:
                 text += f", strongest in {stronghold}"

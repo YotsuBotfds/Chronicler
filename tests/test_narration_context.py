@@ -201,6 +201,21 @@ def test_standing_state_reads_rulers_wars_movements_reforms_cities_and_food(samp
     assert len(lines) <= nc.MAX_STATE_LINES
 
 
+def test_a_martyred_leader_is_not_told_as_leading(sample_world):
+    """A movement keeps its dead leader's name; the martyrdom event is the record."""
+    kethani = sample_world.civilizations[0].name
+    row = {"id": 0, "name": "the Brotherhood", "creed": "liberty", "target": 0, "stage": "pressing",
+           "members": 9, "strength": 0.1, "stronghold": -1, "martyrs": 1, "leader": "Ilra"}
+    snap = _snap(41, {kethani: ("Empress Vaelith", None)},
+                 agent_movements={"living": [row], "ended": 0, "counters": {}})
+    timeline = nc.TimelineView([_ev(33, "movement_martyr", [kethani, "Ilra"], eid="33:movement_martyr:0")])
+    events = [_ev(40, "movement_demand", [kethani], eid="40:movement_demand:0")]
+    text = "\n".join(nc.standing_state_lines(snap, events, sample_world, timeline, at_turn=40))
+    assert "its leader Ilra martyred in turn 33" in text and "led by Ilra" not in text
+    early = "\n".join(nc.standing_state_lines(snap, events, sample_world, timeline, at_turn=30))
+    assert "led by Ilra" in early
+
+
 def test_food_crisis_spans_follow_the_recorded_labels():
     tv = nc.TimelineView([
         _ev(5, "dearth", region="R", episode="onset", eid="5:d:0"),

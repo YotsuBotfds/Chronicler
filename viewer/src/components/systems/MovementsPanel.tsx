@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import {
-  civName, CREED_COLORS, CREED_LABELS, creedSeries, institutionLabel, memberSeries, MOVEMENT_COUNTERS,
-  movementHistory, movementKeys, movementRecord, movementRecordNote, movementStageRows, reformName, reformsInForce,
-  regionName, STAGE_COLORS, STAGE_ORDER,
+  civName, CREED_COLORS, CREED_LABELS, creedSeries, institutionLabel, leaderLabel, martyrdoms, memberSeries,
+  MOVEMENT_COUNTERS, movementHistory, movementKeys, movementRecord, movementRecordNote, movementStageRows, reformName,
+  reformsInForce, regionName, STAGE_COLORS, STAGE_ORDER,
 } from "../../lib/movements";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLegend, CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
@@ -17,6 +17,7 @@ export function MovementsPanel({
   const keys = useMemo(() => movementKeys(history), [history]);
   const rows = useMemo(() => movementStageRows(history, keys), [history, keys]);
   const creeds = useMemo(() => creedSeries(history), [history]);
+  const martyred = useMemo(() => martyrdoms(bundle.events_timeline), [bundle.events_timeline]);
   const { first, end } = recordedSpan(history);
   const state = snapshot?.agent_movements;
   const at = snapshot?.turn ?? currentTurn;
@@ -108,7 +109,7 @@ export function MovementsPanel({
                             <button type="button" className="systems-link" onClick={() => onSelectRegion(stronghold)}>{stronghold}</button>
                           ) : "-"}
                         </td>
-                        <td>{row.leader ?? "-"}</td>
+                        <td>{leaderLabel(row.leader, martyred, at)}</td>
                         <td>{row.martyrs}</td>
                       </tr>
                     );
