@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
+from .validation_gate import PROFILE_CHOICES
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
 from .validation_oracles import *  # noqa: F401,F403
@@ -38,8 +39,10 @@ def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     return selected
 
 
-def run_oracles(batch_dir: Path, oracles: list[str]) -> dict:
-    """Run specified oracles and return a structured report."""
+def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None) -> dict:
+    """Run specified oracles and return a structured report (``profile``:
+    the gate profile the needs oracle scores for; None requires its binding
+    component)."""
     selected = _normalize_requested_oracles(oracles)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
@@ -55,6 +58,8 @@ def run_oracles(batch_dir: Path, oracles: list[str]) -> dict:
         try:
             if oracle_name == "determinism":
                 results[oracle_name] = runner(batch_dir)
+            elif oracle_name == "needs":
+                results[oracle_name] = runner(ensure_seed_runs(), profile=profile)
             else:
                 results[oracle_name] = runner(ensure_seed_runs())
         except (ValidationRequestError, ValidationDependencyError):
@@ -94,9 +99,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="M53b validation oracle runner")
     parser.add_argument("--batch-dir", required=True, type=Path)
     parser.add_argument("--oracles", nargs="+", default=["all"])
+    parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
+                        help="gate profile the needs oracle scores for (default: binding required)")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

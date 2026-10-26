@@ -15,6 +15,7 @@ from math import ceil, comb
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
+from .validation_gate import NEEDS_BINDING_REQUIRED_PROFILES, PROFILE_CHOICES
 from .snapshot_pruning import restore_bundle
 
 SCRUB_KEYS = {"generated_at"}
@@ -2197,6 +2198,7 @@ def run_needs_oracle(
     thresholds: dict[str, float] | None = None,
     binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
     require_binding: bool = True,
+    profile: str | None = None,
 ) -> dict:
     """M53 oracle 2, method 3: lower need, more of its event, pooled over seeds.
 
@@ -2211,6 +2213,12 @@ def run_needs_oracle(
     is below its behavioural threshold (``thresholds``) and whose partner is
     at or above it (``_match_binding_pairs``), have a pooled net concordance
     whose seed-clustered lower bound is above zero.
+
+    The binding component decides PASS only when ``profile`` is in
+    ``NEEDS_BINDING_REQUIRED_PROFILES`` (the full gate) or is None; in the
+    subset profile it is computed and reported (``binding.status``,
+    ``informational_failed_criteria``) but does not decide. The gate applies
+    the same rule to any method 3 result (``validation_gate``).
 
     ``require_binding=False`` scores method 2 alone (``method_version`` 2),
     for re-scoring and comparison.
@@ -2324,20 +2332,27 @@ def run_needs_oracle(
         f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0 "
         f"and >= {seed_fraction:.0%} of analyzed seeds with net concordance > 0"
     )
+    pooled_status = "PASS" if bound_ok and seeds_ok else "FAIL"
     binding_ok = True
+    binding_decides = False
+    informational_failed_criteria: list[str] = []
     binding_result = None
     if require_binding:
+        binding_decides = profile is None or profile in NEEDS_BINDING_REQUIRED_PROFILES
         binding_pooled = _pooled_net_concordance(binding_counts, confidence)
         binding_lower = binding_pooled["lower_bound"]
         binding_ok = binding_lower is not None and binding_lower > 0.0
         if not binding_ok:
-            failed_criteria.append("binding_lower_bound")
+            (failed_criteria if binding_decides else informational_failed_criteria).append("binding_lower_bound")
         _pairing_bounds(binding_by_pairing, "binding_by_pairing")
         criterion += (
             f"; binding pairs (lower-need agent below its threshold, partner at or above it): "
             f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0"
+            + ("" if binding_decides else f" (informational in profile {profile})")
         )
         binding_result = {
+            "status": "PASS" if binding_ok else "FAIL",
+            "required": binding_decides,
             "thresholds": thresholds,
             "need_divergence": binding_divergence,
             "total_pairs": sum(record["binding"][0] for record in per_seed),
@@ -2354,7 +2369,7 @@ def run_needs_oracle(
         }
 
     result = {
-        "status": "PASS" if bound_ok and seeds_ok and binding_ok else "FAIL",
+        "status": "PASS" if bound_ok and seeds_ok and (binding_ok or not binding_decides) else "FAIL",
         "method": "pooled_matched_pairs",
         "method_version": NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION,
         "criterion": criterion,
@@ -2379,6 +2394,11 @@ def run_needs_oracle(
         "by_pairing": by_pairing,
     }
     if binding_result is not None:
+        result["profile"] = profile
+        result["binding_required"] = binding_decides
+        result["binding_required_profiles"] = list(NEEDS_BINDING_REQUIRED_PROFILES)
+        result["pooled_status"] = pooled_status
+        result["informational_failed_criteria"] = informational_failed_criteria
         result["binding"] = binding_result
     result["per_seed"] = per_seed
     return result
@@ -3517,8 +3537,10 @@ def _normalize_requested_oracles(oracles: list[str]) -> set[str]:
     return selected
 
 
-def run_oracles(batch_dir: Path, oracles: list[str]) -> dict:
-    """Run specified oracles and return a structured report."""
+def run_oracles(batch_dir: Path, oracles: list[str], profile: str | None = None) -> dict:
+    """Run specified oracles and return a structured report (``profile``:
+    the gate profile the needs oracle scores for; None requires its binding
+    component)."""
     selected = _normalize_requested_oracles(oracles)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
@@ -3536,7 +3558,7 @@ def run_oracles(batch_dir: Path, oracles: list[str]) -> dict:
             elif oracle_name == "community":
                 results[oracle_name] = run_community_oracle(ensure_seed_runs())
             elif oracle_name == "needs":
-                results[oracle_name] = run_needs_oracle(ensure_seed_runs())
+                results[oracle_name] = run_needs_oracle(ensure_seed_runs(), profile=profile)
             elif oracle_name == "era":
                 results[oracle_name] = run_era_oracle(ensure_seed_runs())
             elif oracle_name == "cohort":
@@ -3584,9 +3606,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="M53b validation oracle runner")
     parser.add_argument("--batch-dir", required=True, type=Path)
     parser.add_argument("--oracles", nargs="+", default=["all"])
+    parser.add_argument("--profile", choices=PROFILE_CHOICES, default=None,
+                        help="gate profile the needs oracle scores for (default: binding required)")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

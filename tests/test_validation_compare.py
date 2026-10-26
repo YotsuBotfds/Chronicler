@@ -720,3 +720,37 @@ def test_compare_needs_method_2_against_method_3_requires_rebaselining(tmp_path)
     result = compare_validation_reports("subset", baseline, current)
     assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
     assert result["rebaseline_required"] is False
+
+
+def _needs_binding(report, lower_bound, *, required):
+    binding_ok = lower_bound > 0
+    report["results"]["needs"] = {
+        "status": "PASS" if binding_ok or not required else "FAIL",
+        "method_version": 3,
+        "failed_criteria": [] if binding_ok or not required else ["binding_lower_bound"],
+        "informational_failed_criteria": [] if binding_ok or required else ["binding_lower_bound"],
+        "binding_required": required,
+        "binding": {"status": "PASS" if binding_ok else "FAIL", "net_concordance_lower_bound": lower_bound},
+    }
+    return report
+
+
+def test_compare_subset_informational_binding_failure_is_no_regression():
+    from chronicler.validation_compare import compare_validation_reports
+
+    baseline = _needs_binding(_report(determinism="SKIP"), 0.07, required=False)
+    # Scored for the subset (binding informational) or without a profile
+    # (binding decides the result's own status): the subset gate ignores it.
+    for required in (False, True):
+        current = _needs_binding(_report(determinism="SKIP"), -0.028, required=required)
+        result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == []
+        assert result["regression_detected"] is False
+        assert result["exit_code"] == 0
+        assert result["current_decision"]["ok"] is True
+        assert result["rebaseline_required"] is False
+
+        # The full profile requires the binding component: a new failure there.
+        result = compare_validation_reports("full", baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+        assert result["exit_code"] == 2
