@@ -90,11 +90,15 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # Method 1 kept one best snapshot and pairing per seed (``run_needs_oracle_best_of``).
 #
 # Method 3 (docs/integration/needs-followups.md) keeps method 2 and adds a
-# required binding component: the pairs whose lower-need agent is below its
-# behavioural threshold, where the need-driven terms act (needs.rs: a need
-# pushes behaviour only below its threshold). Above it the terms do nothing,
-# and an association there comes from other channels. The binding pairs need
-# their own seed-clustered lower bound above zero.
+# required binding component. The need-driven terms act only below a need's
+# behavioural threshold (needs.rs), and any positive push opens the decision
+# gate, so the contrast that isolates them is a pair whose lower-need agent is
+# below the threshold and whose partner is at or above it: the term pushes one
+# and not the other. Binding pairs are matched like method 2's pairs (cell,
+# traits, prior rebels) among such agents, with a need gap above
+# NEEDS_BINDING_DIVERGENCE, and need their own seed-clustered lower bound
+# above zero. Above the threshold the terms do nothing, and an association
+# there comes from other channels (conditions, age, wealth).
 NEEDS_ORACLE_METHOD_VERSION = 3
 NEEDS_POOLED_METHOD_VERSION = 2
 NEEDS_PAIRINGS = (
@@ -128,6 +132,10 @@ NEEDS_BEHAVIOUR_THRESHOLDS = {
     "material": 0.30,
     "safety": 0.30,
 }
+# The need gap of a binding pair. The threshold sets its contrast; the gap,
+# half of method 2's, leaves out pairs whose two needs sit at the threshold
+# and swap sides within a few turns.
+NEEDS_BINDING_DIVERGENCE = 0.05
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
 # (docs/integration/wave3-defaults.md). A silent collapse is a population
@@ -1145,6 +1153,56 @@ def _match_needs_pairs(
     return pairs
 
 
+def _match_binding_pairs(
+    needs_data: dict,
+    need_name: str,
+    threshold: float,
+    need_divergence: float,
+    personality_tolerance: float,
+) -> list[tuple[int, int]]:
+    """Binding ``(low_need_id, high_need_id)`` pairs of one needs snapshot.
+
+    The low agent's need is below ``threshold``, its partner's at or above it
+    and higher by more than ``need_divergence``; civ_affinity, region and
+    occupation are equal and boldness, ambition and loyalty_trait each differ
+    by at most ``personality_tolerance``. Greedy first match: agents below the
+    threshold in snapshot order, partners in snapshot order within the cell;
+    each agent is in at most one pair.
+    """
+    ids = needs_data["agent_id"]
+    need_vals = needs_data[need_name]
+    boldness = needs_data["boldness"]
+    ambition = needs_data["ambition"]
+    loyalty = needs_data["loyalty_trait"]
+    partners: dict[tuple, list[int]] = defaultdict(list)
+    keys = list(zip(needs_data["civ_affinity"], needs_data["region"], needs_data["occupation"]))
+    for index, key in enumerate(keys):
+        if need_vals[index] >= threshold:
+            partners[key].append(index)
+
+    pairs: list[tuple[int, int]] = []
+    used: set = set()
+    for i, aid in enumerate(ids):
+        if need_vals[i] >= threshold:
+            continue
+        for j in partners.get(keys[i], ()):
+            bid = ids[j]
+            if bid in used:
+                continue
+            if (
+                abs(boldness[i] - boldness[j]) > personality_tolerance
+                or abs(ambition[i] - ambition[j]) > personality_tolerance
+                or abs(loyalty[i] - loyalty[j]) > personality_tolerance
+            ):
+                continue
+            if need_vals[j] - need_vals[i] <= need_divergence:
+                continue
+            used.add(bid)
+            pairs.append((aid, bid))
+            break
+    return pairs
+
+
 def compute_needs_diversity(
     needs_data: dict,
     events_data: list[dict],
@@ -2080,10 +2138,11 @@ def _needs_seed_pairs(
     personality_tolerance: float,
     window: int,
     thresholds: dict[str, float] | None = None,
+    binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
 ) -> tuple[int, dict[str, list[tuple[int, int]]], dict[str, list[tuple[int, int]]]]:
     """Every matched pair of one seed: eligible snapshot count, and per need
     the (low-need agent's, high-need agent's) event counts in the window, for
-    all pairs and for the binding pairs (lower agent below ``thresholds``)."""
+    method 2's pairs and for the binding pairs (``_match_binding_pairs``)."""
     thresholds = NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds
     total_turns = _total_turns(run)
     first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
@@ -2108,13 +2167,15 @@ def _needs_seed_pairs(
                 continue
             if need_name == "autonomy" and exclude_prior_rebels:
                 columns = _without_agents_with_event_by(columns, first_rebellion, snapshot_turn)
-            threshold = thresholds.get(need_name)
-            need_of = dict(zip(columns["agent_id"], columns[need_name])) if threshold is not None else {}
             for low, high in _match_needs_pairs(columns, need_name, need_divergence, personality_tolerance):
-                outcome = (counts.get((low, event_type), 0), counts.get((high, event_type), 0))
-                outcomes[need_name].append(outcome)
-                if threshold is not None and need_of[low] < threshold:
-                    binding[need_name].append(outcome)
+                outcomes[need_name].append((counts.get((low, event_type), 0), counts.get((high, event_type), 0)))
+            threshold = thresholds.get(need_name)
+            if threshold is None:
+                continue
+            for low, high in _match_binding_pairs(
+                columns, need_name, threshold, binding_divergence, personality_tolerance
+            ):
+                binding[need_name].append((counts.get((low, event_type), 0), counts.get((high, event_type), 0)))
     return snapshots, outcomes, binding
 
 
@@ -2134,6 +2195,7 @@ def run_needs_oracle(
     confidence: float = NEEDS_CONFIDENCE,
     seed_fraction: float = NEEDS_SEED_FRACTION_MIN,
     thresholds: dict[str, float] | None = None,
+    binding_divergence: float = NEEDS_BINDING_DIVERGENCE,
     require_binding: bool = True,
 ) -> dict:
     """M53 oracle 2, method 3: lower need, more of its event, pooled over seeds.
@@ -2146,8 +2208,9 @@ def run_needs_oracle(
     bound of the pooled net concordance is above zero and at least
     ``seed_fraction`` of the analyzed seeds have more concordant than
     discordant pairs. Method 3 adds: the binding pairs, whose lower-need agent
-    is below its behavioural threshold (``thresholds``), have a pooled net
-    concordance whose seed-clustered lower bound is above zero.
+    is below its behavioural threshold (``thresholds``) and whose partner is
+    at or above it (``_match_binding_pairs``), have a pooled net concordance
+    whose seed-clustered lower bound is above zero.
 
     ``require_binding=False`` scores method 2 alone (``method_version`` 2),
     for re-scoring and comparison.
@@ -2181,6 +2244,7 @@ def run_needs_oracle(
             personality_tolerance=personality_tolerance,
             window=window,
             thresholds=thresholds,
+            binding_divergence=binding_divergence,
         )
 
         def _tally(pair_outcomes: dict[str, list[tuple[int, int]]], totals_by_need: dict[str, dict]):
@@ -2270,11 +2334,12 @@ def run_needs_oracle(
             failed_criteria.append("binding_lower_bound")
         _pairing_bounds(binding_by_pairing, "binding_by_pairing")
         criterion += (
-            f"; binding pairs (lower-need agent below its threshold): one-sided {confidence:.0%} "
-            "lower bound of pooled net concordance > 0"
+            f"; binding pairs (lower-need agent below its threshold, partner at or above it): "
+            f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0"
         )
         binding_result = {
             "thresholds": thresholds,
+            "need_divergence": binding_divergence,
             "total_pairs": sum(record["binding"][0] for record in per_seed),
             "informative_pairs": sum(c + d for c, d in binding_counts),
             "concordant_pairs": sum(c for c, _d in binding_counts),

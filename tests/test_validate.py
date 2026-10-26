@@ -1101,6 +1101,30 @@ def test_needs_oracle_fails_without_binding_pairs():
     assert result["status"] == "FAIL"
 
 
+def test_binding_pairs_straddle_the_threshold():
+    from chronicler.validation_io import _match_binding_pairs
+
+    rows = [
+        (0, 0, {"material": 0.10}),  # below; 1 is below too, so 2 is its partner
+        (1, 0, {"material": 0.20}),  # below; 2 is taken, 3 is 0.12 higher
+        (2, 0, {"material": 0.30}),  # at the threshold counts as above
+        (3, 0, {"material": 0.32}),
+        (4, 1, {"material": 0.28}),  # 5 within 0.05: no pair
+        (5, 1, {"material": 0.32}),
+        (6, 2, {"material": 0.05}),  # 7 above but traits too far apart
+        (7, 2, {"material": 0.60}),
+        (8, 3, {"material": 0.40}),  # no one below in region 3
+        (9, 3, {"material": 0.90}),
+    ]
+    columns = _needs_rows(rows)
+    columns["boldness"][7] = 0.75
+    pairs = _match_binding_pairs(columns, "material", 0.30, 0.05, 0.1)
+    assert pairs == [(0, 2), (1, 3)]
+    # A tighter gap keeps the close pair of region 1; a looser one drops 1-3.
+    assert (4, 5) in _match_binding_pairs(columns, "material", 0.30, 0.0, 0.1)
+    assert _match_binding_pairs(columns, "material", 0.30, 0.15, 0.1) == [(0, 2)]
+
+
 def test_needs_oracle_thresholds_mirror_the_native_constants():
     import re
     from pathlib import Path
