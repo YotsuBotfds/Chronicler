@@ -2,7 +2,7 @@
  * Read-only helpers for the simulation systems carried by a bundle's history
  * snapshots (`history[n].epidemics`, `.finance`, `.diplomacy`, `.techniques`,
  * `.maritime`, `.campaign`, `.food`, `.nomads`, `.gp_agendas`, `.contact`,
- * `.cities`, `.agent_movements`,
+ * `.cities`, `.agent_movements`, `.scholarship`,
  * civ rows' `governance`) and its event timeline. Nothing here infers a value
  * the bundle does not record: missing snapshots stay missing. Helpers for the
  * later systems live in `food.ts`, `wars.ts` and `polity.ts`.
@@ -30,7 +30,8 @@ export type SystemKey =
   | "governance"
   | "contact"
   | "cities"
-  | "movements";
+  | "movements"
+  | "learning";
 
 /** What every system panel receives from the shell. */
 export interface SystemPanelProps {
@@ -71,7 +72,7 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 /** Display order of the systems panel tabs. */
 export const SYSTEM_KEYS: SystemKey[] = [
   "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
-  "contact", "cities", "movements",
+  "contact", "cities", "movements", "learning",
 ];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
@@ -88,6 +89,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   contact: "Contact",
   cities: "Cities",
   movements: "Movements",
+  learning: "Learning",
 };
 
 /** Snapshot field each system writes (governance lives on civ rows; food may come from events alone). */
@@ -104,6 +106,7 @@ const SNAPSHOT_FIELDS: Partial<Record<SystemKey, keyof TurnSnapshot>> = {
   contact: "contact",
   cities: "cities",
   movements: "agent_movements",
+  learning: "scholarship",
 };
 
 /**
@@ -172,6 +175,9 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "guild_founded", "guild_privilege", "guild_privilege_lost", "guild_levy", "guild_dissolved",
   ],
   movements: MOVEMENT_EVENT_TYPES,
+  learning: [
+    "seat_founded", "seat_rose", "seat_declined", "seat_patron", "seat_master", "seat_fell", "scholars_fled",
+  ],
 };
 
 /** Events of the given types up to `upToTurn`, latest first (stable within a turn). */

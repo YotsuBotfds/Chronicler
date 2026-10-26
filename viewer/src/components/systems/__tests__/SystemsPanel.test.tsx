@@ -4,6 +4,7 @@ import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import citiesFixture from "../../../__fixtures__/cities_bundle.json";
 import movementsFixture from "../../../__fixtures__/movements_bundle.json";
+import learningFixture from "../../../__fixtures__/learning_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
@@ -14,6 +15,7 @@ import { EpidemicsPanel } from "../EpidemicsPanel";
 import { FinancePanel } from "../FinancePanel";
 import { FoodPanel } from "../FoodPanel";
 import { GovernancePanel } from "../GovernancePanel";
+import { LearningPanel } from "../LearningPanel";
 import { MaritimePanel } from "../MaritimePanel";
 import { MovementsPanel } from "../MovementsPanel";
 import { NomadsPanel } from "../NomadsPanel";
@@ -529,6 +531,76 @@ describe("MovementsPanel", () => {
     cleanup();
     render(<MovementsPanel {...props(fixture, LAST)} />);
     expect(screen.getByText(`No movement record at turn ${LAST.turn}.`)).toBeInTheDocument();
+  });
+});
+
+/**
+ * A trimmed template run with --scholarship (500 hybrid turns, every fifth
+ * snapshot and the last): `scholarship` per snapshot, the seat events with
+ * the events they cite, `world_state.scholarship`.
+ */
+const learning = learningFixture as unknown as Bundle;
+const LEARNING_LAST = learning.history[learning.history.length - 1];
+
+describe("LearningPanel", () => {
+  const busiest = learning.history.reduce((best, snapshot) =>
+    (snapshot.scholarship!.seats.length > best.scholarship!.seats.length ? snapshot : best));
+
+  it("renders the seats over time, the scrubbed turn's table and the first seat's history", () => {
+    const p = props(learning, busiest);
+    render(<LearningPanel {...p} />);
+    expect(screen.getByRole("group", { name: "Level of each seat of learning over time" })).toBeInTheDocument();
+    const living = busiest.scholarship!.seats;
+    const table = screen.getByRole("table", { name: `Seats of learning at turn ${busiest.turn}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + living.length);
+    expect(within(table).getAllByText(/its (ruler|temple|city)/).length).toBe(living.length);
+    fireEvent.click(within(table).getAllByRole("button", { name: living[0].region! })[0]);
+    expect(p.onSelectRegion).toHaveBeenCalledWith(living[0].region);
+    const history = screen.getByRole("region", { name: `History of ${living[0].name}` });
+    expect(within(history).getByLabelText(`Scholars of ${living[0].name}`)).toBeInTheDocument();
+    const moments = within(history).getByRole("list", { name: `Recorded moments of ${living[0].name}` });
+    expect(within(moments).getAllByRole("listitem").length).toBeGreaterThan(0);
+    const totals = screen.getByLabelText(`Seat totals by turn ${busiest.turn}`);
+    expect(within(totals).getByText("Flights to another seat")).toBeInTheDocument();
+  });
+
+  it("follows a seat chosen in the table and says where a fallen seat's scholars went", () => {
+    const seats = learning.world_state.scholarship!.seats!;
+    const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
+    const standing = learning.history.find((snapshot) =>
+      snapshot.scholarship!.seats.some((row) => row.id === index))!;
+    const p = props(learning, standing);
+    p.currentTurn = LEARNING_LAST.turn;
+    render(<LearningPanel {...p} />);
+    const table = screen.getByRole("table", { name: `Seats of learning at turn ${standing.turn}` });
+    fireEvent.click(within(table).getByRole("button", { name: seats[index].name }));
+    const history = screen.getByRole("region", { name: `History of ${seats[index].name}` });
+    expect(within(history).getByText(new RegExp(`its scholars fled to ${seats[seats[index].refuge].name}`)))
+      .toBeInTheDocument();
+  });
+
+  it("tells a seat's fall and refuge only from the turn it fell", () => {
+    const seats = learning.world_state.scholarship!.seats!;
+    const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
+    const standing = learning.history.find((snapshot) =>
+      snapshot.scholarship!.seats.some((row) => row.id === index))!;
+    render(<LearningPanel {...props(learning, standing)} />);
+    const table = screen.getByRole("table", { name: `Seats of learning at turn ${standing.turn}` });
+    fireEvent.click(within(table).getByRole("button", { name: seats[index].name }));
+    const history = screen.getByRole("region", { name: `History of ${seats[index].name}` });
+    expect(within(history).getByText(new RegExp(`founded turn ${seats[index].founded_turn}`))).toBeInTheDocument();
+    expect(within(history).queryByText(/fell at turn|its scholars fled to/)).toBeNull();
+  });
+
+  it("says so before the first seat and is a tab only when the run records seats", () => {
+    render(<LearningPanel {...props(learning, learning.history[0])} />);
+    expect(screen.getByText(`No seat of learning stands at turn ${learning.history[0].turn}.`)).toBeInTheDocument();
+    cleanup();
+    render(<SystemsPanel {...props(learning, LEARNING_LAST)} surface="overview" />);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Learning"]);
+    cleanup();
+    render(<LearningPanel {...props(fixture, LAST)} />);
+    expect(screen.getByText(`No record of seats of learning at turn ${LAST.turn}.`)).toBeInTheDocument();
   });
 });
 

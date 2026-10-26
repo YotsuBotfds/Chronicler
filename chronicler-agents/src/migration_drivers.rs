@@ -22,6 +22,13 @@
 //!   more than home's (Python's `city_pull`, from the city's rank, unrest
 //!   and food), when that region is fed and has room. Without the switch
 //!   every region's `city_pull` is 0 and the gate never opens.
+//! - **Learning pull** (`--scholarship`, default off). A scholar adult next
+//!   to a region of the same realm whose seat of learning draws markedly
+//!   more than home's (Python's `seat_pull`, from the seat's level and
+//!   upkeep), when that region is fed and has room. For a few turns after a
+//!   seat falls (`seat_flight` at home), the scholars of its region may also
+//!   cross a border to a seat next door. Without the switch every
+//!   `seat_pull` is 0, no region is in flight and the gate never opens.
 //! - **Roots (life course).** The pulls count only beyond a threshold that
 //!   is zero for unattached adults up to 35 and grows with age, marriage and
 //!   bonds at home. A pull opens at `PULL_AT_GATE` of its full size, so a
@@ -29,8 +36,8 @@
 //!   20) take no voluntary moves; married agents' households move with them
 //!   (`household.rs`).
 //!
-//! All four are internal migration: source and destination are ruled by
-//! the same civ. Moving does not change an agent's civ affinity; crossing a
+//! All five are internal migration: source and destination are ruled by
+//! the same civ (scholars in flight from a fallen seat excepted). Moving does not change an agent's civ affinity; crossing a
 //! border makes it a minority under a foreign ruler and counts as a
 //! cross-border move in the hybrid civ migration hazard. Unclaimed land has
 //! no controller values, which the cultural penalty reads as a full
@@ -126,6 +133,19 @@ pub const URBAN_MAX_TARGET_RATIO: f32 = 1.0;
 pub const URBAN_FARMER_MAX_TARGET_RATIO: f32 = FRONTIER_SOURCE_MIN_RATIO;
 pub const URBAN_PULL: f32 = 0.5;
 
+/// Learning pull (`--scholarship`): the destination's `seat_pull` over
+/// home's, from `LEARNING_MIN_GAP` (a modest seat at full upkeep: 0.4, next
+/// to a region without one), full at `LEARNING_FULL_GAP`; the destination
+/// fed (food sufficiency at least `LEARNING_MIN_FOOD_SUFFICIENCY`) and below
+/// `LEARNING_MAX_TARGET_RATIO` of capacity. Scholar adults only.
+/// [CALIBRATE scholarship] (see docs/integration/scholarship.md)
+pub const LEARNING_MIN_GAP: f32 = 0.25;
+pub const LEARNING_FULL_GAP: f32 = 0.75;
+pub const LEARNING_MIN_FOOD_SUFFICIENCY: f32 = 1.0;
+pub const LEARNING_MAX_TARGET_RATIO: f32 = 1.0;
+pub const LEARNING_PULL: f32 = 0.5;
+
+const _: () = assert!(LEARNING_FULL_GAP > LEARNING_MIN_GAP);
 const _: () = assert!(URBAN_FULL_GAP > URBAN_MIN_GAP);
 const _: () = assert!(FRONTIER_FULL_GAP > FRONTIER_MIN_GAP);
 const _: () = assert!(WAGE_FULL_RATIO > WAGE_MIN_RATIO);
@@ -160,8 +180,9 @@ pub fn food_potential(region: &RegionState) -> f32 {
 }
 
 /// Voluntary drivers, in the order of the budget's `open` and `gate` tallies.
-pub const VOLUNTARY_DRIVERS: usize = 4;
-pub const VOLUNTARY_DRIVER_NAMES: [&str; VOLUNTARY_DRIVERS] = ["frontier", "wage", "chain", "urban"];
+pub const VOLUNTARY_DRIVERS: usize = 5;
+pub const VOLUNTARY_DRIVER_NAMES: [&str; VOLUNTARY_DRIVERS] =
+    ["frontier", "wage", "chain", "urban", "learning"];
 
 /// Voluntary pull toward one destination, by driver.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -170,14 +191,15 @@ pub struct VoluntaryPull {
     pub wage: f32,
     pub chain: f32,
     pub urban: f32,
+    pub learning: f32,
 }
 
 impl VoluntaryPull {
-    /// Sum of the pulls. The urban pull is added last, so with it at 0 the
-    /// sum has the bits it had without the driver.
+    /// Sum of the pulls. The urban and learning pulls are added last, so
+    /// with them at 0 the sum has the bits it had without those drivers.
     #[inline]
     pub fn total(&self) -> f32 {
-        self.frontier + self.wage + self.chain + self.urban
+        self.frontier + self.wage + self.chain + self.urban + self.learning
     }
 
     /// What remains of the pull beyond the agent's roots, split across the
@@ -194,13 +216,14 @@ impl VoluntaryPull {
             wage: self.wage * k,
             chain: self.chain * k,
             urban: self.urban * k,
+            learning: self.learning * k,
         }
     }
 
     /// Which drivers carry a positive pull, in `VOLUNTARY_DRIVER_NAMES` order.
     #[inline]
     pub fn open(&self) -> [bool; VOLUNTARY_DRIVERS] {
-        [self.frontier > 0.0, self.wage > 0.0, self.chain > 0.0, self.urban > 0.0]
+        [self.frontier > 0.0, self.wage > 0.0, self.chain > 0.0, self.urban > 0.0, self.learning > 0.0]
     }
 }
 
@@ -234,6 +257,9 @@ pub struct Mobility {
     occupation: u8,
     /// Outside every settlement footprint (`settlement_id` 0).
     rural: bool,
+    /// A scholar of a region whose seat of learning just fell (`seat_flight`):
+    /// the learning pull may cross a border.
+    flight: bool,
     chain_regions: [u16; REL_SLOTS],
     chain_strength: [f32; REL_SLOTS],
     chain_len: usize,
@@ -241,7 +267,8 @@ pub struct Mobility {
 
 impl Mobility {
     /// `None` when no voluntary pull can apply: a dependant, an agent whose
-    /// region has no ruler, or no neighbouring region of the same realm.
+    /// region has no ruler, or no neighbouring region of the same realm
+    /// (except a scholar in flight from a fallen seat).
     pub fn for_agent<L: crate::pool::SlotLookup>(
         pool: &AgentPool,
         slot: usize,
@@ -251,11 +278,12 @@ impl Mobility {
         id_to_slot: &L,
     ) -> Option<Mobility> {
         let age = pool.ages[slot];
-        if age < MOBILITY_MIN_AGE || !has_internal_neighbour {
+        let src = &regions[region_id];
+        let flight = src.seat_flight && pool.occupations[slot] == Occupation::Scholar as u8;
+        if age < MOBILITY_MIN_AGE || !(has_internal_neighbour || flight) {
             return None;
         }
-        let src = &regions[region_id];
-        if src.controller_civ == UNCONTROLLED {
+        if src.controller_civ == UNCONTROLLED && !flight {
             return None;
         }
         let mut m = Mobility {
@@ -263,6 +291,7 @@ impl Mobility {
             home_bonds: 0.0,
             occupation: pool.occupations[slot],
             rural: pool.settlement_ids[slot] == 0,
+            flight,
             chain_regions: [0; REL_SLOTS],
             chain_strength: [0.0; REL_SLOTS],
             chain_len: 0,
@@ -342,8 +371,25 @@ pub struct PullInputs<'a> {
     pub adj_peer_count: &'a [u16; WAGE_OCCUPATIONS],
 }
 
+/// Learning pull of a scholar toward `dst`'s seat (0 for anyone else, or
+/// when the gate is shut).
+#[inline]
+fn learning_pull(m: &Mobility, src: &RegionState, dst: &RegionState, adj_ratio: f32) -> f32 {
+    let gap = dst.seat_pull - src.seat_pull;
+    if m.occupation == Occupation::Scholar as u8
+        && gap >= LEARNING_MIN_GAP
+        && dst.food_sufficiency >= LEARNING_MIN_FOOD_SUFFICIENCY
+        && adj_ratio < LEARNING_MAX_TARGET_RATIO
+    {
+        LEARNING_PULL * ramp(gap, LEARNING_MIN_GAP, LEARNING_FULL_GAP)
+    } else {
+        0.0
+    }
+}
+
 /// Gross voluntary pull from `src` toward the neighbouring `dst`, before
-/// roots. Zero unless both are ruled by the same civ.
+/// roots. Zero unless both are ruled by the same civ, except the learning
+/// pull of a scholar in flight from a fallen seat.
 pub fn pull_toward(
     m: &Mobility,
     src: &RegionState,
@@ -352,6 +398,9 @@ pub fn pull_toward(
 ) -> VoluntaryPull {
     let mut pull = VoluntaryPull::default();
     if dst.controller_civ != src.controller_civ || src.controller_civ == UNCONTROLLED {
+        if m.flight {
+            pull.learning = learning_pull(m, src, dst, inputs.adj_ratio);
+        }
         return pull;
     }
     // Frontier settlement: farmers, for land.
@@ -392,6 +441,8 @@ pub fn pull_toward(
     {
         pull.urban = URBAN_PULL * ramp(urban_gap, URBAN_MIN_GAP, URBAN_FULL_GAP);
     }
+    // Learning pull: scholars drawn to the seat of a neighbouring region.
+    pull.learning = learning_pull(m, src, dst, inputs.adj_ratio);
     pull
 }
 
@@ -421,7 +472,9 @@ pub const TERM_URBAN: usize = 17;
 /// Needs calibration (2026-10): the social need's push (appended, so the
 /// earlier codes of saved migration events keep their meaning).
 pub const TERM_SOCIAL_NEED: usize = 18;
-pub const MIGRATION_TERMS: usize = 19;
+/// Seats of learning (`--scholarship`): the learning pull (appended).
+pub const TERM_LEARNING: usize = 19;
+pub const MIGRATION_TERMS: usize = 20;
 
 /// Names exported by `AgentSimulator.get_migration_driver_stats`.
 pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
@@ -444,6 +497,7 @@ pub const MIGRATION_TERM_NAMES: [&str; MIGRATION_TERMS] = [
     "chain",
     "urban",
     "social_need",
+    "learning",
 ];
 
 /// Per-tick migration decision tally.
@@ -559,7 +613,7 @@ impl MigrationDriverStats {
         let band = age_band(age);
         self.decided_by_age[band] += 1;
         let d = dominant as usize;
-        if d == TERM_FRONTIER || d == TERM_WAGE || d == TERM_CHAIN || d == TERM_URBAN {
+        if d == TERM_FRONTIER || d == TERM_WAGE || d == TERM_CHAIN || d == TERM_URBAN || d == TERM_LEARNING {
             self.voluntary_by_age[band] += 1;
         }
     }
@@ -641,7 +695,7 @@ mod driver_tests {
 
     #[test]
     fn net_of_roots_drops_pulls_the_roots_hold_and_scales_the_rest() {
-        let pull = VoluntaryPull { frontier: 0.2, wage: 0.1, chain: 0.0, urban: 0.0 };
+        let pull = VoluntaryPull { frontier: 0.2, wage: 0.1, chain: 0.0, urban: 0.0, learning: 0.0 };
         assert_eq!(pull.net_of_roots(0.3), VoluntaryPull::default());
         assert_eq!(pull.net_of_roots(0.5), VoluntaryPull::default());
         let net = pull.net_of_roots(0.15);
@@ -855,9 +909,88 @@ mod driver_tests {
         assert_eq!(pull.urban, 0.0);
         assert!(pull.frontier > 0.0 && pull.wage > 0.0);
         assert_eq!(pull.total().to_bits(), (pull.frontier + pull.wage + pull.chain).to_bits());
-        assert_eq!(pull.open(), [true, true, false, false]);
+        assert_eq!(pull.open(), [true, true, false, false, false]);
         let net = pull.net_of_roots(0.1);
         assert_eq!(net.urban, 0.0);
+        assert_eq!(net.learning, 0.0);
+    }
+
+    #[test]
+    fn learning_pull_draws_scholars_to_a_fed_seat_of_the_realm_with_room() {
+        let mut regions = realm();
+        regions[1].seat_pull = 1.0; // a great seat next door, none at home
+        let mut pool = AgentPool::new(8);
+        let scholar = agent(&mut pool, 0, Occupation::Scholar, 25);
+        let farmer = agent(&mut pool, 0, Occupation::Farmer, 25);
+        let priest = agent(&mut pool, 0, Occupation::Priest, 25);
+        let townsman = agent(&mut pool, 0, Occupation::Scholar, 25);
+        pool.settlement_ids[townsman] = 3; // a scholar of a city is drawn too
+        let learning = |regions: &[RegionState], slot: usize, adj_ratio: f32| {
+            let m = mobility(&pool, slot, regions).unwrap();
+            pull_toward(&m, &regions[0], &regions[1], &inputs(0.5, adj_ratio, &EVEN, &PEERS)).learning
+        };
+        assert!((learning(&regions, scholar, 0.5) - LEARNING_PULL).abs() < 1e-6, "gap 1.0: full pull");
+        assert!((learning(&regions, townsman, 0.5) - LEARNING_PULL).abs() < 1e-6);
+        assert_eq!(learning(&regions, farmer, 0.5), 0.0, "scholars only");
+        assert_eq!(learning(&regions, priest, 0.5), 0.0);
+        assert_eq!(learning(&regions, scholar, LEARNING_MAX_TARGET_RATIO), 0.0, "no room");
+        regions[1].food_sufficiency = LEARNING_MIN_FOOD_SUFFICIENCY - 0.01;
+        assert_eq!(learning(&regions, scholar, 0.5), 0.0, "not fed");
+        regions[1].food_sufficiency = 1.0;
+        // The gap, not the level.
+        regions[0].seat_pull = 1.0 - LEARNING_MIN_GAP;
+        let at_gate = learning(&regions, scholar, 0.5);
+        assert!((at_gate - LEARNING_PULL * PULL_AT_GATE).abs() < 1e-5, "{at_gate}");
+        regions[0].seat_pull = 1.0 - LEARNING_MIN_GAP + 0.01;
+        assert_eq!(learning(&regions, scholar, 0.5), 0.0, "gap too small");
+        regions[0].seat_pull = 0.0;
+        // Internal only, unless the scholars flee a fallen seat.
+        regions[1].controller_civ = 1;
+        assert_eq!(learning(&regions, scholar, 0.5), 0.0, "another realm");
+        regions[0].seat_flight = true;
+        assert!((learning(&regions, scholar, 0.5) - LEARNING_PULL).abs() < 1e-6, "in flight: across the border");
+        let m = mobility(&pool, farmer, &regions).unwrap();
+        let pull = pull_toward(&m, &regions[0], &regions[1], &inputs(0.5, 0.5, &EVEN, &PEERS));
+        assert_eq!(pull, VoluntaryPull::default(), "flight is the scholars' only");
+    }
+
+    #[test]
+    fn a_scholar_in_flight_has_mobility_without_a_neighbour_of_the_realm() {
+        let mut regions = realm();
+        regions[1].controller_civ = 1;
+        regions[1].seat_pull = 0.4;
+        let mut pool = AgentPool::new(4);
+        let scholar = agent(&mut pool, 0, Occupation::Scholar, 30);
+        let farmer = agent(&mut pool, 0, Occupation::Farmer, 30);
+        let ids = index(&pool);
+        let for_agent = |regions: &[RegionState], slot: usize| {
+            Mobility::for_agent(&pool, slot, regions, 0, false, &ids)
+        };
+        assert!(for_agent(&regions, scholar).is_none(), "no flight: no neighbour of the realm");
+        regions[0].seat_flight = true;
+        let m = for_agent(&regions, scholar).expect("a scholar in flight may leave");
+        assert!(for_agent(&regions, farmer).is_none());
+        let pull = pull_toward(&m, &regions[0], &regions[1], &inputs(0.5, 0.5, &EVEN, &PEERS));
+        assert!(pull.learning > 0.0);
+        assert_eq!(pull.total(), pull.learning);
+        // A region nobody rules: its scholars may still flee to a seat.
+        regions[0].controller_civ = UNCONTROLLED;
+        assert!(for_agent(&regions, scholar).is_some());
+        assert!(for_agent(&regions, farmer).is_none());
+    }
+
+    #[test]
+    fn without_seat_pull_the_learning_driver_adds_nothing_and_the_sum_keeps_its_bits() {
+        let mut regions = realm(); // seat_pull 0 everywhere, no flight: the switch off
+        regions[1].city_pull = 1.0;
+        let mut pool = AgentPool::new(2);
+        let scholar = agent(&mut pool, 0, Occupation::Scholar, 25);
+        let m = mobility(&pool, scholar, &regions).unwrap();
+        let pull = pull_toward(&m, &regions[0], &regions[1], &inputs(0.5, 0.5, &EVEN, &PEERS));
+        assert_eq!(pull.learning, 0.0);
+        assert!(pull.urban > 0.0);
+        assert_eq!(pull.total().to_bits(), (pull.frontier + pull.wage + pull.chain + pull.urban).to_bits());
+        assert_eq!(pull.open(), [false, false, false, true, false]);
     }
 }
 
@@ -895,14 +1028,27 @@ mod tests {
     fn social_need_is_appended_after_urban_and_urban_counts_as_voluntary_by_age() {
         assert_eq!(MIGRATION_TERM_NAMES[TERM_URBAN], "urban");
         assert_eq!(MIGRATION_TERM_NAMES[TERM_SOCIAL_NEED], "social_need");
-        assert_eq!(TERM_SOCIAL_NEED, MIGRATION_TERMS - 1);
-        assert_eq!(VOLUNTARY_DRIVER_NAMES, ["frontier", "wage", "chain", "urban"]);
+        assert_eq!(TERM_SOCIAL_NEED, 18);
+        assert_eq!(VOLUNTARY_DRIVER_NAMES[..4], ["frontier", "wage", "chain", "urban"]);
         let mut stats = MigrationDriverStats::default();
         stats.record_age(25, TERM_URBAN as u8);
         assert_eq!((stats.decided_by_age[1], stats.voluntary_by_age[1]), (1, 1));
         let pull = VoluntaryPull { urban: 0.3, ..Default::default() };
-        stats.count_open_pulls(&pull, &[false, false, false, true]);
+        stats.count_open_pulls(&pull, &[false, false, false, true, false]);
         assert_eq!((stats.open[3], stats.gate[3]), (1, 1));
+    }
+
+    #[test]
+    fn learning_is_appended_last_and_counts_as_voluntary_by_age() {
+        assert_eq!(MIGRATION_TERM_NAMES[TERM_LEARNING], "learning");
+        assert_eq!(TERM_LEARNING, MIGRATION_TERMS - 1);
+        assert_eq!(VOLUNTARY_DRIVER_NAMES, ["frontier", "wage", "chain", "urban", "learning"]);
+        let mut stats = MigrationDriverStats::default();
+        stats.record_age(40, TERM_LEARNING as u8);
+        assert_eq!((stats.decided_by_age[2], stats.voluntary_by_age[2]), (1, 1));
+        let pull = VoluntaryPull { learning: 0.4, ..Default::default() };
+        stats.count_open_pulls(&pull, &[false, false, false, false, true]);
+        assert_eq!((stats.open[4], stats.gate[4]), (1, 1));
     }
 
     #[test]

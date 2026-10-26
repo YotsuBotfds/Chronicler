@@ -502,9 +502,11 @@ ran with the city markets ([city-markets.md](city-markets.md)).
 3. **Free cities in the polity ladder.** Leagues of free cities through the
    federation code; free cities as clients of a protector (diplomacy's
    client stage); recapture wars by the old lord.
-4. **Culture and knowledge.** Temples, schools and scholars tied to cities;
-   technique diffusion weighted by urban contact; historiography archives
-   held in cities, burned in sacks.
+4. **Culture and knowledge.** Done in part by
+   [scholarship.md](scholarship.md): libraries founded and kept by cities,
+   academies and temple schools, scholars drawn to them, techniques and
+   archives kept there and lost in sacks. Open: technique diffusion weighted
+   by urban contact.
 5. **War.** Sieges that pick city regions as targets by wealth; sacks that
    kill residents and destroy buildings; walls as their own level.
 6. **Viewer.** The Cities tab exists ([city-markets.md](city-markets.md));

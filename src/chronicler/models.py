@@ -28,6 +28,7 @@ from chronicler.nomads_state import NomadState
 from chronicler.cities_state import CityState
 from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
+from chronicler.scholarship_state import ScholarshipState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -995,12 +996,13 @@ MIGRATION_DRIVER_NAMES: tuple[str, ...] = (
     "low_satisfaction", "opp_satisfaction", "opp_capacity", "opp_food", "opp_river", "opp_news",
     "persecution", "famine_memory", "battle_memory", "conquest_memory", "persecution_memory",
     "safety_need", "material_need", "spiritual_need", "frontier", "wage", "chain", "urban",
-    "social_need",
+    "social_need", "learning",
 )
-#: Drivers of moves people choose in a living world (healthy-world migration
-#: and the cities' urban pull): settling new land, seeking work, joining kin,
-#: moving to a city.
-VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain", "urban"})
+#: Drivers of moves people choose in a living world (healthy-world migration,
+#: the cities' urban pull and the seats of learning's pull): settling new
+#: land, seeking work, joining kin, moving to a city, going to study.
+VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain", "urban",
+                                                         "learning"})
 #: ``AgentEventRecord.migration_driver`` of events that are not migrations
 #: (and of every event read from an extension or file without the column).
 NO_MIGRATION_DRIVER = 255
@@ -1156,6 +1158,10 @@ class WorldState(BaseModel):
     # burgher faction and movement news (chronicler.guilds; None = disabled;
     # omitted from output).
     guilds: GuildState | None = Field(default=None, exclude_if=_is_none)
+    # Seats of learning: academies, temple schools and libraries with their
+    # patrons and scholars (chronicler.scholarship; None = disabled; omitted
+    # from output).
+    scholarship: ScholarshipState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)
@@ -1388,6 +1394,8 @@ class TurnSnapshot(BaseModel):
     agent_movements: dict | None = Field(default=None, exclude_if=_is_none)
     # Guilds per-turn summary; None (and omitted) when guilds are off.
     guilds: dict | None = Field(default=None, exclude_if=_is_none)
+    # Seats of learning per-turn summary; None (and omitted) when off.
+    scholarship: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: per-region food sufficiency and the completed turn's relief
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.

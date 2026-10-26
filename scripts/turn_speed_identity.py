@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Byte-identity runs for performance work.
 
-``run OUT_DIR [--case NAME ...] [--source-root SRC] [--native-root DIR]``
+``run OUT_DIR [--case NAME ...] [--source-root SRC] [--native-root DIR] [--cli-arg ARG ...]``
     Run the case matrix below as CLI subprocesses (``PYTHONHASHSEED=0``,
     ``RAYON_NUM_THREADS=1``), one at a time, each into ``OUT_DIR/<case>``.
     ``--source-root`` puts another checkout's ``src`` first on
     ``PYTHONPATH`` and ``--native-root`` a saved ``chronicler_agents``
-    package, which is how a base tree is run.
+    package, which is how a base tree is run. ``--cli-arg`` adds a CLI
+    argument to every case (a feature switch such as ``--no-scholarship``).
 
 ``compare BASE_DIR NEW_DIR``
     Every file of every case byte for byte (``chronicle_bundle.json``
@@ -93,7 +94,8 @@ _WHICH = (
 )
 
 
-def run(out: Path, cases: list[str], source_root: Path | None, native_root: Path | None) -> int:
+def run(out: Path, cases: list[str], source_root: Path | None, native_root: Path | None,
+        extra: list[str] | None = None) -> int:
     env = _env(source_root, native_root)
     # Record which source tree and native build the runs used.
     which = subprocess.run([sys.executable, "-c", _WHICH], env=env, cwd=str(out),
@@ -105,7 +107,7 @@ def run(out: Path, cases: list[str], source_root: Path | None, native_root: Path
         cli, target = CASES[name]
         case_dir = out / name
         case_dir.mkdir(parents=True, exist_ok=True)
-        cli = cli + ["--simulate-only", "--output", str(case_dir / "chronicle.md"),
+        cli = cli + list(extra or []) + ["--simulate-only", "--output", str(case_dir / "chronicle.md"),
                      "--state", str(case_dir / "state.json")]
         if target:
             cmd = [sys.executable, "-c", _SCALED_RUNNER, str(target), *cli]
@@ -162,13 +164,15 @@ def main(argv=None) -> int:
     r.add_argument("--case", action="append", choices=sorted(CASES))
     r.add_argument("--source-root", type=Path)
     r.add_argument("--native-root", type=Path)
+    r.add_argument("--cli-arg", action="append", default=[],
+                   help="extra CLI argument for every case (repeatable)")
     c = sub.add_parser("compare")
     c.add_argument("base", type=Path)
     c.add_argument("new", type=Path)
     a = p.parse_args(argv)
     if a.cmd == "run":
         a.out.mkdir(parents=True, exist_ok=True)
-        return run(a.out.resolve(), a.case or list(CASES), a.source_root, a.native_root)
+        return run(a.out.resolve(), a.case or list(CASES), a.source_root, a.native_root, a.cli_arg)
     return compare(a.base, a.new)
 
 

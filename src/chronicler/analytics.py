@@ -1461,6 +1461,11 @@ def generate_report(
     guild_metrics = extract_guild_metrics(bundles)
     if guild_metrics.get("runs"):
         report["guilds"] = guild_metrics
+    # Seats of learning: present only for runs whose bundles carry history[n].scholarship.
+    from chronicler.scholarship import extract_scholarship_metrics
+    scholarship_metrics = extract_scholarship_metrics(bundles)
+    if scholarship_metrics.get("runs"):
+        report["scholarship"] = scholarship_metrics
 
     report["anomalies"] = detect_anomalies(report)
     return report

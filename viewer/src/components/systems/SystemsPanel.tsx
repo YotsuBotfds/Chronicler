@@ -10,6 +10,7 @@ import { EpidemicsPanel } from "./EpidemicsPanel";
 import { FinancePanel } from "./FinancePanel";
 import { FoodPanel } from "./FoodPanel";
 import { GovernancePanel } from "./GovernancePanel";
+import { LearningPanel } from "./LearningPanel";
 import { MaritimePanel } from "./MaritimePanel";
 import { MovementsPanel } from "./MovementsPanel";
 import { NomadsPanel } from "./NomadsPanel";
@@ -31,6 +32,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
   contact: ContactPanel,
   cities: CitiesPanel,
   movements: MovementsPanel,
+  learning: LearningPanel,
 };
 
 /**

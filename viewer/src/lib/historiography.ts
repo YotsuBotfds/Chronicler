@@ -42,6 +42,9 @@ const LOSS_PHRASES: Record<string, string> = {
   plague: "emptied by plague",
   desecration: "desecrated",
   absorption: "scattered when the realm was absorbed",
+  // Seats of learning (--scholarship): a fallen seat's archive.
+  flight: "thinned on its scholars' flight",
+  abandonment: "left behind when its seat fell",
 };
 
 export function lossPhrase(cause: string | null): string {
