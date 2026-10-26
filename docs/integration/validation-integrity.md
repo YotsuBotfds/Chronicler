@@ -1,8 +1,9 @@
 # Validation integrity (2026-10)
 
 Branch `fix/validation-integrity` from `main` `fc01d6e` (PR #44), merged
-without rebase with `b8f0243` (PR #45, historical parity) at `c1ce58a`.
-Validation tooling only: the needs oracle, batch directories and their manifests, the
+without rebase with `b8f0243` (PR #45, historical parity) at `c1ce58a` and
+with `18a05be` (PR #46, scholarship, default off) at `9e563e3`. Validation
+tooling only: the needs oracle, batch directories and their manifests, the
 report comparator, two small fixes, the lockfile and CI. Simulation output
 is byte-identical to `main` ([Identity](#6-identity)); the only new file in a
 batch directory is `batch_manifest.json`.
@@ -224,13 +225,14 @@ performance or rendering, and the summary says so.
 
 ## 5. Gates with method 4
 
-The merged branch at `c1ce58a` (the simulation of `fc01d6e` and
-`b8f0243`; PR #45 changes no simulation or Rust source), Linux, Python
-3.13.17, `PYTHONHASHSEED=0`, subsets `--parallel 2`, extension built fresh
-from `fc01d6e` (`maturin develop --release --locked`, SHA-256
-`a6d0de13...6d31`, the turn-speed build's; compiled `AgentSimulator`,
-`EcologySimulator`, `PoliticsSimulator` checked). The same two subsets at
-`39d7e35`, before the merge, gave identical reports.
+The merged branch at `9e563e3` (main `18a05be`'s simulation, whose
+scholarship switch is off by default), Linux, Python 3.13.17,
+`PYTHONHASHSEED=0`, subsets `--parallel 2`, extension built fresh from the
+merged tree (`maturin develop --release --locked`, SHA-256
+`5a9619cd...0262c`, the scholarship branch's build; compiled
+`AgentSimulator`, `EcologySimulator`, `PoliticsSimulator` checked). The
+same two subsets gave identical reports at `39d7e35` and `c1ce58a` with
+the `fc01d6e` extension (`a6d0de13...6d31`).
 
 - **Template subset** (`--profile subset`, 42-61 x 200): PASS, batch
   manifest verified. Needs method 4 +0.191 (+0.101), 14 of 20 seeds (12
@@ -247,17 +249,21 @@ from `fc01d6e` (`maturin develop --release --locked`, SHA-256
   identical; method 3 re-scored here equals that report's needs result
   (+0.165 (+0.119), 17 seeds; binding +0.180 (+0.103), 405).
 - **Full template gate** (200 x 500): not run with method 4. The machine's
-  one full-gate slot was held by other branches' gates throughout. The
-  full-scale evidence for method 4 is the re-score of the retained
+  one full-gate slot was held by other branches' gates for three hours, and
+  when it freed the shared disk had just reached 100% under the other runs,
+  so a 3-4 GB batch was not started. The full-scale evidence for method 4
+  is the re-score of the retained
   needs-followups full gate sidecars (§1: PASS, pooled +0.209 (+0.190),
   175 of 200 seeds; binding +0.185 (+0.160)), which are from `d44cf4f`,
   not from this branch's simulation.
 
 ## 6. Identity
 
-Same venv and extension, `main`'s exported `src` against the branch,
-twice: `fc01d6e` against `39d7e35`, and `b8f0243` against the merged
-`c1ce58a`. Each time `scripts/turn_speed_identity.py` cases `off_s42`,
+Same venv and extension, `main`'s exported `src` against the branch, three
+times: `fc01d6e` against `39d7e35` and `b8f0243` against the merged
+`c1ce58a` (extension `a6d0de13...6d31`), and `18a05be` against the merged
+`9e563e3` (extension `5a9619cd...0262c`, rebuilt from the merged tree).
+Each time `scripts/turn_speed_identity.py` cases `off_s42`,
 `hybrid_s42`, `hybrid_s7` and `proc48_hybrid_s42`: 320 files, 0
 differences (bundles decoded without `generated_at` and raw with it
 blanked); and a batch, `--seed-range 42-44 --turns 200 --agents hybrid
@@ -268,7 +274,8 @@ unchanged.
 ## 7. Tests
 
 Linux, Python 3.13.17, the venv synced from the new lock (`uv sync
---frozen`) plus the fresh extension, at the merged `c1ce58a`:
+--frozen`) plus the extension built fresh from the merged tree, at the
+merged `9e563e3`:
 
 - Focused (`test_batch_manifest`, `test_batch*`, `test_main`,
   `test_validate`, `test_validation_*`, `test_m53b_run_validation`,
@@ -282,23 +289,24 @@ Linux, Python 3.13.17, the venv synced from the new lock (`uv sync
   `test_validation_compare.py`, runner tests in
   `test_m53b_run_validation.py`, workflow tests in
   `test_native_build_lanes.py`.
-- `python scripts/run_python_oracle_checks.py`: PASS in 103.5 s, 2,460
-  passed, 36 skipped (at `39d7e35`: PASS in 138.2 s, 2,423 passed); a new
-  `validation-tooling` chunk (the manifest, batch, gate and comparator
-  tests: 96 passed in 4.2 s).
-- `pytest -m "not slow" -n 2`: 6,409 passed, 3 skipped, 9 failed. The 9 are
+- `python scripts/run_python_oracle_checks.py`: PASS in 100.6 s, 2,500
+  passed, 38 skipped (`39d7e35`: 138.2 s, 2,423 passed; `c1ce58a`: 103.5
+  s, 2,460 passed); a new `validation-tooling` chunk (the manifest, batch,
+  gate and comparator tests: 96 passed in 3.4 s).
+- `pytest -m "not slow" -n 2`: 6,452 passed, 3 skipped, 9 failed. The 9 are
   pytest-xdist failing to serialize `unittest` subTest parameters
   (`execnet` `DumpError`) in five session and preview suites; the same 9
   fail on `fc01d6e` with `-n 2`, and the five files pass in one process
   (146 passed).
-- Viewer (Node 22.22.0): `npm ci`, `npm test -- --maxWorkers=2` (44 files,
-  352 tests), `npm run lint`, `npm run build` pass.
+- Viewer (Node 22.22.0): `npm ci`, `npm test -- --maxWorkers=2` (45 files,
+  363 tests), `npm run lint`, `npm run build` pass.
 - `uv lock --check` passes.
 
 ## 8. Not run, open
 
-- Not run: `cargo test` (no Rust change), `pytest -m slow`, the procedural
-  full gate, a determinism profile, a native CI run of the new workflows
+- Not run: the template and procedural full gates with method 4 (§5),
+  `cargo test` (this branch changes no Rust; main's merged Rust was
+  built, not tested here), `pytest -m slow`, a determinism profile, a native CI run of the new workflows
   (checked locally only: the lock, the venv sync, the viewer steps), and a
   terms-zeroed or shuffled sensitivity run under method 4 beyond the
   re-scored sidecars.

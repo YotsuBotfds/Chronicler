@@ -8,11 +8,11 @@
 
 ## Validation integrity (2026-10-26, `fix/validation-integrity`)
 
-> **Last updated:** 2026-10-26 (`fix/validation-integrity` from `main` `fc01d6e`, merged with `b8f0243`: validation tooling only, simulation output byte-identical; needs oracle method 4 counts outcomes after the snapshot turn; batch directories refuse reuse and carry a checked manifest; the comparator refuses different cohorts unless exploratory; seed 0, lockfile, CI from the lock, viewer CI; full gate with method 4 not run.)
+> **Last updated:** 2026-10-26 (`fix/validation-integrity` from `main` `fc01d6e`, merged with `b8f0243` and `18a05be`: validation tooling only, simulation output byte-identical; needs oracle method 4 counts outcomes after the snapshot turn; batch directories refuse reuse and carry a checked manifest; the comparator refuses different cohorts unless exploratory; seed 0, lockfile, CI from the lock, viewer CI; full gate with method 4 not run.)
 
 `fix/validation-integrity` from `main` `fc01d6e` (PR #44), merged without
-rebase with `b8f0243` (PR #45). An external review's four findings, each
-reproduced on `fc01d6e` first. Details and evidence:
+rebase with `b8f0243` (PR #45) and `18a05be` (PR #46). An external review's
+four findings, each reproduced on `fc01d6e` first. Details and evidence:
 [`docs/integration/validation-integrity.md`](../../integration/validation-integrity.md).
 
 - **Needs oracle method 4.** The turn-t sidecar snapshot is written after
@@ -48,23 +48,24 @@ reproduced on `fc01d6e` first. Details and evidence:
 - **Small fixes.** `--seed 0`; `uv.lock` regenerated (numpy, scipy,
   pyarrow, arro3-core were missing), CI checks it and installs with `uv sync
   --frozen`; a viewer job (npm ci, tests, lint, build).
-- **Gates (method 4, merged `c1ce58a`, extension `a6d0de13...6d31` fresh
-  from `fc01d6e`).** Template subset 42-61 PASS (+0.191 (+0.101), 14
+- **Gates (method 4, merged `9e563e3`, extension `5a9619cd...0262c` fresh
+  from the merged tree; identical at `39d7e35` and `c1ce58a`).** Template subset 42-61 PASS (+0.191 (+0.101), 14
   seeds; binding +0.253 (+0.134)); procedural subset 42-61 PASS (+0.177
   (+0.132), 18; binding +0.206 (+0.117)); each NO REGRESSION against the
   last method 3 report of the same simulation, every other oracle
   identical, needs re-baselining flagged; method 3 re-scored on each batch
   equals that report. Full template gate with method 4 not run (the
-  machine's full-gate slot was taken by other gates).
+  full-gate slot was taken by other gates for three hours, then the shared
+  disk reached 100%).
 - **Identity.** `turn_speed_identity.py` (4 cases, 320 files) and a
-  42-44 x 200 hybrid batch (331 files): 0 differences against `fc01d6e`
-  and, merged, against `b8f0243`; `batch_manifest.json` is the only new
-  file.
-- **Tests.** Focused 512 passed; oracle lane PASS in 103.5 s (2,460
-  passed, 36 skipped; new `validation-tooling` chunk); not-slow `-n 2`
-  6,409 passed, 3 skipped, 9 pytest-xdist serialization failures that fail
-  the same way on `fc01d6e` and pass in one process; viewer 352 tests, lint
-  and build; no `cargo test` (no Rust change).
+  42-44 x 200 hybrid batch (331 files): 0 differences against `fc01d6e`,
+  `b8f0243` and `18a05be` (each merge); `batch_manifest.json` is the only
+  new file.
+- **Tests** (at `9e563e3`). Focused 512 passed; oracle lane PASS in 100.6 s
+  (2,500 passed, 38 skipped; new `validation-tooling` chunk); not-slow
+  `-n 2` 6,452 passed, 3 skipped, 9 pytest-xdist serialization failures
+  that fail the same way on `fc01d6e` and pass in one process; viewer 363
+  tests, lint and build; no `cargo test` (no Rust change on this branch).
 - **Open.** The cohort oracle has the same window convention (not
   changed). Method 4 weakens the binding component's subset-scale
   separation a little (it decides only in the full profile). The manifest's
