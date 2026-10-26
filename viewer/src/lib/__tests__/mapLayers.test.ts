@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../types";
-import { DEARTH_COLOR, famineSpans, FAMINE_COLOR } from "../food";
+import { crisesAtSnapshot, DEARTH_COLOR, famineSpans, FAMINE_COLOR } from "../food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniques, type MapLayerKey,
 } from "../mapLayers";
@@ -41,7 +41,7 @@ describe("map layers", () => {
     const view = layer("food", snapshot);
     const [donor, recipient] = snapshot.food!.aid[0];
     expect(view.flows[0]).toMatchObject({ from: names[donor], to: names[recipient] });
-    const running = famine.filter((span) => span.start <= snapshot.turn && (span.end === null || span.end > snapshot.turn));
+    const running = crisesAtSnapshot(famine, snapshot.turn);
     for (const span of running) {
       expect(view.fills.get(span.region)).toBe(FAMINE_COLOR);
       expect(view.titles.get(span.region)).toContain(`famine since T${span.start}`);

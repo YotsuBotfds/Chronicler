@@ -1,3 +1,11 @@
+/**
+ * The header's setup line for a loaded bundle without a scenario: what kind of
+ * world it records (procedural worlds carry `world_state.geography`).
+ */
+export function bundleWorldKind(worldState: { geography?: unknown } | null | undefined): string {
+  return worldState?.geography ? "Procedural world" : "Template world";
+}
+
 export function turnToPercent(turn: number, maxTurn: number): number {
   if (maxTurn <= 1) {
     return 0;

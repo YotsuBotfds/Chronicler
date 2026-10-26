@@ -175,6 +175,69 @@ export function movementRecord(bundle: Bundle, id: number): MovementRecord | nul
   return bundle.world_state.agent_movements?.movements?.[id] ?? null;
 }
 
+/**
+ * Leader name -> turn of the first `movement_martyr` event naming them. A
+ * movement keeps its dead leader's name in the snapshot; the martyrdom is the
+ * record that they died.
+ */
+export function martyrdoms(events: Event[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const event of events) {
+    const leader = event.actors[1];
+    if (event.event_type === "movement_martyr" && leader && !out.has(leader)) {
+      out.set(leader, event.turn);
+    }
+  }
+  return out;
+}
+
+/** The leader cell: the name, marked once the leader was martyred by `turn`. */
+export function leaderLabel(leader: string | undefined, martyred: Map<string, number>, turn: number): string {
+  if (!leader) {
+    return "-";
+  }
+  const died = martyred.get(leader);
+  return died != null && died <= turn ? `${leader} (martyred T${died})` : leader;
+}
+
+/** How a movement's end reads (`END_LABELS` order). */
+const END_PHRASES: Record<string, string> = {
+  faded: "faded away",
+  won: "won its demand",
+  seceded: "seceded",
+  schism: "broke away in a schism",
+  crushed: "was crushed",
+  dissolved: "dissolved",
+};
+
+function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * One sentence for a movement's final record. The record covers the whole run,
+ * so its totals and its end are marked as such when the scrubbed turn is earlier.
+ */
+export function movementRecordNote(
+  record: MovementRecord, target: string | null, home: string | null, currentTurn: number,
+): string {
+  const creed = CREED_LABELS[record.creed] ?? "movement";
+  let text = `A ${creed} movement against ${target ?? "?"}, founded turn ${record.founded_turn} in ${home ?? "?"}`;
+  if (record.leader) {
+    text += `, led by ${record.leader}`;
+  }
+  text += `. Whole record: peak ${count(record.peak_members, "member")}, ${count(record.demands, "demand")}, `
+    + `${count(record.martyrs, "martyr")}`;
+  const end = END_LABELS[record.end] ?? "";
+  if (end && record.ended_turn != null) {
+    text += `; ${END_PHRASES[end] ?? end} at turn ${record.ended_turn}`;
+    if (record.ended_turn > currentTurn) {
+      text += ` (after turn ${currentTurn})`;
+    }
+  }
+  return `${text}.`;
+}
+
 /** The reform's final record in `world_state.agent_movements`, if the bundle carries it. */
 export function reformRecord(bundle: Bundle, id: number): ReformRecord | null {
   return bundle.world_state.agent_movements?.reforms?.[id] ?? null;

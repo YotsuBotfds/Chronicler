@@ -36,8 +36,8 @@ import {
 } from "../../lib/mapLayers";
 import { techniqueLabel } from "../../lib/systems";
 import {
-  atlasPoint, buildTradeLinks, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius, turnToPercent,
-  type PinFrame,
+  atlasPoint, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius,
+  turnToPercent, type PinFrame,
 } from "./appShellHelpers";
 import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
 import "./app-shell.css";
@@ -848,7 +848,7 @@ export function AppShell({
     ?? "Chronicler Viewer";
   const headerScenario = bundle?.metadata.scenario_name
     ?? selectedScenario?.name
-    ?? (resumeState ? "Resumed world" : "Procedural setup");
+    ?? (bundle ? bundleWorldKind(bundle.world_state) : resumeState ? "Resumed world" : "Procedural setup");
   const headerSeed = bundle?.metadata.seed
     ?? resumeState?.seed
     ?? (seed === "" ? defaults.seed : Number(seed));
