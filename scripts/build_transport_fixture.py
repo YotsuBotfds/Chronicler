@@ -9,7 +9,8 @@ by default. Both test suites load it: the Python live adapters
 streaming and reconnect paths (``viewer/src/lib/__tests__/transport.test.ts``).
 
 The source is a real 10-turn ``--agents off`` run (seed 42, 4 civs, 8
-regions) with the default systems, which writes every snapshot system of
+regions) with the default systems and ``--scholarship`` (off by default),
+which writes every snapshot system of
 ``chronicler/transport_contract.json`` except the agent-mode ``food`` and
 ``migration`` fields, plus the ``historiography``, ``languages`` and
 ``pruned_civ_stats`` fields. ``food`` and ``migration`` are added as
@@ -17,7 +18,9 @@ stand-ins of the exported shape (``mutual_aid.snapshot_summary`` and
 ``[from region, to region, agents]`` rows): ``sufficiency`` 1.0 for each
 controlled region and ``None`` elsewhere, no aid, and one row moving 5 agents
 from the first controlled region to the next. ``generated_at`` is fixed so
-the file is reproducible.
+the file is reproducible. The committed file is built without the native
+extension (the Python ecology path; ``PYTHONHASHSEED=0``): with it the same
+run records different events.
 """
 from __future__ import annotations
 
@@ -49,7 +52,7 @@ def build(out: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         args = _build_parser().parse_args([
             "--seed", "42", "--turns", "10", "--civs", "4", "--regions", "8", "--agents", "off",
-            "--simulate-only", "--output", str(Path(tmp) / "chronicle.md"),
+            "--simulate-only", "--scholarship", "--output", str(Path(tmp) / "chronicle.md"),
             "--state", str(Path(tmp) / "state.json"),
         ])
         execute_run(args)

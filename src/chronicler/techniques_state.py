@@ -37,11 +37,13 @@ DOMAINS: tuple[str, ...] = (
 #: ledger's channels in its own order (``chronicler.contact_ledger.CHANNELS``);
 #: ``neighbours`` is the adjacency of regions under one controller (and every
 #: adjacency while the ledger is off); ``invention`` a civ's own discovery;
-#: ``seeded`` the practice a world already had when techniques were switched on.
+#: ``seeded`` the practice a world already had when techniques were switched on;
+#: ``scholars`` what scholars fleeing a fallen seat of learning carried
+#: (``--scholarship``).
 CHANNELS: tuple[str, ...] = ("trade", "people", "soldiers", "pilgrims", "neighbours",
-                             "invention", "seeded")
+                             "invention", "seeded", "scholars")
 (CH_TRADE, CH_PEOPLE, CH_SOLDIERS, CH_PILGRIMS, CH_NEIGHBOURS, CH_INVENTION,
- CH_SEEDED) = range(len(CHANNELS))
+ CH_SEEDED, CH_SCHOLARS) = range(len(CHANNELS))
 #: Pseudo-channel for counting gains of a civ: a region that changed hands
 #: carried the practice with it (conquest, secession, absorption, settlement).
 CONQUEST = "conquest"

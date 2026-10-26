@@ -376,6 +376,15 @@ def _guilds_snapshot_fields(world) -> dict:
     return {"guilds": snapshot_summary(world)}
 
 
+def _scholarship_snapshot_fields(world) -> dict:
+    """Seats of learning per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.scholarship_state import scholarship_on
+    if not scholarship_on(world):
+        return {}
+    from chronicler.scholarship import snapshot_summary
+    return {"scholarship": snapshot_summary(world)}
+
+
 def _food_snapshot_fields(world) -> dict:
     """Viewer-only food summary (empty unless mutual aid observes regional food)."""
     from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
@@ -708,6 +717,15 @@ def execute_run(
     if guilds is not None:
         from chronicler.guilds import set_guilds_enabled
         set_guilds_enabled(world, guilds)
+    # Seats of learning switch (persisted on the world): academies, temple
+    # schools and libraries, their scholars, patrons and falls.
+    scholarship = getattr(args, "scholarship", None)
+    if scholarship is None and fresh_world:
+        from chronicler.scholarship import DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT
+        scholarship = _SCHOLARSHIP_DEFAULT
+    if scholarship is not None:
+        from chronicler.scholarship import set_scholarship_enabled
+        set_scholarship_enabled(world, scholarship)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -986,6 +1004,7 @@ def execute_run(
             **_cities_snapshot_fields(world),
             **_agent_movements_snapshot_fields(world),
             **_guilds_snapshot_fields(world),
+            **_scholarship_snapshot_fields(world),
             **_food_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
@@ -1577,6 +1596,15 @@ def _build_parser() -> argparse.ArgumentParser:
                              "to like movements; needs cities (and an agent mode for guild "
                              "movements) (default on for new worlds; --no-guilds opts out; saved "
                              "on resume)")
+    parser.add_argument("--scholarship", action=argparse.BooleanOptionalAction, default=None,
+                        help="Seats of learning: rulers found academies at their capitals, temples "
+                             "found schools and cities libraries, kept by treasury, temple offerings "
+                             "or civic purse; scholars gather there (and scholar agents are drawn to "
+                             "them); a seat speeds the invention and adoption of techniques near it "
+                             "and keeps copies of the chronicles; a sack, a famine, persecution of "
+                             "its scholars' faith or unpaid upkeep brings it down, and its scholars "
+                             "flee to a rival's seat with the techniques they carry (default off; "
+                             "saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

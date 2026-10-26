@@ -1233,6 +1233,14 @@ def run_live(
         )
         _guilds = getattr(args, "guilds", None)
         set_guilds_enabled(world, _GUILDS_DEFAULT if _guilds is None else bool(_guilds))
+        # Seats of learning: new live worlds follow the CLI default (off;
+        # --scholarship opts in).
+        from chronicler.scholarship import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT, set_scholarship_enabled,
+        )
+        _scholarship = getattr(args, "scholarship", None)
+        set_scholarship_enabled(
+            world, _SCHOLARSHIP_DEFAULT if _scholarship is None else bool(_scholarship))
         # Historiography: new live worlds follow the CLI default (observational).
         from chronicler.historiography import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,

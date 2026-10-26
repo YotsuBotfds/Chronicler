@@ -133,6 +133,9 @@ CHUNKS = {
         "tests/test_validation_gate.py",
         "tests/test_validation_compare.py",
     ],
+    "learning": [
+        "tests/test_scholarship.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

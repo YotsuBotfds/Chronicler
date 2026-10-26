@@ -294,6 +294,8 @@ export interface TurnSnapshot {
   agent_movements?: AgentMovementsSnapshot;
   /** Living guilds, burgher influence and running totals; present only with --guilds. */
   guilds?: GuildsSnapshot;
+  /** Living seats of learning, the fallen count and running totals; present only with --scholarship. */
+  scholarship?: ScholarshipSnapshot;
   /**
    * Regional food sufficiency and relief convoys of the completed turn;
    * present only when mutual aid runs on an agent-backed economy (bundles
@@ -421,6 +423,35 @@ export interface GuildsSnapshot {
   counters: Record<string, number>;
 }
 
+/** One living seat of learning at a turn (`scholarship.snapshot_summary`; `--scholarship`). */
+export interface SeatSnapshotRow {
+  /** Index in the world's seat list, the seat's identity. */
+  id: number;
+  name: string;
+  /** "academy", "temple school" or "library". */
+  kind: string;
+  region: string | null;
+  /** The region's ruler (an academy's patron). */
+  lord: string | null;
+  /** 1 modest, 2 renowned, 3 great. */
+  level: number;
+  /** Scholar body at the reference scale (scholar agents, great scholars, refugees). */
+  scholars: number;
+  /** Great scholars (great-person scientists) of its ruler teaching there. */
+  masters: number;
+  /** Scholars come from fallen seats; present while any remain. */
+  refugees?: number;
+  /** Failed upkeep payments in a row; present while the patron fails to pay. */
+  unpaid?: number;
+}
+
+export interface ScholarshipSnapshot {
+  seats: SeatSnapshotRow[];
+  fallen: number;
+  /** Running totals (founded, rises, declines, fallen, refuges, carried, upkeep, ...). */
+  counters: Record<string, number>;
+}
+
 /** One living movement at a turn (`agent_movements.snapshot_summary`). */
 export interface MovementSnapshotRow {
   /** Index in the world's movement list, the movement's identity. */
@@ -511,6 +542,30 @@ export interface ReformRecord {
   repeal: number;
   event_id: string;
   repeal_event_id: string;
+}
+
+/** A seat of learning in the final `world_state.scholarship` (living or fallen). */
+export interface SeatRecord {
+  /** Region index. */
+  region: number;
+  /** 0 academy, 1 temple school, 2 library. */
+  kind: number;
+  name: string;
+  founded_turn: number;
+  /** Civ index of the region's ruler at founding (-1 none). */
+  founder: number;
+  level: number;
+  peak_level: number;
+  peak_scholars: number;
+  /** Great persons who taught there, by name. */
+  teachers?: string[];
+  fallen_turn: number | null;
+  /** Index into "sack", "famine", "persecution", "patronage" (-1 standing). */
+  fall_cause: number;
+  /** Seat index its scholars fled to (-1 none). */
+  refuge: number;
+  /** (turn, kind, event id) in order. */
+  history: Array<[number, string, string]>;
 }
 
 /** A city in the final `world_state.cities` (living or fallen). */
@@ -770,6 +825,8 @@ export interface WorldState {
   maritime?: { zones?: Array<{ name: string; kind?: string; ports?: number[] }> } | null;
   /** Final city state (present only with --cities); the viewer reads each city's history. */
   cities?: { cities?: CityRecord[]; fallen?: CityRecord[] } | null;
+  /** Final seats of learning, living and fallen (present only with --scholarship). */
+  scholarship?: { seats?: SeatRecord[] } | null;
   /** Final movement state (present only with --agent-movements): records and lasting reforms. */
   agent_movements?: { movements?: MovementRecord[]; reforms?: ReformRecord[] } | null;
   /** Faiths by id; the viewer names tolerated faiths. */
@@ -936,8 +993,8 @@ export interface NewChronicleEntry {
 // --- In-world historiography (optional bundle field; docs/integration/historiography.md) ---
 
 export interface HistoriographyChronicler {
-  id: string; // "court:<civ index>" or "temple:<faith id>"
-  kind: "court" | "temple" | string;
+  id: string; // "court:<civ index>", "temple:<faith id>" or "seat:<seat index>" (--scholarship)
+  kind: "court" | "temple" | "seat" | string;
   name: string; // "the Kethani chronicles"
   civ: number | null;
   civ_name: string | null;

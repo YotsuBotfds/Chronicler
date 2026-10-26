@@ -105,6 +105,9 @@ events:
 - guilds of the moment's regions and cities: kind, masters, monopoly, say
   in dues, a charter won as a movement, raised dues; the burgher faction's
   share at court;
+- seats of learning of the moment's regions or its civs' lands
+  (`--scholarship`): level, kind, ruler, who keeps it, scholars, great
+  scholars teaching, refugees, unpaid upkeep;
 - regions short of food: food on hand over need and the dearth or famine
   the timeline records there since its report (famine severity was never
   in a prompt before).
@@ -570,6 +573,26 @@ an event: it raises founding chances and is counted per run
 (`GuildState.counters["news_foundings"]`). Since the follow-up below, a
 founding clearly sparked by news of a like movement's won demand cites
 that demand as a cause ([Follow-ups](#follow-ups-news-guild-chronicles-spread)).
+
+**Seats of learning** (`--scholarship`, [scholarship.md](scholarship.md#narration)):
+seven kinds with readable lines; a founding, rise, decline, fall or flight
+weighs by its importance (3-6), a new patron or a great scholar teaching
+there is routine. The standing state names the seats of the moment's
+regions or its civs' lands ("Seat of learning: The Academy of Amber Valley
+(renowned academy in Amber Valley under Kethani Empire, kept by its ruler),
+17 scholars, 1 great scholar teaching"). In a 500-turn template run (seed
+42) with the switch on, 17 of 50 prompts carry a seat line. Rows, from
+`scripts/narration_coverage.py` over that run:
+
+| type | emitted in | n | line | curator | listed | names | accounts |
+| --- | --- | ---: | --- | --- | ---: | --- | --- |
+| scholars_fled | scholarship.py | 8 | ok | scored | 3 | yes | seat disaster (3+); its scholars |
+| seat_declined | scholarship.py | 10 | ok | scored | 3 | yes | seat disaster (3+); its scholars |
+| seat_fell | scholarship.py | 8 | ok | scored | 4 | yes | seat disaster (3+); its scholars |
+| seat_founded | scholarship.py | 12 | ok | scored | 5 | yes | seat glory (3+); its scholars |
+| seat_master | scholarship.py | 5 | ok | routine | 0 | yes | its scholars |
+| seat_patron | scholarship.py | 0 | ok | routine | 0 | - | its scholars |
+| seat_rose | scholarship.py | 15 | ok | scored | 7 | yes | seat glory (3+); its scholars |
 
 ## 6. Viewer QA
 

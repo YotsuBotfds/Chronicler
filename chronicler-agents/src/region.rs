@@ -112,6 +112,15 @@ pub struct RegionState {
     /// (`migration_drivers` urban pull), recomputed by Python for every batch.
     /// 0 when the batch carries no `city_pull` column (the switch off).
     pub city_pull: f32,
+    /// Seats of learning (`--scholarship`): this region's draw on the scholar
+    /// agents of the realm (`migration_drivers` learning pull), recomputed by
+    /// Python for every batch. 0 when the batch carries no `seat_pull`
+    /// column (the switch off).
+    pub seat_pull: f32,
+    /// Seats of learning: a seat here fell within the last few turns and none
+    /// stands now, so its scholars may cross a border to a seat next door.
+    /// false without the `seat_flight` column.
+    pub seat_flight: bool,
     /// Guilds (`--guilds`): news of a movement event in this region last
     /// turn (`knowledge::news_code`: creed and kind), observed as a
     /// movement-news packet by the agents here. `knowledge::NO_NEWS` when the
@@ -283,6 +292,8 @@ impl RegionState {
             climate_exposure: 1.0,
             harvest_shock: 0.0,
             city_pull: 0.0,
+            seat_pull: 0.0,
+            seat_flight: false,
             movement_news: crate::knowledge::NO_NEWS,
             movement_news_intensity: 0,
             market_demand: [0.0; crate::economy::NUM_CATEGORIES],
