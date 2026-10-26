@@ -108,6 +108,43 @@ export function seatRecord(bundle: Bundle, id: number): SeatRecord | null {
   return bundle.world_state.scholarship?.seats?.[id] ?? null;
 }
 
+/** A seat's record as known at `upToTurn` (never a value the record dates later). */
+export interface SeatRecordAt {
+  record: SeatRecord;
+  /** Highest level and scholars in the history rows up to `upToTurn`; 0 before its first row. */
+  peakLevel: number;
+  peakScholars: number;
+  /** Whether it had fallen by `upToTurn`. */
+  fell: boolean;
+}
+
+/**
+ * The seat's founding, its peak so far and its fall if it fell by `upToTurn`;
+ * null before its founding. The final `world_state` record holds the whole run
+ * (peak, fall, refuge), so only what it dates at or before the turn is used,
+ * and the peak comes from the history rows (lib/civilizationViews convention).
+ */
+export function seatRecordAt(bundle: Bundle, id: number, upToTurn: number): SeatRecordAt | null {
+  const record = seatRecord(bundle, id);
+  if (!record || record.founded_turn > upToTurn) {
+    return null;
+  }
+  let peakLevel = 0;
+  let peakScholars = 0;
+  for (const snapshot of bundle.history) {
+    if (snapshot.turn > upToTurn) {
+      continue;
+    }
+    const row = seatsAt(snapshot).find((seat) => seat.id === id);
+    if (row) {
+      peakLevel = Math.max(peakLevel, row.level);
+      peakScholars = Math.max(peakScholars, row.scholars);
+    }
+  }
+  const fell = record.fallen_turn != null && record.fallen_turn <= upToTurn;
+  return { record, peakLevel, peakScholars, fell };
+}
+
 /** "fell at turn 212 (sacked); its scholars fled to the Academy of X", or "". */
 export function fallLabel(bundle: Bundle, record: SeatRecord): string {
   if (record.fallen_turn == null) {

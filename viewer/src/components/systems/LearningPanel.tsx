@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   fallLabel, LEVEL_COLORS, LEVEL_LABELS, levelLabel, PATRON_LABELS, SEAT_COUNTERS, seatHistory, seatKeys,
-  seatLevelRows, seatRecord, seatScholarSeries, seatsAt, seatStanding,
+  seatLevelRows, seatRecordAt, seatScholarSeries, seatsAt, seatStanding,
 } from "../../lib/learning";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
@@ -19,11 +19,14 @@ export function LearningPanel({
   const state = snapshot?.scholarship;
   const at = snapshot?.turn ?? currentTurn;
   const living = seatsAt(snapshot);
+  // Seats recorded by the scrubbed turn (a later seat is not the default focus).
+  const known = useMemo(
+    () => seatKeys(history.filter((row) => row.turn <= currentTurn)), [history, currentTurn]);
   const [chosen, setChosen] = useState<number | null>(null);
-  const selected = chosen ?? living[0]?.id ?? keys[0]?.id ?? null;
+  const selected = chosen ?? living[0]?.id ?? known[known.length - 1]?.id ?? null;
   const selectedName = keys.find((key) => key.id === selected)?.name ?? null;
   const scholars = selected == null ? [] : seatScholarSeries(history, selected, SCHOLARS);
-  const record = selected == null ? null : seatRecord(bundle, selected);
+  const record = selected == null ? null : seatRecordAt(bundle, selected, currentTurn);
   const moments = selected == null ? [] : seatHistory(bundle, selected, currentTurn);
   const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.learning, currentTurn);
   const regions = bundle.world_state.regions;
@@ -123,10 +126,13 @@ export function LearningPanel({
           <h3>{selectedName}</h3>
           {record && (
             <p className="systems-note">
-              {regions[record.region]?.name ?? `Region ${record.region}`}; founded turn {record.founded_turn}
-              {record.founder >= 0 && civs[record.founder] ? ` under ${civs[record.founder].name}` : ""}; peak{" "}
-              {levelLabel(record.peak_level)} ({record.peak_scholars.toFixed(1)} scholars)
-              {record.fallen_turn != null ? `; ${fallLabel(bundle, record)}` : ""}.
+              {regions[record.record.region]?.name ?? `Region ${record.record.region}`}; founded turn{" "}
+              {record.record.founded_turn}
+              {record.record.founder >= 0 && civs[record.record.founder] ? ` under ${civs[record.record.founder].name}` : ""}
+              {record.peakLevel > 0
+                ? `; peak by turn ${currentTurn} ${levelLabel(record.peakLevel)} (${record.peakScholars.toFixed(1)} scholars)`
+                : ""}
+              {record.fell ? `; ${fallLabel(bundle, record.record)}` : ""}.
             </p>
           )}
           <CivLineChart

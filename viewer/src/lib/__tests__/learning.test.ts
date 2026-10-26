@@ -3,8 +3,8 @@ import learningFixture from "../../__fixtures__/learning_bundle.json";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../types";
 import {
-  fallLabel, KIND_LABELS, LEVEL_LABELS, levelLabel, seatHistory, seatKeys, seatLevelRows, seatRecord, seatRow,
-  seatScholarSeries, seatsAt, seatStanding,
+  fallLabel, KIND_LABELS, LEVEL_LABELS, levelLabel, seatHistory, seatKeys, seatLevelRows, seatRecord, seatRecordAt,
+  seatRow, seatScholarSeries, seatsAt, seatStanding,
 } from "../learning";
 import { presentSystems } from "../systems";
 
@@ -60,6 +60,24 @@ describe("seats of learning helpers", () => {
     expect(early.every((moment) => moment.turn === record.founded_turn)).toBe(true);
     expect(seatHistory(systems, 0, 500)).toEqual([]);
     expect(fallLabel(learning, seatRecord(learning, seats.findIndex((seat) => seat.fallen_turn == null))!)).toBe("");
+  });
+
+  it("knows a seat at a turn only by what the record dates by then", () => {
+    const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
+    const record = seats[index];
+    expect(seatRecordAt(learning, index, record.founded_turn - 1)).toBeNull();
+    const standing = learning.history.filter((snapshot) => seatRow(snapshot, index) !== null);
+    const first = standing[0];
+    const atFirst = seatRecordAt(learning, index, first.turn)!;
+    expect(atFirst.fell).toBe(false);
+    expect(atFirst.peakLevel).toBe(seatRow(first, index)!.level);
+    expect(atFirst.peakScholars).toBe(seatRow(first, index)!.scholars);
+    const before = seatRecordAt(learning, index, record.fallen_turn! - 1)!;
+    expect(before.fell).toBe(false);
+    const after = seatRecordAt(learning, index, record.fallen_turn!)!;
+    expect(after.fell).toBe(true);
+    expect(after.peakLevel).toBe(Math.max(...standing.map((snapshot) => seatRow(snapshot, index)!.level)));
+    expect(seatRecordAt(systems, 0, 500)).toBeNull();
   });
 
   it("names levels and kinds in the simulation's order and the standing of a row", () => {

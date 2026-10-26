@@ -579,6 +579,19 @@ describe("LearningPanel", () => {
       .toBeInTheDocument();
   });
 
+  it("tells a seat's fall and refuge only from the turn it fell", () => {
+    const seats = learning.world_state.scholarship!.seats!;
+    const index = seats.findIndex((seat) => seat.fallen_turn != null && seat.refuge >= 0);
+    const standing = learning.history.find((snapshot) =>
+      snapshot.scholarship!.seats.some((row) => row.id === index))!;
+    render(<LearningPanel {...props(learning, standing)} />);
+    const table = screen.getByRole("table", { name: `Seats of learning at turn ${standing.turn}` });
+    fireEvent.click(within(table).getByRole("button", { name: seats[index].name }));
+    const history = screen.getByRole("region", { name: `History of ${seats[index].name}` });
+    expect(within(history).getByText(new RegExp(`founded turn ${seats[index].founded_turn}`))).toBeInTheDocument();
+    expect(within(history).queryByText(/fell at turn|its scholars fled to/)).toBeNull();
+  });
+
   it("says so before the first seat and is a tab only when the run records seats", () => {
     render(<LearningPanel {...props(learning, learning.history[0])} />);
     expect(screen.getByText(`No seat of learning stands at turn ${learning.history[0].turn}.`)).toBeInTheDocument();
