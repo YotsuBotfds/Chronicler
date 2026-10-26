@@ -750,6 +750,34 @@ def test_compare_needs_method_3_against_method_4_requires_rebaselining():
     assert result["rebaseline_required"] is False
 
 
+def test_compare_cohort_method_1_against_method_2_requires_rebaselining():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    # Cohort method 2 counts outcomes after the snapshot turn; its results
+    # carry method_version 2, method 1 results none.
+    baseline = _report(determinism="SKIP")
+    current = _report(determinism="SKIP")
+    current["results"]["cohort"] = {"status": "FAIL", "method_version": 2, "outcome_window_start_offset": 1}
+
+    for profile in ("subset", "full"):
+        result = compare_validation_reports(profile, baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == []
+        assert result["exit_code"] == 0
+        assert result["rebaseline_required"] is True
+        assert result["oracle_method_changes"] == [{
+            "oracle": "cohort", "baseline_method_version": 1, "current_method_version": 2,
+            "baseline_status": "PASS", "current_status": "FAIL",
+        }]
+        assert result["method_changed_required_failures"] == [{"oracle": "cohort", "status": "FAIL"}]
+        assert "| cohort | 1 | PASS | 2 | FAIL |" in format_comparison_markdown(result)
+
+    # Method 2 against method 2 counts a new failure again.
+    baseline["results"]["cohort"] = {"status": "PASS", "method_version": 2}
+    result = compare_validation_reports("subset", baseline, current)
+    assert result["new_required_failures"] == [{"oracle": "cohort", "status": "FAIL"}]
+    assert result["rebaseline_required"] is False
+
+
 def _needs_binding(report, lower_bound, *, required):
     binding_ok = lower_bound > 0
     report["results"]["needs"] = {

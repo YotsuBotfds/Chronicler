@@ -1382,7 +1382,13 @@ def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
     assert after["status"] == "PASS"
 
 
-def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch):
+@pytest.mark.parametrize("method_version, window_start, migration_rates", [
+    # Method 1 counted turns t .. t+19 (agent 0's turn-10 migration counted).
+    (1, 10, (0.2, 0.8)),
+    # Method 2 (the default) counts t+1 .. t+20.
+    (None, 11, (0.0, 0.8)),
+])
+def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch, method_version, window_start, migration_rates):
     from chronicler.validate import run_cohort_oracle
     from chronicler import validation_io
 
@@ -1458,6 +1464,7 @@ def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch):
     monkeypatch.setattr(validation_io, "_filter_events_window", record_window)
     monkeypatch.setattr(validation_io, "compute_cohort_distinctiveness", record_rates)
 
+    kwargs = {} if method_version is None else {"method_version": method_version}
     result = run_cohort_oracle([{
         "seed": 9,
         "bundle": {"metadata": {"total_turns": 140}},
@@ -1465,16 +1472,113 @@ def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch):
         "memory_columns": memory_columns,
         "needs_columns": needs_columns,
         "events": events,
-    }])
+    }], **kwargs)
 
     assert result["status"] == "PASS"
     assert result["seeds_with_expected_direction"] == 1
     assert result["per_seed"][0]["snapshot_turn"] == 10
     assert result["per_seed"][0]["migration_effect_direction"] == "community_lower"
     assert result["per_seed"][0]["rebellion_effect_direction"] == "community_higher"
-    assert rates == {1: (0.2, 0.8), 2: (0.6, 0.2)}
-    assert scans == [(10, 20)]
+    assert rates == {1: migration_rates, 2: (0.6, 0.2)}
+    assert scans == [(window_start, 20)]
     assert events == original_events
+
+
+def _cohort_world(seed, rebels=4, event_offset=0, turn=100, total_turns=140):
+    """One snapshot at ``turn``: agents 0-4 a community (friends sharing a
+    memory), 5-9 their matched non-members; the first ``rebels`` members
+    rebel on turn ``turn + event_offset``."""
+    from chronicler.validation_io import EVENT_NAME_TO_CODE
+
+    edges = [(i, j) for i in range(5) for j in range(i + 1, 5)]
+    agents = list(range(10))
+    return {
+        "seed": seed,
+        "bundle": {"metadata": {"total_turns": total_turns}},
+        "relationship_columns": {
+            "turn": [turn] * len(edges), "agent_id": [a for a, _b in edges], "target_id": [b for _a, b in edges],
+            "bond_type": [2] * len(edges), "sentiment": [50] * len(edges),
+        },
+        "memory_columns": {
+            "turn": [turn] * 5, "agent_id": list(range(5)), "event_type": [0] * 5,
+            "memory_turn": [turn] * 5, "valence_sign": [-1] * 5,
+        },
+        "needs_columns": {
+            "turn": [turn] * 10, "agent_id": agents, "civ_affinity": [0] * 10, "region": [0] * 10,
+            "occupation": [1] * 10, "satisfaction": [0.5] * 10, "boldness": [0.5] * 10,
+            "ambition": [0.5] * 10, "loyalty_trait": [0.5] * 10,
+        },
+        "events": [{"agent_id": agent, "event_type": EVENT_NAME_TO_CODE["rebellion"], "turn": turn + event_offset}
+                   for agent in range(rebels)],
+    }
+
+
+def test_cohort_oracle_ignores_actions_on_the_snapshot_turn():
+    from chronicler.validate import run_cohort_oracle
+
+    # Two seeds whose community members act only on the snapshot turn. The
+    # turn-t relationship, memory and needs sidecars are written after turn
+    # t's agent tick (agent_bridge), whose decisions have already moved the
+    # migrants (region), raised the rebels' autonomy and written the turn's
+    # memories (community signatures); those actions precede the reading.
+    # Method 1 counted them and passed.
+    same_turn = [_cohort_world(seed, event_offset=0) for seed in (1, 2)]
+    result = run_cohort_oracle(same_turn)
+    assert (result["status"], result["seeds_with_expected_direction"]) == ("FAIL", 0)
+    assert (result["method_version"], result["outcome_window_start_offset"]) == (2, 1)
+    assert [seed["rebellion_effect_direction"] for seed in result["per_seed"]] == ["equal", "equal"]
+
+    method1 = run_cohort_oracle(same_turn, method_version=1)
+    assert (method1["status"], method1["seeds_with_expected_direction"]) == ("PASS", 2)
+    assert "method_version" not in method1 and "outcome_window_start_offset" not in method1
+
+    # Without those actions both methods fail alike.
+    removed = [_cohort_world(seed, rebels=0) for seed in (1, 2)]
+    assert run_cohort_oracle(removed, method_version=1)["status"] == "FAIL"
+    assert run_cohort_oracle(removed)["status"] == "FAIL"
+    # The same actions one turn later are outcomes.
+    later = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
+    assert run_cohort_oracle(later)["status"] == "PASS"
+
+
+@pytest.mark.parametrize("offset, method1_counts, method2_counts", [
+    (-1, False, False), (0, True, False), (1, True, True), (19, True, True), (20, False, True), (21, False, False),
+])
+def test_cohort_oracle_window_is_the_turns_after_the_snapshot(offset, method1_counts, method2_counts):
+    from chronicler.validate import run_cohort_oracle
+
+    runs = [_cohort_world(seed, event_offset=offset) for seed in (1, 2)]
+    for version, counted in ((1, method1_counts), (2, method2_counts)):
+        result = run_cohort_oracle(runs, method_version=version)
+        directions = {seed["rebellion_effect_direction"] for seed in result["per_seed"]}
+        assert directions == {"community_higher" if counted else "equal"}, version
+
+
+def test_cohort_oracle_window_must_end_before_the_last_turn():
+    from chronicler.validate import run_cohort_oracle
+
+    # A run of N turns ticks turns 0 .. N-1. Method 2's window of a turn-100
+    # snapshot ends at 120, so the snapshot needs 121 turns; method 1's
+    # ended at 119.
+    for total_turns, method1_scored, method2_scored in ((119, False, False), (120, True, False), (121, True, True)):
+        runs = [_cohort_world(seed, event_offset=1, total_turns=total_turns) for seed in (1, 2)]
+        for version, scored in ((1, method1_scored), (2, method2_scored)):
+            result = run_cohort_oracle(runs, method_version=version)
+            assert result.get("analyzed_seeds", 0) == (2 if scored else 0), (total_turns, version)
+            if not scored:
+                assert result == {"status": "SKIP", "reason": "no_community_seed_pairs"}
+
+
+def test_cohort_oracle_method_version_argument():
+    from chronicler.validate import run_cohort_oracle
+
+    runs = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
+    assert run_cohort_oracle(runs)["method_version"] == 2
+    assert run_cohort_oracle(runs, method_version=2) == run_cohort_oracle(runs)
+    for bad in (0, 3, True, "2"):
+        with pytest.raises(ValueError, match="method_version"):
+            run_cohort_oracle(runs, method_version=bad)
+    assert run_cohort_oracle([], method_version=1) == {"status": "SKIP", "reason": "no_bundles"}
 
 
 def test_cohort_candidate_priority_prefers_expected_direction():
