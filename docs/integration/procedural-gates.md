@@ -107,7 +107,7 @@ their bytes do not change. `chronicler.validation_compare` refuses to
 compare reports of different worlds (a missing `worlds` means the template
 world), so a procedural report cannot be read against a template baseline.
 
-## Procedural worlds on `main`
+## Procedural worlds on `main` `aa0f655`
 
 ### Gates
 
@@ -149,114 +149,120 @@ subset's binding lower bound is negative (-0.04; informational there).
 
 ### Per-system activity
 
-Counts per starting civ per 100 turns, pooled over the worlds (in brackets
-the share of worlds where the measure is above zero), from
+Measured again on the tree that lands (`main` `b3ad9a4`, PR #42, and the
+merged head); the `aa0f655` numbers differ little. Counts per starting civ
+per 100 turns, pooled over the worlds (in brackets the share of worlds
+where the measure is above zero), from
 `scripts/world_systems_report.py --per-civ-century`. The subsets share
-seeds (42-61) and turns (200); the full batches add 100 procedural worlds
-of 300 turns and 200 template worlds of 500 (template full: the gate after
-the fix, which leaves four-civ worlds unchanged). Population, civ and
-famine-share rows are per world.
+seeds (42-61) and turns (200): template and procedural on `b3ad9a4`, and
+procedural with the fix (merged head). The full batches are the merged
+head's gates: 200 template worlds of 500 turns and 100 procedural worlds of
+300. Population, civ and famine-share rows are per world.
 
-| Measure | template | procedural | procedural, fix |
-| --- | ---: | ---: | ---: |
-| worlds | 20 | 20 | 20 |
-| extinct worlds | 0.000 (0%) | 0.000 (0%) | 0.000 (0%) |
-| population, start | 205.7 (100%) | 508.8 (100%) | 508.8 (100%) |
-| population, final | 188.9 (100%) | 584.6 (100%) | 599.5 (100%) |
-| population, minimum / start | 0.663 (100%) | 0.844 (100%) | 0.866 (100%) |
-| civs at start | 4.000 (100%) | 10.0 (100%) | 10.0 (100%) |
-| civ records at end | 4.000 (100%) | 10.2 (100%) | 10.5 (100%) |
-| civs alive at end | 3.200 (100%) | 8.700 (100%) | 8.900 (100%) |
-| famine region-turns (share of observed) | 0.284 (100%) | 0.252 (100%) | 0.250 (100%) |
-| famine episodes | 3.881 (100%) | 6.857 (100%) | 6.680 (100%) |
-| famine episode mean length (turns) | 8.105 (100%) | 4.999 (100%) | 4.994 (100%) |
-| famine episodes of 20+ turns (share) | 0.106 (85%) | 0.015 (65%) | 0.012 (60%) |
-| wars declared | 0.287 (100%) | 1.315 (100%) | 1.252 (100%) |
-| calls to arms | 0.013 (10%) | 0.273 (95%) | 0.230 (95%) |
-| federation defence calls | 0.031 (10%) | 0.497 (95%) | 0.440 (90%) |
-| secessions | - | 0.007 (15%) | 0.018 (20%) |
-| rebellions (civ events) | 2.081 (70%) | 2.530 (95%) | 2.585 (95%) |
-| mass migrations | 11.1 (100%) | 12.6 (100%) | 13.5 (100%) |
-| cities founded | 0.562 (100%) | 0.828 (100%) | 0.815 (100%) |
-| cities alive at end | 0.463 (100%) | 0.632 (100%) | 0.615 (100%) |
-| free cities | 0.000 (0%) | 0.005 (10%) | 0.007 (15%) |
-| city commerce (cumulative) | 90.3 (100%) | 103.1 (100%) | 103.8 (100%) |
-| guilds founded | 0.569 (100%) | 0.848 (100%) | 0.860 (100%) |
-| guild privileges | 0.619 (100%) | 0.915 (100%) | 0.877 (100%) |
-| burgher factions formed | 0.331 (100%) | 0.405 (100%) | 0.395 (100%) |
-| movement news foundings | 0.212 (65%) | 0.430 (100%) | 0.367 (100%) |
-| movements founded | 1.225 (100%) | 1.675 (100%) | 1.552 (100%) |
-| reforms enacted | 0.375 (95%) | 0.450 (100%) | 0.448 (100%) |
-| movement risings | 0.062 (35%) | 0.060 (45%) | 0.062 (75%) |
-| movement secessions | 0.000 (0%) | 0.000 (0%) | 0.000 (0%) |
-| sea trade (cargo units) | 5.913 (30%) | 66.5 (100%) | 66.4 (100%) |
-| fleets commissioned | 0.075 (30%) | 1.558 (100%) | 1.285 (100%) |
-| naval battles | 0.000 (0%) | 1.975 (95%) | 1.450 (95%) |
-| overseas campaigns | 0.000 (0%) | 0.185 (90%) | 0.163 (90%) |
-| colonies | 0.000 (0%) | 0.083 (85%) | 0.087 (85%) |
-| nomad raids | 0.056 (35%) | 0.228 (65%) | 0.220 (75%) |
-| hordes formed | 0.000 (0%) | 0.018 (35%) | 0.025 (30%) |
-| nomad conquests | 0.013 (5%) | 0.043 (35%) | 0.037 (35%) |
-| great persons born | 1.762 (100%) | 4.810 (100%) | 1.298 (100%) |
-| artifacts created | 3.019 (100%) | 5.930 (100%) | 2.737 (100%) |
-| trading houses founded | 0.362 (70%) | 1.365 (100%) | 0.395 (90%) |
-| exiles restored | 0.013 (10%) | 0.058 (40%) | 0.072 (45%) |
-| agendas declared | 5.638 (100%) | 9.995 (100%) | 4.817 (100%) |
-| agendas fulfilled | 3.019 (100%) | 6.062 (100%) | 2.317 (100%) |
-| epidemics (events) | 10.5 (100%) | 22.4 (100%) | 22.9 (100%) |
-| epidemic deaths | 22.3 (100%) | 39.1 (100%) | 38.9 (100%) |
-| loans taken (events) | 1.056 (95%) | 2.987 (100%) | 2.770 (100%) |
-| loan principal issued (domestic + foreign) | 50.9 (95%) | 390.6 (100%) | 307.8 (100%) |
-| loan principal written off | 6.994 (50%) | 54.9 (100%) | 57.5 (100%) |
-| fiscal crises | 0.369 (40%) | 1.387 (100%) | 1.350 (100%) |
-| state defaults | 0.081 (30%) | 0.325 (95%) | 0.323 (95%) |
-| treaties signed | 1.650 (100%) | 6.320 (100%) | 6.178 (100%) |
-| techniques invented | 1.387 (100%) | 0.677 (100%) | 0.677 (100%) |
-| techniques adopted (events) | 2.519 (100%) | 3.305 (100%) | 3.208 (100%) |
+| Measure | template subset | procedural subset | procedural subset, fix | template full, fix | procedural full, fix |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| worlds | 20 | 20 | 20 | 200 | 100 |
+| extinct worlds | 0.000 (0%) | 0.000 (0%) | 0.000 (0%) | 0.000 (0%) | 0.000 (0%) |
+| population, start | 205.7 (100%) | 508.8 (100%) | 508.8 (100%) | 201.1 (100%) | 512.0 (100%) |
+| population, final | 191.0 (100%) | 602.3 (100%) | 637.5 (100%) | 180.7 (100%) | 535.1 (100%) |
+| population, minimum / start | 0.695 (100%) | 0.843 (100%) | 0.877 (100%) | 0.629 (100%) | 0.777 (100%) |
+| civs at start | 4.000 (100%) | 10.0 (100%) | 10.0 (100%) | 4.000 (100%) | 10.0 (100%) |
+| civ records at end | 4.050 (100%) | 10.3 (100%) | 10.4 (100%) | 4.210 (100%) | 10.8 (100%) |
+| civs alive at end | 3.200 (100%) | 8.500 (100%) | 9.000 (100%) | 2.925 (100%) | 8.770 (100%) |
+| famine region-turns (share of observed) | 0.290 (100%) | 0.247 (100%) | 0.265 (100%) | 0.286 (100%) | 0.254 (100%) |
+| famine episodes | 3.900 (100%) | 6.713 (100%) | 7.075 (100%) | 3.848 (100%) | 6.579 (100%) |
+| famine episode mean length (turns) | 8.310 (100%) | 5.063 (100%) | 5.185 (100%) | 8.057 (100%) | 5.058 (100%) |
+| famine episodes of 20+ turns (share) | 0.109 (95%) | 0.017 (80%) | 0.019 (75%) | 0.110 (98%) | 0.017 (79%) |
+| wars declared | 0.250 (95%) | 1.157 (100%) | 1.052 (100%) | 0.321 (96%) | 1.203 (100%) |
+| calls to arms | 0.013 (10%) | 0.265 (95%) | 0.190 (80%) | 0.030 (36%) | 0.205 (97%) |
+| federation defence calls | 0.006 (5%) | 0.362 (90%) | 0.367 (90%) | 0.054 (38%) | 0.483 (99%) |
+| secessions | 0.006 (5%) | 0.010 (15%) | 0.013 (20%) | 0.006 (10%) | 0.022 (41%) |
+| rebellions (civ events) | 1.825 (75%) | 2.730 (95%) | 2.405 (95%) | 1.466 (75%) | 2.541 (91%) |
+| mass migrations | 11.5 (100%) | 12.8 (100%) | 13.9 (100%) | 10.2 (100%) | 11.9 (100%) |
+| cities founded | 0.562 (100%) | 0.792 (100%) | 0.838 (100%) | 0.318 (100%) | 0.601 (100%) |
+| cities alive at end | 0.463 (100%) | 0.600 (100%) | 0.642 (100%) | 0.205 (100%) | 0.392 (100%) |
+| free cities | 0.000 (0%) | 0.007 (15%) | 0.010 (20%) | 0.005 (8%) | 0.006 (15%) |
+| city commerce (cumulative) | 84.0 (100%) | 97.6 (100%) | 102.9 (100%) | 86.7 (100%) | 100.7 (100%) |
+| guilds founded | 0.556 (100%) | 0.805 (100%) | 0.868 (100%) | 0.351 (100%) | 0.658 (100%) |
+| guild privileges | 0.588 (100%) | 0.828 (100%) | 0.930 (100%) | 0.410 (100%) | 0.747 (100%) |
+| burgher factions formed | 0.331 (100%) | 0.412 (100%) | 0.400 (100%) | 0.162 (100%) | 0.286 (100%) |
+| movement news foundings | 0.212 (60%) | 0.388 (100%) | 0.412 (100%) | 0.121 (80%) | 0.352 (100%) |
+| movements founded | 1.219 (100%) | 1.653 (100%) | 1.673 (100%) | 0.907 (100%) | 1.503 (100%) |
+| reforms enacted | 0.325 (95%) | 0.487 (100%) | 0.453 (100%) | 0.260 (98%) | 0.446 (100%) |
+| movement risings | 0.056 (35%) | 0.075 (80%) | 0.058 (70%) | 0.044 (56%) | 0.070 (86%) |
+| movement secessions | 0.000 (0%) | 0.000 (0%) | 0.003 (5%) | 0.002 (3%) | 0.002 (7%) |
+| sea trade (cargo units) | 5.751 (30%) | 60.1 (100%) | 68.3 (100%) | 5.691 (39%) | 59.4 (100%) |
+| fleets commissioned | 0.062 (30%) | 1.423 (100%) | 1.272 (100%) | 0.050 (40%) | 1.304 (100%) |
+| naval battles | 0.000 (0%) | 1.827 (100%) | 1.212 (90%) | 0.064 (10%) | 2.045 (99%) |
+| overseas campaigns | 0.000 (0%) | 0.185 (95%) | 0.160 (85%) | 0.014 (10%) | 0.107 (85%) |
+| colonies | 0.000 (0%) | 0.070 (80%) | 0.083 (80%) | 0.001 (1%) | 0.063 (87%) |
+| nomad raids | 0.031 (20%) | 0.185 (70%) | 0.185 (75%) | 0.028 (24%) | 0.248 (71%) |
+| hordes formed | 0.000 (0%) | 0.028 (35%) | 0.020 (30%) | 0.001 (2%) | 0.016 (25%) |
+| nomad conquests | 0.013 (5%) | 0.033 (35%) | 0.045 (35%) | 0.010 (14%) | 0.022 (41%) |
+| great persons born | 1.956 (100%) | 4.875 (100%) | 1.222 (100%) | 1.208 (100%) | 0.939 (100%) |
+| artifacts created | 3.044 (100%) | 6.045 (100%) | 2.688 (100%) | 1.688 (100%) | 1.995 (100%) |
+| trading houses founded | 0.325 (65%) | 1.353 (100%) | 0.395 (80%) | 0.158 (66%) | 0.279 (88%) |
+| exiles restored | 0.006 (5%) | 0.072 (50%) | 0.077 (45%) | 0.004 (6%) | 0.054 (63%) |
+| agendas declared | 5.731 (100%) | 9.992 (100%) | 4.838 (100%) | 2.893 (100%) | 3.464 (100%) |
+| agendas fulfilled | 3.181 (100%) | 6.045 (100%) | 2.280 (100%) | 1.680 (100%) | 1.651 (100%) |
+| epidemics (events) | 9.812 (100%) | 22.6 (100%) | 23.1 (100%) | 9.480 (100%) | 22.6 (100%) |
+| epidemic deaths | 19.8 (100%) | 37.9 (100%) | 38.6 (100%) | 18.7 (100%) | 40.2 (100%) |
+| loans taken (events) | 0.994 (95%) | 2.817 (100%) | 2.650 (100%) | 0.670 (96%) | 2.656 (100%) |
+| loan principal issued (domestic + foreign) | 43.8 (95%) | 379.7 (100%) | 277.6 (100%) | 66.8 (96%) | 434.9 (100%) |
+| loan principal written off | 6.581 (55%) | 52.0 (100%) | 46.5 (100%) | 6.823 (68%) | 66.8 (100%) |
+| fiscal crises | 0.362 (55%) | 1.355 (100%) | 1.325 (100%) | 0.341 (57%) | 1.402 (100%) |
+| state defaults | 0.087 (35%) | 0.270 (95%) | 0.282 (95%) | 0.057 (44%) | 0.303 (98%) |
+| treaties signed | 1.525 (100%) | 6.322 (100%) | 5.950 (100%) | 1.063 (100%) | 5.311 (100%) |
+| techniques invented | 1.538 (100%) | 0.708 (100%) | 0.733 (100%) | 0.764 (100%) | 0.508 (100%) |
+| techniques adopted (events) | 2.656 (100%) | 3.365 (100%) | 3.297 (100%) | 1.185 (100%) | 2.429 (100%) |
 
-What differs, beyond what more regions and civs give anyway:
+What differs, beyond what more regions and civs give anyway (subset
+ratios, same seeds and turns, before the fix unless stated):
 
-* **Merchants and artifacts.** 4.8 great persons per civ-century on
-  procedural worlds (templates 1.8), most of them aggregate merchants;
-  1.8 times the agendas and 3.8 times the trading houses. See problem 1.
+* **Merchants and artifacts.** 4.9 great persons per civ-century on
+  procedural worlds (templates 2.0), most of them aggregate merchants; 1.7
+  times the agendas and 4.2 times the trading houses; 6.0 artifacts per
+  civ-century (templates 3.0). See problem 1.
 * **Wars.** Wars declared per civ are 4-5 times the template rate, and
   about half of them follow a call to arms or a federation's defence
-  (`call_to_arms` 20 times, `federation_defense` 16 times the template
-  rate per civ); in seed 42 the first ten wars include allies three to
-  five regions from the enemy they join. Treasury follows: loans 3 times, loan principal 6-8 times, fiscal
-  crises 3.8 times and defaults 4 times the template rate per civ. See
-  open item 1.
+  (calls to arms 20 times the template rate per civ, federation defence
+  calls 0.36 against 0.006); in seed 42 of the `aa0f655` full batch the
+  first ten wars include allies three to five regions from the enemy they
+  join. Treasury follows: loans 2.8 times, loan principal 6-9 times,
+  fiscal crises 3.7 times and defaults 3 times the template rate per civ.
+  See open item 1.
 * **Sea and steppe.** Sea trade in every procedural world (templates: 30%
-  of worlds, at a tenth of the volume per civ), naval battles in 95%
-  (templates none in the subset), colonies in 85-90%; hordes form in a
-  quarter to a third of procedural worlds (templates: none in these
-  batches; 5 of 200 in the template full gate). These systems are
-  measured mainly by the procedural profile.
+  of worlds, at a tenth of the volume per civ), naval battles in 90-100%
+  (templates none in the subset), colonies in 80-87%; hordes form in a
+  quarter to a third of procedural worlds (templates: none in the subset,
+  2% of the template full gate's worlds). These systems are measured
+  mainly by the procedural profile.
 * **Famine.** Fewer and shorter famines: 25% of observed region-turns in
-  famine (templates 28%), episodes of 5.0 turns on average (templates 8.1),
-  1.5% of them 20 turns or longer (templates 10.6%). Procedural regions are
+  famine (templates 29%), episodes of 5.1 turns on average (templates 8.3),
+  1.7% of them 20 turns or longer (templates 10.9%). Procedural regions are
   thinner (14-16 agents a region against 26) and trade food further.
-* **Epidemics.** About twice the epidemic events per civ and 1.6 times the
-  deaths per head (0.71 against 0.45 per person per century); "virgin
+* **Epidemics.** 2.3 times the epidemic events per civ and 1.7 times the
+  deaths per head (0.68 against 0.40 per person per century); "virgin
   soil" arrivals recur as pathogens reach distant regions. Population
-  still grows (final over start 1.15 against 0.92).
-* **Techniques.** Half the inventions per civ (0.68 against 1.39 per
-  century) and a third more adoptions (3.3 against 2.5): in a ten-civ
+  still grows (final over start 1.18 against 0.93).
+* **Techniques.** Half the inventions per civ (0.71 against 1.54 per
+  century) and a quarter more adoptions (3.4 against 2.7): in a ten-civ
   world a technique invented once spreads, so fewer civs invent it. Not a
   problem.
 * **Needs.** Spiritual need below its threshold in 26% of agent samples
-  (templates 14%; three 500-turn worlds each): more faiths and more agents
-  under a foreign faith. Material deficits are rarer (4% against 11%).
-  Civ economy and culture stats average about 60% of the template's
-  (28 and 23 against 49 and 44 in the same worlds).
-* **Restorations.** Exiles are restored 4-5 times as often per civ: a
-  deposed ruler almost always finds a friendly court in a ten-civ world,
-  and in low-stability realms pretenders depose each other within turns
-  (seed 43: three restorations in Suyerai in turns 60-70). See open item 3.
+  (templates 14%; three 500-turn worlds each on `aa0f655`): more faiths
+  and more agents under a foreign faith. Material deficits are rarer (4%
+  against 11%). Civ economy and culture stats average about 60% of the
+  template's (28 and 23 against 49 and 44 in the same worlds).
+* **Restorations.** Exiles are restored about twelve times as often per
+  civ (0.05-0.08 against 0.004-0.006 per civ-century): a deposed ruler
+  almost always finds a friendly court in a ten-civ world, and in
+  low-stability realms pretenders depose each other within turns (seed 43:
+  three restorations in Suyerai in turns 60-70). See open item 3.
 
 ### Histories read
 
-Seeds 42-44 of the full batch and 43 of the subset, read as event digests
+Seeds 42-44 of the `aa0f655` full batch and 43 of its fixed subset, read as event digests
 (population, the four largest realms and the important events every 50
 turns):
 
@@ -316,11 +322,12 @@ Three quarters would have left worlds of five living civs unchanged, but
 leaves procedural worlds at three times the template's merchant rate
 and at the top of the artifact band; "every other living civ" is the
 template rule's own meaning and puts the procedural hub share where the
-template's is. Template worlds change only while five or more civs live
-(the 200-seed template full gate ends with five or six in 3 worlds). The
-snapshot-pruning test world (10 regions, 5 civs, agents off) changes and
-was re-pinned (commit `7fae9d5`). The legacy rule with the ledger off
-(4 relationships that ever traded) is unchanged.
+template's is. Template worlds change only while five or more civs live:
+on the `aa0f655` subset 42-61 none did (reports and bundles identical); on
+`b3ad9a4`'s one world of 20 changed (seed 46); the template full
+gate is in "Gates". The snapshot-pruning test world (10 regions, 5 civs,
+agents off) changes and was re-pinned (commit `7fae9d5`). The legacy rule
+with the ledger off (4 relationships that ever traded) is unchanged.
 
 Before and after on `aa0f655` (tree `541b51d` against `937b3c5`, the same
 extension):
@@ -353,10 +360,10 @@ template subset, whose reports and seeds 42-44 bundles are identical
 procedural full batch: great persons 4.54 -> 0.94, artifacts 5.38 ->
 2.01, trading houses 0.98 -> 0.29, agendas declared 8.3 -> 3.4; wars,
 calls to arms, population and civ survival unchanged within noise
-(fiscal crises 1.21 -> 1.36: fewer merchant houses lend to their crowns).
-Great persons per civ are now below the template's (0.94 against 1.76 on
-the subset): the aggregate merchant is now as rare as on templates, and
-agent-born great persons stop at the registry cap (open item 4).
+(fiscal crises 1.21 -> 1.36). Great persons per civ are now below the
+template's (0.94 against 1.21 on the template full gate): the aggregate
+merchant is about as rare per civ as on templates, and agent-born great
+persons stop at the registry cap (open item 4).
 
 ### 2. The artifact oracle counted 4 civs (fixed in the gate)
 
@@ -369,7 +376,7 @@ civ. Template reports are byte-identical.
    three to five regions away (half of procedural war declarations), and
    at war a state borrows to keep its full reserve
    (`finance.WAR_CHEST_SHARE`), so these wars cost treasuries without
-   fighting: fiscal crises 3.8 times and defaults 4 times the template
+   fighting: fiscal crises 3.7 times and defaults 3 times the template
    rate per civ, and civ economy and culture stats about 60% of the
    template's. An ally that cannot reach the enemy (no border, no sea
    lane, no army in range) could decline, or join without the war-chest
@@ -383,16 +390,18 @@ civ. Template reports are byte-identical.
    top of real contact.
 3. **Pretender restorations.** `succession.create_exiled_leader` places a
    deposed ruler with the friendliest non-hostile civ; a ten-civ world
-   nearly always has one, so every deposition creates a pretender, whose
-   drain keeps stability under 20, where restoration rolls 5-8% a turn.
-   Restorations run 4-5 times the template rate per civ.
+   nearly always has one, so nearly every deposition creates a pretender
+   who drains its origin's stability; below 20 stability a restoration
+   rolls 5% a turn plus 3% per recognising civ (x1.5 for an exile of
+   another faction), and the deposed incumbent becomes the next pretender.
+   Restorations run about twelve times the template rate per civ.
 4. **Named-character registry** (both world types). The native registry
    keeps the dead and closes promotions at 50 named characters per world
    (`named_characters.rs` `GLOBAL_CAP`), reached within the first 50
    turns on template and procedural worlds alike (43-54 agent-born great
    persons by turn 50, 0-12 in the 450 turns after, in six 500-turn
    probe worlds). With ten civs that is five per civ, with four twelve.
-5. **Epidemic intensity.** Deaths per head 1.6 times the template rate;
+5. **Epidemic intensity.** Deaths per head 1.7 times the template rate;
    population still grows. Worth a look with the epidemiology owner.
 6. **Spiritual need.** 26% of procedural agent samples below the threshold
    (templates 14%); satisfaction 0.56-0.57 against 0.61-0.62. Inside the
@@ -400,8 +409,117 @@ civ. Template reports are byte-identical.
 
 ## Gates
 
-TABLE-GATES-FINAL
+The gates that count are on the merged head `1fa57c8` (`main` `b3ad9a4`
+plus this branch). Template baseline: the PR #42 template full gate on
+`b3ad9a4`; procedural baseline: the procedural full gate of the fix on
+`aa0f655`.
+
+| | template full, b3ad9a4 (baseline) | template full, merged | procedural full, merged |
+| --- | --- | --- | --- |
+| gate | PASS | PASS | PASS |
+| strict regression | strict | strict | strict |
+| community: seeds with a community | 200 of 200 | 200 of 200 | 100 of 100 |
+| needs: seeds with net concordance > 0 | 173 of 200 (need 120) | 174 of 200 (need 120) | 83 of 100 (need 60) |
+| needs: pooled lower bound | +0.191 | +0.193 | +0.120 |
+| needs: binding lower bound | +0.170 | +0.170 | +0.117 |
+| cohort: seeds in the expected direction | 200 of 200 | 200 of 200 | 100 of 100 |
+| era: seeds with inflections / silent collapses | 200 / 0 | 200 / 0 | 100 / 0 |
+| arcs: families / dominance | 6 / none | 6 / none | 6 / none |
+| artifacts: status | PASS | PASS | PASS |
+| artifacts per starting civ per 100 turns (1-3) | 1.71 | 1.69 | 2.00 |
+| artifacts: largest type share ok / loss rate | True / 5.8% | True / 6.0% | True / 4.9% |
+| satisfaction mean / latest | 0.615 / 0.626 | 0.615 / 0.626 | 0.566 / 0.567 |
+| migration per agent-turn (0.05-0.15) | 0.0634 | 0.0635 | 0.0746 |
+| rebellion per agent-turn (0.02-0.08) | 0.0329 | 0.0330 | 0.0352 |
+| gini in range | 0.882 | 0.886 | 0.915 |
+| all starting civs survive (max 0.20) | 0.180 | 0.175 | 0.130 |
+| extinct worlds | 0 | 0 | 0 |
+| final population min / median / max | 23 / 179 / 307 | 23 / 180 / 307 | 298 / 518 / 936 |
+
+* **Template full gate** (200 x 500, 46 minutes): PASS strict, NO
+  REGRESSION against `b3ad9a4`. 8 of 200 worlds differ (seeds 46, 62, 75,
+  116, 141, 190, 207, 222; the rule changes only while five or more civs
+  live); migration 0.0635 (0.0634), rebellion 0.0330 (0.0329), needs 174
+  of 200 (173), artifacts 1.69 (1.71), 0 extinct.
+* **Procedural full gate** (100 x 300, 39 minutes): PASS strict, NO
+  REGRESSION against the fix on `aa0f655`; artifacts 2.00 per starting civ
+  per 100 turns, needs 83 of 100, migration 0.0746, rebellion 0.0352, 0
+  extinct.
+
+Subsets on `b3ad9a4` and the merged head (comparator NO REGRESSION for
+both pairs; the template pair differs in seed 46 only):
+
+| | procedural subset, b3ad9a4 | procedural subset, merged | template subset, b3ad9a4 | template subset, merged |
+| --- | --- | --- | --- | --- |
+| gate | PASS | PASS | PASS | PASS |
+| strict regression | strict | strict | fail | fail |
+| community: seeds with a community | 20 of 20 | 20 of 20 | 20 of 20 | 20 of 20 |
+| needs: seeds with net concordance > 0 | 16 of 20 (need 12) | 17 of 20 (need 12) | 17 of 20 (need 12) | 17 of 20 (need 12) |
+| needs: pooled lower bound | +0.082 | +0.119 | +0.121 | +0.116 |
+| needs: binding lower bound | +0.081 | +0.103 | +0.156 | +0.156 |
+| cohort: seeds in the expected direction | 20 of 20 | 20 of 20 | 20 of 20 | 20 of 20 |
+| era: seeds with inflections / silent collapses | 20 / 1 | 20 / 0 | 20 / 0 | 20 / 0 |
+| arcs: families / dominance | 6 / cinderella 0.43 | 6 / cinderella 0.42 | 5 / none | 5 / cinderella 0.41 |
+| artifacts: status | PARTIAL | PASS | PARTIAL | PARTIAL |
+| artifacts per starting civ per 100 turns (1-3) | 6.04 | 2.69 | 3.04 | 3.04 |
+| artifacts: largest type share ok / loss rate | True / 2.4% | True / 3.7% | True / 2.1% | True / 2.1% |
+| satisfaction mean / latest | 0.572 / 0.586 | 0.572 / 0.579 | 0.607 / 0.622 | 0.607 / 0.621 |
+| migration per agent-turn (0.05-0.15) | 0.0759 | 0.0769 | 0.0682 | 0.0682 |
+| rebellion per agent-turn (0.02-0.08) | 0.0374 | 0.0342 | 0.0349 | 0.0349 |
+| gini in range | 0.868 | 0.886 | 0.759 | 0.759 |
+| all starting civs survive (max 0.20) | 0.150 | 0.200 | 0.250 | 0.250 |
+| extinct worlds | 0 | 0 | 0 | 0 |
+| final population min / median / max | 417 / 598 / 830 | 504 / 620 / 871 | 108 / 186 / 279 | 108 / 188 / 279 |
+
+All gate runs of this branch:
+
+| Run | Tree | Profile | Gate | Against | Comparator |
+| --- | --- | --- | --- | --- | --- |
+| procedural full | `aa0f655` | 100 x 300 | FAIL (artifacts) | - | - |
+| procedural full | `aa0f655` + fix | 100 x 300 | PASS strict | the run above | NO REGRESSION |
+| procedural full | merged | 100 x 300 | PASS strict | the run above | NO REGRESSION |
+| template full | merged | 200 x 500 | PASS strict | `b3ad9a4` template full | NO REGRESSION |
+| procedural subset | `aa0f655` / + fix | 20 x 200 | PASS / PASS | `aa0f655` | NO REGRESSION |
+| procedural subset | `b3ad9a4` / merged | 20 x 200 | PASS / PASS | `b3ad9a4` | NO REGRESSION |
+| template subset | `aa0f655` / + fix | 20 x 200 | PASS / PASS (identical) | `aa0f655` | NO REGRESSION |
+| template subset | `b3ad9a4` / merged | 20 x 200 | PASS / PASS | `b3ad9a4` | NO REGRESSION |
+| procedural determinism-hybrid | `aa0f655` + fix | 2 x 200 | PASS (bundles match) | - | - |
+
+The template full gate of the fix on `aa0f655` was not run: `main` moved
+to `b3ad9a4` first, and the merged head's gate replaces it.
 
 ## Tests
 
-TESTS-PLACEHOLDER
+On the merged head `1fa57c8` (later commits change documentation only),
+extension `c26d6cd2...bbb99` built fresh and its classes verified:
+
+| Suite | Result |
+| --- | --- |
+| `pytest -m "not slow"` (native) | 6,294 passed, 3 skipped |
+| `pytest -m slow` (native) | 12 passed, 3 skipped (includes the procedural smoke run, about 25 s) |
+| no-Rust suite (`chronicler_agents` absent) | 6,061 passed, 237 skipped |
+| offline oracle lane (`scripts/run_python_oracle_checks.py`) | PASS in 103.1 s; 2,296 passed, 36 skipped; core chunk 22.6 s of 110 |
+| `cargo test` | not run: this branch changes no Rust |
+
+New tests:
+
+* `tests/test_procedural_gates.py` (oracle lane, core chunk): procedural
+  defaults (20 x 200, 100 x 300, 32 x 10) and overrides; the template
+  profile unchanged, including namespaces without the world option; the
+  subset and full commands forward the world; `--regions` without
+  `--worldgen procedural` is refused; world shapes and their summary
+  (none for template batches); the artifact rate per starting civ (equal
+  to the old one for four civs); the comparator refuses mixed worlds.
+* `tests/test_procedural_smoke.py` (slow, native): two procedural seeds x
+  40 turns through `m53b_run_validation.py --worldgen procedural`: no
+  oracle errors, the report names the world, both worlds keep people.
+* `tests/test_contact_ledger.py`: the hub threshold by living civs (three
+  up to four civs, then every other one) and a ten-civ hub that needs all
+  nine partners; the existing merchant-trigger test runs on a four-civ
+  world.
+* `tests/test_snapshot_pruning.py`: re-pinned to the corrected world (see
+  problem 1).
+
+The procedural determinism profile (`--profile determinism-hybrid
+--worldgen procedural`, seed 42 twice, 200 turns) passes: the bundles match
+(tree `937b3c5`).
