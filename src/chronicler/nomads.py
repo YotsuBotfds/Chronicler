@@ -1165,6 +1165,9 @@ def _raids(t: _Tick) -> None:
             if loot:
                 _add_stat(t, civ, "treasury", loot, "keep")
             killed = _kill(t, target, [region.name], max(1, int(region.population * RAID_KILL_SHARE)))
+            # One-turn signal for the agents' safety need (read and cleared by
+            # agent_bridge.build_region_batch).
+            region._raided_this_turn = True
             from chronicler.emergence import get_severity_multiplier
             _add_stat(t, target, "stability",
                       -int(RAID_STABILITY * get_severity_multiplier(target, world)), "signal")

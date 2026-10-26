@@ -291,20 +291,24 @@ pub const DEATHOFKIN_MIGRATE_PENALTY: f32 = 0.15;             // [FROZEN M53 SOF
 // M49: Needs system — starting value
 pub const STARTING_NEED: f32 = 0.5;  // [FROZEN M53 SOFT]
 
-// M49: Need decay rates [FROZEN M53 SOFT]
-pub const SAFETY_DECAY: f32 = 0.013;     // [CALIBRATE M53] soften recovery less aggressively so peacetime safety rises without overshooting the equilibrium guardrail.
-pub const MATERIAL_DECAY: f32 = 0.010;   // [CALIBRATE M53] material stress remains elevated even in peacetime economies.
-pub const SOCIAL_DECAY: f32 = 0.008;     // [FROZEN M53 SOFT]
+// M49: Need decay rates. Needs calibration (2026-10, docs/integration/
+// needs-calibration.md): decay and restoration were raised together, so a
+// need follows its conditions within about 5-15 turns instead of 25-100
+// (the old rates kept every need near its 0.5 spawn value for a lifetime),
+// with the good-condition equilibria where they were.
+pub const SAFETY_DECAY: f32 = 0.040;     // [CALIBRATE] was 0.013
+pub const MATERIAL_DECAY: f32 = 0.060;   // [CALIBRATE] was 0.010
+pub const SOCIAL_DECAY: f32 = 0.030;     // [CALIBRATE] was 0.008
 pub const SPIRITUAL_DECAY: f32 = 0.010;  // [FROZEN M53 SOFT]
-pub const AUTONOMY_DECAY: f32 = 0.008;   // [FROZEN M53 HARD] softened again after scout probes showed displaced populations never rebuilding autonomy in time.
+pub const AUTONOMY_DECAY: f32 = 0.025;   // [CALIBRATE] was 0.008
 pub const PURPOSE_DECAY: f32 = 0.012;    // [FROZEN M53 SOFT]
 
 // M49: Need behavioral thresholds [FROZEN M53 SOFT]
 pub const SAFETY_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const MATERIAL_THRESHOLD: f32 = 0.3;  // [FROZEN M53 SOFT]
-pub const SOCIAL_THRESHOLD: f32 = 0.25;   // [FROZEN M53 SOFT]
+pub const SOCIAL_THRESHOLD: f32 = 0.35;   // [CALIBRATE] was 0.25: isolation binds within about 14 turns
 pub const SPIRITUAL_THRESHOLD: f32 = 0.3; // [FROZEN M53 SOFT]
-pub const AUTONOMY_THRESHOLD: f32 = 0.25;  // [FROZEN M53 SOFT]
+pub const AUTONOMY_THRESHOLD: f32 = 0.35;  // [CALIBRATE] was 0.25: foreign rule (0.61) stays above it
 pub const PURPOSE_THRESHOLD: f32 = 0.35;  // [FROZEN M53 SOFT]
 
 // M49: Need behavioral weights [FROZEN M53 SOFT]
@@ -315,24 +319,71 @@ pub const SPIRITUAL_WEIGHT: f32 = 0.4;  // [FROZEN M53 SOFT]
 pub const AUTONOMY_WEIGHT: f32 = 0.45;   // [FROZEN M53 SOFT]
 pub const PURPOSE_WEIGHT: f32 = 0.4;    // [FROZEN M53 SOFT]
 
-// M49: Restoration rates [FROZEN M53 SOFT]
-pub const SAFETY_RESTORE_PEACE: f32 = 0.021;          // [CALIBRATE M53] keep a modest peacetime lift without pushing the long-run safety equilibrium above the tested band.
-pub const SAFETY_RESTORE_HEALTH: f32 = 0.010;         // [CALIBRATE M53] preserve the original disease-light signal while safety tuning remains under validation.
-pub const SAFETY_RESTORE_FOOD: f32 = 0.008;           // [CALIBRATE M53] preserve harvest-driven recovery without stacking too many unconditional boosts.
+// M49: Restoration rates (proportional to the deficit), and the condition
+// pressures subtracted after them. One step is s -> (s - D) + R (1 - s + D)
+// - P, so the fixed point is 1 + D - (D + P) / R. Needs calibration
+// (2026-10): see the decay note above.
+// Safety: a civ at peace, a region without armies, battles or occupation
+// (not contested), health and food restore it; a war zone (contested, and
+// its ruler or the agent's civ at war) adds pressure; a conquest or a raid
+// cuts it at once. Fed, at peace, uncontested: 0.67; civ at war, region
+// uncontested: 0.55 (0.37 hungry); armies in a region at peace: 0.51; war
+// zone: 0 (binds within about 5 turns).
+pub const SAFETY_RESTORE_PEACE: f32 = 0.025;          // [CALIBRATE] was 0.021 (peace and no armies together)
+pub const SAFETY_RESTORE_SECURE: f32 = 0.032;         // [CALIBRATE] new: region not contested
+pub const SAFETY_RESTORE_HEALTH: f32 = 0.028;         // [CALIBRATE] was 0.010
+pub const SAFETY_RESTORE_FOOD: f32 = 0.022;           // [CALIBRATE] was 0.008
+pub const SAFETY_WAR_ZONE_PRESSURE: f32 = 0.050;      // [CALIBRATE] new
+pub const SAFETY_CONQUEST_SHOCK: f32 = 0.15;          // [CALIBRATE] new: the turn the region changes hands
+pub const SAFETY_RAID_SHOCK: f32 = 0.20;              // [CALIBRATE] new: a successful raid on the region
 pub const BOLD_SAFETY_RESTORE_WEIGHT: f32 = 0.3;      // [FROZEN M53 SOFT]
-pub const MATERIAL_RESTORE_FOOD: f32 = 0.018;         // [CALIBRATE M53] food availability should lift material need more decisively.
-pub const MATERIAL_RESTORE_WEALTH: f32 = 0.022;       // [CALIBRATE M53] wealth percentile signal was too weak to break low-material traps.
+// Material: food sufficiency and civ wealth percentile restore it, wealth
+// the more the shorter food is (the wealthy buy food in a dearth); dearth
+// and famine (demographics::hunger_components, the hunger mortality bands)
+// add pressure. Fed: 0.56 poorest, 0.62 median, 0.67 richest; dearth at
+// 0.8 sufficiency: 0.26, 0.44, 0.56; famine at 0.4 for a season: 0, 0.13,
+// 0.43.
+pub const MATERIAL_RESTORE_FOOD: f32 = 0.115;         // [CALIBRATE] was 0.018
+pub const MATERIAL_RESTORE_WEALTH: f32 = 0.044;       // [CALIBRATE] was 0.022
+/// Added wealth restoration per unit of food shortfall (1 - sufficiency).
+pub const MATERIAL_RESTORE_WEALTH_SHORTAGE: f32 = 0.15; // [CALIBRATE] new
+pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.039;      // [CALIBRATE] new
+pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.018;      // [CALIBRATE] new
 /// Crafts (2026-10, docs/integration/bulk-trade-crafts.md): material need
-/// restored by wares in use at full supply, a third of food's weight.
+/// restored by wares in use at full supply (set as a third of food's
+/// pre-calibration 0.018).
 pub const MATERIAL_RESTORE_CRAFTS: f32 = 0.006; // [CALIBRATE]
-pub const SOCIAL_RESTORE_POP: f32 = 0.010;            // [FROZEN M53 SOFT]
+// Social: bonds with people living in the same region restore it (bonds
+// with people elsewhere no longer count), and the community proxy
+// (population, occupation, age) adds a little. One co-resident bond or
+// more: 0.62 (0.53 for a child); none: 0 (binds within about 14 turns).
+pub const SOCIAL_RESTORE_POP: f32 = 0.019;            // [CALIBRATE] was 0.010 (x0.7 blend)
 pub const SOCIAL_RESTORE_POP_THRESHOLD: f32 = 0.3;    // [FROZEN M53 SOFT]
 pub const SOCIAL_MERCHANT_MULT: f32 = 1.5;            // [FROZEN M53 SOFT]
 pub const SOCIAL_PRIEST_MULT: f32 = 1.3;              // [FROZEN M53 SOFT]
 pub const SPIRITUAL_RESTORE_TEMPLE: f32 = 0.020;      // [FROZEN M53 SOFT]
 pub const SPIRITUAL_RESTORE_MATCH: f32 = 0.015;       // [FROZEN M53 SOFT]
-pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.030;     // [FROZEN M53 SOFT]
-pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.030;     // [FROZEN M53 HARD] partial displaced restoration now relies on this being slightly stronger.
+// Autonomy: self-rule and freedom from persecution (of this agent's faith,
+// not of anyone in the region) restore it; persecution, harsh rule
+// (martial law) and the remembered conquest by another civ add pressure; a
+// conquest caps the conquered's autonomy; displacement blocks restoration.
+// Free and self-ruled: 0.75; foreign rule: 0.61 (0.48 after a displaced
+// spell); persecuted under its own civ: 0.09 at intensity 0.2, 0 at 0.5
+// (binds after about 20 turns from 0.75);
+// martial law: 0.42 self-ruled, 0.11 foreign; a fresh conquest by another
+// civ: capped at 0.20, fixed point 0.06 rising as the memory fades, back
+// above the threshold after about 50 turns unless the agent rebels (+0.10)
+// or takes the conqueror's side (the memory then no longer counts).
+pub const AUTONOMY_RESTORE_SELF_GOV: f32 = 0.031;     // [CALIBRATE] was 0.030
+pub const AUTONOMY_RESTORE_NO_PERSC: f32 = 0.060;     // [CALIBRATE] was 0.030 (region-wide)
+pub const AUTONOMY_PERSECUTION_PRESSURE: f32 = 0.020; // [CALIBRATE] new: per unit intensity
+pub const AUTONOMY_HARSH_RULE_PRESSURE: f32 = 0.030;  // [CALIBRATE] new: per unit harsh_rule
+/// Per unit of the strongest conquest memory (|intensity| / 127) whose
+/// conqueror is not the agent's civ: fades with the memory (half-life 30).
+pub const AUTONOMY_CONQUEST_PRESSURE: f32 = 0.060;    // [CALIBRATE] new
+/// The turn its region changes hands, an agent not of the conqueror's civ
+/// keeps at most this much autonomy.
+pub const AUTONOMY_CONQUEST_CAP: f32 = 0.20;          // [CALIBRATE] new
 pub const PURPOSE_RESTORE_SKILL: f32 = 0.020;         // [FROZEN M53 SOFT]
 pub const PURPOSE_RESTORE_WAR: f32 = 0.015;           // [FROZEN M53 SOFT]
 
@@ -400,10 +451,11 @@ pub const TRIADIC_THRESHOLD_REDUCTION: f32 = 0.15;    // [FROZEN M53 SOFT]
 pub const MAX_NEW_BONDS_PER_PASS: u8 = 2;       // [FROZEN M53 SOFT]
 pub const MAX_NEW_BONDS_PER_REGION: u32 = 50;   // [FROZEN M53 SOFT]
 
-// Social-need blend
-pub const SOCIAL_BLEND_ALPHA: f32 = 0.3;     // [FROZEN M53 HARD] was 0.0
-pub const SOCIAL_RESTORE_BOND: f32 = 0.030;  // [FROZEN M53 HARD] was 0.010
-pub const SOCIAL_BOND_TARGET: f32 = 4.0;     // [FROZEN M53 SOFT]
+// Social need: restoration from co-resident positive bonds (the old 0.3 / 0.7
+// blend of bonds anywhere and the population proxy is now a sum, see the
+// social restoration note above).
+pub const SOCIAL_RESTORE_BOND: f32 = 0.054;  // [CALIBRATE] was 0.030 (x0.3 blend)
+pub const SOCIAL_BOND_TARGET: f32 = 1.0;     // [CALIBRATE] was 4.0: one close tie is company
 
 // Synthesis budget
 pub const SYNTHESIS_BUDGET_MAX: u8 = 100;  // [FROZEN M53 SOFT]
