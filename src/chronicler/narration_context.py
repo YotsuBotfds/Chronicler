@@ -149,9 +149,16 @@ ROUTINE_TYPES: frozenset[str] = frozenset({
 })
 
 
+#: Endings the simulation records as events in their own right (a peace, a
+#: tribute lifted), not as the closing record of an episode.
+SUBSTANTIVE_ENDINGS: frozenset[str] = frozenset({"war_ended", "tribute_ended"})
+
+
 def is_bookkeeping(ev: "Event") -> bool:
-    """Closing and repeat records of an episode, and capability unlocks."""
+    """Closing and repeat records of an episode (``*_ended``), and capability unlocks."""
     t = ev.event_type
+    if t in SUBSTANTIVE_ENDINGS:
+        return False
     return (ev.episode in ("repeat", "end") or t.endswith("_ended") or t.startswith("capability_"))
 
 
@@ -167,6 +174,7 @@ TURNING_POINT_IMPORTANCE = 8
 # ---------------------------------------------------------------------------
 
 MAX_PROMPT_EVENTS = 12
+ROUTINE_FILL = 4        # routine lines are listed only while fewer lines than this exist
 MAX_FOLDED_PLACES = 4
 MAX_OMITTED_KINDS = 8
 
@@ -266,8 +274,10 @@ def select_prompt_events(
     first actor fold into the most salient of them (its line names the other
     places). The ``limit`` most salient lines are kept (:func:`salience`, with
     ``type_counts`` the run's count of each kind); ties go to the earlier
-    event. Routine kinds are listed only when fewer than ``limit`` other lines
-    exist. The returned counter counts every unlisted, unfolded event by type.
+    event. At most MAX_LINES_PER_KIND lines show one kind: the rest fold into
+    its best line. Routine kinds are listed only while fewer than
+    ROUTINE_FILL lines are kept (a quiet moment still reads as something).
+    The returned counter counts every unlisted, unfolded event by type.
     """
     chained = set(chain_ids)
     named = set(named_keys)
@@ -299,13 +309,14 @@ def select_prompt_events(
     per_kind: dict[str, list[PromptLine]] = {}
     for line in ranked:
         same = per_kind.setdefault(line.event.event_type, [])
-        if len(same) >= MAX_LINES_PER_KIND or (same and len(kept) >= limit):
+        routine = line.event.event_type in ROUTINE_TYPES
+        if not routine and (len(same) >= MAX_LINES_PER_KIND or (same and len(kept) >= limit)):
             target = same[0]  # the kind's best line names the others
             target.fold(line.order, line.event)
             for order_, ev in line._folded:
                 target.fold(order_, ev)
             continue
-        if len(kept) < limit:
+        if len(kept) < (min(limit, ROUTINE_FILL) if routine else limit):
             kept.append(line)
             same.append(line)
         else:

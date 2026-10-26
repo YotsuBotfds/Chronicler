@@ -626,7 +626,7 @@ def apply_diversity_penalty(
 
         threshold_civ = 0.40 * len(sel)
         for civ, count in civ_counts.most_common():
-            if count <= threshold_civ:
+            if count <= threshold_civ or count < 2:  # one moment is no over-representation
                 break
             # Find lowest-scored non-named moment involving this civ
             candidates = [
@@ -655,7 +655,7 @@ def apply_diversity_penalty(
 
         threshold_type = 0.30 * len(sel)
         for etype, count in type_counts.most_common():
-            if count <= threshold_type:
+            if count <= threshold_type or count < 2:
                 break
             candidates = [
                 (idx, m) for idx, m in enumerate(sel)

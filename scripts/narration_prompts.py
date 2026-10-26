@@ -89,7 +89,8 @@ def load_records(path: Path) -> list[dict]:
 
 def _substantive(e: dict) -> bool:
     t = e.get("event_type", "")
-    return (e.get("episode") not in _BOOKKEEPING and not t.endswith("_ended")
+    return (e.get("episode") not in _BOOKKEEPING
+            and (not t.endswith("_ended") or t in ("war_ended", "tribute_ended"))
             and not t.startswith("capability_"))
 
 
