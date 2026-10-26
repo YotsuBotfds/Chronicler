@@ -155,13 +155,15 @@ DRIVER_WORDS: dict[str, str] = {
 #: ``ROUTINE`` plus the declarations, adoptions and spreads that recur every
 #: few turns.) Guild events (``guild_founded``, ``guild_privilege``,
 #: ``guild_privilege_lost``, ``guild_levy``, ``guild_dissolved``) weigh by their
-#: importance like other events; the standing state names the guilds.
+#: importance like other events; the standing state names the guilds. A
+#: faction taking the lead at court (``faction_dominance_shift``, the burghers'
+#: rise with ``--guilds``) is a political change, not routine.
 ROUTINE_TYPES: frozenset[str] = frozenset({
     "develop", "invest_culture", "diplomacy", "trade", "build_started",
     "infrastructure_completed", "fund_instability", "fund_instability_failed", "action",
     "treaty_renewed", "treaty_expired", "loan_taken", "debt_written_off",
     "army_raised", "army_disbanded", "mercenary_spawned", "tech_focus_selected",
-    "trait_evolution", "faction_dominance_shift", "institutional_regime_shift",
+    "trait_evolution", "institutional_regime_shift",
     "quarantine", "aid_convoy", "mutual_aid", "price_inflation",
     "reform_pressure", "fiscal_strain", "elite_overproduction", "terrain_transition",
     "settlement_dissolved", "explore_failed", "pandemic_spread", "move_capital", "none",

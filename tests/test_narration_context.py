@@ -326,6 +326,13 @@ def test_placeholder_movement_names_stay_out_of_landmarks():
 
 # --- curator weights ------------------------------------------------------------------
 
+def test_guild_and_faction_kinds_are_weighed_not_counted_away():
+    for kind in ("guild_founded", "guild_privilege", "guild_privilege_lost", "guild_levy",
+                 "guild_dissolved", "faction_dominance_shift"):
+        assert kind not in nc.ROUTINE_TYPES
+        assert not nc.is_bookkeeping(_ev(1, kind))
+
+
 def test_routine_kinds_score_their_importance_and_no_more():
     events = [_ev(1, "develop", imp=3), _ev(1, "quarantine", imp=4)]
     scores = [9.0, 12.0]
