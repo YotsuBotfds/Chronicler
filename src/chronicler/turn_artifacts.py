@@ -14,7 +14,7 @@ import numpy as np
 import pyarrow as pa
 
 from chronicler.bridge_contract import FloatColumn, IntColumn
-from chronicler.columnar import numeric_array, pylist
+from chronicler.columnar import numeric_array, pylist, schema_names
 
 if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
@@ -52,7 +52,7 @@ class AgentRows:
     )
 
     def has(self, name: str) -> bool:
-        return name in self.batch.schema.names
+        return name in schema_names(self.batch)
 
     def _column(self, name: str) -> tuple[int | float | None, ...]:
         if name not in self.__columns:

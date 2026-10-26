@@ -88,3 +88,21 @@ def test_fishery_region_counts_match_the_row_loop(n_regions):
         "region": pa.array([0, None], pa.uint16()), "occupation": pa.array([0, 0], pa.uint8()),
     })
     assert _region_people_and_farmers(nullable, 3) is None
+
+
+def test_schema_names_are_each_batchs_own():
+    import arro3.core as ac
+
+    from chronicler.columnar import schema_names
+
+    batches = []
+    for i in range(7):
+        b = pa.record_batch({f"a{i}": pa.array([1]), f"b{i}": pa.array([2.0])})
+        batches.append(b if i % 2 else ac.RecordBatch.from_arrow(b))
+    for _ in range(2):  # more batches than the cache holds, twice over
+        for b in batches:
+            assert schema_names(b) == tuple(b.schema.names)
+    b = batches[-1]
+    assert schema_names(b) is schema_names(b)
+    with pytest.raises(AttributeError):
+        schema_names(object())
