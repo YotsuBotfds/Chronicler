@@ -188,7 +188,7 @@ the registry's fixed caps (10 living named characters per civ, 50 in all)
 apply; since 2026-10 every promotion counts living characters only, and
 regular promotions also have a per-population cap (one living named
 character per 50 of the civ's agents, at least one;
-[procedural-gates.md](procedural-gates.md#named-character-registry-fixed)),
+[procedural-gates.md](procedural-gates.md#3-named-character-registry-fixed)),
 which leaders are exempt from. The person
 appears in the next turn's promotions (with an agenda when agendas are on)
 and is installed then (`movement_leader` event, a deed). A leader raises

@@ -395,9 +395,11 @@ restorations, the named-character registry) are corrected below, in
    pretender, can restore at once: 8 of 20 procedural restorations (8 probe
    worlds) were counter-restorations within 1-45 turns. `recognized_by` of
    a pretender is never filled, so the recognition bonus never applies.
-5. **Fiscal stress.** Fiscal crises stay 3-4 times the template rate per
+5. **Fiscal stress.** Fiscal crises stay 3-5 times the template rate per
    civ: most procedural calls to arms are within reach, and wars in reach
-   borrow for the war chest (`finance.WAR_CHEST_SHARE`).
+   borrow for the war chest (`finance.WAR_CHEST_SHARE`). With item 1 they
+   rose further (procedural subset 1.33 -> 1.63, full gate with every item
+   1.40 -> 1.59 per civ-century); the cause was not traced.
 6. **Black-market leakage repeats per border region.**
    `simulation.apply_automatic_effects` (section 4) says "only one black
    market route per civ per turn", but its `break` leaves only the
@@ -421,6 +423,155 @@ items: `61578182...52283`, built fresh with `maturin develop --release
 --locked` and its compiled classes verified). Mechanism probes are 6-8
 seeds run in process with observation-only patches (counts below name
 them). Rates are per starting civ per 100 turns.
+
+### 3. Named-character registry (fixed)
+
+**Cause.** The native registry (`named_characters.rs`) counted every
+character ever named, the dead included, against 50 per world and 10 per
+civ, and checked a turn's candidates against the registry as it stood
+before the batch. Rebellion participants bypass the skill gate, so one
+rebellion could name dozens at once (42 at turn 36 in template seed 42).
+The registry filled in the first 50 turns of every world and agent-born
+great persons stopped: in 8 probe worlds per type (200 turns) 53-56 were
+named per world, 1-2 after turn 50; from then on about 5 named characters
+lived per world, and 1.7 (template) and 0.5 (procedural) agent-born great
+persons were active. Agendas, movement leaders, historiography and
+narration lost their subjects for the rest of the run.
+
+**Fix** (commit `027fb55`). The caps count living characters: a
+character's slot opens when its agent dies; its record stays in the
+registry (history, provenance) and pool ids are never reused, so no id is
+named twice. Regular promotions hold one living named character per 50 of
+the civ's living agents, at least 1 and at most 10, and 50 in the world
+(`AGENTS_PER_NAMED`, `MIN_NAMED_PER_CIV`); the counts are taken once per
+promotion pass and raised as candidates are accepted, so the caps hold
+within a batch. Movement leaders keep the fixed living caps (10 per civ, 50
+in all). Named characters die at about 2-2.5% a turn (half-life 25-30
+turns), so the cap sets the promotion rate.
+
+Every agent-born promotion used to emit an artifact intent when the civ's
+prestige was 25 or more (one per type per civ per tick). Bursts kept that
+small; continuous promotions did not. Probes (8 seeds, 500 template and 300
+procedural turns):
+
+| Agent-born promotion artifact | template artifacts | procedural artifacts | relic share (procedural) |
+| --- | ---: | ---: | ---: |
+| every promotion (old rule) | 3.11 | 4.50 | 0.48 |
+| chance 0.25 | 1.91 | 2.64 | 0.45 |
+| chance 0.15 (shipped, `AGENT_GP_ARTIFACT_CHANCE`; full gates, 200 and 100 seeds) | 1.77 | 2.41 | below half (type check passes) |
+
+With the fix (probes, same seeds and horizons) agent-born great persons
+are named at 3.3 (template) and 3.8 (procedural) per civ-century all run
+(58 and 95 per world after turn 50) and 2.3 and 6.4 are active per world
+after turn 50. The tick cost is negligible: native `get_promotions`
+0.025 -> 0.026 ms a turn on template seed 42, 0.040 -> 0.050 ms on
+procedural seed 42 (200 turns, two runs each), run CPU unchanged within
+noise (8.1-8.5 -> 7.6-8.1 s and 25.7-28.1 -> 26.0-26.7 s).
+
+Subsets (`main` -> item 1; comparator NO REGRESSION on all three):
+
+| | template 42-61 | template 62-81 | procedural 42-61 |
+| --- | --- | --- | --- |
+| gate | PASS -> PASS | PASS -> PASS | PASS -> PASS |
+| strict regression | fail -> strict | fail -> fail | strict -> strict |
+| needs: seeds > 0 (of 20) | 17 -> 18 | 13 -> 12 | 17 -> 15 |
+| artifacts per civ-century | 3.04 -> 2.78 | 3.42 -> 3.24 | 2.69 -> 3.15 |
+| migration / rebellion per agent-turn | 0.0682 / 0.0349 -> 0.0706 / 0.0421 | 0.0618 / 0.0173 -> 0.0639 / 0.0265 | 0.0769 / 0.0342 -> 0.0775 / 0.0302 |
+| satisfaction mean | 0.607 -> 0.605 | 0.618 -> 0.614 | 0.572 -> 0.569 |
+| agent-born great persons per world (lifetime) | 52.4 -> 27.1 | 51.5 -> 25.9 | 70.1 -> 83.0 |
+| agent-born great persons per world after turn 50 | 1.8 -> 19.7 | 1.9 -> 19.1 | 1.6 -> 63.5 |
+| agent-born great persons active at the end, per world | 0.1 -> 1.9 | 0.1 -> 2.3 | 0.1 -> 6.2 |
+| agent-born great persons | 6.54 -> 3.38 | 6.44 -> 3.24 | 3.50 -> 4.15 |
+| artifacts by agent-born persons per civ-century | 0.36 -> 0.46 | 0.53 -> 0.49 | 0.31 -> 0.85 |
+| great persons born | 1.944 -> 1.619 | 2.381 -> 2.163 | 1.222 -> 1.272 |
+| agendas declared | 5.713 -> 5.688 | 6.700 -> 6.375 | 4.838 -> 6.570 |
+| agendas fulfilled | 3.169 -> 3.181 | 3.794 -> 3.775 | 2.280 -> 2.748 |
+| movements founded | 1.212 -> 1.350 | 0.994 -> 1.175 | 1.673 -> 1.680 |
+| rebellions (civ events) | 1.825 -> 2.125 | 1.131 -> 1.337 | 2.405 -> 2.277 |
+| seeds that differ | 20 of 20 | 20 of 20 | 20 of 20 |
+
+Over 200 turns the opening burst gives way to a steady stream: fewer
+agent-born great persons in all on templates (52 -> 27 per world), many
+more after turn 50 (1.8 -> 19.7) and some active at the end (0.1 -> 1.9);
+on procedural worlds 70 -> 83 in all, 1.6 -> 63.5 after turn 50, 0.1 ->
+6.2 active at the end. Their artifacts stay small beside the 1-3 band
+(0.36-0.53 -> 0.46-0.85 per civ-century). These per-run counts come from
+reruns of the same trees (reports identical to the first runs).
+
+### 4. Calls to arms across the map (fixed)
+
+**Cause.** `diplomacy._calls_to_arms` (an alliance's call, an overlord's
+defence of its subject) and `politics.trigger_federation_defense` called
+partners anywhere on the map. In 8 procedural probe worlds (200 turns,
+item 1 applied) 17% of joins were three or more land steps from the
+attacker; a joined ally is at war and borrows for its war chest.
+
+**Fix** (commit `46ed76a`). A partner is called only if the war is within
+its armies' reach (`diplomacy.within_reach`, `CALL_REACH_HOPS = 2`): it
+borders the attacker or the defender, or holds land within two land steps
+of the attacker's. Out of reach it is not called: the alliance stands (no
+breach, no trust lost), an overlord bears no grievance, a federation member
+stays out (counted as `excused:alliance` and `excused:subject`). Partners
+in reach decide as before. In the same probe worlds joins three or more
+steps from the attacker fell from 17% to 3.5% (those left border the
+defender). Most joins were in reach already, so fiscal stress changes
+little (open item 5).
+
+Subsets (item 1 -> item 2; comparator NO REGRESSION on all three):
+
+| | template 42-61 | template 62-81 | procedural 42-61 |
+| --- | --- | --- | --- |
+| gate | PASS -> PASS | PASS -> PASS | PASS -> PASS |
+| strict regression | strict -> strict | fail -> fail | strict -> strict |
+| needs: seeds > 0 (of 20) | 18 -> 18 | 12 -> 12 | 15 -> 14 |
+| artifacts per civ-century | 2.78 -> 2.78 | 3.24 -> 3.24 | 3.15 -> 3.07 |
+| migration / rebellion per agent-turn | 0.0706 / 0.0421 -> 0.0706 / 0.0421 | 0.0639 / 0.0265 -> 0.0639 / 0.0265 | 0.0775 / 0.0302 -> 0.0769 / 0.0341 |
+| satisfaction mean | 0.605 -> 0.605 | 0.614 -> 0.614 | 0.569 -> 0.572 |
+| calls to arms | 0.013 -> 0.013 | 0.019 -> 0.019 | 0.282 -> 0.247 |
+| federation defence calls | 0.037 -> 0.037 | 0.006 -> 0.006 | 0.312 -> 0.345 |
+| wars declared | 0.300 -> 0.300 | 0.219 -> 0.219 | 1.120 -> 1.133 |
+| fiscal crises | 0.456 -> 0.456 | 0.713 -> 0.713 | 1.625 -> 1.515 |
+| state defaults | 0.113 -> 0.113 | 0.150 -> 0.150 | 0.350 -> 0.330 |
+| loans taken (events) | 1.025 -> 1.025 | 1.137 -> 1.137 | 2.942 -> 3.078 |
+| seeds that differ | 0 of 20 | 0 of 20 | 15 of 20 |
+
+### 5. Accuracy toward civs never met (fixed)
+
+**Cause.** `intelligence.compute_accuracy` added a dominant merchant
+(+0.1) or cultural (+0.05) faction's and each active merchant great
+person's (+0.05) accuracy toward every civ in the world. Accuracy above
+zero gives perceived stats, which make a civ a war target and a diplomatic
+partner. In the procedural probe worlds 11-15% of accuracy reads were of
+civs with no border, trade route, federation, vassalage, war or hostage
+between them, and 41-49% of declared wars (templates 26%) were on such
+civs.
+
+**Fix** (commit `e728c4a`). The bonuses apply only toward a civ in contact:
+a direct source (border, trade route, federation, vassalage, war, hostage)
+or, with the contact ledger on, any ledger flow (goods, people, soldiers,
+pilgrims). A civ never met stays unknown. The grudge bonus (a rival met in
+war) is unchanged. The additions keep their order, so the accuracy of civs
+in contact is bit-identical. In the probe worlds reads of civs with no
+direct contact fell from 13.8% to 7.3% (the rest are in ledger contact)
+and wars on them from 49% to 32%.
+
+Subsets (item 2 -> item 3; comparator NO REGRESSION on all three):
+
+| | template 42-61 | template 62-81 | procedural 42-61 |
+| --- | --- | --- | --- |
+| gate | PASS -> PASS | PASS -> PASS | PASS -> PASS |
+| strict regression | strict -> strict | fail -> fail | strict -> strict |
+| needs: seeds > 0 (of 20) | 18 -> 14 | 12 -> 13 | 14 -> 19 |
+| artifacts per civ-century | 2.78 -> 2.88 | 3.24 -> 3.17 | 3.07 -> 3.06 |
+| migration / rebellion per agent-turn | 0.0706 / 0.0421 -> 0.0689 / 0.0423 | 0.0639 / 0.0265 -> 0.0606 / 0.0191 | 0.0769 / 0.0341 -> 0.0778 / 0.0371 |
+| satisfaction mean | 0.605 -> 0.606 | 0.614 -> 0.621 | 0.572 -> 0.573 |
+| wars declared | 0.300 -> 0.350 | 0.219 -> 0.181 | 1.133 -> 1.058 |
+| calls to arms | 0.013 -> 0.044 | 0.019 -> 0.006 | 0.247 -> 0.198 |
+| treaties signed | 1.600 -> 1.700 | 1.481 -> 1.450 | 6.035 -> 5.520 |
+| fiscal crises | 0.456 -> 0.362 | 0.713 -> 0.556 | 1.515 -> 1.785 |
+| loans taken (events) | 1.025 -> 1.062 | 1.137 -> 1.044 | 3.078 -> 2.695 |
+| civs alive at end | 3.050 -> 2.950 | 3.450 -> 3.400 | 8.800 -> 8.250 |
+| seeds that differ | 20 of 20 | 19 of 20 | 20 of 20 |
 
 ### 6. Pretender restorations (cause found, documented, not changed)
 
@@ -472,6 +623,194 @@ the procedural share of civ-turns below 20 stability stayed (0.171 ->
 alone fell to 10 of 20, which fails that subset, while 82-101 without the
 correction gave 11 of 20). It is left for a change that rebalances the
 black market's coin and drain together (open item 6).
+
+### 7. The Gini coefficient depended on the machine (fixed)
+
+**Cause** (found by the turn-speed work, PR #44). `agent_bridge.compute_gini`
+summed the sorted-gap weights with `np.dot` and the total with a numpy
+reduction. Above 10,000 values OpenBLAS splits the dot product across
+threads, so a civ of more than 10,000 agents could get a different Gini,
+and a different trajectory, on a machine with another core count; even
+single-threaded BLAS kernels and SIMD reductions may sum in a
+CPU-dependent order.
+
+**Fix** (commit `f463b2e`). Both sums use `math.fsum`, which is exactly
+rounded and so independent of order, threads and CPU. Values change in
+the last bit (`1.1e-16` at 300-50,000 agents), so hybrid trajectories can
+change through threshold comparisons. Cost per call (one civ, sort
+included, one thread): 300 agents 0.041 ms (`np.dot` 0.017), 1,000 0.105
+(0.025), 10,000 0.96 (0.14), 50,000 5.6 ms (1.3); a 50,000-agent civ adds
+about 4 ms a turn. Agents-off runs are byte-identical (template seed 42 x
+150 and procedural seed 7 x 100, 24 files, 0 differ; the golden oracles
+are unchanged).
+
+Subsets (item 3 -> item 5; comparator NO REGRESSION on all three; every bundle
+differs only in its stored Gini values, checked field by field in the 8
+kept seeds, and every oracle result and system measure is identical):
+
+| | template 42-61 | template 62-81 | procedural 42-61 |
+| --- | --- | --- | --- |
+| gate | PASS -> PASS | PASS -> PASS | PASS -> PASS |
+| strict regression | strict -> strict | fail -> fail | strict -> strict |
+| needs: seeds > 0 (of 20) | 14 -> 14 | 13 -> 13 | 19 -> 19 |
+| artifacts per civ-century | 2.88 -> 2.88 | 3.17 -> 3.17 | 3.06 -> 3.06 |
+| migration / rebellion per agent-turn | 0.0689 / 0.0423 -> 0.0689 / 0.0423 | 0.0606 / 0.0191 -> 0.0606 / 0.0191 | 0.0778 / 0.0371 -> 0.0778 / 0.0371 |
+| satisfaction mean | 0.606 -> 0.606 | 0.621 -> 0.621 | 0.573 -> 0.573 |
+| wars declared | 0.350 -> 0.350 | 0.181 -> 0.181 | 1.058 -> 1.058 |
+| rebellions (civ events) | 2.087 -> 2.087 | 1.250 -> 1.250 | 2.305 -> 2.305 |
+| fiscal crises | 0.362 -> 0.362 | 0.556 -> 0.556 | 1.785 -> 1.785 |
+| seeds that differ | 20 of 20 | 20 of 20 | 20 of 20 |
+
+### Full gates of the corrections
+
+Code head `f463b2e` (items 1, 2, 3 and 5 on `main` `fc01d6e`) from a
+frozen copy with the extension `7becf518...99b43`, each gate run with
+`--require-strict-regression` into a fresh directory, against the
+procedural-gates branch's gates of the merged head (`1fa57c8`, the
+simulation of `main` `c8f7eb4` and `fc01d6e`; PR #44 is byte-identical).
+The validator saw exactly the requested seeds (200 and 100, no
+duplicates). The head after merging PR #45 (`37edfd3`) gives the same
+hybrid output (template seed 42 x 100, procedural seed 7 x 60: 26 files, 0
+differ). Rates per starting civ per 100 turns; "agent-born" counts are per
+world from every seed's bundle (the baselines' from their three kept
+seeds).
+
+| | template full, merged (baseline) | template full, this branch | procedural full, merged (baseline) | procedural full, this branch |
+| --- | --- | --- | --- | --- |
+| gate | PASS | PASS | PASS | PASS |
+| strict regression | strict | strict | strict | strict |
+| community: seeds with a community | 200 of 200 | 200 of 200 | 100 of 100 | 100 of 100 |
+| needs: seeds with net concordance > 0 | 174 of 200 (need 120) | 171 of 200 (need 120) | 83 of 100 (need 60) | 91 of 100 (need 60) |
+| needs: pooled lower bound | +0.193 | +0.169 | +0.120 | +0.174 |
+| needs: binding lower bound | +0.170 | +0.157 | +0.117 | +0.149 |
+| cohort: seeds in the expected direction | 200 of 200 | 200 of 200 | 100 of 100 | 100 of 100 |
+| era: seeds with inflections / silent collapses | 200 / 0 | 200 / 0 | 100 / 0 | 100 / 0 |
+| arcs: families / dominance | 6 / none | 6 / none | 6 / none | 6 / none |
+| artifacts: status | PASS | PASS | PASS | PASS |
+| artifacts per starting civ per 100 turns (1-3) | 1.69 | 1.77 | 2.00 | 2.41 |
+| artifacts: largest type share ok / loss rate | True / 6.0% | True / 6.0% | True / 4.9% | True / 4.2% |
+| satisfaction mean / latest | 0.615 / 0.626 | 0.617 / 0.626 | 0.566 / 0.567 | 0.567 / 0.574 |
+| migration per agent-turn (0.05-0.15) | 0.0635 | 0.0636 | 0.0746 | 0.0757 |
+| rebellion per agent-turn (0.02-0.08) | 0.0330 | 0.0364 | 0.0352 | 0.0389 |
+| gini in range | 0.886 | 0.850 | 0.915 | 0.914 |
+| all starting civs survive (max 0.20) | 0.175 | 0.125 | 0.130 | 0.070 |
+| extinct worlds | 0 | 0 | 0 | 0 |
+| final population min / median / max | 23 / 180 / 307 | 67 / 182 / 303 | 298 / 518 / 936 | 278 / 506 / 862 |
+
+| Measure | template full, merged (baseline) | template full, this branch | procedural full, merged (baseline) | procedural full, this branch |
+| --- | ---: | ---: | ---: | ---: |
+| wars declared | 0.321 | 0.277 | 1.203 | 1.145 |
+| calls to arms | 0.030 | 0.026 | 0.205 | 0.184 |
+| federation defence calls | 0.054 | 0.048 | 0.483 | 0.446 |
+| fiscal crises | 0.340 | 0.344 | 1.400 | 1.592 |
+| state defaults | 0.057 | 0.068 | 0.303 | 0.339 |
+| great persons born | 1.210 | 1.103 | 0.940 | 0.993 |
+| agendas declared | 2.895 | 4.207 | 3.463 | 5.334 |
+| agendas fulfilled | 1.680 | 2.307 | 1.650 | 2.380 |
+| artifacts created | 1.690 | 1.767 | 1.997 | 2.411 |
+| exiles restored | 0.004 | 0.010 | 0.054 | 0.056 |
+| movements founded | 0.905 | 0.973 | 1.503 | 1.592 |
+| rebellions (civ events) | 1.465 | 1.577 | 2.540 | 2.700 |
+| civs alive at end | 2.925 | 2.820 | 8.770 | 8.520 |
+| agent-born great persons per world (lifetime) | - | 61.9 | - | 116.0 |
+| ... named after turn 50, per world | - | 54.5 | - | 94.8 |
+| ... active at the end, per world | - | 1.9 | - | 5.0 |
+| agent-born great persons per civ-century | - | 3.09 | - | 3.87 |
+| artifacts by agent-born persons per civ-century | - | 0.45 | - | 0.69 |
+| seeds 42-44: agent-born lifetime / after turn 50 / active at end | 53/3/0, 45/1/0, 58/6/0 | 59/51/0, 68/63/4, 80/75/3 | 59/5/0, 55/4/0, 52/2/0 | 131/109/4, 121/101/10, 123/107/3 |
+
+* **Template full gate** (200 x 500, 62 minutes on a loaded host): PASS
+  strict, NO REGRESSION against the merged head. Needs 171 of 200 (174),
+  artifacts 1.77 (1.69), migration 0.0636 (0.0635), rebellion 0.0364
+  (0.0330), 0 extinct. Agent-born great persons are named all run (54.5 of
+  61.9 per world after turn 50; the baseline's kept seeds: 1-6 of 45-58)
+  and 1.9 are active at the end; agendas declared 2.90 -> 4.21 per
+  civ-century.
+* **Procedural full gate** (100 x 300, 32 minutes): PASS strict, NO
+  REGRESSION. Needs 91 of 100 (83), pooled and binding lower bounds +0.174
+  and +0.149 (+0.120, +0.117), artifacts 2.41 (2.00), migration 0.0757
+  (0.0746), rebellion 0.0389 (0.0352), 0 extinct. Agent-born great persons
+  94.8 of 116 per world after turn 50, 5.0 active at the end; their
+  artifacts 0.69 per civ-century. Calls to arms 0.205 -> 0.184 and wars
+  declared 1.20 -> 1.15 per civ-century, but fiscal crises 1.40 -> 1.59 and defaults
+  0.30 -> 0.34 (item 1 raised them on the procedural subset, 1.33 ->
+  1.63; open item 5).
+* The merged heads with PR #45 (`37edfd3`) and PR #46 (`4f6d0d7`, its
+  extension rebuilt, `735558c9...8a489`) give the gate tree's output
+  exactly: hybrid template seed 42 x 100 and procedural seed 7 x 60 (26
+  files) and agents-off template seed 42 x 150 and procedural seed 7 x 100
+  (24 files), 0 differ.
+
+### Golden fixtures and changed expectations
+
+The off-mode golden oracles (Python, native runtimes disabled) move only
+with item 3, so they were rolled forward in that commit as
+`corrected_open_items_2026_10.json` (turn hashes, RNG traces) and
+`corrected_artifacts_open_items_2026_10.json` (artifact bytes, both
+projections), with the `open_items` link in `ORACLE_CHAIN`;
+`corrected_farmland_2026_10*` stay frozen. Consecutive captures, first
+changed turn per workload:
+
+| Correction | single | standard | wide | Artifact files changed |
+| --- | --- | --- | --- | --- |
+| OI-NAMED-REGISTRY (agent modes only) | - | - | - | none |
+| OI-CALL-REACH (no call out of reach in these worlds) | - | - | - | none |
+| OI-CONTACT-INTEL | - | 9 | 0 (RNG traces change in standard and wide) | standard and wide: bundle |
+| OI-GINI-FSUM (hybrid only) | - | - | - | none |
+
+Changed expectations:
+
+* `test_performance_equivalence.py`, `test_governance_dormancy.py`,
+  `test_historiography.py`, `test_languages.py`: the live oracle is the
+  open-items fixture; a new test checks that its artifacts differ from the
+  farmland ones exactly in the declared workloads.
+* `test_performance_equivalence.py::test_duplicate_names_preserve_discarded_rng_draws`:
+  its second observer knew the target only through a cultural faction's
+  bonus, now gated on contact; the test puts the twins in contact
+  (`intelligence._ledger_contact`), as its frozen edf7299 capture assumed.
+  The fixture is unchanged.
+* `test_intelligence.py`: strangers stay unknown with merchant and cultural
+  factions and a merchant great person; ledger flow and hostages count as
+  contact; the grudge is not gated.
+* `test_politics.py`: the federation-defence tests give the ally a border
+  with the defender (members within reach join); a new test covers reach
+  by border, two steps and three steps.
+* `test_diplomacy.py`: `within_reach`; an ally and an overlord out of reach
+  are excused (the treaty stands, no trust or grievance); an ally bordering
+  the defender is called.
+* `test_artifacts.py`: the agent-prophet burst test sets
+  `AGENT_GP_ARTIFACT_CHANCE` to 1 (it tests the per-tick deduplication);
+  a new test covers the deterministic agent roll (aggregate persons are not
+  rolled).
+* Rust `named_characters` and `ffi`: the old cap tests counted the dead;
+  new tests cover the per-population cap, caps within a batch, slots opened
+  by deaths with records and ids kept, and the leaders' fixed caps; the
+  exile-role test promotes one agent per pool.
+* `test_recovery_gini_numerics.py`: exactly rounded sums, shuffled input,
+  no BLAS call, and the same bits with 1 and 4 BLAS threads.
+
+### Tests of the corrections
+
+On the code head `f463b2e` (later commits change documentation only), with
+the extension built fresh from the merged source (`7becf518...99b43`:
+PR #44's Rust plus item 1) and its compiled
+`AgentSimulator`, `EcologySimulator` and `PoliticsSimulator` verified:
+
+| Suite | Result |
+| --- | --- |
+| `cargo test` (no debug info) | 1,012 passed, 0 failed, 2 ignored |
+| `pytest -m "not slow"` (native) | 6,332 passed, 3 skipped |
+| `pytest -m slow` (native) | 12 passed, 3 skipped |
+| no-Rust suite (`chronicler_agents` absent) | 6,099 passed, 237 skipped |
+| offline oracle lane (`scripts/run_python_oracle_checks.py`) | PASS in 97.6 s; 2,330 passed, 36 skipped; largest chunk `systems-2` 41.4 s of 110 |
+
+The items 3 and 5 commits were also checked in clean exports of their
+heads (focused suites: 459 and 290 passed). On the merged head `4f6d0d7`
+(PR #46), with the extension rebuilt (`735558c9...8a489`) and verified:
+`cargo test` 1,020 passed, 2 ignored; `pytest -m "not slow"` 6,420 passed,
+3 skipped; the oracle lane PASS in 90.8 s (2,407 passed, 38 skipped). A
+first not-slow run there lost one test to a full shared disk (`ENOSPC`);
+that file passed alone and the rerun above is clean.
 
 ## Gates
 

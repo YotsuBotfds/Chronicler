@@ -179,6 +179,13 @@ Effects:
   utility (trust, goodwill toward the defender, grievance toward the
   attacker, the odds, other wars, unrest) is positive; otherwise it breaks
   the alliance. An overlord likewise decides whether to defend its subject.
+  Since 2026-10 only a partner within reach is called (`within_reach`,
+  `CALL_REACH_HOPS = 2`): it borders the attacker or the defender, or holds
+  land within two land steps of the attacker's. A partner out of reach is
+  not called: the alliance stands with no breach and no trust lost, and an
+  overlord bears no grievance (`excused:alliance`, `excused:subject`).
+  Federation members (`politics.trigger_federation_defense`) follow the same
+  rule. See [procedural-gates.md](procedural-gates.md#4-calls-to-arms-across-the-map-fixed).
 * **Breach.** The breaker loses 5 stability (`guard-shock`) and up to 10
   prestige (`keep`); the victim gains 25 treaty grievance and -35 trust,
   every other living civ -5 trust in the breaker.
