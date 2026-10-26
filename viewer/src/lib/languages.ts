@@ -71,8 +71,8 @@ function at<T>(rows: Array<[number, T]>, turn: number): T | null {
   return value;
 }
 
-/** A word's display form at a turn (null before it was coined or after it was replaced). */
-export function formAt(word: LanguageWord, turn: number): string | null {
+/** A word's display form at a turn, without its tail (null before it was coined or after it was replaced). */
+function stemAt(word: LanguageWord, turn: number): string | null {
   if (word.turn > turn || (word.until !== null && word.until <= turn)) {
     return null;
   }
@@ -83,7 +83,67 @@ export function formAt(word: LanguageWord, turn: number): string | null {
     }
     form = f;
   }
-  return form + word.tail;
+  return form;
+}
+
+/** A word's display form at a turn (null before it was coined or after it was replaced). */
+export function formAt(word: LanguageWord, turn: number): string | null {
+  const stem = stemAt(word, turn);
+  return stem === null ? null : stem + word.tail;
+}
+
+// --- The field as of a turn ---------------------------------------------
+// The field is exported after the run: its languages include those born
+// later, with their final status, endonym, sound inventory and changes.
+
+/** Languages known at `turn` (born by then; reconstructed proto-languages always), in tree order. */
+export function familyTreeAt(field: LanguagesField, turn: number): FamilyNode[] {
+  return familyTree(field).filter(({ language }) => language.status === "reconstructed" || language.turn <= turn);
+}
+
+/**
+ * A language's status at `turn`: extinct from its `last_spoken` turn, living
+ * before it. The record keeps only the latest extinction (a revival clears
+ * it), so an earlier extinction followed by a revival is not shown.
+ */
+export function languageStatusAt(language: LanguageInfo, turn: number): string {
+  if (language.status === "extinct" && language.last_spoken !== null && language.last_spoken > turn) {
+    return "living";
+  }
+  return language.status;
+}
+
+/** Its sound changes recorded by `turn`. */
+export function changesAt(language: LanguageInfo, turn: number): LanguageInfo["changes"] {
+  return language.changes.filter(([changeTurn]) => changeTurn <= turn);
+}
+
+/**
+ * The sound inventory is the final one: unknown at `turn` when a change
+ * after it (not a prehistoric one) may have altered it.
+ */
+export function phonologyKnownAt(language: LanguageInfo, turn: number): boolean {
+  return !language.changes.some(([changeTurn, , , , , prehistoric]) => !prehistoric && changeTurn > turn);
+}
+
+/**
+ * Its speakers' name for themselves at `turn`, as the export's `native`
+ * reads it at the end: the language's name, then, for the first civilization
+ * (by index) that ever spoke it. Null without one.
+ */
+export function nativeNameAt(field: LanguagesField, language: LanguageInfo, turn: number,
+                             words: LanguageWord[]): string | null {
+  const civ = field.civs.find((entry) => entry.lang.some(([, lang]) => lang === language.id))?.civ;
+  if (civ === undefined) {
+    return null;
+  }
+  let name: string | null = null;
+  for (const word of words) {
+    if (word.lang === language.id && word.kind === "civ" && word.ref === civ) {
+      name = stemAt(word, turn) ?? name;
+    }
+  }
+  return name;
 }
 
 /** The English meaning of a word ("green plain"), following loans to their source. */

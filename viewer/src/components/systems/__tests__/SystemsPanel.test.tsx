@@ -23,6 +23,8 @@ import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
 import { WarsPanel } from "../WarsPanel";
 import { crisesAtSnapshot, famineSpans, foodCrisisSpans } from "../../../lib/food";
+import { cityRecord, cityRecordAt } from "../../../lib/cities";
+import { movementRecord } from "../../../lib/movements";
 import { TechniquesPanel } from "../TechniquesPanel";
 
 afterEach(cleanup);
@@ -397,15 +399,45 @@ describe("CitiesPanel", () => {
   });
 
   it("follows the city chosen in the table, including one that fell", () => {
-    render(<CitiesPanel {...props(cities, citiesAt(150))} />);
+    const view = render(<CitiesPanel {...props(cities, citiesAt(150))} />);
     const table = screen.getByRole("table", { name: "Cities at turn 150" });
     fireEvent.click(within(table).getByRole("button", { name: "Verdant Plains Settlement 2" }));
     const history = screen.getByRole("region", { name: "History of Verdant Plains Settlement 2" });
-    expect(within(history).getByText(/fell at turn 165 \(abandoned\)/)).toBeInTheDocument();
-    // Its famine is a recorded moment; the fall (turn 165) is not shown at turn 150.
+    // Its record as known at turn 150: founded at 120, its peak so far; the
+    // fall (turn 165) is neither in the note nor among the moments yet.
+    expect(within(history).getByText(/founded turn 120; peak by turn 150 town/)).toBeInTheDocument();
+    expect(within(history).queryByText(/fell at turn 165/)).not.toBeInTheDocument();
     const moments = within(history).getByRole("list", { name: "Recorded moments of Verdant Plains Settlement 2" });
     expect(within(moments).getByText(/Famine/)).toBeInTheDocument();
     expect(within(moments).queryByText(/is abandoned/)).not.toBeInTheDocument();
+    // From turn 165 the fall is recorded.
+    view.rerender(<CitiesPanel {...props(cities, citiesAt(170))} />);
+    const later = screen.getByRole("region", { name: "History of Verdant Plains Settlement 2" });
+    expect(within(later).getByText(/fell at turn 165 \(abandoned\)/)).toBeInTheDocument();
+  });
+
+  it("states a later city's founding is not recorded yet, and takes no later city as the default focus", () => {
+    const record = cityRecord(cities, 5)!;
+    const before = citiesAt(record.founded_turn - 1);
+    // A city chosen at a later turn stays selected while scrubbing back.
+    const view = render(<CitiesPanel {...props(cities, citiesAt(150))} />);
+    fireEvent.click(within(screen.getByRole("table", { name: "Cities at turn 150" }))
+      .getByRole("button", { name: "Verdant Plains Settlement 2" }));
+    view.rerender(<CitiesPanel {...props(cities, before)} />);
+    const history = screen.getByRole("region", { name: "History of Verdant Plains Settlement 2" });
+    expect(within(history).getByText(`Not yet founded at turn ${before.turn}.`)).toBeInTheDocument();
+    expect(within(history).queryByText(/peak/)).not.toBeInTheDocument();
+    expect(cityRecordAt(cities, 5, before.turn)).toBeNull();
+    expect(cityRecordAt(cities, 5, 150)).toMatchObject({ fell: false, peakRank: 1 });
+    expect(cityRecordAt(cities, 5, 165)?.fell).toBe(true);
+    // The default focus at a turn with no living city is a city known by then, never a later one.
+    view.unmount();
+    const first = cities.history.find((snapshot) => (snapshot.cities?.cities.length ?? 0) > 0)!;
+    const empty = cities.history.filter((snapshot) => snapshot.turn < first.turn).at(-1);
+    if (empty) {
+      render(<CitiesPanel {...props(cities, empty)} />);
+      expect(screen.queryByRole("region", { name: /History of/ })).not.toBeInTheDocument();
+    }
   });
 
   it("shows the wares each city made, and a dash in bundles from before crafts", () => {
@@ -519,6 +551,37 @@ describe("MovementsPanel", () => {
     expect(screen.getByRole("region", { name: `History of ${winner}` })).toBeInTheDocument();
     const totals = screen.getByLabelText(`Movement totals by turn ${snapshot.turn}`);
     expect(within(totals).getByText("Lasting reforms enacted")).toBeInTheDocument();
+  });
+
+  it("follows a movement as known at the scrubbed turn, and takes no later one as the default focus", () => {
+    // Before the first movement nothing is followed (main dae4ba5 followed the
+    // run's first movement, with its whole record).
+    const firstTurn = movements.history.find((snapshot) => snapshot.agent_movements!.living.length > 0)!.turn;
+    const before = movements.history.filter((snapshot) => snapshot.turn < firstTurn).at(-1)!;
+    const view = render(<MovementsPanel {...props(movements, before)} />);
+    expect(screen.queryByRole("region", { name: /History of/ })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("Whole record");
+    view.unmount();
+
+    // A movement that ended: at a turn while it lived, its note has no end and its totals so far.
+    const records = movements.world_state.agent_movements!.movements!;
+    const id = records.findIndex((record) => record.ended_turn != null
+      && movements.history.some((snapshot) => snapshot.turn < record.ended_turn!
+        && snapshot.agent_movements!.living.some((row) => row.id === records.indexOf(record))));
+    const record = movementRecord(movements, id)!;
+    const living = movements.history.filter((snapshot) => snapshot.turn < record.ended_turn!
+      && snapshot.agent_movements!.living.some((row) => row.id === id)).at(-1)!;
+    const shown = render(<MovementsPanel {...props(movements, living)} />);
+    fireEvent.click(within(screen.getByRole("table", { name: `Movements at turn ${living.turn}` }))
+      .getByRole("button", { name: record.name }));
+    const note = within(screen.getByRole("region", { name: `History of ${record.name}` }))
+      .getByText(/founded turn/).textContent ?? "";
+    expect(note).toContain(`By turn ${living.turn}: peak`);
+    expect(note).not.toContain(`at turn ${record.ended_turn}`);
+    shown.rerender(<MovementsPanel {...props(movements, MOVEMENTS_LAST)} />);
+    const after = within(screen.getByRole("region", { name: `History of ${record.name}` }))
+      .getByText(/founded turn/).textContent ?? "";
+    expect(after).toContain(`at turn ${record.ended_turn}`);
   });
 
   it("says so before the first movement and is a tab only when the run records movements", () => {

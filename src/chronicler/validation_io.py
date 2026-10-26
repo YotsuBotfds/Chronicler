@@ -162,6 +162,22 @@ NEEDS_BEHAVIOUR_THRESHOLDS = {
 # and swap sides within a few turns.
 NEEDS_BINDING_DIVERGENCE = 0.05
 
+# M53 oracle 4 (cohort distinctiveness). Method 1 (results without a
+# ``method_version``) counted each snapshot's migrations and rebellions on
+# turns t .. t+19, its window starting at the graph and needs snapshot turn.
+# Those sidecars are written after turn t's agent tick (agent_bridge), as the
+# needs oracle's are: the tick's decisions have already moved the migrants
+# (the matched region), raised the rebels' autonomy and written the turn's
+# memories, whose (event type, turn, valence) signatures form the
+# communities. Method 2 (docs/integration/consistency-followups.md) counts
+# turns t+1 .. t+20 (eligible when t + 20 < total turns: a run of N turns
+# ticks turns 0 .. N-1); communities, matching, criteria and thresholds are
+# method 1's. ``run_cohort_oracle(..., method_version=1)`` re-scores method 1.
+COHORT_ORACLE_METHOD_VERSION = 2
+COHORT_LEGACY_METHOD_VERSION = 1
+COHORT_METHOD_VERSIONS = (COHORT_LEGACY_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION)
+COHORT_OUTCOME_WINDOW_TURNS = 20
+
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
 # (docs/integration/wave3-defaults.md). A silent collapse is a population
 # collapse of one civ that neither its own era signals nor its recorded crises
@@ -2794,7 +2810,25 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
     }
 
 
-def run_cohort_oracle(seed_runs: list[dict]) -> dict:
+def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) -> dict:
+    """M53 oracle 4, method 2: community members migrate less and rebel more
+    than matched non-members over the ``COHORT_OUTCOME_WINDOW_TURNS`` turns
+    after a snapshot.
+
+    Per seed, the best eligible graph and needs snapshot
+    (``_cohort_candidate_priority``); PASS when 60% of analyzed seeds show an
+    expected direction with an effect above 0.10 and the median strongest
+    effect is above 0.10. Method 2 counts turns t+1 .. t+20 after a turn-t
+    snapshot (``COHORT_ORACLE_METHOD_VERSION``); ``method_version=1``
+    re-scores method 1 (turns t .. t+19) exactly, results without a
+    ``method_version`` key.
+    """
+    if method_version is None:
+        method_version = COHORT_ORACLE_METHOD_VERSION
+    if isinstance(method_version, bool) or method_version not in COHORT_METHOD_VERSIONS:
+        raise ValueError(f"cohort oracle method_version must be one of {COHORT_METHOD_VERSIONS}: {method_version!r}")
+    outcome_offset = 1 if method_version >= COHORT_ORACLE_METHOD_VERSION else 0
+    window = COHORT_OUTCOME_WINDOW_TURNS
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
@@ -2813,7 +2847,8 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
         best_rebellion_result = None
         best_strongest_effect = -1.0
         for turn in turns:
-            if total_turns and turn + 20 > total_turns:
+            # The window's last turn, turn + offset + window - 1, must have been simulated.
+            if total_turns and turn + outcome_offset + window > total_turns:
                 continue
             graph_snapshot = _graph_snapshot_from_columns(
                 run.get("relationship_columns"),
@@ -2832,7 +2867,7 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
             )
             if not communities:
                 continue
-            events_window = _filter_events_window(run["events"], turn, window=20)
+            events_window = _filter_events_window(run["events"], turn + outcome_offset, window=window)
             migration_result = compute_cohort_distinctiveness(
                 communities,
                 events_window,
@@ -2884,14 +2919,22 @@ def run_cohort_oracle(seed_runs: list[dict]) -> dict:
 
     required = required_seed_count(analyzed_seeds, 0.60)
     median_effect_size = statistics.median(effect_sizes) if effect_sizes else 0.0
-    return {
+    result = {
         "status": "PASS" if seeds_with_expected_direction >= required and median_effect_size > 0.10 else "FAIL",
+    }
+    if outcome_offset:
+        # Method 2; method 1 results keep their bytes without these keys.
+        result["method_version"] = method_version
+        result["outcome_window_start_offset"] = outcome_offset
+        result["outcome_window_turns"] = window
+    result.update({
         "analyzed_seeds": analyzed_seeds,
         "required_seed_count": required,
         "seeds_with_expected_direction": seeds_with_expected_direction,
         "median_effect_size": median_effect_size,
         "per_seed": per_seed,
-    }
+    })
+    return result
 
 
 def run_artifact_oracle(seed_runs: list[dict]) -> dict:

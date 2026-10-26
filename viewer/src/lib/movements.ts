@@ -214,26 +214,70 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
+/** A movement's record as known at `upToTurn` (never a value the record dates later). */
+export interface MovementRecordAt {
+  record: MovementRecord;
+  /** Civ index it opposed in its latest row by then (the record's otherwise). */
+  target: number;
+  /** Its leader in its latest row by then (the record's leader is the last one). */
+  leader: string | null;
+  /** Peak members over its rows by then; its demands and martyrs recorded by then. */
+  peakMembers: number;
+  demands: number;
+  martyrs: number;
+  /** Whether it had ended by `upToTurn`. */
+  ended: boolean;
+}
+
 /**
- * One sentence for a movement's final record. The record covers the whole run,
- * so its totals and its end are marked as such when the scrubbed turn is earlier.
+ * The movement as known at `upToTurn`; null before its founding. The final
+ * `world_state` record holds the whole run (peak, totals, end, last leader),
+ * so the values come from its history rows and dated moments up to the turn.
  */
+export function movementRecordAt(bundle: Bundle, id: number, upToTurn: number): MovementRecordAt | null {
+  const record = movementRecord(bundle, id);
+  if (!record || record.founded_turn > upToTurn) {
+    return null;
+  }
+  let latest: MovementSnapshotRow | null = null;
+  let peakMembers = 0;
+  for (const snapshot of bundle.history) {
+    if (snapshot.turn > upToTurn) {
+      continue;
+    }
+    const row = movementRow(snapshot, id);
+    if (row) {
+      latest = row;
+      peakMembers = Math.max(peakMembers, row.members);
+    }
+  }
+  const dated = record.history.filter(([turn]) => turn <= upToTurn);
+  return {
+    record,
+    target: latest?.target ?? record.target,
+    leader: latest ? (latest.leader ?? null) : null,
+    peakMembers,
+    demands: dated.filter(([, kind]) => kind === "demand").length,
+    martyrs: latest ? latest.martyrs : dated.filter(([, kind]) => kind === "martyr").length,
+    ended: record.ended_turn != null && record.ended_turn <= upToTurn,
+  };
+}
+
+/** One sentence for a movement as known at the turn (`movementRecordAt`). */
 export function movementRecordNote(
-  record: MovementRecord, target: string | null, home: string | null, currentTurn: number,
+  known: MovementRecordAt, target: string | null, home: string | null, currentTurn: number,
 ): string {
+  const { record } = known;
   const creed = CREED_LABELS[record.creed] ?? "movement";
   let text = `A ${creed} movement against ${target ?? "?"}, founded turn ${record.founded_turn} in ${home ?? "?"}`;
-  if (record.leader) {
-    text += `, led by ${record.leader}`;
+  if (known.leader) {
+    text += `, led by ${known.leader}`;
   }
-  text += `. Whole record: peak ${count(record.peak_members, "member")}, ${count(record.demands, "demand")}, `
-    + `${count(record.martyrs, "martyr")}`;
+  text += `. By turn ${currentTurn}: peak ${count(known.peakMembers, "member")}, ${count(known.demands, "demand")}, `
+    + `${count(known.martyrs, "martyr")}`;
   const end = END_LABELS[record.end] ?? "";
-  if (end && record.ended_turn != null) {
+  if (known.ended && end && record.ended_turn != null) {
     text += `; ${END_PHRASES[end] ?? end} at turn ${record.ended_turn}`;
-    if (record.ended_turn > currentTurn) {
-      text += ` (after turn ${currentTurn})`;
-    }
   }
   return `${text}.`;
 }

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   civName, CREED_COLORS, CREED_LABELS, creedSeries, institutionLabel, leaderLabel, martyrdoms, memberSeries,
-  MOVEMENT_COUNTERS, movementHistory, movementKeys, movementRecord, movementRecordNote, movementStageRows, reformName,
-  reformsInForce, regionName, STAGE_COLORS, STAGE_ORDER,
+  MOVEMENT_COUNTERS, movementHistory, movementKeys, movementRecord, movementRecordAt, movementRecordNote,
+  movementStageRows, reformName, reformsInForce, regionName, STAGE_COLORS, STAGE_ORDER,
 } from "../../lib/movements";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLegend, CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
@@ -26,11 +26,14 @@ export function MovementsPanel({
   const at = snapshot?.turn ?? currentTurn;
   const living = state?.living ?? [];
   const reforms = reformsInForce(snapshot);
+  // Movements recorded by the scrubbed turn (a later one is not the default focus).
+  const known = useMemo(
+    () => movementKeys(history.filter((row) => row.turn <= currentTurn)), [history, currentTurn]);
   const [chosen, setChosen] = useState<number | null>(null);
-  const selected = chosen ?? living[0]?.id ?? keys[0]?.id ?? null;
+  const selected = chosen ?? living[0]?.id ?? known[known.length - 1]?.id ?? null;
   const selectedName = keys.find((key) => key.id === selected)?.name ?? null;
   const members = selected == null ? [] : memberSeries(history, selected, MEMBERS);
-  const record = selected == null ? null : movementRecord(bundle, selected);
+  const record = selected == null ? null : movementRecordAt(bundle, selected, currentTurn);
   const moments = selected == null ? [] : movementHistory(bundle, selected, currentTurn);
   const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.movements, currentTurn);
 
@@ -175,11 +178,13 @@ export function MovementsPanel({
       {selected != null && selectedName && (
         <section className="systems-section" aria-label={`History of ${selectedName}`}>
           <h3>{selectedName}</h3>
-          {record && (
+          {record ? (
             <p className="systems-note">
-              {movementRecordNote(record, civName(bundle, record.target), regionName(bundle, record.home_region),
+              {movementRecordNote(record, civName(bundle, record.target), regionName(bundle, record.record.home_region),
                 currentTurn)}
             </p>
+          ) : movementRecord(bundle, selected) && (
+            <p className="systems-note">Not yet founded at turn {currentTurn}.</p>
           )}
           <CivLineChart
             data={members}

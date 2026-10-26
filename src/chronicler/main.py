@@ -1488,7 +1488,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch", type=int, default=None,
                         help="Run N chronicles with sequential seeds")
     parser.add_argument("--parallel", type=int, nargs="?", const=-1, default=None,
-                        help="Parallel workers for batch mode (default: cpu_count-1).")
+                        help="Parallel workers for batch mode: --parallel N runs N workers; "
+                             "a bare --parallel runs cpu_count-1.")
     parser.add_argument("--fork", type=str, default=None,
                         help="Fork from a saved state.json with a new seed")
     parser.add_argument("--interactive", action="store_true", default=False,

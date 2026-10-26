@@ -171,7 +171,8 @@ class PreviewTests(unittest.TestCase):
                        {"alternatives": ()}, {"alternatives": (object(), object(), object())},
                        {"max_alternatives": True}, {"max_alternatives": 0},
                        {"max_alternatives": 2.0}, {"session": object()}, {"transport": None}):
-            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+            # subTest parameters are plain values: pytest-xdist serializes them.
+            with self.subTest(kwargs=repr(kwargs)), self.assertRaises(ValueError):
                 call(session, **kwargs)
         for label in ("", " ", "x" * 129, None, 4):
             with self.subTest(label=label), self.assertRaises(PreviewError):
@@ -193,7 +194,7 @@ class PreviewTests(unittest.TestCase):
                      replace(alternatives[1].tick, orders=[cl.Order("bad", 2, "hold")]),
                      object())
         for tick in bad_ticks:
-            with self.subTest(tick=tick), self.assertRaisesRegex(PreviewError, "alternative 'bad'"):
+            with self.subTest(tick=repr(tick)), self.assertRaisesRegex(PreviewError, "alternative 'bad'"):
                 call(session, (alternatives[0], Alternative("bad", tick)))
             self.assertEqual(cl.canonical_bytes(session), before)
             self.assertEqual(es.session_digest(session, es.documented_transport_policy()), before_digest)
@@ -406,7 +407,7 @@ class CliTests(unittest.TestCase):
             for flag in ("--path", "--transport", "--alternatives"):
                 args = self.arguments.copy()
                 args[args.index(flag) + 1] = str(path)
-                with self.subTest(path=path, flag=flag):
+                with self.subTest(path=path.name, flag=flag):
                     result = self.process(args)
                     self.assertEqual((result.returncode, result.stdout), (3, b""))
                     self.assertIn(b"regular", result.stderr)

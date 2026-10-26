@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { LanguagesField } from "../../types";
 import {
-  decodeWords, etymology, familyTree, glossary, howLabel, namesFor, type LanguageWord,
+  changesAt, decodeWords, etymology, familyTreeAt, glossary, howLabel, languageStatusAt, namesFor, nativeNameAt,
+  phonologyKnownAt, type LanguageWord,
 } from "../../lib/languages";
 
 const KIND_LABELS: Record<string, string> = {
@@ -12,7 +13,10 @@ const KIND_LABELS: Record<string, string> = {
   person: "Person",
 };
 
-function Etymology({ field, wordId, words }: { field: LanguagesField; wordId: number; words: LanguageWord[] }) {
+function Etymology({ field, wordId, words, turn }: {
+  field: LanguagesField; wordId: number; words: LanguageWord[]; turn: number;
+}) {
+  // Its forms through the sound changes recorded by `turn` (later ones are not shown).
   const steps = etymology(field, wordId, words);
   return (
     <ol className="phase75-etymology" aria-label="Etymology">
@@ -24,7 +28,7 @@ function Etymology({ field, wordId, words }: { field: LanguagesField; wordId: nu
             <span> from {step.word.parts.map(([form, gloss]) => `${form} '${gloss}'`).join(" + ")}</span>
           )}
           <ul className="phase75-etymology-forms">
-            {step.forms.map((f) => (
+            {step.forms.filter((f) => f.turn <= turn).map((f) => (
               <li key={`${f.turn}-${f.form}`}>
                 <strong>{f.form}</strong> <span>turn {f.turn}</span>
                 {f.change && <em> ({f.change})</em>}
@@ -54,18 +58,23 @@ export function LanguagesPanel({
   selected?: { kind: "region" | "civ"; ref: number } | null;
 }) {
   const words = useMemo(() => (field ? decodeWords(field) : []), [field]);
-  const tree = useMemo(() => (field ? familyTree(field) : []), [field]);
+  // The languages known at the turn, with their status then (the field is the end-of-run record).
+  const tree = useMemo(() => (field ? familyTreeAt(field, turn) : []), [field, turn]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [wordId, setWordId] = useState<number | null>(null);
   if (!field || tree.length === 0) {
     return null;
   }
-  const living = tree.find((node) => node.language.status === "living")?.language.id ?? tree[0].language.id;
-  const langId = chosen ?? living;
+  const living = tree.find((node) => languageStatusAt(node.language, turn) === "living")?.language.id
+    ?? tree[0].language.id;
+  const langId = chosen !== null && tree.some((node) => node.language.id === chosen) ? chosen : living;
   const language = field.languages.find((l) => l.id === langId) ?? tree[0].language;
   const names = selected ? namesFor(field, selected.kind, selected.ref, turn, words) : [];
   const rows = glossary(field, language.id, turn, words);
-  const showWord = wordId !== null && words.some((w) => w.id === wordId) ? wordId : null;
+  // A word coined after the turn (chosen at a later one) has no etymology yet.
+  const showWord = wordId !== null && words.some((w) => w.id === wordId && w.turn <= turn) ? wordId : null;
+  const native = nativeNameAt(field, language, turn, words);
+  const changes = changesAt(language, turn).length;
   return (
     <div className="phase75-languages" aria-label="Languages">
       {names.length > 0 && (
@@ -100,18 +109,21 @@ export function LanguagesPanel({
         >
           {tree.map(({ language: l, depth }) => (
             <option key={l.id} value={l.id}>
-              {"  ".repeat(depth)}{l.name} ({l.status}{l.status !== "reconstructed" ? `, from turn ${l.turn}` : ""})
+              {"  ".repeat(depth)}{l.name} ({languageStatusAt(l, turn)}{l.status !== "reconstructed" ? `, from turn ${l.turn}` : ""})
             </option>
           ))}
         </select>
       </label>
       <p className="phase75-detail-copy">
-        {language.native ? `${language.native} to its speakers. ` : ""}
+        {native ? `${native} to its speakers. ` : ""}
         {language.origin === "secession" || language.origin === "separation" || language.origin === "prehistory"
           ? `Daughter of ${field.languages.find((l) => l.id === language.parent)?.name ?? "?"} (${language.origin}). `
           : ""}
-        Sounds: {language.phonology.consonants} / {language.phonology.vowels}.
-        {" "}{language.changes.length} sound change{language.changes.length !== 1 ? "s" : ""}.
+        {/* The exported inventory is the final one; a later sound change may have altered it. */}
+        Sounds: {phonologyKnownAt(language, turn)
+          ? `${language.phonology.consonants} / ${language.phonology.vowels}`
+          : "Unavailable at this turn"}.
+        {" "}{changes} sound change{changes !== 1 ? "s" : ""} by turn {turn}.
       </p>
       <ul className="phase75-account-list" aria-label="Glossary">
         {rows.slice(0, 40).map((row) => (
@@ -125,7 +137,7 @@ export function LanguagesPanel({
           </li>
         ))}
       </ul>
-      {showWord !== null && <Etymology field={field} wordId={showWord} words={words} />}
+      {showWord !== null && <Etymology field={field} wordId={showWord} words={words} turn={turn} />}
     </div>
   );
 }

@@ -218,6 +218,25 @@ class TestBatchWebSocket:
 
         assert captured_kwargs["tuning_overrides_dict"] == {"stability.drain.drought_immediate": 10.0}
 
+    @pytest.mark.parametrize("workers, parallel, pool", [(1, 1, 1), (3, 3, 3), (None, True, 7)])
+    def test_batch_lab_worker_count_reaches_the_pool(self, workers, parallel, pool):
+        """Batch Lab's worker count is the pool size, 1 included; without one the pool is sized."""
+        from chronicler.batch import parallel_workers
+        server = LiveServer(port=0)
+        captured = {}
+        msg = {"type": "batch_start", "config": {
+            "seed_start": 1, "seed_count": 2, "turns": 5, "simulate_only": True, "parallel": True,
+            "workers": workers,
+        }}
+        with patch("chronicler.batch.run_batch") as mock_batch, \
+             patch("chronicler.analytics.generate_report") as mock_report:
+            mock_batch.side_effect = lambda args, **kwargs: captured.update(vars(args)) or Path("/tmp/batch_1")
+            mock_report.return_value = {"metadata": {}, "anomalies": []}
+            server._handle_batch_start(msg)
+            server._batch_thread.join(timeout=5)
+        assert captured["parallel"] == parallel
+        assert parallel_workers(captured["parallel"], cpu_count=8) == pool
+
     def test_batch_start_passes_run_shape_through(self):
         """Batch config should preserve the viewer-selected run shape and models."""
         server = LiveServer(port=0)

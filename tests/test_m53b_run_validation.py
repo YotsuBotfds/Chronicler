@@ -110,6 +110,34 @@ def test_profile_defaults_match_documented_validation_scales():
     assert (override.seeds, override.turns) == (3, 7)
 
 
+@pytest.mark.parametrize("parallel, workers", [("1", 1), ("3", 3), (None, 12)])
+def test_gate_runner_parallel_is_the_batch_worker_count(monkeypatch, tmp_path, parallel, workers):
+    from chronicler.batch import parallel_workers
+    from chronicler.main import _build_parser
+
+    runner = _load_runner()
+    commands = []
+
+    class Stop(Exception):
+        pass
+
+    real_run_subset = runner.run_subset
+
+    def batch_only(args, cwd, env):
+        real_run_subset(args, cwd, env)
+        raise Stop
+
+    monkeypatch.setattr(runner, "_run", lambda cmd, cwd, env: commands.append(cmd))
+    monkeypatch.setattr(runner, "run_subset", batch_only)
+    argv = ["m53b", "--profile", "subset", "--output-root", str(tmp_path / "gate")]
+    monkeypatch.setattr(sys, "argv", argv + (["--parallel", parallel] if parallel else []))
+    with pytest.raises(Stop):
+        runner.main()
+    [cmd] = commands
+    cli = _build_parser().parse_args(cmd[cmd.index("chronicler.main") + 1:])
+    assert parallel_workers(cli.parallel, cpu_count=64) == workers
+
+
 def test_build_env_prepends_absolute_repo_src(monkeypatch):
     runner = _load_runner()
 

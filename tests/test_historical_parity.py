@@ -424,3 +424,121 @@ class TestAsOf:
         snap.active_settlements = [town(1, "R1", 50), town(2, "R2", 900), town(3, "R1", 70)]
         view = HistoricalRecord(history=[snap]).view(AsOf.after(10))
         assert [s.name for s in view.settlements("A")] == ["T3", "T1"]
+
+
+# ---------------------------------------------------------------------------
+# In-world accounts as of the moment (consistency follow-ups; failed on main
+# dae4ba5: the narrator's account block and the mechanical chronicle reported
+# losses dated after the moment, for every chronicler)
+# ---------------------------------------------------------------------------
+
+def _account_row(event_id, chron, text, stance="victory", transforms=(), lost=None, cause=None, turn=10):
+    return [event_id, chron, turn, stance, [list(t) for t in transforms], [], text, lost, cause]
+
+
+def _accounts_field():
+    """Two courts' accounts of a turn-10 battle; court:1's archive is sacked at turn 300.
+
+    A turn-20 famine is told by two temples whose archives fall at turns 100
+    and 300: at the end every copy is lost (no ``lost`` divergence), at turn
+    200 one copy survives (``lost``).
+    """
+    from chronicler.historiography import ACCOUNT_COLUMNS
+    return {
+        "chroniclers": [{"id": "court:0", "name": "the A chronicles"},
+                        {"id": "court:1", "name": "the B chronicles"},
+                        {"id": "temple:0", "name": "the temple scribes of A"},
+                        {"id": "temple:1", "name": "the temple scribes of B"}],
+        "archives": [
+            {"owner": "court:1", "losses": [{"turn": 300, "cause": "sack", "region_name": "Reeds",
+                                             "event_id": "300:occupation:0"}]},
+            {"owner": "temple:0", "losses": [{"turn": 100, "cause": "fire", "region_name": "Ash",
+                                              "event_id": "100:fire:0"}]},
+            {"owner": "temple:1", "losses": [{"turn": 300, "cause": "sack", "region_name": "Reeds",
+                                              "event_id": "300:occupation:0"}]},
+        ],
+        "account_columns": list(ACCOUNT_COLUMNS),
+        "accounts": [
+            _account_row("10:war:0", "court:0", "A won at the ford.",
+                         transforms=[("inflate", {"of": "enemy losses", "true": 3, "claimed": 9})]),
+            _account_row("10:war:0", "court:1", "B held the ford.", transforms=[("claim", {})],
+                         lost=300, cause="sack"),
+            _account_row("20:famine:0", "temple:0", "The gods struck B.", stance="disaster",
+                         transforms=[("divine", {"mode": "punish", "target": "B"})], lost=100, cause="fire",
+                         turn=20),
+            _account_row("20:famine:0", "temple:1", "The rains failed.", stance="disaster",
+                         lost=300, cause="sack", turn=20),
+        ],
+        "contested": [{"event_id": "10:war:0", "divergence": ["lost", "magnitude", "outcome"]},
+                      {"event_id": "20:famine:0", "divergence": ["divine"]}],
+    }
+
+
+def _battle():
+    return Event(turn=10, event_type="war", actors=["A", "B"], description="Battle at the ford",
+                 importance=8, event_id="10:war:0")
+
+
+class TestAccountsAsOf:
+    """The narrator sees only the losses dated at or before the moment's last turn."""
+
+    def test_a_later_loss_is_not_in_the_narrator_prompt(self):
+        from chronicler.historiography import AccountIndex
+        engine = _engine(None)
+        engine._accounts = AccountIndex(_accounts_field())
+        prep = engine._prepare_narration_prompts([_moment((10, 10), [_battle()])], [])[0]
+        prompt = prep["prompt"]
+        assert "IN-WORLD ACCOUNTS" in prompt
+        assert "turn 300" not in prompt and "no account survives" not in prompt
+        assert "the B chronicles (claim): “B held the ford.”" in prompt  # its copy stood at turn 10
+        assert set(prep["account_ids"]) == {"court:0/10:war:0", "court:1/10:war:0"}
+
+    def test_a_later_loss_is_not_in_the_mechanical_chronicle(self):
+        from chronicler.historiography import AccountIndex
+        from chronicler.llm import MechanicalClient
+        from chronicler.narrative import NarrativeEngine
+        engine = NarrativeEngine(MechanicalClient(), MechanicalClient())
+        [entry] = engine.narrate_batch([_moment((10, 10), [_battle()])], [],
+                                       historiography=AccountIndex(_accounts_field()))
+        assert "No account from the B chronicles survives" not in entry.narrative
+        assert "Though the B chronicles say: “B held the ford.”" in entry.narrative
+
+    def test_the_view_after_the_loss_reports_it(self):
+        from chronicler.historical_context import AsOf
+        from chronicler.historiography import AccountIndex
+        index = AccountIndex(_accounts_field())
+        before, after = index.as_of(AsOf.after(299)), index.as_of(AsOf.after(300))
+        assert "turn 300" not in before.prompt_block([_battle()])[0]
+        assert "the B chronicles: lost (archive sacked, turn 300); no account survives" in after.prompt_block(
+            [_battle()])[0]
+        # The final index is the view after the last loss.
+        assert after.prompt_block([_battle()]) == index.prompt_block([_battle()])
+        assert after.passage([_battle()]) == index.passage([_battle()])
+        assert index.as_of(AsOf.before(300)).accounts_for("10:war:0")[1]["lost_turn"] is None
+
+    def test_divergence_is_the_divergence_at_the_moment(self):
+        from chronicler.historical_context import AsOf
+        from chronicler.historiography import AccountIndex
+        index = AccountIndex(_accounts_field())
+        kinds = lambda view, eid: view.contested.get(eid, {}).get("divergence", [])
+        assert kinds(index.as_of(AsOf.after(10)), "10:war:0") == ["magnitude", "outcome"]
+        assert kinds(index.as_of(AsOf.after(300)), "10:war:0") == ["lost", "magnitude", "outcome"]
+        # Every copy is lost at the end; at turn 200 one still stood.
+        assert kinds(index.as_of(AsOf.after(50)), "20:famine:0") == ["divine"]
+        assert kinds(index.as_of(AsOf.after(200)), "20:famine:0") == ["divine", "lost"]
+        assert kinds(index.as_of(AsOf.after(300)), "20:famine:0") == ["divine"]
+        famine = Event(turn=20, event_type="famine", actors=["B"], description="Famine", importance=7,
+                       event_id="20:famine:0")
+        block = index.as_of(AsOf.after(200)).prompt_block([famine])[0]
+        assert "lost (archive burned, turn 100)" in block and "turn 300" not in block
+        assert "“The rains failed.”" in block
+
+    def test_the_record_routes_accounts_through_its_views(self):
+        from chronicler.historical_context import AsOf, HistoricalRecord
+        from chronicler.historiography import AccountIndex
+        index = AccountIndex(_accounts_field())
+        record = HistoricalRecord(accounts=index)
+        view = record.view(AsOf.after(10))
+        assert view.accounts is record.view(AsOf.after(10)).accounts
+        assert view.accounts.accounts_for("10:war:0")[1]["lost_turn"] is None
+        assert HistoricalRecord().view(AsOf.after(10)).accounts is None
