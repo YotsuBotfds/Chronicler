@@ -2277,6 +2277,9 @@ impl AgentSimulator {
                 craft_raw_demand: 0.0,
                 farm_labor_ref: 0.0,
                 farm_labor_half: 0.0,
+                slot_curves: false,
+                slot_labor_ref: [0.0; 3],
+                slot_labor_half: [0.0; 3],
             });
         }
 
@@ -2338,6 +2341,31 @@ impl AgentSimulator {
                     region_inputs[i].farm_labor_ref = v;
                 }
             }
+        }
+
+        // Optional: mines and forests have their own curves (Python
+        // `economy.slot_labor_curves`): with all six columns the farm curve
+        // applies to the food labour only and each non-food slot's labour has
+        // its own. Absent columns keep the farm curve on all farm labour.
+        let slot_cols: Vec<Option<&Float32Array>> = ["ref", "half"].iter()
+            .flat_map(|kind| (0..3).map(move |slot| format!("slot_labor_{kind}_{slot}")))
+            .map(|name| ri_rb.column_by_name(&name).and_then(|c| c.as_any().downcast_ref::<Float32Array>()))
+            .collect();
+        if slot_cols.iter().all(Option::is_some) {
+            for i in 0..n_regions {
+                region_inputs[i].slot_curves = true;
+                for slot in 0..3 {
+                    let r = slot_cols[slot].unwrap().value(i);
+                    let h = slot_cols[3 + slot].unwrap().value(i);
+                    if !r.is_finite() || r < 0.0 || !h.is_finite() || h < 0.0 {
+                        return Err(PyValueError::new_err("invalid slot labor curve"));
+                    }
+                    region_inputs[i].slot_labor_ref[slot] = r;
+                    region_inputs[i].slot_labor_half[slot] = h;
+                }
+            }
+        } else if slot_cols.iter().any(Option::is_some) {
+            return Err(PyValueError::new_err("slot labor curves need all six slot_labor_* Float32 columns"));
         }
 
         // Optional default-off experiment: a fish slot's goods production may

@@ -485,6 +485,9 @@ fn test_region_input(
         craft_raw_demand: 0.0,
         farm_labor_ref: 0.0,
         farm_labor_half: 0.0,
+        slot_curves: false,
+        slot_labor_ref: [0.0; 3],
+        slot_labor_half: [0.0; 3],
     }
 }
 

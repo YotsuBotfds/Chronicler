@@ -144,10 +144,11 @@ def test_conservation_with_clamp_floor_loss():
 def test_region_input_batch_column_count():
     """Region input batch has 3 identifiers + 6 resource fields + the
     subsistence rate (2026-10 food logistics) + 8 stocks + the farm labour
-    curve's reference and half-saturation labour (2026-10 farmland)."""
+    curve's reference and half-saturation labour (2026-10 farmland) + the
+    mines' and forests' own curves per slot (2026-10)."""
     world = _make_two_region_world()
     batch = build_economy_region_input_batch(world)
-    assert batch.num_columns == 20
+    assert batch.num_columns == 26
     assert batch.num_rows == 2
 
 
@@ -161,7 +162,9 @@ def test_region_input_batch_column_names():
         "resource_type_1", "resource_yield_1",
         "resource_type_2", "resource_yield_2",
         "subsistence_yield",
-    ] + [f"stockpile_{g}" for g in FIXED_GOODS] + ["farm_labor_ref", "farm_labor_half"]
+    ] + [f"stockpile_{g}" for g in FIXED_GOODS] + ["farm_labor_ref", "farm_labor_half"] + [
+        f"slot_labor_{kind}_{slot}" for kind in ("ref", "half") for slot in range(3)
+    ]
     assert batch.schema.names == expected
 
 

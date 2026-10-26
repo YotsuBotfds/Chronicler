@@ -370,6 +370,9 @@ def _make_test_world():
     plains.carrying_capacity = 120
     plains.capacity_modifier = 1.0
     plains.infrastructure = []
+    # Woodland and deposits of the mines' and forests' own curves.
+    plains.ecology.forest_cover = 0.2
+    plains.resource_reserves = [1.0, 1.0, 1.0]
 
     hills = MagicMock()
     hills.name = "Hills"
@@ -383,6 +386,8 @@ def _make_test_world():
     hills.carrying_capacity = 60
     hills.capacity_modifier = 1.0
     hills.infrastructure = []
+    hills.ecology.forest_cover = 0.3
+    hills.resource_reserves = [1.0, 1.0, 1.0]
 
     civ0 = MagicMock()
     civ0.regions = ["Plains"]
