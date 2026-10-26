@@ -1,7 +1,5 @@
-/// M50a Relationship Substrate
-/// Per-agent relationship store: BondType enum and classification helpers.
-
-use std::collections::BTreeMap;
+//! M50a Relationship Substrate
+//! Per-agent relationship store: BondType enum and classification helpers.
 
 /// Bond types. Values 0-4 match M40 RelationshipType for zero-translation compatibility.
 #[repr(u8)]
@@ -291,15 +289,8 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
     let strong_tie_cadence = u32::from(crate::agent::STRONG_TIE_CADENCE);
     let negative_decay_cadence = u32::from(crate::agent::NEGATIVE_DECAY_CADENCE);
 
-    // Build id→slot lookup (alive agents only)
-    // Lookup-only map: deterministic ordering keeps future maintenance safe
-    // even though this path does not iterate the keys today.
-    let mut id_to_slot: BTreeMap<u32, usize> = BTreeMap::new();
-    for slot in 0..pool.capacity() {
-        if pool.alive[slot] {
-            id_to_slot.insert(pool.ids[slot], slot);
-        }
-    }
+    // id→slot lookup (alive agents only); lookup-only, never iterated.
+    let id_to_slot = pool.build_id_slots();
 
     for agent_slot in 0..pool.capacity() {
         if !pool.alive[agent_slot] { continue; }
@@ -312,8 +303,8 @@ pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
             let mut sent = pool.rel_sentiments[agent_slot][i] as i16;
 
             // Dead/missing targets → not co-located (separation rules)
-            let co_located = id_to_slot.get(&target_id)
-                .map(|&ts| pool.alive[ts] && pool.regions[ts] == agent_region)
+            let co_located = id_to_slot.get(target_id)
+                .map(|ts| pool.alive[ts] && pool.regions[ts] == agent_region)
                 .unwrap_or(false);
 
             let valence = is_positive_valence(bond_type);

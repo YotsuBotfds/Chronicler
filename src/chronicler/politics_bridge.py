@@ -14,6 +14,7 @@ import math
 import random
 
 from chronicler.adjacency import graph_distance
+from chronicler.columnar import pylist
 from chronicler.models import (
     Civilization, CivShock, Disposition, Event, ExileModifier,
     Leader, Relationship, VassalRelation, WorldState,
@@ -1608,14 +1609,14 @@ def _batch_to_dict(batch) -> dict:
     """Convert a pyarrow RecordBatch (or arro3 RecordBatch) to a dict-of-lists.
 
     Handles both pyarrow and arro3-core RecordBatch objects by converting
-    column values to Python lists.
+    column values to Python lists (``columnar.pylist``: the same values and
+    types as ``to_pylist``). Most of the twelve op batches are empty on a
+    given turn; their columns are empty lists.
     """
-    result = {}
-    for i in range(batch.num_columns):
-        name = batch.schema.field(i).name
-        col = batch.column(i)
-        result[name] = col.to_pylist()
-    return result
+    names = list(batch.schema.names)  # one schema object, not one per column
+    if batch.num_rows == 0:
+        return {name: [] for name in names}
+    return {name: pylist(batch.column(i)) for i, name in enumerate(names)}
 
 
 def _build_region_input_with_eff_cap(world: WorldState) -> dict:

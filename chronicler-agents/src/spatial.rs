@@ -619,6 +619,8 @@ struct DriftScratch {
     cols: NeighborColumns,
     /// Per neighbour: distance and unit direction toward the neighbour.
     geom: Geometry,
+    /// Exact mode: per lane, the block indices within the repulsion radius.
+    rep: [Vec<u32>; DRIFT_LANES],
 }
 
 /// Neighbour list as columns, so the distance pass vectorises.
@@ -731,23 +733,7 @@ fn compute_drift_excluding(
     geom: &mut Geometry,
 ) -> (f32, f32) {
     // 1. Attractor vector — identical to compute_drift_for_agent.
-    let mut att_x: f32 = 0.0;
-    let mut att_y: f32 = 0.0;
-    for i in 0..(attractors.count as usize) {
-        let dx = attractors.positions[i].0 - agent_x;
-        let dy = attractors.positions[i].1 - agent_y;
-        let dist = (dx * dx + dy * dy).sqrt();
-        if dist < ATTRACTOR_DEADZONE {
-            continue;
-        }
-        let dir_x = dx / dist;
-        let dir_y = dy / dist;
-        let occ_idx = (occupation as usize).min(OCCUPATION_COUNT - 1);
-        let affinity = OCCUPATION_AFFINITY[occ_idx][attractors.types[i] as usize];
-        let pull = affinity * attractors.weights[i] * (dist.min(ATTRACTOR_RANGE) / ATTRACTOR_RANGE);
-        att_x += pull * dir_x;
-        att_y += pull * dir_y;
-    }
+    let (att_x, att_y) = attractor_vector(agent_x, agent_y, occupation, attractors);
 
     let n = neighbors.slot.len();
     let Geometry { dist, ux, uy } = geom;
@@ -796,16 +782,6 @@ fn compute_drift_excluding(
         dens_y += uy[k];
         dens_count += 1;
     }
-    if dens_count > 0 {
-        dens_x /= dens_count as f32;
-        dens_y /= dens_count as f32;
-    }
-    let dens_mag = (dens_x * dens_x + dens_y * dens_y).sqrt();
-    if dens_mag > DENSITY_ATTRACTION_MAX {
-        let scale = DENSITY_ATTRACTION_MAX / dens_mag;
-        dens_x *= scale;
-        dens_y *= scale;
-    }
 
     // 3. Repulsion vector — sum from neighbors within REPULSION_RADIUS
     let mut rep_x: f32 = 0.0;
@@ -815,27 +791,92 @@ fn compute_drift_excluding(
         if dist > REPULSION_RADIUS {
             continue;
         }
-        let (neighbor_id, nx, ny) = (neighbors.slot[k], neighbors.x[k], neighbors.y[k]);
-        let dx = agent_x - nx; // AWAY from neighbor
-        let dy = agent_y - ny;
-        let (dir_x, dir_y, force);
-        if dist < REPULSION_MIN_DIST {
-            // Deterministic zero-distance fallback
-            let mut angle = ((agent_id ^ neighbor_id) % 360) as f32
-                * (std::f32::consts::PI / 180.0);
-            if agent_id < neighbor_id {
-                angle += std::f32::consts::PI; // flip for symmetry breaking
-            }
-            dir_x = angle.cos();
-            dir_y = angle.sin();
-            force = REPULSION_ZERO_DIST_FORCE;
-        } else {
-            dir_x = dx / dist;
-            dir_y = dy / dist;
-            force = (1.0 / (dist * dist)).min(REPULSION_FORCE_CAP);
+        repulsion_term(agent_x, agent_y, agent_id, neighbors, k, dist, &mut rep_x, &mut rep_y);
+    }
+
+    finish_drift(agent_x, agent_y, (att_x, att_y), (dens_x, dens_y), dens_count, (rep_x, rep_y))
+}
+
+/// Attractor vector of `compute_drift_for_agent` (step 1).
+#[inline(always)]
+fn attractor_vector(agent_x: f32, agent_y: f32, occupation: u8, attractors: &RegionAttractors) -> (f32, f32) {
+    let mut att_x: f32 = 0.0;
+    let mut att_y: f32 = 0.0;
+    for i in 0..(attractors.count as usize) {
+        let dx = attractors.positions[i].0 - agent_x;
+        let dy = attractors.positions[i].1 - agent_y;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if dist < ATTRACTOR_DEADZONE {
+            continue;
         }
-        rep_x += force * dir_x;
-        rep_y += force * dir_y;
+        let dir_x = dx / dist;
+        let dir_y = dy / dist;
+        let occ_idx = (occupation as usize).min(OCCUPATION_COUNT - 1);
+        let affinity = OCCUPATION_AFFINITY[occ_idx][attractors.types[i] as usize];
+        let pull = affinity * attractors.weights[i] * (dist.min(ATTRACTOR_RANGE) / ATTRACTOR_RANGE);
+        att_x += pull * dir_x;
+        att_y += pull * dir_y;
+    }
+    (att_x, att_y)
+}
+
+/// Add neighbour `k`'s repulsion (step 3 of `compute_drift_for_agent`);
+/// `dist` is its distance, already known not to exceed the radius.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn repulsion_term(
+    agent_x: f32,
+    agent_y: f32,
+    agent_id: u32,
+    neighbors: &NeighborColumns,
+    k: usize,
+    dist: f32,
+    rep_x: &mut f32,
+    rep_y: &mut f32,
+) {
+    let (neighbor_id, nx, ny) = (neighbors.slot[k], neighbors.x[k], neighbors.y[k]);
+    let dx = agent_x - nx; // AWAY from neighbor
+    let dy = agent_y - ny;
+    let (dir_x, dir_y, force);
+    if dist < REPULSION_MIN_DIST {
+        // Deterministic zero-distance fallback
+        let mut angle = ((agent_id ^ neighbor_id) % 360) as f32
+            * (std::f32::consts::PI / 180.0);
+        if agent_id < neighbor_id {
+            angle += std::f32::consts::PI; // flip for symmetry breaking
+        }
+        dir_x = angle.cos();
+        dir_y = angle.sin();
+        force = REPULSION_ZERO_DIST_FORCE;
+    } else {
+        dir_x = dx / dist;
+        dir_y = dy / dist;
+        force = (1.0 / (dist * dist)).min(REPULSION_FORCE_CAP);
+    }
+    *rep_x += force * dir_x;
+    *rep_y += force * dir_y;
+}
+
+/// Steps 2 (mean and cap of the density sum), 4, 5 and 6 of
+/// `compute_drift_for_agent`.
+#[inline(always)]
+fn finish_drift(
+    agent_x: f32,
+    agent_y: f32,
+    (att_x, att_y): (f32, f32),
+    (mut dens_x, mut dens_y): (f32, f32),
+    dens_count: u32,
+    (rep_x, rep_y): (f32, f32),
+) -> (f32, f32) {
+    if dens_count > 0 {
+        dens_x /= dens_count as f32;
+        dens_y /= dens_count as f32;
+    }
+    let dens_mag = (dens_x * dens_x + dens_y * dens_y).sqrt();
+    if dens_mag > DENSITY_ATTRACTION_MAX {
+        let scale = DENSITY_ATTRACTION_MAX / dens_mag;
+        dens_x *= scale;
+        dens_y *= scale;
     }
 
     // 4. Weighted sum
@@ -854,6 +895,92 @@ fn compute_drift_excluding(
     let new_x = (agent_x + drift_x).clamp(0.0, POS_MAX);
     let new_y = (agent_y + drift_y).clamp(0.0, POS_MAX);
     (new_x, new_y)
+}
+
+/// Agents of one cell evaluated together against their shared block.
+const DRIFT_LANES: usize = 8;
+
+/// A drifting agent: (slot, x, y, occupation, id).
+type DriftAgent = (u32, f32, f32, u8, u32);
+
+/// `compute_drift_excluding` for up to `DRIFT_LANES` agents of one cell at
+/// once, bit for bit; results are appended to `out` in `agents` order.
+///
+/// Each neighbour is read once for all lanes, so the distance, direction and
+/// density terms of the lanes vectorise. Every lane computes exactly the
+/// reference expressions. Where the reference skips a neighbour, the density
+/// sums add `+0.0` instead: a sum that starts at `+0.0` is never `-0.0`
+/// (round to nearest gives `-0.0` only for `-0.0 + -0.0`), so adding `+0.0`
+/// leaves it unchanged and the qualifying terms are added in the same order.
+/// The repulsion neighbours (at most `REPULSION_RADIUS` away, a small share
+/// of the block) are listed per lane in block order and summed by the
+/// reference code. A lane's own entries get an infinite distance, as in the
+/// reference.
+fn drift_lanes(
+    agents: &[DriftAgent],
+    attractors: &RegionAttractors,
+    neighbors: &NeighborColumns,
+    rep: &mut [Vec<u32>; DRIFT_LANES],
+    out: &mut Vec<(u32, f32, f32)>,
+) {
+    debug_assert!(!agents.is_empty() && agents.len() <= DRIFT_LANES);
+    let n = neighbors.slot.len();
+    // Unused lanes repeat the first agent; their results are not used.
+    let mut ax = [0.0f32; DRIFT_LANES];
+    let mut ay = [0.0f32; DRIFT_LANES];
+    let mut own = [0u32; DRIFT_LANES];
+    for l in 0..DRIFT_LANES {
+        let a = agents[if l < agents.len() { l } else { 0 }];
+        ax[l] = a.1;
+        ay[l] = a.2;
+        own[l] = a.0;
+    }
+    let mut dens_x = [0.0f32; DRIFT_LANES];
+    let mut dens_y = [0.0f32; DRIFT_LANES];
+    let mut dens_count = [0u32; DRIFT_LANES];
+    let mut rep_len = [0usize; DRIFT_LANES];
+    // Entries are written before they are read (only `..rep_len` is read).
+    for list in rep.iter_mut() {
+        if list.len() < n + 1 {
+            list.resize(n + 1, 0);
+        }
+    }
+    let (slots, xs, ys) = (&neighbors.slot[..n], &neighbors.x[..n], &neighbors.y[..n]);
+    for k in 0..n {
+        let (ns, nx, ny) = (slots[k], xs[k], ys[k]);
+        let mut near = [false; DRIFT_LANES];
+        for l in 0..DRIFT_LANES {
+            let dx = nx - ax[l];
+            let dy = ny - ay[l];
+            let r = (dx * dx + dy * dy).sqrt();
+            let ux = dx / r;
+            let uy = dy / r;
+            let r = if ns == own[l] { f32::INFINITY } else { r };
+            let skip = r > DENSITY_RADIUS || r < DENSITY_MIN_DIST;
+            dens_x[l] += if skip { 0.0 } else { ux };
+            dens_y[l] += if skip { 0.0 } else { uy };
+            dens_count[l] += (!skip) as u32;
+            near[l] = !(r > REPULSION_RADIUS);
+        }
+        for l in 0..DRIFT_LANES {
+            rep[l][rep_len[l]] = k as u32;
+            rep_len[l] += near[l] as usize;
+        }
+    }
+    for (l, &(slot, x, y, occupation, id)) in agents.iter().enumerate() {
+        let att = attractor_vector(x, y, occupation, attractors);
+        let mut rep_x: f32 = 0.0;
+        let mut rep_y: f32 = 0.0;
+        for &k in &rep[l][..rep_len[l]] {
+            let k = k as usize;
+            let dx = neighbors.x[k] - x;
+            let dy = neighbors.y[k] - y;
+            let dist = (dx * dx + dy * dy).sqrt();
+            repulsion_term(x, y, id, neighbors, k, dist, &mut rep_x, &mut rep_y);
+        }
+        let pos = finish_drift(x, y, att, (dens_x[l], dens_y[l]), dens_count[l], (rep_x, rep_y));
+        out.push((slot, pos.0, pos.1));
+    }
 }
 
 /// Fast mode: deterministic stride sample of at most
@@ -904,8 +1031,10 @@ pub fn spatial_drift_step(
 /// fixed 10 x 10 grid's 3 x 3 block, ascending slot order, all from the old
 /// positions). Agents are independent given the old positions, so they are
 /// computed in parallel and written back afterwards; each cell's block list
-/// is merged once instead of allocated and sorted per agent. Fast mode uses a
-/// population-sized grid per region and a bounded neighbour sample.
+/// is merged once instead of allocated and sorted per agent, and the cell's
+/// agents are evaluated `DRIFT_LANES` at a time against it (`drift_lanes`).
+/// Fast mode uses a population-sized grid per region and a bounded neighbour
+/// sample.
 pub fn spatial_drift_step_with_mode(
     pool: &mut AgentPool,
     grids: &[SpatialGrid],
@@ -1040,9 +1169,23 @@ pub fn spatial_drift_step_with_mode(
             let (region, cell, _) = item[0];
             let region = region as usize;
             merge_block(&indexes[region], cell as usize, scratch);
-            let DriftScratch { block, sample, cols, geom, .. } = scratch;
+            let DriftScratch { block, sample, cols, geom, rep, .. } = scratch;
             if !fast {
                 cols.fill(block);
+            }
+            // Exact: the cell's agents share the block; evaluate them in lanes
+            // (non-finite positions, never seen, keep the per-agent path).
+            if !fast && cols.x.iter().chain(&cols.y).all(|v| v.is_finite()) {
+                let mut out = Vec::with_capacity(item.len());
+                let mut lane_agents: [DriftAgent; DRIFT_LANES] = [(0, 0.0, 0.0, 0, 0); DRIFT_LANES];
+                for group in item.chunks(DRIFT_LANES) {
+                    for (l, &(_, _, slot)) in group.iter().enumerate() {
+                        let s = slot as usize;
+                        lane_agents[l] = (slot, pool_ref.x[s], pool_ref.y[s], pool_ref.occupations[s], pool_ref.ids[s]);
+                    }
+                    drift_lanes(&lane_agents[..group.len()], &attractors[region], cols, rep, &mut out);
+                }
+                return out;
             }
             item.iter()
                 .map(|&(_, _, slot)| {
@@ -1300,6 +1443,70 @@ mod scale_equivalence_tests {
                     (got.0.to_bits(), got.1.to_bits()),
                     "case {case} slot {s}: {expected:?} vs {got:?}"
                 );
+            }
+        }
+    }
+
+    /// Lanes of a cell's agents against the shared block equal the reference
+    /// per-agent query + compute, bit for bit, for every group size.
+    #[test]
+    fn exact_lanes_are_bit_identical_to_reference() {
+        let mut rng = Mix(19);
+        for case in 0..16u64 {
+            let n = [5usize, 60, 400, 1500][(case % 4) as usize];
+            let mut pts = positions(&mut rng, n);
+            if case % 3 == 0 {
+                // A dense knot: many agents within the repulsion radius and
+                // at the zero-distance fallback.
+                for p in pts.iter_mut().step_by(3) {
+                    *p = (0.4 + 0.004 * rng.unit(), 0.4 + 0.004 * rng.unit());
+                }
+            }
+            let xs: Vec<f32> = pts.iter().map(|p| p.0).collect();
+            let ys: Vec<f32> = pts.iter().map(|p| p.1).collect();
+            let mut grid = SpatialGrid::new();
+            for (s, &(x, y)) in pts.iter().enumerate() {
+                grid.insert(s as u32, x, y);
+            }
+            let att = attractors_for(case + 5);
+            let index = CellIndex::from_grid(&grid, &xs, &ys);
+            let mut scratch = DriftScratch::default();
+            let occ = |s: usize| (s % 5) as u8;
+            let id = |s: usize| (s as u32).wrapping_mul(2_654_435_761) % 5000;
+            for cell in 0..GRID_SIZE * GRID_SIZE {
+                let members = &grid.cells[cell];
+                if members.is_empty() {
+                    continue;
+                }
+                merge_block(&index, cell, &mut scratch);
+                scratch.cols.fill(&scratch.block);
+                let group = 1 + (cell + case as usize) % DRIFT_LANES;
+                let mut got = Vec::new();
+                for chunk in members.chunks(group) {
+                    let agents: Vec<DriftAgent> = chunk
+                        .iter()
+                        .map(|&s| (s, xs[s as usize], ys[s as usize], occ(s as usize), id(s as usize)))
+                        .collect();
+                    drift_lanes(&agents, &att, &scratch.cols, &mut scratch.rep, &mut got);
+                }
+                assert_eq!(got.len(), members.len());
+                for (&s, &(slot, gx, gy)) in members.iter().zip(&got) {
+                    assert_eq!(s, slot);
+                    let su = s as usize;
+                    let reference_list: Vec<(u32, f32, f32)> = grid
+                        .query_neighbors(xs[su], ys[su], s)
+                        .iter()
+                        .map(|&ns| (ns, xs[ns as usize], ys[ns as usize]))
+                        .collect();
+                    let expected =
+                        compute_drift_for_agent(xs[su], ys[su], occ(su), id(su), &att, &reference_list);
+                    assert_eq!(
+                        (expected.0.to_bits(), expected.1.to_bits()),
+                        (gx.to_bits(), gy.to_bits()),
+                        "case {case} cell {cell} slot {s}: {expected:?} vs {:?}",
+                        (gx, gy)
+                    );
+                }
             }
         }
     }

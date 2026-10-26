@@ -10,7 +10,7 @@ Called from simulation.py Phase 2 before existing treasury logic.
 
 from __future__ import annotations
 
-from chronicler.columnar import pylist
+from chronicler.columnar import pylist, schema_names
 import math
 from dataclasses import dataclass, field
 
@@ -1491,7 +1491,7 @@ def reconstruct_economy_result(
     # In hybrid mode (M58b), oracle shadow columns are required for convergence
     # diagnostics. Fail fast on schema mismatch instead of silently zero-filling.
     if require_oracle_shadow:
-        obs_cols = set(observability_batch.schema.names)
+        obs_cols = set(schema_names(observability_batch))
         required_oracle_cols = {
             "oracle_imports_food",
             "oracle_imports_raw_material",
@@ -1509,7 +1509,7 @@ def reconstruct_economy_result(
 
     # --- Region result batch → stockpile write-back + signals ---
     rr_ids = pylist(region_result_batch.column("region_id"))
-    rr_names = set(region_result_batch.schema.names)
+    rr_names = set(schema_names(region_result_batch))
     for col_good in FIXED_GOODS:
         if f"stockpile_{col_good}" not in rr_names:
             continue   # crafts, from extensions built before 2026-10
@@ -1578,7 +1578,7 @@ def reconstruct_economy_result(
     # Each column is decoded once (it was decoded again for every region).
     obs_ids = pylist(observability_batch.column("region_id"))
     if obs_ids:
-        obs_names = set(observability_batch.schema.names)
+        obs_names = set(schema_names(observability_batch))
         zeros = [0.0] * len(obs_ids)
         obs_imports = {cat: pylist(observability_batch.column(f"imports_{cat}"))
                        if f"imports_{cat}" in obs_names else zeros for cat in CATEGORIES}
@@ -1619,11 +1619,11 @@ def reconstruct_economy_result(
     for field_name in ("production", "transit_loss", "consumption", "storage_loss", "cap_overflow", "clamp_floor_loss"):
         result.conservation[field_name] = pylist(conservation_batch.column(field_name))[0]
     # M58b: in_transit_delta (nullable, absent in pre-M58b batches)
-    if "in_transit_delta" in conservation_batch.schema.names:
+    if "in_transit_delta" in schema_names(conservation_batch):
         result.conservation["in_transit_delta"] = pylist(conservation_batch.column("in_transit_delta"))[0]
 
     # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---
-    if "oracle_imports_food" in observability_batch.schema.names:
+    if "oracle_imports_food" in schema_names(observability_batch):
         obs_ids = pylist(observability_batch.column("region_id"))
         oracle_food = pylist(observability_batch.column("oracle_imports_food"))
         oracle_rm = pylist(observability_batch.column("oracle_imports_raw_material"))
@@ -1637,7 +1637,7 @@ def reconstruct_economy_result(
             }
 
     # --- M58b: Oracle shadow margins and food sufficiency ---
-    if "oracle_margin" in observability_batch.schema.names:
+    if "oracle_margin" in schema_names(observability_batch):
         obs_ids = pylist(observability_batch.column("region_id"))
         oracle_margins = pylist(observability_batch.column("oracle_margin"))
         oracle_food_suff = pylist(observability_batch.column("oracle_food_sufficiency"))
