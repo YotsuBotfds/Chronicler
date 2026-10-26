@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,8 +22,9 @@ from chronicler.bundle_codec import load_bundle
 import chronicler.agent_movements as M
 from chronicler.action_engine import ActionEngine
 from chronicler.agent_movements_state import (
-    COMMONS, CRUSHED, DISSOLVED, ENDED, FADED, GATHERING, LIBERTY, PRESSING, RISING, SATISFIED,
-    SCHISM, SECEDED, SECT, SUPPRESSED, WON, Movement, MovementState,
+    COMMONS, CRUSHED, DISSOLVED, ENDED, FADED, FISCAL, GATHERING, HOME_RULE, INQUISITION, LAPSED,
+    LIBERTY, NEGLECT, OPPOSITION, PRESSING, RELIEF, RISING, RULER, SATISFIED, SCHISM, SECEDED,
+    SECT, SUPPRESSED, TOLERATION, WON, Movement, MovementState,
 )
 from chronicler.models import FactionType, GreatPerson, Infrastructure, TurnSnapshot, WorldState
 from chronicler.simulation import run_turn
@@ -54,6 +56,8 @@ class _Sim:
         self.deaths: list[int] = []
         self.tables: list = []
         self.seeds: list = []
+        self.reforms: list = []
+        self.leaders: list = []
 
     def get_movement_stats(self):
         rows = {"region_id": [], "adults": [], "aggrieved_commons": [], "aggrieved_liberty": [],
@@ -74,6 +78,12 @@ class _Sim:
     def set_movement_table(self, batch):
         self.tables.append(batch.to_pydict())
 
+    def set_movement_reforms(self, batch):
+        self.reforms.append(batch.to_pydict())
+
+    def queue_movement_leaders(self, ids, roles):
+        self.leaders.extend(zip(ids, roles))
+
     def seed_movement_members(self, batch):
         self.seeds.append(batch.to_pydict())
 
@@ -83,10 +93,13 @@ def _bridge(world, aggrieved=None, rebels=None, adults=30):
     return SimpleNamespace(_sim=sim, last_tick_unrest_by_region=lambda: (rebels or {}, {}))
 
 
-def _rows(world, members: dict[tuple[int, int], int], adults: int = 30, belief: int | None = None):
+def _rows(world, members: dict[tuple[int, int], int], adults: int = 30, belief: int | None = None,
+          occupation: int = 0):
     """Phase 10 rows: ``adults`` per held region; ``members[(movement index,
-    region)]`` of them belong to that movement, boldest first by id."""
-    cols = {k: [] for k in ("id", "region", "age", "movement_id", "boldness", "belief")}
+    region)]`` of them belong to that movement, boldest first by id. Their
+    civ affinity is the region's controller."""
+    cols = {k: [] for k in ("id", "region", "age", "movement_id", "boldness", "belief",
+                            "civ_affinity", "occupation")}
     next_id = 1
     for ri, region in enumerate(world.regions):
         if region.controller is None:
@@ -101,6 +114,8 @@ def _rows(world, members: dict[tuple[int, int], int], adults: int = 30, belief: 
             cols["movement_id"].append(tags[k] if k < len(tags) else 0)
             cols["boldness"].append(0.9 - 0.01 * k)
             cols["belief"].append(civ.civ_majority_faith if belief is None else belief)
+            cols["civ_affinity"].append(world.civilizations.index(civ))
+            cols["occupation"].append(occupation)
             next_id += 1
     batch = pa.record_batch({
         "id": pa.array(cols["id"], type=pa.uint32()), "region": pa.array(cols["region"], type=pa.uint16()),
@@ -108,6 +123,8 @@ def _rows(world, members: dict[tuple[int, int], int], adults: int = 30, belief: 
         "movement_id": pa.array(cols["movement_id"], type=pa.uint16()),
         "boldness": pa.array(cols["boldness"], type=pa.float32()),
         "belief": pa.array(cols["belief"], type=pa.uint8()),
+        "civ_affinity": pa.array(cols["civ_affinity"], type=pa.uint8()),
+        "occupation": pa.array(cols["occupation"], type=pa.uint8()),
     })
     return Phase10Inputs(source_turn=world.turn,
                          agents=AgentRows(stamp=Stamp(world.turn, "phase10_entry"), batch=batch),
@@ -153,7 +170,9 @@ def test_off_worlds_omit_the_dormant_fields():
     assert M.tick_agent_movements(world, []) == []
     assert M.movement_table(world).num_rows == 0
     M.send_to_native(world, None)   # nothing to send, nothing touched
-    assert M.DEFAULT_ENABLED_FOR_NEW_WORLDS is False
+    # generate_world worlds stay off; the CLI, batch and live entry points
+    # turn movements on for the worlds they create.
+    assert M.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
 
 
 def test_enable_disable_and_state_round_trip():
@@ -509,6 +528,293 @@ def test_a_dead_leader_becomes_a_martyr_once():
     assert m.martyrs == 1
 
 
+# --- lasting reforms -----------------------------------------------------------------
+
+def _governed(world):
+    from chronicler.governance_runtime import set_governance_enabled
+    from chronicler.governance_state import CivGovernance
+    set_governance_enabled(world, True)
+    for civ in world.civilizations:
+        civ.governance = CivGovernance()
+    return world
+
+
+def _grant(world, monkeypatch, creed=COMMONS, members=9, rows=None, **fields):
+    """A movement against Thornwall whose demand is granted this tick."""
+    monkeypatch.setattr(M, "grant_chance", lambda t, m, civ: 1.0)
+    m = _place(world, creed=creed, **fields)
+    i = len(world.agent_movements.movements) - 1
+    return m, _tick(world, members={(i, THORNWOOD): members}, **(rows or {}))
+
+
+def test_a_grant_enacts_a_lasting_reform_and_its_institution(monkeypatch):
+    world = _governed(_world())
+    civ = world.civilizations[THORNWALL]
+    m, events = _grant(world, monkeypatch)
+    state = world.agent_movements
+    assert m.reform == 0 and len(state.reforms) == 1
+    r = state.reforms[0]
+    assert (r.kind, r.civ, r.regions, r.movement) == (RELIEF, THORNWALL, [], 0)
+    assert (r.institution, r.founded_institution) == ("commons_management", True)
+    grant = next(e for e in events if e.event_type == "movement_reform")
+    assert r.event_id == grant.event_id and "poor relief becomes law under Commons Management" in grant.description
+    gov = civ.governance
+    assert [i.institution_type for i in gov.institutions] == ["commons_management"]
+    assert gov.institutions[0].enacted_turn == world.turn and gov.institutions[0].opposing_faction == "cultural"
+    assert gov.institutions[0].enforcement_cost == pytest.approx(0.75 * len(civ.regions))
+    assert gov.institution_log[-1] == [world.turn, "commons_management", "enacted"]
+    assert M.reform_table(world).to_pydict() == {
+        "creed": [COMMONS], "civ": [THORNWALL], "region": [M.NO_REGION], "faith": [M.NO_FAITH]}
+    # Another commons grant against the same ruler extends the reform in force.
+    m2 = _place(world)
+    world.turn += 1
+    _tick(world, members={(1, THORNWOOD): 9})
+    assert m2.stage == SATISFIED and m2.reform == 0 and len(state.reforms) == 1
+    assert state.counters["enacted"] == 1 and state.counters["extended"] == 1
+
+
+def test_the_reform_institution_runs_in_the_governance_runtime(monkeypatch):
+    world = _governed(_world())
+    _grant(world, monkeypatch)
+    monkeypatch.setattr(M, "REPEAL_RULER_HARSH", 0.0)   # a succession falls in these turns
+    monkeypatch.setattr(M, "REPEAL_RULER", 0.0)
+    world.turn += 1   # the tick ran in turn 30's Phase 10; the run goes on with turn 31
+    _advance(world, 3)
+    gov = world.civilizations[THORNWALL].governance
+    assert "commons_management" in {i.institution_type for i in gov.institutions}
+    assert gov.last_institution_enforcement_cost == pytest.approx(0.75 * 2)
+    assert world.agent_movements.reforms[0].repeal == 0
+
+
+def test_a_reform_falls_with_its_institution(monkeypatch):
+    for kind, why in (("collapsed", NEGLECT), ("repealed", OPPOSITION)):
+        world = _governed(_world())
+        _grant(world, monkeypatch)
+        gov = world.civilizations[THORNWALL].governance
+        world.turn += 1
+        gov.institutions = []
+        gov.institution_log.append([world.turn, "commons_management", kind])
+        events = _tick(world, members={})
+        r = world.agent_movements.reforms[0]
+        assert r.repeal == why and r.repealed_turn == world.turn
+        repeal = next(e for e in events if e.event_type == "reform_repealed")
+        assert repeal.causes == [r.event_id] and r.repeal_event_id == repeal.event_id
+        assert M.reform_table(world).num_rows == 0 and world.agent_movements.counters["repealed"] == 1
+
+
+def test_a_new_ruler_may_repeal_once_per_reign(monkeypatch):
+    world = _governed(_world())
+    _grant(world, monkeypatch)
+    civ = world.civilizations[THORNWALL]
+    r = world.agent_movements.reforms[0]
+    monkeypatch.setattr(M, "REPEAL_RULER", 0.0)
+    world.turn += 1
+    civ.leader.name, civ.leader.reign_start, civ.leader.trait = "King Mild", world.turn, "cautious"
+    _tick(world, members={})
+    assert r.repeal == 0 and r.ruler == "King Mild"
+    monkeypatch.setattr(M, "REPEAL_RULER", 1.0)
+    world.turn += 1
+    _tick(world, members={})
+    assert r.repeal == 0      # judged once per reign
+    monkeypatch.setattr(M, "REPEAL_RULER_HARSH", 1.0)
+    world.turn += 1
+    civ.leader.name, civ.leader.reign_start, civ.leader.trait = "King Harsh", world.turn, "zealous"
+    events = _tick(world, members={})
+    assert r.repeal == RULER
+    assert "King Harsh of Thornwall Confederacy repeals the poor relief" in [e.description for e in events]
+    # The institution the grant enacted goes with it.
+    assert civ.governance.institutions == []
+    assert civ.governance.institution_log[-1] == [world.turn, "commons_management", "repealed"]
+
+
+def test_relief_without_an_institution_pays_upkeep_until_the_treasury_fails(monkeypatch):
+    world = _world()
+    _grant(world, monkeypatch)
+    civ = world.civilizations[THORNWALL]
+    r = world.agent_movements.reforms[0]
+    assert r.institution == "" and not r.founded_institution
+    world.turn += 1
+    before = civ.treasury
+    _tick(world, members={})
+    due = math.ceil(M.RELIEF_UPKEEP * len(civ.regions))
+    assert civ.treasury == before - due and world.agent_movements.counters["upkeep"] == due
+    civ.treasury = 0
+    for _ in range(M.ARREARS_TURNS):
+        world.turn += 1
+        events = _tick(world, members={})
+    assert r.repeal == FISCAL and "reform_repealed" in _types(events)
+    # Opposition: a dominant merchant faction has it repealed.
+    other = _world()
+    _grant(other, monkeypatch)
+    monkeypatch.setattr(M, "REPEAL_FACTION", 1.0)
+    other.civilizations[THORNWALL].factions.influence[FactionType.MERCHANT] = 0.7
+    other.turn += 1
+    events = _tick(other, members={})
+    assert other.agent_movements.reforms[0].repeal == OPPOSITION
+    assert any("merchant faction" in e.description for e in events)
+
+
+def test_home_rule_charters_the_city_and_lapses_with_the_region(monkeypatch):
+    from chronicler.cities_state import MARKET_RIGHTS, NO_CHARTER, City, CityState
+    world = _world()
+    world.cities = CityState(cities=[City(settlement_id=7, region=THORNWOOD, name="Thorncross",
+                                          founded_turn=1, founder=THORNWALL, lord=THORNWALL)])
+    m, events = _grant(world, monkeypatch, creed=LIBERTY)
+    r = world.agent_movements.reforms[0]
+    city = world.cities.cities[0]
+    assert (r.kind, r.regions, r.cities, city.charter) == (HOME_RULE, [THORNWOOD], [7], MARKET_RIGHTS)
+    charter = next(e for e in events if e.event_type == "city_charter")
+    assert charter.causes == [r.event_id] and city.history[-1][1] == "charter"
+    assert M.reform_table(world).to_pydict() == {
+        "creed": [LIBERTY], "civ": [THORNWALL], "region": [THORNWOOD], "faith": [M.NO_FAITH]}
+    # The military faction has it repealed; the charter goes with it.
+    monkeypatch.setattr(M, "REPEAL_FACTION", 1.0)
+    world.civilizations[THORNWALL].factions.influence[FactionType.MILITARY] = 0.7
+    world.turn += 1
+    _tick(world, members={})
+    assert r.repeal == OPPOSITION and city.charter == NO_CHARTER
+    # Home rule lapses (no grievance) when the realm loses the region.
+    other = _world()
+    _grant(other, monkeypatch, creed=LIBERTY)
+    other.regions[THORNWOOD].controller = "Kethani Empire"
+    other.turn += 1
+    events = M.tick_agent_movements(other, [], phase10=None)
+    assert other.agent_movements.reforms[0].repeal == LAPSED and "reform_lapsed" in _types(events)
+    assert other.agent_movements.counters["lapsed"] == 1 and other.agent_movements.counters["repealed"] == 0
+
+
+def test_toleration_ends_the_inquisition_and_falls_to_a_new_one(monkeypatch):
+    from chronicler.governance_state import GovernanceInstitution
+
+    def inquisition(turn):
+        return GovernanceInstitution(institution_type="holy_inquisition", enacted_turn=turn,
+                                     opposing_faction="cultural")
+
+    world = _governed(_world())
+    gov = world.civilizations[THORNWALL].governance
+    gov.institutions.append(inquisition(world.turn - 5))
+    m, events = _grant(world, monkeypatch, creed=SECT, rows={"belief": 0})
+    r = world.agent_movements.reforms[0]
+    assert (r.kind, r.faith, r.institution) == (TOLERATION, 0, "")
+    grant = next(e for e in events if e.event_type == "movement_reform")
+    assert grant.description.endswith("is tolerated in the realm and the Holy Inquisition is abolished")
+    assert gov.institutions == [] and gov.institution_log[-1] == [world.turn, "holy_inquisition", "repealed"]
+    assert M.reform_table(world).to_pydict() == {
+        "creed": [SECT], "civ": [THORNWALL], "region": [M.NO_REGION], "faith": [0]}
+    assert not r.church and M.reform_name(world, r).startswith("the toleration of the ")
+    world.turn += 1
+    _tick(world, members={})
+    assert r.repeal == 0
+    # A sect of the ruler's own faith wins the reform of its church.
+    church = _world()
+    m3, events = _grant(church, monkeypatch, creed=SECT)
+    r3 = church.agent_movements.reforms[0]
+    faith = church.civilizations[THORNWALL].civ_majority_faith
+    assert r3.church and r3.faith == faith
+    assert M.reform_name(church, r3) == f"the reform of the {M._faith_name(church, faith)}"
+    assert M.snapshot_summary(church)["reforms"][0]["church"] is True
+    # The clergy enact it again: the toleration ends.
+    world.turn += 1
+    gov.institutions.append(inquisition(world.turn - 1))
+    events = _tick(world, members={})
+    assert r.repeal == INQUISITION and any("Holy Inquisition" in e.description for e in events)
+
+
+def test_a_repeal_raises_a_movement_for_its_restoration(monkeypatch):
+    world = _world()
+    m, _ = _grant(world, monkeypatch)
+    state = world.agent_movements
+    m.stage, m.end, m.ended_turn = ENDED, WON, world.turn
+    monkeypatch.setattr(M, "REPEAL_RULER_HARSH", 1.0)
+    monkeypatch.setattr(M, "EMERGE_CHANCE_CAP", 1.0)
+    monkeypatch.setattr(M, "EMERGE_CHANCE", 1.0)
+    world.turn += 1
+    civ = world.civilizations[THORNWALL]
+    civ.leader.name, civ.leader.reign_start, civ.leader.trait = "King Harsh", world.turn, "zealous"
+    bridge = _bridge(world, aggrieved={THORNWOOD: (12, 0, 0)})
+    events = _tick(world, members={}, bridge=bridge)
+    r = state.reforms[0]
+    assert r.repeal == RULER
+    founded = next(e for e in events if e.event_type == "movement_founded")
+    new = state.movements[-1]
+    assert new.restores == 0 and new.home_region == THORNWOOD   # the creed cooldown is waived
+    assert "the restoration of the poor relief" in founded.description
+    assert r.repeal_event_id in founded.causes
+    # Without a repeal the cooldown holds.
+    calm = _world()
+    m2, _ = _grant(calm, monkeypatch)
+    m2.stage, m2.end, m2.ended_turn = ENDED, WON, calm.turn
+    calm.turn += 1
+    events = _tick(calm, members={}, bridge=_bridge(calm, aggrieved={THORNWOOD: (12, 0, 0)}))
+    assert "movement_founded" not in _types(events)
+    # Its grant restores the reform.
+    new.founded_turn = world.turn - 10
+    world.turn += 1
+    events = _tick(world, members={(1, THORNWOOD): 9})
+    grant = next(e for e in events if e.event_type == "movement_reform")
+    assert "the poor relief is restored" in grant.description and r.repeal_event_id in grant.causes
+    assert state.reforms[1].restores == 0 and state.counters["restored"] == 1
+    assert M._restoration(world, state, THORNWALL, COMMONS, THORNWOOD, world.regions[THORNWOOD]) == -1
+
+
+# --- leaders ---------------------------------------------------------------------------
+
+def test_a_pressing_movement_raises_its_boldest_member_to_lead(monkeypatch):
+    world = _world()
+    civ = world.civilizations[THORNWALL]
+    m = _place(world, creed=SECT, demands=1, last_demand=world.turn, stage=PRESSING)
+    bridge = _bridge(world)
+    _tick(world, members={(0, THORNWOOD): 9}, bridge=bridge)
+    first = 91   # the first agent of Thornwood in the rows, the boldest member there
+    assert bridge._sim.leaders == [(first, M.LEADER_ROLE_PROPHET)] and m.leader_candidate == first
+    world.turn += 1
+    _tick(world, members={(0, THORNWOOD): 9}, bridge=bridge)
+    assert len(bridge._sim.leaders) == 1          # waiting for the promotion
+    gp = GreatPerson(name="Brother Aldo", role="prophet", trait="zealous", civilization=civ.name,
+                     origin_civilization=civ.name, born_turn=world.turn, source="agent", agent_id=first)
+    civ.great_persons.append(gp)
+    world.turn += 1
+    events = _tick(world, members={(0, THORNWOOD): 9}, bridge=bridge)
+    assert m.leader == "Brother Aldo" and m.leader_agent == first and m.leader_candidate == 0
+    lead = next(e for e in events if e.event_type == "movement_leader")
+    assert lead.description == "Brother Aldo rises to lead the Test 2 in Thornwood"
+    assert gp.region == "Thornwood" and gp.deeds[-1].text == "Rose to lead the Test 2"
+    assert M.movement_table(world).to_pydict()["appeal"][0] == pytest.approx(
+        M.appeal(m, True), rel=1e-6)
+    assert M.snapshot_summary(world)["living"][0]["leader"] == "Brother Aldo"
+    # A soldier of a commons movement is raised as a general; small movements raise no one.
+    other = _world()
+    _place(other, demands=1, last_demand=other.turn, stage=PRESSING)
+    b2 = _bridge(other)
+    _tick(other, members={(0, THORNWOOD): 9}, bridge=b2, occupation=1)
+    assert b2._sim.leaders == [(first, M.LEADER_ROLE_GENERAL)]
+    small = _world()
+    _place(small, demands=1, last_demand=small.turn, stage=PRESSING)
+    b3 = _bridge(small)
+    _tick(small, members={(0, THORNWOOD): 5}, bridge=b3)
+    assert b3._sim.leaders == []
+
+
+def test_a_secession_crowns_its_leader():
+    world = _world()
+    civ = world.civilizations[THORNWALL]
+    civ.stability = 20
+    gp = GreatPerson(name="Captain Varo", role="general", trait="bold", civilization=civ.name,
+                     origin_civilization=civ.name, born_turn=world.turn, base_name="Varo")
+    civ.great_persons.append(gp)
+    m = _place(world, creed=LIBERTY, grievance=0.5, demands=2, stage=PRESSING, leader="Captain Varo")
+    _tick(world, members={(0, THORNWOOD): 12})
+    world.turn += 1
+    n = len(world.civilizations)
+    events = _tick(world, members={(0, THORNWOOD): 12}, bridge=_bridge(world, rebels={THORNWOOD: 6}))
+    new = world.civilizations[n]
+    assert new.leader.throne_name == "Varo" and new.leader.name.endswith(" Varo")
+    assert new.leader.trait == "bold" and gp.fate == "ascended" and not gp.active
+    assert gp not in civ.great_persons and gp in world.retired_persons
+    secession = next(e for e in events if e.event_type == "secession")
+    assert f"Captain Varo takes its throne as {new.leader.name}" in secession.description
+
+
 # --- native table, seeds, reports ---------------------------------------------
 
 def test_the_table_and_seeds_come_from_persisted_state():
@@ -591,7 +897,7 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert "set_agent_movements_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
 
 
-def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
+def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
     from chronicler.main import _build_parser, execute_run
     parser = _build_parser()
 
@@ -601,16 +907,17 @@ def test_new_worlds_default_off_and_resume_keeps_saved_setting(tmp_path):
                                   "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
     fresh = tmp_path / "fresh"
     execute_run(args(fresh))
-    assert "agent_movements" not in json.loads((fresh / "state.json").read_text())
-    on = tmp_path / "on"
-    execute_run(args(on, "--agent-movements"))
-    state = json.loads((on / "state.json").read_text())
+    state = json.loads((fresh / "state.json").read_text())
     assert state["agent_movements"]["movements"] == []   # nothing founds without agents
-    bundle = load_bundle(on / "chronicle_bundle.json")
+    bundle = load_bundle(fresh / "chronicle_bundle.json")
     assert all("agent_movements" in h for h in bundle["history"])
+    off = tmp_path / "off"
+    execute_run(args(off, "--no-agent-movements"))
+    assert "agent_movements" not in json.loads((off / "state.json").read_text())
     from chronicler.analytics import generate_report
     assert generate_report(tmp_path)["agent_movements"]["runs"] == 1
-    for run, kept in ((fresh, False), (on, True)):
+    # A saved world keeps its setting on resume, either way, with no flag.
+    for run, kept in ((fresh, True), (off, False)):
         resumed = args(run, turns=5)
         resumed.resume = str(run / "state.json")
         resumed.state = str(run / "resumed.json")

@@ -1539,9 +1539,11 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Movements grounded in people: agents with shared grievances (hunger, "
                              "foreign rule, an unanswered faith) join leagues, autonomist currents "
                              "and sects through their bonds, towns, migrants and merchants; at "
-                             "scale they press factions and rulers, win reforms, suffer crackdowns "
-                             "and martyrs, split faiths or rise and secede; needs an agent mode to "
-                             "found movements (default off for new worlds; saved on resume)")
+                             "scale they press factions and rulers, raise leaders, win lasting "
+                             "reforms (poor relief, home rule, toleration) that later rulers may "
+                             "repeal, suffer crackdowns and martyrs, split faiths or rise and "
+                             "secede; needs an agent mode to found movements (default on for new "
+                             "worlds; --no-agent-movements opts out; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

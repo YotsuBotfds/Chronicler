@@ -631,7 +631,7 @@ class TestAgentsWiring:
             state=str(tmp_path / "state.json"),
             resume=None, reflection_interval=10,
             llm_actions=False, scenario=None, pause_every=None,
-            simulate_only=True, agents="hybrid",
+            simulate_only=True, agents="hybrid", agent_movements=False,
         )
         mock_bridge = self._mock_agent_bridge()
         mock_ab_module = MagicMock()
@@ -1027,6 +1027,7 @@ class TestApiNarrationIntegration:
 
         args = self._make_args(str(tmp_path))
         args.agents = "hybrid"
+        args.agent_movements = False   # the mocked simulator has no movement stats
 
         import sys
         mock_bridge = TestAgentsWiring()._mock_agent_bridge()
@@ -1265,7 +1266,7 @@ class TestPoliticsRuntimeWiring:
             state=str(tmp_path / "state.json"),
             resume=None, reflection_interval=10,
             llm_actions=False, scenario=None, pause_every=None,
-            simulate_only=True, agents="hybrid",
+            simulate_only=True, agents="hybrid", agent_movements=False,
         )
         mock_ab_module = MagicMock()
         mock_ab_module.AgentBridge = MagicMock(return_value=mock_bridge)

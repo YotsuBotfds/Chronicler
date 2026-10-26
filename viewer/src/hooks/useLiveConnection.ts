@@ -148,6 +148,7 @@ export function useLiveConnection(wsUrl: string): LiveConnectionState {
     gp_agendas: msg.gp_agendas as TurnSnapshot["gp_agendas"],
     nomads: msg.nomads as TurnSnapshot["nomads"],
     cities: msg.cities as TurnSnapshot["cities"],
+    agent_movements: msg.agent_movements as TurnSnapshot["agent_movements"],
     food: msg.food as TurnSnapshot["food"],
     migration: msg.migration as TurnSnapshot["migration"],
   }), []);

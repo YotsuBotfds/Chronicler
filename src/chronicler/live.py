@@ -1183,7 +1183,7 @@ def run_live(
         )
         _cities = getattr(args, "cities", None)
         set_cities_enabled(world, _CITIES_DEFAULT if _cities is None else bool(_cities))
-        # Agent movements: new live worlds follow the CLI default (off).
+        # Agent movements: new live worlds follow the CLI default (--no-agent-movements opts out).
         from chronicler.agent_movements import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT, set_agent_movements_enabled,
         )
