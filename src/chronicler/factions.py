@@ -438,8 +438,9 @@ def tick_factions(world, acc=None, conversion_deltas=None, region_populations=No
         # The raw shift is visible in the snapshot; next turn's normalize cleans up.
         if civ.factions.pending_faction_shift:
             winning_ft = FactionType(civ.factions.pending_faction_shift)
-            civ.factions.influence[winning_ft] += 0.20
-            normalize_influence(civ.factions)
+            if winning_ft in civ.factions.influence:   # burghers may have dissolved (--guilds)
+                civ.factions.influence[winning_ft] += 0.20
+                normalize_influence(civ.factions)
             civ.factions.pending_faction_shift = None
 
         # 6. Check for dominance shift
