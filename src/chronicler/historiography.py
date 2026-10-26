@@ -17,7 +17,11 @@ Who writes:
 * a **court chronicler** per civilization (``court:<civ index>``), keeping
   its archive in the civ's capital;
 * a **temple chronicler** per faith with a standing temple
-  (``temple:<faith id>``), keeping its archive at its most prestigious temple.
+  (``temple:<faith id>``), keeping its archive at its most prestigious temple;
+* the **scholars of a seat of learning** (``--scholarship``; ``seat:<seat
+  index>``), keeping their archive at the seat: they record its founding,
+  rises, masters, decline and fall plainly, and the inventions made in its
+  region.
 
 What they write: every account tells one real event (its ``event_id``).
 Bias is a list of recorded transformations of that event, decided by the
@@ -35,7 +39,10 @@ Archives survive or are lost: a sack or annexation of the archive's region,
 the conquest or collapse of its civilization, fire, earthquake, flood and
 plague each destroy part of it; every account survives an episode if one of
 its copies does, and literacy techniques (writing, written law, printing,
-the telegraph, when ``--techniques`` is on) add copies. A chronicler cites
+the telegraph, when ``--techniques`` is on) add copies, as do seats of
+learning in the archive's region and realm (``--scholarship``). A fallen
+seat's archive goes with its scholars to their refuge (some books are lost
+on the road) or is lost with the seat. A chronicler cites
 only causes it still holds, so the history of a fallen civ comes down in its
 victor's accounts.
 
@@ -98,6 +105,9 @@ SURVIVAL: dict[str, float] = {
     "sack": 0.50, "conquest": 0.25, "collapse": 0.60, "fire": 0.70,
     "quake": 0.75, "flood": 0.85, "plague": 0.97, "desecration": 0.50,
     "absorption": 0.60,
+    # Seats of learning (--scholarship): a fallen seat's archive, carried by
+    # its fleeing scholars or left behind.
+    "flight": 0.80, "abandonment": 0.50,
 }
 #: Extra copies an archive keeps per writing technique its owner knows
 #: (``--techniques`` only; one copy otherwise).
@@ -187,6 +197,19 @@ GLORY = frozenset({
 GUILD_GLORY = frozenset({"guild_founded", "guild_privilege"})
 GUILD_DECREE = frozenset({"guild_privilege_lost"})
 GUILD_MIN_IMPORTANCE = 3
+#: Seats of learning (``--scholarship``), told from SEAT_MIN_IMPORTANCE by
+#: the courts of the realm: a founding or a rise is glory; a decline, a fall
+#: or the scholars' flight a disaster. The seat's own scholars write every
+#: event of its record (``SEAT_STANCES``: a new patron and a great scholar
+#: teaching there too) and the inventions made in its region.
+SEAT_GLORY = frozenset({"seat_founded", "seat_rose"})
+SEAT_LOSS = frozenset({"seat_declined", "seat_fell", "scholars_fled"})
+SEAT_STANCES: dict[str, str] = {
+    "seat_founded": "glory", "seat_rose": "glory", "seat_patron": "glory", "seat_master": "glory",
+    "technique_invented": "glory", "seat_declined": "disaster", "seat_fell": "disaster",
+    "scholars_fled": "disaster",
+}
+SEAT_MIN_IMPORTANCE = 3
 RULER = frozenset({"leader_death", "succession_crisis_resolved"})
 FAITH = frozenset({
     "Persecution", "Mass Migration", "Schism", "Reformation", "temple_destroyed",
@@ -269,8 +292,8 @@ class Archive(BaseModel):
 
 
 class Chronicler(BaseModel):
-    chronicler_id: str              # "court:<civ index>" or "temple:<faith id>"
-    kind: str                       # court, temple
+    chronicler_id: str              # "court:<civ index>", "temple:<faith id>" or "seat:<seat index>"
+    kind: str                       # court, temple, seat
     civ: int | None = None          # civ index (court)
     faith: int | None = None        # faith id (temple)
     name: str                       # "the Kethani chronicles"
@@ -751,7 +774,15 @@ class _Turn:
                 return rec.winner, True
         return None, False
 
-    def copies(self, civ_index: int | None) -> int:
+    def copies(self, civ_index: int | None, region: int | None = None) -> int:
+        """Copies an archive keeps: literacy techniques of its owner, and
+        seats of learning in its region and realm (``--scholarship``)."""
+        if getattr(self.world, "scholarship", None) is None:
+            return self._literacy_copies(civ_index)
+        from chronicler.scholarship import archive_copies
+        return self._literacy_copies(civ_index) + archive_copies(self.world, civ_index, region)
+
+    def _literacy_copies(self, civ_index: int | None) -> int:
         world = self.world
         if civ_index is None:
             return 1
@@ -827,7 +858,7 @@ def _update_roster(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
             st.chroniclers.append(chron)
             capital = ctx.region_index.get(civ.capital_region) if civ.capital_region else None
             st.archives.append(Archive(archive_id=f"archive:{cid}", owner=cid, region=capital,
-                                       copies=ctx.copies(i)))
+                                       copies=ctx.copies(i, capital)))
             _count(st, "chroniclers")
         chron.active = True
     for faith_id in sorted(temples):
@@ -841,9 +872,57 @@ def _update_roster(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
             ri = temples[faith_id][0]
             ctrl = ctx.world.regions[ri].controller
             st.archives.append(Archive(archive_id=f"archive:{cid}", owner=cid, region=ri,
-                                       copies=ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None)))
+                                       copies=ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None, ri)))
             _count(st, "chroniclers")
         chron.active = True
+    for si, seat in _living_seats(ctx.world):
+        cid = f"seat:{si}"
+        chron = chroniclers.get(cid)
+        if chron is None:
+            chron = Chronicler(chronicler_id=cid, kind="seat", name=f"the scholars of {seat.name}",
+                               founded_turn=ctx.turn)
+            st.chroniclers.append(chron)
+            st.archives.append(Archive(archive_id=f"archive:{cid}", owner=cid, region=seat.region,
+                                       copies=_seat_archive_copies(seat)))
+            _count(st, "chroniclers")
+        chron.active = True
+
+
+def _living_seats(world: "WorldState") -> list:
+    """(seat index, seat) of the living seats of learning (``--scholarship``)."""
+    if getattr(world, "scholarship", None) is None:
+        return []
+    from chronicler.scholarship import living_seats
+    return living_seats(world)
+
+
+def _seat_of(world: "WorldState", chron: Chronicler):
+    """The seat of a seat chronicler (``seat:<index>``), or None."""
+    state = getattr(world, "scholarship", None)
+    ref = chron.chronicler_id.partition(":")[2]
+    if state is None or not ref.isdigit() or int(ref) >= len(state.seats):
+        return None
+    return state.seats[int(ref)]
+
+
+def _seat_archive_copies(seat) -> int:
+    """A seat keeps a copy of its records per level (one once fallen)."""
+    return 1 + max(0, seat.level)
+
+
+def _seat_events(world: "WorldState") -> dict[str, list[str]]:
+    """Event id -> seat chronicler ids that record it: every event of a
+    seat's own history, and inventions made in a living seat's region."""
+    out: dict[str, list[str]] = {}
+    state = getattr(world, "scholarship", None)
+    if state is None:
+        return out
+    for si, seat in enumerate(state.seats):
+        cid = f"seat:{si}"
+        for _turn, _kind, eid in seat.history:
+            if eid and cid not in out.setdefault(eid, []):
+                out[eid].append(cid)
+    return out
 
 
 _GUILD_MOVEMENT_TYPES = frozenset({"movement_founded", "movement_reform", "reform_repealed"})
@@ -921,6 +1000,10 @@ def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
     guild = ctx.guild_stance(ev) if ctx is not None else None
     if guild is not None:
         return guild, None
+    if t in SEAT_GLORY:
+        return "glory", None
+    if t in SEAT_LOSS:
+        return "disaster", None
     actors = list(ev.actors)
     if t in BATTLES:
         if len(actors) < 2 or name not in actors[:2]:
@@ -994,13 +1077,34 @@ def _record(ctx: _Turn, new: Sequence["Event"]) -> None:
     chroniclers = _chronicler_map(st)
     courts = {c.civ: c for c in st.chroniclers if c.kind == "court" and c.active}
     temples = {c.faith: c for c in st.chroniclers if c.kind == "temple" and c.active}
+    seats = {c.chronicler_id for c in st.chroniclers if c.kind == "seat" and c.active}
+    seat_events = _seat_events(ctx.world) if seats else {}
+    seat_regions: dict[str, list[str]] = {}
+    if seats:
+        for si, seat in _living_seats(ctx.world):
+            if f"seat:{si}" in seats and seat.region < len(ctx.world.regions):
+                seat_regions.setdefault(ctx.world.regions[seat.region].name, []).append(f"seat:{si}")
     # Candidates per chronicler: (importance desc, order) -> event, principal civ
     picks: dict[str, list[tuple[int, int, "Event", str]]] = {}
     for order, ev in enumerate(new):
         if not _chronicle_worthy(ev):
             continue
-        floor = (GUILD_MIN_IMPORTANCE if ctx.guild_stance(ev) is not None
-                 else _min_importance(ev.event_type))
+        if seats:
+            # The scholars of a seat record its own events and the inventions
+            # made in its region, whatever their importance.
+            scribes = list(seat_events.get(ev.event_id, ()))
+            if ev.event_type == "technique_invented":
+                scribes += [c for c in seat_regions.get(ev.region or "", ()) if c not in scribes]
+            involved_seat = ctx.involved(ev)
+            for cid in scribes:
+                if cid in seats:
+                    picks.setdefault(cid, []).append(
+                        (-ev.importance, order, ev, involved_seat[0] if involved_seat else ""))
+        if ev.event_type in SEAT_GLORY or ev.event_type in SEAT_LOSS:
+            floor = SEAT_MIN_IMPORTANCE
+        else:
+            floor = (GUILD_MIN_IMPORTANCE if ctx.guild_stance(ev) is not None
+                     else _min_importance(ev.event_type))
         if ev.importance < floor:
             continue
         involved = ctx.involved(ev)
@@ -1173,7 +1277,26 @@ def _battle_numbers(ctx: _Turn, ev: "Event", name: str) -> tuple[int, int] | Non
 def _write(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Account:
     if chron.kind == "temple":
         return _write_temple(ctx, chron, ev, name)
+    if chron.kind == "seat":
+        return _write_seat(ctx, chron, ev, name)
     return _write_court(ctx, chron, ev, name)
+
+
+def _write_seat(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Account:
+    """The scholars write plainly: the event as recorded, and for a loss the
+    cause they hold ("in the wake of ...")."""
+    cid = chron.chronicler_id
+    stance = SEAT_STANCES.get(ev.event_type, "neutral")
+    cited = _held_causes(ctx, cid, ev)
+    core = _what(ev)
+    if stance == "disaster" and cited:
+        cause = _event_at(ctx, cited[0])
+        if cause is not None:
+            core += f", in the wake of {_mid(_short_label(cause))} (turn {cause.turn})"
+    acc = Account(account_id=f"{cid}/{ev.event_id}", event_id=ev.event_id, turn=ev.turn,
+                  chronicler=cid, stance=stance, transforms=[], cited=cited)
+    acc.text = _sentence(core)
+    return acc
 
 
 def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Account:
@@ -1469,6 +1592,13 @@ def _loss_cause(ctx: _Turn, chron: Chronicler, archive: Archive, ev: "Event") ->
     if (t in ("union_annexation", "twilight_absorption") and owner_civ is not None
             and ev.actors[:1] == [owner_civ]):
         return "absorption"
+    if chron.kind == "seat" and t == "seat_fell":
+        seat = _seat_of(ctx.world, chron)
+        if seat is not None and any(eid == ev.event_id for _turn, kind, eid in seat.history
+                                    if kind == "fell"):
+            # The seat's own fall: its scholars carry the archive to their
+            # refuge, or it is left behind.
+            return "flight" if seat.refuge >= 0 else "abandonment"
     if archive.region is None or archive.region >= len(ctx.world.regions):
         return None
     here = ctx.world.regions[archive.region].name
@@ -1543,9 +1673,22 @@ def _place_archives(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
                 if alive:
                     archive.region = (ctx.region_index.get(civ.capital_region)
                                       if civ.capital_region else archive.region)
-                    archive.copies = ctx.copies(chron.civ)
+                    archive.copies = ctx.copies(chron.civ, archive.region)
                 else:
                     archive.region = None
+        elif chron.kind == "seat":
+            seat = _seat_of(ctx.world, chron)
+            chron.active = seat is not None and seat.fallen_turn is None
+            if archive is not None and seat is not None:
+                if chron.active:
+                    archive.region = seat.region
+                    archive.copies = _seat_archive_copies(seat)
+                elif archive.region == seat.region:
+                    # Fallen: the archive goes with the scholars to their refuge.
+                    state = ctx.world.scholarship
+                    refuge = state.seats[seat.refuge] if 0 <= seat.refuge < len(state.seats) else None
+                    archive.region = refuge.region if refuge is not None else None
+                    archive.copies = 1
         else:
             spot = temples.get(chron.faith)  # type: ignore[arg-type]
             chron.active = spot is not None
@@ -1555,7 +1698,7 @@ def _place_archives(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
                 else:
                     archive.region = spot[0]
                     ctrl = ctx.world.regions[spot[0]].controller
-                    archive.copies = ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None)
+                    archive.copies = ctx.copies(ctx.civ_index.get(ctrl) if ctrl else None, spot[0])
 
 
 # ---------------------------------------------------------------------------
@@ -1568,6 +1711,7 @@ _LOSS_PHRASES = {
     "fire": "burned", "quake": "thrown down by an earthquake", "flood": "flooded",
     "plague": "emptied by plague", "desecration": "desecrated",
     "absorption": "scattered when the realm was absorbed",
+    "flight": "thinned on its scholars' flight", "abandonment": "left behind when its seat fell",
 }
 
 
@@ -1668,6 +1812,9 @@ def export(world: "WorldState") -> dict | None:
         "archive": f"archive:{c.chronicler_id}",
         "accounts": total.get(c.chronicler_id, 0), "surviving": surviving.get(c.chronicler_id, 0),
     } for c in st.chroniclers]
+    for row in chroniclers:
+        if row["kind"] == "seat":
+            row["seat"] = int(row["id"].partition(":")[2])
 
     def region_name(ri: int | None) -> str | None:
         return regions[ri].name if ri is not None and 0 <= ri < len(regions) else None

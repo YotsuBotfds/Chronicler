@@ -138,7 +138,8 @@ def event_text(ev: "Event", faiths: dict[int, str] | None = None) -> str:
 #: The plain words for a migration's recorded driver (``models.MIGRATION_DRIVER_NAMES``).
 DRIVER_WORDS: dict[str, str] = {
     "frontier": "open land to settle", "wage": "work and wages", "chain": "kin who went before",
-    "urban": "the city", "famine_memory": "memory of hunger", "opp_food": "food elsewhere",
+    "urban": "the city", "learning": "a seat of learning", "famine_memory": "memory of hunger",
+    "opp_food": "food elsewhere",
     "persecution": "persecution", "persecution_memory": "memory of persecution",
     "battle_memory": "memory of war", "conquest_memory": "memory of conquest",
     "low_satisfaction": "hardship", "safety_need": "want of safety", "material_need": "want",
@@ -157,7 +158,10 @@ DRIVER_WORDS: dict[str, str] = {
 #: ``guild_privilege_lost``, ``guild_levy``, ``guild_dissolved``) weigh by their
 #: importance like other events; the standing state names the guilds. A
 #: faction taking the lead at court (``faction_dominance_shift``, the burghers'
-#: rise with ``--guilds``) is a political change, not routine.
+#: rise with ``--guilds``) is a political change, not routine. Seats of
+#: learning (``--scholarship``): a founding, rise, decline, fall or flight
+#: weighs by its importance; a new patron or a great scholar teaching there
+#: is routine.
 ROUTINE_TYPES: frozenset[str] = frozenset({
     "develop", "invest_culture", "diplomacy", "trade", "build_started",
     "infrastructure_completed", "fund_instability", "fund_instability_failed", "action",
@@ -170,6 +174,7 @@ ROUTINE_TYPES: frozenset[str] = frozenset({
     "supply_shock", "occupation_shift", "notable_migration", "economic_shock",
     "agenda_declared", "ambition_declared", "technique_adopted", "movement_spread",
     "institution_enforcement_lapse", "reform_lapsed", "preaching", "shrine_commissioned",
+    "seat_patron", "seat_master",
 })
 
 
@@ -605,9 +610,10 @@ def standing_state_lines(
     Rulers and capitals of the moment's civs, their wars, living movements
     against them (creed, stage, members, leader, stronghold), reforms in force
     in them, chartered or great cities in their lands or the moment's regions,
-    those cities' guilds and the burgher faction (``--guilds``), and the
-    moment's regions short of food with the dearth or famine the timeline
-    records there. Civ and region identities are indices into ``world``;
+    those cities' guilds and the burgher faction (``--guilds``), seats of
+    learning in the moment's regions or its civs' lands (``--scholarship``),
+    and the moment's regions short of food with the dearth or famine the
+    timeline records there. Civ and region identities are indices into ``world``;
     without a world those lines are left out.
     """
     if snapshot is None:
@@ -728,6 +734,12 @@ def standing_state_lines(
         if rows and shares:
             lines.append("Burgher faction's influence at court: " + ", ".join(shares))
 
+    # Seats of learning (``TurnSnapshot.scholarship``, --scholarship): those of
+    # the moment's regions or of its civs' lands, with their patron and scholars.
+    seat_state = getattr(snapshot, "scholarship", None) or {}
+    if seat_state:
+        lines.extend(seat_lines(seat_state, civs, regions))
+
     food = snapshot.food or {}
     hungry_regions = list(regions)
     for ev in events:
@@ -754,6 +766,40 @@ def standing_state_lines(
             food_lines.append(text)
     lines.extend(food_lines[:MAX_PER_KIND])
     return lines[:MAX_STATE_LINES]
+
+
+#: Who keeps a seat of learning, by kind (``scholarship_state.KIND_NAMES``).
+SEAT_PATRONS: dict[str, str] = {"academy": "kept by its ruler", "temple school": "kept by its temple",
+                                "library": "kept by its city"}
+
+
+def seat_lines(state: dict, civs: Sequence[str], regions: Sequence[str],
+               limit: int = MAX_PER_KIND - 1) -> list[str]:
+    """Standing-state lines for the seats of learning of a snapshot's
+    ``scholarship`` summary in the moment's regions or its civs' lands."""
+    from chronicler.scholarship_state import LEVEL_NAMES
+    rows = [s for s in state.get("seats", []) if s.get("region") in regions or s.get("lord") in civs]
+    rows.sort(key=lambda s: (s.get("region") not in regions, -int(s.get("level", 0)),
+                             -float(s.get("scholars", 0)), int(s.get("id", 0))))
+    out = []
+    for s in rows[:limit]:
+        level = int(s.get("level", 0))
+        name = str(s.get("name", ""))
+        text = f"Seat of learning: {name[:1].upper() + name[1:]} ("
+        text += f"{LEVEL_NAMES[level] if 0 <= level < len(LEVEL_NAMES) else level} {s.get('kind')}"
+        text += f" in {s.get('region')}" if s.get("region") else ""
+        text += f" under {s.get('lord')}" if s.get("lord") else ""
+        text += f", {SEAT_PATRONS.get(str(s.get('kind')), 'kept by its patron')})"
+        text += f", {float(s.get('scholars', 0)):.0f} scholars"
+        masters = int(s.get("masters", 0))
+        if masters:
+            text += f", {masters} great scholar{'s' if masters != 1 else ''} teaching"
+        if s.get("refugees"):
+            text += ", refugees from a fallen seat among them"
+        if s.get("unpaid"):
+            text += "; its upkeep unpaid"
+        out.append(text)
+    return out
 
 
 def render_standing_state(lines: Sequence[str], turn: int) -> str:

@@ -295,6 +295,7 @@ fn best_migration_target_for_agent(
                 gate_open[1] |= gross.wage > 0.0;
                 gate_open[2] |= gross.chain > 0.0;
                 gate_open[3] |= gross.urban > 0.0;
+                gate_open[4] |= gross.learning > 0.0;
                 gross.net_of_roots(m.roots)
             }
             None => VoluntaryPull::default(),
@@ -447,6 +448,7 @@ fn migration_terms(
     terms[TERM_WAGE] = choice.voluntary.wage;
     terms[TERM_CHAIN] = choice.voluntary.chain;
     terms[TERM_URBAN] = choice.voluntary.urban;
+    terms[TERM_LEARNING] = choice.voluntary.learning;
     terms
 }
 

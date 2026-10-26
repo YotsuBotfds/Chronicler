@@ -58,8 +58,8 @@ import random
 from typing import TYPE_CHECKING
 
 from chronicler.techniques_state import (
-    CH_INVENTION, CH_NEIGHBOURS, CH_PEOPLE, CH_PILGRIMS, CH_SEEDED, CH_SOLDIERS, CH_TRADE,
-    CHANNELS, CONQUEST, DOMAINS, MAX_TIER, TECHNIQUE_INDEX, TECHNIQUES, TechniqueState,
+    CH_INVENTION, CH_NEIGHBOURS, CH_PEOPLE, CH_PILGRIMS, CH_SCHOLARS, CH_SEEDED, CH_SOLDIERS,
+    CH_TRADE, CHANNELS, CONQUEST, DOMAINS, MAX_TIER, TECHNIQUE_INDEX, TECHNIQUES, TechniqueState,
     techniques_on,
 )
 
@@ -343,8 +343,13 @@ def _civ_practice(pm: dict, suit, regions, members: list[int], k: int) -> float:
 # Practice dynamics
 # ---------------------------------------------------------------------------
 
-def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit) -> tuple[dict, dict]:
-    """One turn of growth, diffusion and decay. Returns (practice, meta)."""
+def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
+                     learning=None) -> tuple[dict, dict]:
+    """One turn of growth, diffusion and decay. Returns (practice, meta).
+
+    ``learning`` (``--scholarship``): per region index, the adoption hazard
+    and forgetting factors of nearby seats of learning
+    (``scholarship.learning_factors``); None leaves every value as before."""
     regions = world.regions
     n = len(regions)
     old = {}
@@ -426,6 +431,15 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit) ->
                 if p < cap and hazard > 0.0:
                     inflow = (cap - p) * -math.expm1(-DIFFUSION_SCALE * rate * hazard)
             forget = (BASE_FORGET + SHORTFALL_FORGET * shortfall) * p
+            if learning is not None:
+                # Seats of learning: adoption from contacts quickens in and
+                # next to a seat; practice is kept longer in its region.
+                h = learning[0].get(t)
+                if h is not None and inflow > 0.0:
+                    inflow = (cap - p) * -math.expm1(-DIFFUSION_SCALE * rate * hazard * h)
+                f = learning[1].get(t)
+                if f is not None:
+                    forget *= f
             value = _q(min(1.0, max(0.0, p + growth - forget + inflow)))
             if value < DROP_LEVEL:
                 continue
@@ -452,6 +466,9 @@ def _research_multiplier(world, civ, civ_levels: dict[int, float]) -> float:
         mult *= SCHOLARSHIP_RESEARCH
     scientists = sum(1 for gp in civ.great_persons if gp.active and gp.role == "scientist")
     mult *= 1.0 + SCIENTIST_RESEARCH * min(2, scientists)
+    if getattr(world, "scholarship", None) is not None:
+        from chronicler.scholarship import research_factor
+        mult *= research_factor(world, civ)
     return mult
 
 
@@ -660,7 +677,12 @@ def _gains_and_losses(world, st: TechniqueState, ctrl: list[int], old_rows: dict
                 place = regions[src].name if 0 <= src < len(regions) else "its neighbours"
                 carriers = {CH_TRADE: "merchants", CH_SOLDIERS: "soldiers", CH_PILGRIMS: "pilgrims",
                             CH_PEOPLE: "migrants"}.get(ch)
-                if sciv == ci and carriers is None:
+                if ch == CH_SCHOLARS:
+                    # --scholarship: scholars fleeing a fallen seat brought it.
+                    text = f"{civ.name} learned {spec.label} from scholars fleeing {place}"
+                    if 0 <= src < len(regions):
+                        causes.append(prov.recall(world, prov.key("seat_flight", regions[src].name)))
+                elif sciv == ci and carriers is None:
                     text = f"{civ.name} revives {spec.label} in {region_name}"
                 elif carriers is None:
                     text = f"{civ.name} learned {spec.label} from {source or place} across the border"
@@ -896,7 +918,16 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
         st.known = []
         st.controllers = []
     old_rows = {(r, k): p for r, k, p, *_ in st.rows}
-    practice, meta = _update_practice(world, st, ctrl, links, suit)
+    learning = None
+    if getattr(world, "scholarship", None) is not None:
+        from chronicler.scholarship import learning_factors
+        learning = learning_factors(world)
+    practice, meta = _update_practice(world, st, ctrl, links, suit, learning)
+    if learning is not None:
+        # Scholars fleeing a fallen seat (last Phase 10) carry techniques to
+        # their refuge; the region where it fell loses part of its practice.
+        from chronicler.scholarship import apply_carries
+        apply_carries(world, practice, meta, suit, _PREREQS, CH_SCHOLARS)
     regions = world.regions
     n_civs = len(world.civilizations)
     members_of = [[r for r, c in enumerate(ctrl) if c == ci] for ci in range(n_civs)]
