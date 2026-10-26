@@ -42,8 +42,9 @@ commit was made. A flip would follow
   run; 0.27 civ adoptions through the new `scholars` channel). Civ-level
   invention and adoption counts do not move beyond their noise (below).
 - **Migration.** A fifth healthy-world driver draws scholar agents
-  within a realm toward a better seat: 210 agent migrations per run on
-  templates and 199 per 200-turn procedural run. No existing weight changes.
+  within a realm toward a better seat: 210 agent migrations per run on the
+  template full gate and 364 on the procedural one. No existing weight
+  changes.
 - **Cost.** Turn time with seats standing is within the machine's noise
   (+1% and +6% of the off medians at 15.5k and 35.5k agents). The
   guard-world bundle is 8.33 MB on (8.64 MB off; limit 10.5).
@@ -255,8 +256,8 @@ scholars fled to the Ashkari Academy of Stormbreak Cliffs.
 
 `scripts/scholarship_probe.py` over paired worlds (the same seeds with the
 switch off and on), mean per world and the paired difference with its
-standard error. The subsets are 200 turns. The off arms are byte-identical
-to main, and the on arms reproduce the gated ones exactly. The archive
+standard error. The subsets are 200 turns. The off arms' reports equal
+main's, and the on arms' reports equal the gated ones. The archive
 measures need `cd0ccfd`, which records the seats' copies; its simulation
 equals `03a406a`'s (reports identical).
 
@@ -297,9 +298,9 @@ different wars in different histories and is not the seats' effect.
 **Techniques.** The technique counts move in the expected direction on
 templates (more invented and known, half the decay losses) but within
 about two standard errors. On procedural worlds they do not move. The
-mechanisms act locally, on a seat's region and its ruler, while 2.9 seats
-are alive at a time in a world of 4-10 civs. A civ-level count over 200
-turns dilutes them. What is direct is the movement of knowledge with
+mechanisms act locally, on a seat's region and its ruler. Only 2.9 seats
+stand at a time on template worlds (6.7 on procedural ones), so a
+civ-level count over 200 turns dilutes them. What is direct is the movement of knowledge with
 people. Over the 200 full-gate worlds, 6.5 techniques per run were
 carried to a refuge's region and 0.27 per run were taken up by a civ
 through the `scholars` channel (34 worlds). Where a seat fell, 49
@@ -417,19 +418,23 @@ Procedural, 100 seeds x 300 turns (32 regions x 10 civs), `03a406a`,
 Both full gates pass strict with no regression, analysing 200/200/200 and
 100/100/100 seeds with no duplicate seed pairs.
 
-What the seats did over the 200 template worlds (per run):
+What the seats did on the full gates (per run):
 
-| | Per run |
-| --- | ---: |
-| seats founded (academies / temple schools / libraries) | 16.3 (3.3 / 10.1 / 2.8) |
-| living at a time (mean) | 2.9 |
-| rises / declines / strikes | 14.5 / 6.2 / 9.6 |
-| falls (patronage / famine / persecution / sack) | 12.6 (6.6 / 3.3 / 2.2 / 0.5) |
-| flights to a refuge | 11.9 |
-| techniques carried to a refuge / taken up by a civ through `scholars` | 6.5 / 0.27 |
-| practices cut 30% where a seat fell | 49.3 |
-| agent migrations led by the learning pull | 210 (in 197 worlds) |
-| upkeep / founding and rise fees paid (treasury, prestige, purse units) | 825 / 650 |
+| | template, 200 x 500 | procedural, 100 x 300 |
+| --- | ---: | ---: |
+| seats founded (academies / temple schools / libraries) | 16.3 (3.3 / 10.1 / 2.8) | 29.8 (3.1 / 21.5 / 5.2) |
+| living at a time (mean) | 2.9 | 6.7 |
+| rises / declines / strikes | 14.5 / 6.2 / 9.6 | 19.4 / 4.1 / 7.2 |
+| falls (patronage / famine / persecution / sack) | 12.6 (6.6 / 3.3 / 2.2 / 0.5) | 17.7 (10.1 / 3.5 / 3.6 / 0.5) |
+| flights to a refuge | 11.9 | 17.5 |
+| techniques carried to a refuge / taken up by a civ through `scholars` | 6.5 / 0.27 (34 worlds) | 10.0 / 0.45 (35 worlds) |
+| practices cut 30% where a seat fell | 49.3 | 45.4 |
+| agent migrations led by the learning pull | 210 (in 197 worlds) | 364 (in 100 worlds) |
+| upkeep / founding and rise fees paid (treasury, prestige, purse units) | 825 / 650 | 994 / 893 |
+
+Loss of patronage is the commonest fall. In the seed 42 run above, five
+of the seven were temple schools whose temple passed to another faith or
+was gone, and two were libraries whose city stopped paying.
 
 ## Feature-off identity
 
