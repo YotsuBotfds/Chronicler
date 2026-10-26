@@ -120,7 +120,7 @@ def test_prompt_lists_are_bounded_and_count_the_rest():
     events += [_ev(12, "secession", ["A", "B"], imp=9, eid="12:secession:0")]
     events += [_ev(12, "famine_ended", ["A"], imp=4, eid="12:famine_ended:0", episode="end")]
     lines, omitted = nc.select_prompt_events(events)
-    assert len(lines) <= nc.MAX_PROMPT_EVENTS
+    assert len(lines) <= nc.MAX_PROMPT_EVENTS + nc.MAX_EXTRA_TURNING_LINES
     kinds = [ln.event.event_type for ln in lines]
     assert "secession" in kinds and "develop" not in kinds
     assert kinds.count("war") <= nc.MAX_LINES_PER_KIND
@@ -130,6 +130,17 @@ def test_prompt_lists_are_bounded_and_count_the_rest():
     war = next(ln for ln in lines if ln.event.event_type == "war")
     assert len(war.folded) == 18  # 20 battles: two lines, the rest named in the first
     assert nc.render_omitted(omitted).startswith("Also recorded in these turns (not listed): 40 develop")
+
+
+def test_turning_points_of_unshown_kinds_get_a_few_extra_lines():
+    events = [_ev(5, f"busy_{i}", [f"C{i}"], imp=7, eid=f"5:b:{i}") for i in range(14)]
+    events += [_ev(6, f"turn_{i}", [f"T{i}"], imp=8, eid=f"6:t:{i}") for i in range(6)]
+    counts = {**{f"busy_{i}": 3 for i in range(14)}, **{f"turn_{i}": 400 for i in range(6)}}
+    lines, omitted = nc.select_prompt_events(events, type_counts=counts)
+    kinds = [ln.event.event_type for ln in lines]
+    assert len(lines) == nc.MAX_PROMPT_EVENTS + nc.MAX_EXTRA_TURNING_LINES
+    assert sum(1 for k in kinds if k.startswith("turn_")) == nc.MAX_EXTRA_TURNING_LINES
+    assert sum(omitted.values()) == len(events) - len(lines)
 
 
 def test_repeats_of_a_kind_fold_into_one_line_naming_the_places():

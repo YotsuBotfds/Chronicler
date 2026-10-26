@@ -199,6 +199,7 @@ TURNING_POINT_IMPORTANCE = 8
 
 MAX_PROMPT_EVENTS = 12
 ROUTINE_FILL = 4        # routine lines are listed only while fewer lines than this exist
+MAX_EXTRA_TURNING_LINES = 4  # beyond the limit, for turning points of kinds no line shows
 MAX_FOLDED_PLACES = 4
 MAX_OMITTED_KINDS = 8
 
@@ -299,8 +300,10 @@ def select_prompt_events(
     places). The ``limit`` most salient lines are kept (:func:`salience`, with
     ``type_counts`` the run's count of each kind); ties go to the earlier
     event. At most MAX_LINES_PER_KIND lines show one kind: the rest fold into
-    its best line. Routine kinds are listed only while fewer than
-    ROUTINE_FILL lines are kept (a quiet moment still reads as something).
+    its best line. Up to MAX_EXTRA_TURNING_LINES more lines go to turning
+    points (importance 8+) of kinds no kept line shows. Routine kinds are
+    listed only while fewer than ROUTINE_FILL lines are kept (a quiet moment
+    still reads as something).
     The returned counter counts every unlisted, unfolded event by type.
     """
     chained = set(chain_ids)
@@ -330,6 +333,7 @@ def select_prompt_events(
             line.fold(i, ev)
     ranked = sorted(order, key=lambda ln: (ln.event.event_type in ROUTINE_TYPES, -ln.score, ln.order))
     kept: list[PromptLine] = []
+    extra = 0
     per_kind: dict[str, list[PromptLine]] = {}
     for line in ranked:
         same = per_kind.setdefault(line.event.event_type, [])
@@ -340,7 +344,14 @@ def select_prompt_events(
             for order_, ev in line._folded:
                 target.fold(order_, ev)
             continue
+        turning = (not routine and line.event.importance >= TURNING_POINT_IMPORTANCE
+                   and extra < MAX_EXTRA_TURNING_LINES)
         if len(kept) < (min(limit, ROUTINE_FILL) if routine else limit):
+            kept.append(line)
+            same.append(line)
+        elif turning:
+            # A turning point of a kind no line shows yet: one of a few extra lines.
+            extra += 1
             kept.append(line)
             same.append(line)
         else:
