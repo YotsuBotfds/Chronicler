@@ -176,6 +176,17 @@ GLORY = frozenset({
     "secession_suppressed", "dynasty_founded", "exile_return", "horde_formed",
     "settlement_founded", "sea_control",
 })
+#: Guilds (``--guilds``), told from GUILD_MIN_IMPORTANCE (guild events are
+#: minor, so they sort after the rest of a turn's picks): a guild formed or a
+#: privilege or guild charter granted is the realm's prosperity (glory); a
+#: privilege lost or a guild charter repealed is the ruler's act, praised by
+#: a loyal court and condemned by a disaffected one (decree); a guild rising
+#: as a movement is unrest (disgrace; its revolt is a ``movement_rising``).
+#: Movement events count as guild events only for a guild movement or a
+#: guild charter (``_Turn.guild_stance``).
+GUILD_GLORY = frozenset({"guild_founded", "guild_privilege"})
+GUILD_DECREE = frozenset({"guild_privilege_lost"})
+GUILD_MIN_IMPORTANCE = 3
 RULER = frozenset({"leader_death", "succession_crisis_resolved"})
 FAITH = frozenset({
     "Persecution", "Mass Migration", "Schism", "Reformation", "temple_destroyed",
@@ -618,6 +629,20 @@ class _Turn:
                 self.treaties.append(rec)
         self._tempers: dict[str, _Temper] = {}
         self._enemies: dict[str, list[tuple[str, float]]] = {}
+        self._guild_events: dict[str, str] | None = None
+
+    def guild_stance(self, ev: "Event") -> str | None:
+        """How a court tells a guild event (glory, decree, disgrace), or None."""
+        t = ev.event_type
+        if t in GUILD_GLORY:
+            return "glory"
+        if t in GUILD_DECREE:
+            return "decree"
+        if t in _GUILD_MOVEMENT_TYPES and ev.event_id:
+            if self._guild_events is None:
+                self._guild_events = _guild_movement_events(self.world)
+            return self._guild_events.get(ev.event_id)
+        return None
 
     # --- civ views ---------------------------------------------------------
 
@@ -821,6 +846,32 @@ def _update_roster(ctx: _Turn, temples: dict[int, tuple[int, int]]) -> None:
         chron.active = True
 
 
+_GUILD_MOVEMENT_TYPES = frozenset({"movement_founded", "movement_reform", "reform_repealed"})
+
+
+def _guild_movement_events(world: "WorldState") -> dict[str, str]:
+    """Event id -> stance, from the movement record: a guild movement's
+    founding (disgrace), its won demand (glory: the guild charter), and the
+    repeal of a guild charter (decree)."""
+    state = getattr(world, "agent_movements", None)
+    out: dict[str, str] = {}
+    if state is None or not hasattr(state, "movements"):
+        return out
+    from chronicler.agent_movements_state import GUILD, GUILD_CHARTER
+    for m in state.movements:
+        if m.creed != GUILD:
+            continue
+        for _turn, kind, eid in m.history:
+            if eid and kind == "founded":
+                out[eid] = "disgrace"
+            elif eid and kind == "reform":
+                out[eid] = "glory"
+    for r in state.reforms:
+        if r.kind == GUILD_CHARTER and r.repeal_event_id:
+            out[r.repeal_event_id] = "decree"
+    return out
+
+
 def _count(st: HistoriographyState, key: str, n: int = 1) -> None:
     st.counts[key] = st.counts.get(key, 0) + n
 
@@ -867,6 +918,9 @@ def repeat_key(ev: "Event") -> tuple | None:
 def _stance(ctx: _Turn, ev: "Event", name: str) -> tuple[str, str | None]:
     """How the event stands for civ ``name``: (stance, the other principal civ)."""
     t = ev.event_type
+    guild = ctx.guild_stance(ev) if ctx is not None else None
+    if guild is not None:
+        return guild, None
     actors = list(ev.actors)
     if t in BATTLES:
         if len(actors) < 2 or name not in actors[:2]:
@@ -945,7 +999,9 @@ def _record(ctx: _Turn, new: Sequence["Event"]) -> None:
     for order, ev in enumerate(new):
         if not _chronicle_worthy(ev):
             continue
-        if ev.importance < _min_importance(ev.event_type):
+        floor = (GUILD_MIN_IMPORTANCE if ctx.guild_stance(ev) is not None
+                 else _min_importance(ev.event_type))
+        if ev.importance < floor:
             continue
         involved = ctx.involved(ev)
         faiths_done: set[int] = set()
@@ -1201,6 +1257,13 @@ def _write_court(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Accou
     elif stance == "glory":
         if temper.loyalty == "loyal" and temper.ruler:
             tr.append(Transform(kind="praise", detail={"ruler": temper.ruler}))
+    elif stance == "decree":
+        # The ruler's own act against a guild: upheld by a loyal court,
+        # held against him by a disaffected one.
+        if temper.loyalty == "loyal" and temper.ruler:
+            tr.append(Transform(kind="praise", detail={"ruler": temper.ruler}))
+        elif temper.loyalty == "disaffected" and temper.ruler:
+            tr.append(Transform(kind="condemn", detail={"ruler": temper.ruler}))
     elif stance == "ruler":
         if temper.loyalty == "loyal":
             tr.append(Transform(kind="praise", detail={"ruler": "the late ruler"}))
@@ -1356,7 +1419,9 @@ def _render_court(ctx: _Turn, ev: "Event", name: str, other: str | None, stance:
         else:
             core += (f"; the fault lay with the {short_name(blame.detail['blamed'])}, "
                      f"{_cause_phrase(ctx, blame.detail['cited'])}")
-    if stance == "ruler" and praise is not None:
+    if stance == "decree" and praise is not None:
+        core = f"by the just decree of {praise.detail['ruler']}, {_mid(core)}"
+    elif stance == "ruler" and praise is not None:
         core += "; the realm mourned a great ruler"
     elif stance == "ruler" and condemn is not None:
         core += "; few mourned"

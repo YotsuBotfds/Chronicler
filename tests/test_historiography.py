@@ -214,6 +214,64 @@ def test_ruler_praised_by_a_loyal_court_and_condemned_by_a_disaffected_one(world
     assert "condemn" in _kinds(_acc(world, "court:2", unrest2))
 
 
+def test_guild_events_are_chronicled_with_the_court_s_bias(world, monkeypatch):
+    from chronicler.agent_movements import set_agent_movements_enabled
+    from chronicler.agent_movements_state import COMMONS, GUILD, GUILD_CHARTER, Movement, Reform
+    monkeypatch.setattr(H, "_unit", lambda *a: 0.99)   # a loyal court tells, not omits
+    _loyal(world.civilizations[0])
+    _disaffected(world.civilizations[1])
+    a, b = world.civilizations[0].name, world.civilizations[1].name
+    set_agent_movements_enabled(world, True)
+    formed = _ev(world, "guild_founded", [a], "The masters of X form the Weavers' Guild of X",
+                 importance=4)
+    won = _ev(world, "guild_privilege", [a], "The Weavers' Guild of X wins the monopoly of its wares",
+              importance=3)
+    lost = _ev(world, "guild_privilege_lost", [b], "The Guild of Y loses a say in the city's dues",
+               importance=3)
+    kept = _ev(world, "guild_privilege_lost", [a], "The Weavers' Guild of X loses a say in the city's "
+               "dues", importance=3, n=1)
+    rising = _ev(world, "movement_founded", [b], "In Y, the Guild of Y takes up its cause against "
+                 "the new dues", importance=5)
+    charter = _ev(world, "movement_reform", [a], f"{a} confirms the privileges of the Weavers' Guild",
+                  importance=6)
+    commons = _ev(world, "movement_founded", [a], "In X, the discontented found the Levellers",
+                  importance=5, n=1)
+    t = world.turn
+    world.agent_movements.movements = [
+        Movement(name="the Guild of Y", creed=GUILD, founded_turn=t, home_region=1, target=1,
+                 history=[(t, "founded", rising.event_id)]),
+        Movement(name="the Weavers' Guild", creed=GUILD, founded_turn=t - 9, home_region=0, target=0,
+                 history=[(t - 9, "founded", "old"), (t, "reform", charter.event_id)]),
+        Movement(name="the Levellers", creed=COMMONS, founded_turn=t, home_region=0, target=0,
+                 history=[(t, "founded", commons.event_id)]),
+    ]
+    _end_turn(world)
+    assert _acc(world, "court:0", formed).stance == "glory"
+    assert "praise" in _kinds(_acc(world, "court:0", formed))
+    assert _acc(world, "court:0", won).stance == "glory"
+    assert _acc(world, "court:0", charter).stance == "glory"
+    acc = _acc(world, "court:0", kept)
+    assert acc.stance == "decree" and acc.text.startswith("By the just decree of ")
+    acc = _acc(world, "court:1", lost)
+    assert acc.stance == "decree" and "misrule" in acc.text
+    acc = _acc(world, "court:1", rising)
+    assert acc.stance == "disgrace" and "condemn" in _kinds(acc)
+    # Other movements' foundings keep their floor (7): not chronicled at 5.
+    assert _acc(world, "court:0", commons) is None
+    # A guild charter repealed is the ruler's decree too.
+    repeal = _ev(world, "reform_repealed", [b], f"The ruler of {b} repeals the guild charter",
+                 importance=6)
+    world.agent_movements.reforms.append(Reform(kind=GUILD_CHARTER, civ=1, enacted_turn=t,
+                                                repeal_event_id=repeal.event_id))
+    _end_turn(world)
+    assert _acc(world, "court:1", repeal).stance == "decree"
+    # Without movements the guild kinds still read by type.
+    world.agent_movements = None
+    again = _ev(world, "guild_founded", [b], "The masters of Y form a guild", importance=4)
+    _end_turn(world)
+    assert _acc(world, "court:1", again).stance == "glory"
+
+
 def test_peace_treaty_winner_read_from_the_treaty_record(world):
     a, b = world.civilizations[0].name, world.civilizations[1].name
     world.war_state.treaties.append(TreatyRecord(

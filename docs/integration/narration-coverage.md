@@ -17,6 +17,10 @@ timeline, agent events and validation sidecars are byte-identical
 ([Identity](#identity)). The narrator still describes only what a run
 recorded; every new line is read from the record.
 
+Follow-ups on `fix/movements-narration-polish` (movement news per founding,
+guild chronicles, temporal spread of the chronicle):
+[Follow-ups](#follow-ups-news-guild-chronicles-spread).
+
 ## Result
 
 Three hybrid runs with every default system on, `--narrator mechanical`
@@ -145,7 +149,8 @@ food in 44 / 24 / 42, wars in 9 / 21 / 2.
 - **Determinism.** Selection was deterministic in practice, but the
   diversity penalty counted civs through a set; it now uses ordered lists
   (identical prompts under `PYTHONHASHSEED` 0, 1 and 4242).
-- **Not fixable in narration** (recorded in [Open](#open)): movement news
+- **Not fixable in narration** (recorded in [Open](#open); the first is
+  addressed in [Follow-ups](#follow-ups-news-guild-chronicles-spread)): movement news
   leaves no per-founding record (a run counter only), so a founding cannot
   be told as caused by news; the historiography layer writes its accounts
   during the run with `curator.event_label`, whose text is saved output
@@ -370,10 +375,10 @@ importance 7+). Narration does not change the historiography layer.
 | great_person_born | simulation.py | 183 | ok | ok | scored | 143 | 12 | yes | glory |
 | great_person_retired | simulation.py | 0 | ok | ok | scored | 0 | 0 | - | unclassified (7+) |
 | guild_dissolved | guilds.py | 15 | ok | ok | scored | 13 | 2 | yes | unclassified (7+) |
-| guild_founded | guilds.py | 38 | ok | ok | scored | 32 | 2 | yes | unclassified (7+) |
+| guild_founded | guilds.py | 38 | ok | ok | scored | 32 | 2 | yes | guild glory (3+) |
 | guild_levy | guilds.py | 36 | ok | ok | scored | 26 | 4 | yes | unclassified (7+) |
-| guild_privilege | guilds.py | 44 | ok | ok | scored | 33 | 4 | yes | unclassified (7+) |
-| guild_privilege_lost | guilds.py | 0 | ok | ok | scored | 0 | 0 | - | unclassified (7+) |
+| guild_privilege | guilds.py | 44 | ok | ok | scored | 33 | 4 | yes | guild glory (3+) |
+| guild_privilege_lost | guilds.py | 0 | ok | ok | scored | 0 | 0 | - | guild decree (3+) |
 | horde_dissolved | nomads.py | 0 | ok | ok | scored | 0 | 0 | - | unclassified (7+) |
 | horde_formed | nomads.py | 0 | ok | ok | scored | 0 | 0 | - | glory |
 | horde_fragmented | nomads.py | 0 | ok | ok | scored | 0 | 0 | - | disgrace |
@@ -407,10 +412,10 @@ importance 7+). Narration does not change the historiography layer.
 | movement_demand | agent_movements.py | 49 | ok | ok | scored | 41 | 14 | yes | unclassified (7+) |
 | movement_dispersed | agent_movements.py | 0 | ok | ok | scored | 0 | 0 | - | unclassified (7+) |
 | movement_end | agent_movements.py | 94 | ok | ok | scored | 87 | 17 | yes | unclassified (7+) |
-| movement_founded | agent_movements.py | 99 | ok | ok | scored | 84 | 29 | yes | unclassified (7+) |
+| movement_founded | agent_movements.py | 99 | ok | ok | scored | 84 | 29 | yes | unclassified (7+); a guild's: disgrace (3+) |
 | movement_leader | agent_movements.py | 14 | ok | ok | scored | 9 | 3 | yes | unclassified (7+) |
 | movement_martyr | agent_movements.py | 16 | ok | ok | scored | 16 | 2 | yes | faith |
-| movement_reform | agent_movements.py | 22 | ok | ok | scored | 19 | 13 | yes | unclassified (7+) |
+| movement_reform | agent_movements.py | 22 | ok | ok | scored | 19 | 13 | yes | unclassified (7+); a guild charter: glory (3+) |
 | movement_refused | agent_movements.py | 20 | ok | ok | scored | 16 | 3 | yes | unclassified (7+) |
 | movement_rising | agent_movements.py | 4 | ok | ok | scored | 3 | 4 | yes | disgrace |
 | movement_spread | agent_movements.py | 142 | ok | ok | routine | 119 | 0 | yes | unclassified (7+) |
@@ -445,7 +450,7 @@ importance 7+). Narration does not change the historiography layer.
 | rebellion | simulation.py (hazard) | 167 | empty | label | scored | 128 | 8 | yes | disgrace |
 | reform_lapsed | agent_movements.py | 0 | ok | ok | routine | 0 | 0 | - | unclassified (7+) |
 | reform_pressure | governance_runtime.py | 11 | ok | ok | routine | 9 | 0 | yes | routine |
-| reform_repealed | agent_movements.py | 16 | ok | ok | scored | 12 | 11 | yes | unclassified (7+) |
+| reform_repealed | agent_movements.py | 16 | ok | ok | scored | 12 | 11 | yes | unclassified (7+); a guild charter: decree (3+) |
 | religious_movement | simulation.py (hazard) | 105 | empty | label | scored | 75 | 20 | yes | faith |
 | resource_depletion | ecology.py | 0 | ok | ok | scored | 0 | 0 | - | disaster |
 | resource_discovery | emergence.py | 0 | ok | ok | scored | 0 | 0 | - | glory |
@@ -562,8 +567,9 @@ movement is a `movement_founded` with the guild creed, and a guild charter
 a reform in force. The burghers' rise is a `faction_dominance_shift`, no
 longer routine. Movement news (native information packets, type 4) is not
 an event: it raises founding chances and is counted per run
-(`GuildState.counters["news_foundings"]`), so no founding can be told as
-news-driven.
+(`GuildState.counters["news_foundings"]`). Since the follow-up below, a
+founding clearly sparked by news of a like movement's won demand cites
+that demand as a cause ([Follow-ups](#follow-ups-news-guild-chronicles-spread)).
 
 ## 6. Viewer QA
 
@@ -650,17 +656,105 @@ fresh after the merge (`5ede10a9...8b07d6`, compiled classes verified):
 - Not run: `cargo test` (no Rust change on this branch) and a 200-seed gate
   (the simulation is byte-identical).
 
+## Follow-ups: news, guild chronicles, spread
+
+Branch `fix/movements-narration-polish` (from `main` `2dd47d4`, PR #41).
+Its first commit changes the simulation (movement founders enrolled at
+founding; [agent-movements.md](agent-movements.md#founders-at-founding-no-empty-movements));
+the rest observe the run and change no simulation state.
+
+- **Movement news per founding** (`agent_movements.news_cause`). The native
+  grievance census also names, per region and creed, the news most of the
+  informed aggrieved hold (`news_source_{region,turn,kind,count}_*`, read
+  only). A census founding whose region's aggrieved hold, at least a quarter
+  of them (`NEWS_CAUSE_SHARE`, the founding chance x1.5 or more), news of a
+  demand a like movement won in another region (`movement_reform` or
+  `movement_concession`) cites that event as a cause: a recorded "because"
+  link (curator chains, the viewer's Because panel), no new event. Prompt
+  lines add "stirred by news of the demand won in R in turn T", and such a
+  founding weighs +2 in the line selection, as a named event does. One
+  linked founding in each of the procedural seed-7, template 1234 and
+  procedural seed-11 runs below, none in template 42: the timeline is not
+  flooded. Template 1234's prompt lists it ("In Frostholm Tundra, the
+  discontented found the Brethren of the Last Days (172) ... stirred by
+  news of the demand won in Crystalfen Marsh in turn 163"); the procedural
+  moment holding its one keeps busier lines.
+- **Guild chronicles** (`historiography.GUILD_GLORY`, `GUILD_DECREE`,
+  `_Turn.guild_stance`): from importance 3, a guild formed, a privilege won
+  or a guild charter granted is told as the realm's prosperity (glory: a
+  loyal court praises the ruler); a privilege lost or a guild charter
+  repealed as the ruler's decree (a loyal court: "By the just decree of
+  ..."; a disaffected one: "...; such was the misrule of ..."); a guild
+  rising as a movement as unrest (disgrace: omitted or blamed by a loyal
+  court, held against the ruler by a disaffected one). Guild movements and
+  charters are read from the movement record; other movements keep their
+  floors. New accounts in the three runs: 18 / 88 / 10 (formations and
+  privileges; in the procedural run also 4 risings, 2 charters, 1 repeal,
+  1 privilege lost); no earlier account changed or was lost.
+- **Temporal spread** (`curator.spread_moments`): after the diversity
+  penalty, an untold stretch longer than two even spacings of the run
+  (`SPREAD_GAP`, span / moments) gets its best window in place of the
+  weakest selected moment whose removal opens no such stretch, if it scores
+  at least 75% of it (`SPREAD_KEEP`). A moment holding an event or named
+  event of importance 9 or more stays (`SPREAD_PROTECT`): in the procedural
+  world every selected window held a named event of importance 7, so the
+  diversity rule's landmark exemption would leave nothing to move.
+
+Selected moments over the run, the same bundles curated without and with
+the rule (`scripts/curator_spread.py compare`; the in-run narration gives
+the same rows):
+
+| | template 42, 500 turns | procedural 48 x 10, seed 7, 400 | template 1234, 300 |
+| --- | --- | --- | --- |
+| moments per tenth of the run | 4 6 4 7 3 5 6 5 4 6 -> 4 7 4 7 4 5 6 3 5 5 | 7 5 4 4 6 3 7 2 6 6 -> 6 5 3 5 6 4 7 3 6 5 | 4 5 5 5 5 5 5 5 5 6 (unchanged) |
+| longest untold stretch, turns | 30 -> 18 | 18 -> 12 | 1 -> 1 |
+| largest gap between moments, turns | 36 -> 24 | 29 -> 23 | 11 -> 11 |
+| gaps' coefficient of variation | 0.80 -> 0.63 | 0.68 -> 0.57 | 0.40 -> 0.40 |
+| turning points (8+) in the moments | 103 -> 95 | 332 -> 329 | 136 -> 136 |
+| importance-10 events in the moments | 3 -> 3 | 1 -> 1 | 13 -> 13 |
+| summed moment scores | 1,210.7 -> 1,203.8 | 1,259.7 -> 1,259.9 | 1,146.4 -> 1,146.4 |
+
+Template 1234 has 50 windows for 50 moments, so every window is told.
+Template 42 trades five of its lowest-scoring moments (scores 20.1-20.9;
+the eight-plus events given up are nine reports of two famines) for
+windows in three stretches of 24-30 untold turns (scores 16.6-20.4); the
+procedural run swaps three (21.9-22.9 out, 21.6-23.2 in, one of them a
+window the diversity penalty had demoted). A uniform crowding
+discount was tried first and dropped: it spread the procedural run worse
+(largest gap 18 -> 23) and gave up 30 of its turning points, and the
+diversity penalty's swaps undid it in template 42.
+
+**Prompts stay bounded** (in-run, before -> after; tokens at four
+characters): mean 2,647 -> 2,638 / 4,097 -> 4,080 / 2,737 -> 2,739, max
+4,870 / 6,003 / 5,813 unchanged, all 50 prompts 132,351 -> 131,911 /
+204,853 -> 204,014 / 136,893 -> 136,973; turning points listed 103 -> 95
+of 115 / 332 -> 329 of 406 / 136 of 136.
+
+**Identity** (base: the branch's first commit `022deb2` with its
+extension `4e2f699d...a328e`; head `e144ae6` with `c26d6cd2...bbb99`;
+`PYTHONHASHSEED=0`): `scripts/narration_identity.py compare-observers`
+(everything but the narration, the in-world chronicles and the founding
+news links) over the three narrated runs and template 42 `--agents off`
+300, template 7 hybrid 200 and procedural 48 x 10 seed 11 hybrid 150 (both
+with `--validation-sidecar`): 8 / 14 / 8 / 7 / 108 / 89 files, 0
+differences. Byte for byte (`scripts/cities_identity.py`): template 42 off
+9 files identical; `state.json` identical where no founding was linked
+(template 7, template 42 hybrid) and different by one cause where one was;
+snapshots, validation sidecars and agent events identical in every run.
+Narration determinism: prompts and entries from the bundles identical under
+`PYTHONHASHSEED` 0, 1 and 4242 (template 42, procedural 7), and an in-run
+rerun (template 1234) byte-identical in prompts, chronicle, state and
+chronicles.
+
 ## Open
 
-- The six-turn windows tile the whole run; the curator has no rule for
-  temporal spread, so a run can leave a stretch untold (the pre-guild
-  procedural run left turns 348-389 untold); the gap summaries cover it mechanically.
 - A moment in a 10-civ world mixes unrelated stories; the focus bonus and
   the per-kind cap keep one story in front, but there is no per-civ split.
-- Movement news is not recorded per founding (simulation change needed).
-- Historiography never chronicles guild events (unclassified, importance
-  3-4) and still classifies `faction_dominance_shift` as routine; changing
-  its categories changes its saved accounts.
+- Movement news is cited only for a won demand clearly held by the
+  aggrieved; news of a founding or a rising elsewhere, and news carried by
+  migrants beyond the founding region's census, are not.
+- Historiography still classifies `faction_dominance_shift` as routine and
+  does not chronicle levies or dissolved guilds.
 - Descriptions keep game notation ("intensity=0.43", "(18 ships)"); the
   system prompt asks the model not to repeat mechanics.
 - City names are "Region Settlement 1" in the record; in-world names come

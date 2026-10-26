@@ -693,6 +693,35 @@ pub fn movement_news_for_creed(pool: &AgentPool, slot: usize, creed: u8) -> (f32
     (inspire, fear)
 }
 
+/// Guilds: where the strongest inspiring nonlocal news an agent holds about
+/// a creed came from, as (source region, source turn, kind); None without
+/// any. Ties: the newer, then the lower region. Read only: the census uses
+/// it to name the like movement whose news the aggrieved hold.
+pub fn movement_news_source(pool: &AgentPool, slot: usize, creed: u8) -> Option<(u16, u16, u8)> {
+    let own = pool.regions[slot];
+    let mut best: Option<(u8, u16, u16, u8)> = None; // (intensity, turn, region, kind)
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if unpack_type(th) != InfoType::MovementNews as u8 || pool.pkt_source_region[slot][i] == own {
+            continue;
+        }
+        let code = pool.pkt_source_civ[slot][i];
+        let intensity = pool.pkt_intensity[slot][i];
+        if news_creed(code) != creed || news_kind(code) == NEWS_CRACKDOWN || intensity == 0 {
+            continue;
+        }
+        let cand = (intensity, pool.pkt_source_turn[slot][i], pool.pkt_source_region[slot][i], news_kind(code));
+        let better = match best {
+            None => true,
+            Some(b) => cand.0 > b.0 || (cand.0 == b.0 && (cand.1 > b.1 || (cand.1 == b.1 && cand.2 < b.2))),
+        };
+        if better {
+            best = Some(cand);
+        }
+    }
+    best.map(|(_, turn, region, kind)| (region, turn, kind))
+}
+
 // ---------------------------------------------------------------------------
 // Propagation phase (buffered)
 // ---------------------------------------------------------------------------

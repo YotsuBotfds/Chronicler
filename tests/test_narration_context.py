@@ -111,6 +111,28 @@ def test_a_prompt_line_names_the_migration_driver_and_unnamed_actors():
                     "(importance 5; driven by open land to settle; with Sage Ilra)")
 
 
+def test_a_founding_sparked_by_news_names_the_won_demand():
+    won = _ev(25, "movement_reform", ["Kethani Empire"], eid="25:movement_reform:0",
+              region="Amber Valley")
+    famine = _ev(29, "famine", eid="29:famine:0", region="Thornwood")
+    founded = _ev(30, "movement_founded", ["Thornwall"], desc="In Thornwood, the discontented found X",
+                  region="Thornwood", causes=["29:famine:0", "25:movement_reform:0"])
+    timeline = nc.TimelineView([won, famine, founded])
+    assert nc.news_spark(founded, timeline) is won
+    line = nc.render_prompt_line(nc.PromptLine(founded, 5.0, 0), timeline=timeline)
+    assert line.endswith("(importance 5; stirred by news of the demand won in Amber Valley "
+                         "in turn 25; with Thornwall)")
+    # Without the timeline, or without such a cause, the line is as before.
+    assert "stirred" not in nc.render_prompt_line(nc.PromptLine(founded, 5.0, 0))
+    local = _ev(30, "movement_founded", ["Thornwall"], region="Amber Valley",
+                causes=["25:movement_reform:0"])
+    assert nc.news_spark(local, timeline) is None and nc.news_spark(famine, timeline) is None
+    # The link weighs like a named event when the prompt's lines are chosen.
+    plain = _ev(30, "movement_founded", ["Thornwall"], region="Thornwood", causes=["29:famine:0"])
+    assert nc.news_sparked(founded) and not nc.news_sparked(plain)
+    assert nc.salience(founded) == nc.salience(plain) + 2.0
+
+
 # --- bounded event lists ----------------------------------------------------------
 
 def test_prompt_lists_are_bounded_and_count_the_rest():
