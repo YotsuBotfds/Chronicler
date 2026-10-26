@@ -8,6 +8,8 @@ from __future__ import annotations
 # Keep field available to existing models module callers.
 from dataclasses import dataclass, field
 from enum import Enum
+import functools
+import operator
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -34,20 +36,12 @@ StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 # worlds and files that never use them keep their exact bytes. Field-level
 # ``exclude_if`` (pydantic 2.12) omits them inside the native serializer;
 # model-level wrap serializers routed every model through Python dicts.
-def _is_none(value) -> bool:
-    return value is None
-
-
-def _is_empty_str(value) -> bool:
-    return value == ""
-
-
-def _is_empty_list(value) -> bool:
-    return value == []
-
-
-def _is_pattern(value) -> bool:
-    return value == "pattern"
+# The predicates are C callables (no Python frame per field per event):
+# ``_is_none(v)`` is ``None is v``; the others are ``empty == v``.
+_is_none = functools.partial(operator.is_, None)
+_is_empty_str = functools.partial(operator.eq, "")
+_is_empty_list = functools.partial(operator.eq, [])
+_is_pattern = functools.partial(operator.eq, "pattern")
 
 
 def _is_empty_provenance(value) -> bool:
