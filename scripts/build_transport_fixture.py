@@ -18,7 +18,9 @@ stand-ins of the exported shape (``mutual_aid.snapshot_summary`` and
 ``[from region, to region, agents]`` rows): ``sufficiency`` 1.0 for each
 controlled region and ``None`` elsewhere, no aid, and one row moving 5 agents
 from the first controlled region to the next. ``generated_at`` is fixed so
-the file is reproducible.
+the file is reproducible. The committed file is built without the native
+extension (the Python ecology path; ``PYTHONHASHSEED=0``): with it the same
+run records different events.
 """
 from __future__ import annotations
 
