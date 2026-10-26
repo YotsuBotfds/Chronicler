@@ -314,6 +314,10 @@ pub struct EconomyRegionResult {
     /// used them over their demand (0..2; 0 without demand).
     pub craft_output: f32,
     pub craft_sufficiency: f32,
+    /// Goods produced by each resource slot this turn (after any production
+    /// cap): what the land gave up. The ecology depletes mineral reserves by
+    /// it (`RegionState::realized_extraction`).
+    pub slot_output: [f32; 3],
 }
 
 /// Output row per civ.
@@ -993,6 +997,7 @@ pub fn tick_economy_core(
     let mut work: Vec<RegionWorkState> = Vec::with_capacity(n_regions);
     let mut farm_productivity: Vec<f32> = Vec::with_capacity(n_regions);
     let mut craft_output: Vec<f32> = Vec::with_capacity(n_regions);
+    let mut slot_output: Vec<[f32; 3]> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -1031,6 +1036,7 @@ pub fn tick_economy_core(
         let slot_labor = labor.slot_labor;
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
+        let mut outputs = [0.0f32; 3];
         if labor.forage_labor > 0.0 {
             let foraged = labor.forage_labor * labor.forage_yield;
             per_good_production[SLOT_GRAIN] += foraged;
@@ -1044,10 +1050,12 @@ pub fn tick_economy_core(
             if let Some(cap) = inp.production_caps[resource_idx] {
                 amount = amount.min(cap.max(0.0));
             }
+            outputs[resource_idx] = amount;
             per_good_production[slot] += amount;
             production[slot_to_category(slot)] += amount;
             conservation.production += amount as f64;
         }
+        slot_output.push(outputs);
         let mut available = production;
         for g in 0..NUM_GOODS {
             available[GOOD_CATEGORY[g]] += inp.stockpile[g];
@@ -1741,6 +1749,7 @@ pub fn tick_economy_core(
             farm_productivity: farm_productivity[ri],
             craft_output: craft_output[ri],
             craft_sufficiency,
+            slot_output: slot_output[ri],
         });
 
         // Step 7: Derive observability.

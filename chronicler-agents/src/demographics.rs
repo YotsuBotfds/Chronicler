@@ -226,6 +226,34 @@ pub fn fertility_rate_with_pressure(
     base * ecology_mod * age_mult * sat_gate * crowding_mod
 }
 
+/// Initial-spawn occupation shares in percent, in `Occupation` order
+/// (farmer, soldier, merchant, scholar); priests take what is left (about 5%).
+pub const INITIAL_OCCUPATION_PERCENT: [usize; 4] = [60, 15, 10, 10];
+
+/// Agents of each occupation (`Occupation` order, priests last) spawned for
+/// a region of `population` people at initial spawn. The counts sum to
+/// `population`.
+///
+/// Correction (2026-10, population-entities): each share was rounded half
+/// up on its own and priests took `population - spawned` only when that was
+/// positive, so the four rounded shares could exceed the population: 5
+/// people became 6 agents (3/1/1/1) and 6 became 7 (4/1/1/1). The shares
+/// are now taken in occupation order from a conserved budget, each rounded
+/// as before but never beyond the people left. Every population where the
+/// old shares fitted (all but 5 and 6 up to 1,000; checked to 100,000 in
+/// the tests) gets the same counts as before.
+pub fn initial_occupation_counts(population: usize) -> [usize; 5] {
+    let mut counts = [0usize; 5];
+    let mut left = population;
+    for (k, &percent) in INITIAL_OCCUPATION_PERCENT.iter().enumerate() {
+        let n = ((population * percent + 50) / 100).min(left);
+        counts[k] = n;
+        left -= n;
+    }
+    counts[4] = left;
+    counts
+}
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::StandardNormal;

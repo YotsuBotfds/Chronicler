@@ -467,6 +467,56 @@ fn test_repulsion_separates_colocated() {
     );
 }
 
+/// Correction (2026-10, population-entities): the zero-distance fallback
+/// hashed the focal agent's id (slot + 1 here) against the neighbour's slot,
+/// so a coincident pair drifted at 0 and 2 degrees, the same way. Every
+/// coincident pair, in both drift modes and whatever their ids, is now
+/// pushed in exactly opposite directions.
+#[test]
+fn test_coincident_pairs_are_pushed_apart() {
+    use chronicler_agents::scale::AgentScaleMode;
+    use chronicler_agents::spatial::spatial_drift_step_with_mode;
+    let empty = vec![RegionAttractors {
+        positions: [(0.0, 0.0); MAX_ATTRACTORS],
+        weights: [0.0; MAX_ATTRACTORS],
+        types: [AttractorType::Market; MAX_ATTRACTORS],
+        count: 0,
+    }];
+    for mode in [AgentScaleMode::Exact, AgentScaleMode::Fast] {
+        for retired in [0usize, 1, 3] {
+            // Agents spawned and killed first shift the ids against the slots.
+            let mut pool = AgentPool::new(4);
+            let mut gone = Vec::new();
+            for _ in 0..retired {
+                gone.push(pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF));
+            }
+            for &slot in &gone {
+                pool.kill(slot);
+            }
+            let a = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+            let b = pool.spawn(0, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0xFF, 0xFF, 0xFF, 0xFF);
+            for &s in &[a, b] {
+                pool.x[s] = 0.5;
+                pool.y[s] = 0.5;
+            }
+            let mut grids: Vec<SpatialGrid> = Vec::new();
+            let mut diag = SpatialDiagnostics::default();
+            rebuild_spatial_grids(&pool, &mut grids, 1);
+            spatial_drift_step_with_mode(&mut pool, &grids, &empty, &mut diag, mode);
+            let da = (pool.x[a] - 0.5, pool.y[a] - 0.5);
+            let db = (pool.x[b] - 0.5, pool.y[b] - 0.5);
+            let dot = da.0 * db.0 + da.1 * db.1;
+            let len = (da.0 * da.0 + da.1 * da.1).sqrt();
+            assert!(len > 1e-4, "{mode:?} retired {retired}: no repulsion");
+            assert!(
+                (da.0 + db.0).abs() < 1e-6 && (da.1 + db.1).abs() < 1e-6 && dot < 0.0,
+                "{mode:?} retired {retired}: ids {} {} slots {a} {b} moved {da:?} and {db:?}",
+                pool.ids[a], pool.ids[b]
+            );
+        }
+    }
+}
+
 #[test]
 fn test_drift_displacement_cap() {
     // Place agent very far from a strong attractor.

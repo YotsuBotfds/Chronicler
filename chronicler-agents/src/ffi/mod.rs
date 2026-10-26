@@ -697,6 +697,7 @@ impl AgentSimulator {
                         resource_reserve_1.map_or(1.0, |arr| arr.value(i)),
                         resource_reserve_2.map_or(1.0, |arr| arr.value(i)),
                     ],
+                    realized_extraction: None,
                     season: season_col.map_or(0, |arr| arr.value(i)),
                     season_id: season_id_col.map_or(0, |arr| arr.value(i)),
                     rivers: river_lists
@@ -799,12 +800,10 @@ impl AgentSimulator {
                     (region_id % 256) as u8  // fallback for uncontrolled
                 };
 
-                let n_farmer = (pop * 60 + 50) / 100;
-                let n_soldier = (pop * 15 + 50) / 100;
-                let n_merchant = (pop * 10 + 50) / 100;
-                let n_scholar = (pop * 10 + 50) / 100;
-                let spawned = n_farmer + n_soldier + n_merchant + n_scholar;
-                let n_priest = if pop > spawned { pop - spawned } else { 0 };
+                // Shares from a conserved budget: exactly `pop` agents
+                // (correction 2026-10, see `initial_occupation_counts`).
+                let [n_farmer, n_soldier, n_merchant, n_scholar, n_priest] =
+                    crate::demographics::initial_occupation_counts(pop);
 
                 // M33: personality assignment at initial spawn
                 // V9: use packed stream scheme (region << 48 | turn << 16 | offset)
@@ -2100,6 +2099,8 @@ impl AgentSimulator {
             ));
         }
 
+        // Minerals are depleted by what this turn's economy tick produced
+        // (`realized_extraction`); a tick without one keeps the labour proxy.
         let (yields, events) = crate::ecology::tick_ecology(
             &mut self.regions,
             &self.ecology_config,
@@ -2109,6 +2110,10 @@ impl AgentSimulator {
             &army_arrived_mask,
             &self.river_topology,
         );
+        // Consumed: never applied to a later tick.
+        for region in self.regions.iter_mut() {
+            region.realized_extraction = None;
+        }
 
         // Write current_turn_yields into regions so the agent tick sees them.
         for (i, ys) in yields.iter().enumerate() {
@@ -2910,6 +2915,17 @@ impl AgentSimulator {
         // If any batch packing above failed via `?`, we exit early and the buffer is preserved.
         if let Some(buf) = self.merchant_delivery_buf.as_mut() {
             buf.clear();
+        }
+
+        // What each slot produced is what the Phase 9 ecology tick depletes
+        // mineral reserves by (consumed and cleared there; see
+        // `ecology::mineral_extraction`).
+        for rr in &output.region_results {
+            if let Some(region) = self.regions.get_mut(rr.region_id as usize) {
+                if region.region_id == rr.region_id {
+                    region.realized_extraction = Some(rr.slot_output);
+                }
+            }
         }
 
         Ok((

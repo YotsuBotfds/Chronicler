@@ -132,6 +132,7 @@ CHUNKS = {
     ],
     "population": [
         "tests/test_population_conservation.py",
+        "tests/test_population_entities_native.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
