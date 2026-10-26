@@ -18,6 +18,9 @@ export function MovementsPanel({
   const rows = useMemo(() => movementStageRows(history, keys), [history, keys]);
   const creeds = useMemo(() => creedSeries(history), [history]);
   const martyred = useMemo(() => martyrdoms(bundle.events_timeline), [bundle.events_timeline]);
+  // The guild creed only where the run records guilds (--guilds); legend and chart agree.
+  const creedsShown = useMemo(
+    () => CREED_LABELS.filter((creed) => creed !== "guild" || history.some((h) => h.guilds)), [history]);
   const { first, end } = recordedSpan(history);
   const state = snapshot?.agent_movements;
   const at = snapshot?.turn ?? currentTurn;
@@ -62,10 +65,10 @@ export function MovementsPanel({
           onSelectRow={(row) => setChosen(Number(row.id))}
           isRowSelected={(row) => Number(row.id) === selected}
         />
-        <CivLegend civs={[...CREED_LABELS]} color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"} />
+        <CivLegend civs={creedsShown} color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"} />
         <CivLineChart
           data={creeds}
-          civs={CREED_LABELS.filter((creed) => creed !== "guild" || history.some((h) => h.guilds))}
+          civs={creedsShown}
           color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"}
           currentTurn={currentTurn}
           label="Living movements by creed"
