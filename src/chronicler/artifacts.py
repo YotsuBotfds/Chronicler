@@ -766,19 +766,27 @@ def _get_relevant_artifacts(world, moment, max_count: int = 3) -> list:
     return relevant[:max_count]
 
 
+def artifact_holder_text(a) -> str:
+    """Where an artifact is now: its holder, its anchor or its owner."""
+    if a.holder_name:
+        return f"held by {a.holder_name}"
+    if a.anchored:
+        return (f"temple-bound in {a.anchor_region}"
+                if a.artifact_type == ArtifactType.RELIC
+                else f"situated in {a.anchor_region}")
+    return f"owned by {a.owner_civ}"
+
+
 def render_artifact_context(artifacts: list) -> str:
-    """Render artifact context block for narrator prompt."""
+    """Render artifact context block for narrator prompt.
+
+    Items are artifacts (described by where they are now) or
+    ``(artifact, holder_text)`` pairs (``historical_context.HistoricalView.artifacts``).
+    """
     if not artifacts:
         return ""
     lines = ["ARTIFACTS:"]
-    for a in artifacts:
-        if a.holder_name:
-            holder_info = f"held by {a.holder_name}"
-        elif a.anchored:
-            holder_info = (f"temple-bound in {a.anchor_region}"
-                           if a.artifact_type == ArtifactType.RELIC
-                           else f"situated in {a.anchor_region}")
-        else:
-            holder_info = f"owned by {a.owner_civ}"
+    for item in artifacts:
+        a, holder_info = item if isinstance(item, tuple) else (item, artifact_holder_text(item))
         lines.append(f"- {a.name} ({a.artifact_type.value}, {holder_info}) — {a.origin_event}")
     return "\n".join(lines)
