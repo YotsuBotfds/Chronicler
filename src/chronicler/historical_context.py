@@ -293,8 +293,10 @@ class HistoricalRecord:
     ``economy_result`` (its ``trade_dependent``), ``social_edges`` (live bonds
     without a per-character store), ``dissolved_edges_by_turn`` (dissolution
     turn -> ``(a, b, type, formed_turn)``), ``agent_name_map`` and
-    ``dynasty_registry``. The record does not change its inputs; treat them as
-    read-only while it is in use.
+    ``dynasty_registry``. ``accounts`` (a ``historiography.AccountIndex``, the
+    in-world chronicles with their final losses) reaches each view as of its
+    point (``HistoricalView.accounts``). The record does not change its
+    inputs; treat them as read-only while it is in use.
     """
 
     def __init__(
@@ -312,7 +314,9 @@ class HistoricalRecord:
         dissolved_edges_by_turn: Mapping[int, Sequence[tuple]] | None = None,
         agent_name_map: Mapping[int, str] | None = None,
         dynasty_registry: Any = None,
+        accounts: Any = None,
     ) -> None:
+        self.accounts = accounts if accounts else None
         self.history = tuple(sorted(history, key=lambda s: s.turn))
         self._snap_turns = [s.turn for s in self.history]
         if events is None:
@@ -387,7 +391,8 @@ class HistoricalRecord:
             if ch is not None:
                 chars.append(ch)
         return HistoricalView(record=self, as_of=as_of, snapshot=self.snapshot(as_of),
-                              observed=observed, characters=tuple(chars))
+                              observed=observed, characters=tuple(chars),
+                              accounts=self.accounts.as_of(as_of) if self.accounts is not None else None)
 
 
 @dataclass(frozen=True)
@@ -396,7 +401,9 @@ class HistoricalView:
 
     ``snapshot`` is the snapshot of that point (or the latest earlier one);
     ``characters`` are the great persons born by then, in the record's order;
-    ``observed`` tells whether the record's observations describe this point.
+    ``observed`` tells whether the record's observations describe this point;
+    ``accounts`` are the record's in-world accounts as of the point
+    (``historiography.AccountIndex.as_of``: losses dated by then), or None.
     """
 
     record: HistoricalRecord = field(repr=False, compare=False)
@@ -404,6 +411,7 @@ class HistoricalView:
     snapshot: "TurnSnapshot | None"
     observed: bool
     characters: tuple[CharacterAsOf, ...]
+    accounts: Any = field(default=None, repr=False, compare=False)
 
     def character(self, name: str) -> CharacterAsOf | None:
         return next((c for c in self.characters if c.name == name), None)

@@ -1318,7 +1318,8 @@ class ReviewerRegressionTests(_TempDirCase):
             es.os, "fdopen", side_effect=lambda fd, mode: InterruptedWrite(fd)),
             mock.patch.object(es.os, "fsync", side_effect=failing_file_fsync))
         for patcher in patchers:
-            with self.subTest(patch=patcher), patcher:
+            # The patched name: subTest parameters are plain values (pytest-xdist serializes them).
+            with self.subTest(patch=patcher.attribute), patcher:
                 with self.assertRaises(es.PersistenceError) as caught:
                     self.commit(advanced, target, generation=first.generation,
                                 digest=first.digest)

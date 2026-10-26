@@ -76,14 +76,15 @@ function lastAtOrBefore(values: number[], value: number): number {
 }
 
 /**
- * Position of the snapshot shown for `turn`: the last one at or before it,
- * or the first snapshot when the turn precedes the history.
+ * Position of the snapshot shown for `turn`: the last one at or before it.
+ * -1 without history or when the turn precedes the first snapshot (a resumed
+ * run's history starts late): no later snapshot stands in for it.
  */
 export function snapshotPositionAt(history: TurnSnapshot[], turn: number): number {
   if (history.length === 0) {
     return -1;
   }
-  return Math.max(0, lastAtOrBefore(rowIndex(history).turns, turn));
+  return lastAtOrBefore(rowIndex(history).turns, turn);
 }
 
 /** A civilization's latest row at or before `turn`, or null before it exists. */

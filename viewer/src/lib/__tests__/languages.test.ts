@@ -1,8 +1,43 @@
 import { describe, expect, it } from "vitest";
 import { sampleLanguages, WORD_COLUMNS } from "../../__fixtures__/languagesField";
 import {
-  canonicalName, decodeWords, etymology, familyTree, formAt, glossary, howLabel, namesFor,
+  canonicalName, changesAt, decodeWords, etymology, familyTree, familyTreeAt, formAt, glossary, howLabel,
+  languageStatusAt, namesFor, nativeNameAt, phonologyKnownAt,
 } from "../languages";
+
+describe("the languages field as of a turn", () => {
+  it("knows the languages born by then, their status then and their changes by then", () => {
+    const field = sampleLanguages();
+    const [kethani, , dorrathi] = field.languages;
+    expect(familyTreeAt(field, 49).map((node) => node.language.name)).toEqual(
+      ["Kethani", "Proto-Highland", "Dorrathi"]);
+    expect(familyTreeAt(field, 50).map((node) => node.language.name)).toContain("Free Iron Peaks");
+    expect(familyTree(field).map((node) => node.language.name)).toContain("Free Iron Peaks");
+    expect(languageStatusAt(kethani, 39)).toBe("living");
+    expect(languageStatusAt(kethani, 40)).toBe("extinct");
+    expect(languageStatusAt(field.languages[1], 0)).toBe("reconstructed");
+    expect(changesAt(dorrathi, 59)).toHaveLength(1);  // the prehistoric one
+    expect(changesAt(dorrathi, 60)).toHaveLength(2);
+    expect(phonologyKnownAt(dorrathi, 59)).toBe(false);
+    expect(phonologyKnownAt(dorrathi, 60)).toBe(true);
+    expect(phonologyKnownAt(kethani, 0)).toBe(false);  // its turn-20 change
+  });
+
+  it("reads a language's own name for its people at a turn, as the export reads it at the end", () => {
+    const field = sampleLanguages();
+    const words = decodeWords(field);
+    expect(nativeNameAt(field, field.languages[0], 100, words)).toBe(field.languages[0].native);
+    // The name's form at a turn: a sound change after it is not applied.
+    const changed = { ...field, words: field.words.map((row) => (row[0] === 3
+      ? row.map((value, index) => (index === 8 ? [[0, "Kethaniki", null], [30, "Ketheniki", 0]] : value))
+      : row)) };
+    const changedWords = decodeWords(changed);
+    expect(nativeNameAt(changed, changed.languages[0], 29, changedWords)).toBe("Kethaniki");
+    expect(nativeNameAt(changed, changed.languages[0], 30, changedWords)).toBe("Ketheniki");
+    // No civilization ever spoke the proto-language.
+    expect(nativeNameAt(field, field.languages[1], 100, words)).toBeNull();
+  });
+});
 
 describe("languages field", () => {
   it("decodes words by their named columns and tolerates a reordered layout", () => {

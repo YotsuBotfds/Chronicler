@@ -708,7 +708,8 @@ def main() -> None:
     parser.add_argument("--seed-start", type=int, default=42)
     parser.add_argument("--seeds", type=int, default=None)
     parser.add_argument("--turns", type=int, default=None)
-    parser.add_argument("--parallel", type=int, default=12)
+    parser.add_argument("--parallel", type=int, default=12,
+                        help="batch worker processes (passed as --parallel N; 1 is one worker, 0 sequential)")
     parser.add_argument(
         "--worldgen",
         choices=WORLDGEN_CHOICES,

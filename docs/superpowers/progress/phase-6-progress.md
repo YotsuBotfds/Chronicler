@@ -6,6 +6,59 @@
 
 ---
 
+## Consistency follow-ups (2026-10-26, `fix/consistency-followups`)
+
+> **Last updated:** 2026-10-26 (`fix/consistency-followups` from `main` `22c021b`, brought to `dae4ba5` before any baseline: narration, viewer, validation tooling, batch runner and tests; simulation output byte-identical; all five items reproduced on `dae4ba5` and fixed; cohort oracle method 2 counts outcomes after the snapshot turn, every retained set and the live subset keep their verdict; no full gate run.)
+
+`fix/consistency-followups` from `main` `22c021b` (PR #47), fast-forwarded
+to `dae4ba5` (PR #48) before the identity baseline. Details and evidence:
+[`docs/integration/consistency-followups.md`](../../integration/consistency-followups.md).
+
+- **Narrator accounts as of the moment.** `AccountIndex.as_of(AsOf)`:
+  a copy lost after the point still stands, later archive losses left out,
+  divergence as it stood. `HistoricalRecord(accounts=)` gives each view
+  `view.accounts`; the prompt, the mechanical chronicle and both fallbacks
+  read the moment's view. A 500-turn hybrid bundle: 41 of 50 prompts change,
+  only in the IN-WORLD ACCOUNTS block; loss lines dated after the moment
+  95 -> 0; mechanical entries 38 of 50 change, future loss notes 9 -> 0.
+- **Viewer at the scrubbed turn.** Fixed: the snapshot before the first
+  one (no later snapshot stands in), named-event markers, technique
+  options, region terrain (dated transitions), a later pinned event,
+  "Led to" consequences, in-world accounts, the chronicle feed (a moment
+  once its last turn passed), Cities and Movements record notes and
+  default focus, the Languages section (languages, status, endonym,
+  changes, inventory, etymology at the turn). Checked unchanged: the other
+  systems tabs, map layers, Learning, trade links, event log, whole-run
+  timelines, run-level metadata, region history window. Not fixed: map node
+  size uses the final carrying capacity (not recorded per turn). Entry
+  chunk 788,040 -> 791,168 bytes.
+- **Cohort oracle method 2.** Its graph and needs sidecars are written
+  after turn t's agent tick (moves, autonomy, the turn's memories that form
+  the communities); method 1 counted t .. t+19. Method 2 counts t+1 ..
+  t+20 (eligible when t + 20 < N); `method_version=1` re-scores method 1
+  exactly; the comparator flags 1 against 2 for re-baselining. The 48 needs
+  sidecar sets hold no relationship or memory sidecars (not scorable).
+  Retained: `perf` subset 42-61 x 200 PASS 20/20, median 1.025 (equals its
+  report) -> PASS 20/20, 1.095; 9 single runs PASS -> PASS. Live template
+  subset 42-61 x 200 (extension `735558c9...a489`): gate PASS; cohort
+  method 1 PASS 20/20, median 1.347 -> method 2 PASS 20/20, 1.285; needs
+  method 4 +0.175 (+0.097), 14 seeds. No threshold changed.
+- **`--parallel N` is N workers** (`batch.parallel_workers`): 1 is one
+  worker; bare `--parallel` and Batch Lab's `true` stay `cpu_count - 1`.
+- **pytest-xdist.** Nine subTests pass plain values (repr, path name,
+  patched attribute); the eleven subTest suites pass under `-n 2`.
+- **Identity** against `dae4ba5`: `turn_speed_identity.py` off cases 33
+  files and hybrid cases 220 files (extension `735558c9...a489`, built
+  fresh), 0 differences; a 4-seed batch with `--parallel 1` (3 workers on
+  `dae4ba5`, 1 now) and sequential: only `batch_manifest.json` differs.
+- **Tests** (no-Rust Python 3.13.17): focused suites pass; oracle lane PASS
+  in 104.6 s (2,537 passed, 38 skipped); `pytest -m "not slow" -n 2` 6,265
+  passed, 232 skipped, 0 failed; viewer 382 tests (46 files), lint, build.
+- **Open.** No full gate with cohort method 2; no LLM narration; no
+  browser QA; map node size; a language revived after an earlier
+  extinction shows living before its latest one; the curator's contested
+  bonus still reads final losses (selection only).
+
 ## Procedural open items (2026-10-26, `fix/procedural-open-items`)
 
 `fix/procedural-open-items` from `feat/procedural-gates` `1c98d0a`, merged

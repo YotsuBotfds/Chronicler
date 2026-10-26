@@ -4,7 +4,7 @@ import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import type { Bundle } from "../../types";
 import {
   creedSeries, END_LABELS, leaderLabel, martyrdoms, memberSeries, movementHistory, movementKeys, movementRecord,
-  movementRecordNote, movementRow,
+  movementRecordAt, movementRecordNote, movementRow,
   movementStageRows, reformKind, reformName, reformRecord, reformsInForce, STAGE_COLORS,
 } from "../movements";
 import { presentSystems } from "../systems";
@@ -101,15 +101,44 @@ describe("movement helpers", () => {
     expect(creedSeries(systems.history)[0].commons).toBeNull();
   });
 
-  it("reads a movement's final record as one sentence and marks an end after the scrubbed turn", () => {
+  it("reads a movement as known at the scrubbed turn in one sentence, its end only once it ended", () => {
     const record = { ...records[0], creed: 2, founded_turn: 106, leader: "", peak_members: 19, demands: 1,
       martyrs: 0, end: END_LABELS.indexOf("won"), ended_turn: 201 };
-    expect(movementRecordNote(record, "Thavigrimi Kingdom", "Magur Meadows", 191)).toBe(
+    const known = { record, target: 0, leader: null, peakMembers: 12, demands: 1, martyrs: 0, ended: false };
+    // Before its end (main dae4ba5 gave the whole record and the later end, marked "after turn 191").
+    expect(movementRecordNote(known, "Thavigrimi Kingdom", "Magur Meadows", 191)).toBe(
       "A sect movement against Thavigrimi Kingdom, founded turn 106 in Magur Meadows. "
-      + "Whole record: peak 19 members, 1 demand, 0 martyrs; won its demand at turn 201 (after turn 191).");
-    expect(movementRecordNote({ ...record, leader: "Ilra", end: 0, ended_turn: null }, null, null, 300)).toBe(
+      + "By turn 191: peak 12 members, 1 demand, 0 martyrs.");
+    expect(movementRecordNote({ ...known, peakMembers: 19, ended: true }, "Thavigrimi Kingdom", "Magur Meadows", 201))
+      .toBe("A sect movement against Thavigrimi Kingdom, founded turn 106 in Magur Meadows. "
+        + "By turn 201: peak 19 members, 1 demand, 0 martyrs; won its demand at turn 201.");
+    expect(movementRecordNote({ ...known, leader: "Ilra" }, null, null, 300)).toBe(
       "A sect movement against ?, founded turn 106 in ?, led by Ilra. "
-      + "Whole record: peak 19 members, 1 demand, 0 martyrs.");
+      + "By turn 300: peak 12 members, 1 demand, 0 martyrs.");
+  });
+
+  it("derives a movement's record at a turn from its rows and dated moments", () => {
+    const id = records.findIndex((record) => record.ended_turn != null
+      && record.history.some(([, kind]) => kind === "demand"));
+    const record = records[id];
+    expect(movementRecordAt(movements, id, record.founded_turn - 1)).toBeNull();
+    const last = movements.history[movements.history.length - 1].turn;
+    const end = movementRecordAt(movements, id, last)!;
+    expect(end.ended).toBe(true);
+    expect(end.demands).toBe(record.history.filter(([, kind]) => kind === "demand").length);
+    const rows = movements.history.flatMap((snapshot) => {
+      const row = movementRow(snapshot, id);
+      return row ? [{ turn: snapshot.turn, row }] : [];
+    });
+    expect(end.peakMembers).toBe(Math.max(...rows.map(({ row }) => row.members)));
+    const firstDemand = record.history.find(([, kind]) => kind === "demand")![0];
+    const early = movementRecordAt(movements, id, firstDemand - 1);
+    if (early) {
+      expect(early.demands).toBe(0);
+      expect(early.ended).toBe(false);
+      const upTo = rows.filter(({ turn }) => turn <= firstDemand - 1);
+      expect(early.peakMembers).toBe(upTo.length ? Math.max(...upTo.map(({ row }) => row.members)) : 0);
+    }
   });
 
   it("marks a leader the record says was martyred, from the turn of the martyrdom", () => {

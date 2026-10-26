@@ -31,6 +31,22 @@ _PARALLEL_NARRATION_ERROR = (
 )
 
 
+def parallel_workers(parallel: Any, cpu_count: int | None = None) -> int:
+    """Worker processes for a parallel batch.
+
+    An explicit count (``--parallel N``, a Batch Lab worker count) is N
+    workers, 1 included. Anything else that asks for a parallel batch (a bare
+    ``--parallel``, argparse's ``const=-1``; Batch Lab's ``True``) sizes the
+    pool to ``cpu_count - 1``, at least 1. ``None`` and 0 run sequentially and
+    never reach here. Results do not depend on the count: each seed runs in
+    one worker, deterministically.
+    """
+    if isinstance(parallel, int) and not isinstance(parallel, bool) and parallel >= 1:
+        return parallel
+    cores = multiprocessing.cpu_count() if cpu_count is None else cpu_count
+    return max(1, cores - 1)
+
+
 def run_batch(
     args: argparse.Namespace,
     sim_client: Any = None,
@@ -84,7 +100,7 @@ def run_batch(
                 "Parallel workers cannot share LLM connections. "
                 "Use sequential batch mode for narrated runs."
             )
-        workers = args.parallel if isinstance(args.parallel, int) and args.parallel > 1 else max(1, multiprocessing.cpu_count() - 1)
+        workers = parallel_workers(args.parallel)
         run_args = []
         for i in range(count):
             run_seed = base_seed + i

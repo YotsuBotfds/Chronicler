@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
-  charterLabel, CITY_COUNTERS, cityHistory, cityKeys, cityRankRows, cityRecord, citySeries, RANK_COLORS,
-  RANK_LABELS, rankLabel, waresLabel,
+  charterLabel, CITY_COUNTERS, cityHistory, cityKeys, cityRankRows, cityRecord, cityRecordAt, citySeries,
+  RANK_COLORS, RANK_LABELS, rankLabel, waresLabel,
 } from "../../lib/cities";
 import { cityGuildLabel, GUILD_COUNTERS, guildsAt, privilegesLabel } from "../../lib/guilds";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
@@ -25,12 +25,15 @@ export function CitiesPanel({
   const guildState = snapshot?.guilds;
   const guilds = guildsAt(snapshot);
   const cityNames = new Map(living.map((row) => [row.id, row.name]));
+  // Cities recorded by the scrubbed turn (a later one is not the default focus).
+  const known = useMemo(
+    () => cityKeys(history.filter((row) => row.turn <= currentTurn)), [history, currentTurn]);
   const [chosen, setChosen] = useState<number | null>(null);
-  const selected = chosen ?? living[0]?.id ?? keys[0]?.id ?? null;
+  const selected = chosen ?? living[0]?.id ?? known[known.length - 1]?.id ?? null;
   const selectedName = keys.find((key) => key.id === selected)?.name ?? null;
   const purse = selected == null ? [] : citySeries(history, selected, PURSE, (row) => row.wealth);
   const unrest = selected == null ? [] : citySeries(history, selected, UNREST, (row) => row.unrest);
-  const record = selected == null ? null : cityRecord(bundle, selected);
+  const record = selected == null ? null : cityRecordAt(bundle, selected, currentTurn);
   const moments = selected == null ? [] : cityHistory(bundle, selected, currentTurn);
   const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.cities, currentTurn);
   const regions = bundle.world_state.regions;
@@ -172,13 +175,18 @@ export function CitiesPanel({
       {selected != null && selectedName && (
         <section className="systems-section" aria-label={`History of ${selectedName}`}>
           <h3>{selectedName}</h3>
-          {record && (
+          {record ? (
             <p className="systems-note">
-              {regions[record.region]?.name ?? `Region ${record.region}`}; founded turn {record.founded_turn};
-              peak {rankLabel(record.peak_rank)} ({record.peak_residents} people), purse peak{" "}
-              {record.peak_wealth.toFixed(0)}
-              {record.fallen_turn != null ? `; fell at turn ${record.fallen_turn} (${record.fall_cause})` : ""}.
+              {regions[record.record.region]?.name ?? `Region ${record.record.region}`}; founded turn{" "}
+              {record.record.founded_turn}
+              {record.peakRank > 0
+                ? `; peak by turn ${currentTurn} ${rankLabel(record.peakRank)} (${record.peakResidents} people),`
+                  + ` purse peak ${record.peakWealth.toFixed(0)}`
+                : ""}
+              {record.fell ? `; fell at turn ${record.record.fallen_turn} (${record.record.fall_cause})` : ""}.
             </p>
+          ) : cityRecord(bundle, selected) && (
+            <p className="systems-note">Not yet founded at turn {currentTurn}.</p>
           )}
           <div className="systems-chart-pair">
             <CivLineChart

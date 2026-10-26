@@ -31,10 +31,19 @@ const pruned: TurnSnapshot[] = [
 
 describe("civ rows over pruned histories", () => {
   it("finds the snapshot shown for a turn", () => {
-    expect(snapshotPositionAt(pruned, 0)).toBe(0);
     expect(snapshotPositionAt(pruned, 3)).toBe(2);
     expect(snapshotPositionAt(pruned, 99)).toBe(4);
     expect(snapshotPositionAt([], 3)).toBe(-1);
+  });
+
+  it("has no snapshot, and no row, before the first snapshot", () => {
+    // Main dae4ba5 showed the first snapshot (a later state) for a turn before it.
+    const late = pruned.map((snapshot) => ({ ...snapshot, turn: snapshot.turn + 200 }));
+    expect(snapshotPositionAt(pruned, 0)).toBe(-1);
+    expect(snapshotPositionAt(late, 150)).toBe(-1);
+    expect(civRowAt(late, "A", 150)).toBeNull();
+    expect(civDisplayRow(late, "A", 150)).toBeNull();
+    expect(civRowAt(late, "A", 201)).toMatchObject({ turn: 201, recorded: true });
   });
 
   it("carries a dead civ's final row past its death", () => {

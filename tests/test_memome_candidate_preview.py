@@ -232,7 +232,8 @@ class PreviewTests(unittest.TestCase):
         for kwargs in ({'alternatives': list(choices())}, {'alternatives': iter(choices())},
                        {'alternatives': ()}, {'max_alternatives': True}, {'max_alternatives': 0},
                        {'max_alternatives': 2.0}, {'transport': None}, {'session': object()}):
-            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError): call(session, **kwargs)
+            # subTest parameters are plain values: pytest-xdist serializes them.
+            with self.subTest(kwargs=repr(kwargs)), self.assertRaises(ValueError): call(session, **kwargs)
         with (mock.patch.object(es, 'encode_session', side_effect=AssertionError('encode')),
               self.assertRaisesRegex(PreviewError, 'alternative count')):
             call(session, (object(), object(), object()))
@@ -271,7 +272,7 @@ class PreviewTests(unittest.TestCase):
                        mm.Batch(1, (proposal, proposal)), object())
         before = identity(session)
         for batch in bad_batches:
-            with self.subTest(batch=batch), self.assertRaisesRegex(PreviewError, "alternative 'bad'"):
+            with self.subTest(batch=repr(batch)), self.assertRaisesRegex(PreviewError, "alternative 'bad'"):
                 call(session, (good, Alternative('bad', batch)))
             self.assertEqual(identity(session), before)
 
@@ -481,7 +482,7 @@ class CliTests(unittest.TestCase):
                 arguments = self.arguments.copy()
                 arguments[arguments.index(flag)+1] = str(target)
                 result = self.process(arguments)
-                with self.subTest(target=target, flag=flag):
+                with self.subTest(target=target.name, flag=flag):
                     self.assertEqual((result.returncode,result.stdout),(3,b''))
                     self.assertIn('error', json.loads(result.stderr))
 
