@@ -5,15 +5,30 @@ import argparse
 import copy
 import multiprocessing
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from chronicler.batch_manifest import (
+    finish_batch_manifest,
+    native_identity,
+    new_batch_manifest,
+    prepare_batch_dir,
+    record_batch_run,
+    write_batch_manifest,
+)
 from chronicler.interestingness import score_run
 from chronicler.types import RunResult
 
 # Type alias for progress callbacks: (completed, total, current_seed) -> None
 ProgressCallback = Callable[[int, int, int], None]
+
+_PARALLEL_NARRATION_ERROR = (
+    "--batch --parallel requires --simulate-only. "
+    "Parallel workers cannot share LLM connections. "
+    "Use sequential batch mode for narrated runs."
+)
 
 
 def run_batch(
@@ -27,17 +42,25 @@ def run_batch(
 ) -> Path:
     """Run N chronicles with sequential seeds. Returns the batch directory path.
 
+    The batch directory (``batch_<first seed>`` next to ``args.output``) must
+    be new or empty (``BatchDestinationError`` otherwise): validation reads
+    every bundle below it. ``batch_manifest.json`` there records the expected
+    runs and their identity (``chronicler.batch_manifest``).
+
     Parameters
     ----------
     progress_cb : optional callback(completed, total, current_seed) called after each seed.
     cancel_event : optional threading.Event; if set, batch stops between seeds.
     tuning_overrides_dict : optional in-memory overrides (bypasses YAML file I/O).
     """
-    base_seed = args.seed or 42
+    base_seed = 42 if args.seed is None else args.seed
     count = args.batch
     base_output = Path(args.output).parent if hasattr(args, 'output') else Path("output")
     batch_dir = base_output / f"batch_{base_seed}"
-    batch_dir.mkdir(parents=True, exist_ok=True)
+    if args.parallel and not getattr(args, 'simulate_only', True):
+        # H-24 (below), checked before the batch directory is claimed.
+        raise ValueError(_PARALLEL_NARRATION_ERROR)
+    prepare_batch_dir(batch_dir)
 
     results: list[RunResult] = []
 
@@ -46,6 +69,10 @@ def run_batch(
     if not tuning_overrides and getattr(args, "tuning", None):
         from chronicler.tuning import load_tuning
         tuning_overrides = load_tuning(Path(args.tuning))
+
+    manifest = new_batch_manifest(args, [base_seed + i for i in range(count)], tuning_overrides=tuning_overrides)
+    write_batch_manifest(batch_dir, manifest)
+    cancelled = False
 
     if args.parallel:
         # H-24: Parallel batch mode cannot use LLM clients (connections can't
@@ -75,15 +102,18 @@ def run_batch(
             for i, ar in enumerate(async_results):
                 if cancel_event and cancel_event.is_set():
                     pool.terminate()
+                    cancelled = True
                     break
                 result = ar.get()
                 results.append(result)
+                record_batch_run(batch_dir, manifest, i, result.total_turns)
                 run_seed = base_seed + i
                 if progress_cb:
                     progress_cb(i + 1, count, run_seed)
     else:
         for i in range(count):
             if cancel_event and cancel_event.is_set():
+                cancelled = True
                 break
             run_seed = base_seed + i
             run_dir = batch_dir / f"seed_{run_seed}"
@@ -103,9 +133,15 @@ def run_batch(
                 scenario_config=scenario_config,
             )
             results.append(result)
+            record_batch_run(batch_dir, manifest, i, result.total_turns)
             if progress_cb:
                 progress_cb(i + 1, count, run_seed)
             print(f"  Batch run {i + 1}/{count} complete (seed {run_seed})")
+
+    if "chronicler_agents.chronicler_agents" in sys.modules:
+        # Sequential runs load the extension here: record the loaded module.
+        manifest["native"] = native_identity()
+    finish_batch_manifest(batch_dir, manifest, cancelled=cancelled)
 
     # Write summary
     weights = scenario_config.interestingness_weights if scenario_config and hasattr(scenario_config, 'interestingness_weights') else None

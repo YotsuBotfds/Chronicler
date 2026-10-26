@@ -82,9 +82,29 @@ def test_readme_documents_no_rust_and_native_test_lanes():
 def test_validation_gate_workflow_builds_native_extension_as_wheel():
     workflow = _read(".github/workflows/validation-gate.yml")
 
-    assert "python -m maturin build --release" in workflow
-    assert "python -m pip install target/wheels/*.whl" in workflow
+    assert "python -m maturin build --release --locked" in workflow
+    assert "uv pip install --python ../.venv/bin/python target/wheels/*.whl" in workflow
     assert "python -m maturin develop --release" not in workflow
+
+
+def test_ci_installs_python_dependencies_from_the_lockfile():
+    for path in (".github/workflows/tests.yml", ".github/workflows/validation-gate.yml"):
+        workflow = _read(path)
+        assert "uv lock --check" in workflow, path
+        assert "uv sync --frozen" in workflow, path
+        assert "pip install -e ." not in workflow, path
+        assert workflow.index("uv sync --frozen") < workflow.index("python -m maturin build"), path
+
+
+def test_github_tests_workflow_has_a_viewer_job():
+    workflow = _read(".github/workflows/tests.yml")
+    viewer = workflow[workflow.index("  viewer:"):]
+
+    assert "working-directory: viewer" in viewer
+    assert "cache-dependency-path: viewer/package-lock.json" in viewer
+    steps = ["npm ci", "npm test -- --maxWorkers=2", "npm run lint", "npm run build"]
+    assert all(step in viewer for step in steps)
+    assert [viewer.index(step) for step in steps] == sorted(viewer.index(step) for step in steps)
 
 
 def test_validation_gate_workflow_preserves_reports_as_artifacts():
@@ -135,8 +155,8 @@ def test_github_tests_workflow_has_no_rust_and_native_jobs():
     assert "python-native" in workflow
     assert "Assert native extension is absent" in workflow
     assert "Run Python tests with real native extension preloaded" in workflow
-    assert "python -m maturin build --release" in workflow
-    assert "python -m pip install target/wheels/*.whl" in workflow
+    assert "python -m maturin build --release --locked" in workflow
+    assert "uv pip install --python ../.venv/bin/python target/wheels/*.whl" in workflow
     assert "EXTENSION_SUFFIXES" in workflow
     assert "find_spec(\"chronicler_agents.chronicler_agents\")" in workflow
     assert workflow.index("import chronicler_agents as ca") < workflow.index("import pytest")

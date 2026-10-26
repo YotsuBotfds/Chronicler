@@ -499,16 +499,17 @@ def test_cli_text_summary_reports_informational_non_pass(tmp_path, capsys):
     assert "Informational non-PASS statuses: determinism=SKIP" in output
 
 
-def _needs_v3(binding_lower_bound, *, pooled_failed=(), scored_for=None):
-    """A method 3 needs result: method 2's criteria by ``pooled_failed``, the
-    binding component by its bound, scored for ``scored_for`` (None: binding
-    decides, as the oracle does without a profile)."""
+def _needs_v3(binding_lower_bound, *, pooled_failed=(), scored_for=None, version=3):
+    """A method 3 (or ``version``) needs result: method 2's criteria by
+    ``pooled_failed``, the binding component by its bound, scored for
+    ``scored_for`` (None: binding decides, as the oracle does without a
+    profile)."""
     binding_ok = binding_lower_bound is not None and binding_lower_bound > 0
     decides = scored_for in (None, "full")
     failed = list(pooled_failed) + (["binding_lower_bound"] if not binding_ok and decides else [])
     return {
         "status": "PASS" if not failed else "FAIL",
-        "method_version": 3,
+        "method_version": version,
         "failed_criteria": failed,
         "informational_failed_criteria": [] if binding_ok or decides else ["binding_lower_bound"],
         "binding_required": decides,
@@ -516,12 +517,13 @@ def _needs_v3(binding_lower_bound, *, pooled_failed=(), scored_for=None):
     }
 
 
+@pytest.mark.parametrize("version", [3, 4])
 @pytest.mark.parametrize("scored_for", [None, "subset", "full"])
-def test_needs_binding_decides_only_in_the_full_profile(scored_for):
+def test_needs_binding_decides_only_in_the_full_profile(scored_for, version):
     from chronicler.validation_gate import adjudicate_validation_report
 
     report = _report()
-    report["results"]["needs"] = _needs_v3(-0.028, scored_for=scored_for)
+    report["results"]["needs"] = _needs_v3(-0.028, scored_for=scored_for, version=version)
 
     subset = adjudicate_validation_report("subset", report)
     assert subset["ok"] is True
