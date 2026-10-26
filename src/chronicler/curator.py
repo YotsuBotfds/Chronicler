@@ -979,15 +979,21 @@ def curate(
             chains.append(build_causal_chain(graph, i))
         return chains
 
+    event_keys = {(ev.turn, frozenset(ev.actors)) for ev in sorted_events}
+
     def _cluster_to_moment(cluster: dict) -> NarrativeMoment:
         indices = cluster["event_indices"]
         cluster_events = [sorted_events[i] for i in indices]
+        # A named event belongs to the moment holding its event; one that
+        # matches no event (a schism, an enlightenment spanning every civ, a
+        # rival's fall) belongs to the moment whose turns cover it.
+        lo, hi = cluster["turn_range"]
         cluster_named = [
             ne for ne in named_events
             if any(
                 ne.turn == ev.turn and set(ne.actors) == set(ev.actors)
                 for ev in cluster_events
-            )
+            ) or ((ne.turn, frozenset(ne.actors)) not in event_keys and lo <= ne.turn <= hi)
         ]
         cluster_links: list[CausalLink] = []
         seen_links: set[tuple] = set()

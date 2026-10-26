@@ -328,6 +328,18 @@ def test_mechanical_chronicle_reads_the_listed_events_as_sentences():
                     "(and in South). Drought strikes A.")
 
 
+def test_a_named_event_without_its_own_event_joins_the_moment_covering_it():
+    """An enlightenment named for every civ matches no single event's actors."""
+    events = [_ev(10, "war", ["A", "B"], imp=7, eid="10:war:0"), _ev(12, "famine", ["A"], imp=8, eid="12:f:0")]
+    lit = NamedEvent(name="Universal Enlightenment", event_type="universal_enlightenment", turn=11,
+                     actors=["A", "B", "C"], description="Every realm takes up the idea", importance=10)
+    battle = NamedEvent(name="The Battle of Ford", event_type="battle", turn=10, actors=["A", "B"],
+                        description="A beats B", importance=6)
+    far = NamedEvent(name="Later", event_type="treaty", turn=40, actors=["X"], description="x", importance=5)
+    moments, _ = curate(events, [lit, battle, far], [], budget=1, seed=0)
+    assert [ne.name for ne in moments[0].named_events] == ["Universal Enlightenment", "The Battle of Ford"]
+
+
 def test_placeholder_movement_names_stay_out_of_landmarks():
     from chronicler.narrative import _landmark_line
     ne = NamedEvent(name="Schism of movement 3", event_type="movement_schism", turn=5, actors=["A", "B"],
