@@ -756,7 +756,7 @@ _FIXTURES = ROOT / "tests" / "fixtures" / "performance"
 
 
 def _frozen():
-    baseline = json.loads((_FIXTURES / "corrected_farmland_2026_10.json").read_text())
+    baseline = json.loads((_FIXTURES / "corrected_population_2026_10.json").read_text())
     return baseline
 
 

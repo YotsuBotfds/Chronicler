@@ -876,11 +876,11 @@ _FIXTURES = ROOT / "tests" / "fixtures" / "performance"
 
 
 def _frozen():
-    # The live oracle: the farmland and regional-climate corrections rolled
-    # every trajectory forward from the hunger fixtures
-    # (docs/integration/farmland-climate.md).
-    baseline = json.loads((_FIXTURES / "corrected_farmland_2026_10.json").read_text())
-    artifacts = json.loads((_FIXTURES / "corrected_artifacts_farmland_2026_10.json").read_text())
+    # The live oracle: the population corrections rolled every trajectory
+    # forward from the farmland fixtures
+    # (docs/integration/population-entities.md).
+    baseline = json.loads((_FIXTURES / "corrected_population_2026_10.json").read_text())
+    artifacts = json.loads((_FIXTURES / "corrected_artifacts_population_2026_10.json").read_text())
     return baseline, artifacts
 
 

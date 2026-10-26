@@ -570,7 +570,10 @@ def compute_resource_yields(
         reserve_ramp = 1.0
         if rtype in MINERAL_TYPES:
             reserves = region.resource_reserves[slot]
-            # Depletion — only if there are workers and reserves remain
+            # Depletion — only if there are workers and reserves remain. This
+            # path has no goods economy (--agents off), so its labour is the
+            # aggregate proxy; the native agent tick depletes by the ore its
+            # economy produced (ecology.rs ``mineral_extraction``, 2026-10).
             if deplete_reserves and reserves > 0.01 and worker_count > 0:
                 target_workers = max(1, effective_capacity(region) // 3)
                 extraction = base * (worker_count / target_workers)
