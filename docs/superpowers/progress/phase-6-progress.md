@@ -40,7 +40,7 @@ measurements and tables:
   famine, conquest, persecution or a minority faith; repeal gentler (median
   reform life 61 turns).
 - **Gates.** Subsets 42-61 and 62-81 PASS / NO REGRESSION, on against off.
-  Full 200 x 500 with `--agent-movements` on `7315a81`: PASS strict, NO
+  Full 200 x 500 with `--agent-movements` on `36c5617`'s tree: PASS strict, NO
   REGRESSION against the needs-calibration full gate (migration 0.0626 ->
   0.0629, rebellion 0.0385 -> 0.0409, needs 190 -> 188 of 200, lower bound
   0.195 -> 0.192, 0 extinct; 21.6 movements, 3.4 significant, 5.7 reforms,

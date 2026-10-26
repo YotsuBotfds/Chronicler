@@ -244,7 +244,8 @@ extension built fresh from the gated source (`maturin develop --release
 `PoliticsSimulator` verified). Movement counts come from the runs' bundles.
 
 **Full gate** (`--profile full`, 200 seeds x 500 turns, `--parallel 3`,
-`--agent-movements`, 2,551 s on a shared machine) on `7315a81` (extension
+`--agent-movements`, 2,551 s on a shared machine) on `36c5617`, tree `669efe3` (run on
+`7315a81`, the same commit on a local preview merge of PR #36's head, same tree; extension
 SHA-256 `028c1fd1...248fc52a`), compared with the needs-calibration full
 gate (`main` after PR #36; the same seeds and profile):
 
@@ -286,7 +287,7 @@ secessions appear: 8 in 200 worlds (liberty risings against rulers under
 the 62-81 on arm `--parallel 3`), `--no-agent-movements` against
 `--agent-movements` on the final head, compared with `validation_compare`
 (the off arms are identical to the base, below). The same reports came from
-the preview of `7315a81` before the flip:
+`7315a81` (`36c5617`'s tree) before the flip:
 
 | | 42-61 off | 42-61 on | 62-81 off | 62-81 on |
 | --- | ---: | ---: | ---: | ---: |
@@ -309,8 +310,7 @@ the full gate reads it on 200 seeds of 500 turns (above).
 
 ### Default on
 
-`DEFAULT_ENABLED_FOR_NEW_WORLDS = True` in a separate commit (`3ed9bc0` on
-the preview branch, replayed onto this branch), as
+`DEFAULT_ENABLED_FOR_NEW_WORLDS = True` in a separate commit (`cb4cefa`), as
 [defaults-wave8.md](defaults-wave8.md) did: CLI help ("default on for new
 worlds; --no-agent-movements opts out; saved on resume"), the live server
 comment, `test_new_worlds_default_on_and_resume_keeps_saved_setting` (a fresh
@@ -324,8 +324,8 @@ so the frozen performance oracles replay the same worlds. Worlds from
 
 ### Feature-off identity
 
-Base: `e1b6a13` (PR #36's head, whose tree `main` takes when it merges
-without conflict; it contains `main` `7fa364a`) exported as a source tree
+Base: `e1b6a13` (PR #36's head; `main` `b5d41af` has the same tree)
+exported as a source tree
 and its extension built from that tree (SHA-256 `0cb2948c...7cdb8d`, the one
 needs calibration recorded), `PYTHONPATH` on the export. Branch: the
 worktree at the final head and its extension. Same interpreter,
@@ -418,7 +418,7 @@ Tests added or changed:
   tests in `SystemsPanel.test.tsx`.
 
 Verification on the final head (Linux, Python 3.13.17, Node 22; extension
-built fresh from the branch's Rust, unchanged since `7315a81`, SHA-256
+built fresh from the branch's Rust, unchanged since `36c5617`, SHA-256
 `028c1fd1...248fc52a`, compiled submodule and classes verified):
 
 | Check | Result |
