@@ -431,13 +431,30 @@ def _persecution(t: _Tick, si: int, seat: Seat, region) -> bool:
 
 
 def _patron_gone(t: _Tick, si: int, seat: Seat, region) -> bool:
-    """A temple school without its temple, a library without its city."""
+    """A temple school without its temple (burned by a conqueror: a sack;
+    replaced by another faith's: loss of patronage), a library without its city."""
     if seat.kind == TEMPLE_SCHOOL and _temple(region, seat.faith) is None:
-        _fall(t, si, seat, region, PATRONAGE, f"closes: the temple that kept it in {region.name} is gone",
-              [])
+        razed = next((ev for ev in t.turn_events if ev.event_type == "temple_destroyed"
+                      and ev.turn == t.world.turn
+                      and (ev.description or "").startswith(f"Temple of faith {seat.faith} ")
+                      and (ev.description or "").endswith(f" in {region.name}")), None)
+        if razed is not None and " destroyed in " in razed.description:
+            who = razed.actors[0] if razed.actors else "raiders"
+            _fall(t, si, seat, region, SACK, f"is burned with its temple when {who} take {region.name}",
+                  [razed.event_id], actors=[who, region.controller or ""])
+        elif razed is not None:
+            _fall(t, si, seat, region, PATRONAGE,
+                  f"closes: its temple in {region.name} is given to another faith", [razed.event_id])
+        else:
+            _fall(t, si, seat, region, PATRONAGE, f"closes: the temple that kept it in {region.name} is gone",
+                  [])
         return True
     if seat.kind == LIBRARY and seat.city not in t.cities:
-        _fall(t, si, seat, region, PATRONAGE, f"closes: the city that kept it has fallen", [])
+        cities = getattr(t.world, "cities", None)
+        fallen = next((c for c in (cities.fallen if cities is not None else [])
+                       if c.settlement_id == seat.city), None)
+        fell = next((eid for _turn, kind, eid in fallen.history if kind == "fell"), None) if fallen else None
+        _fall(t, si, seat, region, PATRONAGE, "closes: the city that kept it has fallen", [fell])
         return True
     return False
 

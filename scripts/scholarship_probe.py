@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Seats of learning: what they do to techniques and archives, per world.
+
+``scholarship_probe.py extract BATCH_DIR OUT.json``
+    For every ``seed_*`` run of a batch (``chronicle_bundle.json`` and
+    ``agent_events.arrow``): technique inventions, adoptions by channel and
+    losses (``world_state.techniques.counts``), techniques known per living
+    civ (mean over the snapshots and at the end), the chronicles' accounts
+    and losses (the bundle's ``historiography`` field: accounts lost, and
+    per loss cause the accounts that survived an episode against those lost),
+    agent migrations led by the learning pull, and the seats' counters.
+
+``scholarship_probe.py compare OFF.json ON.json``
+    Paired by seed: the mean of each measure in both arms and the mean
+    difference with its standard error, as a Markdown table.
+
+See docs/integration/scholarship.md.
+"""
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+
+LEARNING_DRIVER = 19   # models.MIGRATION_DRIVER_NAMES index of "learning"
+
+
+def _load(path: Path) -> dict:
+    from chronicler.bundle_codec import load_bundle
+    return load_bundle(path)
+
+
+def _learning_moves(path: Path) -> int | None:
+    if not path.exists():
+        return None
+    import pyarrow.ipc as ipc
+    with ipc.open_file(str(path)) as f:
+        table = f.read_all()
+    if "migration_driver" not in table.column_names:
+        return 0
+    types = table.column("event_type").to_pylist()
+    drivers = table.column("migration_driver").to_pylist()
+    return sum(1 for t, d in zip(types, drivers) if t == "migration" and d == LEARNING_DRIVER)
+
+
+def seed_metrics(run: Path) -> dict:
+    bundle = _load(run / "chronicle_bundle.json")
+    ws = bundle.get("world_state", {})
+    out: dict[str, float] = {}
+    counts = (ws.get("techniques") or {}).get("counts", {})
+    out["invented"] = counts.get("invented", 0)
+    out["adopted"] = sum(v for k, v in counts.items() if k.startswith("gained:"))
+    out["adopted_scholars"] = counts.get("gained:scholars", 0)
+    out["lost_decay"] = counts.get("lost:decay", 0)
+    out["era_up"] = counts.get("era_up", 0)
+    series = [h.get("techniques") for h in bundle.get("history", []) if h.get("techniques")]
+    per_turn = [sum(s["known"].values()) / len(s["known"]) for s in series if s.get("known")]
+    if per_turn:
+        out["known_mean"] = sum(per_turn) / len(per_turn)
+        out["known_final"] = per_turn[-1]
+    hist = bundle.get("historiography") or {}
+    hc = hist.get("counts", {})
+    accounts = hc.get("accounts", 0)
+    lost = sum(v for k, v in hc.items() if k.startswith("lost:"))
+    out["accounts"] = accounts
+    out["accounts_lost_share"] = lost / accounts if accounts else 0.0
+    for cause in ("conquest", "sack", "collapse", "absorption"):
+        survived = lost_n = 0
+        for archive in hist.get("archives", []):
+            for loss in archive.get("losses", []):
+                if loss.get("cause") == cause:
+                    survived += loss.get("survived", 0)
+                    lost_n += loss.get("lost", 0)
+        out[f"{cause}_episode_accounts"] = survived + lost_n
+        out[f"{cause}_survived"] = survived
+    moves = _learning_moves(run / "agent_events.arrow")
+    if moves is not None:
+        out["learning_moves"] = moves
+    snaps = [h.get("scholarship") for h in bundle.get("history", []) if h.get("scholarship")]
+    if snaps:
+        for k, v in snaps[-1].get("counters", {}).items():
+            out[f"seats_{k}"] = v
+        out["seats_living_mean"] = sum(len(s.get("seats", [])) for s in snaps) / len(snaps)
+    return out
+
+
+def extract(batch: Path) -> dict:
+    result = {}
+    for run in sorted(batch.glob("seed_*")):
+        if (run / "chronicle_bundle.json").exists():
+            result[run.name] = seed_metrics(run)
+    return result
+
+
+def compare(off: dict, on: dict) -> list[str]:
+    seeds = sorted(set(off) & set(on))
+    keys = sorted({k for s in seeds for k in off[s]} | {k for s in seeds for k in on[s]})
+    lines = [f"Paired worlds: {len(seeds)}", "",
+             "| measure | off | on | difference (SE) |", "| --- | ---: | ---: | ---: |"]
+    for k in keys:
+        a = [off[s].get(k, 0.0) for s in seeds]
+        b = [on[s].get(k, 0.0) for s in seeds]
+        d = [y - x for x, y in zip(a, b)]
+        n = len(d)
+        mean = sum(d) / n if n else 0.0
+        se = math.sqrt(sum((x - mean) ** 2 for x in d) / (n - 1) / n) if n > 1 else 0.0
+        lines.append(f"| {k} | {sum(a) / n:.3f} | {sum(b) / n:.3f} | {mean:+.3f} ({se:.3f}) |")
+    # Survival per account of an archive loss episode, pooled.
+    for cause in ("conquest", "sack", "collapse", "absorption"):
+        for name, arm in (("off", off), ("on", on)):
+            total = sum(arm[s].get(f"{cause}_episode_accounts", 0) for s in seeds)
+            kept = sum(arm[s].get(f"{cause}_survived", 0) for s in seeds)
+            if total:
+                lines.append(f"- {cause}, {name}: {kept} of {total} accounts survived ({kept / total:.1%})")
+    return lines
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[0] == "extract":
+        data = extract(Path(argv[1]))
+        Path(argv[2]).write_text(json.dumps(data, indent=1, sort_keys=True))
+        print(f"{argv[2]}: {len(data)} runs")
+        return 0
+    if len(argv) == 3 and argv[0] == "compare":
+        off = json.loads(Path(argv[1]).read_text())
+        on = json.loads(Path(argv[2]).read_text())
+        print("\n".join(compare(off, on)))
+        return 0
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

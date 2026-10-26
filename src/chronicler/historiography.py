@@ -1283,19 +1283,13 @@ def _write(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Account:
 
 
 def _write_seat(ctx: _Turn, chron: Chronicler, ev: "Event", name: str) -> Account:
-    """The scholars write plainly: the event as recorded, and for a loss the
-    cause they hold ("in the wake of ...")."""
+    """The scholars write plainly: the event as recorded, citing the causes
+    they hold, with no transformation."""
     cid = chron.chronicler_id
-    stance = SEAT_STANCES.get(ev.event_type, "neutral")
-    cited = _held_causes(ctx, cid, ev)
-    core = _what(ev)
-    if stance == "disaster" and cited:
-        cause = _event_at(ctx, cited[0])
-        if cause is not None:
-            core += f", in the wake of {_mid(_short_label(cause))} (turn {cause.turn})"
     acc = Account(account_id=f"{cid}/{ev.event_id}", event_id=ev.event_id, turn=ev.turn,
-                  chronicler=cid, stance=stance, transforms=[], cited=cited)
-    acc.text = _sentence(core)
+                  chronicler=cid, stance=SEAT_STANCES.get(ev.event_type, "neutral"), transforms=[],
+                  cited=_held_causes(ctx, cid, ev))
+    acc.text = _sentence(_what(ev))
     return acc
 
 
