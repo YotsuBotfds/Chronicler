@@ -1480,6 +1480,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Live mode: start WebSocket server for viewer connection")
     parser.add_argument("--live-port", type=int, default=8765,
                         help="WebSocket server port for live mode (default: 8765)")
+    parser.add_argument("--live-origin", action="append", default=None, metavar="ORIGIN",
+                        help="Live mode: also accept a viewer served from ORIGIN (e.g. "
+                             "http://localhost:5174); the Vite dev (5173) and preview (4173) "
+                             "origins on localhost are always accepted. Repeatable.")
     parser.add_argument("--simulate-only", action="store_true",
                         help="Run simulation without LLM narrative generation")
     parser.add_argument("--agents", type=str, default="off",
@@ -1642,7 +1646,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
     """Load a simulate-only bundle, curate moments, and narrate them."""
     import json as _json
     from chronicler.curator import curate
-    from chronicler.models import Event, NamedEvent, TurnSnapshot, WorldState
+    from chronicler.narration_inputs import from_bundle
 
     bundle_path = Path(args.narrate)
     if not bundle_path.exists():
@@ -1657,14 +1661,17 @@ def _run_narrate(args: argparse.Namespace) -> None:
     from chronicler.snapshot_pruning import restore_bundle
     bundle = restore_bundle(bundle)
 
-    # Deserialize events, named_events, history
-    events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]
-    named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]
-    history = [TurnSnapshot.model_validate(snap) for snap in bundle.get("history", [])]
-    world = None
-    if bundle.get("world_state") is not None:
-        world = WorldState.model_validate(bundle["world_state"])
-    seed = bundle.get("metadata", {}).get("seed", 42)
+    # Events, history, world, characters and in-world indexes, read as the
+    # live server's range narration reads them (chronicler.narration_inputs).
+    # In-world accounts and names are absent in older bundles and in runs
+    # with those layers off; --no-historiography / --no-languages ignore them.
+    inputs = from_bundle(
+        bundle, default_seed=42,
+        historiography=getattr(args, "historiography", None) is not False,
+        languages=getattr(args, "languages", None) is not False,
+    )
+    events = inputs.events
+    history = inputs.history
     budget = args.budget
 
     # Create LLM clients
@@ -1675,49 +1682,14 @@ def _run_narrate(args: argparse.Namespace) -> None:
         narrator=getattr(args, "narrator", "local"),
     )
 
-    # M40: Collect named character names for curator scoring
-    named_chars = set()
-    for civ_data in bundle.get("world_state", {}).get("civilizations", []):
-        for gp in civ_data.get("great_persons", []):
-            if gp.get("active") and gp.get("agent_id") is not None:
-                named_chars.add(gp.get("name", ""))
-
-    # M45: Build gp_by_name for arc scoring
-    from chronicler.models import GreatPerson as _GP
-    gp_by_name = {}
-    for civ_data in bundle.get("world_state", {}).get("civilizations", []):
-        for gp_data in civ_data.get("great_persons", []):
-            if gp_data.get("active") and gp_data.get("agent_id") is not None:
-                gp_by_name[gp_data.get("name", "")] = _GP(**gp_data)
-    for gp_data in bundle.get("world_state", {}).get("retired_persons", []):
-        if gp_data.get("death_turn") is not None:
-            gp_by_name[gp_data.get("name", "")] = _GP(**gp_data)
-
-    # In-world accounts carried by the bundle (absent in older bundles and
-    # in runs with historiography off; --no-historiography ignores them).
-    account_index = None
-    # In-world names carried by the bundle (absent in older bundles and in
-    # runs with languages off; --no-languages ignores them).
-    name_index = None
-    if getattr(args, "languages", None) is not False:
-        from chronicler.languages import NameIndex
-        name_index = NameIndex.from_bundle(bundle)
-    if getattr(args, "historiography", None) is not False:
-        from chronicler.historiography import AccountIndex
-        account_index = AccountIndex.from_bundle(bundle)
-        if account_index is not None and name_index:
-            account_index = AccountIndex(bundle["historiography"], names=name_index)
-
     # Curate moments
     moments, gap_summaries = curate(
         events=events,
-        named_events=named_events,
+        named_events=inputs.named_events,
         history=history,
         budget=budget,
-        seed=seed,
-        named_characters=named_chars if named_chars else None,
-        gp_by_name=gp_by_name if gp_by_name else None,
-        contested=account_index.contested_bonus() if account_index else None,
+        seed=inputs.seed,
+        **inputs.curate_kwargs(),
     )
 
     print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
@@ -1729,28 +1701,8 @@ def _run_narrate(args: argparse.Namespace) -> None:
         eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
         print(f"  Narrating {completed}/{total}{eta_str}")
 
-    # M45: Include retired persons for dead character arc context
-    all_great_persons = list(gp_by_name.values()) if gp_by_name else None
-
-    # Build agent_name_map from bundled great_persons (agent_id filter on map only)
-    agent_name_map = (
-        {gp.agent_id: gp.name for gp in all_great_persons if gp.agent_id is not None}
-        if all_great_persons else None
-    )
-
     chronicle_entries = engine.narrate_batch(
-        moments, history, on_progress=progress_cb,
-        great_persons=all_great_persons,
-        world=world,
-        historiography=account_index,
-        languages=name_index,
-        agent_name_map=agent_name_map,
-        social_edges=None,
-        dissolved_edges_by_turn=None,
-        displacement_by_region=None,
-        dynasty_registry=None,
-        economy_result=None,
-        gini_by_civ=None,
+        moments, history, on_progress=progress_cb, **inputs.narrate_kwargs(),
     )
 
     # M44: Token summary
