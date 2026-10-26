@@ -720,11 +720,19 @@ def apply_diversity_penalty(
 #: Temporal spread: a stretch of turns no selected moment covers that is
 #: longer than SPREAD_GAP even spacings of the run (span / moments) gets its
 #: best moment, in place of the weakest selected moment whose removal opens
-#: no such stretch (landmarks stay), if it scores at least SPREAD_KEEP of
-#: it. A run whose moments are already spread is left as it is; 0 turns the
-#: rule off.
+#: no such stretch, if it scores at least SPREAD_KEEP of it. A moment holding
+#: an event or named event of importance SPREAD_PROTECT or more stays (in a
+#: busy world nearly every window holds a minor landmark, so the landmark
+#: exemption of the diversity rule would leave nothing to move). A run whose
+#: moments are already spread is left as it is; SPREAD_GAP 0 turns it off.
 SPREAD_GAP = 2.0
 SPREAD_KEEP = 0.75
+SPREAD_PROTECT = 9
+
+
+def _spread_protected(m: NarrativeMoment) -> bool:
+    return (any(e.importance >= SPREAD_PROTECT for e in m.events)
+            or any(ne.importance >= SPREAD_PROTECT for ne in m.named_events))
 
 
 def _untold(sel: Sequence[NarrativeMoment], first: int, last: int) -> list[tuple[int, int]]:
@@ -766,7 +774,7 @@ def spread_moments(
         best = max(inside, key=lambda m: (m.score, -m.anchor_turn), default=None)
         weakest = None
         for k, m in enumerate(sel):
-            if _landmark(m):
+            if _spread_protected(m):
                 continue
             before = sel[k - 1].turn_range[1] if k else first_turn - 1
             after = sel[k + 1].turn_range[0] if k + 1 < len(sel) else last_turn + 1

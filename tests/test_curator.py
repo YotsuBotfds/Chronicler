@@ -644,10 +644,10 @@ class TestCurate:
 
 class TestSpread:
     @staticmethod
-    def _m(turn: int, score: float, landmark: bool = False) -> NarrativeMoment:
+    def _m(turn: int, score: float, landmark: bool = False, great: bool = False) -> NarrativeMoment:
         return NarrativeMoment(
             anchor_turn=turn, turn_range=(turn, turn + 5),
-            events=[_make_event(turn, "war", ["A"])],
+            events=[_make_event(turn, "war", ["A"], importance=9 if great else 5)],
             named_events=[_make_named(turn, "war", ["A"], importance=7)] if landmark else [],
             score=score, causal_links=[], narrative_role=NarrativeRole.ESCALATION,
             bonus_applied=0.0)
@@ -663,11 +663,16 @@ class TestSpread:
         weak = [self._m(30, 10), self._m(42, 13), self._m(54, 12)]
         assert [m.anchor_turn for m in spread_moments(sel, weak, 0, 59)] == [0, 6, 12, 18]
 
-    def test_landmarks_stay_and_a_spread_run_is_left_alone(self):
+    def test_great_events_stay_and_a_spread_run_is_left_alone(self):
         from chronicler.curator import spread_moments
-        sel = [self._m(0, 20, True), self._m(6, 19, True), self._m(12, 18, True), self._m(18, 30)]
-        # Every moment is a landmark or borders the stretch: nothing can go.
+        sel = [self._m(0, 20, great=True), self._m(6, 19, great=True), self._m(12, 18, great=True),
+               self._m(18, 30)]
+        # Every moment holds an importance-9 event or borders the stretch: nothing can go.
         assert [m.anchor_turn for m in spread_moments(sel, [self._m(42, 29)], 0, 59)] == [0, 6, 12, 18]
+        # A minor landmark (a named event of importance 7) is weighed by its score.
+        minor = [self._m(0, 20, landmark=True), self._m(6, 19, great=True), self._m(12, 18, great=True),
+                 self._m(18, 30)]
+        assert [m.anchor_turn for m in spread_moments(minor, [self._m(42, 29)], 0, 59)] == [6, 12, 18, 42]
         even = [self._m(t, 20) for t in (0, 15, 30, 45)]
         assert spread_moments(even, [self._m(6, 50)], 0, 59) == even
 
