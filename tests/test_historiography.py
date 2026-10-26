@@ -876,8 +876,8 @@ _FIXTURES = ROOT / "tests" / "fixtures" / "performance"
 
 
 def _frozen():
-    # The live oracle: the population corrections rolled every trajectory
-    # forward from the farmland fixtures
+    # The live oracle: the 2026-10 population corrections rolled every
+    # trajectory forward from the procedural open-item fixtures
     # (docs/integration/population-entities.md).
     baseline = json.loads((_FIXTURES / "corrected_population_2026_10.json").read_text())
     artifacts = json.loads((_FIXTURES / "corrected_artifacts_population_2026_10.json").read_text())

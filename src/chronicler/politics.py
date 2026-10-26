@@ -837,19 +837,25 @@ def check_federation_dissolution(world: WorldState, acc=None) -> list[Event]:
 
 
 def trigger_federation_defense(attacker: str, defender: str, world: WorldState) -> list[Event]:
-    """Called during war resolution: if defender is in a federation, allies join."""
+    """Called during war resolution: if defender is in a federation, members
+    within reach of the war join (``diplomacy.within_reach``)."""
+    from chronicler.diplomacy import within_reach
     events: list[Event] = []
     fed = _civ_in_federation(defender, world)
     if fed is None:
         return events
 
     civ_map = world.civ_map
+    attacker_civ, defender_civ = civ_map.get(attacker), civ_map.get(defender)
     for member in fed.members:
         if member == defender or member == attacker:
             continue
         ally = civ_map.get(member)
         if ally is None or not ally.regions:
             continue
+        if (attacker_civ is not None and defender_civ is not None
+                and not within_reach(world, ally, attacker_civ, defender_civ)):
+            continue  # out of its armies' reach: the federation does not call it
         war_pair = (attacker, member)
         if war_pair not in world.active_wars and (member, attacker) not in world.active_wars:
             world.active_wars.append(war_pair)

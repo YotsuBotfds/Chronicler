@@ -15,10 +15,12 @@ FIXTURES = Path(__file__).parent / "fixtures" / "performance"
 # Rolled forward from the frozen corrected_423a67c oracles by the 2026-10
 # deferred-backlog corrections, the 2026-10 extinction fix, the 2026-10
 # food-balance corrections, the 2026-10 food-logistics changes, the 2026-10
-# hunger corrections, the 2026-10 farmland and regional-climate corrections
-# and then the 2026-10 population corrections; see the fixture provenance and
+# hunger corrections, the 2026-10 farmland and regional-climate corrections,
+# the 2026-10 procedural open-item corrections and then the 2026-10
+# population corrections; see the fixture provenance and
 # tests/test_performance_equivalence.py for the scoped-difference proofs.
 BASELINE = json.loads((FIXTURES / "corrected_population_2026_10.json").read_text())
+OPEN_ITEMS_BASELINE = json.loads((FIXTURES / "corrected_open_items_2026_10.json").read_text())
 FARMLAND_BASELINE = json.loads((FIXTURES / "corrected_farmland_2026_10.json").read_text())
 HUNGER_BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
 FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
@@ -26,12 +28,13 @@ FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_
 # artifact oracle forward as a format change; the food-balance artifacts stay
 # frozen as its pre-pruning reference. The food-logistics artifact oracle
 # records both projections of the same run and stays frozen, as does the
-# hunger and farmland ones; the population artifact oracle is live.
+# hunger, farmland and open-items ones; the population artifact oracle is live.
 ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_dead_civ_pruning_2026_10.json").read_text())
 PRE_PRUNING_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_balance_2026_10.json").read_text())
 FOOD_LOGISTICS_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_food_logistics_2026_10.json").read_text())
 HUNGER_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_hunger_2026_10.json").read_text())
 FARMLAND_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_farmland_2026_10.json").read_text())
+OPEN_ITEMS_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_open_items_2026_10.json").read_text())
 LIVE_ARTIFACTS = json.loads((FIXTURES / "corrected_artifacts_population_2026_10.json").read_text())
 
 
@@ -148,18 +151,35 @@ def test_farmland_artifacts_change_only_the_declared_workloads():
         assert same_v5 == same_pre == (name not in declared), name
 
 
+def test_open_items_artifacts_change_only_the_declared_workloads():
+    """The procedural open-items roll-forward moves only the workloads its turn
+    oracle declares; the others keep the farmland artifacts byte for byte in
+    both projections."""
+    declared = set()
+    for correction in OPEN_ITEMS_BASELINE["provenance"]["corrections"]:
+        declared |= set(correction["workloads"])
+    assert declared == {"standard", "wide"}
+    assert set(OPEN_ITEMS_ARTIFACTS["workloads"]) == set(FARMLAND_ARTIFACTS["workloads"])
+    for name in FARMLAND_ARTIFACTS["workloads"]:
+        same_v5 = OPEN_ITEMS_ARTIFACTS["workloads"][name] == FARMLAND_ARTIFACTS["workloads"][name]
+        same_pre = (OPEN_ITEMS_ARTIFACTS["pre_pruning_workloads"][name]
+                    == FARMLAND_ARTIFACTS["pre_pruning_workloads"][name])
+        assert same_v5 == same_pre == (name not in declared), name
+
+
 def test_population_artifacts_change_only_the_declared_workloads():
     """The population roll-forward moves only the workloads its turn oracle
-    declares; the others keep the farmland artifacts byte for byte in both
+    declares; the others keep the open-items artifacts byte for byte in both
     projections."""
     declared = set()
     for correction in BASELINE["provenance"]["corrections"]:
         declared |= set(correction["workloads"])
-    assert set(LIVE_ARTIFACTS["workloads"]) == set(FARMLAND_ARTIFACTS["workloads"])
-    for name in FARMLAND_ARTIFACTS["workloads"]:
-        same_v5 = LIVE_ARTIFACTS["workloads"][name] == FARMLAND_ARTIFACTS["workloads"][name]
+    assert declared == {"single", "standard", "wide"}
+    assert set(LIVE_ARTIFACTS["workloads"]) == set(OPEN_ITEMS_ARTIFACTS["workloads"])
+    for name in OPEN_ITEMS_ARTIFACTS["workloads"]:
+        same_v5 = LIVE_ARTIFACTS["workloads"][name] == OPEN_ITEMS_ARTIFACTS["workloads"][name]
         same_pre = (LIVE_ARTIFACTS["pre_pruning_workloads"][name]
-                    == FARMLAND_ARTIFACTS["pre_pruning_workloads"][name])
+                    == OPEN_ITEMS_ARTIFACTS["pre_pruning_workloads"][name])
         assert same_v5 == same_pre == (name not in declared), name
 
 

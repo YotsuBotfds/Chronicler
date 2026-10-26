@@ -96,6 +96,13 @@ def at_war(observer: Civilization, target: Civilization,
     return False
 
 
+def _ledger_contact(observer: Civilization, target: Civilization, world: WorldState) -> bool:
+    """Contact-ledger flow of any channel (goods, people, soldiers, pilgrims)
+    between the two civs; False with the ledger off."""
+    from chronicler.contact_ledger import civ_contact, ledger_enabled
+    return ledger_enabled(world) and civ_contact(world, observer.name, target.name) > 0.0
+
+
 def compute_accuracy(observer: Civilization, target: Civilization,
                      world: WorldState, *,
                      borders: set[tuple[str, str]] | None = None) -> float:
@@ -124,25 +131,31 @@ def compute_accuracy(observer: Civilization, target: Civilization,
     if at_war(observer, target, world):
         accuracy += 0.3
 
-    # M22 faction bonus
-    dominant = get_dominant_faction(observer.factions)
-    if dominant == FactionType.MERCHANT:
-        accuracy += 0.1
-    elif dominant == FactionType.CULTURAL:
-        accuracy += 0.05
-
-    # M17 great person bonuses
-    for gp in observer.great_persons:
-        if gp.alive and gp.active and not gp.is_hostage:
-            if gp.role == "merchant":
-                accuracy += 0.05
-
     # Hostages live on the captor's roster and report home about that captor.
     # This is one contact source per pair, regardless of the number held.
-    if any(gp.alive and gp.active and gp.is_hostage
-           and gp.origin_civilization == observer.name
-           and gp.civilization == target.name
-           for gp in target.great_persons):
+    hostage = any(gp.alive and gp.active and gp.is_hostage
+                  and gp.origin_civilization == observer.name
+                  and gp.civilization == target.name
+                  for gp in target.great_persons)
+
+    # Merchant and cultural factions and merchant great persons sharpen what a
+    # state knows of realms it is in contact with; they reveal no realm it has
+    # never met (2026-10 correction, docs/integration/procedural-gates.md).
+    if accuracy > 0.0 or hostage or _ledger_contact(observer, target, world):
+        # M22 faction bonus
+        dominant = get_dominant_faction(observer.factions)
+        if dominant == FactionType.MERCHANT:
+            accuracy += 0.1
+        elif dominant == FactionType.CULTURAL:
+            accuracy += 0.05
+
+        # M17 great person bonuses
+        for gp in observer.great_persons:
+            if gp.alive and gp.active and not gp.is_hostage:
+                if gp.role == "merchant":
+                    accuracy += 0.05
+
+    if hostage:
         accuracy += 0.3
 
     # M17 grudge bonus

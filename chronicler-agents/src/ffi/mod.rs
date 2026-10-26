@@ -1157,14 +1157,16 @@ impl AgentSimulator {
 
     pub fn get_promotions(&mut self) -> PyResult<PyRecordBatch> {
         let mut candidates = Vec::new();
+        // Living named characters, counted once and raised as candidates are
+        // accepted: the caps hold within this batch too.
+        let mut living = self.registry.living_named(&self.pool);
+        let mut leader_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
         if !self.pending_movement_leaders.is_empty() {
             // Movement leaders first (trigger TRIGGER_MOVEMENT_LEADER): alive,
-            // not yet named, their civ under the registry's caps. Empty
-            // unless Python queued some, so the regular path is unchanged.
+            // not yet named, their civ under the living caps.
             let leaders = std::mem::take(&mut self.pending_movement_leaders);
             let mut taken: std::collections::HashSet<u32> =
                 self.registry.characters.iter().map(|c| c.agent_id).collect();
-            let mut leader_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
             for (id, role) in leaders {
                 let (Some(slot), Some(role)) = (
                     self.pool.find_slot_by_id(id),
@@ -1172,20 +1174,16 @@ impl AgentSimulator {
                 ) else {
                     continue;
                 };
-                if !self.pool.is_alive(slot)
-                    || !self.registry.can_promote_living(&self.pool, self.pool.civ_affinity(slot))
-                    || !taken.insert(id)
-                {
+                let civ = self.pool.civ_affinity(slot);
+                if !self.pool.is_alive(slot) || !living.admits_leader(civ) || !taken.insert(id) {
                     continue;
                 }
+                living.add(civ);
                 leader_ids.insert(id);
                 candidates.push((slot, role, crate::named_characters::TRIGGER_MOVEMENT_LEADER));
             }
-            let regular = self.registry.find_candidates(&self.pool, self.turn);
-            candidates.extend(regular.into_iter().filter(|&(slot, _, _)| !leader_ids.contains(&self.pool.id(slot))));
-        } else {
-            candidates = self.registry.find_candidates(&self.pool, self.turn);
         }
+        candidates.extend(self.registry.find_candidates_with(&self.pool, self.turn, &mut living, &leader_ids));
         let n = candidates.len();
         let mut agent_ids = UInt32Builder::with_capacity(n);
         let mut roles = UInt8Builder::with_capacity(n);
@@ -3520,7 +3518,7 @@ mod tests {
             sim.registry.register(1_000_000 + k, crate::named_characters::CharacterRole::General,
                                   2, 2, 0, 1, 0, 0, 0);
         }
-        assert!(!sim.registry.can_promote(2));
+        assert_eq!(sim.registry.living_named(&sim.pool).per_civ[2], 1); // the leader alone
         sim.queue_movement_leaders(vec![sim.pool.ids[other]], vec![0]).unwrap();
         assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 1);
     }

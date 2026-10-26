@@ -54,12 +54,63 @@ pub struct NamedCharacter {
     pub history: Vec<(u16, u8, u16)>, // (turn, event_type, region)
 }
 
-/// Per-civ cap on named characters.
-const PER_CIV_CAP: usize = 10;
-/// Global cap on named characters.
-const GLOBAL_CAP: usize = 50;
+// 2026-10 correction (docs/integration/procedural-gates.md): the caps used
+// to count every character ever named, dead included, so the registry filled
+// within the first 50 turns of every world (often in one rebellion's batch)
+// and agent-born great persons stopped for the rest of the run. They now
+// count living characters, scale with each civ's living agents, and hold
+// within a batch.
+
+/// Most living named characters a civ may hold.
+pub const PER_CIV_CAP: usize = 10;
+/// Most living named characters in the world (a safety valve).
+pub const GLOBAL_CAP: usize = 50;
+/// Regular promotions: a civ holds one living named character per this many
+/// of its living agents, at least `MIN_NAMED_PER_CIV` and at most `PER_CIV_CAP`.
+pub const AGENTS_PER_NAMED: usize = 50;
+/// Regular promotions: living named characters any civ may hold.
+pub const MIN_NAMED_PER_CIV: usize = 1;
+
+/// Living named characters, in all and per civ (by the agent's current civ),
+/// counted once per promotion pass and raised as candidates are accepted, so
+/// the caps also hold within one turn's batch.
+pub struct LivingNamed {
+    pub per_civ: [usize; 256],
+    pub total: usize,
+    /// Living agents per civ (the population a civ's regular cap scales with).
+    pub agents_per_civ: [usize; 256],
+}
+
+impl LivingNamed {
+    /// A civ's cap for regular promotions: one per `AGENTS_PER_NAMED` living
+    /// agents, clamped to [`MIN_NAMED_PER_CIV`, `PER_CIV_CAP`].
+    pub fn regular_cap(&self, civ_id: u8) -> usize {
+        (self.agents_per_civ[civ_id as usize] / AGENTS_PER_NAMED).clamp(MIN_NAMED_PER_CIV, PER_CIV_CAP)
+    }
+
+    /// Room for one more regular promotion in `civ_id`.
+    pub fn admits_regular(&self, civ_id: u8) -> bool {
+        self.total < GLOBAL_CAP && self.per_civ[civ_id as usize] < self.regular_cap(civ_id)
+    }
+
+    /// Room for a movement leader: the fixed caps over living characters
+    /// (a movement asks for its leader; the population cap does not apply).
+    pub fn admits_leader(&self, civ_id: u8) -> bool {
+        self.total < GLOBAL_CAP && self.per_civ[civ_id as usize] < PER_CIV_CAP
+    }
+
+    pub fn add(&mut self, civ_id: u8) {
+        self.total += 1;
+        self.per_civ[civ_id as usize] += 1;
+    }
+}
 
 /// Registry of all promoted named characters.
+///
+/// The registry keeps every character, dead or alive, for history and
+/// provenance, and an agent id is never registered twice (pool ids are never
+/// reused). The caps count living characters only: a character's slot opens
+/// when its agent dies.
 pub struct NamedCharacterRegistry {
     pub characters: Vec<NamedCharacter>,
 }
@@ -71,38 +122,43 @@ impl NamedCharacterRegistry {
         }
     }
 
-    /// Count characters belonging to a specific civ.
-    pub fn count_for_civ(&self, civ_id: u8) -> usize {
-        self.characters.iter().filter(|c| c.civ_id == civ_id).count()
-    }
-
-    /// Check if adding a character for this civ would exceed caps.
-    pub fn can_promote(&self, civ_id: u8) -> bool {
-        self.characters.len() < GLOBAL_CAP && self.count_for_civ(civ_id) < PER_CIV_CAP
-    }
-
-    /// The caps over living characters only, for movement leaders: the
-    /// registry keeps the dead, so `can_promote` closes for good once fifty
-    /// have been named in a long run.
-    pub fn can_promote_living(&self, pool: &AgentPool, civ_id: u8) -> bool {
-        let mut total = 0usize;
-        let mut civ = 0usize;
-        for c in &self.characters {
-            let alive = pool.find_slot_by_id(c.agent_id).is_some_and(|slot| pool.is_alive(slot));
-            if alive {
-                total += 1;
-                if c.civ_id == civ_id {
-                    civ += 1;
-                }
+    /// Living named characters and living agents, per civ, in one pool pass.
+    pub fn living_named(&self, pool: &AgentPool) -> LivingNamed {
+        let named: std::collections::HashSet<u32> =
+            self.characters.iter().map(|c| c.agent_id).collect();
+        let mut out = LivingNamed { per_civ: [0; 256], total: 0, agents_per_civ: [0; 256] };
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) {
+                continue;
+            }
+            let civ = pool.civ_affinity(slot);
+            out.agents_per_civ[civ as usize] += 1;
+            if named.contains(&pool.id(slot)) {
+                out.add(civ);
             }
         }
-        total < GLOBAL_CAP && civ < PER_CIV_CAP
+        out
     }
 
     /// Find promotion candidates from the pool.
     ///
-    /// Returns (slot, CharacterRole, trigger) tuples for agents that qualify.
+    /// Returns (slot, CharacterRole, trigger) tuples for agents that qualify,
+    /// in slot order, while their civ has room under the living caps
+    /// (`living` is raised for each accepted candidate).
     pub fn find_candidates(&self, pool: &AgentPool, turn: u32) -> Vec<(usize, CharacterRole, u8)> {
+        let mut living = self.living_named(pool);
+        self.find_candidates_with(pool, turn, &mut living, &std::collections::HashSet::new())
+    }
+
+    /// [`find_candidates`](Self::find_candidates) against counts the caller
+    /// already holds, skipping the agent ids in `skip`.
+    pub fn find_candidates_with(
+        &self,
+        pool: &AgentPool,
+        turn: u32,
+        living: &mut LivingNamed,
+        skip: &std::collections::HashSet<u32>,
+    ) -> Vec<(usize, CharacterRole, u8)> {
         let mut candidates = Vec::new();
         let already_promoted: std::collections::HashSet<u32> = self
             .characters
@@ -115,7 +171,7 @@ impl NamedCharacterRegistry {
                 continue;
             }
             let agent_id = pool.id(slot);
-            if already_promoted.contains(&agent_id) {
+            if already_promoted.contains(&agent_id) || skip.contains(&agent_id) {
                 continue;
             }
             // Life-event gate — must have at least one qualifying event
@@ -124,13 +180,14 @@ impl NamedCharacterRegistry {
             }
 
             let civ_id = pool.civ_affinity(slot);
-            if !self.can_promote(civ_id) {
+            if !living.admits_regular(civ_id) {
                 continue;
             }
 
             // Check bypass triggers first (skip skill gate)
             if let Some((role, trigger)) = self.check_bypass_triggers(pool, slot, turn) {
                 candidates.push((slot, role, trigger));
+                living.add(civ_id);
                 continue;
             }
 
@@ -148,6 +205,7 @@ impl NamedCharacterRegistry {
                     Some(crate::agent::Occupation::Farmer) | None => CharacterRole::Merchant,
                 };
                 candidates.push((slot, role, 0)); // trigger 0 = skill
+                living.add(civ_id);
             }
         }
         candidates
@@ -273,38 +331,112 @@ mod tests {
             Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
             Occupation::Scholar, Occupation::Priest,
         ];
-        let mut pool = AgentPool::new(64);
+        // One agent per pool: each civ's cap admits one regular promotion.
         for (i, &occ) in occupations.iter().enumerate() {
             for life in [LIFE_EVENT_REBELLION, LIFE_EVENT_MIGRATION, 0xFF] {
+                let mut pool = AgentPool::new(4);
                 let slot = pool.spawn(0, (i % 3) as u8, occ, 30, 0.0, 0.0, 0.0, 0, 1, 2, BELIEF_NONE);
                 pool.life_events[slot] = life;
                 pool.promotion_progress[slot] = PROMOTION_DURATION_TURNS;
                 pool.displacement_turns[slot] = u8::MAX;
+                let candidates = NamedCharacterRegistry::new().find_candidates(&pool, 500);
+                assert_eq!(candidates.len(), 1);
+                let (_, role, trigger) = candidates[0];
+                assert_ne!(role, CharacterRole::Exile);
+                assert!(trigger <= 1, "unexpected Rust trigger {trigger}");
             }
-        }
-        let candidates = NamedCharacterRegistry::new().find_candidates(&pool, 500);
-        assert_eq!(candidates.len(), occupations.len() * 3);
-        for &(_, role, trigger) in &candidates {
-            assert_ne!(role, CharacterRole::Exile);
-            assert!(trigger <= 1, "unexpected Rust trigger {trigger}");
         }
     }
 
-    #[test]
-    fn test_promotion_caps() {
-        let mut registry = NamedCharacterRegistry::new();
-        // Fill per-civ cap for civ 0
-        for i in 0..10 {
-            registry.register(i, CharacterRole::General, 0, 0, 0, 100, 0, 0, 0);
-        }
-        assert!(!registry.can_promote(0)); // civ 0 full
-        assert!(registry.can_promote(1));  // civ 1 still has room
+    /// Spawn `n` rebels (bypass candidates) of `civ`; returns their slots.
+    fn spawn_rebels(pool: &mut AgentPool, civ: u8, n: usize) -> Vec<usize> {
+        (0..n)
+            .map(|_| {
+                let slot = pool.spawn(0, civ, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, BELIEF_NONE);
+                pool.life_events[slot] |= LIFE_EVENT_REBELLION;
+                slot
+            })
+            .collect()
+    }
 
-        // Fill global cap
-        for i in 10..50 {
-            registry.register(i, CharacterRole::Merchant, (i % 5) as u8 + 1, 0, 0, 100, 0, 0, 0);
+    fn promote(registry: &mut NamedCharacterRegistry, pool: &AgentPool, turn: u32) -> usize {
+        let found = registry.find_candidates(pool, turn);
+        for &(slot, role, trigger) in &found {
+            let civ = pool.civ_affinity(slot);
+            registry.register(pool.id(slot), role, civ, civ, 0, turn as u16, trigger, 0, 0);
         }
-        assert!(!registry.can_promote(1)); // global cap hit
+        found.len()
+    }
+
+    #[test]
+    fn test_regular_cap_scales_with_the_civs_living_agents() {
+        let mut living = LivingNamed { per_civ: [0; 256], total: 0, agents_per_civ: [0; 256] };
+        living.agents_per_civ[0] = AGENTS_PER_NAMED - 1;
+        living.agents_per_civ[1] = 2 * AGENTS_PER_NAMED;
+        living.agents_per_civ[2] = 1000 * AGENTS_PER_NAMED;
+        assert_eq!(living.regular_cap(0), 1);
+        assert_eq!(living.regular_cap(1), 2);
+        assert_eq!(living.regular_cap(2), PER_CIV_CAP);
+        assert_eq!(living.regular_cap(3), MIN_NAMED_PER_CIV); // a civ with no agents
+    }
+
+    /// The caps hold within one batch: a rebellion of thirty promotes only
+    /// as many as the civ's cap (before 2026-10 all thirty were named at once).
+    #[test]
+    fn test_caps_hold_within_one_batch() {
+        let mut pool = AgentPool::new(256);
+        spawn_rebels(&mut pool, 0, 30);
+        for _ in 0..(2 * AGENTS_PER_NAMED - 30) {
+            pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, BELIEF_NONE);
+        }
+        let mut registry = NamedCharacterRegistry::new();
+        assert_eq!(promote(&mut registry, &pool, 10), 2);
+        assert_eq!(registry.living_named(&pool).per_civ[0], 2);
+        assert_eq!(promote(&mut registry, &pool, 11), 0); // full while both live
+    }
+
+    /// The registry keeps the dead (history, provenance) but their slots
+    /// open: promotions continue for the whole run, and no agent id is named
+    /// twice.
+    #[test]
+    fn test_dead_characters_free_their_slots_and_keep_their_records() {
+        let mut pool = AgentPool::new(256);
+        spawn_rebels(&mut pool, 0, 40); // under AGENTS_PER_NAMED: one at a time
+        let mut registry = NamedCharacterRegistry::new();
+        let mut named = 0;
+        for turn in 0..20u32 {
+            assert_eq!(promote(&mut registry, &pool, turn), 1, "turn {turn}");
+            named += 1;
+            // The living character dies: the next turn names another.
+            for c in &registry.characters {
+                if let Some(slot) = pool.find_slot_by_id(c.agent_id) {
+                    pool.kill(slot);
+                }
+            }
+        }
+        assert_eq!(registry.characters.len(), named);
+        let ids: std::collections::HashSet<u32> = registry.characters.iter().map(|c| c.agent_id).collect();
+        assert_eq!(ids.len(), named);
+        assert_eq!(registry.living_named(&pool).total, 0);
+        // A new agent reusing a dead character's slot gets a new id and may be named.
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, BELIEF_NONE);
+        pool.life_events[slot] |= LIFE_EVENT_REBELLION;
+        assert!(!ids.contains(&pool.id(slot)));
+    }
+
+    #[test]
+    fn test_leaders_use_the_fixed_living_caps() {
+        let mut living = LivingNamed { per_civ: [0; 256], total: 0, agents_per_civ: [0; 256] };
+        living.agents_per_civ[0] = 10;
+        living.per_civ[0] = MIN_NAMED_PER_CIV;
+        living.total = MIN_NAMED_PER_CIV;
+        assert!(!living.admits_regular(0));
+        assert!(living.admits_leader(0));
+        living.per_civ[0] = PER_CIV_CAP;
+        assert!(!living.admits_leader(0));
+        living.per_civ[0] = 0;
+        living.total = GLOBAL_CAP;
+        assert!(!living.admits_leader(0) && !living.admits_regular(0));
     }
 
     #[test]

@@ -247,6 +247,76 @@ def test_alliance_call_to_arms_is_answered_or_breached(monkeypatch):
             assert dp.trust(world, "B", "C") == dp.TRUST_BREACH_VICTIM + dp.TRUST_REFUSED_CALL
 
 
+def _with_far_ally(world: WorldState, links: list[str]) -> WorldState:
+    """Add civ D holding Far, linked to ``links`` (region names; new regions
+    M1, M2 are uncontrolled stepping stones), friendly with A and B."""
+    far = make_region("Far", "D", 30)
+    for name in links:
+        if name not in world.region_map:
+            world.regions.append(make_region(name, None, 0))
+            world.invalidate_region_map()
+    far.adjacencies = [links[0]]
+    world.region_map[links[0]].adjacencies.append("Far")
+    for a, b in zip(links, links[1:]):
+        world.region_map[a].adjacencies.append(b)
+        world.region_map[b].adjacencies.append(a)
+    world.regions.append(far)
+    world.civilizations.append(make_civ("D", ["Far"], military=50, treasury=200, capital="Far"))
+    for a, b in (("A", "D"), ("D", "A"), ("B", "D"), ("D", "B")):
+        world.relationships.setdefault(a, {})[b] = Relationship(disposition=Disposition.FRIENDLY)
+    world.invalidate_region_map()
+    world.invalidate_civ_map()
+    return world
+
+
+def test_within_reach_counts_land_steps_to_the_attacker_or_a_border_with_the_defender():
+    world = _with_far_ally(_three(), ["M1", "Avalon"])  # Far - M1 - Avalon (A): two steps
+    a, b, d = (world.civ_map[n] for n in "ABD")
+    assert dp.within_reach(world, d, a, b)
+    world = _with_far_ally(_three(), ["M1", "M2", "Avalon"])  # three steps, no border with B
+    a, b, d = (world.civ_map[n] for n in "ABD")
+    assert not dp.within_reach(world, d, a, b)
+    world = _with_far_ally(_three(), ["Dun"])  # borders the defender, three steps from A
+    a, b, d = (world.civ_map[n] for n in "ABD")
+    assert dp.within_reach(world, d, a, b)
+
+
+def test_an_ally_out_of_reach_is_not_called_and_the_alliance_stands(monkeypatch):
+    world = _with_far_ally(_three(), ["M1", "M2", "Avalon"])
+    b, d = _idx(world, "B"), _idx(world, "D")
+    treaty, _ = dp.sign_treaty(world, "alliance", b, d)
+    monkeypatch.setattr(dp, "_join_utility", lambda *a, **k: 1.0)
+    world.active_wars.append(("A", "B"))
+    events = dp.on_war_declared(world, world.civ_map["A"], world.civ_map["B"], enemies_before=set())
+    assert ("A", "D") not in world.active_wars and ("D", "A") not in world.active_wars
+    assert treaty.status == "active"
+    assert not [e for e in events if e.event_type in ("call_to_arms", "treaty_broken")]
+    assert dp.trust(world, "B", "D") == 0.0
+    assert world.diplomacy.counts.get("excused:alliance") == 1
+
+
+def test_an_ally_bordering_the_defender_is_called(monkeypatch):
+    world = _with_far_ally(_three(), ["Dun"])
+    treaty, _ = dp.sign_treaty(world, "alliance", _idx(world, "B"), _idx(world, "D"))
+    monkeypatch.setattr(dp, "_join_utility", lambda *a, **k: 1.0)
+    world.active_wars.append(("A", "B"))
+    dp.on_war_declared(world, world.civ_map["A"], world.civ_map["B"], enemies_before=set())
+    assert ("A", "D") in world.active_wars and treaty.status == "active"
+
+
+def test_an_overlord_out_of_reach_is_not_called_and_bears_no_grievance(monkeypatch):
+    _no_noise(monkeypatch)
+    world = _with_far_ally(_three(), ["M1", "M2", "Avalon"])
+    world.vassal_relations.append(VassalRelation(overlord="D", vassal="B", stage="vassal", stage_turn=0))
+    world.active_wars.append(("A", "B"))
+    events = dp.on_war_declared(world, world.civ_map["A"], world.civ_map["B"], enemies_before=set())
+    assert ("A", "D") not in world.active_wars
+    assert not [e for e in events if e.event_type == "call_to_arms"]
+    assert dp.grievance(world, "B", "D") == 0.0
+    assert world.diplomacy.counts.get("excused:subject") == 1
+    assert "abandoned:subject" not in world.diplomacy.counts
+
+
 def test_joiner_bound_to_the_attacker_breaks_its_treaty():
     world = _three()
     a, c = _idx(world, "A"), _idx(world, "C")

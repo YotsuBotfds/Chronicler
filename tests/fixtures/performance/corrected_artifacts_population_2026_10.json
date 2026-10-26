@@ -1,11 +1,11 @@
 {
   "provenance": {
     "derived_from": [
-      "corrected_farmland_2026_10.json",
-      "corrected_artifacts_farmland_2026_10.json"
+      "corrected_open_items_2026_10.json",
+      "corrected_artifacts_open_items_2026_10.json"
     ],
-    "base_revision": "18a05be",
-    "description": "Corrected oracle rolled forward by the 2026-10 population and entity-lifecycle corrections (docs/integration/population-entities.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. Each workload index is the first turn that correction moves relative to the capture with all earlier corrections applied (consecutive captures). corrected_farmland_2026_10 and older fixtures remain frozen; workloads not named in 'corrections' are byte-identical to it.",
+    "base_revision": "dae4ba5",
+    "description": "Corrected oracle rolled forward by the 2026-10 population and entity-lifecycle corrections (docs/integration/population-entities.md). Captured with the exact capture loops of tests/test_performance_equivalence.py and tests/test_governance_dormancy.py in Python off mode with the native ecology/politics runtimes disabled. Each workload index is the first turn that correction moves relative to the capture with all earlier corrections applied (consecutive captures). corrected_open_items_2026_10 and older fixtures remain frozen; workloads not named in 'corrections' are byte-identical to it.",
     "corrections": [
       {
         "id": "PE-ARRIVALS",
@@ -62,8 +62,8 @@
         "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee"
       },
       "chronicle_bundle.json": {
-        "bytes": 864056,
-        "sha256": "865e6950851d0e86f504211e0a25ceb8c946aac90af6e380aba612b7d183e2a8"
+        "bytes": 860461,
+        "sha256": "c31534a554aef69559645db3e3cdbc6e5a60dcd24f0cbfd5368ec3ec9b465843"
       },
       "memories_ashkari_nomads.json": {
         "bytes": 25984,
@@ -92,8 +92,8 @@
         "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f"
       },
       "chronicle_bundle.json": {
-        "bytes": 881403,
-        "sha256": "a106c32ed1d1870754a6f15de6eff25ee98c6a6b5d94d9a5a7c993b97b06b9e9"
+        "bytes": 861428,
+        "sha256": "c22768de26ce086929ca8bde750816e46e6314fecdac5402f6d24ad8d6f73b6e"
       },
       "memories_ashkari_nomads.json": {
         "bytes": 17703,
@@ -150,8 +150,8 @@
         "sha256": "e7268e0c0d08d82aa7267b4d0cd7b328407bcdad60609b80ddf6332ce88b80ee"
       },
       "chronicle_bundle.json": {
-        "bytes": 864034,
-        "sha256": "7c32e043e59f42a7fc3bd4e08d34286c5f17ca5db089dd62e4ce3d8304c675a6"
+        "bytes": 860439,
+        "sha256": "9a7a49a78881af5ea21fe025098ca3de572f50da81f6f82c47a493cb3fc2ec87"
       },
       "memories_ashkari_nomads.json": {
         "bytes": 25984,
@@ -180,8 +180,8 @@
         "sha256": "4d8b8228a44fb3f427d1156c52812042e10446047e5bbca7a6d4d511fcafe01f"
       },
       "chronicle_bundle.json": {
-        "bytes": 881381,
-        "sha256": "079203e3f1108ef92abe9bd8a1ee22cc6acaaa8b60e908fac5ed5fb3a4ad5ef9"
+        "bytes": 861406,
+        "sha256": "e0c5040c3e33394496a186c5b4f98a2024b5cdd5718a8fd2004654e267369d5b"
       },
       "memories_ashkari_nomads.json": {
         "bytes": 17703,
