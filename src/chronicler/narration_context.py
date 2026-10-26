@@ -153,8 +153,9 @@ DRIVER_WORDS: dict[str, str] = {
 #: Routine actions and recurring administration: they never carry a moment
 #: and are counted, not listed, in a prompt. (The historiography layer's
 #: ``ROUTINE`` plus the declarations, adoptions and spreads that recur every
-#: few turns.) Guild events (``guild_*``) are not listed: they weigh as
-#: ordinary events until classified here.
+#: few turns.) Guild events (``guild_founded``, ``guild_privilege``,
+#: ``guild_privilege_lost``, ``guild_levy``, ``guild_dissolved``) weigh by their
+#: importance like other events; the standing state names the guilds.
 ROUTINE_TYPES: frozenset[str] = frozenset({
     "develop", "invest_culture", "diplomacy", "trade", "build_started",
     "infrastructure_completed", "fund_instability", "fund_instability_failed", "action",
@@ -555,9 +556,10 @@ def standing_state_lines(
     Rulers and capitals of the moment's civs, their wars, living movements
     against them (creed, stage, members, leader, stronghold), reforms in force
     in them, chartered or great cities in their lands or the moment's regions,
-    and the moment's regions short of food with the dearth or famine the
-    timeline records there. Civ and region identities are indices into
-    ``world``; without a world those lines are left out.
+    those cities' guilds and the burgher faction (``--guilds``), and the
+    moment's regions short of food with the dearth or famine the timeline
+    records there. Civ and region identities are indices into ``world``;
+    without a world those lines are left out.
     """
     if snapshot is None:
         return []
@@ -652,6 +654,30 @@ def standing_state_lines(
                 text += f", {CHARTER_NAMES[charter] if charter < len(CHARTER_NAMES) else charter}"
             text += f", unrest {float(r.get('unrest', 0.0)):.2f}"
             lines.append(text)
+
+    # Guilds (``TurnSnapshot.guilds``, --guilds): those of the moment's regions
+    # or of cities in its civs' lands, with the privileges their charters grant.
+    guild_state = getattr(snapshot, "guilds", None) or {}
+    if guild_state:
+        burghers = guild_state.get("burghers") or {}
+        city_regions = {r.get("region") for r in (cities_state or {}).get("cities", [])
+                        if r.get("lord") in civs}
+        rows = [g for g in guild_state.get("guilds", [])
+                if g.get("region") in regions or g.get("region") in city_regions]
+        rows.sort(key=lambda g: (g.get("region") not in regions, -float(g.get("masters", 0)), int(g.get("id", 0))))
+        for g in rows[:MAX_PER_KIND - 1]:
+            text = f"Guild: {g.get('name')} ({g.get('kind')} guild in {g.get('region')}, {g.get('masters')} masters)"
+            rights = [w for w, on in (("a monopoly of wares", g.get("monopoly")), ("a say in civic dues", g.get("say")),
+                                      ("a charter won as a movement", g.get("charter") is not None))
+                      if on]
+            if rights:
+                text += ": " + ", ".join(rights)
+            if g.get("levy"):
+                text += "; its city's dues raised"
+            lines.append(text)
+        shares = [f"{c} {round(100 * float(burghers[c]))}%" for c in civs if c in burghers]
+        if rows and shares:
+            lines.append("Burgher faction's influence at court: " + ", ".join(shares))
 
     food = snapshot.food or {}
     hungry_regions = list(regions)

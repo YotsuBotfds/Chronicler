@@ -213,6 +213,19 @@ def test_wars_come_from_the_campaign_record_when_it_exists(sample_world):
             f"war score -6 for {kethani})") in text
 
 
+def test_guilds_of_the_moment_s_regions_and_the_burghers(sample_world):
+    kethani = sample_world.civilizations[0].name
+    guild = {"id": 0, "name": "the Weavers of Vael", "city": 3, "region": "Verdant Plains", "kind": "craft",
+             "masters": 4.5, "wealth": 12.0, "monopoly": True, "say": False, "levy": True}
+    snap = _snap(41, {kethani: ("Empress Vaelith", None)},
+                 guilds={"guilds": [guild], "dissolved": 0, "burghers": {kethani: 0.18}, "counters": {}})
+    events = [_ev(40, "guild_levy", [kethani], imp=4, region="Verdant Plains", eid="40:guild_levy:0")]
+    text = "\n".join(nc.standing_state_lines(snap, events, sample_world, None, at_turn=40))
+    assert ("Guild: the Weavers of Vael (craft guild in Verdant Plains, 4.5 masters): a monopoly of wares; "
+            "its city's dues raised") in text
+    assert f"Burgher faction's influence at court: {kethani} 18%" in text
+
+
 def test_a_martyred_leader_is_not_told_as_leading(sample_world):
     """A movement keeps its dead leader's name; the martyrdom event is the record."""
     kethani = sample_world.civilizations[0].name
