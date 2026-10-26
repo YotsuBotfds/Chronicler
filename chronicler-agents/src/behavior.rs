@@ -820,7 +820,7 @@ impl PendingDecisions {
 /// Each agent computes utility scores for rebel, migrate, switch, and stay.
 /// Gumbel-argmax selects one action. Loyalty drift runs as a background
 /// process for all non-rebel agents afterward.
-pub fn evaluate_region_decisions(
+pub fn evaluate_region_decisions<L: crate::pool::SlotLookup>(
     pool: &AgentPool,
     slots: &[usize],
     regions: &[RegionState],
@@ -828,7 +828,7 @@ pub fn evaluate_region_decisions(
     stats: &RegionStats,
     region_id: usize,
     rng: &mut ChaCha8Rng,
-    id_to_slot: &std::collections::HashMap<u32, usize>,  // M57b
+    id_to_slot: &L,  // M57b
 ) -> (PendingDecisions, u32) {
     let mut pending = PendingDecisions::new();
     let mut threat_changed_count: u32 = 0;

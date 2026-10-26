@@ -22,6 +22,24 @@ import numpy as np
 
 _NUMERIC_KINDS = frozenset("iufb")
 
+# Recently read batches and their column names. arro3 builds a new schema
+# object on every ``batch.schema`` access (about 30 us for the native
+# snapshot), and the same few batches are asked about many times a turn.
+# Arrow batches are immutable, so a batch's names never change; holding the
+# batches here only delays their release until four newer ones were read.
+_SCHEMA_NAMES: list[tuple[object, tuple[str, ...]]] = []
+
+
+def schema_names(batch) -> tuple[str, ...]:
+    """``batch.schema.names`` as a tuple, read once per batch."""
+    for held, names in _SCHEMA_NAMES:
+        if held is batch:
+            return names
+    names = tuple(batch.schema.names)
+    _SCHEMA_NAMES.insert(0, (batch, names))
+    del _SCHEMA_NAMES[4:]
+    return names
+
 
 def numeric_array(column) -> np.ndarray | None:
     """NumPy values of a null-free numeric/bool Arrow column, else None."""
@@ -45,8 +63,8 @@ def batch_arrays(batch, names) -> tuple[np.ndarray, ...] | None:
     if batch is None:
         return None
     try:
-        schema_names = batch.schema.names
-        if not all(name in schema_names for name in names):
+        present = schema_names(batch)
+        if not all(name in present for name in names):
             return None
         columns = [batch.column(name) for name in names]
     except Exception:  # not an Arrow batch: callers keep their own path

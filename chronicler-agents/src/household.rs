@@ -52,11 +52,11 @@ pub struct InheritanceEvent {
 /// Returns (Vec<InheritanceEvent>, Vec<MemoryIntent>). Mutates pool.wealth for heirs.
 /// Updates `stats` counters for diagnostics. Memory intents must be appended to the
 /// tick-level `memory_intents` vec by the caller.
-pub fn household_death_transfer(
+pub fn household_death_transfer<L: crate::pool::SlotLookup>(
     pool: &mut AgentPool,
     dying_slot: usize,
     full_dead_ids: &std::collections::HashSet<u32>,
-    id_to_slot: &std::collections::HashMap<u32, usize>,
+    id_to_slot: &L,
     parent_to_children: &std::collections::HashMap<u32, Vec<usize>>,
     stats: &mut HouseholdStats,
 ) -> (Vec<InheritanceEvent>, Vec<crate::memory::MemoryIntent>) {
@@ -70,7 +70,7 @@ pub fn household_death_transfer(
     // Try spouse-first
     if let Some(spouse_id) = relationships::get_spouse_id(pool, dying_slot) {
         if !full_dead_ids.contains(&spouse_id) {
-            if let Some(&spouse_slot) = id_to_slot.get(&spouse_id) {
+            if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {
                 if pool.is_alive(spouse_slot) && pool.ids[spouse_slot] == spouse_id {
                     let before = pool.wealth[spouse_slot];
                     pool.wealth[spouse_slot] = (before + estate).min(crate::agent::MAX_WEALTH);
@@ -140,11 +140,11 @@ pub fn household_death_transfer(
 
 /// Find eligible child heirs. First pass: dependent children (age < AGE_ADULT).
 /// If empty, second pass: all living children (any age). Sorted by slot for determinism.
-fn find_child_heirs(
+fn find_child_heirs<L: crate::pool::SlotLookup>(
     pool: &AgentPool,
     dying_id: u32,
     full_dead_ids: &std::collections::HashSet<u32>,
-    id_to_slot: &std::collections::HashMap<u32, usize>,
+    id_to_slot: &L,
     parent_to_children: &std::collections::HashMap<u32, Vec<usize>>,
 ) -> Vec<usize> {
     let children_slots: Vec<usize> = parent_to_children
@@ -156,7 +156,7 @@ fn find_child_heirs(
         .filter(|&slot| {
             pool.is_alive(slot)
                 && !full_dead_ids.contains(&pool.ids[slot])
-                && id_to_slot.get(&pool.ids[slot]).copied() == Some(slot) // stale-map defense
+                && id_to_slot.slot_of(pool.ids[slot]) == Some(slot) // stale-map defense
         })
         .collect();
 
@@ -179,14 +179,14 @@ fn find_child_heirs(
 
 /// Return combined household wealth for a married agent, or personal wealth if unmarried.
 /// Uses `id_to_slot` for O(1) spouse slot resolution — never falls back to linear scan.
-pub fn household_effective_wealth(
+pub fn household_effective_wealth<L: crate::pool::SlotLookup>(
     pool: &AgentPool,
     slot: usize,
-    id_to_slot: &HashMap<u32, usize>,
+    id_to_slot: &L,
 ) -> f32 {
     let personal = pool.wealth[slot];
     if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {
-        if let Some(&spouse_slot) = id_to_slot.get(&spouse_id) {
+        if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {
             if pool.is_alive(spouse_slot) && pool.ids[spouse_slot] == spouse_id {
                 return personal + pool.wealth[spouse_slot];
             }
@@ -229,12 +229,12 @@ pub fn resolve_dependents(
 /// Consolidate household migrations in place. Runs post-decision, pre-apply.
 /// Only touches migrations, rebellions, and occupation_switches.
 /// Never touches loyalty_flips or loyalty_drifts (background operations).
-pub fn consolidate_household_migrations(
+pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
     pool: &AgentPool,
     pending_decisions: &mut [PendingDecisions],
     regions: &[RegionState],
     contested_regions: &[bool],
-    id_to_slot: &HashMap<u32, usize>,
+    id_to_slot: &L,
     stats: &mut HouseholdStats,
 ) {
     // Build dependent index for this phase (pre-demographics, all alive)
@@ -253,7 +253,7 @@ pub fn consolidate_household_migrations(
                 continue;
             }
             if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {
-                if let Some(&spouse_slot) = id_to_slot.get(&spouse_id) {
+                if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {
                     // M58a: Don't follow a spouse who is on a trade trip
                     if pool.is_on_trip(spouse_slot) {
                         continue;

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 import numpy as np
 import pyarrow as pa
-from chronicler.columnar import group_rows, ordered_counts, pylist
+from chronicler.columnar import group_rows, ordered_counts, pylist, schema_names
 from chronicler.demand_signals import DemandSignalManager
 from chronicler.ffi_constants import (
     MAX_CIV_RECORDS, MAX_NATIVE_REGIONS, TERRAIN_MAP, VALUE_EMPTY, VALUE_TO_ID,
@@ -321,7 +321,7 @@ def _require_snapshot_pylist(snapshot: pa.RecordBatch, field_name: str) -> list:
     """Read a required snapshot column as a Python list."""
     if snapshot is None:
         raise ValueError("snapshot is unavailable")
-    if field_name not in snapshot.schema.names:
+    if field_name not in schema_names(snapshot):
         raise KeyError(f"snapshot missing required column {field_name!r}")
     return pylist(snapshot.column(field_name))
 
@@ -330,7 +330,7 @@ def _require_snapshot_numpy(snapshot: pa.RecordBatch, field_name: str) -> np.nda
     """Read a required snapshot column as a NumPy array."""
     if snapshot is None:
         raise ValueError("snapshot is unavailable")
-    if field_name not in snapshot.schema.names:
+    if field_name not in schema_names(snapshot):
         raise KeyError(f"snapshot missing required column {field_name!r}")
     return snapshot.column(field_name).to_numpy()
 
@@ -344,7 +344,7 @@ def _null_free(snapshot, field_names) -> bool:
     if snapshot is None:
         return False
     try:
-        names = snapshot.schema.names
+        names = schema_names(snapshot)
         return all(name in names and snapshot.column(name).null_count == 0 for name in field_names)
     except AttributeError:
         return False
@@ -1234,7 +1234,7 @@ class AgentBridge:
             total = counts[0] + counts[1]
             self.displacement_by_region[region] = counts[1] / total if total > 0 else 0.0
 
-        if "wealth" not in snap.schema.names:
+        if "wealth" not in schema_names(snap):
             return
 
         wealth_col = _require_snapshot_numpy(snap, "wealth")
@@ -1282,7 +1282,7 @@ class AgentBridge:
                 for r, total in region_totals.items()
             }
 
-            if "wealth" not in snap.schema.names:
+            if "wealth" not in schema_names(snap):
                 return
 
             wealth_col = _require_snapshot_numpy(snap, "wealth")
@@ -1885,7 +1885,7 @@ class AgentBridge:
         num_rows = batch.num_rows
         if num_rows == 0:
             return []
-        names = batch.schema.names
+        names = schema_names(batch)
 
         def column(name):
             return pylist(batch.column(name))

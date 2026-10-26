@@ -15,6 +15,63 @@ use crate::region::RegionState;
 pub const AGENT_POOL_EXHAUSTED: &str =
     "AgentPool exhausted: next_id overflow would collide with PARENT_NONE";
 
+/// Live slot of each agent id: the answers of a map built by inserting
+/// `(id, slot)` for every live slot in ascending slot order (as
+/// `AgentPool::build_id_to_slot` does), from a table indexed by id. Ids are
+/// handed out sequentially, so the table is small; a pool whose largest id
+/// is far above its capacity uses a hash map instead.
+pub struct IdSlots {
+    table: Vec<u32>, // slot + 1 by id; 0 = no live agent
+    map: Option<HashMap<u32, usize>>,
+}
+
+impl IdSlots {
+    pub fn new(pool: &AgentPool) -> Self {
+        let cap = pool.capacity();
+        let max_id = (0..cap).filter(|&s| pool.alive[s]).map(|s| pool.ids[s]).max().unwrap_or(0);
+        if (max_id as u64) > 16 * cap as u64 + (1 << 20) || cap >= u32::MAX as usize {
+            return Self { table: Vec::new(), map: Some(pool.build_id_to_slot()) };
+        }
+        let mut table = vec![0u32; max_id as usize + 1];
+        for slot in 0..cap {
+            if pool.alive[slot] {
+                table[pool.ids[slot] as usize] = slot as u32 + 1;
+            }
+        }
+        Self { table, map: None }
+    }
+
+    #[inline]
+    pub fn get(&self, id: u32) -> Option<usize> {
+        if let Some(map) = &self.map {
+            return map.get(&id).copied();
+        }
+        match self.table.get(id as usize) {
+            Some(&v) if v != 0 => Some(v as usize - 1),
+            _ => None,
+        }
+    }
+}
+
+/// Agent id -> live slot lookups (`IdSlots`, or a map built by the caller).
+pub trait SlotLookup {
+    fn slot_of(&self, id: u32) -> Option<usize>;
+}
+
+impl SlotLookup for IdSlots {
+    #[inline]
+    fn slot_of(&self, id: u32) -> Option<usize> {
+        self.get(id)
+    }
+}
+
+impl SlotLookup for HashMap<u32, usize> {
+    #[inline]
+    fn slot_of(&self, id: u32) -> Option<usize> {
+        self.get(&id).copied()
+    }
+}
+
 /// Struct-of-arrays agent pool. Each index is a "slot"; a slot may be dead.
 /// Use `is_alive(slot)` before accessing any field.
 pub struct AgentPool {
@@ -596,6 +653,11 @@ impl AgentPool {
         self.skills[slot * 5 + occ]
     }
 
+    /// Live slot of each agent id, as a table indexed by id (`IdSlots`).
+    pub fn build_id_slots(&self) -> IdSlots {
+        IdSlots::new(self)
+    }
+
     /// Build an O(alive) lookup table from stable agent_id to live slot index.
     pub fn build_id_to_slot(&self) -> HashMap<u32, usize> {
         let mut map = HashMap::with_capacity(self.alive_count());
@@ -907,6 +969,37 @@ impl AgentPool {
 mod tests {
     use super::*;
     use crate::agent::Occupation;
+
+    /// `IdSlots` answers exactly as `build_id_to_slot`, with slot reuse after
+    /// deaths, unknown ids and (through the map fallback) very large ids.
+    #[test]
+    fn id_slots_match_the_id_map() {
+        let mut pool = AgentPool::new(4);
+        for i in 0..300u32 {
+            pool.spawn((i % 3) as u16, 0, Occupation::Farmer, 20, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            if i % 4 == 1 {
+                pool.kill((i as usize * 7) % pool.capacity());
+            }
+        }
+        let check = |pool: &AgentPool| {
+            let map = pool.build_id_to_slot();
+            let slots = pool.build_id_slots();
+            let ids: Vec<u32> = (0..400u32).chain(pool.ids.iter().copied())
+                .chain([3_000_000_000, u32::MAX - 1, u32::MAX]).collect();
+            for id in ids {
+                assert_eq!(slots.get(id), map.get(&id).copied(), "id {id}");
+                assert_eq!(slots.slot_of(id), map.slot_of(id), "id {id}");
+            }
+        };
+        check(&pool);
+        assert!(pool.build_id_slots().map.is_none());
+        // A live agent with an id far above the capacity: the map fallback.
+        let slot = (0..pool.capacity()).find(|&s| pool.is_alive(s)).unwrap();
+        pool.ids[slot] = 3_000_000_000;
+        assert!(pool.build_id_slots().map.is_some());
+        check(&pool);
+        assert_eq!(pool.build_id_slots().get(3_000_000_000), Some(slot));
+    }
 
     #[test]
     fn test_spawn_into_empty_pool() {

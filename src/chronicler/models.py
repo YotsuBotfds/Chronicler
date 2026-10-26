@@ -8,10 +8,12 @@ from __future__ import annotations
 # Keep field available to existing models module callers.
 from dataclasses import dataclass, field
 from enum import Enum
+import functools
+import operator
 from pathlib import Path
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_serializer, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 from chronicler.experimental.fisheries import FisheryConfig
 from chronicler.governance_state import CivGovernance, GovernanceSettings
@@ -30,34 +32,20 @@ from chronicler.guilds_state import GuildState
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
 
-def _omit_dormant_governance(model: BaseModel, data):
-    """Drop a ``None`` governance field so feature-off output stays byte-identical."""
-    if isinstance(data, dict) and getattr(model, "governance", None) is None:
-        data.pop("governance", None)
-    return data
+# Dormant and empty optional fields are omitted from serialized output, so
+# worlds and files that never use them keep their exact bytes. Field-level
+# ``exclude_if`` (pydantic 2.12) omits them inside the native serializer;
+# model-level wrap serializers routed every model through Python dicts.
+# The predicates are C callables (no Python frame per field per event):
+# ``_is_none(v)`` is ``None is v``; the others are ``empty == v``.
+_is_none = functools.partial(operator.is_, None)
+_is_empty_str = functools.partial(operator.eq, "")
+_is_empty_list = functools.partial(operator.eq, [])
+_is_pattern = functools.partial(operator.eq, "pattern")
 
 
-def _omit_dormant_contact_ledger(model: BaseModel, data):
-    """Drop a ``None`` contact ledger so feature-off output stays byte-identical."""
-    if isinstance(data, dict) and getattr(model, "contact_ledger", None) is None:
-        data.pop("contact_ledger", None)
-    return data
-
-
-def _omit_dormant_finance(model: BaseModel, data):
-    """Drop a ``None`` finance state so feature-off output stays byte-identical."""
-    if isinstance(data, dict) and getattr(model, "finance", None) is None:
-        data.pop("finance", None)
-    return data
-
-
-def _omit_none_fields(model: BaseModel, data, names: tuple[str, ...]):
-    """Drop optional fields that are ``None`` (dormant feature state)."""
-    if isinstance(data, dict):
-        for name in names:
-            if name in data and getattr(model, name, None) is None:
-                del data[name]
-    return data
+def _is_empty_provenance(value) -> bool:
+    return value.is_empty()
 
 
 # --- Enums ---
@@ -381,14 +369,6 @@ class WorldGeography(BaseModel):
     sea_lanes: list[tuple[str, str]] = Field(default_factory=list)
 
 
-_DORMANT_REGION_GEOGRAPHY = ("latitude_band", "geo")
-# Optional region fields omitted from serialized output while None, so worlds
-# that never use them keep their exact bytes.
-_DORMANT_REGION_OPTIONAL = (*_DORMANT_REGION_GEOGRAPHY, "fishery_collapsed", "stockpile_bootstrap_pending",
-                            "persecuting_faith", "food_severe_turns", "food_shortfall",
-                            "dearth_cooldown")
-
-
 class Region(BaseModel):
     name: str
     terrain: str  # plains, mountains, coast, forest, desert, tundra
@@ -413,21 +393,21 @@ class Region(BaseModel):
     # One-shot stockpile seeding for a region claimed while empty, fulfilled
     # when settlers arrive. Saved so a resumed run still seeds it; None while
     # nothing is pending (omitted from output).
-    stockpile_bootstrap_pending: bool | None = None
+    stockpile_bootstrap_pending: bool | None = Field(default=None, exclude_if=_is_none)
     famine_cooldown: int = 0
     # Agent modes: consecutive turns food sufficiency has stayed below the
     # famine severity threshold (``ecology.FAMINE_SEVERE_SUFFICIENCY``); it
     # labels a food-crisis report famine or dearth. None while the region is
     # not severely short (omitted from output).
-    food_severe_turns: int | None = None
+    food_severe_turns: int | None = Field(default=None, exclude_if=_is_none)
     # Agent modes: the economy's last measured food shortfall (1 - food
     # sufficiency, 4 decimals); the next turn's epidemics read it. None while
     # fed or not measured (omitted from output).
-    food_shortfall: float | None = None
+    food_shortfall: float | None = Field(default=None, exclude_if=_is_none)
     # True while ``famine_cooldown`` follows a dearth report that has not
     # deepened into famine (``ecology.food_crisis_weight``). None otherwise
     # (omitted from output).
-    dearth_cooldown: bool | None = None
+    dearth_cooldown: bool | None = Field(default=None, exclude_if=_is_none)
     role: str = "standard"
     disaster_cooldowns: dict[str, int] = Field(default_factory=dict)
     resource_suspensions: dict[int, int] = Field(default_factory=dict)
@@ -448,7 +428,7 @@ class Region(BaseModel):
     )  # None means no experiment tick has supplied a catch budget yet.
     # Fish slots whose stock is collapsed (narrated once on collapse and once on
     # recovery); None while no slot is collapsed (omitted from output).
-    fishery_collapsed: list[int] | None = None
+    fishery_collapsed: list[int] | None = Field(default=None, exclude_if=_is_none)
     river_mask: int = 0
     # M35b: Disease, Depletion & Environmental Events
     disease_baseline: float = 0.01
@@ -473,7 +453,7 @@ class Region(BaseModel):
     # The militant ruler's faith that persecution_intensity is measured
     # against; the agent tick persecutes everyone outside it. None while the
     # region is not persecuted (omitted from output).
-    persecuting_faith: int | None = None
+    persecuting_faith: int | None = Field(default=None, exclude_if=_is_none)
     martyrdom_boost: float = 0.0               # decays linearly, same lifecycle as conquest_conversion_boost
     schism_convert_from: int = 0xFF            # 255 = no schism this turn
     schism_convert_to: int = 0xFF              # 255 = no schism this turn
@@ -483,17 +463,8 @@ class Region(BaseModel):
     # Geography 2.0: 0 equatorial, 1 tropical, 2 temperate, 3 subpolar, 4 polar.
     # None (and ``geo`` None) on template worlds; both are omitted from
     # serialized output while None so those worlds keep their exact bytes.
-    latitude_band: int | None = None
-    geo: RegionGeography | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_dormant_geography(self, handler):
-        data = handler(self)
-        if isinstance(data, dict):
-            for key in _DORMANT_REGION_OPTIONAL:
-                if key in data and getattr(self, key) is None:
-                    del data[key]
-        return data
+    latitude_band: int | None = Field(default=None, exclude_if=_is_none)
+    geo: RegionGeography | None = Field(default=None, exclude_if=_is_none)
 
     @field_validator("resource_suspensions", mode="before")
     @classmethod
@@ -609,11 +580,7 @@ class Civilization(BaseModel):
     # Consecutive Phase-10 checks this civ has been structurally unviable.
     unviable_turns: int = 0
     # Phase 8 governance carry (None = dormant; omitted from serialized output).
-    governance: CivGovernance | None = None
-
-    @model_serializer(mode="wrap")
-    def _serialize_without_dormant_governance(self, handler):
-        return _omit_dormant_governance(self, handler(self))
+    governance: CivGovernance | None = Field(default=None, exclude_if=_is_none)
 
 
 class Relationship(BaseModel):
@@ -630,11 +597,7 @@ class Relationship(BaseModel):
     disposition_drift: int = 0
     # Diplomatic memory of the holder toward the other civ: trust, goodwill and
     # decaying grievance stocks. None while diplomacy is off (omitted from output).
-    memory: DiplomaticMemory | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_dormant_memory(self, handler):
-        return _omit_none_fields(self, handler(self), ("memory",))
+    memory: DiplomaticMemory | None = Field(default=None, exclude_if=_is_none)
 
 
 class GreatPersonDeed(BaseModel):
@@ -717,23 +680,6 @@ class ShockContext(BaseModel):
     upstream_source: str | None = None
 
 
-# Causal-provenance fields (docs/integration/causal-provenance.md). They are
-# additive and omitted from serialized output while empty, so events without
-# provenance (old saves, bundles, fixtures) keep their exact bytes.
-_EVENT_PROVENANCE_DEFAULTS: tuple[tuple[str, object], ...] = (
-    ("event_id", ""), ("causes", []), ("region", None), ("civs", []),
-    ("episode", None), ("duration", None), ("driver", None),
-)
-
-
-def _omit_empty_fields(data, defaults: tuple[tuple[str, object], ...]):
-    if isinstance(data, dict):
-        for key, empty in defaults:
-            if key in data and data[key] == empty:
-                del data[key]
-    return data
-
-
 #: Reports of a region's food crisis (``ecology._check_famine_yield``):
 #: "famine" (sustained severe shortage) and "dearth" (a lean season). Both
 #: have the same effects; every simulation consumer reads both.
@@ -753,24 +699,22 @@ class Event(BaseModel):
     # M43b: Structured shock metadata (None for non-shock events)
     shock_region: str | None = None
     shock_category: str | None = None
-    # Causal provenance. ``event_id`` is "<emission turn>:<event_type>:<n>",
+    # Causal provenance (docs/integration/causal-provenance.md), omitted while
+    # empty so events without it (old saves, bundles, fixtures) keep their
+    # exact bytes. ``event_id`` is "<emission turn>:<event_type>:<n>",
     # assigned without RNG draws when the turn loop observes the event;
     # ``causes`` lists the ids of the events that produced this one.
-    event_id: str = ""
-    causes: list[str] = Field(default_factory=list)
-    region: str | None = None   # region name, when the event is regional
-    civs: list[str] = Field(default_factory=list)  # civs involved when actors are not civs
+    event_id: str = Field(default="", exclude_if=_is_empty_str)
+    causes: list[str] = Field(default_factory=list, exclude_if=_is_empty_list)
+    region: str | None = Field(default=None, exclude_if=_is_none)  # region name, when the event is regional
+    civs: list[str] = Field(default_factory=list, exclude_if=_is_empty_list)  # civs involved when actors are not civs
     # Chronic conditions: "onset" (first turn), "tick" (a repeat kept for a
     # per-turn consumer) or "end" (closing event; ``duration`` in turns).
-    episode: str | None = None
-    duration: int | None = None
+    episode: str | None = Field(default=None, exclude_if=_is_none)
+    duration: int | None = Field(default=None, exclude_if=_is_none)
     # Agent migration events (mass_migration, notable_migration): the largest
     # utility term of the moves (``MIGRATION_DRIVER_NAMES``). Omitted while None.
-    driver: str | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_empty_provenance(self, handler):
-        return _omit_empty_fields(handler(self), _EVENT_PROVENANCE_DEFAULTS)
+    driver: str | None = Field(default=None, exclude_if=_is_none)
 
 
 class NamedEvent(BaseModel):
@@ -784,11 +728,6 @@ class NamedEvent(BaseModel):
     importance: int = 5
 
 
-_CONDITION_PROVENANCE_DEFAULTS: tuple[tuple[str, object], ...] = (
-    ("condition_id", ""), ("cause_id", None), ("onset_turn", None),
-)
-
-
 class ActiveCondition(BaseModel):
     condition_type: str
     affected_civs: list[str]
@@ -796,13 +735,9 @@ class ActiveCondition(BaseModel):
     severity: int = 1
     # Causal provenance (omitted while empty): a stable id, the event that
     # created the condition, and the turn it began.
-    condition_id: str = ""
-    cause_id: str | None = None
-    onset_turn: int | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_empty_provenance(self, handler):
-        return _omit_empty_fields(handler(self), _CONDITION_PROVENANCE_DEFAULTS)
+    condition_id: str = Field(default="", exclude_if=_is_empty_str)
+    cause_id: str | None = Field(default=None, exclude_if=_is_none)
+    onset_turn: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class ChronicEpisode(BaseModel):
@@ -851,9 +786,6 @@ class ProvenanceState(BaseModel):
         return not (self.keys or self.episodes or self.conditions or self.exciters)
 
 
-_DORMANT_VASSAL_LADDER = ("stage", "stage_turn", "integration", "crown")
-
-
 class VassalRelation(BaseModel):
     overlord: str
     vassal: str
@@ -863,14 +795,10 @@ class VassalRelation(BaseModel):
     # omitted from output): "client", "vassal" or "union", the turn the
     # stage began, accumulated integration (0..100) and, in a union, the
     # overlord ruler who wears both crowns.
-    stage: str | None = None
-    stage_turn: int | None = None
-    integration: float | None = None
-    crown: str | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_dormant_ladder(self, handler):
-        return _omit_none_fields(self, handler(self), _DORMANT_VASSAL_LADDER)
+    stage: str | None = Field(default=None, exclude_if=_is_none)
+    stage_turn: int | None = Field(default=None, exclude_if=_is_none)
+    integration: float | None = Field(default=None, exclude_if=_is_none)
+    crown: str | None = Field(default=None, exclude_if=_is_none)
 
 
 class Federation(BaseModel):
@@ -1192,44 +1120,45 @@ class WorldState(BaseModel):
     campaigns_enabled: bool = False
     war_state: WarState = Field(default_factory=WarState)
     # Phase 8 governance runtime switch (None = disabled; omitted from output).
-    governance: GovernanceSettings | None = None
+    governance: GovernanceSettings | None = Field(default=None, exclude_if=_is_none)
     # Geography 2.0 metadata (procedural worlds only; omitted while None).
-    geography: WorldGeography | None = None
+    geography: WorldGeography | None = Field(default=None, exclude_if=_is_none)
     # Contact & trade-flow ledger (None = disabled; omitted from output).
-    contact_ledger: ContactLedgerState | None = None
+    contact_ledger: ContactLedgerState | None = Field(default=None, exclude_if=_is_none)
     # Regional SEIRS epidemiology (None = disabled; omitted from output).
-    epidemics: EpidemicState | None = None
+    epidemics: EpidemicState | None = Field(default=None, exclude_if=_is_none)
     # Money, credit and public finance (None = disabled; omitted from output).
-    finance: FinanceState | None = None
+    finance: FinanceState | None = Field(default=None, exclude_if=_is_none)
     # Diplomacy: treaties, diplomatic memory and the polity ladder
     # (chronicler.diplomacy; None = disabled; omitted from output).
-    diplomacy: DiplomacyState | None = None
+    diplomacy: DiplomacyState | None = Field(default=None, exclude_if=_is_none)
     # Technology as diffusing techniques: per-region practice, civ known sets
     # (chronicler.techniques; None = disabled; omitted from output).
-    techniques: TechniqueState | None = None
+    techniques: TechniqueState | None = Field(default=None, exclude_if=_is_none)
     # Maritime layer: fleets, sea-zone control, blockades, piracy, colonies
     # (chronicler.maritime; None = disabled; omitted from output).
-    maritime: MaritimeState | None = None
+    maritime: MaritimeState | None = Field(default=None, exclude_if=_is_none)
     # Great-person agendas: objectives, deeds, coups, alliances and rivalries
     # (chronicler.gp_agendas; None = disabled; omitted from output).
-    gp_agendas: GPAgendaState | None = None
+    gp_agendas: GPAgendaState | None = Field(default=None, exclude_if=_is_none)
     # Pastoral and nomadic peoples: subsistence modes, herds, raids, tribute,
     # hordes and sedentarization (chronicler.nomads; None = disabled;
     # omitted from output).
-    nomads: NomadState | None = None
+    nomads: NomadState | None = Field(default=None, exclude_if=_is_none)
     # Cities as actors: wealth, charters, revolts, sacks and falls of M56a
     # settlements (chronicler.cities; None = disabled; omitted from output).
-    cities: CityState | None = None
+    cities: CityState | None = Field(default=None, exclude_if=_is_none)
     # Movements grounded in people: members by agent, demands, reforms,
     # crackdowns, risings, schisms and secessions (chronicler.agent_movements;
     # None = disabled; omitted from output).
-    agent_movements: MovementState | None = None
+    agent_movements: MovementState | None = Field(default=None, exclude_if=_is_none)
     # Guilds and burghers: city guilds with privileges, guild movements, the
     # burgher faction and movement news (chronicler.guilds; None = disabled;
     # omitted from output).
-    guilds: GuildState | None = None
+    guilds: GuildState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
-    provenance: ProvenanceState = Field(default_factory=ProvenanceState)
+    provenance: ProvenanceState = Field(default_factory=ProvenanceState,
+                                        exclude_if=_is_empty_provenance)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
     agent_events_raw: list = Field(default_factory=list, exclude=True)  # list[AgentEventRecord]
     # M35a: Rivers
@@ -1317,34 +1246,6 @@ class WorldState(BaseModel):
         self._active_trade_route_pairs_cache = None
         self._self_trade_civs_cache = None
 
-    @model_serializer(mode="wrap")
-    def _serialize_without_dormant_governance(self, handler):
-        data = _omit_dormant_finance(self, _omit_dormant_contact_ledger(
-            self, _omit_dormant_governance(self, handler(self))))
-        if isinstance(data, dict) and self.geography is None:
-            data.pop("geography", None)
-        if isinstance(data, dict) and self.epidemics is None:
-            data.pop("epidemics", None)
-        if isinstance(data, dict) and self.diplomacy is None:
-            data.pop("diplomacy", None)
-        if isinstance(data, dict) and self.techniques is None:
-            data.pop("techniques", None)
-        if isinstance(data, dict) and self.maritime is None:
-            data.pop("maritime", None)
-        if isinstance(data, dict) and self.gp_agendas is None:
-            data.pop("gp_agendas", None)
-        if isinstance(data, dict) and self.nomads is None:
-            data.pop("nomads", None)
-        if isinstance(data, dict) and self.cities is None:
-            data.pop("cities", None)
-        if isinstance(data, dict) and self.agent_movements is None:
-            data.pop("agent_movements", None)
-        if isinstance(data, dict) and self.guilds is None:
-            data.pop("guilds", None)
-        if isinstance(data, dict) and self.provenance.is_empty():
-            data.pop("provenance", None)
-        return data
-
     def save(self, path: Path) -> None:
         """Persist world state to a JSON file."""
         parent = path.parent
@@ -1417,11 +1318,7 @@ class CivSnapshot(BaseModel):
     war_weariness: float = 0.0
     peace_momentum: float = 0.0
     # Phase 8 governance per-turn stats (None when governance is disabled).
-    governance: dict | None = None
-
-    @model_serializer(mode="wrap")
-    def _serialize_without_dormant_governance(self, handler):
-        return _omit_dormant_governance(self, handler(self))
+    governance: dict | None = Field(default=None, exclude_if=_is_none)
 
 
 class RelationshipSnapshot(BaseModel):
@@ -1468,69 +1365,37 @@ class TurnSnapshot(BaseModel):
     # M60: campaign layer (armies, battles, occupations, wars); None when off.
     # Omitted from serialization while None so default-off snapshots keep
     # their exact historical bytes.
-    campaign: dict | None = None
+    campaign: dict | None = Field(default=None, exclude_if=_is_none)
     # Contact ledger per-turn summary; None (and omitted) when the ledger is off.
-    contact: dict | None = None
+    contact: dict | None = Field(default=None, exclude_if=_is_none)
     # Epidemiology per-turn summary; None (and omitted) when epidemiology is off.
-    epidemics: dict | None = None
+    epidemics: dict | None = Field(default=None, exclude_if=_is_none)
     # Money, credit and public finance per-turn summary; None (omitted) when off.
-    finance: dict | None = None
+    finance: dict | None = Field(default=None, exclude_if=_is_none)
     # Diplomacy per-turn summary; None (and omitted) when diplomacy is off.
-    diplomacy: dict | None = None
+    diplomacy: dict | None = Field(default=None, exclude_if=_is_none)
     # Techniques per-turn summary; None (and omitted) when techniques are off.
-    techniques: dict | None = None
+    techniques: dict | None = Field(default=None, exclude_if=_is_none)
     # Maritime per-turn summary; None (and omitted) when maritime is off.
-    maritime: dict | None = None
+    maritime: dict | None = Field(default=None, exclude_if=_is_none)
     # Great-person agenda per-turn summary; None (and omitted) when off.
-    gp_agendas: dict | None = None
+    gp_agendas: dict | None = Field(default=None, exclude_if=_is_none)
     # Nomads per-turn summary; None (and omitted) when nomads are off.
-    nomads: dict | None = None
+    nomads: dict | None = Field(default=None, exclude_if=_is_none)
     # Cities per-turn summary; None (and omitted) when cities are off.
-    cities: dict | None = None
+    cities: dict | None = Field(default=None, exclude_if=_is_none)
     # Agent movements per-turn summary; None (and omitted) when off.
-    agent_movements: dict | None = None
+    agent_movements: dict | None = Field(default=None, exclude_if=_is_none)
     # Guilds per-turn summary; None (and omitted) when guilds are off.
-    guilds: dict | None = None
+    guilds: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: per-region food sufficiency and the completed turn's relief
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
-    food: dict | None = None
+    food: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: the completed turn's agent migrations as
     # [from region index, to region index, agents]; None (and omitted)
     # without an agent pool that records events (hybrid, shadow).
-    migration: list | None = None
-
-    @model_serializer(mode="wrap")
-    def _omit_dormant_campaign(self, handler):
-        data = handler(self)
-        for key in ("food", "migration"):
-            if isinstance(data, dict) and data.get(key, 0) is None:
-                data.pop(key)
-        if isinstance(data, dict) and data.get("campaign", 0) is None:
-            data.pop("campaign")
-        if isinstance(data, dict) and data.get("contact", 0) is None:
-            data.pop("contact")
-        if isinstance(data, dict) and data.get("epidemics", 0) is None:
-            data.pop("epidemics")
-        if isinstance(data, dict) and data.get("finance", 0) is None:
-            data.pop("finance")
-        if isinstance(data, dict) and data.get("diplomacy", 0) is None:
-            data.pop("diplomacy")
-        if isinstance(data, dict) and data.get("techniques", 0) is None:
-            data.pop("techniques")
-        if isinstance(data, dict) and data.get("maritime", 0) is None:
-            data.pop("maritime")
-        if isinstance(data, dict) and data.get("gp_agendas", 0) is None:
-            data.pop("gp_agendas")
-        if isinstance(data, dict) and data.get("nomads", 0) is None:
-            data.pop("nomads")
-        if isinstance(data, dict) and data.get("cities", 0) is None:
-            data.pop("cities")
-        if isinstance(data, dict) and data.get("agent_movements", 0) is None:
-            data.pop("agent_movements")
-        if isinstance(data, dict) and data.get("guilds", 0) is None:
-            data.pop("guilds")
-        return data
+    migration: list | None = Field(default=None, exclude_if=_is_none)
 
 
 # --- M20a: Narration Pipeline v2 models ---
@@ -1555,15 +1420,9 @@ class CausalLink(BaseModel):
     # the link is known: "recorded" (the emitter stamped it in
     # ``Event.causes``) or "pattern" (type-pair fallback where no provenance
     # exists).
-    cause_id: str = ""
-    effect_id: str = ""
-    provenance: str = "pattern"
-
-    @model_serializer(mode="wrap")
-    def _omit_empty_provenance(self, handler):
-        return _omit_empty_fields(
-            handler(self), (("cause_id", ""), ("effect_id", ""), ("provenance", "pattern")),
-        )
+    cause_id: str = Field(default="", exclude_if=_is_empty_str)
+    effect_id: str = Field(default="", exclude_if=_is_empty_str)
+    provenance: str = Field(default="pattern", exclude_if=_is_pattern)
 
 
 class ChainStep(BaseModel):
@@ -1631,11 +1490,8 @@ class ChronicleEntry(BaseModel):
     narrative_role: NarrativeRole
     causal_links: list[CausalLink]
     # Recorded causal chains (root first); omitted while empty.
-    causal_chains: list[CausalChain] = Field(default_factory=list)
+    causal_chains: list[CausalChain] = Field(default_factory=list, exclude_if=_is_empty_list)
     # In-world accounts the narration drew on (ids in the bundle's
     # ``historiography.accounts``); omitted while empty.
-    accounts: list[str] = Field(default_factory=list)
+    accounts: list[str] = Field(default_factory=list, exclude_if=_is_empty_list)
 
-    @model_serializer(mode="wrap")
-    def _omit_empty_chains(self, handler):
-        return _omit_empty_fields(handler(self), (("causal_chains", []), ("accounts", [])))
