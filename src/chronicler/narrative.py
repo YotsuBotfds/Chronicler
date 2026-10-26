@@ -11,11 +11,13 @@ perception of deep cultural coherence with minimal mechanical overhead.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
+from chronicler import narration_context as nc
 from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
 from chronicler.models import (
     AgentContext,
@@ -55,6 +57,9 @@ def _update_arc_summary(gp, new_sentence: str) -> None:
 # ---------------------------------------------------------------------------
 # M30: Agent context for narrator prompt
 # ---------------------------------------------------------------------------
+
+_MAX_NAMED_CHARACTERS = 6   # per prompt (token budget)
+_MAX_MEMORIES = 3           # per character, the most intense
 
 _DESPERATE_EVENTS = {"local_rebellion", "demographic_crisis"}
 _RESTLESS_EVENTS = {"loyalty_cascade", "brain_drain", "occupation_shift"}
@@ -229,8 +234,10 @@ def build_agent_context_block(ctx: AgentContext | None) -> str:
             # M48: Memory context
             if char.get("memories"):
                 civ_names = char.get("_civ_names", [])
-                rendered = [render_memory(m, civ_names) for m in char["memories"]]
-                rendered = [r for r in rendered if r is not None]
+                strongest = sorted(char["memories"],
+                                   key=lambda m: (-abs(m.get("intensity", 0)), -m.get("turn", 0)))
+                rendered = [render_memory(m, civ_names) for m in strongest]
+                rendered = [r for r in rendered if r is not None][:_MAX_MEMORIES]
                 if rendered:
                     lines.append("  Memories:")
                     for r in rendered:
@@ -323,13 +330,15 @@ def build_agent_context_for_moment(
     if not agent_events and not (economy_result is not None and economy_events):
         return None
 
-    # Named characters active in this moment
+    # Named characters of this moment: those its events name, and the active
+    # characters of the civs its events involve.
     moment_actors = {actor for ev in moment.events for actor in ev.actors}
+    moment_civs = moment_actors | {c for ev in moment.events for c in ev.civs}
     chars = []
     for gp in great_persons:
         if gp.source != "agent":
             continue
-        if not gp.active and gp.name not in moment_actors:
+        if gp.name not in moment_actors and not (gp.active and gp.civilization in moment_civs):
             continue
         char = {
             "name": gp.name,
@@ -527,8 +536,10 @@ def build_agent_context_for_moment(
         candidates.sort(key=lambda ss: (-ss.population_estimate, ss.settlement_id))
         top_settlements = candidates[:3]
 
+    # Characters the moment's events name come first; cap for the token budget.
+    chars.sort(key=lambda c: c["name"] not in moment_actors)
     ctx = AgentContext(
-        named_characters=chars[:10],  # cap for token budget
+        named_characters=chars[:_MAX_NAMED_CHARACTERS],
         population_mood=mood,
         displacement_fraction=avg_disp,
         relationships=relationships,
@@ -825,7 +836,7 @@ def _build_chronicle_prompt_impl(
     event_text = ""
     for e in events:
         display_type = e.event_type
-        display_desc = e.description
+        display_desc = nc.event_text(e)
         if event_flavor and e.event_type in event_flavor:
             display_type = event_flavor[e.event_type].name
             display_desc = event_flavor[e.event_type].description
@@ -926,6 +937,57 @@ def render_chain_line(chain: CausalChain) -> str:
     )
 
 
+_MAX_PATTERN_LINKS = 6
+_MAX_LANDMARKS = 5
+# Placeholder names of the ideological movements ("Rise of Movement 0",
+# "Schism of movement 3", "[movement_3] Schism between ...").
+_PLACEHOLDER_NAME = re.compile(r"\bmovement[ _]\d+\b", re.IGNORECASE)
+_PLACEHOLDER_TAG = re.compile(r"\[movement_\d+\]\s*", re.IGNORECASE)
+
+
+def _listed_events(moment: NarrativeMoment, type_counts: dict[str, int] | None = None):
+    """The moment's listed prompt lines, the unlisted events by type, and the
+    listed events (each line's event and the repeats folded into it).
+    ``type_counts`` (the run's count of each kind) weighs scarce kinds up."""
+    chain_ids = [s.event_id for c in moment.causal_chains for s in c.steps if s.event_id]
+    named_keys = [(ne.turn, frozenset(ne.actors)) for ne in moment.named_events]
+    lines, omitted = nc.select_prompt_events(moment.events, chain_ids, named_keys,
+                                             type_counts=type_counts)
+    listed = [ev for line in lines for ev in line.events]
+    return lines, omitted, listed
+
+
+def _landmarks(named_events: Sequence[NamedEvent]) -> list[NamedEvent]:
+    """At most ``_MAX_LANDMARKS`` named events: the most important, in turn order."""
+    ranked = sorted(range(len(named_events)),
+                    key=lambda i: (-named_events[i].importance, named_events[i].turn, i))
+    keep = sorted(ranked[:_MAX_LANDMARKS])
+    return [named_events[i] for i in keep]
+
+
+def _landmark_line(ne: NamedEvent) -> str:
+    """``Name (turn T): description``; a placeholder name ("Movement 3") is left out."""
+    desc = _PLACEHOLDER_TAG.sub("", ne.description).strip().rstrip(".")
+    if _PLACEHOLDER_NAME.search(ne.name):
+        return f"(turn {ne.turn}): {desc}"
+    return f"{ne.name} (turn {ne.turn}): {desc}"
+
+
+def _mechanical_sentence(line) -> str:
+    text = nc.event_text(line.event)
+    if line.folded:
+        places = [p for p in nc.places_of(line.folded) if p != (line.event.region or line.event.shock_region)]
+        if places:
+            shown = places[:nc.MAX_FOLDED_PLACES]
+            text += " (and in " + ", ".join(shown)
+            if len(places) > len(shown):
+                text += f" and {len(places) - len(shown)} other places"
+            text += ")"
+        else:
+            text += f" ({len(line.folded)} more times)"
+    return text[:1].upper() + text[1:] + "."
+
+
 def _entry_for(moment: NarrativeMoment, narrative: str,
                accounts: list[str] | None = None) -> ChronicleEntry:
     return ChronicleEntry(
@@ -943,33 +1005,38 @@ def _entry_for(moment: NarrativeMoment, narrative: str,
 
 
 def mechanical_narrative(moment: NarrativeMoment, told: set[str] | None = None,
-                         accounts=None, names=None, glossed: set | None = None) -> str:
+                         accounts=None, names=None, glossed: set | None = None,
+                         type_counts: dict[str, int] | None = None) -> str:
     """No-LLM chronicle text for a moment: its event descriptions, then the
     recorded causal chains behind them ("... because ..."), then, with an
     ``accounts`` index (``historiography.AccountIndex``), how the world's own
     chroniclers tell it ("In their own words: As the X chronicles tell it ..."),
     then, with a ``names`` index (``languages.NameIndex``), what the peoples
-    call themselves and their lands ("In their own tongues: ...")."""
-    descriptions = [e.description for e in moment.events if e.description]
-    text = "; ".join(descriptions) if descriptions else "Events unfolded."
+    call themselves and their lands ("In their own tongues: ...").
+    The events are the ones a prompt lists (``narration_context``), each a
+    sentence."""
+    lines, _omitted, listed = _listed_events(moment, type_counts)
+    sentences = [_mechanical_sentence(line) for line in lines]
+    text = " ".join(sentences) if sentences else "Events unfolded."
     because = [s for s in (render_because(c, told) for c in moment.causal_chains) if s]
     if because:
         text += "\n\n" + " ".join(because)
     if accounts:
-        passage, _ids = accounts.passage(moment.events)
+        passage, _ids = accounts.passage(listed)
         if passage:
             text += "\n\n" + passage
     if names:
-        gloss = names.passage(moment.events, moment.turn_range[1], glossed)
+        gloss = names.passage(listed, moment.turn_range[1], glossed)
         if gloss:
             text += "\n\n" + gloss
     return text
 
 
-def _moment_account_ids(moment: NarrativeMoment, accounts) -> list[str]:
+def _moment_account_ids(moment: NarrativeMoment, accounts,
+                        type_counts: dict[str, int] | None = None) -> list[str]:
     if not accounts:
         return []
-    return accounts.passage(moment.events)[1]
+    return accounts.passage(_listed_events(moment, type_counts)[2])[1]
 
 
 class NarrativeEngine:
@@ -986,6 +1053,11 @@ class NarrativeEngine:
         self.narrative_client = narrative_client
         self.event_flavor = event_flavor
         self.narrative_style = narrative_style
+
+    def _type_counts(self) -> dict[str, int] | None:
+        """The run's count of each event kind (set by the last prompt build)."""
+        timeline = getattr(self, "_timeline", None)
+        return timeline.type_counts if timeline is not None else None
 
     def _supports_batch(self) -> bool:
         """Check if narrative_client supports batch_complete()."""
@@ -1004,7 +1076,7 @@ class NarrativeEngine:
             return self.narrative_client.complete(prompt, max_tokens=1000)
         except Exception:
             # Fallback: mechanical summary so the run doesn't crash
-            summaries = "; ".join(e.description for e in events if e.description)
+            summaries = "; ".join(nc.event_text(e) for e in events)
             return f"Turn {world.turn}: {summaries or 'Events unfolded.'}"
 
     def narrate_batch(
@@ -1090,6 +1162,13 @@ class NarrativeEngine:
         snap_map = {s.turn: s for s in history}
         total = len(moments)
         result = []
+        world_obj = getattr(self, "_world", None)
+        recorded = list(getattr(world_obj, "events_timeline", None) or [])
+        if not recorded:
+            recorded = sorted((e for m in moments for e in m.events), key=lambda e: e.turn)
+        timeline = nc.TimelineView(recorded)
+        self._timeline = timeline
+        type_counts = timeline.type_counts
 
         # M50b: Build gp_by_agent_id for bond-source narration
         gp_by_agent_id: dict | None = None
@@ -1111,24 +1190,34 @@ class NarrativeEngine:
                 ROLE_INSTRUCTIONS[NarrativeRole.RESOLUTION],
             )
 
+            # Type-pair links are listed only for events without recorded
+            # provenance (old saves and bundles); recorded links reach the
+            # prompt as the causal chains and the later consequences below.
             causes: list[str] = []
             consequences: list[str] = []
             for link in moment.causal_links:
-                tag = " [recorded]" if link.provenance == "recorded" else ""
-                if link.effect_turn >= moment.turn_range[0] and link.effect_turn <= moment.turn_range[1]:
-                    causes.append(f"{link.pattern} (turn {link.cause_turn}){tag}")
-                if link.cause_turn >= moment.turn_range[0] and link.cause_turn <= moment.turn_range[1]:
-                    consequences.append(f"{link.pattern} (turn {link.effect_turn}){tag}")
+                if link.provenance == "recorded":
+                    continue
+                line = f"{link.pattern} (turn {{turn}})"
+                if moment.turn_range[0] <= link.effect_turn <= moment.turn_range[1]:
+                    c = line.format(turn=link.cause_turn)
+                    if c not in causes:
+                        causes.append(c)
+                if moment.turn_range[0] <= link.cause_turn <= moment.turn_range[1]:
+                    c = line.format(turn=link.effect_turn)
+                    if c not in consequences:
+                        consequences.append(c)
 
-            event_text = ""
-            for e in moment.events:
-                event_text += f"\n- [{e.event_type}] {e.description} (actors: {', '.join(e.actors)}, importance: {e.importance}/10)"
+            lines, omitted, listed = _listed_events(moment, type_counts)
+            event_text = "".join(f"\n{nc.render_prompt_line(line)}" for line in lines)
+            if omitted:
+                event_text += f"\n{nc.render_omitted(omitted)}"
 
             named_text = ""
             if moment.named_events:
                 named_text = "\n\nHistorical landmarks in this period:\n"
-                for ne in moment.named_events:
-                    named_text += f"- {ne.name} (turn {ne.turn}): {ne.description}\n"
+                for ne in _landmarks(moment.named_events):
+                    named_text += f"- {_landmark_line(ne)}\n"
 
             causal_text = ""
             if moment.causal_chains:
@@ -1136,23 +1225,36 @@ class NarrativeEngine:
                                 "say why these events happened, \"because ...\"):\n")
                 for chain in moment.causal_chains:
                     causal_text += f"- {render_chain_line(chain)}\n"
+            later = timeline.consequences(moment.events, moment.turn_range[1])
+            if later:
+                causal_text += "\n\nLATER CONSEQUENCES recorded by the simulation (after these turns):\n"
+                for ev in later:
+                    causal_text += f"- [turn {ev.turn}] {nc.event_text(ev)}\n"
             if causes:
                 causal_text += "\n\nCAUSES leading to this moment:\n"
-                for c in causes:
+                for c in causes[:_MAX_PATTERN_LINKS]:
                     causal_text += f"- {c}\n"
             if consequences:
                 causal_text += "\n\nCONSEQUENCES flowing from this moment:\n"
-                for c in consequences:
+                for c in consequences[:_MAX_PATTERN_LINKS]:
                     causal_text += f"- {c}\n"
+
+            # The snapshot of turn T + 1 holds the state after turn T.
+            snap = _closest_snap(snap_map, moment.turn_range[1] + 1)
+            state_text = nc.render_standing_state(
+                nc.standing_state_lines(snap, listed, getattr(self, "_world", None), timeline,
+                                        at_turn=moment.turn_range[1]),
+                moment.turn_range[1])
+            causal_text += state_text
 
             account_ids: list[str] = []
             accounts_index = getattr(self, "_accounts", None)
             if accounts_index:
-                accounts_text, account_ids = accounts_index.prompt_block(moment.events)
+                accounts_text, account_ids = accounts_index.prompt_block(listed)
                 causal_text += accounts_text
             names_index = getattr(self, "_names", None)
             if names_index:
-                causal_text += names_index.prompt_block(moment.events, moment.turn_range[1])
+                causal_text += names_index.prompt_block(listed, moment.turn_range[1])
 
             context_text = ""
             if before_summary:
@@ -1264,6 +1366,7 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                 "prompt": prompt,
                 "system": system,
                 "agent_ctx": agent_ctx,
+                "shown_event_ids": [e.event_id for e in listed],
             }
             if account_ids:
                 prepared["account_ids"] = account_ids
@@ -1283,14 +1386,15 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         noted: set[str] = set()  # archive losses already told, in chronicle order
         glossed: set = set()  # entities whose names were glossed, in chronicle order
         for idx, moment in enumerate(moments):
-            text = mechanical_narrative(moment, told)
+            text = mechanical_narrative(moment, told, type_counts=self._type_counts())
+            listed = _listed_events(moment, self._type_counts())[2]
             ids: list[str] = []
             if accounts:
-                passage, ids = accounts.passage(moment.events, noted=noted)
+                passage, ids = accounts.passage(listed, noted=noted)
                 if passage:
                     text += "\n\n" + passage
             if names:
-                gloss = names.passage(moment.events, moment.turn_range[1], glossed)
+                gloss = names.passage(listed, moment.turn_range[1], glossed)
                 if gloss:
                     text += "\n\n" + gloss
             entries.append(_entry_for(moment, text, ids))
@@ -1318,8 +1422,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         for idx, (moment, narrative) in enumerate(zip(moments, results)):
             account_ids = prepared[idx].get("account_ids", [])
             if narrative is None:
-                narrative = mechanical_narrative(moment, accounts=accounts, names=names)
-                account_ids = _moment_account_ids(moment, accounts)
+                narrative = mechanical_narrative(moment, accounts=accounts, names=names,
+                                                 type_counts=self._type_counts())
+                account_ids = _moment_account_ids(moment, accounts, self._type_counts())
 
             entries.append(_entry_for(moment, narrative, account_ids))
 
@@ -1364,8 +1469,9 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
                     _first_failure = False
                 accounts = getattr(self, "_accounts", None)
                 narrative = mechanical_narrative(moment, accounts=accounts,
-                                                 names=getattr(self, "_names", None))
-                account_ids = _moment_account_ids(moment, accounts)
+                                                 names=getattr(self, "_names", None),
+                                                 type_counts=self._type_counts())
+                account_ids = _moment_account_ids(moment, accounts, self._type_counts())
 
             previous_prose = narrative
 

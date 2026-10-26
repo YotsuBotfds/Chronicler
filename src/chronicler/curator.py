@@ -23,6 +23,14 @@ from chronicler.models import (
     NarrativeRole,
     TurnSnapshot,
 )
+from chronicler.narration_context import (
+    EVENT_LABELS,
+    ROUTINE_TYPES,
+    TURNING_POINT_IMPORTANCE,
+    event_text,
+    is_bookkeeping,
+    is_routine,
+)
 from chronicler.utils import stable_hash_int
 
 # ---------------------------------------------------------------------------
@@ -335,6 +343,90 @@ def compute_chain_scores(graph: CauseGraph) -> list[float]:
     return bonus
 
 
+# Narrative weights (see apply_narrative_weights). In long runs nearly every
+# event of a famine, an epidemic or a supply shock sits on a long recorded
+# chain and reaches CHAIN_BONUS_CAP, so in curation the chain bonus weighs at
+# CHAIN_CURATION_WEIGHT of its value and importance decides between events.
+CHAIN_CURATION_WEIGHT = 0.4
+TURNING_POINT_BONUS = 1.5   # per importance step from TURNING_POINT_IMPORTANCE - 1
+SCARCE_MAX = 5              # types seen 3..SCARCE_MAX times get SCARCE_BONUS
+SCARCE_BONUS = 1.0
+RECURRENT_FROM = 12         # a type recorded more often than this decays ...
+RECURRENT_DECAY_CAP = 3.0   # ... by log2(count / RECURRENT_FROM), at most this
+# Cluster score: the best member counts fully, the next two at these weights,
+# so one great event can carry a moment against a crowd of middling ones.
+CLUSTER_MEMBER_WEIGHTS = (1.0, 0.5, 0.25)
+# A named event this important makes its moment a landmark, exempt from the
+# diversity penalty. Minor named events (treaties, legacies, propaganda) fall
+# in nearly every six-turn window of a long run and would exempt them all.
+LANDMARK_IMPORTANCE = 7
+
+
+def _landmark(m: NarrativeMoment) -> bool:
+    return any(ne.importance >= LANDMARK_IMPORTANCE for ne in m.named_events)
+
+
+def apply_narrative_weights(events: Sequence[Event], scores: list[float]) -> None:
+    """Weigh event kinds for narration, in place.
+
+    * Routine actions and bookkeeping (``narration_context.ROUTINE_TYPES``,
+      episode ends, capability unlocks) score their importance and nothing
+      more: no dominant-power, rarity, chain or contested bonus.
+    * Turning points (importance >= TURNING_POINT_IMPORTANCE) gain
+      TURNING_POINT_BONUS per step: +1.5 at 8, +3 at 9, +4.5 at 10.
+    * Scarce kinds (3 to SCARCE_MAX occurrences; under 3 already earn the
+      base rarity bonus) gain SCARCE_BONUS.
+    * Kinds recorded more than RECURRENT_FROM times lose
+      log2(count / RECURRENT_FROM), at most RECURRENT_DECAY_CAP, so a
+      hundred epidemics do not fill every moment.
+    """
+    counts: Counter[str] = Counter(e.event_type for e in events)
+    for i, ev in enumerate(events):
+        if is_routine(ev):
+            scores[i] = min(scores[i], float(ev.importance))
+            continue
+        if ev.importance >= TURNING_POINT_IMPORTANCE:
+            scores[i] += TURNING_POINT_BONUS * (ev.importance - TURNING_POINT_IMPORTANCE + 1)
+        n = counts[ev.event_type]
+        if 3 <= n <= SCARCE_MAX:
+            scores[i] += SCARCE_BONUS
+        elif n > RECURRENT_FROM:
+            scores[i] -= min(RECURRENT_DECAY_CAP, math.log2(n / RECURRENT_FROM))
+
+
+def _cluster_score(member_scores: Sequence[float]) -> float:
+    top = sorted(member_scores, reverse=True)[:len(CLUSTER_MEMBER_WEIGHTS)]
+    return sum(w * s for w, s in zip(CLUSTER_MEMBER_WEIGHTS, top))
+
+
+def _salient(m: NarrativeMoment, k: int = 3) -> list[Event]:
+    """A moment's k most important non-routine events (ties: recorded order)."""
+    order = sorted(range(len(m.events)), key=lambda i: (is_routine(m.events[i]), -m.events[i].importance, i))
+    return [m.events[i] for i in order[:k]]
+
+
+def _moment_civs(m: NarrativeMoment) -> list[str]:
+    """The civs a moment is about: the actors of its most important events."""
+    out: list[str] = []
+    for ev in _salient(m):
+        for actor in ev.actors:
+            if actor not in out:
+                out.append(actor)
+    return out
+
+
+def _dominant_type(m: NarrativeMoment) -> str | None:
+    """The kind with the most importance among a moment's non-routine events
+    (all events when every one is routine; ties: first recorded)."""
+    pool = [ev for ev in m.events if not is_routine(ev)] or list(m.events)
+    if not pool:
+        return None
+    weight: dict[str, int] = {}
+    for ev in pool:
+        weight[ev.event_type] = weight.get(ev.event_type, 0) + ev.importance
+    return max(weight, key=lambda t: weight[t])  # dict order: first recorded wins ties
+
+
 def _link(cause: Event, effect: Event, pattern: str, provenance: str) -> CausalLink:
     return CausalLink(
         cause_turn=cause.turn,
@@ -432,33 +524,14 @@ def compute_causal_links(
     return links
 
 
-# Labels for hazard-rolled events, which carry no description (the narrator
-# fills it in): "{a}" is the first actor, "{b}" the second, "{all}" all.
-_HAZARD_LABELS: dict[str, str] = {
-    "drought": "drought strikes {all}",
-    "plague": "plague strikes {all}",
-    "earthquake": "an earthquake shakes {all}",
-    "border_incident": "a border incident between {a} and {b}",
-    "rebellion": "rebellion breaks out in {a}",
-    "migration": "a wave of emigration leaves {a}",
-    "religious_movement": "a religious movement stirs {a}",
-    "discovery": "{a} makes a discovery",
-    "cultural_renaissance": "a cultural renaissance flowers in {a}",
-    "leader_death": "the ruler of {a} dies",
-}
+# Labels for events recorded without a description (hazard rolls, native
+# politics triggers) live in ``narration_context.EVENT_LABELS``.
+_HAZARD_LABELS = EVENT_LABELS
 
 
 def event_label(ev: Event) -> str:
-    """A readable one-line label (hazard events carry no description)."""
-    if ev.description:
-        return ev.description
-    actors = [a for a in ev.actors if a]
-    template = _HAZARD_LABELS.get(ev.event_type)
-    if template is not None and actors:
-        return template.format(a=actors[0], b=actors[1] if len(actors) > 1 else "its neighbours",
-                               all=" and ".join(actors))
-    what = ev.event_type.replace("_", " ")
-    return f"{what} in {', '.join(actors)}" if actors else what
+    """A readable one-line label (``narration_context.event_text``)."""
+    return event_text(ev)
 
 
 def build_causal_chain(graph: CauseGraph, j: int) -> CausalChain:
@@ -486,7 +559,8 @@ def build_clusters(
     Returns a list of cluster dicts, each with:
     * ``turn_range``: (min_turn, max_turn)
     * ``anchor_turn``: turn of highest-scoring event
-    * ``score``: sum of top 3 member scores
+    * ``score``: the best member score plus the next two at half and a
+      quarter weight (``CLUSTER_MEMBER_WEIGHTS``)
     * ``event_indices``: list of indices into *events*
     """
     if not events:
@@ -507,14 +581,13 @@ def build_clusters(
     result: list[dict] = []
     for indices in clusters:
         member_scores = [scores[i] for i in indices]
-        top3 = sorted(member_scores, reverse=True)[:3]
         best_idx = max(indices, key=lambda i: scores[i])
         turn_min = events[indices[0]].turn
         turn_max = events[indices[-1]].turn
         result.append({
             "turn_range": (turn_min, turn_max),
             "anchor_turn": events[best_idx].turn,
-            "score": sum(top3),
+            "score": _cluster_score(member_scores),
             "event_indices": list(indices),
         })
 
@@ -532,8 +605,11 @@ def apply_diversity_penalty(
     """Demote over-represented civs/event-types among selected moments.
 
     * >40% same civ → demote lowest-scored non-named moment with that civ
-    * >30% same dominant event type → same treatment
-    * Named events are exempt from demotion
+      (a moment's civs: the actors of its three most important events)
+    * >30% same dominant event type → same treatment (dominant: the kind
+      with the most importance among its non-routine events)
+    * Moments with a landmark (a named event of importance >= LANDMARK_IMPORTANCE)
+      are exempt from demotion; minor named events (a treaty, a legacy) are not
     * Iterate up to 3 times to convergence
     """
     sel = list(selected)
@@ -545,11 +621,7 @@ def apply_diversity_penalty(
         # --- Civ diversity ---
         civ_counts: Counter[str] = Counter()
         for m in sel:
-            civs_in_moment = set()
-            for ev in m.events:
-                for actor in ev.actors:
-                    civs_in_moment.add(actor)
-            for civ in civs_in_moment:
+            for civ in _moment_civs(m):
                 civ_counts[civ] += 1
 
         threshold_civ = 0.40 * len(sel)
@@ -559,8 +631,8 @@ def apply_diversity_penalty(
             # Find lowest-scored non-named moment involving this civ
             candidates = [
                 (idx, m) for idx, m in enumerate(sel)
-                if not m.named_events
-                and any(civ in ev.actors for ev in m.events)
+                if not _landmark(m)
+                and civ in _moment_civs(m)
             ]
             if not candidates or not unsorted_pool:
                 continue
@@ -576,10 +648,9 @@ def apply_diversity_penalty(
         # --- Event-type diversity ---
         type_counts: Counter[str] = Counter()
         for m in sel:
-            # Dominant event type per moment = most common type in events
-            if m.events:
-                moment_types = Counter(ev.event_type for ev in m.events)
-                dominant_type = moment_types.most_common(1)[0][0]
+            # Dominant kind per moment: most importance among its non-routine events
+            dominant_type = _dominant_type(m)
+            if dominant_type is not None:
                 type_counts[dominant_type] += 1
 
         threshold_type = 0.30 * len(sel)
@@ -588,9 +659,8 @@ def apply_diversity_penalty(
                 break
             candidates = [
                 (idx, m) for idx, m in enumerate(sel)
-                if not m.named_events
-                and m.events
-                and Counter(ev.event_type for ev in m.events).most_common(1)[0][0] == etype
+                if not _landmark(m)
+                and _dominant_type(m) == etype
             ]
             if not candidates or not unsorted_pool:
                 continue
@@ -601,12 +671,11 @@ def apply_diversity_penalty(
             replacement = None
             replacement_idx = None
             for ri, rm in enumerate(unsorted_pool):
-                if rm.events:
-                    rt = Counter(ev.event_type for ev in rm.events).most_common(1)[0][0]
-                    if rt != etype:
-                        replacement = rm
-                        replacement_idx = ri
-                        break
+                rt = _dominant_type(rm)
+                if rt is not None and rt != etype:
+                    replacement = rm
+                    replacement_idx = ri
+                    break
             if replacement is None or replacement_idx is None:
                 continue
             unsorted_pool.pop(replacement_idx)
@@ -840,11 +909,12 @@ def curate(
     # type-pair patterns link only effects without recorded causes.
     graph = CauseGraph(sorted_events)
     for i, bonus in enumerate(compute_chain_scores(graph)):
-        scores[i] += bonus
+        scores[i] += CHAIN_CURATION_WEIGHT * bonus
     if contested:
         for i, ev in enumerate(sorted_events):
             if ev.event_id and ev.event_id in contested:
                 scores[i] += contested[ev.event_id]
+    apply_narrative_weights(sorted_events, scores)
     for i, ev in enumerate(sorted_events):
         if ev.episode in _EPISODE_FOLLOWERS:
             # Repeats and closing events of a chronic episode never anchor.

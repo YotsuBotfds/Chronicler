@@ -246,7 +246,7 @@ class TestClusters:
         assert clusters[0]["anchor_turn"] == 12
 
     def test_cluster_score_top3(self):
-        """Cluster score = sum of top 3 member scores."""
+        """Cluster score = best member + half the second + a quarter of the third."""
         from chronicler.curator import build_clusters
 
         events = [
@@ -257,8 +257,16 @@ class TestClusters:
         ]
         scores = [5.0, 7.0, 3.0, 8.0]
         clusters = build_clusters(events, scores)
-        # Top 3: 8.0 + 7.0 + 5.0 = 20.0
-        assert clusters[0]["score"] == 20.0
+        # 8.0 + 0.5 * 7.0 + 0.25 * 5.0 = 12.75
+        assert clusters[0]["score"] == 12.75
+
+    def test_one_great_event_outweighs_a_crowd_of_middling_ones(self):
+        from chronicler.curator import build_clusters
+
+        events = [_make_event(10, "a", ["A"]), _make_event(11, "b", ["A"]), _make_event(12, "c", ["A"]),
+                  _make_event(30, "d", ["B"])]
+        clusters = build_clusters(events, [7.0, 7.0, 7.0, 13.0])
+        assert clusters[1]["score"] > clusters[0]["score"]  # 13 > 7 + 3.5 + 1.75
 
     def test_separate_clusters(self):
         """Events far apart form separate clusters."""
@@ -318,13 +326,13 @@ class TestDiversityPenalty:
         assert a_count <= 2
 
     def test_diversity_penalty_named_exempt(self):
-        """Named events should not be demoted."""
+        """Moments with a landmark (a named event of importance 7+) are not demoted."""
         from chronicler.curator import apply_diversity_penalty
 
         def _moment(turn: int, actors: list[str], score: float,
                     is_named: bool = False) -> NarrativeMoment:
             evts = [_make_event(turn, "war", actors, importance=5)]
-            named = [_make_named(turn, "war", actors)] if is_named else []
+            named = [_make_named(turn, "war", actors, importance=7)] if is_named else []
             return NarrativeMoment(
                 anchor_turn=turn,
                 turn_range=(turn, turn),
@@ -353,6 +361,48 @@ class TestDiversityPenalty:
             if m.named_events and any("A" in e.actors for e in m.events)
         )
         assert a_named == 3
+
+    def test_minor_named_events_do_not_exempt_a_moment(self):
+        """A treaty or a legacy (importance 5) falls in nearly every window of a long run."""
+        from chronicler.curator import apply_diversity_penalty
+
+        def _moment(turn: int, actors: list[str], score: float) -> NarrativeMoment:
+            return NarrativeMoment(
+                anchor_turn=turn, turn_range=(turn, turn),
+                events=[_make_event(turn, "war", actors, importance=5)],
+                named_events=[_make_named(turn, "treaty", actors, importance=5)],
+                score=score, causal_links=[], narrative_role=NarrativeRole.ESCALATION,
+                bonus_applied=0.0,
+            )
+
+        selected = [_moment(1, ["A"], 10.0), _moment(2, ["A"], 8.0), _moment(3, ["A"], 6.0),
+                    _moment(4, ["B"], 5.0), _moment(5, ["C"], 4.0)]
+        result = apply_diversity_penalty(selected, [_moment(6, ["D"], 3.0), _moment(7, ["E"], 2.0)])
+        assert sum(1 for m in result if any("A" in e.actors for e in m.events)) <= 2
+
+    def test_dominant_type_ignores_routine_events(self):
+        """A window full of routine actions is dominated by its one famine."""
+        from chronicler.curator import _dominant_type
+
+        events = [_make_event(1, "develop", ["A"], importance=3) for _ in range(9)]
+        events.append(_make_event(2, "famine", ["A"], importance=8))
+        m = NarrativeMoment(anchor_turn=2, turn_range=(1, 2), events=events, named_events=[],
+                            score=1.0, causal_links=[], narrative_role=NarrativeRole.CLIMAX,
+                            bonus_applied=0.0)
+        assert _dominant_type(m) == "famine"
+
+    def test_moment_civs_are_its_main_actors(self):
+        """Every civ named by some event is not every civ the moment is about."""
+        from chronicler.curator import _moment_civs
+
+        events = [_make_event(1, "famine", ["A"], importance=8),
+                  _make_event(1, "war", ["A", "B"], importance=7),
+                  _make_event(1, "plague", ["C"], importance=6),
+                  _make_event(1, "develop", ["D"], importance=3)]
+        m = NarrativeMoment(anchor_turn=1, turn_range=(1, 1), events=events, named_events=[],
+                            score=1.0, causal_links=[], narrative_role=NarrativeRole.CLIMAX,
+                            bonus_applied=0.0)
+        assert _moment_civs(m) == ["A", "B", "C"]
 
 
 # ---------------------------------------------------------------------------
