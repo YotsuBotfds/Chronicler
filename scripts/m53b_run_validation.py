@@ -77,9 +77,10 @@ WORLDGEN_CHOICES = ("template", "procedural")
 # range users pick once they leave the 12-region templates.
 PROCEDURAL_WORLD = {"regions": 32, "civs": 10}
 
-# Procedural worlds cost about seven template worlds per seed (more regions,
-# civs and agents), so the full profile trades seeds and turns for a run time
-# like the template full gate's (docs/integration/procedural-gates.md).
+# A procedural seed costs about 3.2 template seeds of CPU, 2.6 of disk and 3-4
+# of validation memory (more regions, civs and agents), so the full profile
+# has half the seeds and 60% of the turns: about 45 minutes on three workers
+# and a 2.5 GB validation peak (docs/integration/procedural-gates.md).
 PROCEDURAL_PROFILE_DEFAULTS = {
     "subset": {"seeds": 20, "turns": 200},
     "full": {"seeds": 100, "turns": 300},
