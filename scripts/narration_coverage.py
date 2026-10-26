@@ -143,9 +143,11 @@ def table(src: Path, before: Path, after: Path) -> int:
         if t.endswith("_ended") or t.startswith("capability_"):
             return "bookkeeping"
         for name in ("TWO_SIDED", "BATTLES", "ONE_SIDED_LOSS", "WAR_START", "HOSTILITY", "DISASTER",
-                     "DISGRACE", "GLORY", "RULER", "FAITH", "PEACE"):
+                     "DISGRACE", "GLORY", "RULER", "FAITH", "PEACE", "GUILD_GLORY", "GUILD_DECREE"):
             if t in getattr(hg, name):
                 return name.lower().replace("_", " ")
+        if t in hg._GUILD_MOVEMENT_TYPES:
+            return "unclassified (7+); guild: from 3"
         return "unclassified (7+)"
 
     def curator_class(t: str) -> str:
