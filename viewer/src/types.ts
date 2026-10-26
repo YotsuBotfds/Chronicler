@@ -993,8 +993,8 @@ export interface NewChronicleEntry {
 // --- In-world historiography (optional bundle field; docs/integration/historiography.md) ---
 
 export interface HistoriographyChronicler {
-  id: string; // "court:<civ index>" or "temple:<faith id>"
-  kind: "court" | "temple" | string;
+  id: string; // "court:<civ index>", "temple:<faith id>" or "seat:<seat index>" (--scholarship)
+  kind: "court" | "temple" | "seat" | string;
   name: string; // "the Kethani chronicles"
   civ: number | null;
   civ_name: string | null;

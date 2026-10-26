@@ -40,6 +40,7 @@ describe("historiography field", () => {
 
   it("phrases losses and names", () => {
     expect(lossPhrase("sack")).toBe("sacked");
+    expect(lossPhrase("flight")).toBe("thinned on its scholars' flight");
     expect(lossPhrase(null)).toBe("lost");
     expect(capitalized("the Kethani chronicles")).toBe("The Kethani chronicles");
   });
