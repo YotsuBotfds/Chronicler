@@ -2,8 +2,6 @@
 /// Spec: docs/superpowers/specs/2026-03-20-m49-needs-system-design.md
 /// Calibration (2026-10): docs/integration/needs-calibration.md
 
-use std::collections::HashMap;
-
 use crate::agent;
 use crate::agent::Occupation;
 use crate::behavior::personality_modifier;
@@ -166,7 +164,7 @@ fn social_restoration_proxy(pool: &AgentPool, slot: usize, region: &RegionState)
 /// Positive-valence bonds with positive sentiment whose holder is alive and
 /// lives in the agent's region. Bonds to people elsewhere (left behind by a
 /// migration) or to the dead give no company.
-pub fn co_resident_bonds(pool: &AgentPool, slot: usize, id_to_slot: &HashMap<u32, usize>) -> u32 {
+pub fn co_resident_bonds<L: crate::pool::SlotLookup>(pool: &AgentPool, slot: usize, id_to_slot: &L) -> u32 {
     let region = pool.regions[slot];
     let mut count = 0u32;
     for i in 0..(pool.rel_count[slot] as usize).min(crate::relationships::REL_SLOTS) {
@@ -176,7 +174,7 @@ pub fn co_resident_bonds(pool: &AgentPool, slot: usize, id_to_slot: &HashMap<u32
             continue;
         }
         let target_id = pool.rel_target_ids[slot][i];
-        if let Some(&t) = id_to_slot.get(&target_id) {
+        if let Some(t) = id_to_slot.slot_of(target_id) {
             if t < pool.capacity()
                 && pool.is_alive(t)
                 && pool.ids[t] == target_id
@@ -223,7 +221,7 @@ fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
 /// Co-resident bond counts (`co_resident_bonds`) of the given slots,
 /// indexed by slot.
 pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
-    let id_to_slot = pool.build_id_to_slot();
+    let id_to_slot = pool.build_id_slots();
     let mut co_resident = vec![0u32; pool.capacity()];
     for &slot in alive_slots {
         co_resident[slot] = co_resident_bonds(pool, slot, &id_to_slot);

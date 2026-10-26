@@ -739,12 +739,12 @@ pub struct BufferedReceive {
 /// Uses the post-observation snapshot. Returns (buffer, transmitted_count, transmitted_threat, transmitted_trade, transmitted_religious).
 ///
 /// `slot_lookup` maps agent_id -> slot index for relationship target resolution.
-pub fn propagate_packets(
+pub fn propagate_packets<L: crate::pool::SlotLookup>(
     pool: &AgentPool,
     alive_slots: &[usize],
     master_seed: &[u8; 32],
     current_turn: u32,
-    slot_lookup: &std::collections::HashMap<u32, usize>,
+    slot_lookup: &L,
 ) -> (Vec<BufferedReceive>, u32, u32, u32, u32) {
     let mut buffer: Vec<BufferedReceive> = Vec::new();
     let mut transmitted = 0u32;
@@ -767,7 +767,7 @@ pub fn propagate_packets(
                 continue;
             }
             let target_id = pool.rel_target_ids[sender_slot][rel_idx];
-            if let Some(&s) = slot_lookup.get(&target_id) {
+            if let Some(s) = slot_lookup.slot_of(target_id) {
                 if pool.is_alive(s) {
                     bonds[bond_len] = (s, bond_type, pool.rel_sentiments[sender_slot][rel_idx]);
                     bond_len += 1;
@@ -1106,10 +1106,8 @@ pub fn knowledge_phase(
     stats.created_news = news_created;
 
     // Step 3: Propagation (buffered, reads post-observation snapshot)
-    let slot_lookup: std::collections::HashMap<u32, usize> = alive_slots
-        .iter()
-        .map(|&s| (pool.ids[s], s))
-        .collect();
+    // Every live slot, the same entries as a map built from `alive_slots`.
+    let slot_lookup = pool.build_id_slots();
 
     let (buffer, transmitted, tt, ttr, tr) =
         propagate_packets(pool, &alive_slots, master_seed, turn, &slot_lookup);

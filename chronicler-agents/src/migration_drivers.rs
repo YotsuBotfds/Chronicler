@@ -242,13 +242,13 @@ pub struct Mobility {
 impl Mobility {
     /// `None` when no voluntary pull can apply: a dependant, an agent whose
     /// region has no ruler, or no neighbouring region of the same realm.
-    pub fn for_agent(
+    pub fn for_agent<L: crate::pool::SlotLookup>(
         pool: &AgentPool,
         slot: usize,
         regions: &[RegionState],
         region_id: usize,
         has_internal_neighbour: bool,
-        id_to_slot: &std::collections::HashMap<u32, usize>,
+        id_to_slot: &L,
     ) -> Option<Mobility> {
         let age = pool.ages[slot];
         if age < MOBILITY_MIN_AGE || !has_internal_neighbour {
@@ -278,8 +278,8 @@ impl Mobility {
                 continue;
             }
             let target_id = pool.rel_target_ids[slot][i];
-            let t = match id_to_slot.get(&target_id) {
-                Some(&t) if t < pool.capacity() && pool.is_alive(t) && pool.ids[t] == target_id => t,
+            let t = match id_to_slot.slot_of(target_id) {
+                Some(t) if t < pool.capacity() && pool.is_alive(t) && pool.ids[t] == target_id => t,
                 _ => continue,
             };
             if pool.is_on_trip(t) {

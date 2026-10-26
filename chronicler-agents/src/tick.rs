@@ -50,7 +50,7 @@ pub struct AgentEvent {
 pub const NO_MIGRATION_DRIVER: u8 = 255;
 
 struct DeathApplyContext {
-    id_to_slot: std::collections::HashMap<u32, usize>,
+    id_to_slot: crate::pool::IdSlots,
     parent_to_children: std::collections::HashMap<u32, Vec<usize>>,
     full_dead_ids: std::collections::HashSet<u32>,
 }
@@ -59,13 +59,7 @@ fn build_death_apply_context(
     pool: &AgentPool,
     deaths: &[(usize, u16)],
 ) -> DeathApplyContext {
-    let mut id_to_slot: std::collections::HashMap<u32, usize> =
-        std::collections::HashMap::with_capacity(pool.alive_count());
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            id_to_slot.insert(pool.ids[slot], slot);
-        }
-    }
+    let id_to_slot = pool.build_id_slots();
 
     let mut parent_to_children: std::collections::HashMap<u32, Vec<usize>> =
         std::collections::HashMap::new();
@@ -540,15 +534,7 @@ pub fn try_tick_agents_with_movements(
     // M57b: Pre-decision id_to_slot map for household_effective_wealth and consolidation.
     // Distinct from demographics-phase map (tick.rs ~line 455) — this one uses pre-decision alive set.
     // -----------------------------------------------------------------------
-    let pre_decision_id_to_slot: std::collections::HashMap<u32, usize> = {
-        let mut map = std::collections::HashMap::with_capacity(pool.alive_count());
-        for slot in 0..pool.capacity() {
-            if pool.is_alive(slot) {
-                map.insert(pool.ids[slot], slot);
-            }
-        }
-        map
-    };
+    let pre_decision_id_to_slot = pool.build_id_slots();
 
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
@@ -928,7 +914,7 @@ pub fn try_tick_agents_with_movements(
         for (dr, _) in &demo_results {
             for birth in &dr.births {
                 if birth.birth_parent_id != crate::agent::PARENT_NONE {
-                    if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
+                    if let Some(parent_slot) = death_context.id_to_slot.get(birth.birth_parent_id) {
                         if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
                             pmap.entry(birth.birth_parent_id)
                                 .or_insert((pool.x[parent_slot], pool.y[parent_slot]));
@@ -991,7 +977,7 @@ pub fn try_tick_agents_with_movements(
             }
             // M50a/M57a: auto-form kin bonds to both parents
             if birth.birth_parent_id != crate::agent::PARENT_NONE {
-                if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.birth_parent_id) {
+                if let Some(parent_slot) = death_context.id_to_slot.get(birth.birth_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.birth_parent_id {
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
@@ -1002,7 +988,7 @@ pub fn try_tick_agents_with_movements(
             if birth.other_parent_id != crate::agent::PARENT_NONE
                 && birth.other_parent_id != birth.birth_parent_id
             {
-                if let Some(&parent_slot) = death_context.id_to_slot.get(&birth.other_parent_id) {
+                if let Some(parent_slot) = death_context.id_to_slot.get(birth.other_parent_id) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == birth.other_parent_id {
                         if !crate::relationships::form_kin_bond(pool, parent_slot, new_slot, turn) {
                             kin_bond_failures += 1;
@@ -1050,7 +1036,7 @@ pub fn try_tick_agents_with_movements(
                 if idx == 1 && pid == parents_for_intent[0] {
                     continue; // same parent in both slots — already emitted
                 }
-                if let Some(&parent_slot) = death_context.id_to_slot.get(&pid) {
+                if let Some(parent_slot) = death_context.id_to_slot.get(pid) {
                     if pool.alive[parent_slot] && pool.ids[parent_slot] == pid {
                         memory_intents.push(crate::memory::MemoryIntent {
                             agent_slot: parent_slot,
