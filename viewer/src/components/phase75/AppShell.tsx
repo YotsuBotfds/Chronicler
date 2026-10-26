@@ -42,6 +42,10 @@ import {
   regionNodeRadius, terrainAt, turnToPercent, type PinFrame,
 } from "./appShellHelpers";
 import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
+// The lazy panels' styles stay in the entry stylesheet, in the cascade order
+// they had when the panels were static imports (before the shell's own).
+import "../region-history.css";
+import "../systems/systems.css";
 import "./app-shell.css";
 
 export type AppSurface =
