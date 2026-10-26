@@ -12,8 +12,8 @@ from its sidecars alone (``validation_relationships.arrow``,
 all the cohort oracle reads. Oracle code only: nothing is simulated.
 
 Where ``DIR`` holds a ``validate_report_*.json`` with a cohort result, the
-method 1 re-score is compared with it field for field. Prints one line per
-directory and writes every result to ``OUT.json``.
+re-score under that result's method is compared with it field for field.
+Prints one line per directory and writes every result to ``OUT.json``.
 """
 from __future__ import annotations
 
@@ -76,8 +76,12 @@ def rescore(directory: Path, turns: int | None) -> dict:
     if reports:
         report = json.loads(reports[0].read_text(encoding="utf-8"))
         recorded = report.get("results", {}).get("cohort")
-        out["report"] = str(reports[0])
-        out["method_1_equals_report"] = recorded == out["method_1"]
+        if isinstance(recorded, dict):
+            # A result without a method_version is method 1.
+            version = recorded.get("method_version", 1)
+            out["report"] = str(reports[0])
+            out["report_method"] = version
+            out["rescore_equals_report"] = recorded == out.get(f"method_{version}")
     return out
 
 
@@ -91,8 +95,8 @@ def _line(item: dict) -> str:
         parts.append(
             f"{key} {result['status']} {result['seeds_with_expected_direction']}/{result['analyzed_seeds']}"
             f" (need {result['required_seed_count']}), median {result['median_effect_size']:.3f}")
-    if "method_1_equals_report" in item:
-        parts.append(f"method 1 equals report: {item['method_1_equals_report']}")
+    if "rescore_equals_report" in item:
+        parts.append(f"method {item['report_method']} equals report: {item['rescore_equals_report']}")
     return " | ".join(parts)
 
 
