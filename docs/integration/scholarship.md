@@ -304,7 +304,26 @@ civ-level count over 200 turns dilutes them. What is direct is the movement of k
 people. Over the 200 full-gate worlds, 6.5 techniques per run were
 carried to a refuge's region and 0.27 per run were taken up by a civ
 through the `scholars` channel (34 worlds). Where a seat fell, 49
-practices per run lost 30%. LONG_PROBE
+practices per run lost 30%.
+
+**Over 500 turns** (template seeds 42-61, `cd0ccfd`, the same probe; the
+switched-on validation passes with no regression against the off arm),
+the archive effect grows and the technique counts still do not move
+beyond noise:
+
+| per world, template 20 worlds, 500 turns | off | on | difference (SE) |
+| --- | ---: | ---: | ---: |
+| techniques invented | 14.75 | 15.15 | +0.40 (0.59) |
+| techniques adopted (all channels) | 24.95 | 25.35 | +0.40 (1.06) |
+| techniques lost to decay | 4.10 | 3.65 | -0.45 (1.57) |
+| known per living civ, final | 10.78 | 11.15 | +0.37 (0.36) |
+| era advances | 7.80 | 8.40 | +0.60 (0.48) |
+| courts' and temples' accounts written | 1,228.9 | 1,357.6 | +128.7 (60.3) |
+| share of them lost (all causes) | 0.264 | 0.186 | **-0.079 (0.015)** |
+| war-loss episodes where seats kept copies | 0 | 0.8 | |
+
+In those 16 episodes (of 71), 93.7% of 1,947 accounts survived; the
+expectation is 92.9% with the seats' copies and 81.9% without them.
 
 ## Gates
 
@@ -613,8 +632,8 @@ unrelated test (`GroupedEventLedger`, 5.7 s against 5 s) at load average
   it on is a separate decision with its own commit (CLI help, live
   comments, the default tests; the benchmark pin stays off).
 - **Techniques.** The effects act on a seat's region and ruler. Civ-level
-  technique counts do not show them beyond noise on 200-turn worlds (500
-  turns: below). A region-level measure (practice in seat regions against
+  technique counts do not show them beyond noise on 200- or 500-turn
+  worlds. A region-level measure (practice in seat regions against
   their neighbours) would show the mechanism directly; the probe does not
   read region practice from bundles.
 - **Adoption through fleeing scholars is rare** (0.27 per run against 6.5

@@ -38,7 +38,8 @@
   requested ones.
 - **Effect** (paired probe, 200 turns). Courts' and temples' accounts lost
   fell from 0.202 to 0.151 (template, 40 worlds) and from 0.209 to 0.148
-  (procedural, 20). Where a seat kept copies, expected war-loss survival is
+  (procedural, 20); over 500 turns (template, 20 worlds) it fell from 0.264
+  to 0.186. Where a seat kept copies, expected war-loss survival is
   89.6% against 76.8% without them (template) and 90.3% against 78.0%
   (procedural). Technique counts stay within noise. Per run, 6.5
   techniques were carried and 0.27 adopted through `scholars`.
