@@ -28,6 +28,12 @@ RAW_MATERIAL_PER_SOLDIER: float = 0.3
 LUXURY_PER_WEALTHY_AGENT: float = 0.2
 LUXURY_DEMAND_THRESHOLD: float = 10.0
 CARRY_PER_MERCHANT: float = 1.0
+# Bulk trade (2026-10, docs/integration/bulk-trade-crafts.md): loads one
+# merchant carries per trip overland, by river and by sea, and whether trips
+# are planned in bulk, filled against the tick's committed deliveries (1.0) or
+# not (0.0). Mirrors Rust ``merchant::CargoConfig::default`` (tuning keys
+# ``economy.{land,river,sea}_cargo_cap`` and ``economy.cargo_fill``).
+MERCHANT_CARGO: tuple[float, float, float, float] = (2.0, 5.0, 10.0, 1.0)
 FARMER_INCOME_MODIFIER_FLOOR: float = 0.5
 FARMER_INCOME_MODIFIER_CAP: float = 3.0
 MERCHANT_MARGIN_NORMALIZER: float = 5.0

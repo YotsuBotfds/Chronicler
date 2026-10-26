@@ -1038,6 +1038,22 @@ def configure_economy_runtime(simulator, world: "WorldState") -> None:
         tatonnement_price_clamp_lo=get_override(world, "economy.tatonnement_price_clamp_lo", 0.5),
         tatonnement_price_clamp_hi=get_override(world, "economy.tatonnement_price_clamp_hi", 2.0),
     )
+    configure_merchant_cargo(simulator, world)
+
+
+def configure_merchant_cargo(simulator, world: "WorldState") -> None:
+    """Bulk trade: send the merchant cargo configuration when a tuning key
+    overrides it (the native defaults are ``economy.MERCHANT_CARGO``)."""
+    from chronicler.economy import MERCHANT_CARGO
+    from chronicler.tuning import (
+        K_CARGO_FILL, K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP,
+    )
+    keys = (K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL)
+    overrides = getattr(world, "tuning_overrides", None) or {}
+    if not any(k in overrides for k in keys):
+        return
+    land, river, sea, fill = (float(overrides.get(k, MERCHANT_CARGO[i])) for i, k in enumerate(keys))
+    simulator.set_merchant_cargo_config(land, river, sea, bool(fill))
 
 
 class AgentBridge:

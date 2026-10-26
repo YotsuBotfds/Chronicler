@@ -133,6 +133,8 @@ pub struct AgentSimulator {
     household_stats: crate::household::HouseholdStats,
     // M58a: merchant mobility state
     merchant_graph: Option<crate::merchant::RouteGraph>,
+    /// Bulk trade: cargo per trip by mode of travel, applied to every graph.
+    merchant_cargo: crate::merchant::CargoConfig,
     merchant_ledger: Option<crate::merchant::ShadowLedger>,
     merchant_delivery_buf: Option<crate::merchant::DeliveryBuffer>,
     merchant_trip_stats: crate::merchant::MerchantTripStats,
@@ -197,6 +199,7 @@ impl AgentSimulator {
             settlement_grids: Vec::new(),
             household_stats: crate::household::HouseholdStats::default(),
             merchant_graph: None,
+            merchant_cargo: crate::merchant::CargoConfig::default(),
             merchant_ledger: None,
             merchant_delivery_buf: None,
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
@@ -2158,6 +2161,24 @@ impl AgentSimulator {
         }
     }
 
+    /// Bulk trade: loads per merchant trip overland, by river and by sea,
+    /// and whether trips are planned in bulk, filled against the tick's
+    /// committed deliveries (docs/integration/bulk-trade-crafts.md).
+    /// (1, 1, 1, false) is the one-load trade before it. Applies to the
+    /// current and later graphs.
+    pub fn set_merchant_cargo_config(&mut self, land: f32, river: f32, sea: f32, fill: bool) -> PyResult<()> {
+        for (name, v) in [("land", land), ("river", river), ("sea", sea)] {
+            if !v.is_finite() || v <= 0.0 {
+                return Err(PyValueError::new_err(format!("invalid {name} cargo capacity")));
+            }
+        }
+        self.merchant_cargo = crate::merchant::CargoConfig { land, river, sea, fill };
+        if let Some(graph) = self.merchant_graph.as_mut() {
+            graph.cargo = self.merchant_cargo;
+        }
+        Ok(())
+    }
+
     /// Run the economy tick: returns five Arrow batches.
     ///
     /// Python calls this with dedicated economy input batches (NOT build_region_batch).
@@ -2759,7 +2780,7 @@ impl AgentSimulator {
             // Empty graph — clear merchant state
             self.merchant_graph = Some(crate::merchant::RouteGraph::from_edges(
                 &[], &[], &[], &[], self.regions.len(),
-            ));
+            ).with_cargo(self.merchant_cargo));
             if self.merchant_ledger.is_none() {
                 self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
                 self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(self.regions.len()));
@@ -2812,7 +2833,7 @@ impl AgentSimulator {
                 .ok_or_else(|| PyValueError::new_err("column sea_raid_risk not Float32"))?;
             graph = graph.with_sea_lanes(from_region.values(), to_region.values(), risk.values());
         }
-        self.merchant_graph = Some(graph);
+        self.merchant_graph = Some(graph.with_cargo(self.merchant_cargo));
 
         // Initialize ledger and delivery buffer on first call
         if self.merchant_ledger.is_none() {

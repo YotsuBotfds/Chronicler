@@ -116,6 +116,14 @@ K_FARM_LABOR_ELASTICITY = "economy.farm_labor_elasticity"
 # Regional climate (2026-10): share of the global phase's crop and water effects
 # (1.0: the global schedule alone; the rest comes as regional harvest shocks).
 K_CLIMATE_TREND_SHARE = "climate.trend_share"
+# Bulk trade (2026-10): loads one merchant carries per trip overland, by river
+# and by sea, and whether trips are planned in bulk, filled against the tick's
+# committed deliveries (0: one-load planning, loading the capacity or the
+# stock). 1, 1, 1 and 0 restore the one-load trade before it.
+K_LAND_CARGO_CAP = "economy.land_cargo_cap"
+K_RIVER_CARGO_CAP = "economy.river_cargo_cap"
+K_SEA_CARGO_CAP = "economy.sea_cargo_cap"
+K_CARGO_FILL = "economy.cargo_fill"
 
 # Politics
 K_SECESSION_STABILITY_THRESHOLD = "politics.secession_stability_threshold"
@@ -288,6 +296,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
     K_FARM_REFERENCE_DENSITY, K_FARM_LABOR_ELASTICITY,
     K_CLIMATE_TREND_SHARE,
+    K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,
