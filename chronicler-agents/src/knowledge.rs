@@ -757,6 +757,26 @@ pub fn propagate_packets(
         if rel_count == 0 {
             continue;
         }
+        // The sender's bonds to living agents, in bond order (the same for
+        // every packet): (receiver slot, bond type, sentiment).
+        let mut bonds = [(0usize, 0u8, 0i8); 8];
+        let mut bond_len = 0;
+        for rel_idx in 0..rel_count {
+            let bond_type = pool.rel_bond_types[sender_slot][rel_idx];
+            if bond_type == crate::relationships::EMPTY_BOND_TYPE {
+                continue;
+            }
+            let target_id = pool.rel_target_ids[sender_slot][rel_idx];
+            if let Some(&s) = slot_lookup.get(&target_id) {
+                if pool.is_alive(s) {
+                    bonds[bond_len] = (s, bond_type, pool.rel_sentiments[sender_slot][rel_idx]);
+                    bond_len += 1;
+                }
+            }
+        }
+        if bond_len == 0 {
+            continue;
+        }
 
         for pkt_idx in 0..agent::PACKET_SLOTS {
             let th = pool.pkt_type_and_hops[sender_slot][pkt_idx];
@@ -776,33 +796,31 @@ pub fn propagate_packets(
             let sender_intensity = pool.pkt_intensity[sender_slot][pkt_idx];
             let source_civ = pool.pkt_source_civ[sender_slot][pkt_idx];
 
-            // Collect unique receivers with their best eligible bond
-            let mut best_per_receiver: std::collections::HashMap<usize, (f32, f32, i8, u8)> =
-                std::collections::HashMap::new();
-
-            for rel_idx in 0..rel_count {
-                let target_id = pool.rel_target_ids[sender_slot][rel_idx];
-                let bond_type = pool.rel_bond_types[sender_slot][rel_idx];
-                let sentiment = pool.rel_sentiments[sender_slot][rel_idx];
-
-                if bond_type == crate::relationships::EMPTY_BOND_TYPE {
-                    continue;
-                }
-
+            // Collect unique receivers with their best eligible bond. Receivers
+            // are kept in first-seen order; the commit sorts the buffer by
+            // receiver first and each receiver appears once per packet here,
+            // so this order does not reach any result (it used to be a
+            // HashMap's).
+            let mut best_per_receiver = [(0usize, (0.0f32, 0.0f32, 0i8, 0u8)); 8];
+            let mut receivers = 0;
+            for &(receiver_slot, bond_type, sentiment) in &bonds[..bond_len] {
                 let weight = match channel_weight(bond_type, info_type) {
                     Some(w) => w,
                     None => continue,
                 };
 
-                let receiver_slot = match slot_lookup.get(&target_id) {
-                    Some(&s) if pool.is_alive(s) => s,
-                    _ => continue,
-                };
-
                 let sentiment_factor = (sentiment.max(0) as f32) / 127.0;
                 let chance = base_rate(info_type) * weight * sentiment_factor;
 
-                let entry = best_per_receiver.entry(receiver_slot).or_insert((0.0, 0.0, 0, 255));
+                let pos = match best_per_receiver[..receivers].iter().position(|e| e.0 == receiver_slot) {
+                    Some(pos) => pos,
+                    None => {
+                        best_per_receiver[receivers] = (receiver_slot, (0.0, 0.0, 0, 255));
+                        receivers += 1;
+                        receivers - 1
+                    }
+                };
+                let entry = &mut best_per_receiver[pos].1;
                 if chance > entry.0
                     || (chance == entry.0 && weight > entry.1)
                     || (chance == entry.0 && weight == entry.1 && sentiment > entry.2)
@@ -812,7 +830,7 @@ pub fn propagate_packets(
                 }
             }
 
-            for (&receiver_slot, &(chance, _, _, _)) in &best_per_receiver {
+            for &(receiver_slot, (chance, _, _, _)) in &best_per_receiver[..receivers] {
                 if chance <= 0.0 {
                     continue;
                 }
