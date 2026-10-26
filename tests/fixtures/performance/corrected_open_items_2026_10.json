@@ -24,6 +24,11 @@
           "standard": 9,
           "wide": 0
         }
+      },
+      {
+        "id": "OI-GINI-FSUM",
+        "summary": "compute_gini sums with math.fsum (exactly rounded, order-free) instead of np.dot and a numpy reduction; hybrid mode only.",
+        "workloads": {}
       }
     ],
     "environment": {
