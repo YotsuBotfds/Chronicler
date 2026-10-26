@@ -46,6 +46,28 @@ describe("FactionDashboard", () => {
     expect(cards.length).toBe(bundle.world_state.civilizations.length);
   });
 
+  it("shows each civ's factions at the turn, burghers included where a realm has them", () => {
+    const first = bundle.history[0];
+    const name = bundle.world_state.civilizations[0].name;
+    const row = first.civ_stats[name];
+    const history = [{
+      ...first,
+      civ_stats: {
+        ...first.civ_stats,
+        [name]: { ...row, factions: { influence: { military: 0.3, merchant: 0.3, cultural: 0.1, clergy: 0.1, burgher: 0.2 } } },
+      },
+    }, ...bundle.history.slice(1)];
+    render(
+      <FactionDashboard
+        civilizations={bundle.world_state.civilizations}
+        history={history}
+        currentTurn={first.turn}
+      />,
+    );
+    expect(screen.getByLabelText(`Factions of ${name}`))
+      .toHaveTextContent("military 0.30 · merchant 0.30 · cultural 0.10 · clergy 0.10 · burgher 0.20");
+  });
+
   it("shows a civ left out of later snapshots as absorbed and ends its sparklines", () => {
     // Version-5 fixture: Khorain Kingdom dies by turn 4 and has no row after it.
     const pruned = systemsBundle as unknown as Bundle;

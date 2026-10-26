@@ -168,6 +168,8 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "city_founded", "city_grew", "city_declined", "city_fell", "city_lord_changed", "city_charter",
     "charter_refused", "urban_revolt", "urban_concession", "revolt_suppressed", "free_city", "city_sacked",
     "city_walls",
+    // Guilds (--guilds).
+    "guild_founded", "guild_privilege", "guild_privilege_lost", "guild_levy", "guild_dissolved",
   ],
   movements: MOVEMENT_EVENT_TYPES,
 };

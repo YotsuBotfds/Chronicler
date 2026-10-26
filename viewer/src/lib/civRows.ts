@@ -120,6 +120,29 @@ export function civDisplayRow(history: TurnSnapshot[], civName: string, turn: nu
   return found.recorded ? found.row : { ...found.row, alive: false, regions: [] };
 }
 
+/**
+ * Faction influence in the order the simulation declares the factions
+ * (`models.FactionType`); burghers appear only for realms that have them
+ * (`--guilds`).
+ */
+export const FACTION_ORDER = ["military", "merchant", "cultural", "clergy", "burgher"] as const;
+export const FACTION_COLORS: Record<string, string> = {
+  military: "#d9644a",
+  merchant: "#e8b84a",
+  cultural: "#5a8fd9",
+  clergy: "#b07ad9",
+  burgher: "#5aa88f",
+};
+
+/** A civ's faction influence at a snapshot row, in declaration order ([] unrecorded). */
+export function factionShares(influence: Record<string, number> | undefined | null): [string, number][] {
+  if (!influence) return [];
+  const order: readonly string[] = FACTION_ORDER;
+  const known = order.filter((name) => name in influence).map((name) => [name, influence[name]] as [string, number]);
+  const other = Object.entries(influence).filter(([name]) => !order.includes(name));
+  return [...known, ...other];
+}
+
 /** One value per snapshot; `null` where the civilization has no row. */
 export function civStatSeries<K extends keyof CivSnapshot>(
   history: TurnSnapshot[],

@@ -16,7 +16,7 @@ const LIGHT_INK = "#f0efec";
 const DARK_INK = "#0b0b0b";
 
 /** `agent_movements_state.CREED_NAMES`. */
-export const CREED_LABELS = ["commons", "liberty", "sect"] as const;
+export const CREED_LABELS = ["commons", "liberty", "sect", "guild"] as const;
 /** `agent_movements_state.END_NAMES` (0 while living). */
 export const END_LABELS = ["", "faded", "won", "seceded", "schism", "crushed", "dissolved"] as const;
 /** `agent_movements_state.REFORM_NAMES`, as the record names them. */
@@ -24,13 +24,15 @@ export const REFORM_LABELS: Record<string, string> = {
   relief: "poor relief",
   home_rule: "home rule",
   toleration: "toleration",
+  guild_charter: "guild charter",
 };
-const REFORM_KINDS = ["relief", "home_rule", "toleration"] as const;
+const REFORM_KINDS = ["relief", "home_rule", "toleration", "guild_charter"] as const;
 /** `agent_movements_state.REPEAL_NAMES` (0 in force). */
 export const REPEAL_LABELS = ["", "neglect", "opposition", "ruler", "fiscal", "inquisition", "lapsed"] as const;
 const INSTITUTION_LABELS: Record<string, string> = {
   commons_management: "Commons Management",
   written_law: "Written Law",
+  merchant_courts: "Merchant Courts",
 };
 
 /** By stage: gathering quiet, pressing and rising loud, suppressed dark, satisfied green. */
@@ -239,4 +241,5 @@ export const CREED_COLORS: Record<string, string> = {
   commons: "#e8b84a",
   liberty: "#5a8fd9",
   sect: "#b07ad9",
+  guild: "#5aa88f",
 };
