@@ -696,3 +696,27 @@ def test_compare_cli_old_needs_report_against_new_one(tmp_path, capsys):
     summary = summary_path.read_text(encoding="utf-8")
     assert "## Oracle method changes" in summary
     assert "| needs | 1 | PASS | 2 | FAIL |" in summary
+
+
+def test_compare_needs_method_2_against_method_3_requires_rebaselining(tmp_path):
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 2)
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 3)
+    current["results"]["needs"]["failed_criteria"] = ["binding_lower_bound"]
+
+    result = compare_validation_reports("subset", baseline, current, fail_on_regression=True)
+
+    assert result["new_required_failures"] == []
+    assert result["exit_code"] == 0
+    assert result["rebaseline_required"] is True
+    assert result["oracle_method_changes"][0]["baseline_method_version"] == 2
+    assert result["oracle_method_changes"][0]["current_method_version"] == 3
+    assert result["current_decision"]["ok"] is False
+    assert "| needs | 2 | PASS | 3 | FAIL |" in format_comparison_markdown(result)
+
+    # Method 3 against method 3 counts a new failure again.
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 3)
+    result = compare_validation_reports("subset", baseline, current)
+    assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    assert result["rebaseline_required"] is False

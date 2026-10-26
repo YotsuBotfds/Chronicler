@@ -88,7 +88,15 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # of the paired event than its partner, discordant when fewer. The verdict
 # pools all pairs of all seeds, with the seed as the unit of replication.
 # Method 1 kept one best snapshot and pairing per seed (``run_needs_oracle_best_of``).
-NEEDS_ORACLE_METHOD_VERSION = 2
+#
+# Method 3 (docs/integration/needs-followups.md) keeps method 2 and adds a
+# required binding component: the pairs whose lower-need agent is below its
+# behavioural threshold, where the need-driven terms act (needs.rs: a need
+# pushes behaviour only below its threshold). Above it the terms do nothing,
+# and an association there comes from other channels. The binding pairs need
+# their own seed-clustered lower bound above zero.
+NEEDS_ORACLE_METHOD_VERSION = 3
+NEEDS_POOLED_METHOD_VERSION = 2
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
     ("social", EVENT_NAME_TO_CODE["migration"]),
@@ -111,6 +119,15 @@ NEEDS_LEGACY_NEED_DIVERGENCE = 0.2
 # fraction, now on each seed's pooled pairs instead of its best candidate).
 NEEDS_CONFIDENCE = 0.95
 NEEDS_SEED_FRACTION_MIN = 0.60
+# Behavioural thresholds of the paired needs: chronicler-agents/src/agent.rs
+# (SAFETY_THRESHOLD and the rest; tests/test_validate.py checks the mirror).
+NEEDS_BEHAVIOUR_THRESHOLDS = {
+    "autonomy": 0.35,
+    "social": 0.35,
+    "purpose": 0.35,
+    "material": 0.30,
+    "safety": 0.30,
+}
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
 # (docs/integration/wave3-defaults.md). A silent collapse is a population
@@ -2062,15 +2079,19 @@ def _needs_seed_pairs(
     need_divergence: float,
     personality_tolerance: float,
     window: int,
-) -> tuple[int, dict[str, list[tuple[int, int]]]]:
+    thresholds: dict[str, float] | None = None,
+) -> tuple[int, dict[str, list[tuple[int, int]]], dict[str, list[tuple[int, int]]]]:
     """Every matched pair of one seed: eligible snapshot count, and per need
-    the (low-need agent's, high-need agent's) event counts in the window."""
+    the (low-need agent's, high-need agent's) event counts in the window, for
+    all pairs and for the binding pairs (lower agent below ``thresholds``)."""
+    thresholds = NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds
     total_turns = _total_turns(run)
     first_rebellion = _first_event_turns(run["events"], EVENT_NAME_TO_CODE["rebellion"])
     events_by_turn: dict[int, list[dict]] = defaultdict(list)
     for event in run["events"]:
         events_by_turn[int(event.get("turn", -1))].append(event)
     outcomes: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in NEEDS_PAIRINGS}
+    binding: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in NEEDS_PAIRINGS}
     snapshots = 0
     for needs_snapshot in needs_snapshots:
         snapshot_turn = int(needs_snapshot["turn"])
@@ -2087,9 +2108,14 @@ def _needs_seed_pairs(
                 continue
             if need_name == "autonomy" and exclude_prior_rebels:
                 columns = _without_agents_with_event_by(columns, first_rebellion, snapshot_turn)
+            threshold = thresholds.get(need_name)
+            need_of = dict(zip(columns["agent_id"], columns[need_name])) if threshold is not None else {}
             for low, high in _match_needs_pairs(columns, need_name, need_divergence, personality_tolerance):
-                outcomes[need_name].append((counts.get((low, event_type), 0), counts.get((high, event_type), 0)))
-    return snapshots, outcomes
+                outcome = (counts.get((low, event_type), 0), counts.get((high, event_type), 0))
+                outcomes[need_name].append(outcome)
+                if threshold is not None and need_of[low] < threshold:
+                    binding[need_name].append(outcome)
+    return snapshots, outcomes, binding
 
 
 def _concordance(outcomes: list[tuple[int, int]]) -> tuple[int, int]:
@@ -2107,59 +2133,82 @@ def run_needs_oracle(
     window: int = NEEDS_OUTCOME_WINDOW_TURNS,
     confidence: float = NEEDS_CONFIDENCE,
     seed_fraction: float = NEEDS_SEED_FRACTION_MIN,
+    thresholds: dict[str, float] | None = None,
+    require_binding: bool = True,
 ) -> dict:
-    """M53 oracle 2, method 2: lower need, more of its event, pooled over seeds.
+    """M53 oracle 2, method 3: lower need, more of its event, pooled over seeds.
 
     Hypothesis: an agent whose need is lower than a matched agent's has more
     of the event that need drives over the next ``window`` turns (autonomy:
     rebellion; social, material, safety: migration; purpose: occupation
     switch). Every eligible snapshot and pairing of every seed contributes its
-    matched pairs. PASS when the one-sided ``confidence`` lower bound of the
-    pooled net concordance is above zero and at least ``seed_fraction`` of the
-    analyzed seeds have more concordant than discordant pairs.
+    matched pairs. Method 2's criteria: the one-sided ``confidence`` lower
+    bound of the pooled net concordance is above zero and at least
+    ``seed_fraction`` of the analyzed seeds have more concordant than
+    discordant pairs. Method 3 adds: the binding pairs, whose lower-need agent
+    is below its behavioural threshold (``thresholds``), have a pooled net
+    concordance whose seed-clustered lower bound is above zero.
+
+    ``require_binding=False`` scores method 2 alone (``method_version`` 2),
+    for re-scoring and comparison.
     """
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
+    thresholds = dict(NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds)
 
     per_seed: list[dict] = []
     seed_counts: list[tuple[int, int]] = []
-    by_pairing = {
-        need: {"event_type": event, "pairs": 0, "concordant": 0, "discordant": 0,
-               "low_need_events": 0, "high_need_events": 0}
-        for need, event in NEEDS_PAIRINGS
-    }
+    binding_counts: list[tuple[int, int]] = []
+
+    def _pairing_totals() -> dict[str, dict]:
+        return {
+            need: {"event_type": event, "pairs": 0, "concordant": 0, "discordant": 0,
+                   "low_need_events": 0, "high_need_events": 0}
+            for need, event in NEEDS_PAIRINGS
+        }
+
+    by_pairing = _pairing_totals()
+    binding_by_pairing = _pairing_totals()
     for run in seed_runs:
         needs_snapshots = _iter_needs_snapshots(run, min_turn=0)
         if not needs_snapshots:
             continue
-        snapshots, outcomes = _needs_seed_pairs(
+        snapshots, outcomes, binding = _needs_seed_pairs(
             run,
             needs_snapshots,
             exclude_prior_rebels=exclude_prior_rebels,
             need_divergence=need_divergence,
             personality_tolerance=personality_tolerance,
             window=window,
+            thresholds=thresholds,
         )
-        seed_pairs = 0
-        seed_concordant = 0
-        seed_discordant = 0
-        seed_by_pairing: dict[str, list[int]] = {}
-        for need_name, pairs in outcomes.items():
-            concordant, discordant = _concordance(pairs)
-            seed_pairs += len(pairs)
-            seed_concordant += concordant
-            seed_discordant += discordant
-            if pairs:
-                seed_by_pairing[need_name] = [len(pairs), concordant, discordant]
-            totals = by_pairing[need_name]
-            totals["pairs"] += len(pairs)
-            totals["concordant"] += concordant
-            totals["discordant"] += discordant
-            totals["low_need_events"] += sum(low for low, _high in pairs)
-            totals["high_need_events"] += sum(high for _low, high in pairs)
+
+        def _tally(pair_outcomes: dict[str, list[tuple[int, int]]], totals_by_need: dict[str, dict]):
+            pairs_found = concordant_sum = discordant_sum = 0
+            seed_by_pairing: dict[str, list[int]] = {}
+            for need_name, pairs in pair_outcomes.items():
+                concordant, discordant = _concordance(pairs)
+                pairs_found += len(pairs)
+                concordant_sum += concordant
+                discordant_sum += discordant
+                if pairs:
+                    seed_by_pairing[need_name] = [len(pairs), concordant, discordant]
+                totals = totals_by_need[need_name]
+                totals["pairs"] += len(pairs)
+                totals["concordant"] += concordant
+                totals["discordant"] += discordant
+                totals["low_need_events"] += sum(low for low, _high in pairs)
+                totals["high_need_events"] += sum(high for _low, high in pairs)
+            return pairs_found, concordant_sum, discordant_sum, seed_by_pairing
+
+        seed_pairs, seed_concordant, seed_discordant, seed_by_pairing = _tally(outcomes, by_pairing)
+        binding_pairs, binding_concordant, binding_discordant, binding_seed_by_pairing = _tally(
+            binding, binding_by_pairing
+        )
         informative = seed_concordant + seed_discordant
         seed_counts.append((seed_concordant, seed_discordant))
-        per_seed.append({
+        binding_counts.append((binding_concordant, binding_discordant))
+        record = {
             "seed": run.get("seed"),
             "snapshots": snapshots,
             "pairs_found": seed_pairs,
@@ -2169,11 +2218,29 @@ def run_needs_oracle(
             "net_concordance": round((seed_concordant - seed_discordant) / informative, 4) if informative else None,
             "sign_test_p": round(_sign_test_p(seed_concordant, seed_discordant), 4),
             "by_pairing": seed_by_pairing,
-        })
+        }
+        if require_binding:
+            # [pairs, concordant, discordant], and per pairing.
+            record["binding"] = [binding_pairs, binding_concordant, binding_discordant]
+            record["binding_by_pairing"] = binding_seed_by_pairing
+        per_seed.append(record)
 
     analyzed_seeds = len(per_seed)
     if analyzed_seeds == 0:
         return {"status": "SKIP", "reason": "no_needs_sidecars"}
+
+    def _rounded(value: float | None) -> float | None:
+        return round(value, 4) if value is not None else None
+
+    def _pairing_bounds(totals_by_need: dict[str, dict], key: str) -> None:
+        # Per pairing, informational: the same estimate and bound on its own pairs.
+        for need_name, totals in totals_by_need.items():
+            pairing_counts = [
+                tuple(record[key].get(need_name, (0, 0, 0))[1:]) for record in per_seed
+            ]
+            pairing_pooled = _pooled_net_concordance(pairing_counts, confidence)
+            totals["net_concordance"] = _rounded(pairing_pooled["net_concordance"])
+            totals["net_concordance_lower_bound"] = _rounded(pairing_pooled["lower_bound"])
 
     pooled = _pooled_net_concordance(seed_counts, confidence)
     required = required_seed_count(analyzed_seeds, seed_fraction)
@@ -2187,27 +2254,45 @@ def run_needs_oracle(
         failed_criteria.append("net_concordance_lower_bound")
     if not seeds_ok:
         failed_criteria.append("seed_fraction")
+    _pairing_bounds(by_pairing, "by_pairing")
 
-    def _rounded(value: float | None) -> float | None:
-        return round(value, 4) if value is not None else None
+    criterion = (
+        f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0 "
+        f"and >= {seed_fraction:.0%} of analyzed seeds with net concordance > 0"
+    )
+    binding_ok = True
+    binding_result = None
+    if require_binding:
+        binding_pooled = _pooled_net_concordance(binding_counts, confidence)
+        binding_lower = binding_pooled["lower_bound"]
+        binding_ok = binding_lower is not None and binding_lower > 0.0
+        if not binding_ok:
+            failed_criteria.append("binding_lower_bound")
+        _pairing_bounds(binding_by_pairing, "binding_by_pairing")
+        criterion += (
+            f"; binding pairs (lower-need agent below its threshold): one-sided {confidence:.0%} "
+            "lower bound of pooled net concordance > 0"
+        )
+        binding_result = {
+            "thresholds": thresholds,
+            "total_pairs": sum(record["binding"][0] for record in per_seed),
+            "informative_pairs": sum(c + d for c, d in binding_counts),
+            "concordant_pairs": sum(c for c, _d in binding_counts),
+            "discordant_pairs": sum(d for _c, d in binding_counts),
+            "seeds_with_informative_pairs": binding_pooled["clusters"],
+            "seeds_with_expected_sign": sum(1 for c, d in binding_counts if c > d),
+            "seeds_with_reversed_sign": sum(1 for c, d in binding_counts if c < d),
+            "net_concordance": _rounded(binding_pooled["net_concordance"]),
+            "net_concordance_se": _rounded(binding_pooled["standard_error"]),
+            "net_concordance_lower_bound": _rounded(binding_lower),
+            "by_pairing": binding_by_pairing,
+        }
 
-    # Per pairing, informational: the same estimate and bound on its own pairs.
-    for need_name, totals in by_pairing.items():
-        pairing_counts = [
-            tuple(record["by_pairing"].get(need_name, (0, 0, 0))[1:]) for record in per_seed
-        ]
-        pairing_pooled = _pooled_net_concordance(pairing_counts, confidence)
-        totals["net_concordance"] = _rounded(pairing_pooled["net_concordance"])
-        totals["net_concordance_lower_bound"] = _rounded(pairing_pooled["lower_bound"])
-
-    return {
-        "status": "PASS" if bound_ok and seeds_ok else "FAIL",
+    result = {
+        "status": "PASS" if bound_ok and seeds_ok and binding_ok else "FAIL",
         "method": "pooled_matched_pairs",
-        "method_version": NEEDS_ORACLE_METHOD_VERSION,
-        "criterion": (
-            f"one-sided {confidence:.0%} lower bound of pooled net concordance > 0 "
-            f"and >= {seed_fraction:.0%} of analyzed seeds with net concordance > 0"
-        ),
+        "method_version": NEEDS_ORACLE_METHOD_VERSION if require_binding else NEEDS_POOLED_METHOD_VERSION,
+        "criterion": criterion,
         "failed_criteria": failed_criteria,
         "analyzed_seeds": analyzed_seeds,
         "seeds_with_informative_pairs": pooled["clusters"],
@@ -2227,8 +2312,11 @@ def run_needs_oracle(
         "outcome_window_turns": window,
         "autonomy_excludes_prior_rebels": exclude_prior_rebels,
         "by_pairing": by_pairing,
-        "per_seed": per_seed,
     }
+    if binding_result is not None:
+        result["binding"] = binding_result
+    result["per_seed"] = per_seed
+    return result
 
 
 def run_needs_oracle_best_of(

@@ -1013,7 +1013,7 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     result = run_needs_oracle(runs)
 
     assert result["status"] == "PASS"
-    assert result["method_version"] == 2
+    assert result["method_version"] == 3
     assert result["failed_criteria"] == []
     assert result["seeds_with_expected_sign"] == 10
     assert (result["concordant_pairs"], result["discordant_pairs"]) == (sum(8 + s % 3 for s in range(10)), 20)
@@ -1022,6 +1022,100 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     assert material["pairs"] == sum(12 + s % 3 for s in range(10))
     assert result["per_seed"][0]["by_pairing"] == {"material": [12, 8, 2]}
     assert result["per_seed"][0]["sign_test_p"] == pytest.approx(56 / 1024, abs=1e-4)
+    # Every low agent (0.2) is below the material threshold (0.30): the
+    # binding pairs are all the pairs.
+    binding = result["binding"]
+    assert (binding["concordant_pairs"], binding["discordant_pairs"]) == (
+        result["concordant_pairs"], result["discordant_pairs"])
+    assert binding["net_concordance_lower_bound"] == result["net_concordance_lower_bound"]
+    assert result["per_seed"][0]["binding"] == [12, 8, 2]
+    assert result["per_seed"][0]["binding_by_pairing"] == {"material": [12, 8, 2]}
+
+
+def _material_world_above_threshold(seed: int, binding_low_movers: int, binding_high_movers: int):
+    """The passing world, plus cells whose low agent is above the threshold.
+
+    Ten cells pair material 0.45 against 0.75 (neither binds) and the low
+    agent migrates; ``binding_*`` cells pair 0.2 against 0.7 as before.
+    """
+    run = _material_world(seed, binding_low_movers, binding_high_movers)
+    columns = run["needs_columns"]
+    first = len(columns["agent_id"])
+    rows = []
+    for cell in range(10):
+        low, high = first + 2 * cell, first + 2 * cell + 1
+        region = 1000 + cell
+        rows += [(low, region, {"material": 0.45}), (high, region, {"material": 0.75})]
+        run["events"].append({"agent_id": low, "event_type": MIGRATION, "turn": 105})
+    extra = _needs_rows(rows)
+    for name in columns:
+        columns[name] = columns[name] + (extra[name] if name != "turn" else [100] * len(rows))
+    return run
+
+
+def test_needs_oracle_binding_pairs_must_carry_the_effect():
+    from chronicler.validate import run_needs_oracle
+
+    # Above the threshold the low agents move (as when other channels carry
+    # the association); among binding pairs the event falls either way, as
+    # with the need terms zeroed.
+    runs = [_material_world_above_threshold(seed, 3 + seed % 2, 4 - seed % 2) for seed in range(10)]
+    result = run_needs_oracle(runs)
+
+    assert result["net_concordance_lower_bound"] > 0
+    assert result["seeds_with_expected_sign"] == 10
+    binding = result["binding"]
+    assert binding["thresholds"]["material"] == 0.30
+    assert (binding["concordant_pairs"], binding["discordant_pairs"]) == (35, 35)
+    assert binding["net_concordance"] == 0.0
+    assert result["failed_criteria"] == ["binding_lower_bound"]
+    assert result["status"] == "FAIL"
+
+    # Method 2 alone passes the same seeds.
+    pooled = run_needs_oracle(runs, require_binding=False)
+    assert pooled["status"] == "PASS"
+    assert pooled["method_version"] == 2
+    assert "binding" not in pooled and "binding" not in pooled["per_seed"][0]
+    assert {k: v for k, v in result.items() if k not in ("binding", "per_seed", "status", "failed_criteria",
+                                                         "method_version", "criterion")} == {
+        k: v for k, v in pooled.items() if k not in ("per_seed", "status", "failed_criteria",
+                                                     "method_version", "criterion")}
+
+    # With the effect among the binding pairs too, method 3 passes.
+    runs = [_material_world_above_threshold(seed, 8 + seed % 3, 2) for seed in range(10)]
+    result = run_needs_oracle(runs)
+    assert result["status"] == "PASS"
+    assert result["binding"]["net_concordance_lower_bound"] > 0.5
+
+
+def test_needs_oracle_fails_without_binding_pairs():
+    from chronicler.validate import run_needs_oracle
+
+    # Only above-threshold pairs: no binding pairs, no bound.
+    runs = [_material_world_above_threshold(seed, 0, 0) for seed in range(10)]
+    result = run_needs_oracle(runs)
+    assert result["net_concordance_lower_bound"] > 0
+    assert result["binding"]["informative_pairs"] == 0
+    assert result["binding"]["net_concordance_lower_bound"] is None
+    assert result["failed_criteria"] == ["binding_lower_bound"]
+    assert result["status"] == "FAIL"
+
+
+def test_needs_oracle_thresholds_mirror_the_native_constants():
+    import re
+    from pathlib import Path
+
+    from chronicler.narrative import _NEED_THRESHOLDS
+    from chronicler.validation_io import NEEDS_BEHAVIOUR_THRESHOLDS, NEEDS_PAIRINGS
+
+    root = Path(__file__).resolve().parents[1]
+    agent = (root / "chronicler-agents/src/agent.rs").read_text(encoding="utf-8")
+    assert set(NEEDS_BEHAVIOUR_THRESHOLDS) == {need for need, _event in NEEDS_PAIRINGS}
+    for need, threshold in NEEDS_BEHAVIOUR_THRESHOLDS.items():
+        match = re.search(rf"pub const {need.upper()}_THRESHOLD: f32 = ([0-9.]+);", agent)
+        assert match, need
+        assert float(match.group(1)) == pytest.approx(threshold), need
+        assert _NEED_THRESHOLDS[need] == pytest.approx(threshold), need
 
 
 @pytest.mark.parametrize("break_kind", ["no_link", "reversed", "shuffled"])
