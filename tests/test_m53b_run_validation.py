@@ -600,3 +600,19 @@ def test_main_writes_manifest_before_gate_failure(monkeypatch, tmp_path):
     assert Path(manifest["report_path"]).exists()
     assert Path(manifest["decision_path"]).exists()
     assert Path(manifest["summary_path"]).exists()
+
+
+def test_validate_batch_scores_the_needs_oracle_for_its_profile(monkeypatch, tmp_path):
+    runner = _load_runner()
+    report_text = runner.json.dumps(_report(determinism="SKIP"))
+    commands = []
+
+    def fake_run(*args, **kwargs):
+        commands.append(list(args[0]))
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    for profile in ("subset", "full"):
+        runner.validate_batch(tmp_path, f"{profile}.json", Path.cwd(), {}, profile)
+    assert [cmd[cmd.index("--profile") + 1] for cmd in commands] == ["subset", "full"]
+    assert all(cmd[cmd.index("-m") + 1] == "chronicler.validate" for cmd in commands)

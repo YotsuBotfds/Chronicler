@@ -33,6 +33,13 @@ REQUIRED_ORACLES_BY_PROFILE = {
 
 PROFILE_CHOICES = tuple(REQUIRED_ORACLES_BY_PROFILE)
 
+# Needs oracle method 3 (docs/integration/needs-followups.md): the binding
+# component decides PASS only in these profiles. A subset has about 200
+# informative binding pairs and its bound sits within one or two standard
+# errors of zero, so elsewhere it is reported as informational.
+NEEDS_BINDING_REQUIRED_PROFILES = ("full",)
+_NEEDS_POOLED_CRITERIA = frozenset({"net_concordance_lower_bound", "seed_fraction"})
+
 
 class ValidationGateInputError(ValueError):
     """Invalid profile, report path, or report JSON for validation gating."""
@@ -62,6 +69,46 @@ def _oracle_item(report: dict[str, Any], oracle: str, status: str | None = None)
         if adjudication:
             item["adjudication"] = str(adjudication)
     return item
+
+
+def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str, dict[str, Any] | None]:
+    """Needs status under ``profile`` and, when the binding component fails
+    but is informational there, an informational item for it.
+
+    A method 3 result counts its binding component only in
+    ``NEEDS_BINDING_REQUIRED_PROFILES``, whatever profile it was scored for
+    (``binding_required`` records that). Other results keep their status.
+    """
+    status = str(result.get("status") or "MISSING")
+    binding = result.get("binding")
+    version = result.get("method_version")
+    if (
+        status not in ("PASS", "FAIL")
+        or not isinstance(binding, dict)
+        or isinstance(version, bool)
+        or not isinstance(version, int)
+        or version < 3
+    ):
+        return status, None
+    failed = set(result.get("failed_criteria") or ()) | set(result.get("informational_failed_criteria") or ())
+    pooled_ok = not (failed & _NEEDS_POOLED_CRITERIA)
+    lower_bound = binding.get("net_concordance_lower_bound")
+    binding_ok = (
+        isinstance(lower_bound, (int, float)) and not isinstance(lower_bound, bool) and lower_bound > 0
+    )
+    if profile in NEEDS_BINDING_REQUIRED_PROFILES:
+        return ("PASS" if pooled_ok and binding_ok else "FAIL"), None
+    informational = None
+    if not binding_ok:
+        informational = {
+            "oracle": "needs_binding",
+            "status": "FAIL",
+            "reason": (
+                f"binding lower bound {lower_bound}; informational in {profile}, "
+                f"required in {', '.join(NEEDS_BINDING_REQUIRED_PROFILES)}"
+            ),
+        }
+    return ("PASS" if pooled_ok else "FAIL"), informational
 
 
 def _strict_regression_failure(report: dict[str, Any]) -> dict[str, Any] | None:
@@ -119,6 +166,11 @@ def adjudicate_validation_report(
         })
     for oracle in all_oracles:
         status = _oracle_status(report, oracle)
+        result = report["results"].get(oracle)
+        if oracle == "needs" and isinstance(result, dict):
+            status, binding_item = _needs_status_for_profile(result, profile)
+            if binding_item is not None:
+                informational_non_pass.append(binding_item)
         item = _oracle_item(report, oracle, status)
         if oracle in required_oracles:
             if status != "PASS":
@@ -407,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
 __all__ = [
     "REQUIRED_ORACLES_BY_PROFILE",
     "PROFILE_CHOICES",
+    "NEEDS_BINDING_REQUIRED_PROFILES",
     "ValidationGateInputError",
     "adjudicate_validation_report",
     "build_gate_decision_payload",
