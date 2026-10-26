@@ -1467,6 +1467,9 @@ class AgentContext(BaseModel):
     named_characters: list[dict] = Field(default_factory=list)
     population_mood: str = "content"  # "desperate" > "restless" > "content"
     displacement_fraction: float = 0.0
+    # False when the bridge's displacement does not describe the moment
+    # (historical_context: an observation of a later turn); not rendered then.
+    displacement_observed: bool = True
     # M40: Social Networks — merged view of social edges + hostage state
     relationships: list[dict] = Field(default_factory=list)
     # M41: wealth inequality for narrator
