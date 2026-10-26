@@ -198,6 +198,214 @@ def _report_worlds(report: dict[str, Any]) -> list[tuple[str, Any, Any]]:
     return sorted(shapes, key=lambda shape: (shape[0], shape[1] or 0, shape[2] or 0))
 
 
+EXPLORATORY_FLAG = "--exploratory"
+
+STATUS_MEANING = (
+    "NO REGRESSION means no required gate newly fails in the current report (and, where regression is "
+    "required, no strict-regression downgrade or newly failed strict check). It does not mean the "
+    "distributions are unchanged: see the metric deltas and the oracle status changes."
+)
+EXPLORATORY_MEANING = (
+    "EXPLORATORY: the reports measure different cohorts, so this comparison is not regression evidence."
+)
+
+# Validation evidence by category. The oracles of a report measure execution
+# (the batch ran and validated), determinism, balance (bands on rates,
+# shares and distributions) and mechanism (that a mechanism produces the
+# association it should); they do not measure conservation, performance or
+# rendering, so a pass here says nothing about those.
+EVIDENCE_CATEGORIES = {
+    "execution": (),
+    "determinism": ("determinism",),
+    "balance": ("regression", "artifacts", "arcs"),
+    "mechanism": ("needs", "community", "cohort", "era"),
+}
+UNMEASURED_CATEGORIES = ("conservation", "performance", "rendering")
+
+
+def _int_list(values: Any) -> list[int] | None:
+    if not isinstance(values, list) or not values:
+        return None
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in values):
+        return None
+    return sorted(values)
+
+
+def _report_profile(report: dict[str, Any]) -> str | None:
+    profile = report.get("profile")
+    if isinstance(profile, str):
+        return profile
+    needs = report.get("results", {}).get("needs")
+    if isinstance(needs, dict) and isinstance(needs.get("profile"), str):
+        return needs["profile"]
+    return None
+
+
+def report_cohort(report: dict[str, Any]) -> dict[str, Any]:
+    """What a report says it measured: its seeds (sorted, with repeats),
+    turns, worlds, requested simulation configuration and gate profile, each
+    None when the report cannot tell.
+
+    A report of a manifest-checked batch (``batch_manifest.status`` is
+    ``verified``) carries them. Older reports give their seeds and final
+    turns through the regression oracle's per-seed population rows and the
+    needs result's profile, but not the simulation configuration.
+    """
+    worlds = _report_worlds(report)
+    manifest = report.get("batch_manifest")
+    if isinstance(manifest, dict) and manifest.get("status") == "verified":
+        turns = manifest.get("turns")
+        simulation = manifest.get("simulation")
+        return {
+            "source": "batch_manifest",
+            "seeds": _int_list(manifest.get("seeds")),
+            "turns": [turns] if isinstance(turns, int) and not isinstance(turns, bool) else None,
+            "worlds": worlds,
+            "simulation": simulation if isinstance(simulation, dict) else None,
+            "profile": _report_profile(report),
+        }
+    regression = report.get("results", {}).get("regression")
+    rows = regression.get("final_living_population_by_seed") if isinstance(regression, dict) else None
+    seeds = turns = None
+    if isinstance(rows, list) and rows and all(isinstance(row, dict) for row in rows):
+        seeds = _int_list([row.get("seed") for row in rows])
+        final_turns = _int_list([row.get("turn") for row in rows])
+        turns = sorted(set(final_turns)) if final_turns is not None else None
+    return {
+        "source": "per-seed results" if seeds is not None or turns is not None else "none",
+        "seeds": seeds,
+        "turns": turns,
+        "worlds": worlds,
+        "simulation": None,
+        "profile": _report_profile(report),
+    }
+
+
+def _describe_seeds(seeds: list[int]) -> str:
+    distinct = sorted(set(seeds))
+    ranges: list[str] = []
+    start = previous = distinct[0]
+    for seed in distinct[1:] + [None]:
+        if seed is not None and seed == previous + 1:
+            previous = seed
+            continue
+        ranges.append(str(start) if start == previous else f"{start}-{previous}")
+        if seed is not None:
+            start = previous = seed
+    shown = ", ".join(ranges[:4]) + (", ..." if len(ranges) > 4 else "")
+    repeats = f", {len(seeds) - len(distinct)} repeated" if len(seeds) != len(distinct) else ""
+    return f"{len(seeds)} run(s) of seeds {shown}{repeats}"
+
+
+def _describe_field(field: str, baseline: Any, current: Any) -> str:
+    if field == "seeds":
+        return f"seeds: baseline {_describe_seeds(baseline)}, current {_describe_seeds(current)}"
+    if field == "simulation":
+        keys = sorted(set(baseline) | set(current))
+        differing = [
+            f"{key} {baseline.get(key)!r} vs {current.get(key)!r}" for key in keys if baseline.get(key) != current.get(key)
+        ]
+        return "simulation configuration: " + ", ".join(differing)
+    return f"{field}: baseline {baseline} vs current {current}"
+
+
+def compare_cohorts(baseline_report: dict[str, Any], current_report: dict[str, Any]) -> dict[str, Any]:
+    """Cohort fields that differ between the reports (``mismatches``) and
+    those one of them does not record (``unverified``)."""
+    baseline = report_cohort(baseline_report)
+    current = report_cohort(current_report)
+    mismatches: list[dict[str, Any]] = []
+    unverified: list[str] = []
+    for field in ("seeds", "turns", "worlds", "simulation", "profile"):
+        left, right = baseline[field], current[field]
+        if left is None or right is None:
+            unverified.append(field)
+        elif field == "simulation":
+            # A setting one manifest does not name (an argument added since)
+            # was not requested: its CLI default, as None.
+            if any(left.get(key) != right.get(key) for key in set(left) | set(right)):
+                mismatches.append({"field": field, "description": _describe_field(field, left, right)})
+        elif left != right:
+            mismatches.append({"field": field, "description": _describe_field(field, left, right)})
+    return {
+        "comparable": not mismatches,
+        "mismatches": mismatches,
+        "unverified": unverified,
+        "baseline_source": baseline["source"],
+        "current_source": current["source"],
+        "baseline": baseline,
+        "current": current,
+    }
+
+
+# Gate rows that belong to an oracle's category without being an oracle.
+_CATEGORY_SUB_ROWS = {"needs_binding": "needs"}
+
+
+def _category_cell(report: dict[str, Any], decision: dict[str, Any], category: str) -> str:
+    """A category's status in one report: FAIL when a required oracle of it
+    fails, PASS when every one of its oracles passes, and otherwise which
+    passed and which did not (informational under the profile); NOT CHECKED
+    or NOT PASSED when nothing in it passed."""
+    if category == "execution":
+        if report.get("status") == "ERROR":
+            return "ERROR: " + str(report.get("reason") or "validation report error")
+        manifest = report.get("batch_manifest")
+        status = manifest.get("status") if isinstance(manifest, dict) else None
+        if status == "verified":
+            seeds = manifest.get("seeds")
+            count = len(seeds) if isinstance(seeds, list) else "?"
+            return f"PASS (batch manifest verified: {count} runs x {manifest.get('turns')} turns)"
+        if status == "unchecked":
+            return "NOT CHECKED (no batch manifest)"
+        return "NOT CHECKED (report predates batch manifests)"
+    members = EVIDENCE_CATEGORIES[category]
+    oracles = [oracle for oracle in members if oracle in report.get("results", {})]
+    if not oracles:
+        return "not in report"
+
+    def _in_category(item: dict[str, Any]) -> bool:
+        oracle = str(item.get("oracle"))
+        return _CATEGORY_SUB_ROWS.get(oracle, oracle) in members
+
+    failed = [f"{item['oracle']} {item['status']}" for item in decision["required_failures"] if _in_category(item)]
+    informational = [
+        f"{item['oracle']} {item['status']}" for item in decision["informational_non_pass"] if _in_category(item)
+    ]
+    not_passed = {
+        str(item.get("oracle")) for item in decision["required_failures"] + decision["informational_non_pass"]
+    }
+    passed = [oracle for oracle in oracles if oracle not in not_passed]
+    if failed:
+        cell = "FAIL: " + ", ".join(failed)
+        if informational:
+            cell += "; informational: " + ", ".join(informational)
+        return cell
+    if not informational:
+        return "PASS"
+    if not passed:
+        return "NOT PASSED (informational only): " + ", ".join(informational)
+    return "PASS: " + ", ".join(passed) + "; informational non-PASS: " + ", ".join(informational)
+
+
+def evidence_by_category(
+    baseline_report: dict[str, Any],
+    current_report: dict[str, Any],
+    baseline_decision: dict[str, Any],
+    current_decision: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Per evidence category, the oracles it covers and each report's status."""
+    return [
+        {
+            "category": category,
+            "oracles": ", ".join(oracles) if oracles else "batch and report",
+            "baseline": _category_cell(baseline_report, baseline_decision, category),
+            "current": _category_cell(current_report, current_decision, category),
+        }
+        for category, oracles in EVIDENCE_CATEGORIES.items()
+    ]
+
+
 def compare_validation_reports(
     profile: str,
     baseline_report: dict[str, Any],
@@ -205,14 +413,29 @@ def compare_validation_reports(
     *,
     require_strict_regression: bool = False,
     fail_on_regression: bool = False,
+    exploratory: bool = False,
 ) -> dict[str, Any]:
+    """Compare two reports of the same cohort under ``profile``.
+
+    Reports whose seeds, turns, worlds, simulation configuration or gate
+    profile differ (``compare_cohorts``) are refused unless ``exploratory``;
+    the result is then labelled exploratory. Fields one report does not
+    record are listed as unverified.
+    """
     _reject_nonfinite(baseline_report, "baseline_report")
     _reject_nonfinite(current_report, "current_report")
-    baseline_worlds = _report_worlds(baseline_report)
-    current_worlds = _report_worlds(current_report)
-    if baseline_worlds != current_worlds:
+    cohort = compare_cohorts(baseline_report, current_report)
+    if not cohort["comparable"] and not exploratory:
+        worlds = [item for item in cohort["mismatches"] if item["field"] == "worlds"]
+        prefix = (
+            f"baseline and current reports measure different worlds: "
+            f"{cohort['baseline']['worlds']} vs {cohort['current']['worlds']}; "
+            if worlds else "baseline and current reports measure different cohorts: "
+        )
         raise ValidationGateInputError(
-            f"baseline and current reports measure different worlds: {baseline_worlds} vs {current_worlds}"
+            prefix
+            + "; ".join(item["description"] for item in cohort["mismatches"] if item["field"] != "worlds" or not worlds)
+            + f". Pass {EXPLORATORY_FLAG} for an exploratory comparison (not regression evidence)."
         )
     baseline_decision = adjudicate_validation_report(
         profile,
@@ -276,6 +499,14 @@ def compare_validation_reports(
     result: dict[str, Any] = {
         "schema_version": 1,
         "profile": profile,
+        "status": "REGRESSION" if regression_detected else "NO_REGRESSION",
+        "status_meaning": STATUS_MEANING,
+        "exploratory": not cohort["comparable"],
+        "cohort": cohort,
+        "evidence_by_category": evidence_by_category(
+            baseline_report, current_report, baseline_decision, current_decision
+        ),
+        "unmeasured_categories": list(UNMEASURED_CATEGORIES),
         "baseline_decision": baseline_decision,
         "current_decision": current_decision,
         "new_required_failures": new_required_failures,
@@ -367,17 +598,65 @@ def _markdown_cell(value: Any) -> str:
     )
 
 
+def _cohort_lines(cohort: dict[str, Any]) -> list[str]:
+    current = cohort["current"]
+    parts = []
+    if current.get("seeds"):
+        parts.append(_describe_seeds(current["seeds"]))
+    if current.get("turns"):
+        parts.append(f"{'/'.join(str(turn) for turn in current['turns'])} turns")
+    lines = ["", "## Cohort", ""]
+    if cohort["mismatches"]:
+        lines.append("The reports measure different cohorts:")
+        lines.append("")
+        lines.extend(f"- {_markdown_cell(item['description'])}" for item in cohort["mismatches"])
+    else:
+        lines.append("Same cohort" + (f": {_markdown_cell(', '.join(parts))}" if parts else "") + ".")
+    if cohort["unverified"]:
+        lines.extend([
+            "",
+            "Not recorded by "
+            + ("both reports" if cohort["baseline_source"] == cohort["current_source"] == "none" else "one report")
+            + ", so not checked: "
+            + ", ".join(cohort["unverified"])
+            + f" (baseline from {cohort['baseline_source']}, current from {cohort['current_source']}).",
+        ])
+    return lines
+
+
 def format_comparison_markdown(result: dict[str, Any]) -> str:
     status = "REGRESSION" if result["regression_detected"] else "NO REGRESSION"
+    exploratory = bool(result.get("exploratory"))
     lines = [
-        f"# Validation report comparison: {result['profile']}",
+        f"# Validation report comparison: {result['profile']}" + (" (EXPLORATORY)" if exploratory else ""),
         "",
-        f"**Status:** {status}",
+        f"**Status:** {'EXPLORATORY, ' if exploratory else ''}{status}",
         f"**Exit code:** {result['exit_code']}",
         "",
-        "## Regression reasons",
-        "",
     ]
+    if exploratory:
+        lines.extend([f"_{EXPLORATORY_MEANING}_", ""])
+    lines.extend([f"_{STATUS_MEANING}_"])
+    if result.get("cohort"):
+        lines.extend(_cohort_lines(result["cohort"]))
+    if result.get("evidence_by_category"):
+        lines.extend([
+            "",
+            "## Evidence by category",
+            "",
+            "A pass in one category is not a pass in another.",
+            "",
+            "| Category | Oracles | Baseline | Current |",
+            "| --- | --- | --- | --- |",
+        ])
+        for row in result["evidence_by_category"]:
+            lines.append(
+                "| " + " | ".join(_markdown_cell(row[key]) for key in ("category", "oracles", "baseline", "current")) + " |"
+            )
+        unmeasured = result.get("unmeasured_categories") or []
+        if unmeasured:
+            lines.extend(["", "Not measured by validation reports: " + ", ".join(unmeasured) + "."])
+    lines.extend(["", "## Regression reasons", ""])
     if result["regression_reasons"]:
         lines.extend(f"- `{reason}`" for reason in result["regression_reasons"])
     else:
@@ -443,6 +722,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--current-report", required=True, type=Path)
     parser.add_argument("--require-strict-regression", action="store_true")
     parser.add_argument("--fail-on-regression", action="store_true")
+    parser.add_argument(EXPLORATORY_FLAG, action="store_true",
+                        help="compare reports of different cohorts (seeds, turns, worlds, simulation "
+                             "configuration or profile); the result is labelled exploratory")
     parser.add_argument("--decision-output", type=Path)
     parser.add_argument("--summary-output", type=Path)
     parser.add_argument("--text", action="store_true")
@@ -463,6 +745,7 @@ def main(argv: list[str] | None = None) -> int:
             current,
             require_strict_regression=args.require_strict_regression,
             fail_on_regression=args.fail_on_regression,
+            exploratory=args.exploratory,
         )
         result["baseline_report_path"] = str(args.baseline_report)
         result["current_report_path"] = str(args.current_report)
@@ -489,9 +772,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
+    "EVIDENCE_CATEGORIES",
+    "EXPLORATORY_FLAG",
+    "UNMEASURED_CATEGORIES",
+    "compare_cohorts",
     "compare_validation_reports",
+    "evidence_by_category",
     "format_comparison_markdown",
     "main",
+    "report_cohort",
 ]
 
 
