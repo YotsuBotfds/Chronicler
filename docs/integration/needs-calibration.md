@@ -1,9 +1,10 @@
 # Needs calibration (2026-10)
 
 > Follow-ups in [`needs-followups.md`](needs-followups.md): needs oracle
-> method 3 (a required binding component that reads the terms), newborns
-> start from the birth parent's needs, and a move no longer blocks autonomy
-> restoration. The open items of §4 and §10 on these three point there.
+> method 3 (a binding component that reads the terms, required in the full
+> profile), newborns start from the birth parent's needs, and a move no
+> longer blocks autonomy restoration. The open items of §4 and §10 on these
+> three point there.
 
 Branch `fix/needs-calibration` from `origin/main` `48b72be`, merged with
 `feat/hunger-mortality` (PR #32), `fix/needs-oracle-power` (PR #33) and

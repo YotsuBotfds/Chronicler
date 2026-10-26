@@ -2,8 +2,9 @@
 
 > **Superseded as the gate's method by method 3** (2026-10,
 > [`needs-followups.md`](needs-followups.md) §1): method 2's criteria stay
-> and a binding component is required on top, the pairs that straddle a
-> need's threshold with their own seed-clustered lower bound.
+> and a binding component is added, the pairs that straddle a need's
+> threshold with their own seed-clustered lower bound, required in the full
+> profile and informational in the subset profile.
 > `run_needs_oracle(..., require_binding=False)` scores method 2 alone.
 
 Branch `fix/needs-oracle-power` from `origin/main` `48b72be` (PR #31, agent

@@ -4,10 +4,11 @@ Branch `fix/needs-followups` from `main` `f5425dc` (PR #37, movements on by
 default), merged without rebase. Three changes, each a correction in every
 agent mode with no switch:
 
-1. **Needs oracle method 3.** Method 2 plus a required binding component:
-   pairs whose lower-need agent is below its behavioural threshold and whose
-   partner is at or above it, with their own seed-clustered lower bound
-   (`src/chronicler/validation_io.py`).
+1. **Needs oracle method 3.** Method 2 plus a binding component: pairs
+   whose lower-need agent is below its behavioural threshold and whose
+   partner is at or above it, with their own seed-clustered lower bound. It
+   decides PASS in the full profile; in the subset profile it is reported
+   but does not decide (`validation_io.py`, `validation_gate.py`).
 2. **Newborn needs.** A newborn takes its birth parent's safety, material,
    social, spiritual and autonomy needs instead of 0.5 (`needs.rs`,
    `tick.rs`).
@@ -28,11 +29,13 @@ build in which
 `compute_need_utility_modifiers` returns zeros and the autonomy deficit no
 longer speeds loyalty drift (the variant of `needs-oracle-power.md`).
 
-**Result.** Method 3 passes main's subsets 42-61, 62-81 and 82-101 with
-the need terms on and fails all three with them zeroed (method 2 alone
-fails one); 59 of 60 shuffled batches fail. On the head it fails the zeroed
-sets 3 of 3 and passes 2 of 3 with the terms on (82-101: binding lower bound
--0.028). Newborns no longer mark age: the gap between ages 0-4 and 20-39
+**Result.** In the subset profile the needs verdict is method 2's: every
+subset of main and the head passes with the terms on (6 of 6), and the
+binding component is reported beside it. Applied with full-profile rules,
+the binding component fails the terms-zeroed subsets 6 of 6 and passes
+5 of 6 with the terms on (the head's 82-101 reads -0.028 at subset scale,
+so it decides only where it has power); 59 of 60 shuffled batches fail. In
+the full gate it passes: +0.192, lower bound +0.168. Newborns no longer mark age: the gap between ages 0-4 and 20-39
 falls from 0.02-0.09 to under 0.01 for safety, material, spiritual and
 autonomy. Autonomy binds in 1.4% of good-condition agent-turns (5.3%).
 The hunger mid range still fails the needs subset 42-61 and is not shipped.
@@ -75,18 +78,37 @@ second, separately matched set:
   method 2's; it leaves out pairs whose needs sit at the threshold and swap
   sides within a few turns. The gap was chosen from 0, 0.05 and 0.10 on the
   subset runs below ([Choice of rule](#choice-of-the-binding-rule)).
-- **PASS** requires method 2's two criteria and a one-sided 95% lower bound
-  of the binding pairs' pooled net concordance above zero (same
-  seed-clustered estimator, Student t with S - 1 degrees of freedom). No
-  seed fraction: a seed has about ten informative binding pairs.
+- **PASS** requires method 2's two criteria and, in the full profile, a
+  one-sided 95% lower bound of the binding pairs' pooled net concordance
+  above zero (same seed-clustered estimator, Student t with S - 1 degrees
+  of freedom). No seed fraction: a seed has about ten informative binding
+  pairs. A subset has about 200 informative binding pairs and the bound sits
+  within one or two standard errors of zero, which would bring back the
+  noisy subset verdicts method 2 removed, so the subset profile reports the
+  component (`binding.status`, `informational_failed_criteria`, the gate's
+  informational `needs_binding` row) without letting it decide.
+  `validation_gate.NEEDS_BINDING_REQUIRED_PROFILES` is `("full",)`.
 
-Result fields: `method_version: 3`; `failed_criteria` may list
-`binding_lower_bound`; `binding` holds the thresholds, the gap, pairs,
-informative, concordant and discordant pairs, the estimate, its standard
-error and bound, and the per-pairing tallies; each per-seed record adds
-`binding` (`[pairs, concordant, discordant]`) and `binding_by_pairing`.
+Result fields: `method_version: 3`; `profile` (the profile it was scored
+for), `binding_required`, `binding_required_profiles` and `pooled_status`
+(method 2's criteria alone); `failed_criteria` lists `binding_lower_bound`
+when the component decides, `informational_failed_criteria` when it does
+not; `binding` holds its `status`, `required`, the thresholds, the gap,
+pairs, informative, concordant and discordant pairs, the estimate, its
+standard error and bound, and the per-pairing tallies; each per-seed record
+adds `binding` (`[pairs, concordant, discordant]`) and `binding_by_pairing`.
 Method 2's fields keep their names and meaning. `run_needs_oracle(...,
 require_binding=False)` scores method 2 alone (`method_version: 2`).
+
+**Profiles.** `scripts/m53b_run_validation.py` passes its profile to
+`python -m chronicler.validate --profile`; without `--profile` (a manual
+re-score) the component decides, as in the full gate. The gate
+(`adjudicate_validation_report`) applies each profile's rule to any method 3
+result whatever profile it was scored for: in the subset profile the needs
+status is method 2's and a failing component appears as an informational
+`needs_binding` row; in the full profile it is required. The comparator
+reads required failures from the gate, so a subset's informational binding
+failure is never a new failure or a regression, and a full-profile one is.
 
 ### Sensitivity
 
@@ -99,35 +121,39 @@ bound) and informative pairs; method 3's verdict.
 Main is `2ef3097` (PR #38 merged; its own extension `cf109460...cd90e`),
 the head is this branch (same tree as the gated `d44cf4f`):
 
-| Set | Method 2: net (lb), seeds | Binding: net (lb), informative | Method 3 |
-| --- | --- | --- | --- |
-| main, terms on, 42-61 | +0.163 (+0.081), 14 | +0.297 (+0.173), 222 | PASS |
-| main, terms on, 62-81 | +0.152 (+0.090), 17 | +0.167 (+0.072), 252 | PASS |
-| main, terms on, 82-101 | +0.153 (+0.064), 16 | +0.151 (+0.006), 259 | PASS |
-| main, terms off, 42-61 | +0.096 (-0.000), 14 | +0.029 (-0.086), 237 | **FAIL** |
-| main, terms off, 62-81 | +0.132 (+0.075), 15 | +0.078 (-0.046), 219 | **FAIL** |
-| main, terms off, 82-101 | +0.090 (+0.011), 12 | -0.072 (-0.183), 250 | **FAIL** |
-| head, terms on, 42-61 | +0.145 (+0.057), 14 | +0.172 (+0.111), 215 | PASS |
-| head, terms on, 62-81 | +0.232 (+0.105), 15 | +0.358 (+0.252), 212 | PASS |
-| head, terms on, 82-101 | +0.193 (+0.119), 18 | +0.103 (-0.028), 185 | FAIL |
-| head, terms off, 42-61 | +0.127 (+0.022), 13 | +0.078 (-0.056), 193 | **FAIL** |
-| head, terms off, 62-81 | +0.141 (+0.061), 16 | +0.098 (-0.021), 184 | **FAIL** |
-| head, terms off, 82-101 | +0.136 (+0.027), 14 | +0.030 (-0.074), 202 | **FAIL** |
+The verdicts are the gate's (`adjudicate_validation_report`) on results
+scored for each profile; "full rules" applies the full profile's rule to the
+subset's pairs:
 
-Needs shuffled, 60 batches (the 12 sets x 5): method 3 fails 59. The one
+| Set | Method 2: net (lb), seeds | Binding: net (lb), informative | Subset profile | Full rules |
+| --- | --- | --- | --- | --- |
+| main, terms on, 42-61 | +0.163 (+0.081), 14 | +0.297 (+0.173), 222 | PASS | PASS |
+| main, terms on, 62-81 | +0.152 (+0.090), 17 | +0.167 (+0.072), 252 | PASS | PASS |
+| main, terms on, 82-101 | +0.153 (+0.064), 16 | +0.151 (+0.006), 259 | PASS | PASS |
+| main, terms off, 42-61 | +0.096 (-0.000), 14 | +0.029 (-0.086), 237 | FAIL | **FAIL** |
+| main, terms off, 62-81 | +0.132 (+0.075), 15 | +0.078 (-0.046), 219 | PASS | **FAIL** |
+| main, terms off, 82-101 | +0.090 (+0.011), 12 | -0.072 (-0.183), 250 | PASS | **FAIL** |
+| head, terms on, 42-61 | +0.145 (+0.057), 14 | +0.172 (+0.111), 215 | PASS | PASS |
+| head, terms on, 62-81 | +0.232 (+0.105), 15 | +0.358 (+0.252), 212 | PASS | PASS |
+| head, terms on, 82-101 | +0.193 (+0.119), 18 | +0.103 (-0.028), 185 | PASS (binding informational) | FAIL |
+| head, terms off, 42-61 | +0.127 (+0.022), 13 | +0.078 (-0.056), 193 | PASS | **FAIL** |
+| head, terms off, 62-81 | +0.141 (+0.061), 16 | +0.098 (-0.021), 184 | PASS | **FAIL** |
+| head, terms off, 82-101 | +0.136 (+0.027), 14 | +0.030 (-0.074), 202 | PASS | **FAIL** |
+
+Needs shuffled, 60 batches (the 12 sets x 5): full rules fail 59. The one
 pass is main, terms on, 62-81, permutation 3 (method 2 +0.028, 13 seeds;
-binding +0.009). Method 2 alone passes 2 of the 60 and the binding
-component alone 3; only that batch passes both. Before the trade-crafts
-merge (`f5425dc`, head `89f3d67`) method 3 failed all 60 shuffles of the
-same design; method 2 alone passed 3 of them.
+binding +0.009). Method 2 alone, the subset verdict, passes 2 of the 60 and
+the binding component alone 3; only that batch passes both. Before the
+trade-crafts merge (`f5425dc`, head `89f3d67`) full rules failed all 60
+shuffles of the same design; method 2 alone passed 3 of them.
 
-So on main the binding component passes with the terms on (3 of 3) and
-fails with them zeroed (3 of 3); method 2 alone passes 2 of 3 zeroed sets.
-On the head it fails the zeroed sets 3 of 3 and passes 2 of 3 with the
-terms on: 82-101 reads +0.103 with a lower bound of -0.028. The required
-subset gates (42-61, 62-81) and the full gate pass ([Gates](#5-gates)).
-In the full gate the binding pairs read +0.192 (lower bound +0.168) over
-5,060 informative pairs.
+So the binding component separates the terms from their absence at subset
+scale (terms on 5 of 6, zeroed 0 of 6) but is too noisy to decide a subset:
+with the terms on it falls to -0.028 on the head's 82-101. The subset
+verdict is method 2's, which passes every terms-on subset and also 5 of the
+6 terms-zeroed ones. The full gate, where the component decides, passes:
+the binding pairs read +0.192 (lower bound +0.168) over 5,060 informative
+pairs ([Gates](#5-gates)).
 
 ### Choice of the binding rule
 
@@ -237,8 +263,20 @@ is unchanged: it follows skill, not conditions.
 
 Spiritual now settles at its own fixed points: below its threshold in 23.9%
 of agent-turns (8.1% on main), 38% for minority faiths without a temple
-(17%), 16% for the majority faith without one (5%). The 0.5 start had
-refreshed it every generation; its constants are M53's and uncalibrated
+(17%), 16% for the majority faith without one (5%). Why: it decays 0.010 a
+turn and is restored only by a temple (0.020 x deficit) and sharing the
+majority faith (0.015 x deficit), fixed points 0.72 with both, 0.51 with a
+temple alone, 0.34 with the faith alone and 0 with neither; a newborn reset
+to 0.5 needed about 20 turns to fall to the 0.30 threshold, so no agent
+under 20 was below it on main, and an inherited need starts where the
+parent's already is. Effect, measurable from the kept event sidecars of
+subsets 42, 62 and 82 (main against head): migrations whose dominant driver
+is the spiritual need rise from 0.7-1.0% to 1.9-3.4% of migrations (337,
+468, 369 -> 1,525, 1,598, 981), part of the 1-7% rise in migrations;
+conversion does not read the spiritual need, and the belief changes seen
+between an agent's events move +13%, -5% and +12% (no consistent
+direction). Sect recruitment by movements also reads it; its membership is
+not in the kept sidecars. Spiritual's constants are M53's and uncalibrated
 ([Open](#9-open)).
 
 Within a (civ, region, occupation) cell the needs now differ less: method
@@ -313,6 +351,10 @@ needs and event sidecars were kept for re-scoring.
 | extinct worlds | 0 | 0 |
 | final population min / median / max | 78 / 184.5 / 329 | 56 / 179 / 308 |
 
+The in-run report was scored without a profile (binding required);
+re-scored from the kept sidecars with `profile="full"` it is the same, PASS,
+and the gate requires the component there.
+
 The matched pairs fall from 43,170 to 16,598: with newborns at their
 parents' needs and no displacement block, autonomy and safety barely vary
 within a (civ, region, occupation) cell, so their pairings keep 358 and 202
@@ -334,7 +376,10 @@ community, needs and cohort are required:
 | 82-101 | main | PASS | PASS (2) | 0.0656 | 0.0433 | 0.621 | 0 | 95 |
 | 82-101 | head | FAIL (needs, binding bound) | FAIL (3) | 0.0669 | 0.0431 | 0.618 | 0 | 98 |
 
-82-101 is not a required gate. Informational: regression's civ-survival
+These in-run reports were scored before the subset profile made the binding
+component informational; re-scored from the kept sidecars, the head's
+needs verdict is PASS on all three in the subset profile (§1). 82-101 is not
+a required gate. Informational: regression's civ-survival
 check fails at 200 turns in every set but main 82-101, and the head's 62-81
 reads rebellion 0.0184, under 0.02 (main 0.0266); both pass at 500 turns.
 Artifacts read PARTIAL in every set but the head's 82-101.
@@ -366,16 +411,17 @@ writes 7.89 MB native and 8.61 MB no-Rust (guard 10.5 MB), as on main.
 
 ## 8. Verification
 
-On the merged head (tree of `d44cf4f` and `228d2f0`; extension
-`f8e1017e...c2f410`, built fresh and verified):
+On the head with the subset profile rule (`acabc38`; extension
+`f8e1017e...c2f410`, built fresh from `d44cf4f`, whose Rust is unchanged
+since, and verified):
 
-- `cargo test` (debuginfo off): 996 passed, 2 ignored.
-- `pytest -m "not slow" -n 2`: 6,201 passed, 3 skipped, 526 subtests.
+- `cargo test` (debuginfo off, on `d44cf4f`): 996 passed, 2 ignored.
+- `pytest -m "not slow" -n 2`: 6,210 passed, 3 skipped, 526 subtests.
 - `pytest -m slow -n 2`: 11 passed, 3 skipped.
-- No-Rust suite (`chronicler_agents` absent, every test): 5,971 passed, 233
+- No-Rust suite (`chronicler_agents` absent, every test): 5,980 passed, 233
   skipped, 526 subtests.
-- `scripts/run_python_oracle_checks.py`: PASS in 112.1 s, 2,151 passed, 33
-  skipped; largest chunk `systems-2` 43.2 s of 110 s (on a loaded machine).
+- `scripts/run_python_oracle_checks.py`: PASS in 92.0 s, 2,153 passed, 33
+  skipped; largest chunk `systems-2` 37.2 s of 110 s.
 
 New and changed tests:
 
@@ -388,9 +434,19 @@ New and changed tests:
   above, the gap, traits); thresholds mirror `agent.rs` and
   `narrative._NEED_THRESHOLDS`. The method 2 test now expects
   `method_version` 3.
+  Scored for the full profile the component decides; for the subset it is
+  reported (`binding.status`, `informational_failed_criteria`) and the
+  status is method 2's; both CLIs pass `--profile` to the needs oracle.
+- `tests/test_validation_gate.py`: whatever profile a method 3 result was
+  scored for, the subset gate passes it with an informational
+  `needs_binding` row (text and markdown summaries) and the full gate fails
+  it; a passing component and method 2 results keep their verdicts.
 - `tests/test_validation_compare.py`: method 2 against method 3 is a method
   change, not a new failure, and re-baselining is flagged; method 3 against
-  method 3 counts a new failure.
+  method 3 counts a new failure; a subset's informational binding failure
+  is no regression, the same failure in the full profile is.
+- `tests/test_m53b_run_validation.py`: the runner passes its profile to
+  `chronicler.validate`.
 - Rust: `needs::tests::test_autonomy_restores_after_a_move` and
   `tests/test_needs.rs::test_autonomy_restores_while_displaced` replace the
   two displacement-block tests; `tests/test_demographics_integration.rs::
@@ -405,8 +461,10 @@ one worker.
 
 - **Subset power.** A subset has 180-260 informative binding pairs and the
   bound sits within one or two standard errors of zero in several sets: the
-  head's 82-101 fails with the terms on (+0.103, bound -0.028), and one of
-  60 shuffles passes. The full gate carries 5,060 such pairs.
+  head's 82-101 fails it with the terms on (+0.103, bound -0.028), and one
+  of 60 shuffles passes. So the component is informational in a subset, and
+  a subset gate alone does not catch zeroed terms (method 2 passes 5 of 6
+  terms-zeroed subsets); only the full gate requires the component.
 - **The full gate and the zeroed terms.** With the terms zeroed the binding
   pairs read +0.03 to +0.10 on the head's subsets (material about +0.24,
   from wealth and household moves). At the full gate's precision (standard
