@@ -106,3 +106,52 @@ def test_schema_names_are_each_batchs_own():
     assert schema_names(b) is schema_names(b)
     with pytest.raises(AttributeError):
         schema_names(object())
+
+
+def _reference_memory_text(stream) -> str:
+    """``MemoryStream.save``'s text before the turn-speed work."""
+    import json
+
+    data = {
+        "civilization_name": stream.civilization_name,
+        "entries": [
+            {"turn": e.turn, "text": e.text, "importance": e.importance, "entry_type": e.entry_type}
+            for e in stream.entries
+        ],
+        "reflections": [
+            {"turn": r.turn, "text": r.text, "importance": r.importance, "entry_type": r.entry_type}
+            for r in stream.reflections
+        ],
+    }
+    return json.dumps(data, indent=2)
+
+
+def test_memory_stream_text_matches_json_dumps(tmp_path):
+    import copy
+    import random
+
+    from chronicler.memory import MemoryStream
+
+    rng = random.Random(5)
+    words = ["war", 'the "quoted" pact', "naïve\nline", "المدينة", "tab\there", ""]
+    stream = MemoryStream(civilization_name="Kethani Émpire")
+    assert stream.json_text() == _reference_memory_text(stream)
+    for turn in range(1, 40):
+        for _ in range(rng.randrange(4)):
+            stream.add(text=rng.choice(words) + str(turn), turn=turn, importance=rng.randrange(1, 11))
+        if turn % 7 == 0:
+            stream.add_reflection(rng.choice(words), turn)
+        if turn % 5 == 0 and stream.entries:
+            # In-place changes after an entry was encoded are picked up.
+            e = rng.choice(stream.entries)
+            e.text = e.text + "!"
+            e.importance = float(e.importance) if turn % 10 else 7
+        if turn % 9 == 0:
+            stream.entries = stream.entries[:-1]  # a shorter list
+        assert stream.json_text() == _reference_memory_text(stream), turn
+    clone = copy.deepcopy(stream)
+    assert clone.json_text() == _reference_memory_text(stream)
+    path = tmp_path / "m" / "memories.json"
+    stream.save(path)
+    assert path.read_text() == _reference_memory_text(stream)
+    assert MemoryStream.load(path).json_text() == path.read_text()

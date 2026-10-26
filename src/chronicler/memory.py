@@ -55,17 +55,6 @@ class MemoryStream:
 
     def save(self, path: Path) -> None:
         """Persist memory stream to a JSON file."""
-        data = {
-            "civilization_name": self.civilization_name,
-            "entries": [
-                {"turn": e.turn, "text": e.text, "importance": e.importance, "entry_type": e.entry_type}
-                for e in self.entries
-            ],
-            "reflections": [
-                {"turn": r.turn, "text": r.text, "importance": r.importance, "entry_type": r.entry_type}
-                for r in self.reflections
-            ],
-        }
         parent = path.parent
         try:
             parent_is_dir = parent.is_dir()
@@ -73,7 +62,51 @@ class MemoryStream:
             parent_is_dir = False
         if not parent_is_dir:
             parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2))
+        path.write_text(self.json_text())
+
+    def json_text(self) -> str:
+        """``json.dumps(data, indent=2)`` of the stream (what ``save`` writes).
+
+        Streams only grow and are saved every few turns, so each entry's
+        encoding is kept and reused while the entry (the same object, with
+        the very same field objects) is still at its place in the list;
+        the text is assembled as the indenting encoder lays it out.
+        """
+        return (
+            '{\n  "civilization_name": ' + json.dumps(self.civilization_name)
+            + ',\n  "entries": ' + self._list_text("entries", self.entries)
+            + ',\n  "reflections": ' + self._list_text("reflections", self.reflections)
+            + "\n}"
+        )
+
+    def _list_text(self, kind: str, items: list[MemoryEntry]) -> str:
+        if not items:
+            return "[]"
+        caches = self.__dict__.setdefault("_encoded", {})
+        cache = caches.setdefault(kind, [])
+        del cache[len(items):]
+        texts = []
+        for i, e in enumerate(items):
+            turn, text, importance, entry_type = e.turn, e.text, e.importance, e.entry_type
+            if i < len(cache):
+                c = cache[i]
+                # The same entry holding the very same field objects.
+                if c[0] is e and c[1] is turn and c[2] is text and c[3] is importance and c[4] is entry_type:
+                    texts.append(c[5])
+                    continue
+            # A nested object of a list in the top-level object: its lines sit
+            # four spaces deeper than a top-level dump of the entry.
+            encoded = json.dumps(
+                {"turn": turn, "text": text, "importance": importance, "entry_type": entry_type},
+                indent=2,
+            ).replace("\n", "\n    ")
+            row = (e, turn, text, importance, entry_type, encoded)
+            if i < len(cache):
+                cache[i] = row
+            else:
+                cache.append(row)
+            texts.append(encoded)
+        return "[\n    " + ",\n    ".join(texts) + "\n  ]"
 
     @classmethod
     def load(cls, path: Path) -> MemoryStream:
