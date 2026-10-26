@@ -98,6 +98,7 @@ CHUNKS = {
         "tests/test_cities.py",
         "tests/test_city_markets.py",
         "tests/test_bulk_trade.py",
+        "tests/test_guilds.py",
     ],
     "systems-2": [
         "tests/test_gp_agendas.py",

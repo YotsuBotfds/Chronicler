@@ -507,6 +507,14 @@ impl AgentSimulator {
         let city_pull_col = rb
             .column_by_name("city_pull")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        // Guilds: news of last turn's movement event per region (absent when
+        // the switch is off = no news).
+        let movement_news_col = rb
+            .column_by_name("movement_news")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        let movement_news_intensity_col = rb
+            .column_by_name("movement_news_intensity")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
         // Merchant routing: the economy's demand and post-trade supply per
         // goods category (absent = 0: no non-food market, no food tally).
         const NC: usize = crate::economy::NUM_CATEGORIES;
@@ -692,6 +700,8 @@ impl AgentSimulator {
                     climate_exposure: climate_exposure_col.map_or(1.0, |arr| arr.value(i)),
                     harvest_shock: harvest_shock_col.map_or(0.0, |arr| arr.value(i)),
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
+                    movement_news: movement_news_col.map_or(crate::knowledge::NO_NEWS, |arr| arr.value(i)),
+                    movement_news_intensity: movement_news_intensity_col.map_or(0, |arr| arr.value(i)),
                     market_demand: market_row(&market_demand_cols, i),
                     market_supply: market_row(&market_supply_cols, i),
                     craft_sufficiency: craft_sufficiency_col.map_or(0.0, |arr| arr.value(i)),
@@ -904,6 +914,8 @@ impl AgentSimulator {
                 r.climate_exposure = climate_exposure_col.map_or(1.0, |arr| arr.value(i));
                 r.harvest_shock = harvest_shock_col.map_or(0.0, |arr| arr.value(i));
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
+                r.movement_news = movement_news_col.map_or(crate::knowledge::NO_NEWS, |arr| arr.value(i));
+                r.movement_news_intensity = movement_news_intensity_col.map_or(0, |arr| arr.value(i));
                 r.market_demand = market_row(&market_demand_cols, i);
                 r.market_supply = market_row(&market_supply_cols, i);
                 r.craft_sufficiency = craft_sufficiency_col.map_or(0.0, |arr| arr.value(i));
@@ -3064,6 +3076,12 @@ impl AgentSimulator {
         stats.insert("transmitted_threat".into(), self.knowledge_stats.transmitted_threat as f64);
         stats.insert("transmitted_trade".into(), self.knowledge_stats.transmitted_trade as f64);
         stats.insert("transmitted_religious".into(), self.knowledge_stats.transmitted_religious as f64);
+        // Guilds: movement news (only when there was any, so the stats of a
+        // run without news keep their keys).
+        if self.knowledge_stats.created_news > 0 || self.knowledge_stats.transmitted_news > 0 {
+            stats.insert("created_news".into(), self.knowledge_stats.created_news as f64);
+            stats.insert("transmitted_news".into(), self.knowledge_stats.transmitted_news as f64);
+        }
         stats.insert("mean_age".into(), self.knowledge_stats.mean_age as f64);
         stats.insert("max_age".into(), self.knowledge_stats.max_age as f64);
         stats.insert("mean_hops".into(), self.knowledge_stats.mean_hops as f64);
@@ -3422,7 +3440,8 @@ mod tests {
         );
         sim.turn = 9;
         assert_eq!(sim.get_promotions().unwrap().into_inner().num_rows(), 0);
-        assert!(sim.queue_movement_leaders(vec![1], vec![1]).is_err()); // merchant is no leader role
+        assert!(sim.queue_movement_leaders(vec![1], vec![2]).is_err()); // a scientist is no leader role
+        assert!(sim.queue_movement_leaders(vec![1], vec![4]).is_err()); // nor an exile
         let id = sim.pool.ids[leader];
         sim.queue_movement_leaders(vec![id, 999_999], vec![3, 0]).unwrap();
         let batch = sim.get_promotions().unwrap().into_inner();

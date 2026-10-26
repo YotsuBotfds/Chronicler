@@ -382,3 +382,69 @@ def test_save_load_resume_identity_with_movements_and_everything_on(tmp_path):
     assert resumed.model_dump_json() == straight.model_dump_json()
     assert resumed.agent_movements.counters["demands"] >= 2
     assert resumed.agent_movements.reforms and resumed.agent_movements.counters["upkeep"] > 0
+
+
+# --- Guilds on top of everything (a guild and its movement as a world saves them) -----
+
+def _guilds_world() -> WorldState:
+    """Everything above, movements included, plus guilds. Guilds form from
+    the cities' masters, take their share of commerce, win privileges with
+    charters and raise the burgher factions from the first ticks. With
+    --agents off no guild movement is founded, so the first city's guild and
+    its movement are placed as a saved world carries them: the movement's
+    demand, the ruler's answer and a guild charter run from persisted state."""
+    import chronicler.guilds as gd
+    from chronicler.agent_movements_state import GUILD, Movement
+    from chronicler.guilds_state import Guild
+    world = _movements_world()
+    gd.set_guilds_enabled(world, True)
+    held = sorted((i for i, r in enumerate(world.regions) if r.controller),
+                  key=lambda i: (-world.regions[i].population, i))
+    ri = held[0]
+    sid = next(s.settlement_id for s in world.regions[ri].settlements)
+    target = world.civ_index_map[world.regions[ri].controller]
+    movement = len(world.agent_movements.movements)
+    world.agent_movements.movements.append(Movement(
+        name="the Merchant Guild of test", creed=GUILD, founded_turn=0, home_region=ri,
+        target=target, members=8, member_regions=[[ri, 8]], strength=0.2, stronghold=ri,
+        stronghold_share=0.3, regions_reached=[ri]))
+    world.guilds.guilds.append(Guild(city=sid, region=ri, name="the Merchant Guild of test",
+                                     founded_turn=0, masters=8.0, movement=movement))
+    return world
+
+
+def _guilds_live(world: WorldState) -> bool:
+    from chronicler.models import FactionType
+    c = world.guilds.counters
+    m = world.agent_movements.movements[-1]
+    return (c["founded"] >= 1 and c["take"] > 0 and m.demands >= 1
+            and any(FactionType.BURGHER in civ.factions.influence for civ in world.civilizations))
+
+
+def test_save_load_resume_identity_with_guilds_and_everything_on(tmp_path):
+    import chronicler.agent_movements as am
+    import chronicler.guilds as gd
+    from chronicler.agent_bridge import build_region_batch
+    first = _advance(_guilds_world(), 30)
+    while not (_guilds_live(first) and _movements_live(first) and _cities_live(first)):
+        assert first.turn < 120, "no turn with live guilds, movements and cities"
+        _advance(first, 1)
+    straight = _advance(_guilds_world(), first.turn)
+    path = tmp_path / "state.json"
+    first.save(path)
+    resumed = WorldState.load(path)
+    assert resumed.guilds == first.guilds
+    for _ in range(15):
+        # What the native tick would read: the movement table with the guild's
+        # city, the reforms (a guild charter), the news columns.
+        assert am.movement_table(resumed).to_pydict() == am.movement_table(straight).to_pydict()
+        assert am.reform_table(resumed).to_pydict() == am.reform_table(straight).to_pydict()
+        assert gd.movement_news_columns(resumed) == gd.movement_news_columns(straight)
+        news = ("movement_news", "movement_news_intensity")
+        assert ({k: v for k, v in build_region_batch(resumed).to_pydict().items() if k in news}
+                == {k: v for k, v in build_region_batch(straight).to_pydict().items() if k in news})
+        _advance(resumed, 1)
+        _advance(straight, 1)
+    assert resumed.model_dump_json() == straight.model_dump_json()
+    assert "settlement" in am.movement_table(resumed).schema.names
+    assert resumed.guilds.counters["founded"] >= 1

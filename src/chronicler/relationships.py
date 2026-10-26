@@ -27,6 +27,7 @@ _HOSTAGE_ROLE_BY_FACTION = {
     "merchant": "merchant",
     "cultural": "scientist",
     "clergy": "prophet",
+    "burgher": "merchant",   # --guilds
 }
 logger = logging.getLogger(__name__)
 

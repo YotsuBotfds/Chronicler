@@ -128,6 +128,9 @@ K_LAND_CARGO_CAP = "economy.land_cargo_cap"
 K_RIVER_CARGO_CAP = "economy.river_cargo_cap"
 K_SEA_CARGO_CAP = "economy.sea_cargo_cap"
 K_CARGO_FILL = "economy.cargo_fill"
+# Guilds (--guilds): movement news as information packets (0 turns the news
+# off while guilds stay on; for the news-on/off comparison).
+K_GUILD_NEWS = "guilds.movement_news"
 
 # Politics
 K_SECESSION_STABILITY_THRESHOLD = "politics.secession_stability_threshold"
@@ -301,6 +304,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_FARM_REFERENCE_DENSITY, K_FARM_LABOR_ELASTICITY, K_RAW_REFERENCE_DENSITY,
     K_CLIMATE_TREND_SHARE,
     K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
+    K_GUILD_NEWS,
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,

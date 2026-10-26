@@ -1456,6 +1456,11 @@ def generate_report(
     movements = extract_movement_metrics(bundles)
     if movements.get("runs"):
         report["agent_movements"] = movements
+    # Guilds: present only for runs whose bundles carry history[n].guilds.
+    from chronicler.guilds import extract_guild_metrics
+    guild_metrics = extract_guild_metrics(bundles)
+    if guild_metrics.get("runs"):
+        report["guilds"] = guild_metrics
 
     report["anomalies"] = detect_anomalies(report)
     return report

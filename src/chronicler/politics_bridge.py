@@ -138,7 +138,7 @@ def build_politics_civ_input_batch(
     from chronicler.factions import get_dominant_faction, total_effective_capacity
 
     region_name_to_idx = {r.name: i for i, r in enumerate(world.regions)}
-    dominant_faction_map = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
+    dominant_faction_map = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3, "burgher": 4}
 
     n = len(world.civilizations)
     # Pre-size all columns

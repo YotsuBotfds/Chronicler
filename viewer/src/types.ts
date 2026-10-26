@@ -292,6 +292,8 @@ export interface TurnSnapshot {
   cities?: CitiesSnapshot;
   /** Living movements, lasting reforms and running totals; present only with --agent-movements. */
   agent_movements?: AgentMovementsSnapshot;
+  /** Living guilds, burgher influence and running totals; present only with --guilds. */
+  guilds?: GuildsSnapshot;
   /**
    * Regional food sufficiency and relief convoys of the completed turn;
    * present only when mutual aid runs on an agent-backed economy (bundles
@@ -384,12 +386,47 @@ export interface CitiesSnapshot {
   counters: Record<string, number>;
 }
 
+/** One living guild at a turn (`guilds.snapshot_summary`; `--guilds`). */
+export interface GuildSnapshotRow {
+  /** Index in the world's guild list, the guild's identity. */
+  id: number;
+  name: string;
+  /** Settlement id of its city (`CitySnapshotRow.id`). */
+  city: number;
+  region: string | null;
+  /** "craft" or "merchant". */
+  kind: string;
+  /** Merchants and craftworkers at the reference scale. */
+  masters: number;
+  /** The guild's purse. */
+  wealth: number;
+  /** A monopoly on its city's wares (granted with market rights). */
+  monopoly: boolean;
+  /** A say in civic dues (granted with self-government). */
+  say: boolean;
+  /** Present while the lord's raised dues last. */
+  levy?: boolean;
+  /** Index of the guild charter (a lasting reform) it holds. */
+  charter?: number;
+  /** Index of its living guild movement. */
+  movement?: number;
+}
+
+export interface GuildsSnapshot {
+  guilds: GuildSnapshotRow[];
+  dissolved: number;
+  /** Burgher faction influence by civ name, for realms that have one. */
+  burghers: Record<string, number>;
+  /** Running totals (founded, privileges, levies, threats, movements, charters, ...). */
+  counters: Record<string, number>;
+}
+
 /** One living movement at a turn (`agent_movements.snapshot_summary`). */
 export interface MovementSnapshotRow {
   /** Index in the world's movement list, the movement's identity. */
   id: number;
   name: string;
-  /** "commons", "liberty" or "sect". */
+  /** "commons", "liberty", "sect" or "guild" (--guilds). */
   creed: string;
   /** Civ index of the ruler it opposes. */
   target: number;

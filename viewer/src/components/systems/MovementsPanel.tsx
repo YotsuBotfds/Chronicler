@@ -65,7 +65,7 @@ export function MovementsPanel({
         <CivLegend civs={[...CREED_LABELS]} color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"} />
         <CivLineChart
           data={creeds}
-          civs={[...CREED_LABELS]}
+          civs={CREED_LABELS.filter((creed) => creed !== "guild" || history.some((h) => h.guilds))}
           color={(creed) => CREED_COLORS[creed] ?? "#7d8a96"}
           currentTurn={currentTurn}
           label="Living movements by creed"

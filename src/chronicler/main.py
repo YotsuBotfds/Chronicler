@@ -367,6 +367,15 @@ def _agent_movements_snapshot_fields(world) -> dict:
     return {"agent_movements": snapshot_summary(world)}
 
 
+def _guilds_snapshot_fields(world) -> dict:
+    """Guilds per-turn summary for the viewer snapshot (empty when off)."""
+    from chronicler.guilds_state import guilds_on
+    if not guilds_on(world):
+        return {}
+    from chronicler.guilds import snapshot_summary
+    return {"guilds": snapshot_summary(world)}
+
+
 def _food_snapshot_fields(world) -> dict:
     """Viewer-only food summary (empty unless mutual aid observes regional food)."""
     from chronicler.mutual_aid import mutual_aid_active, snapshot_summary
@@ -690,6 +699,15 @@ def execute_run(
     if agent_movements is not None:
         from chronicler.agent_movements import set_agent_movements_enabled
         set_agent_movements_enabled(world, agent_movements)
+    # Guilds switch (persisted on the world): city guilds with privileges,
+    # guild movements, the burgher faction and movement news.
+    guilds = getattr(args, "guilds", None)
+    if guilds is None and fresh_world:
+        from chronicler.guilds import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT
+        guilds = _GUILDS_DEFAULT
+    if guilds is not None:
+        from chronicler.guilds import set_guilds_enabled
+        set_guilds_enabled(world, guilds)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -967,6 +985,7 @@ def execute_run(
             **_nomads_snapshot_fields(world),
             **_cities_snapshot_fields(world),
             **_agent_movements_snapshot_fields(world),
+            **_guilds_snapshot_fields(world),
             **_food_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
@@ -1544,6 +1563,16 @@ def _build_parser() -> argparse.ArgumentParser:
                              "repeal, suffer crackdowns and martyrs, split faiths or rise and "
                              "secede; needs an agent mode to found movements (default on for new "
                              "worlds; --no-agent-movements opts out; saved on resume)")
+    parser.add_argument("--guilds", action=argparse.BooleanOptionalAction, default=None,
+                        help="Guilds and burghers: cities that make wares or hold enough merchants "
+                             "form guilds, which charters grant a monopoly and a say in civic "
+                             "dues; levies, revoked charters, sacks and occupations threaten them "
+                             "and a guild may rise as a movement for a guild charter; a burgher "
+                             "faction presses rulers for trade, low tolls, charters and order; "
+                             "news of movements travels as information packets and draws people "
+                             "to like movements; needs cities (and an agent mode for guild "
+                             "movements) (default on for new worlds; --no-guilds opts out; saved "
+                             "on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

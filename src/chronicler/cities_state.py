@@ -24,6 +24,7 @@ NO_CHARTER, MARKET_RIGHTS, SELF_GOVERNMENT, FREE_CITY = range(len(CHARTER_NAMES)
 HISTORY_KINDS: tuple[str, ...] = (
     "founded", "grew", "declined", "charter", "refused", "revolt", "concession",
     "suppressed", "free_city", "sacked", "walls", "plague", "famine", "lord", "fell",
+    "levy",   # guilds (--guilds): the lord raises the city's dues
 )
 
 #: Cumulative counters kept on ``CityState.counters`` (insertion order).

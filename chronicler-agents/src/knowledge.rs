@@ -18,6 +18,11 @@ pub enum InfoType {
     ThreatWarning   = 1,
     TradeOpportunity = 2,
     ReligiousSignal = 3,
+    /// Guilds (`--guilds`): news of a movement's founding, rising, reform or
+    /// crackdown. It never displaces a packet of another type and yields its
+    /// slot to one (see `admit_packet_from_civ`), so the other types' packets
+    /// are those of a world without news.
+    MovementNews    = 4,
 }
 
 impl InfoType {
@@ -27,6 +32,7 @@ impl InfoType {
             1 => Some(Self::ThreatWarning),
             2 => Some(Self::TradeOpportunity),
             3 => Some(Self::ReligiousSignal),
+            4 => Some(Self::MovementNews),
             _ => None,
         }
     }
@@ -38,6 +44,7 @@ impl InfoType {
             Self::ThreatWarning => 3,
             Self::TradeOpportunity => 2,
             Self::ReligiousSignal => 1,
+            Self::MovementNews => 0,
         }
     }
 }
@@ -77,12 +84,14 @@ pub fn is_empty_slot(type_and_hops: u8) -> bool {
 pub const DECAY_THREAT: u8 = 15;
 pub const DECAY_TRADE: u8 = 8;
 pub const DECAY_RELIGIOUS: u8 = 5;
+pub const DECAY_NEWS: u8 = 10;
 
 pub fn decay_rate(info_type: u8) -> u8 {
     match info_type {
         1 => DECAY_THREAT,
         2 => DECAY_TRADE,
         3 => DECAY_RELIGIOUS,
+        4 => DECAY_NEWS,
         _ => 0,
     }
 }
@@ -94,6 +103,7 @@ pub fn decay_rate(info_type: u8) -> u8 {
 pub const BASE_RATE_THREAT: f32 = 0.7;
 pub const BASE_RATE_TRADE: f32 = 0.4;
 pub const BASE_RATE_RELIGIOUS: f32 = 0.25;
+pub const BASE_RATE_NEWS: f32 = 0.35;
 pub const HOP_ATTENUATION: f32 = 0.85;
 
 pub fn base_rate(info_type: u8) -> f32 {
@@ -101,6 +111,7 @@ pub fn base_rate(info_type: u8) -> f32 {
         1 => BASE_RATE_THREAT,
         2 => BASE_RATE_TRADE,
         3 => BASE_RATE_RELIGIOUS,
+        4 => BASE_RATE_NEWS,
         _ => 0.0,
     }
 }
@@ -129,6 +140,36 @@ pub const CONVERSION_RATE_THRESHOLD: f32 = 0.05;
 pub const PKT_CIV_NONE: u8 = 255;
 
 // ---------------------------------------------------------------------------
+// Movement news (guilds, docs/integration/guilds.md)
+// ---------------------------------------------------------------------------
+
+/// Kinds of movement news (append-only; Python `guilds.NEWS_KINDS`).
+pub const NEWS_FOUNDING: u8 = 0;
+pub const NEWS_RISING: u8 = 1;
+pub const NEWS_REFORM: u8 = 2;
+pub const NEWS_CRACKDOWN: u8 = 3;
+pub const NEWS_KIND_COUNT: u8 = 4;
+/// `RegionState.movement_news` without news.
+pub const NO_NEWS: u8 = 255;
+
+/// The news code a movement-news packet carries in `pkt_source_civ` (its
+/// provenance byte): creed x NEWS_KIND_COUNT + kind.
+#[inline]
+pub fn news_code(creed: u8, kind: u8) -> u8 {
+    creed * NEWS_KIND_COUNT + kind
+}
+
+#[inline]
+pub fn news_creed(code: u8) -> u8 {
+    code / NEWS_KIND_COUNT
+}
+
+#[inline]
+pub fn news_kind(code: u8) -> u8 {
+    code % NEWS_KIND_COUNT
+}
+
+// ---------------------------------------------------------------------------
 // Channel filter + weight tables
 // ---------------------------------------------------------------------------
 
@@ -152,6 +193,12 @@ pub fn channel_weight(bond_type: u8, info_type: u8) -> Option<f32> {
         (2, 3) => Some(0.6),  // Marriage
         (4, 3) => Some(1.0),  // CoReligionist
         (5, 3) => Some(0.7),  // Kin
+        // movement_news (type 4): what friends, kin and family tell each other
+        (0, 4) => Some(0.7),  // Mentor
+        (2, 4) => Some(0.8),  // Marriage
+        (4, 4) => Some(0.6),  // CoReligionist
+        (5, 4) => Some(0.8),  // Kin
+        (6, 4) => Some(1.0),  // Friend
         // Everything else: not eligible
         _ => None,
     }
@@ -175,9 +222,11 @@ pub struct KnowledgeStats {
     pub created_threat: u32,
     pub created_trade: u32,
     pub created_religious: u32,
+    pub created_news: u32,
     pub transmitted_threat: u32,
     pub transmitted_trade: u32,
     pub transmitted_religious: u32,
+    pub transmitted_news: u32,
     pub mean_age: f32,
     pub max_age: u32,
     pub mean_hops: f32,
@@ -266,9 +315,20 @@ pub fn admit_packet_from_civ(
         }
     }
 
-    // Step 2: Check for empty slot
+    // Movement news yields to every other type: it only takes an empty slot
+    // or another news slot, and another type takes a news slot as if it were
+    // empty. News therefore only ever holds slots that would be empty without
+    // it, and the other types' packets (slot by slot) are those of a world
+    // without news.
+    let news = info_type == InfoType::MovementNews as u8;
+    if news {
+        return admit_news(pool, slot, candidate, source_civ);
+    }
+
+    // Step 2: Check for empty slot (a news slot counts as empty)
     for i in 0..agent::PACKET_SLOTS {
-        if is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if is_empty_slot(th) || unpack_type(th) == InfoType::MovementNews as u8 {
             pool.pkt_type_and_hops[slot][i] = pack_type_hops(info_type, candidate.hop_count);
             pool.pkt_source_region[slot][i] = source_region;
             pool.pkt_source_turn[slot][i] = candidate.source_turn;
@@ -321,6 +381,49 @@ pub fn admit_packet_from_civ(
         return AdmitResult::Evicted;
     }
 
+    AdmitResult::Dropped
+}
+
+/// Admission of a movement-news packet (after the identity check): an empty
+/// slot, else the oldest news slot when the incoming news is newer (or as
+/// new and stronger), never a slot of another type.
+fn admit_news(pool: &mut AgentPool, slot: usize, candidate: &PacketCandidate, source_civ: u8) -> AdmitResult {
+    let write = |pool: &mut AgentPool, i: usize| {
+        pool.pkt_type_and_hops[slot][i] = pack_type_hops(candidate.info_type, candidate.hop_count);
+        pool.pkt_source_region[slot][i] = candidate.source_region;
+        pool.pkt_source_turn[slot][i] = candidate.source_turn;
+        pool.pkt_intensity[slot][i] = candidate.intensity;
+        pool.pkt_source_civ[slot][i] = source_civ;
+    };
+    for i in 0..agent::PACKET_SLOTS {
+        if is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
+            write(pool, i);
+            return AdmitResult::Inserted;
+        }
+    }
+    let mut worst: Option<usize> = None;
+    for i in 0..agent::PACKET_SLOTS {
+        if unpack_type(pool.pkt_type_and_hops[slot][i]) != InfoType::MovementNews as u8 {
+            continue;
+        }
+        let older = match worst {
+            None => true,
+            Some(w) => {
+                let (wt, it) = (pool.pkt_source_turn[slot][w], pool.pkt_source_turn[slot][i]);
+                it < wt || (it == wt && pool.pkt_intensity[slot][i] < pool.pkt_intensity[slot][w])
+            }
+        };
+        if older {
+            worst = Some(i);
+        }
+    }
+    if let Some(w) = worst {
+        let (wt, wi) = (pool.pkt_source_turn[slot][w], pool.pkt_intensity[slot][w]);
+        if candidate.source_turn > wt || (candidate.source_turn == wt && candidate.intensity > wi) {
+            write(pool, w);
+            return AdmitResult::Evicted;
+        }
+    }
     AdmitResult::Dropped
 }
 
@@ -502,6 +605,92 @@ pub fn observe_packets(
         created_trade,
         created_religious,
     )
+}
+
+/// Share of a movement event's news intensity that the agents of the
+/// adjacent regions observe (word along the roads and through the markets).
+pub const NEWS_NEIGHBOUR_SHARE: f32 = 0.5;
+
+/// Guilds: every agent in a region with movement news this turn observes a
+/// movement-news packet (`news_code` in the provenance byte) at the news'
+/// intensity, and every agent of an adjacent region at NEWS_NEIGHBOUR_SHARE
+/// of it (its own region's news first, then its neighbours' by region id).
+/// Returns (created, refreshed, evicted, dropped). No-op where
+/// `movement_news` is NO_NEWS (every region with the switch off).
+pub fn observe_news(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    alive_slots: &[usize],
+    current_turn: u16,
+) -> (u32, u32, u32, u32) {
+    let (mut created, mut refreshed, mut evicted, mut dropped) = (0u32, 0u32, 0u32, 0u32);
+    let has_news = |r: &RegionState| r.movement_news != NO_NEWS && r.movement_news_intensity > 0;
+    if !regions.iter().any(has_news) {
+        return (0, 0, 0, 0);
+    }
+    for &slot in alive_slots {
+        let Some(region) = regions.get(pool.regions[slot] as usize) else {
+            continue;
+        };
+        let mut heard: Vec<(&RegionState, u8)> = Vec::new();
+        if has_news(region) {
+            heard.push((region, region.movement_news_intensity));
+        }
+        for &n in &region.adjacency {
+            if let Some(near) = regions.get(n as usize) {
+                if has_news(near) {
+                    let intensity = (near.movement_news_intensity as f32 * NEWS_NEIGHBOUR_SHARE) as u8;
+                    if intensity > 0 {
+                        heard.push((near, intensity));
+                    }
+                }
+            }
+        }
+        for (source, intensity) in heard {
+            let result = admit_packet_from_civ(pool, slot, &PacketCandidate {
+                info_type: InfoType::MovementNews as u8,
+                source_region: source.region_id,
+                source_turn: current_turn,
+                intensity,
+                hop_count: 0,
+            }, source.movement_news);
+            match result {
+                AdmitResult::Inserted => created += 1,
+                AdmitResult::Refreshed => refreshed += 1,
+                AdmitResult::Evicted => {
+                    created += 1;
+                    evicted += 1;
+                }
+                AdmitResult::Dropped => dropped += 1,
+            }
+        }
+    }
+    (created, refreshed, evicted, dropped)
+}
+
+/// Guilds: the strongest nonlocal movement news an agent holds about a
+/// creed, as (inspiring, fearful) strengths in 0..1: a founding, rising or
+/// reform inspires, a crackdown frightens. (0, 0) without news.
+pub fn movement_news_for_creed(pool: &AgentPool, slot: usize, creed: u8) -> (f32, f32) {
+    let own = pool.regions[slot];
+    let (mut inspire, mut fear) = (0.0f32, 0.0f32);
+    for i in 0..agent::PACKET_SLOTS {
+        let th = pool.pkt_type_and_hops[slot][i];
+        if unpack_type(th) != InfoType::MovementNews as u8 || pool.pkt_source_region[slot][i] == own {
+            continue;
+        }
+        let code = pool.pkt_source_civ[slot][i];
+        if news_creed(code) != creed {
+            continue;
+        }
+        let strength = pool.pkt_intensity[slot][i] as f32 / 255.0;
+        if news_kind(code) == NEWS_CRACKDOWN {
+            fear = fear.max(strength);
+        } else {
+            inspire = inspire.max(strength);
+        }
+    }
+    (inspire, fear)
 }
 
 // ---------------------------------------------------------------------------
@@ -861,6 +1050,13 @@ pub fn knowledge_phase(
     stats.created_threat = ct;
     stats.created_trade = ctr;
     stats.created_religious = cr;
+    let (news_created, news_refreshed, news_evicted, news_dropped) =
+        observe_news(pool, regions, &alive_slots, current_turn);
+    stats.packets_created += news_created;
+    stats.packets_refreshed += news_refreshed;
+    stats.packets_evicted += news_evicted;
+    stats.packets_dropped += news_dropped;
+    stats.created_news = news_created;
 
     // Step 3: Propagation (buffered, reads post-observation snapshot)
     let slot_lookup: std::collections::HashMap<u32, usize> = alive_slots
@@ -874,6 +1070,10 @@ pub fn knowledge_phase(
     stats.transmitted_threat = tt;
     stats.transmitted_trade = ttr;
     stats.transmitted_religious = tr;
+    stats.transmitted_news = buffer
+        .iter()
+        .filter(|b| b.candidate.info_type == InfoType::MovementNews as u8)
+        .count() as u32;
 
     // Step 4: Commit buffered receives
     let (commit_refreshed, evicted, dropped) = commit_buffered(pool, buffer);
@@ -969,5 +1169,125 @@ mod tests {
         // Different turn → different result
         let e = gen_roll(1, 2, 1, 0, 5, 11);
         assert_ne!(a, e, "different turn must produce different roll");
+    }
+
+    // --- guilds: movement news ---------------------------------------------------
+
+    use crate::agent::Occupation;
+
+    fn one_agent() -> (AgentPool, usize) {
+        let mut pool = AgentPool::new(2);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        (pool, slot)
+    }
+
+    fn cand(info_type: u8, source_region: u16, source_turn: u16, intensity: u8) -> PacketCandidate {
+        PacketCandidate { info_type, source_region, source_turn, intensity, hop_count: 0 }
+    }
+
+    const NEWS: u8 = InfoType::MovementNews as u8;
+
+    #[test]
+    fn news_never_displaces_another_packet_and_yields_its_slot() {
+        let (mut pool, s) = one_agent();
+        for (t, r) in [(1u8, 1u16), (2, 2), (3, 3)] {
+            assert_eq!(admit_packet(&mut pool, s, &cand(t, r, 5, 100)), AdmitResult::Inserted);
+        }
+        let code = news_code(0, NEWS_REFORM);
+        assert_eq!(admit_packet_from_civ(&mut pool, s, &cand(NEWS, 9, 5, 200), code), AdmitResult::Inserted);
+        // Full: newer news replaces the news slot only.
+        assert_eq!(admit_packet_from_civ(&mut pool, s, &cand(NEWS, 8, 6, 200), code), AdmitResult::Evicted);
+        let types: Vec<u8> = (0..4).map(|i| unpack_type(pool.pkt_type_and_hops[s][i])).collect();
+        assert_eq!(types, vec![1, 2, 3, NEWS]);
+        assert_eq!(pool.pkt_source_region[s][3], 8);
+        // Older news is dropped; another type takes the news slot as if empty.
+        assert_eq!(admit_packet_from_civ(&mut pool, s, &cand(NEWS, 7, 5, 255), code), AdmitResult::Dropped);
+        assert_eq!(admit_packet(&mut pool, s, &cand(2, 4, 4, 60)), AdmitResult::Inserted);
+        assert_eq!(unpack_type(pool.pkt_type_and_hops[s][3]), 2);
+        // With four packets of other types, news finds no place.
+        assert_eq!(admit_packet_from_civ(&mut pool, s, &cand(NEWS, 6, 9, 255), code), AdmitResult::Dropped);
+        assert!((0..4).all(|i| unpack_type(pool.pkt_type_and_hops[s][i]) != NEWS));
+    }
+
+    #[test]
+    fn with_or_without_news_the_other_packets_are_slot_for_slot_the_same() {
+        // The same stream of threat/trade/religious packets, with news
+        // interleaved in one pool: every slot either matches or is news where
+        // the other pool's slot is empty.
+        let (mut plain, a) = one_agent();
+        let (mut mixed, b) = one_agent();
+        let mut rng = ChaCha8Rng::seed_from_u64(17);
+        for step in 0..400u32 {
+            let turn = (step / 3) as u16;
+            if rng.gen::<f32>() < 0.5 {
+                let c = cand(rng.gen_range(1..=4), rng.gen_range(0..6), turn, rng.gen_range(1..=255));
+                admit_packet_from_civ(&mut mixed, b, &c, news_code(rng.gen_range(0..4), rng.gen_range(0..4)));
+                if c.info_type != NEWS {
+                    admit_packet(&mut plain, a, &c);
+                }
+            }
+            if rng.gen::<f32>() < 0.2 {
+                decay_packets(&mut plain, &[a]);
+                decay_packets(&mut mixed, &[b]);
+            }
+            for i in 0..agent::PACKET_SLOTS {
+                let (tp, tm) = (pool_type(&plain, a, i), pool_type(&mixed, b, i));
+                if tm == NEWS {
+                    assert_eq!(tp, 0, "news holds a slot the plain pool uses (step {step})");
+                    continue;
+                }
+                assert_eq!(plain.pkt_type_and_hops[a][i], mixed.pkt_type_and_hops[b][i], "step {step}");
+                assert_eq!(plain.pkt_source_region[a][i], mixed.pkt_source_region[b][i]);
+                assert_eq!(plain.pkt_source_turn[a][i], mixed.pkt_source_turn[b][i]);
+                assert_eq!(plain.pkt_intensity[a][i], mixed.pkt_intensity[b][i]);
+            }
+        }
+    }
+
+    fn pool_type(pool: &AgentPool, slot: usize, i: usize) -> u8 {
+        unpack_type(pool.pkt_type_and_hops[slot][i])
+    }
+
+    #[test]
+    fn news_is_observed_only_where_a_region_has_it_and_read_by_creed() {
+        let mut pool = AgentPool::new(4);
+        let here = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let there = pool.spawn(1, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+        assert_eq!(observe_news(&mut pool, &regions, &[here, there], 3), (0, 0, 0, 0));
+        regions[1].movement_news = news_code(1, NEWS_RISING);
+        regions[1].movement_news_intensity = 180;
+        assert_eq!(observe_news(&mut pool, &regions, &[here, there], 3).0, 1);
+        assert_eq!(pool_type(&pool, there, 0), NEWS);
+        assert_eq!(pool.pkt_source_civ[there][0], news_code(1, NEWS_RISING));
+        assert_eq!(pool_type(&pool, here, 0), 0);
+        // News from one's own region does not count; carried elsewhere it does.
+        assert_eq!(movement_news_for_creed(&pool, there, 1), (0.0, 0.0));
+        pool.regions[there] = 0;
+        let (inspire, fear) = movement_news_for_creed(&pool, there, 1);
+        assert!((inspire - 180.0 / 255.0).abs() < 1e-6 && fear == 0.0);
+        assert_eq!(movement_news_for_creed(&pool, there, 0), (0.0, 0.0));
+        assert_eq!((news_creed(news_code(3, 2)), news_kind(news_code(3, 2))), (3, 2));
+        // Neighbours hear it at half the intensity.
+        let mut pool = AgentPool::new(4);
+        let near = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let far = pool.spawn(2, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+        let mut regions = vec![RegionState::new(0), RegionState::new(1), RegionState::new(2)];
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0, 2];
+        regions[2].adjacency = vec![1];
+        regions[1].movement_news = news_code(0, NEWS_REFORM);
+        regions[1].movement_news_intensity = 220;
+        regions[2].movement_news = news_code(2, NEWS_FOUNDING);
+        regions[2].movement_news_intensity = 120;
+        assert_eq!(observe_news(&mut pool, &regions, &[near, far], 4).0, 3);
+        assert_eq!((pool.pkt_source_region[near][0], pool.pkt_intensity[near][0]), (1, 110));
+        assert_eq!(movement_news_for_creed(&pool, near, 0).0, 110.0 / 255.0);
+        // The far agent: its own region's founding, then its neighbour's reform.
+        assert_eq!((pool.pkt_source_region[far][0], pool.pkt_intensity[far][0]), (2, 120));
+        assert_eq!((pool.pkt_source_region[far][1], pool.pkt_intensity[far][1]), (1, 110));
+        // It decays at DECAY_NEWS and travels only on its own bonds.
+        assert_eq!(decay_rate(NEWS), DECAY_NEWS);
+        assert!(channel_weight(6, NEWS).is_some() && channel_weight(3, NEWS).is_none());
     }
 }
