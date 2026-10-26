@@ -3,6 +3,7 @@ import {
   charterLabel, CITY_COUNTERS, cityHistory, cityKeys, cityRankRows, cityRecord, citySeries, RANK_COLORS,
   RANK_LABELS, rankLabel, waresLabel,
 } from "../../lib/cities";
+import { cityGuildLabel, GUILD_COUNTERS, guildsAt, privilegesLabel } from "../../lib/guilds";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 
@@ -20,6 +21,10 @@ export function CitiesPanel({
   const cities = snapshot?.cities;
   const at = snapshot?.turn ?? currentTurn;
   const living = cities?.cities ?? [];
+  // Guilds (--guilds): a column and a table, only for runs that record them.
+  const guildState = snapshot?.guilds;
+  const guilds = guildsAt(snapshot);
+  const cityNames = new Map(living.map((row) => [row.id, row.name]));
   const [chosen, setChosen] = useState<number | null>(null);
   const selected = chosen ?? living[0]?.id ?? keys[0]?.id ?? null;
   const selectedName = keys.find((key) => key.id === selected)?.name ?? null;
@@ -43,6 +48,7 @@ export function CitiesPanel({
           />
           <StatTile label="Chartered" value={living.filter((row) => row.charter > 0).length} />
           <StatTile label="Fallen so far" value={cities.fallen} />
+          {guildState && <StatTile label="Guilds" value={guilds.length} detail={`${guildState.dissolved} dissolved`} />}
         </div>
       ) : (
         <div className="phase75-empty-state">No city record at turn {at}.</div>
@@ -76,7 +82,7 @@ export function CitiesPanel({
                 <thead>
                   <tr>
                     <th>City</th><th>Region</th><th>Lord</th><th>Rank</th><th>Residents</th><th>Purse</th>
-                    <th>Wares</th><th>Charter</th><th>Unrest</th>
+                    <th>Wares</th><th>Charter</th><th>Unrest</th>{guildState && <th>Guild</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -99,6 +105,7 @@ export function CitiesPanel({
                       <td>{waresLabel(row)}</td>
                       <td>{charterLabel(row.charter)}</td>
                       <td>{row.unrest.toFixed(2)}</td>
+                      {guildState && <td>{cityGuildLabel(snapshot, row.id)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -110,6 +117,52 @@ export function CitiesPanel({
               <div key={key} className="phase75-stat-row">
                 <span>{label}</span>
                 <strong>{Number(cities.counters[key] ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {guildState && (
+        <section className="systems-section">
+          <h3>Guilds at turn {at}</h3>
+          <p className="systems-note">
+            Craft and merchant guilds of the cities, their privileges (a wares monopoly with market rights, a
+            say in dues with self-government, a guild charter won by a guild movement) and their purses.
+          </p>
+          {guilds.length === 0 ? (
+            <div className="phase75-empty-state">No guild stands at turn {at}.</div>
+          ) : (
+            <div className="systems-table-wrap">
+              <table className="systems-table" aria-label={`Guilds at turn ${at}`}>
+                <thead>
+                  <tr><th>Guild</th><th>City</th><th>Kind</th><th>Masters</th><th>Purse</th><th>Privileges</th><th>Movement</th></tr>
+                </thead>
+                <tbody>
+                  {guilds.map((row) => (
+                    <tr key={row.id} aria-selected={row.city === selected}>
+                      <td>{row.name}</td>
+                      <td>
+                        <button type="button" className="systems-link" onClick={() => setChosen(row.city)}>
+                          {cityNames.get(row.city) ?? `city ${row.city}`}
+                        </button>
+                      </td>
+                      <td>{row.kind}</td>
+                      <td>{row.masters.toFixed(1)}</td>
+                      <td>{row.wealth.toFixed(1)}</td>
+                      <td>{privilegesLabel(row)}</td>
+                      <td>{row.movement != null ? "rising for its privileges" : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="systems-counters" aria-label={`Guild totals by turn ${at}`}>
+            {GUILD_COUNTERS.map(([key, label]) => (
+              <div key={key} className="phase75-stat-row">
+                <span>{label}</span>
+                <strong>{Number(guildState.counters[key] ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
               </div>
             ))}
           </div>

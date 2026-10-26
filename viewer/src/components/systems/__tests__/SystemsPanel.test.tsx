@@ -407,6 +407,43 @@ describe("CitiesPanel", () => {
     expect(within(rows[1]).getAllByText("-").length).toBeGreaterThan(0);
   });
 
+  it("shows a guild column and the guilds table only in runs with guilds", () => {
+    const snapshot = citiesAt(150);
+    const [first, second] = snapshot.cities!.cities;
+    // Synthetic guild rows on the cities fixture (the shape guilds.snapshot_summary writes).
+    const withGuilds: TurnSnapshot = {
+      ...snapshot,
+      guilds: {
+        guilds: [
+          { id: 0, name: `the Weavers' Guild of ${first.name}`, city: first.id, region: first.region,
+            kind: "craft", masters: 6.2, wealth: 4.5, monopoly: true, say: true, charter: 3 },
+          { id: 2, name: `the Merchant Guild of ${second.name}`, city: second.id, region: second.region,
+            kind: "merchant", masters: 4.1, wealth: 1.0, monopoly: false, say: false, levy: true, movement: 7 },
+        ],
+        dissolved: 1,
+        burghers: { "Kethani Empire": 0.14 },
+        counters: { founded: 3, privileges: 2, levies: 1, threats: 2, movements: 1, charters: 1 },
+      },
+    };
+    render(<CitiesPanel {...props(cities, withGuilds)} />);
+    const table = screen.getByRole("table", { name: "Cities at turn 150" });
+    expect(within(table).getByRole("columnheader", { name: "Guild" })).toBeInTheDocument();
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("craft: monopoly, say in dues, guild charter")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("merchant: levied")).toBeInTheDocument();
+    const guilds = screen.getByRole("table", { name: "Guilds at turn 150" });
+    expect(within(guilds).getAllByRole("row")).toHaveLength(3);
+    expect(within(guilds).getByText("rising for its privileges")).toBeInTheDocument();
+    fireEvent.click(within(guilds).getByRole("button", { name: second.name }));
+    expect(screen.getByRole("region", { name: `History of ${second.name}` })).toBeInTheDocument();
+    expect(screen.getByLabelText("Guild totals by turn 150")).toHaveTextContent("Guild charters1");
+    cleanup();
+    render(<CitiesPanel {...props(cities, snapshot)} />);
+    expect(within(screen.getByRole("table", { name: "Cities at turn 150" }))
+      .queryByRole("columnheader", { name: "Guild" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Guilds at turn 150" })).not.toBeInTheDocument();
+  });
+
   it("says so before the first city and is a tab only when the run records cities", () => {
     render(<CitiesPanel {...props(cities, citiesAt(5))} />);
     expect(screen.getByText("No city stands at turn 5.")).toBeInTheDocument();

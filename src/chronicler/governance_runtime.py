@@ -71,7 +71,8 @@ INSTITUTION_OFFSET = 1200
 STRESS_OFFSET = 1300
 LEGITIMACY_AMBITION_OFFSET = 1900
 
-_FACTIONS = tuple(FactionType)
+# The kernel knows the four classic factions; burghers (--guilds) stay out of it.
+_FACTIONS = tuple(ft for ft in FactionType if ft.value in {f.value for f in g01.Faction})
 _G01_FACTION = {FactionType(f.value): f for f in g01.Faction}
 _ACTIONS = tuple(ActionType)
 

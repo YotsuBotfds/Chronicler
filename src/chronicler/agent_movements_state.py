@@ -14,9 +14,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-#: ``Movement.creed`` names: the grievance a movement carries.
-CREED_NAMES: tuple[str, ...] = ("commons", "liberty", "sect")
-COMMONS, LIBERTY, SECT = range(len(CREED_NAMES))
+#: ``Movement.creed`` names: the grievance a movement carries. ``guild``
+#: (guilds, ``--guilds``): a city's guild defending its privileges, founded
+#: by :mod:`chronicler.guilds` when they are threatened, never from the census.
+CREED_NAMES: tuple[str, ...] = ("commons", "liberty", "sect", "guild")
+COMMONS, LIBERTY, SECT, GUILD = range(len(CREED_NAMES))
+#: Creeds whose grievance is a need (the native census counts these).
+NEED_CREEDS = 3
 
 #: ``Movement.stage`` names (all but ``ended`` are sent to the agent tick).
 STAGE_NAMES: tuple[str, ...] = ("gathering", "pressing", "suppressed", "rising", "satisfied", "ended")
@@ -41,8 +45,10 @@ COUNTER_KEYS: tuple[str, ...] = (
 )
 
 #: ``Reform.kind`` names: the lasting reform a creed wins (index = creed).
-REFORM_NAMES: tuple[str, ...] = ("relief", "home_rule", "toleration")
-RELIEF, HOME_RULE, TOLERATION = range(len(REFORM_NAMES))
+#: ``guild_charter``: the guild's privileges and lower dues in its city
+#: (``regions`` its region, ``cities`` its settlement id).
+REFORM_NAMES: tuple[str, ...] = ("relief", "home_rule", "toleration", "guild_charter")
+RELIEF, HOME_RULE, TOLERATION, GUILD_CHARTER = range(len(REFORM_NAMES))
 
 #: ``Reform.repeal`` names (0 while in force). ``lapsed`` ends a reform
 #: without a grievance (its realm, region or faith is gone).

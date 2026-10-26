@@ -25,6 +25,7 @@ from chronicler.gp_agendas_state import GPAgendaState
 from chronicler.nomads_state import NomadState
 from chronicler.cities_state import CityState
 from chronicler.agent_movements_state import MovementState
+from chronicler.guilds_state import GuildState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -120,6 +121,16 @@ class FactionType(str, Enum):
     MERCHANT = "merchant"
     CULTURAL = "cultural"
     CLERGY = "clergy"
+    # Guilds (--guilds): burghers and guild masters. A civ's influence map
+    # holds it only while guilds are on and the civ has chartered cities, a
+    # free city or a guild; worlds without it keep the four factions above.
+    BURGHER = "burgher"
+
+
+#: The four factions every civ has (the governance kernel's factions).
+CLASSIC_FACTIONS: tuple[FactionType, ...] = (
+    FactionType.MILITARY, FactionType.MERCHANT, FactionType.CULTURAL, FactionType.CLERGY,
+)
 
 
 class Belief(BaseModel):
@@ -1213,6 +1224,10 @@ class WorldState(BaseModel):
     # crackdowns, risings, schisms and secessions (chronicler.agent_movements;
     # None = disabled; omitted from output).
     agent_movements: MovementState | None = None
+    # Guilds and burghers: city guilds with privileges, guild movements, the
+    # burgher faction and movement news (chronicler.guilds; None = disabled;
+    # omitted from output).
+    guilds: GuildState | None = None
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState)
     pending_shocks: list = Field(default_factory=list, exclude=True)   # list[CivShock]
@@ -1324,6 +1339,8 @@ class WorldState(BaseModel):
             data.pop("cities", None)
         if isinstance(data, dict) and self.agent_movements is None:
             data.pop("agent_movements", None)
+        if isinstance(data, dict) and self.guilds is None:
+            data.pop("guilds", None)
         if isinstance(data, dict) and self.provenance.is_empty():
             data.pop("provenance", None)
         return data
@@ -1472,6 +1489,8 @@ class TurnSnapshot(BaseModel):
     cities: dict | None = None
     # Agent movements per-turn summary; None (and omitted) when off.
     agent_movements: dict | None = None
+    # Guilds per-turn summary; None (and omitted) when guilds are off.
+    guilds: dict | None = None
     # Viewer only: per-region food sufficiency and the completed turn's relief
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
@@ -1509,6 +1528,8 @@ class TurnSnapshot(BaseModel):
             data.pop("cities")
         if isinstance(data, dict) and data.get("agent_movements", 0) is None:
             data.pop("agent_movements")
+        if isinstance(data, dict) and data.get("guilds", 0) is None:
+            data.pop("guilds")
         return data
 
 

@@ -23,11 +23,12 @@ pub enum CharacterRole {
 }
 
 impl CharacterRole {
-    /// The roles a movement leader can take (general or prophet), from the
-    /// wire id; None for any other id.
+    /// The roles a movement leader can take (general, prophet, or a merchant
+    /// for a guild's movement), from the wire id; None for any other id.
     pub fn from_leader_u8(v: u8) -> Option<Self> {
         match v {
             0 => Some(Self::General),
+            1 => Some(Self::Merchant),
             3 => Some(Self::Prophet),
             _ => None,
         }

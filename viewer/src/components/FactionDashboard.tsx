@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { Civilization, TurnSnapshot, CivSnapshot } from "../types";
 import { factionColor } from "../lib/colors";
 import { ERA_LABELS } from "../lib/format";
-import { civDisplayRow, civStatSeries } from "../lib/civRows";
+import { civDisplayRow, civStatSeries, FACTION_COLORS, factionShares } from "../lib/civRows";
 
 interface FactionDashboardProps {
   civilizations: Civilization[];
@@ -14,6 +14,28 @@ const STAT_KEYS: (keyof Pick<
   CivSnapshot,
   "population" | "military" | "economy" | "culture" | "stability" | "treasury" | "asabiya"
 >)[] = ["population", "military", "economy", "culture", "stability", "treasury", "asabiya"];
+
+function FactionBar({ influence, civName }: { influence: Record<string, number> | undefined | null; civName: string }) {
+  const shares = factionShares(influence);
+  if (shares.length === 0) return null;
+  const total = shares.reduce((sum, [, value]) => sum + value, 0) || 1;
+  return (
+    <div className="mb-2" aria-label={`Factions of ${civName}`}>
+      <div className="flex h-2 w-full overflow-hidden">
+        {shares.map(([name, value]) => (
+          <div
+            key={name}
+            title={`${name} ${(100 * value / total).toFixed(0)}%`}
+            style={{ width: `${(100 * value) / total}%`, backgroundColor: FACTION_COLORS[name] ?? "#7d8a96" }}
+          />
+        ))}
+      </div>
+      <div className="text-xs text-gray-500 mt-1">
+        {shares.map(([name, value]) => `${name} ${value.toFixed(2)}`).join(" · ")}
+      </div>
+    </div>
+  );
+}
 
 function Sparkline({
   data,
@@ -135,6 +157,8 @@ export function FactionDashboard({
             <div className="text-xs text-gray-500 mb-2">
               {civ.domains.join(", ")} · {civ.values.join(", ")}
             </div>
+
+            <FactionBar influence={civSnap?.factions?.influence} civName={civ.name} />
 
             {!alive && (
               <div className="text-xs text-red-400 mb-2">
