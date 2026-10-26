@@ -23,6 +23,7 @@ from chronicler.models import (
     NarrativeRole,
     TurnSnapshot,
 )
+from chronicler.historical_context import AsOf, HistoricalRecord
 from chronicler.narration_context import (
     TURNING_POINT_IMPORTANCE,
     event_text,
@@ -849,17 +850,19 @@ def build_gap_summaries(
 ) -> list[GapSummary]:
     """Build summaries for the turns between consecutive moments.
 
-    Each gap covers the turns strictly between two moment turn_ranges.
+    Each gap covers the turns strictly between two moment turn_ranges. Its
+    changes run from before its first turn to after its last
+    (``historical_context``: ``AsOf.before(start)`` to ``AsOf.after(end)``,
+    the snapshots labelled ``start`` and ``end + 1``, or the latest earlier
+    ones), so a change made during the last turn counts. Civs are listed in
+    name order: the summary's bytes do not depend on set iteration order.
     """
     if len(moments) < 2:
         return []
 
     # Sort moments by anchor_turn
     sorted_moments = sorted(moments, key=lambda m: m.anchor_turn)
-
-    # Index snapshots by turn for lookup
-    snap_by_turn: dict[int, TurnSnapshot] = {s.turn: s for s in history}
-    sorted_snap_turns = sorted(snap_by_turn.keys())
+    record = HistoricalRecord(history=history, events=(), observed_through=None)
 
     gaps: list[GapSummary] = []
 
@@ -892,9 +895,9 @@ def build_gap_summaries(
         else:
             top_event_type = "none"
 
-        # Find snapshots closest to gap boundaries
-        snap_before = _find_closest_snap(sorted_snap_turns, snap_by_turn, gap_start, before=True)
-        snap_after = _find_closest_snap(sorted_snap_turns, snap_by_turn, gap_end, before=False)
+        # The state before the gap's first turn and after its last.
+        snap_before = record.snapshot(AsOf.before(gap_start))
+        snap_after = record.snapshot(AsOf.after(gap_end))
 
         # Stat deltas
         stat_deltas: dict[str, dict[str, int]] = {}
@@ -903,7 +906,7 @@ def build_gap_summaries(
         if snap_before and snap_after:
             # Compute stat deltas for each civ present in both snapshots
             all_civs = set(snap_before.civ_stats.keys()) | set(snap_after.civ_stats.keys())
-            for civ in all_civs:
+            for civ in sorted(all_civs):
                 if civ in snap_before.civ_stats and civ in snap_after.civ_stats:
                     before_stats = snap_before.civ_stats[civ]
                     after_stats = snap_after.civ_stats[civ]
@@ -932,37 +935,6 @@ def build_gap_summaries(
         ))
 
     return gaps
-
-
-def _find_closest_snap(
-    sorted_turns: list[int],
-    snap_by_turn: dict[int, TurnSnapshot],
-    target: int,
-    before: bool,
-) -> TurnSnapshot | None:
-    """Find the snapshot closest to ``target``.
-
-    If ``before=True``, find the snapshot at or before target.
-    If ``before=False``, find the snapshot at or after target.
-    """
-    if not sorted_turns:
-        return None
-
-    if before:
-        # Find largest turn <= target
-        best = None
-        for t in sorted_turns:
-            if t <= target:
-                best = t
-            else:
-                break
-        return snap_by_turn[best] if best is not None else None
-    else:
-        # Find smallest turn >= target
-        for t in sorted_turns:
-            if t >= target:
-                return snap_by_turn[t]
-        return snap_by_turn[sorted_turns[-1]]
 
 
 # ---------------------------------------------------------------------------
