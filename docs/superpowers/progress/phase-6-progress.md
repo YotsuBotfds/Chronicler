@@ -6,6 +6,74 @@
 
 ---
 
+## Validation integrity (2026-10-26, `fix/validation-integrity`)
+
+> **Last updated:** 2026-10-26 (`fix/validation-integrity` from `main` `fc01d6e`, merged with `b8f0243`: validation tooling only, simulation output byte-identical; needs oracle method 4 counts outcomes after the snapshot turn; batch directories refuse reuse and carry a checked manifest; the comparator refuses different cohorts unless exploratory; seed 0, lockfile, CI from the lock, viewer CI; full gate with method 4 not run.)
+
+`fix/validation-integrity` from `main` `fc01d6e` (PR #44), merged without
+rebase with `b8f0243` (PR #45). An external review's four findings, each
+reproduced on `fc01d6e` first. Details and evidence:
+[`docs/integration/validation-integrity.md`](../../integration/validation-integrity.md).
+
+- **Needs oracle method 4.** The turn-t sidecar snapshot is written after
+  turn t's agent actions (a migrant already in its new region, a rebel's
+  autonomy +0.10), and methods 2 and 3 counted turns t .. t+19: two seeds
+  whose only actions fall on the snapshot turn passed the full profile.
+  Method 4 counts t+1 .. t+20 (eligible when t + 20 < N); same matching,
+  criteria and profiles; same-turn rebels stay prior rebels.
+  `method_version=3` re-scores method 3 exactly; the comparator flags 3
+  against 4 for re-baselining. No threshold changed.
+- **Method 3 -> 4 on the 48 retained sidecar sets.** Full gate sidecars
+  (200 x 500, needs-followups head `d44cf4f`): pooled +0.222 (+0.204), 176
+  seeds -> +0.209 (+0.190), 175; binding +0.192 (+0.168) -> +0.185
+  (+0.160); PASS -> PASS. Subsets: 3 subset-profile verdicts change (two
+  terms-zeroed sets FAIL -> PASS, the unshipped hunger mid range PASS ->
+  FAIL) and 3 full-rule verdicts (two older terms-on sets PASS -> FAIL at
+  bounds -0.006 and -0.005, one terms-zeroed set FAIL -> PASS at +0.021).
+- **Batch directories.** A batch refuses a non-empty destination (claimed
+  by an exclusively created manifest) and writes `batch_manifest.json`:
+  seeds, turns, requested simulation configuration, Git revision and
+  package digest, native extension SHA-256, interpreter, platform and thread
+  environment, SHA-256 of every validation input. Validation refuses
+  unlisted bundles, missing seeds, short horizons, changed inputs and
+  incomplete batches; `--legacy-batch` validates an old directory
+  unchecked. The gate runner checks its destination first and writes a
+  manifest for determinism pairs.
+- **Comparator.** Refuses reports of different seeds, turns, worlds,
+  simulation configuration or profile unless `--exploratory` (labelled
+  EXPLORATORY); old reports give seeds and turns through their per-seed
+  rows. NO REGRESSION is stated to mean no newly failing required gate.
+  Results by category (execution, determinism, balance, mechanism);
+  conservation, performance and rendering are named as unmeasured.
+- **Small fixes.** `--seed 0`; `uv.lock` regenerated (numpy, scipy,
+  pyarrow, arro3-core were missing), CI checks it and installs with `uv sync
+  --frozen`; a viewer job (npm ci, tests, lint, build).
+- **Gates (method 4, merged `c1ce58a`, extension `a6d0de13...6d31` fresh
+  from `fc01d6e`).** Template subset 42-61 PASS (+0.191 (+0.101), 14
+  seeds; binding +0.253 (+0.134)); procedural subset 42-61 PASS (+0.177
+  (+0.132), 18; binding +0.206 (+0.117)); each NO REGRESSION against the
+  last method 3 report of the same simulation, every other oracle
+  identical, needs re-baselining flagged; method 3 re-scored on each batch
+  equals that report. Full template gate with method 4 not run (the
+  machine's full-gate slot was taken by other gates).
+- **Identity.** `turn_speed_identity.py` (4 cases, 320 files) and a
+  42-44 x 200 hybrid batch (331 files): 0 differences against `fc01d6e`
+  and, merged, against `b8f0243`; `batch_manifest.json` is the only new
+  file.
+- **Tests.** Focused 512 passed; oracle lane PASS in 103.5 s (2,460
+  passed, 36 skipped; new `validation-tooling` chunk); not-slow `-n 2`
+  6,409 passed, 3 skipped, 9 pytest-xdist serialization failures that fail
+  the same way on `fc01d6e` and pass in one process; viewer 352 tests, lint
+  and build; no `cargo test` (no Rust change).
+- **Open.** The cohort oracle has the same window convention (not
+  changed). Method 4 weakens the binding component's subset-scale
+  separation a little (it decides only in the full profile). The manifest's
+  Git revision does not detect uncommitted changes (the package digest
+  does). Not run: the full gates with method 4, `-m slow`, the new CI
+  workflows on GitHub.
+
+---
+
 ## Historical parity (2026-10-26, `fix/historical-parity`)
 
 > **Last updated:** 2026-10-26 (`fix/historical-parity` from `main` `fc01d6e`: narration, curation, live transport and viewer only; every simulation output byte identical. All six review findings reproduced on `fc01d6e` and fixed. Open: no native/hybrid run, no LLM, no browser QA.)

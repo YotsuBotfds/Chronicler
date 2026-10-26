@@ -1,5 +1,12 @@
 # Needs follow-ups (2026-10)
 
+> **Method 3 is superseded as the gate's method by method 4** (2026-10,
+> [`validation-integrity.md`](validation-integrity.md) §1): the same
+> criteria, with outcomes counted on turns t+1 .. t+20 after a turn-t
+> snapshot instead of t .. t+19, because the snapshot is written after turn
+> t's agent actions. `run_needs_oracle(..., method_version=3)` re-scores
+> method 3 exactly; the numbers below are method 3's.
+
 Branch `fix/needs-followups` from `main` `f5425dc` (PR #37, movements on by
 default), merged without rebase. Three changes, each a correction in every
 agent mode with no switch:
