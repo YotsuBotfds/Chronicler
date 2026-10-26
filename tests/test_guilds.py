@@ -592,7 +592,7 @@ def _emerge_with(monkeypatch, world, informed, roll):
     """Run emergence over one candidate (commons, Thornwood, 10 of 30
     aggrieved: chance 0.05) with a fixed roll; returns the foundings."""
     founded = []
-    monkeypatch.setattr(M, "_found", lambda t, ri, creed, *a, **k: founded.append((ri, creed)))
+    monkeypatch.setattr(M, "_found", lambda t, ri, creed, *a, **k: founded.append((ri, creed)) or True)
     monkeypatch.setattr(M, "_carrier", lambda *a, **k: (None, 1.0))
     monkeypatch.setattr(M, "_rng", lambda *a, **k: SimpleNamespace(random=lambda: roll))
     nreg = len(world.regions)
@@ -619,6 +619,65 @@ def test_news_raises_the_founding_chance_within_its_bound(monkeypatch):
     assert _emerge_with(monkeypatch, world, 10, 0.11) == []        # bounded at twice
     world.tuning_overrides = {"guilds.movement_news": 0}
     assert _emerge_with(monkeypatch, world, 10, 0.07) == []        # news off: ignored
+
+
+def _won_demand(world, region=AMBER, turn=25, creed=0, kind="reform"):
+    """A like movement whose demand was granted in ``region`` at ``turn``."""
+    m = Movement(name="the Levellers", creed=creed, founded_turn=turn - 8, home_region=region,
+                 target=KETHANI, stage=GATHERING, reform_turn=turn)
+    eid = f"{turn}:movement_{kind}:0"
+    m.history = [(turn - 8, "founded", "x"), (turn, kind, eid)]
+    world.agent_movements.movements.append(m)
+    return eid
+
+
+def test_news_of_a_like_movements_won_demand_is_cited_as_the_foundings_cause():
+    world = _world()
+    eid = _won_demand(world)
+    # The census's source: news observed by tick 26 tells of turn 25.
+    held = (AMBER, 26, G.REFORM_NEWS, 4)
+    assert M.news_cause(world, THORNWOOD, 0, 10, held) == eid
+    assert M.news_cause(world, THORNWOOD, 0, 10, (AMBER, 26, G.REFORM_NEWS, 2))\
+        is None                                                  # under a quarter of the aggrieved
+    assert M.news_cause(world, THORNWOOD, 0, 10, (AMBER, 26, G.RISING_NEWS, 9)) is None
+    assert M.news_cause(world, THORNWOOD, 0, 10, (AMBER, 27, G.REFORM_NEWS, 9)) is None  # no such success
+    assert M.news_cause(world, AMBER, 0, 10, held) is None      # news of its own region
+    assert M.news_cause(world, THORNWOOD, 1, 10, held) is None  # another creed
+    assert M.news_cause(world, THORNWOOD, 0, 10, None) is None
+    conceded = _world()
+    eid2 = _won_demand(conceded, kind="concession")
+    assert M.news_cause(conceded, THORNWOOD, 0, 8, (AMBER, 26, G.REFORM_NEWS, 2)) == eid2
+
+
+def test_a_founding_sparked_by_news_cites_it_and_changes_nothing_else(monkeypatch):
+    monkeypatch.setattr(M, "_carrier", lambda *a, **k: (None, 1.0))
+    monkeypatch.setattr(M, "_rng", lambda *a, **k: SimpleNamespace(random=lambda: 0.0))
+
+    def found(sources):
+        world = _world()
+        eid = _won_demand(world)
+        nreg = len(world.regions)
+        aggrieved = [[0, 0, 0] for _ in range(nreg)]
+        aggrieved[THORNWOOD] = [10, 0, 0]
+        informed = [[0, 0, 0] for _ in range(nreg)]
+        informed[THORNWOOD] = [6, 0, 0]
+        t = M._Tick(world, None, None, None)
+        M._emerge(t, ([30] * nreg, aggrieved, informed, sources(nreg)))
+        return world, t.events, eid
+
+    def held(nreg):
+        src = [[None, None, None] for _ in range(nreg)]
+        src[THORNWOOD][0] = (AMBER, 26, G.REFORM_NEWS, 5)
+        return src
+
+    world, events, eid = found(held)
+    plain, plain_events, _ = found(lambda nreg: None)
+    assert [e.event_type for e in events] == ["movement_founded"]
+    assert events[0].causes[-1] == eid and eid not in plain_events[0].causes
+    assert events[0].description == plain_events[0].description
+    assert events[0].causes[:-1] == plain_events[0].causes
+    assert world.agent_movements.model_dump() == plain.agent_movements.model_dump()
+    assert world.guilds.counters == plain.guilds.counters
 
 
 def test_guild_movements_count_apart_from_the_census_caps(monkeypatch):

@@ -178,6 +178,26 @@ Consumers, bounded:
 Tuning `guilds.movement_news: 0` turns news off with guilds on (for the
 comparison below).
 
+**Provenance** (`fix/movements-narration-polish`): the census also names,
+per region and creed, the news most of the informed aggrieved hold
+(`news_source_{region,turn,kind,count}_*`: the strongest inspiring packet
+of each, counted by source region, turn and kind; read only). When news of
+a demand a like movement won in another region (a reform or a concession)
+is held by at least a quarter of a founding region's aggrieved
+(`agent_movements.NEWS_CAUSE_SHARE`), the founding cites that event as a
+cause, so the curator's chains and the prompt tell it ("stirred by news of
+the demand won in R in turn T"). No event, draw or state is added; about
+one founding in a run of 150-400 turns qualifies
+([narration-coverage.md](narration-coverage.md#follow-ups-news-guild-chronicles-spread)).
+
+**In-world chronicles**: the court chroniclers tell guild formations,
+privileges won and lost, guild charters granted and repealed and guild
+movements' foundings from importance 3, with their usual bias (glory,
+decree, disgrace; `historiography.GUILD_GLORY`, `GUILD_DECREE`). A guild
+movement now enrols its founders, the city's aggrieved civilian residents,
+when it is founded, and is not founded when none of them is free to join
+([agent-movements.md](agent-movements.md#founders-at-founding-no-empty-movements)).
+
 ### Contracts
 
 - Randomness: `random.Random(stable_hash_int("guilds", namespace, seed,
@@ -547,3 +567,6 @@ Guard 10.5 MB.
   stays in its city's realm.
 - **Calibration.** Guild movements are rare on template worlds (a few per
   500 turns); procedural worlds were not measured.
+- **News provenance** names only a won demand clearly held by the
+  aggrieved; news of a founding or rising elsewhere sparks foundings
+  without a record of which.

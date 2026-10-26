@@ -714,6 +714,86 @@ def apply_diversity_penalty(
 
 
 # ---------------------------------------------------------------------------
+# 5b. spread_moments
+# ---------------------------------------------------------------------------
+
+#: Temporal spread: a stretch of turns no selected moment covers that is
+#: longer than SPREAD_GAP even spacings of the run (span / moments) gets its
+#: best moment, in place of the weakest selected moment whose removal opens
+#: no such stretch, if it scores at least SPREAD_KEEP of it. A moment holding
+#: an event or named event of importance SPREAD_PROTECT or more stays (in a
+#: busy world nearly every window holds a minor landmark, so the landmark
+#: exemption of the diversity rule would leave nothing to move). A run whose
+#: moments are already spread is left as it is; SPREAD_GAP 0 turns it off.
+SPREAD_GAP = 2.0
+SPREAD_KEEP = 0.75
+SPREAD_PROTECT = 9
+
+
+def _spread_protected(m: NarrativeMoment) -> bool:
+    return (any(e.importance >= SPREAD_PROTECT for e in m.events)
+            or any(ne.importance >= SPREAD_PROTECT for ne in m.named_events))
+
+
+def _untold(sel: Sequence[NarrativeMoment], first: int, last: int) -> list[tuple[int, int]]:
+    """Stretches (start, end) of turns no moment of ``sel`` (sorted) covers."""
+    out = []
+    cursor = first
+    for m in sel:
+        if m.turn_range[0] > cursor:
+            out.append((cursor, m.turn_range[0] - 1))
+        cursor = max(cursor, m.turn_range[1] + 1)
+    if cursor <= last:
+        out.append((cursor, last))
+    return out
+
+
+def spread_moments(
+    selected: list[NarrativeMoment],
+    unselected: Sequence[NarrativeMoment],
+    first_turn: int,
+    last_turn: int,
+) -> list[NarrativeMoment]:
+    """Fill the run's long untold stretches (``SPREAD_GAP``), longest first,
+    each with its best unselected moment in place of the weakest selected
+    moment that can go (``SPREAD_KEEP``). Deterministic: ties go to the
+    earlier turn."""
+    if SPREAD_GAP <= 0 or len(selected) < 2 or not unselected:
+        return selected
+    limit = SPREAD_GAP * (last_turn - first_turn + 1) / len(selected)
+    sel = sorted(selected, key=lambda m: (m.turn_range, m.anchor_turn))
+    pool = list(unselected)
+    unfillable: set[tuple[int, int]] = set()
+    for _ in range(len(sel)):
+        stretches = [s for s in _untold(sel, first_turn, last_turn)
+                     if s[1] - s[0] + 1 > limit and s not in unfillable]
+        if not stretches:
+            break
+        a, b = max(stretches, key=lambda s: (s[1] - s[0], -s[0]))
+        inside = [m for m in pool if a <= m.turn_range[0] and m.turn_range[1] <= b]
+        best = max(inside, key=lambda m: (m.score, -m.anchor_turn), default=None)
+        weakest = None
+        for k, m in enumerate(sel):
+            if _spread_protected(m):
+                continue
+            before = sel[k - 1].turn_range[1] if k else first_turn - 1
+            after = sel[k + 1].turn_range[0] if k + 1 < len(sel) else last_turn + 1
+            if after - before - 1 > limit:
+                continue   # its removal would open a long stretch
+            if weakest is None or (m.score, m.anchor_turn) < (weakest.score, weakest.anchor_turn):
+                weakest = m
+        if best is None or weakest is None or best.score < SPREAD_KEEP * weakest.score:
+            unfillable.add((a, b))
+            continue
+        sel.remove(weakest)
+        pool.remove(best)
+        pool.append(weakest)
+        sel.append(best)
+        sel.sort(key=lambda m: (m.turn_range, m.anchor_turn))
+    return sel
+
+
+# ---------------------------------------------------------------------------
 # 6. assign_roles
 # ---------------------------------------------------------------------------
 
@@ -1030,7 +1110,12 @@ def curate(
 
     # 7. Diversity + roles
     if len(selected_moments) > 1:
+        candidates = selected_moments + unselected_moments
         selected_moments = apply_diversity_penalty(selected_moments, unselected_moments)
+        chosen = {id(m) for m in selected_moments}
+        selected_moments = spread_moments(
+            selected_moments, [m for m in candidates if id(m) not in chosen],
+            sorted_events[0].turn, sorted_events[-1].turn)
         # Sort by anchor_turn before role assignment
         selected_moments.sort(key=lambda m: m.anchor_turn)
         assign_roles(selected_moments)

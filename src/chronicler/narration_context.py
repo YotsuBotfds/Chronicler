@@ -217,11 +217,12 @@ def salience(ev: "Event", chained: bool = False, named: bool = False,
     marks it, +1.5 when it involves the civs of the moment's two most
     important events; +2 for a kind seen at most SCARCE_IN_RUN times in the
     run, +1 at most UNCOMMON_IN_RUN, -log2(count / COMMON_IN_RUN) (at most 2)
-    above COMMON_IN_RUN; routine kinds -2."""
+    above COMMON_IN_RUN; routine kinds -2; +2 for a founding the record
+    links to news of a like movement's won demand elsewhere."""
     s = float(ev.importance)
     if chained:
         s += 3.0
-    if named:
+    if named or news_sparked(ev):
         s += 2.0
     if focused:
         s += 1.5
@@ -370,15 +371,50 @@ def places_of(events: Sequence["Event"]) -> list[str]:
     return out
 
 
-def render_prompt_line(line: PromptLine, faiths: dict[int, str] | None = None) -> str:
+#: A like movement's success whose news can spark a founding elsewhere
+#: (``agent_movements.news_cause`` cites it on the founding).
+NEWS_SUCCESS_TYPES: frozenset[str] = frozenset({"movement_reform", "movement_concession"})
+
+
+def _id_type(event_id: str) -> str:
+    """The type an event id names (``<turn>:<type>:<n>``), or ""."""
+    parts = event_id.split(":", 2)
+    return parts[1] if len(parts) == 3 else ""
+
+
+def news_sparked(ev: "Event") -> bool:
+    """A founding whose recorded causes include a like movement's won demand."""
+    return ev.event_type == "movement_founded" and any(
+        _id_type(c) in NEWS_SUCCESS_TYPES for c in ev.causes)
+
+
+def news_spark(ev: "Event", timeline: "TimelineView | None") -> "Event | None":
+    """The like movement's success in another region whose news the record
+    says sparked this founding, or None."""
+    if ev.event_type != "movement_founded" or timeline is None:
+        return None
+    for cid in ev.causes:
+        cause = timeline.by_id.get(cid)
+        if (cause is not None and cause.event_type in NEWS_SUCCESS_TYPES
+                and cause.region and cause.region != ev.region):
+            return cause
+    return None
+
+
+def render_prompt_line(line: PromptLine, faiths: dict[int, str] | None = None,
+                       timeline: "TimelineView | None" = None) -> str:
     """``- [turn 31] famine: Famine strikes X, devastating Y (importance 8; 2 more
-    reports: Thornwood, Amber Valley)``."""
+    reports: Thornwood, Amber Valley)``. With the run's ``timeline`` a founding
+    sparked by news names the success it heard of."""
     ev = line.event
     text = event_text(ev, faiths)
     notes = [f"importance {ev.importance}"]
     driver = getattr(ev, "driver", None)
     if driver:
         notes.append(f"driven by {DRIVER_WORDS.get(driver, driver.replace('_', ' '))}")
+    spark = news_spark(ev, timeline)
+    if spark is not None:
+        notes.append(f"stirred by news of the demand won in {spark.region} in turn {spark.turn}")
     unnamed = [a for a in ev.actors if a and a not in text]
     if unnamed:
         notes.append("with " + ", ".join(unnamed[:3]))

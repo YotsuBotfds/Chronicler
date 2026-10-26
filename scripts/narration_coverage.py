@@ -146,7 +146,13 @@ def table(src: Path, before: Path, after: Path) -> int:
                      "DISGRACE", "GLORY", "RULER", "FAITH", "PEACE"):
             if t in getattr(hg, name):
                 return name.lower().replace("_", " ")
-        return "unclassified (7+)"
+        if t in hg.GUILD_GLORY:
+            return "guild glory (3+)"
+        if t in hg.GUILD_DECREE:
+            return "guild decree (3+)"
+        guild = {"movement_founded": "a guild's: disgrace", "movement_reform": "a guild charter: glory",
+                 "reform_repealed": "a guild charter: decree"}.get(t)
+        return f"unclassified (7+); {guild} (3+)" if guild else "unclassified (7+)"
 
     def curator_class(t: str) -> str:
         fake = Event(turn=0, event_type=t, actors=[], description="x")
