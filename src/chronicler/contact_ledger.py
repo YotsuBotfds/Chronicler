@@ -546,6 +546,21 @@ def top_partners(world, civ: str, channel: str | int = "trade", n: int = 5,
     return out[:n]
 
 
+def merchant_hub_partners(world) -> int:
+    """Live trade partners a merchant hub needs: every other living civ, and
+    at least MERCHANT_HUB_PARTNERS.
+
+    2026-10 correction (docs/integration/procedural-gates.md): the fixed
+    three partners were calibrated on the four-civ template world, where
+    they are every other civ. In ten-civ procedural worlds three of nine was
+    ordinary (75-84% of living civ-turns, against 2-8% on templates) and a
+    merchant great person was born in almost every civ on every 20-turn
+    cooldown. With four living civs or fewer the threshold is unchanged.
+    """
+    living = sum(1 for c in world.civilizations if c.regions)
+    return max(MERCHANT_HUB_PARTNERS, living - 1)
+
+
 def trade_partner_count(world, civ: str, min_flow: float = TRADE_PARTNER_MIN_FLOW) -> int:
     """Number of living civs with decayed goods flow >= ``min_flow`` with ``civ``."""
     civ_map = world.civ_map
