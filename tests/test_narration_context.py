@@ -201,6 +201,18 @@ def test_standing_state_reads_rulers_wars_movements_reforms_cities_and_food(samp
     assert len(lines) <= nc.MAX_STATE_LINES
 
 
+def test_wars_come_from_the_campaign_record_when_it_exists(sample_world):
+    kethani, dorrathi = sample_world.civilizations[0].name, sample_world.civilizations[1].name
+    war = {"war": f"{kethani}:{dorrathi}", "attacker": kethani, "defender": dorrathi, "aim": "conquest",
+           "aim_region": "Iron Peaks", "score": -6, "start_turn": 30, "battles": 2}
+    snap = _snap(41, {kethani: ("Empress Vaelith", None)},
+                 campaign={"armies": [], "battles": [], "occupations": [], "wars": [war]})
+    events = [_ev(40, "war", [kethani, dorrathi], imp=7, eid="40:war:0")]
+    text = "\n".join(nc.standing_state_lines(snap, events, sample_world, None, at_turn=40))
+    assert (f"At war: {kethani} against {dorrathi} since turn 30 (conquest of Iron Peaks; "
+            f"war score -6 for {kethani})") in text
+
+
 def test_a_martyred_leader_is_not_told_as_leading(sample_world):
     """A movement keeps its dead leader's name; the martyrdom event is the record."""
     kethani = sample_world.civilizations[0].name

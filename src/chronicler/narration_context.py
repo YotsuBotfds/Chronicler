@@ -584,11 +584,24 @@ def standing_state_lines(
     if rulers:
         lines.append("Rulers: " + "; ".join(rulers))
 
+    # Wars: the campaign layer's record (aim, start, war score from the
+    # attacker's side, -100..100) when present, else the plain war pairs.
     wars = []
-    for pair in snapshot.active_wars:
-        a, b = pair[0], pair[1]
-        if (a in civs or b in civs) and f"{a} and {b}" not in wars:
-            wars.append(f"{a} and {b}")
+    campaign_wars = (snapshot.campaign or {}).get("wars") or []
+    for w in campaign_wars:
+        a, b = w.get("attacker"), w.get("defender")
+        if a in civs or b in civs:
+            text = f"{a} against {b} since turn {w.get('start_turn')}"
+            aim = str(w.get("aim") or "").replace("_", " ")
+            if aim:
+                text += f" ({aim}" + (f" of {w['aim_region']}" if w.get("aim_region") else "")
+                text += f"; war score {int(w.get('score', 0)):+d} for {a})"
+            wars.append(text)
+    if not campaign_wars:
+        for pair in snapshot.active_wars:
+            a, b = pair[0], pair[1]
+            if (a in civs or b in civs) and f"{a} and {b}" not in wars:
+                wars.append(f"{a} and {b}")
     if wars:
         lines.append("At war: " + "; ".join(wars[:MAX_PER_KIND]))
 
