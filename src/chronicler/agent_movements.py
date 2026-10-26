@@ -170,9 +170,9 @@ REFORM_OPPONENTS = ("merchant", "military", "clergy")
 RELIEF_UPKEEP = 0.75             # treasury per realm region a turn (= the institution's rate)
 ARREARS_TURNS = 3                # unpaid turns that end a relief without an institution
 REPEAL_FACTION_SHARE = 0.40      # = institutions.FACTION_REPEAL_THRESHOLD
-REPEAL_FACTION = 0.05            # chance a turn while the opponent is above the share
-REPEAL_RULER = 0.05              # chance a new ruler repeals it ...
-REPEAL_RULER_HARSH = 0.4         # ... a harsh one
+REPEAL_FACTION = 0.03            # chance a turn while the opponent is above the share
+REPEAL_RULER = 0.03              # chance a new ruler repeals it ...
+REPEAL_RULER_HARSH = 0.25        # ... a harsh one
 REPEAL_MEMORY = 60               # turns a repeal is remembered against its ruler
 REPEAL_EMERGE = 2.0              # founding chance of a restoration movement
 

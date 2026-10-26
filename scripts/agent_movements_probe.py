@@ -35,11 +35,82 @@ CREEDS = ("commons", "liberty", "sect")
 CAUSES = ("famine", "pandemic", "occupation", "conquest", "persecution", "reform_repealed")
 
 
-def _child(out: Path, every: int, argv: list[str]) -> int:
+#: Threshold grid of the needs sample (``--grid``): satisfaction, and the
+#: creed need (material, autonomy, spiritual).
+GRID_SAT = (0.40, 0.45, 0.50)
+GRID_NEED = ((0.35, 0.40, 0.45, 0.50, 0.55), (0.40, 0.45, 0.50, 0.55, 0.60), (0.35, 0.40, 0.45))
+FLAGS = ("famine", "foreign", "persecuted", "minority")
+
+
+def _region_flags(world, ri: int) -> tuple[bool, ...]:
+    """Bad conditions of a region: an open famine episode; occupied or
+    conquered within 20 turns; persecution; a faith other than the ruler's."""
+    from chronicler import provenance as prov
+    region = world.regions[ri]
+    name = region.name
+    civ = world.civ_map.get(region.controller) if region.controller else None
+    famine = prov.open_episode(world, "famine", name) is not None
+    foreign = (region.occupied_by is not None
+               or prov.recall(world, prov.key("conquest", name), within=20) is not None)
+    persecuted = bool(getattr(region, "persecution_intensity", 0.0))
+    minority = (civ is not None and region.majority_belief not in (None, 255)
+                and region.majority_belief != getattr(civ, "civ_majority_faith", 255))
+    return famine, foreign, persecuted, minority
+
+
+def _needs_sample(world, agent_bridge, phase10, grid: dict) -> None:
+    """Per region with 5+ adults: whether the aggrieved share of each creed
+    reaches the founding share under each grid threshold, by condition."""
+    import numpy as np
+    sim = getattr(agent_bridge, "_sim", None)
+    rows = getattr(phase10, "agents", None) if phase10 is not None else None
+    if sim is None or rows is None or not hasattr(sim, "get_all_needs"):
+        return
+    import pyarrow as pa
+    needs = pa.record_batch(sim.get_all_needs())
+    arrays = rows.arrays("id", "age")
+    if arrays is None:
+        return
+    ids, ages = (np.asarray(a, dtype=np.int64) for a in arrays)
+    age_of = dict(zip(ids.tolist(), ages.tolist()))
+    nid = np.asarray(needs.column("agent_id").to_numpy(), dtype=np.int64)
+    adult = np.array([age_of.get(int(i), 0) >= 16 for i in nid], dtype=bool)
+    region = np.asarray(needs.column("region").to_numpy(), dtype=np.int64)[adult]
+    sat = np.asarray(needs.column("satisfaction").to_numpy())[adult]
+    creed_needs = [np.asarray(needs.column(c).to_numpy())[adult] for c in ("material", "autonomy", "spiritual")]
+    nreg = len(world.regions)
+    adults = np.bincount(region, minlength=nreg)
+    flags = [_region_flags(world, r) for r in range(nreg)]
+    for c, values in enumerate(creed_needs):
+        for s in GRID_SAT:
+            for n in GRID_NEED[c]:
+                mask = (sat < s) & (values < n)
+                agg = np.bincount(region[mask], minlength=nreg)
+                for r in range(nreg):
+                    if adults[r] < 5:
+                        continue
+                    hit = int(bool(agg[r] >= 5 and agg[r] / adults[r] >= 0.20))
+                    key = f"{CREEDS[c]}|{s}|{n}"
+                    cell = grid.setdefault(key, {"all": [0, 0], **{f: [0, 0] for f in FLAGS}, "good": [0, 0]})
+                    cell["all"][0] += hit
+                    cell["all"][1] += 1
+                    bad = False
+                    for f, on in zip(FLAGS, flags[r]):
+                        if on:
+                            bad = True
+                            cell[f][0] += hit
+                            cell[f][1] += 1
+                    if not bad:
+                        cell["good"][0] += hit
+                        cell["good"][1] += 1
+
+
+def _child(out: Path, every: int, argv: list[str], grid_on: bool = False) -> int:
     import chronicler.agent_movements as M
     from chronicler import main as entry
 
     samples: list[list] = []
+    grid: dict = {}
     original = M._grievance_census
 
     def recording(agent_bridge, nreg):
@@ -55,9 +126,29 @@ def _child(out: Path, every: int, argv: list[str]) -> int:
     recording.turn = None
     original_tick = M.tick_agent_movements
 
+    foundings: list[list] = []
+    base: dict[str, list[int]] = {"regions": [0], **{f: [0] for f in FLAGS}, "good": [0]}
+
     def tick(world, *a, **kw):
         recording.turn = world.turn
-        return original_tick(world, *a, **kw)
+        state = world.agent_movements
+        before = len(state.movements) if state is not None else 0
+        if world.turn % every == 0:
+            if grid_on:
+                _needs_sample(world, kw.get("agent_bridge"), kw.get("phase10"), grid)
+            for r in range(len(world.regions)):
+                if world.regions[r].controller is None:
+                    continue
+                flags = _region_flags(world, r)
+                base["regions"][0] += 1
+                for f, on in zip(FLAGS, flags):
+                    base[f][0] += on
+                base["good"][0] += not any(flags)
+        events = original_tick(world, *a, **kw)
+        state = world.agent_movements
+        for m in (state.movements[before:] if state is not None else []):
+            foundings.append([world.turn, m.home_region, m.creed, *_region_flags(world, m.home_region)])
+        return events
 
     M._grievance_census = recording
     M.tick_agent_movements = tick
@@ -66,6 +157,7 @@ def _child(out: Path, every: int, argv: list[str]) -> int:
         entry.main()
     finally:
         (out / "census.json").write_text(json.dumps(samples))
+        (out / "conditions.json").write_text(json.dumps({"base": base, "foundings": foundings, "grid": grid}))
     return 0
 
 
@@ -127,7 +219,7 @@ def main(argv: list[str]) -> int:
     if argv and argv[0] == "--child":
         out, _seed, every = Path(argv[1]), argv[2], int(argv[3])
         rest = argv[argv.index("--") + 1:] if "--" in argv else []
-        return _child(out, every, rest)
+        return _child(out, every, rest, grid_on="--grid" in argv[:argv.index("--")] if "--" in argv else False)
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("out", type=Path)
     parser.add_argument("--seeds", default="42-51")
@@ -136,6 +228,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--every", type=int, default=10)
     parser.add_argument("--significant", type=int, default=10)
     parser.add_argument("--summarize-only", action="store_true")
+    parser.add_argument("--grid", action="store_true",
+                        help="sample the needs and score the grievance threshold grid")
     args, extra = parser.parse_known_args(argv)
     if extra and extra[0] == "--":
         extra = extra[1:]
@@ -146,7 +240,8 @@ def main(argv: list[str]) -> int:
     def run(seed: int) -> int:
         run_dir = args.out / f"seed_{seed}"
         run_dir.mkdir(parents=True, exist_ok=True)
-        cmd = [sys.executable, __file__, "--child", str(run_dir), str(seed), str(args.every), "--",
+        cmd = [sys.executable, __file__, "--child", str(run_dir), str(seed), str(args.every),
+               *(["--grid"] if args.grid else []), "--",
                "--seed", str(seed), "--turns", str(args.turns), "--agents", "hybrid",
                "--simulate-only", "--agent-movements", "--output", str(run_dir / "chronicle.md"),
                "--state", str(run_dir / "state.json"), *extra]
@@ -162,6 +257,9 @@ def main(argv: list[str]) -> int:
     shares = {c: [] for c in CREEDS}
     reach = {c: 0 for c in CREEDS}
     worlds = []
+    base_total: dict[str, int] = {}
+    founding_flags = {c: {f: 0 for f in (*FLAGS, "good", "all")} for c in CREEDS}
+    grid_total: dict = {}
     for seed in seeds:
         run_dir = args.out / f"seed_{seed}"
         census = json.loads((run_dir / "census.json").read_text()) if (run_dir / "census.json").exists() else []
@@ -173,6 +271,22 @@ def main(argv: list[str]) -> int:
                 reach[c] += a / adults >= 0.20 and a >= 5
         if (run_dir / "state.json").exists():
             worlds.append(_summarize_world(run_dir, args.significant))
+        cond_path = run_dir / "conditions.json"
+        if cond_path.exists():
+            cond = json.loads(cond_path.read_text())
+            for k, v in cond["base"].items():
+                base_total[k] = base_total.get(k, 0) + v[0]
+            for _turn, _region, creed, *flags in cond["foundings"]:
+                cell = founding_flags[CREEDS[creed]]
+                cell["all"] += 1
+                for f, on in zip(FLAGS, flags):
+                    cell[f] += bool(on)
+                cell["good"] += not any(flags)
+            for key, cell in cond["grid"].items():
+                tot = grid_total.setdefault(key, {})
+                for f, (hit, n) in cell.items():
+                    h0, n0 = tot.get(f, (0, 0))
+                    tot[f] = (h0 + hit, n0 + n)
     n = max(1, len(worlds))
     totals: dict = {}
     for w in worlds:
@@ -187,6 +301,14 @@ def main(argv: list[str]) -> int:
         "per_world": {k: round(v / n, 2) for k, v in totals.items() if not isinstance(v, dict)},
         "per_world_groups": {g: {k: round(v / n, 2) for k, v in d.items()}
                              for g, d in totals.items() if isinstance(d, dict)},
+        "conditions": {
+            "region_share": {k: round(v / max(1, base_total.get("regions", 0)), 4)
+                             for k, v in base_total.items() if k != "regions"},
+            "founding_share": {c: {f: round(v / max(1, cell["all"]), 3) for f, v in cell.items() if f != "all"}
+                               | {"n": cell["all"]} for c, cell in founding_flags.items()},
+        },
+        "grid": {key: {f: round(h / n, 4) if n else None for f, (h, n) in cell.items()}
+                 for key, cell in sorted(grid_total.items())},
         "significant_per_world": [w["significant"] for w in worlds],
         "movements_per_world": [w["movements"] for w in worlds],
         "worlds_detail": worlds,

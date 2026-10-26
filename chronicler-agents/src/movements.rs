@@ -51,8 +51,13 @@ pub const NO_RELIEF: u16 = u16::MAX;
 /// Members and recruits are adults.
 pub const ADULT_AGE: u16 = 16;
 /// Aggrieved: satisfaction below this and the creed's need below its threshold.
+/// Needs calibration (2026-10) moved material and autonomy: material 0.55 ->
+/// 0.45 (the fed poorest settle at 0.56, a dearth's median at 0.44) and
+/// autonomy 0.60 -> 0.50 (foreign rule settles at 0.61, persecution, martial
+/// law and conquest well below); both stay above the behaviour thresholds
+/// (0.30, 0.35). Spiritual is unchanged.
 pub const GRIEVANCE_SAT: f32 = 0.45;
-pub const GRIEVANCE_NEED: [f32; CREED_COUNT] = [0.55, 0.60, 0.45];
+pub const GRIEVANCE_NEED: [f32; CREED_COUNT] = [0.45, 0.50, 0.45];
 
 /// Founding seeds: this share of the region's adults, at least FOUND_MIN.
 pub const FOUND_SHARE: f32 = 0.15;
