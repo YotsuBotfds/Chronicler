@@ -390,6 +390,23 @@ describe("CitiesPanel", () => {
     expect(within(moments).queryByText(/is abandoned/)).not.toBeInTheDocument();
   });
 
+  it("shows the wares each city made, and a dash in bundles from before crafts", () => {
+    const snapshot = citiesAt(150);
+    const withWares: TurnSnapshot = {
+      ...snapshot,
+      cities: {
+        ...snapshot.cities!,
+        cities: snapshot.cities!.cities.map((row, i) => (i === 0 ? { ...row, crafts: 1.25 } : row)),
+      },
+    };
+    render(<CitiesPanel {...props(cities, withWares)} />);
+    const table = screen.getByRole("table", { name: "Cities at turn 150" });
+    expect(within(table).getByRole("columnheader", { name: "Wares" })).toBeInTheDocument();
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("1.3")).toBeInTheDocument();
+    expect(within(rows[1]).getAllByText("-").length).toBeGreaterThan(0);
+  });
+
   it("says so before the first city and is a tab only when the run records cities", () => {
     render(<CitiesPanel {...props(cities, citiesAt(5))} />);
     expect(screen.getByText("No city stands at turn 5.")).toBeInTheDocument();

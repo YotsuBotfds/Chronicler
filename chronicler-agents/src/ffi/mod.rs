@@ -133,6 +133,8 @@ pub struct AgentSimulator {
     household_stats: crate::household::HouseholdStats,
     // M58a: merchant mobility state
     merchant_graph: Option<crate::merchant::RouteGraph>,
+    /// Bulk trade: cargo per trip by mode of travel, applied to every graph.
+    merchant_cargo: crate::merchant::CargoConfig,
     merchant_ledger: Option<crate::merchant::ShadowLedger>,
     merchant_delivery_buf: Option<crate::merchant::DeliveryBuffer>,
     merchant_trip_stats: crate::merchant::MerchantTripStats,
@@ -200,6 +202,7 @@ impl AgentSimulator {
             settlement_grids: Vec::new(),
             household_stats: crate::household::HouseholdStats::default(),
             merchant_graph: None,
+            merchant_cargo: crate::merchant::CargoConfig::default(),
             merchant_ledger: None,
             merchant_delivery_buf: None,
             merchant_trip_stats: crate::merchant::MerchantTripStats::default(),
@@ -506,17 +509,22 @@ impl AgentSimulator {
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         // Merchant routing: the economy's demand and post-trade supply per
         // goods category (absent = 0: no non-food market, no food tally).
-        let market_cols = |prefix: &str| -> [Option<&arrow::array::Float32Array>; 3] {
-            ["food", "raw_material", "luxury"].map(|cat| {
+        const NC: usize = crate::economy::NUM_CATEGORIES;
+        let market_cols = |prefix: &str| -> [Option<&arrow::array::Float32Array>; NC] {
+            crate::ffi::schema::CATEGORY_NAMES.map(|cat| {
                 rb.column_by_name(&format!("{prefix}_{cat}"))
                     .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>())
             })
         };
         let market_demand_cols = market_cols("market_demand");
         let market_supply_cols = market_cols("market_supply");
-        let market_row = |cols: &[Option<&arrow::array::Float32Array>; 3], i: usize| -> [f32; 3] {
-            [0, 1, 2].map(|c| cols[c].map_or(0.0, |arr| arr.value(i)))
+        let market_row = |cols: &[Option<&arrow::array::Float32Array>; NC], i: usize| -> [f32; NC] {
+            std::array::from_fn(|c| cols[c].map_or(0.0, |arr| arr.value(i)))
         };
+        // Crafts: wares on hand over demand at the last economy tick (absent = 0).
+        let craft_sufficiency_col = rb
+            .column_by_name("craft_sufficiency")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
         // Hunger: the severe-shortage run up to the previous turn (absent = 0)
         let food_severe_turns_col = rb
             .column_by_name("food_severe_turns")
@@ -601,7 +609,7 @@ impl AgentSimulator {
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
 
         // M58a: Per-good stockpile columns (optional, backward compatible)
-        let stockpile_cols: Vec<Option<&arrow::array::Float32Array>> = (0..8)
+        let stockpile_cols: Vec<Option<&arrow::array::Float32Array>> = (0..crate::economy::NUM_GOODS)
             .map(|g| {
                 rb.column_by_name(&format!("stockpile_{g}"))
                     .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>())
@@ -686,12 +694,13 @@ impl AgentSimulator {
                     city_pull: city_pull_col.map_or(0.0, |arr| arr.value(i)),
                     market_demand: market_row(&market_demand_cols, i),
                     market_supply: market_row(&market_supply_cols, i),
+                    craft_sufficiency: craft_sufficiency_col.map_or(0.0, |arr| arr.value(i)),
                     food_severe_turns: food_severe_turns_col.map_or(0, |arr| arr.value(i)),
                     harsh_rule: harsh_rule_col.map_or(0.0, |arr| arr.value(i)),
                     raided_this_turn: raided_col.map_or(false, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
-                        let mut s = [0.0f32; 8];
+                        let mut s = [0.0f32; crate::economy::NUM_GOODS];
                         for (g, col) in stockpile_cols.iter().enumerate() {
                             if let Some(arr) = col {
                                 s[g] = arr.value(i);
@@ -897,6 +906,7 @@ impl AgentSimulator {
                 r.city_pull = city_pull_col.map_or(0.0, |arr| arr.value(i));
                 r.market_demand = market_row(&market_demand_cols, i);
                 r.market_supply = market_row(&market_supply_cols, i);
+                r.craft_sufficiency = craft_sufficiency_col.map_or(0.0, |arr| arr.value(i));
                 r.food_severe_turns = food_severe_turns_col.map_or(0, |arr| arr.value(i));
                 r.harsh_rule = harsh_rule_col.map_or(0.0, |arr| arr.value(i));
                 r.raided_this_turn = raided_col.map_or(false, |arr| arr.value(i));
@@ -2231,6 +2241,24 @@ impl AgentSimulator {
         }
     }
 
+    /// Bulk trade: loads per merchant trip overland, by river and by sea,
+    /// and whether trips are planned in bulk, filled against the tick's
+    /// committed deliveries (docs/integration/bulk-trade-crafts.md).
+    /// (1, 1, 1, false) is the one-load trade before it. Applies to the
+    /// current and later graphs.
+    pub fn set_merchant_cargo_config(&mut self, land: f32, river: f32, sea: f32, fill: bool) -> PyResult<()> {
+        for (name, v) in [("land", land), ("river", river), ("sea", sea)] {
+            if !v.is_finite() || v <= 0.0 {
+                return Err(PyValueError::new_err(format!("invalid {name} cargo capacity")));
+            }
+        }
+        self.merchant_cargo = crate::merchant::CargoConfig { land, river, sea, fill };
+        if let Some(graph) = self.merchant_graph.as_mut() {
+            graph.cargo = self.merchant_cargo;
+        }
+        Ok(())
+    }
+
     /// Run the economy tick: returns five Arrow batches.
     ///
     /// Python calls this with dedicated economy input batches (NOT build_region_batch).
@@ -2303,18 +2331,25 @@ impl AgentSimulator {
         let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
         let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
 
-        // Fixed good slot columns
-        const GOOD_NAMES: [&str; 8] = ["grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic"];
-        let mut ri_stockpile_cols: Vec<&Float32Array> = Vec::with_capacity(8);
-        for good in &GOOD_NAMES {
-            ri_stockpile_cols.push(col_f32!(&ri_rb, &format!("stockpile_{good}")));
+        // Fixed good slot columns (crafts optional: absent, no wares in stock).
+        use crate::ffi::schema::GOOD_NAMES;
+        let mut ri_stockpile_cols: Vec<Option<&Float32Array>> = Vec::with_capacity(GOOD_NAMES.len());
+        for (g, good) in GOOD_NAMES.iter().enumerate() {
+            let name = format!("stockpile_{good}");
+            if g == crate::economy::SLOT_CRAFTS {
+                ri_stockpile_cols.push(ri_rb.column_by_name(&name).and_then(|c| c.as_any().downcast_ref::<Float32Array>()));
+            } else {
+                ri_stockpile_cols.push(Some(col_f32!(&ri_rb, &name)));
+            }
         }
 
         let mut region_inputs: Vec<EconomyRegionInput> = Vec::with_capacity(n_regions);
         for i in 0..n_regions {
-            let mut stockpile = [0.0f32; 8];
+            let mut stockpile = [0.0f32; crate::economy::NUM_GOODS];
             for (g, col) in ri_stockpile_cols.iter().enumerate() {
-                stockpile[g] = col.value(i);
+                if let Some(col) = col {
+                    stockpile[g] = col.value(i);
+                }
             }
             region_inputs.push(EconomyRegionInput {
                 region_id: ri_region_ids.value(i),
@@ -2327,8 +2362,12 @@ impl AgentSimulator {
                 subsistence_yield: 0.0,
                 farm_labor_factor: 1.0,
                 craft_raw_demand: 0.0,
+                craft_demand: 0.0,
                 farm_labor_ref: 0.0,
                 farm_labor_half: 0.0,
+                slot_curves: false,
+                slot_labor_ref: [0.0; 3],
+                slot_labor_half: [0.0; 3],
             });
         }
 
@@ -2372,6 +2411,18 @@ impl AgentSimulator {
                 region_inputs[i].craft_raw_demand = v;
             }
         }
+        // Optional (--cities, 2026-10 crafts): wares the people want.
+        if let Some(column) = ri_rb.column_by_name("craft_demand") {
+            let values = column.as_any().downcast_ref::<Float32Array>()
+                .ok_or_else(|| PyValueError::new_err("craft_demand must be Float32"))?;
+            for i in 0..n_regions {
+                let v = values.value(i);
+                if !v.is_finite() || v < 0.0 {
+                    return Err(PyValueError::new_err("invalid craft_demand"));
+                }
+                region_inputs[i].craft_demand = v;
+            }
+        }
 
         // Optional: diminishing returns to farm labour (Python
         // `economy.farm_labor_curve`). Absent columns keep constant returns.
@@ -2390,6 +2441,31 @@ impl AgentSimulator {
                     region_inputs[i].farm_labor_ref = v;
                 }
             }
+        }
+
+        // Optional: mines and forests have their own curves (Python
+        // `economy.slot_labor_curves`): with all six columns the farm curve
+        // applies to the food labour only and each non-food slot's labour has
+        // its own. Absent columns keep the farm curve on all farm labour.
+        let slot_cols: Vec<Option<&Float32Array>> = ["ref", "half"].iter()
+            .flat_map(|kind| (0..3).map(move |slot| format!("slot_labor_{kind}_{slot}")))
+            .map(|name| ri_rb.column_by_name(&name).and_then(|c| c.as_any().downcast_ref::<Float32Array>()))
+            .collect();
+        if slot_cols.iter().all(Option::is_some) {
+            for i in 0..n_regions {
+                region_inputs[i].slot_curves = true;
+                for slot in 0..3 {
+                    let r = slot_cols[slot].unwrap().value(i);
+                    let h = slot_cols[3 + slot].unwrap().value(i);
+                    if !r.is_finite() || r < 0.0 || !h.is_finite() || h < 0.0 {
+                        return Err(PyValueError::new_err("invalid slot labor curve"));
+                    }
+                    region_inputs[i].slot_labor_ref[slot] = r;
+                    region_inputs[i].slot_labor_half[slot] = h;
+                }
+            }
+        } else if slot_cols.iter().any(Option::is_some) {
+            return Err(PyValueError::new_err("slot labor curves need all six slot_labor_* Float32 columns"));
         }
 
         // Optional default-off experiment: a fish slot's goods production may
@@ -2578,17 +2654,23 @@ impl AgentSimulator {
         let mut rr_mm = Float32Builder::with_capacity(n_out);
         let mut rr_mti = Float32Builder::with_capacity(n_out);
         let mut rr_trc = UInt16Builder::with_capacity(n_out);
-        let mut rr_stockpile: Vec<Float32Builder> = (0..8).map(|_| Float32Builder::with_capacity(n_out)).collect();
-        // market_demand_{food,raw_material,luxury}, then market_supply_*.
-        let mut rr_market: Vec<Float32Builder> = (0..6).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        let mut rr_stockpile: Vec<Float32Builder> =
+            (0..crate::economy::NUM_GOODS).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        // market_demand_<category> for every category, then market_supply_*.
+        const NC: usize = crate::economy::NUM_CATEGORIES;
+        let mut rr_market: Vec<Float32Builder> = (0..2 * NC).map(|_| Float32Builder::with_capacity(n_out)).collect();
         let mut rr_fp = Float32Builder::with_capacity(n_out);
+        let mut rr_craft_out = Float32Builder::with_capacity(n_out);
+        let mut rr_craft_suff = Float32Builder::with_capacity(n_out);
 
         for rr in &output.region_results {
-            for c in 0..3 {
+            for c in 0..NC {
                 rr_market[c].append_value(rr.market_demand[c]);
-                rr_market[3 + c].append_value(rr.market_supply[c]);
+                rr_market[NC + c].append_value(rr.market_supply[c]);
             }
             rr_fp.append_value(rr.farm_productivity);
+            rr_craft_out.append_value(rr.craft_output);
+            rr_craft_suff.append_value(rr.craft_sufficiency);
             rr_region_id.append_value(rr.region_id);
             rr_fim.append_value(rr.farmer_income_modifier);
             rr_fs.append_value(rr.food_sufficiency);
@@ -2617,6 +2699,8 @@ impl AgentSimulator {
             rr_columns.push(Arc::new(builder.finish()));
         }
         rr_columns.push(Arc::new(rr_fp.finish()));
+        rr_columns.push(Arc::new(rr_craft_out.finish()));
+        rr_columns.push(Arc::new(rr_craft_suff.finish()));
 
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),
@@ -2651,9 +2735,11 @@ impl AgentSimulator {
         let mut obs_if = Float32Builder::with_capacity(n_out);
         let mut obs_irm = Float32Builder::with_capacity(n_out);
         let mut obs_il = Float32Builder::with_capacity(n_out);
+        let mut obs_ic = Float32Builder::with_capacity(n_out);
         let mut obs_sf = Float32Builder::with_capacity(n_out);
         let mut obs_srm = Float32Builder::with_capacity(n_out);
         let mut obs_sl = Float32Builder::with_capacity(n_out);
+        let mut obs_sc = Float32Builder::with_capacity(n_out);
         let mut obs_is = Float32Builder::with_capacity(n_out);
         let mut obs_td = BooleanBuilder::with_capacity(n_out);
         // M58b: Oracle shadow columns
@@ -2667,9 +2753,11 @@ impl AgentSimulator {
             obs_if.append_value(obs.imports_food);
             obs_irm.append_value(obs.imports_raw_material);
             obs_il.append_value(obs.imports_luxury);
+            obs_ic.append_value(obs.imports_craft);
             obs_sf.append_value(obs.stockpile_food);
             obs_srm.append_value(obs.stockpile_raw_material);
             obs_sl.append_value(obs.stockpile_luxury);
+            obs_sc.append_value(obs.stockpile_craft);
             obs_is.append_value(obs.import_share);
             obs_td.append_value(obs.trade_dependent);
         }
@@ -2711,9 +2799,11 @@ impl AgentSimulator {
                 Arc::new(obs_if.finish()),
                 Arc::new(obs_irm.finish()),
                 Arc::new(obs_il.finish()),
+                Arc::new(obs_ic.finish()),
                 Arc::new(obs_sf.finish()),
                 Arc::new(obs_srm.finish()),
                 Arc::new(obs_sl.finish()),
+                Arc::new(obs_sc.finish()),
                 Arc::new(obs_is.finish()),
                 Arc::new(obs_td.finish()),
                 Arc::new(oracle_if.finish()),
@@ -2832,7 +2922,7 @@ impl AgentSimulator {
             // Empty graph — clear merchant state
             self.merchant_graph = Some(crate::merchant::RouteGraph::from_edges(
                 &[], &[], &[], &[], self.regions.len(),
-            ));
+            ).with_cargo(self.merchant_cargo));
             if self.merchant_ledger.is_none() {
                 self.merchant_ledger = Some(crate::merchant::ShadowLedger::new(self.regions.len()));
                 self.merchant_delivery_buf = Some(crate::merchant::DeliveryBuffer::new(self.regions.len()));
@@ -2885,7 +2975,7 @@ impl AgentSimulator {
                 .ok_or_else(|| PyValueError::new_err("column sea_raid_risk not Float32"))?;
             graph = graph.with_sea_lanes(from_region.values(), to_region.values(), risk.values());
         }
-        self.merchant_graph = Some(graph);
+        self.merchant_graph = Some(graph.with_cargo(self.merchant_cargo));
 
         // Initialize ledger and delivery buffer on first call
         if self.merchant_ledger.is_none() {
@@ -3225,12 +3315,12 @@ mod tests {
         sim.merchant_delivery_buf = Some(buffer);
         let read = |sim: &AgentSimulator, column: &str| -> Vec<f32> {
             let batch = sim.get_stockpile_commitments().unwrap().into_inner();
-            assert_eq!(batch.num_rows(), 16);
+            assert_eq!(batch.num_rows(), 2 * crate::economy::NUM_GOODS);
             batch.column_by_name(column).unwrap().as_any()
                 .downcast_ref::<Float32Array>().unwrap().values().to_vec()
         };
-        assert_eq!(read(&sim, "reserved"), vec![0.0; 16]);
-        assert_eq!(read(&sim, "pending_departure"), vec![0.0; 16]);
+        assert_eq!(read(&sim, "reserved"), vec![0.0; 2 * crate::economy::NUM_GOODS]);
+        assert_eq!(read(&sim, "pending_departure"), vec![0.0; 2 * crate::economy::NUM_GOODS]);
         sim.set_hybrid_economy_mode(true);
         let res = read(&sim, "reserved");
         let dep = read(&sim, "pending_departure");

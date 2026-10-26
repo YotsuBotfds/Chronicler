@@ -349,6 +349,10 @@ pub const MATERIAL_RESTORE_WEALTH: f32 = 0.044;       // [CALIBRATE] was 0.022
 pub const MATERIAL_RESTORE_WEALTH_SHORTAGE: f32 = 0.15; // [CALIBRATE] new
 pub const MATERIAL_DEARTH_PRESSURE: f32 = 0.039;      // [CALIBRATE] new
 pub const MATERIAL_FAMINE_PRESSURE: f32 = 0.018;      // [CALIBRATE] new
+/// Crafts (2026-10, docs/integration/bulk-trade-crafts.md): material need
+/// restored by wares in use at full supply (set as a third of food's
+/// pre-calibration 0.018).
+pub const MATERIAL_RESTORE_CRAFTS: f32 = 0.006; // [CALIBRATE]
 // Social: bonds with people living in the same region restore it (bonds
 // with people elsewhere no longer count), and the community proxy
 // (population, occupation, age) adds a little. One co-resident bond or

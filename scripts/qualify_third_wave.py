@@ -22,10 +22,10 @@ from chronicler.models import ActionType, Civilization, Leader, Region, WorldSta
 from chronicler.agent_bridge import AgentBridge
 from chronicler.simulation import run_turn
 
-GOODS = ("grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic")
+GOODS = ("grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts")
 FOOD = ("grain", "fish", "salt", "botanicals", "exotic")
-SURVIVAL = dict(zip(GOODS, (.95, .92, 1., .99, 1., .96, 1., .94)))
-DECAY = dict(zip(GOODS, (.03, .06, 0., .005, 0., .02, 0., .04)))
+SURVIVAL = dict(zip(GOODS, (.95, .92, 1., .99, 1., .96, 1., .94, 1.)))
+DECAY = dict(zip(GOODS, (.03, .06, 0., .005, 0., .02, 0., .04, .01)))
 RT_GOOD = {0: "grain", 1: "timber", 2: "botanicals", 3: "fish", 4: "salt", 5: "ore", 6: "precious", 7: "exotic"}
 TOL = 1e-3  # independent double-precision oracle versus float32 ABI
 

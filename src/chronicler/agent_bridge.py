@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # M58a: Fixed good slot ordering — mirrors economy.FIXED_GOODS (avoid circular import)
 _FIXED_GOODS: tuple[str, ...] = (
-    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic",
+    "grain", "fish", "salt", "timber", "ore", "botanicals", "precious", "exotic", "crafts",
 )
 FACTION_MAP = {"military": 0, "merchant": 1, "cultural": 2, "clergy": 3}
 
@@ -360,7 +360,7 @@ def _city_route_graph(world: WorldState, batch):
     return merchant_route_graph(world, batch)
 
 
-_MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury")
+_MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
 
 
 def _market_columns(world: WorldState, economy_result) -> dict[str, pa.Array]:
@@ -372,7 +372,8 @@ def _market_columns(world: WorldState, economy_result) -> dict[str, pa.Array]:
         values = getattr(economy_result, attr, None) or {}
         for c, cat in enumerate(_MARKET_CATEGORIES):
             columns[f"{prefix}_{cat}"] = pa.array(
-                [float(values[r.name][c]) if r.name in values else 0.0 for r in world.regions],
+                [float(values[r.name][c]) if c < len(values.get(r.name, ())) else 0.0
+                 for r in world.regions],
                 type=pa.float32(),
             )
     return columns
@@ -675,7 +676,8 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "temple_prestige": pa.array(temple_prestiges, type=pa.float32()),
         # M58a: Per-good stockpile levels for merchant cargo availability
         # Slot ordering matches economy.FIXED_GOODS:
-        #   0=grain, 1=fish, 2=salt, 3=timber, 4=ore, 5=botanicals, 6=precious, 7=exotic
+        #   0=grain, 1=fish, 2=salt, 3=timber, 4=ore, 5=botanicals, 6=precious, 7=exotic,
+        #   8=crafts
         **{
             f"stockpile_{g}": pa.array(
                 [r.stockpile.goods.get(good_name, 0.0) if r.stockpile else 0.0
@@ -696,6 +698,13 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         # returns scales farmer income (without the column Rust reads 1.0).
         columns["farm_productivity"] = pa.array(
             [farm_productivity.get(r.name, 1.0) for r in world.regions], type=pa.float32(),
+        )
+    craft_sufficiency = getattr(economy_result, "craft_sufficiency", None) if economy_result else None
+    if craft_sufficiency:
+        # Crafts: wares on hand over demand restore the material need (without
+        # the column Rust reads 0, no wares market).
+        columns["craft_sufficiency"] = pa.array(
+            [craft_sufficiency.get(r.name, 0.0) for r in world.regions], type=pa.float32(),
         )
     if world.geography is not None:
         # Geography 2.0: latitude-band climate exposure for this turn's phase
@@ -1055,6 +1064,22 @@ def configure_economy_runtime(simulator, world: "WorldState") -> None:
         tatonnement_price_clamp_lo=get_override(world, "economy.tatonnement_price_clamp_lo", 0.5),
         tatonnement_price_clamp_hi=get_override(world, "economy.tatonnement_price_clamp_hi", 2.0),
     )
+    configure_merchant_cargo(simulator, world)
+
+
+def configure_merchant_cargo(simulator, world: "WorldState") -> None:
+    """Bulk trade: send the merchant cargo configuration when a tuning key
+    overrides it (the native defaults are ``economy.MERCHANT_CARGO``)."""
+    from chronicler.economy import MERCHANT_CARGO
+    from chronicler.tuning import (
+        K_CARGO_FILL, K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP,
+    )
+    keys = (K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL)
+    overrides = getattr(world, "tuning_overrides", None) or {}
+    if not any(k in overrides for k in keys):
+        return
+    land, river, sea, fill = (float(overrides.get(k, MERCHANT_CARGO[i])) for i, k in enumerate(keys))
+    simulator.set_merchant_cargo_config(land, river, sea, bool(fill))
 
 
 class AgentBridge:

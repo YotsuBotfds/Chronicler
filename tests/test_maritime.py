@@ -924,14 +924,15 @@ def test_hybrid_merchants_cross_sea_lanes_and_are_raided_deterministically(tmp_p
     for kind in ("ocean", "sea", "coast"):
         monkeypatch.setitem(M.PIRATE_START, kind, 1.0)
     states = []
-    # Seed 8, 40 turns: about 110 crossings and 9 cargo lost to pirates with
-    # the needs calibration (seed 7 then crosses 3 times and loses none).
-    # Sea trade changes with each correction of the agent tick and the food
-    # economy.
+    # Seed 13, 40 turns: 76 crossings and about 11 loads lost to pirates with
+    # bulk trade, mines and forests on their own curves and the needs
+    # calibration (seeds 7, 8 and 11 then lose none, seed 10 a fifth of a
+    # load). Sea trade changes with each correction of the agent tick and
+    # the food economy.
     for label in ("a", "b"):
         out = tmp_path / label
         args = _build_parser().parse_args([
-            "--seed", "8", "--turns", "40", "--regions", "48", "--civs", "10",
+            "--seed", "13", "--turns", "40", "--regions", "48", "--civs", "10",
             "--worldgen", "procedural", "--agents", "hybrid", "--simulate-only", "--maritime",
             "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")])
         execute_run(args)

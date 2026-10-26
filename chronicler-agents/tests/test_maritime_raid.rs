@@ -21,7 +21,7 @@ fn setup_linear_world() -> (AgentPool, Vec<RegionState>, RouteGraph) {
     let mut regions: Vec<RegionState> = (0..4)
         .map(|i| {
             let mut r = RegionState::new(i);
-            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+            r.stockpile = [10.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
             r.controller_civ = 0;
             r.population = 20;
             r

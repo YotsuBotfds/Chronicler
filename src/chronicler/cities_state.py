@@ -54,6 +54,7 @@ class City(BaseModel):
     mix: list[float] = Field(default_factory=lambda: [0.45, 0.15, 0.15, 0.15, 0.10])
     satisfaction: float | None = None
     commerce: float = 0.0            # last turn's commerce
+    crafts: float = 0.0              # wares the city made last turn (2026-10 crafts)
     wealth: float = 0.0              # civic purse
     peak_wealth: float = 0.0
     charter: int = 0

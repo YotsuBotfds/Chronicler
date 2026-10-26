@@ -34,6 +34,12 @@ Markets (docs/integration/city-markets.md)
     is cut off from the merchant graph (:func:`merchant_route_graph`).
     Merchant imports raise commerce.
 
+Crafts (docs/integration/bulk-trade-crafts.md)
+    The crafts work those raw materials into wares (the goods economy's
+    ``crafts``), which every region's people want (``craft_demand``) and
+    merchants carry out of the cities; the wares a city makes raise its
+    commerce.
+
 Political voice
     Patricians raise the lord's merchant faction; cities petition for
     charters; unrest from hunger, misery, dues, occupation and grievance
@@ -190,6 +196,13 @@ CRAFT_RAW_PER_RESIDENT = 0.1
 #: over the region's food demand, at most TURNOVER_CAP (the routes' cap).
 TURNOVER_ACCESS = 2.0
 TURNOVER_CAP = 0.6
+#: Crafts (2026-10): wares (tools, cloth, pottery) each person wants a turn,
+#: a fiftieth of the food ration by volume.
+CRAFT_DEMAND_PER_CAPITA = 0.01
+#: Commerce: market access per unit of wares the city made over its region's
+#: food demand, at most CRAFT_ACCESS_CAP.
+CRAFT_ACCESS = 1.0
+CRAFT_ACCESS_CAP = 0.3
 
 #: Stored floats are rounded to this many decimals.
 QUANTUM_DIGITS = 4
@@ -285,6 +298,12 @@ class _Tick:
         if self.economy is None:
             return 0
         return int(self.economy.trade_route_counts.get(region.name, 0))
+
+    def crafts(self, region) -> float:
+        """Wares made in the region this turn (economy result; 0 without)."""
+        if self.economy is None:
+            return 0.0
+        return float((getattr(self.economy, "craft_output", None) or {}).get(region.name, 0.0))
 
     def turnover(self, region) -> float:
         """Goods merchants delivered to the region this turn (every category,
@@ -657,8 +676,14 @@ def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None
 
 def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
     base = city.size / k * sum(w * m for w, m in zip(COMMERCE_WEIGHTS, city.mix))
+    # Crafts: the city's share (by size) of the wares its region made.
+    sizes = sum(c.size for c in t.state.cities if c.region == city.region and c.fallen_turn is None)
+    city.crafts = _q(t.crafts(region) * (city.size / sizes if sizes > 0 else 1.0))
+    demand = (getattr(t.economy, "market_demand", None) or {}).get(region.name) if t.economy else None
+    food_demand = demand[0] if demand else 0.5 * region.population
     access = (1.0 + ROUTE_ACCESS * min(t.routes(region), ROUTE_ACCESS_CAP)
-              + min(TURNOVER_CAP, TURNOVER_ACCESS * t.turnover(region)))
+              + min(TURNOVER_CAP, TURNOVER_ACCESS * t.turnover(region))
+              + min(CRAFT_ACCESS_CAP, CRAFT_ACCESS * city.crafts / max(0.1, food_demand)))
     commerce = base * access * food * (OCCUPIED_COMMERCE if _occupied(region) else 1.0)
     dues = commerce * DUES[city.charter] if city.lord >= 0 else 0.0
     _owe(t, city.lord, dues)
@@ -968,10 +993,14 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
         1 - sum over the region's cities of (1 - URBAN_FARM_LABOR[rank]) x
         the share of the region's farmers living in that city;
     ``craft_raw_demand``
-        CRAFT_RAW_PER_RESIDENT x the city's residents who are not soldiers.
+        CRAFT_RAW_PER_RESIDENT x the city's residents who are not soldiers:
+        the raw materials the crafts want and can work into wares;
+    ``craft_demand``
+        CRAFT_DEMAND_PER_CAPITA x the region's agents: the wares its people
+        want (every region, city or not).
 
     None (no columns) with the switch off or without agent rows; with the
-    switch on and no city every region is at 1.0 and 0.0."""
+    switch on and no city every region is at 1.0 and 0.0, and wants wares."""
     if not cities_on(world) or snapshot is None:
         return None
     import numpy as np
@@ -993,9 +1022,11 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
     n = len(world.regions)
     factor = [1.0] * n
     craft = [0.0] * n
+    people = np.bincount(region[region < n], minlength=n)[:n] if region.size else np.zeros(n)
+    wares = [CRAFT_DEMAND_PER_CAPITA * float(p) for p in people]
     cities = [c for c in world.cities.cities if c.region < n]
     if not cities or sid.size == 0:
-        return {"farm_labor_factor": factor, "craft_raw_demand": craft}
+        return {"farm_labor_factor": factor, "craft_raw_demand": craft, "craft_demand": wares}
     farmer = occupation == 0
     region_farmers = np.bincount(region[farmer], minlength=n)
     span = int(sid.max()) + 1
@@ -1008,7 +1039,8 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
         if region_farmers[r] > 0:
             factor[r] -= (1.0 - URBAN_FARM_LABOR[city.rank]) * float(city_farmers[s]) / float(region_farmers[r])
         craft[r] += CRAFT_RAW_PER_RESIDENT * float(city_civilians[s])
-    return {"farm_labor_factor": [min(1.0, max(0.0, f)) for f in factor], "craft_raw_demand": craft}
+    return {"farm_labor_factor": [min(1.0, max(0.0, f)) for f in factor], "craft_raw_demand": craft,
+            "craft_demand": wares}
 
 
 def with_economy_columns(world: "WorldState", region_input, snapshot):
@@ -1095,6 +1127,7 @@ def snapshot_summary(world: "WorldState") -> dict:
              "region": regions[c.region].name if c.region < len(regions) else None,
              "lord": civs[c.lord].name if 0 <= c.lord < len(civs) else None,
              "rank": c.rank, "residents": c.residents, "wealth": round(c.wealth, 1),
+             "crafts": round(c.crafts, 2),
              "charter": c.charter, "unrest": round(c.unrest, 2),
              "satisfaction": None if c.satisfaction is None else round(c.satisfaction, 2)}
             for c in state.cities

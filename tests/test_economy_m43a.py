@@ -59,11 +59,12 @@ def test_food_goods_contains_salt():
     assert "timber" not in FOOD_GOODS
 
 
-def test_all_goods_has_8_members():
-    assert len(ALL_GOODS) == 8
+def test_all_goods_has_9_members():
+    """The eight harvested goods and the cities' wares (2026-10 crafts)."""
+    assert len(ALL_GOODS) == 9
     assert ALL_GOODS == frozenset({
         "grain", "timber", "botanicals", "fish",
-        "salt", "ore", "precious", "exotic",
+        "salt", "ore", "precious", "exotic", "crafts",
     })
 
 
