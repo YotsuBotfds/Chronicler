@@ -8,12 +8,14 @@ rolled it forward for the 2026-10 deferred-backlog corrections,
 corrections, ``corrected_food_logistics_2026_10.json`` for the 2026-10
 food-logistics changes (only the locust recalibration moves the off-mode
 lane), ``corrected_hunger_2026_10.json`` for the 2026-10 hunger corrections
-(the aggregate famine toll scaled by hunger), and the live oracle,
-``corrected_farmland_2026_10.json``, rolls that forward for the 2026-10
-farmland and regional-climate corrections (food per head against the
-crowding of the land, regional harvest shocks); each file's provenance lists
-only its own corrections and the scoped-difference proof below pins exactly
-what each link changed.
+(the aggregate famine toll scaled by hunger),
+``corrected_farmland_2026_10.json`` for the 2026-10 farmland and
+regional-climate corrections (food per head against the crowding of the land,
+regional harvest shocks), and the live oracle,
+``corrected_open_items_2026_10.json``, rolls that forward for the 2026-10
+procedural open-item corrections (docs/integration/procedural-gates.md);
+each file's provenance lists only its own corrections and the
+scoped-difference proof below pins exactly what each link changed.
 The older fixtures and the edf7299 artifacts remain frozen as historical
 evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
@@ -33,7 +35,8 @@ from scripts.third_wave_controls import legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_farmland_2026_10.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_open_items_2026_10.json").read_text())
+FARMLAND_BASELINE = json.loads((FIXTURES / "corrected_farmland_2026_10.json").read_text())
 HUNGER_BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
 FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
 FOOD_BALANCE_BASELINE = json.loads((FIXTURES / "corrected_food_balance_2026_10.json").read_text())
@@ -46,7 +49,8 @@ ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
                 "food_balance": (EXTINCTION_BASELINE, FOOD_BALANCE_BASELINE),
                 "food_logistics": (FOOD_BALANCE_BASELINE, FOOD_LOGISTICS_BASELINE),
                 "hunger": (FOOD_LOGISTICS_BASELINE, HUNGER_BASELINE),
-                "farmland": (HUNGER_BASELINE, BASELINE)}
+                "farmland": (HUNGER_BASELINE, FARMLAND_BASELINE),
+                "open_items": (FARMLAND_BASELINE, BASELINE)}
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 
@@ -194,6 +198,9 @@ def test_duplicate_names_preserve_discarded_rng_draws(tmp_path, monkeypatch):
     # even though its duplicate output row is later overwritten.
     first.leader.grudges = [{"rival_civ": target.name, "intensity": 0.8} for _ in range(10)]
     world.invalidate_civ_map()
+    # Since 2026-10 faction bonuses need contact (docs/integration/procedural-gates.md);
+    # the twins and the target are in contact, as the frozen capture assumed.
+    monkeypatch.setattr("chronicler.intelligence._ledger_contact", lambda *args: True)
 
     def tick(world, *args, **kwargs):
         world.turn += 1
