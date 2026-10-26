@@ -75,9 +75,12 @@ simulation, 14 minutes of validation at a 2.5 GB peak, 45 minutes in all;
 the batch holds 2.8 GB once `state.json`, the memory streams and the
 historiography/language sidecars of finished seeds are deleted (the
 validator reads none of them), about 5 GB without. 100 seeds resolve the
-seed-fraction oracles to 1%, and a procedural seed has 2-3.5 times the
-agents of a template seed, so the needs and cohort oracles get more
-agent pairs than the 200 template seeds give. 300 turns still give each
+seed-fraction oracles to 1%. A procedural seed has 2-3.5 times the agents
+of a template seed, which only partly makes up for half the seeds and
+three fifths of the turns: the needs oracle matches 9,226 pairs (template
+full gate 16,483) for a standard error of 0.015 (0.011), small beside its
+lower bounds (+0.120 pooled, +0.117 binding on the merged head). 300
+turns still give each
 third of the arc classifier 100 turns, the regression oracle its 60-turn
 late window and the era oracle 24-82 collapses per seed to mark; the
 template full gate keeps the 500-turn horizon. The subset (20 x 200, two
