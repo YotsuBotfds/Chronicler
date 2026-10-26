@@ -447,7 +447,11 @@ plus this branch). Template baseline: the PR #42 template full gate on
 * **Procedural full gate** (100 x 300, 39 minutes): PASS strict, NO
   REGRESSION against the fix on `aa0f655`; artifacts 2.00 per starting civ
   per 100 turns, needs 83 of 100, migration 0.0746, rebellion 0.0352, 0
-  extinct.
+  extinct. On `b3ad9a4` itself (gate tooling only, no fix) the procedural
+  full gate fails artifacts again (5.32, artworks over half; migration
+  0.0752, rebellion 0.0393, needs 82 of 100, one seed with a silent
+  collapse, 0 extinct); against it the merged head is NO REGRESSION with
+  the artifact failure resolved.
 
 Subsets on `b3ad9a4` and the merged head (comparator NO REGRESSION for
 both pairs; the template pair differs in seed 46 only):
@@ -481,6 +485,8 @@ All gate runs of this branch:
 | procedural full | `aa0f655` | 100 x 300 | FAIL (artifacts) | - | - |
 | procedural full | `aa0f655` + fix | 100 x 300 | PASS strict | the run above | NO REGRESSION |
 | procedural full | merged | 100 x 300 | PASS strict | the run above | NO REGRESSION |
+| procedural full | `b3ad9a4` | 100 x 300 | FAIL (artifacts) | - | - |
+| procedural full | merged | 100 x 300 | PASS strict | `b3ad9a4` (the run above) | NO REGRESSION; artifacts resolved |
 | template full | merged | 200 x 500 | PASS strict | `b3ad9a4` template full | NO REGRESSION |
 | procedural subset | `aa0f655` / + fix | 20 x 200 | PASS / PASS | `aa0f655` | NO REGRESSION |
 | procedural subset | `b3ad9a4` / merged | 20 x 200 | PASS / PASS | `b3ad9a4` | NO REGRESSION |
