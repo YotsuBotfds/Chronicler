@@ -947,18 +947,10 @@ def test_a_secession_crowns_its_leader():
 
 
 def _death_bridge(*persons):
-    """An agent bridge holding only the named-character registry."""
-    import sys
-    from unittest.mock import MagicMock
+    """An agent bridge holding only the named-character registry (no native
+    simulator: ``agent_bridge`` imports the extension only when built)."""
+    from chronicler.agent_bridge import AgentBridge
     from chronicler.dynasties import Dynasty, DynastyRegistry
-    stub = "chronicler_agents" not in sys.modules
-    if stub:
-        sys.modules["chronicler_agents"] = MagicMock()
-    try:
-        from chronicler.agent_bridge import AgentBridge
-    finally:
-        if stub:
-            sys.modules.pop("chronicler_agents", None)
     bridge = AgentBridge.__new__(AgentBridge)
     bridge.named_agents = {gp.agent_id: gp.name for gp in persons}
     bridge.gp_by_agent_id = {gp.agent_id: gp for gp in persons}

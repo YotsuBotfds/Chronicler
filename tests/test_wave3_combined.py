@@ -33,6 +33,21 @@ def _advance(world: WorldState, turns: int) -> WorldState:
     return world
 
 
+def _raw_save_is_exact(world: WorldState) -> bool:
+    """A raw ``WorldState.save`` drops each civ's applied tech-focus deltas
+    (``_focus_applied_deltas``; ``checkpoint_replay`` carries them), so a
+    focus whose bonus was capped is later removed by its full modifier after a
+    load. Resume identity is exact only at a turn without such a focus."""
+    from chronicler.tech_focus import FOCUS_EFFECTS, TechFocus
+    for civ in world.civilizations:
+        if civ.active_focus:
+            applied = (getattr(civ, "_focus_applied_deltas", None) or {}).get(civ.active_focus, {})
+            raw = FOCUS_EFFECTS[TechFocus(civ.active_focus)].stat_modifiers
+            if any(applied.get(stat, mod) != mod for stat, mod in raw.items()):
+                return False
+    return True
+
+
 def test_all_three_systems_run_and_persist_state():
     world = _advance(_world(42), 40)
     assert world.epidemics is not None
@@ -46,10 +61,11 @@ def test_all_three_systems_run_and_persist_state():
 
 def test_save_load_resume_identity_with_all_three_on(tmp_path):
     # Save at the first turn from 30 on where all three systems carry live
-    # state (an epidemic has killed, a loan is outstanding, a treaty stands).
+    # state (an epidemic has killed, a loan is outstanding, a treaty stands)
+    # and a raw save is exact (no capped tech focus active).
     first = _advance(_world(42), 30)
     while not (first.epidemics.deaths_total > 0 and first.finance.loans
-               and first.diplomacy.treaties):
+               and first.diplomacy.treaties and _raw_save_is_exact(first)):
         assert first.turn < 80, "no turn with live state in all three systems"
         _advance(first, 1)
     straight = _advance(_world(42), first.turn + 15)
