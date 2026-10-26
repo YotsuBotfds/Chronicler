@@ -2098,6 +2098,10 @@ class AgentBridge:
                         ))
                         found = True
                         break
+            if not found:
+                event = self._retired_person_death(e.agent_id, name, region_name, e.region, world)
+                if event is not None:
+                    death_events.append(event)
 
         # M39: post-loop extinction check
         extinction_events = self.dynasty_registry.check_extinctions(
@@ -2106,6 +2110,39 @@ class AgentBridge:
         death_events.extend(extinction_events)
 
         return death_events
+
+    def _retired_person_death(self, agent_id, name, region_name, region_idx, world):
+        """The native death of a named person outside every civ roster.
+
+        Correction (2026-10, population-entities): deaths were resolved
+        through the civ rosters only, so a person who had left them alive
+        (a movement founder crowned by its secession, an exile restored to
+        the throne: fate ``ascended``, still ``alive``) never died: ``alive``
+        stayed True, ``death_turn`` None, the dynasty never ended and no
+        death was reported. The person is found through the permanent agent
+        registry (``gp_by_agent_id``) instead. The death is recorded
+        (``alive``, ``death_turn``) and reported; the ascension stays the
+        person's fate, a historical transition apart from the death.
+        """
+        from chronicler.models import Event
+
+        gp = self.gp_by_agent_id.get(agent_id)
+        if gp is None or not gp.alive:
+            return None
+        gp.alive = False
+        gp.active = False
+        gp.death_turn = world.turn
+        if not any(p is gp for p in world.retired_persons):
+            world.retired_persons.append(gp)
+        return Event(
+            turn=world.turn,
+            event_type="character_death",
+            actors=[name, gp.civilization],
+            description=f"{name} died in {region_name}",
+            importance=6,
+            source="agent",
+            region=(region_name if region_idx < len(world.regions) else None),
+        )
 
     def _detect_character_events(self, raw_events, world) -> list:
         """Detect notable_migration and exile_return from migration events."""

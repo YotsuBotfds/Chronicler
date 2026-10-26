@@ -1313,13 +1313,30 @@ def _rise(t: _Tick, i: int, m: Movement, civ) -> None:
 
 def _extinct_faith_slot(t: _Tick) -> int | None:
     """Registry position of a faith no agent holds and nothing references
-    (regions, rulers, temples and builds, the one-turn signals), lowest faith
-    id first; None without agent rows or when every faith is alive."""
+    (regions, rulers, temples and builds, the one-turn signals, living
+    movements, tolerations in force or remembered for restoration), lowest
+    faith id first; None without agent rows or when every faith is alive.
+
+    Correction (2026-10, population-entities): movements and reforms were
+    not counted, so a slot was reused while a toleration in force still
+    named its id; the native reform table matches believers by that number,
+    so the old toleration protected the unrelated church that took the
+    slot. A faith's id is a reusable native slot, not a permanent identity;
+    separating the two is the longer-term fix.
+    """
     obs = t.obs
     if obs is None:
         return None
     world = t.world
     used = set(int(b) for b in set(obs.belief.tolist()))
+    for m in t.state.movements:
+        if m.stage != ENDED:
+            used.add(m.faith)
+    for r in t.state.reforms:
+        if r.kind == TOLERATION and (r.repeal == IN_FORCE or (
+                r.repeal != LAPSED and r.repealed_turn is not None
+                and world.turn - r.repealed_turn <= REPEAL_MEMORY)):
+            used.add(r.faith)
     for r in world.regions:
         used.update((r.majority_belief, r.conversion_target_signal, r.schism_convert_from,
                      r.schism_convert_to))

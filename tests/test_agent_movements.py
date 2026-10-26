@@ -563,6 +563,63 @@ def test_a_schism_in_a_full_registry_takes_the_place_of_a_vanished_faith():
     assert _types(_tick(full, members={(0, THORNWOOD): 8})) == ["movement_rising"]
 
 
+def _full_registry_world():
+    """Template world whose 16-faith registry is full; faiths 4-8 and 10-15
+    have no believer and no temple (9 keeps a temple)."""
+    from chronicler.models import Belief
+    world = _world()
+    faith = world.civilizations[THORNWALL].civ_majority_faith
+    used = {b.faith_id for b in world.belief_registry}
+    for fid in range(16):
+        if fid not in used:
+            world.belief_registry.append(Belief(faith_id=fid, name=f"Old Faith {fid}", civ_origin=0,
+                                                doctrines=[0, 0, 0, 0, 0]))
+    world.regions[AMBER].infrastructure.append(
+        Infrastructure(type="temples", builder_civ="Kethani Empire", built_turn=1, faith_id=9))
+    for r in world.regions:
+        r.majority_belief = faith if r.controller else 0xFF
+    return world
+
+
+def test_a_recycled_faith_slot_never_carries_an_old_reform_or_movement():
+    """A toleration in force (or remembered for restoration) and a living
+    movement keep their faith's registry slot: a schism never hands their
+    number, which the native reform table matches believers by, to an
+    unrelated church."""
+    from chronicler.agent_movements_state import Reform
+    world = _full_registry_world()
+    state = world.agent_movements
+    m = _restless(world, creed=SECT, stability=60)
+    m.grievance = 0.25
+    # Faith 4: an old toleration still in force in Kethani.
+    state.reforms.append(Reform(kind=TOLERATION, civ=KETHANI, enacted_turn=3, faith=4))
+    # Faith 5: a toleration repealed 10 turns ago, which a movement may seek to restore.
+    state.reforms.append(Reform(kind=TOLERATION, civ=KETHANI, enacted_turn=3, faith=5,
+                                repeal=RULER, repealed_turn=world.turn - 10))
+    # Faith 6: a living movement whose members last held it.
+    _place(world, target=KETHANI, home=AMBER, faith=6)
+    # Faith 7: a toleration lapsed long ago, and an ended movement: free.
+    state.reforms.append(Reform(kind=TOLERATION, civ=KETHANI, enacted_turn=1, faith=7,
+                                repeal=LAPSED, repealed_turn=5))
+    _place(world, target=KETHANI, home=AMBER, faith=7, stage=ENDED, end=FADED)
+    events = _tick(world, members={(0, THORNWOOD): 8})
+    assert "Schism" in _types(events) and m.end == SCHISM
+    assert m.schism_to == 7
+    assert M.reform_table(world).to_pydict()["faith"] == [4]
+
+
+def test_a_faith_referenced_only_by_reforms_is_not_free():
+    from chronicler.agent_movements_state import Reform
+    world = _full_registry_world()
+    free = [4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]
+    world.agent_movements.reforms.extend(
+        Reform(kind=TOLERATION, civ=KETHANI, enacted_turn=3, faith=f) for f in free)
+    m = _restless(world, creed=SECT, stability=60)
+    m.grievance = 0.25
+    assert _types(_tick(world, members={(0, THORNWOOD): 8})) == ["movement_rising"]
+    assert len(world.belief_registry) == 16
+
+
 # --- decay -------------------------------------------------------------------------
 
 def test_movements_fade_win_or_dissolve():
@@ -887,6 +944,86 @@ def test_a_secession_crowns_its_leader():
     assert gp not in civ.great_persons and gp in world.retired_persons
     secession = next(e for e in events if e.event_type == "secession")
     assert f"Captain Varo takes its throne as {new.leader.name}" in secession.description
+
+
+def _death_bridge(*persons):
+    """An agent bridge holding only the named-character registry."""
+    import sys
+    from unittest.mock import MagicMock
+    from chronicler.dynasties import Dynasty, DynastyRegistry
+    stub = "chronicler_agents" not in sys.modules
+    if stub:
+        sys.modules["chronicler_agents"] = MagicMock()
+    try:
+        from chronicler.agent_bridge import AgentBridge
+    finally:
+        if stub:
+            sys.modules.pop("chronicler_agents", None)
+    bridge = AgentBridge.__new__(AgentBridge)
+    bridge.named_agents = {gp.agent_id: gp.name for gp in persons}
+    bridge.gp_by_agent_id = {gp.agent_id: gp for gp in persons}
+    bridge.dynasty_registry = DynastyRegistry()
+    founder = persons[0]
+    bridge.dynasty_registry.dynasties.append(Dynasty(
+        dynasty_id=1, founder_id=founder.agent_id, founder_name=founder.name,
+        civ_id=founder.civilization, members=[gp.agent_id for gp in persons]))
+    return bridge
+
+
+def _native_death(agent_id: int, turn: int, region: int):
+    from chronicler.models import AgentEventRecord
+    return AgentEventRecord(turn=turn, agent_id=agent_id, event_type="death", region=region,
+                            target_region=region, civ_affinity=0, occupation=1)
+
+
+def test_a_crowned_founder_dies_a_natural_death_later():
+    """Ascension is a transition, not a death: the founder who left the civ
+    rosters for a throne still dies when their agent dies, and their house
+    ends with them."""
+    from chronicler.historical_context import AsOf, character_as_of
+    world = _world()
+    civ = world.civilizations[THORNWALL]
+    civ.stability = 20
+    gp = GreatPerson(name="Captain Varo", role="general", trait="bold", civilization=civ.name,
+                     origin_civilization=civ.name, born_turn=world.turn, base_name="Varo",
+                     source="agent", agent_id=4242)
+    civ.great_persons.append(gp)
+    _place(world, creed=LIBERTY, grievance=0.5, demands=2, stage=PRESSING, leader="Captain Varo")
+    _tick(world, members={(0, THORNWOOD): 12})
+    world.turn += 1
+    _tick(world, members={(0, THORNWOOD): 12}, bridge=_bridge(world, rebels={THORNWOOD: 6}))
+    crowned = world.turn
+    assert gp.fate == "ascended" and gp.alive and gp in world.retired_persons
+    bridge = _death_bridge(gp)
+    world.turn += 20
+    events = bridge._process_deaths([_native_death(4242, world.turn, THORNWOOD)], world)
+    assert (gp.alive, gp.active, gp.death_turn, gp.fate) == (False, False, world.turn, "ascended")
+    assert [e.event_type for e in events] == ["character_death", "dynasty_extinct"]
+    assert events[0].actors == ["Captain Varo", civ.name]
+    assert "died in Thornwood" in events[0].description
+    assert bridge.dynasty_registry.dynasties[0].extinct
+    assert world.retired_persons.count(gp) == 1
+    # The record keeps both: ascended (not active) after the throne, alive
+    # until the death.
+    reign = character_as_of(gp, AsOf.after(crowned + 5), observed=False)
+    assert (reign.status, reign.active, reign.alive) == ("ascended", False, True)
+    later = character_as_of(gp, AsOf.after(world.turn), observed=False)
+    assert (later.status, later.alive) == ("ascended", False)
+    # A second report of the same death changes nothing.
+    assert bridge._process_deaths([_native_death(4242, world.turn, THORNWOOD)], world) == []
+
+
+def test_a_roster_death_is_reported_once_and_unchanged():
+    world = _world()
+    civ = world.civilizations[THORNWALL]
+    gp = GreatPerson(name="Elder Ro", role="general", trait="bold", civilization=civ.name,
+                     origin_civilization=civ.name, born_turn=1, source="agent", agent_id=77)
+    civ.great_persons.append(gp)
+    bridge = _death_bridge(gp)
+    events = bridge._process_deaths([_native_death(77, world.turn, THORNWOOD)], world)
+    assert gp.fate == "dead" and gp not in civ.great_persons and gp in world.retired_persons
+    assert [e.event_type for e in events] == ["character_death", "dynasty_extinct"]
+    assert world.retired_persons.count(gp) == 1
 
 
 # --- native table, seeds, reports ---------------------------------------------
