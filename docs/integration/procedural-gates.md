@@ -375,40 +375,103 @@ civ. Template reports are byte-identical.
 
 ## Open items
 
-1. **Calls to arms across the map.** Allies join wars against enemies
-   three to five regions away (half of procedural war declarations), and
-   at war a state borrows to keep its full reserve
-   (`finance.WAR_CHEST_SHARE`), so these wars cost treasuries without
-   fighting: fiscal crises 3.7 times and defaults 3 times the template
-   rate per civ, and civ economy and culture stats about 60% of the
-   template's. An ally that cannot reach the enemy (no border, no sea
-   lane, no army in range) could decline, or join without the war-chest
-   borrowing; that is a diplomacy design change, not a calibration.
-2. **Accuracy bonuses reach every civ.** A dominant merchant or cultural
-   faction and an active merchant great person add intelligence accuracy
-   toward every civ in the world (`intelligence.compute_accuracy`), so a
-   civ "knows" realms it has never met and can choose them as war
-   targets. Harmless on four nearby template civs; on procedural worlds
-   it widens the set of reachable enemies. The bonus could apply only on
-   top of real contact.
-3. **Pretender restorations.** `succession.create_exiled_leader` places a
-   deposed ruler with the friendliest non-hostile civ; a ten-civ world
-   nearly always has one, so nearly every deposition creates a pretender
-   who drains its origin's stability; below 20 stability a restoration
-   rolls 5% a turn plus 3% per recognising civ (x1.5 for an exile of
-   another faction), and the deposed incumbent becomes the next pretender.
-   Restorations run about twelve times the template rate per civ.
-4. **Named-character registry** (both world types). The native registry
-   keeps the dead and closes promotions at 50 named characters per world
-   (`named_characters.rs` `GLOBAL_CAP`), reached within the first 50
-   turns on template and procedural worlds alike (43-54 agent-born great
-   persons by turn 50, 0-12 in the 450 turns after, in six 500-turn
-   probe worlds). With ten civs that is five per civ, with four twelve.
-5. **Epidemic intensity.** Deaths per head 1.7 times the template rate;
+Items 1-4 of the first list (calls to arms, accuracy bonuses, pretender
+restorations, the named-character registry) are corrected below, in
+"Open items corrected". Still open:
+
+1. **Epidemic intensity.** Deaths per head 1.7 times the template rate;
    population still grows. Worth a look with the epidemiology owner.
-6. **Spiritual need.** 26% of procedural agent samples below the threshold
+2. **Spiritual need.** 26% of procedural agent samples below the threshold
    (templates 14%); satisfaction 0.56-0.57 against 0.61-0.62. Inside the
    regression band; a calibration question for the needs owner.
+3. **Embargoes never lapse.** `world.embargoes` only grows (no code lifts
+   one), and the black market treats imposer and target alike, so by the
+   end of a run nearly every living civ is party to an embargo (in 8 probe
+   worlds: all but two template civs, every procedural civ; 21-55
+   embargoes per procedural world). A diplomacy design question.
+4. **Restorations in hybrid mode.** A pretender's restoration adds 15
+   stability (`keep`), which the agents' aggregate overwrites next turn,
+   so the restored ruler has no protection and the deposed one, now a
+   pretender, can restore at once: 8 of 20 procedural restorations (8 probe
+   worlds) were counter-restorations within 1-45 turns. `recognized_by` of
+   a pretender is never filled, so the recognition bonus never applies.
+5. **Fiscal stress.** Fiscal crises stay 3-4 times the template rate per
+   civ: most procedural calls to arms are within reach, and wars in reach
+   borrow for the war chest (`finance.WAR_CHEST_SHARE`).
+6. **Black-market leakage repeats per border region.**
+   `simulation.apply_automatic_effects` (section 4) says "only one black
+   market route per civ per turn", but its `break` leaves only the
+   adjacency loop, so a civ party to an embargo pays 3 stability (and takes
+   1 coin) for each border region with a non-embargoed foreign neighbour:
+   1.4 charges a civ-turn on templates, 2.4 on procedural worlds, the
+   largest stability drain on both (4.1 and 7.7 a civ-turn of 7.0 and 14.0
+   in all; 6 probe worlds each). Correcting the loop was measured and not
+   shipped (see "6. Pretender restorations").
+
+## Open items corrected (2026-10, `fix/procedural-open-items`)
+
+Branch `fix/procedural-open-items` from `feat/procedural-gates` `1c98d0a`,
+merged without rebase with `main` `c8f7eb4` (PR #43, the same tree) and
+`fc01d6e` (PR #44, turn speed, byte-identical output). One commit per item,
+each measured against the one before on three subsets: template 42-61 and
+62-81 (20 x 200) and procedural 42-61 (20 x 200, 32 regions, 10 civs).
+Every run is Linux, Python 3.13, `PYTHONHASHSEED=0`, hybrid, from a frozen
+copy of the tree with its own extension (`main`: `c26d6cd2...bbb99`; the
+items: `61578182...52283`, built fresh with `maturin develop --release
+--locked` and its compiled classes verified). Mechanism probes are 6-8
+seeds run in process with observation-only patches (counts below name
+them). Rates are per starting civ per 100 turns.
+
+### 6. Pretender restorations (cause found, documented, not changed)
+
+A restoration (`succession.check_exile_restoration`) needs a pretender
+(an exiled former ruler, created at a deposition) and its origin realm
+below 20 stability, then rolls 5% a turn. Per civ, procedural worlds have
+about three times the pretenders and six times the exposure (probe worlds
+with item 1, 8 per type, 500 and 300 turns):
+
+| | template | procedural |
+| --- | ---: | ---: |
+| pretenders created per civ-century | 0.11 | 0.33 |
+| pretenders that found no host | 1 of 18 | 0 of 78 |
+| pretender-turns with the origin below 20 stability | 2.7% | 17.4% |
+| civ-turns below 20 stability, realms of 3+ regions (base, 200 turns) | 1.4% | 12.1% |
+| restorations per civ-century | 0.006 | 0.071 |
+
+No per-pair check explains it. A host is found almost always on both
+worlds (the friendliest civ that is neither hostile nor suspicious), and a
+pretender's `recognized_by` is never filled. The causes:
+
+* **More depositions.** A succession crisis needs a realm of three regions
+  or more (`compute_crisis_probability`), and its chance grows with the
+  realm's size; procedural civs hold 3.2 regions on average, template civs
+  2. Great-person coups add more.
+* **Lower stability in large realms.** Native civ stability is mean
+  satisfaction times mean loyalty. Procedural realms carry twice the
+  stability drains of template realms (14.0 against 7.0 a civ-turn, 6
+  probe worlds each). The largest is the black-market leakage (open item
+  6, 7.7 against 4.1); next come governing costs (1.6 against 0.5) and
+  proxy wars (1.4 against 0.3).
+* **Counter-restorations.** In hybrid mode a restoration's +15 stability
+  is overwritten by the agents' aggregate the next turn, and the deposed
+  ruler becomes a pretender, so it can restore at once: 8 of 20 procedural
+  restorations in 8 base probe worlds (open item 4).
+
+These are geography (larger realms) and hybrid-mode effects, not a
+calibration that assumes few civs. Nothing was changed.
+
+The black-market loop was corrected and measured (one route per civ per
+turn, on top of items 1-3, 20 x 200 subsets): the drain fell to 2.8 (from
+7.7) a civ-turn on procedural worlds and 2.2 (from 4.1) on templates, but
+the coin per border region had propped up treasuries. Fiscal crises rose
+on every subset (template 42-61 0.36 -> 0.44, 62-81 0.56 -> 0.73, 82-101
+0.39 -> 0.64, 102-121 0.43 -> 0.61, procedural 1.79 -> 2.11 per
+civ-century). Restorations did not fall (procedural 0.045 -> 0.072), and
+the procedural share of civ-turns below 20 stability stayed (0.171 ->
+0.169, probes). Needs held over 80 template seeds (54 -> 53 of 80; 42-61
+alone fell to 10 of 20, which fails that subset, while 82-101 without the
+correction gave 11 of 20). It is left for a change that rebalances the
+black market's coin and drain together (open item 6).
 
 ## Gates
 
