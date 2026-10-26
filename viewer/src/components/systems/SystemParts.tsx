@@ -1,10 +1,73 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Event } from "../../types";
 import type { SeriesRow, StripRow } from "../../lib/systems";
 import { humanize } from "../../lib/systems";
 
 const STRIP_ROW_LIMIT = 24;
+
+function stripPercent(turn: number, firstTurn: number, endTurn: number): string {
+  const span = Math.max(1, endTurn - firstTurn);
+  return `${((Math.min(Math.max(turn, firstTurn), endTurn) - firstTurn) / span) * 100}%`;
+}
+
+const stripLabels = new WeakMap<StripRow, string>();
+
+/** A strip row's accessible description (its segments' labels), once per row. */
+function stripLabel(row: StripRow): string {
+  let label = stripLabels.get(row);
+  if (label === undefined) {
+    label = `${row.label}: ${row.segments.map((segment) => segment.label).join("; ") || "nothing recorded"}`;
+    stripLabels.set(row, label);
+  }
+  return label;
+}
+
+/**
+ * A row's segments and marks. They do not depend on the scrubbed turn, so a
+ * row whose record is unchanged is not rendered again while scrubbing (the
+ * cursor follows them in the track).
+ */
+const StripSegments = memo(function StripSegments({
+  row,
+  firstTurn,
+  endTurn,
+}: {
+  row: StripRow;
+  firstTurn: number;
+  endTurn: number;
+}) {
+  const span = Math.max(1, endTurn - firstTurn);
+  const percent = (turn: number) => stripPercent(turn, firstTurn, endTurn);
+  const width = (start: number, end: number) => `${Math.max(0.35, ((end - start) / span) * 100)}%`;
+  return (
+    <>
+      {row.segments.map((segment) => (
+        <div
+          key={`${segment.start}-${segment.color}`}
+          className={`systems-strip-segment${row.marks ? " with-marks" : ""}`}
+          style={{
+            left: percent(segment.start),
+            width: width(segment.start, segment.end),
+            backgroundColor: segment.color,
+            color: segment.textColor,
+          }}
+          title={segment.label}
+        >
+          {segment.text && (segment.end - segment.start) / span >= 0.08 ? segment.text : null}
+        </div>
+      ))}
+      {row.marks?.map((mark) => (
+        <div
+          key={`mark-${mark.start}`}
+          className="systems-strip-mark"
+          style={{ left: percent(mark.start), width: width(mark.start, mark.end), backgroundColor: mark.color }}
+          title={mark.label}
+        />
+      ))}
+    </>
+  );
+});
 
 /**
  * Rows of run-length segments over the recorded turns. Each segment carries
@@ -38,8 +101,7 @@ export function TurnStrip({
   }
   const span = Math.max(1, endTurn - firstTurn);
   const visible = expanded ? rows : rows.slice(0, STRIP_ROW_LIMIT);
-  const percent = (turn: number) => `${((Math.min(Math.max(turn, firstTurn), endTurn) - firstTurn) / span) * 100}%`;
-  const width = (start: number, end: number) => `${Math.max(0.35, ((end - start) / span) * 100)}%`;
+  const percent = (turn: number) => stripPercent(turn, firstTurn, endTurn);
   const seekFrom = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!onSeek) {
       return;
@@ -67,32 +129,10 @@ export function TurnStrip({
           <div
             className={`systems-strip-track${onSeek ? " interactive" : ""}`}
             role="img"
-            aria-label={`${row.label}: ${row.segments.map((segment) => segment.label).join("; ") || "nothing recorded"}`}
+            aria-label={stripLabel(row)}
             onClick={seekFrom}
           >
-            {row.segments.map((segment) => (
-              <div
-                key={`${segment.start}-${segment.color}`}
-                className={`systems-strip-segment${row.marks ? " with-marks" : ""}`}
-                style={{
-                  left: percent(segment.start),
-                  width: width(segment.start, segment.end),
-                  backgroundColor: segment.color,
-                  color: segment.textColor,
-                }}
-                title={segment.label}
-              >
-                {segment.text && (segment.end - segment.start) / span >= 0.08 ? segment.text : null}
-              </div>
-            ))}
-            {row.marks?.map((mark) => (
-              <div
-                key={`mark-${mark.start}`}
-                className="systems-strip-mark"
-                style={{ left: percent(mark.start), width: width(mark.start, mark.end), backgroundColor: mark.color }}
-                title={mark.label}
-              />
-            ))}
+            <StripSegments row={row} firstTurn={firstTurn} endTurn={endTurn} />
             <div className="systems-strip-cursor" style={{ left: percent(currentTurn) }} />
           </div>
         </div>

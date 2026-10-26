@@ -9,6 +9,7 @@
  * record every report as `famine`; they read as before.
  */
 import type { Bundle, Event, TurnSnapshot } from "../types";
+import { eventsOfType } from "./bundleIndex";
 import type { StripRow } from "./systems";
 
 export const FAMINE_COLOR = "#d95926";
@@ -255,7 +256,7 @@ export function migrationDriverKind(driver: string | null | undefined): string |
 
 /** Mass migrations whose turn is in (turn - window, turn], oldest first. */
 export function massMigrations(events: Event[], turn: number, window: number): Event[] {
-  return events.filter((event) => event.event_type === "mass_migration" && !!event.region
+  return eventsOfType(events, "mass_migration").filter((event) => !!event.region
     && event.turn <= turn && event.turn > turn - window);
 }
 
