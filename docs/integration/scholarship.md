@@ -412,7 +412,31 @@ world dumps are identical.
 
 ## Tick time
 
-TBD
+`scripts/agent_scale_benchmark.py --targets 18800,43700 --turns 8 --seed 42
+--regions 12 --civs 4` (template world, hybrid, capacities scaled; the
+median of 8 measured turns). Three configurations were alternated per round
+on the same shared 4-core machine (load average 9-12 from other gates):
+main `fc01d6e` with its own build, the branch `cd0ccfd` with the switch
+off, and the branch with `--scholarship`. Times are process CPU per turn
+in ms, rounds 1 and 2; in this load the same configuration varies by up
+to 15-25% between rounds.
+
+| warm-up | agents (median) | main | branch, off | branch, `--scholarship` | Rust tick, on (ms CPU) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 30 turns | 24,100 | 310, 230 | 254, 231 | 254, 260 | 142, 143 |
+| 30 turns | 54,900 | 820, 731 | 769, 754 | 751, 748 | 539, 559 |
+| 112 turns | 15,500 | 134, 140 | 134, 130 | 137, 131 | 79, 73 |
+| 112 turns | 35,500 | 344, 368 | 357, 334 | 363, 368 | 256, 263 |
+
+After 30 turns no seat has been founded in this world, so the first two
+rows measure the switch's standing cost. After 112 turns the switched-on
+world has living seats (at 22k: 7 founded by turn 120, 3 fallen, 4
+standing, with scholars, pull and upkeep), and its agent count differs
+from the off run. Switched on, the turn costs +1% and +6% of the off
+medians at 15.5k and 35.5k agents. That is within the round-to-round
+spread of one configuration (off: 357 against 334 at 35.5k). The learning
+driver is a gated term of the voluntary pull, open to scholar agents only,
+with no random draw. The Python tick visits only the living seats.
 
 ## Bundle size
 
@@ -457,7 +481,44 @@ because the history differs, not because the field is free.
 
 ## Tests
 
-TBD
+- `tests/test_scholarship.py` (41 tests, two of them native).
+  - Switch, dormancy and old saves; append-only orders; CLI, gate-runner
+    and live wiring with the benchmark pin; the default and resume.
+  - The feature off runs no scholarship code.
+  - Each founding rule, upkeep as `keep` treasury with the fraction
+    carried, neglect and its fall, rises.
+  - Great scholars teaching; scholars with agents off.
+  - Each strike: a sack (falls, or costs a level), famine, persecution,
+    a temple or city lost, patronage.
+  - Lord changes; the refuge's reach; carries only with techniques.
+  - The research factor, the adoption and keeping factors near a seat,
+    carried techniques and the refuge civ's adoption.
+  - Archive copies and the copies recorded at a loss.
+  - The bridge columns rebuilt from persisted seats and reset, and a
+    tick's pull read by the next batch.
+  - Snapshot, metrics and standing state; the scholars' chronicle and
+    their archive's flight; event labels and weights.
+  - An agents-off run that founds seats and repeats; the CLI field and
+    analytics; the identity script.
+  - Native: the real `AgentSimulator` opens the learning gate on three
+    ticks while the batch carries `seat_pull` and on none of the next
+    three once the column is gone; a hybrid run that founds seats.
+- `tests/test_wave3_combined.py`: save/load resume identity with seats
+  and everything on (above).
+- Updated: `test_healthy_migration.py` (the learning term and gate keys),
+  `test_needs_calibration.py` (term count), and
+  `test_serialization_dormant_fields.py` (dormant `scholarship` fields).
+- Rust: `tests/test_learning_pull.rs` (4, multi-tick: a seat draws its
+  realm's scholars; the draw stops when `seat_pull` returns to 0; a fallen
+  seat's scholars cross a border only while in flight; without the column
+  there is no learning term and the run repeats) and 4 unit tests in
+  `migration_drivers.rs` (the gate, flight mobility, the sum's bits without
+  the column, the term's order).
+- Viewer: `lib/__tests__/learning.test.ts` (6), the `LearningPanel`
+  block of `SystemsPanel.test.tsx` and a historiography phrase test (3),
+  against the fixture `src/__fixtures__/learning_bundle.json` (the seed 42
+  run above, 101 snapshots, 12 seats).
+- The offline oracle lane has a `learning` chunk.
 
 ## Verification
 
