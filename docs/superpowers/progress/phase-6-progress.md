@@ -6,6 +6,61 @@
 
 ---
 
+## Viewer performance (2026-10-27, `perf/viewer`)
+
+> **Last updated:** 2026-10-27 (`perf/viewer` from `main` `2f654a8`: viewer only, no Python change; heavy panels in lazy chunks (entry 791,168 -> 307,379 bytes, gzip 233,605 -> 97,058), large uploads decoded in a worker (load blocking time 512 -> 198 ms guard, 984 -> 109 ms procedural 32-region), a fast path for version-6 object patches (history decode 2.3-2.4x), scrub indexes per array (script per scrubbed turn -22% to -69%); rendered DOM identical to `main` on 4 bundles; frames still rendering-bound; no PR opened here.)
+
+`perf/viewer` from `main` `2f654a8` (PR #49). Details and evidence:
+[`docs/performance/viewer-2026-10.md`](../../performance/viewer-2026-10.md).
+Measured with the committed `viewer/scripts/perf-viewer.mjs` (headless
+Chromium 153 through Playwright), 5 interleaved runs per build on a
+loaded 4-core machine, medians with the runs' range.
+
+- **Code split.** Systems tabs (with Recharts), languages, region
+  history, Batch Lab, batch compare and intervention panels are dynamic
+  imports (`components/phase75/lazyPanels.ts`, `lib/preloadable.ts`):
+  fetched when idle after the first paint and when a load starts; a
+  loaded chunk renders with no fallback; a polite `aria-busy` status
+  until then; a failed chunk shows a readable message. Their stylesheets
+  stay in the entry stylesheet in the old cascade order (loading them
+  with the chunks moved the systems panel; the DOM check caught it). FCP
+  656 -> 588 ms, shell's first frame 225 -> 152 ms; no chunk-size warning.
+- **Worker decode** (`lib/bundleDecode.ts`, `lib/bundleFile.ts`,
+  `hooks/useBundle.ts`): files of 1 MiB or more are read, parsed, checked,
+  expanded and hashed in a worker and come back in 33-35 parts (longest
+  receive 49 ms); main-thread fallback without a worker; the same
+  `BundleDecodeError` / `INVALID_HISTORY_DELTA` messages. Longest task
+  347 -> 217 ms (guard 6.9 MB), 824 -> 103 ms (proc32 24.6 MB); upload to
+  first overview 732 -> 743 ms and 1,170 -> 1,307 ms (the copy back).
+- **Codec fast path** (`lib/bundleCodec.ts`): the common object patch on a
+  shallow copy, everything else and every malformed patch through the
+  unchanged reference; 2,022 valid and 533 malformed random histories
+  decode or fail identically.
+- **Scrub indexes** (`lib/bundleIndex.ts`): Event Log, systems event
+  lists, pinned event and its provenance, terrain, raids, mass migrations,
+  techniques by turn; keyed by the `history` / `events_timeline` array, so
+  uploads and live turns (new arrays) re-index. Timeline marks and strip
+  segments memoized. Script per step 52.8 -> 16.1 ms (guard, 100
+  consecutive) and 111.0 -> 61.8 ms (proc32); random jumps 84.5 -> 62.5
+  and 123.4 -> 95.8 ms. Frames ~135-200 ms in both builds: layout, text
+  shaping and paint of the same DOM changes dominate in this environment.
+- **Equivalence.** `viewer/scripts/viewer-equivalence.mjs`: 95 + 95 + 92 +
+  94 shell DOM captures (sampled turns x systems tabs, map layers, Event
+  Log, pinned event, regions, surfaces, region history) on both generated
+  bundles and two fixtures, 0 differences. Unit checks: each index lookup
+  against the replaced filter at every turn (fixtures, synthetic and
+  generated bundles), streamed live turns against a fresh shell, the
+  worker handler against the main-thread decode.
+- **Tests.** Viewer `npm ci`, `npm test -- --maxWorkers=2` 421 passed in
+  52 files (`main` 382 in 46), `npm run lint`, `npm run build` pass. No-Rust
+  venv: `tests/test_live.py`, `tests/test_live_integration.py`,
+  `tests/test_historical_parity.py`, `tests/test_historical_parity_processes.py`
+  88 passed.
+- **Open.** Batch Lab `bundle_loaded` and reconnect `init` still parse on
+  the main thread (needs a transport change); upload latency +12% on the
+  24.6 MB bundle; forced-layout increase and smaller heap unexplained;
+  Chromium only, no Firefox/Safari or device QA.
+
 ## Consistency follow-ups (2026-10-26, `fix/consistency-followups`)
 
 > **Last updated:** 2026-10-26 (`fix/consistency-followups` from `main` `22c021b`, brought to `dae4ba5` before any baseline: narration, viewer, validation tooling, batch runner and tests; simulation output byte-identical; all five items reproduced on `dae4ba5` and fixed; cohort oracle method 2 counts outcomes after the snapshot turn, every retained set and the live subset keep their verdict; no full gate run.)

@@ -115,10 +115,10 @@ when recovered; no old sandbox URL or prototype is a working simulator claim.
 Current source still rejects Bundle v2 with `BUNDLE_V2_NOT_ACTIVE`. Native and
 hybrid checkpoint continuation are explicitly unsupported by
 `chronicler.checkpoint_replay`; master seed/pool/merchant/trip/registry state is
-not a complete native resume envelope. The overview snapshot selector initializes
-from the first history row even when the requested turn precedes it, and some
-overview fields fall back to final world state. Historical state selection still
-needs focused product work. `TerritoryMap` can synthesize its layout/edges from
+not a complete native resume envelope. PR #49 fixed the overview snapshot
+selector (a turn before the first history row shows no snapshot) and the
+overview fields that fell back to the final world state
+(`docs/integration/consistency-followups.md`). `TerritoryMap` can synthesize its layout/edges from
 controller groups or coordinate proximity, so it is not canonical geographic
 adjacency. These remain documented gaps; the old roadmap was not executed as
 part of recovery.

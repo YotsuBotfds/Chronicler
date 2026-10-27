@@ -795,6 +795,19 @@
   z-index: 3;
 }
 
+/* A lazy panel's placeholder while its chunk loads (lazyPanels.tsx). */
+.phase75-panel-loading {
+  padding: 12px;
+  color: var(--phase75-muted-strong);
+  font-size: 0.86rem;
+}
+
+.phase75-panel-loading.systems-loading {
+  margin-top: 16px;
+  padding: 18px 20px;
+  min-height: 120px;
+}
+
 .phase75-map-loading {
   inset: auto 18px 18px auto;
   padding: 10px 12px;

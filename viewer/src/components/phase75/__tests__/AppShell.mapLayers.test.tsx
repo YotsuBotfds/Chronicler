@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import type { Bundle } from "../../../types";
 import { crisesAtSnapshot, famineSpans, FAMINE_COLOR } from "../../../lib/food";
 import { AppShell, type AppSurface } from "../AppShell";
+import { preloadPanels } from "../lazyPanels";
 
+// Lazy panels render without a fallback once their chunks are loaded (lazyPanels.tsx).
+beforeAll(() => preloadPanels());
 afterEach(cleanup);
 
 const systems = systemsFixture as unknown as Bundle;
