@@ -2609,3 +2609,15 @@ mod tests {
         assert_eq!(pool.rel_count[b], 1);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(FormationStats {
+    bonds_formed, bonds_evicted, bonds_dissolved_structural, bonds_dissolved_death,
+    pairs_evaluated, pairs_eligible, marriages_formed, marriage_pairs_evaluated,
+    marriage_pairs_rejected_hostile, marriage_pairs_rejected_incest,
+    marriage_pairs_rejected_distance, cross_civ_marriages, same_civ_marriages,
+    cross_faith_marriages, same_faith_marriages,
+});

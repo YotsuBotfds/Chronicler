@@ -412,3 +412,14 @@ fn collect_dependents_for_consolidation(
     deps.dedup();
     deps
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(HouseholdStats {
+    inheritance_transfers_spouse, inheritance_transfers_child, inheritance_wealth_lost,
+    household_migrations_follow, household_migrations_cancelled_rebellion,
+    household_migrations_cancelled_catastrophe, household_dependent_overrides,
+    births_married_parent, births_unmarried_parent, migration_drivers,
+});

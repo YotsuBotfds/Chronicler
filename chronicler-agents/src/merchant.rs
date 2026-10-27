@@ -2310,3 +2310,37 @@ mod tests {
         assert_eq!(stats.unwind_count, 1); // only transit counts toward unwind_count
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(RouteGraph {
+    adj, num_regions, edge_count, sea_lanes, cargo,
+});
+crate::persist_struct!(CargoConfig {
+    land, river, sea, fill,
+});
+crate::persist_struct!(ShadowLedger {
+    reserved, in_transit_out, pending_delivery,
+});
+crate::persist_struct!(DeliveryBuffer {
+    physical_stock, departure_debits, arrival_imports, return_credits, diagnostics,
+});
+crate::persist_struct!(ArrivalRecord {
+    source_region, dest_region, good_slot, qty,
+});
+crate::persist_struct!(DeliveryDiagnostics {
+    total_departures, total_arrivals, total_returns, total_transit_decay,
+});
+crate::persist_struct!(MerchantTripStats {
+    active_trips, completed_trips, avg_trip_duration, total_in_transit_qty, route_utilization,
+    disruption_replans, unwind_count, stalled_trip_count, overcommit_count,
+    plans_packet_driven, plans_bootstrap, no_usable_packets, sea_log, raided_trips,
+});
+crate::persist_struct!(SeaCrossing {
+    from_region, to_region, origin_region, dest_region, good_slot, qty, loss,
+});
+crate::persist_enum!(LossReason {
+    TransitDecay = 0, Raid = 1, Disruption = 2, Spoilage = 3,
+});

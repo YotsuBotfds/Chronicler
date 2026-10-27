@@ -474,3 +474,18 @@ mod tests {
         assert_eq!(registry.characters[1].parent_id_1, crate::agent::PARENT_NONE);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(NamedCharacterRegistry {
+    characters,
+});
+crate::persist_struct!(NamedCharacter {
+    agent_id, role, civ_id, origin_civ_id, born_turn, promotion_turn, promotion_trigger,
+    parent_id_0, parent_id_1, history,
+});
+crate::persist_enum!(CharacterRole {
+    General = 0, Merchant = 1, Scientist = 2, Prophet = 3, Exile = 4,
+});

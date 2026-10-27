@@ -2274,3 +2274,16 @@ mod tests {
         assert!((compute_transport_cost(0, 0, false, true, 1.0) - 0.15).abs() < 0.001);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(EconomyConfig {
+    base_price, per_capita_food, raw_material_per_soldier, luxury_per_wealthy_agent,
+    luxury_demand_threshold, carry_per_merchant, farmer_income_modifier_floor,
+    farmer_income_modifier_cap, merchant_margin_normalizer, tax_rate,
+    trade_dependency_threshold, per_good_cap_factor, salt_preservation_factor,
+    max_preservation, tatonnement_max_passes, tatonnement_damping, tatonnement_convergence,
+    tatonnement_price_clamp_lo, tatonnement_price_clamp_hi,
+});
