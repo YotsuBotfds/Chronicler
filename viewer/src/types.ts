@@ -877,6 +877,8 @@ export interface Bundle {
   historiography?: HistoriographyField;
   /** In-world languages and names (runs with languages on; absent otherwise). */
   languages?: LanguagesField;
+  /** The names table of narrated entries' provenance (narrated bundles only). */
+  narration_provenance?: { version: number; names: string[] };
 }
 
 // --- Live mode types ---
@@ -988,6 +990,31 @@ export interface NewChronicleEntry {
   causal_chains?: CausalChain[];
   /** In-world accounts the narration drew on (ids "<chronicler>/<event_id>"). */
   accounts?: string[];
+  /** The facts the narrator was given and what each sentence cites (narrated bundles only). */
+  provenance?: PassageProvenance;
+}
+
+/**
+ * Narration provenance (docs/integration/narration-provenance.md). Fact ids
+ * name the bundle's records: `e<i>` is `events_timeline[i]`, `n<i>`
+ * `named_events[i]`, `<chronicler>/e<i>` an in-world account, `p<agent id>` a
+ * character, `art<id>` an artifact, `s<S>.<what>.<key>` a value of snapshot
+ * S, `d<S1>-<S2>.<key>` a change between two snapshots, `w<a>-<b>` the
+ * events of turns a..b, `o<T>.<what>` an observation, `L.<kind><ref>` in-world
+ * names, `k<j>` the entry's causal_links[j].
+ */
+export interface PassageProvenance {
+  v: number;
+  /** "mechanical" (sentences built from the facts) or "llm" (the model's own citations). */
+  narrator: string;
+  /** The last completed turn the passage narrates. */
+  as_of: number;
+  /** A bare id (dated as_of), [id, turn] or [id, turn, "r"] (given as retrospective: after the moment). */
+  facts: Array<string | [string, number | null] | [string, number | null, string]>;
+  /** Characters, civilizations, regions and faiths the facts name (in a file: indices into `narration_provenance.names`). */
+  names: Array<string | number>;
+  /** [start, end, ids] over the entry's narrative. */
+  spans: Array<[number, number, string[]]>;
 }
 
 // --- In-world historiography (optional bundle field; docs/integration/historiography.md) ---

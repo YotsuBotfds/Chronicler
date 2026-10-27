@@ -528,6 +528,11 @@
   cursor: pointer;
 }
 
+.phase75-sources-toggle {
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
+
 .phase75-etymology {
   display: grid;
   gap: 6px;

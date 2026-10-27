@@ -1,8 +1,8 @@
 /**
  * The shell's heavier panels, each in its own chunk (with Recharts in a
  * shared one): the systems tabs, the languages inspector, the region
- * history inspector, the Batch Lab panel and compare overlay, and the
- * live intervention panel. None is on the first screen (setup, before a
+ * history inspector, the Batch Lab panel and compare overlay, the live
+ * intervention panel and a chronicle passage's sources. None is on the first screen (setup, before a
  * bundle). The shell starts loading them once it has painted
  * (`preloadPanels`), and again when a bundle starts loading, so they are
  * normally there before they are needed; until then a panel shows its
@@ -15,6 +15,7 @@ import type { BatchPanel as BatchPanelType } from "../BatchPanel";
 import type { InterventionPanel as InterventionPanelType } from "../InterventionPanel";
 import type { RegionHistoryInspector as RegionHistoryInspectorType } from "../RegionHistoryInspector";
 import type { SystemsPanel as SystemsPanelType } from "../systems/SystemsPanel";
+import type { ChronicleSources as ChronicleSourcesType } from "./ChronicleSources";
 import type { LanguagesPanel as LanguagesPanelType } from "./LanguagesPanel";
 
 /** What a panel whose chunk failed to load shows instead (no error boundary). */
@@ -64,8 +65,15 @@ export const InterventionPanel = preloadable<ComponentProps<typeof InterventionP
   "InterventionPanel",
 );
 
+/** A chronicle passage's sources (its narration provenance), opened from the feed. */
+export const ChronicleSources = preloadable<ComponentProps<typeof ChronicleSourcesType>>(
+  () => import("./ChronicleSources").then((module) => module.ChronicleSources),
+  loadFailed("passage sources"),
+  "ChronicleSources",
+);
+
 /** Start loading every lazy panel (once each); resolves when all render without suspending. */
 export function preloadPanels(): Promise<unknown> {
-  return Promise.all([SystemsPanel, LanguagesPanel, RegionHistoryInspector, BatchPanel, BatchCompare, InterventionPanel]
-    .map((panel) => panel.preload()));
+  return Promise.all([SystemsPanel, LanguagesPanel, RegionHistoryInspector, BatchPanel, BatchCompare, InterventionPanel,
+    ChronicleSources].map((panel) => panel.preload()));
 }

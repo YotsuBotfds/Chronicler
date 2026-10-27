@@ -1,0 +1,12 @@
+/* A chronicle passage's sources (ChronicleSources.tsx, loaded with its chunk). */
+.phase75-sources { display: grid; gap: 6px; margin-top: 8px; font-size: 0.8rem; }
+.phase75-sources-summary { color: var(--phase75-muted-strong); }
+.phase75-sources-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.phase75-source { display: grid; grid-template-columns: auto auto 1fr; gap: 6px; align-items: baseline; color: var(--phase75-muted-strong); }
+.phase75-source.cited { color: var(--phase75-ink); }
+.phase75-source-turn { font: inherit; color: var(--phase75-cyan-strong); background: none; border: 1px solid var(--phase75-edge); border-radius: 4px; padding: 0 4px; cursor: pointer; }
+.phase75-source-turn:disabled { opacity: .5; cursor: default; }
+.phase75-source-turn:focus-visible, .phase75-sources-more:focus-visible { outline: 2px solid var(--phase75-cyan); outline-offset: 2px; }
+.phase75-source-kind { color: var(--phase75-muted); white-space: nowrap; }
+.phase75-source-label { overflow-wrap: anywhere; }
+.phase75-sources-more { justify-self: start; font: inherit; color: var(--phase75-ink); background: none; border: 0; padding: 0; text-decoration: underline dotted; cursor: pointer; }
