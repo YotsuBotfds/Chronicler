@@ -24,15 +24,23 @@
  *   total blocking time (the sum of each task's time over 50 ms), the
  *   longest task and their total;
  * - the JavaScript heap after the load (after a forced garbage collection);
- * - scrubbing: a click on the timeline track, from the click to the commit
- *   plus a forced layout ("commit") and to the frame after it ("frame"),
- *   for consecutive turns and for seeded random jumps, in three scenarios:
- *   the overview with the Event Log, the campaign surface (wars layer and
- *   tab), and the overview with an event pinned in the inspector.
+ * - on a build with the decode worker, its phases (the `chronicler:
+ *   bundle-decoded` user-timing mark: read, decode, main-thread receive);
+ * - scrubbing: a click on the timeline track, timed from the click to
+ *   React's commit (mutation records arrive after it: "script"), to a
+ *   forced layout after it ("layout"; "commit" is both) and to the frame
+ *   after it ("frame"), for consecutive turns (`--consecutive`, default
+ *   100) and seeded random jumps (`--random`, 100) from 40% of the run, in
+ *   three scenarios: the overview with the Event Log, the campaign surface
+ *   (wars layer and tab; `--campaign`, 100 of each) and the overview with
+ *   an event pinned in the inspector (`--pinned`, 50 of each).
+ *   `--load-only` skips scrubbing.
  *
  * Builds alternate within each round (A B, then B A, ...), so drift on a
  * loaded machine falls on both. The report holds every sample and a summary:
- * medians over the runs, with the range (min-max) of the runs.
+ * medians over the runs, with the range (min-max) of the runs; for a scrub
+ * pattern, the median over the runs of each run's median (or 95th
+ * percentile) step.
  */
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
@@ -55,7 +63,7 @@ const MIME = {
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   const options = { command, builds: [], bundles: [], runs: 5, out: null, consecutive: 100, random: 100,
-    pinned: 50, seed: 20261026, headed: false, loadOnly: false };
+    campaign: 100, pinned: 50, seed: 20261026, headed: false, loadOnly: false };
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
     const value = rest[index + 1];
@@ -71,6 +79,7 @@ function parseArgs(argv) {
       case "--out": options.out = path.resolve(value); index += 1; break;
       case "--consecutive": options.consecutive = Number(value); index += 1; break;
       case "--random": options.random = Number(value); index += 1; break;
+      case "--campaign": options.campaign = Number(value); index += 1; break;
       case "--pinned": options.pinned = Number(value); index += 1; break;
       case "--seed": options.seed = Number(value); index += 1; break;
       case "--headed": options.headed = true; break;
@@ -377,7 +386,7 @@ async function sample(browser, url, bundle, options, total) {
 
   await runScenario("campaign", async () => {
     await page.getByRole("button", { name: "Campaign", exact: true }).click();
-  }, { consecutive: options.consecutive, random: options.random });
+  }, { consecutive: options.campaign, random: options.campaign });
 
   await runScenario("overview-pinned-event", async () => {
     await page.getByRole("button", { name: "Overview", exact: true }).click();
@@ -526,7 +535,8 @@ async function main() {
     generated: new Date().toISOString(),
     chromium: browser.version(),
     node: process.version,
-    options: { runs: options.runs, consecutive: options.consecutive, random: options.random, pinned: options.pinned,
+    options: { runs: options.runs, consecutive: options.consecutive, random: options.random, campaign: options.campaign,
+      pinned: options.pinned,
       seed: options.seed, builds: options.builds.map((build) => build.label),
       bundles: options.bundles.map((bundle) => ({ label: bundle.label, turns: totals[bundle.label] })) },
     sizes,
