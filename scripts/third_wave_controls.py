@@ -59,6 +59,17 @@ def legacy_event_dump(event) -> dict:
     return strip_provenance_event(event.model_dump(mode="json"))
 
 
+def strip_faith_table(world: dict) -> dict:
+    """Without the permanent faith table (docs/integration/permanent-faiths.md).
+
+    A run whose faiths never shared a slot names every faith by permanent
+    id == slot, so the table is its only addition; a recycled slot changes
+    record values too and is refused here."""
+    for k, rec in enumerate(world.pop("faiths", None) or []):
+        assert rec["slot"] == k and rec.get("released_turn") is None, (k, "a faith slot was recycled")
+    return world
+
+
 def strip_provenance(world: dict) -> dict:
     world.pop("provenance", None)
     for event in world.get("events_timeline", []):
@@ -70,7 +81,7 @@ def strip_provenance(world: dict) -> dict:
 
 
 def legacy_artifact_bytes(path, *, pre_pruning=False):
-    """Artifact bytes without the dormant and provenance additions.
+    """Artifact bytes without the dormant, provenance and faith-table additions.
 
     Bundle version 4 (provenance) projects to version 3. A version-5 bundle
     (dead civs pruned from the history, docs/performance/dead-civ-pruning.md)
@@ -89,6 +100,7 @@ def legacy_artifact_bytes(path, *, pre_pruning=False):
         data["metadata"]["bundle_version"] = 5
     strip_dormant_fields(data["world_state"] if path.name == "chronicle_bundle.json" else data)
     strip_provenance(data["world_state"] if path.name == "chronicle_bundle.json" else data)
+    strip_faith_table(data["world_state"] if path.name == "chronicle_bundle.json" else data)
     if path.name == "chronicle_bundle.json":
         for event in data.get("events_timeline", []):
             strip_provenance_event(event)

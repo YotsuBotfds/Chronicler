@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Iterable, Mapping
 import numpy as np
 
 from chronicler import elite_metrics as g02
+from chronicler import faiths
 from chronicler.columnar import group_rows, ordered_counts
 from chronicler.elite_metrics_columnar import compute_civ_elite_counts
 from chronicler import governance_capital as g03
@@ -737,6 +738,11 @@ def _ambition_snapshot(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Conte
     faith = getattr(civ, "civ_majority_faith", 0xFF)
     predicates, observations = [], []
     if world.belief_registry and faith not in (None, 0xFF):
+        # Shares are counted by slot (the agents' belief); objectives and
+        # observations name the faith by permanent id (chronicler.faiths), so
+        # a conversion goal never counts the believers of a later church that
+        # took its faith's slot.
+        uid = faiths.uid_or_slot(world, faith)
         for name in sorted(owned):
             region = ctx.region_map.get(name)
             if region is None:
@@ -747,9 +753,9 @@ def _ambition_snapshot(world, civ_idx: int, civ, gov: CivGovernance, ctx: _Conte
                 share = dist.get(faith, 0) / total if total else 0.0
             else:
                 share = 1.0 if region.majority_belief == faith else 0.0
-            observations.append(g04.ConversionObservation(name, faith, belief_share=min(1.0, share)))
+            observations.append(g04.ConversionObservation(name, uid, belief_share=min(1.0, share)))
             if share < CONVERSION_CANDIDATE_SHARE:
-                predicates.append(g04.ConversionPredicate(name, faith, minimum_share=CONVERSION_MINIMUM_SHARE))
+                predicates.append(g04.ConversionPredicate(name, uid, minimum_share=CONVERSION_MINIMUM_SHARE))
     influence = civ.factions.influence
     ruler_faction = _ruler_faction(civ)
     return g04.AmbitionSnapshot(

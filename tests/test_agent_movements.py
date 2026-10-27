@@ -546,9 +546,17 @@ def test_a_schism_in_a_full_registry_takes_the_place_of_a_vanished_faith():
     position = next(k for k, b in enumerate(world.belief_registry) if b.faith_id == 4)
     events = _tick(world, members={(0, THORNWOOD): 8})
     assert "Schism" in _types(events) and m.end == SCHISM
-    assert len(world.belief_registry) == 16 and m.schism_to == 4
+    # The sect takes slot 4 under a permanent id of its own (16: the table
+    # holds the 16 faiths before it); the vanished faith keeps id 4.
+    from chronicler import faiths
+    assert len(world.belief_registry) == 16 and m.schism_to == m.successor == m.faith == 16
+    assert faiths.slot_of(world, m.schism_to) == 4 and faiths.uid_of(world, 4) == 16
+    assert world.faiths[4].name == "Old Faith 4" and world.faiths[4].released_turn == world.turn
+    sect = world.faiths[16]
+    assert (sect.slot, sect.origin, sect.parent, sect.movement, sect.founded_turn) == (
+        4, "sect", faith, world.agent_movements.movements.index(m), world.turn)
     assert world.belief_registry[position].faith_id == 4
-    assert world.belief_registry[position].name.endswith("(Reformed)")
+    assert world.belief_registry[position].name.endswith("(Reformed)") == sect.name.endswith("(Reformed)")
     assert "Old Faith 4" in next(e for e in events if e.event_type == "Schism").description
     # With every faith held or referenced, the sect rises instead.
     full = _world()
@@ -604,7 +612,9 @@ def test_a_recycled_faith_slot_never_carries_an_old_reform_or_movement():
     _place(world, target=KETHANI, home=AMBER, faith=7, stage=ENDED, end=FADED)
     events = _tick(world, members={(0, THORNWOOD): 8})
     assert "Schism" in _types(events) and m.end == SCHISM
-    assert m.schism_to == 7
+    from chronicler import faiths
+    assert faiths.slot_of(world, m.schism_to) == 7 and m.schism_to == 16
+    assert world.faiths[7].released_turn == world.turn  # the lapsed toleration's faith keeps id 7
     assert M.reform_table(world).to_pydict()["faith"] == [4]
 
 

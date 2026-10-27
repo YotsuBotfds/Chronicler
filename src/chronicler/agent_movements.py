@@ -54,6 +54,7 @@ from chronicler.agent_movements_state import (
     SECT, STAGE_NAMES, SUPPRESSED, TOLERATION, WON, Movement, MovementState, Reform,
     agent_movements_on,
 )
+from chronicler import faiths
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -271,9 +272,17 @@ def _living(state: MovementState) -> list[tuple[int, Movement]]:
     return [(i, m) for i, m in enumerate(state.movements) if m.stage != ENDED]
 
 
-def _faith_name(world, faith_id: int) -> str | None:
-    belief = next((b for b in world.belief_registry if b.faith_id == faith_id), None)
-    return belief.name if belief is not None else None
+def _faith_name(world, faith: int) -> str | None:
+    """Name of a faith by its permanent id (``Movement.faith``,
+    ``Reform.faith``; chronicler.faiths), whether or not it holds a slot."""
+    return faiths.name_of(world, faith)
+
+
+def _faith_uid(world, slot) -> int:
+    """Permanent id of the faith holding a native slot now (NO_FAITH for
+    none). Movements and reforms record faiths by permanent id."""
+    uid = faiths.uid_of(world, slot)
+    return NO_FAITH if uid is None else uid
 
 
 class _Observation:
@@ -542,7 +551,7 @@ def _observe_movement(t: _Tick, i: int, m: Movement, civ) -> None:
         beliefs = obs.belief[mask]
         beliefs = beliefs[(beliefs >= 0) & (beliefs < NO_FAITH)]
         if beliefs.size:
-            m.faith = int(np.argmax(np.bincount(beliefs)))
+            m.faith = _faith_uid(t.world, int(np.argmax(np.bincount(beliefs))))
     realm = [ri for ri, r in enumerate(t.world.regions) if r.controller == civ.name]
     realm_adults = int(sum(int(obs.adults[ri]) for ri in realm))
     realm_members = int(sum(int(counts[ri]) for ri in realm))
@@ -809,7 +818,7 @@ def _demand_text(world, m: Movement) -> str:
         if faith is None:
             return "freedom to worship as they believe"
         target = world.civilizations[m.target] if 0 <= m.target < len(world.civilizations) else None
-        if target is not None and getattr(target, "civ_majority_faith", NO_FAITH) == m.faith:
+        if target is not None and faiths.same_faith(world, m.faith, getattr(target, "civ_majority_faith", NO_FAITH)):
             return f"the reform of the {faith}"
     return _DEMANDS[m.creed].format(region=region, faith=faith)
 
@@ -1037,7 +1046,7 @@ def _enact(t: _Tick, i: int, m: Movement, civ):
                ruler=civ.leader.name, ruler_start=civ.leader.reign_start, restores=m.restores)
     if kind == GUILD_CHARTER:
         r.cities = [city]
-    r.church = kind == TOLERATION and getattr(civ, "civ_majority_faith", NO_FAITH) == m.faith
+    r.church = kind == TOLERATION and faiths.same_faith(world, m.faith, getattr(civ, "civ_majority_faith", NO_FAITH))
     r.institution, r.founded_institution = _institutionalize(t, civ, kind)
     state.reforms.append(r)
     k = len(state.reforms) - 1
@@ -1224,7 +1233,7 @@ def _restoration(world, state: MovementState, cidx: int, creed: int, ri: int, re
             continue
         if r.kind in (HOME_RULE, GUILD_CHARTER) and ri not in r.regions:
             continue
-        if r.kind == TOLERATION and region.majority_belief != r.faith:
+        if r.kind == TOLERATION and not faiths.same_faith(world, r.faith, region.majority_belief):
             continue
         best = k
     return best
@@ -1321,8 +1330,9 @@ def _extinct_faith_slot(t: _Tick) -> int | None:
     not counted, so a slot was reused while a toleration in force still
     named its id; the native reform table matches believers by that number,
     so the old toleration protected the unrelated church that took the
-    slot. A faith's id is a reusable native slot, not a permanent identity;
-    separating the two is the longer-term fix.
+    slot. A faith's slot is reusable; its permanent identity is its index in
+    ``world.faiths`` (chronicler.faiths), which movements and reforms record
+    and which is converted to the slot it holds here.
     """
     obs = t.obs
     if obs is None:
@@ -1331,12 +1341,12 @@ def _extinct_faith_slot(t: _Tick) -> int | None:
     used = set(int(b) for b in set(obs.belief.tolist()))
     for m in t.state.movements:
         if m.stage != ENDED:
-            used.add(m.faith)
+            used.add(faiths.slot_of(world, m.faith))
     for r in t.state.reforms:
         if r.kind == TOLERATION and (r.repeal == IN_FORCE or (
                 r.repeal != LAPSED and r.repealed_turn is not None
                 and world.turn - r.repealed_turn <= REPEAL_MEMORY)):
-            used.add(r.faith)
+            used.add(faiths.slot_of(world, r.faith))
     for r in world.regions:
         used.update((r.majority_belief, r.conversion_target_signal, r.schism_convert_from,
                      r.schism_convert_to))
@@ -1355,36 +1365,42 @@ def _schism(t: _Tick, i: int, m: Movement, civ) -> bool:
     """A sect of the ruler's or the stronghold's faith breaks with that church
     through the religion path (``religion.fire_schism``). When the 16-faith
     registry is full, the sect takes the place of a faith no one holds any
-    more (same id and registry position). Returns False when it cannot (a
-    minority's sect, or no free place)."""
+    more (same slot and registry position; the vanished faith keeps its
+    permanent id, the sect gets a new one: chronicler.faiths). Returns False
+    when it cannot (a minority's sect, or no free place)."""
     from chronicler.religion import MAX_FAITHS, fire_schism
     world = t.world
     region = world.regions[m.stronghold]
     churches = {getattr(civ, "civ_majority_faith", NO_FAITH), region.majority_belief}
-    if m.faith == NO_FAITH or m.faith not in churches:
+    faiths.ensure(world)
+    church = faiths.slot_of(world, m.faith)
+    if m.faith == NO_FAITH or church is None or church not in churches:
         return False
-    if not any(b.faith_id == m.faith for b in world.belief_registry):
+    if not any(b.faith_id == church for b in world.belief_registry):
         return False
     registry = world.belief_registry
-    slot = retired = None
+    pos = retired = None
     if len(registry) >= MAX_FAITHS:
-        slot = _extinct_faith_slot(t)
-        if slot is None:
+        pos = _extinct_faith_slot(t)
+        if pos is None:
             return False
-        retired = registry.pop(slot)
+        retired = registry.pop(pos)
     old_name = _faith_name(world, m.faith)
-    new = fire_schism(region, m.faith, registry, civ, world.turn, civ_origin=m.target)
+    new = fire_schism(region, church, registry, civ, world.turn, civ_origin=m.target)
     if new is None:
-        if slot is not None:
-            registry.insert(slot, retired)
+        if pos is not None:
+            registry.insert(pos, retired)
         return False
-    if slot is not None:
-        # fire_schism appended the sect with the freed id; keep the position.
-        registry.insert(slot, registry.pop())
+    if pos is not None:
+        # fire_schism appended the sect with the freed slot; keep the position.
+        registry.insert(pos, registry.pop())
+        faiths.release(world, retired.faith_id)
+    sect = faiths.found(world, new, origin=faiths.SECT, parent=m.faith, region=m.stronghold,
+                        movement=i, leader=m.leader)
     m.schism_turn = world.turn
     m.schism_from = m.faith
-    m.schism_to = new.faith_id
-    m.successor = new.faith_id
+    m.schism_to = sect
+    m.successor = sect
     _bump(t.state, "schisms")
     replaced = f" in place of the vanished '{retired.name}'" if retired is not None else ""
     ev = _emit(t, "Schism", [civ.name],
@@ -1393,7 +1409,7 @@ def _schism(t: _Tick, i: int, m: Movement, civ) -> bool:
                importance=7, region=region.name,
                causes=(_recall(t, i, "refused", within=40), _recall(t, i, "crackdown", within=40)))
     _note(m, world.turn, "schism", ev.event_id)
-    m.faith = new.faith_id
+    m.faith = sect
     _end(t, i, m, SCHISM, f"{m.name} becomes the church of '{new.name}'", causes=(ev.event_id,))
     return True
 
@@ -1752,13 +1768,13 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, regio
     cidx = t.civ_index(region.controller)
     civ = world.civilizations[cidx]
     i = len(state.movements)
-    faith = region.majority_belief if region.majority_belief is not None else NO_FAITH
+    faith = _faith_uid(world, region.majority_belief)
     name = _movement_name(world, creed, region.name, _faith_name(world, faith) or "", i)
     m = Movement(
         name=name, creed=creed, founded_turn=world.turn, home_region=ri, target=cidx,
         leader=gp.name if gp is not None else "",
         leader_agent=int(gp.agent_id) if gp is not None and gp.agent_id is not None else 0,
-        idea=_idea_for(world, civ, creed), faith=faith if 0 <= faith < NO_FAITH else NO_FAITH,
+        idea=_idea_for(world, civ, creed), faith=faith,
         stage=GATHERING, stage_turn=world.turn, regions_reached=[ri], restores=restores,
     )
     if not _seed_founders(t, i, m, region_adults):
@@ -1781,6 +1797,11 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, regio
 # ---------------------------------------------------------------------------
 # Native table (built from persisted state for every tick)
 # ---------------------------------------------------------------------------
+
+def _slot(world, faith: int) -> int:
+    slot = faiths.slot_of(world, faith)
+    return NO_FAITH if slot is None else slot
+
 
 def movement_table(world: "WorldState"):
     """The native movement table for this turn's tick: one row per living
@@ -1825,8 +1846,9 @@ def movement_table(world: "WorldState"):
             m.crackdown_region if m.crackdown_turn == turn - 1 and m.crackdown_region >= 0 else NO_REGION)
         cols["rising_region"].append(
             m.rising_region if m.stage == RISING and m.rising_turn == turn - 1 else NO_REGION)
-        cols["convert_from"].append(m.schism_from if schism_tick else NO_FAITH)
-        cols["convert_to"].append(m.schism_to if schism_tick else NO_FAITH)
+        # Native slots of the old church and the sect (recorded by permanent id).
+        cols["convert_from"].append(_slot(world, m.schism_from) if schism_tick else NO_FAITH)
+        cols["convert_to"].append(_slot(world, m.schism_to) if schism_tick else NO_FAITH)
     types = {
         "movement_id": pa.uint16(), "creed": pa.uint8(), "stage": pa.uint8(),
         "target_civ": pa.uint8(), "appeal": pa.float32(), "found_region": pa.uint16(),
@@ -1847,8 +1869,15 @@ def reform_table(world: "WorldState"):
     for r in (state.reforms if state is not None else ()):
         if r.repeal != IN_FORCE or not 0 <= r.civ < 255:
             continue
+        faith = NO_FAITH
+        if r.kind == TOLERATION:
+            # The native table matches believers by slot; a toleration records
+            # its faith by permanent id (one in force always holds a slot).
+            faith = faiths.slot_of(world, r.faith)
+            if faith is None:
+                continue
         rows = ([(ri, NO_FAITH) for ri in r.regions] if r.kind in (HOME_RULE, GUILD_CHARTER)
-                else [(NO_REGION, r.faith if r.kind == TOLERATION else NO_FAITH)])
+                else [(NO_REGION, faith)])
         for region, faith in rows:
             cols["creed"].append(r.kind)
             cols["civ"].append(r.civ)

@@ -73,7 +73,7 @@ _SCHOLARS_FLED = re.compile(r"^(?P<count>\d+) scholars fled (?P<rest>.+)$")
 # passes a threshold; it counts no one leaving.
 _FAITHFUL_FLEE = re.compile(r"^Religious minorities flee (?P<region>.+) due to persecution "
                             r"\(minority_ratio=(?P<ratio>[\d.]+)\)$")
-# infrastructure.py names a temple's faith by its id.
+# infrastructure.py names a temple's faith by its permanent id (chronicler.faiths).
 _TEMPLE_OF_FAITH = re.compile(r"^Temple of faith (?P<id>\d+) (?P<what>destroyed|replaced) in (?P<region>.+)$")
 
 
@@ -84,8 +84,8 @@ def _words(event_type: str) -> str:
 def event_text(ev: "Event", faiths: dict[int, str] | None = None) -> str:
     """The event's narrator line, without a trailing full stop.
 
-    With ``faiths`` (faith id -> name, from ``world.belief_registry``) a
-    temple recorded by faith id is named by its faith.
+    With ``faiths`` (permanent faith id -> name, ``chronicler.faiths.names``)
+    a temple recorded by faith id is named by its faith.
 
     The recorded description, or a label for types recorded without one.
     Four recorded descriptions are reworded to say no more than the record:
