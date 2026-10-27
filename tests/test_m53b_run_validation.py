@@ -372,6 +372,7 @@ def test_main_writes_comparison_manifest_and_exits_on_fail_on_regression(monkeyp
             "m53b_run_validation.py",
             "--profile",
             "full",
+            "--no-ablation-oracles",
             "--output-root",
             str(tmp_path.parent),
             "--baseline-report",
@@ -426,6 +427,7 @@ def test_main_records_comparison_regression_without_failing_unless_requested(mon
             "m53b_run_validation.py",
             "--profile",
             "full",
+            "--no-ablation-oracles",
             "--output-root",
             str(tmp_path.parent),
             "--baseline-report",
@@ -473,6 +475,7 @@ def test_main_records_optional_regression_diagnostics_as_no_regression_for_subse
             "m53b_run_validation.py",
             "--profile",
             "subset",
+            "--no-ablation-oracles",
             "--output-root",
             str(tmp_path.parent),
             "--baseline-report",
@@ -546,6 +549,7 @@ def test_main_preserves_manifest_when_comparison_input_is_bad_and_gate_fails(mon
             "m53b_run_validation.py",
             "--profile",
             "full",
+            "--no-ablation-oracles",
             "--output-root",
             str(tmp_path.parent),
             "--baseline-report",
@@ -588,6 +592,7 @@ def test_main_exits_one_when_gate_passes_but_comparison_input_is_bad(monkeypatch
             "m53b_run_validation.py",
             "--profile",
             "full",
+            "--no-ablation-oracles",
             "--output-root",
             str(tmp_path.parent),
             "--baseline-report",
@@ -615,7 +620,7 @@ def test_main_writes_manifest_before_gate_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(
         runner.sys,
         "argv",
-        ["m53b_run_validation.py", "--profile", "full", "--output-root", str(tmp_path.parent)],
+        ["m53b_run_validation.py", "--profile", "full", "--no-ablation-oracles", "--output-root", str(tmp_path.parent)],
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -724,7 +729,7 @@ def test_main_compares_other_cohorts_only_when_exploratory(monkeypatch, tmp_path
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
     monkeypatch.setattr(runner, "run_subset", lambda args, cwd, env: batch_dir)
-    argv = ["m53b_run_validation.py", "--profile", "subset", "--output-root", str(tmp_path / "out"),
+    argv = ["m53b_run_validation.py", "--profile", "subset", "--no-ablation-oracles", "--output-root", str(tmp_path / "out"),
             "--baseline-report", str(baseline_path)]
     monkeypatch.setattr(runner.sys, "argv", argv + (["--exploratory-comparison"] if exploratory else []))
     if exploratory:

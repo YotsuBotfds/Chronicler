@@ -141,7 +141,19 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # counted as the five paired needs' are, with their own seed-clustered
 # bounds. It never decides the verdict and is not in the pooled totals.
 # Matching on age was measured and not adopted (the same document).
-NEEDS_ORACLE_METHOD_VERSION = 6
+#
+# Method 7 (docs/integration/ablation-oracles.md) keeps method 6's result as
+# its observational component and adds a causal one: every seed is forked at
+# turns T from the plain run's exact checkpoint with the need terms of the
+# native decision switched off from tick T+1 (``chronicler.ablation_arms``,
+# arm ``needs``); agents below a need's threshold at T are followed over
+# ticks T+1 .. T+20 in both arms, and the need terms must raise each
+# pairing's event by at least 10% with a seed-clustered lower bound above no
+# effect (``chronicler.validation_ablation``). Which component decides
+# depends on the profile (``validation_gate.NEEDS_COMPONENTS_REQUIRED``):
+# the ablation in the full profile, the observational one in the subset.
+NEEDS_ORACLE_METHOD_VERSION = 7
+NEEDS_INFORMATIONAL_METHOD_VERSION = 6
 NEEDS_DEATH_CENSORED_METHOD_VERSION = 5
 NEEDS_POST_SNAPSHOT_METHOD_VERSION = 4
 NEEDS_BINDING_METHOD_VERSION = 3
@@ -149,7 +161,7 @@ NEEDS_POOLED_METHOD_VERSION = 2
 NEEDS_METHOD_VERSIONS = (
     NEEDS_POOLED_METHOD_VERSION, NEEDS_BINDING_METHOD_VERSION,
     NEEDS_POST_SNAPSHOT_METHOD_VERSION, NEEDS_DEATH_CENSORED_METHOD_VERSION,
-    NEEDS_ORACLE_METHOD_VERSION,
+    NEEDS_INFORMATIONAL_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION,
 )
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
@@ -221,11 +233,23 @@ NEEDS_BINDING_DIVERGENCE = 0.05
 # against the other members' controls). Deaths come from the agent event
 # stream (``run["deaths"]``); a run without that key is scored as if no agent
 # died.
-COHORT_ORACLE_METHOD_VERSION = 3
+#
+# Method 4 (docs/integration/ablation-oracles.md) replaces the observational
+# verdict, which could not fail (best of every snapshot, either behaviour,
+# the larger effect: every synthetic world passed, reversed ones included),
+# by an ablation: every seed is forked at turns T with the relationship part
+# of migrants' roots switched off from tick T+1 (arm ``kin_roots``), and the
+# community members at T must migrate at least 15% less over ticks
+# T+1 .. T+20 with the term than without it, with a seed-clustered upper
+# bound below no effect. Rebellion is reported, not deciding: no community
+# term enters the rebel decision. ``method_version=3`` re-scores method 3.
+COHORT_ORACLE_METHOD_VERSION = 4
+COHORT_DEATH_CENSORED_METHOD_VERSION = 3
 COHORT_POST_SNAPSHOT_METHOD_VERSION = 2
 COHORT_LEGACY_METHOD_VERSION = 1
 COHORT_METHOD_VERSIONS = (
-    COHORT_LEGACY_METHOD_VERSION, COHORT_POST_SNAPSHOT_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION,
+    COHORT_LEGACY_METHOD_VERSION, COHORT_POST_SNAPSHOT_METHOD_VERSION, COHORT_DEATH_CENSORED_METHOD_VERSION,
+    COHORT_ORACLE_METHOD_VERSION,
 )
 COHORT_OUTCOME_WINDOW_TURNS = 20
 
@@ -2490,8 +2514,20 @@ def run_needs_oracle(
     require_binding: bool = True,
     profile: str | None = None,
     method_version: int | None = None,
+    ablation: dict | None = None,
+    placebo: dict | None = None,
 ) -> dict:
-    """M53 oracle 2, method 6: lower need, more of its event, pooled over seeds.
+    """M53 oracle 2, method 7: method 6's observational result and an ablation.
+
+    Method 7 (``NEEDS_ORACLE_METHOD_VERSION``) is method 6's result (the
+    observational component, ``observational_status``) with the ablation
+    component of the ``needs`` arm (``ablation``, from
+    ``validation_ablation.load_ablation_arms``; without it the component is
+    ``NOT_RUN``) and, when given, the same component scored against the
+    ``placebo`` arm. ``status`` is PASS when every component the profile
+    requires passes (``validation_gate.NEEDS_COMPONENTS_REQUIRED``).
+
+    Method 6, lower need, more of its event, pooled over seeds:
 
     Hypothesis: an agent whose need is lower than a matched agent's has more
     of the event that need drives over the next ``window`` turns (autonomy:
@@ -2532,11 +2568,19 @@ def run_needs_oracle(
         raise ValueError(f"needs oracle method_version must be one of {NEEDS_METHOD_VERSIONS}: {method_version!r}")
     if not require_binding and method_version != NEEDS_POOLED_METHOD_VERSION:
         raise ValueError(f"require_binding=False is method {NEEDS_POOLED_METHOD_VERSION}, not {method_version}")
+    if method_version == NEEDS_ORACLE_METHOD_VERSION:
+        observational = run_needs_oracle(
+            seed_runs, exclude_prior_rebels, need_divergence=need_divergence,
+            personality_tolerance=personality_tolerance, window=window, confidence=confidence,
+            seed_fraction=seed_fraction, thresholds=thresholds, binding_divergence=binding_divergence,
+            profile=profile, method_version=NEEDS_INFORMATIONAL_METHOD_VERSION,
+        )
+        return _needs_with_ablation(observational, seed_runs, profile, ablation, placebo)
     require_binding = method_version >= NEEDS_BINDING_METHOD_VERSION
     outcome_offset = 1 if method_version >= NEEDS_POST_SNAPSHOT_METHOD_VERSION else 0
     censor_at_death = method_version >= NEEDS_DEATH_CENSORED_METHOD_VERSION
     informational_pairings = (
-        NEEDS_INFORMATIONAL_PAIRINGS if method_version >= NEEDS_ORACLE_METHOD_VERSION else ()
+        NEEDS_INFORMATIONAL_PAIRINGS if method_version >= NEEDS_INFORMATIONAL_METHOD_VERSION else ()
     )
     censored = [0, 0]
     if not seed_runs:
@@ -2776,6 +2820,39 @@ def run_needs_oracle(
         result["informational_failed_criteria"] = informational_failed_criteria
         result["binding"] = binding_result
     result["per_seed"] = per_seed
+    return result
+
+
+def _needs_with_ablation(observational: dict, seed_runs: list[dict], profile: str | None,
+                         ablation: dict | None, placebo: dict | None) -> dict:
+    """Method 7: method 6's ``observational`` result with the ablation
+    component; the status from the components ``profile`` requires."""
+    from .validation_ablation import needs_ablation_component
+    from .validation_gate import needs_components_required
+
+    if observational.get("status") not in ("PASS", "FAIL"):
+        return observational
+    component = needs_ablation_component(seed_runs, ablation)
+    required = needs_components_required(profile)
+    statuses = {"observational": observational["status"], "ablation": component.get("status")}
+    result = {
+        "status": "PASS" if all(statuses[name] == "PASS" for name in required) else "FAIL",
+        "method": "observational_and_ablation",
+        "method_version": NEEDS_ORACLE_METHOD_VERSION,
+        "required_components": list(required),
+        "component_statuses": statuses,
+        "observational_status": observational["status"],
+        "observational_method": observational.get("method"),
+        "observational_criterion": observational.get("criterion"),
+    }
+    for key, value in observational.items():
+        if key in ("status", "method", "method_version", "criterion", "per_seed"):
+            continue
+        result[key] = value
+    result["ablation"] = component
+    if placebo is not None:
+        result["placebo"] = needs_ablation_component(seed_runs, placebo, arm_name="placebo")
+    result["per_seed"] = observational.get("per_seed", [])
     return result
 
 
@@ -3028,10 +3105,16 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
     }
 
 
-def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) -> dict:
-    """M53 oracle 4, method 3: community members migrate less and rebel more
-    than matched non-members over the ``COHORT_OUTCOME_WINDOW_TURNS`` turns
-    after a snapshot.
+def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, *,
+                      ablation: dict | None = None, placebo: dict | None = None) -> dict:
+    """M53 oracle 4, method 4: community members at a fork migrate less with
+    the kin roots than without them (``validation_ablation.cohort_ablation_result``
+    on the ``kin_roots`` arm ``ablation``; ``NOT_RUN`` without it). ``placebo``
+    scores the same comparison against the placebo arm (reported).
+
+    Methods 1-3, re-scored with ``method_version``: community members
+    migrate less and rebel more than matched non-members over the
+    ``COHORT_OUTCOME_WINDOW_TURNS`` turns after a snapshot.
 
     Per seed, the best eligible graph and needs snapshot
     (``_cohort_candidate_priority``); PASS when 60% of analyzed seeds show an
@@ -3047,8 +3130,18 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
         method_version = COHORT_ORACLE_METHOD_VERSION
     if isinstance(method_version, bool) or method_version not in COHORT_METHOD_VERSIONS:
         raise ValueError(f"cohort oracle method_version must be one of {COHORT_METHOD_VERSIONS}: {method_version!r}")
+    if method_version == COHORT_ORACLE_METHOD_VERSION:
+        from .validation_ablation import cohort_ablation_result
+        if not seed_runs:
+            return {"status": "SKIP", "reason": "no_bundles"}
+        result = {"method_version": method_version, "method": "kin_roots_ablation"}
+        result.update(cohort_ablation_result(seed_runs, ablation))
+        result = {"status": result.pop("status"), **result}
+        if placebo is not None:
+            result["placebo"] = cohort_ablation_result(seed_runs, placebo, arm_name="placebo")
+        return result
     outcome_offset = 1 if method_version >= COHORT_POST_SNAPSHOT_METHOD_VERSION else 0
-    censor_at_death = method_version >= COHORT_ORACLE_METHOD_VERSION
+    censor_at_death = method_version >= COHORT_DEATH_CENSORED_METHOD_VERSION
     window = COHORT_OUTCOME_WINDOW_TURNS
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
@@ -3972,13 +4065,17 @@ def run_oracles(
     profile: str | None = None,
     *,
     legacy_batch: bool = False,
+    ablation_dir: Path | None = None,
 ) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
     component). The batch directory is first checked against its manifest
-    (``check_batch_manifest``; ``legacy_batch`` admits one without)."""
+    (``check_batch_manifest``; ``legacy_batch`` admits one without), and the
+    ablation arms of ``ablation_dir`` against theirs and the batch
+    (``validation_ablation.load_ablation_arms``)."""
     selected = _normalize_requested_oracles(oracles)
     batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
+    arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
 
@@ -3995,11 +4092,13 @@ def run_oracles(
             elif oracle_name == "community":
                 results[oracle_name] = run_community_oracle(ensure_seed_runs())
             elif oracle_name == "needs":
-                results[oracle_name] = run_needs_oracle(ensure_seed_runs(), profile=profile)
+                results[oracle_name] = run_needs_oracle(
+                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"))
             elif oracle_name == "era":
                 results[oracle_name] = run_era_oracle(ensure_seed_runs())
             elif oracle_name == "cohort":
-                results[oracle_name] = run_cohort_oracle(ensure_seed_runs())
+                results[oracle_name] = run_cohort_oracle(
+                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"))
             elif oracle_name == "artifacts":
                 results[oracle_name] = run_artifact_oracle(ensure_seed_runs())
             elif oracle_name == "arcs":
@@ -4025,9 +4124,28 @@ def run_oracles(
     if worlds is not None:
         report["worlds"] = worlds
     report["batch_manifest"] = batch_manifest
+    if ablation_summary is not None:
+        report["ablation_arms"] = ablation_summary
     if profile is not None:
         report["profile"] = profile
     return report
+
+
+ABLATION_DIR_FLAG = "--ablation-dir"
+
+
+def _load_arms(ablation_dir: Path | None, batch_dir: Path) -> tuple[dict, dict | None]:
+    """Arms by name and the report's ``ablation_arms`` entry (None without a directory)."""
+    if ablation_dir is None:
+        return {}, None
+    from .validation_ablation import AblationInputError, load_ablation_arms
+    if not _has_pyarrow():
+        raise ValidationDependencyError("ablation arms require pyarrow")
+    try:
+        loaded = load_ablation_arms(Path(ablation_dir), Path(batch_dir))
+    except (AblationInputError, OSError, ValueError, KeyError) as exc:
+        raise ValidationRequestError(f"ablation arms {ablation_dir}: {exc}") from exc
+    return loaded["arms"], loaded["summary"]
 
 
 def _error_report(batch_dir: Path, oracles: list[str], reason: str) -> dict:
@@ -4057,9 +4175,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
                         help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
                              "or a single bundle); its runs are not checked")
+    parser.add_argument(ABLATION_DIR_FLAG, type=Path, default=None,
+                        help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
+                             "ablation component and the cohort oracle read them")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch,
+                             ablation_dir=args.ablation_dir)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

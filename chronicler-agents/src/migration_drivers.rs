@@ -347,6 +347,14 @@ impl Mobility {
         Some(m)
     }
 
+    /// Decision ablation `scale::ABLATE_KIN_ROOTS`: roots of the life course
+    /// alone (an unmarried agent with no bonds at home, of this `age`).
+    /// Home bonds still decide whether chain migration pulls.
+    #[inline]
+    pub fn drop_relationship_roots(&mut self, age: u16) {
+        self.roots = roots(age, false, 0.0);
+    }
+
     /// Bond strength toward settled emigrants in `region`.
     #[inline]
     pub fn chain_strength_toward(&self, region: u16) -> f32 {
@@ -838,6 +846,25 @@ mod driver_tests {
         let (pull, m) = chain(&pool);
         assert_eq!(pull, 0.0);
         assert!(m.home_bonds > 0.5);
+    }
+
+    #[test]
+    fn dropping_relationship_roots_keeps_the_life_course_and_the_chain_gate() {
+        let regions = realm();
+        let mut pool = AgentPool::new(8);
+        let a = agent(&mut pool, 0, Occupation::Farmer, 50);
+        let spouse = agent(&mut pool, 0, Occupation::Farmer, 50);
+        let friend = agent(&mut pool, 0, Occupation::Farmer, 50);
+        bond(&mut pool, a, spouse, BondType::Marriage, 100);
+        bond(&mut pool, a, friend, BondType::Friend, 120);
+        let mut m = mobility(&pool, a, &regions).unwrap();
+        let home_bonds = m.home_bonds;
+        assert!((m.roots - roots(50, true, home_bonds)).abs() < 1e-6);
+        assert!(m.roots > roots(50, false, 0.0));
+        m.drop_relationship_roots(pool.ages[a]);
+        assert_eq!(m.roots, roots(50, false, 0.0));
+        assert!(m.roots > 0.0, "the age part stays");
+        assert_eq!(m.home_bonds, home_bonds, "home bonds still gate the chain pull");
     }
 
     #[test]

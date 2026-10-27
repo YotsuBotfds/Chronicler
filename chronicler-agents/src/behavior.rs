@@ -832,6 +832,33 @@ pub fn evaluate_region_decisions<L: crate::pool::SlotLookup>(
     rng: &mut ChaCha8Rng,
     id_to_slot: &L,  // M57b
 ) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_ablated(
+        pool, slots, regions, region_state, stats, region_id, rng, id_to_slot, 0,
+    )
+}
+
+/// [`evaluate_region_decisions`] with decision terms switched off for a
+/// validation experiment: `ablation` holds the `scale::ABLATE_*` bits in
+/// force this tick (0: the plain decision, exactly). `ABLATE_NEEDS` replaces
+/// the need modifiers by zeros and drops the autonomy factor of loyalty
+/// drift; `ABLATE_KIN_ROOTS` drops the marriage and home-bond parts of a
+/// migrant's roots. The placebo bit acts on the caller's random stream, not
+/// here. No bit draws a number or changes how many are drawn: the decision
+/// keeps its four Gumbel draws per agent.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_region_decisions_ablated<L: crate::pool::SlotLookup>(
+    pool: &AgentPool,
+    slots: &[usize],
+    regions: &[RegionState],
+    region_state: &RegionState,
+    stats: &RegionStats,
+    region_id: usize,
+    rng: &mut ChaCha8Rng,
+    id_to_slot: &L,  // M57b
+    ablation: u8,
+) -> (PendingDecisions, u32) {
+    let ablate_needs = ablation & crate::scale::ABLATE_NEEDS != 0;
+    let ablate_kin_roots = ablation & crate::scale::ABLATE_KIN_ROOTS != 0;
     let mut pending = PendingDecisions::new();
     let mut threat_changed_count: u32 = 0;
 
@@ -858,10 +885,15 @@ pub fn evaluate_region_decisions<L: crate::pool::SlotLookup>(
             MigrationChoice::stay(region_id)
         } else {
             pending.migration_drivers.evaluated += 1;
-            let mobility = Mobility::for_agent(
+            let mut mobility = Mobility::for_agent(
                 pool, slot, regions, region_id,
                 stats.has_internal_neighbour[region_id], id_to_slot,
             );
+            if ablate_kin_roots {
+                if let Some(m) = mobility.as_mut() {
+                    m.drop_relationship_roots(pool.ages[slot]);
+                }
+            }
             best_migration_target_for_agent(pool, regions, stats, region_id, slot, mobility.as_ref())
         };
         pending.migration_drivers.count_open_pulls(&choice.voluntary, &choice.gate_open);
@@ -906,7 +938,11 @@ pub fn evaluate_region_decisions<L: crate::pool::SlotLookup>(
         }
 
         // M49: Need-driven utility modifiers — additive, applied after memory, before gate
-        let need_mods = crate::needs::compute_need_utility_modifiers(pool, slot);
+        let need_mods = if ablate_needs {
+            crate::needs::NeedUtilityModifiers::default()
+        } else {
+            crate::needs::compute_need_utility_modifiers(pool, slot)
+        };
         rebel_util += need_mods.rebel;
 
         // Agent movements: members in the stronghold of a rising.
@@ -1032,8 +1068,11 @@ pub fn evaluate_region_decisions<L: crate::pool::SlotLookup>(
                 // Other civ is happier — drift away
                 // Personality-modified drift: steadfast (+1) drifts slower, mercenary (-1) faster
                 // M49: Autonomy need accelerates negative loyalty drift
-                let autonomy_deficit = (crate::agent::AUTONOMY_THRESHOLD
-                    - pool.need_autonomy[slot]).max(0.0);
+                let autonomy_deficit = if ablate_needs {
+                    0.0
+                } else {
+                    (crate::agent::AUTONOMY_THRESHOLD - pool.need_autonomy[slot]).max(0.0)
+                };
                 let autonomy_factor = 1.0 + autonomy_deficit * crate::agent::AUTONOMY_DRIFT_WEIGHT;
                 let mut effective_drift = LOYALTY_DRIFT_RATE
                     * personality_modifier(-ltrait, LOYALTY_TRAIT_WEIGHT)
@@ -2569,6 +2608,143 @@ mod packet_consumer_tests {
         admit_packet(&mut pool, s, &packet(InfoType::ThreatWarning, 4));
         assert_eq!(crate::knowledge::strongest_own_civ_threat(&pool, s, 0, 0), 0.0);
         assert_eq!(pool.pkt_source_civ[s][0], crate::knowledge::PKT_CIV_NONE);
+    }
+}
+
+/// Decision ablations (`scale::DecisionAblation`, validation experiments).
+#[cfg(test)]
+mod ablation_tests {
+    use super::*;
+    use crate::agent::Occupation;
+    use crate::pool::AgentPool;
+    use crate::region::RegionState;
+    use crate::signals::TickSignals;
+    use rand::{RngCore, SeedableRng};
+
+    fn world(n_agents: usize) -> (AgentPool, Vec<RegionState>, Vec<usize>) {
+        let mut regions: Vec<RegionState> = (0..2).map(RegionState::new).collect();
+        regions[0].adjacency = crate::region::mask_to_ids(0b10);
+        regions[1].adjacency = crate::region::mask_to_ids(0b01);
+        for r in &mut regions {
+            r.carrying_capacity = 400;
+            r.controller_civ = 0;
+        }
+        let mut pool = AgentPool::new(n_agents + 8);
+        let mut slots = Vec::new();
+        for i in 0..n_agents {
+            let occ = if i % 3 == 0 { Occupation::Merchant } else { Occupation::Farmer };
+            let s = pool.spawn(0, 0, occ, 20 + (i % 50) as u16, 0.2, 0.1, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_loyalty(s, 0.3 + 0.6 * ((i * 7 % 11) as f32 / 11.0));
+            pool.set_satisfaction(s, 0.15 + 0.7 * ((i * 5 % 13) as f32 / 13.0));
+            // Every need, deep in deficit for some agents, above for others.
+            let level = (i % 10) as f32 / 10.0;
+            pool.need_safety[s] = level;
+            pool.need_material[s] = 1.0 - level;
+            pool.need_social[s] = (level + 0.3) % 1.0;
+            pool.need_spiritual[s] = (level + 0.6) % 1.0;
+            pool.need_autonomy[s] = level * 0.5;
+            pool.need_purpose[s] = (level + 0.1) % 1.0;
+            slots.push(s);
+        }
+        // A happier civ-1 group drives loyalty drift (the autonomy factor).
+        for _ in 0..6 {
+            let s = pool.spawn(0, 1, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_loyalty(s, 0.9);
+            pool.set_satisfaction(s, 0.95);
+        }
+        (pool, regions, slots)
+    }
+
+    fn signals() -> TickSignals {
+        TickSignals { civs: vec![], contested_regions: vec![false; 2] }
+    }
+
+    fn decide(pool: &AgentPool, regions: &[RegionState], slots: &[usize], ablation: Option<u8>)
+        -> (PendingDecisions, u32)
+    {
+        let stats = compute_region_stats(pool, regions, &signals());
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        let ids = std::collections::HashMap::new();
+        let pending = match ablation {
+            None => evaluate_region_decisions(pool, slots, regions, &regions[0], &stats, 0, &mut rng, &ids).0,
+            Some(bits) => evaluate_region_decisions_ablated(
+                pool, slots, regions, &regions[0], &stats, 0, &mut rng, &ids, bits,
+            ).0,
+        };
+        // The stream position after the decisions: equal positions mean equal draws.
+        (pending, rng.next_u32())
+    }
+
+    fn same(a: &PendingDecisions, b: &PendingDecisions) -> bool {
+        a.rebellions == b.rebellions
+            && a.migrations == b.migrations
+            && a.occupation_switches == b.occupation_switches
+            && a.loyalty_flips == b.loyalty_flips
+            && a.loyalty_drifts.len() == b.loyalty_drifts.len()
+            && a.loyalty_drifts.iter().zip(&b.loyalty_drifts)
+                .all(|(x, y)| x.0 == y.0 && x.1.to_bits() == y.1.to_bits())
+            && a.migration_dominant == b.migration_dominant
+    }
+
+    #[test]
+    fn no_ablation_bits_is_the_plain_decision() {
+        let (pool, regions, slots) = world(200);
+        let (plain, plain_next) = decide(&pool, &regions, &slots, None);
+        let (zero, zero_next) = decide(&pool, &regions, &slots, Some(0));
+        assert!(same(&plain, &zero));
+        assert_eq!(plain_next, zero_next);
+        // The placebo bit acts on the caller's stream, not on the decision.
+        let (placebo, placebo_next) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_PLACEBO));
+        assert!(same(&plain, &placebo));
+        assert_eq!(plain_next, placebo_next);
+    }
+
+    #[test]
+    fn needs_ablation_removes_need_driven_actions_and_draws_the_same_numbers() {
+        let (pool, regions, slots) = world(400);
+        let (plain, plain_next) = decide(&pool, &regions, &slots, None);
+        let (ablated, ablated_next) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_NEEDS));
+        assert_eq!(plain_next, ablated_next, "an ablation must not change how many numbers are drawn");
+        assert!(!same(&plain, &ablated));
+        // Content agents rebel only through the autonomy push: none without it.
+        let content_rebels = |p: &PendingDecisions| p.rebellions.iter()
+            .filter(|(s, _)| pool.satisfaction(*s) >= REBEL_SATISFACTION_THRESHOLD
+                && pool.loyalty(*s) >= REBEL_LOYALTY_THRESHOLD)
+            .count();
+        assert!(content_rebels(&plain) > 0);
+        assert_eq!(content_rebels(&ablated), 0);
+        // No migration is attributed to a need term without them.
+        let need_terms = [TERM_SAFETY_NEED, TERM_MATERIAL_NEED, TERM_SPIRITUAL_NEED, TERM_SOCIAL_NEED];
+        assert!(need_terms.iter().all(|&t| ablated.migration_drivers.present[t] == 0));
+    }
+
+    #[test]
+    fn needs_ablation_drops_the_autonomy_factor_of_loyalty_drift() {
+        let (pool, regions, slots) = world(60);
+        let (plain, _) = decide(&pool, &regions, &slots, None);
+        let (ablated, _) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_NEEDS));
+        let drift = |p: &PendingDecisions, slot: usize| {
+            p.loyalty_drifts.iter().find(|(s, _)| *s == slot).map(|(_, d)| *d)
+        };
+        let mut faster = 0;
+        for &s in &slots {
+            if let (Some(a), Some(b)) = (drift(&plain, s), drift(&ablated, s)) {
+                if a < 0.0 && pool.need_autonomy[s] < crate::agent::AUTONOMY_THRESHOLD {
+                    assert!(a < b, "a deficit speeds drift only with the needs on");
+                    faster += 1;
+                }
+            }
+        }
+        assert!(faster > 0);
+    }
+
+    #[test]
+    fn kin_roots_ablation_changes_nothing_without_bonds_or_pulls() {
+        let (pool, regions, slots) = world(200);
+        let (plain, plain_next) = decide(&pool, &regions, &slots, None);
+        let (kin, kin_next) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_KIN_ROOTS));
+        assert!(same(&plain, &kin));
+        assert_eq!(plain_next, kin_next);
     }
 }
 

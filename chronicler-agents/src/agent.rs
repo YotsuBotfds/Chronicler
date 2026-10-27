@@ -136,6 +136,9 @@ pub const MERCHANT_RAID_STREAM_OFFSET: u64 = 2300;
 // members' lapse draws and recruitment draws, one stream per region each.
 pub const MOVEMENT_LAPSE_STREAM_OFFSET: u64 = 2400;
 pub const MOVEMENT_RECRUIT_STREAM_OFFSET: u64 = 2500;
+// Decision ablations (validation experiments): the placebo arm's decision
+// draws (`scale::ABLATE_PLACEBO`); consumed only when that switch is on.
+pub const DECISION_PLACEBO_STREAM_OFFSET: u64 = 2600;
 // M57a: Marriage formation
 #[allow(dead_code)] // reserved for marriage RNG; kept even though v1 does not consume it yet
 pub const MARRIAGE_STREAM_OFFSET: u64 = 1600;  // reserved, not consumed in v1
@@ -552,6 +555,7 @@ mod tests {
             MERCHANT_RAID_STREAM_OFFSET,     // 2300
             MOVEMENT_LAPSE_STREAM_OFFSET,    // 2400
             MOVEMENT_RECRUIT_STREAM_OFFSET,  // 2500
+            DECISION_PLACEBO_STREAM_OFFSET,  // 2600
         ];
         // All offsets must be distinct
         for i in 0..offsets.len() {

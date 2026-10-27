@@ -9,7 +9,9 @@ from .artifact_io import ArtifactIOError, strict_json_dumps
 from .validation_gate import PROFILE_CHOICES
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
-from .validation_io import LEGACY_BATCH_FLAG, MANIFEST_FILENAME, check_batch_manifest, summarize_world_shapes
+from .validation_io import (
+    ABLATION_DIR_FLAG, LEGACY_BATCH_FLAG, MANIFEST_FILENAME, _load_arms, check_batch_manifest, summarize_world_shapes,
+)
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
 
@@ -46,13 +48,16 @@ def run_oracles(
     profile: str | None = None,
     *,
     legacy_batch: bool = False,
+    ablation_dir: Path | None = None,
 ) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
     component). The batch directory is first checked against its manifest
-    (``check_batch_manifest``; ``legacy_batch`` admits one without)."""
+    (``check_batch_manifest``; ``legacy_batch`` admits one without), and the
+    ablation arms of ``ablation_dir`` against theirs and the batch."""
     selected = _normalize_requested_oracles(oracles)
     batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
+    arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
 
@@ -68,7 +73,11 @@ def run_oracles(
             if oracle_name == "determinism":
                 results[oracle_name] = runner(batch_dir)
             elif oracle_name == "needs":
-                results[oracle_name] = runner(ensure_seed_runs(), profile=profile)
+                results[oracle_name] = runner(
+                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"))
+            elif oracle_name == "cohort":
+                results[oracle_name] = runner(
+                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"))
             else:
                 results[oracle_name] = runner(ensure_seed_runs())
         except (ValidationRequestError, ValidationDependencyError):
@@ -90,6 +99,8 @@ def run_oracles(
     if worlds is not None:
         report["worlds"] = worlds
     report["batch_manifest"] = batch_manifest
+    if ablation_summary is not None:
+        report["ablation_arms"] = ablation_summary
     if profile is not None:
         report["profile"] = profile
     return report
@@ -122,9 +133,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(LEGACY_BATCH_FLAG, action="store_true",
                         help=f"validate a directory without {MANIFEST_FILENAME} (written before manifests, "
                              "or a single bundle); its runs are not checked")
+    parser.add_argument(ABLATION_DIR_FLAG, type=Path, default=None,
+                        help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
+                             "ablation component and the cohort oracle read them")
     args = parser.parse_args(argv)
     try:
-        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch)
+        report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch,
+                             ablation_dir=args.ablation_dir)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

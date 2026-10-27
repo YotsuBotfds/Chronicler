@@ -40,6 +40,27 @@ PROFILE_CHOICES = tuple(REQUIRED_ORACLES_BY_PROFILE)
 NEEDS_BINDING_REQUIRED_PROFILES = ("full",)
 _NEEDS_POOLED_CRITERIA = frozenset({"net_concordance_lower_bound", "seed_fraction"})
 
+# Needs oracle method 7 (docs/integration/ablation-oracles.md): which of its
+# components decides PASS. The full profile's ablation arms fork every seed
+# four (template) or two (procedural) times and measure each pairing's causal
+# effect; the observational component (method 6) passes worlds whose needs
+# say nothing but rise with age and terms-zeroed subsets, so it is reported
+# there. A subset forks once per seed: too few agents below the safety
+# threshold to measure that pairing, so its observational verdict decides
+# and the ablation is reported. Outside a profile both decide.
+NEEDS_COMPONENTS_REQUIRED = {
+    "full": ("ablation",),
+    "subset": ("observational",),
+}
+NEEDS_COMPONENTS = ("observational", "ablation")
+
+
+def needs_components_required(profile: str | None) -> tuple[str, ...]:
+    """The method 7 components that decide the needs status under ``profile``."""
+    if profile is None:
+        return NEEDS_COMPONENTS
+    return NEEDS_COMPONENTS_REQUIRED.get(profile, NEEDS_COMPONENTS)
+
 
 class ValidationGateInputError(ValueError):
     """Invalid profile, report path, or report JSON for validation gating."""
@@ -71,14 +92,69 @@ def _oracle_item(report: dict[str, Any], oracle: str, status: str | None = None)
     return item
 
 
-def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str, dict[str, Any] | None]:
-    """Needs status under ``profile`` and, when the binding component fails
-    but is informational there, an informational item for it.
+def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str, list[dict[str, Any]]]:
+    """Needs status under ``profile`` and informational items for the
+    components that fail but do not decide there.
 
-    A method 3 or later result counts its binding component only in
-    ``NEEDS_BINDING_REQUIRED_PROFILES``, whatever profile it was scored for
-    (``binding_required`` records that). Other results keep their status.
+    A method 7 result decides by the components ``needs_components_required``
+    names for ``profile``, whatever profile it was scored for: its
+    observational component by the method 3-6 rule below, its ablation
+    component by its own status. A method 3 or later result counts its
+    binding component only in ``NEEDS_BINDING_REQUIRED_PROFILES``
+    (``binding_required`` records the profile it was scored for). Other
+    results keep their status.
     """
+    status = str(result.get("status") or "MISSING")
+    version = result.get("method_version")
+    if (
+        status in ("PASS", "FAIL")
+        and isinstance(version, int) and not isinstance(version, bool) and version >= 7
+        and isinstance(result.get("ablation"), dict)
+    ):
+        observational = dict(result)
+        observational["status"] = result.get("observational_status")
+        observational_status, items = _needs_observational_status(observational, profile)
+        ablation = result["ablation"]
+        statuses = {"observational": observational_status, "ablation": str(ablation.get("status") or "MISSING")}
+        required = needs_components_required(profile)
+        for name in NEEDS_COMPONENTS:
+            if name not in required and statuses[name] != "PASS":
+                reason = (
+                    f"{name} component {statuses[name]}; informational in {profile}, required in "
+                    + ", ".join(p for p, names in NEEDS_COMPONENTS_REQUIRED.items() if name in names)
+                )
+                if name == "ablation" and ablation.get("reason"):
+                    reason += f" ({ablation['reason']})"
+                items.append({"oracle": f"needs_{name}", "status": statuses[name], "reason": reason})
+        combined = "PASS" if all(statuses[name] == "PASS" for name in required) else "FAIL"
+        return combined, items
+    status, item = _needs_observational_status(result, profile)
+    return status, item
+
+
+def _needs_failure_reason(result: dict[str, Any], profile: str) -> str | None:
+    """Which required method 7 components fail under ``profile`` (None before method 7)."""
+    version = result.get("method_version")
+    ablation = result.get("ablation")
+    if not isinstance(version, int) or isinstance(version, bool) or version < 7 or not isinstance(ablation, dict):
+        return None
+    parts = []
+    required = needs_components_required(profile)
+    if "observational" in required:
+        observational = dict(result)
+        observational["status"] = result.get("observational_status")
+        if _needs_observational_status(observational, profile)[0] != "PASS":
+            parts.append("observational component FAIL")
+    if "ablation" in required and ablation.get("status") != "PASS":
+        detail = ablation.get("reason") or (
+            "pairings " + ", ".join(ablation.get("failed_pairings") or []) if ablation.get("failed_pairings") else ""
+        )
+        parts.append(f"ablation component {ablation.get('status')}" + (f" ({detail})" if detail else ""))
+    return "; ".join(parts) or None
+
+
+def _needs_observational_status(result: dict[str, Any], profile: str) -> tuple[str, list[dict[str, Any]]]:
+    """The method 2-6 rule (the observational component of method 7)."""
     status = str(result.get("status") or "MISSING")
     binding = result.get("binding")
     version = result.get("method_version")
@@ -89,7 +165,7 @@ def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str
         or not isinstance(version, int)
         or version < 3
     ):
-        return status, None
+        return status, []
     failed = set(result.get("failed_criteria") or ()) | set(result.get("informational_failed_criteria") or ())
     pooled_ok = not (failed & _NEEDS_POOLED_CRITERIA)
     lower_bound = binding.get("net_concordance_lower_bound")
@@ -97,17 +173,17 @@ def _needs_status_for_profile(result: dict[str, Any], profile: str) -> tuple[str
         isinstance(lower_bound, (int, float)) and not isinstance(lower_bound, bool) and lower_bound > 0
     )
     if profile in NEEDS_BINDING_REQUIRED_PROFILES:
-        return ("PASS" if pooled_ok and binding_ok else "FAIL"), None
-    informational = None
+        return ("PASS" if pooled_ok and binding_ok else "FAIL"), []
+    informational = []
     if not binding_ok:
-        informational = {
+        informational.append({
             "oracle": "needs_binding",
             "status": "FAIL",
             "reason": (
                 f"binding lower bound {lower_bound}; informational in {profile}, "
                 f"required in {', '.join(NEEDS_BINDING_REQUIRED_PROFILES)}"
             ),
-        }
+        })
     return ("PASS" if pooled_ok else "FAIL"), informational
 
 
@@ -168,10 +244,13 @@ def adjudicate_validation_report(
         status = _oracle_status(report, oracle)
         result = report["results"].get(oracle)
         if oracle == "needs" and isinstance(result, dict):
-            status, binding_item = _needs_status_for_profile(result, profile)
-            if binding_item is not None:
-                informational_non_pass.append(binding_item)
+            status, component_items = _needs_status_for_profile(result, profile)
+            informational_non_pass.extend(component_items)
         item = _oracle_item(report, oracle, status)
+        if oracle == "needs" and isinstance(result, dict) and status == "FAIL" and "reason" not in item:
+            reason = _needs_failure_reason(result, profile)
+            if reason:
+                item["reason"] = reason
         if oracle in required_oracles:
             if status != "PASS":
                 required_failures.append(item)
@@ -475,6 +554,9 @@ __all__ = [
     "REQUIRED_ORACLES_BY_PROFILE",
     "PROFILE_CHOICES",
     "NEEDS_BINDING_REQUIRED_PROFILES",
+    "NEEDS_COMPONENTS",
+    "NEEDS_COMPONENTS_REQUIRED",
+    "needs_components_required",
     "ValidationGateInputError",
     "adjudicate_validation_report",
     "batch_manifest_summary",
