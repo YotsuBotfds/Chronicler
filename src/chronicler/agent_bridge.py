@@ -2953,6 +2953,21 @@ class AgentBridge:
         if self._sidecar:
             self._sidecar.close()
 
+    # Exact checkpoints (chronicler.run_checkpoint) pickle the bridge with its
+    # native simulator replaced by the simulator's own state blob. These are
+    # derived caches keyed by object identity or by the turn being processed;
+    # each is rebuilt on demand from the state that is kept.
+    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot")
+
+    def __getstate__(self) -> dict:
+        state = dict(self.__dict__)
+        for name in self._CHECKPOINT_DERIVED:
+            state.pop(name, None)
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()
 

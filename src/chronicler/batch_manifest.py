@@ -89,7 +89,8 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
 )
 OUTPUT_ARG_KEYS = ("simulate_only", "narrator", "validation_sidecar", "relationship_stats", "state_every")
 NON_SIMULATION_ARG_KEYS = (
-    "seed", "seed_range", "batch", "parallel", "output", "state", "resume", "local_url", "sim_model",
+    "seed", "seed_range", "batch", "parallel", "output", "state", "resume", "checkpoint_every",
+    "checkpoint", "resume_allow_mismatch", "local_url", "sim_model",
     "narrative_model", "llm_actions", "fork", "interactive", "pause_every", "live", "live_port", "live_origin",
     "analyze",
     "compare", "checkpoints", "narrate", "budget", "narrate_output",
