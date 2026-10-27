@@ -58,6 +58,8 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "reflection_interval",
     "agents",
     "agent_scale_mode",
+    "decision_ablation",
+    "ablation_start_turn",
     "mutual_aid",
     "fisheries",
     "campaigns",
@@ -91,7 +93,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
 OUTPUT_ARG_KEYS = ("simulate_only", "narrator", "validation_sidecar", "relationship_stats", "state_every")
 NON_SIMULATION_ARG_KEYS = (
     "seed", "seed_range", "batch", "parallel", "output", "state", "resume", "checkpoint_every",
-    "checkpoint", "resume_allow_mismatch", "local_url", "sim_model",
+    "checkpoint", "checkpoint_turns", "resume_allow_mismatch", "local_url", "sim_model",
     "narrative_model", "llm_actions", "fork", "interactive", "pause_every", "live", "live_port", "live_origin",
     "analyze",
     "compare", "checkpoints", "narrate", "budget", "narrate_output", "citations",

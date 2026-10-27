@@ -18,6 +18,16 @@ one is refused before anything runs) with its ``batch_manifest.json``, which
 ``chronicler.validate`` checks; a baseline report of another cohort is
 compared only with ``--exploratory-comparison``.
 See docs/integration/validation-integrity.md.
+
+Ablation oracles (``--ablation-oracles``, on by default in the full
+profile, opt-in in the subset): the batch also writes an exact checkpoint
+after each fork turn, and every seed is forked there with one native
+decision term switched off (``chronicler.ablation_arms``: the need terms,
+``needs``; the kin roots, ``kin_roots``) into ``ablation_<first seed>``
+beside the batch. The needs oracle's ablation component (method 7) and the
+cohort oracle's (method 4) read them: causal evidence, reported but not yet
+required; ``--require-causal-oracles`` makes them decide. See
+docs/integration/ablation-oracles.md.
 """
 from __future__ import annotations
 
@@ -26,6 +36,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -52,10 +63,13 @@ from chronicler.batch_manifest import (
     record_batch_run,
     write_batch_manifest,
 )
+from chronicler.ablation_arms import GATE_ARMS, checkpoint_turns, run_ablation_arms
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
+    CAUSAL_ORACLES_FLAG,
     PROFILE_CHOICES,
     REQUIRED_ORACLES_BY_PROFILE,
+    causal_oracles_required,
     ValidationGateInputError,
     adjudicate_validation_report,
     build_gate_decision_payload,
@@ -141,6 +155,59 @@ def _feature_flags(args: argparse.Namespace) -> list[str]:
 
 def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
+
+
+# Profiles that can fork ablation arms, and those that do by default. A
+# subset forks once per seed, too few agents below the safety threshold to
+# measure that pairing: there the arms cost more than they show.
+ABLATION_PROFILES = ("subset", "full")
+ABLATION_DEFAULT_PROFILES = ("full",)
+
+
+def ablation_enabled(args: argparse.Namespace) -> bool:
+    """Whether the profile runs the ablation arms: ``--ablation-oracles`` /
+    ``--no-ablation-oracles``, else on in ``ABLATION_DEFAULT_PROFILES``."""
+    requested = getattr(args, "ablation_oracles", None)
+    if args.profile not in ABLATION_PROFILES:
+        return False
+    return args.profile in ABLATION_DEFAULT_PROFILES if requested is None else bool(requested)
+
+
+def require_causal(args: argparse.Namespace) -> bool:
+    """``--require-causal-oracles``, else ``CAUSAL_ORACLES_REQUIRED``."""
+    requested = getattr(args, "require_causal_oracles", None)
+    return causal_oracles_required(None, requested)
+
+
+def _ablation_args(args: argparse.Namespace) -> list[str]:
+    """The batch's fork checkpoints (``--checkpoint-turns``), when the arms run."""
+    if not ablation_enabled(args):
+        return []
+    turns = checkpoint_turns(args.turns)
+    return ["--checkpoint-turns", ",".join(str(t) for t in turns)] if turns else []
+
+
+def _ablation_dir_for(batch_dir: Path) -> Path:
+    """``ablation_<first seed>`` beside ``batch_<first seed>``."""
+    name = batch_dir.name
+    if name.startswith("batch_"):
+        return batch_dir.parent / ("ablation_" + name[len("batch_"):])
+    return batch_dir.parent / f"{name}_ablation"
+
+
+def run_arms(args: argparse.Namespace, batch_dir: Path, cwd: Path, env: dict[str, str]) -> dict[str, Any] | None:
+    """Fork every seed of ``batch_dir`` into its ablation arms (None when off)."""
+    if not ablation_enabled(args):
+        return None
+    arms = [arm for arm in str(getattr(args, "ablation_arms", None) or ",".join(GATE_ARMS)).split(",") if arm]
+    out = _ablation_dir_for(batch_dir)
+    print(f"> ablation arms {','.join(arms)} into {out}")
+    manifest = run_ablation_arms(
+        batch_dir, out, arms=arms, total_turns=args.turns, parallel=max(1, int(args.parallel or 1)),
+        env=env, cwd=cwd,
+    )
+    return {"dir": out, "arms": arms, "forks": manifest.get("fork_count"), "seconds": manifest.get("seconds"),
+            "fork_turns": manifest.get("fork_turns")}
 
 
 def _governance_args(args: argparse.Namespace) -> list[str]:
@@ -324,6 +391,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_grain_reserves_args(args),
         *_historiography_args(args),
         *_languages_args(args),
+        *_ablation_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -366,6 +434,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_grain_reserves_args(args),
         *_historiography_args(args),
         *_languages_args(args),
+        *_ablation_args(args),
     ]
     _run(cmd, cwd, env)
     return _batch_dir_for(output_root, args.seed_start)
@@ -644,6 +713,8 @@ def validate_batch(
     baseline_report: Path | None = None,
     fail_on_regression: bool = False,
     exploratory_comparison: bool = False,
+    ablation_dir: Path | None = None,
+    require_causal_oracles: bool | None = None,
 ) -> dict[str, Any]:
     report_path = batch_dir / report_name
     decision_path = batch_dir / f"gate_decision_{profile}.json"
@@ -670,6 +741,10 @@ def validate_batch(
         "--profile",
         profile,
     ]
+    if ablation_dir is not None:
+        cmd.extend(["--ablation-dir", str(ablation_dir)])
+    if require_causal_oracles is not None:
+        cmd.append(CAUSAL_ORACLES_FLAG if require_causal_oracles else "--no-" + CAUSAL_ORACLES_FLAG[2:])
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)
     report, report_text = _report_from_validation_process(proc, batch_dir)
     atomic_write_text(report_path, report_text)
@@ -678,6 +753,7 @@ def validate_batch(
         profile,
         report,
         require_strict_regression=require_strict_regression,
+        require_causal_oracles=require_causal_oracles,
     )
     decision_payload = build_gate_decision_payload(decision, report, report_path=report_path)
     atomic_write_json(decision_path, decision_payload)
@@ -849,6 +925,28 @@ def main() -> None:
         help="Forward --languages/--no-languages to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--ablation-oracles",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Fork every seed into ablation arms (the need terms; the kin roots) for the needs and "
+             "cohort oracles' ablation components (default: on in the full profile, off in the subset, "
+             "which cannot measure the safety pairing; docs/integration/ablation-oracles.md).",
+    )
+    parser.add_argument(
+        "--ablation-arms",
+        default=None,
+        help=f"Comma-separated arms to fork (default {','.join(GATE_ARMS)}; 'placebo' adds the "
+             "calibration arm).",
+    )
+    parser.add_argument(
+        CAUSAL_ORACLES_FLAG,
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Let the ablation components decide the needs and cohort oracles (default "
+             "validation_gate.CAUSAL_ORACLES_REQUIRED, off: reported as causal evidence, not yet "
+             "required). Needs the ablation arms.",
+    )
+    parser.add_argument(
         "--require-strict-regression",
         action="store_true",
         help="For full profile reports, fail calibrated-floor regression passes.",
@@ -877,19 +975,34 @@ def main() -> None:
         parser.error("--fail-on-regression requires --baseline-report")
     if args.exploratory_comparison and args.baseline_report is None:
         parser.error("--exploratory-comparison requires --baseline-report")
+    if args.ablation_oracles and args.profile not in ABLATION_PROFILES:
+        parser.error(f"--ablation-oracles applies to the {' and '.join(ABLATION_PROFILES)} profiles")
+    if args.profile in ABLATION_PROFILES and require_causal(args) and not ablation_enabled(args):
+        parser.error(f"{CAUSAL_ORACLES_FLAG} needs the ablation arms (--ablation-oracles)")
     try:
         check_batch_destination(_profile_batch_dir(args))
+        if ablation_enabled(args):
+            check_batch_destination(_ablation_dir_for(_profile_batch_dir(args)))
     except BatchDestinationError as exc:
         parser.error(str(exc))
 
     cwd = Path.cwd()
     env = _build_env()
 
-    if args.profile == "subset":
-        batch_dir = run_subset(args, cwd, env)
+    timings: dict[str, float] = {}
+    arms_result = None
+    if args.profile in ("subset", "full"):
+        started = time.monotonic()
+        batch_dir = run_subset(args, cwd, env) if args.profile == "subset" else run_full(args, cwd, env)
+        timings["batch_seconds"] = round(time.monotonic() - started, 1)
+        started = time.monotonic()
+        arms_result = run_arms(args, batch_dir, cwd, env)
+        if arms_result is not None:
+            timings["ablation_seconds"] = round(time.monotonic() - started, 1)
+        started = time.monotonic()
         validation_result = validate_batch(
             batch_dir,
-            "validate_report_subset.json",
+            f"validate_report_{args.profile}.json",
             cwd,
             env,
             args.profile,
@@ -897,20 +1010,10 @@ def main() -> None:
             baseline_report=args.baseline_report,
             fail_on_regression=args.fail_on_regression,
             exploratory_comparison=args.exploratory_comparison,
+            ablation_dir=arms_result["dir"] if arms_result is not None else None,
+            require_causal_oracles=args.require_causal_oracles,
         )
-    elif args.profile == "full":
-        batch_dir = run_full(args, cwd, env)
-        validation_result = validate_batch(
-            batch_dir,
-            "validate_report_full.json",
-            cwd,
-            env,
-            args.profile,
-            require_strict_regression=args.require_strict_regression,
-            baseline_report=args.baseline_report,
-            fail_on_regression=args.fail_on_regression,
-            exploratory_comparison=args.exploratory_comparison,
-        )
+        timings["validation_seconds"] = round(time.monotonic() - started, 1)
     elif args.profile == "determinism-off":
         batch_dir = run_determinism(args, cwd, env, "off")
         validation_result = validate_batch(
@@ -972,6 +1075,13 @@ def main() -> None:
         "grain_reserves": args.grain_reserves,
         "historiography": args.historiography,
         "languages": args.languages,
+        "ablation_oracles": arms_result is not None,
+        "ablation_dir": str(arms_result["dir"]) if arms_result is not None else None,
+        "ablation_arms": arms_result["arms"] if arms_result is not None else None,
+        "ablation_fork_turns": arms_result["fork_turns"] if arms_result is not None else None,
+        "ablation_forks": arms_result["forks"] if arms_result is not None else None,
+        "causal_oracles_required": require_causal(args),
+        **timings,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,
         "baseline_report_path": str(args.baseline_report) if args.baseline_report is not None else None,

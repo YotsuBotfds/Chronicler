@@ -14,7 +14,7 @@ use crate::agent::{
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL, LOYALTY_FLIP_THRESHOLD,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
 };
-use crate::behavior::{compute_region_stats, evaluate_region_decisions};
+use crate::behavior::{compute_region_stats, evaluate_region_decisions_ablated};
 use crate::demographics;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
@@ -541,6 +541,15 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     let region_groups = pool.partition_by_region(num_regions as u16);
 
+    // Decision ablations (validation experiments, `scale::DecisionAblation`):
+    // 0 unless an ablation was requested and its start turn reached. The
+    // placebo bit only moves the decision draws to another stream.
+    let ablation = options.ablation.active(turn);
+    let decision_stream_offset = if ablation & crate::scale::ABLATE_PLACEBO != 0 {
+        crate::agent::DECISION_PLACEBO_STREAM_OFFSET
+    } else {
+        DECISION_STREAM_OFFSET
+    };
     let pending_decisions_with_threat: Vec<_> = {
         let pool_ref = &*pool;
         let stats_ref = &stats;
@@ -551,9 +560,9 @@ pub fn try_tick_agents_with_movements(
             .map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
                 rng.set_stream(
-                    ((region_id as u64) << 48) | ((turn as u64) << 16) | (DECISION_STREAM_OFFSET as u64),
+                    ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
                 );
-                evaluate_region_decisions(
+                evaluate_region_decisions_ablated(
                     pool_ref,
                     slots,
                     regions,
@@ -562,6 +571,7 @@ pub fn try_tick_agents_with_movements(
                     region_id,
                     &mut rng,
                     id_to_slot_ref,  // M57b
+                    ablation,
                 )
             })
             .collect()

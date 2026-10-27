@@ -358,6 +358,37 @@ impl AgentSimulator {
         self.tick_options.scale_mode.as_str()
     }
 
+    /// Validation experiments only: switch decision terms off for every tick
+    /// of turn `start_turn` or later (`scale::DecisionAblation`). `names`
+    /// lists `"needs"` (the need terms of the decision and the autonomy
+    /// factor of loyalty drift), `"kin_roots"` (marriage and home bonds in a
+    /// migrant's roots) or `"placebo"` (decision draws from another random
+    /// stream, no term changed); an empty list switches nothing off. Never
+    /// called by a plain run: the default ablates nothing.
+    pub fn set_decision_ablation(&mut self, names: Vec<String>, start_turn: u32) -> PyResult<()> {
+        let mut mask = 0u8;
+        for name in &names {
+            mask |= crate::scale::DecisionAblation::bit(name).ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "decision ablation must be 'needs', 'kin_roots' or 'placebo', got {name:?}"
+                ))
+            })?;
+        }
+        self.snapshot_cache = None; // later ticks change: drop the cached snapshot
+        self.tick_options.ablation = crate::scale::DecisionAblation {
+            mask,
+            start_turn: if mask == 0 { 0 } else { start_turn },
+        };
+        Ok(())
+    }
+
+    /// The decision ablation in force: (names, start turn); ([], 0) when none.
+    #[getter]
+    pub fn decision_ablation(&self) -> (Vec<&'static str>, u32) {
+        let a = self.tick_options.ablation;
+        (crate::scale::DecisionAblation::names(a.mask), a.start_turn)
+    }
+
     /// Profiling only: when on, later ticks at 100,000 agents or more also
     /// time the (unused) Morton sort of the spatial step and report it as
     /// `get_spatial_diagnostics()["sort_time_us"]`. Off by default (the

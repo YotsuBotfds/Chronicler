@@ -55,9 +55,10 @@ def _oracle_method_version(report: dict[str, Any], oracle: str) -> int | None:
 def _oracle_method_changes(baseline: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
     """Oracles scored by different methods in the two reports (needs: method 1
     before 2026-10-25, method 2 before the binding component of method 3,
-    method 3 before method 4's outcome window after the snapshot turn;
-    cohort: method 1 before method 2's outcome window after the snapshot
-    turn).
+    method 3 before method 4's outcome window after the snapshot turn, 5
+    and 6 before method 7's ablation component; cohort: method 1 before
+    method 2's outcome window after the snapshot turn, 3 before method 4's
+    ablation).
 
     Their statuses are not comparable: re-score the baseline batch with the
     current oracle to compare them.
@@ -341,7 +342,10 @@ def compare_cohorts(baseline_report: dict[str, Any], current_report: dict[str, A
 
 
 # Gate rows that belong to an oracle's category without being an oracle.
-_CATEGORY_SUB_ROWS = {"needs_binding": "needs"}
+_CATEGORY_SUB_ROWS = {
+    "needs_binding": "needs", "needs_observational": "needs", "needs_ablation": "needs",
+    "cohort_ablation": "cohort", "cohort_observational": "cohort",
+}
 
 
 def _category_cell(report: dict[str, Any], decision: dict[str, Any], category: str) -> str:

@@ -59,6 +59,76 @@ pub struct TickOptions {
     /// (`SpatialDiagnostics::sort_time_us`). Off by default; it never
     /// changes simulation results.
     pub profile_spatial_sort: bool,
+    /// Validation experiments only: decision terms switched off from a
+    /// turn on (`DecisionAblation`). Off by default (mask 0): every tick
+    /// decides exactly as before.
+    pub ablation: DecisionAblation,
+}
+
+// ---------------------------------------------------------------------------
+// Decision ablations (validation experiments; docs/integration/ablation-oracles.md)
+// ---------------------------------------------------------------------------
+
+/// The need terms of the agent decision: `needs::compute_need_utility_modifiers`
+/// is replaced by zeros (rebel, migrate, switch and stay utilities) and the
+/// autonomy deficit no longer speeds loyalty drift. Needs still evolve.
+pub const ABLATE_NEEDS: u8 = 1;
+/// The relationship part of a migrant's roots (`migration_drivers::roots`):
+/// marriage and positive bonds at home no longer hold back a voluntary pull.
+/// The life-course (age) part stays, and home bonds still decide whether
+/// chain migration pulls.
+pub const ABLATE_KIN_ROOTS: u8 = 2;
+/// A placebo: the decision draws come from another random stream
+/// (`agent::DECISION_PLACEBO_STREAM_OFFSET`). No term changes; the arm
+/// differs from the plain run only by chance.
+pub const ABLATE_PLACEBO: u8 = 4;
+/// Every known ablation bit.
+pub const ABLATE_KNOWN: u8 = ABLATE_NEEDS | ABLATE_KIN_ROOTS | ABLATE_PLACEBO;
+
+/// Which decision terms are switched off, from which tick turn on.
+///
+/// A validation arm runs a seed as the plain run does, with the ablation
+/// taking effect at `start_turn`: every tick before it is the plain tick, so
+/// the two runs share their history up to the fork and differ afterwards
+/// only through the ablated terms. The switch draws nothing and changes no
+/// state of its own; with `mask` 0 (the default) it does nothing at all.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DecisionAblation {
+    /// Bits of `ABLATE_*`.
+    pub mask: u8,
+    /// First tick turn whose decisions are ablated.
+    pub start_turn: u32,
+}
+
+impl DecisionAblation {
+    /// The `ABLATE_*` bit of an ablation name.
+    pub fn bit(name: &str) -> Option<u8> {
+        match name {
+            "needs" => Some(ABLATE_NEEDS),
+            "kin_roots" => Some(ABLATE_KIN_ROOTS),
+            "placebo" => Some(ABLATE_PLACEBO),
+            _ => None,
+        }
+    }
+
+    /// Names of the bits set in `mask`, in bit order.
+    pub fn names(mask: u8) -> Vec<&'static str> {
+        [(ABLATE_NEEDS, "needs"), (ABLATE_KIN_ROOTS, "kin_roots"), (ABLATE_PLACEBO, "placebo")]
+            .iter()
+            .filter(|(bit, _)| mask & bit != 0)
+            .map(|&(_, name)| name)
+            .collect()
+    }
+
+    /// The bits in force for a tick of `turn`: `mask` from `start_turn` on, else 0.
+    #[inline]
+    pub fn active(self, turn: u32) -> u8 {
+        if self.mask != 0 && turn >= self.start_turn {
+            self.mask
+        } else {
+            0
+        }
+    }
 }
 
 /// Fast drift: target mean agents per neighbour-grid cell.
@@ -84,8 +154,52 @@ pub const FAST_FORMATION_PARTNERS: usize = 64; // [CALIBRATE M61b]
 // ---------------------------------------------------------------------------
 
 crate::persist_struct!(TickOptions {
-    scale_mode, profile_spatial_sort,
+    scale_mode, profile_spatial_sort, ablation,
+});
+crate::persist_struct!(DecisionAblation {
+    mask, start_turn,
 });
 crate::persist_enum!(AgentScaleMode {
     Exact = 0, Fast = 1,
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decision_ablation_is_off_by_default_and_from_its_start_turn_on() {
+        assert_eq!(TickOptions::default().ablation, DecisionAblation { mask: 0, start_turn: 0 });
+        assert_eq!(TickOptions::default().ablation.active(0), 0);
+        assert_eq!(TickOptions::default().ablation.active(u32::MAX), 0);
+        let a = DecisionAblation { mask: ABLATE_NEEDS, start_turn: 101 };
+        assert_eq!(a.active(100), 0);
+        assert_eq!(a.active(101), ABLATE_NEEDS);
+        assert_eq!(a.active(500), ABLATE_NEEDS);
+    }
+
+    #[test]
+    fn decision_ablation_names_round_trip() {
+        for name in ["needs", "kin_roots", "placebo"] {
+            let bit = DecisionAblation::bit(name).unwrap();
+            assert_eq!(bit & ABLATE_KNOWN, bit);
+            assert_eq!(DecisionAblation::names(bit), vec![name]);
+        }
+        assert_eq!(DecisionAblation::bit("terms"), None);
+        assert_eq!(DecisionAblation::names(0), Vec::<&str>::new());
+        assert_eq!(DecisionAblation::names(ABLATE_KNOWN), vec!["needs", "kin_roots", "placebo"]);
+    }
+
+    #[test]
+    fn tick_options_persist_the_ablation_exactly() {
+        let options = TickOptions {
+            scale_mode: AgentScaleMode::Fast,
+            profile_spatial_sort: true,
+            ablation: DecisionAblation { mask: ABLATE_KIN_ROOTS, start_turn: 301 },
+        };
+        let blob = crate::persist::encode(crate::persist::KIND_AGENT, &options);
+        let back: TickOptions = crate::persist::decode(crate::persist::KIND_AGENT, &blob).unwrap();
+        assert_eq!(back, options);
+        assert!(crate::persist::schema_of::<TickOptions>().contains("ablation:DecisionAblation{mask:u8,start_turn:u32,}"));
+    }
+}

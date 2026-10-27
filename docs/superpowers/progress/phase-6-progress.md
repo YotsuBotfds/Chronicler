@@ -6,6 +6,72 @@
 
 ---
 
+## Ablation oracles (2026-10-27, `feat/ablation-oracles`)
+
+> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59) and `9d82e77` (PR #60, simulation and validator inputs identical to `7c44ed8`): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork), on by default in the full profile, opt-in in subsets; needs oracle method 7 and cohort method 4 add the ablations to methods 6 and 3 as causal evidence, reported but not yet required: the gate is decided by method 6's observational verdict and cohort method 3 (labelled non-discriminating), as on `main`; `--require-causal-oracles` / `CAUSAL_ORACLES_REQUIRED` (off) makes the ablations decide; synthetic worlds without the effect, age-confounded or reversed pass the ablations in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); causal evidence on `main`: template full needs PASS (+12% to +47%), cohort FAIL (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full needs FAIL (material -> migration +6.7% [-5.3%, +18.7%], the other four pass), cohort FAIL (0.996); the four kept gate reports re-score to template full PASS, procedural full PASS, template subset PASS, procedural subset FAIL (needs, as `main`), each `main`'s own verdict; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch. Open decisions: kin anchoring against the M53 15-30% claim; the power of the procedural material pairing.)
+
+`feat/ablation-oracles` from `main` `2106ef2` (PR #57), fast-forwarded to
+`8a68658` (PR #58) and merged without rebase with `7c44ed8` (PR #59) and
+`9d82e77` (PR #60, permanent faith ids: simulation, events and validator
+inputs identical to `7c44ed8`, so the gate evidence stands).
+Details and evidence:
+[`docs/integration/ablation-oracles.md`](../../integration/ablation-oracles.md).
+
+- **Switch** (`scale.rs` `DecisionAblation` in `TickOptions`): `needs`
+  zeroes the need utility modifiers and the autonomy drift term, `kin_roots`
+  drops the marriage and home-bond part of a migrant's roots, `placebo`
+  moves the decision draws to another stream; four Gumbel draws per agent
+  either way (common random numbers). Persisted with `TickOptions`
+  (`persist_struct!`, the checkpoint layout changes); Python sends it only
+  when asked. Unset: 9-case turn-speed matrix 399 files, 0
+  differences against `7c44ed8`; `--checkpoint-turns` 258 files, 0
+  differences; resume identity with each arm on 0 differences (3 cases,
+  157 resume points).
+- **Oracles**: per pairing the rate ratio of the fixed cohort's events with
+  and without the term, seed-clustered ratio-estimator bound (Student t),
+  pre-registered direction and minimum effect (needs +10%: M49 tier 2;
+  cohort -15%: M53 oracle 4). Needs method 7 keeps method 6 as its
+  observational component, cohort method 4 keeps method 3; both ablations
+  are labelled "causal evidence (not yet required)" in the report, the gate
+  decision and the summary.
+- **Gate rules**: the observational components decide (as `main`); with
+  `--require-causal-oracles` the needs ablation decides the full profile
+  (the observational verdict the subset, which cannot measure safety) and
+  the kin-roots ablation the cohort oracle in every profile. Tests cover
+  both modes.
+- **Gates** (fresh roots, `d6b63e5`, run with the causal verdicts
+  required; reports re-scored under the revised rules from the kept
+  components and `main`'s method 6 / 3 results on the same batches):
+  template full PASS (causal required: FAIL, cohort), procedural full PASS
+  (FAIL, needs material 1.067 [0.947, 1.187] and cohort 0.996), template
+  subset PASS (FAIL, cohort 0.974), procedural subset FAIL on needs as on
+  `main` (FAIL, needs and cohort 1.000). Against `7c44ed8`'s mine-soil
+  reports every metric delta 0, NO REGRESSION, both method changes
+  flagged. Placebo arm: no pairing passes anywhere, full-scale ratios
+  0.93-1.13. A template subset gate run afresh on the revised code with
+  `--ablation-oracles` PASS: ablation components equal the earlier run's,
+  cohort observational equal to `main`'s method 3.
+- **Open decision 1, kin anchoring**: the kin roots move members'
+  migration by 1.2% in template worlds and 0.4% in procedural ones
+  (non-members 2.0% and 0.5%): at most 0.06 of roots, against the
+  voluntary pulls only. Strengthen the anchoring or restate the M53 claim
+  by a new pre-registration; until then method 3 decides.
+- **Open decision 2, procedural material power**: few procedural agents
+  are short of material goods (3.6 a fork; the synthetic model assumed 20)
+  and they migrate a lot either way; the interval [-5.3%, +18.7%] holds
+  both no effect and the minimum. Raise the exposure (more forks or seeds,
+  power measured on the real cohort sizes) or examine the term in
+  procedural worlds before the needs ablation decides procedural gates.
+- **Cost**: the two default arms add about 87% to the template full
+  gate's batch and validation (50-61 minutes in all) and 42% to the
+  procedural one (30 minutes); forks 2-4 s each; checkpoints 1.2 GB
+  (template) and 0.75 GB (procedural) until forked.
+- **Tests**: cargo 1,061 / 2 ignored (Rust unchanged by the revision);
+  not-slow 6,716 / 3 skipped before merging `9d82e77`; on the merged tree
+  focused tests 462 passed, oracle lane PASS 97.4 s.
+- **Open**: the two decisions; subsets' needs verdict stays observational;
+  in-process forks.
+
 ## Permanent faith identity (2026-10-27, `feat/permanent-faiths`)
 
 > **Last updated:** 2026-10-27 (`feat/permanent-faiths` from `main` `7c44ed8`: each faith has a permanent id, its index in `WorldState.faiths` (name, founding turn, founding civ, a sect's movement and leader, parent, the native slot it holds or held, the turn it gave the slot up), never reused; native code and per-turn fields keep slots, records that outlive a turn carry the permanent id (movements, reforms, conversion objectives, seats, temple texts and chroniclers, faith words, the history's reform rows); faiths founded before the first recycle keep id == slot; older saves, checkpoints and bundles get the table rebuilt from their Schism events (live faiths id == slot, dated recycled-slot references mapped, untraceable slots marked unresolved); conversion objectives and seats corrected (they read the church that took a recycled slot), with no decision changed in any measured world; a branch regression (values that are not faiths, such as the 255 sentinel, mapped as ids, closing a faithless temple's school under `--scholarship`) found by the identity runs and fixed; on the final tree `66f3072` the turn-speed matrix is 399 files, 0 differences (with `--scholarship`, 1: a languages faith list), 80 recycling worlds (119 slots given up: 65 with the defaults, 54 with `--scholarship`) equal `main` in every simulation output, with differences only in the languages and historiography layers; checkpoints 117 resume points, 4,686 files, 0 differences; viewer Faiths tab, faiths named by name and founding turn.; template full 200 x 500 PASS strict, NO REGRESSION, validator inputs identical to `main` in all 200 worlds (129 recycles in 84); procedural full 100 x 300 PASS strict, NO REGRESSION, validator inputs identical in all 100 (280 recycles in 92))

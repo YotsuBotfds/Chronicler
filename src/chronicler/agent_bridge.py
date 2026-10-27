@@ -1130,7 +1130,8 @@ class AgentBridge:
                  validation_sidecar: bool = False,
                  output_dir: Path | None = None,
                  relationship_stats: bool = False,
-                 agent_scale_mode: str = "exact"):
+                 agent_scale_mode: str = "exact",
+                 decision_ablation: tuple[str, int] | None = None):
         if agent_scale_mode not in AGENT_SCALE_MODES:
             raise ValueError(
                 f"agent_scale_mode must be one of {AGENT_SCALE_MODES}, got {agent_scale_mode!r}"
@@ -1147,6 +1148,11 @@ class AgentBridge:
                 )
             self._sim.set_agent_scale_mode(agent_scale_mode)
         self.agent_scale_mode = agent_scale_mode
+        # Validation arms only (chronicler.decision_ablation): a plain run
+        # sends nothing, so it makes exactly the calls it always made.
+        from chronicler.decision_ablation import apply_decision_ablation
+        apply_decision_ablation(self._sim, decision_ablation)
+        self.decision_ablation = decision_ablation
         self._mode = mode
         world._agent_bridge = self
         # M54a: Wire river topology and ecology config from tuning overrides

@@ -19,6 +19,7 @@ from chronicler.artifact_io import atomic_write_text
 from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
+from chronicler.decision_ablation import DECISION_ABLATIONS, decision_ablation_from_args
 from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
@@ -132,6 +133,35 @@ def _resolve_checkpoint_every(args: argparse.Namespace) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"--checkpoint-every must be a positive integer, got {value!r}")
     return value
+
+
+def _positive_int_list(text: str) -> tuple[int, ...]:
+    """``"101,201"`` -> ``(101, 201)``: distinct positive integers, sorted."""
+    try:
+        values = sorted({int(part) for part in str(text).split(",") if part.strip()})
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected comma-separated positive integers, got {text!r}") from None
+    if not values or values[0] < 1:
+        raise argparse.ArgumentTypeError(f"expected comma-separated positive integers, got {text!r}")
+    return tuple(values)
+
+
+# --checkpoint-turns: one exact checkpoint per listed turn, beside the
+# chronicle (each run's directory in a batch). The ablation arms fork from
+# them (chronicler.ablation_arms).
+CHECKPOINT_TURN_FILENAME = "checkpoint_turn_{turn}.ckpt"
+
+
+def _resolve_checkpoint_turns(args: argparse.Namespace) -> frozenset[int]:
+    value = getattr(args, "checkpoint_turns", None)
+    if value is None:
+        return frozenset()
+    if isinstance(value, str):
+        value = _positive_int_list(value)
+    turns = tuple(value)
+    if not turns or any(isinstance(t, bool) or not isinstance(t, int) or t < 1 for t in turns):
+        raise ValueError(f"--checkpoint-turns must list positive integers, got {value!r}")
+    return frozenset(turns)
 
 
 def _resolve_checkpoint_template(args: argparse.Namespace, output_path: Path) -> str:
@@ -530,6 +560,8 @@ def execute_run(
     _state_every = _resolve_state_every(args)
     _checkpoint_every = _resolve_checkpoint_every(args)
     _checkpoint_template = _resolve_checkpoint_template(args, output_path) if _checkpoint_every else None
+    _checkpoint_turns = _resolve_checkpoint_turns(args)
+    _checkpoint_turn_template = str(output_path.parent / CHECKPOINT_TURN_FILENAME) if _checkpoint_turns else None
 
     # Exact resume (chronicler.run_checkpoint): seed, scenario and run origin
     # are the checkpoint's own.
@@ -644,6 +676,7 @@ def execute_run(
             _shadow_output = (_default_shadow_output_path(output_path) if _shadow_output is None
                               else Path(_shadow_output))
         retarget_outputs(_resume_state, output_path.parent, _shadow_output)
+        _fork_ablation(args, run_config, agent_bridge, world.turn)
     from chronicler.historiography import historiography_on as _historiography_on
     from chronicler.languages import languages_on as _languages_on
 
@@ -1041,6 +1074,12 @@ def execute_run(
                 era_reflections, _pending, run_start, seed, num_turns, agent_bridge,
                 ecology_runtime, politics_runtime, economy_tracker, scenario_config, run_config,
             )
+        if world.turn in _checkpoint_turns:
+            _write_exact_checkpoint(
+                _checkpoint_turn_template, world, memories, history, chronicle_entries,
+                era_reflections, _pending, run_start, seed, num_turns, agent_bridge,
+                ecology_runtime, politics_runtime, economy_tracker, scenario_config, run_config,
+            )
 
         # Ctrl-C during the turn: save this completed turn, then stop.
         if _interrupt_requested:
@@ -1281,6 +1320,10 @@ def execute_run(
     # another build) is labelled; an exact resume writes the bundle unchanged.
     if resume_info is not None:
         bundle["metadata"]["resume"] = resume_info
+    # A validation arm (--decision-ablation) says so; a plain run's bundle
+    # has no such key.
+    if run_config.get("decision_ablation") is not None:
+        bundle["metadata"]["decision_ablation"] = dict(run_config["decision_ablation"])
     _set_narrative_token_metadata(bundle["metadata"], _narr, _narr_token_baseline)
 
     # M53: relationship stats metadata
@@ -1392,6 +1435,7 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
     if agent_scale_mode != "exact" and agent_mode == "off":
         raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    decision_ablation = decision_ablation_from_args(args, agent_mode)
     # Contact & trade-flow ledger switch (persisted on the world).
     contact_ledger = getattr(args, "contact_ledger", None)
     if contact_ledger is None and fresh_world:
@@ -1555,6 +1599,7 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
             output_dir=output_path.parent if _use_sidecar else None,
             relationship_stats=getattr(args, "relationship_stats", False),
             agent_scale_mode=agent_scale_mode,
+            decision_ablation=decision_ablation,
         )
 
     # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
@@ -1582,7 +1627,36 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         "simulation_args": simulation_config(args),
         "output_args": output_config(args),
     }
+    if decision_ablation is not None:
+        run_config["decision_ablation"] = {"name": decision_ablation[0], "start_turn": decision_ablation[1],
+                                           "forked_at": None}
     return agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config
+
+
+def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "Any", turn: int) -> None:
+    """An exact resume given ``--decision-ablation``: switch the term off in
+    the restored native simulator from ``--ablation-start-turn`` (not before
+    the checkpoint's turn) and record the fork in the run configuration. A
+    checkpoint of an ablated run already carries its ablation (native state
+    included): repeating it changes nothing, another one is refused."""
+    ablation = decision_ablation_from_args(args, run_config.get("agent_mode", "off"))
+    if ablation is None:
+        return
+    saved = run_config.get("decision_ablation")
+    if saved is not None:
+        if (saved.get("name"), saved.get("start_turn")) == ablation:
+            return
+        raise ValueError(f"the checkpoint already runs decision ablation {saved!r}")
+    if ablation[1] < turn:
+        raise ValueError(f"--ablation-start-turn {ablation[1]} is before the checkpoint's turn {turn}")
+    if agent_bridge is None:
+        raise ValueError("--decision-ablation requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    from chronicler.decision_ablation import apply_decision_ablation
+    apply_decision_ablation(agent_bridge._sim, ablation)
+    agent_bridge.decision_ablation = ablation
+    run_config["decision_ablation"] = {"name": ablation[0], "start_turn": ablation[1], "forked_at": turn}
+    run_config["simulation_args"] = {**run_config.get("simulation_args", {}),
+                                     "decision_ablation": ablation[0], "ablation_start_turn": ablation[1]}
 
 
 def run_chronicle(
@@ -1650,6 +1724,11 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Exact checkpoint file (default: checkpoint.ckpt beside --output, "
                              "replaced each time); '{turn}' or '{turn:04d}' in PATH keeps one file "
                              "per checkpoint turn")
+    parser.add_argument("--checkpoint-turns", type=_positive_int_list, default=None, metavar="T,T,...",
+                        help="Write an exact resume checkpoint after each listed turn, one file per "
+                             "turn (checkpoint_turn_<turn>.ckpt beside --output; in a batch, in each "
+                             "run's directory). A run resumed from one may add --decision-ablation "
+                             "(a validation fork)")
     parser.add_argument("--resume-allow-mismatch", action="store_true", default=False,
                         help="Resume a checkpoint written by another build or environment anyway; "
                              "the run is labelled as not identical to an uninterrupted run")
@@ -1698,6 +1777,15 @@ def _build_parser() -> argparse.ArgumentParser:
                              "algorithms) or fast (bounded-work neighbour, marriage and formation "
                              "candidate sampling for large populations; changes results; not saved "
                              "in state, pass it again on --resume)")
+    parser.add_argument("--decision-ablation", choices=list(DECISION_ABLATIONS), default=None,
+                        help="Validation experiments only (agent modes): switch a term of the native "
+                             "agent decision off from --ablation-start-turn on: needs (the need "
+                             "modifiers and the autonomy factor of loyalty drift), kin_roots (marriage "
+                             "and home bonds in a migrant's roots) or placebo (decision draws from "
+                             "another random stream). Turns before the start are the plain run's. "
+                             "Default: none (docs/integration/ablation-oracles.md)")
+    parser.add_argument("--ablation-start-turn", type=int, default=None, metavar="TURN",
+                        help="First turn whose agent decisions --decision-ablation switches off")
     parser.add_argument("--mutual-aid", action=argparse.BooleanOptionalAction, default=None,
                         help="Adjacent same-polity food aid after repeated food stress, paid from the "
                              "treasury (agent modes; dormant with --agents off; default on for new "
@@ -1971,6 +2059,10 @@ def _run_narrate(args: argparse.Namespace) -> None:
 # Options an exact resume may set itself: the run's length and where and how
 # often it writes. Everything else comes from the checkpoint.
 _RESUME_FREE_ARGS = frozenset({"turns", "state_every", "tuning_overrides"})
+# Options an exact resume may add when the checkpoint has none: a decision
+# ablation turns the resumed run into a validation fork of the saved one
+# (chronicler.decision_ablation). A saved ablation cannot be changed.
+_RESUME_FORK_ARGS = frozenset({"decision_ablation", "ablation_start_turn"})
 
 
 def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Namespace,
@@ -1985,6 +2077,8 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
     conflicts = []
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
+            continue
+        if key in _RESUME_FORK_ARGS and value is None:
             continue
         given = getattr(args, key, None)
         default = parser.get_default(key)
