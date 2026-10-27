@@ -171,6 +171,38 @@ fn exact_marriage_matches_reference_scan() {
     }
 }
 
+/// Pairs straddling the marriage radius: the radius prefilter of the exact
+/// scan keeps exactly the pairs the reference keeps (counters and spouses).
+#[test]
+fn exact_marriage_matches_reference_at_the_radius() {
+    let regions: Vec<RegionState> = (0..3).map(RegionState::new).collect();
+    let signals = civ_signals(4, &[2]);
+    for seed in 0..6u64 {
+        let mut reference = build_pool(seed + 40, 160, 3);
+        let mut rng = Mix(seed);
+        // Rows of agents spaced the radius apart, give or take a few ulps,
+        // so many pairs sit on either side of the radius test.
+        for s in 0..reference.capacity() {
+            let col = (s % 4) as f32;
+            let row = ((s / 4) % 8) as f32 * 0.11;
+            let x = 0.05 + col * 0.25; // MARRIAGE_RADIUS
+            let jitter = rng.below(9) as i32 - 4;
+            reference.x[s] = f32::from_bits((x.to_bits() as i32 + jitter) as u32).clamp(0.0, 0.999);
+            reference.y[s] = if s % 3 == 0 { 0.2 + row } else { reference.y[s] };
+        }
+        let mut planned = build_pool(seed + 40, 160, 3);
+        planned.x.copy_from_slice(&reference.x);
+        planned.y.copy_from_slice(&reference.y);
+        for turn in 0..4u32 {
+            let al = alive(&reference);
+            let a = marriage_scan_reference(&mut reference, &regions, &signals, turn, &al);
+            let b = marriage_scan(&mut planned, &regions, &signals, turn, &al);
+            assert_eq!(format!("{a:?}"), format!("{b:?}"), "seed {seed} turn {turn}");
+            assert!(rel_state(&reference) == rel_state(&planned), "seed {seed} turn {turn}: spouses differ");
+        }
+    }
+}
+
 #[test]
 fn exact_marriage_with_non_finite_position_uses_reference() {
     let regions: Vec<RegionState> = (0..2).map(RegionState::new).collect();

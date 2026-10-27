@@ -421,7 +421,7 @@ fn run_tick(
     chronicler_agents::try_tick_agents_with_options(
         pool, regions, signals, master_seed, turn, percentiles, grids, attractors, diag,
         &[], None, &[],
-        chronicler_agents::scale::TickOptions { scale_mode },
+        chronicler_agents::scale::TickOptions { scale_mode, ..Default::default() },
     )
     .expect("agent pool exhausted")
 }
