@@ -6,6 +6,53 @@
 
 ---
 
+## Native turn speed, second pass (2026-10-27, `perf/rust-turn-2`)
+
+> **Last updated:** 2026-10-27 (`perf/rust-turn-2` from `main` `8142c48`, merged without rebase with `7bb2bd4` (PR #52): performance only, every output byte identical to `main` `7bb2bd4` (9-case matrix 399 files, 3-seed hybrid batch, procedural 32 x 10) and before the merge to `8142c48`; process CPU per turn 1.37x at 22k agents, 1.67x at 52k, 1.96x at 105k (five interleaved runs; 1.26x / 1.68x / 1.94x in three more against `7bb2bd4`), small worlds unchanged. Open: decisions, household consolidation, the rest of knowledge propagation, flat Python; AVX2-only, non-x86 and pre-1.89 builds not timed.)
+
+`perf/rust-turn-2` from `main` `8142c48` (PR #51), merged without rebase
+with `7bb2bd4` (PR #52). Performance only. Details:
+[`docs/performance/turn-speed-2026-10b.md`](../../performance/turn-speed-2026-10b.md).
+
+- **Profile** (perf `cpu-clock`, no PMU; native phase timers; 1 rayon
+  thread): exact drift 57% of the 52k turn (75% of the native tick),
+  marriage 7%, knowledge 5.5%; the per-pair ChaCha streams and the
+  zero-distance `sincosf` visible on their own.
+- **Changes** (4 commits): the discarded Morton sort at 100k+ agents only
+  with `TickOptions::profile_spatial_sort` (`set_spatial_sort_profiling`);
+  drift repulsion inside the lane loop (the negated density direction,
+  bit for bit), a 720-entry fallback table, Z-order lane groups, 1,024-agent
+  items and run-time kernel dispatch (AVX-512 16 lanes, AVX2, baseline; all
+  the same exact code; the AVX-512 kernel built on Rust 1.89+ through
+  `build.rs`, `rust-version` stays 1.85); one ChaCha8 block per
+  transmission roll; the marriage scan visits only partners within the
+  radius (an exact squared-distance threshold).
+- **Result** (process CPU per turn, medians of five interleaved runs
+  against `8142c48`, load 1.6-5.3): 22k 146.6 -> 106.7 ms (1.37x), 52k
+  498.9 -> 298.1 ms (1.67x), 105k 1,614.6 -> 822.1 ms (1.96x), procedural
+  48 x 10 and gate world 1.00x. Drift 295 -> 134 ms on dumped 52k inputs
+  (AVX2 157, baseline 215); marriage 31.6 -> 20.4 ms, propagation 20.0 ->
+  10.9 ms. After the merge, three rounds against `7bb2bd4`: 1.26x, 1.68x,
+  1.94x, 1.00x.
+- **Identity**: against `7bb2bd4` (native `c8ef41f5...b6ff`) the 9-case
+  matrix 399 files 0 differences, the 3-seed hybrid batch 334 of 335 files
+  identical (the batch manifest differs in run identity only), procedural
+  32 x 10 117 files 0 differences; the same against `8142c48` before the
+  merge (395 / 332 / 116). Every drift kernel equals the per-agent
+  reference on dumped real inputs. No full gate run.
+- **Tests** cargo 1,044 passed, 2 ignored (debug info off); release
+  equivalence subset 627 passed (all three kernels on this CPU); not-slow
+  6,571 / 3 skipped; oracle lane PASS 81.8 s.
+- **Not kept**: a group bounding-box far filter (scalar slower, AVX-512
+  compress -5% of drift), a dense branch-free marriage classification (not
+  vectorised by LLVM, slower), 32 AVX-512 lanes (same as 16), id -> slot
+  table reuse across phases (review item 2: 0.09-0.10 ms per build, at
+  most 0.15% of the turn; not implemented), small-world changes (review
+  item 5: flat profile, no clear win).
+- **Open**: drift is divider-bound (one square root and two divisions per
+  agent-neighbour pair); decisions 5.5% and household consolidation 3% of
+  the native tick at 52k; Python around the tick about 30% and flat.
+
 ## Production ledger (2026-10-27, `feat/production-ledger`)
 
 > **Last updated:** 2026-10-27 (`feat/production-ledger` from `main` `8142c48`: every production path audited (farming, fisheries, forests, mines, salt, pastoral, foraging, crafts, off mode); a per-region, per-slot, per-turn ledger of realized output, stocks, draws, regrowth, the earlier rule's charge and degradation, written with the validation sidecar and checked by `CHRONICLER_CHECK_RESOURCES=1`; four behavioural corrections where the economy reports output (overextraction streak on output, the mines' soil charge on the ore taken, the fishery charged for the landed catch, the overextraction penalty in the yields with scenario slots initialized), each with a restore key, all four off byte-identical to `main`; template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main`; procedural subset 42-61 failed needs by one seed (traced to the mine-soil correction), 62-81 PASS; golden fixtures unchanged. Open: overextraction unreachable at its calibration, the fishery allowance still sized by a labour proxy, timber takes no forest cover, procedural needs signal lower (pooled -0.021).)
