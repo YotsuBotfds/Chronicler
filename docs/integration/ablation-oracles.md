@@ -2,7 +2,10 @@
 
 Branch `feat/ablation-oracles` from `main` `2106ef2` (PR #57), fast-forwarded
 to `8a68658` (PR #58, grain reserves: default off, byte-identical output with
-it off) before any commit. PR #57 (`oracle-followups.md`) left two oracles
+it off) before any commit, later merged with `7c44ed8` (PR #59, before every
+real-code gate) and `9d82e77` (PR #60, permanent faith ids: simulation,
+events and validator inputs identical to `7c44ed8`, so the gate evidence
+stands). PR #57 (`oracle-followups.md`) left two oracles
 that measure associations, not effects:
 
 * the **cohort verdict cannot fail**: every synthetic world passed it, worlds
@@ -612,7 +615,10 @@ any run.
   needs method 7 and cohort method 4, the gate's decisions, labels,
   payload and summary with the causal verdicts reported and required, a
   report's recorded mode against the gate's flag, the runner's default arms
-  (full only) and its causal flag. MERGED_TESTS
+  (full only) and its causal flag. Before merging `main` `9d82e77` (PR #60):
+  not-slow 6,716 passed, 3 skipped; after it: the focused validation,
+  ablation, checkpoint and faith tests 462 passed; oracle lane PASS in
+  97.4 s (13 chunks, 2,735 passed).
 
 ## 8. Open
 

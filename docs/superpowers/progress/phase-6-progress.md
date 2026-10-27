@@ -8,10 +8,12 @@
 
 ## Ablation oracles (2026-10-27, `feat/ablation-oracles`)
 
-> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork), on by default in the full profile, opt-in in subsets; needs oracle method 7 and cohort method 4 add the ablations to methods 6 and 3 as causal evidence, reported but not yet required: the gate is decided by method 6's observational verdict and cohort method 3 (labelled non-discriminating), as on `main`; `--require-causal-oracles` / `CAUSAL_ORACLES_REQUIRED` (off) makes the ablations decide; synthetic worlds without the effect, age-confounded or reversed pass the ablations in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); causal evidence on `main`: template full needs PASS (+12% to +47%), cohort FAIL (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full needs FAIL (material -> migration +6.7% [-5.3%, +18.7%], the other four pass), cohort FAIL (0.996); the four kept gate reports re-score to template full PASS, procedural full PASS, template subset PASS, procedural subset FAIL (needs, as `main`), each `main`'s own verdict; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch. Open decisions: kin anchoring against the M53 15-30% claim; the power of the procedural material pairing.)
+> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59) and `9d82e77` (PR #60, simulation and validator inputs identical to `7c44ed8`): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork), on by default in the full profile, opt-in in subsets; needs oracle method 7 and cohort method 4 add the ablations to methods 6 and 3 as causal evidence, reported but not yet required: the gate is decided by method 6's observational verdict and cohort method 3 (labelled non-discriminating), as on `main`; `--require-causal-oracles` / `CAUSAL_ORACLES_REQUIRED` (off) makes the ablations decide; synthetic worlds without the effect, age-confounded or reversed pass the ablations in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); causal evidence on `main`: template full needs PASS (+12% to +47%), cohort FAIL (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full needs FAIL (material -> migration +6.7% [-5.3%, +18.7%], the other four pass), cohort FAIL (0.996); the four kept gate reports re-score to template full PASS, procedural full PASS, template subset PASS, procedural subset FAIL (needs, as `main`), each `main`'s own verdict; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch. Open decisions: kin anchoring against the M53 15-30% claim; the power of the procedural material pairing.)
 
 `feat/ablation-oracles` from `main` `2106ef2` (PR #57), fast-forwarded to
-`8a68658` (PR #58) and merged without rebase with `7c44ed8` (PR #59).
+`8a68658` (PR #58) and merged without rebase with `7c44ed8` (PR #59) and
+`9d82e77` (PR #60, permanent faith ids: simulation, events and validator
+inputs identical to `7c44ed8`, so the gate evidence stands).
 Details and evidence:
 [`docs/integration/ablation-oracles.md`](../../integration/ablation-oracles.md).
 
@@ -64,7 +66,9 @@ Details and evidence:
   gate's batch and validation (50-61 minutes in all) and 42% to the
   procedural one (30 minutes); forks 2-4 s each; checkpoints 1.2 GB
   (template) and 0.75 GB (procedural) until forked.
-- **Tests**: TESTS_LINE
+- **Tests**: cargo 1,061 / 2 ignored (Rust unchanged by the revision);
+  not-slow 6,716 / 3 skipped before merging `9d82e77`; on the merged tree
+  focused tests 462 passed, oracle lane PASS 97.4 s.
 - **Open**: the two decisions; subsets' needs verdict stays observational;
   in-process forks.
 
