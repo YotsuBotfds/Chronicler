@@ -6,6 +6,56 @@
 
 ---
 
+## Procedural drift (2026-10-27, `fix/procedural-drift`)
+
+> **Last updated:** 2026-10-27 (`fix/procedural-drift` from `main` `7bb2bd4`, merged with `db5eff4` and `13f735a`: needs oracle method 5 (outcomes counted while both matched agents live; method 4 re-scorable exactly; 4 -> 5 reported as a method change); no simulation code changed; template full 200 x 500 and procedural full 100 x 300 on the branch head PASS strict, NO REGRESSION against `main`'s method 4 reports, needs 4 -> 5 the only method change (`rebaseline_required`), every other oracle identical, method 4 re-scores of both batches equal `main`'s needs results (template needs 154 of 200, +0.166; procedural 72 of 100, +0.091); these are the method 5 baselines; procedural needs drift traced to coastal pairs and the repulsion correction, fiscal-crisis rise not attributable to living caps, restoration +15 not persistable by any accumulator category.)
+
+`fix/procedural-drift` from `main` `7bb2bd4` (PR #52), merged with `db5eff4`
+(PR #53) and `13f735a` (PR #54). Details and evidence:
+[`docs/integration/procedural-drift.md`](../../integration/procedural-drift.md).
+
+- **Needs drift** (+0.169 -> +0.132 -> +0.111, method 4, paired z -3.46;
+  templates flat): real (seed-clustered SE calibrated by half-splits) and
+  coastal: coastal pairs +0.240 -> +0.062, other regions +0.128 to +0.143
+  in five arms; -0.050 of the -0.059 is within coastal pairs. Reverting
+  only PR #51's `spatial.rs` on `main` restores coastal +0.198 (pooled
+  +0.149); the mine-soil correction adds about -0.02. Need spread, pair
+  counts, drivers, need-driven migration and composition (except mortality)
+  unchanged; not a needs defect. Template coasts do not respond. The
+  coastal micro-mechanism is open.
+- **Oracle flaw fixed, method 5**: 52% of informative pairs had a death in
+  the 20-turn window, and the higher-need (older) agent's death decided the
+  pair. Synthetic null with differential mortality: method 4 PASS 52%,
+  method 5 5.5%. Method 5 censors each pair at its first death. Re-scored:
+  procedural `main` +0.111 -> +0.091 (lb +0.066, 72 of 100 seeds, PASS),
+  `2f654a8` +0.169 -> +0.145, template `d44cf4f` +0.209 -> +0.170 (PASS);
+  15 terms-zeroed sets PASS 15 -> 8 (subset), terms-on 15 -> 14. No
+  threshold changed.
+- **Fiscal crises**: no great-person upkeep or stipend exists. Old caps on
+  `main` (paired, 100 worlds): 1.518 against 1.437 per civ-century (z
+  +0.99), fewer crises where more great persons live; ungated intelligence
+  1.432. Unrelated arms span 1.43-1.59; the PR #48 rise is inside that
+  spread. Not a defect.
+- **Restorations**: hybrid write-back recomputes stability from agents each
+  tick, so the `keep` +15 lasts until the next tick (31.6 -> 18.4); as
+  guard-shock it is one tick's shock (counter-restorations 42% -> 39%,
+  worse persistence). Not a category defect; not changed. Options
+  (grace period, agent-side loyalty, smoothed gate) documented.
+- **Full gates** (branch head `10c67a8` = `main` `13f735a` + method 5,
+  fresh release extension, against `main`'s method 4 reports): template
+  200 x 500 PASS, NO REGRESSION, needs +0.196 (lb +0.177), 170 -> +0.166
+  (+0.144), 154 of 200, binding +0.176 -> +0.191; procedural 100 x 300
+  PASS, NO REGRESSION, +0.111 (+0.088), 84 -> +0.091 (+0.066), 72 of 100,
+  binding +0.117 -> +0.134. Needs 4 -> 5 the only method change; every
+  other oracle JSON-equal to `main`'s, regression deltas 0.0; method 4
+  re-scores of both batches equal `main`'s needs results. These are the
+  method 5 baselines.
+- **Tests**: focused validation suites 262 passed; oracle lane PASS 84.0 s
+  at `ee9da60`; native not-slow 6,579 passed, 3 skipped at `c7cec53`.
+- **Open**: coastal micro-mechanism; procedural method 5 margin (72 of 100
+  against 60); cohort-oracle windows; age unmatched; spiritual pairing;
+  fiscal mediators; restoration design.
+
 ## Exact checkpoint continuation (2026-10-27, `feat/checkpoint-continuation`)
 
 > **Last updated:** 2026-10-27 (`feat/checkpoint-continuation` from `main` `db5eff4`: an exact resume envelope (`chronicler.run_checkpoint`, `--checkpoint-every N`, `--checkpoint PATH`, `--resume`, `--resume-allow-mismatch`) holding the whole Python run graph and each native simulator's own Rust state blob (`persist.rs`: every field, compile-checked, layout-fingerprinted); versioned, digests per section, refuses another source, extension, interpreter, package set or thread setting unless overridden (then labelled); state files resume as before, labelled legacy; resume identity 17 cases (every mode, template and procedural, switches on and off, 22k and 52k agents), 585 resume points, 13,219 files, 0 differences; gaps closed: the PR #51 tech-focus deltas (wave-3 test back at turn 62), every private attribute, the excluded agent events, bridge, tracker and native state, the economy sidecar summary read from disk, the shadow log; without checkpoints byte-identical to `main` (9-case matrix 399 files, with `--scholarship` 399, shadow and demographics-only 132) and turn CPU 1.00-1.01x; a checkpoint 2.5 MB / 0.17 s write at 22k, 5.4 MB / 0.42 s at 52k. Open: narration state, per-turn debug sidecars before the resume turn, size grows with run length.)
