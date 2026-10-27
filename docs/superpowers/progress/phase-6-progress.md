@@ -6,6 +6,61 @@
 
 ---
 
+## Mine-soil ordering (2026-10-27, `fix/mine-soil-ordering`)
+
+> **Last updated:** 2026-10-27 (`fix/mine-soil-ordering` from `main` `2106ef2`, merged with `8a68658` (PR #58): the mines' soil charge (PR #52) recomputed the target crew after the soil step's overpopulation loss while the ledger and the documented rule take it from before, so a crowded region whose loss crossed a multiple of three paid N/(N-1) of the rule and `CHRONICLER_CHECK_RESOURCES=1` raised (`main`: 14 of 100 procedural full-gate worlds, 4 of 40 template worlds; with `--grain-reserves` 7 of 31); the charge now reads the ratio from before the step, as documented (behavioural correction, Rust only, no new state); zero raises in 100 procedural, 40 template and 31 granary worlds; only the worlds where `main` fired change (procedural 14 of 100, template 20 of 200 validator inputs); template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main`'s method 6 / cohort 3 reports. Open: the reserve depletion still divides by the crew after the whole tick.)
+
+`fix/mine-soil-ordering` from `main` `2106ef2` (PR #57), merged without
+rebase with `8a68658` (PR #58). Details and evidence:
+[`docs/integration/production-ledger.md`](../../integration/production-ledger.md)
+section 13 (correction note in section 6).
+
+- **Finding** (PR #58's resource checks): `tick_ecology_with_ledger`
+  recorded `mine_crew_ratio` before the soil step, and the step took the
+  overpopulation loss and then recomputed the ratio for the charge. Where
+  the loss moved the effective capacity across a multiple of three, the
+  crew fell by one: `main` seed 64 turn 27 charged 16/15 of the rule;
+  `8a68658` with `--grain-reserves`, seed 42 turn 128, 12/11 (`main`'s seed
+  42 runs clean). Recorded over `main`: 16 mismatches in 14 of 100
+  procedural worlds (42-141 x 300), 6 in 4 of 40 template worlds (42-81 x
+  500), all in crowded regions (1-22 above the potential), crews 3-22, 0.0001-0.0215
+  extra soil each.
+- **Fix (a), the charge on the crew before the step**: the ore was mined
+  on the land as it stood before Phase 9; recomputing after the
+  overpopulation loss charged crowding twice (its own loss and a smaller
+  divisor, 5-50% more soil for the same ore) and made the rule depend on
+  the order of two terms. (b), recording the crew the charge used, would
+  have kept trajectories by documenting that artifact. The ratio is taken
+  once and both the charge and the ledger read it.
+- **Effect**: worlds without a crossing are bit for bit unchanged. Matched
+  procedural 42-141: 86 of 100 identical in every file, the 14 that differ
+  are exactly those where `main` fired, from that turn (8 with population
+  changes, 6 soil-only for 5-33 region-turns); soil differs in 0.31% of
+  region-turns, final population 53,741 -> 53,807. Template 42-81: 4 differ,
+  soil only (30 of 160,000 region-turns), population identical. Full gates'
+  manifests: template 180 of 200 worlds with identical validator inputs (9
+  with different events), procedural 86 of 100 (the same 14 seeds). With
+  `--grain-reserves` 24 of 31 identical (the 7 that fired). Turn-speed
+  matrix (9 cases) 399 files, 0 differences; checkpoint resume identity
+  (`hybrid_s42`, `proc32_hybrid_s11`, checks on) PASS, 0 differences; no
+  native state added.
+- **Gates** (fresh roots, against the oracle follow-ups' `99bfb7d`
+  reports, `2106ef2`'s simulation and extension): template full PASS
+  strict, NO REGRESSION (needs +0.1656 -> +0.1648, 154 -> 156 of 200,
+  binding +0.191 -> +0.186; cohort 200 / 200; migration 0.0635 -> 0.0634,
+  rebellion 0.0329 -> 0.0330; 0 extinct); procedural full PASS strict, NO
+  REGRESSION (needs +0.0910 -> +0.0892, 72 of 100 both, binding +0.134 ->
+  +0.136; cohort 100 / 100; migration 0.0755 -> 0.0755, rebellion 0.0387 ->
+  0.0386; 0 extinct).
+- **Tests** cargo 1,053 / 2 ignored (2 new, both failing on `main`'s
+  source); not-slow 6,669 / 3 skipped; slow 12 / 3; no-Rust 6,412 / 261;
+  oracle lane PASS 108.6 s; the native ledger test gains the seed-64 world
+  (fails on `main`).
+- **Open**: the reserve depletion (PR #51) divides by the target crew after
+  the whole tick, the soil charge by the crew before it; they differ only
+  where the tick's soil or water change crosses a multiple of three.
+  Aligning them is a separate correction.
+
 ## Public granaries (2026-10-27, `feat/grain-reserves`)
 
 > **Last updated:** 2026-10-27 (`feat/grain-reserves` from `main` `6da8fe5`: stock-target public granaries behind `--grain-reserves`, default off; rulers buy real surplus (own market, realm within three steps, then neighbours across permitted routes) at market prices from the treasury, store it with spoilage and release it before mortality reads the shortfall; the resource checks balance the granaries; switch off byte-identical to `main` (9-case matrix, hybrid batch, procedural); checkpoints with it on 0 differences; paired worlds: severe shortage -1.6/-1.7 pts, deaths per agent-turn -1.5%/-4%, procedural population +6%; template full 200 x 500 and procedural full 100 x 300 gates with it on PASS strict, EXPLORATORY NO REGRESSION (needs 172 of 200 and 79 of 100 seeds; `main` 154, 72); the template subset 42-61's needs oracle fails with it on (material pairing); the production ledger's mines' soil check stops some procedural worlds with `CHRONICLER_CHECK_RESOURCES=1`, `main`'s too (native ordering, not fixed here). Kept off.)
