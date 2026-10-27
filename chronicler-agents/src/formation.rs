@@ -923,13 +923,20 @@ enum PairClass {
 /// the reference computes for its score.
 #[inline]
 fn classify_pair_dist(e: &Eligible, a: usize, b: usize, civ_at_war: &[bool; 256]) -> (PairClass, f32) {
-    let dx = e.x[a] - e.x[b];
-    let dy = e.y[a] - e.y[b];
-    let dist = (dx * dx + dy * dy).sqrt();
+    let dist = pair_d2(e, a, b).sqrt();
     (classify_with_dist(e, a, b, dist, civ_at_war), dist)
 }
 
-#[inline]
+/// Squared distance of an eligible pair, the value `classify_pair_dist`
+/// takes the root of.
+#[inline(always)]
+fn pair_d2(e: &Eligible, a: usize, b: usize) -> f32 {
+    let dx = e.x[a] - e.x[b];
+    let dy = e.y[a] - e.y[b];
+    dx * dx + dy * dy
+}
+
+#[inline(always)]
 fn classify_with_dist(e: &Eligible, a: usize, b: usize, dist: f32, civ_at_war: &[bool; 256]) -> PairClass {
     if dist > agent::MARRIAGE_RADIUS {
         return PairClass::Far;
@@ -949,6 +956,58 @@ fn classify_with_dist(e: &Eligible, a: usize, b: usize, dist: f32, civ_at_war: &
         return PairClass::Hostile;
     }
     PairClass::Valid
+}
+
+/// Squared distances at or below this are exactly the pairs the reference
+/// keeps within `MARRIAGE_RADIUS`: the largest `d2` with
+/// `d2.sqrt() <= MARRIAGE_RADIUS`. The correctly rounded square root is
+/// monotone, so `!(d2.sqrt() > MARRIAGE_RADIUS)` holds exactly for
+/// `d2 <= marriage_radius_sq()` (`marriage_radius_threshold_is_exact`).
+fn marriage_radius_sq() -> f32 {
+    let r = agent::MARRIAGE_RADIUS;
+    let next = |v: f32| f32::from_bits(v.to_bits() + 1);
+    let prev = |v: f32| f32::from_bits(v.to_bits() - 1);
+    let mut t = r * r;
+    while t.sqrt() > r {
+        t = prev(t);
+    }
+    while next(t).sqrt() <= r {
+        t = next(t);
+    }
+    t
+}
+
+/// Per-thread buffers of the exact marriage scan.
+#[derive(Default)]
+struct MarriageScratch {
+    /// Squared distance from the scanning agent to each eligible agent.
+    d2: Vec<f32>,
+    /// Eligible agents within the radius of the scanning agent (ascending).
+    near: Vec<u32>,
+}
+
+/// The eligible agents within `MARRIAGE_RADIUS` of `a` (`a` included), in
+/// ascending order, into `buf.near`. The squared distance is the expression
+/// `classify_pair_dist` takes the root of, computed for all agents in one
+/// vectorisable pass and compared with `max_sq` (`marriage_radius_sq`).
+fn near_eligible(e: &Eligible, a: usize, max_sq: f32, buf: &mut MarriageScratch) {
+    let n = e.len();
+    let (xa, ya) = (e.x[a], e.y[a]);
+    buf.d2.clear();
+    buf.d2.extend(e.x.iter().zip(&e.y).map(|(&x, &y)| {
+        let dx = xa - x;
+        let dy = ya - y;
+        dx * dx + dy * dy
+    }));
+    buf.near.clear();
+    buf.near.resize(n, 0);
+    let mut m = 0;
+    for (b, &d2) in buf.d2.iter().enumerate() {
+        // Written before the length moves, so kept entries stay in order.
+        buf.near[m] = b as u32;
+        m += (d2 <= max_sq) as usize;
+    }
+    buf.near.truncate(m);
 }
 
 /// Greedy order of a candidate pair: higher score first, then lower hash,
@@ -977,7 +1036,7 @@ impl PairKey {
 
 /// Score of an eligible pair from its distance (as the reference
 /// `marriage_score(pool, lo, hi)` computes it).
-#[inline]
+#[inline(always)]
 fn pair_score(e: &Eligible, a: usize, b: usize, dist: f32) -> f32 {
     let (lo, hi) = if a < b { (a, b) } else { (b, a) };
     marriage_score_from(e.civ[lo], e.civ[hi], e.belief[lo], e.belief[hi], e.cv[lo], e.cv[hi], dist)
@@ -1069,11 +1128,19 @@ fn plan_region_marriages(
     // the initial scan (`count`) also tallies the reference rejection
     // counters over the pairs (a, b > a), so every pair is classified once
     // for the counters, exactly as in the reference loop.
-    let scan = |a: usize, matched: &[bool], count: bool| -> (TopPartners, [u32; 3]) {
+    //
+    // Exact mode visits only the agents within the radius (`near_eligible`):
+    // a farther one is never a candidate, and every farther later agent is
+    // a `Far` pair for the counters, so they are counted at once. The cache
+    // and counters do not depend on the order of the visits (`TopPartners`
+    // keeps the best entries of a strict total order).
+    let radius_sq = marriage_radius_sq();
+    let scan = |buf: &mut MarriageScratch, a: usize, matched: &[bool], count: bool| -> (TopPartners, [u32; 3]) {
         let mut top = TopPartners::new();
         let mut c = [0u32; 3];
         let wed_a = e.can_wed[a];
-        let mut visit = |b: usize| {
+        // `d2` is the pair's squared distance (`pair_d2`).
+        let mut visit = |b: usize, d2: f32| {
             if b == a {
                 return;
             }
@@ -1081,7 +1148,8 @@ fn plan_region_marriages(
             if !tally && (!wed_a || matched[b] || !e.can_wed[b]) {
                 return;
             }
-            let (class, dist) = classify_pair_dist(&e, a, b, civ_at_war);
+            let dist = d2.sqrt();
+            let class = classify_with_dist(&e, a, b, dist, civ_at_war);
             if tally {
                 match class {
                     PairClass::Far => c[0] = c[0].wrapping_add(1),
@@ -1098,10 +1166,27 @@ fn plan_region_marriages(
             }
         };
         match &fast {
-            None => (0..n).for_each(&mut visit),
+            None => {
+                if !count && !wed_a {
+                    // No visit would classify or offer anything.
+                    return (top, c);
+                }
+                near_eligible(&e, a, radius_sq, buf);
+                let mut near_later = 0u32;
+                for &b in &buf.near {
+                    let b = b as usize;
+                    near_later += (b > a) as u32;
+                    visit(b, buf.d2[b]);
+                }
+                if count {
+                    let later = (n - 1 - a) as u32;
+                    c[0] = c[0].wrapping_add(later - near_later);
+                }
+            }
             Some(((starts, partners), _, _)) => {
                 for &b in &partners[starts[a] as usize..starts[a + 1] as usize] {
-                    visit(b as usize);
+                    let b = b as usize;
+                    visit(b, pair_d2(&e, a, b));
                 }
             }
         }
@@ -1117,7 +1202,10 @@ fn plan_region_marriages(
     let initial: Vec<(TopPartners, [u32; 3])> = {
         let m = &matched;
         let count = fast.is_none();
-        (0..n).into_par_iter().map(|a| scan(a, m, count)).collect()
+        (0..n)
+            .into_par_iter()
+            .map_init(MarriageScratch::default, |buf, a| scan(buf, a, m, count))
+            .collect()
     };
     let (evaluated, counts) = match &fast {
         None => {
@@ -1166,11 +1254,11 @@ fn plan_region_marriages(
             let t = &top;
             dirty
                 .par_iter()
-                .map(|&a| {
+                .map_init(MarriageScratch::default, |buf, &a| {
                     let mut cur = t[a].clone();
                     cur.entries.retain(|&(_, b)| !m[b as usize]);
                     if cur.entries.is_empty() && !cur.complete {
-                        cur = scan(a, m, false).0;
+                        cur = scan(buf, a, m, false).0;
                     }
                     (a, cur)
                 })
@@ -1666,6 +1754,37 @@ mod tests {
     use crate::memory::MemoryEventType;
     use crate::pool::AgentPool;
     use crate::region::RegionState;
+
+    /// `d2 <= marriage_radius_sq()` is exactly the reference's
+    /// `!(d2.sqrt() > MARRIAGE_RADIUS)`: at the threshold, at its neighbours
+    /// and at the squared distances of coordinates a few ulps around the
+    /// radius apart.
+    #[test]
+    fn marriage_radius_threshold_is_exact() {
+        let r = agent::MARRIAGE_RADIUS;
+        let t = marriage_radius_sq();
+        let up = |v: f32| f32::from_bits(v.to_bits() + 1);
+        assert!(!(t.sqrt() > r));
+        assert!(up(t).sqrt() > r);
+        let mut d2s: Vec<f32> = Vec::new();
+        let mut v = f32::from_bits(t.to_bits() - 64);
+        for _ in 0..128 {
+            d2s.push(v);
+            v = up(v);
+        }
+        for base in [0.0f32, 0.1, 0.37, 0.5, 0.74] {
+            for k in -40i32..=40 {
+                let other = f32::from_bits((base + r).to_bits().wrapping_add(k as u32));
+                for dy in [0.0f32, 1e-7, 1e-4] {
+                    let dx = other - base;
+                    d2s.push(dx * dx + dy * dy);
+                }
+            }
+        }
+        for d2 in d2s {
+            assert_eq!(d2 <= t, !(d2.sqrt() > r), "d2 {d2:e}");
+        }
+    }
 
     // ── Spawn helpers ────────────────────────────────────────────────────────
 

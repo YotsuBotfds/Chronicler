@@ -732,7 +732,7 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     if !attractors.is_empty() {
         crate::spatial::rebuild_spatial_grids(pool, spatial_grids, num_regions as u16);
-        crate::spatial::spatial_drift_step_with_mode(pool, spatial_grids, attractors, spatial_diag, scale_mode);
+        crate::spatial::spatial_drift_step_with_options(pool, spatial_grids, attractors, spatial_diag, options);
     }
 
     // -----------------------------------------------------------------------

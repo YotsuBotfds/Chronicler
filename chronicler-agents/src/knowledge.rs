@@ -3,9 +3,6 @@
 use crate::agent;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
-use rand::Rng;
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 
 // ---------------------------------------------------------------------------
 // InfoType
@@ -735,6 +732,61 @@ pub struct BufferedReceive {
     pub source_civ: u8,
 }
 
+/// Key words of a ChaCha seed, as `ChaCha8Rng::from_seed` reads them.
+#[inline]
+fn chacha_key(seed: &[u8; 32]) -> [u32; 8] {
+    let mut key = [0u32; 8];
+    for (i, word) in key.iter_mut().enumerate() {
+        *word = u32::from_le_bytes([seed[4 * i], seed[4 * i + 1], seed[4 * i + 2], seed[4 * i + 3]]);
+    }
+    key
+}
+
+/// `{ let mut rng = ChaCha8Rng::from_seed(seed); rng.set_stream(stream); rng.gen::<f32>() }`,
+/// bit for bit, from one ChaCha8 block instead of the generator's four.
+///
+/// A fresh generator's first `u32` is word 0 of keystream block 0: the
+/// ChaCha state (the "expand 32-byte k" constants, the eight key words of
+/// `seed`, a 64-bit block counter of 0 and the 64-bit stream as the nonce)
+/// after four double rounds, plus its initial word 0. `rand`'s `f32` takes
+/// that word's top 24 bits times 2^-24. `transmission_roll_matches_chacha8rng`
+/// checks it against the generator.
+#[inline]
+fn chacha8_first_f32(key: &[u32; 8], stream: u64) -> f32 {
+    const SIGMA: [u32; 4] = [0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574];
+    let mut x = [
+        SIGMA[0], SIGMA[1], SIGMA[2], SIGMA[3],
+        key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7],
+        0, 0, stream as u32, (stream >> 32) as u32,
+    ];
+    macro_rules! quarter {
+        ($a:expr, $b:expr, $c:expr, $d:expr) => {
+            x[$a] = x[$a].wrapping_add(x[$b]);
+            x[$d] = (x[$d] ^ x[$a]).rotate_left(16);
+            x[$c] = x[$c].wrapping_add(x[$d]);
+            x[$b] = (x[$b] ^ x[$c]).rotate_left(12);
+            x[$a] = x[$a].wrapping_add(x[$b]);
+            x[$d] = (x[$d] ^ x[$a]).rotate_left(8);
+            x[$c] = x[$c].wrapping_add(x[$d]);
+            x[$b] = (x[$b] ^ x[$c]).rotate_left(7);
+        };
+    }
+    for _ in 0..4 {
+        quarter!(0, 4, 8, 12);
+        quarter!(1, 5, 9, 13);
+        quarter!(2, 6, 10, 14);
+        quarter!(3, 7, 11, 15);
+        quarter!(0, 5, 10, 15);
+        quarter!(1, 6, 11, 12);
+        quarter!(2, 7, 8, 13);
+        quarter!(3, 4, 9, 14);
+    }
+    let word = x[0].wrapping_add(SIGMA[0]);
+    // rand 0.8 `Standard` for f32: 24 random bits, scale 2^-24.
+    let scale = 1.0 / ((1u32 << 24) as f32);
+    scale * (word >> 8) as f32
+}
+
 /// Run propagation: each agent tries to share non-empty packets with bonded agents.
 /// Uses the post-observation snapshot. Returns (buffer, transmitted_count, transmitted_threat, transmitted_trade, transmitted_religious).
 ///
@@ -751,6 +803,7 @@ pub fn propagate_packets<L: crate::pool::SlotLookup>(
     let mut transmitted_threat = 0u32;
     let mut transmitted_trade = 0u32;
     let mut transmitted_religious = 0u32;
+    let key = chacha_key(master_seed);
 
     for &sender_slot in alive_slots {
         let rel_count = pool.rel_count[sender_slot] as usize;
@@ -852,9 +905,9 @@ pub fn propagate_packets<L: crate::pool::SlotLookup>(
                     h = h.wrapping_mul(6364136223846793005).wrapping_add(agent::KNOWLEDGE_STREAM_OFFSET);
                     h
                 };
-                let mut rng = ChaCha8Rng::from_seed(*master_seed);
-                rng.set_stream(stream);
-                let roll: f32 = rng.gen();
+                // The first draw of `ChaCha8Rng::from_seed(*master_seed)`
+                // on `stream` (`chacha8_first_f32`).
+                let roll: f32 = chacha8_first_f32(&key, stream);
 
                 if roll < chance {
                     let received_intensity = (sender_intensity as f32 * HOP_ATTENUATION) as u8;
@@ -1176,6 +1229,50 @@ mod tests {
     use rand::SeedableRng;
     use rand::Rng;
     use rand_chacha::ChaCha8Rng;
+
+    /// The single-block roll equals a fresh `ChaCha8Rng`'s first `f32` on
+    /// the same stream, bit for bit: random and edge seeds and streams,
+    /// and the streams of real (sender, receiver, packet) tuples.
+    #[test]
+    fn transmission_roll_matches_chacha8rng() {
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        };
+        let mut seeds: Vec<[u8; 32]> = vec![[0u8; 32], [0xFF; 32], [42u8; 32]];
+        for _ in 0..13 {
+            let mut seed = [0u8; 32];
+            for chunk in seed.chunks_mut(8) {
+                chunk.copy_from_slice(&next().to_le_bytes());
+            }
+            seeds.push(seed);
+        }
+        for seed in &seeds {
+            let key = chacha_key(seed);
+            let mut streams: Vec<u64> = vec![0, 1, u32::MAX as u64, 1 << 32, u64::MAX];
+            streams.extend((0..2_000).map(|_| next()));
+            for sender in 1..20u64 {
+                let mut h = sender;
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(sender * 7 + 1);
+                h = h.wrapping_mul(6364136223846793005).wrapping_add(agent::KNOWLEDGE_STREAM_OFFSET);
+                streams.push(h);
+            }
+            for &stream in &streams {
+                let mut rng = ChaCha8Rng::from_seed(*seed);
+                rng.set_stream(stream);
+                let expected: f32 = rng.gen();
+                assert_eq!(
+                    chacha8_first_f32(&key, stream).to_bits(),
+                    expected.to_bits(),
+                    "seed {seed:?} stream {stream:#x}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_knowledge_stream_via_set_stream_deterministic() {
