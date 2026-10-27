@@ -13,6 +13,8 @@ canonical consolidated artifacts for the validator:
 - validation_needs.arrow
 - validation_summary.json
 - validation_community_summary.json
+- validation_resource_ledger.arrow (production ledger, 2026-10: one row per
+  region and occupied resource slot per turn; ``chronicler.production_ledger``)
 
 Directory layout::
 
@@ -55,6 +57,7 @@ class SidecarWriter:
         self._needs_rows: list[dict[str, Any]] = []
         self._aggregate_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
         self._community_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
+        self._resource_ledger: dict[str, list[Any]] | None = None
 
     # ------------------------------------------------------------------
     # Graph snapshot
@@ -206,6 +209,24 @@ class SidecarWriter:
         return rows
 
     # ------------------------------------------------------------------
+    # Production ledger (2026-10)
+    # ------------------------------------------------------------------
+
+    def add_resource_ledger_rows(self, rows: dict[str, list[Any]]) -> None:
+        """Append one turn's ledger rows (column lists of
+        ``production_ledger.LEDGER_COLUMNS``); written on :meth:`close`."""
+        if self._resource_ledger is None:
+            self._resource_ledger = {name: [] for name in rows}
+        for name, values in rows.items():
+            self._resource_ledger[name].extend(values)
+
+    def _write_resource_ledger(self) -> None:
+        if not HAS_ARROW or self._resource_ledger is None:
+            return
+        from chronicler.production_ledger import LEDGER_FILENAME, write_ledger
+        write_ledger(self._base_dir / LEDGER_FILENAME, self._resource_ledger)
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
@@ -214,6 +235,7 @@ class SidecarWriter:
         kept for API symmetry and future buffering support."""
         self._write_canonical_artifacts()
         self._write_economy_summary()
+        self._write_resource_ledger()
 
     def _write_canonical_artifacts(self) -> None:
         self._write_arrow_file(

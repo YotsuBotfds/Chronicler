@@ -233,6 +233,17 @@ class TestEcologySchemaFFIRoundTrip:
 # Python batch construction tests
 # ---------------------------------------------------------------------------
 
+# Production ledger (2026-10): what the tick took, appended read-only outputs.
+LEDGER_COLUMNS = [
+    "extraction_realized",
+    "mineral_drawn_0", "mineral_drawn_1", "mineral_drawn_2",
+    "proxy_mineral_draw_0", "proxy_mineral_draw_1", "proxy_mineral_draw_2",
+    "extraction_target_crew",
+    "overextraction_take_0", "overextraction_take_1", "overextraction_take_2",
+    "mine_soil", "proxy_mine_soil", "mine_crew_ratio",
+]
+
+
 class TestBuildRegionBatchEcology:
     """Verify build_region_batch emits M54a ecology columns from Region model data."""
 
@@ -398,7 +409,7 @@ class TestAgentSimulatorTickEcology:
             "resource_reserve_0", "resource_reserve_1", "resource_reserve_2",
             "resource_effective_yield_0", "resource_effective_yield_1", "resource_effective_yield_2",
             "current_turn_yield_0", "current_turn_yield_1", "current_turn_yield_2",
-        ]
+        ] + LEDGER_COLUMNS
         assert region_batch.schema.names == expected_region_cols
 
         # Event batch schema
@@ -644,7 +655,7 @@ class TestEcologySimulator:
             "resource_reserve_0", "resource_reserve_1", "resource_reserve_2",
             "resource_effective_yield_0", "resource_effective_yield_1", "resource_effective_yield_2",
             "current_turn_yield_0", "current_turn_yield_1", "current_turn_yield_2",
-        ]
+        ] + LEDGER_COLUMNS
         assert region_batch.schema.names == expected_region_cols
 
         expected_event_cols = ["event_type", "region_id", "slot", "magnitude"]

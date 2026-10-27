@@ -140,6 +140,10 @@ CHUNKS = {
         "tests/test_population_conservation.py",
         "tests/test_population_entities_native.py",
     ],
+    "production-ledger": [
+        "tests/test_production_ledger.py",
+        "tests/test_production_ledger_native.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

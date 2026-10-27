@@ -596,6 +596,13 @@ class EconomyResult:
     # economy; the Python oracle has no crafts.
     craft_output: dict[str, float] = field(default_factory=dict)
     craft_sufficiency: dict[str, float] = field(default_factory=dict)
+    # Production ledger (2026-10, docs/integration/production-ledger.md):
+    # goods each resource slot produced this turn (after any catch cap; what
+    # the ecology depletes and charges by) and grain foraged, by region. Both
+    # economies fill them for every region they tick; empty without an
+    # economy tick, or from a native extension built before 2026-10.
+    slot_output: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    forage_output: dict[str, float] = field(default_factory=dict)
 
 
 def compute_production(
@@ -903,6 +910,7 @@ def compute_allocated_production(
     food_demand: float | None = None,
     subsistence_yield: float = 0.0,
     slot_labor: tuple[list[float], float, float] | None = None,
+    slot_output: list[float] | None = None,
 ) -> dict[str, float]:
     """Split finite farmer labor across occupied, valid resource slots.
 
@@ -915,9 +923,13 @@ def compute_allocated_production(
     ``subsistence_yield`` lets farmers forage grain when no food slot yields
     (see ``farm_labor``). ``slot_labor`` (slot labour, forage labour, forage
     yield) replaces the split, e.g. effective labour from ``slot_curve_labor``.
+    ``slot_output``, a list of four, receives each slot's output and the
+    foraged grain (the native ``slot_output`` and ``forage_output``).
     """
     occupied = occupied_resource_slot_count(resource_types)
     goods: dict[str, float] = {}
+    if slot_output is not None:
+        slot_output[:] = [0.0, 0.0, 0.0, 0.0]
     if slot_labor is None:
         slot_labor = farm_labor(
             resource_types, resource_yields, farmer_count, food_demand, subsistence_yield,
@@ -925,6 +937,8 @@ def compute_allocated_production(
     slot_labor, forage_labor, forage_yield = slot_labor
     if forage_labor > 0.0:
         goods["grain"] = forage_labor * forage_yield
+        if slot_output is not None:
+            slot_output[3] = goods["grain"]
     if occupied == 0:
         return goods
     for slot, rtype in enumerate(resource_types):
@@ -936,6 +950,8 @@ def compute_allocated_production(
         if cap is not None:
             amount = min(amount, cap)
         goods[good] = goods.get(good, 0.0) + amount
+        if slot_output is not None:
+            slot_output[slot] = amount
     return goods
 
 
@@ -1556,6 +1572,17 @@ def reconstruct_economy_result(
                 if v:
                     target[region_names[rr_ids[i]]] = v
 
+    # Production ledger: what each slot produced and the grain foraged (absent
+    # from extensions built before 2026-10; every region otherwise).
+    if all(f"slot_output_{slot}" in rr_names for slot in range(3)):
+        outs = [pylist(region_result_batch.column(f"slot_output_{slot}")) for slot in range(3)]
+        forage = (pylist(region_result_batch.column("forage_output"))
+                  if "forage_output" in rr_names else [0.0] * len(rr_ids))
+        for i, rid in enumerate(rr_ids):
+            rname = region_names[rid]
+            result.slot_output[rname] = (outs[0][i], outs[1][i], outs[2][i])
+            result.forage_output[rname] = forage[i]
+
     # Diminishing returns: output per farmer against constant returns (absent
     # from extensions built before 2026-10 farmland; read only below 1 or above).
     if "farm_productivity" in rr_names:
@@ -1735,6 +1762,7 @@ def compute_economy(
             farm_labor = effective_farm_labor(farmers, labor_ref, labor_half)
             if labor_ref > 0.0 and farmers > 0 and farm_labor != farmers:
                 result.farm_productivity[rname] = farm_labor / farmers
+        outputs: list[float] = []
         produced = compute_allocated_production(
             region.resource_types,
             slot_yields,
@@ -1743,7 +1771,10 @@ def compute_economy(
             food_demand=demand["food"],
             subsistence_yield=subsistence,
             slot_labor=tuple(split) if split is not None else None,
+            slot_output=outputs,
         )
+        result.slot_output[rname] = (outputs[0], outputs[1], outputs[2])
+        result.forage_output[rname] = outputs[3]
         region_per_good_production[rname] = produced
         region_production[rname] = _category_totals(produced)
         result.conservation["production"] += sum(produced.values())

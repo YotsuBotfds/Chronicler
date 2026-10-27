@@ -538,6 +538,7 @@ def compute_resource_yields(
     """
     phase_idx = _CLIMATE_PHASE_INDEX.get(climate_phase.value, 0)
     yields = [0.0, 0.0, 0.0]
+    penalties = yield_penalty_reaches_goods(world)
 
     for slot in range(3):
         rtype = region.resource_types[slot]
@@ -548,8 +549,11 @@ def compute_resource_yields(
         if rtype in region.resource_suspensions:
             continue
 
-        # M35b: reads base_yields for regression safety; switch to effective_yields at M47 calibration
+        # M35b: the formula reads base yields; the overextraction penalty
+        # (effective / base) multiplies the result (production ledger,
+        # 2026-10; 1.0 for an undegraded slot, whose yield keeps its bits).
         base = region.resource_base_yields[slot]
+        penalty = yield_penalty_factor(region, slot) if penalties else 1.0
         season_mod = SEASON_MOD[rtype][season_id]
         class_idx = resource_class_index(rtype)
         climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx]
@@ -582,7 +586,7 @@ def compute_resource_yields(
             reserves = region.resource_reserves[slot]
             if reserves < 0.01:
                 trickle = get_override(world, K_EXHAUSTED_TRICKLE_FRACTION, 0.04) if world else 0.04
-                yields[slot] = base * trickle  # Exhausted trickle
+                yields[slot] = base * trickle * penalty  # Exhausted trickle
                 continue
             ramp_thresh = get_override(world, K_RESERVE_RAMP_THRESHOLD, 0.25) if world else 0.25
             reserve_ramp = min(1.0, reserves / ramp_thresh)
@@ -592,7 +596,7 @@ def compute_resource_yields(
         abundance = get_multiplier(world, K_RESOURCE_ABUNDANCE) if world else 1.0
         # techniques.yield_multiplier is 1.0 unless --techniques (the one ecology hook).
         yields[slot] = (base * season_mod * climate_mod * ecology_mod * reserve_ramp * abundance
-                        * yield_multiplier(world, region, rtype))
+                        * yield_multiplier(world, region, rtype) * penalty)
 
     # nomads.food_yields returns ``yields`` itself unless --nomads (the herd food hook).
     from chronicler.nomads import food_yields
@@ -916,8 +920,65 @@ def compute_disease_severity(
         region.endemic_severity = baseline
 
 
-def update_depletion_feedback(region: "Region", world: "WorldState | None") -> list["Event"]:
-    """Update soil pressure and overextraction streaks. Returns events."""
+#: Relative shortfall of an effective yield below its base yield that counts
+#: as degradation. The native ecology holds effective yields in single
+#: precision, so an undegraded slot's written-back effective yield sits up to
+#: 6e-8 below a double-precision base yield; a penalty takes 10%.
+YIELD_PENALTY_TOLERANCE = 1e-6
+
+
+def yield_penalty_factor(region: "Region", slot: int) -> float:
+    """A slot's share of its undegraded yield after overextraction penalties.
+
+    ``effective / base``; 1.0 for an undegraded slot (within
+    ``YIELD_PENALTY_TOLERANCE``) and for a slot whose effective yield was never
+    initialized (0 with a base yield, as scenario worlds wrote before
+    2026-10). Never above 1. Mirrors Rust ``ecology::yield_penalty_factor``.
+    """
+    base = region.resource_base_yields[slot]
+    effective = region.resource_effective_yields[slot]
+    if 0.0 < effective < base * (1.0 - YIELD_PENALTY_TOLERANCE):
+        return effective / base
+    return 1.0
+
+
+def yield_penalty_reaches_goods(world: "WorldState | None") -> bool:
+    """Correction (2026-10, production ledger): overextraction lowers a slot's
+    effective yield permanently, but the harvest formula read base yields, so
+    a degraded slot produced (goods, famine yields) as if it were whole.
+    Yields now carry the penalty (``yield_penalty_factor``). Tuning
+    ``ecology.yield_penalty_reaches_goods: 0`` restores the base-yield rule."""
+    from chronicler.tuning import K_YIELD_PENALTY_REACHES_GOODS
+    return bool(get_override(world, K_YIELD_PENALTY_REACHES_GOODS, 1.0)) if world is not None else True
+
+
+def overextraction_take(
+    region: "Region", slot: int, realized: "tuple[float, float, float] | None" = None,
+) -> float:
+    """Worker equivalents a slot's overextraction streak compares with its
+    sustainable workers (``effective yield x workers_per_yield_unit``).
+
+    With ``realized`` (the slot outputs the economy reported this turn) the
+    output in worker equivalents at the slot's undegraded productivity
+    (``output / base yield``); without it the aggregate proxy, population / 5.
+    Mirrors Rust ``ecology::overextraction_take``; this Python lane runs only
+    without a native runtime, where no economy ticks (``realized`` is None).
+    """
+    if realized is not None:
+        base = region.resource_base_yields[slot]
+        return max(realized[slot], 0.0) / base if base > 0.0 else 0.0
+    return float(region.population // 5 if region.population > 0 else 0)
+
+
+def update_depletion_feedback(
+    region: "Region", world: "WorldState | None",
+    realized: "tuple[float, float, float] | None" = None,
+) -> list["Event"]:
+    """Update soil pressure and overextraction streaks. Returns events.
+
+    ``realized``: this turn's slot outputs, when an economy ticked (see
+    ``overextraction_take``); None keeps the population proxy bit for bit.
+    """
     events: list[Event] = []
     soil_thresh = get_override(world, K_SOIL_PRESSURE_THRESHOLD, 0.7) if world else 0.7
     soil_limit = int(get_override(world, K_SOIL_PRESSURE_STREAK_LIMIT, 30)) if world else 30
@@ -953,8 +1014,8 @@ def update_depletion_feedback(region: "Region", world: "WorldState | None") -> l
             continue
         eff_yield = region.resource_effective_yields[slot]
         sustainable = eff_yield * workers_per_unit
-        worker_count = region.population // 5 if region.population > 0 else 0
-        if sustainable > 0 and worker_count > sustainable:
+        take = overextraction_take(region, slot, realized)
+        if sustainable > 0 and take > sustainable:
             streak = region.overextraction_streaks.get(slot, 0) + 1
             region.overextraction_streaks[slot] = streak
             if streak >= overext_limit:
@@ -1080,7 +1141,7 @@ def _tick_ecology_python(
         region_yields[region.name] = yields
 
     from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events
-    apply_fishery_feedback(world, region_yields)
+    apply_fishery_feedback(world, region_yields, economy_result)
     fishery_events = fishery_stock_events(world)
 
     # M34: famine check (agent modes: Phase 2 food sufficiency; aggregate: yields)
@@ -1116,24 +1177,28 @@ _CLIMATE_PHASE_TO_U8 = {"temperate": 0, "warming": 1, "drought": 2, "cooling": 3
 
 def tick_ecology(world: WorldState, climate_phase: ClimatePhase, acc=None,
                  ecology_runtime=None, *,
-                 economy_result: EconomyResult | None = None) -> list[Event]:
+                 economy_result: EconomyResult | None = None,
+                 ledger=None) -> list[Event]:
     """Phase 9 ecology tick.
 
     When an AgentSimulator/EcologySimulator runtime is supplied, delegate core
     ecology math to Rust and run Python post-passes.  When no runtime is
     available, use the restored pure-Python ecology path so off-mode simulations
     and tests do not hard-require the native ``chronicler_agents`` extension.
+    ``ledger`` (a ``production_ledger.ResourceLedgerTurn``) is handed the
+    native tick's ledger columns; it only reads.
     """
     if ecology_runtime is not None:
         from chronicler.experimental.fisheries import require_fishery_runtime
         require_fishery_runtime(world, ecology_runtime)
-        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime, economy_result)
+        return _tick_ecology_rust(world, climate_phase, acc, ecology_runtime, economy_result, ledger)
     return _tick_ecology_python(world, climate_phase, acc, economy_result)
 
 
 def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
                        ecology_runtime,
-                       economy_result: EconomyResult | None = None) -> list[Event]:
+                       economy_result: EconomyResult | None = None,
+                       ledger=None) -> list[Event]:
     """Rust-backed ecology tick with Python post-pass."""
     # 1. Rust ecology tick
     climate_u8 = _CLIMATE_PHASE_TO_U8.get(climate_phase.value, 0)
@@ -1145,9 +1210,11 @@ def _tick_ecology_rust(world: WorldState, climate_phase: ClimatePhase, acc,
 
     # 2. Write-back to Python Region (also sets region.resource_current_yields)
     region_yields = _write_back_ecology(world, region_batch)
+    if ledger is not None:
+        ledger.observe_native(region_batch)
 
     from chronicler.experimental.fisheries import apply_fishery_feedback, fishery_stock_events
-    apply_fishery_feedback(world, region_yields)
+    apply_fishery_feedback(world, region_yields, economy_result)
     fishery_events = fishery_stock_events(world)
 
     # 3. Materialize Rust ecology events

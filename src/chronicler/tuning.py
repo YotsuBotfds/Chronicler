@@ -120,6 +120,17 @@ K_RAW_REFERENCE_DENSITY = "economy.raw_reference_density"
 # Regional climate (2026-10): share of the global phase's crop and water effects
 # (1.0: the global schedule alone; the rest comes as regional harvest shocks).
 K_CLIMATE_TREND_SHARE = "climate.trend_share"
+# Production ledger (2026-10, docs/integration/production-ledger.md): where the
+# economy reported this turn's slot output, the overextraction streak, the
+# mines' soil charge and the fishery stock follow what was taken; the
+# overextraction yield penalty reaches the yields the economy works with. 1 (the
+# default) is each correction; 0 restores the earlier rule (population / 5
+# workers, a flat charge per active mine, the whole catch allowance charged
+# whether landed or not, yields from base yields).
+K_OVEREXTRACTION_REALIZED = "ecology.overextraction_realized"
+K_MINE_SOIL_REALIZED = "ecology.mine_soil_realized"
+K_FISHERY_CHARGES_LANDED_CATCH = "ecology.fishery_charges_landed_catch"
+K_YIELD_PENALTY_REACHES_GOODS = "ecology.yield_penalty_reaches_goods"
 # Bulk trade (2026-10): loads one merchant carries per trip overland, by river
 # and by sea, and whether trips are planned in bulk, filled against the tick's
 # committed deliveries (0: one-load planning, loading the capacity or the
@@ -303,6 +314,8 @@ KNOWN_OVERRIDES: set[str] = {
     K_FAMINE_POP_LOSS, K_FAMINE_REFUGEE_POP,
     K_FARM_REFERENCE_DENSITY, K_FARM_LABOR_ELASTICITY, K_RAW_REFERENCE_DENSITY,
     K_CLIMATE_TREND_SHARE,
+    K_OVEREXTRACTION_REALIZED, K_MINE_SOIL_REALIZED, K_FISHERY_CHARGES_LANDED_CATCH,
+    K_YIELD_PENALTY_REACHES_GOODS,
     K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
     K_GUILD_NEWS,
     # Politics

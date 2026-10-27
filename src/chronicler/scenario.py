@@ -333,6 +333,9 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
                 for i, rtype in enumerate(types[:3]):
                     world.regions[target_idx].resource_types[i] = rtype
                     world.regions[target_idx].resource_base_yields[i] = RESOURCE_BASE.get(rtype, 1.0)
+                    # A new resource starts undegraded (production ledger,
+                    # 2026-10): its effective yield was the replaced one's.
+                    world.regions[target_idx].resource_effective_yields[i] = RESOURCE_BASE.get(rtype, 1.0)
                 populate_legacy_resources([world.regions[target_idx]])
             except (ValueError, TypeError):
                 world.regions[target_idx].specialized_resources = [Resource(r) for r in reg_override.specialized_resources]
@@ -517,6 +520,17 @@ def apply_scenario(world: WorldState, config: ScenarioConfig) -> None:
             initialize_disease_baseline(region)
             if region.controller is not None:
                 bootstrap_region_stockpile(region)
+
+    # Production ledger (2026-10): a slot the scenario gave a base yield
+    # (``specialized_resources``, a river's fish) starts undegraded, as
+    # generate_world() initializes it. Its effective yield was left at 0: the
+    # overextraction track read it as fully degraded (a spurious
+    # ``ecological_recovery`` drew it back toward the base yield), and with the
+    # penalty in the yields it would have produced nothing.
+    for region in world.regions:
+        for slot in range(3):
+            if region.resource_effective_yields[slot] <= 0.0 < region.resource_base_yields[slot]:
+                region.resource_effective_yields[slot] = region.resource_base_yields[slot]
 
     # Verify capital_region is owned; fix if not
     for civ in world.civilizations:

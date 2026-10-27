@@ -132,6 +132,22 @@ pub fn ecology_region_schema() -> Schema {
         Field::new("current_turn_yield_0", DataType::Float32, false),
         Field::new("current_turn_yield_1", DataType::Float32, false),
         Field::new("current_turn_yield_2", DataType::Float32, false),
+        // Production ledger (2026-10, `ecology::ExtractionLedger`): what the
+        // tick took, for `chronicler.production_ledger`. Read-only outputs.
+        Field::new("extraction_realized", DataType::Boolean, false),
+        Field::new("mineral_drawn_0", DataType::Float32, false),
+        Field::new("mineral_drawn_1", DataType::Float32, false),
+        Field::new("mineral_drawn_2", DataType::Float32, false),
+        Field::new("proxy_mineral_draw_0", DataType::Float32, false),
+        Field::new("proxy_mineral_draw_1", DataType::Float32, false),
+        Field::new("proxy_mineral_draw_2", DataType::Float32, false),
+        Field::new("extraction_target_crew", DataType::Float32, false),
+        Field::new("overextraction_take_0", DataType::Float32, false),
+        Field::new("overextraction_take_1", DataType::Float32, false),
+        Field::new("overextraction_take_2", DataType::Float32, false),
+        Field::new("mine_soil", DataType::Float32, false),
+        Field::new("proxy_mine_soil", DataType::Float32, false),
+        Field::new("mine_crew_ratio", DataType::Float32, false),
     ])
 }
 
@@ -211,6 +227,12 @@ pub fn economy_region_result_schema() -> Schema {
     // Crafts: wares made this turn and wares on hand over demand.
     fields.push(Field::new("craft_output", DataType::Float32, false));
     fields.push(Field::new("craft_sufficiency", DataType::Float32, false));
+    // Production ledger (2026-10): goods each resource slot produced this
+    // turn (`slot_output`, what the ecology depletes by) and grain foraged.
+    for slot in 0..3 {
+        fields.push(Field::new(format!("slot_output_{slot}"), DataType::Float32, false));
+    }
+    fields.push(Field::new("forage_output", DataType::Float32, false));
     Schema::new(fields)
 }
 
