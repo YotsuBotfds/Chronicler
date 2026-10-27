@@ -1033,6 +1033,19 @@ pub fn spatial_drift_step(
     spatial_drift_step_with_mode(pool, grids, attractors, diag, crate::scale::AgentScaleMode::Exact)
 }
 
+/// Two-pass spatial drift for all alive agents (`spatial_drift_step_with_options`
+/// with the given mode and every other option at its default).
+pub fn spatial_drift_step_with_mode(
+    pool: &mut AgentPool,
+    grids: &[SpatialGrid],
+    attractors: &[RegionAttractors],
+    diag: &mut SpatialDiagnostics,
+    mode: crate::scale::AgentScaleMode,
+) {
+    let options = crate::scale::TickOptions { scale_mode: mode, ..Default::default() };
+    spatial_drift_step_with_options(pool, grids, attractors, diag, options)
+}
+
 /// Two-pass spatial drift for all alive agents.
 ///
 /// Exact mode is bit-identical to the reference loop (every agent of the
@@ -1043,14 +1056,21 @@ pub fn spatial_drift_step(
 /// agents are evaluated `DRIFT_LANES` at a time against it (`drift_lanes`).
 /// Fast mode uses a population-sized grid per region and a bounded neighbour
 /// sample.
-pub fn spatial_drift_step_with_mode(
+///
+/// `options.profile_spatial_sort` also times the Morton iteration order
+/// (`SpatialDiagnostics::sort_time_us`); it is off by default because the
+/// order is not used.
+pub fn spatial_drift_step_with_options(
     pool: &mut AgentPool,
     grids: &[SpatialGrid],
     attractors: &[RegionAttractors],
     diag: &mut SpatialDiagnostics,
-    mode: crate::scale::AgentScaleMode,
+    options: crate::scale::TickOptions,
 ) {
     use rayon::prelude::*;
+
+    let mode = options.scale_mode;
+    let profile_sort = options.profile_spatial_sort;
 
     let cap = pool.capacity();
 
@@ -1114,11 +1134,13 @@ pub fn spatial_drift_step_with_mode(
         }
     }
 
-    // Sort timing — only run above threshold to avoid wasted work on small pools.
-    // The sort result is discarded in M55a (drift uses slot-index order). This timing
-    // is infrastructure for M61b profiling of cache-locality benefits.
+    // Sort timing (profiling only, `TickOptions::profile_spatial_sort`): the
+    // pool-wide Morton order is computed and discarded (nothing iterates in
+    // it); it measures what a cache-locality sort would cost (M61b). Above
+    // the threshold it is a full radix sort of every agent each tick, so it
+    // is opt-in; `sort_time_us` stays 0 otherwise.
     diag.sort_time_us = 0;
-    if pool.alive_count() >= crate::sort::SPATIAL_SORT_AGENT_THRESHOLD {
+    if profile_sort && pool.alive_count() >= crate::sort::SPATIAL_SORT_AGENT_THRESHOLD {
         let start = std::time::Instant::now();
         let _ = crate::sort::sorted_iteration_order(pool);
         diag.sort_time_us = start.elapsed().as_micros() as u64;
@@ -1514,6 +1536,35 @@ mod scale_equivalence_tests {
                 }
             }
         }
+    }
+
+    /// The discarded Morton sort runs only when profiling asks for it, and
+    /// either way positions are untouched by it.
+    #[test]
+    fn spatial_sort_timing_is_opt_in() {
+        use crate::agent::Occupation;
+        let n = crate::sort::SPATIAL_SORT_AGENT_THRESHOLD;
+        let mut pool = AgentPool::new(n);
+        let mut rng = Mix(5);
+        for _ in 0..n {
+            let s = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+            pool.x[s] = rng.unit();
+            pool.y[s] = rng.unit();
+        }
+        let mut grids = Vec::new();
+        rebuild_spatial_grids(&pool, &mut grids, 1);
+        // No attractors: no agent drifts, so only the timing differs.
+        let (x0, y0) = (pool.x.clone(), pool.y.clone());
+        for profile in [false, true] {
+            let mut diag = SpatialDiagnostics { sort_time_us: 77, ..Default::default() };
+            let options = crate::scale::TickOptions { profile_spatial_sort: profile, ..Default::default() };
+            spatial_drift_step_with_options(&mut pool, &grids, &[], &mut diag, options);
+            assert_eq!(diag.sort_time_us > 0, profile, "profile {profile}");
+            assert!(pool.x == x0 && pool.y == y0);
+        }
+        let mut diag = SpatialDiagnostics { sort_time_us: 77, ..Default::default() };
+        spatial_drift_step(&mut pool, &grids, &[], &mut diag);
+        assert_eq!(diag.sort_time_us, 0, "off by default");
     }
 
     #[test]

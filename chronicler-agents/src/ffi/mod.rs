@@ -338,6 +338,20 @@ impl AgentSimulator {
         self.tick_options.scale_mode.as_str()
     }
 
+    /// Profiling only: when on, later ticks at 100,000 agents or more also
+    /// time the (unused) Morton sort of the spatial step and report it as
+    /// `get_spatial_diagnostics()["sort_time_us"]`. Off by default (the
+    /// report is then 0); results are the same either way.
+    pub fn set_spatial_sort_profiling(&mut self, enabled: bool) {
+        self.tick_options.profile_spatial_sort = enabled;
+    }
+
+    /// Whether the spatial sort timing is on (`set_spatial_sort_profiling`).
+    #[getter]
+    pub fn spatial_sort_profiling(&self) -> bool {
+        self.tick_options.profile_spatial_sort
+    }
+
     /// Ingest region state from Python as an Arrow RecordBatch.
     ///
     /// First call initialises the regions and spawns agents from the supplied

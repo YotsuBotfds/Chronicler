@@ -54,6 +54,11 @@ impl AgentScaleMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TickOptions {
     pub scale_mode: AgentScaleMode,
+    /// Profiling only: time the discarded Morton sort of the spatial step at
+    /// or above `sort::SPATIAL_SORT_AGENT_THRESHOLD` agents
+    /// (`SpatialDiagnostics::sort_time_us`). Off by default; it never
+    /// changes simulation results.
+    pub profile_spatial_sort: bool,
 }
 
 /// Fast drift: target mean agents per neighbour-grid cell.
