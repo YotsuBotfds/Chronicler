@@ -144,7 +144,7 @@ export function MovementsPanel({
                     const winner = movementRecord(bundle, row.movement)?.name ?? null;
                     return (
                       <tr key={row.id}>
-                        <td>{reformName(bundle, row)}</td>
+                        <td>{reformName(bundle, row, at - 1)}</td>
                         <td>
                           {realm ? (
                             <button type="button" className="systems-link" onClick={() => onSelectCivilization(realm)}>{realm}</button>

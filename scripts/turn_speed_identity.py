@@ -263,6 +263,35 @@ class FaithProjection:
             self._world(data, "state")
 
 
+def _differing_parts(base_file: Path, new_file: Path, projection: FaithProjection | None) -> list[str]:
+    """The top-level keys (and ``world_state`` keys) in which two decoded
+    JSON files differ, the new one projected."""
+    import json
+    from chronicler.bundle_codec import load_bundle
+
+    def load(path: Path):
+        if path.name == "chronicle_bundle.json":
+            data = load_bundle(path)
+            data.get("metadata", {}).pop("generated_at", None)
+        else:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        return data
+
+    a, b = load(base_file), load(new_file)
+    if projection is not None:
+        projection(new_file.name, b)
+    parts = []
+    for key in sorted(set(a) | set(b)):
+        if a.get(key) == b.get(key):
+            continue
+        if key in ("world_state", "state") and isinstance(a.get(key), dict) and isinstance(b.get(key), dict):
+            sub = sorted(k for k in set(a[key]) | set(b[key]) if a[key].get(k) != b[key].get(k))
+            parts.extend(f"{key}.{k}" for k in sub)
+        else:
+            parts.append(key)
+    return parts
+
+
 def _faith_projection(case_dir: Path) -> FaithProjection | None:
     """The projection of a case's run, from its state's faith table."""
     import json
@@ -293,6 +322,12 @@ def compare(base: Path, new: Path, faith_ids: bool = False) -> int:
                   f"projected: {dict(sorted(projection.counts.items())) or 'nothing'}")
         for line in problems:
             print(f"  {line}")
+            if faith_ids and line.startswith("differs: ") and line.endswith(")"):
+                rel = line[len("differs: "):].rsplit(" (", 1)[0]
+                if rel.endswith(".json"):
+                    parts = _differing_parts(base / name / rel, new / name / rel,
+                                             _faith_projection(new / name))
+                    print(f"    in: {', '.join(parts) or '(key order only)'}")
     print(f"{len(cases)} cases, {total_checked} files compared, {total_problems} differences")
     return 0 if total_checked and not total_problems else 1
 

@@ -51,16 +51,18 @@ describe("movement helpers", () => {
     expect(living.every((row) => (row.members as number) >= 0)).toBe(true);
   });
 
-  it("names the lasting reforms as the record does", () => {
+  it("names the lasting reforms as the record does, a faith by its permanent identity", () => {
     const relief = reforms.find((reform) => reformKind(reform) === "relief")!;
     expect(reformName(movements, { kind: reformKind(relief) })).toBe("poor relief");
     const regions = movements.world_state.regions;
     expect(reformName(movements, { kind: "home_rule", regions: [0, 1] }))
       .toBe(`home rule of ${regions[0].name}, ${regions[1].name}`);
+    // An older bundle (no faith table): a founding faith of world generation.
     const faith = movements.world_state.belief_registry![0];
-    expect(reformName(movements, { kind: "toleration", faith: faith.faith_id })).toBe(`toleration of the ${faith.name}`);
+    expect(reformName(movements, { kind: "toleration", faith: faith.faith_id }))
+      .toBe(`toleration of the ${faith.name} (founded turn 0)`);
     expect(reformName(movements, { kind: "toleration", faith: faith.faith_id, church: true }))
-      .toBe(`reform of the ${faith.name}`);
+      .toBe(`reform of the ${faith.name} (founded turn 0)`);
     expect(reformName(movements, { kind: "toleration", faith: 250 })).toBe("toleration");
   });
 
@@ -104,7 +106,8 @@ describe("movement helpers", () => {
   it("reads a movement as known at the scrubbed turn in one sentence, its end only once it ended", () => {
     const record = { ...records[0], creed: 2, founded_turn: 106, leader: "", peak_members: 19, demands: 1,
       martyrs: 0, end: END_LABELS.indexOf("won"), ended_turn: 201 };
-    const known = { record, target: 0, leader: null, peakMembers: 12, demands: 1, martyrs: 0, ended: false };
+    const known = { record, target: 0, leader: null, peakMembers: 12, demands: 1, martyrs: 0, ended: false,
+      church: null, becameChurch: null };
     // Before its end (main dae4ba5 gave the whole record and the later end, marked "after turn 191").
     expect(movementRecordNote(known, "Thavigrimi Kingdom", "Magur Meadows", 191)).toBe(
       "A sect movement against Thavigrimi Kingdom, founded turn 106 in Magur Meadows. "

@@ -358,6 +358,8 @@ def reconstruct(registry: Iterable, events: Iterable, civ_names: list[str] | Non
         if rec["founded_turn"] is None and rec["origin"] == FOUNDING:
             if _founding_name(rec["name"], s, civ_names):
                 rec["founded_turn"] = 0
+                if rec["civ"] is None or rec["civ"] < 0:
+                    rec["civ"] = s  # world generation: one founding faith per civ, in civ order
             else:
                 rec["origin"] = UNRECORDED
                 rec["legacy"] = UNRESOLVED
