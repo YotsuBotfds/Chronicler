@@ -19,13 +19,15 @@ one is refused before anything runs) with its ``batch_manifest.json``, which
 compared only with ``--exploratory-comparison``.
 See docs/integration/validation-integrity.md.
 
-Ablation oracles (``--ablation-oracles``, on by default in the subset and
-full profiles): the batch also writes an exact checkpoint after each fork
-turn, and every seed is forked there with one native decision term switched
-off (``chronicler.ablation_arms``: the need terms, ``needs``; the kin roots,
-``kin_roots``) into ``ablation_<first seed>`` beside the batch. The needs
-oracle's ablation component (method 7) and the cohort oracle (method 4) read
-them. See docs/integration/ablation-oracles.md.
+Ablation oracles (``--ablation-oracles``, on by default in the full
+profile, opt-in in the subset): the batch also writes an exact checkpoint
+after each fork turn, and every seed is forked there with one native
+decision term switched off (``chronicler.ablation_arms``: the need terms,
+``needs``; the kin roots, ``kin_roots``) into ``ablation_<first seed>``
+beside the batch. The needs oracle's ablation component (method 7) and the
+cohort oracle's (method 4) read them: causal evidence, reported but not yet
+required; ``--require-causal-oracles`` makes them decide. See
+docs/integration/ablation-oracles.md.
 """
 from __future__ import annotations
 
@@ -64,8 +66,10 @@ from chronicler.batch_manifest import (
 from chronicler.ablation_arms import GATE_ARMS, checkpoint_turns, run_ablation_arms
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
+    CAUSAL_ORACLES_FLAG,
     PROFILE_CHOICES,
     REQUIRED_ORACLES_BY_PROFILE,
+    causal_oracles_required,
     ValidationGateInputError,
     adjudicate_validation_report,
     build_gate_decision_payload,
@@ -153,16 +157,26 @@ def _batch_dir_for(output_root: Path, seed_start: int) -> Path:
     return output_root / f"batch_{seed_start}"
 
 
+# Profiles that can fork ablation arms, and those that do by default. A
+# subset forks once per seed, too few agents below the safety threshold to
+# measure that pairing: there the arms cost more than they show.
 ABLATION_PROFILES = ("subset", "full")
+ABLATION_DEFAULT_PROFILES = ("full",)
 
 
 def ablation_enabled(args: argparse.Namespace) -> bool:
     """Whether the profile runs the ablation arms: ``--ablation-oracles`` /
-    ``--no-ablation-oracles``, else on in ``ABLATION_PROFILES``."""
+    ``--no-ablation-oracles``, else on in ``ABLATION_DEFAULT_PROFILES``."""
     requested = getattr(args, "ablation_oracles", None)
     if args.profile not in ABLATION_PROFILES:
         return False
-    return True if requested is None else bool(requested)
+    return args.profile in ABLATION_DEFAULT_PROFILES if requested is None else bool(requested)
+
+
+def require_causal(args: argparse.Namespace) -> bool:
+    """``--require-causal-oracles``, else ``CAUSAL_ORACLES_REQUIRED``."""
+    requested = getattr(args, "require_causal_oracles", None)
+    return causal_oracles_required(None, requested)
 
 
 def _ablation_args(args: argparse.Namespace) -> list[str]:
@@ -700,6 +714,7 @@ def validate_batch(
     fail_on_regression: bool = False,
     exploratory_comparison: bool = False,
     ablation_dir: Path | None = None,
+    require_causal_oracles: bool | None = None,
 ) -> dict[str, Any]:
     report_path = batch_dir / report_name
     decision_path = batch_dir / f"gate_decision_{profile}.json"
@@ -728,6 +743,8 @@ def validate_batch(
     ]
     if ablation_dir is not None:
         cmd.extend(["--ablation-dir", str(ablation_dir)])
+    if require_causal_oracles is not None:
+        cmd.append(CAUSAL_ORACLES_FLAG if require_causal_oracles else "--no-" + CAUSAL_ORACLES_FLAG[2:])
     proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)
     report, report_text = _report_from_validation_process(proc, batch_dir)
     atomic_write_text(report_path, report_text)
@@ -736,6 +753,7 @@ def validate_batch(
         profile,
         report,
         require_strict_regression=require_strict_regression,
+        require_causal_oracles=require_causal_oracles,
     )
     decision_payload = build_gate_decision_payload(decision, report, report_path=report_path)
     atomic_write_json(decision_path, decision_payload)
@@ -910,15 +928,23 @@ def main() -> None:
         "--ablation-oracles",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Fork every seed into ablation arms (the need terms; the kin roots) for the needs "
-             "oracle's ablation component and the cohort oracle (default: on in the subset and full "
-             "profiles; docs/integration/ablation-oracles.md).",
+        help="Fork every seed into ablation arms (the need terms; the kin roots) for the needs and "
+             "cohort oracles' ablation components (default: on in the full profile, off in the subset, "
+             "which cannot measure the safety pairing; docs/integration/ablation-oracles.md).",
     )
     parser.add_argument(
         "--ablation-arms",
         default=None,
         help=f"Comma-separated arms to fork (default {','.join(GATE_ARMS)}; 'placebo' adds the "
              "calibration arm).",
+    )
+    parser.add_argument(
+        CAUSAL_ORACLES_FLAG,
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Let the ablation components decide the needs and cohort oracles (default "
+             "validation_gate.CAUSAL_ORACLES_REQUIRED, off: reported as causal evidence, not yet "
+             "required). Needs the ablation arms.",
     )
     parser.add_argument(
         "--require-strict-regression",
@@ -951,6 +977,8 @@ def main() -> None:
         parser.error("--exploratory-comparison requires --baseline-report")
     if args.ablation_oracles and args.profile not in ABLATION_PROFILES:
         parser.error(f"--ablation-oracles applies to the {' and '.join(ABLATION_PROFILES)} profiles")
+    if args.profile in ABLATION_PROFILES and require_causal(args) and not ablation_enabled(args):
+        parser.error(f"{CAUSAL_ORACLES_FLAG} needs the ablation arms (--ablation-oracles)")
     try:
         check_batch_destination(_profile_batch_dir(args))
         if ablation_enabled(args):
@@ -983,6 +1011,7 @@ def main() -> None:
             fail_on_regression=args.fail_on_regression,
             exploratory_comparison=args.exploratory_comparison,
             ablation_dir=arms_result["dir"] if arms_result is not None else None,
+            require_causal_oracles=args.require_causal_oracles,
         )
         timings["validation_seconds"] = round(time.monotonic() - started, 1)
     elif args.profile == "determinism-off":
@@ -1051,6 +1080,7 @@ def main() -> None:
         "ablation_arms": arms_result["arms"] if arms_result is not None else None,
         "ablation_fork_turns": arms_result["fork_turns"] if arms_result is not None else None,
         "ablation_forks": arms_result["forks"] if arms_result is not None else None,
+        "causal_oracles_required": require_causal(args),
         **timings,
         "pythonhashseed": env["PYTHONHASHSEED"],
         "require_strict_regression": args.require_strict_regression,

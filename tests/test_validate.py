@@ -1815,11 +1815,15 @@ def test_cohort_oracle_method_version_argument():
     from chronicler.validate import run_cohort_oracle
 
     runs = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
-    # Method 4 (the default) is the kin-roots ablation: without the arm it is not run.
+    # Method 4 (the default) is method 3's verdict with the kin-roots
+    # ablation, here not run (no arm); method 3 decides.
     default = run_cohort_oracle(runs)
-    assert (default["status"], default["method_version"]) == ("NOT_RUN", 4)
-    assert default["reason"] == "no kin_roots ablation arm"
-    assert run_cohort_oracle(runs, method_version=3)["method_version"] == 3
+    method3 = run_cohort_oracle(runs, method_version=3)
+    assert (default["status"], default["method_version"]) == (method3["status"], 4)
+    assert default["ablation"]["reason"] == "no kin_roots ablation arm"
+    assert {k: v for k, v in default.items() if k in method3 and k not in ("method", "method_version")} == {
+        k: v for k, v in method3.items() if k not in ("method", "method_version")}
+    assert method3["method_version"] == 3
     method2 = run_cohort_oracle(runs, method_version=2)
     assert method2["method_version"] == 2
     # Method 2 keeps its report bytes: no comparison, censoring or pair keys.
@@ -3026,7 +3030,7 @@ def test_validate_main_returns_nonzero_when_pyarrow_missing_for_required_arrow_i
     ("oracle_name", "expected_reason"),
     [
         ("needs", "no_needs_sidecars"),
-        ("cohort", "no kin_roots ablation arm"),
+        ("cohort", "no_community_seed_pairs"),
     ],
 )
 def test_validate_main_skips_when_pyarrow_missing_but_oracle_has_no_other_inputs(
@@ -3050,7 +3054,7 @@ def test_validate_main_skips_when_pyarrow_missing_but_oracle_has_no_other_inputs
     payload = json.loads(captured.out)
 
     assert exit_code == 0
-    assert payload["results"][oracle_name]["status"] == ("NOT_RUN" if oracle_name == "cohort" else "SKIP")
+    assert payload["results"][oracle_name]["status"] == "SKIP"
     assert payload["results"][oracle_name]["reason"] == expected_reason
 
 

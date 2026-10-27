@@ -121,21 +121,22 @@ profile unless `--exploratory` (the runner's `--exploratory-comparison`), and
 NO REGRESSION means no newly failing required gate, not unchanged
 distributions. See `docs/integration/validation-integrity.md`.
 
-The subset and full profiles also run the ablation oracles
-(`--ablation-oracles`, the default there; `--no-ablation-oracles` opts out
-and leaves the cohort oracle, and in the full profile the needs oracle's
-deciding component, `NOT_RUN`: required failures): the batch
-writes exact checkpoints at the fork turns (`--checkpoint-turns`), and each
-seed is forked at every 100th turn with the need terms (`needs`) and the
-kin roots (`kin_roots`) switched off for 22 turns, into `ablation_<first
-seed>` beside the batch. The forks keep only their agent events; the
-checkpoints (about 1.2 GB for the template full gate) are removed once
-forked. On four shared cores the two arms add about 23-28 minutes to the
-template full gate (800 forks per arm), 9 minutes to the procedural one
-(200 forks per arm) and 1-2 minutes to a subset;
-`--ablation-arms needs,kin_roots,placebo` adds the placebo arm (half as
-much again). Needs method 7 and cohort method 4 replace methods 6 and 3, so
-comparing with an older report gives `rebaseline_required`. See
+The full profile also runs the ablation oracles (`--ablation-oracles`, the
+default there and opt-in for a subset; `--no-ablation-oracles` opts out):
+the batch writes exact checkpoints at the fork turns (`--checkpoint-turns`),
+and each seed is forked at every 100th turn with the need terms (`needs`)
+and the kin roots (`kin_roots`) switched off for 22 turns, into
+`ablation_<first seed>` beside the batch. The forks keep only their agent
+events; the checkpoints (about 1.2 GB for the template full gate) are
+removed once forked. On four shared cores the two arms add about 23-28
+minutes to the template full gate (800 forks per arm), 9 minutes to the
+procedural one (200 forks per arm) and 1-2 minutes to a subset that asks
+for them; `--ablation-arms needs,kin_roots,placebo` adds the placebo arm
+(half as much again). Their verdicts are causal evidence, reported but not
+yet required: the gate is decided by the needs oracle's observational
+verdict and cohort method 3, as before; `--require-causal-oracles` makes the
+ablations decide. Needs method 7 and cohort method 4 replace methods 6 and
+3, so comparing with an older report gives `rebaseline_required`. See
 `docs/integration/ablation-oracles.md`.
 
 ## Continuing on another machine

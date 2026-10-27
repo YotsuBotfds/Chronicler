@@ -173,7 +173,10 @@ def test_cohort_ablation_fails_without_anchoring_or_reversed():
     assert va.cohort_ablation_result(runs, None)["status"] == "NOT_RUN"
 
 
-def test_needs_method_7_keeps_method_6_and_decides_by_profile():
+
+
+def test_needs_method_7_keeps_method_6_and_the_observational_verdict_decides():
+    from chronicler.validation_gate import CAUSAL_LABEL_REPORTED
     from chronicler.validation_io import run_needs_oracle
 
     runs, arm = _world(plain=2, ablated=1)
@@ -186,58 +189,193 @@ def test_needs_method_7_keeps_method_6_and_decides_by_profile():
         assert method7[key] == value, key
     assert method7["observational_status"] == method6["status"]
     assert method7["observational_criterion"] == method6["criterion"]
-    assert method7["required_components"] == ["ablation"]
-    assert method7["status"] == method7["ablation"]["status"]
-    subset = run_needs_oracle(runs, profile="subset", ablation=arm)
-    assert subset["required_components"] == ["observational"]
-    assert subset["status"] == run_needs_oracle(runs, profile="subset", method_version=6)["status"]
-    assert run_needs_oracle(runs)["required_components"] == ["observational", "ablation"]
-    assert run_needs_oracle(runs, profile="full")["ablation"]["status"] == "NOT_RUN"
+    # Causal oracles not yet required: method 6's verdict decides in every
+    # profile; the ablation is computed and labelled as causal evidence.
+    assert method7["causal_oracles_required"] is False
+    for profile in ("full", "subset", None):
+        result = run_needs_oracle(runs, profile=profile, ablation=arm)
+        assert result["required_components"] == ["observational"]
+        assert result["status"] == run_needs_oracle(runs, profile=profile, method_version=6)["status"]
+    # Only the material pairing has a cohort here: it passes, the component
+    # (all five required) does not, and the verdict is still method 6's.
+    assert method7["ablation"]["by_pairing"]["material"]["status"] == "PASS"
+    assert method7["ablation"]["status"] == "FAIL" and method7["status"] == method6["status"]
+    assert method7["ablation"]["label"] == CAUSAL_LABEL_REPORTED
+    # Without the arm the component is NOT_RUN and the verdict is method 6's.
+    no_arm = run_needs_oracle(runs, profile="full")
+    assert no_arm["ablation"]["status"] == "NOT_RUN" and no_arm["status"] == method6["status"]
     assert "placebo" not in method7
     assert run_needs_oracle(runs, profile="full", ablation=arm, placebo=arm)["placebo"]["arm"] == "placebo"
 
 
-def _report(needs=None, cohort=None):
+def test_needs_method_7_with_causal_oracles_required_decides_by_profile():
+    from chronicler.validation_gate import CAUSAL_LABEL_REQUIRED
+    from chronicler.validation_io import run_needs_oracle
+
+    runs, arm = _world(plain=2, ablated=1)
+    full = run_needs_oracle(runs, profile="full", ablation=arm, require_causal=True)
+    assert full["causal_oracles_required"] is True
+    assert full["required_components"] == ["ablation"]
+    # Four required pairings have no cohort in this world: the ablation, and
+    # with it the oracle, fails although method 6 passes.
+    assert full["observational_status"] == "PASS"
+    assert full["status"] == full["ablation"]["status"] == "FAIL"
+    assert full["ablation"]["label"] == CAUSAL_LABEL_REQUIRED
+    subset = run_needs_oracle(runs, profile="subset", ablation=arm, require_causal=True)
+    assert subset["required_components"] == ["observational"]
+    assert subset["status"] == run_needs_oracle(runs, profile="subset", method_version=6)["status"]
+    assert run_needs_oracle(runs, ablation=arm, require_causal=True)["required_components"] == [
+        "observational", "ablation"]
+    # Identical arms: the ablation fails and, required, fails the oracle.
+    same_runs, same_arm = _world(plain=1, ablated=1)
+    assert run_needs_oracle(same_runs, profile="full", ablation=same_arm, require_causal=True)["status"] == "FAIL"
+    assert run_needs_oracle(same_runs, profile="full", require_causal=True)["status"] == "NOT_RUN"
+
+
+def test_cohort_method_4_keeps_method_3_and_reports_the_ablation():
+    from chronicler.validation_gate import CAUSAL_LABEL_REPORTED, COHORT_OBSERVATIONAL_NOTE
+    from chronicler.validation_io import run_cohort_oracle
+
+    runs, arm = _cohort_world(members_plain=2, members_ablated=2)
+    method3 = run_cohort_oracle(runs, method_version=3)
+    method4 = run_cohort_oracle(runs, ablation=arm)
+    assert method4["method_version"] == 4 and method4["observational_method_version"] == 3
+    for key, value in method3.items():
+        if key in ("status", "method", "method_version", "reason"):
+            continue
+        assert method4[key] == value, key
+    assert method4["observational_status"] == method3["status"]
+    assert method4["observational_note"] == COHORT_OBSERVATIONAL_NOTE
+    assert method4["required_components"] == ["observational"]
+    assert method4["status"] == method3["status"]
+    assert method4.get("reason") == method3.get("reason")
+    ablation = method4["ablation"]
+    assert ablation["status"] == "FAIL" and ablation["label"] == CAUSAL_LABEL_REPORTED
+    assert ablation["members_migration"]["rate_ratio"] == 1.0
+    assert run_cohort_oracle(runs)["ablation"]["status"] == "NOT_RUN"
+    assert run_cohort_oracle(runs)["status"] == method3["status"]
+
+
+def test_cohort_method_4_with_causal_oracles_required_decides_by_the_ablation():
+    from chronicler.validation_io import cohort_method_4_result, run_cohort_oracle
+
+    runs, arm = _cohort_world(members_plain=1, members_ablated=2)
+    anchored = run_cohort_oracle(runs, ablation=arm, require_causal=True)
+    assert anchored["required_components"] == ["ablation"] and anchored["status"] == "PASS"
+    runs, arm = _cohort_world(members_plain=2, members_ablated=2)
+    flat = run_cohort_oracle(runs, ablation=arm, require_causal=True)
+    assert flat["status"] == "FAIL" and "members' migration rate ratio" in flat["reason"]
+    assert run_cohort_oracle(runs, require_causal=True)["status"] == "NOT_RUN"
+    # The pure combiner re-scores saved components in either mode.
+    observational = {"status": "PASS", "method_version": 3, "method": "matched", "analyzed_seeds": 2}
+    component = {"status": "FAIL", "reason": "members' migration rate ratio 0.99"}
+    reported = cohort_method_4_result(observational, component)
+    required = cohort_method_4_result(observational, component, require_causal=True)
+    assert (reported["status"], "reason" in reported, reported["analyzed_seeds"]) == ("PASS", False, 2)
+    assert (required["status"], required["reason"]) == ("FAIL", "members' migration rate ratio 0.99")
+
+
+def _report(needs=None, cohort=None, **extra):
     return {"results": {"needs": needs or {"status": "PASS"}, "cohort": cohort or {"status": "PASS"},
-                        "community": {"status": "PASS"}}}
+                        "community": {"status": "PASS"}}, **extra}
 
 
-def test_gate_decides_method_7_by_the_profile_components():
-    from chronicler.validation_gate import adjudicate_validation_report
+_NEEDS_7 = {"status": "PASS", "method_version": 7, "observational_status": "PASS", "failed_criteria": [],
+            "informational_failed_criteria": [], "binding": {"net_concordance_lower_bound": 0.1},
+            "ablation": {"status": "FAIL", "failed_pairings": ["material"],
+                         "by_pairing": {"material": {"status": "FAIL", "required": True, "rate_ratio": 1.067,
+                                                     "interval": [0.947, 1.187]}}}}
+_COHORT_4 = {"status": "PASS", "method_version": 4, "observational_status": "PASS",
+             "observational_note": "non-discriminating", "required_components": ["observational"],
+             "ablation": {"status": "FAIL", "reason": "members' migration rate ratio 0.9884",
+                          "members_migration": {"rate_ratio": 0.9884, "interval": [0.984, 0.993]}}}
 
-    needs = {"status": "FAIL", "method_version": 7, "observational_status": "PASS", "failed_criteria": [],
-             "informational_failed_criteria": [], "binding": {"net_concordance_lower_bound": 0.1},
-             "ablation": {"status": "FAIL", "failed_pairings": ["safety"]}}
-    full = adjudicate_validation_report("full", _report(needs))
-    assert [item["oracle"] for item in full["required_failures"]] == ["needs"] + [
-        o for o in ("era", "artifacts", "arcs", "regression")]
-    assert "ablation component FAIL (pairings safety)" in full["required_failures"][0]["reason"]
-    subset = adjudicate_validation_report("subset", _report(needs))
-    assert subset["ok"]
+
+def test_gate_decides_by_the_observational_components_and_reports_the_causal_ones():
+    from chronicler.validation_gate import (
+        CAUSAL_LABEL_REPORTED, COHORT_OBSERVATIONAL_NOTE, adjudicate_validation_report, build_gate_decision_payload,
+        format_gate_markdown, format_gate_summary,
+    )
+
+    report = _report(_NEEDS_7, _COHORT_4)
+    for profile in ("full", "subset"):
+        decision = adjudicate_validation_report(profile, report)
+        assert "needs" not in [item["oracle"] for item in decision["required_failures"]]
+        assert "cohort" not in [item["oracle"] for item in decision["required_failures"]]
+        informational = {item["oracle"]: item for item in decision["informational_non_pass"]}
+        assert informational["needs_ablation"]["reason"].startswith(CAUSAL_LABEL_REPORTED)
+        assert "pairings material" in informational["needs_ablation"]["reason"]
+        assert informational["cohort_ablation"]["reason"].startswith(CAUSAL_LABEL_REPORTED)
+        assert decision["causal_oracles_required"] is False
+        assert [(row["oracle"], row["status"], row["decides"]) for row in decision["causal_evidence"]] == [
+            ("needs", "FAIL", False), ("cohort", "FAIL", False)]
+    decision = adjudicate_validation_report("subset", report)
+    markdown = format_gate_markdown(decision, report)
+    assert "## Causal evidence (not yet required)" in markdown
+    assert "material 1.067 [0.947, 1.187] FAIL" in markdown
+    assert "members' migration 0.988 [0.984, 0.993]" in markdown
+    assert f"method 3 (observational), {COHORT_OBSERVATIONAL_NOTE}" in markdown
+    payload = build_gate_decision_payload(decision, report)
+    assert payload["causal_oracles_required"] is False and len(payload["causal_evidence"]) == 2
+    assert payload["oracle_statuses"]["cohort"]["reason"] == f"method 3 (observational), {COHORT_OBSERVATIONAL_NOTE}"
+    assert "Causal evidence (not yet required): needs ablation=FAIL, cohort ablation=FAIL" in (
+        format_gate_summary(decision))
+
+
+def test_gate_with_causal_oracles_required_decides_by_the_ablations():
+    from chronicler.validation_gate import adjudicate_validation_report, format_gate_markdown
+
+    report = _report(_NEEDS_7, _COHORT_4)
+    full = adjudicate_validation_report("full", report, require_causal_oracles=True)
+    failures = {item["oracle"]: item for item in full["required_failures"]}
+    assert "ablation component FAIL (pairings material)" in failures["needs"]["reason"]
+    assert failures["cohort"] == {"oracle": "cohort", "status": "FAIL",
+                                  "reason": "members' migration rate ratio 0.9884"}
+    assert full["causal_oracles_required"] is True
+    assert all(row["decides"] for row in full["causal_evidence"])
+    assert "## Causal evidence (required)" in format_gate_markdown(full, report)
+    # A subset's needs verdict stays observational; its cohort is the ablation's.
+    subset = adjudicate_validation_report("subset", report, require_causal_oracles=True)
+    assert [item["oracle"] for item in subset["required_failures"]] == ["cohort"]
     assert {item["oracle"] for item in subset["informational_non_pass"]} == {"needs_ablation"}
-    passing = {**needs, "status": "PASS", "ablation": {"status": "PASS"}, "observational_status": "FAIL",
+    # The report's recorded mode applies when the gate is not told.
+    recorded = _report(_NEEDS_7, _COHORT_4, causal_oracles_required=True)
+    assert not adjudicate_validation_report("subset", recorded)["ok"]
+    assert adjudicate_validation_report("subset", recorded, require_causal_oracles=False)["ok"]
+    # Ablations that pass decide too; an observational FAIL is then reported.
+    passing = {**_NEEDS_7, "ablation": {"status": "PASS"}, "observational_status": "FAIL",
                "failed_criteria": ["seed_fraction"]}
-    full = adjudicate_validation_report("full", _report(passing))
-    assert "needs" not in [item["oracle"] for item in full["required_failures"]]
-    assert {item["oracle"] for item in full["informational_non_pass"]} >= {"needs_observational"}
-    assert not adjudicate_validation_report("subset", _report(passing))["ok"]
+    decision = adjudicate_validation_report(
+        "full", _report(passing, {**_COHORT_4, "ablation": {"status": "PASS"}}), require_causal_oracles=True)
+    assert not {"needs", "cohort"} & {item["oracle"] for item in decision["required_failures"]}
+    assert "needs_observational" in {item["oracle"] for item in decision["informational_non_pass"]}
 
 
-def test_gate_fails_a_cohort_method_4_without_its_arm():
+def test_gate_cohort_method_4_without_its_arm():
     from chronicler.validation_gate import adjudicate_validation_report
 
-    decision = adjudicate_validation_report(
-        "subset", _report(cohort={"status": "NOT_RUN", "method_version": 4, "reason": "no kin_roots ablation arm"}))
-    assert decision["required_failures"] == [
+    no_arm = {**_COHORT_4, "ablation": {"status": "NOT_RUN", "reason": "no kin_roots ablation arm"}}
+    reported = adjudicate_validation_report("subset", _report(cohort=no_arm))
+    assert reported["ok"]
+    assert {item["oracle"]: item["status"] for item in reported["informational_non_pass"]} == {
+        "cohort_ablation": "NOT_RUN"}
+    required = adjudicate_validation_report("subset", _report(cohort=no_arm), require_causal_oracles=True)
+    assert required["required_failures"] == [
         {"oracle": "cohort", "status": "NOT_RUN", "reason": "no kin_roots ablation arm"}]
+    # A report scored with causal oracles required (its statuses NOT_RUN)
+    # is re-decided by its components when the gate does not require them.
+    needs_no_arm = {**_NEEDS_7, "status": "NOT_RUN", "ablation": {"status": "NOT_RUN"}}
+    recorded = _report(needs_no_arm, {**no_arm, "status": "NOT_RUN"}, causal_oracles_required=True)
+    assert not adjudicate_validation_report("full", recorded)["ok"]
+    decision = adjudicate_validation_report("full", recorded, require_causal_oracles=False)
+    assert not {"needs", "cohort"} & {item["oracle"] for item in decision["required_failures"]}
 
 
 def test_comparator_flags_the_new_methods_for_rebaselining():
     from chronicler.validation_compare import compare_validation_reports
 
     old = _report({"status": "PASS", "method_version": 6}, {"status": "PASS", "method_version": 3})
-    new = _report({"status": "PASS", "method_version": 7, "observational_status": "PASS",
-                   "ablation": {"status": "PASS"}}, {"status": "FAIL", "method_version": 4})
+    new = _report(_NEEDS_7, _COHORT_4)
     result = compare_validation_reports("subset", old, new, exploratory=True)
     changes = {item["oracle"]: (item["baseline_method_version"], item["current_method_version"])
                for item in result["oracle_method_changes"]}

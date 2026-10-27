@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
-from .validation_gate import PROFILE_CHOICES
+from .validation_gate import CAUSAL_ORACLES_FLAG, PROFILE_CHOICES, causal_oracles_required
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
 from .validation_io import (
@@ -49,12 +49,16 @@ def run_oracles(
     *,
     legacy_batch: bool = False,
     ablation_dir: Path | None = None,
+    require_causal: bool | None = None,
 ) -> dict:
     """Run specified oracles and return a structured report (``profile``:
     the gate profile the needs oracle scores for; None requires its binding
     component). The batch directory is first checked against its manifest
     (``check_batch_manifest``; ``legacy_batch`` admits one without), and the
-    ablation arms of ``ablation_dir`` against theirs and the batch."""
+    ablation arms of ``ablation_dir`` against theirs and the batch.
+    ``require_causal``: whether the ablation components decide (default
+    ``CAUSAL_ORACLES_REQUIRED``; recorded as ``causal_oracles_required``)."""
+    require_causal = causal_oracles_required(None, require_causal)
     selected = _normalize_requested_oracles(oracles)
     batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
     arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
@@ -74,10 +78,12 @@ def run_oracles(
                 results[oracle_name] = runner(batch_dir)
             elif oracle_name == "needs":
                 results[oracle_name] = runner(
-                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"))
+                    ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
+                    require_causal=require_causal)
             elif oracle_name == "cohort":
                 results[oracle_name] = runner(
-                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"))
+                    ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
+                    require_causal=require_causal)
             else:
                 results[oracle_name] = runner(ensure_seed_runs())
         except (ValidationRequestError, ValidationDependencyError):
@@ -103,6 +109,7 @@ def run_oracles(
         report["ablation_arms"] = ablation_summary
     if profile is not None:
         report["profile"] = profile
+    report["causal_oracles_required"] = require_causal
     return report
 
 
@@ -136,10 +143,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(ABLATION_DIR_FLAG, type=Path, default=None,
                         help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
                              "ablation component and the cohort oracle read them")
+    parser.add_argument(CAUSAL_ORACLES_FLAG, action=argparse.BooleanOptionalAction, default=None,
+                        help="let the ablation components (needs method 7, cohort method 4) decide "
+                             "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
+                             "causal evidence, not yet required)")
     args = parser.parse_args(argv)
     try:
         report = run_oracles(args.batch_dir, args.oracles, profile=args.profile, legacy_batch=args.legacy_batch,
-                             ablation_dir=args.ablation_dir)
+                             ablation_dir=args.ablation_dir, require_causal=args.require_causal_oracles)
     except (ValidationRequestError, ValidationDependencyError) as exc:
         _dump_report(_error_report(args.batch_dir, args.oracles, str(exc)))
         return 1

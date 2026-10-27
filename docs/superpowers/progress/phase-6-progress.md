@@ -8,7 +8,7 @@
 
 ## Ablation oracles (2026-10-27, `feat/ablation-oracles`)
 
-> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork); needs oracle method 7 (the need-terms ablation decides in the full profile, method 6's observational verdict in subsets) and cohort method 4 (the kin-roots ablation); synthetic worlds without the effect, age-confounded or reversed pass in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); template full: needs PASS (+12% to +47%), cohort **FAIL** (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full: needs **FAIL** (material -> migration +6.7% [-5.3%, +18.7%], the other four pass) and cohort **FAIL** (0.996): the need terms fail the principled test for procedural material, method 6 passes the same batch; both failures reported, thresholds unchanged, decisions open; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch.)
+> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork), on by default in the full profile, opt-in in subsets; needs oracle method 7 and cohort method 4 add the ablations to methods 6 and 3 as causal evidence, reported but not yet required: the gate is decided by method 6's observational verdict and cohort method 3 (labelled non-discriminating), as on `main`; `--require-causal-oracles` / `CAUSAL_ORACLES_REQUIRED` (off) makes the ablations decide; synthetic worlds without the effect, age-confounded or reversed pass the ablations in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); causal evidence on `main`: template full needs PASS (+12% to +47%), cohort FAIL (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full needs FAIL (material -> migration +6.7% [-5.3%, +18.7%], the other four pass), cohort FAIL (0.996); the four kept gate reports re-score to template full PASS, procedural full PASS, template subset PASS, procedural subset FAIL (needs, as `main`), each `main`'s own verdict; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch. Open decisions: kin anchoring against the M53 15-30% claim; the power of the procedural material pairing.)
 
 `feat/ablation-oracles` from `main` `2106ef2` (PR #57), fast-forwarded to
 `8a68658` (PR #58) and merged without rebase with `7c44ed8` (PR #59).
@@ -29,36 +29,44 @@ Details and evidence:
   and without the term, seed-clustered ratio-estimator bound (Student t),
   pre-registered direction and minimum effect (needs +10%: M49 tier 2;
   cohort -15%: M53 oracle 4). Needs method 7 keeps method 6 as its
-  observational component; full profile requires the ablation (method 6's
-  verdict passes 90% of age-confounded nulls), subsets the observational
-  (one fork leaves safety unmeasurable). Cohort method 4 is `NOT_RUN`
-  without its arm.
-- **Gates** (fresh roots, `d6b63e5`, against `7c44ed8`'s mine-soil
-  reports: every metric delta 0, NO REGRESSION, both method changes
-  flagged): template full FAIL on cohort (needs PASS: autonomy 1.47,
-  purpose 1.28, safety 1.23, material 1.14, social 1.12); procedural full
-  FAIL on needs (material 1.067 [0.947, 1.187]; the other four 1.16-1.47)
-  and cohort (0.996 [0.989, 1.003]); subsets FAIL on cohort (template
-  0.974, procedural 1.000) and, as on `main`, the procedural subset on
-  needs. Placebo arm: no pairing passes anywhere, full-scale ratios
-  0.93-1.13.
-- **Needs finding**: procedural agents short of material goods are few
-  (3.6 a fork) and migrate a lot either way; the terms add +15% over the
-  first five ticks and +4% after, against +3.8% for agents in no deficit.
-- **Cohort finding**: the kin roots move members' migration by 1.2% in
-  template worlds and 0.4% in procedural ones (non-members 2.0% and 0.5%):
-  at most 0.06 of roots, against the voluntary pulls only. Options
-  (strengthen the anchoring, restate the claim by a new pre-registration,
-  or report method 4 without requiring it) are a decision for another
-  branch; none is taken here.
+  observational component, cohort method 4 keeps method 3; both ablations
+  are labelled "causal evidence (not yet required)" in the report, the gate
+  decision and the summary.
+- **Gate rules**: the observational components decide (as `main`); with
+  `--require-causal-oracles` the needs ablation decides the full profile
+  (the observational verdict the subset, which cannot measure safety) and
+  the kin-roots ablation the cohort oracle in every profile. Tests cover
+  both modes.
+- **Gates** (fresh roots, `d6b63e5`, run with the causal verdicts
+  required; reports re-scored under the revised rules from the kept
+  components and `main`'s method 6 / 3 results on the same batches):
+  template full PASS (causal required: FAIL, cohort), procedural full PASS
+  (FAIL, needs material 1.067 [0.947, 1.187] and cohort 0.996), template
+  subset PASS (FAIL, cohort 0.974), procedural subset FAIL on needs as on
+  `main` (FAIL, needs and cohort 1.000). Against `7c44ed8`'s mine-soil
+  reports every metric delta 0, NO REGRESSION, both method changes
+  flagged. Placebo arm: no pairing passes anywhere, full-scale ratios
+  0.93-1.13. A template subset gate run afresh on the revised code with
+  `--ablation-oracles` PASS: ablation components equal the earlier run's,
+  cohort observational equal to `main`'s method 3.
+- **Open decision 1, kin anchoring**: the kin roots move members'
+  migration by 1.2% in template worlds and 0.4% in procedural ones
+  (non-members 2.0% and 0.5%): at most 0.06 of roots, against the
+  voluntary pulls only. Strengthen the anchoring or restate the M53 claim
+  by a new pre-registration; until then method 3 decides.
+- **Open decision 2, procedural material power**: few procedural agents
+  are short of material goods (3.6 a fork; the synthetic model assumed 20)
+  and they migrate a lot either way; the interval [-5.3%, +18.7%] holds
+  both no effect and the minimum. Raise the exposure (more forks or seeds,
+  power measured on the real cohort sizes) or examine the term in
+  procedural worlds before the needs ablation decides procedural gates.
 - **Cost**: the two default arms add about 87% to the template full
   gate's batch and validation (50-61 minutes in all) and 42% to the
   procedural one (30 minutes); forks 2-4 s each; checkpoints 1.2 GB
   (template) and 0.75 GB (procedural) until forked.
-- **Tests**: cargo 1,061 / 2 ignored; not-slow 6,708 / 3 skipped; oracle
-  lane PASS 107.2 s.
-- **Open**: the cohort and procedural-material decisions; subsets' needs
-  verdict stays observational; in-process forks.
+- **Tests**: TESTS_LINE
+- **Open**: the two decisions; subsets' needs verdict stays observational;
+  in-process forks.
 
 ## Mine-soil ordering (2026-10-27, `fix/mine-soil-ordering`)
 

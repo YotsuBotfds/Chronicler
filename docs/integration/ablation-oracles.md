@@ -17,26 +17,38 @@ this branch measures the causal effects directly: each seed is run as it
 always is and also forked, at fixed turns, with one decision term switched
 off; the same agents are then followed in both arms.
 
-**Results** (this branch merged with `main` `7c44ed8`, fresh release
-build; arms forked from the plain gate batch at fixed turns):
+**Gate rules.** The causal verdicts are computed and reported in every
+gate whose arms ran, labelled "causal evidence (not yet required)"; the
+gate is still decided by needs method 6's observational verdict and cohort
+method 3, as on `main` (cohort method 3 labelled "non-discriminating:
+passes synthetic null and reversed worlds"). The arms run by default in
+the full profile only. `--require-causal-oracles`
+(`validation_gate.CAUSAL_ORACLES_REQUIRED`, off) makes the causal verdicts
+decide once `main` passes them (section 6). Under these rules the four
+gate reports of section 3 re-score to template full PASS, procedural full
+PASS, template subset PASS and procedural subset FAIL (needs, as on
+`main`), each identical to `main`'s own verdict on the same batch
+(section 4.1).
 
-| Full gate | Needs method 7 (decides: the ablation) | Cohort method 4 (kin roots) | Gate |
-| --- | --- | --- | --- |
-| template 200 x 500 | PASS: all five pairings, +12% to +47% (one-sided lower bounds 1.07-1.35) | **FAIL**: members migrate 1.2% less with the roots, 0.988 [0.984, 0.993]; minimum 15% | **FAIL** (cohort) |
-| procedural 100 x 300 | **FAIL**: material -> migration +6.7% [-5.3%, +18.7%]; the other four pass, +16.5% to +46.8% | **FAIL**: 0.996 [0.989, 1.003] | **FAIL** (needs, cohort) |
+**Causal evidence** (this branch merged with `main` `7c44ed8`, fresh
+release build; arms forked from the plain gate batch at fixed turns):
 
-* **Synthetic worlds**: neither verdict passes a world without the effect,
-  with the age confound or with the effect reversed (0 of 1,000 batches at
-  every scale); at +20% (needs) and -20% (cohort) the full-scale power is
-  97-99% and 100% (section 2).
+| Full gate | Needs method 7 ablation | Cohort method 4 ablation (kin roots) | Gate (causal reported) | Gate (causal required) |
+| --- | --- | --- | --- | --- |
+| template 200 x 500 | PASS: all five pairings, +12% to +47% (one-sided lower bounds 1.07-1.35) | **FAIL**: members migrate 1.2% less with the roots, 0.988 [0.984, 0.993]; minimum 15% | PASS | **FAIL** (cohort) |
+| procedural 100 x 300 | **FAIL**: material -> migration +6.7% [-5.3%, +18.7%]; the other four pass, +16.5% to +46.8% | **FAIL**: 0.996 [0.989, 1.003] | PASS | **FAIL** (needs, cohort) |
+
+* **Synthetic worlds**: neither causal verdict passes a world without the
+  effect, with the age confound or with the effect reversed (0 of 1,000
+  batches at every scale); at +20% (needs) and -20% (cohort) the
+  full-scale power is 97-99% and 100% (section 2).
 * **Real worlds**: the placebo arm sits at 1 in every pairing. The need
   terms have the effects the M49 spec asks for in every pairing but one:
   **in procedural worlds material shortage raises migration by 6.7%, below
-  the +10% minimum and not distinguishable from no effect, so `main` fails
-  needs method 7 in the procedural full gate** (section 3.1). **The kin
-  roots, the model's community anchoring, have about a twelfth of the
-  effect the M53 spec asks for, so `main` fails cohort method 4 in every
-  gate** (section 3.3). Both are reported, not fixed: no threshold moved.
+  the +10% minimum and not distinguishable from no effect** (section 3.1).
+  **The kin roots, the model's community anchoring, have about a twelfth
+  of the effect the M53 spec asks for** (section 3.3). Both are open
+  decisions (section 8), not fixed here: no threshold moved.
 * **Old versions**: needs method 6 and cohort method 3 re-score every
   batch exactly as `main` does; the comparator reports the method changes
   as `rebaseline_required` (section 4).
@@ -150,27 +162,40 @@ cannot test "collective action".
   result is its observational component (its fields unchanged,
   `observational_status`, `observational_criterion`) plus `ablation` (and
   `placebo` when that arm ran). `required_components` names the deciding
-  ones (`validation_gate.NEEDS_COMPONENTS_REQUIRED`, section 6);
+  ones (`validation_gate.needs_components_required`, section 6);
   `run_needs_oracle(..., method_version=6)` re-scores method 6 exactly.
-* **Cohort method 4** (`COHORT_ORACLE_METHOD_VERSION`): the kin-roots
-  ablation; `NOT_RUN` without the arm (a required failure).
-  `run_cohort_oracle(..., method_version=3)` re-scores method 3 exactly.
+* **Cohort method 4** (`COHORT_ORACLE_METHOD_VERSION`): method 3's whole
+  result as its observational component (`observational_status`,
+  `observational_note`: "non-discriminating: passes synthetic null and
+  reversed worlds") plus the kin-roots `ablation` (`NOT_RUN` without the
+  arm) and `placebo`. `run_cohort_oracle(..., method_version=3)` re-scores
+  method 3 exactly.
+* Both ablation components carry `label`: "causal evidence (not yet
+  required)", or "causal evidence (required)" with causal oracles required
+  (section 6). `needs_method_7_result` and `cohort_method_4_result`
+  (`chronicler.validation_io`) build the results from saved components.
 * The comparator reports needs 6 -> 7 and cohort 3 -> 4 as method changes
   (`rebaseline_required`), never as new or resolved failures.
 
 ### 1.5 The gate
 
 `scripts/m53b_run_validation.py --ablation-oracles` (on by default in the
-subset and full profiles; `--no-ablation-oracles` opts out, leaving the
-cohort oracle and the full profile's needs ablation `NOT_RUN`;
-`--ablation-arms` chooses arms, default `needs,kin_roots`): the batch gets
+full profile, opt-in in the subset, which cannot measure the safety
+pairing; `--no-ablation-oracles` opts out, leaving both ablation components
+`NOT_RUN`; `--ablation-arms` chooses arms, default `needs,kin_roots`;
+`--require-causal-oracles` makes the ablations decide, section 6, and
+needs the arms): the batch gets
 `--checkpoint-turns`, the arms are forked into `ablation_<first seed>`
 beside the batch (a used directory is refused before anything runs), and
 `chronicler.validate --ablation-dir` checks `ablation_manifest.json` (the
 plain batch manifest's SHA-256, seeds, the pre-registered fork turns and
 window, every kept file's SHA-256, each fork's recorded ablation, and the
 shared history) before the oracles read the forks. `run_manifest.json`
-records the arms, forks and the seconds of each phase.
+records the arms, forks, the seconds of each phase and
+`causal_oracles_required`. The gate summary lists both ablation components
+under "Causal evidence (not yet required)" with their effects, and the
+cohort row reads "method 3 (observational), non-discriminating: passes
+synthetic null and reversed worlds".
 
 ## 2. Synthetic worlds
 
@@ -274,12 +299,16 @@ the checkpoints (section 7), the full gates' comparisons with the mine-soil
 reports of `7c44ed8` (the same seeds and turns) show every metric delta 0,
 NO REGRESSION, and the two method changes (`rebaseline_required`).
 
-| Gate | Seeds x turns | Forks per arm (fork turns) | Gate | Needs (method 7) | Deciding component | Cohort (method 4) |
+These gates ran before the revision of section 6, with the causal verdicts
+required (the subsets with their arms, now opt-in); section 4.1 re-scores
+their reports under the revised rules.
+
+| Gate | Seeds x turns | Forks per arm (fork turns) | Needs observational (method 6) | Needs ablation | Cohort observational (method 3) | Cohort ablation |
 | --- | --- | --- | --- | --- | --- | --- |
-| template full | 200 x 500 | 800 (100, 200, 300, 400) | **FAIL**: cohort | PASS | ablation PASS (observational PASS) | **FAIL** |
-| procedural full | 100 x 300 | 200 (100, 200) | **FAIL**: needs, cohort | **FAIL** | ablation FAIL: material (observational PASS) | **FAIL** |
-| template subset | 20 x 200 | 20 (100) | **FAIL**: cohort | PASS | observational PASS (ablation FAIL) | **FAIL** |
-| procedural subset | 20 x 200 | 20 (100) | **FAIL**: cohort, needs | FAIL | observational FAIL, as `main`'s method 6 (ablation FAIL) | **FAIL** |
+| template full | 200 x 500 | 800 (100, 200, 300, 400) | PASS | PASS | PASS | **FAIL** |
+| procedural full | 100 x 300 | 200 (100, 200) | PASS | **FAIL**: material | PASS | **FAIL** |
+| template subset | 20 x 200 | 20 (100) | PASS | FAIL (not measurable) | PASS | **FAIL** |
+| procedural subset | 20 x 200 | 20 (100) | FAIL, as on `main` | FAIL (not measurable) | PASS | **FAIL** |
 
 ### 3.1 Needs: what the need terms do
 
@@ -393,14 +422,15 @@ batches (section 4), as it passes every synthetic world, the reversed one
 included: what it sees is an association of membership, not the effect of
 the term that is meant to produce it.
 
-The thresholds were not moved and the oracle was not changed to pass:
-cohort method 4 fails on `main` in every gate, so every gate fails. What
-to do is a design decision outside this branch: (a) strengthen the
-anchoring mechanism until it does what the M53 spec says (a behavioural
-change with its own gates); (b) restate the oracle's claim, for instance
-that the roots anchor at all (bound below 1 with no minimum effect), by a
-new pre-registration; or (c) report cohort method 4 without requiring it
-until (a) or (b). The branch does none of them.
+The thresholds were not moved and the oracle was not changed to pass: the
+kin-roots ablation fails on `main` in every gate. Until it is decided
+(section 8) the gate reports it as causal evidence and decides the cohort
+oracle by method 3, as `main` does; method 3's PASS is no evidence. The
+options: (a) strengthen the anchoring mechanism until it does what the M53
+spec says (a behavioural change with its own gates); (b) restate the
+oracle's claim, for instance that the roots anchor at all (bound below 1
+with no minimum effect), by a new pre-registration; or (c) keep the
+ablation reported. The branch takes (c) for now and neither (a) nor (b).
 
 ## 4. Old versions on the same batches
 
@@ -426,6 +456,32 @@ method 6, cohort method 3) and the two reports compared:
 * The full gates' plain batches equal the mine-soil gates' (`7c44ed8`):
   needs 6 and cohort 3 on them reproduce those reports' figures.
 
+### 4.1 The four reports under the revised rules
+
+The batches are deleted; their reports are kept. Each was re-scored
+without re-running anything: needs method 7 from `main`'s method 6 result on
+that batch (equal to this branch's re-score, above) and the kept ablation
+and placebo components (`needs_method_7_result`); cohort method 4 from
+`main`'s method 3 result and the kept kin-roots component
+(`cohort_method_4_result`); then the gate (`adjudicate_validation_report`,
+strict regression for the full profile) with the causal verdicts reported
+and required, and on `main`'s own report:
+
+| Gate | Causal reported (default) | `main`'s report | Causal required |
+| --- | --- | --- | --- |
+| template full | **PASS** | PASS | FAIL: cohort |
+| procedural full | **PASS** | PASS | FAIL: cohort, needs |
+| template subset | **PASS** | PASS | FAIL: cohort |
+| procedural subset | **FAIL**: needs (observational) | FAIL: needs | FAIL: cohort, needs |
+
+The default verdicts equal `main`'s required failures in all four. A
+template subset gate run afresh on the revised code with
+`--ablation-oracles` (arms `needs,kin_roots`, fresh output root) confirms
+it end to end: PASS, exit 0; its ablation components equal the earlier
+subset's field for field, its cohort observational component equals
+`main`'s method 3 result, both labelled and listed as causal evidence;
+batch 108 s, 40 forks 60 s, validation 17 s.
+
 ## 5. Cost
 
 Four cores shared with other agents' runs (the load varied between runs,
@@ -450,8 +506,8 @@ manifests.
 * With the default arms the template full gate takes about 50-61 minutes
   (batch, two arms and validation: 3,015 s pre-merge, 3,675 s official),
   the arms adding about 87% to the batch and validation; the procedural full
-  gate about 30 minutes (1,821 s), the arms adding 42%. Subsets: 1-2
-  minutes more.
+  gate about 30 minutes (1,821 s), the arms adding 42%. Subsets run no
+  arms by default; with `--ablation-oracles` they take 1-2 minutes more.
 * Not subsampled and not shortened: four forks per seed is what gives
   safety a cohort (7% of template forks have one; 22 of 200 template seeds
   were informative), and the synthetic power at +20% (97-99%) is for all
@@ -465,6 +521,24 @@ manifests.
 
 ## 6. What the gate requires
 
+**Now (`CAUSAL_ORACLES_REQUIRED = False`, the default): the observational
+components decide, as on `main`.** The needs oracle's status is method 6's
+verdict (its binding component required in the full profile only, as
+before); the cohort oracle's is method 3's, shown as "method 3
+(observational), non-discriminating: passes synthetic null and reversed
+worlds". Both ablation components are computed wherever their arms ran and
+reported: in the report (`label`, `component_statuses`), in the gate
+decision (`causal_evidence`, `causal_oracles_required`) and in the summary
+under "Causal evidence (not yet required)"; a failing one is listed as
+`needs_ablation` or `cohort_ablation` among the informational non-PASS
+rows. Cohort method 3's PASS is no evidence: it passes every synthetic
+world, reversed ones included; it decides only because the causal
+replacement fails on `main` and the decision of section 8 is not taken.
+
+**With causal oracles required** (`--require-causal-oracles` on the gate
+runner, `chronicler.validate` or `chronicler.validation_gate`, or the
+constant set to True; the runner refuses it without arms):
+
 * **Needs, full profile: the ablation component decides.** It measures what
   the oracle claims (the need terms change what agents in need do), it
   passes no synthetic world without the effect, with the age confound or
@@ -474,26 +548,27 @@ manifests.
   verdict) stays in the report and is listed as `needs_observational` when
   it fails, without deciding: it passes the age-confounded null in 90% of
   batches and 8 of 15 terms-zeroed subsets (`oracle-followups.md`,
-  `procedural-drift.md` section 1.5). Under this rule the procedural full
-  gate fails where method 6 passed (section 3.1); that is what the rule is
-  for, not a reason to revisit it.
-* **Needs, subset profile: the observational component decides**, as
-  method 6 did; the ablation is reported (`needs_ablation`). One fork per
-  seed leaves too few agents in danger: safety has a cohort at 7% of
-  template forks, the merged template subset had none, and the component
-  passes 2-34% of synthetic +30% worlds at subset scale. Requiring it would
-  fail every subset whatever the code. A subset PASS therefore keeps the
-  observational verdict's weakness; the full gate is the causal one.
+  `procedural-drift.md` section 1.5).
+* **Needs, subset profile: the observational component still decides**;
+  the ablation is reported. One fork per seed leaves too few agents in
+  danger: safety has a cohort at 7% of template forks, the merged template
+  subset had none, and the component passes 2-34% of synthetic +30% worlds
+  at subset scale. Requiring it would fail every subset whatever the code.
+  This is also why the subset runs no arms unless asked.
 * **Outside a profile** (`chronicler.validate` without `--profile`) both
-  components decide.
-* **Cohort, every profile: the kin-roots ablation decides** (method 4).
-  It has power at both scales (every community has members at the fork:
-  99.8% at -25% in subsets, 100% at -20% at full scale, section 2), so it
-  decides in both; without the arm it is `NOT_RUN`, a required failure,
-  so a gate run with `--no-ablation-oracles` cannot pass it.
-* Nothing was tuned to the results: fork turns, window, cohorts, minimum
-  effects and criteria are the pre-registration's (written before any arm
-  ran), and no threshold changed after the real gates.
+  needs components decide.
+* **Cohort, every profile: the kin-roots ablation decides.** It has power
+  at both scales (every community has members at the fork: 99.8% at -25%
+  in subsets, 100% at -20% at full scale, section 2); without the arm it
+  is `NOT_RUN`, a required failure.
+* On the four reports this mode fails every gate (section 4.1): it is for
+  after the two decisions of section 8.
+
+Nothing was tuned to the results: fork turns, window, cohorts, minimum
+effects and criteria are the pre-registration's (written before any arm
+ran), and no threshold changed after the real gates; the revision changes
+which verdict decides, not how any verdict is computed. Tests cover both
+modes (`tests/test_validation_ablation.py`, `tests/test_decision_ablation.py`).
 
 ## 7. Identity, resume and tests
 
@@ -527,24 +602,45 @@ any run.
   scripts/run_python_oracle_checks.py` PASS in 107.2 s (12 chunks, 2,709
   passed). New: `tests/test_decision_ablation.py`,
   `tests/test_decision_ablation_native.py`,
-  `tests/test_validation_ablation.py` and the Rust `ablation_tests`, `scale.rs` and `migration_drivers.rs`
-  tests (switch off equals no switch, each arm changes only its term, no
-  draw consumed, persisted options, the observational pairings mirrored,
-  re-scoring methods 6 and 3, fork history check, manifest refusals,
-  comparator method changes).
+  `tests/test_validation_ablation.py` and the Rust `ablation_tests`,
+  `scale.rs` and `migration_drivers.rs` tests (switch off equals no
+  switch, each arm changes only its term, no draw consumed, persisted
+  options, the observational pairings mirrored, re-scoring methods 6 and
+  3, fork history check, manifest refusals, comparator method changes).
+* **Tests of the revised gate rules** (Python only; the extension is
+  unchanged, SHA-256 `6f5c5d6a...` rebuilt identically): both modes of
+  needs method 7 and cohort method 4, the gate's decisions, labels,
+  payload and summary with the causal verdicts reported and required, a
+  report's recorded mode against the gate's flag, the runner's default arms
+  (full only) and its causal flag. MERGED_TESTS
 
 ## 8. Open
 
-* **The cohort decision** (section 3.3): until the anchoring is
-  strengthened or the claim restated, every gate fails on cohort method 4.
-* **Procedural material** (section 3.1): the need terms move the
-  migration of procedural agents short of material goods by +6.7%
-  [-5.3%, +18.7%], so the procedural full gate fails needs method 7. Whether
-  the material term should push harder in procedural worlds (where few
-  agents are below the threshold and those few move a lot anyway) or the
-  claim is wrong for them is a model question for another branch.
+Two decisions stand between the causal verdicts and
+`--require-causal-oracles` (or `CAUSAL_ORACLES_REQUIRED = True`):
+
+1. **Kin anchoring against the M53 claim** (section 3.3). The M53 spec
+   says community members migrate 15-30% less; the model's anchoring term,
+   the relationship part of roots, moves members' migration by 1.2%
+   (template) and 0.4% (procedural), and non-members' as much. Either the
+   anchoring is strengthened (a behavioural change with its own gates) or
+   the claim is restated by a new pre-registration. Until then cohort
+   method 3, non-discriminating, decides.
+2. **Power of the procedural material pairing** (section 3.1). In the
+   procedural full gate the need terms move the migration of agents short
+   of material goods by +6.7% [-5.3%, +18.7%]: the interval holds both no
+   effect and the +10% minimum. The cohort is small (720 agent-forks, 3.6
+   a fork; the synthetic model assumed 20, section 2) and its agents move
+   a lot either way. Before the needs ablation can decide procedural
+   gates, either the exposure is raised (more forks or seeds for this
+   pairing, measured for power on the real cohort sizes) or the material
+   term's effect in procedural worlds is examined as a model question.
+
+Also open:
+
 * **Subsets keep the observational needs verdict**, with its weakness
-  (section 6); only the full gate's needs verdict is causal.
+  (section 6), and run no arms by default; only the full gate's needs
+  ablation could be causal.
 * **Collective action**: no community term enters the rebel decision, so
   there is nothing to ablate for it; the cohort's rebellion is reported.
 * **Spiritual** stays reported, as in method 6; its ablation effect is

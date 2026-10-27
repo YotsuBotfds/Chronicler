@@ -342,7 +342,10 @@ def compare_cohorts(baseline_report: dict[str, Any], current_report: dict[str, A
 
 
 # Gate rows that belong to an oracle's category without being an oracle.
-_CATEGORY_SUB_ROWS = {"needs_binding": "needs", "needs_observational": "needs", "needs_ablation": "needs"}
+_CATEGORY_SUB_ROWS = {
+    "needs_binding": "needs", "needs_observational": "needs", "needs_ablation": "needs",
+    "cohort_ablation": "cohort", "cohort_observational": "cohort",
+}
 
 
 def _category_cell(report: dict[str, Any], decision: dict[str, Any], category: str) -> str:

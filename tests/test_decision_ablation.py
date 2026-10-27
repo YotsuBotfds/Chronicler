@@ -182,7 +182,7 @@ def test_ablation_arms_fork_every_seed_and_record_the_manifest(tmp_path, monkeyp
         ablation_arms.run_ablation_arms(batch, tmp_path / "ablation_42", total_turns=300, env={})
 
 
-def test_gate_runner_forks_only_the_subset_and_full_profiles():
+def _load_runner():
     import importlib.util
     from pathlib import Path
 
@@ -190,13 +190,67 @@ def test_gate_runner_forks_only_the_subset_and_full_profiles():
     spec = importlib.util.spec_from_file_location("m53b_run_validation_ablation", path)
     runner = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(runner)
+    return runner
+
+
+def test_gate_runner_forks_the_full_profile_by_default_and_subsets_on_request():
+    from pathlib import Path
+
+    runner = _load_runner()
     for profile, turns, expected in (("full", 500, ["--checkpoint-turns", "101,201,301,401"]),
-                                     ("full", 300, ["--checkpoint-turns", "101,201"]),
-                                     ("subset", 200, ["--checkpoint-turns", "101"])):
+                                     ("full", 300, ["--checkpoint-turns", "101,201"])):
         args = _ns(profile=profile, turns=turns, ablation_oracles=None)
         assert runner.ablation_enabled(args)
         assert runner._ablation_args(args) == expected
+    # A subset cannot measure the safety pairing: its arms are opt-in.
+    assert not runner.ablation_enabled(_ns(profile="subset", turns=200, ablation_oracles=None))
+    assert runner._ablation_args(_ns(profile="subset", turns=200, ablation_oracles=None)) == []
+    assert runner._ablation_args(_ns(profile="subset", turns=200, ablation_oracles=True)) == [
+        "--checkpoint-turns", "101"]
     assert not runner.ablation_enabled(_ns(profile="full", turns=500, ablation_oracles=False))
     assert runner._ablation_args(_ns(profile="full", turns=500, ablation_oracles=False)) == []
-    assert not runner.ablation_enabled(_ns(profile="determinism-hybrid", turns=200, ablation_oracles=None))
+    assert not runner.ablation_enabled(_ns(profile="determinism-hybrid", turns=200, ablation_oracles=True))
     assert runner._ablation_dir_for(Path("/x/full_gate/batch_42")) == Path("/x/full_gate/ablation_42")
+
+
+def test_gate_runner_causal_oracles_are_off_by_default_and_need_the_arms(monkeypatch, tmp_path):
+    runner = _load_runner()
+    assert runner.require_causal(_ns(require_causal_oracles=None)) is False
+    assert runner.require_causal(_ns(require_causal_oracles=True)) is True
+    for argv in (["--profile", "subset", "--require-causal-oracles"],
+                 ["--profile", "full", "--no-ablation-oracles", "--require-causal-oracles"]):
+        monkeypatch.setattr(runner.sys, "argv",
+                            ["m53b_run_validation.py", *argv, "--output-root", str(tmp_path / "out")])
+        with pytest.raises(SystemExit) as exc_info:
+            runner.main()
+        assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize("require, flag, ok", [
+    (None, None, True), (False, "--no-require-causal-oracles", True), (True, "--require-causal-oracles", False),
+])
+def test_gate_runner_passes_the_causal_mode_to_validate_and_the_gate(monkeypatch, tmp_path, require, flag, ok):
+    import json
+    import subprocess
+
+    runner = _load_runner()
+    cohort = {"status": "PASS", "method_version": 4, "observational_status": "PASS",
+              "ablation": {"status": "FAIL", "reason": "members' migration rate ratio 0.99"}}
+    report = {"batch_dir": str(tmp_path), "results": {
+        "community": {"status": "PASS"}, "needs": {"status": "PASS"}, "cohort": cohort}}
+    calls = []
+
+    def fake_run(cmd, **_kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(report), stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    runner.validate_batch(tmp_path, "validate_report_subset.json", tmp_path, {}, "subset",
+                          require_causal_oracles=require)
+    passed = [arg for arg in calls[0] if "causal" in arg]
+    assert passed == ([flag] if flag else [])
+    decision = json.loads((tmp_path / "gate_decision_subset.json").read_text(encoding="utf-8"))
+    assert decision["ok"] is ok
+    assert decision["causal_oracles_required"] is bool(require)
+    summary = (tmp_path / "gate_summary_subset.md").read_text(encoding="utf-8")
+    assert ("## Causal evidence (required)" if require else "## Causal evidence (not yet required)") in summary
