@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import type { Bundle, CivSnapshot } from "../../../types";
 import { AppShell } from "../AppShell";
+import { preloadPanels } from "../lazyPanels";
 import { buildCivilizationViews, isFounded } from "../../../lib/civilizationViews";
 
+// Lazy panels render without a fallback once their chunks are loaded (lazyPanels.tsx).
+beforeAll(() => preloadPanels());
 afterEach(cleanup);
 
 // A civilization founded at turn 60 (a secession, say): no history row

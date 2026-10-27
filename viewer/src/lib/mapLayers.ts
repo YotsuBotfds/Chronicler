@@ -5,6 +5,7 @@
  * the atlas layout's. Nothing here is inferred beyond what the bundle carries.
  */
 import type { Bundle, TurnSnapshot } from "../types";
+import { eventsOfType, techniquesPractisedBy } from "./bundleIndex";
 import { factionColor, UNCONTROLLED_COLOR } from "./colors";
 import {
   AID_COLOR, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, FED_COLOR, hasFamineRecord, hasFoodRecord, hasMigrationRecord,
@@ -261,8 +262,8 @@ function warsLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
     view.titles.set(occupation.region,
       `${occupation.region} · held by ${occupation.occupier} since T${occupation.since_turn} (owner ${occupation.owner})`);
   }
-  for (const event of bundle.events_timeline) {
-    if (event.event_type === "raid" && event.region && event.turn === at - 1) {
+  for (const event of eventsOfType(bundle.events_timeline, "raid")) {
+    if (event.region && event.turn === at - 1) {
       view.markers.push({ region: event.region, color: "#e3b341", size: 6, shape: "burst", title: event.description });
     }
   }
@@ -326,6 +327,11 @@ function migrationLayer({ bundle, snapshot }: MapLayerInput): MapLayerView {
 const PRACTICE_LOW = "#1d4f8c";
 const PRACTICE_HIGH = "#9ec5f4";
 
+/** Technique order on the layer: by label. */
+function compareTechniques(left: string, right: string): number {
+  return techniqueLabel(left).localeCompare(techniqueLabel(right));
+}
+
 /** Techniques recorded in any snapshot's regional practice, by key. */
 export function practisedTechniques(history: TurnSnapshot[]): string[] {
   const keys = new Set<string>();
@@ -336,7 +342,16 @@ export function practisedTechniques(history: TurnSnapshot[]): string[] {
       }
     }
   }
-  return [...keys].sort((left, right) => techniqueLabel(left).localeCompare(techniqueLabel(right)));
+  return [...keys].sort(compareTechniques);
+}
+
+/**
+ * Techniques practised in a snapshot recorded by `turn` (a later invention
+ * is not offered): `practisedTechniques` of the history up to the turn,
+ * from an index built once per history (`lib/bundleIndex`).
+ */
+export function practisedTechniquesBy(history: TurnSnapshot[], turn: number): string[] {
+  return techniquesPractisedBy(history, turn, compareTechniques);
 }
 
 /**

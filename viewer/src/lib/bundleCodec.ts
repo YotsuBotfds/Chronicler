@@ -14,6 +14,10 @@
  * Decoding checks every patch against the format and throws
  * `BundleDecodeError` naming the snapshot and the problem (the Python codec
  * raises the same errors); the loader turns it into a readable message.
+ * The common object patch takes a fast path (a shallow copy, then the
+ * changed keys); every other patch, and every malformed one, goes through
+ * the reference implementation, so results and errors are the same.
+ * Large files are decoded in a worker (lib/bundleDecode.ts).
  */
 
 export const HISTORY_DELTA_KEY = "history_delta";
@@ -75,7 +79,55 @@ function applyPatch(previous: unknown, patch: unknown): unknown {
   return patch;
 }
 
+let fastObjectPatches = true;
+
+/** Tests: decode object patches with the reference implementation only (the format as defined). */
+export function setReferenceObjectPatches(reference: boolean): void {
+  fastObjectPatches = !reference;
+}
+
 function applyObjectPatch(previous: JsonObject, patch: JsonObject): JsonObject {
+  return (fastObjectPatches ? applyObjectPatchFast(previous, patch) : null)
+    ?? applyObjectPatchReference(previous, patch);
+}
+
+const PROTO = "__proto__";
+
+/**
+ * The common patch, quickly: no reserved key (so no deleted keys and no key
+ * order) and no `__proto__` key on either side. A shallow copy of the
+ * previous object keeps its key order; changed keys are replaced in place
+ * and new ones follow in the patch's order, which is the order
+ * `applyObjectPatchReference` builds. Anything else, and any malformed
+ * patch, returns null: the reference decodes it, or throws the same
+ * `BundleDecodeError` it always did (the first error in its order).
+ * `bundleCodecFast.test.ts` compares the two on random histories.
+ */
+function applyObjectPatchFast(previous: JsonObject, patch: JsonObject): JsonObject | null {
+  if (hasOwn(patch, PROTO) || hasOwn(previous, PROTO)) {
+    return null;
+  }
+  const keys = Object.keys(patch);
+  for (const key of keys) {
+    if (RESERVED.has(key)) {
+      return null;
+    }
+  }
+  const out: JsonObject = { ...previous };
+  try {
+    for (const key of keys) {
+      out[key] = hasOwn(previous, key) ? applyPatch(previous[key], patch[key]) : patch[key];
+    }
+  } catch (error) {
+    if (error instanceof BundleDecodeError) {
+      return null;
+    }
+    throw error;
+  }
+  return out;
+}
+
+function applyObjectPatchReference(previous: JsonObject, patch: JsonObject): JsonObject {
   const unexpected = Object.keys(patch).filter((key) => RESERVED.has(key) && key !== DEL && key !== ORDER);
   if (unexpected.length > 0) {
     throw new BundleDecodeError(`object patch holds list keys ${unexpected.sort().join(", ")}`);

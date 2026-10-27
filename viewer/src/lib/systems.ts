@@ -14,6 +14,7 @@ import type {
   TechEra,
   TurnSnapshot,
 } from "../types";
+import { typedEventsUpTo } from "./bundleIndex";
 import { ERA_LABELS, ERA_ORDER } from "./format";
 import { MOVEMENT_EVENT_TYPES } from "./movementEvents";
 
@@ -180,14 +181,12 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
   ],
 };
 
-/** Events of the given types up to `upToTurn`, latest first (stable within a turn). */
+/**
+ * Events of the given types up to `upToTurn`, latest first (stable within a
+ * turn). The timeline is indexed once per array (`lib/bundleIndex`).
+ */
 export function eventsOfTypes(events: Event[], types: readonly string[], upToTurn: number): Event[] {
-  const wanted = new Set(types);
-  return events
-    .map((event, index) => ({ event, index }))
-    .filter(({ event }) => wanted.has(event.event_type) && event.turn <= upToTurn)
-    .sort((left, right) => right.event.turn - left.event.turn || left.index - right.index)
-    .map(({ event }) => event);
+  return typedEventsUpTo(events, types, upToTurn);
 }
 
 // --- Turn strips (run-length segments over the recorded snapshots) ---

@@ -1,3 +1,7 @@
+import {
+  actorEventsUpTo, eventKey, eventsOfType, eventsUpTo, provenanceOf, type IndexedEvent,
+} from "../../lib/bundleIndex";
+
 /**
  * The header's setup line for a loaded bundle without a scenario: what kind of
  * world it records (procedural worlds carry `world_state.geography`).
@@ -142,15 +146,13 @@ type ProvenanceEventLike = {
   causes?: string[];
 };
 
-/** Selection key for an event: its recorded id, else the legacy turn-type key. */
-export function eventKey(event: ProvenanceEventLike): string {
-  return event.event_id || `${event.turn}-${event.event_type}`;
-}
+export { eventKey };
 
 /**
  * Recorded provenance of one event (bundle version 4+): the events it cites
- * as causes and the events that cite it. Both are empty for older bundles.
- * With `upToTurn`, only the events recorded by then (as the event log).
+ * as causes and the events that cite it, in timeline order. Both are empty
+ * for older bundles. With `upToTurn`, only the events recorded by then (as
+ * the event log). The timeline's ids are indexed once (`lib/bundleIndex`).
  */
 export function eventProvenance<E extends ProvenanceEventLike>(
   events: E[],
@@ -160,22 +162,42 @@ export function eventProvenance<E extends ProvenanceEventLike>(
   if (!selected?.event_id) {
     return { causes: [], effects: [] };
   }
-  const selectedId = selected.event_id;
-  const wanted = new Set(selected.causes ?? []);
-  const causes: E[] = [];
-  const effects: E[] = [];
-  for (const event of events) {
-    if (upToTurn !== undefined && event.turn > upToTurn) {
-      continue;
+  return provenanceOf(events, selected, upToTurn);
+}
+
+/** Events the Event Log lists. */
+export const EVENT_FEED_LIMIT = 24;
+/** A focused civilization with fewer events by the turn has the latest others added. */
+const EVENT_FEED_FOCUS_MIN = 8;
+
+/**
+ * The Event Log at `currentTurn`: the 24 latest events recorded by then
+ * (latest first, timeline order within a turn). With a civilization in
+ * focus, its own events first; when it has fewer than 8 by then, the latest
+ * others follow, up to 24. Read from indexes built once per timeline.
+ */
+export function buildEventFeed<E extends IndexedEvent>(
+  events: E[],
+  currentTurn: number,
+  focusCivilization: string | null,
+): E[] {
+  if (focusCivilization === null) {
+    return eventsUpTo(events, currentTurn).slice(0, EVENT_FEED_LIMIT);
+  }
+  const focused = actorEventsUpTo(events, focusCivilization, currentTurn);
+  if (focused.length >= EVENT_FEED_FOCUS_MIN) {
+    return focused.slice(0, EVENT_FEED_LIMIT);
+  }
+  const merged = [...focused];
+  for (const event of eventsUpTo(events, currentTurn)) {
+    if (merged.length >= EVENT_FEED_LIMIT) {
+      break;
     }
-    if (event.event_id && wanted.has(event.event_id)) {
-      causes.push(event);
-    }
-    if (event.causes?.includes(selectedId)) {
-      effects.push(event);
+    if (!merged.includes(event)) {
+      merged.push(event);
     }
   }
-  return { causes, effects };
+  return merged;
 }
 
 const TERRAIN_TRANSITION = /^(.*) transforms from (\S+) to (\S+)$/;
@@ -195,8 +217,8 @@ export function terrainAt(
   turn: number,
 ): string | null {
   let first: { turn: number; from: string | null } | null = null;
-  for (const event of events) {
-    if (event.event_type !== "terrain_transition" || event.turn <= turn) {
+  for (const event of eventsOfType(events, "terrain_transition")) {
+    if (event.turn <= turn) {
       continue;
     }
     const match = TERRAIN_TRANSITION.exec(event.description ?? "");

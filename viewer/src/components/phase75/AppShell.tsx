@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { memo, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type {
   BatchReport,
   BatchRunSummary,
@@ -22,27 +22,30 @@ import {
 } from "../../lib/civilizationViews";
 import { snapshotPositionAt } from "../../lib/civRows";
 import { DISPOSITION_COLORS, factionColor, UNCONTROLLED_COLOR } from "../../lib/colors";
-import { BatchCompare } from "../BatchCompare";
-import { BatchPanel } from "../BatchPanel";
-import { InterventionPanel } from "../InterventionPanel";
-import { RegionHistoryInspector } from "../RegionHistoryInspector";
 import { RegionSystemsDetail } from "../systems/RegionSystemsDetail";
-import { SystemsPanel } from "../systems/SystemsPanel";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
-import { LanguagesPanel } from "./LanguagesPanel";
+import {
+  BatchCompare, BatchPanel, InterventionPanel, LanguagesPanel, preloadPanels, RegionHistoryInspector, SystemsPanel,
+} from "./lazyPanels";
+import { PanelLoading } from "./PanelLoading";
 import { foodCrisisSpans, type FamineSpan } from "../../lib/food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, MAP_LAYER_LABELS, NO_DATA_FILL, NO_DATA_OPACITY,
-  practisedTechniques, type MapLayerKey, type MapLayerView,
+  practisedTechniquesBy, type MapLayerKey, type MapLayerView,
 } from "../../lib/mapLayers";
 import { techniqueLabel } from "../../lib/systems";
+import { eventByKey } from "../../lib/bundleIndex";
 import {
-  atlasPoint, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame, regionNodeRadius,
-  terrainAt, turnToPercent, type PinFrame,
+  atlasPoint, buildEventFeed, buildTradeLinks, bundleWorldKind, eventKey, eventProvenance, percentToTurn, pinFrame,
+  regionNodeRadius, terrainAt, turnToPercent, type PinFrame,
 } from "./appShellHelpers";
 import { MapLayerLegend, MapLayerMarks } from "./MapLayerMarks";
+// The lazy panels' styles stay in the entry stylesheet, in the cascade order
+// they had when the panels were static imports (before the shell's own).
+import "../region-history.css";
+import "../systems/systems.css";
 import "./app-shell.css";
 
 export type AppSurface =
@@ -137,6 +140,8 @@ const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
 ];
 
 const SPEED_OPTIONS = [1, 2, 5, 10];
+/** The timeline of a shell without a bundle (one array, so its index is built once). */
+const NO_EVENTS: Event[] = [];
 /** Inspector text for a value the history does not hold yet at the snapshot. */
 const UNAVAILABLE = "Unavailable";
 
@@ -203,20 +208,20 @@ function buildEraBands(history: TurnSnapshot[], maxTurn: number): { label: strin
   }));
 }
 
-function buildNarratedSpans(bundle: Bundle | null): { start: number; end: number }[] {
-  if (!bundle) {
+function buildNarratedSpans(chronicleEntries: Bundle["chronicle_entries"] | undefined): { start: number; end: number }[] {
+  if (!chronicleEntries) {
     return [];
   }
 
-  if (isLegacyBundle(bundle.chronicle_entries)) {
-    return Object.keys(bundle.chronicle_entries)
+  if (isLegacyBundle(chronicleEntries)) {
+    return Object.keys(chronicleEntries)
       .map((turnString) => Number(turnString))
       .filter((turn) => !Number.isNaN(turn))
       .map((turn) => ({ start: turn, end: turn }))
       .sort((left, right) => left.start - right.start);
   }
 
-  return bundle.chronicle_entries
+  return chronicleEntries
     .map((entry) => ({
       start: entry.covers_turns[0],
       end: entry.covers_turns[1],
@@ -306,36 +311,6 @@ function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): Chronic
   return [...items, ...reflections, ...gaps]
     .sort((left, right) => left.turn - right.turn)
     .slice(-14);
-}
-
-function buildEventFeed(
-  events: Event[],
-  currentTurn: number,
-  selectedEntity: SelectedEntity | null,
-): Event[] {
-  const visible = events
-    .filter((event) => event.turn <= currentTurn)
-    .sort((left, right) => right.turn - left.turn);
-
-  if (selectedEntity?.kind !== "civilization") {
-    return visible.slice(0, 24);
-  }
-
-  const focused = visible.filter((event) => event.actors.includes(selectedEntity.id));
-  if (focused.length >= 8) {
-    return focused.slice(0, 24);
-  }
-
-  const merged = [...focused];
-  for (const event of visible) {
-    if (merged.length >= 24) {
-      break;
-    }
-    if (!merged.includes(event)) {
-      merged.push(event);
-    }
-  }
-  return merged;
 }
 
 function buildRunSignalSummary(summary: BatchRunSummary | null): string {
@@ -668,8 +643,11 @@ export function AppShell({
   const civilizations = sortCivilizations(civilizationEntries.filter(isFounded));
   const leadCivilization = dominantCivilization(civilizations);
   const totalTurns = totalTurnsFor(bundle);
-  const eraBands = buildEraBands(bundle?.history ?? [], totalTurns);
-  const narratedSpans = buildNarratedSpans(bundle);
+  // Whole-run timeline marks: built once per history and chronicle, not per scrubbed turn.
+  const bundleHistory = bundle?.history;
+  const eraBands = useMemo(() => buildEraBands(bundleHistory ?? [], totalTurns), [bundleHistory, totalTurns]);
+  const chronicleEntries = bundle?.chronicle_entries;
+  const narratedSpans = useMemo(() => buildNarratedSpans(chronicleEntries), [chronicleEntries]);
   const chronicleFeed = buildChronicleFeed(bundle, currentTurn);
   const selectedScenario = scenarios.find((entry) => entry.file === scenario) ?? null;
   const civsDisabled = resumeState !== null || (selectedScenario?.civs?.length ?? 0) > 0;
@@ -711,10 +689,11 @@ export function AppShell({
     ? bundle.world_state.regions
     : previewRegions;
   // Fit the atlas to the region pins (and procedural sea zones, drawn on the sea layer).
-  const atlasFrame = pinFrame([
+  const seaZones = bundle?.world_state.geography?.sea_zones;
+  const atlasFrame = useMemo(() => pinFrame([
     ...atlasRegions.filter((region) => region.x !== null && region.y !== null),
-    ...(bundle?.world_state.geography?.sea_zones ?? []),
-  ]);
+    ...(seaZones ?? []),
+  ]), [atlasRegions, seaZones]);
   const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers, atlasFrame);
   const mapLayers = useMemo(() => availableMapLayers(bundle), [bundle]);
   const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
@@ -722,7 +701,7 @@ export function AppShell({
   const regionNames = useMemo(() => (bundle ? bundle.world_state.regions.map((region) => region.name) : []), [bundle]);
   // Techniques practised by the scrubbed turn (a later invention is not offered).
   const techniqueOptions = useMemo(
-    () => (bundle ? practisedTechniques(bundle.history.filter((snapshot) => snapshot.turn <= currentTurn)) : []),
+    () => (bundle ? practisedTechniquesBy(bundle.history, currentTurn) : []),
     [bundle, currentTurn],
   );
   const technique = techniqueSelection && techniqueOptions.includes(techniqueSelection)
@@ -747,7 +726,11 @@ export function AppShell({
     snapshotRelationships,
     civilizations.map((civilization) => civilization.name),
   );
-  const eventFeed = buildEventFeed(bundle?.events_timeline ?? [], currentTurn, selectedEntity);
+  const eventFeed = buildEventFeed(
+    bundle?.events_timeline ?? NO_EVENTS,
+    currentTurn,
+    selectedEntity?.kind === "civilization" ? selectedEntity.id : null,
+  );
   const batchSummaries = batchReport?.run_summaries ?? [];
   const leftRailTab = surface === "setup"
     ? "launch"
@@ -773,7 +756,7 @@ export function AppShell({
       : selectedEntity?.kind === "civilization"
         ? civilizationEntries.some((civilization) => civilization.name === selectedEntity.id)
         : selectedEntity?.kind === "event"
-          ? bundle.events_timeline.some((event) => eventKey(event) === selectedEntity.id)
+          ? eventByKey(bundle.events_timeline, selectedEntity.id) !== null
           : true;
 
     if (!selectedStillExists) {
@@ -792,6 +775,28 @@ export function AppShell({
       }
     }
   });
+
+  // The lazy panels' chunks: fetched once the first screen has painted (when
+  // the browser is idle), and at once when a bundle starts loading or arrives.
+  useEffect(() => {
+    const idle = typeof window.requestIdleCallback === "function";
+    const handle = idle
+      ? window.requestIdleCallback(() => void preloadPanels(), { timeout: 2000 })
+      : window.setTimeout(() => void preloadPanels(), 200);
+    return () => {
+      if (idle) {
+        window.cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bundle || bundleLoading) {
+      void preloadPanels();
+    }
+  }, [bundle, bundleLoading]);
 
   useEffect(() => {
     syncSetupDefaults();
@@ -917,13 +922,13 @@ export function AppShell({
     ? civilizationEntries.find((civilization) => civilization.name === selectedEntity.id) ?? null
     : null;
   const selectedEvent = selectedEntity?.kind === "event"
-    ? (bundle?.events_timeline.find((event) => eventKey(event) === selectedEntity.id) ?? null)
+    ? (bundle ? eventByKey(bundle.events_timeline, selectedEntity.id) : null)
     : null;
   // An event pinned at a later turn stays selected while scrubbing back, but
   // is not shown before its turn; its consequences and accounts are those
   // recorded by the scrubbed turn (the event log's convention).
   const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn;
-  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? [], selectedEvent, currentTurn);
+  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? NO_EVENTS, selectedEvent, currentTurn);
   const historiography = bundle?.historiography;
   const accountRows = useMemo(
     () => (historiography ? decodeAccounts(historiography) : []),
@@ -1034,14 +1039,16 @@ export function AppShell({
       {bundle && !isLive && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
         <details className="region-history-disclosure" onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
           <summary>Inspect region history</summary>
-          {historyOpen && <RegionHistoryInspector
-            key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
-            bundle={bundle}
-            artifactIdentity={artifactIdentity}
-            selectedRegion={selectedRegion?.name}
-            currentTurn={currentTurn}
-            onSeek={onSeek}
-          />}
+          {historyOpen && <Suspense fallback={<PanelLoading label="the region history inspector" />}>
+            <RegionHistoryInspector
+              key={`${artifactIdentity?.sha256 ?? artifactIdentity?.name ?? "live"}:${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+              bundle={bundle}
+              artifactIdentity={artifactIdentity}
+              selectedRegion={selectedRegion?.name}
+              currentTurn={currentTurn}
+              onSeek={onSeek}
+            />
+          </Suspense>}
         </details>
       )}
 
@@ -1174,19 +1181,21 @@ export function AppShell({
       </div>
 
       {bundle && surface !== "setup" && surface !== "progress" && surface !== "batch" && (
-        <SystemsPanel
-          key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
-          bundle={bundle}
-          surface={surface}
-          snapshot={currentSnapshot}
-          currentTurn={currentTurn}
-          onSeek={onSeek}
-          onSelectEvent={selectEvent}
-          onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
-          onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
-          selectedRegion={selectedRegion?.name ?? null}
-          selectedCivilization={selectedCivilization?.name ?? null}
-        />
+        <Suspense fallback={<PanelLoading label="the simulation systems" className="phase75-panel systems-loading" />}>
+          <SystemsPanel
+            key={`${bundle.metadata.seed}:${bundle.metadata.generated_at}:${bundle.world_state.name}`}
+            bundle={bundle}
+            surface={surface}
+            snapshot={currentSnapshot}
+            currentTurn={currentTurn}
+            onSeek={onSeek}
+            onSelectEvent={selectEvent}
+            onSelectRegion={(name) => setSelectedEntity({ kind: "region", id: name, label: name })}
+            onSelectCivilization={(name) => setSelectedEntity({ kind: "civilization", id: name, label: name })}
+            selectedRegion={selectedRegion?.name ?? null}
+            selectedCivilization={selectedCivilization?.name ?? null}
+          />
+        </Suspense>
       )}
 
       {error && surface !== "setup" && surface !== "batch" && (
@@ -1219,19 +1228,23 @@ export function AppShell({
               </button>
             </div>
             <div className="phase75-modal-content">
-              <BatchCompare initialRight={batchReport} />
+              <Suspense fallback={<PanelLoading label="the comparison workspace" />}>
+                <BatchCompare initialRight={batchReport} />
+              </Suspense>
             </div>
           </div>
         </div>
       )}
 
       {livePaused && livePauseContext && liveSendCommand && (
-        <InterventionPanel
-          pauseContext={livePauseContext}
-          sendCommand={liveSendCommand}
-          forkedPath={liveForkedPath}
-          forkedHint={liveForkedHint}
-        />
+        <Suspense fallback={<PanelLoading label="the intervention panel" className="phase75-panel" />}>
+          <InterventionPanel
+            pauseContext={livePauseContext}
+            sendCommand={liveSendCommand}
+            forkedPath={liveForkedPath}
+            forkedHint={liveForkedHint}
+          />
+        </Suspense>
       )}
     </div>
   );
@@ -1374,9 +1387,9 @@ function TimelineRail({
   onPause: () => void;
   onSetSpeed: (speed: number) => void;
 }) {
-  const visibleMarkers = [...namedEvents]
+  const visibleMarkers = useMemo(() => [...namedEvents]
     .sort((left, right) => right.importance - left.importance)
-    .slice(0, 8);
+    .slice(0, 8), [namedEvents]);
 
   return (
     <section className="phase75-timeline-rail">
@@ -1422,39 +1435,7 @@ function TimelineRail({
           className={`phase75-turn-track${bundle ? " interactive" : ""}`}
           onClick={onTrackSeek}
         >
-          {eraBands.map((band) => (
-            <div
-              key={`${band.label}-${band.start}`}
-              className="phase75-era-band"
-              style={{
-                left: `${turnToPercent(band.start, totalTurns)}%`,
-                width: `${Math.max(2, turnToPercent(band.end, totalTurns) - turnToPercent(band.start, totalTurns))}%`,
-              }}
-            >
-              <span>{band.label}</span>
-            </div>
-          ))}
-
-          {narratedSpans.map((span, index) => (
-            <div
-              key={`span-${index}`}
-              className="phase75-narrated-span"
-              style={{
-                left: `${turnToPercent(span.start, totalTurns)}%`,
-                width: `${Math.max(1.6, turnToPercent(span.end, totalTurns) - turnToPercent(span.start, totalTurns) + 1.5)}%`,
-              }}
-            />
-          ))}
-
-          {visibleMarkers.map((marker) => (
-            <button
-              key={`${marker.turn}-${marker.name}`}
-              type="button"
-              className="phase75-track-marker"
-              style={{ left: `${turnToPercent(marker.turn, totalTurns)}%` }}
-              title={marker.name}
-            />
-          ))}
+          <TrackMarks eraBands={eraBands} narratedSpans={narratedSpans} markers={visibleMarkers} totalTurns={totalTurns} />
 
           {bundle ? (
             <div className="phase75-playhead" style={{ left: `${turnToPercent(currentTurn, totalTurns)}%` }}>
@@ -1471,6 +1452,61 @@ function TimelineRail({
     </section>
   );
 }
+
+/**
+ * The track's whole-run marks: era bands, narrated spans and the leading
+ * named events. They do not depend on the scrubbed turn, so scrubbing does
+ * not render them again (the playhead follows them in the track).
+ */
+const TrackMarks = memo(function TrackMarks({
+  eraBands,
+  narratedSpans,
+  markers,
+  totalTurns,
+}: {
+  eraBands: { label: string; start: number; end: number }[];
+  narratedSpans: { start: number; end: number }[];
+  markers: NamedEvent[];
+  totalTurns: number;
+}) {
+  return (
+    <>
+      {eraBands.map((band) => (
+        <div
+          key={`${band.label}-${band.start}`}
+          className="phase75-era-band"
+          style={{
+            left: `${turnToPercent(band.start, totalTurns)}%`,
+            width: `${Math.max(2, turnToPercent(band.end, totalTurns) - turnToPercent(band.start, totalTurns))}%`,
+          }}
+        >
+          <span>{band.label}</span>
+        </div>
+      ))}
+
+      {narratedSpans.map((span, index) => (
+        <div
+          key={`span-${index}`}
+          className="phase75-narrated-span"
+          style={{
+            left: `${turnToPercent(span.start, totalTurns)}%`,
+            width: `${Math.max(1.6, turnToPercent(span.end, totalTurns) - turnToPercent(span.start, totalTurns) + 1.5)}%`,
+          }}
+        />
+      ))}
+
+      {markers.map((marker) => (
+        <button
+          key={`${marker.turn}-${marker.name}`}
+          type="button"
+          className="phase75-track-marker"
+          style={{ left: `${turnToPercent(marker.turn, totalTurns)}%` }}
+          title={marker.name}
+        />
+      ))}
+    </>
+  );
+});
 
 function ValidationRibbon({
   visible,
@@ -1737,16 +1773,18 @@ function LeftRail({
               )}
             </div>
           ) : onBatchStart && onBatchCancel && onBatchReset ? (
-            <BatchPanel
-              batchState={batchState}
-              report={batchReport}
-              progress={batchProgress}
-              error={batchError}
-              runDefaults={batchRunDefaults}
-              onStart={onBatchStart}
-              onCancel={onBatchCancel}
-              onReset={onBatchReset}
-            />
+            <Suspense fallback={<PanelLoading label="the Batch Lab" />}>
+              <BatchPanel
+                batchState={batchState}
+                report={batchReport}
+                progress={batchProgress}
+                error={batchError}
+                runDefaults={batchRunDefaults}
+                onStart={onBatchStart}
+                onCancel={onBatchCancel}
+                onReset={onBatchReset}
+              />
+            </Suspense>
           ) : (
             <div className="phase75-empty-state">
               Batch execution needs the live viewer bridge. You can still open existing bundles from the header and use compare mode once a report is available.
@@ -2588,7 +2626,9 @@ function RightInspector({
           open={inspectorSections.languages}
           onToggle={() => onToggleSection("languages")}
         >
-          <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+          <Suspense fallback={<PanelLoading label="the languages" />}>
+            <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+          </Suspense>
         </InspectorSection>
       )}
 
