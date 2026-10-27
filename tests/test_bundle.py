@@ -725,6 +725,10 @@ class TestBundleSize:
         # changes between snapshots and drops world_state's copy of the timeline
         # and named events; decoded, the bundle is the version-5 one. 7.89MB
         # native and 8.61MB no-Rust. The guard sits about 20% above the larger.
+        # Narration provenance (docs/integration/narration-provenance.md): this
+        # run's 500 per-turn entries record the facts their prompts gave, about
+        # 490 bytes each with the shared names table: 7.36MB -> 7.60MB no-Rust
+        # on main 13f735a (native not measured).
         assert size_mb < 10.5, f"Bundle is {size_mb:.2f}MB, expected < 10.5MB"
 
 

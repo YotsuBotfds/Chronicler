@@ -6,6 +6,43 @@
 
 ---
 
+## Narration provenance (2026-10-27, `feat/narration-provenance`)
+
+> **Last updated:** 2026-10-27 (`feat/narration-provenance` from `main` `13f735a`: narration, tooling and viewer only; every simulation output byte identical (33 + 33 simulate-only files, bundle hashes equal; mechanical narration: chronicle.md identical, bundles identical apart from the new provenance fields). Every fact line a narrator receives ends with a stable id (`e<i>` timeline index, `n<i>`, `<chronicler>/e<i>` accounts, `p<agent id>`, `s<S>.<what>.<key>` snapshot values, `d<S1>-<S2>` changes, `w`, `o`, `L.`, `art`, `k`); each chronicle entry records the facts given (dated, retrospective marked) and each sentence's citations, exact for the mechanical narrator, parsed from bracketed ids (and removed) for an LLM; `python -m chronicler.narration_audit` flags unsupplied, unknown and future citations, future facts given outside the AFTER/LATER sections, names no given fact names, stray markers; mechanical narration of four worlds 0 flags; viewer "Sources" per chronicle card (lazy chunk; entry +756 B). Open: no LLM, no native/hybrid run, no browser QA.)
+
+`feat/narration-provenance` from `main` `13f735a`. Details and evidence:
+[`docs/integration/narration-provenance.md`](../../integration/narration-provenance.md).
+
+- **Ids**: existing identities only: events by their index in the bundle's
+  `events_timeline` (the record keeps its `event_id`), named events by
+  index, in-world accounts as `<chronicler>/e<i>` (the account id is
+  `<chronicler>/<event_id>`; event ids can hold spaces), characters by agent
+  id, artifacts by `artifact_id`, snapshot values and changes by snapshot
+  turn and the rows' own ids (civs and regions by world index), counted
+  windows, observations, in-world names. Stable across in-run, `--narrate`
+  and live range narration (one timeline).
+- **Provenance** (`ChronicleEntry.provenance`): `as_of`, facts given (`id`
+  dated `as_of`, `[id, turn]`, `[id, turn, "r"]` retrospective), the
+  characters, civs, regions and faiths they name (bundle: indices into one
+  `narration_provenance.names` table), spans `[start, end, ids]`. Curated
+  bundles +0.28% to +1.06% (0.9-1.4 KB per entry); the size-guard world's
+  500 per-turn entries 7.36 -> 7.60 MB (guard 10.5).
+- **Prompts**: tags at line ends and a SOURCES request; +12.5% characters
+  (about 300 tokens); stripped of both they equal the base prompts, and
+  `--no-citations` reproduces the base capture byte for byte.
+- **Audit**: mechanical narration of template 42, 7, 1234 and procedural
+  32 x 10 (143 entries, 4,191 facts, 2,773 spans): 0 flags; names check
+  over 1,663-2,766 mentions per run, every planted unnamed place flagged
+  (141 of 141); scripted flawed LLM: unsupplied 99, unknown 50, future 49,
+  unnamed place 45, stray marker 50; faithful LLM: none.
+- **Tests**: `tests/test_narration_provenance.py` (27, oracle narration
+  chunk); oracle lane PASS 92.9 s; full no-Rust `-m "not slow"` 6,362
+  passed, 251 skipped; viewer 426 passed, lint, build.
+- **Open**: no LLM called (citation reliability untested), no native or
+  hybrid run, gap summaries and era reflections carry no provenance, the
+  names check covers only names the run knows, no sentence highlighting or
+  browser QA.
+
 ## Exact checkpoint continuation (2026-10-27, `feat/checkpoint-continuation`)
 
 > **Last updated:** 2026-10-27 (`feat/checkpoint-continuation` from `main` `db5eff4`: an exact resume envelope (`chronicler.run_checkpoint`, `--checkpoint-every N`, `--checkpoint PATH`, `--resume`, `--resume-allow-mismatch`) holding the whole Python run graph and each native simulator's own Rust state blob (`persist.rs`: every field, compile-checked, layout-fingerprinted); versioned, digests per section, refuses another source, extension, interpreter, package set or thread setting unless overridden (then labelled); state files resume as before, labelled legacy; resume identity 17 cases (every mode, template and procedural, switches on and off, 22k and 52k agents), 585 resume points, 13,219 files, 0 differences; gaps closed: the PR #51 tech-focus deltas (wave-3 test back at turn 62), every private attribute, the excluded agent events, bridge, tracker and native state, the economy sidecar summary read from disk, the shadow log; without checkpoints byte-identical to `main` (9-case matrix 399 files, with `--scholarship` 399, shadow and demographics-only 132) and turn CPU 1.00-1.01x; a checkpoint 2.5 MB / 0.17 s write at 22k, 5.4 MB / 0.42 s at 52k. Open: narration state, per-turn debug sidecars before the resume turn, size grows with run length.)

@@ -104,6 +104,10 @@ chronicler --narrate output/chronicle_bundle.json --narrator api --budget 50
 # Post-run narration with Gemini API (requires GOOGLE_API_KEY)
 chronicler --narrate output/chronicle_bundle.json --narrator gemini --budget 50
 
+# Check narrated passages against the facts their narrator was given (no LLM;
+# docs/integration/narration-provenance.md)
+python -m chronicler.narration_audit output/chronicle_bundle.json
+
 ```
 
 ## Run Modes
@@ -119,6 +123,7 @@ chronicler --narrate output/chronicle_bundle.json --narrator gemini --budget 50
 | `--interactive` | Pause at intervals for commands |
 | `--narrate bundle.json` | Narrate a simulate-only bundle after the fact |
 | `--narrate-output path.json` | Write narrated bundle output to a custom path |
+| `--no-citations` | Narrator prompts without fact ids or the request to cite them (each entry still records the facts it was given) |
 | `--analyze dir/` | Analyze a batch directory and produce `batch_report.json` |
 | `--compare report.json` | Compare an analysis run against a baseline report |
 | `--checkpoints 25,50,100` | Add checkpoint turns to analytics output |
