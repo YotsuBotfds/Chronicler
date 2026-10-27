@@ -31,6 +31,9 @@ class ShadowLogger:
         self._path = output_path
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._writer: ipc.RecordBatchFileWriter | None = None
+        # Each logged turn's columns, so an exact checkpoint can carry the
+        # file's content and a resumed run rewrite it (see ``retarget``).
+        self._logged: list[dict[str, list[int]]] = []
 
     def log_turn(self, turn: int, agent_aggs: pa.RecordBatch, world: WorldState) -> None:
         if self._writer is None:
@@ -67,22 +70,45 @@ class ShadowLogger:
             g_cult.append(civ.culture)
             g_stab.append(civ.stability)
 
-        batch = pa.record_batch({
-            "turn": pa.array(turns, type=pa.uint32()),
-            "civ_id": pa.array(civ_ids, type=pa.uint16()),
-            "agent_population": pa.array(a_pop, type=pa.uint32()),
-            "agent_military": pa.array(a_mil, type=pa.uint32()),
-            "agent_economy": pa.array(a_econ, type=pa.uint32()),
-            "agent_culture": pa.array(a_cult, type=pa.uint32()),
-            "agent_stability": pa.array(a_stab, type=pa.uint32()),
-            "agg_population": pa.array(g_pop, type=pa.uint32()),
-            "agg_military": pa.array(g_mil, type=pa.uint32()),
-            "agg_economy": pa.array(g_econ, type=pa.uint32()),
-            "agg_culture": pa.array(g_cult, type=pa.uint32()),
-            "agg_stability": pa.array(g_stab, type=pa.uint32()),
-        }, schema=SHADOW_SCHEMA)
-        self._writer.write_batch(batch)
+        columns = {
+            "turn": turns, "civ_id": civ_ids,
+            "agent_population": a_pop, "agent_military": a_mil, "agent_economy": a_econ,
+            "agent_culture": a_cult, "agent_stability": a_stab,
+            "agg_population": g_pop, "agg_military": g_mil, "agg_economy": g_econ,
+            "agg_culture": g_cult, "agg_stability": g_stab,
+        }
+        self._logged.append(columns)
+        self._writer.write_batch(_shadow_batch(columns))
 
     def close(self) -> None:
         if self._writer is not None:
             self._writer.close()
+
+    # Exact checkpoints (chronicler.run_checkpoint) carry the logged columns,
+    # not the open file. A restored logger writes nothing until ``retarget``.
+    def __getstate__(self) -> dict:
+        return {"path": str(self._path), "logged": self._logged}
+
+    def __setstate__(self, state: dict) -> None:
+        self._path = Path(state["path"])
+        self._writer = None
+        self._logged = state["logged"]
+
+    def retarget(self, output_path: Path) -> None:
+        """Rewrite every logged turn to ``output_path`` and log there from now
+        on: the file an uninterrupted run holds at this turn."""
+        self._path = output_path
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._writer = None
+        if self._logged:
+            sink = pa.OSFile(str(self._path), "wb")
+            self._writer = ipc.new_file(sink, SHADOW_SCHEMA)
+            for columns in self._logged:
+                self._writer.write_batch(_shadow_batch(columns))
+
+
+def _shadow_batch(columns: dict[str, list[int]]) -> pa.RecordBatch:
+    return pa.record_batch({
+        name: pa.array(columns[name], type=SHADOW_SCHEMA.field(name).type)
+        for name in SHADOW_SCHEMA.names
+    }, schema=SHADOW_SCHEMA)

@@ -146,13 +146,22 @@ def _fsync_directory(path: Path) -> None:
 
 def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> None:
     """Atomically replace ``path`` with ``content`` using a same-directory temp file."""
+    _atomic_write(path, content, "w", encoding)
+
+
+def atomic_write_bytes(path: Path, content: bytes | bytearray | memoryview) -> None:
+    """Atomically replace ``path`` with ``content`` (binary ``atomic_write_text``)."""
+    _atomic_write(path, content, "wb", None)
+
+
+def _atomic_write(path: Path, content: Any, open_mode: str, encoding: str | None) -> None:
     path = Path(path)
     temp_path: Path | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         mode = _existing_file_mode_for_atomic_replace(path)
         file_descriptor, temp_path = _create_umask_scoped_temp_file(path, mode)
-        with os.fdopen(file_descriptor, "w", encoding=encoding) as temp_file:
+        with os.fdopen(file_descriptor, open_mode, encoding=encoding) as temp_file:
             _set_open_file_mode(temp_file.fileno(), temp_path, mode)
             temp_file.write(content)
             temp_file.flush()

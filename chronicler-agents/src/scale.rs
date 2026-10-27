@@ -78,3 +78,14 @@ pub const FAST_MARRIAGE_SCAN: usize = 256; // [CALIBRATE M61b]
 pub const FAST_MARRIAGE_CANDIDATES: usize = 24; // [CALIBRATE M61b]
 /// Fast formation: later partners examined per agent in the shuffled order.
 pub const FAST_FORMATION_PARTNERS: usize = 64; // [CALIBRATE M61b]
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(TickOptions {
+    scale_mode, profile_spatial_sort,
+});
+crate::persist_enum!(AgentScaleMode {
+    Exact = 0, Fast = 1,
+});

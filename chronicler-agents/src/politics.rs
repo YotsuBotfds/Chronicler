@@ -3301,3 +3301,16 @@ mod tests {
         assert_eq!(perceived_treasury, Some(16));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(PoliticsConfig {
+    secession_stability_threshold, secession_surveillance_threshold, proxy_war_secession_bonus,
+    secession_stability_loss, secession_likelihood_multiplier, capital_loss_stability,
+    vassal_rebellion_base_prob, vassal_rebellion_reduced_prob, federation_allied_turns,
+    federation_exit_stability, federation_remaining_stability, restoration_base_prob,
+    restoration_recognition_bonus, twilight_absorption_decline, severity_stress_divisor,
+    severity_stress_scale, severity_cap, severity_multiplier,
+});

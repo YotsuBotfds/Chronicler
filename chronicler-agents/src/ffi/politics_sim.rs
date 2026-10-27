@@ -24,6 +24,26 @@ impl PoliticsSimulator {
     }
 
     /// Set politics configuration from individual field arguments.
+    /// Exact checkpoint: every field this simulator carries between ticks,
+    /// as a versioned binary blob (`crate::persist`). Reads only: taking a
+    /// checkpoint never changes the simulation.
+    pub fn checkpoint_state<'py>(&self, py: Python<'py>) -> Bound<'py, pyo3::types::PyBytes> {
+        crate::persist::py::to_bytes(py, crate::persist::KIND_POLITICS, self)
+    }
+
+    /// A simulator rebuilt from `checkpoint_state()` bytes. Refuses blobs of
+    /// another simulator, state version or field layout.
+    #[staticmethod]
+    pub fn from_checkpoint_state(data: &[u8]) -> PyResult<Self> {
+        crate::persist::py::from_bytes(crate::persist::KIND_POLITICS, data)
+    }
+
+    /// (state version, layout fingerprint, schema) of this build's checkpoint state.
+    #[staticmethod]
+    pub fn checkpoint_schema() -> (u32, String, String) {
+        crate::persist::py::describe::<Self>()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn set_politics_config(
         &mut self,
@@ -97,3 +117,11 @@ impl PoliticsSimulator {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(PoliticsSimulator {
+    politics_config,
+});

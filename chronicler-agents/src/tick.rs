@@ -2671,3 +2671,14 @@ mod m41_tests {
         assert!((percentiles[s2] - 1.0).abs() < 0.001, "Richest should be 1.0");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(DemographicDebug {
+    deaths_young, deaths_adult, deaths_elder, deaths_with_disease, deaths_soldier_at_war,
+    deaths_eco_stress_gt1, mean_endemic, max_endemic, fertile_by_occ, fertile_age_total,
+    expected_deaths, expected_births, expected_hunger_deaths, hunger_births_withheld,
+    sat_near_threshold,
+});

@@ -1743,3 +1743,22 @@ mod tests {
         assert_eq!(pool.parent_id_1[slot], crate::agent::PARENT_NONE);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(AgentPool {
+    ids, regions, origin_regions, civ_affinities, occupations, loyalties, satisfactions,
+    skills, ages, displacement_turns, life_events, promotion_progress, boldness, ambition,
+    loyalty_trait, cultural_value_0, cultural_value_1, cultural_value_2, beliefs, parent_id_0,
+    parent_id_1, wealth, memory_event_types, memory_source_civs, memory_turns,
+    memory_intensities, memory_decay_factors, memory_gates, memory_count, memory_is_legacy,
+    need_safety, need_material, need_social, need_spiritual, need_autonomy, need_purpose,
+    rel_target_ids, rel_sentiments, rel_bond_types, rel_formed_turns, rel_count,
+    synthesis_budget, x, y, settlement_ids, movement_ids, trip_phase, trip_dest_region,
+    trip_origin_region, trip_good_slot, trip_cargo_qty, trip_turns_elapsed, trip_path,
+    trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,
+    pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
+    free_slots,
+});

@@ -1065,3 +1065,12 @@ mod tests {
         assert!((a.share[TERM_CHAIN] - 2.0).abs() < 1e-9);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(MigrationDriverStats {
+    evaluated, decided, unexplained, share, present, open, gate, followers, decided_by_age,
+    voluntary_by_age,
+});

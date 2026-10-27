@@ -591,3 +591,12 @@ mod tests {
         assert_eq!(int_b, 55);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(MemoryIntent {
+    agent_slot, expected_agent_id, event_type, source_civ, intensity, is_legacy,
+    decay_factor_override,
+});
