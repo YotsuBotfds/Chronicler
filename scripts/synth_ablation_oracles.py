@@ -162,7 +162,7 @@ def score(tallies) -> dict:
     return out
 
 
-def run(replicates: int, scales: list[str], worlds: list[str], seed: int = 20261027) -> dict:
+def run(replicates: int, scales: list[str], worlds: list[str], seed: int = 20261027, out: Path | None = None) -> dict:
     results: dict = {}
     for scale in scales:
         for world in worlds:
@@ -207,6 +207,8 @@ def run(replicates: int, scales: list[str], worlds: list[str], seed: int = 20261
             comp = summary["needs_component"]["pass_rate"]
             coh = summary["cohort"]["pass_rate"]
             print(f"{scale:18s} {world:18s} needs component PASS {comp:.3f}  cohort PASS {coh:.3f}", flush=True)
+            if out is not None:
+                out.write_text(json.dumps(results, indent=1), encoding="utf-8")
     return results
 
 
@@ -289,7 +291,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.check_pipeline:
         check_pipeline()
-    results = run(args.replicates, args.scales.split(","), args.worlds.split(","))
+    results = run(args.replicates, args.scales.split(","), args.worlds.split(","), out=args.out)
     if args.out:
         args.out.write_text(json.dumps(results, indent=1), encoding="utf-8")
     return 0

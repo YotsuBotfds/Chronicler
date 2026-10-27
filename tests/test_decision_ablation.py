@@ -4,6 +4,7 @@ tests/test_decision_ablation_native.py)."""
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import pytest
 
@@ -127,6 +128,58 @@ def test_fork_ablation_switches_the_restored_simulator():
     fresh = {"agent_mode": "hybrid", "simulation_args": {}}
     with pytest.raises(ValueError, match="before the checkpoint's turn"):
         _fork_ablation(_ns(decision_ablation="needs", ablation_start_turn=50), fresh, bridge, 101)
+
+
+def test_ablation_arms_fork_every_seed_and_record_the_manifest(tmp_path, monkeypatch):
+    pytest.importorskip("pyarrow")
+    import json
+    import subprocess
+
+    import pyarrow as pa
+    import pyarrow.ipc as ipc
+
+    from chronicler import ablation_arms
+
+    batch = tmp_path / "batch_42"
+    for seed in (42, 43):
+        (batch / f"seed_{seed}").mkdir(parents=True)
+        for turn in (101, 201):
+            (batch / f"seed_{seed}" / f"checkpoint_turn_{turn}.ckpt").write_bytes(b"ckpt")
+    (batch / "batch_manifest.json").write_text(json.dumps({
+        "status": "complete", "turns": 300, "runs": [{"seed": 42, "dir": "seed_42"}, {"seed": 43, "dir": "seed_43"}],
+    }), encoding="utf-8")
+    commands = []
+
+    def fake_run(cmd, **kwargs):
+        commands.append((cmd, kwargs["env"].get("RAYON_NUM_THREADS")))
+        out = Path(cmd[cmd.index("--output") + 1]).parent
+        table = pa.table({"turn": pa.array([1], pa.uint32()), "agent_id": pa.array([1], pa.uint32()),
+                          "event_type": pa.array(["migration"])})
+        with ipc.new_file(out / "agent_events.arrow", table.schema) as writer:
+            writer.write_table(table)
+        start = int(cmd[cmd.index("--ablation-start-turn") + 1])
+        arm = cmd[cmd.index("--decision-ablation") + 1]
+        (out / "chronicle_bundle.json").write_text(json.dumps({"metadata": {
+            "seed": 0, "total_turns": int(cmd[cmd.index("--turns") + 1]),
+            "decision_ablation": {"name": arm, "start_turn": start, "forked_at": start}}}), encoding="utf-8")
+        (out / "memories_x.json").write_text("{}", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(ablation_arms.subprocess, "run", fake_run)
+    manifest = ablation_arms.run_ablation_arms(batch, tmp_path / "ablation_42", arms=["needs", "kin_roots"],
+                                              total_turns=300, parallel=2, env={}, log=lambda *_: None)
+    assert manifest["status"] == "complete" and manifest["fork_count"] == 8
+    assert manifest["fork_turns"] == [100, 200]
+    first = sorted(cmd for cmd, _env in commands)[0]
+    assert first[first.index("--turns") + 1] == "122" and first[first.index("--ablation-start-turn") + 1] == "101"
+    assert {threads for _cmd, threads in commands} == {"1"}
+    fork = tmp_path / "ablation_42" / "needs" / "seed_42" / "fork_100"
+    assert sorted(p.name for p in fork.iterdir()) == ["agent_events.arrow", "fork.json"]
+    assert not list(batch.rglob("*.ckpt")), "a seed's checkpoints go once its forks ran"
+    written = json.loads((tmp_path / "ablation_42" / "ablation_manifest.json").read_text(encoding="utf-8"))
+    assert written["forks"][0]["files"]["agent_events.arrow"]
+    with pytest.raises(Exception, match="not empty"):
+        ablation_arms.run_ablation_arms(batch, tmp_path / "ablation_42", total_turns=300, env={})
 
 
 def test_gate_runner_forks_only_the_subset_and_full_profiles():
