@@ -248,7 +248,7 @@ def summarize_run(run_dir: Path) -> dict:
     out["mean_population"] = sum(pops) / len(pops) if pops else 0.0
     levels = [rec["granary"] for rec in turns if rec.get("granary") is not None]
     final_state = (bundle.get("world_state") or {}).get("grain_reserves")
-    if levels and final_state:
+    if levels:
         held = [g for g, _ in levels]
         target = [t for _, t in levels]
         out["granary_grain_mean"] = sum(held) / len(held)
@@ -257,6 +257,15 @@ def summarize_run(run_dir: Path) -> dict:
         for third in range(3):
             lo, hi = third * len(held) // 3, (third + 1) * len(held) // 3
             out[f"granary_grain_t{third}"] = sum(held[lo:hi]) / max(1, hi - lo)
+        # By season of the turn the level was read at (the end of the turn before).
+        by_season: dict[int, list[float]] = defaultdict(list)
+        for rec in turns:
+            if rec.get("granary") is not None:
+                by_season[((rec["turn"] - 1) % 12) // 3].append(rec["granary"][0])
+        for season, name in enumerate(("spring", "summer", "autumn", "winter")):
+            values = by_season.get(season, [])
+            out[f"granary_grain_after_{name}"] = sum(values) / len(values) if values else 0.0
+    if final_state:
         counters = final_state.get("counters", {})
         for k, v in counters.items():
             out[f"granary_{k}"] = v
