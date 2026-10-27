@@ -1636,12 +1636,16 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
 def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "Any", turn: int) -> None:
     """An exact resume given ``--decision-ablation``: switch the term off in
     the restored native simulator from ``--ablation-start-turn`` (not before
-    the checkpoint's turn) and record the fork in the run configuration."""
+    the checkpoint's turn) and record the fork in the run configuration. A
+    checkpoint of an ablated run already carries its ablation (native state
+    included): repeating it changes nothing, another one is refused."""
     ablation = decision_ablation_from_args(args, run_config.get("agent_mode", "off"))
     if ablation is None:
         return
     saved = run_config.get("decision_ablation")
     if saved is not None:
+        if (saved.get("name"), saved.get("start_turn")) == ablation:
+            return
         raise ValueError(f"the checkpoint already runs decision ablation {saved!r}")
     if ablation[1] < turn:
         raise ValueError(f"--ablation-start-turn {ablation[1]} is before the checkpoint's turn {turn}")

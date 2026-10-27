@@ -86,3 +86,16 @@ def test_a_fork_from_a_plain_checkpoint_equals_a_run_ablated_from_that_turn(tmp_
     assert _events(tmp_path / "fork") == _events(tmp_path / "straight")
     fork_meta = json.loads((tmp_path / "fork" / "chronicle_bundle.json").read_text(encoding="utf-8"))["metadata"]
     assert fork_meta["decision_ablation"] == {"name": "needs", "start_turn": 9, "forked_at": 9}
+
+
+def test_an_ablated_run_resumes_exactly(tmp_path):
+    _native()
+    from chronicler.run_checkpoint import read_checkpoint
+
+    execute_run(_args(tmp_path / "straight", 18, decision_ablation="kin_roots", ablation_start_turn=6,
+                      checkpoint_turns=(12,)))
+    checkpoint = tmp_path / "straight" / "checkpoint_turn_12.ckpt"
+    for name, extra in (("again", {"decision_ablation": "kin_roots", "ablation_start_turn": 6}), ("bare", {})):
+        args = _args(tmp_path / name, 18, resume=str(checkpoint), **extra)
+        execute_run(args, checkpoint_resume=read_checkpoint(checkpoint))
+        assert _events(tmp_path / name) == _events(tmp_path / "straight")

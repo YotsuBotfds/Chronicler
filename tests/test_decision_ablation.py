@@ -119,8 +119,11 @@ def test_fork_ablation_switches_the_restored_simulator():
     assert run_config["decision_ablation"] == {"name": "needs", "start_turn": 101, "forked_at": 101}
     assert run_config["simulation_args"]["decision_ablation"] == "needs"
     assert bridge.decision_ablation == ("needs", 101)
+    # Resuming the ablated run with its own ablation changes nothing; another is refused.
+    _fork_ablation(_ns(decision_ablation="needs", ablation_start_turn=101), run_config, bridge, 150)
+    assert Sim.calls == [(["needs"], 101)]
     with pytest.raises(ValueError, match="already runs decision ablation"):
-        _fork_ablation(_ns(decision_ablation="needs", ablation_start_turn=101), run_config, bridge, 101)
+        _fork_ablation(_ns(decision_ablation="placebo", ablation_start_turn=101), run_config, bridge, 150)
     fresh = {"agent_mode": "hybrid", "simulation_args": {}}
     with pytest.raises(ValueError, match="before the checkpoint's turn"):
         _fork_ablation(_ns(decision_ablation="needs", ablation_start_turn=50), fresh, bridge, 101)
