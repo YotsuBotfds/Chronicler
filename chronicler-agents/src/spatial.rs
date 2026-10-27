@@ -1956,3 +1956,21 @@ mod scale_equivalence_tests {
         assert_eq!(a, b);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(SpatialGrid {
+    cells,
+});
+crate::persist_struct!(RegionAttractors {
+    positions, weights, types, count,
+});
+crate::persist_struct!(SpatialDiagnostics {
+    hotspot_count_by_region, attractor_occupancy, hash_max_cell_occupancy, sort_time_us,
+});
+crate::persist_enum!(AttractorType {
+    River = 0, Coast = 1, Resource0 = 2, Resource1 = 3, Resource2 = 4, Temple = 5,
+    Capital = 6, Market = 7,
+});

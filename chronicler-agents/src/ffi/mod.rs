@@ -217,6 +217,26 @@ impl AgentSimulator {
         }
     }
 
+    /// Exact checkpoint: every field this simulator carries between ticks,
+    /// as a versioned binary blob (`crate::persist`). Reads only: taking a
+    /// checkpoint never changes the simulation.
+    pub fn checkpoint_state<'py>(&self, py: Python<'py>) -> Bound<'py, pyo3::types::PyBytes> {
+        crate::persist::py::to_bytes(py, crate::persist::KIND_AGENT, self)
+    }
+
+    /// A simulator rebuilt from `checkpoint_state()` bytes. Refuses blobs of
+    /// another simulator, state version or field layout.
+    #[staticmethod]
+    pub fn from_checkpoint_state(data: &[u8]) -> PyResult<Self> {
+        crate::persist::py::from_bytes(crate::persist::KIND_AGENT, data)
+    }
+
+    /// (state version, layout fingerprint, schema) of this build's checkpoint state.
+    #[staticmethod]
+    pub fn checkpoint_schema() -> (u32, String, String) {
+        crate::persist::py::describe::<Self>()
+    }
+
     /// M60b: queue stable agent ids to die at the start of the next tick
     /// (war casualties). The queue is consumed and cleared by `tick()`.
     pub fn queue_targeted_deaths(&mut self, ids: Vec<u32>) {
@@ -3839,3 +3859,18 @@ mod tests {
     }
 
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(AgentSimulator {
+    pool, regions, contested_regions, master_seed, num_regions, turn, registry, initialized,
+    wealth_percentiles, kin_bond_failures, formation_stats, prev_kin_bond_failures,
+    last_tick_deaths, last_tick_births, last_tick_alive, demographic_debug, ecology_config,
+    river_topology, recompute_ctx, spatial_grids, attractors, spatial_initialized,
+    last_spatial_diag, economy_config, politics_config, settlement_grids, household_stats,
+    merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
+    merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
+    movements, pending_movement_leaders, pending_promotion_memories, tick_options,
+} skip { snapshot_cache });

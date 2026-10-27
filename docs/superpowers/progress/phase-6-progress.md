@@ -6,6 +6,55 @@
 
 ---
 
+## Exact checkpoint continuation (2026-10-27, `feat/checkpoint-continuation`)
+
+> **Last updated:** 2026-10-27 (`feat/checkpoint-continuation` from `main` `db5eff4`: an exact resume envelope (`chronicler.run_checkpoint`, `--checkpoint-every N`, `--checkpoint PATH`, `--resume`, `--resume-allow-mismatch`) holding the whole Python run graph and each native simulator's own Rust state blob (`persist.rs`: every field, compile-checked, layout-fingerprinted); versioned, digests per section, refuses another source, extension, interpreter, package set or thread setting unless overridden (then labelled); state files resume as before, labelled legacy; resume identity 17 cases (every mode, template and procedural, switches on and off, 22k and 52k agents), 585 resume points, 13,219 files, 0 differences; gaps closed: the PR #51 tech-focus deltas (wave-3 test back at turn 62), every private attribute, the excluded agent events, bridge, tracker and native state, the economy sidecar summary read from disk, the shadow log; without checkpoints byte-identical to `main` (9-case matrix 399 files, with `--scholarship` 399, shadow and demographics-only 132) and turn CPU 1.00-1.01x; a checkpoint 2.5 MB / 0.17 s write at 22k, 5.4 MB / 0.42 s at 52k. Open: narration state, per-turn debug sidecars before the resume turn, size grows with run length.)
+
+`feat/checkpoint-continuation` from `main` `db5eff4` (PR #53). Details and
+evidence: [`docs/integration/checkpoint-continuation.md`](../../integration/checkpoint-continuation.md).
+
+- **Inventory** (section 2 there): every piece of state that affects later
+  turns, Python and native, and whether a state-file resume saved, rebuilt
+  or lost it in off, demographics-only, shadow and hybrid. Lost today: the
+  whole native pool and registry, trips, ledgers and queues, the bridge,
+  tracker and agent events, the run's history, a dozen private world
+  attributes (focus deltas, tax carry, belief and clergy baselines,
+  persecuted regions, settlement fields). Measured at turn 30 of 60: 6 of 9
+  files differ in off mode, all 9 / 11 in demographics-only / shadow, 32 of
+  44 in hybrid with sidecars.
+- **Envelope**: magic, JSON header (format 1, turn, seed, run origin and
+  length, switches, run configuration, lineage, source digest, extension
+  SHA-256 and state layouts, interpreter, packages, thread settings,
+  SHA-256 per section) and zlib sections: one pickle of the run (shared
+  references kept, natives as references, agent events as positional
+  fields, sidecar rows as columns; a restricted loader) and the Rust blob
+  of each simulator (magic, version, kind, FNV schema fingerprint; every
+  struct listed by `persist_struct!`, which fails to compile on a new
+  field). No random generator state exists between ticks (streams derive
+  from the master seed and turn).
+- **Gaps fixed**: focus deltas and the rest by the envelope; the economy
+  sidecar summary built from this run's snapshots instead of the
+  directory's files (shown: without it, resumes at 105 and 150 differ);
+  the shadow log kept and rewritten; the war-roster marker re-bound (a
+  precaution: no difference observed without it). Wave-3: the three-system
+  resume test saves again at its original turn 62 from a checkpoint, a new
+  test keeps the raw-file divergence there visible, the four-system test
+  drops the raw-save condition.
+- **Identity**: `scripts/checkpoint_identity.py`, every turn of 40-60-turn
+  runs and a spread (1-3, Fibonacci, 34-46, 99-110, the last turn) of
+  150-300-turn runs; 17 cases, 585 points, 0 differences; checkpointing
+  itself changes nothing (579 files). Subset again on the last code commit
+  (20 points).
+- **Cost** (`scripts/checkpoint_cost.py`): 22k 2.51 MB, write 0.17 s, read
+  0.18 s; 52k 5.40 MB, 0.42 s, 0.45 s (Rust state 13 ms of it); 22k with
+  sidecars at turn 29 5.98 MB, 0.61 s. About 1.5 turns of CPU each.
+- **Tests**: cargo 1,051 passed, 2 ignored (debug info off); native not-slow 6,598 passed, 3 skipped;
+  oracle lane PASS 101.5 s (new `checkpoint` chunk).
+- **Open**: narration (LLM) state is not carried; a resumed run does not
+  rewrite the per-turn validation debug files of earlier turns; checkpoints
+  grow with the history and, in agent modes, every agent event; Windows and
+  macOS not run.
+
 ## Native turn speed, second pass (2026-10-27, `perf/rust-turn-2`)
 
 > **Last updated:** 2026-10-27 (`perf/rust-turn-2` from `main` `8142c48`, merged without rebase with `7bb2bd4` (PR #52): performance only, every output byte identical to `main` `7bb2bd4` (9-case matrix 399 files, 3-seed hybrid batch, procedural 32 x 10) and before the merge to `8142c48`; process CPU per turn 1.37x at 22k agents, 1.67x at 52k, 1.96x at 105k (five interleaved runs; 1.26x / 1.68x / 1.94x in three more against `7bb2bd4`), small worlds unchanged. Open: decisions, household consolidation, the rest of knowledge propagation, flat Python; AVX2-only, non-x86 and pre-1.89 builds not timed.)

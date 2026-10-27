@@ -1634,3 +1634,28 @@ mod tests {
         assert_eq!(parse_movement_table(&base(true)).unwrap()[0].settlement, 7);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(MovementRuntime {
+    enabled, rows, seeds, stats, reforms, cover,
+});
+crate::persist_struct!(MovementRow {
+    movement_id, creed, stage, target_civ, appeal, found_region, founder_id, relief_age,
+    crackdown_region, rising_region, convert_from, convert_to, settlement,
+});
+crate::persist_struct!(MovementSeed {
+    movement_id, region, count,
+});
+crate::persist_struct!(MovementStats {
+    adults, aggrieved, informed, news_source, movement_ids, members, joined, lapsed, founded,
+    released,
+});
+crate::persist_struct!(NewsSource {
+    region, turn, kind, count,
+});
+crate::persist_struct!(ReformRow {
+    creed, civ, region, faith,
+});

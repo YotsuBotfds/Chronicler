@@ -1433,3 +1433,17 @@ mod tests {
         assert!(channel_weight(6, NEWS).is_some() && channel_weight(3, NEWS).is_none());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(KnowledgeStats {
+    packets_created, packets_refreshed, packets_transmitted, packets_expired, packets_evicted,
+    packets_dropped, live_packet_count, agents_with_packets, created_threat, created_trade,
+    created_religious, created_news, transmitted_threat, transmitted_trade,
+    transmitted_religious, transmitted_news, mean_age, max_age, mean_hops, max_hops,
+    merchant_plans_packet_driven, merchant_plans_bootstrap, merchant_no_usable_packets,
+    migration_choices_changed_by_threat, migration_choices_changed_by_religion,
+    loyalty_drifts_damped_by_rally,
+});

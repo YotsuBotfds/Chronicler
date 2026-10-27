@@ -1373,3 +1373,27 @@ mod tests {
         assert_eq!(resource_class_index(RT_SALT), CLASS_EVAPORITE);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(EcologyConfig {
+    soil_degradation, soil_recovery, mine_soil_degradation, soil_recovery_pop_ratio,
+    agriculture_soil_bonus, metallurgy_mine_reduction, mechanization_mine_mult,
+    soil_pressure_threshold, soil_pressure_streak_limit, soil_pressure_degradation_mult,
+    water_drought, water_recovery, irrigation_water_bonus, irrigation_drought_mult,
+    cooling_water_loss, warming_tundra_water_gain, water_factor_denominator, forest_clearing,
+    forest_regrowth, cooling_forest_damage, forest_pop_ratio, forest_regrowth_water_gate,
+    cross_effect_forest_soil, cross_effect_forest_threshold, disease_severity_cap,
+    disease_decay_rate, flare_overcrowding_threshold, flare_overcrowding_spike,
+    flare_army_spike, flare_water_spike, flare_season_spike, depletion_rate,
+    exhausted_trickle_fraction, reserve_ramp_threshold, resource_abundance_multiplier,
+    overextraction_streak_limit, overextraction_yield_penalty, workers_per_yield_unit,
+    deforestation_threshold, deforestation_water_loss, climate_trend_share,
+    harvest_shock_water_loss, overextraction_realized, mine_soil_realized,
+    yield_penalty_reaches_goods,
+});
+crate::persist_struct!(RiverTopology {
+    rivers,
+});

@@ -45,6 +45,34 @@ def _turn_str(turn: int) -> str:
     return f"{turn:03d}"
 
 
+def _rows_to_columns(rows: list[dict[str, Any]]) -> tuple:
+    """``rows`` as runs of consecutive rows sharing one key tuple:
+    ``([keys, columns, count], ...)``; exact inverse in :func:`_columns_to_rows`."""
+    runs: list = []
+    keys = None
+    columns: list[list[Any]] = []
+    for row in rows:
+        row_keys = tuple(row)
+        if row_keys != keys or not runs:
+            keys = row_keys
+            columns = [[] for _ in keys]
+            runs.append([keys, columns, 0])
+        for column, value in zip(columns, row.values()):
+            column.append(value)
+        runs[-1][2] += 1
+    return tuple(tuple(run) for run in runs)
+
+
+def _columns_to_rows(runs: tuple) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for keys, columns, count in runs:
+        if keys:
+            rows.extend(dict(zip(keys, values)) for values in zip(*columns))
+        else:
+            rows.extend({} for _ in range(count))
+    return rows
+
+
 class SidecarWriter:
     """Writes validation sidecar files for a single simulation run."""
 
@@ -58,6 +86,27 @@ class SidecarWriter:
         self._aggregate_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
         self._community_by_turn: dict[str, dict[str, dict[str, Any]]] = {}
         self._resource_ledger: dict[str, list[Any]] | None = None
+        # Each economy snapshot file's text by file name: the summary is
+        # built from this run's snapshots, not from whatever the directory
+        # holds (a resumed run's directory lacks the earlier turns' files).
+        self._economy_texts: dict[str, str] = {}
+
+    # Exact checkpoints (chronicler.run_checkpoint): row lists are pickled as
+    # columns (one key tuple per list instead of one dict per row) and
+    # rebuilt as the same dicts in the same key order.
+    _ROW_LISTS = ("_relationship_rows", "_memory_rows", "_needs_rows")
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = dict(self.__dict__)
+        for name in self._ROW_LISTS:
+            state[name] = _rows_to_columns(state[name])
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        state = dict(state)
+        for name in self._ROW_LISTS:
+            state[name] = _columns_to_rows(state[name])
+        self.__dict__.update(state)
 
     # ------------------------------------------------------------------
     # Graph snapshot
@@ -196,17 +245,15 @@ class SidecarWriter:
     def write_economy_snapshot(self, turn: int, data: dict[str, Any]) -> None:
         """Write per-turn economy convergence data for M58b gate."""
         path = self._dir / f"economy_turn_{_turn_str(turn)}.json"
+        text = json.dumps(data, indent=2)
         with open(path, "w") as f:
-            json.dump(data, f, indent=2)
+            f.write(text)
+        self._economy_texts[path.name] = text
 
     def _economy_rows(self) -> list[dict[str, Any]]:
-        """Collect economy snapshots for consolidated Arrow output."""
-        rows = []
-        for path in sorted(self._dir.glob("economy_turn_*.json")):
-            with open(path) as f:
-                data = json.load(f)
-                rows.append(data)
-        return rows
+        """Collect this run's economy snapshots (as written, in file-name
+        order) for the consolidated summary."""
+        return [json.loads(self._economy_texts[name]) for name in sorted(self._economy_texts)]
 
     # ------------------------------------------------------------------
     # Production ledger (2026-10)

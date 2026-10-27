@@ -74,7 +74,9 @@ the integrated runtime. Source fingerprint changes require fresh checkpoints.
 
 Existing `WorldState.save/load`, production CLI defaults, and simulation
 mechanisms are unchanged. A raw production resume still has the limitations
-described above. No native or hybrid support is implied.
+described above. No native or hybrid support is implied. For exact
+production checkpoints in every mode (2026-10), see
+[`integration/checkpoint-continuation.md`](integration/checkpoint-continuation.md).
 
 ## Verification and transfer
 

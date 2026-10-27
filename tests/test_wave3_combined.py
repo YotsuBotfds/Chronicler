@@ -33,19 +33,19 @@ def _advance(world: WorldState, turns: int) -> WorldState:
     return world
 
 
-def _raw_save_is_exact(world: WorldState) -> bool:
-    """A raw ``WorldState.save`` drops each civ's applied tech-focus deltas
-    (``_focus_applied_deltas``; ``checkpoint_replay`` carries them), so a
-    focus whose bonus was capped is later removed by its full modifier after a
-    load. Resume identity is exact only at a turn without such a focus."""
+def _capped_focus_active(world: WorldState) -> bool:
+    """A civ's active tech focus had its bonus capped. A raw ``WorldState.save``
+    drops the applied deltas (``_focus_applied_deltas``), so after a raw load
+    the focus is removed by its full modifier; an exact checkpoint
+    (``chronicler.run_checkpoint``) keeps them."""
     from chronicler.tech_focus import FOCUS_EFFECTS, TechFocus
     for civ in world.civilizations:
         if civ.active_focus:
             applied = (getattr(civ, "_focus_applied_deltas", None) or {}).get(civ.active_focus, {})
             raw = FOCUS_EFFECTS[TechFocus(civ.active_focus)].stat_modifiers
             if any(applied.get(stat, mod) != mod for stat, mod in raw.items()):
-                return False
-    return True
+                return True
+    return False
 
 
 def test_all_three_systems_run_and_persist_state():
@@ -61,18 +61,34 @@ def test_all_three_systems_run_and_persist_state():
 
 def test_save_load_resume_identity_with_all_three_on(tmp_path):
     # Save at the first turn from 30 on where all three systems carry live
-    # state (an epidemic has killed, a loan is outstanding, a treaty stands)
-    # and a raw save is exact (no capped tech focus active).
+    # state (an epidemic has killed, a loan is outstanding, a treaty stands).
+    # An exact checkpoint resumes there although a capped tech focus is active
+    # (turns 33-63 of this world), where a raw state file does not.
+    from chronicler.run_checkpoint import load_world, save_world
     first = _advance(_world(42), 30)
     while not (first.epidemics.deaths_total > 0 and first.finance.loans
-               and first.diplomacy.treaties and _raw_save_is_exact(first)):
+               and first.diplomacy.treaties):
         assert first.turn < 80, "no turn with live state in all three systems"
         _advance(first, 1)
     straight = _advance(_world(42), first.turn + 15)
-    path = tmp_path / "state.json"
-    first.save(path)
-    resumed = _advance(WorldState.load(path), 15)
+    path = tmp_path / "state.ckpt"
+    save_world(path, first)
+    resumed = _advance(load_world(path), 15)
     assert resumed.model_dump_json() == straight.model_dump_json()
+
+
+def test_raw_state_file_is_not_exact_at_a_capped_focus(tmp_path):
+    # The legacy gap the exact checkpoint closes: at the save turn above a
+    # capped focus is active, and a raw save/load resume diverges.
+    first = _advance(_world(42), 30)
+    while not (first.epidemics.deaths_total > 0 and first.finance.loans
+               and first.diplomacy.treaties):
+        _advance(first, 1)
+    assert _capped_focus_active(first)
+    straight = _advance(_world(42), first.turn + 15)
+    first.save(tmp_path / "state.json")
+    raw = _advance(WorldState.load(tmp_path / "state.json"), 15)
+    assert raw.model_dump_json() != straight.model_dump_json()
 
 
 def test_all_three_on_is_deterministic():

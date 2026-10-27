@@ -1340,3 +1340,11 @@ pub(crate) fn events_to_batch(events: &[crate::tick::AgentEvent]) -> Result<Reco
         ],
     )
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(RecomputeContext {
+    climate_phase, season_id, valid,
+});

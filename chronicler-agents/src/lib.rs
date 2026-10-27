@@ -32,6 +32,7 @@ pub mod merchant;
 pub mod knowledge;
 pub mod movements;
 pub mod scale;
+pub mod persist;
 
 // Public re-exports for integration tests and benchmarks.
 #[doc(hidden)]

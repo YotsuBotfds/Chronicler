@@ -478,3 +478,24 @@ mod tests {
         assert_eq!(r.overextraction_streak[1], 3);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(RegionState {
+    region_id, terrain, carrying_capacity, population, soil, water, forest_cover, adjacency,
+    controller_civ, trade_route_count, resource_types, resource_yields, resource_reserves,
+    realized_extraction, season, season_id, rivers, endemic_severity,
+    culture_investment_active, controller_values, conversion_rate, conversion_target_belief,
+    conquest_conversion_active, majority_belief, has_temple, persecution_intensity,
+    persecuting_faith, schism_convert_from, schism_convert_to, farmer_income_modifier,
+    food_sufficiency, merchant_margin, merchant_route_margin, merchant_trade_income,
+    farm_productivity, controller_changed_this_turn, war_won_this_turn, seceded_this_turn,
+    catastrophe_deaths_this_turn, disease_baseline, capacity_modifier, resource_base_yield,
+    resource_effective_yield, resource_suspension, has_irrigation, has_mines, active_focus,
+    prev_turn_water, soil_pressure_streak, overextraction_streak, is_capital, temple_prestige,
+    stockpile, climate_exposure, harvest_shock, city_pull, seat_pull, seat_flight,
+    movement_news, movement_news_intensity, market_demand, market_supply, craft_sufficiency,
+    food_severe_turns, harsh_rule, raided_this_turn,
+});
