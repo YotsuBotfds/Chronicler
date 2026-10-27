@@ -6,6 +6,58 @@
 
 ---
 
+## Oracle follow-ups (2026-10-27, `fix/oracle-followups`)
+
+> **Last updated:** 2026-10-27 (`fix/oracle-followups` from `main` `3c3775d`, fast-forwarded to `6da8fe5`: validation tooling only, no simulation change; cohort oracle method 3 (each member against its matched control while both live; differential deaths biased method 2's effects by up to |d| 0.22 in synthetic nulls, method 3 within 0.010; method 2 re-scorable exactly); needs oracle method 6 (method 5's verdict plus an informational spiritual -> migration pairing; method 5 re-scorable exactly); age matching measured and not adopted (a 5-year match removes a synthetic age confound that passes method 5 in 90% of nulls, but keeps 8-11% of informative pairs and fails both full gates' seed fraction); the cohort verdict found unable to fail (every synthetic world passes, reversed included); template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against the method 5 baselines, cohort 2 -> 3 and needs 5 -> 6 the only differences; template subset PASS; procedural subset needs FAIL as on `main` since PR #52.)
+
+`fix/oracle-followups` from `main` `3c3775d` (PR #55), fast-forwarded to
+`6da8fe5` (PR #56). Details and evidence:
+[`docs/integration/oracle-followups.md`](../../integration/oracle-followups.md).
+
+- **Cohort oracle and deaths**: members die more than their matched
+  controls over a window (31% / 28% of rows, template full), mostly members
+  without a matched control (77%); matched pairs die alike and migrate alike
+  (1.066 / 1.065 per window). Synthetic nulls (realistic sizes, 20 x 20 x
+  200 per world): method 2's per-snapshot d +0.032 with the observed
+  mortality, +0.221 / -0.210 when members / others die more; method 3
+  within 0.010 of zero, true effects recovered. **Cohort method 3**: matched
+  pairs over the turns both lived; members without a control left out.
+- **The cohort verdict cannot fail**: every synthetic world passes under
+  both methods (null, effect, reversed: 100%), from best-of-18 snapshots,
+  either behaviour and the larger effect of the two. A redesign is open.
+- **Age in needs pairs**: the higher-need agent is older in 65-68% of pairs;
+  a linear age term explains +0.006 of +0.091 (procedural) and +0.026 of
+  +0.169 (template), but pairs within 5 years carry little of the
+  concordance and pairs a generation apart most. Synthetic (40 x 100 per
+  world): an age confound passes method 5 in 90% of nulls, a 5-year age
+  match in 0%; the match detects a real effect in 2-25%. Real, 5 years:
+  template full +0.106 pooled / +0.027 binding (93 of 200 seeds), procedural
+  full +0.036 / -0.040 (47 of 100); only 40 years passes the template gate.
+  **Not adopted** (too much power lost); method 5's verdict unchanged; its
+  age dependence is the owners' decision.
+- **Spiritual**: drives migration (push below 0.30) and sect recruitment;
+  conversion does not read it; only migration is in the event stream.
+  **Needs method 6** reports spiritual -> migration beside the verdict:
+  template full +0.054 (lb +0.024), binding +0.081 (+0.038); procedural
+  full +0.102 (+0.066), binding +0.134 (+0.088); no power at subset scale.
+  77-84% of its informative pairs are cross-faith; persecution drives
+  12-22% of the lower agent's migrations. Not required; gate decision later.
+- **Gates** (frozen `99bfb7d`, fresh extension `99c1e1d5...e12f`): template
+  full PASS strict, NO REGRESSION, needs +0.166 (+0.144), 154 of 200,
+  cohort 200 / 200; procedural full PASS strict, NO REGRESSION, needs +0.091
+  (+0.066), 72 of 100, cohort 100 / 100; each lists only cohort 2 -> 3 and
+  needs 5 -> 6, other oracles JSON-equal to the baselines, deltas 0.0.
+  Template subset PASS; procedural subset FAIL (needs +0.046, lb -0.021, 11
+  of 20), which `main`'s own oracle gives on the same batch. Every batch
+  re-scored by `main`'s validator: NO REGRESSION, the old versions equal
+  `main`'s results field for field.
+- **Tests**: focused validation suites 559 passed; oracle lane PASS 93.5 s
+  (2,656 passed); `pytest -m "not slow"` 6,647 passed, 3 skipped.
+- **Open**: cohort verdict redesign; method 5's age dependence; founders'
+  ages absent from sidecars; spiritual not separated from persecution or
+  checked against zeroed terms; procedural subset 42-61 needs FAIL on
+  `main`.
+
 ## Narration provenance (2026-10-27, `feat/narration-provenance`)
 
 > **Last updated:** 2026-10-27 (`feat/narration-provenance` from `main` `13f735a`: narration, tooling and viewer only; every simulation output byte identical (33 + 33 simulate-only files, bundle hashes equal; mechanical narration: chronicle.md identical, bundles identical apart from the new provenance fields). Every fact line a narrator receives ends with a stable id (`e<i>` timeline index, `n<i>`, `<chronicler>/e<i>` accounts, `p<agent id>`, `s<S>.<what>.<key>` snapshot values, `d<S1>-<S2>` changes, `w`, `o`, `L.`, `art`, `k`); each chronicle entry records the facts given (dated, retrospective marked) and each sentence's citations, exact for the mechanical narrator, parsed from bracketed ids (and removed) for an LLM; `python -m chronicler.narration_audit` flags unsupplied, unknown and future citations, future facts given outside the AFTER/LATER sections, names no given fact names, stray markers; mechanical narration of four worlds 0 flags; viewer "Sources" per chronicle card (lazy chunk; entry +756 B). Open: no LLM, no native/hybrid run, no browser QA.)

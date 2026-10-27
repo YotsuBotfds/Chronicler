@@ -145,6 +145,11 @@ Entry chunk (`npm run build`): 788,040 -> 791,168 bytes (Vite 788.04 ->
 
 ## 3. Cohort oracle method 2
 
+> Superseded as the gate's method by cohort method 3
+> ([`oracle-followups.md`](oracle-followups.md) section 1): each member
+> against its matched control while both live. `run_cohort_oracle(...,
+> method_version=2)` re-scores method 2 exactly.
+
 ### The defect
 
 `run_cohort_oracle` counted, for a turn-t graph and needs snapshot, the
