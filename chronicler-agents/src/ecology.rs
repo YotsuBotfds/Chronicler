@@ -157,6 +157,17 @@ pub struct EcologyConfig {
     // 1.0 and 0.0 are the global schedule alone (`set_climate_config`).
     pub climate_trend_share: f32,
     pub harvest_shock_water_loss: f32,
+    // Production ledger (2026-10, docs/integration/production-ledger.md):
+    // where the economy reported what each slot produced this turn
+    // (`RegionState::realized_extraction`), the overextraction streak and the
+    // soil the mines take follow that output, and the overextraction yield
+    // penalty reaches the yields the economy works with. `false` restores the
+    // earlier rule (`set_extraction_config`, tuning keys
+    // `ecology.overextraction_realized`, `ecology.mine_soil_realized`,
+    // `ecology.yield_penalty_reaches_goods` set to 0).
+    pub overextraction_realized: bool,
+    pub mine_soil_realized: bool,
+    pub yield_penalty_reaches_goods: bool,
 }
 
 impl Default for EcologyConfig {
@@ -204,7 +215,65 @@ impl Default for EcologyConfig {
             deforestation_water_loss: 0.05,
             climate_trend_share: 1.0,
             harvest_shock_water_loss: 0.0,
+            overextraction_realized: true,
+            mine_soil_realized: true,
+            yield_penalty_reaches_goods: true,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Production ledger
+// ---------------------------------------------------------------------------
+
+/// What one region's ecology tick took from its resources, for the
+/// production ledger (`chronicler.production_ledger`). Computed alongside the
+/// tick from the same state; it changes nothing. Transient: rebuilt by every
+/// `tick_ecology_with_ledger` and only written to that tick's batch.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ExtractionLedger {
+    /// The tick read the economy's output (`realized_extraction` was set).
+    pub realized: bool,
+    /// Reserve each mineral slot lost this tick.
+    pub mineral_drawn: [f32; 3],
+    /// What the aggregate labour proxy (population / 5 workers against the
+    /// deposit's target crew) would have drawn from the same reserves.
+    pub proxy_mineral_draw: [f32; 3],
+    /// The deposit's target crew in the depletion (a third of effective
+    /// capacity after this tick's soil and water); 0 without a mineral slot.
+    pub target_crew: f32,
+    /// What each slot's overextraction streak compared with its sustainable
+    /// workers this tick: worker equivalents of its output (realized) or
+    /// population / 5 (proxy). 0 for a slot the streak does not track.
+    pub overextraction_take: [f32; 3],
+    /// Soil the region's active mines took this tick, and what the flat
+    /// per-mine rule takes from the same region (equal under that rule).
+    pub mine_soil: f32,
+    pub proxy_mine_soil: f32,
+    /// Mineral output over the target crew's (the sum over mineral slots of
+    /// output / (base yield x target crew), with the crew from the effective
+    /// capacity before this tick's soil change); 0 without output.
+    pub mine_crew_ratio: f32,
+}
+
+/// Relative shortfall below the base yield that counts as degradation (the
+/// same as Python's `ecology.YIELD_PENALTY_TOLERANCE`; a penalty takes 10%).
+pub const YIELD_PENALTY_TOLERANCE: f32 = 1e-6;
+
+/// A slot's share of its undegraded yield after overextraction penalties:
+/// `effective / base`, 1.0 for an undegraded slot (within
+/// `YIELD_PENALTY_TOLERANCE`, so single and double precision copies of one
+/// yield agree) and for a slot whose effective yield was never initialized
+/// (0 with a base yield, as scenario worlds wrote before 2026-10). Never
+/// above 1. Mirrors Python `ecology.yield_penalty_factor`.
+#[inline]
+pub fn yield_penalty_factor(region: &RegionState, slot: usize) -> f32 {
+    let base = region.resource_base_yield[slot];
+    let effective = region.resource_effective_yield[slot];
+    if effective > 0.0 && effective < base * (1.0 - YIELD_PENALTY_TOLERANCE) {
+        effective / base
+    } else {
+        1.0
     }
 }
 
@@ -431,10 +500,38 @@ fn tick_disease(
 // Step 2: Depletion feedback / streak updates (controlled only)
 // ---------------------------------------------------------------------------
 
+/// Worker equivalents a slot's overextraction streak compares with its
+/// sustainable workers (`effective yield x workers_per_yield_unit`).
+///
+/// Correction (2026-10, production ledger): the streak read `population / 5`
+/// workers for every depletable slot, whatever the economy did with them (a
+/// suspended slot, an exhausted mine or a fishery held to its catch counted
+/// in full). Where the economy reported this turn's output, the take is that
+/// output in worker equivalents at the slot's undegraded productivity
+/// (`output / base yield`; goods per worker average the base yield on
+/// healthy land, so a crew of N at the normal yield takes N). Without an
+/// economy tick (`--agents off`, `EcologySimulator`, a tick before any
+/// economy tick) or with `overextraction_realized` off, the proxy is kept bit
+/// for bit.
+#[inline]
+pub fn overextraction_take(region: &RegionState, config: &EcologyConfig, slot: usize) -> f32 {
+    match region.realized_extraction {
+        Some(output) if config.overextraction_realized => {
+            let base = region.resource_base_yield[slot];
+            if base > 0.0 { output[slot].max(0.0) / base } else { 0.0 }
+        }
+        _ => {
+            let pop = region.population;
+            (if pop > 0 { pop as i32 / 5 } else { 0 }) as f32
+        }
+    }
+}
+
 fn tick_depletion_feedback(
     region: &mut RegionState,
     config: &EcologyConfig,
     events: &mut Vec<EcologyEvent>,
+    ledger: &mut ExtractionLedger,
 ) {
     // --- Soil exhaustion (population pressure) ---
     let has_crop = region.resource_types.iter().any(|&rt| {
@@ -461,8 +558,6 @@ fn tick_depletion_feedback(
 
     // --- Overextraction (per-resource) ---
     let workers_per_unit = config.workers_per_yield_unit;
-    let pop = region.population;
-    let worker_count = if pop > 0 { pop as i32 / 5 } else { 0 };
 
     for slot in 0..3_usize {
         let rtype = region.resource_types[slot];
@@ -471,7 +566,9 @@ fn tick_depletion_feedback(
         }
         let eff_yield = region.resource_effective_yield[slot];
         let sustainable = eff_yield * workers_per_unit as f32;
-        if sustainable > 0.0 && worker_count as f32 > sustainable {
+        let take = overextraction_take(region, config, slot);
+        ledger.overextraction_take[slot] = take;
+        if sustainable > 0.0 && take > sustainable {
             region.overextraction_streak[slot] += 1;
             if region.overextraction_streak[slot] >= config.overextraction_streak_limit {
                 region.resource_effective_yield[slot] *= 1.0 - config.overextraction_yield_penalty;
@@ -493,10 +590,46 @@ fn tick_depletion_feedback(
 // Step 3: Soil / Water / Forest tick
 // ---------------------------------------------------------------------------
 
+/// Mineral output this turn over what the deposit's target crew (a third of
+/// effective capacity) produces at the base yield: the sum over the region's
+/// mineral slots of `output / (base yield x target crew)`. None without an
+/// economy tick this turn (`realized_extraction` unset).
+pub fn mine_crew_ratio(region: &RegionState, config: &EcologyConfig) -> Option<f32> {
+    let output = region.realized_extraction?;
+    let crew = (effective_capacity(region, config) / 3).max(1) as f32;
+    let mut ratio = 0.0f32;
+    for slot in 0..3_usize {
+        let base = region.resource_base_yield[slot];
+        if is_mineral(region.resource_types[slot]) && base > 0.0 {
+            ratio += output[slot].max(0.0) / (base * crew);
+        }
+    }
+    Some(ratio)
+}
+
+#[cfg(test)]
 fn tick_soil_controlled(
     region: &mut RegionState,
     config: &EcologyConfig,
     degradation_mult: f32,
+) {
+    tick_soil_controlled_ledger(region, config, degradation_mult, &mut ExtractionLedger::default());
+}
+
+/// [`tick_soil_controlled`] that also records the mines' soil charge.
+///
+/// Correction (2026-10, production ledger): an active mine took
+/// `mine_soil_degradation` of soil every turn whether or not any ore was
+/// mined. Where the economy reported this turn's output, the charge scales
+/// with the ore taken against the deposit's target crew
+/// (`mine_crew_ratio`): a target crew at the base yield takes the old rate,
+/// an idle mine takes nothing. Without an economy tick, or with
+/// `mine_soil_realized` off, the flat rule is kept bit for bit.
+fn tick_soil_controlled_ledger(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    degradation_mult: f32,
+    ledger: &mut ExtractionLedger,
 ) {
     // Degradation: overpopulation of the undegraded land. Correction (2026-10,
     // food balance): this compared population with the *effective* capacity,
@@ -516,6 +649,13 @@ fn tick_soil_controlled(
         } else if region.active_focus == FOCUS_MECHANIZATION {
             mine_rate *= config.mechanization_mine_mult;
         }
+        ledger.proxy_mine_soil = mine_rate;
+        if config.mine_soil_realized {
+            if let Some(ratio) = mine_crew_ratio(region, config) {
+                mine_rate *= ratio;
+            }
+        }
+        ledger.mine_soil = mine_rate;
         region.soil -= mine_rate;
     }
 
@@ -720,7 +860,7 @@ pub fn compute_yields(
     season_id: u8,
     climate_phase: u8,
 ) -> [f32; 3] {
-    compute_yields_inner(region, config, season_id, climate_phase, true)
+    compute_yields_inner(region, config, season_id, climate_phase, true, &mut ExtractionLedger::default())
 }
 
 /// Recompute yields from current ecology/reserve state without mineral
@@ -733,7 +873,7 @@ pub fn refresh_yields(
     season_id: u8,
     climate_phase: u8,
 ) -> [f32; 3] {
-    compute_yields_inner(region, config, season_id, climate_phase, false)
+    compute_yields_inner(region, config, season_id, climate_phase, false, &mut ExtractionLedger::default())
 }
 
 /// A mineral slot's extraction this turn, relative to the deposit's target
@@ -765,12 +905,26 @@ fn mineral_extraction(region: &RegionState, config: &EcologyConfig, slot: usize,
     (extraction > 0.0).then_some(extraction)
 }
 
+/// The aggregate labour proxy's extraction of a mineral slot (population / 5
+/// workers against the target crew), whatever the economy did: what
+/// `mineral_extraction` uses without an economy tick. The production ledger
+/// records the reserve it would have drawn beside the realized draw.
+fn proxy_mineral_extraction(region: &RegionState, config: &EcologyConfig, base: f32) -> Option<f32> {
+    if region.population == 0 {
+        return None;
+    }
+    let target_workers = (effective_capacity(region, config) / 3).max(1) as f32;
+    let extraction = base * ((region.population / 5) as f32 / target_workers);
+    (extraction > 0.0).then_some(extraction)
+}
+
 fn compute_yields_inner(
     region: &mut RegionState,
     config: &EcologyConfig,
     season_id: u8,
     climate_phase: u8,
     deplete_reserves: bool,
+    ledger: &mut ExtractionLedger,
 ) -> [f32; 3] {
     let mut yields = [0.0_f32; 3];
     let phase_idx = (climate_phase as usize).min(3);
@@ -803,22 +957,36 @@ fn compute_yields_inner(
             _ => 1.0,
         };
 
+        // Overextraction's permanent yield penalty (production ledger,
+        // 2026-10): 1.0 for an undegraded slot, so its yield keeps its bits.
+        let penalty = if config.yield_penalty_reaches_goods {
+            yield_penalty_factor(region, slot)
+        } else {
+            1.0
+        };
+
         // Reserve ramp (minerals only)
         let mut reserve_ramp = 1.0_f32;
         if is_mineral(rtype) {
             let reserves = region.resource_reserves[slot];
             // Depletion — only if something was extracted and reserves remain
             if deplete_reserves && reserves > 0.01 {
+                ledger.target_crew = (effective_capacity(region, config) / 3).max(1) as f32;
+                if let Some(proxy) = proxy_mineral_extraction(region, config, base) {
+                    ledger.proxy_mineral_draw[slot] =
+                        reserves - (reserves - proxy * config.depletion_rate).max(0.0);
+                }
                 if let Some(extraction) = mineral_extraction(region, config, slot, base) {
                     region.resource_reserves[slot] =
                         (reserves - extraction * config.depletion_rate).max(0.0);
                 }
+                ledger.mineral_drawn[slot] = reserves - region.resource_reserves[slot];
             }
 
             let reserves = region.resource_reserves[slot];
             if reserves < 0.01 {
                 // Exhausted trickle
-                yields[slot] = base * config.exhausted_trickle_fraction;
+                yields[slot] = base * config.exhausted_trickle_fraction * penalty;
                 region.resource_yields[slot] = yields[slot];
                 continue;
             }
@@ -827,7 +995,7 @@ fn compute_yields_inner(
         }
 
         let y = base * season_mod * climate_mod * ecology_mod * reserve_ramp
-            * config.resource_abundance_multiplier;
+            * config.resource_abundance_multiplier * penalty;
 
         yields[slot] = y;
         region.resource_yields[slot] = y;
@@ -852,10 +1020,28 @@ pub fn tick_ecology(
     army_arrived_mask: &[bool],
     river_topology: &RiverTopology,
 ) -> (Vec<[f32; 3]>, Vec<EcologyEvent>) {
+    let (yields, events, _) = tick_ecology_with_ledger(
+        regions, config, turn, climate_phase, pandemic_mask, army_arrived_mask, river_topology,
+    );
+    (yields, events)
+}
+
+/// [`tick_ecology`] that also returns each region's [`ExtractionLedger`]
+/// (what the tick took; the same state changes and events).
+pub fn tick_ecology_with_ledger(
+    regions: &mut [RegionState],
+    config: &EcologyConfig,
+    turn: u32,
+    climate_phase: u8,
+    pandemic_mask: &[bool],
+    army_arrived_mask: &[bool],
+    river_topology: &RiverTopology,
+) -> (Vec<[f32; 3]>, Vec<EcologyEvent>, Vec<ExtractionLedger>) {
     let n = regions.len();
     let season_id = season_id_from_turn(turn);
     let mut all_events: Vec<EcologyEvent> = Vec::new();
     let mut all_yields: Vec<[f32; 3]> = vec![[0.0; 3]; n];
+    let mut ledgers: Vec<ExtractionLedger> = vec![ExtractionLedger::default(); n];
 
     // -----------------------------------------------------------------------
     // Steps 1-5: Per-region, independent (ready for par_iter_mut later)
@@ -865,6 +1051,8 @@ pub fn tick_ecology(
         let pandemic = pandemic_mask.get(i).copied().unwrap_or(false);
         let army = army_arrived_mask.get(i).copied().unwrap_or(false);
         let controlled = region.controller_civ != UNCONTROLLED;
+        let ledger = &mut ledgers[i];
+        ledger.realized = region.realized_extraction.is_some();
 
         // Step 1: Disease (both controlled and uncontrolled)
         tick_disease(region, config, pandemic, army, season_id);
@@ -880,10 +1068,11 @@ pub fn tick_ecology(
             };
 
             // Step 2b: Depletion feedback (may increment/reset streak, emit events)
-            tick_depletion_feedback(region, config, &mut all_events);
+            tick_depletion_feedback(region, config, &mut all_events, ledger);
 
             // Step 3: Soil/water/forest (controlled path)
-            tick_soil_controlled(region, config, soil_mult);
+            ledger.mine_crew_ratio = mine_crew_ratio(region, config).unwrap_or(0.0);
+            tick_soil_controlled_ledger(region, config, soil_mult, ledger);
             tick_water_controlled(region, config, climate_phase);
             tick_forest_controlled(region, config, climate_phase);
         } else {
@@ -910,7 +1099,7 @@ pub fn tick_ecology(
     // -----------------------------------------------------------------------
     for i in 0..n {
         let region = &mut regions[i];
-        all_yields[i] = compute_yields(region, config, season_id, climate_phase);
+        all_yields[i] = compute_yields_inner(region, config, season_id, climate_phase, true, &mut ledgers[i]);
     }
 
     // -----------------------------------------------------------------------
@@ -928,7 +1117,7 @@ pub fn tick_ecology(
             .then(a.slot.cmp(&b.slot))
     });
 
-    (all_yields, all_events)
+    (all_yields, all_events, ledgers)
 }
 
 // ---------------------------------------------------------------------------

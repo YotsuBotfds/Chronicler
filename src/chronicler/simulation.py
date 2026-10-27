@@ -2164,10 +2164,17 @@ def run_turn_result(
         from chronicler.agent_bridge import build_region_batch
         _eco_rt.set_region_state(build_region_batch(world))
 
+    # Production ledger (2026-10): what Phase 9 takes from each slot's stock
+    # against this turn's realized output; built only for the validation
+    # sidecar or CHRONICLER_CHECK_RESOURCES=1, and it only reads.
+    from chronicler.production_ledger import finish_turn_ledger, start_turn_ledger
+    _resource_ledger = start_turn_ledger(world, economy_result, agent_bridge)
     _emit(tick_ecology(
         world, climate_phase, acc=acc, ecology_runtime=_eco_rt,
-        economy_result=economy_result,
+        economy_result=economy_result, ledger=_resource_ledger,
     ))
+    finish_turn_ledger(world, _resource_ledger, agent_bridge)
+    del _resource_ledger
 
     artifacts.conquered_civ_ids = getattr(world, '_conquered_this_turn', set())
     world._conquered_this_turn = set()  # clear immediately before bridge consumption

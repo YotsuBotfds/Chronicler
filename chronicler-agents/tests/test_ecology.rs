@@ -1465,9 +1465,16 @@ fn test_ecology_region_schema_columns() {
         "resource_reserve_0", "resource_reserve_1", "resource_reserve_2",
         "resource_effective_yield_0", "resource_effective_yield_1", "resource_effective_yield_2",
         "current_turn_yield_0", "current_turn_yield_1", "current_turn_yield_2",
+        // Production ledger (2026-10): appended read-only outputs.
+        "extraction_realized",
+        "mineral_drawn_0", "mineral_drawn_1", "mineral_drawn_2",
+        "proxy_mineral_draw_0", "proxy_mineral_draw_1", "proxy_mineral_draw_2",
+        "extraction_target_crew",
+        "overextraction_take_0", "overextraction_take_1", "overextraction_take_2",
+        "mine_soil", "proxy_mine_soil", "mine_crew_ratio",
     ];
     assert_eq!(names, expected, "ecology_region_schema column names should match spec");
-    assert_eq!(schema.fields().len(), 19, "ecology_region_schema should have 19 columns");
+    assert_eq!(schema.fields().len(), 33, "ecology_region_schema should have 33 columns");
 }
 
 #[test]

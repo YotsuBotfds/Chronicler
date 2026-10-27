@@ -391,7 +391,24 @@ impl EcologySimulator {
             // Kept: set by `set_climate_config`.
             climate_trend_share: self.ecology_config.climate_trend_share,
             harvest_shock_water_loss: self.ecology_config.harvest_shock_water_loss,
+            // Kept: set by `set_extraction_config`.
+            overextraction_realized: self.ecology_config.overextraction_realized,
+            mine_soil_realized: self.ecology_config.mine_soil_realized,
+            yield_penalty_reaches_goods: self.ecology_config.yield_penalty_reaches_goods,
         };
+    }
+
+    /// Production ledger: see `AgentSimulator::set_extraction_config`. Only
+    /// `yield_penalty_reaches_goods` acts here (no economy tick reports output).
+    pub fn set_extraction_config(
+        &mut self,
+        overextraction_realized: bool,
+        mine_soil_realized: bool,
+        yield_penalty_reaches_goods: bool,
+    ) {
+        self.ecology_config.overextraction_realized = overextraction_realized;
+        self.ecology_config.mine_soil_realized = mine_soil_realized;
+        self.ecology_config.yield_penalty_reaches_goods = yield_penalty_reaches_goods;
     }
 
     /// Regional climate: see `AgentSimulator::set_climate_config`.
@@ -425,7 +442,9 @@ impl EcologySimulator {
             ));
         }
 
-        let (yields, events) = crate::ecology::tick_ecology(
+        // No economy tick here: `realized_extraction` is never set, so every
+        // extraction rule keeps its aggregate proxy (see `ecology.rs`).
+        let (yields, events, ledgers) = crate::ecology::tick_ecology_with_ledger(
             &mut self.regions,
             &self.ecology_config,
             turn,
@@ -448,7 +467,7 @@ impl EcologySimulator {
         };
 
         let (region_batch, event_batch) =
-            build_ecology_batches(&self.regions, &yields, &events).map_err(arrow_err)?;
+            build_ecology_batches(&self.regions, &yields, &events, &ledgers).map_err(arrow_err)?;
 
         Ok((PyRecordBatch::new(region_batch), PyRecordBatch::new(event_batch)))
     }
