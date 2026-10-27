@@ -289,8 +289,14 @@ from the mine-soil ordering gates (needs method 6, cohort method 3).
   up 129 slots in 84 worlds. 20 movement or reform records name a faith that
   has since given up its slot (under slot numbers they would name the later
   church), and no open conversion objective names one at the end.
-* **Procedural 100 x 300**: queued behind another full gate on the shared
-  machine; not run at this commit.
+* **Procedural 100 x 300: PASS** (strict regression), comparator **NO
+  REGRESSION**, every metric delta 0.0; validator inputs identical to
+  `main`'s in all 100 worlds. 1,880 faiths founded, 280 slots given up in 92
+  worlds; 73 movement or reform records name a faith that has since given up
+  its slot; no open conversion objective names one at the end.
+
+The gates' worlds recycle far more than the probe worlds (409 slots given
+up in 176 of 300 worlds), and no decision changed in any of them.
 
 ## 7. Viewer
 
