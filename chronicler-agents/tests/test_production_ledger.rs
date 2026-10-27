@@ -192,6 +192,73 @@ fn the_crew_ratio_sums_the_mineral_slots_and_the_old_rule_is_flat() {
     assert_eq!(l[0].mine_soil, old.mine_soil_degradation);
 }
 
+/// A crowded mining region whose overpopulation soil loss (0.005) takes the
+/// effective capacity from 36 to 35: the target crew from 12 to 11.
+fn crowded_mine_on_the_crew_boundary() -> RegionState {
+    let mut r = region(0, 70, [RT_ORE, EMPTY, EMPTY]); // 70 people on land for 60
+    r.has_mines = true;
+    r.soil = 0.601; // 60 x 0.601 = 36.06; after the loss 60 x 0.596 = 35.76
+    r
+}
+
+#[test]
+fn the_mines_soil_charge_reads_the_crew_before_the_soil_step() {
+    // Regression (2026-10-27): the charge recomputed the crew after the
+    // overpopulation loss, so it took 12/11 of the rate the ore warranted
+    // while the ledger recorded the ratio before it.
+    let config = EcologyConfig::default();
+    let mut rs = vec![crowded_mine_on_the_crew_boundary()];
+    let before = effective_capacity(&rs[0], &config);
+    let mut after_loss = rs[0].clone();
+    after_loss.soil -= config.soil_degradation;
+    assert_eq!(before, 36);
+    assert_eq!(effective_capacity(&after_loss, &config), 35); // the crew crosses 12 -> 11
+    // A target crew of 12 at the base yield: the old flat rate, exactly.
+    rs[0].realized_extraction = Some([12.0, 0.0, 0.0]);
+    assert_eq!(mine_crew_ratio(&rs[0], &config), Some(1.0));
+    let soil0 = rs[0].soil;
+    let l = tick(&mut rs, &config);
+    assert_eq!(l[0].mine_crew_ratio, 1.0);
+    assert_eq!(l[0].proxy_mine_soil, config.mine_soil_degradation);
+    assert_eq!(l[0].mine_soil.to_bits(), config.mine_soil_degradation.to_bits(), "charged {}", l[0].mine_soil);
+    // The land lost the overpopulation loss and the flat rate, nothing more
+    // (no recovery while crowded; soil is rounded to 4 places): 0.5660, where
+    // the recomputed crew took 0.0327 and left 0.5633.
+    let soil_step = soil0 - config.soil_degradation - config.mine_soil_degradation;
+    assert!((rs[0].soil - soil_step).abs() < 1e-4, "{} vs {}", rs[0].soil, soil_step);
+}
+
+#[test]
+fn the_mines_soil_charge_is_the_ledger_ratio_across_crew_boundaries() {
+    // Every soil level from 0.30 to 0.95, crowded (the loss applies) and not:
+    // the charge is the recorded ratio times the flat rate, bit for bit, and
+    // the ratio is the one before the tick; several levels cross a multiple of three.
+    let config = EcologyConfig::default();
+    let mut crossings = 0;
+    for population in [40u16, 70] {
+        for step in 0..=650u32 {
+            let mut r = crowded_mine_on_the_crew_boundary();
+            r.population = population;
+            r.soil = 0.30 + step as f32 * 0.001;
+            r.realized_extraction = Some([7.5, 0.0, 0.0]);
+            let expect = mine_crew_ratio(&r, &config).unwrap();
+            let mut after_loss = r.clone();
+            if population as f32 > 60.0 {
+                after_loss.soil -= config.soil_degradation;
+            }
+            if effective_capacity(&after_loss, &config) / 3 != effective_capacity(&r, &config) / 3 {
+                crossings += 1;
+            }
+            let mut rs = vec![r];
+            let l = tick(&mut rs, &config);
+            assert_eq!(l[0].mine_crew_ratio.to_bits(), expect.to_bits(), "soil step {step}");
+            assert_eq!(l[0].mine_soil.to_bits(), (l[0].proxy_mine_soil * l[0].mine_crew_ratio).to_bits(),
+                       "population {population} soil step {step}");
+        }
+    }
+    assert!(crossings >= 20, "{crossings} boundary crossings");
+}
+
 // ---------------------------------------------------------------------------
 // The tick's ledger
 // ---------------------------------------------------------------------------

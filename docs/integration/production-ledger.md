@@ -197,6 +197,15 @@ seed 42's region 0 mine stood idle for its 29 active turns, at 0.03 a turn on
 probe world diverges within its first 3-18 turns. Mining regions keep more
 soil; worlds grow 2.2-2.3% larger by the end of the full gates.
 
+**Correction (2026-10-27, `fix/mine-soil-ordering`; section 13).** Until
+then the native charge did not quite follow this rule: the ledger recorded
+the crew ratio before the soil step, but the charge recomputed it after the
+step's overpopulation loss. Where that loss took the effective capacity
+across a multiple of three (crowded regions only) the crew was one smaller
+and the mines took N/(N-1) of the soil their ore warranted, and
+`CHRONICLER_CHECK_RESOURCES=1` raised. The charge now reads the ratio from
+before the step, as stated above.
+
 ## 7. Checks
 
 `CHRONICLER_CHECK_RESOURCES=1` (all modes; the population check,
@@ -213,7 +222,8 @@ when:
   the economy's production (what entered the stocks; to 1e-5 relative);
 - the overextraction take is not the realized output (or the proxy without
   one), the streak did not follow it, or the mines' soil charge is not the
-  rule's;
+  rule's (until 2026-10-27 this raised in crowded mining regions whose
+  overpopulation loss crossed a crew boundary: section 13);
 - the native tick and the economy disagree on whether output was reported.
 
 Negative controls (tests): a reserve that grows and a fish stock that loses
@@ -491,3 +501,176 @@ own production).
 - Operational: the full-gate batches were pruned during the runs of what the
   validator does not read (state files and memory streams of finished seeds)
   for disk space; batches, venvs and targets are deleted, reports kept.
+
+## 13. Correction (2026-10-27): the mines' soil charge reads the crew before the soil step
+
+Branch `fix/mine-soil-ordering` from `main` `2106ef2` (PR #57), merged
+without rebase with `8a68658` (PR #58, public granaries: Python only, off by
+default and byte-identical to `2106ef2` when off). Code: Rust `ecology.rs`
+(`tick_soil_controlled_ledger`, `tick_ecology_with_ledger`). Tests:
+`chronicler-agents/tests/test_production_ledger.rs` (2 new),
+`tests/test_production_ledger_native.py` (1 new case). This is a behavioural
+correction. It adds no state, column, tuning key or checkpoint field.
+
+**Finding.** The grain-reserves work (PR #58, `grain-reserves.md` section 4)
+found that with `CHRONICLER_CHECK_RESOURCES=1` the mines' soil check (section
+7) raised in some procedural worlds. The ecology tick recorded
+`mine_crew_ratio` (section 6) just before the soil step. The step
+(`tick_soil_controlled_ledger`) then took the overpopulation loss (0.005 a
+turn, doubled under soil pressure, while population exceeds the land's
+potential). Then it called `mine_crew_ratio` again for the charge, from the
+lowered soil. Where that loss took the effective capacity across a multiple
+of three, the charge's crew was one smaller (N -> N-1), so the mines took
+N/(N-1) of the rule's soil.
+
+Linux, Python 3.13.17, `PYTHONHASHSEED=0`, hybrid, `--validation-sidecar`,
+every check raising unless stated:
+
+| Run | Result |
+| --- | --- |
+| `main` `2106ef2`, procedural 32 x 10, seed 64 | raises at turn 27: region 3 (64 people, potential 63), mines took 0.0121226, the rule says 0.0113649 (16/15) |
+| `main` `8a68658` with `--grain-reserves`, seed 42 (PR #58's example) | raises at turn 128: region 25 (47 people, potential 44), 0.012847907841205597 against 0.01177724960944243 (12/11) |
+| `main` `2106ef2`, seed 42, 300 turns | clean: the turn-128 case needs the switch on |
+| `main` `2106ef2`, procedural seeds 42-141 x 300 (the full gate's cohort), the mines' soil check recorded instead of raised | 16 mismatches in 14 of 100 worlds (seeds 58, 64, 69, 84, 94, 95, 99, 104 (3), 107, 116, 121, 129, 135, 138), turns 27-280; every other check passed |
+| `main` `2106ef2`, template seeds 42-81 x 500, recorded | 6 mismatches in 4 of 40 worlds (46 (2), 60, 65, 74 (2)), turns 37-456 |
+| `main` `8a68658` with `--grain-reserves`, procedural seeds 42-72 x 300, recorded | 10 mismatches in 7 of 31 worlds (42, 45, 49 (2), 51 (3), 55, 58, 63), as PR #58 recorded |
+
+Every mismatch is in a crowded region (1-22 people above the potential).
+The charge was N/(N-1) of the rule for crews of 3 to 22: 3/2 at template
+seed 74's turn 41, 22/21 at procedural seed 84's turn 47. The mines took
+0.0001-0.0215 more soil than the rule per mismatch: 0.033 in total over
+the 100 procedural worlds and 0.031 over the 40 template ones.
+
+**Which fix.** One option is (a): the charge reads the crew from before the
+soil step, as the ledger records and section 6 states. The other is (b): the
+ledger records the crew the charge used. (b) changes no trajectory, but it
+rewrites the rule around an ordering artifact. (a) is taken because realized
+extraction should drive the charge:
+
+- The charge scales the flat rate by this turn's ore output over what a
+  target crew produces on the deposit as it was worked. The economy mined
+  that ore in Phase 2, on the land as it stood before Phase 9. The
+  overpopulation loss comes after the ore was taken.
+- Under (b) crowding is charged twice: once by its own loss, and again by
+  shrinking the crew the ore is divided by. The same ore would cost a
+  crowded region's mines 5-50% more soil (1/(N-1)). This would happen only
+  in regions above their potential, and only when the loss happens to cross
+  a multiple of three. The rule would also depend on the order of two terms
+  in one step: if the mine charge were applied before the overpopulation
+  loss, it would already be (a).
+- Under (a) the charge, the ledger and section 6 describe one rule: the
+  ratio is computed once, before the step, and both read it.
+
+**Fix.** `tick_soil_controlled_ledger` now takes `mine_crew_ratio` once,
+before the overpopulation loss. It records the ratio in the ledger and
+multiplies the charge by the same value. `tick_ecology_with_ledger` no longer
+computes it separately. A region-turn without a crossing gets the same f32
+product as before, bit for bit. Nothing is added to the native state, so
+`persist.rs` does not change.
+
+**Effect.** The comparison uses matched worlds. `main` `2106ef2` ran with its
+own venv and release extension, `99c1e1d5...e12f`, the same build as the
+oracle follow-ups' gates. The branch ran with `da65b716...cf67`. Every output
+file is compared (`chronicle_bundle.json` without `generated_at`), along with
+each region's soil and population after every turn:
+
+| | procedural 42-141 x 300 | template 42-81 x 500 |
+| --- | --- | --- |
+| worlds identical, every file | 86 of 100 | 36 of 40 |
+| worlds that differ | 14: exactly the worlds where `main` fired, each from the turn of its first mismatch | 4: the same rule |
+| of them, populations differ | 8 (58, 64, 69, 84, 94, 99, 107, 116) | 0 |
+| of them, soil only, transient | 6: 5-33 region-turns, until both arms meet at the terrain's soil cap or floor | 4: 2-13 region-turns; in 46 and 65 only the bundle and the resource ledger differ (soil +0.0001-0.0005, no validator input) |
+| region-turns whose soil differs | 2,964 of 960,000 (0.31%) | 30 of 160,000 |
+| region-turns whose population differs | 24,751 (2.6%, all after a divergence) | 0 |
+| final population, all worlds | 53,741 -> 53,807 (+0.12%) | 7,243 -> 7,243 |
+| final population, changed worlds | 7,215 -> 7,281 | 687 -> 687 |
+| mean soil over the run, changed worlds | 0.66244 -> 0.66237 | 0.67712 -> 0.67712 |
+| soil the mines took, changed worlds | 70.97 -> 68.75 | |
+
+The correction itself takes 0.0001-0.0215 less soil in one region-turn.
+The populations and soils that follow differ because a diverged world goes
+its own way, not because of a systematic shift: seed 64 ends with 561 -> 482
+people, seed 107 with 497 -> 629. The gates' batch manifests hash every
+validator input of every run, and they show the same pattern at full scale.
+Template full: 180 of 200 worlds have every validator input identical to
+`main`'s baseline batch, and 20 differ (9 with different agent events, 11 in
+needs and state snapshots only). Procedural full: 86 of 100 are identical,
+and the 14 that differ are exactly the 14 where `main` fired (8 with
+different events, 6 in snapshots only). The gates ran without the check, so
+the ledger is not what moves them.
+
+With `--grain-reserves` (`8a68658` against the branch, procedural seeds
+42-72 x 300), 24 of 31 worlds are identical. The 7 that differ are exactly
+the worlds where `8a68658` fired, each from that turn. The turn-speed
+identity matrix (`scripts/turn_speed_identity.py`, 9 cases: off, hybrid,
+procedural and scaled worlds), `main` against the branch: 399 files, 0
+differences. None of those worlds crosses a crew boundary.
+
+**Checkpoints.** No native state was added, so `persist.rs` is unchanged.
+`scripts/checkpoint_identity.py` ran on the branch with
+`CHRONICLER_CHECK_RESOURCES=1`: `hybrid_s42` (59 resume points) and
+`proc32_hybrid_s11` (39) both PASS, with 0 differences, and plain against
+straight with checkpoints also shows 0 differences.
+
+**Checks with the correction.** With every check raising, there were zero
+raises in:
+
+- procedural 32 x 10 seeds 42-141 x 300 (100 worlds);
+- template seeds 42-81 x 500 (40 worlds);
+- procedural seeds 42-72 x 300 with `--grain-reserves` (31 worlds, granary
+  checks included), the seven worlds above among them.
+
+**Gates.** `--profile full --parallel 3 --require-strict-regression`, fresh
+empty roots, manifests verified. The baselines are `main`'s reports under
+needs method 6 and cohort method 3: the oracle follow-ups' full gates of
+`99bfb7d`, whose `src/`, `chronicler-agents/` and extension are `2106ef2`'s.
+
+| | template 200 x 500: baseline | branch | procedural 100 x 300: baseline | branch |
+| --- | --- | --- | --- | --- |
+| gate | PASS, strict | **PASS, strict** | PASS, strict | **PASS, strict** |
+| comparator | | **NO REGRESSION**, same cohort | | **NO REGRESSION**, same cohort |
+| needs pooled (lower bound), seeds | +0.1656 (+0.1436), 154 of 200 | +0.1648 (+0.1433), 156 | +0.0910 (+0.0662), 72 of 100 | +0.0892 (+0.0646), 72 |
+| needs binding (lower bound), pairs | +0.1910 (+0.1639), 4,109 | +0.1859 (+0.1593), 4,115 | +0.1341 (+0.0982), 1,984 | +0.1356 (+0.1004), 2,006 |
+| cohort (method 3): seeds, median effect | 200, 2.0 | 200, 2.0 | 100, 1.0 | 100, 1.0 |
+| era collapse episodes | 4,662 | 4,666 | 4,436 | 4,431 |
+| artifacts per civ per 100 turns; loss rate | 1.846; 0.055 | 1.849; 0.053 | 2.500; 0.036 | 2.497; 0.036 |
+| arcs: seeds with three types | 152 | 151 | 97 | 97 |
+| migration / rebellion per agent-turn | 0.06348 / 0.03287 | 0.06340 / 0.03295 | 0.07548 / 0.03874 | 0.07555 / 0.03863 |
+| satisfaction mean (latest) | 0.6213 (0.6341) | 0.6212 (0.6330) | 0.5671 (0.5751) | 0.5667 (0.5741) |
+| Gini in range; extinct worlds; full civ survival | 0.853; 0; 0.165 | 0.852; 0; 0.170 | 0.901; 0; 0.08 | 0.910; 0; 0.08 |
+| wall time (3 workers, shared machine) | | 2,340 s | | 3,192 s |
+
+**Tests.** These ran in the branch venv with its extension; the compiled
+`chronicler_agents.chronicler_agents` and the three classes were checked.
+
+| Check | Result |
+| --- | --- |
+| `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,053 passed, 0 failed, 2 ignored |
+| the 2 new Rust tests against `main`'s source (its own target) | both fail (charged 0.03272727 = 0.03 x 12/11; the sweep at its first soil level), the other 10 pass |
+| `pytest -m "not slow"` (native) | 6,669 passed, 3 skipped, 526 subtests |
+| `pytest -m slow` (native) | 12 passed, 3 skipped |
+| no-Rust lane (`pytest`, no extension) | 6,412 passed, 261 skipped, 526 subtests |
+| `scripts/run_python_oracle_checks.py` | PASS in 108.6 s (2,675 passed, 59 skipped) |
+| `test_production_ledger_native.py` on `main` with the new case | the seed-64 case fails at turn 27 (16/15), the rest pass |
+
+The new tests:
+
+- `the_mines_soil_charge_reads_the_crew_before_the_soil_step`: a crowded
+  mine whose loss takes the effective capacity from 36 to 35. The charge is
+  exactly the flat rate, and the soil is 0.5660 where the recomputed crew
+  left 0.5633.
+- `the_mines_soil_charge_is_the_ledger_ratio_across_crew_boundaries`: soil
+  levels 0.30-0.95, crowded and not, with at least 20 crossings. The charge
+  is the recorded ratio times the flat rate, bit for bit, and the ratio is
+  the pre-tick one.
+- `test_hybrid_turns_balance_the_resource_ledger` gains procedural seed 64
+  to turn 28.
+
+**Open.** The reserve depletion (PR #51) divides the output by the target
+crew after the whole tick (soil, water, forest, cross-effects and the river
+cascade: `ExtractionLedger::target_crew`). The soil charge divides by the
+crew before it. Section 6's "the same anchor" therefore holds except where
+the tick's own soil or water change crosses a multiple of three. The
+depletion's check uses the crew it drew with, so it balances. Aligning the
+two would move trajectories wherever any of the tick's changes crosses a
+crew boundary, water included, and needs a decision of its own.

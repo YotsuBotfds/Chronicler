@@ -252,7 +252,8 @@ pub struct ExtractionLedger {
     pub proxy_mine_soil: f32,
     /// Mineral output over the target crew's (the sum over mineral slots of
     /// output / (base yield x target crew), with the crew from the effective
-    /// capacity before this tick's soil change); 0 without output.
+    /// capacity before this tick's soil change); 0 without output. The
+    /// mines' soil charge is `proxy_mine_soil` times this ratio.
     pub mine_crew_ratio: f32,
 }
 
@@ -625,12 +626,23 @@ fn tick_soil_controlled(
 /// (`mine_crew_ratio`): a target crew at the base yield takes the old rate,
 /// an idle mine takes nothing. Without an economy tick, or with
 /// `mine_soil_realized` off, the flat rule is kept bit for bit.
+///
+/// Correction (2026-10-27, mine-soil ordering): the ratio is taken once, from
+/// the land the economy's miners worked this turn, before this step changes
+/// the soil, and both the charge and the ledger's `mine_crew_ratio` read it.
+/// The charge used to recompute the crew after the overpopulation loss below,
+/// so where that loss took the effective capacity across a multiple of three
+/// the crew fell by one (12 -> 11) and the mines took 12/11 of what their ore
+/// warranted, more soil for the region being crowded, not for more ore.
 fn tick_soil_controlled_ledger(
     region: &mut RegionState,
     config: &EcologyConfig,
     degradation_mult: f32,
     ledger: &mut ExtractionLedger,
 ) {
+    let crew_ratio = mine_crew_ratio(region, config);
+    ledger.mine_crew_ratio = crew_ratio.unwrap_or(0.0);
+
     // Degradation: overpopulation of the undegraded land. Correction (2026-10,
     // food balance): this compared population with the *effective* capacity,
     // which already contains the degraded soil and drought-depressed water, so
@@ -651,7 +663,7 @@ fn tick_soil_controlled_ledger(
         }
         ledger.proxy_mine_soil = mine_rate;
         if config.mine_soil_realized {
-            if let Some(ratio) = mine_crew_ratio(region, config) {
+            if let Some(ratio) = crew_ratio {
                 mine_rate *= ratio;
             }
         }
@@ -1071,7 +1083,6 @@ pub fn tick_ecology_with_ledger(
             tick_depletion_feedback(region, config, &mut all_events, ledger);
 
             // Step 3: Soil/water/forest (controlled path)
-            ledger.mine_crew_ratio = mine_crew_ratio(region, config).unwrap_or(0.0);
             tick_soil_controlled_ledger(region, config, soil_mult, ledger);
             tick_water_controlled(region, config, climate_phase);
             tick_forest_controlled(region, config, climate_phase);

@@ -57,6 +57,10 @@ def _run(tmp_path, *argv) -> dict:
     ("--seed", "42", "--turns", "40"),
     ("--seed", "7", "--turns", "40"),
     ("--seed", "11", "--turns", "30", "--worldgen", "procedural", "--regions", "16", "--civs", "5"),
+    # Turn 27, region 3 (64 people on land for 63): the overpopulation soil loss
+    # took the mines' target crew from 16 to 15, and the charge recomputed it
+    # (16/15 of the rule) until the 2026-10-27 ordering correction.
+    ("--seed", "64", "--turns", "28", "--worldgen", "procedural", "--regions", "32", "--civs", "10"),
 ])
 def test_hybrid_turns_balance_the_resource_ledger(tmp_path, monkeypatch, argv):
     _native()
