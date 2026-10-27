@@ -33,11 +33,15 @@ def occupation_of(world, region_name: str) -> "Occupation | None":
     return None
 
 
-def _requisition(region: "Region", factor: float) -> None:
+def _requisition(region: "Region", factor: float, world=None) -> None:
     from chronicler.economy import FOOD_GOODS
     for good in FOOD_GOODS:
         if good in region.stockpile.goods:
             region.stockpile.goods[good] *= factor
+    if world is not None and getattr(world, "grain_reserves", None) is not None:
+        # --grain-reserves: the army takes the same share of the region's granary.
+        from chronicler.grain_reserves import seize_granary
+        seize_granary(world, region, factor)
 
 
 def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization",
@@ -55,7 +59,7 @@ def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization"
     world.war_state.occupations.append(occ)
     region.occupied_by = occupier.name
     region._war_won_this_turn = True
-    _requisition(region, FOOD_REQUISITION)
+    _requisition(region, FOOD_REQUISITION, world)
     plunder = region.population // 10
     if plunder:
         add_stat(ctx, occupier, "treasury", plunder, "keep")

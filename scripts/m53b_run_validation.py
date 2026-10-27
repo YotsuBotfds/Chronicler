@@ -247,6 +247,14 @@ def _scholarship_args(args: argparse.Namespace) -> list[str]:
     return ["--scholarship" if scholarship else "--no-scholarship"]
 
 
+def _grain_reserves_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit public-granaries switch; omitted keeps the CLI default."""
+    grain_reserves = getattr(args, "grain_reserves", None)
+    if grain_reserves is None:
+        return []
+    return ["--grain-reserves" if grain_reserves else "--no-grain-reserves"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -313,6 +321,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_agent_movements_args(args),
         *_guilds_args(args),
         *_scholarship_args(args),
+        *_grain_reserves_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -354,6 +363,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_agent_movements_args(args),
         *_guilds_args(args),
         *_scholarship_args(args),
+        *_grain_reserves_args(args),
         *_historiography_args(args),
         *_languages_args(args),
     ]
@@ -436,6 +446,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_agent_movements_args(args))
         cmd.extend(_guilds_args(args))
         cmd.extend(_scholarship_args(args))
+        cmd.extend(_grain_reserves_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -820,6 +831,12 @@ def main() -> None:
         help="Forward --scholarship/--no-scholarship to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--grain-reserves",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --grain-reserves/--no-grain-reserves to every simulation run (default: CLI default).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -952,6 +969,7 @@ def main() -> None:
         "agent_movements": args.agent_movements,
         "guilds": args.guilds,
         "scholarship": args.scholarship,
+        "grain_reserves": args.grain_reserves,
         "historiography": args.historiography,
         "languages": args.languages,
         "pythonhashseed": env["PYTHONHASHSEED"],

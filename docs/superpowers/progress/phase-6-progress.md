@@ -6,6 +6,65 @@
 
 ---
 
+## Public granaries (2026-10-27, `feat/grain-reserves`)
+
+> **Last updated:** 2026-10-27 (`feat/grain-reserves` from `main` `6da8fe5`: stock-target public granaries behind `--grain-reserves`, default off; rulers buy real surplus (own market, realm within three steps, then neighbours across permitted routes) at market prices from the treasury, store it with spoilage and release it before mortality reads the shortfall; the resource checks balance the granaries; switch off byte-identical to `main` (9-case matrix, hybrid batch, procedural); checkpoints with it on 0 differences; paired worlds: severe shortage -1.6/-1.7 pts, deaths per agent-turn -1.5%/-4%, procedural population +6%; template full 200 x 500 and procedural full 100 x 300 gates with it on PASS strict, EXPLORATORY NO REGRESSION (needs 172 of 200 and 79 of 100 seeds; `main` 154, 72); the template subset 42-61's needs oracle fails with it on (material pairing); the production ledger's mines' soil check stops some procedural worlds with `CHRONICLER_CHECK_RESOURCES=1`, `main`'s too (native ordering, not fixed here). Kept off.)
+
+`feat/grain-reserves` from `main` `6da8fe5`. Details and evidence:
+[`docs/integration/grain-reserves.md`](../../integration/grain-reserves.md).
+
+- **Audit**: no actor plans ahead. Market stock is the residual of the
+  harvest, the ration and merchants' trips; the five-turn storage cap and
+  spoilage destroy 9-11% of the food (three to five times what merchants
+  carry) while 9-16% of the demand goes unmet; the surplus within reach of
+  a shortfall covers 11% of it on template worlds (31% procedural).
+- **Design**: one granary per region, kept by its ruler. Target `min(4, 6
+  x cv) x demand` from the capped harvest swing; procurement in Phase 10
+  of surplus beyond merchants' commitments and four turns of the market's
+  need, at the selling market's price, at most 10% of the treasury above
+  20; the merchants' route graph (war, embargo, disposition, suspensions,
+  blockade, siege); 5% transit decay; release in Phase 2 before any reader
+  of the sufficiency (to a full meal from at least half the target, else
+  to the famine line); 3% spoilage; conquest, occupation and siege take
+  their shares; three events with provenance ids.
+- **Switch**: world-stored (`WorldState.grain_reserves`, omitted while
+  off), CLI, live default, gate runner, batch manifest, checkpoint
+  switches; dormant under `--agents off`; old saves load.
+- **Identity**: switch off and `--no-grain-reserves` byte-identical to
+  `main` (9-case `turn_speed_identity` matrix 399 files each, hybrid batch
+  182 files apart from the manifest's run identity, procedural 92 files);
+  checkpoint matrix with it on and `CHRONICLER_CHECK_RESOURCES=1`: 7 cases,
+  253 resume points, 0 differences.
+- **Effects** (paired, template 40 x 300 / procedural 20 x 200): severe
+  shortage -1.6 / -1.7 pts, dearth +1.1 / +1.6, sustained famine unchanged;
+  deaths per 1,000 agent-turns -0.25 (SE 0.11) / -0.72 (0.23); procedural
+  mean population +37 (11); food price volatility -0.019 (0.007) / -0.011
+  (0.008); no fiscal measure moves beyond noise; template merchants' food
+  departures -8%. Granaries hold 12-17% of their targets; spoilage about
+  equals release (0.6-1.0% of the food demand).
+- **Gates** (switch on): template full 200 x 500 PASS strict, EXPLORATORY
+  NO REGRESSION (needs 0.174, 172 of 200 seeds; `main` 0.166, 154);
+  procedural full 100 x 300 PASS strict, EXPLORATORY NO REGRESSION (needs
+  0.130, 79 of 100; `main` 0.091, 72); subsets: procedural PASS (`main`
+  fails), template 42-61 fails the needs oracle (`main` passes; material
+  pairing 0.33 -> 0.04), template 62-81 fails on both (with it on also rebellion
+  0.0179, below the regression floor; informational in a subset).
+- **Mines' soil check**: with `CHRONICLER_CHECK_RESOURCES=1` the first
+  procedural full run stopped at seed 42's turn 128: the native soil step
+  computes the mines' crew after the overpopulation degradation, its ledger
+  before (PR #52's ordering). Recorded over seeds 42-72: 10 mismatches in 7
+  of 31 worlds with it on, 3 in 3 on `main`; every granary and other
+  production check passed. Gate rerun without the checks; its 100 worlds'
+  granary ledgers balance offline (167,933 rows).
+- **Tests**: `tests/test_grain_reserves.py` (21; oracle chunk
+  `grain-reserves`); `-m "not slow"` 6,655 passed, `-m slow` 12 passed,
+  oracle lane PASS 95.5 s, cargo 1,051 passed.
+- **Open**: scarce real surplus, spoilage as fast as release, the 20-seed
+  template subsets, the mines' soil ordering (a correction of its own),
+  state shipments outside the merchant systems, release in place only,
+  grain only, no viewer panel.
+
+---
 ## Oracle follow-ups (2026-10-27, `fix/oracle-followups`)
 
 > **Last updated:** 2026-10-27 (`fix/oracle-followups` from `main` `3c3775d`, fast-forwarded to `6da8fe5`: validation tooling only, no simulation change; cohort oracle method 3 (each member against its matched control while both live; differential deaths biased method 2's effects by up to |d| 0.22 in synthetic nulls, method 3 within 0.010; method 2 re-scorable exactly); needs oracle method 6 (method 5's verdict plus an informational spiritual -> migration pairing; method 5 re-scorable exactly); age matching measured and not adopted (a 5-year match removes a synthetic age confound that passes method 5 in 90% of nulls, but keeps 8-11% of informative pairs and fails both full gates' seed fraction); the cohort verdict found unable to fail (every synthetic world passes, reversed included); template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against the method 5 baselines, cohort 2 -> 3 and needs 5 -> 6 the only differences; template subset PASS; procedural subset needs FAIL as on `main` since PR #52.)

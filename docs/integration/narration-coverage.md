@@ -594,6 +594,19 @@ regions or its civs' lands ("Seat of learning: The Academy of Amber Valley
 | seat_patron | scholarship.py | 0 | ok | routine | 0 | - | its scholars |
 | seat_rose | scholarship.py | 15 | ok | scored | 7 | yes | seat glory (3+); its scholars |
 
+**Public granaries** (`--grain-reserves`, [grain-reserves.md](grain-reserves.md#9-narration)):
+three kinds with readable lines; an opening against dearth or famine and an
+emptied granary weigh by their importance (4, or 5 below the famine line),
+grain bought abroad is routine. Rows, from `scripts/narration_coverage.py`
+over a 500-turn template run (seed 42, hybrid, mechanical narrator) with the
+switch on:
+
+| type | emitted in | n | line | curator | listed | names | accounts |
+| --- | --- | ---: | --- | --- | ---: | --- | --- |
+| grain_bought | grain_reserves.py | 3 | ok | routine | 0 | yes | routine |
+| granary_exhausted | grain_reserves.py | 22 | ok | scored | 8 | yes | unclassified (7+) |
+| granary_opened | grain_reserves.py | 54 | ok | scored | 25 | yes | unclassified (7+) |
+
 ## 6. Viewer QA
 
 Production code on the Vite dev server, headless Chromium (Playwright,

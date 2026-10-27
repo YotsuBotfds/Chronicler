@@ -29,6 +29,7 @@ from chronicler.cities_state import CityState
 from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
+from chronicler.grain_reserves_state import GrainReserveState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1162,6 +1163,9 @@ class WorldState(BaseModel):
     # patrons and scholars (chronicler.scholarship; None = disabled; omitted
     # from output).
     scholarship: ScholarshipState | None = Field(default=None, exclude_if=_is_none)
+    # Public granaries: stock-target grain procurement and reserves
+    # (chronicler.grain_reserves; None = disabled; omitted from output).
+    grain_reserves: GrainReserveState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)

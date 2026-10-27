@@ -107,6 +107,7 @@ from chronicler.cities_state import cities_on as _cities_on
 from chronicler.agent_movements_state import agent_movements_on as _agent_movements_on
 from chronicler.guilds_state import guilds_on as _guilds_on
 from chronicler.scholarship_state import scholarship_on as _scholarship_on
+from chronicler.grain_reserves_state import grain_reserves_on as _grain_reserves_on
 from chronicler.tuning import (
     K_DROUGHT_STABILITY, K_DROUGHT_ONGOING, K_PLAGUE_STABILITY,
     K_FAMINE_STABILITY, K_WAR_COST_STABILITY,
@@ -2058,6 +2059,11 @@ def run_turn_result(
                 *rust_return, world,
                 require_oracle_shadow=(world.agent_mode == "hybrid"),
             )
+            if _grain_reserves_on(world):
+                # Public granaries (--grain-reserves): cover the shortfall of
+                # food on hand before anything reads this turn's sufficiency.
+                from chronicler.grain_reserves import open_granaries
+                _emit(open_granaries(world, economy_result, agent_bridge))
             artifacts.economy = economy_result
             agent_bridge.set_economy_result(economy_result)
 
@@ -2078,6 +2084,10 @@ def run_turn_result(
                 )
                 _emit(shock_events)
 
+    if _grain_reserves_on(world) and agent_bridge is not None and economy_result is None:
+        # Public granaries on a turn without an economy tick: owners and spoilage.
+        from chronicler.grain_reserves import open_granaries
+        _emit(open_granaries(world, None, agent_bridge))
     if world.mutual_aid_enabled:
         from chronicler.mutual_aid import observe_mutual_aid
         observe_mutual_aid(world, economy_result, snapshot)
@@ -2340,6 +2350,15 @@ def run_turn_result(
         _emit(tick_scholarship(
             world, world.events_timeline[_hazard_timeline_start:] + turn_events[_pre_phase10_count:],
             acc=phase10_acc, phase10=artifacts.phase10, agent_bridge=agent_bridge,
+        ))
+
+    # Public granaries (--grain-reserves): this turn's harvests and targets,
+    # purchases toward them from real surplus; after the merchants planned
+    # their trips, before the Phase 10 flush below.
+    if _grain_reserves_on(world):
+        from chronicler.grain_reserves import tick_grain_reserves
+        _emit(tick_grain_reserves(
+            world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,
         ))
 
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,

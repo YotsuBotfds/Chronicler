@@ -631,6 +631,10 @@ def apply_region_conquest(
     from chronicler.economy import CONQUEST_STOCKPILE_SURVIVAL
     for _good in list(contested.stockpile.goods.keys()):
         contested.stockpile.goods[_good] *= CONQUEST_STOCKPILE_SURVIVAL
+    if getattr(world, "grain_reserves", None) is not None:
+        # --grain-reserves: the conquest destroys the same share of its granary.
+        from chronicler.grain_reserves import seize_granary
+        seize_granary(world, contested, CONQUEST_STOCKPILE_SURVIVAL)
     contested.last_conquered_turn = world.turn
     attacker.regions.append(contested.name)
     defender.regions = [r for r in defender.regions if r != contested.name]

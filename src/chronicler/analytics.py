@@ -1466,6 +1466,11 @@ def generate_report(
     scholarship_metrics = extract_scholarship_metrics(bundles)
     if scholarship_metrics.get("runs"):
         report["scholarship"] = scholarship_metrics
+    # Public granaries: present only for runs whose bundles carry history[n].grain_reserves.
+    from chronicler.grain_reserves import extract_grain_reserve_metrics
+    reserve_metrics = extract_grain_reserve_metrics(bundles)
+    if reserve_metrics.get("runs"):
+        report["grain_reserves"] = reserve_metrics
 
     report["anomalies"] = detect_anomalies(report)
     return report
