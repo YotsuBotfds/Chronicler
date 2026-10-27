@@ -17,7 +17,9 @@ Who writes:
 * a **court chronicler** per civilization (``court:<civ index>``), keeping
   its archive in the civ's capital;
 * a **temple chronicler** per faith with a standing temple
-  (``temple:<faith id>``), keeping its archive at its most prestigious temple;
+  (``temple:<faith id>``, the faith's permanent id, chronicler.faiths: a
+  church that later takes the same native slot has its own chronicler),
+  keeping its archive at its most prestigious temple;
 * the **scholars of a seat of learning** (``--scholarship``; ``seat:<seat
   index>``), keeping their archive at the seat: they record its founding,
   rises, masters, decline and fall plainly, and the inventions made in its
@@ -62,6 +64,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 from pydantic import BaseModel, Field
 
+from chronicler import faiths
 from chronicler.models import VOLUNTARY_MIGRATION_DRIVERS
 from chronicler.utils import stable_hash_int
 
@@ -303,7 +306,7 @@ class Chronicler(BaseModel):
     chronicler_id: str              # "court:<civ index>", "temple:<faith id>" or "seat:<seat index>"
     kind: str                       # court, temple, seat
     civ: int | None = None          # civ index (court)
-    faith: int | None = None        # faith id (temple)
+    faith: int | None = None        # permanent faith id (temple; chronicler.faiths)
     name: str                       # "the Kethani chronicles"
     founded_turn: int
     active: bool = True
@@ -640,7 +643,8 @@ class _Turn:
         for i, region in enumerate(world.regions):
             self.region_index.setdefault(region.name, i)
         self.wars = {frozenset(p) for p in world.active_wars}
-        self.faith_names = {b.faith_id: b.name for b in world.belief_registry}
+        # Permanent faith id -> name, every faith of the run (chronicler.faiths).
+        self.faith_names = faiths.names(world)
         self._clergy = FactionType.CLERGY
         self._disposition_weight = {
             Disposition.HOSTILE: 3.0, Disposition.SUSPICIOUS: 1.5, Disposition.NEUTRAL: 0.0,
@@ -730,7 +734,7 @@ class _Turn:
                 loyalty = "neutral"
             ruler = civ.leader.name if civ.leader is not None else None
             clergy = float(civ.factions.influence.get(self._clergy, 0.0))
-            faith = civ.civ_majority_faith
+            faith = faiths.uid_or_slot(self.world, civ.civ_majority_faith)
             temper = _Temper(loyalty, self.zeal(chron.chronicler_id, ruler),
                              ruler, clergy, faith, self.faith_names.get(faith))
         else:
@@ -813,17 +817,20 @@ class _Turn:
         return 1 + sum(n for key, n in LITERACY_COPIES if TECHNIQUE_INDEX[key] in have)
 
     def temples(self) -> dict[int, tuple[int, int]]:
-        """faith id -> (region index, prestige) of its most prestigious standing temple."""
+        """Permanent faith id -> (region index, prestige) of its most
+        prestigious standing temple (temples name their faith by slot)."""
         from chronicler.models import InfrastructureType
         best: dict[int, tuple[int, int]] = {}
         for ri, region in enumerate(self.world.regions):
             for infra in region.infrastructure:
-                if (infra.type != InfrastructureType.TEMPLES or not infra.active
-                        or infra.faith_id not in self.faith_names):
+                if infra.type != InfrastructureType.TEMPLES or not infra.active:
                     continue
-                cur = best.get(infra.faith_id)
+                uid = faiths.uid_of(self.world, infra.faith_id)
+                if uid is None or uid not in self.faith_names:
+                    continue
+                cur = best.get(uid)
                 if cur is None or infra.temple_prestige > cur[1]:
-                    best[infra.faith_id] = (ri, infra.temple_prestige)
+                    best[uid] = (ri, infra.temple_prestige)
         return best
 
 
@@ -1133,7 +1140,7 @@ def _record(ctx: _Turn, new: Sequence["Event"]) -> None:
             chron = courts.get(ci)
             if chron is not None:
                 picks.setdefault(chron.chronicler_id, []).append((-ev.importance, order, ev, name))
-            faith = ctx.world.civilizations[ci].civ_majority_faith
+            faith = faiths.uid_or_slot(ctx.world, ctx.world.civilizations[ci].civ_majority_faith)
             temple = temples.get(faith)
             if (temple is not None and faith not in faiths_done
                     and ev.importance >= TEMPLE_MIN_IMPORTANCE):

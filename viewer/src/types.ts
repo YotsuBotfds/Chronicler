@@ -488,7 +488,7 @@ export interface ReformSnapshotRow {
   movement: number;
   /** Home rule: the chartered region indices. */
   regions?: number[];
-  /** Toleration: the tolerated faith id. */
+  /** Toleration: the tolerated faith (permanent id; a slot in older bundles). */
   faith?: number;
   /** Toleration of the ruler's own faith: its church reformed. */
   church?: boolean;
@@ -503,6 +503,34 @@ export interface AgentMovementsSnapshot {
   counters: Record<string, number>;
   /** Lasting reforms in force (bundles from slice 2 on). */
   reforms?: ReformSnapshotRow[];
+}
+
+/**
+ * A faith's permanent identity (`world_state.faiths[id]`): assigned at its
+ * founding and never reused, unlike the native slot it holds.
+ */
+export interface FaithRecord {
+  name: string;
+  /** null: not determined (a rebuilt record of an older bundle). */
+  founded_turn: number | null;
+  /** Founding civilization (index). */
+  civ: number;
+  /** founding, schism, sect (a movement's) or unrecorded. */
+  origin: string;
+  /** The native slot it holds, or last held. */
+  slot: number;
+  /** The turn its slot passed to another faith (absent while it holds it). */
+  released_turn?: number | null;
+  /** Permanent id of the faith it broke from. */
+  parent?: number | null;
+  /** Region index of a schism. */
+  region?: number | null;
+  /** A sect's movement (index) and that movement's leader at the schism. */
+  movement?: number | null;
+  leader?: string | null;
+  doctrines?: number[];
+  /** Rebuilt from an older record: "reconstructed" or "unresolved" (earlier holders of its slot unknown). */
+  legacy?: string | null;
 }
 
 /** A movement in the final `world_state.agent_movements` (fields the viewer reads). */
@@ -524,6 +552,12 @@ export interface MovementRecord {
   reform?: number;
   /** (turn, kind, event id) in order. */
   history: Array<[number, string, string]>;
+  /** Members' commonest faith at its last record (a permanent id; a slot in older bundles; 255 none). */
+  faith?: number;
+  /** A sect's schism: its turn, the church it broke from and the church it became. */
+  schism_turn?: number | null;
+  schism_from?: number;
+  schism_to?: number;
 }
 
 /** A lasting reform in the final `world_state.agent_movements` (fields the viewer reads). */
@@ -829,8 +863,14 @@ export interface WorldState {
   scholarship?: { seats?: SeatRecord[] } | null;
   /** Final movement state (present only with --agent-movements): records and lasting reforms. */
   agent_movements?: { movements?: MovementRecord[]; reforms?: ReformRecord[] } | null;
-  /** Faiths by id; the viewer names tolerated faiths. */
-  belief_registry?: Array<{ faith_id: number; name: string }>;
+  /**
+   * The live faiths by native slot (`faith_id`) at the end of the run. A slot
+   * can pass to a later faith; records name faiths by permanent id
+   * (`faiths`), older bundles by slot (lib/faiths rebuilds their identities).
+   */
+  belief_registry?: Array<{ faith_id: number; name: string; civ_origin?: number }>;
+  /** Permanent faith identities (index = id; bundles from docs/integration/permanent-faiths.md on). */
+  faiths?: FaithRecord[];
   /**
    * Procedural geography (absent on template worlds); the viewer reads the
    * sea zones' map positions, in the regions' coordinate space.
@@ -1025,7 +1065,7 @@ export interface HistoriographyChronicler {
   name: string; // "the Kethani chronicles"
   civ: number | null;
   civ_name: string | null;
-  faith: number | null;
+  faith: number | null; // permanent faith id (temple chroniclers; a slot in older bundles)
   founded_turn: number;
   active: boolean;
   archive: string;

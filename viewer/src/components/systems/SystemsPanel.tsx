@@ -7,6 +7,8 @@ import { CitiesPanel } from "./CitiesPanel";
 import { ContactPanel } from "./ContactPanel";
 import { DiplomacyPanel } from "./DiplomacyPanel";
 import { EpidemicsPanel } from "./EpidemicsPanel";
+import { FaithsPanel } from "./FaithsPanel";
+import { hasFaithRecord } from "../../lib/faiths";
 import { FinancePanel } from "./FinancePanel";
 import { FoodPanel } from "./FoodPanel";
 import { GovernancePanel } from "./GovernancePanel";
@@ -32,6 +34,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
   contact: ContactPanel,
   cities: CitiesPanel,
   movements: MovementsPanel,
+  faiths: FaithsPanel,
   learning: LearningPanel,
 };
 
@@ -43,7 +46,7 @@ const PANELS: Record<SystemKey, (props: SystemPanelProps) => React.ReactElement>
 export function SystemsPanel(props: SystemPanelProps & { surface: string }) {
   const { bundle, surface, ...panelProps } = props;
   const present = useMemo(
-    () => presentSystems(bundle.history, bundle.events_timeline), [bundle.history, bundle.events_timeline]);
+    () => presentSystems(bundle.history, bundle.events_timeline, hasFaithRecord(bundle)), [bundle]);
   const [chosen, setChosen] = useState<SystemKey | null>(null);
   if (present.length === 0) {
     return null;

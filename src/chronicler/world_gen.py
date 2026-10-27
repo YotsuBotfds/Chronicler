@@ -619,6 +619,9 @@ def generate_world(
         civ_values = [c.values for c in world.civilizations]
         civ_names = [c.name for c in world.civilizations]
         world.belief_registry = generate_faiths(civ_values, civ_names, seed=world.seed)
+        # Permanent identities: the founding faiths, id == slot == civ index.
+        from chronicler.faiths import found_initial
+        found_initial(world)
         # M38b: Seed each civ's founding faith so turn-1 schism/reformation
         # logic starts from the generated belief registry, not the model default.
         for civ_idx, civ in enumerate(world.civilizations):

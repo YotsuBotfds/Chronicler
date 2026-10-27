@@ -1177,10 +1177,15 @@ class NarrativeEngine:
         self.citations = citations
 
     def _faiths(self) -> dict[int, str] | None:
-        """Faith id -> name from the world's belief registry (None without a world)."""
+        """Permanent faith id -> name of every faith of the run (records such
+        as ``Temple of faith <id>`` name faiths by it; chronicler.faiths).
+        None without a world."""
         world = getattr(self, "_world", None)
         registry = getattr(world, "belief_registry", None) if world is not None else None
-        return {b.faith_id: b.name for b in registry} if registry else None
+        if not registry:
+            return None
+        from chronicler.faiths import names as faith_names
+        return faith_names(world)
 
     def _type_counts(self) -> dict[str, int] | None:
         """The run's count of each event kind (set by the last prompt build)."""
@@ -1241,6 +1246,7 @@ class NarrativeEngine:
         ids.sync_world(world)
         key = (tuple(c.name for c in world.civilizations), tuple(r.name for r in world.regions),
                tuple(b.name for b in (getattr(world, "belief_registry", None) or [])),
+               tuple(f.name for f in (getattr(world, "faiths", None) or [])),
                tuple(c.leader.name for c in world.civilizations),
                tuple(gp.name for c in world.civilizations for gp in c.great_persons),
                len(getattr(world, "retired_persons", None) or []))

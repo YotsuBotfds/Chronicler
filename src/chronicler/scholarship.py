@@ -53,6 +53,7 @@ from chronicler.scholarship_state import (
     ACADEMY, COUNTER_KEYS, FALL_CAUSES, FAMINE, KIND_NAMES, LEVEL_NAMES, LIBRARY, PATRONAGE,
     PERSECUTION, SACK, TEMPLE_SCHOOL, ScholarshipState, Seat, scholarship_on,
 )
+from chronicler import faiths
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -189,11 +190,24 @@ def _occupied(region) -> bool:
 
 
 def _temple(region, faith: int):
+    """The region's standing temple of a faith slot (or of the temple's own
+    no-faith value: a temple built without a faith keeps its school)."""
     from chronicler.models import InfrastructureType
     for infra in region.infrastructure:
         if infra.type == InfrastructureType.TEMPLES and infra.active and infra.faith_id == faith:
             return infra
     return None
+
+
+def _seat_temple(world, region, seat: Seat):
+    """A temple school's temple: of the seat's faith (a permanent id,
+    chronicler.faiths), by the slot that faith holds now; none once that
+    slot passed to another church. A seat whose temple had no faith (255 or
+    a -1 placeholder) keeps that value."""
+    slot = faiths.live_slot(world, seat.faith)
+    if slot is None and seat.faith is not None:
+        return None
+    return _temple(region, slot)
 
 
 def _any_temple(region):
@@ -204,26 +218,27 @@ def _any_temple(region):
     return None
 
 
-def _persecuted(region, faith: int) -> bool:
-    """The region's ruler persecutes ``faith`` (everyone outside the ruler's own)."""
+def _persecuted(world, region, faith: int) -> bool:
+    """The region's ruler persecutes ``faith`` (a permanent id; everyone
+    outside the ruler's own faith, which ``persecuting_faith`` names by
+    slot). A faith whose slot passed to another church is outside it."""
     enforced = region.persecuting_faith
     return (region.persecution_intensity > 0.0 and enforced is not None
-            and faith != 0xFF and faith != enforced)
+            and faith != 0xFF and not faiths.same_faith(world, faith, enforced))
 
 
 def _faith_name(world, faith: int) -> str | None:
-    """The faith's name ("the Faith of Thornwall" for "Faith of Thornwall
-    Confederacy", as the chroniclers write it), or None."""
-    for b in world.belief_registry:
-        if b.faith_id == faith:
-            name = b.name
-            if name.startswith("Faith of "):
-                words = name[len("Faith of "):].split()
-                if len(words) >= 2 and words[-1].lower() in _POLITY_WORDS:
-                    words = words[:-1]
-                return "the Faith of " + " ".join(words)
-            return name
-    return None
+    """The faith's name by permanent id ("the Faith of Thornwall" for "Faith
+    of Thornwall Confederacy", as the chroniclers write it), or None."""
+    name = faiths.name_of(world, faith)
+    if name is None:
+        return None
+    if name.startswith("Faith of "):
+        words = name[len("Faith of "):].split()
+        if len(words) >= 2 and words[-1].lower() in _POLITY_WORDS:
+            words = words[:-1]
+        return "the Faith of " + " ".join(words)
+    return name
 
 
 #: Trailing polity words dropped from a faith's founder name (as
@@ -416,7 +431,7 @@ def _famine(t: _Tick, si: int, seat: Seat, region) -> bool:
 
 
 def _persecution(t: _Tick, si: int, seat: Seat, region) -> bool:
-    if not _persecuted(region, seat.faith):
+    if not _persecuted(t.world, region, seat.faith):
         seat.persecuted = 0
         return False
     seat.persecuted += 1
@@ -433,7 +448,7 @@ def _persecution(t: _Tick, si: int, seat: Seat, region) -> bool:
 def _patron_gone(t: _Tick, si: int, seat: Seat, region) -> bool:
     """A temple school without its temple (burned by a conqueror: a sack;
     replaced by another faith's: loss of patronage), a library without its city."""
-    if seat.kind == TEMPLE_SCHOOL and _temple(region, seat.faith) is None:
+    if seat.kind == TEMPLE_SCHOOL and _seat_temple(t.world, region, seat) is None:
         razed = next((ev for ev in t.turn_events if ev.event_type == "temple_destroyed"
                       and ev.turn == t.world.turn
                       and (ev.description or "").startswith(f"Temple of faith {seat.faith} ")
@@ -482,7 +497,7 @@ def _patron_funds(t: _Tick, seat: Seat, region) -> float:
         from chronicler.war.common import projected_treasury
         return float(projected_treasury(t, civ))
     if seat.kind == TEMPLE_SCHOOL:
-        temple = _temple(region, seat.faith)
+        temple = _seat_temple(t.world, region, seat)
         return float(temple.temple_prestige) if temple is not None else 0.0
     city = t.cities.get(seat.city)
     return float(city.wealth) if city is not None else 0.0
@@ -496,7 +511,7 @@ def _charge(t: _Tick, seat: Seat, region, amount: float) -> None:
         from chronicler.war.common import add_stat
         add_stat(t, t.civ(seat.lord), "treasury", -int(amount), "keep")
     elif seat.kind == TEMPLE_SCHOOL:
-        temple = _temple(region, seat.faith)
+        temple = _seat_temple(t.world, region, seat)
         temple.temple_prestige -= int(amount)
     else:
         city = t.cities[seat.city]
@@ -723,8 +738,9 @@ def _found_academies(t: _Tick) -> None:
         region = world.regions[ri]
         add_stat(t, civ, "treasury", -ACADEMY_FEE, "keep")
         _bump(t.state, "fees", ACADEMY_FEE)
-        # The court's scholars keep the court's faith.
-        seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci, civ.civ_majority_faith)
+        # The court's scholars keep the court's faith (by permanent id).
+        seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci,
+                         faiths.uid_or_slot(world, civ.civ_majority_faith))
         ruler = f"{civ.leader.name} of {civ.name}" if civ.leader is not None else civ.name
         ev = _emit(t, "seat_founded", [civ.name],
                    f"{ruler} founds {seat.name} at the court in {region.name}", importance=5,
@@ -747,15 +763,16 @@ def _found_schools(t: _Tick) -> None:
         ruler = t.civ(t.lord_of(region))
         if ruler is None or temple.faith_id != ruler.civ_majority_faith:
             continue
-        if _persecuted(region, temple.faith_id):
+        temple_faith = faiths.uid_or_slot(world, temple.faith_id)
+        if _persecuted(world, region, temple_faith):
             continue
         if _rng(world, "school", ri).random() >= SCHOOL_CHANCE:
             continue
         temple.temple_prestige -= SCHOOL_COST
         _bump(t.state, "fees", SCHOOL_COST)
-        faith = _faith_name(world, temple.faith_id)
+        faith = _faith_name(world, temple_faith)
         seat = _new_seat(t, ri, TEMPLE_SCHOOL, f"the Temple School of {region.name}",
-                         t.lord_of(region), temple.faith_id)
+                         t.lord_of(region), temple_faith)
         priests = f"The priests of {faith}" if faith else f"The temple priests of {region.name}"
         ev = _emit(t, "seat_founded", [region.controller],
                    f"{priests} open {seat.name} at their temple", importance=4,
@@ -781,7 +798,7 @@ def _found_libraries(t: _Tick) -> None:
         city.wealth = round(city.wealth - LIBRARY_FEE, 4)
         _bump(t.state, "fees", LIBRARY_FEE)
         seat = _new_seat(t, city.region, LIBRARY, f"the Library of {city.name}", t.lord_of(region),
-                         region.majority_belief, city=sid)
+                         faiths.uid_or_slot(world, region.majority_belief), city=sid)
         ev = _emit(t, "seat_founded", [region.controller or ""],
                    f"The burghers of {city.name} found {seat.name}", importance=4,
                    region=region.name)

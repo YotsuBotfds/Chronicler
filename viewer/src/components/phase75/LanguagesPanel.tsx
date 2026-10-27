@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import type { LanguagesField } from "../../types";
+import type { Bundle, LanguagesField } from "../../types";
+import { faithLabel, faithTable, resolveFaith } from "../../lib/faiths";
 import {
   changesAt, decodeWords, etymology, familyTreeAt, glossary, howLabel, languageStatusAt, namesFor, nativeNameAt,
   phonologyKnownAt, type LanguageWord,
@@ -51,13 +52,23 @@ export function LanguagesPanel({
   field,
   turn,
   selected = null,
+  bundle = null,
 }: {
   field: LanguagesField | undefined;
   turn: number;
   /** The pinned region or civ, by index. */
   selected?: { kind: "region" | "civ"; ref: number } | null;
+  /** The bundle, whose faith table names faith words by permanent identity (lib/faiths). */
+  bundle?: Bundle | null;
 }) {
   const words = useMemo(() => (field ? decodeWords(field) : []), [field]);
+  const faithWordLabel = useMemo(() => {
+    if (!bundle?.world_state.belief_registry?.length) {
+      return undefined;
+    }
+    const table = faithTable(bundle);
+    return (ref: number, coined: number) => faithLabel(table, resolveFaith(table, ref, coined));
+  }, [bundle]);
   // The languages known at the turn, with their status then (the field is the end-of-run record).
   const tree = useMemo(() => (field ? familyTreeAt(field, turn) : []), [field, turn]);
   const [chosen, setChosen] = useState<number | null>(null);
@@ -70,7 +81,7 @@ export function LanguagesPanel({
   const langId = chosen !== null && tree.some((node) => node.language.id === chosen) ? chosen : living;
   const language = field.languages.find((l) => l.id === langId) ?? tree[0].language;
   const names = selected ? namesFor(field, selected.kind, selected.ref, turn, words) : [];
-  const rows = glossary(field, language.id, turn, words);
+  const rows = glossary(field, language.id, turn, words, faithWordLabel);
   // A word coined after the turn (chosen at a later one) has no etymology yet.
   const showWord = wordId !== null && words.some((w) => w.id === wordId && w.turn <= turn) ? wordId : null;
   const native = nativeNameAt(field, language, turn, words);

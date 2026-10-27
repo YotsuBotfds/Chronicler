@@ -76,6 +76,10 @@ def from_bundle(bundle: dict, *, default_seed: int = 0, historiography: bool = T
     from chronicler.snapshot_pruning import restore_bundle
 
     bundle = restore_bundle(bundle)
+    # A bundle written before permanent faith ids: its faith table rebuilt and
+    # its recycled-slot references mapped (in place; chronicler.faiths).
+    from chronicler.faiths import upgrade_bundle
+    upgrade_bundle(bundle)
     out = BundleNarrationInputs()
     out.events = [Event.model_validate(e) for e in bundle.get("events_timeline", bundle.get("events", []))]
     out.named_events = [NamedEvent.model_validate(ne) for ne in bundle.get("named_events", [])]

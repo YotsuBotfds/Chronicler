@@ -124,12 +124,46 @@ CLASSIC_FACTIONS: tuple[FactionType, ...] = (
 
 
 class Belief(BaseModel):
-    """A faith in the world's belief registry."""
+    """A faith in the world's belief registry.
+
+    ``faith_id`` is a native *slot* (the agents' ``belief`` byte), reused
+    when a sect takes the place of a vanished faith; the faith's permanent
+    identity is its index in ``WorldState.faiths`` (chronicler.faiths).
+    """
     faith_id: int = 0
     name: str
     civ_origin: int  # civ index that founded this faith
     doctrines: list[int] = Field(min_length=5, max_length=5)
     # [Theology, Ethics, Stance, Outreach, Structure], each -1/0/+1
+
+
+class FaithRecord(BaseModel):
+    """A faith's permanent identity: its index in ``WorldState.faiths``.
+
+    Assigned when the faith is founded and never reused, unlike the native
+    slot (``Belief.faith_id``) it holds. Historical records name faiths by
+    this id; live per-turn fields and native code keep slots
+    (docs/integration/permanent-faiths.md). Optional fields are omitted
+    while unset.
+    """
+    name: str
+    founded_turn: int | None = None   # None: not determined (a legacy record)
+    civ: int = -1                     # founding civilization (index; Belief.civ_origin)
+    origin: str = "founding"          # founding, schism, sect (a movement's), or unrecorded
+    slot: int                         # the native slot it holds, or last held
+    # The turn its slot passed to another faith (it had no believer and
+    # nothing named it); None while it holds the slot.
+    released_turn: int | None = Field(default=None, exclude_if=_is_none)
+    parent: int | None = Field(default=None, exclude_if=_is_none)     # permanent id it broke from
+    region: int | None = Field(default=None, exclude_if=_is_none)     # region index of a schism
+    movement: int | None = Field(default=None, exclude_if=_is_none)   # sect: the movement's index
+    leader: str | None = Field(default=None, exclude_if=_is_none)     # sect: its leader at the schism
+    doctrines: list[int] = Field(default_factory=list, exclude_if=_is_empty_list)
+    # Synthesized from an older run's record (chronicler.faiths.ensure):
+    # "reconstructed" (its slot's holders determined from the events) or
+    # "unresolved" (an older record naming its slot may mean an earlier,
+    # undetermined faith of that slot). None for faiths recorded at founding.
+    legacy: str | None = Field(default=None, exclude_if=_is_none)
 
 
 class FactionState(BaseModel):
@@ -1175,6 +1209,10 @@ class WorldState(BaseModel):
     rivers: list[River] = Field(default_factory=list)
     # M37: Religion
     belief_registry: list[Belief] = Field(default_factory=list)  # max 16 faiths
+    # Permanent faith identities (chronicler.faiths): index = permanent id,
+    # never reused; each records the slot it holds or held. Omitted while
+    # empty (worlds without faiths keep their bytes).
+    faiths: list[FaithRecord] = Field(default_factory=list, exclude_if=_is_empty_list)
     # M52: Artifacts & Significant Items
     artifacts: list[Artifact] = Field(default_factory=list)
     # M56a: Settlement detection
@@ -1283,6 +1321,10 @@ class WorldState(BaseModel):
         load_sidecar(world, path)
         from chronicler.languages import load_sidecar as load_languages
         load_languages(world, path)
+        # A state saved before permanent faith ids gets its table rebuilt
+        # (and its records' recycled-slot references mapped); a no-op otherwise.
+        from chronicler.faiths import ensure as ensure_faiths
+        ensure_faiths(world)
         return world
 
 

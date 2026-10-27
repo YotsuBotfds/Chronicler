@@ -608,6 +608,7 @@ def read_checkpoint(path: Path, *, allow_mismatch: bool = False) -> LoadedCheckp
     if not isinstance(state, RunState):
         raise CheckpointError(f"checkpoint {path} does not hold a run state")
     _rebind_markers(state)
+    _upgrade_faiths(state)
     t_end = time.perf_counter()
     return LoadedCheckpoint(header=header, state=state, mismatches=mismatches,
                             seconds=t_end - t0,
@@ -618,6 +619,19 @@ def read_checkpoint(path: Path, *, allow_mismatch: bool = False) -> LoadedCheckp
 def _rebind_markers(state: RunState) -> None:
     if state.markers.get("war_roster_bound") and state.agent_bridge is not None:
         state.world._war_roster_sim = id(state.agent_bridge._sim)
+
+
+def _upgrade_faiths(state: RunState) -> None:
+    """A checkpoint written before permanent faith ids (resumed across
+    builds): rebuild the world's faith table and map the recycled-slot
+    references of its records and history snapshots (chronicler.faiths). A
+    checkpoint carrying the table is left exactly as written."""
+    from chronicler import faiths
+    world = state.world
+    legacy = not world.__dict__.get("faiths")
+    faiths.ensure(world)
+    if legacy and faiths.table(world) is not None and faiths.needs_mapping(world.faiths):
+        faiths.upgrade_snapshots(state.history, faiths.resolver(world.faiths))
 
 
 def retarget_outputs(state: RunState, output_dir: Path, shadow_output: Path | None) -> None:

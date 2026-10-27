@@ -91,5 +91,10 @@ describe("languages field", () => {
     ]);
     expect(canonicalName(field, "region", 0)).toBe("Verdant Plains");
     expect(howLabel("substrate")).toBe("kept from the earlier local name");
+    // A faith word names its faith by permanent identity when the bundle's
+    // table can (lib/faiths): its ref and coining turn, else the field's list.
+    const label = (ref: number, coined: number) => (ref === 4 ? `Faith of X (founded turn ${coined - 1})` : null);
+    expect(canonicalName(field, "faith", 4, label, 30)).toBe("Faith of X (founded turn 29)");
+    expect(canonicalName(field, "faith", 5, label, 30)).toBe(canonicalName(field, "faith", 5));
   });
 });

@@ -32,6 +32,7 @@ export type SystemKey =
   | "contact"
   | "cities"
   | "movements"
+  | "faiths"
   | "learning";
 
 /** What every system panel receives from the shell. */
@@ -73,7 +74,7 @@ export function recordedSpan(history: TurnSnapshot[]): { first: number; end: num
 /** Display order of the systems panel tabs. */
 export const SYSTEM_KEYS: SystemKey[] = [
   "epidemics", "food", "wars", "finance", "diplomacy", "techniques", "maritime", "nomads", "agendas", "governance",
-  "contact", "cities", "movements", "learning",
+  "contact", "cities", "movements", "faiths", "learning",
 ];
 
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
@@ -90,6 +91,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   contact: "Contact",
   cities: "Cities",
   movements: "Movements",
+  faiths: "Faiths",
   learning: "Learning",
 };
 
@@ -115,8 +117,14 @@ const SNAPSHOT_FIELDS: Partial<Record<SystemKey, keyof TurnSnapshot>> = {
  * snapshot, governance stats on a civ row, or (food) famine events that name
  * their region and episode (bundle version 4+).
  */
-export function presentSystems(history: TurnSnapshot[], events: Event[] = []): SystemKey[] {
+export function presentSystems(history: TurnSnapshot[], events: Event[] = [], faiths = false): SystemKey[] {
   return SYSTEM_KEYS.filter((key) => {
+    if (key === "faiths") {
+      // The caller reads the faith table (lib/faiths `hasFaithRecord`, kept
+      // out of the entry chunk): permanent faith ids, or an older bundle
+      // whose record holds a schism.
+      return faiths;
+    }
     if (key === "governance") {
       return history.some((snapshot) => Object.values(snapshot.civ_stats).some((row) => row.governance != null));
     }
@@ -179,6 +187,7 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
   learning: [
     "seat_founded", "seat_rose", "seat_declined", "seat_patron", "seat_master", "seat_fell", "scholars_fled",
   ],
+  faiths: ["Schism", "Reformation", "temple_destroyed", "Persecution"],
 };
 
 /**

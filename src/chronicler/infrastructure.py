@@ -20,6 +20,7 @@ from chronicler.tuning import (
     get_override,
 )
 from chronicler.utils import civ_index, get_region_map, stable_hash_int
+from chronicler.faiths import temple_text
 from chronicler.techniques_state import techniques_on
 
 
@@ -372,7 +373,7 @@ def destroy_temple_on_conquest(region, attacker_civ, world) -> "Event | None":
             return Event(
                 turn=world.turn, event_type="temple_destroyed",
                 actors=[attacker_civ.name],
-                description=f"Temple of faith {infra.faith_id} destroyed in {getattr(region, 'name', '?')}",
+                description=f"Temple of faith {temple_text(world, infra.faith_id)} destroyed in {getattr(region, 'name', '?')}",
                 importance=5,
             )
     return None
@@ -385,7 +386,7 @@ def destroy_temple_for_replacement(region, world) -> "Event | None":
             return Event(
                 turn=world.turn, event_type="temple_destroyed",
                 actors=[],
-                description=f"Temple of faith {infra.faith_id} replaced in {getattr(region, 'name', '?')}",
+                description=f"Temple of faith {temple_text(world, infra.faith_id)} replaced in {getattr(region, 'name', '?')}",
                 importance=5,
             )
     return None

@@ -1901,6 +1901,10 @@ def run_turn_result(
     )
 
     artifacts = TurnArtifacts(source_turn=world.turn)
+    # Permanent faith ids (chronicler.faiths): a world built or loaded without
+    # its table gets one; in a recorded run this changes nothing.
+    from chronicler.faiths import ensure as _ensure_faiths
+    _ensure_faiths(world)
     # Debug (CHRONICLER_CHECK_POPULATION=1, --agents off): every population
     # flow of the turn is recorded and the total checked against it at the end.
     _population_ledger = _start_population_check(world)
