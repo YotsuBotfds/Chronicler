@@ -14,7 +14,9 @@ three procedural-world behaviours, and one oracle correction:
    stability does not hold and deposed rulers counter-restore.
 
 **Changed:** the needs oracle, method 5 (outcomes counted while both matched
-agents live; section 1.5). **Not changed:** any simulation code. No
+agents live; section 1.5); template and procedural full gates PASS with
+it, NO REGRESSION, needs the only method change (section 4). **Not
+changed:** any simulation code. No
 behavioural defect was found that a change would correct: item 1 does not
 raise fiscal crises in today's code, and the restoration's +15 cannot
 persist in hybrid under any accumulator category.
@@ -187,6 +189,7 @@ Re-scored (every retained needs sidecar set, and the capture batches above):
 | --- | --- | --- | --- | --- | --- |
 | procedural full, `main` (`b51ec01` sidecars) | +0.111 (+0.088), 84 | +0.091 (+0.066), 72 | +0.117 (+0.084) | +0.134 (+0.098) | PASS / PASS |
 | procedural full, `2f654a8` | +0.169 (+0.149), 89 | +0.145 (+0.122), 83 | +0.168 (+0.131) | +0.201 (+0.162) | PASS / PASS |
+| template full, `main` (this branch's gate, section 4) | +0.196 (+0.177), 170 | +0.166 (+0.144), 154 | +0.176 (+0.152) | +0.191 (+0.164) | PASS / PASS |
 | template full, needs follow-ups head `d44cf4f` (200 x 500) | +0.209 (+0.190), 175 | +0.170 (+0.150), 168 | +0.185 (+0.160) | +0.197 (+0.170) | PASS / PASS |
 
 Over the 48 retained 20 x 200 sets (`needs-followups`, `needs-oracle-power`;
@@ -349,16 +352,51 @@ same one-turn effect in hybrid; it was not measured.
 
 ## 4. Gates, tests
 
-No simulation code changed, so the behavioural full gates (template
-200 x 500, procedural 100 x 300, `--require-strict-regression`) were not
-run; the oracle change is measured by the re-scores in 1.5, on retained
-sidecars, with method 4 re-scored exactly. Method 5 adds no simulation or
-persisted state (checkpoints are unaffected; a resumed run keeps every
-agent event, which is where the deaths come from). A full gate on this
-code against a method 4 baseline lists `needs 4 -> 5` under the oracle
-method changes and sets `rebaseline_required`; its needs verdict is not a
-regression signal until the baseline is re-scored with method 5 or
-regenerated.
+Both full gates ran on the branch head (`10c67a8`: `main` `13f735a` plus
+the oracle change), from a frozen copy of the tree, with a release
+extension built fresh from it (`maturin develop --release --locked`, own
+`CARGO_TARGET_DIR`; compiled module and the three classes checked;
+SHA-256 `99c1e1d5...e12f`), `PYTHONHASHSEED=0`, one gate at a time, a
+fresh empty output root each, against `main`'s method 4 full reports
+(`b51ec01`, the `7bb2bd4` simulation):
+
+```
+python scripts/m53b_run_validation.py --profile full --parallel 3 \
+  --require-strict-regression --output-root <fresh> \
+  --baseline-report <main template full report>
+python scripts/m53b_run_validation.py --profile full --worldgen procedural \
+  --parallel 3 --require-strict-regression --output-root <fresh> \
+  --baseline-report <main procedural full report>
+```
+
+| Gate | Verdict | Comparison | Needs, method 4 -> 5: pooled (lb), seeds | Binding (lb), seeds | Informative pairs | Censored pairs (pooled / binding) |
+| --- | --- | --- | --- | --- | --- | --- |
+| template full, 200 x 500 (1,582 s) | PASS, exit 0 | NO REGRESSION, exit 0 | +0.196 (+0.177), 170 -> +0.166 (+0.144), 154 of 200 (120 required) | +0.176 (+0.152), 150 -> +0.191 (+0.164), 155 | 9,748 -> 8,114 | 7,831 / 3,990 |
+| procedural full, 100 x 300 (1,430 s) | PASS, exit 0 | NO REGRESSION, exit 0 | +0.111 (+0.088), 84 -> +0.091 (+0.066), 72 of 100 (60 required) | +0.117 (+0.084), 74 -> +0.134 (+0.098), 67 | 5,678 -> 4,781 | 4,410 / 1,799 |
+
+* **Only the needs method differs.** Each comparison lists one oracle
+  method change, needs 4 -> 5 (PASS / PASS), and sets
+  `rebaseline_required`; no new or resolved required failure, no
+  regression reason. Every other oracle's result (arcs, artifacts, cohort,
+  community, determinism SKIP, era, regression, per seed included) is
+  JSON-equal to `main`'s report, and the twelve regression metric deltas
+  are 0.0. Regression and artifacts adjudicate strict in both.
+* **Method 4 re-scores exactly.** `run_needs_oracle(load_seed_runs(batch),
+  profile="full", method_version=4)` on each new batch equals `main`'s
+  needs result (the whole result: per seed, by pairing, binding); method 5
+  through the same loader equals the gate's needs result. The procedural
+  method 5 numbers equal the re-score of `main`'s retained sidecars in 1.5.
+* Other oracles (both gates PASS): artifacts 1.846 / 2.500 per civ-century
+  (strict); cohort 200 / 200 and 100 / 100 seeds in the expected direction;
+  community 200 / 200 and 100 / 100 qualifying; era 200 / 200 and 100 / 100
+  with inflections, one silent collapse seed each; arcs six families;
+  regression strict (satisfaction mean 0.621 / 0.567).
+
+These two reports are the method 5 baselines for later gates. Method 5 adds
+no simulation or persisted state (checkpoints are unaffected; a resumed
+run keeps every agent event, which is where the deaths come from).
+
+Tests:
 
 * New tests (`tests/test_validate.py`): a mortality-only synthetic world
   (method 4 PASS, method 5 not); the window ending at the pair's first
@@ -385,10 +423,10 @@ regenerated.
   caps) moves them by +0.08 (z +2.1). Procedural pooled concordance has
   moved 0.03-0.05 per version before (1.1); future steps of that size need
   not mean a needs defect.
-* **Method 5 has not run in a fresh full gate.** The next full gates flag
-  4 -> 5 for re-baselining. Procedural `main` re-scored with method 5
-  passes with 72 of 100 seeds concordant against 60 required (method 4:
-  84), lower bound +0.066.
+* **Method 5's procedural margin is narrower.** 72 of 100 seeds against 60
+  required (method 4: 84), lower bound +0.066; template 154 of 200 against
+  120. Later gates compare against the section 4 reports; one against an
+  older method 4 report needs its baseline re-scored.
 * **Other oracles' windows.** The cohort oracle also counts outcomes over a
   whole window; whether deaths bias it was not examined.
 * **Age is not matched.** Method 5 removes the mortality channel, not every

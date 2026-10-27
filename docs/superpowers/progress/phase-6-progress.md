@@ -8,7 +8,7 @@
 
 ## Procedural drift (2026-10-27, `fix/procedural-drift`)
 
-> **Last updated:** 2026-10-27 (`fix/procedural-drift` from `main` `7bb2bd4`, merged with `db5eff4` and `13f735a`: needs oracle method 5 (outcomes counted while both matched agents live; method 4 re-scorable exactly; 4 -> 5 reported as a method change); no simulation code changed, no full gate run (re-scores on retained sidecars instead); procedural needs drift traced to coastal pairs and the repulsion correction, fiscal-crisis rise not attributable to living caps, restoration +15 not persistable by any accumulator category.)
+> **Last updated:** 2026-10-27 (`fix/procedural-drift` from `main` `7bb2bd4`, merged with `db5eff4` and `13f735a`: needs oracle method 5 (outcomes counted while both matched agents live; method 4 re-scorable exactly; 4 -> 5 reported as a method change); no simulation code changed; template full 200 x 500 and procedural full 100 x 300 on the branch head PASS strict, NO REGRESSION against `main`'s method 4 reports, needs 4 -> 5 the only method change (`rebaseline_required`), every other oracle identical, method 4 re-scores of both batches equal `main`'s needs results (template needs 154 of 200, +0.166; procedural 72 of 100, +0.091); these are the method 5 baselines; procedural needs drift traced to coastal pairs and the repulsion correction, fiscal-crisis rise not attributable to living caps, restoration +15 not persistable by any accumulator category.)
 
 `fix/procedural-drift` from `main` `7bb2bd4` (PR #52), merged with `db5eff4`
 (PR #53) and `13f735a` (PR #54). Details and evidence:
@@ -41,11 +41,20 @@
   guard-shock it is one tick's shock (counter-restorations 42% -> 39%,
   worse persistence). Not a category defect; not changed. Options
   (grace period, agent-side loyalty, smoothed gate) documented.
+- **Full gates** (branch head `10c67a8` = `main` `13f735a` + method 5,
+  fresh release extension, against `main`'s method 4 reports): template
+  200 x 500 PASS, NO REGRESSION, needs +0.196 (lb +0.177), 170 -> +0.166
+  (+0.144), 154 of 200, binding +0.176 -> +0.191; procedural 100 x 300
+  PASS, NO REGRESSION, +0.111 (+0.088), 84 -> +0.091 (+0.066), 72 of 100,
+  binding +0.117 -> +0.134. Needs 4 -> 5 the only method change; every
+  other oracle JSON-equal to `main`'s, regression deltas 0.0; method 4
+  re-scores of both batches equal `main`'s needs results. These are the
+  method 5 baselines.
 - **Tests**: focused validation suites 262 passed; oracle lane PASS 84.0 s
   at `ee9da60`; native not-slow 6,579 passed, 3 skipped at `c7cec53`.
-- **Open**: coastal micro-mechanism; method 5 in a fresh full gate
-  (baselines need re-scoring); cohort-oracle windows; age unmatched;
-  spiritual pairing; fiscal mediators; restoration design.
+- **Open**: coastal micro-mechanism; procedural method 5 margin (72 of 100
+  against 60); cohort-oracle windows; age unmatched; spiritual pairing;
+  fiscal mediators; restoration design.
 
 ## Exact checkpoint continuation (2026-10-27, `feat/checkpoint-continuation`)
 
