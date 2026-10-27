@@ -1841,6 +1841,24 @@ def _capture_agent_snapshot(world: WorldState, agent_bridge: object):
 
 # --- Turn orchestrator ---
 
+def _start_population_check(world: WorldState):
+    """(ledger, regions' total) when the debug population check is on for
+    this turn (``CHRONICLER_CHECK_POPULATION`` set, Python-owned aggregate
+    population, ``--agents off``), else None. See ``utils.PopulationLedger``."""
+    import os
+    from chronicler.utils import POPULATION_CHECK_ENV, start_population_ledger, stop_population_ledger
+    if os.environ.get(POPULATION_CHECK_ENV, "") in ("", "0") or getattr(world, "agent_mode", None) not in (None, "off"):
+        stop_population_ledger()
+        return None
+    return start_population_ledger(), sum(r.population for r in world.regions)
+
+
+def _finish_population_check(world: WorldState, ledger, before: int) -> None:
+    from chronicler.utils import stop_population_ledger
+    stop_population_ledger()
+    ledger.check(before, sum(r.population for r in world.regions), world.turn)
+
+
 def run_turn(
     world: WorldState,
     action_selector: ActionSelector,
@@ -1882,6 +1900,9 @@ def run_turn_result(
     )
 
     artifacts = TurnArtifacts(source_turn=world.turn)
+    # Debug (CHRONICLER_CHECK_POPULATION=1, --agents off): every population
+    # flow of the turn is recorded and the total checked against it at the end.
+    _population_ledger = _start_population_check(world)
     from chronicler.experimental.fisheries import require_fishery_runtime
     require_fishery_runtime(world, ecology_runtime)
     if world.fishery_experiment.enabled and agent_bridge is not None:
@@ -2506,6 +2527,8 @@ def run_turn_result(
 
     # Advance turn counter
     clear_active_trade_routes_snapshot(world)
+    if _population_ledger is not None:
+        _finish_population_check(world, *_population_ledger)
     world.turn += 1
 
     return TurnResult(

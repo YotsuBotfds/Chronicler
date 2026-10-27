@@ -42,6 +42,14 @@ pub struct RegionState {
     pub resource_types: [u8; 3],
     pub resource_yields: [f32; 3],
     pub resource_reserves: [f32; 3],
+    /// Goods each resource slot produced in this turn's economy tick
+    /// (`economy::EconomyRegionResult::slot_output`), which the Phase 9
+    /// ecology tick depletes mineral reserves by. `None` without an economy
+    /// tick this turn (`EcologySimulator`, `--agents off`): the aggregate
+    /// labour proxy (population / 5) is used. Transient: set by
+    /// `AgentSimulator::tick_economy`, consumed and cleared by its
+    /// `tick_ecology`, never read from or written to a batch.
+    pub realized_extraction: Option<[f32; 3]>,
     pub season: u8,
     pub season_id: u8,
     // M35a rivers. Geography 2.0: sorted river ids this region lies on
@@ -247,6 +255,7 @@ impl RegionState {
             resource_types: [255, 255, 255],
             resource_yields: [0.0, 0.0, 0.0],
             resource_reserves: [1.0, 1.0, 1.0],
+            realized_extraction: None,
             season: 0,
             season_id: 0,
             rivers: Vec::new(),

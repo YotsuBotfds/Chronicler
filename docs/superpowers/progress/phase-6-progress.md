@@ -6,6 +6,64 @@
 
 ---
 
+## Population conservation and entity lifecycles (2026-10-27, `fix/population-entities`)
+
+> **Last updated:** 2026-10-27 (`fix/population-entities` from `main` `18a05be`, merged without rebase with `22c021b`, `dae4ba5`, `2f654a8` and `1cf3e74`: eight review findings, all reproduced on `main` and corrected, behavioural corrections; template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main` `2f654a8`, whose own full gates (its first under needs method 4 and cohort method 2) PASS strict; procedural needs signal lower on the branch (pooled +0.169 -> +0.132), template higher (+0.174 -> +0.202). Open: the procedural needs drop is half attributed (repulsion ablation), permanent religious identity, leader of a seceded state after its founder's death, raw-save tech-focus deltas.)
+
+`fix/population-entities` from `main` `18a05be` (PR #46), merged without
+rebase with `22c021b` (PR #47), `dae4ba5` (PR #48), `2f654a8` (PR #49) and
+`1cf3e74` (PR #50).
+Details, tables and evidence:
+[`population-entities.md`](../../integration/population-entities.md).
+
+- **Arrivals keep residents** (`utils.add_region_pop`): the increment is
+  capped, not the population (100 people on room for 48 plus one arrival
+  left 48); returns the people accepted. Migrants and refugees a full
+  region cannot take die on the way.
+- **Famine refugees conserved**: the toll is split exactly among foreign
+  neighbours, remainders in region order (1 among 3 made 3 people; 5 among
+  3 lost 2). Only `--agents off` and shadow have a Python drain.
+- **Founders die after ascending**: deaths outside the civ rosters resolve
+  through `gp_by_agent_id` (`alive`, `death_turn`, the death event, dynasty
+  extinction); ascension stays the fate.
+- **Faith slots** stay with tolerations in force or remembered for
+  restoration and with living movements (a slot was reused while a
+  toleration in force named it).
+- **Initial occupations** from a conserved budget (5 people spawned 6
+  agents, 6 spawned 7; no other population to 100,000 changes).
+- **Coincident repulsion** in slot space on both sides (ids 1 and 2 in slots
+  0 and 1 drifted the same way), reference and lane paths together.
+- **Mineral depletion** by the goods each slot produced in the agent
+  economy, consumed by the next ecology tick (no miners, no ore: reserves
+  1.0 -> 0.9136 in eight turns); off mode keeps the proxy bit for bit.
+- **Conservation tests** and an opt-in ledger
+  (`CHRONICLER_CHECK_POPULATION=1`, `--agents off`): every turn's total
+  equals its recorded births, deaths and migration; migration creates no
+  one.
+- **Golden oracles** rolled forward (`ORACLE_CHAIN` link `population`:
+  single from turn 16, standard 9, wide 0); the snapshot-pruning run and
+  two wave-3 resume tests re-pinned (a raw save drops capped tech-focus
+  deltas, pre-existing on `main`).
+- **Aggregate effect** (`--agents off`, 20 template and 10 procedural
+  worlds x 300 turns): the clamp removed 9,551 and 14,769 residents; mean
+  population +4.2% in both; overflow migration 27% and 18% more often, three
+  times the migrants, most of whom die for want of room.
+- **Gates** (code `c0f354d`, extension `83b76b41...5b87`; `main` `2f654a8`
+  with `735558c9...a489`; fresh roots, manifests verified, needs method 4,
+  cohort method 2). Template full: `main` PASS strict, branch PASS strict,
+  NO REGRESSION; needs +0.174 (+0.155) 165/200 -> +0.202 (+0.183) 174/200,
+  artifacts 1.77 -> 1.88, rebellion 0.0364 -> 0.0340, exhausted mineral
+  slots 161 -> 42, mine collapses 2,732 -> 1,485. Procedural full: `main`
+  PASS strict, branch PASS strict, NO REGRESSION; needs +0.169 (+0.149)
+  89/100 -> +0.132 (+0.111) 84/100, binding +0.168 -> +0.136, artifacts
+  2.41 -> 2.36; agent-backed ascended persons recorded dead 0 of 8 dead ->
+  11 of 11. With `main`'s repulsion the procedural branch gives needs
+  +0.151 / binding +0.160 (about half the pooled drop and most of the
+  binding drop, each about one standard error). Subsets (20 x 200, both
+  worlds) NO REGRESSION.
+- **Tests** cargo 1,028 / 2 ignored; not-slow 6,545 / 3 skipped; slow 12 /
+  3; no-Rust 6,306 / 243; oracle lane PASS 97.4 s (`population` chunk).
+
 ## Viewer performance (2026-10-27, `perf/viewer`)
 
 > **Last updated:** 2026-10-27 (`perf/viewer` from `main` `2f654a8`: viewer only, no Python change; heavy panels in lazy chunks (entry 791,168 -> 307,379 bytes, gzip 233,605 -> 97,058), large uploads decoded in a worker (load blocking time 512 -> 198 ms guard, 984 -> 109 ms procedural 32-region), a fast path for version-6 object patches (history decode 2.3-2.4x), scrub indexes per array (script per scrubbed turn -22% to -69%); rendered DOM identical to `main` on 4 bundles; frames still rendering-bound; no PR opened here.)

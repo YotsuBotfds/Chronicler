@@ -11,11 +11,13 @@ lane), ``corrected_hunger_2026_10.json`` for the 2026-10 hunger corrections
 (the aggregate famine toll scaled by hunger),
 ``corrected_farmland_2026_10.json`` for the 2026-10 farmland and
 regional-climate corrections (food per head against the crowding of the land,
-regional harvest shocks), and the live oracle,
-``corrected_open_items_2026_10.json``, rolls that forward for the 2026-10
-procedural open-item corrections (docs/integration/procedural-gates.md);
-each file's provenance lists only its own corrections and the
-scoped-difference proof below pins exactly what each link changed.
+regional harvest shocks), ``corrected_open_items_2026_10.json`` for the
+2026-10 procedural open-item corrections (docs/integration/procedural-gates.md),
+and the live oracle, ``corrected_population_2026_10.json``, rolls that forward
+for the 2026-10 population corrections (arrivals never remove residents,
+famine refugees conserved; docs/integration/population-entities.md); each
+file's provenance lists only its own corrections and the scoped-difference
+proof below pins exactly what each link changed.
 The older fixtures and the edf7299 artifacts remain frozen as historical
 evidence.
 Every turn's complete snapshot/events/narrative and ordered RNG primitives are
@@ -35,7 +37,8 @@ from scripts.third_wave_controls import legacy_event_dump
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "performance"
-BASELINE = json.loads((FIXTURES / "corrected_open_items_2026_10.json").read_text())
+BASELINE = json.loads((FIXTURES / "corrected_population_2026_10.json").read_text())
+OPEN_ITEMS_BASELINE = json.loads((FIXTURES / "corrected_open_items_2026_10.json").read_text())
 FARMLAND_BASELINE = json.loads((FIXTURES / "corrected_farmland_2026_10.json").read_text())
 HUNGER_BASELINE = json.loads((FIXTURES / "corrected_hunger_2026_10.json").read_text())
 FOOD_LOGISTICS_BASELINE = json.loads((FIXTURES / "corrected_food_logistics_2026_10.json").read_text())
@@ -50,7 +53,8 @@ ORACLE_CHAIN = {"backlog": (PRIOR_BASELINE, BACKLOG_BASELINE),
                 "food_logistics": (FOOD_BALANCE_BASELINE, FOOD_LOGISTICS_BASELINE),
                 "hunger": (FOOD_LOGISTICS_BASELINE, HUNGER_BASELINE),
                 "farmland": (HUNGER_BASELINE, FARMLAND_BASELINE),
-                "open_items": (FARMLAND_BASELINE, BASELINE)}
+                "open_items": (FARMLAND_BASELINE, OPEN_ITEMS_BASELINE),
+                "population": (OPEN_ITEMS_BASELINE, BASELINE)}
 PERCEPTIONS = json.loads((FIXTURES / "perception_edf7299.json").read_text())
 
 

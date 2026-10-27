@@ -1191,7 +1191,8 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
         if world.agent_mode == "hybrid":
             restored_population = region_map[target_region].population
         else:
-            region_map[target_region].population = 30
+            from chronicler.utils import set_region_pop
+            set_region_pop(region_map[target_region], 30)
         restored_leader = Leader(name="Placeholder", trait=new_trait, reign_start=world.turn)
         restored_civ = next(
             (

@@ -232,17 +232,21 @@ class TestBundle:
 # great-person agendas or nomads on, Thornwall survives these 50 turns, so the
 # three Wave 8 switches are pinned off.
 
-# 120 turns: the Dorrathi Clans lose their last region at turn 104, are kept
-# through their exile to turn 113 and are pruned from turn 115, the turn after
-# the exile ends; the Kethani Empire loses its land at turn 60, is kept
-# through its exile and is restored at turn 64 (unpruned). Before the 2026-10
-# merchant-hub correction (docs/integration/procedural-gates.md: a hub of
+# 120 turns: the Dorrathi Clans lose their last region at turn 76, are kept
+# through their exile to turn 85 and are pruned from turn 87, the turn after
+# the exile ends; the Kethani Empire loses its land at turn 66, is kept
+# through its exile to turn 75 and is pruned from 77 (the Thornwall
+# Confederacy likewise from 104). Before the 2026-10 population corrections
+# (docs/integration/population-entities.md: arrivals no longer trim a
+# crowded region, famine refugees conserved) the Dorrathi fell at turn 104
+# and were pruned from 115, and the Kethani Empire, landless at turn 60, was
+# restored at turn 64 (unpruned). Before the 2026-10 merchant-hub correction (docs/integration/procedural-gates.md: a hub of
 # five living civs trades with all four others) the Thornwall Confederacy
 # fell at turn 70 with no exile and was pruned from 71; before the farmland
 # and regional-climate corrections (docs/integration/farmland-climate.md) it
 # fell at turn 44 and was pruned from 55.
 PRUNED_CIV = "Dorrathi Clans"
-PRUNED_FROM = 115
+PRUNED_FROM = 87
 RUN_TURNS = 120
 
 
@@ -284,10 +288,11 @@ class TestRealRun:
         after = range(PRUNED_FROM, RUN_TURNS + 1)
         assert all(PRUNED_CIV not in by_turn[t]["civ_stats"] for t in after)
         assert all(PRUNED_CIV not in by_turn[t]["relationships"] for t in after)
-        # An exile keeps a landless civ recorded: Kethani is never pruned.
-        assert "Kethani Empire" not in bundle["pruned_civ_stats"]
-        assert by_turn[61]["civ_stats"]["Kethani Empire"]["regions"] == []
-        assert any(e["original_civ_name"] == "Kethani Empire" for e in by_turn[61]["exile_modifiers"])
+        # An exile keeps a landless civ recorded: Kethani, landless from turn
+        # 66, keeps its rows through its exile and is pruned only after it.
+        assert [s["from_turn"] for s in bundle["pruned_civ_stats"]["Kethani Empire"]] == [77]
+        assert by_turn[70]["civ_stats"]["Kethani Empire"]["regions"] == []
+        assert any(e["original_civ_name"] == "Kethani Empire" for e in by_turn[70]["exile_modifiers"])
         # Snapshots handed to callbacks still carry every civ (the simulation's view).
         assert all(PRUNED_CIV in snap["civ_stats"] for snap in in_memory)
 

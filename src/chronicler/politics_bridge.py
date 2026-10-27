@@ -827,7 +827,8 @@ def _materialize_restored_civ(world: WorldState, payload: dict, new_civ_map: dic
     new_trait = rng_trait.choice(_TRAIT_POOL)
     restored_population = max(payload.get("stat_population", 30), 1)
     if world.agent_mode != "hybrid":
-        world.regions[target_region_idx].population = restored_population
+        from chronicler.utils import set_region_pop
+        set_region_pop(world.regions[target_region_idx], restored_population)
     restored_leader = Leader(name="Placeholder", trait=new_trait, reign_start=world.turn)
 
     if restored_civ is None:

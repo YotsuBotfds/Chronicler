@@ -736,6 +736,35 @@ pub fn refresh_yields(
     compute_yields_inner(region, config, season_id, climate_phase, false)
 }
 
+/// A mineral slot's extraction this turn, relative to the deposit's target
+/// crew (a third of effective capacity); None when nothing was extracted.
+///
+/// Correction (2026-10, population-entities): depletion read
+/// `population / 5` workers whatever the economy did, so a region with no
+/// miners and no ore output still lost reserves (60 people: 1.0 to 0.9136
+/// in eight turns). Where a goods economy owns the labour
+/// (`realized_extraction` set, agent modes) the extraction is the goods the
+/// slot actually produced: a target crew of miners at the base yield
+/// depletes at the old rate on average (goods per miner average the base
+/// yield), no miners deplete nothing, and output and depletion fall
+/// together as the reserve ramp lowers yields. Without one (`--agents off`,
+/// or no economy tick this turn) the aggregate model's labour proxy is
+/// kept, bit for bit.
+fn mineral_extraction(region: &RegionState, config: &EcologyConfig, slot: usize, base: f32) -> Option<f32> {
+    let eff = effective_capacity(region, config);
+    let target_workers = (eff / 3).max(1) as f32;
+    let extraction = match region.realized_extraction {
+        Some(output) => output[slot].max(0.0) / target_workers,
+        None => {
+            if region.population == 0 {
+                return None;
+            }
+            base * ((region.population / 5) as f32 / target_workers)
+        }
+    };
+    (extraction > 0.0).then_some(extraction)
+}
+
 fn compute_yields_inner(
     region: &mut RegionState,
     config: &EcologyConfig,
@@ -778,15 +807,12 @@ fn compute_yields_inner(
         let mut reserve_ramp = 1.0_f32;
         if is_mineral(rtype) {
             let reserves = region.resource_reserves[slot];
-            // Depletion — only if there are workers and reserves remain
-            if deplete_reserves && reserves > 0.01 && region.population > 0 {
-                let eff = effective_capacity(region, config);
-                let target_workers = (eff / 3).max(1);
-                let worker_count = region.population / 5;
-                let extraction =
-                    base * (worker_count as f32 / target_workers as f32);
-                region.resource_reserves[slot] =
-                    (reserves - extraction * config.depletion_rate).max(0.0);
+            // Depletion — only if something was extracted and reserves remain
+            if deplete_reserves && reserves > 0.01 {
+                if let Some(extraction) = mineral_extraction(region, config, slot, base) {
+                    region.resource_reserves[slot] =
+                        (reserves - extraction * config.depletion_rate).max(0.0);
+                }
             }
 
             let reserves = region.resource_reserves[slot];

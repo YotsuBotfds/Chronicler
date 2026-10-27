@@ -155,14 +155,18 @@ def _end_turn(gp: "GreatPerson") -> int | None:
 
     ``death_turn`` (deaths and retirements); for a person inactive at the end
     without one (exile, ascension), the turn of their last dated deed, which
-    those changes append. None for a person still active, or undated.
+    those changes append. A person who ascended and died later left active
+    life at the ascension: their last dated deed up to the death. None for a
+    person still active, or undated.
     """
-    if gp.death_turn is not None:
+    ascended = gp.fate in {"ascended", "ascended_to_leadership"}
+    if gp.death_turn is not None and not ascended:
         return gp.death_turn
     if gp.active:
         return None
-    dated = [d.turn for d in gp.deeds if d.turn is not None]
-    return max(dated) if dated else None
+    dated = [d.turn for d in gp.deeds
+             if d.turn is not None and (gp.death_turn is None or d.turn <= gp.death_turn)]
+    return max(dated) if dated else gp.death_turn
 
 
 @dataclass(frozen=True)
