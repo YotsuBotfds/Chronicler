@@ -61,7 +61,12 @@ def test_template_worlds_are_byte_identical_to_base(key):
     seed, regions, civs = key
     world = generate_world(seed=seed, num_regions=regions, num_civs=civs)
     assert world.geography is None
-    digest = hashlib.sha256(world.model_dump_json().encode()).hexdigest()
+    # The permanent faith table (docs/integration/permanent-faiths.md) is the
+    # one addition: the founding faiths, permanent id == slot == civ index.
+    assert [(f.slot, f.name, f.founded_turn, f.origin) for f in world.faiths] == [
+        (b.faith_id, b.name, 0, "founding") for b in world.belief_registry]
+    assert [b.faith_id for b in world.belief_registry] == list(range(len(world.civilizations)))
+    digest = hashlib.sha256(world.model_dump_json(exclude={"faiths"}).encode()).hexdigest()
     assert digest == TEMPLATE_DIGESTS[key]
 
 

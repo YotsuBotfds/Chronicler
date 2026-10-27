@@ -488,7 +488,10 @@ class EntityUniverse:
         if world is not None:
             civs = [c.name for c in world.civilizations]
             regions = [r.name for r in world.regions]
-            faiths = [b.name for b in (getattr(world, "belief_registry", None) or [])]
+            # Every faith the run founded, by permanent identity (a vanished
+            # faith keeps its name; chronicler.faiths).
+            from chronicler.faiths import names as faith_names
+            faiths = list(faith_names(world).values())
             for c in world.civilizations:
                 persons.append(c.leader.name)
                 persons.extend(gp.name for gp in c.great_persons)
@@ -507,7 +510,7 @@ class EntityUniverse:
         world = bundle.get("world_state") or {}
         civs = [c.get("name") for c in world.get("civilizations", [])]
         regions = [r.get("name") for r in world.get("regions", [])]
-        faiths = [b.get("name") for b in world.get("belief_registry", []) or []]
+        faiths = [b.get("name") for b in (world.get("faiths") or world.get("belief_registry") or [])]
         persons: list[str] = []
         for c in world.get("civilizations", []):
             leader = c.get("leader") or {}

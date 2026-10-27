@@ -961,6 +961,10 @@ def detect_schisms(
         if len(belief_registry) >= MAX_FAITHS:
             break
 
+        if world is not None:
+            from chronicler import faiths as _faiths
+            _faiths.ensure(world)
+            parent = _faiths.uid_of(world, majority_faith_id)
         new_belief = fire_schism(
             best_region,
             majority_faith_id,
@@ -971,6 +975,10 @@ def detect_schisms(
         )
         if new_belief is None:
             continue
+        if world is not None:
+            # Its permanent identity (chronicler.faiths).
+            _faiths.found(world, new_belief, origin=_faiths.SCHISM, parent=parent,
+                          region=best_region_idx)
 
         events.append(Event(
             event_type="Schism",

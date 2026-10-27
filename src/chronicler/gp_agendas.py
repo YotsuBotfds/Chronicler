@@ -59,6 +59,7 @@ import random
 from fractions import Fraction
 from typing import TYPE_CHECKING, Iterable
 
+from chronicler import faiths
 from chronicler import provenance as prov
 from chronicler import ruler_ambitions as g04
 from chronicler.governance_state import GovernanceAmbition
@@ -858,7 +859,10 @@ def _declare(world, ctx: _Ctx, state: GPAgendaState, civ_idx: int, civ, gp, rec:
     high = min(MAX_DURATION, room)
     span = high - MIN_DURATION + 1
     duration = MIN_DURATION + min(int(draw.duration * span), span - 1)
-    faith = int(getattr(civ, "civ_majority_faith")) if kind == T.SPREAD_FAITH else None
+    # The faith by permanent id (chronicler.faiths): a slot can pass to a
+    # later church, the prophet's faith stays his own.
+    faith = (int(faiths.uid_or_slot(world, int(getattr(civ, "civ_majority_faith"))))
+             if kind == T.SPREAD_FAITH else None)
     agenda = GovernanceAmbition(
         ambition_type=kind.value, target=target, generated_turn=world.turn,
         deadline_turn=world.turn + duration, generated_event_cursor=state.evidence_cursor,
@@ -1266,7 +1270,10 @@ def _faith_deeds(world, ctx, state, civ_idx, civ, gp, rec, kind, acc, events, ev
     if region is None:
         return
     if kind == T.SPREAD_FAITH:
-        faith = rec.agenda.conversion_faith_id
+        # The agenda names the faith by permanent id; preaching works on the
+        # slot it holds now. A faith whose slot passed to another church has
+        # no believers left to join: the prophet has nothing to preach.
+        faith = faiths.live_slot(world, rec.agenda.conversion_faith_id)
         if ctx.region_beliefs is None or faith is None:
             return  # preaching reaches people only through the agent pool
         if region.conversion_target_signal not in (0xFF, faith):
@@ -1382,7 +1389,10 @@ def _evaluate(world, ctx: _Ctx, state: GPAgendaState, key: str, rec: AgendaRecor
         partners = tuple(str(ctx.civ_index[p]) for p in ctx.partners().get(civ.name, set())
                          if p in ctx.civ_index)
     if kind == T.SPREAD_FAITH and agenda.conversion_faith_id is not None:
-        share = ctx.share(agenda.target, agenda.conversion_faith_id)
+        # Believers are counted by the slot the agenda's faith holds now (none
+        # once its slot passed to another church).
+        slot = faiths.live_slot(world, agenda.conversion_faith_id)
+        share = ctx.share(agenda.target, slot) if slot is not None else None
         if share is not None:
             observations = (g04.ConversionObservation(agenda.target, agenda.conversion_faith_id,
                                                       belief_share=min(1.0, share)),)

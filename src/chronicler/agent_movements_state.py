@@ -4,7 +4,8 @@ Pure data with no simulation imports, so :mod:`chronicler.models` can import
 it. A movement is identified by its index in ``MovementState.movements``
 (ended movements stay in the list); agents carry that index + 1 as their
 ``movement_id``. Regions are indices in ``world.regions``, civilizations
-indices in ``world.civilizations``.
+indices in ``world.civilizations``, faiths permanent ids (indices in
+``world.faiths``, chronicler.faiths; the native tables get their slots).
 
 Tuple orders below are declaration orders: append new values at the end,
 never reorder (stored values index into them). ``CREED_NAMES`` and the first
@@ -68,7 +69,7 @@ class Movement(BaseModel):
     leader: str = ""                 # great person who founded it ("" none)
     leader_agent: int = 0            # the leader's agent id (0 none)
     idea: str = ""                   # M16b movement id it carries ("" none)
-    faith: int = 255                 # members' commonest faith (255 unknown)
+    faith: int = 255                 # members' commonest faith, permanent id (255 unknown)
     stage: int = GATHERING
     stage_turn: int = 0
     members: int = 0                 # at the last Phase 10
@@ -91,12 +92,12 @@ class Movement(BaseModel):
     rising_region: int = -1
     rising_members: int = 0          # members in the stronghold when it rose
     schism_turn: int | None = None
-    schism_from: int = 255
-    schism_to: int = 255
+    schism_from: int = 255           # the church it broke from (permanent id)
+    schism_to: int = 255             # the church it became (permanent id)
     leader_mourned: bool = False
     ended_turn: int | None = None
     end: int = LIVING
-    successor: int = -1              # civ index (seceded) or faith id (schism)
+    successor: int = -1              # civ index (seceded) or permanent faith id (schism)
     regions_reached: list[int] = Field(default_factory=list)
     # (turn, kind, event id) in order; kinds from HISTORY_KINDS.
     history: list[tuple[int, str, str]] = Field(default_factory=list)
@@ -120,7 +121,7 @@ class Reform(BaseModel):
     movement: int = -1               # movement index that won it
     enacted_turn: int
     regions: list[int] = Field(default_factory=list)
-    faith: int = 255
+    faith: int = 255                 # toleration: permanent faith id
     church: bool = False             # toleration of the ruler's own faith: its church reformed
     institution: str = ""
     founded_institution: bool = False  # the grant enacted it (a ruler's repeal takes it)

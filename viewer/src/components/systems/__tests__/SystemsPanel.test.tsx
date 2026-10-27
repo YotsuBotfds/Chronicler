@@ -5,6 +5,8 @@ import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import citiesFixture from "../../../__fixtures__/cities_bundle.json";
 import movementsFixture from "../../../__fixtures__/movements_bundle.json";
 import learningFixture from "../../../__fixtures__/learning_bundle.json";
+import faithsFixture from "../../../__fixtures__/faiths_bundle.json";
+import faithsLegacyFixture from "../../../__fixtures__/faiths_legacy_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
@@ -12,6 +14,7 @@ import { CitiesPanel } from "../CitiesPanel";
 import { ContactPanel } from "../ContactPanel";
 import { DiplomacyPanel } from "../DiplomacyPanel";
 import { EpidemicsPanel } from "../EpidemicsPanel";
+import { FaithsPanel } from "../FaithsPanel";
 import { FinancePanel } from "../FinancePanel";
 import { FoodPanel } from "../FoodPanel";
 import { GovernancePanel } from "../GovernancePanel";
@@ -590,10 +593,85 @@ describe("MovementsPanel", () => {
     expect(screen.getByText(`No movement is living at turn ${quiet.turn}.`)).toBeInTheDocument();
     cleanup();
     render(<SystemsPanel {...props(movements, MOVEMENTS_LAST)} surface="overview" />);
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Movements"]);
+    // The run's registry records schisms (an older bundle's faiths, rebuilt: lib/faiths).
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Movements", "Faiths"]);
     cleanup();
     render(<MovementsPanel {...props(fixture, LAST)} />);
     expect(screen.getByText(`No movement record at turn ${LAST.turn}.`)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Procedural seed 42, 200 hybrid turns, every tenth snapshot: four sects took
+ * the native slots of vanished faiths. `faiths` has the permanent faith table
+ * (docs/integration/permanent-faiths.md); `faithsLegacy` is the same run
+ * written before it, whose records name faiths by slot.
+ */
+const faiths = faithsFixture as unknown as Bundle;
+const faithsLegacy = faithsLegacyFixture as unknown as Bundle;
+const FAITHS_LAST = faiths.history[faiths.history.length - 1];
+
+describe("FaithsPanel", () => {
+  it("lists each church once by name and founding turn, two that shared a slot apart", () => {
+    const p = props(faiths, FAITHS_LAST);
+    render(<FaithsPanel {...p} />);
+    const table = screen.getByRole("table", { name: `Faiths by turn ${FAITHS_LAST.turn}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + faiths.world_state.faiths!.length);
+    const vanished = within(table).getByRole("button", { name: "Faith of Duglutoni Principality (Reformed)" })
+      .closest("tr")!;
+    expect(vanished).toHaveTextContent("10 (shared)");
+    expect(vanished).toHaveTextContent(
+      "vanished; slot 10 passed to the Faith of Lisolenen League (Reformed) (founded turn 37) at turn 37");
+    const sect = within(table).getByRole("button", { name: "Faith of Lisolenen League (Reformed)" }).closest("tr")!;
+    expect(sect).toHaveTextContent("holds slot 10");
+    expect(sect).toHaveTextContent("sect of the Seekers of Pondor Strand");
+    expect(sect).toHaveTextContent("Faith of Lisolenen League (founded turn 0)");
+    fireEvent.click(within(table).getByRole("button", { name: "Faith of Lisolenen League (Reformed)" }));
+    const history = screen.getByRole("region", {
+      name: "History of the Faith of Lisolenen League (Reformed) (founded turn 37)" });
+    expect(within(history).getByText(/also named: Faith of Duglutoni Principality \(Reformed\)/)).toBeInTheDocument();
+    const moments = within(history).getByRole("list", {
+      name: "Recorded moments of the Faith of Lisolenen League (Reformed) (founded turn 37)" });
+    expect(within(moments).getAllByRole("listitem").length).toBeGreaterThan(0);
+    fireEvent.click(within(table).getByRole("button", { name: "Faith of Khorain Kingdom" }));
+    expect(p.onSelectCivilization).not.toHaveBeenCalled();
+    fireEvent.click(within(table).getAllByRole("button", { name: "Khorain Kingdom" })[0]);
+    expect(p.onSelectCivilization).toHaveBeenCalledWith("Khorain Kingdom");
+  });
+
+  it("shows the faiths as known at the scrubbed turn", () => {
+    const early = faiths.history.find((snapshot) => snapshot.turn === 31)!;
+    render(<FaithsPanel {...props(faiths, early)} />);
+    const table = screen.getByRole("table", { name: "Faiths by turn 31" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + 16);
+    expect(within(table).queryByText(/vanished/)).not.toBeInTheDocument();
+    expect(within(table).queryByText(/\(shared\)/)).not.toBeInTheDocument();
+  });
+
+  it("rebuilds an older bundle's churches and says so", () => {
+    render(<FaithsPanel {...props(faithsLegacy, faithsLegacy.history[faithsLegacy.history.length - 1])} />);
+    expect(screen.getByText(/predates permanent faith ids/)).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: `Faiths by turn ${FAITHS_LAST.turn}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + 20);
+    expect(within(table).getByRole("button", { name: "Faith of Duglutoni Principality (Reformed)" }).closest("tr")!)
+      .toHaveTextContent("vanished; slot 10 passed to the Faith of Lisolenen League (Reformed) (founded turn 37)");
+  });
+
+  it("is a tab beside the movements", () => {
+    render(<SystemsPanel {...props(faiths, FAITHS_LAST)} surface="overview" />);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Movements", "Faiths"]);
+  });
+
+  it("names a sect's church and the church it became by permanent identity", () => {
+    const records = faiths.world_state.agent_movements!.movements!;
+    const id = records.findIndex((record) => record.name === "the Seekers of Pondor Strand");
+    render(<MovementsPanel {...props(faiths, FAITHS_LAST)} />);
+    fireEvent.click(screen.getByRole("button", { name: `${records[id].name} (sect)` }));
+    const history = screen.getByRole("region", { name: `History of ${records[id].name}` });
+    expect(within(history).getByText(/A sect movement of the Faith of Lisolenen League \(founded turn 0\)/))
+      .toBeInTheDocument();
+    expect(within(history).getByText(
+      /becoming the church of the Faith of Lisolenen League \(Reformed\) \(founded turn 37\)/)).toBeInTheDocument();
   });
 });
 

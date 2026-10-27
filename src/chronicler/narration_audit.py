@@ -338,6 +338,10 @@ def audit_bundle(bundle: dict, universe: EntityUniverse | None = None,
     the bundle."""
     from chronicler.snapshot_pruning import restore_bundle
     bundle = restore_bundle(bundle)
+    # A bundle written before permanent faith ids is read as the narrator
+    # read it (chronicler.narration_inputs): its faith table rebuilt (in place).
+    from chronicler.faiths import upgrade_bundle
+    upgrade_bundle(bundle)
     records = BundleRecords(bundle)
     if universe is None:
         universe = EntityUniverse.from_bundle(bundle)

@@ -48,7 +48,8 @@ This layer adds what the peoples call things, as a gloss.
   and title in their civ's language, beside the canonical regnal names.
 
 Identity follows the world's: civs by index in ``world.civilizations``,
-regions by index in ``world.regions``, faiths by faith id, settlements by
+regions by index in ``world.regions``, faiths by permanent faith id (index in
+``world.faiths``, chronicler.faiths; not the reusable native slot), settlements by
 settlement id, persons by canonical name and the turn they appeared.
 
 :func:`export` builds the bundle's optional ``languages`` field;
@@ -1295,9 +1296,22 @@ def _name_all(ctx: _Turn, contacts: dict[tuple[int, int], list[float]]) -> None:
                 if src is not None:
                     _add_word(ctx, clid, "settlement", sid, "substrate",
                               adapt(src.form, ctx.lang(clid).phonology), source=src.word_id)
+    from chronicler import faiths
+    if faiths.table(world) is not None:
+        # A faith whose slot passed to another church falls out of use: its
+        # words are retired that turn (as a reused id once renamed them); it
+        # stays named (``st.faiths``), so its older words keep their faith.
+        gone = {fid for fid in st.faiths
+                if (rec := faiths.record(world, fid)) is not None and rec.released_turn is not None}
+        if gone:
+            for w in st.words:
+                if w.kind == "faith" and w.until is None and w.ref in gone:
+                    ctx.slot.retire(w, ctx.t)
     for belief in world.belief_registry:
-        fid = belief.faith_id
-        if st.faiths.get(fid) not in (None, belief.name):  # a faith id reused for a new faith
+        # Words name a faith by its permanent id (chronicler.faiths), so a
+        # church that takes a vanished faith's slot gets words of its own.
+        fid = faiths.uid_or_slot(world, belief.faith_id)
+        if st.faiths.get(fid) not in (None, belief.name):  # a faith id reused (an older run)
             for w in [w for w in st.words if w.kind == "faith" and w.ref == fid and w.until is None]:
                 ctx.slot.retire(w, ctx.t)
             del st.faiths[fid]
@@ -1314,7 +1328,7 @@ def _name_all(ctx: _Turn, contacts: dict[tuple[int, int], list[float]]) -> None:
             form, parts = _compose(ctx, olid, new + rest + [("m", "holy")])
             endo = _add_word(ctx, olid, "faith", fid, "native", form, parts=parts)
         for i, civ in enumerate(world.civilizations):
-            if not ctx.alive[i] or civ.civ_majority_faith != fid:
+            if not ctx.alive[i] or civ.civ_majority_faith != belief.faith_id:
                 continue
             alid = ctx.lang_of(i)
             if alid is not None and alid != olid and ctx.slot.name(alid, "faith", fid) is None:
@@ -1395,11 +1409,23 @@ def export(world: "WorldState") -> dict | None:
                     for ri, rec in enumerate(st.regions)],
         "settlements": [{"id": sid, "name": v[0], "region": v[1]}
                         for sid, v in sorted(st.settlements.items())],
-        "faiths": [{"faith": b.faith_id, "name": b.name, "civ": b.civ_origin}
-                   for b in world.belief_registry if b.faith_id in st.faiths],
+        "faiths": _exported_faiths(world, st),
         "persons": [{"key": k, "name": v[0], "civ": v[1], "role": v[2]}
                     for k, v in st.persons.items()],
     }
+
+
+def _exported_faiths(world, st) -> list[dict]:
+    """The named faiths by permanent id (chronicler.faiths), every faith the
+    run founded that has words, in id order; a world without a table lists
+    its registry's (by slot)."""
+    from chronicler import faiths
+    table = faiths.table(world)
+    if table is None:
+        return [{"faith": b.faith_id, "name": b.name, "civ": b.civ_origin}
+                for b in world.belief_registry if b.faith_id in st.faiths]
+    return [{"faith": uid, "name": rec.name, "civ": rec.civ}
+            for uid, rec in enumerate(table) if uid in st.faiths]
 
 
 # ---------------------------------------------------------------------------

@@ -44,10 +44,20 @@ def _strip(data, inert: bool):
     return data
 
 
-def _content(path: Path, inert: bool) -> bytes:
+def _content(path: Path, inert: bool, normalize=None, parse: bool = False) -> bytes:
+    """A file's compared content. With ``parse`` the state files are compared
+    decoded too; ``normalize(name, data)`` (the new side of a comparison)
+    rewrites a decoded JSON file in place first."""
     if path.name == "chronicle_bundle.json":
         data = load_bundle(path)  # version 6: history as deltas, decoded here
         data.get("metadata", {}).pop("generated_at", None)
+        if normalize is not None:
+            normalize(path.name, data)
+        return json.dumps(_strip(data, inert), sort_keys=True).encode("utf-8")
+    if parse and path.suffix == ".json" and path.name.startswith("state"):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if normalize is not None:
+            normalize(path.name, data)
         return json.dumps(_strip(data, inert), sort_keys=True).encode("utf-8")
     if inert and path.name.startswith("state") and path.suffix == ".json" and path.name.count(".") == 1:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -55,7 +65,7 @@ def _content(path: Path, inert: bool) -> bytes:
     return path.read_bytes()
 
 
-def compare(base: Path, new: Path, inert: bool = False) -> tuple[int, list[str]]:
+def compare(base: Path, new: Path, inert: bool = False, normalize=None) -> tuple[int, list[str]]:
     base_files = {p.relative_to(base) for p in base.rglob("*") if p.is_file()}
     new_files = {p.relative_to(new) for p in new.rglob("*") if p.is_file()}
     problems: list[str] = []
@@ -63,10 +73,11 @@ def compare(base: Path, new: Path, inert: bool = False) -> tuple[int, list[str]]
         if rel.name not in IGNORED_NAMES and rel.suffix != ".log":
             problems.append(f"only in {'base' if rel in base_files else 'new'}: {rel}")
     checked = 0
+    parse = normalize is not None
     for rel in sorted(base_files & new_files):
         if rel.name in IGNORED_NAMES or rel.suffix == ".log":
             continue
-        a, b = _content(base / rel, inert), _content(new / rel, inert)
+        a, b = _content(base / rel, inert, parse=parse), _content(new / rel, inert, normalize, parse=parse)
         checked += 1
         if a != b:
             problems.append(f"differs: {rel} ({hashlib.sha256(a).hexdigest()[:12]} != "

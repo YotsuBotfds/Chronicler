@@ -68,6 +68,80 @@ Details and evidence:
 - **Open**: the two decisions; subsets' needs verdict stays observational;
   in-process forks.
 
+## Permanent faith identity (2026-10-27, `feat/permanent-faiths`)
+
+> **Last updated:** 2026-10-27 (`feat/permanent-faiths` from `main` `7c44ed8`: each faith has a permanent id, its index in `WorldState.faiths` (name, founding turn, founding civ, a sect's movement and leader, parent, the native slot it holds or held, the turn it gave the slot up), never reused; native code and per-turn fields keep slots, records that outlive a turn carry the permanent id (movements, reforms, conversion objectives, seats, temple texts and chroniclers, faith words, the history's reform rows); faiths founded before the first recycle keep id == slot; older saves, checkpoints and bundles get the table rebuilt from their Schism events (live faiths id == slot, dated recycled-slot references mapped, untraceable slots marked unresolved); conversion objectives and seats corrected (they read the church that took a recycled slot), with no decision changed in any measured world; a branch regression (values that are not faiths, such as the 255 sentinel, mapped as ids, closing a faithless temple's school under `--scholarship`) found by the identity runs and fixed; on the final tree `66f3072` the turn-speed matrix is 399 files, 0 differences (with `--scholarship`, 1: a languages faith list), 80 recycling worlds (119 slots given up: 65 with the defaults, 54 with `--scholarship`) equal `main` in every simulation output, with differences only in the languages and historiography layers; checkpoints 117 resume points, 4,686 files, 0 differences; viewer Faiths tab, faiths named by name and founding turn.; template full 200 x 500 PASS strict, NO REGRESSION, validator inputs identical to `main` in all 200 worlds (129 recycles in 84); procedural full 100 x 300 PASS strict, NO REGRESSION, validator inputs identical in all 100 (280 recycles in 92))
+
+`feat/permanent-faiths` from `main` `7c44ed8` (PR #59). Details and
+evidence: [`docs/integration/permanent-faiths.md`](../../integration/permanent-faiths.md).
+
+- **Audit** (section 2 there): every place a faith is named by slot,
+  live or historical. Historical and now permanent: `Movement.faith`,
+  `schism_from`/`_to`, a schism's `successor`, `Reform.faith`, the history's
+  reform rows, `conversion_faith_id` (agendas, ambitions), `Seat.faith`,
+  `Temple of faith <id>` texts, temple chroniclers (`temple:<id>`), faith
+  words, narration names and provenance ids. Live and still slots: the
+  registry, region/civ/temple faith fields, the native pool and tables,
+  conversion, persecution, pilgrimages, holy war. Agent events keep the
+  native slot (resolvable by the table's tenure). Validation sidecars hold
+  no faith ids.
+- **Design**: `faiths.py` (`found`, `release`, `uid_of`, `slot_of`,
+  `live_slot`, `same_faith`, `holder_at`, `ensure`, `reconstruct`,
+  `upgrade_bundle`); founding in `world_gen`, `religion.detect_schisms`,
+  `agent_movements._schism`; `ensure` at each turn and on load; id 255
+  reserved. No Rust or `persist.rs` change.
+- **Compatibility**: state files, older checkpoints
+  (`--resume-allow-mismatch`) and bundles read for narration or the viewer
+  rebuild the table; a `main` checkpoint resumed by the branch matches
+  `main`'s straight run after the projection (resume label and languages
+  faith list aside). Bundle size: +3.2 KB for a 20-faith world; the 10.5 MB
+  guard passes.
+- **Corrections**: spread-faith agendas preached for and were fulfilled by
+  the church that took the prophet's faith's slot; conversion ambitions
+  likewise; scholarship seats counted as the persecutor's faith. Tests with
+  slot-semantics controls. Never fired in the measured worlds (all
+  simulation outputs equal to `main`). Template full gate (200 x 500, against `main`'s
+  method 6 / cohort 3 report): PASS strict, NO REGRESSION, every metric delta
+  0.0, validator inputs identical in all 200 worlds; 129 slots given up in
+  84 of them. Procedural full gate (100 x 300): PASS strict, NO
+  REGRESSION, every delta 0.0, validator inputs identical in all 100 worlds;
+  280 slots given up in 92.
+- **Regression found and fixed on the branch** (`66f3072`): the first
+  version mapped values that are not faiths (255, a temple's -1) as
+  permanent ids; a temple school of a faithless temple lost its temple and
+  fell (template seed 51 and procedural seed 44 with `--scholarship`
+  diverged from `main`). `live_slot` and `same_faith` now pass them through;
+  both worlds match `main` again.
+- **Identity** (final tree): `turn_speed_identity.py compare --faith-ids`
+  drops the table and projects the new id fields back to slots. Matrix: 9
+  cases, 399 files, 0 differences; with `--scholarship`, 1 (the languages
+  faith list of the one case that recycles). Template 42-61 x 500 and
+  procedural 32 x 10 42-61 x 300, defaults and `--scholarship` (80 worlds,
+  17,120 files, 119 slots given up in 52 worlds): equal in every state,
+  event, snapshot, sidecar and agent event; only `languages` (a vanished
+  faith stays named; same-name sects coin their own words) and
+  `historiography` (temple chroniclers of a recycled slot's church keyed by
+  permanent id) differ, and only in worlds that recycle.
+  `checkpoint_identity.py` (new recycling case plus two): 117 resume
+  points, 4,686 files, 0 differences.
+- **Narration**: mechanical narration of the recycling world, 34 entries,
+  1,648 facts, 0 audit flags; `main`'s bundle narrated by the branch: the
+  same narratives, 0 flags (the audit now rebuilds an older bundle's table
+  as the narrator does; 3 false name flags before).
+- **Viewer**: Faiths tab (each church once, as known at the scrubbed turn:
+  founding, origin, parent, slot, vanished and successor), reforms and
+  sects named by name and founding turn, faith words too; older bundles
+  rebuilt; entry chunk +190 B, faith code in a 4.89 kB lazy chunk.
+- **Tests**: Python native not slow 6,687 passed, 3 skipped; slow 12
+  passed, 3 skipped; oracle lane PASS (124.4 s, `faiths` chunk 18 passed);
+  no-Rust lane 6,430 passed, 261 skipped; `cargo test --locked` 1,053
+  passed, 2 ignored; viewer 439 passed, lint and build pass.
+- **Open**: agent events keep slots; an older bundle's `temple:<slot>`
+  chronicler ids are kept; two faiths of one name read alike in prose;
+  rebuilding older tables depends on the Schism wording; the general event
+  log shows the raw temple text; corrections reproduced by tests only; no
+  browser QA, Windows or macOS run.
+
 ## Mine-soil ordering (2026-10-27, `fix/mine-soil-ordering`)
 
 > **Last updated:** 2026-10-27 (`fix/mine-soil-ordering` from `main` `2106ef2`, merged with `8a68658` (PR #58): the mines' soil charge (PR #52) recomputed the target crew after the soil step's overpopulation loss while the ledger and the documented rule take it from before, so a crowded region whose loss crossed a multiple of three paid N/(N-1) of the rule and `CHRONICLER_CHECK_RESOURCES=1` raised (`main`: 14 of 100 procedural full-gate worlds, 4 of 40 template worlds; with `--grain-reserves` 7 of 31); the charge now reads the ratio from before the step, as documented (behavioural correction, Rust only, no new state); zero raises in 100 procedural, 40 template and 31 granary worlds; only the worlds where `main` fired change (procedural 14 of 100, template 20 of 200 validator inputs); template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main`'s method 6 / cohort 3 reports. Open: the reserve depletion still divides by the crew after the whole tick.)

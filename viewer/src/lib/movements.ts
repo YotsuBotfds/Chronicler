@@ -10,6 +10,7 @@ import type {
   AgentMovementsSnapshot, Bundle, Event, MovementRecord, MovementSnapshotRow, ReformRecord,
   ReformSnapshotRow, TurnSnapshot,
 } from "../types";
+import { faithLabel, faithTable, resolveFaith } from "./faiths";
 import { buildSegments, type StripRow } from "./systems";
 
 const LIGHT_INK = "#f0efec";
@@ -132,24 +133,33 @@ export function regionName(bundle: Bundle, index: number | undefined): string | 
   return bundle.world_state.regions[index]?.name ?? null;
 }
 
-function faithName(bundle: Bundle, faith: number | undefined): string | null {
-  if (faith == null) {
-    return null;
-  }
-  return bundle.world_state.belief_registry?.find((belief) => belief.faith_id === faith)?.name ?? null;
+/**
+ * A faith a record names, by permanent identity: "Faith of X (founded turn
+ * 12)". `turn` is when the record was written (an older bundle names faiths
+ * by slot, resolved as the slot stood then; null: the end of the run).
+ */
+export function faithName(bundle: Bundle, faith: number | undefined, turn: number | null = null): string | null {
+  const table = faithTable(bundle);
+  return faithLabel(table, resolveFaith(table, faith, turn));
 }
 
-/** How the record names a reform (`agent_movements.reform_name`). */
+/**
+ * How the record names a reform (`agent_movements.reform_name`), a
+ * toleration's faith by its permanent identity (name and founding turn).
+ * `turn`: when the row was written (a snapshot of turn T: T - 1), which an
+ * older bundle's slot needs.
+ */
 export function reformName(
   bundle: Bundle,
   reform: { kind: string; regions?: number[]; faith?: number; church?: boolean },
+  turn: number | null = null,
 ): string {
   if (reform.kind === "home_rule") {
     const names = (reform.regions ?? []).map((index) => regionName(bundle, index)).filter((name) => name != null);
     return names.length ? `home rule of ${names.join(", ")}` : "home rule";
   }
   if (reform.kind === "toleration") {
-    const faith = faithName(bundle, reform.faith);
+    const faith = faithName(bundle, reform.faith, turn);
     if (reform.church) {
       return faith ? `reform of the ${faith}` : "reform of the church";
     }
@@ -227,6 +237,10 @@ export interface MovementRecordAt {
   martyrs: number;
   /** Whether it had ended by `upToTurn`. */
   ended: boolean;
+  /** A sect: its church by then, by permanent identity ("Faith of X (founded turn 0)"). */
+  church: string | null;
+  /** A sect that broke away by then: the church it became, by permanent identity. */
+  becameChurch: string | null;
 }
 
 /**
@@ -252,6 +266,19 @@ export function movementRecordAt(bundle: Bundle, id: number, upToTurn: number): 
     }
   }
   const dated = record.history.filter(([turn]) => turn <= upToTurn);
+  // A sect's church: the one it broke from once it has a schism, else its
+  // members' faith at its last record (permanent ids; slots in older bundles).
+  let church: string | null = null;
+  let becameChurch: string | null = null;
+  if (CREED_LABELS[record.creed] === "sect") {
+    const schism = record.schism_turn ?? null;
+    church = schism != null
+      ? faithName(bundle, record.schism_from, schism)
+      : faithName(bundle, record.faith, record.ended_turn ?? null);
+    if (schism != null && schism <= upToTurn) {
+      becameChurch = faithName(bundle, record.schism_to, schism);
+    }
+  }
   return {
     record,
     target: latest?.target ?? record.target,
@@ -260,6 +287,8 @@ export function movementRecordAt(bundle: Bundle, id: number, upToTurn: number): 
     demands: dated.filter(([, kind]) => kind === "demand").length,
     martyrs: latest ? latest.martyrs : dated.filter(([, kind]) => kind === "martyr").length,
     ended: record.ended_turn != null && record.ended_turn <= upToTurn,
+    church,
+    becameChurch,
   };
 }
 
@@ -269,7 +298,8 @@ export function movementRecordNote(
 ): string {
   const { record } = known;
   const creed = CREED_LABELS[record.creed] ?? "movement";
-  let text = `A ${creed} movement against ${target ?? "?"}, founded turn ${record.founded_turn} in ${home ?? "?"}`;
+  const of = known.church ? ` of the ${known.church}` : "";
+  let text = `A ${creed} movement${of} against ${target ?? "?"}, founded turn ${record.founded_turn} in ${home ?? "?"}`;
   if (known.leader) {
     text += `, led by ${known.leader}`;
   }
@@ -278,6 +308,9 @@ export function movementRecordNote(
   const end = END_LABELS[record.end] ?? "";
   if (known.ended && end && record.ended_turn != null) {
     text += `; ${END_PHRASES[end] ?? end} at turn ${record.ended_turn}`;
+    if (end === "schism" && known.becameChurch) {
+      text += `, becoming the church of the ${known.becameChurch}`;
+    }
   }
   return `${text}.`;
 }

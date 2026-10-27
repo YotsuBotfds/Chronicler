@@ -154,6 +154,9 @@ CHUNKS = {
     "grain-reserves": [
         "tests/test_grain_reserves.py",
     ],
+    "faiths": [
+        "tests/test_permanent_faiths.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
