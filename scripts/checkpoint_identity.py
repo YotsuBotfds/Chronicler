@@ -76,6 +76,12 @@ CASES: dict[str, tuple[list[str], int, int, str | None]] = {
                        "--validation-sidecar"], 30, 18800, "spread"),
     "scaled52k_s7": (["--seed", "7", "--regions", "12", "--civs", "4", "--agents", "hybrid"], 20,
                      43700, "spread"),
+    # Four sects take the native slots of vanished faiths (turns 37, 100, 134,
+    # 168): resumes on both sides of each change of the permanent faith table
+    # (docs/integration/permanent-faiths.md).
+    "proc32_hybrid_s42_recycling": (["--seed", "42", "--regions", "32", "--civs", "10", "--worldgen",
+                                     "procedural", "--agents", "hybrid", "--validation-sidecar"], 200, 0,
+                                    "spread"),
 }
 
 # Resume turns of a long run: early turns, a Fibonacci spread, the first

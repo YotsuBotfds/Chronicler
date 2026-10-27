@@ -1162,6 +1162,7 @@ export function AppShell({
           selectedEventAccounts={selectedEventAccounts}
           selectedRegionTerrain={selectedRegionTerrain}
           languages={bundle?.languages}
+          languagesBundle={bundle}
           languageSelection={languageSelection}
           currentTurn={currentTurn}
           selectedBatchSummary={selectedBatchSummary}
@@ -2415,6 +2416,7 @@ function RightInspector({
   selectedEventAccounts = null,
   selectedRegionTerrain,
   languages,
+  languagesBundle = null,
   languageSelection = null,
   currentTurn = 0,
   selectedBatchSummary,
@@ -2448,6 +2450,8 @@ function RightInspector({
   /** The selected region's terrain at the scrubbed turn (null: unreadable record). */
   selectedRegionTerrain?: string | null;
   languages?: LanguagesField;
+  /** The bundle whose faith table names the languages' faith words (lib/faiths). */
+  languagesBundle?: Bundle | null;
   languageSelection?: { kind: "region" | "civ"; ref: number } | null;
   currentTurn?: number;
   selectedBatchSummary: BatchRunSummary | null;
@@ -2661,7 +2665,7 @@ function RightInspector({
           onToggle={() => onToggleSection("languages")}
         >
           <Suspense fallback={<PanelLoading label="the languages" />}>
-            <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} />
+            <LanguagesPanel field={languages} turn={currentTurn} selected={languageSelection} bundle={languagesBundle} />
           </Suspense>
         </InspectorSection>
       )}

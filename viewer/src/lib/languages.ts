@@ -250,8 +250,23 @@ export function familyTree(field: LanguagesField): FamilyNode[] {
   return out;
 }
 
+/**
+ * How a faith word's faith is shown: its permanent identity (name and
+ * founding turn) from the bundle's faith table (lib/faiths), given the
+ * word's ref and coining turn (an older bundle's ref is a slot, read at that
+ * turn). Null falls back to the field's own list.
+ */
+export type FaithWordLabel = (ref: number, coined: number) => string | null;
+
 /** The canonical name of an entity a word names. */
-export function canonicalName(field: LanguagesField, kind: string, ref: number | string): string {
+export function canonicalName(field: LanguagesField, kind: string, ref: number | string,
+                              faithLabel?: FaithWordLabel, coined = 0): string {
+  if (kind === "faith" && faithLabel && typeof ref === "number") {
+    const label = faithLabel(ref, coined);
+    if (label) {
+      return label;
+    }
+  }
   switch (kind) {
     case "civ":
       return field.civs.find((c) => c.civ === ref)?.name ?? `civ ${ref}`;
@@ -270,7 +285,8 @@ export function canonicalName(field: LanguagesField, kind: string, ref: number |
 
 /** A language's names (not roots) in use at a turn, grouped in a fixed kind order. */
 export function glossary(field: LanguagesField, lang: number, turn: number,
-                         words?: LanguageWord[]): Array<{ kind: string; canonical: string; name: EntityName }> {
+                         words?: LanguageWord[],
+                         faithLabel?: FaithWordLabel): Array<{ kind: string; canonical: string; name: EntityName }> {
   const all = words ?? decodeWords(field);
   const byId = new Map(all.map((w) => [w.id, w]));
   const language = field.languages.find((l) => l.id === lang);
@@ -285,7 +301,7 @@ export function glossary(field: LanguagesField, lang: number, turn: number,
     }
     rows.push({
       kind: w.kind,
-      canonical: canonicalName(field, w.kind, w.ref),
+      canonical: canonicalName(field, w.kind, w.ref, faithLabel, w.turn),
       name: { word: w, language, form: formAt(w, turn)!, gloss: glossOf(field, w, byId), own: false },
     });
   }
