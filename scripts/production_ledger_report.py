@@ -92,6 +92,11 @@ def summarize_batch(batch_dir: Path) -> dict:
         if ledger_path.is_file():
             entry["ledger"] = summarize_ledger(read_ledger(ledger_path))
         per_seed[seed_dir.name] = entry
+    return {"batch": str(batch_dir), "totals": totals_of(per_seed), "per_seed": per_seed}
+
+
+def totals_of(per_seed: dict) -> dict:
+    """A batch's totals from its per-seed summaries."""
     totals: dict = {"worlds": len(per_seed), "with_ledger": sum(1 for e in per_seed.values() if "ledger" in e)}
     b_keys = ("mineral_slots", "mineral_exhausted", "mineral_reserve_sum", "fish_slots", "fish_stock_sum",
               "fish_below_collapse", "fishery_collapses_open", "population_final")
@@ -113,7 +118,19 @@ def summarize_batch(batch_dir: Path) -> dict:
                    if l.get("fish_recoveries")]
         n_recov = sum(l.get("fish_recoveries") or 0 for l in ledgers)
         totals["ledger"]["fish_recovery_turns_mean"] = sum(recov_l) / n_recov if n_recov else None
-    return {"batch": str(batch_dir), "totals": totals, "per_seed": per_seed}
+    return totals
+
+
+def _seed_number(name: str) -> int:
+    return int(name.rsplit("_", 1)[-1])
+
+
+def restrict(report: dict, seeds: tuple[int, int] | None) -> dict:
+    """``report`` with only the seeds in the inclusive range (all when None)."""
+    if seeds is None:
+        return report
+    per_seed = {k: v for k, v in report["per_seed"].items() if seeds[0] <= _seed_number(k) <= seeds[1]}
+    return {**report, "totals": totals_of(per_seed), "per_seed": per_seed}
 
 
 def _fmt(value) -> str:
@@ -177,17 +194,35 @@ def markdown(reports: dict[str, dict]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--batch", action="append", required=True, metavar="LABEL=DIR",
+    parser.add_argument("--batch", action="append", default=[], metavar="LABEL=DIR",
                         help="a labelled batch directory (batch_<seed>); repeat to compare")
+    parser.add_argument("--saved", action="append", default=[], metavar="LABEL=JSON[:NAME]",
+                        help="a batch summarized earlier by --json (its entry NAME, else its only one)")
+    parser.add_argument("--seeds", metavar="LO-HI", help="only these seeds (inclusive), for matched comparisons")
     parser.add_argument("--json", type=Path, help="write the full report here")
     parser.add_argument("--markdown", type=Path, help="write the comparison table here")
     args = parser.parse_args(argv)
+    seeds = None
+    if args.seeds:
+        lo, _, hi = args.seeds.partition("-")
+        seeds = (int(lo), int(hi or lo))
     reports = {}
     for spec in args.batch:
         label, _, path = spec.partition("=")
         if not path:
             parser.error(f"--batch {spec!r}: expected LABEL=DIR")
-        reports[label] = summarize_batch(Path(path))
+        reports[label] = restrict(summarize_batch(Path(path)), seeds)
+    for spec in args.saved:
+        label, _, rest = spec.partition("=")
+        path, _, name = rest.partition(":")
+        saved = json.loads(Path(path).read_text())
+        if not name:
+            if len(saved) != 1:
+                parser.error(f"--saved {spec!r}: name one of {sorted(saved)}")
+            name = next(iter(saved))
+        reports[label] = restrict(saved[name], seeds)
+    if not reports:
+        parser.error("give at least one --batch or --saved")
     table = markdown(reports)
     print(table)
     if args.json:

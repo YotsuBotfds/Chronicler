@@ -6,7 +6,57 @@
 
 ---
 
-## Population conservation and entity lifecycles (2026-10-27, `fix/population-entities`)
+## Production ledger (2026-10-27, `feat/production-ledger`)
+
+> **Last updated:** 2026-10-27 (`feat/production-ledger` from `main` `8142c48`: every production path audited (farming, fisheries, forests, mines, salt, pastoral, foraging, crafts, off mode); a per-region, per-slot, per-turn ledger of realized output, stocks, draws, regrowth, the earlier rule's charge and degradation, written with the validation sidecar and checked by `CHRONICLER_CHECK_RESOURCES=1`; four behavioural corrections where the economy reports output (overextraction streak on output, the mines' soil charge on the ore taken, the fishery charged for the landed catch, the overextraction penalty in the yields with scenario slots initialized), each with a restore key, all four off byte-identical to `main`; template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main`; procedural subset 42-61 failed needs by one seed (traced to the mine-soil correction), 62-81 PASS; golden fixtures unchanged. Open: overextraction unreachable at its calibration, the fishery allowance still sized by a labour proxy, timber takes no forest cover, procedural needs signal lower (pooled -0.021).)
+
+`feat/production-ledger` from `main` `8142c48` (PR #51). Details and
+evidence: [`docs/integration/production-ledger.md`](../../integration/production-ledger.md).
+
+- **Audit.** Output, depletion, recovery and the charge basis of every
+  path (section 1 there). On `main` mineral depletion (PR #51) and crafts
+  followed realized output; the overextraction streak read population / 5,
+  an active mine took 0.03 soil a turn worked or idle, the fishery stock was
+  charged the whole catch allowance whether landed or not, and the
+  overextraction penalty never reached the yields.
+- **Ledger** (`chronicler.production_ledger`): `validation_resource_ledger.arrow`
+  beside the validation files (0.4% of a batch; not in the bundle, not a
+  validator input); reads only (same bundle with and without it). The
+  native economy reports `slot_output` and `forage_output`; the ecology
+  batch what the tick drew, what the proxy would have drawn, the takes and
+  the mines' soil. `scripts/production_ledger_report.py` summarizes batches.
+- **Corrections** (agent modes with an economy tick; proxies kept bit for
+  bit otherwise): overextraction take = output / base yield (dormant: peak
+  pressure 0.58 of sustainable, no penalty in any run); the penalty
+  `effective / base` in the yields (dormant; scenario slots now start
+  undegraded, spurious `ecological_recovery` rolls gone); the unlanded part
+  of last turn's fish allowance (10.6-11.7% of it) returns to the stock;
+  the mines' soil charge scales with ore over a target crew's (9-10% of the
+  flat rule in the full gates, the only correction that moves trajectories).
+  Keys `ecology.overextraction_realized`, `ecology.mine_soil_realized`,
+  `ecology.fishery_charges_landed_catch`, `ecology.yield_penalty_reaches_goods`.
+- **Gates** (needs method 4, cohort method 2; against `main`'s `c0f354d`
+  reports, same source): template full PASS strict, NO REGRESSION (needs
+  170 of 200, pooled +0.202 -> +0.196, binding +0.182 -> +0.175; migration
+  0.0635, rebellion 0.0329; 0 extinct; mineral slots exhausted 42 -> 36,
+  final population +2.2%); procedural full PASS strict, NO REGRESSION (needs
+  84 of 100, pooled +0.132 -> +0.111, binding +0.136 -> +0.117). Subsets:
+  template PASS, NO REGRESSION; procedural 42-61 needs FAIL (11 of 12 seeds,
+  lower bound +0.033), 62-81 PASS; with the mine-soil key at 0 both
+  procedural subsets reproduce `main`'s reports exactly.
+- **Analytics** (matched `main` batches of the gates' first seeds against
+  the branch's): fishery collapses 7 -> 0 (template 40 x 500, procedural
+  20 x 300), final fish stocks +0.02-0.04, mine collapses up (329 -> 440,
+  15 -> 24), exhausted mineral slots 11 -> 8; in the full gates the mines'
+  soil charge is 9-10% of the flat rule and 10.6-11.7% of each fish
+  allowance went unlanded.
+- **Tests** cargo 1,038 / 2 ignored; not-slow 6,570 / 3 skipped; slow 12 /
+  3; no-Rust 6,323 / 251; oracle lane PASS 80.3 s (`production-ledger`
+  chunk). Golden fixtures unchanged, no `ORACLE_CHAIN` link.
+- **Open** overextraction dormant at its calibration; the fishery allowance
+  sized by a labour proxy (a cap); timber takes no cover; soil and pasture
+  degradation are population and herd pressure; the procedural needs drop's
+  mechanism (mine soil) not traced; shadow mode not run.
 
 > **Last updated:** 2026-10-27 (`fix/population-entities` from `main` `18a05be`, merged without rebase with `22c021b`, `dae4ba5`, `2f654a8` and `1cf3e74`: eight review findings, all reproduced on `main` and corrected, behavioural corrections; template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main` `2f654a8`, whose own full gates (its first under needs method 4 and cohort method 2) PASS strict; procedural needs signal lower on the branch (pooled +0.169 -> +0.132), template higher (+0.174 -> +0.202). Open: the procedural needs drop is half attributed (repulsion ablation), permanent religious identity, leader of a seceded state after its founder's death, raw-save tech-focus deltas.)
 
