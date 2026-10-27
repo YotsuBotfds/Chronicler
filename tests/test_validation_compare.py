@@ -771,6 +771,63 @@ def test_compare_needs_method_4_against_method_5_requires_rebaselining():
     assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
 
 
+def test_compare_needs_method_5_against_method_6_requires_rebaselining():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    # Method 6 keeps method 5's verdict and adds the informational spiritual
+    # pairing: the report changes, so 5 against 6 is a method change (both
+    # PASS here) and never a new or resolved failure, in both profiles.
+    for baseline_status, current_status in (("PASS", "PASS"), ("PASS", "FAIL"), ("FAIL", "PASS")):
+        baseline = _needs_method(_report(determinism="SKIP"), baseline_status, 5)
+        current = _needs_method(_report(determinism="SKIP"), current_status, 6)
+        for profile in ("subset", "full"):
+            result = compare_validation_reports(profile, baseline, current, fail_on_regression=True)
+            assert result["new_required_failures"] == []
+            assert result["resolved_required_failures"] == []
+            assert result["exit_code"] == 0
+            assert result["rebaseline_required"] is True
+            assert [(c["baseline_method_version"], c["current_method_version"])
+                    for c in result["oracle_method_changes"]] == [(5, 6)]
+            assert f"| needs | 5 | {baseline_status} | 6 | {current_status} |" in format_comparison_markdown(result)
+    # Method 6 against method 6 counts a new failure again.
+    baseline = _needs_method(_report(determinism="SKIP"), "PASS", 6)
+    current = _needs_method(_report(determinism="SKIP"), "FAIL", 6)
+    result = compare_validation_reports("subset", baseline, current)
+    assert result["new_required_failures"] == [{"oracle": "needs", "status": "FAIL"}]
+    assert result["rebaseline_required"] is False
+
+
+def test_compare_cohort_method_2_against_method_3_requires_rebaselining():
+    from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
+
+    # Cohort method 3 compares matched pairs while both agents live.
+    baseline = _report(determinism="SKIP")
+    baseline["results"]["cohort"] = {"status": "PASS", "method_version": 2, "outcome_window_start_offset": 1}
+    current = _report(determinism="SKIP")
+    current["results"]["cohort"] = {"status": "FAIL", "method_version": 3, "outcome_window_start_offset": 1,
+                                    "comparison": "matched_pairs", "outcome_censoring": "first_death_in_pair"}
+    for profile in ("subset", "full"):
+        result = compare_validation_reports(profile, baseline, current, fail_on_regression=True)
+        assert result["new_required_failures"] == []
+        assert result["exit_code"] == 0
+        assert result["rebaseline_required"] is True
+        assert result["oracle_method_changes"] == [{
+            "oracle": "cohort", "baseline_method_version": 2, "current_method_version": 3,
+            "baseline_status": "PASS", "current_status": "FAIL",
+        }]
+        assert "| cohort | 2 | PASS | 3 | FAIL |" in format_comparison_markdown(result)
+    # Both oracles changing are both listed.
+    _needs_method(baseline, "PASS", 5)
+    _needs_method(current, "PASS", 6)
+    result = compare_validation_reports("full", baseline, current)
+    assert sorted((c["oracle"], c["baseline_method_version"], c["current_method_version"])
+                  for c in result["oracle_method_changes"]) == [("cohort", 2, 3), ("needs", 5, 6)]
+    # Method 3 against method 3 counts a new failure again.
+    baseline["results"]["cohort"] = {"status": "PASS", "method_version": 3}
+    result = compare_validation_reports("subset", baseline, current)
+    assert {"oracle": "cohort", "status": "FAIL"} in result["new_required_failures"]
+
+
 def test_compare_cohort_method_1_against_method_2_requires_rebaselining():
     from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 

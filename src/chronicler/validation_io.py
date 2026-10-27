@@ -134,13 +134,22 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # procedural full gate 52% of method 4's informative pairs had a death in
 # the window. Deaths come from the agent event stream (``run["deaths"]``); a
 # run without that key is scored as if no agent died.
-NEEDS_ORACLE_METHOD_VERSION = 5
+#
+# Method 6 (docs/integration/oracle-followups.md) keeps method 5's pairs,
+# criteria and verdict and also reports the spiritual -> migration pairing
+# (NEEDS_INFORMATIONAL_PAIRINGS): its pairs and binding pairs, matched and
+# counted as the five paired needs' are, with their own seed-clustered
+# bounds. It never decides the verdict and is not in the pooled totals.
+# Matching on age was measured and not adopted (the same document).
+NEEDS_ORACLE_METHOD_VERSION = 6
+NEEDS_DEATH_CENSORED_METHOD_VERSION = 5
 NEEDS_POST_SNAPSHOT_METHOD_VERSION = 4
 NEEDS_BINDING_METHOD_VERSION = 3
 NEEDS_POOLED_METHOD_VERSION = 2
 NEEDS_METHOD_VERSIONS = (
     NEEDS_POOLED_METHOD_VERSION, NEEDS_BINDING_METHOD_VERSION,
-    NEEDS_POST_SNAPSHOT_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION,
+    NEEDS_POST_SNAPSHOT_METHOD_VERSION, NEEDS_DEATH_CENSORED_METHOD_VERSION,
+    NEEDS_ORACLE_METHOD_VERSION,
 )
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
@@ -149,6 +158,15 @@ NEEDS_PAIRINGS = (
     ("material", EVENT_NAME_TO_CODE["migration"]),
     ("safety", EVENT_NAME_TO_CODE["migration"]),
 )
+# Pairings reported beside the verdict, never deciding it (method 6). A
+# spiritual deficit below its threshold pushes migration (needs.rs,
+# SPIRITUAL_THRESHOLD 0.30 and SPIRITUAL_WEIGHT 0.4 in agent.rs). Conversion
+# does not read the need (conversion_tick.rs reads satisfaction), and sect
+# recruitment, which does (movements.rs), is not in the agent event stream.
+NEEDS_INFORMATIONAL_PAIRINGS = (
+    ("spiritual", EVENT_NAME_TO_CODE["migration"]),
+)
+NEEDS_INFORMATIONAL_THRESHOLDS = {"spiritual": 0.30}
 NEEDS_OUTCOME_WINDOW_TURNS = 20
 NEEDS_PERSONALITY_TOLERANCE = 0.1
 # The need gap a pair must exceed. Method 1 used 0.2: within a matched cell a
@@ -189,9 +207,26 @@ NEEDS_BINDING_DIVERGENCE = 0.05
 # turns t+1 .. t+20 (eligible when t + 20 < total turns: a run of N turns
 # ticks turns 0 .. N-1); communities, matching, criteria and thresholds are
 # method 1's. ``run_cohort_oracle(..., method_version=1)`` re-scores method 1.
-COHORT_ORACLE_METHOD_VERSION = 2
+#
+# Method 3 (docs/integration/oracle-followups.md) keeps method 2 and compares
+# each community member with its matched control over the turns both were
+# alive: the pair's window ends at the first death of either (that turn's own
+# events count; a dead agent has none after it), as the needs oracle's method
+# 5 does. Method 2 counted every member over its own lifetime in the window
+# against the controls over theirs, so the side that died more had less time
+# to act: members die more often than their controls (32% against 27% of
+# member and control rows over a window on the template subset), which reads
+# as members migrating and rebelling less. A member without a matched control
+# has no partner to share its turns with and is left out (method 2 counted it
+# against the other members' controls). Deaths come from the agent event
+# stream (``run["deaths"]``); a run without that key is scored as if no agent
+# died.
+COHORT_ORACLE_METHOD_VERSION = 3
+COHORT_POST_SNAPSHOT_METHOD_VERSION = 2
 COHORT_LEGACY_METHOD_VERSION = 1
-COHORT_METHOD_VERSIONS = (COHORT_LEGACY_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION)
+COHORT_METHOD_VERSIONS = (
+    COHORT_LEGACY_METHOD_VERSION, COHORT_POST_SNAPSHOT_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION,
+)
 COHORT_OUTCOME_WINDOW_TURNS = 20
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
@@ -659,8 +694,8 @@ def _load_validation_community_summary(seed_dir: Path) -> dict | None:
 
 def _load_agent_deaths(seed_dir: Path) -> dict[int, int]:
     """Each agent's death turn, from the agent event stream (needs oracle
-    method 5 counts a pair only while both agents live). Empty without the
-    stream or pyarrow."""
+    method 5 and cohort oracle method 3 count a pair only while both agents
+    live). Empty without the stream or pyarrow."""
     path = seed_dir / "agent_events.arrow"
     if not path.exists() or not _has_pyarrow():
         return {}
@@ -1555,12 +1590,21 @@ def compute_cohort_distinctiveness(
     agent_data: dict,
     event_type: int = 1,
     satisfaction_tolerance: float = 0.10,
+    *,
+    pair_window: tuple[int, int] | None = None,
+    deaths: dict[int, int] | None = None,
 ) -> dict:
     """Oracle 4: Validate that community membership anchors behavior.
 
     Compares migration (or other behavioral event) rates between community
     members and a matched control group of non-community agents drawn from
     the same demographic profile (civ_affinity, region, occupation).
+
+    With ``pair_window`` (first, last turn; cohort method 3) only matched
+    (member, control) pairs are compared, each over the turns both agents
+    were alive: the window ends at the first death of either (``deaths``,
+    agent id -> turn; that turn's events count). ``pairs`` and
+    ``censored_pairs`` are added to the result.
 
     Parameters
     ----------
@@ -1612,6 +1656,7 @@ def compute_cohort_distinctiveness(
     # --- For each community, find matched control agents -------------------
     community_ids_used: list[int] = []
     control_ids_used: list[int] = []
+    matched_pairs: list[tuple[int, int]] = []
     communities_analyzed = 0
 
     for community in communities:
@@ -1643,6 +1688,7 @@ def compute_cohort_distinctiveness(
                     and abs(float(ctrl_sat) - float(member_sat)) <= satisfaction_tolerance
                 ):
                     used_controls.add(ctrl_id)
+                    matched_pairs.append((member_id, ctrl_id))
                     break
 
         community_ids_used.extend(members)
@@ -1655,10 +1701,36 @@ def compute_cohort_distinctiveness(
         total = sum(event_counts.get(aid, 0) for aid in id_list)
         return total / len(id_list)
 
-    community_counts = [event_counts.get(aid, 0) for aid in community_ids_used]
-    control_counts = [event_counts.get(aid, 0) for aid in control_ids_used]
-    community_rate = _rate(community_ids_used)
-    control_rate = _rate(control_ids_used)
+    censored_pairs = 0
+    if pair_window is None:
+        community_counts = [event_counts.get(aid, 0) for aid in community_ids_used]
+        control_counts = [event_counts.get(aid, 0) for aid in control_ids_used]
+        community_rate = _rate(community_ids_used)
+        control_rate = _rate(control_ids_used)
+    else:
+        # Method 3: each matched pair over the turns both agents lived.
+        first_turn, last_turn = pair_window
+        deaths = deaths or {}
+        event_turns: dict[int, list[int]] = defaultdict(list)
+        for ev in events_data:
+            if ev["event_type"] == event_type:
+                event_turns[ev["agent_id"]].append(int(ev["turn"]))
+        for turns in event_turns.values():
+            turns.sort()
+        community_counts, control_counts = [], []
+        for member_id, ctrl_id in matched_pairs:
+            end = last_turn
+            for agent_id in (member_id, ctrl_id):
+                died = deaths.get(agent_id)
+                if died is not None and died < end:
+                    end = died
+            if end < last_turn:
+                censored_pairs += 1
+            for agent_id, counts in ((member_id, community_counts), (ctrl_id, control_counts)):
+                turns = event_turns.get(agent_id, ())
+                counts.append(max(0, bisect_right(turns, end) - bisect_left(turns, first_turn)))
+        community_rate = _mean(community_counts)
+        control_rate = _mean(control_counts)
 
     if community_rate < control_rate:
         direction = "community_lower"
@@ -1667,13 +1739,17 @@ def compute_cohort_distinctiveness(
     else:
         direction = "equal"
 
-    return {
+    result = {
         "communities_analyzed": communities_analyzed,
         "community_event_rate": community_rate,
         "control_event_rate": control_rate,
         "effect_direction": direction,
         "effect_size": _cohen_d(control_counts, community_counts),
     }
+    if pair_window is not None:
+        result["pairs"] = len(matched_pairs)
+        result["censored_pairs"] = censored_pairs
+    return result
 
 
 def _cohort_candidate_priority(
@@ -2313,6 +2389,7 @@ def _needs_seed_pairs(
     outcome_offset: int = 1,
     censor_at_death: bool = False,
     censored: list[int] | None = None,
+    pairings: tuple[tuple[str, int], ...] = NEEDS_PAIRINGS,
 ) -> tuple[int, dict[str, list[tuple[int, int]]], dict[str, list[tuple[int, int]]]]:
     """Every matched pair of one seed: eligible snapshot count, and per need
     the (low-need agent's, high-need agent's) event counts in the window, for
@@ -2325,7 +2402,10 @@ def _needs_seed_pairs(
     ``censor_at_death`` (method 5) ends a pair's window at the first death of
     either agent (``run["deaths"]``, agent id -> turn; that turn's events
     count), so both agents are counted over the same turns; ``censored``
-    (pooled pairs, binding pairs) counts the pairs whose window was cut.
+    (pooled pairs, binding pairs) counts the pairs whose window was cut;
+    pairs of a pairing outside ``NEEDS_PAIRINGS`` (method 6's informational
+    pairings) are not counted there. ``pairings`` are the (need, event)
+    pairs scored.
     """
     thresholds = NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds
     total_turns = _total_turns(run)
@@ -2340,8 +2420,8 @@ def _needs_seed_pairs(
             event_turns[(event["agent_id"], event["event_type"])].append(int(event.get("turn", -1)))
         for turns in event_turns.values():
             turns.sort()
-    outcomes: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in NEEDS_PAIRINGS}
-    binding: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in NEEDS_PAIRINGS}
+    outcomes: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in pairings}
+    binding: dict[str, list[tuple[int, int]]] = {need: [] for need, _event in pairings}
     snapshots = 0
     for needs_snapshot in needs_snapshots:
         snapshot_turn = int(needs_snapshot["turn"])
@@ -2355,7 +2435,7 @@ def _needs_seed_pairs(
             for event in events_by_turn.get(turn, ()):
                 counts[(event["agent_id"], event["event_type"])] += 1
 
-        def pair_counts(low: int, high: int, event_type: int, kind: int) -> tuple[int, int]:
+        def pair_counts(low: int, high: int, event_type: int, kind: int | None) -> tuple[int, int]:
             end = last_turn
             for agent in (low, high):
                 died = deaths.get(agent)
@@ -2363,7 +2443,7 @@ def _needs_seed_pairs(
                     end = died
             if end == last_turn:
                 return counts.get((low, event_type), 0), counts.get((high, event_type), 0)
-            if censored is not None:
+            if censored is not None and kind is not None:
                 censored[kind] += 1
             return tuple(
                 max(0, bisect_right(event_turns.get((agent, event_type), ()), end)
@@ -2371,21 +2451,22 @@ def _needs_seed_pairs(
                 for agent in (low, high)
             )
 
-        for need_name, event_type in NEEDS_PAIRINGS:
+        for need_name, event_type in pairings:
             columns = needs_snapshot["columns"]
             if need_name not in columns:
                 continue
             if need_name == "autonomy" and exclude_prior_rebels:
                 columns = _without_agents_with_event_by(columns, first_rebellion, snapshot_turn)
+            gate_pairing = (need_name, event_type) in NEEDS_PAIRINGS
             for low, high in _match_needs_pairs(columns, need_name, need_divergence, personality_tolerance):
-                outcomes[need_name].append(pair_counts(low, high, event_type, 0))
+                outcomes[need_name].append(pair_counts(low, high, event_type, 0 if gate_pairing else None))
             threshold = thresholds.get(need_name)
             if threshold is None:
                 continue
             for low, high in _match_binding_pairs(
                 columns, need_name, threshold, binding_divergence, personality_tolerance
             ):
-                binding[need_name].append(pair_counts(low, high, event_type, 1))
+                binding[need_name].append(pair_counts(low, high, event_type, 1 if gate_pairing else None))
     return snapshots, outcomes, binding
 
 
@@ -2410,7 +2491,7 @@ def run_needs_oracle(
     profile: str | None = None,
     method_version: int | None = None,
 ) -> dict:
-    """M53 oracle 2, method 5: lower need, more of its event, pooled over seeds.
+    """M53 oracle 2, method 6: lower need, more of its event, pooled over seeds.
 
     Hypothesis: an agent whose need is lower than a matched agent's has more
     of the event that need drives over the next ``window`` turns (autonomy:
@@ -2424,9 +2505,13 @@ def run_needs_oracle(
     at or above it (``_match_binding_pairs``), have a pooled net concordance
     whose seed-clustered lower bound is above zero. Method 4 counts the events
     of turns t+1 .. t+window after a turn-t snapshot, not t .. t+window-1:
-    the snapshot is taken after turn t's actions. Method 5
-    (``NEEDS_ORACLE_METHOD_VERSION``) counts a pair over the turns both agents
-    were alive: its window ends at the first death of either (``run["deaths"]``).
+    the snapshot is taken after turn t's actions. Method 5 counts a pair over
+    the turns both agents were alive: its window ends at the first death of
+    either (``run["deaths"]``). Method 6 (``NEEDS_ORACLE_METHOD_VERSION``)
+    keeps method 5's verdict and reports ``NEEDS_INFORMATIONAL_PAIRINGS``
+    (spiritual -> migration) beside it (``informational_pairings``, and per
+    seed ``informational``), scored as the other pairings are; it never
+    decides the status.
 
     The binding component decides PASS only when ``profile`` is in
     ``NEEDS_BINDING_REQUIRED_PROFILES`` (the full gate) or is None; in the
@@ -2435,7 +2520,8 @@ def run_needs_oracle(
     the same rule to any method 3 or later result (``validation_gate``).
 
     ``method_version`` re-scores an earlier method exactly, for re-scoring
-    and comparison: 4 counts each agent over the whole window t+1 ..
+    and comparison: 5 is method 6 without the informational pairings, 4
+    counts each agent over the whole window t+1 ..
     t+window, 3 has method 4's criteria with the window t .. t+window-1, 2 is
     method 3 without the binding component. ``require_binding=False`` is
     method 2.
@@ -2448,42 +2534,54 @@ def run_needs_oracle(
         raise ValueError(f"require_binding=False is method {NEEDS_POOLED_METHOD_VERSION}, not {method_version}")
     require_binding = method_version >= NEEDS_BINDING_METHOD_VERSION
     outcome_offset = 1 if method_version >= NEEDS_POST_SNAPSHOT_METHOD_VERSION else 0
-    censor_at_death = method_version >= NEEDS_ORACLE_METHOD_VERSION
+    censor_at_death = method_version >= NEEDS_DEATH_CENSORED_METHOD_VERSION
+    informational_pairings = (
+        NEEDS_INFORMATIONAL_PAIRINGS if method_version >= NEEDS_ORACLE_METHOD_VERSION else ()
+    )
     censored = [0, 0]
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
     thresholds = dict(NEEDS_BEHAVIOUR_THRESHOLDS if thresholds is None else thresholds)
+    scored_thresholds = {
+        **{need: NEEDS_INFORMATIONAL_THRESHOLDS[need] for need, _event in informational_pairings},
+        **thresholds,
+    }
 
     per_seed: list[dict] = []
     seed_counts: list[tuple[int, int]] = []
     binding_counts: list[tuple[int, int]] = []
 
-    def _pairing_totals() -> dict[str, dict]:
+    def _pairing_totals(pairings=NEEDS_PAIRINGS) -> dict[str, dict]:
         return {
             need: {"event_type": event, "pairs": 0, "concordant": 0, "discordant": 0,
                    "low_need_events": 0, "high_need_events": 0}
-            for need, event in NEEDS_PAIRINGS
+            for need, event in pairings
         }
 
     by_pairing = _pairing_totals()
     binding_by_pairing = _pairing_totals()
+    informational_by_pairing = _pairing_totals(informational_pairings)
+    informational_binding_by_pairing = _pairing_totals(informational_pairings)
     for run in seed_runs:
         needs_snapshots = _iter_needs_snapshots(run, min_turn=0)
         if not needs_snapshots:
             continue
-        snapshots, outcomes, binding = _needs_seed_pairs(
+        snapshots, all_outcomes, all_binding = _needs_seed_pairs(
             run,
             needs_snapshots,
             exclude_prior_rebels=exclude_prior_rebels,
             need_divergence=need_divergence,
             personality_tolerance=personality_tolerance,
             window=window,
-            thresholds=thresholds,
+            thresholds=scored_thresholds,
             binding_divergence=binding_divergence,
             outcome_offset=outcome_offset,
             censor_at_death=censor_at_death,
             censored=censored,
+            pairings=NEEDS_PAIRINGS + informational_pairings,
         )
+        outcomes = {need: all_outcomes[need] for need, _event in NEEDS_PAIRINGS}
+        binding = {need: all_binding[need] for need, _event in NEEDS_PAIRINGS}
 
         def _tally(pair_outcomes: dict[str, list[tuple[int, int]]], totals_by_need: dict[str, dict]):
             pairs_found = concordant_sum = discordant_sum = 0
@@ -2525,6 +2623,18 @@ def run_needs_oracle(
             # [pairs, concordant, discordant], and per pairing.
             record["binding"] = [binding_pairs, binding_concordant, binding_discordant]
             record["binding_by_pairing"] = binding_seed_by_pairing
+        if informational_pairings:
+            # Method 6: the informational pairings' [pairs, concordant,
+            # discordant], all pairs and binding pairs.
+            _p, _c, _d, info_pooled = _tally(
+                {need: all_outcomes[need] for need, _event in informational_pairings}, informational_by_pairing)
+            _p, _c, _d, info_binding = _tally(
+                {need: all_binding[need] for need, _event in informational_pairings},
+                informational_binding_by_pairing)
+            record["informational"] = {
+                need: {"pairs": info_pooled.get(need, [0, 0, 0]), "binding": info_binding.get(need, [0, 0, 0])}
+                for need, _event in informational_pairings
+            }
         per_seed.append(record)
 
     analyzed_seeds = len(per_seed)
@@ -2634,6 +2744,30 @@ def run_needs_oracle(
         result["censored_pairs"] = censored[0]
         if binding_result is not None:
             binding_result["censored_pairs"] = censored[1]
+    if informational_pairings:
+        # Method 6: pairings reported beside the verdict (methods 2-5 keep
+        # their report bytes without the key).
+        informational = {}
+        for need_name, event_type in informational_pairings:
+            entry = {"event_type": event_type, "required": False}
+            for key, totals_by_need, threshold in (
+                ("pairs", informational_by_pairing, None),
+                ("binding", informational_binding_by_pairing, scored_thresholds.get(need_name)),
+            ):
+                totals = dict(totals_by_need[need_name])
+                totals.pop("event_type")
+                counts = [tuple(record["informational"][need_name][key][1:]) for record in per_seed]
+                pooled_info = _pooled_net_concordance(counts, confidence)
+                totals["informative_pairs"] = totals["concordant"] + totals["discordant"]
+                totals["seeds_with_informative_pairs"] = pooled_info["clusters"]
+                totals["net_concordance"] = _rounded(pooled_info["net_concordance"])
+                totals["net_concordance_se"] = _rounded(pooled_info["standard_error"])
+                totals["net_concordance_lower_bound"] = _rounded(pooled_info["lower_bound"])
+                if threshold is not None:
+                    totals["threshold"] = threshold
+                entry[key] = totals
+            informational[need_name] = entry
+        result["informational_pairings"] = informational
     if binding_result is not None:
         result["profile"] = profile
         result["binding_required"] = binding_decides
@@ -2895,7 +3029,7 @@ def run_era_oracle(seed_runs: list[dict]) -> dict:
 
 
 def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) -> dict:
-    """M53 oracle 4, method 2: community members migrate less and rebel more
+    """M53 oracle 4, method 3: community members migrate less and rebel more
     than matched non-members over the ``COHORT_OUTCOME_WINDOW_TURNS`` turns
     after a snapshot.
 
@@ -2903,15 +3037,18 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
     (``_cohort_candidate_priority``); PASS when 60% of analyzed seeds show an
     expected direction with an effect above 0.10 and the median strongest
     effect is above 0.10. Method 2 counts turns t+1 .. t+20 after a turn-t
-    snapshot (``COHORT_ORACLE_METHOD_VERSION``); ``method_version=1``
-    re-scores method 1 (turns t .. t+19) exactly, results without a
-    ``method_version`` key.
+    snapshot; method 3 (``COHORT_ORACLE_METHOD_VERSION``) compares each
+    member with its matched control over the turns both were alive (the
+    window ends at the first death of either, ``run["deaths"]``).
+    ``method_version=2`` re-scores method 2 exactly, ``method_version=1``
+    method 1 (turns t .. t+19, results without a ``method_version`` key).
     """
     if method_version is None:
         method_version = COHORT_ORACLE_METHOD_VERSION
     if isinstance(method_version, bool) or method_version not in COHORT_METHOD_VERSIONS:
         raise ValueError(f"cohort oracle method_version must be one of {COHORT_METHOD_VERSIONS}: {method_version!r}")
-    outcome_offset = 1 if method_version >= COHORT_ORACLE_METHOD_VERSION else 0
+    outcome_offset = 1 if method_version >= COHORT_POST_SNAPSHOT_METHOD_VERSION else 0
+    censor_at_death = method_version >= COHORT_ORACLE_METHOD_VERSION
     window = COHORT_OUTCOME_WINDOW_TURNS
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
@@ -2952,17 +3089,26 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
             if not communities:
                 continue
             events_window = _filter_events_window(run["events"], turn + outcome_offset, window=window)
+            censoring = {}
+            if censor_at_death:
+                first_turn = turn + outcome_offset
+                censoring = {
+                    "pair_window": (first_turn, first_turn + window - 1),
+                    "deaths": run.get("deaths") or {},
+                }
             migration_result = compute_cohort_distinctiveness(
                 communities,
                 events_window,
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["migration"],
+                **censoring,
             )
             rebellion_result = compute_cohort_distinctiveness(
                 communities,
                 events_window,
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["rebellion"],
+                **censoring,
             )
             del events_window
             strongest_effect = max(
@@ -2988,7 +3134,7 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
         effect_sizes.append(best_strongest_effect)
         if expected and best_strongest_effect > 0.10:
             seeds_with_expected_direction += 1
-        per_seed.append({
+        record = {
             "seed": run.get("seed"),
             "snapshot_turn": best_turn,
             "communities_analyzed": best_migration_result.get("communities_analyzed", 0),
@@ -2996,7 +3142,12 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
             "migration_effect_size": round(float(best_migration_result.get("effect_size", 0.0)), 4),
             "rebellion_effect_direction": best_rebellion_result.get("effect_direction"),
             "rebellion_effect_size": round(float(best_rebellion_result.get("effect_size", 0.0)), 4),
-        })
+        }
+        if censor_at_death:
+            # Method 3: the chosen snapshot's matched pairs and those a death cut short.
+            record["pairs"] = best_migration_result.get("pairs", 0)
+            record["censored_pairs"] = best_migration_result.get("censored_pairs", 0)
+        per_seed.append(record)
 
     if analyzed_seeds == 0:
         return {"status": "SKIP", "reason": "no_community_seed_pairs"}
@@ -3011,6 +3162,10 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None) 
         result["method_version"] = method_version
         result["outcome_window_start_offset"] = outcome_offset
         result["outcome_window_turns"] = window
+    if censor_at_death:
+        # Method 3; method 2 results keep their bytes without these keys.
+        result["comparison"] = "matched_pairs"
+        result["outcome_censoring"] = "first_death_in_pair"
     result.update({
         "analyzed_seeds": analyzed_seeds,
         "required_seed_count": required,

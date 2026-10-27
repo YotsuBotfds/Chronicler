@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Re-score the cohort oracle under methods 1 and 2 on retained sidecars.
+"""Re-score the cohort oracle under methods 1, 2 and 3 on retained sidecars.
 
 ``rescore_cohort_oracle.py OUT.json DIR [DIR ...] [--turns N]``
 
@@ -41,6 +41,7 @@ def _sidecar_runs(directory: Path, turns: int) -> list[dict]:
             "seed_dir": seed_dir,
             "bundle": {"metadata": {"total_turns": turns}},
             "events": vio._load_agent_events(seed_dir),
+            "deaths": vio._load_agent_deaths(seed_dir),
             "relationship_columns": vio._read_arrow_columns(seed_dir / "validation_relationships.arrow"),
             "memory_columns": vio._read_arrow_columns(seed_dir / "validation_memory_signatures.arrow"),
             "needs_columns": vio._read_arrow_columns(seed_dir / "validation_needs.arrow"),
@@ -71,6 +72,7 @@ def rescore(directory: Path, turns: int | None) -> dict:
         "turns": sorted({vio._total_turns(run) for run in runs}),
         "method_1": vio.run_cohort_oracle(runs, method_version=1),
         "method_2": vio.run_cohort_oracle(runs, method_version=2),
+        "method_3": vio.run_cohort_oracle(runs, method_version=3),
     }
     reports = sorted(directory.glob("validate_report_*.json"))
     if reports:
@@ -87,7 +89,7 @@ def rescore(directory: Path, turns: int | None) -> dict:
 
 def _line(item: dict) -> str:
     parts = [item["directory"], f"{len(item['seeds'])} seeds x {item['turns']}"]
-    for key in ("method_1", "method_2"):
+    for key in ("method_1", "method_2", "method_3"):
         result = item[key]
         if result.get("status") == "SKIP":
             parts.append(f"{key} SKIP ({result.get('reason')})")

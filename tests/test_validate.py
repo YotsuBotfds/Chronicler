@@ -1016,7 +1016,7 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     result = run_needs_oracle(runs)
 
     assert result["status"] == "PASS"
-    assert result["method_version"] == 5
+    assert result["method_version"] == 6
     assert result["outcome_window_start_offset"] == 1
     # No agent dies in this world: no pair is censored.
     assert (result["outcome_censoring"], result["censored_pairs"]) == ("first_death_in_pair", 0)
@@ -1085,7 +1085,7 @@ def test_needs_oracle_binding_pairs_must_carry_the_effect():
     assert "binding" not in pooled and "binding" not in pooled["per_seed"][0]
     method3_only = ("binding", "profile", "binding_required", "binding_required_profiles", "pooled_status",
                     "informational_failed_criteria", "outcome_window_start_offset", "outcome_censoring",
-                    "censored_pairs")
+                    "censored_pairs", "informational_pairings")
     shared_skip = ("per_seed", "status", "failed_criteria", "method_version", "criterion")
     assert {k: v for k, v in result.items() if k not in method3_only + shared_skip} == {
         k: v for k, v in pooled.items() if k not in shared_skip}
@@ -1254,7 +1254,7 @@ def test_needs_oracle_ignores_actions_on_the_snapshot_turn():
     assert "outcome_window_start_offset" not in method3
 
     result = run_needs_oracle(same_turn, profile="full")
-    assert (result["status"], result["method_version"]) == ("FAIL", 5)
+    assert (result["status"], result["method_version"]) == ("FAIL", 6)
     assert result["informative_pairs"] == 0 and result["binding"]["informative_pairs"] == 0
     assert result["failed_criteria"] == ["net_concordance_lower_bound", "seed_fraction", "binding_lower_bound"]
     # Without those actions both methods fail alike.
@@ -1336,18 +1336,135 @@ def test_needs_oracle_method_version_argument():
     from chronicler.validate import run_needs_oracle
 
     runs = [_material_world(seed, 4, 0) for seed in (1, 2)]
-    assert run_needs_oracle(runs)["method_version"] == 5
+    assert run_needs_oracle(runs)["method_version"] == 6
     assert run_needs_oracle(runs, require_binding=False)["method_version"] == 2
     assert run_needs_oracle(runs, method_version=2) == run_needs_oracle(runs, require_binding=False)
     method4 = run_needs_oracle(runs, method_version=4)
     assert method4["method_version"] == 4
     assert "outcome_censoring" not in method4 and "censored_pairs" not in method4
     assert "censored_pairs" not in method4["binding"]
-    for bad in (1, 6, True, "4"):
+    for bad in (1, 7, True, "4"):
         with pytest.raises(ValueError, match="method_version"):
             run_needs_oracle(runs, method_version=bad)
     with pytest.raises(ValueError, match="require_binding=False is method 2"):
         run_needs_oracle(runs, require_binding=False, method_version=4)
+    # Method 5 keeps its report bytes: no informational pairings.
+    method5 = run_needs_oracle(runs, method_version=5)
+    assert method5["method_version"] == 5
+    assert "informational_pairings" not in method5
+    assert all("informational" not in record for record in method5["per_seed"])
+
+
+def _spiritual_cells(first_agent: int, first_region: int, low_movers: int, high_movers: int, *, turn: int = 100,
+                     cells: int | None = None):
+    """Cells of two matched agents, spiritual 0.2 against 0.7 (every other
+    need equal): in the first ``low_movers`` cells the low-spiritual agent
+    migrates once five turns after the snapshot, in the next ``high_movers``
+    its partner does."""
+    rows, events = [], []
+    cells = low_movers + high_movers + 2 if cells is None else cells
+    for k in range(cells):
+        low, high, region = first_agent + 2 * k, first_agent + 2 * k + 1, first_region + k
+        rows += [(low, region, {"spiritual": 0.2}), (high, region, {"spiritual": 0.7})]
+        if k < low_movers:
+            events.append({"agent_id": low, "event_type": MIGRATION, "turn": turn + 5})
+        elif k < low_movers + high_movers:
+            events.append({"agent_id": high, "event_type": MIGRATION, "turn": turn + 5})
+    return rows, events
+
+
+def _spiritual_world(seed: int, low_movers: int, high_movers: int):
+    rows, events = _spiritual_cells(0, 0, low_movers, high_movers)
+    return {
+        "seed": seed,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **_needs_rows(rows)},
+        "events": events,
+    }
+
+
+def test_needs_oracle_reports_the_spiritual_pairing_without_deciding():
+    from chronicler.validate import run_needs_oracle
+
+    # Spiritual need pushes migration below 0.30 (needs.rs). Here only the
+    # spiritual need differs within a cell, and the lower agent migrates in
+    # most cells: the spiritual pairing reads strongly concordant, but no
+    # paired need differs, so method 6 still fails (no pooled pairs).
+    runs = [_spiritual_world(seed, 8 + seed % 3, 2) for seed in range(10)]
+    result = run_needs_oracle(runs, profile="full")
+    assert result["method_version"] == 6
+    assert (result["status"], result["total_pairs"], result["binding"]["total_pairs"]) == ("FAIL", 0, 0)
+    spiritual = result["informational_pairings"]["spiritual"]
+    assert (spiritual["event_type"], spiritual["required"]) == (MIGRATION, False)
+    concordant = sum(8 + s % 3 for s in range(10))
+    for key in ("pairs", "binding"):
+        assert (spiritual[key]["concordant"], spiritual[key]["discordant"]) == (concordant, 20), key
+        assert spiritual[key]["informative_pairs"] == concordant + 20
+        assert spiritual[key]["seeds_with_informative_pairs"] == 10
+        assert spiritual[key]["net_concordance_lower_bound"] > 0.5
+    # Every low agent (0.2) is below the threshold (0.30), its partner above.
+    assert spiritual["binding"]["threshold"] == 0.30 and "threshold" not in spiritual["pairs"]
+    assert spiritual["pairs"]["pairs"] == sum(12 + s % 3 for s in range(10))
+    assert result["per_seed"][0]["informational"] == {"spiritual": {"pairs": [12, 8, 2], "binding": [12, 8, 2]}}
+    # The binding thresholds reported are the paired needs' only.
+    assert "spiritual" not in result["binding"]["thresholds"]
+
+    # A reversed spiritual pairing reads discordant and changes nothing else.
+    reversed_runs = [_spiritual_world(seed, 2, 8 + seed % 3) for seed in range(10)]
+    reversed_spiritual = run_needs_oracle(reversed_runs, profile="full")["informational_pairings"]["spiritual"]
+    assert reversed_spiritual["pairs"]["net_concordance"] < -0.5
+
+
+def test_needs_oracle_spiritual_pairing_leaves_the_verdict_and_totals():
+    from chronicler.validate import run_needs_oracle
+
+    # A passing material world (as test_needs_oracle_passes_when_lower_need_
+    # agents_act_more) plus cells whose spiritual pairing runs the other way,
+    # one of whose agents dies in the window.
+    runs = []
+    for seed in range(10):
+        run = _material_world(seed, 8 + seed % 3, 2)
+        rows, events = _spiritual_cells(1000, 1000, 1, 6)
+        columns = _needs_rows(rows)
+        for name, values in columns.items():
+            run["needs_columns"][name] += values
+        run["needs_columns"]["turn"] += [100] * len(rows)
+        run["events"] += events
+        run["deaths"] = {1001: 103}
+        runs.append(run)
+    method6 = run_needs_oracle(runs, profile="full")
+    method5 = run_needs_oracle(runs, profile="full", method_version=5)
+    assert method6["status"] == method5["status"] == "PASS"
+    spiritual = method6["informational_pairings"]["spiritual"]
+    assert (spiritual["pairs"]["concordant"], spiritual["pairs"]["discordant"]) == (0, 60)
+    # Pooled totals, the binding component, the censored counts and every
+    # per-seed tally are method 5's: the spiritual pairs are only reported.
+    added = ("method_version", "informational_pairings", "per_seed")
+    assert {k: v for k, v in method6.items() if k not in added} == {
+        k: v for k, v in method5.items() if k not in added}
+    assert method5["censored_pairs"] == 0
+    assert [{k: v for k, v in r.items() if k != "informational"} for r in method6["per_seed"]] == method5["per_seed"]
+
+
+def test_needs_oracle_spiritual_threshold_mirrors_the_native_constant():
+    import re
+    from pathlib import Path
+
+    from chronicler.narrative import _NEED_THRESHOLDS
+    from chronicler.validation_io import (
+        EVENT_NAME_TO_CODE, NEEDS_INFORMATIONAL_PAIRINGS, NEEDS_INFORMATIONAL_THRESHOLDS, NEEDS_PAIRINGS,
+    )
+
+    root = Path(__file__).resolve().parents[1]
+    agent = (root / "chronicler-agents/src/agent.rs").read_text(encoding="utf-8")
+    needs_rs = (root / "chronicler-agents/src/needs.rs").read_text(encoding="utf-8")
+    assert NEEDS_INFORMATIONAL_PAIRINGS == (("spiritual", EVENT_NAME_TO_CODE["migration"]),)
+    assert not {need for need, _e in NEEDS_INFORMATIONAL_PAIRINGS} & {need for need, _e in NEEDS_PAIRINGS}
+    match = re.search(r"pub const SPIRITUAL_THRESHOLD: f32 = ([0-9.]+);", agent)
+    assert match and float(match.group(1)) == pytest.approx(NEEDS_INFORMATIONAL_THRESHOLDS["spiritual"])
+    assert _NEED_THRESHOLDS["spiritual"] == pytest.approx(NEEDS_INFORMATIONAL_THRESHOLDS["spiritual"])
+    # The behaviour it is paired with: a spiritual deficit pushes migration.
+    assert "mods.migrate += spiritual_deficit * agent::SPIRITUAL_WEIGHT" in needs_rs
 
 
 def _mortality_world(seed: int, dying_cells: int, cells: int = 12):
@@ -1390,7 +1507,7 @@ def test_needs_oracle_method_4_passes_on_mortality_alone_method_5_does_not():
 
     # Method 5 counts a pair while both agents live (to turn 105 here): the
     # dying cells are ties, nothing is informative, and the oracle fails.
-    method5 = run_needs_oracle(runs, profile="full")
+    method5 = run_needs_oracle(runs, profile="full", method_version=5)
     assert method5["method_version"] == 5
     assert method5["status"] == "FAIL"
     assert method5["informative_pairs"] == 0 and method5["binding"]["informative_pairs"] == 0
@@ -1438,7 +1555,7 @@ def test_needs_oracle_method_5_without_deaths_is_method_4():
     # scored as if no agent died: method 5's tallies are method 4's.
     runs = [_material_world(seed, 8 + seed % 3, 2) for seed in range(10)]
     method4 = run_needs_oracle(runs, profile="full", method_version=4)
-    method5 = run_needs_oracle(runs, profile="full")
+    method5 = run_needs_oracle(runs, profile="full", method_version=5)
     added = ("method_version", "outcome_censoring", "censored_pairs", "binding", "criterion")
     assert {k: v for k, v in method5.items() if k not in added} == {
         k: v for k, v in method4.items() if k not in added}
@@ -1505,7 +1622,9 @@ def test_needs_rebel_exclusion_leaves_other_pairings_unchanged():
 @pytest.mark.parametrize("method_version, window_start, migration_rates", [
     # Method 1 counted turns t .. t+19 (agent 0's turn-10 migration counted).
     (1, 10, (0.2, 0.8)),
-    # Method 2 (the default) counts t+1 .. t+20.
+    # Method 2 counts t+1 .. t+20, and so does method 3 (the default), over
+    # each member and its matched control (here every member has one).
+    (2, 11, (0.0, 0.8)),
     (None, 11, (0.0, 0.8)),
 ])
 def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch, method_version, window_start, migration_rates):
@@ -1645,7 +1764,7 @@ def test_cohort_oracle_ignores_actions_on_the_snapshot_turn():
     same_turn = [_cohort_world(seed, event_offset=0) for seed in (1, 2)]
     result = run_cohort_oracle(same_turn)
     assert (result["status"], result["seeds_with_expected_direction"]) == ("FAIL", 0)
-    assert (result["method_version"], result["outcome_window_start_offset"]) == (2, 1)
+    assert (result["method_version"], result["outcome_window_start_offset"]) == (3, 1)
     assert [seed["rebellion_effect_direction"] for seed in result["per_seed"]] == ["equal", "equal"]
 
     method1 = run_cohort_oracle(same_turn, method_version=1)
@@ -1668,7 +1787,7 @@ def test_cohort_oracle_window_is_the_turns_after_the_snapshot(offset, method1_co
     from chronicler.validate import run_cohort_oracle
 
     runs = [_cohort_world(seed, event_offset=offset) for seed in (1, 2)]
-    for version, counted in ((1, method1_counts), (2, method2_counts)):
+    for version, counted in ((1, method1_counts), (2, method2_counts), (3, method2_counts)):
         result = run_cohort_oracle(runs, method_version=version)
         directions = {seed["rebellion_effect_direction"] for seed in result["per_seed"]}
         assert directions == {"community_higher" if counted else "equal"}, version
@@ -1682,7 +1801,7 @@ def test_cohort_oracle_window_must_end_before_the_last_turn():
     # ended at 119.
     for total_turns, method1_scored, method2_scored in ((119, False, False), (120, True, False), (121, True, True)):
         runs = [_cohort_world(seed, event_offset=1, total_turns=total_turns) for seed in (1, 2)]
-        for version, scored in ((1, method1_scored), (2, method2_scored)):
+        for version, scored in ((1, method1_scored), (2, method2_scored), (3, method2_scored)):
             result = run_cohort_oracle(runs, method_version=version)
             assert result.get("analyzed_seeds", 0) == (2 if scored else 0), (total_turns, version)
             if not scored:
@@ -1693,12 +1812,108 @@ def test_cohort_oracle_method_version_argument():
     from chronicler.validate import run_cohort_oracle
 
     runs = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
-    assert run_cohort_oracle(runs)["method_version"] == 2
-    assert run_cohort_oracle(runs, method_version=2) == run_cohort_oracle(runs)
-    for bad in (0, 3, True, "2"):
+    assert run_cohort_oracle(runs)["method_version"] == 3
+    assert run_cohort_oracle(runs, method_version=3) == run_cohort_oracle(runs)
+    method2 = run_cohort_oracle(runs, method_version=2)
+    assert method2["method_version"] == 2
+    # Method 2 keeps its report bytes: no comparison, censoring or pair keys.
+    assert not {"comparison", "outcome_censoring"} & set(method2)
+    assert not {"pairs", "censored_pairs"} & set(method2["per_seed"][0])
+    for bad in (0, 4, True, "2"):
         with pytest.raises(ValueError, match="method_version"):
             run_cohort_oracle(runs, method_version=bad)
     assert run_cohort_oracle([], method_version=1) == {"status": "SKIP", "reason": "no_bundles"}
+
+
+def _cohort_mortality_world(seed, dying="members", turn=100):
+    """A community (0-4) and its matched non-members (5-9) that behave
+    alike: every agent migrates once, on turn ``turn + 15``. Those of the
+    ``dying`` side die on turn ``turn + 5``, before their migration (a dead
+    agent has no events)."""
+    from chronicler.validation_io import EVENT_NAME_TO_CODE
+
+    run = _cohort_world(seed, rebels=0, turn=turn)
+    dead = range(5) if dying == "members" else range(5, 10) if dying == "controls" else ()
+    run["deaths"] = {agent: turn + 5 for agent in dead}
+    run["events"] = [{"agent_id": agent, "event_type": EVENT_NAME_TO_CODE["migration"], "turn": turn + 15}
+                     for agent in range(10) if agent not in run["deaths"]]
+    return run
+
+
+def test_cohort_oracle_method_2_passes_on_mortality_alone_method_3_does_not():
+    from chronicler.validate import run_cohort_oracle
+
+    # Members die before they could move, their controls live and move:
+    # method 2 reads members migrating less (expected direction, effect 1.0)
+    # and passes with membership saying nothing about behaviour.
+    runs = [_cohort_mortality_world(seed) for seed in (1, 2)]
+    method2 = run_cohort_oracle(runs, method_version=2)
+    assert (method2["status"], method2["seeds_with_expected_direction"]) == ("PASS", 2)
+    assert {s["migration_effect_direction"] for s in method2["per_seed"]} == {"community_lower"}
+
+    # Method 3 counts each pair while both live (to turn 105): ties, FAIL.
+    method3 = run_cohort_oracle(runs)
+    assert (method3["method_version"], method3["comparison"], method3["outcome_censoring"]) == (
+        3, "matched_pairs", "first_death_in_pair")
+    assert (method3["status"], method3["seeds_with_expected_direction"]) == ("FAIL", 0)
+    assert {s["migration_effect_direction"] for s in method3["per_seed"]} == {"equal"}
+    assert [(s["pairs"], s["censored_pairs"]) for s in method3["per_seed"]] == [(5, 5), (5, 5)]
+
+    # The mirror image (controls die) reads members migrating more under
+    # method 2; method 3 again reads equal.
+    mirror = [_cohort_mortality_world(seed, dying="controls") for seed in (1, 2)]
+    assert {s["migration_effect_direction"] for s in run_cohort_oracle(mirror, method_version=2)["per_seed"]} == {
+        "community_higher"}
+    assert {s["migration_effect_direction"] for s in run_cohort_oracle(mirror)["per_seed"]} == {"equal"}
+
+    # Without deaths both methods read the same tie.
+    alive = [_cohort_mortality_world(seed, dying=None) for seed in (1, 2)]
+    for version in (2, 3):
+        assert {s["migration_effect_direction"] for s in run_cohort_oracle(alive, method_version=version)[
+            "per_seed"]} == {"equal"}
+    assert [s["censored_pairs"] for s in run_cohort_oracle(alive)["per_seed"]] == [0, 0]
+
+
+@pytest.mark.parametrize("dead, member_turn, expected", [
+    (5, 103, (1, 0)),   # the member moved before its control died
+    (5, 105, (1, 0)),   # on the death turn: that turn's events count
+    (5, 106, (0, 0)),   # after the control's death: censored, a tie
+    (0, 106, (0, 0)),   # the member itself died on turn 105
+    (5, 120, (1, 0)),   # a death on the window's last turn cuts nothing
+])
+def test_cohort_method_3_window_ends_at_the_pairs_first_death(dead, member_turn, expected):
+    from chronicler.validate import compute_cohort_distinctiveness
+
+    agent_data = {"agent_id": [0, 5], "civ_affinity": [0, 0], "region": [0, 0], "occupation": [1, 1],
+                  "satisfaction": [0.5, 0.5]}
+    events = [{"agent_id": 0, "event_type": MIGRATION, "turn": member_turn}]
+    death_turn = 120 if member_turn == 120 else 105
+    result = compute_cohort_distinctiveness([{0}], events, agent_data, event_type=MIGRATION,
+                                            pair_window=(101, 120), deaths={dead: death_turn})
+    assert (result["community_event_rate"], result["control_event_rate"]) == expected
+    assert result["pairs"] == 1
+    assert result["censored_pairs"] == (0 if death_turn == 120 else 1)
+
+
+def test_cohort_method_3_leaves_out_members_without_a_matched_control():
+    from chronicler.validate import compute_cohort_distinctiveness
+
+    # Seven members, three non-members of their cell: method 2 averages all
+    # seven members against the three controls; method 3 compares the three
+    # matched pairs only.
+    agent_data = {"agent_id": list(range(10)), "civ_affinity": [0] * 10, "region": [0] * 10,
+                  "occupation": [1] * 10, "satisfaction": [0.5] * 10}
+    members = set(range(7))
+    events = [{"agent_id": agent, "event_type": MIGRATION, "turn": 110} for agent in (3, 4, 5, 6)]
+    method2 = compute_cohort_distinctiveness([members], events, agent_data, event_type=MIGRATION)
+    assert (method2["community_event_rate"], method2["control_event_rate"]) == (pytest.approx(4 / 7), 0.0)
+    assert "pairs" not in method2 and "censored_pairs" not in method2
+    method3 = compute_cohort_distinctiveness([members], events, agent_data, event_type=MIGRATION,
+                                             pair_window=(101, 120), deaths={})
+    assert (method3["pairs"], method3["censored_pairs"]) == (3, 0)
+    # The first three members in iteration order (0, 1, 2) took the controls.
+    assert (method3["community_event_rate"], method3["control_event_rate"]) == (0.0, 0.0)
+    assert method3["effect_direction"] == "equal"
 
 
 def test_cohort_candidate_priority_prefers_expected_direction():
