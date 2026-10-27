@@ -128,3 +128,18 @@ def test_an_anchored_run_resumes_exactly_and_keeps_its_switch(tmp_path):
     args = _args(tmp_path / "resumed", 24, resume=str(checkpoint))
     execute_run(args, checkpoint_resume=read_checkpoint(checkpoint))
     assert _events(tmp_path / "resumed") == _events(tmp_path / "straight")
+
+
+def test_a_zero_full_anchor_from_the_tuning_overrides_holds_nobody(tmp_path):
+    _native()
+    from chronicler.tuning import K_COMMUNITY_FULL_ANCHOR
+
+    execute_run(_args(tmp_path / "plain", 30))
+    execute_run(_args(tmp_path / "zero", 30, community_anchoring=True,
+                      tuning_overrides={K_COMMUNITY_FULL_ANCHOR: 0.0}))
+    execute_run(_args(tmp_path / "strong", 30, community_anchoring=True,
+                      tuning_overrides={K_COMMUNITY_FULL_ANCHOR: 1.0}))
+    plain, zero, strong = (_events(tmp_path / n) for n in ("plain", "zero", "strong"))
+    assert zero == plain
+    moves = lambda events: sum(1 for e in events if e[2] == "migration")  # noqa: E731
+    assert moves(strong) < moves(plain)

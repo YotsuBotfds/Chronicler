@@ -23,12 +23,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from chronicler.tuning import K_COMMUNITY_FULL_ANCHOR
+
 #: Default for worlds created by the CLI/batch/live entry points
 #: (``--community-anchoring`` opts in; loaded worlds keep their saved setting).
 DEFAULT_ENABLED_FOR_NEW_WORLDS = False
 
 #: Tuning override: the full anchor (utility units).
-FULL_ANCHOR_TUNING_KEY = "agents.community_full_anchor"
+FULL_ANCHOR_TUNING_KEY = K_COMMUNITY_FULL_ANCHOR
 
 
 def community_anchoring_enabled(world: Any) -> bool:
