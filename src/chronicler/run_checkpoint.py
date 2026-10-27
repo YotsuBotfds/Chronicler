@@ -206,8 +206,14 @@ def _compare_identity(saved: dict, current: dict, uses_native: bool) -> list[str
     out: list[str] = []
 
     def diff(label: str, a: Any, b: Any) -> None:
-        if a != b:
-            out.append(f"{label}: checkpoint {a!r}, this run {b!r}")
+        if a == b:
+            return
+        if isinstance(a, dict) and isinstance(b, dict):
+            for key in sorted(set(a) | set(b)):
+                if a.get(key) != b.get(key):
+                    out.append(f"{label} {key}: checkpoint {a.get(key)!r}, this run {b.get(key)!r}")
+            return
+        out.append(f"{label}: checkpoint {a!r}, this run {b!r}")
 
     diff("source package digest", saved["source"]["package_digest"],
          current["source"]["package_digest"])

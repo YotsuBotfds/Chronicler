@@ -588,6 +588,8 @@ def execute_run(
         world = WorldState.load(resume_path)
         start_turn = world.turn
         print(f"Resuming from {resume_path} at turn {start_turn}")
+        if resume_info is None:
+            resume_info = {"kind": "legacy-state", "exact": False, "turn": start_turn}
     else:
         world = generate_world(
             seed=seed,
