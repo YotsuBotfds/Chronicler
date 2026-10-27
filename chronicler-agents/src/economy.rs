@@ -318,6 +318,11 @@ pub struct EconomyRegionResult {
     /// cap): what the land gave up. The ecology depletes mineral reserves by
     /// it (`RegionState::realized_extraction`).
     pub slot_output: [f32; 3],
+    /// Grain foraged this turn by farmers without a yielding food slot
+    /// (`FarmLabor::forage_labor` x `forage_yield`). With `slot_output` and
+    /// `craft_output` it is all the region's production: the production
+    /// ledger reconciles their sum with `ConservationSummary::production`.
+    pub forage_output: f32,
 }
 
 /// Output row per civ.
@@ -998,6 +1003,7 @@ pub fn tick_economy_core(
     let mut farm_productivity: Vec<f32> = Vec::with_capacity(n_regions);
     let mut craft_output: Vec<f32> = Vec::with_capacity(n_regions);
     let mut slot_output: Vec<[f32; 3]> = Vec::with_capacity(n_regions);
+    let mut forage_output: Vec<f32> = Vec::with_capacity(n_regions);
     for (i, inp) in region_inputs.iter().enumerate() {
         let ac = &agent_counts[i];
         // Split a finite farmer labor budget equally across occupied slots.
@@ -1037,12 +1043,14 @@ pub fn tick_economy_core(
         let mut production = [0.0f32; NUM_CATEGORIES];
         let mut per_good_production = [0.0f32; NUM_GOODS];
         let mut outputs = [0.0f32; 3];
+        let mut foraged = 0.0f32;
         if labor.forage_labor > 0.0 {
-            let foraged = labor.forage_labor * labor.forage_yield;
+            foraged = labor.forage_labor * labor.forage_yield;
             per_good_production[SLOT_GRAIN] += foraged;
             production[CAT_FOOD] += foraged;
             conservation.production += foraged as f64;
         }
+        forage_output.push(foraged);
         for resource_idx in 0..3 {
             let slot = rt_to_slot(inp.resource_types[resource_idx]);
             if slot >= NUM_GOODS { continue; }
@@ -1750,6 +1758,7 @@ pub fn tick_economy_core(
             craft_output: craft_output[ri],
             craft_sufficiency,
             slot_output: slot_output[ri],
+            forage_output: forage_output[ri],
         });
 
         // Step 7: Derive observability.

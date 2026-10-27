@@ -100,8 +100,52 @@ def _region_people_and_farmers(snapshot, n_regions: int) -> tuple[list[int], lis
     return people.tolist(), farmers.tolist()
 
 
-def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[float]]) -> None:
-    """Shared ecology post-pass. Disabled runs do not read or mutate experiment state."""
+def charges_landed_catch(world: WorldState) -> bool:
+    """Correction (2026-10, production ledger): the stock is charged for the
+    catch the economy landed, not for the whole allowance.
+
+    Each Phase 9 reserves next turn's catch allowance (``step_fishery``'s
+    harvest, sized from the fishers' labour) and debits it from the stock at
+    once. The economy then lands at most that allowance (its production cap),
+    often less: its fishers work on curves, in seasons and food-first splits
+    the allowance does not follow, so fish left the water that never became
+    goods. Now the part of last turn's allowance the economy did not land
+    (``slot_output`` against the allowance) goes back into the stock before
+    this turn's recovery; net, the stock loses what was landed. Where all of
+    it was landed nothing changes. Without an economy tick (``--agents off``,
+    or a turn before any economy tick) the allowance stays charged in full,
+    as before. Tuning ``ecology.fishery_charges_landed_catch: 0`` restores
+    the full charge everywhere.
+    """
+    from chronicler.tuning import K_FISHERY_CHARGES_LANDED_CATCH, get_override
+    return bool(get_override(world, K_FISHERY_CHARGES_LANDED_CATCH, 1.0))
+
+
+def unlanded_stock(budget: float | None, base_yield: float, landed_goods: float,
+                   config: FisheryConfig) -> float:
+    """Stock fraction of an outstanding allowance that was not landed.
+
+    The allowance (``fishery_catch_budgets[slot]``, harvest-index units times
+    workers) became the economy's cap in goods (``catch_budget``); the landed
+    goods convert back by the same harvest normal. 0 without an allowance.
+    """
+    capacity = base_yield * config.reserve_turns
+    if not budget or capacity <= 0.0:
+        return 0.0
+    from chronicler.ecology import harvest_normal_index
+    from chronicler.models import ResourceType
+    landed = max(0.0, landed_goods) * harvest_normal_index(int(ResourceType.FISH))
+    return max(0.0, budget - landed) / (capacity * config.reference_workers)
+
+
+def apply_fishery_feedback(
+    world: WorldState, region_yields: dict[str, list[float]], economy_result=None,
+) -> None:
+    """Shared ecology post-pass. Disabled runs do not read or mutate experiment state.
+
+    ``economy_result``: this turn's economy, whose fish-slot output is the
+    catch landed from last turn's allowance (``charges_landed_catch``).
+    """
     config = world.fishery_experiment
     if not config.enabled:
         return
@@ -109,6 +153,10 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
 
     from chronicler.ecology import goods_per_worker
     from chronicler.economy import PER_CAPITA_FOOD, food_first_slot_labor
+
+    landed_outputs = None
+    if economy_result is not None and economy_result.slot_output and charges_landed_catch(world):
+        landed_outputs = economy_result.slot_output
 
     # The split bridge's live snapshot precedes this turn's agent tick. Prefer
     # actual farmers there; pure-Python/off-mode uses the existing ecology proxy.
@@ -152,8 +200,13 @@ def apply_fishery_feedback(world: WorldState, region_yields: dict[str, list[floa
                 continue
             potential = yields[slot]
             workers = slot_workers[slot]
-            result = step_fishery(region.fishery_stocks[slot],
-                                  region.resource_base_yields[slot], potential, workers, config)
+            stock = region.fishery_stocks[slot]
+            landed = landed_outputs.get(region.name) if landed_outputs is not None else None
+            if landed is not None:
+                stock = min(1.0, stock + unlanded_stock(region.fishery_catch_budgets[slot],
+                                                        region.resource_base_yields[slot],
+                                                        landed[slot], config))
+            result = step_fishery(stock, region.resource_base_yields[slot], potential, workers, config)
             region.fishery_stocks[slot] = result.stock
             region.fishery_catch_budgets[slot] = (
                 result.harvest * result.capacity * config.reference_workers
@@ -250,6 +303,13 @@ def require_fishery_runtime(world: WorldState, runtime) -> None:
     if fishery_enabled(world) and runtime is not None and not callable(
             getattr(runtime, "apply_fishery_yield_patch", None)):
         raise RuntimeError("fishery experiment requires a rebuilt native extension with catch patch support")
+    # The landed-catch charge reads the economy's slot output, which native
+    # extensions report since the production ledger (2026-10), the build that
+    # added ``set_extraction_config``.
+    if fishery_enabled(world) and runtime is not None and charges_landed_catch(world) and not callable(
+            getattr(runtime, "set_extraction_config", None)):
+        raise RuntimeError("the fishery's landed-catch charge requires a native extension rebuilt "
+                           "with the production ledger (economy slot output)")
 
 
 def economy_yield(world: WorldState, region: Region, slot: int = 0) -> float:

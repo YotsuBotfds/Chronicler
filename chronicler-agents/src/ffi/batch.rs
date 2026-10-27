@@ -1030,6 +1030,7 @@ pub(crate) fn build_ecology_batches(
     regions: &[RegionState],
     yields: &[[f32; 3]],
     events: &[crate::ecology::EcologyEvent],
+    ledgers: &[crate::ecology::ExtractionLedger],
 ) -> Result<(RecordBatch, RecordBatch), ArrowError> {
     let n = regions.len();
 
@@ -1100,7 +1101,10 @@ pub(crate) fn build_ecology_batches(
             Arc::new(y0.finish()) as _,
             Arc::new(y1.finish()) as _,
             Arc::new(y2.finish()) as _,
-        ],
+        ]
+        .into_iter()
+        .chain(ecology_ledger_columns(n, ledgers))
+        .collect(),
     )?;
 
     // Ecology-event batch (already sorted by ecology.rs)
@@ -1128,6 +1132,39 @@ pub(crate) fn build_ecology_batches(
     )?;
 
     Ok((region_batch, event_batch))
+}
+
+/// Production ledger columns of the ecology region batch (appended after the
+/// state columns; see `ecology_region_schema`). A region without a ledger
+/// entry (an empty `ledgers`) reads zeros.
+fn ecology_ledger_columns(
+    n: usize,
+    ledgers: &[crate::ecology::ExtractionLedger],
+) -> Vec<Arc<dyn arrow::array::Array>> {
+    use arrow::array::{BooleanBuilder, Float32Builder};
+    let default = crate::ecology::ExtractionLedger::default();
+    let at = |i: usize| ledgers.get(i).unwrap_or(&default);
+    let mut realized = BooleanBuilder::with_capacity(n);
+    let mut f32_cols: Vec<Float32Builder> = (0..13).map(|_| Float32Builder::with_capacity(n)).collect();
+    for i in 0..n {
+        let l = at(i);
+        realized.append_value(l.realized);
+        let values = [
+            l.mineral_drawn[0], l.mineral_drawn[1], l.mineral_drawn[2],
+            l.proxy_mineral_draw[0], l.proxy_mineral_draw[1], l.proxy_mineral_draw[2],
+            l.target_crew,
+            l.overextraction_take[0], l.overextraction_take[1], l.overextraction_take[2],
+            l.mine_soil, l.proxy_mine_soil, l.mine_crew_ratio,
+        ];
+        for (builder, value) in f32_cols.iter_mut().zip(values) {
+            builder.append_value(value);
+        }
+    }
+    let mut columns: Vec<Arc<dyn arrow::array::Array>> = vec![Arc::new(realized.finish())];
+    for mut builder in f32_cols {
+        columns.push(Arc::new(builder.finish()));
+    }
+    columns
 }
 
 /// Parse a post-pass patch batch and apply it to regions.

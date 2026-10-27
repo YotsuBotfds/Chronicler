@@ -2068,6 +2068,10 @@ impl AgentSimulator {
             // Kept: set by `set_climate_config`.
             climate_trend_share: self.ecology_config.climate_trend_share,
             harvest_shock_water_loss: self.ecology_config.harvest_shock_water_loss,
+            // Kept: set by `set_extraction_config`.
+            overextraction_realized: self.ecology_config.overextraction_realized,
+            mine_soil_realized: self.ecology_config.mine_soil_realized,
+            yield_penalty_reaches_goods: self.ecology_config.yield_penalty_reaches_goods,
         };
     }
 
@@ -2113,7 +2117,8 @@ impl AgentSimulator {
 
         // Minerals are depleted by what this turn's economy tick produced
         // (`realized_extraction`); a tick without one keeps the labour proxy.
-        let (yields, events) = crate::ecology::tick_ecology(
+        // The ledger (what the tick took) goes out with the region batch.
+        let (yields, events, ledgers) = crate::ecology::tick_ecology_with_ledger(
             &mut self.regions,
             &self.ecology_config,
             turn,
@@ -2140,9 +2145,26 @@ impl AgentSimulator {
         };
 
         let (region_batch, event_batch) =
-            build_ecology_batches(&self.regions, &yields, &events).map_err(arrow_err)?;
+            build_ecology_batches(&self.regions, &yields, &events, &ledgers).map_err(arrow_err)?;
 
         Ok((PyRecordBatch::new(region_batch), PyRecordBatch::new(event_batch)))
+    }
+
+    /// Production ledger (2026-10): the extraction rules (see
+    /// `ecology::EcologyConfig`). `true` everywhere is the default; `false`
+    /// restores the earlier rule (overextraction streak on population / 5
+    /// workers, the flat per-mine soil charge, yields without the
+    /// overextraction penalty). Sent only when a tuning key overrides one.
+    pub fn set_extraction_config(
+        &mut self,
+        overextraction_realized: bool,
+        mine_soil_realized: bool,
+        yield_penalty_reaches_goods: bool,
+    ) {
+        self.snapshot_cache = None; // pool may change: drop the cached snapshot
+        self.ecology_config.overextraction_realized = overextraction_realized;
+        self.ecology_config.mine_soil_realized = mine_soil_realized;
+        self.ecology_config.yield_penalty_reaches_goods = yield_penalty_reaches_goods;
     }
 
     /// Apply a narrow post-pass patch back to Rust region state.
@@ -2732,8 +2754,14 @@ impl AgentSimulator {
         let mut rr_fp = Float32Builder::with_capacity(n_out);
         let mut rr_craft_out = Float32Builder::with_capacity(n_out);
         let mut rr_craft_suff = Float32Builder::with_capacity(n_out);
+        let mut rr_slot_out: Vec<Float32Builder> = (0..3).map(|_| Float32Builder::with_capacity(n_out)).collect();
+        let mut rr_forage = Float32Builder::with_capacity(n_out);
 
         for rr in &output.region_results {
+            for (slot, builder) in rr_slot_out.iter_mut().enumerate() {
+                builder.append_value(rr.slot_output[slot]);
+            }
+            rr_forage.append_value(rr.forage_output);
             for c in 0..NC {
                 rr_market[c].append_value(rr.market_demand[c]);
                 rr_market[NC + c].append_value(rr.market_supply[c]);
@@ -2771,6 +2799,10 @@ impl AgentSimulator {
         rr_columns.push(Arc::new(rr_fp.finish()));
         rr_columns.push(Arc::new(rr_craft_out.finish()));
         rr_columns.push(Arc::new(rr_craft_suff.finish()));
+        for builder in rr_slot_out.iter_mut() {
+            rr_columns.push(Arc::new(builder.finish()));
+        }
+        rr_columns.push(Arc::new(rr_forage.finish()));
 
         let region_result_batch = RecordBatch::try_new(
             Arc::new(economy_region_result_schema()),

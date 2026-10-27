@@ -1046,6 +1046,23 @@ def configure_ecology_runtime(simulator, world: "WorldState") -> None:
     trend = climate_trend_share(world)
     if trend < 1.0:
         simulator.set_climate_config(trend, harvest_shock_water_loss(world, trend))
+    # Production ledger (2026-10): the extraction rules. The native defaults
+    # are the corrections; sent only when a tuning key restores an old rule.
+    rules = extraction_rules(world)
+    if not all(rules):
+        simulator.set_extraction_config(*rules)
+
+
+def extraction_rules(world: "WorldState") -> tuple[bool, bool, bool]:
+    """The native extraction rules from tuning (docs/integration/production-ledger.md):
+    (overextraction streak on realized output, mines' soil charge on realized
+    ore, overextraction yield penalty in the yields); True is the default."""
+    from chronicler.tuning import (
+        K_MINE_SOIL_REALIZED, K_OVEREXTRACTION_REALIZED, K_YIELD_PENALTY_REACHES_GOODS, get_override,
+    )
+    return tuple(bool(get_override(world, key, 1.0)) for key in (
+        K_OVEREXTRACTION_REALIZED, K_MINE_SOIL_REALIZED, K_YIELD_PENALTY_REACHES_GOODS,
+    ))
 
 
 # Native agent-scale modes (see chronicler-agents/src/scale.rs). "exact" is the

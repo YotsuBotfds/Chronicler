@@ -30,6 +30,22 @@ RT_GOOD = {0: "grain", 1: "timber", 2: "botanicals", 3: "fish", 4: "salt", 5: "o
 TOL = 1e-3  # independent double-precision oracle versus float32 ABI
 
 
+def _landed_catch_return(world, previous_catch: float, landed_goods: float | None) -> float:
+    """Stock fraction of last turn's allowance the economy did not land, which
+    the production ledger's landed-catch rule (2026-10) returns to the stock
+    before recovery; 0 for sources before it, without a landing or with the rule
+    off. The allowance is in harvest-index units x workers; the stock's capacity
+    is base yield 1 x 8 reserve turns x 200 reference workers."""
+    try:
+        from chronicler.ecology import harvest_normal_index
+        from chronicler.experimental.fisheries import charges_landed_catch
+    except ImportError:
+        return 0.
+    if landed_goods is None or not charges_landed_catch(world):
+        return 0.
+    return max(0., previous_catch - landed_goods * harvest_normal_index(3)) / (8. * 200.)
+
+
 def _goods_units(index: float) -> float:
     """Fish harvest-index quantity in economy goods (2026-10 food balance)."""
     try:
@@ -121,6 +137,7 @@ class ObservedRuntime:
         self.commitments = None
         self.transfers = []
         self.previous_catch = 0.
+        self.landed_catch = None
 
     def __getattr__(self, name):
         return getattr(self.sim, name)
@@ -166,8 +183,11 @@ class ObservedRuntime:
 
     def apply_fishery_yield_patch(self, batch):
         region, obs = self.world.regions[0], self.ecology
-        recovery = .04 * (1. - obs["before"])
-        available = obs["before"] + recovery
+        returned = _landed_catch_return(self.world, self.previous_catch, self.landed_catch)
+        self.landed_catch = None
+        before = min(1., obs["before"] + returned)
+        recovery = .04 * (1. - before)
+        available = before + recovery
         effort = min(obs["workers"] / 200., 4.)
         harvest = min(obs["potential"] * effort, available * 8. * .25)
         actual = harvest / effort if effort else obs["potential"]
@@ -178,7 +198,7 @@ class ObservedRuntime:
         if self.world.turn >= 16:
             close(harvest, 0., 1e-10)
             assert region.fishery_stocks[0] >= obs["before"]
-        obs.update(recovery=recovery, harvest=harvest, stock=region.fishery_stocks[0],
+        obs.update(recovery=recovery, harvest=harvest, stock=region.fishery_stocks[0], returned=returned,
                    catch_budget=region.fishery_catch_budgets[0], yield_per_worker=actual)
         self.previous_catch = harvest * 200.
         return self.sim.apply_fishery_yield_patch(batch)
@@ -221,6 +241,7 @@ class ObservedRuntime:
                 ledger["production"][good] += production
                 if enabled and rid == 0 and s == 0:
                     assert production <= _goods_units(self.previous_catch) + TOL
+                    self.landed_catch = production
                 values[good] += production
             for g in GOODS:
                 delta = {key: diag[rid, g][key] - self.settled[rid, g][key] for key in ("total_departures", "total_arrivals", "total_returns")}
@@ -248,6 +269,11 @@ class ObservedRuntime:
             expected[rid] = values
         output = self.sim.tick_economy(batch, *args)
         actual = pa.record_batch(output[0]).to_pylist()
+        if enabled and self.landed_catch is not None and "slot_output_0" in actual[0]:
+            # The landed catch the ecology reads is the native (single
+            # precision) output; it must be the independent oracle's.
+            close(actual[0]["slot_output_0"], self.landed_catch)
+            self.landed_catch = actual[0]["slot_output_0"]
         for rid, row in enumerate(actual):
             for g in GOODS:
                 errors.append(abs(row[f"stockpile_{g}"] - expected[rid][g]))

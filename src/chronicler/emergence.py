@@ -1019,10 +1019,13 @@ def _check_ecological_recovery(region: Region, world: WorldState, rng) -> Event 
     """Ecological recovery: rare event restoring degraded resource yields."""
     prob = get_override(world, K_ECOLOGICAL_RECOVERY_PROBABILITY, 0.02)
     fraction = get_override(world, K_ECOLOGICAL_RECOVERY_FRACTION, 0.50)
+    # A slot whose effective yield was never initialized (0 with a base yield,
+    # scenario worlds saved before 2026-10) is undegraded, not degraded: see
+    # ``ecology.yield_penalty_factor`` (production ledger).
     eligible_slots = [
         slot for slot in range(3)
         if region.resource_types[slot] != EMPTY_SLOT
-        and region.resource_effective_yields[slot] < 0.8 * region.resource_base_yields[slot]
+        and 0.0 < region.resource_effective_yields[slot] < 0.8 * region.resource_base_yields[slot]
     ]
     if not eligible_slots:
         return None
