@@ -6,6 +6,60 @@
 
 ---
 
+## Ablation oracles (2026-10-27, `feat/ablation-oracles`)
+
+> **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork); needs oracle method 7 (the need-terms ablation decides in the full profile, method 6's observational verdict in subsets) and cohort method 4 (the kin-roots ablation); synthetic worlds without the effect, age-confounded or reversed pass in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); template full: needs PASS (+12% to +47%), cohort **FAIL** (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full: needs **FAIL** (material -> migration +6.7% [-5.3%, +18.7%], the other four pass) and cohort **FAIL** (0.996): the need terms fail the principled test for procedural material, method 6 passes the same batch; both failures reported, thresholds unchanged, decisions open; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch.)
+
+`feat/ablation-oracles` from `main` `2106ef2` (PR #57), fast-forwarded to
+`8a68658` (PR #58) and merged without rebase with `7c44ed8` (PR #59).
+Details and evidence:
+[`docs/integration/ablation-oracles.md`](../../integration/ablation-oracles.md).
+
+- **Switch** (`scale.rs` `DecisionAblation` in `TickOptions`): `needs`
+  zeroes the need utility modifiers and the autonomy drift term, `kin_roots`
+  drops the marriage and home-bond part of a migrant's roots, `placebo`
+  moves the decision draws to another stream; four Gumbel draws per agent
+  either way (common random numbers). Persisted with `TickOptions`
+  (`persist_struct!`, the checkpoint layout changes); Python sends it only
+  when asked. Unset: 9-case turn-speed matrix 399 files, 0
+  differences against `7c44ed8`; `--checkpoint-turns` 258 files, 0
+  differences; resume identity with each arm on 0 differences (3 cases,
+  157 resume points).
+- **Oracles**: per pairing the rate ratio of the fixed cohort's events with
+  and without the term, seed-clustered ratio-estimator bound (Student t),
+  pre-registered direction and minimum effect (needs +10%: M49 tier 2;
+  cohort -15%: M53 oracle 4). Needs method 7 keeps method 6 as its
+  observational component; full profile requires the ablation (method 6's
+  verdict passes 90% of age-confounded nulls), subsets the observational
+  (one fork leaves safety unmeasurable). Cohort method 4 is `NOT_RUN`
+  without its arm.
+- **Gates** (fresh roots, `d6b63e5`, against `7c44ed8`'s mine-soil
+  reports: every metric delta 0, NO REGRESSION, both method changes
+  flagged): template full FAIL on cohort (needs PASS: autonomy 1.47,
+  purpose 1.28, safety 1.23, material 1.14, social 1.12); procedural full
+  FAIL on needs (material 1.067 [0.947, 1.187]; the other four 1.16-1.47)
+  and cohort (0.996 [0.989, 1.003]); subsets FAIL on cohort (template
+  0.974, procedural 1.000) and, as on `main`, the procedural subset on
+  needs. Placebo arm: no pairing passes anywhere, full-scale ratios
+  0.93-1.13.
+- **Needs finding**: procedural agents short of material goods are few
+  (3.6 a fork) and migrate a lot either way; the terms add +15% over the
+  first five ticks and +4% after, against +3.8% for agents in no deficit.
+- **Cohort finding**: the kin roots move members' migration by 1.2% in
+  template worlds and 0.4% in procedural ones (non-members 2.0% and 0.5%):
+  at most 0.06 of roots, against the voluntary pulls only. Options
+  (strengthen the anchoring, restate the claim by a new pre-registration,
+  or report method 4 without requiring it) are a decision for another
+  branch; none is taken here.
+- **Cost**: the two default arms add about 87% to the template full
+  gate's batch and validation (50-61 minutes in all) and 42% to the
+  procedural one (30 minutes); forks 2-4 s each; checkpoints 1.2 GB
+  (template) and 0.75 GB (procedural) until forked.
+- **Tests**: cargo 1,061 / 2 ignored; not-slow 6,708 / 3 skipped; oracle
+  lane PASS 107.2 s.
+- **Open**: the cohort and procedural-material decisions; subsets' needs
+  verdict stays observational; in-process forks.
+
 ## Mine-soil ordering (2026-10-27, `fix/mine-soil-ordering`)
 
 > **Last updated:** 2026-10-27 (`fix/mine-soil-ordering` from `main` `2106ef2`, merged with `8a68658` (PR #58): the mines' soil charge (PR #52) recomputed the target crew after the soil step's overpopulation loss while the ledger and the documented rule take it from before, so a crowded region whose loss crossed a multiple of three paid N/(N-1) of the rule and `CHRONICLER_CHECK_RESOURCES=1` raised (`main`: 14 of 100 procedural full-gate worlds, 4 of 40 template worlds; with `--grain-reserves` 7 of 31); the charge now reads the ratio from before the step, as documented (behavioural correction, Rust only, no new state); zero raises in 100 procedural, 40 template and 31 granary worlds; only the worlds where `main` fired change (procedural 14 of 100, template 20 of 200 validator inputs); template full 200 x 500 and procedural full 100 x 300 PASS strict, NO REGRESSION against `main`'s method 6 / cohort 3 reports. Open: the reserve depletion still divides by the crew after the whole tick.)
