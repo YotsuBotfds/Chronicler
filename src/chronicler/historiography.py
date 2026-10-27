@@ -234,7 +234,7 @@ ROUTINE = frozenset({
     "government_transition", "quarantine", "aid_convoy", "mutual_aid", "price_inflation",
     "reform_pressure", "fiscal_strain", "elite_overproduction", "terrain_transition",
     "settlement_dissolved", "explore_failed", "pandemic_spread", "move_capital", "none",
-    "supply_shock", "occupation_shift", "notable_migration", "economic_shock",
+    "supply_shock", "occupation_shift", "notable_migration", "economic_shock", "grain_bought",
 })
 _ENDING_EPISODES = frozenset({"end", "repeat", "tick"})
 

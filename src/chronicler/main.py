@@ -1501,6 +1501,19 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if scholarship is not None:
         from chronicler.scholarship import set_scholarship_enabled
         set_scholarship_enabled(world, scholarship)
+    # Public granaries switch (persisted on the world): stock-target grain
+    # procurement and reserves. They move goods-economy stocks, so an explicit
+    # --grain-reserves needs an agent mode; a saved setting is dormant under
+    # --agents off.
+    grain_reserves = getattr(args, "grain_reserves", None)
+    if grain_reserves is True and agent_mode == "off":
+        raise ValueError("Grain reserves require an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
+    if grain_reserves is None and fresh_world:
+        from chronicler.grain_reserves import DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT
+        grain_reserves = _RESERVES_DEFAULT
+    if grain_reserves is not None:
+        from chronicler.grain_reserves import set_grain_reserves_enabled
+        set_grain_reserves_enabled(world, grain_reserves)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -1777,6 +1790,14 @@ def _build_parser() -> argparse.ArgumentParser:
                              "its scholars' faith or unpaid upkeep brings it down, and its scholars "
                              "flee to a rival's seat with the techniques they carry (default off; "
                              "saved on resume)")
+    parser.add_argument("--grain-reserves", action=argparse.BooleanOptionalAction, default=None,
+                        help="Public granaries: each ruler keeps a granary in its regions with a "
+                             "stock target of a few turns of the region's food demand, more where "
+                             "its harvests swing; it buys real surplus toward the target, at market "
+                             "prices from the treasury, first in its own realm and then in foreign "
+                             "markets the merchants may reach, with transit and storage losses, "
+                             "and opens the granary in dearth or famine before hunger kills; needs "
+                             "an agent mode (default off; saved on resume)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

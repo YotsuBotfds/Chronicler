@@ -1241,6 +1241,14 @@ def run_live(
         _scholarship = getattr(args, "scholarship", None)
         set_scholarship_enabled(
             world, _SCHOLARSHIP_DEFAULT if _scholarship is None else bool(_scholarship))
+        # Public granaries: new live worlds follow the CLI default (off;
+        # --grain-reserves opts in; dormant without an agent mode).
+        from chronicler.grain_reserves import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT, set_grain_reserves_enabled,
+        )
+        _reserves = getattr(args, "grain_reserves", None)
+        set_grain_reserves_enabled(
+            world, _RESERVES_DEFAULT if _reserves is None else bool(_reserves))
         # Historiography: new live worlds follow the CLI default (observational).
         from chronicler.historiography import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
