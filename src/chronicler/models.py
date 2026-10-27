@@ -1490,6 +1490,25 @@ class AgentContext(BaseModel):
     top_settlements: list[SettlementSummary] = Field(default_factory=list)
 
 
+class PassageProvenance(BaseModel):
+    """What a narrated passage was given and which of it each sentence cites
+    (``chronicler.narration_provenance``; checked by ``chronicler.narration_audit``).
+
+    ``facts`` are ``[id, turn]`` rows, a bare id for a fact dated ``as_of``
+    and ``[id, turn, "r"]`` when given as retrospective (after the narrated
+    moment, for foreshadowing); ``names`` the characters, civilizations,
+    regions and faiths those facts name (in a bundle file, indices into its
+    ``narration_provenance.names``); ``spans`` ``[start, end, [ids]]`` over
+    the entry's ``narrative``.
+    """
+    v: int = 1
+    narrator: str  # "mechanical" (sentences built from the facts) or "llm" (its own citations)
+    as_of: int  # the last completed turn the passage narrates
+    facts: list[str | list] = Field(default_factory=list)
+    names: list[str | int] = Field(default_factory=list)
+    spans: list[list] = Field(default_factory=list)
+
+
 class ChronicleEntry(BaseModel):
     """A narrated chronicle entry covering a range of turns."""
     turn: int  # anchor turn
@@ -1505,4 +1524,8 @@ class ChronicleEntry(BaseModel):
     # In-world accounts the narration drew on (ids in the bundle's
     # ``historiography.accounts``); omitted while empty.
     accounts: list[str] = Field(default_factory=list, exclude_if=_is_empty_list)
+    # The facts the narrator was given and each sentence's citations
+    # (``chronicler.narration_provenance``); omitted while None (unnarrated
+    # turns, simulate-only runs, older bundles).
+    provenance: PassageProvenance | None = Field(default=None, exclude_if=_is_none)
 

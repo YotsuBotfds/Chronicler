@@ -1616,8 +1616,10 @@ class NameIndex:
 
     # --- narration ------------------------------------------------------------
 
-    def prompt_block(self, events: Sequence["Event"], turn: int) -> str:
-        """Narrator prompt block: the moment's entities as their peoples name them."""
+    def prompt_block(self, events: Sequence["Event"], turn: int, sheet=None) -> str:
+        """Narrator prompt block: the moment's entities as their peoples name them.
+        With ``sheet`` (``narration_provenance.FactSheet``) each line is
+        registered and tagged with its fact id."""
         ents = self.entities(events)
         persp = self._perspectives(ents, turn)
         lines = []
@@ -1637,7 +1639,10 @@ class NameIndex:
                 parts.append(f"{self.lang_name(lid)} \"{form}\"" + (f" ('{g}')" if g and kind == "civ" else ""))
             for lid, form in v["former"][:1]:
                 parts.append(f"formerly \"{form}\" ({self.lang_name(lid)})")
-            lines.append(f"- {v['canonical']}: " + "; ".join(parts))
+            line = f"- {v['canonical']}: " + "; ".join(parts)
+            if sheet is not None:
+                line = sheet.line(line, [(sheet.ids.names_entity(kind, ref), turn)])
+            lines.append(line)
         if not lines:
             return ""
         head = ("\n\nIN-WORLD NAMES (what the peoples of these events call themselves, each other "
@@ -1649,10 +1654,19 @@ class NameIndex:
     def passage(self, events: Sequence["Event"], turn: int, glossed: set | None = None,
                 limit: int = 2) -> str:
         """Mechanical chronicle text ("In their own tongues: ..."); each entity once per chronicle."""
+        parts = self.passage_parts(events, turn, glossed, limit)
+        return " ".join(text for text, _kind, _ref, _record in parts)
+
+    def passage_parts(self, events: Sequence["Event"], turn: int, glossed: set | None = None,
+                      limit: int = 2) -> list[tuple[str, str, Any, str]]:
+        """``passage`` as its sentences, each with the entity it glosses and
+        the names-bearing text of that entity's names (the first sentence
+        led by "In their own tongues: ")."""
         glossed = set() if glossed is None else glossed
         ents = self.entities(events)
         persp = self._perspectives(ents, turn)
         parts = []
+        out: list[tuple[str, str, Any, str]] = []
         for kind, ref in ents:
             if len(parts) >= limit:
                 break
@@ -1672,9 +1686,15 @@ class NameIndex:
             for lid, form in v["former"][:1]:
                 text += f", once {form} in {self.lang_name(lid)}"
             parts.append(text + ".")
-        if not parts:
-            return ""
-        return "In their own tongues: " + " ".join(parts)
+            record = [v["canonical"], v["name"], self.lang_name(v["lang"]), v["gloss"] or ""]
+            for lid, form, g in v["others"]:
+                record += [form, self.lang_name(lid), g or ""]
+            for lid, form in v["former"]:
+                record += [form, self.lang_name(lid)]
+            out.append((text + ".", kind, ref, " | ".join(r for r in record if r)))
+        if out:
+            out[0] = ("In their own tongues: " + out[0][0], *out[0][1:])
+        return out
 
     def localize(self, text: str, lang: int | None, turn: int) -> str:
         """Canonical names in ``text`` as ``lang`` said them at ``turn``: "Ashkel Vor

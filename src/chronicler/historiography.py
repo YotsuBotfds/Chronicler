@@ -1924,8 +1924,16 @@ def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, di
     ``localize`` (row -> text) renders a chronicler's text in its own
     language's names (``languages.NameIndex.localize_account``).
     """
+    parts = _telling_parts(rows, names, archives, voices, noted, localize)
+    return " ".join(text for text, _row in parts), [row["account_id"] for _text, row in parts]
+
+
+def _telling_parts(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
+                   voices: int | None = None, noted: set[str] | None = None,
+                   localize=None) -> list[tuple[str, dict]]:
+    """``_telling``'s sentences, each with the account row it tells."""
     parts: list[str] = []
-    ids: list[str] = []
+    ids: list[dict] = []
     told = (_voices(rows, voices) if voices is not None
             else [r for r in rows if r.get("text") and r.get("lost_turn") is None])
     for k, row in enumerate(told):
@@ -1933,7 +1941,7 @@ def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, di
         lead = f"As {name} tell it" if k == 0 else f"Though {name} say"
         text = localize(row) if localize is not None else row["text"]
         parts.append(f"{lead}: {_quote(text)}")
-        ids.append(row["account_id"])
+        ids.append(row)
     notes = 0
     for row in rows:
         if voices is not None and notes >= 1:
@@ -1947,15 +1955,15 @@ def _telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, di
             if noted is not None and episode in noted:
                 continue
             parts.append(_loss_note(row, name, archives))
-            ids.append(row["account_id"])
+            ids.append(row)
             if noted is not None:
                 noted.add(episode)
             notes += 1
         elif not row.get("text"):
             parts.append(f"{_capital(name)} pass over it in silence.")
-            ids.append(row["account_id"])
+            ids.append(row)
             notes += 1
-    return " ".join(parts), ids
+    return list(zip(parts, ids))
 
 
 def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dict],
@@ -1976,6 +1984,12 @@ def telling(rows: Sequence[dict], names: dict[str, str], archives: dict[str, dic
 # ---------------------------------------------------------------------------
 # Reading accounts back for narration
 # ---------------------------------------------------------------------------
+
+
+def account_turn(row: dict) -> int | None:
+    """The latest turn an account row dates: its own, or its loss when told."""
+    turns = [t for t in (row.get("turn"), row.get("lost_turn")) if t is not None]
+    return max(turns) if turns else None
 
 
 class AccountIndex:
@@ -2063,24 +2077,51 @@ class AccountIndex:
         ``noted`` (loss episodes already told) carries across a chronicle so
         an archive's loss is told once.
         """
-        parts, ids = [], []
-        noted = set() if noted is None else noted
-        for _ev, rows in self.select(events, limit):
-            text, told = _telling(rows, self.names, self.archives, voices=voices, noted=noted,
-                                  localize=self.localize)
-            if text:
-                parts.append(text)
-                ids.extend(told)
+        parts = self.passage_parts(events, limit, voices, noted)
         if not parts:
             return "", []
-        return "In their own words: " + " ".join(parts), ids
+        return " ".join(text for text, _row in parts), [row["account_id"] for _text, row in parts]
+
+    def passage_parts(self, events: Sequence["Event"], limit: int = 2, voices: int = 2,
+                      noted: set[str] | None = None) -> list[tuple[str, dict]]:
+        """``passage`` as its sentences, each with the account row it tells
+        (the first led by "In their own words: ")."""
+        parts: list[tuple[str, dict]] = []
+        noted = set() if noted is None else noted
+        for _ev, rows in self.select(events, limit):
+            parts.extend(_telling_parts(rows, self.names, self.archives, voices=voices, noted=noted,
+                                        localize=self.localize))
+        if parts:
+            parts[0] = ("In their own words: " + parts[0][0], parts[0][1])
+        return parts
+
+    @staticmethod
+    def row_turn(row: dict) -> int | None:
+        """``account_turn``: the latest turn an account row dates."""
+        return account_turn(row)
+
+    def fact_text(self, row: dict) -> str:
+        """The names-bearing text of an account record: its chronicler, its
+        text and, when lost, where its archive was."""
+        out = [self.names.get(row["chronicler"], row["chronicler"]), row.get("text") or ""]
+        if row.get("lost_turn") is not None:
+            archive = self.archives.get(row["chronicler"], {})
+            out.extend(loss.get("region_name") or "" for loss in archive.get("losses", [])
+                       if loss.get("turn") == row["lost_turn"])
+        return " | ".join(t for t in out if t)
 
     def prompt_block(self, events: Sequence["Event"], limit: int = 3,
-                     per_event: int = 3) -> tuple[str, list[str]]:
-        """Narrator prompt block and the account ids it offers."""
+                     per_event: int = 3, sheet=None) -> tuple[str, list[str]]:
+        """Narrator prompt block and the account ids it offers. With
+        ``sheet`` (``narration_provenance.FactSheet``) each line is
+        registered and tagged with its fact id."""
         lines, ids = [], []
+
+        def tagged(line: str, fid, turn: int | None) -> str:
+            return sheet.line(line, [(fid(), turn)]) if sheet is not None else line
+
         for ev, rows in self.select(events, limit):
-            lines.append(f"- [turn {ev.turn}] {_label(ev)}")
+            lines.append(tagged(f"- [turn {ev.turn}] {_label(ev)}", lambda: sheet.ids.event(ev), ev.turn))
             quoted = _voices(rows, per_event)
             others = [r for r in rows if r not in quoted
                       and (r.get("lost_turn") is not None or not r.get("text"))]
@@ -2090,15 +2131,16 @@ class AccountIndex:
                 ids.append(row["account_id"])
                 if row.get("lost_turn") is not None:
                     phrase = _LOSS_PHRASES.get(row.get("lost_cause") or "", "lost")
-                    lines.append(f"  - {name}: lost (archive {phrase}, turn {row['lost_turn']}); "
-                                 "no account survives")
+                    line = (f"  - {name}: lost (archive {phrase}, turn {row['lost_turn']}); "
+                            "no account survives")
                 elif not row.get("text"):
-                    lines.append(f"  - {name}: silent (the event is left out)")
+                    line = f"  - {name}: silent (the event is left out)"
                 else:
                     kinds = sorted({t["kind"] for t in row.get("transforms", [])})
                     tag = f" ({', '.join(kinds)})" if kinds else ""
                     text = self.localize(row) if self.localize is not None else row["text"]
-                    lines.append(f"  - {name}{tag}: {_quote(text)}")
+                    line = f"  - {name}{tag}: {_quote(text)}"
+                lines.append(tagged(line, lambda: sheet.ids.account(row), account_turn(row)))
         if not lines:
             return "", []
         head = ("\n\nIN-WORLD ACCOUNTS (how the world's own chroniclers recorded these events; "

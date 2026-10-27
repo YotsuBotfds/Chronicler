@@ -472,8 +472,10 @@ def test_observation_reads_only(make_civ):
 
 
 def test_no_simulation_module_imports_languages():
-    # narration_inputs.py reads saved bundles for --narrate and live range narration.
-    allowed = {"main.py", "models.py", "live.py", "languages.py", "narration_inputs.py"}
+    # narration_inputs.py reads saved bundles for --narrate and live range narration;
+    # narration_provenance.py strips rulers' titles to find their names in narration.
+    allowed = {"main.py", "models.py", "live.py", "languages.py", "narration_inputs.py",
+               "narration_provenance.py"}
     importers = []
     for path in sorted((ROOT / "src" / "chronicler").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -556,10 +558,10 @@ def _bundle(folder: Path) -> dict:
 
 
 def _sim_view(bundle: dict) -> dict:
-    """The bundle without the languages field and the entries' prose (the
-    curated moments themselves must not change)."""
-    out = {k: v for k, v in bundle.items() if k != "languages"}
-    out["chronicle_entries"] = [{k: v for k, v in e.items() if k != "narrative"}
+    """The bundle without the languages field and the entries' prose and its
+    provenance (the curated moments themselves must not change)."""
+    out = {k: v for k, v in bundle.items() if k not in ("languages", "narration_provenance")}
+    out["chronicle_entries"] = [{k: v for k, v in e.items() if k not in ("narrative", "provenance")}
                                 for e in bundle["chronicle_entries"]]
     out["metadata"] = {k: v for k, v in bundle["metadata"].items() if k != "generated_at"}
     return out

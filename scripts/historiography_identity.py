@@ -15,7 +15,8 @@
 
     * ``chronicle_bundle.json`` must be identical after dropping
       ``metadata.generated_at`` and the narration fields
-      (``historiography``, ``chronicle_entries``, ``gap_summaries``); the
+      (``historiography``, ``chronicle_entries``, ``gap_summaries``,
+      ``narration_provenance``); the
       world state, every history snapshot, the event timeline, named events,
       era reflections and the rest of the metadata are compared;
     * ``chronicle.md`` (the narration) may differ;
@@ -43,7 +44,7 @@ from pathlib import Path
 
 IGNORED_NAMES = frozenset({"run_manifest.json"})  # gate tooling, records its own flags
 SIDECAR_SUFFIX = ".historiography.json"
-NARRATION_FIELDS = ("historiography", "chronicle_entries", "gap_summaries")
+NARRATION_FIELDS = ("historiography", "chronicle_entries", "gap_summaries", "narration_provenance")
 NARRATION_FILES = frozenset({"chronicle.md"})
 
 

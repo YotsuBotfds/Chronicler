@@ -7,7 +7,8 @@
     captured ``prompts.jsonl`` and its ``report.json``, logs and
     ``run_manifest.json`` are skipped,
     and ``chronicle_bundle.json`` is compared decoded, without
-    ``metadata.generated_at``, ``chronicle_entries`` and ``gap_summaries``.
+    ``metadata.generated_at``, ``chronicle_entries``, ``gap_summaries`` and
+    ``narration_provenance``.
     State, sidecars, snapshots (the bundle's history), the event timeline,
     agent events and validation sidecars must be identical.
 
@@ -34,7 +35,9 @@ from pathlib import Path
 from chronicler.bundle_codec import load_bundle
 
 SKIPPED_NAMES = frozenset({"run_manifest.json", "chronicle.md", "prompts.jsonl", "narrated.json", "report.json"})
-NARRATION_FIELDS = ("chronicle_entries", "gap_summaries")
+# ``narration_provenance``: the names table of the entries' provenance
+# (docs/integration/narration-provenance.md), present only in narrated bundles.
+NARRATION_FIELDS = ("chronicle_entries", "gap_summaries", "narration_provenance")
 
 
 def _skipped(rel: Path) -> bool:

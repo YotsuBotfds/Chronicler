@@ -8,6 +8,7 @@ import type {
   LanguagesField,
   LobbyInit,
   NamedEvent,
+  NewChronicleEntry,
   PauseContext,
   StartCommand,
   TurnSnapshot,
@@ -27,7 +28,8 @@ import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { accountsForEvent, decodeAccounts, type EventAccounts } from "../../lib/historiography";
 import { InWorldAccounts } from "./InWorldAccounts";
 import {
-  BatchCompare, BatchPanel, InterventionPanel, LanguagesPanel, preloadPanels, RegionHistoryInspector, SystemsPanel,
+  BatchCompare, BatchPanel, ChronicleSources, InterventionPanel, LanguagesPanel, preloadPanels, RegionHistoryInspector,
+  SystemsPanel,
 } from "./lazyPanels";
 import { PanelLoading } from "./PanelLoading";
 import { foodCrisisSpans, type FamineSpan } from "../../lib/food";
@@ -127,6 +129,8 @@ interface ChronicleFeedItem {
   body: string;
   eyebrow: string;
   accent: "gold" | "cyan" | "ember" | "stone";
+  /** A narrated entry (its provenance lists the passage's sources). */
+  entry?: NewChronicleEntry;
 }
 
 const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
@@ -283,6 +287,7 @@ function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): Chronic
           : entry.narrative_role === "resolution"
             ? "gold"
             : "cyan",
+      entry,
     }));
 
   const reflections = Object.entries(bundle.era_reflections)
@@ -494,6 +499,9 @@ type LeftRailProps = {
   eventFeed: Event[];
   onJumpToTurn: (turn: number) => void;
   onSelectEvent: (event: Event) => void;
+  /** The bundle a passage's sources resolve against, and the scrubbed turn. */
+  sourceBundle: Bundle | null;
+  currentTurn: number;
   setupState: {
     scenario: string;
     scenarios: LobbyInit["scenarios"];
@@ -1061,6 +1069,8 @@ export function AppShell({
           eventFeed={eventFeed}
           onJumpToTurn={(turn) => onSeek(turn)}
           onSelectEvent={selectEvent}
+          sourceBundle={bundle}
+          currentTurn={currentTurn}
           setupState={{
             scenario,
             scenarios,
@@ -1573,6 +1583,8 @@ function LeftRail({
   eventFeed,
   onJumpToTurn,
   onSelectEvent,
+  sourceBundle,
+  currentTurn,
   setupState,
   onScenarioChange,
   onSeedChange,
@@ -1600,6 +1612,8 @@ function LeftRail({
   onSelectBatchRun,
   onOpenBatchResult,
 }: LeftRailProps) {
+  // The chronicle card whose sources are open (one at a time).
+  const [openSources, setOpenSources] = useState<string | null>(null);
   const selectedScenario = setupState.scenarios.find((entry) => entry.file === setupState.scenario) ?? null;
   const railTabs = surface === "setup"
     ? [{ key: "launch", label: "Launch" }]
@@ -1802,6 +1816,26 @@ function LeftRail({
                 <div className="phase75-feed-eyebrow">{item.eyebrow}</div>
                 <h4>{item.title}</h4>
                 <p>{item.body}</p>
+                {item.entry?.provenance && sourceBundle && (
+                  <>
+                    <button
+                      type="button"
+                      className="phase75-link-button phase75-sources-toggle"
+                      aria-expanded={openSources === item.id}
+                      onClick={() => setOpenSources(openSources === item.id ? null : item.id)}
+                    >
+                      Sources ({item.entry.provenance.facts.length})
+                    </button>
+                    {openSources === item.id && (
+                      <Suspense fallback={<PanelLoading label="the passage's sources" />}>
+                        <ChronicleSources
+                          bundle={sourceBundle} entry={item.entry} currentTurn={currentTurn}
+                          onJumpToTurn={onJumpToTurn} onSelectEvent={onSelectEvent}
+                        />
+                      </Suspense>
+                    )}
+                  </>
+                )}
               </article>
             ))}
           </div>

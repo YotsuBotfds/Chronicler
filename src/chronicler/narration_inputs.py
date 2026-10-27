@@ -43,10 +43,14 @@ class BundleNarrationInputs:
         """Keyword arguments ``NarrativeEngine.narrate_batch`` takes from these inputs.
 
         A saved bundle has no bridge values; the world's final fields are
-        observations of its last turn (``observed_through`` "auto")."""
+        observations of its last turn (``observed_through`` "auto"). Fact ids
+        (``narration_provenance``) index the bundle's own ``events_timeline``
+        and ``named_events``, the lists curation read."""
         return {
             "great_persons": self.great_persons or None,
             "world": self.world,
+            "timeline": self.events,
+            "named_events": self.named_events,
             "historiography": self.account_index,
             "languages": self.name_index,
             "agent_name_map": self.agent_name_map or None,

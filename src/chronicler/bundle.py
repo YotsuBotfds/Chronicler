@@ -67,7 +67,8 @@ def assemble_bundle(
     ``historiography`` (``chronicler.historiography.export``) and
     ``languages`` (``chronicler.languages.export``) are optional observational
     fields, added at the end only when present, so bundles of runs without
-    them keep their exact bytes.
+    them keep their exact bytes. So is ``narration_provenance``, the names
+    table of narrated entries' provenance (``chronicler.narration_provenance``).
     """
     pruned_history, pruned_civ_stats = prune_history(s.model_dump(mode="json") for s in history)
     bundle = {
@@ -100,6 +101,11 @@ def assemble_bundle(
         bundle["historiography"] = historiography
     if languages is not None:
         bundle["languages"] = languages
+    # Narrated entries' provenance names one table (absent without narration).
+    from chronicler.narration_provenance import BUNDLE_FIELD, compact_entries
+    provenance = compact_entries(bundle["chronicle_entries"])
+    if provenance is not None:
+        bundle[BUNDLE_FIELD] = provenance
     return bundle
 
 
