@@ -106,6 +106,7 @@ def run(workload: dict, output: Path, on_turn=None):
         agent_movements=False,  # frozen pre-movement oracles; see docs/integration/agent-movements.md
         guilds=False,  # frozen pre-guild oracles; see docs/integration/guilds.md
         scholarship=False,  # frozen pre-scholarship oracles; see docs/integration/scholarship.md
+        grain_reserves=False,  # frozen pre-granary oracles; see docs/integration/grain-reserves.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

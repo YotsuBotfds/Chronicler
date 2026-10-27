@@ -15,6 +15,9 @@ canonical consolidated artifacts for the validator:
 - validation_community_summary.json
 - validation_resource_ledger.arrow (production ledger, 2026-10: one row per
   region and occupied resource slot per turn; ``chronicler.production_ledger``)
+- validation_reserve_ledger.arrow (public granaries, ``--grain-reserves``
+  only: one row per granary that held or moved grain per turn;
+  ``chronicler.grain_reserves``)
 
 Directory layout::
 
@@ -273,6 +276,25 @@ class SidecarWriter:
         from chronicler.production_ledger import LEDGER_FILENAME, write_ledger
         write_ledger(self._base_dir / LEDGER_FILENAME, self._resource_ledger)
 
+    # Public granaries (--grain-reserves): the granary ledger. The attribute
+    # exists only once a row arrives, so a run without granaries pickles and
+    # writes exactly what it did before.
+    def add_reserve_ledger_rows(self, rows: dict[str, list[Any]]) -> None:
+        """Append one turn's granary ledger rows (column lists of
+        ``grain_reserves.RESERVE_LEDGER_COLUMNS``); written on :meth:`close`."""
+        ledger = getattr(self, "_reserve_ledger", None)
+        if ledger is None:
+            ledger = self._reserve_ledger = {name: [] for name in rows}
+        for name, values in rows.items():
+            ledger[name].extend(values)
+
+    def _write_reserve_ledger(self) -> None:
+        ledger = getattr(self, "_reserve_ledger", None)
+        if not HAS_ARROW or ledger is None:
+            return
+        from chronicler.grain_reserves import RESERVE_LEDGER_FILENAME, write_reserve_ledger
+        write_reserve_ledger(self._base_dir / RESERVE_LEDGER_FILENAME, ledger)
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -283,6 +305,7 @@ class SidecarWriter:
         self._write_canonical_artifacts()
         self._write_economy_summary()
         self._write_resource_ledger()
+        self._write_reserve_ledger()
 
     def _write_canonical_artifacts(self) -> None:
         self._write_arrow_file(

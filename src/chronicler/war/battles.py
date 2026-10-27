@@ -399,7 +399,7 @@ def siege_turn(ctx: WarContext, war: "WarRecord", region: "Region", armies: list
              region=region.name)
     drain_population(ctx, [region.name], region.population * P.SIEGE_CIVILIAN_LOSS_PERMILLE // 1000)
     from chronicler.war.occupation import _requisition
-    _requisition(region, 0.85)
+    _requisition(region, 0.85, ctx.world)
     if lead.siege_turns < required:
         return False
     winner = fight(ctx, war, region, besiegers, defenders, kind="assault", fort_weight=0.5)

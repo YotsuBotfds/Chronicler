@@ -161,7 +161,9 @@ DRIVER_WORDS: dict[str, str] = {
 #: rise with ``--guilds``) is a political change, not routine. Seats of
 #: learning (``--scholarship``): a founding, rise, decline, fall or flight
 #: weighs by its importance; a new patron or a great scholar teaching there
-#: is routine.
+#: is routine. Public granaries (``--grain-reserves``): an opening against
+#: dearth or famine and an emptied granary weigh by their importance; grain
+#: bought abroad for them is routine.
 ROUTINE_TYPES: frozenset[str] = frozenset({
     "develop", "invest_culture", "diplomacy", "trade", "build_started",
     "infrastructure_completed", "fund_instability", "fund_instability_failed", "action",
@@ -174,7 +176,7 @@ ROUTINE_TYPES: frozenset[str] = frozenset({
     "supply_shock", "occupation_shift", "notable_migration", "economic_shock",
     "agenda_declared", "ambition_declared", "technique_adopted", "movement_spread",
     "institution_enforcement_lapse", "reform_lapsed", "preaching", "shrine_commissioned",
-    "seat_patron", "seat_master",
+    "seat_patron", "seat_master", "grain_bought",
 })
 
 
