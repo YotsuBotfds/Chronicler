@@ -189,11 +189,10 @@ def _occupied(region) -> bool:
     return region.occupied_by is not None and region.occupied_by != region.controller
 
 
-def _temple(region, faith: int | None):
-    """The region's standing temple of a faith slot (None for no slot)."""
+def _temple(region, faith: int):
+    """The region's standing temple of a faith slot (or of the temple's own
+    no-faith value: a temple built without a faith keeps its school)."""
     from chronicler.models import InfrastructureType
-    if faith is None:
-        return None
     for infra in region.infrastructure:
         if infra.type == InfrastructureType.TEMPLES and infra.active and infra.faith_id == faith:
             return infra
@@ -202,8 +201,13 @@ def _temple(region, faith: int | None):
 
 def _seat_temple(world, region, seat: Seat):
     """A temple school's temple: of the seat's faith (a permanent id,
-    chronicler.faiths), by the slot that faith holds now."""
-    return _temple(region, faiths.slot_of(world, seat.faith))
+    chronicler.faiths), by the slot that faith holds now; none once that
+    slot passed to another church. A seat whose temple had no faith (255 or
+    a -1 placeholder) keeps that value."""
+    slot = faiths.live_slot(world, seat.faith)
+    if slot is None and seat.faith is not None:
+        return None
+    return _temple(region, slot)
 
 
 def _any_temple(region):

@@ -1341,12 +1341,12 @@ def _extinct_faith_slot(t: _Tick) -> int | None:
     used = set(int(b) for b in set(obs.belief.tolist()))
     for m in t.state.movements:
         if m.stage != ENDED:
-            used.add(faiths.slot_of(world, m.faith))
+            used.add(faiths.live_slot(world, m.faith))
     for r in t.state.reforms:
         if r.kind == TOLERATION and (r.repeal == IN_FORCE or (
                 r.repeal != LAPSED and r.repealed_turn is not None
                 and world.turn - r.repealed_turn <= REPEAL_MEMORY)):
-            used.add(faiths.slot_of(world, r.faith))
+            used.add(faiths.live_slot(world, r.faith))
     for r in world.regions:
         used.update((r.majority_belief, r.conversion_target_signal, r.schism_convert_from,
                      r.schism_convert_to))
@@ -1799,7 +1799,9 @@ def _found(t: _Tick, ri: int, creed: int, gp, aggrieved: int, adults: int, regio
 # ---------------------------------------------------------------------------
 
 def _slot(world, faith: int) -> int:
-    slot = faiths.slot_of(world, faith)
+    """The native slot of a recorded faith (NO_FAITH for none; a value
+    that is not a faith passes as it is)."""
+    slot = faiths.live_slot(world, faith)
     return NO_FAITH if slot is None else slot
 
 
@@ -1873,8 +1875,8 @@ def reform_table(world: "WorldState"):
         if r.kind == TOLERATION:
             # The native table matches believers by slot; a toleration records
             # its faith by permanent id (one in force always holds a slot).
-            faith = faiths.slot_of(world, r.faith)
-            if faith is None:
+            faith = faiths.live_slot(world, r.faith)
+            if faith is None and r.faith is not None:
                 continue
         rows = ([(ri, NO_FAITH) for ri in r.regions] if r.kind in (HOME_RULE, GUILD_CHARTER)
                 else [(NO_REGION, faith)])

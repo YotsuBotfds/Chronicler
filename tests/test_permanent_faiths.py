@@ -253,6 +253,38 @@ def test_the_scholars_of_a_vanished_faith_are_persecuted_under_the_church_in_its
     assert seat.fall_cause == PERSECUTION
 
 
+def test_values_that_are_not_faiths_pass_through_the_mapping():
+    world = generate_world(seed=42)
+    for value in (F.NO_FAITH, -1, None):
+        assert F.live_slot(world, value) == value
+        assert F.same_faith(world, value, value)        # as slot numbers compared
+        assert not F.same_faith(world, value, 3)
+    assert F.live_slot(world, 3) == 3 and F.same_faith(world, 3, 3)
+
+
+@pytest.mark.parametrize("value", [0xFF, -1])
+def test_a_temple_built_without_a_faith_keeps_its_school(monkeypatch, value):
+    """Identity: a temple school whose temple has no faith (the 255 sentinel,
+    or the -1 placeholder) keeps it, as when seats held faiths by slot. Mapped
+    as a permanent id, the value found no slot and the school fell (template
+    seed 51 with --scholarship, turn 205)."""
+    import chronicler.scholarship as S
+    from chronicler.scholarship_state import TEMPLE_SCHOOL
+    from tests.test_scholarship import THORNWOOD as SEAT_REGION, _no_draw, _seat, _temple, _tick
+    from tests.test_scholarship import _world as learning_world
+    _no_draw(monkeypatch, 0.999)
+    world = learning_world()
+    region = world.regions[SEAT_REGION]
+    temple = _temple(region, value)
+    _si, school = _seat(world, SEAT_REGION, TEMPLE_SCHOOL, faith=value)
+    assert S._seat_temple(world, region, school) is temple
+    with monkeypatch.context() as patch:   # control: the value mapped as an id
+        patch.setattr(F, "live_slot", F.slot_of)
+        assert S._seat_temple(world, region, school) is None
+    _tick(world)
+    assert school.fallen_turn is None
+
+
 def test_a_new_church_in_a_recycled_slot_keeps_its_own_temple_chronicle():
     from chronicler import historiography as H
     from chronicler.models import Infrastructure

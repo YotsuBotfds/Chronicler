@@ -1273,7 +1273,7 @@ def _faith_deeds(world, ctx, state, civ_idx, civ, gp, rec, kind, acc, events, ev
         # The agenda names the faith by permanent id; preaching works on the
         # slot it holds now. A faith whose slot passed to another church has
         # no believers left to join: the prophet has nothing to preach.
-        faith = faiths.slot_of(world, rec.agenda.conversion_faith_id)
+        faith = faiths.live_slot(world, rec.agenda.conversion_faith_id)
         if ctx.region_beliefs is None or faith is None:
             return  # preaching reaches people only through the agent pool
         if region.conversion_target_signal not in (0xFF, faith):
@@ -1391,7 +1391,7 @@ def _evaluate(world, ctx: _Ctx, state: GPAgendaState, key: str, rec: AgendaRecor
     if kind == T.SPREAD_FAITH and agenda.conversion_faith_id is not None:
         # Believers are counted by the slot the agenda's faith holds now (none
         # once its slot passed to another church).
-        slot = faiths.slot_of(world, agenda.conversion_faith_id)
+        slot = faiths.live_slot(world, agenda.conversion_faith_id)
         share = ctx.share(agenda.target, slot) if slot is not None else None
         if share is not None:
             observations = (g04.ConversionObservation(agenda.target, agenda.conversion_faith_id,

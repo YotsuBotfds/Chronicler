@@ -97,9 +97,28 @@ def slot_of(world, uid: Any) -> int | None:
     return rec.slot if _holds(rec) else None
 
 
+def is_id(value: Any) -> bool:
+    """Whether a recorded faith value is a faith (not None, the no-faith
+    sentinel or a negative placeholder such as a temple's -1)."""
+    return isinstance(value, int) and 0 <= value and value != NO_FAITH
+
+
+def live_slot(world, value: Any) -> Any:
+    """The native value a recorded faith stands for now: the slot permanent
+    id ``value`` holds (None once that slot passed to another church, or for
+    an unknown id). A value that is not a faith (None, the no-faith
+    sentinel, a negative placeholder) is returned as it is, as the native
+    side and the slot-era comparisons read it."""
+    return slot_of(world, value) if is_id(value) else value
+
+
 def same_faith(world, uid: Any, slot: Any) -> bool:
-    """Whether permanent id ``uid`` is the faith now holding ``slot``."""
-    return uid is not None and uid != NO_FAITH and uid_of(world, slot) == uid
+    """Whether permanent id ``uid`` is the faith now holding ``slot``. A
+    value that is not a faith compares as it is (the no-faith sentinel
+    matches the no-faith sentinel), as slot numbers were compared."""
+    if not is_id(uid):
+        return uid == slot
+    return uid_of(world, slot) == uid
 
 
 def record(world, uid: Any):
