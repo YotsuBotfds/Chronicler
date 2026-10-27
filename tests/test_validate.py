@@ -137,6 +137,7 @@ def test_load_seed_runs_keeps_only_oracle_bundle_fields(tmp_path):
     (run,) = load_seed_runs(tmp_path)
     assert run["civ_trajectories"][0]["turn"] == [1, 2]
     assert run["civ_crisis_event_turns"] == {"Aram": [2]}
+    assert run["deaths"] == {}  # no agent event stream in this batch
     kept = {k: v for k, v in civ.items() if k not in ("great_persons", "factions")}
     assert run["bundle"] == {
         "metadata": bundle["metadata"],
@@ -1015,8 +1016,11 @@ def test_needs_oracle_passes_when_lower_need_agents_act_more():
     result = run_needs_oracle(runs)
 
     assert result["status"] == "PASS"
-    assert result["method_version"] == 4
+    assert result["method_version"] == 5
     assert result["outcome_window_start_offset"] == 1
+    # No agent dies in this world: no pair is censored.
+    assert (result["outcome_censoring"], result["censored_pairs"]) == ("first_death_in_pair", 0)
+    assert result["binding"]["censored_pairs"] == 0
     assert result["failed_criteria"] == []
     assert result["seeds_with_expected_sign"] == 10
     assert (result["concordant_pairs"], result["discordant_pairs"]) == (sum(8 + s % 3 for s in range(10)), 20)
@@ -1080,7 +1084,8 @@ def test_needs_oracle_binding_pairs_must_carry_the_effect():
     assert pooled["method_version"] == 2
     assert "binding" not in pooled and "binding" not in pooled["per_seed"][0]
     method3_only = ("binding", "profile", "binding_required", "binding_required_profiles", "pooled_status",
-                    "informational_failed_criteria", "outcome_window_start_offset")
+                    "informational_failed_criteria", "outcome_window_start_offset", "outcome_censoring",
+                    "censored_pairs")
     shared_skip = ("per_seed", "status", "failed_criteria", "method_version", "criterion")
     assert {k: v for k, v in result.items() if k not in method3_only + shared_skip} == {
         k: v for k, v in pooled.items() if k not in shared_skip}
@@ -1249,7 +1254,7 @@ def test_needs_oracle_ignores_actions_on_the_snapshot_turn():
     assert "outcome_window_start_offset" not in method3
 
     result = run_needs_oracle(same_turn, profile="full")
-    assert (result["status"], result["method_version"]) == ("FAIL", 4)
+    assert (result["status"], result["method_version"]) == ("FAIL", 5)
     assert result["informative_pairs"] == 0 and result["binding"]["informative_pairs"] == 0
     assert result["failed_criteria"] == ["net_concordance_lower_bound", "seed_fraction", "binding_lower_bound"]
     # Without those actions both methods fail alike.
@@ -1268,7 +1273,7 @@ def test_needs_oracle_window_is_the_turns_after_the_snapshot(offset, method3_cou
     from chronicler.validate import run_needs_oracle
 
     runs = [_material_world(seed, 4, 0, event_offset=offset) for seed in (1, 2)]
-    for version, counted in ((3, method3_counts), (4, method4_counts)):
+    for version, counted in ((3, method3_counts), (4, method4_counts), (5, method4_counts)):
         result = run_needs_oracle(runs, method_version=version)
         assert result["per_seed"][0]["snapshots"] == 1
         assert result["concordant_pairs"] == (8 if counted else 0), version
@@ -1282,7 +1287,7 @@ def test_needs_oracle_window_must_end_before_the_last_turn():
     # ended at 119.
     for total_turns, method3_snapshots, method4_snapshots in ((119, 0, 0), (120, 1, 0), (121, 1, 1)):
         runs = [_material_world(seed, 4, 0, total_turns=total_turns) for seed in (1, 2)]
-        for version, expected in ((3, method3_snapshots), (4, method4_snapshots)):
+        for version, expected in ((3, method3_snapshots), (4, method4_snapshots), (5, method4_snapshots)):
             result = run_needs_oracle(runs, method_version=version)
             assert result["per_seed"][0]["snapshots"] == expected, (total_turns, version)
     # Unknown run length: every snapshot is scored.
@@ -1314,7 +1319,7 @@ def test_needs_oracle_same_turn_rebels_are_prior_rebels():
         "events": events,
     }
     runs = _seed_copies(run, [1, 2])
-    for version in (3, 4):
+    for version in (3, 4, 5):
         autonomy = run_needs_oracle(runs, method_version=version)["by_pairing"]["autonomy"]
         # Per seed one pair (region 1), concordant.
         assert (autonomy["pairs"], autonomy["concordant"], autonomy["discordant"]) == (2, 2, 0), version
@@ -1322,7 +1327,7 @@ def test_needs_oracle_same_turn_rebels_are_prior_rebels():
     # Without the exclusion, method 4 still does not count turn 100: per
     # seed region 0 reads 1 against 0, region 1 1 against 0, region 2 0
     # against 1 (method 3: 2-0, 1-0, 0-2).
-    for version, low, high in ((4, 4, 2), (3, 6, 4)):
+    for version, low, high in ((5, 4, 2), (4, 4, 2), (3, 6, 4)):
         autonomy = run_needs_oracle(runs, exclude_prior_rebels=False, method_version=version)["by_pairing"]["autonomy"]
         assert (autonomy["pairs"], autonomy["low_need_events"], autonomy["high_need_events"]) == (6, low, high)
 
@@ -1331,14 +1336,129 @@ def test_needs_oracle_method_version_argument():
     from chronicler.validate import run_needs_oracle
 
     runs = [_material_world(seed, 4, 0) for seed in (1, 2)]
-    assert run_needs_oracle(runs)["method_version"] == 4
+    assert run_needs_oracle(runs)["method_version"] == 5
     assert run_needs_oracle(runs, require_binding=False)["method_version"] == 2
     assert run_needs_oracle(runs, method_version=2) == run_needs_oracle(runs, require_binding=False)
-    for bad in (1, 5, True, "4"):
+    method4 = run_needs_oracle(runs, method_version=4)
+    assert method4["method_version"] == 4
+    assert "outcome_censoring" not in method4 and "censored_pairs" not in method4
+    assert "censored_pairs" not in method4["binding"]
+    for bad in (1, 6, True, "4"):
         with pytest.raises(ValueError, match="method_version"):
             run_needs_oracle(runs, method_version=bad)
     with pytest.raises(ValueError, match="require_binding=False is method 2"):
         run_needs_oracle(runs, require_binding=False, method_version=4)
+
+
+def _mortality_world(seed: int, dying_cells: int, cells: int = 12):
+    """One seed, needs carrying no information about behaviour.
+
+    Cells of two matched agents, material 0.2 against 0.7, snapshot at turn
+    100. In every cell both agents migrate once, on turn 115: the need makes
+    no difference. In the first ``dying_cells`` cells the high-need agent dies
+    on turn 105, before its migration (an older agent: needs rise with age).
+    """
+    rows, events, deaths = [], [], {}
+    for region in range(cells):
+        low, high = 2 * region, 2 * region + 1
+        rows += [(low, region, {"material": 0.2}), (high, region, {"material": 0.7})]
+        events.append({"agent_id": low, "event_type": MIGRATION, "turn": 115})
+        if region < dying_cells:
+            deaths[high] = 105
+        else:
+            events.append({"agent_id": high, "event_type": MIGRATION, "turn": 115})
+    return {
+        "seed": seed,
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100] * len(rows), **_needs_rows(rows)},
+        "events": events,
+        "deaths": deaths,
+    }
+
+
+def test_needs_oracle_method_4_passes_on_mortality_alone_method_5_does_not():
+    from chronicler.validate import run_needs_oracle
+
+    # Method 4 counts each agent over the whole window, so the agent that
+    # died had less time to act: every dying cell reads concordant and the
+    # full profile passes with needs that say nothing about behaviour.
+    runs = [_mortality_world(seed, 6 + seed % 3) for seed in range(10)]
+    method4 = run_needs_oracle(runs, profile="full", method_version=4)
+    assert method4["status"] == "PASS"
+    assert (method4["concordant_pairs"], method4["discordant_pairs"]) == (sum(6 + s % 3 for s in range(10)), 0)
+    assert method4["binding"]["status"] == "PASS"
+
+    # Method 5 counts a pair while both agents live (to turn 105 here): the
+    # dying cells are ties, nothing is informative, and the oracle fails.
+    method5 = run_needs_oracle(runs, profile="full")
+    assert method5["method_version"] == 5
+    assert method5["status"] == "FAIL"
+    assert method5["informative_pairs"] == 0 and method5["binding"]["informative_pairs"] == 0
+    assert method5["censored_pairs"] == sum(6 + s % 3 for s in range(10))
+    assert method5["binding"]["censored_pairs"] == method5["censored_pairs"]
+    # Matching is unchanged: the same pairs, only their windows differ.
+    assert method5["total_pairs"] == method4["total_pairs"]
+    assert [r["pairs_found"] for r in method5["per_seed"]] == [r["pairs_found"] for r in method4["per_seed"]]
+
+
+@pytest.mark.parametrize("death_turn, low_turn, expected", [
+    (105, 103, (1, 0)),   # the low agent moved before its partner died
+    (105, 105, (1, 0)),   # on the death turn: that turn's events count
+    (105, 106, (0, 0)),   # after the death: censored, a tie
+    (120, 115, (1, 0)),   # a death on the window's last turn cuts nothing
+    (100, 103, (0, 0)),   # died on the snapshot turn (after the reading): no shared turns
+])
+def test_needs_oracle_method_5_window_ends_at_the_pairs_first_death(death_turn, low_turn, expected):
+    from chronicler.validation_io import _iter_needs_snapshots, _needs_seed_pairs
+
+    rows = [(0, 0, {"material": 0.2}), (1, 0, {"material": 0.7})]
+    run = {
+        "bundle": {"metadata": {"total_turns": 140}},
+        "needs_columns": {"turn": [100, 100], **_needs_rows(rows)},
+        "events": [{"agent_id": 0, "event_type": MIGRATION, "turn": low_turn}],
+        "deaths": {1: death_turn},
+    }
+    censored = [0, 0]
+    _snapshots, outcomes, _binding = _needs_seed_pairs(
+        run, _iter_needs_snapshots(run, min_turn=0), exclude_prior_rebels=True, need_divergence=0.1,
+        personality_tolerance=0.1, window=20, censor_at_death=True, censored=censored)
+    assert outcomes["material"] == [expected]
+    assert censored[0] == (0 if death_turn >= 120 else 1)
+    # Method 4 counts the low agent's migration wherever it falls in the window.
+    _snapshots, outcomes4, _binding = _needs_seed_pairs(
+        run, _iter_needs_snapshots(run, min_turn=0), exclude_prior_rebels=True, need_divergence=0.1,
+        personality_tolerance=0.1, window=20)
+    assert outcomes4["material"] == [(1, 0)]
+
+
+def test_needs_oracle_method_5_without_deaths_is_method_4():
+    from chronicler.validate import run_needs_oracle
+
+    # A run without a death record (an older loader, a synthetic world) is
+    # scored as if no agent died: method 5's tallies are method 4's.
+    runs = [_material_world(seed, 8 + seed % 3, 2) for seed in range(10)]
+    method4 = run_needs_oracle(runs, profile="full", method_version=4)
+    method5 = run_needs_oracle(runs, profile="full")
+    added = ("method_version", "outcome_censoring", "censored_pairs", "binding", "criterion")
+    assert {k: v for k, v in method5.items() if k not in added} == {
+        k: v for k, v in method4.items() if k not in added}
+    assert {k: v for k, v in method5["binding"].items() if k != "censored_pairs"} == method4["binding"]
+
+
+def test_agent_deaths_are_loaded_from_the_event_stream(tmp_path):
+    pa = pytest.importorskip("pyarrow")
+    import pyarrow.ipc as ipc
+    from chronicler.validation_io import _load_agent_deaths
+
+    assert _load_agent_deaths(tmp_path) == {}
+    table = pa.table({
+        "turn": pa.array([3, 5, 9, 9, 12], pa.uint32()),
+        "agent_id": pa.array([7, 8, 7, 9, 10], pa.uint32()),
+        "event_type": pa.array(["migration", "death", "death", "birth", "death"]),
+    })
+    with ipc.new_file(tmp_path / "agent_events.arrow", table.schema) as writer:
+        writer.write_table(table)
+    assert _load_agent_deaths(tmp_path) == {8: 5, 7: 9, 10: 12}
 
 
 def test_needs_oracle_autonomy_confound_reverses_then_exclusion_restores():
