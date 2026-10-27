@@ -603,7 +603,22 @@ def standing_state_lines(
     timeline: TimelineView | None = None,
     at_turn: int | None = None,
 ) -> list[str]:
-    """Compact lines of the standing state in a snapshot.
+    """Compact lines of the standing state in a snapshot (see
+    :func:`standing_state_facts`, which also names the values each reads)."""
+    return [text for _keys, text in standing_state_facts(snapshot, events, world, timeline, at_turn)]
+
+
+def standing_state_facts(
+    snapshot: "TurnSnapshot | None",
+    events: Sequence["Event"],
+    world: "WorldState | None" = None,
+    timeline: TimelineView | None = None,
+    at_turn: int | None = None,
+) -> list[tuple[list[tuple], str]]:
+    """Compact lines of the standing state in a snapshot, each with the
+    snapshot values it reads: ``(kind, key)`` pairs, a key being a civ
+    ``("civ", name)``, a region ``("region", name)``, a pair of civs or a
+    snapshot row's own id (``narration_provenance`` makes them fact ids).
 
     A snapshot of turn T holds the state after turn T - 1 (its food is what
     turn T - 1 observed); ``at_turn`` is that completed turn (default T - 1).
@@ -621,9 +636,10 @@ def standing_state_lines(
     if at_turn is None:
         at_turn = snapshot.turn - 1
     civs, regions = focus_of(events, snapshot)
-    lines: list[str] = []
+    lines: list[tuple[list[tuple], str]] = []
 
     rulers = []
+    ruler_keys: list[tuple] = []
     for name in civs:
         cs = snapshot.civ_stats.get(name)
         if cs is None or not cs.alive:
@@ -639,12 +655,14 @@ def standing_state_lines(
         if extra:
             part += f" ({', '.join(extra)})"
         rulers.append(part)
+        ruler_keys.append(("ruler", ("civ", name)))
     if rulers:
-        lines.append("Rulers: " + "; ".join(rulers))
+        lines.append((ruler_keys, "Rulers: " + "; ".join(rulers)))
 
     # Wars: the campaign layer's record (aim, start, war score from the
     # attacker's side, -100..100) when present, else the plain war pairs.
     wars = []
+    war_keys: list[tuple] = []
     campaign_wars = (snapshot.campaign or {}).get("wars") or []
     for w in campaign_wars:
         a, b = w.get("attacker"), w.get("defender")
@@ -655,13 +673,15 @@ def standing_state_lines(
                 text += f" ({aim}" + (f" of {w['aim_region']}" if w.get("aim_region") else "")
                 text += f"; war score {int(w.get('score', 0)):+d} for {a})"
             wars.append(text)
+            war_keys.append(("war", (("civ", a), ("civ", b))))
     if not campaign_wars:
         for pair in snapshot.active_wars:
             a, b = pair[0], pair[1]
             if (a in civs or b in civs) and f"{a} and {b}" not in wars:
                 wars.append(f"{a} and {b}")
+                war_keys.append(("war", (("civ", a), ("civ", b))))
     if wars:
-        lines.append("At war: " + "; ".join(wars[:MAX_PER_KIND]))
+        lines.append((war_keys[:MAX_PER_KIND], "At war: " + "; ".join(wars[:MAX_PER_KIND])))
 
     am = snapshot.agent_movements or {}
     if world is not None:
@@ -681,7 +701,7 @@ def standing_state_lines(
             stronghold = _region_name(world, row.get("stronghold"))
             if stronghold:
                 text += f", strongest in {stronghold}"
-            lines.append(text)
+            lines.append(([("movement", row.get("id"))], text))
         reforms = [row for row in am.get("reforms", []) if _civ_name(world, row.get("civ")) in civs]
         reforms.sort(key=lambda r: (int(r.get("since", 0)), int(r.get("id", 0))))
         for row in reforms[:MAX_PER_KIND]:
@@ -689,7 +709,7 @@ def standing_state_lines(
             text += f" since turn {row.get('since')}"
             if row.get("institution"):
                 text += f" (as {str(row['institution']).replace('_', ' ')})"
-            lines.append(text)
+            lines.append(([("reform", row.get("id"))], text))
 
     cities_state = snapshot.cities or {}
     if cities_state:
@@ -708,7 +728,7 @@ def standing_state_lines(
             if charter > 0:
                 text += f", {CHARTER_NAMES[charter] if charter < len(CHARTER_NAMES) else charter}"
             text += f", unrest {float(r.get('unrest', 0.0)):.2f}"
-            lines.append(text)
+            lines.append(([("city", r.get("id"))], text))
 
     # Guilds (``TurnSnapshot.guilds``, --guilds): those of the moment's regions
     # or of cities in its civs' lands, with the privileges their charters grant.
@@ -729,16 +749,17 @@ def standing_state_lines(
                 text += ": " + ", ".join(rights)
             if g.get("levy"):
                 text += "; its city's dues raised"
-            lines.append(text)
+            lines.append(([("guild", g.get("id"))], text))
         shares = [f"{c} {round(100 * float(burghers[c]))}%" for c in civs if c in burghers]
         if rows and shares:
-            lines.append("Burgher faction's influence at court: " + ", ".join(shares))
+            lines.append(([("burghers", ("civ", c)) for c in civs if c in burghers],
+                          "Burgher faction's influence at court: " + ", ".join(shares)))
 
     # Seats of learning (``TurnSnapshot.scholarship``, --scholarship): those of
     # the moment's regions or of its civs' lands, with their patron and scholars.
     seat_state = getattr(snapshot, "scholarship", None) or {}
     if seat_state:
-        lines.extend(seat_lines(seat_state, civs, regions))
+        lines.extend(([("seat", sid)], text) for sid, text in _seat_rows(seat_state, civs, regions))
 
     food = snapshot.food or {}
     hungry_regions = list(regions)
@@ -763,7 +784,7 @@ def standing_state_lines(
                 text += ("," if value is not None else "") + f" {label} recorded since turn {start}"
                 if reports > 1:
                     text += f" ({reports} reports)"
-            food_lines.append(text)
+            food_lines.append(([("food", ("region", region))], text))
     lines.extend(food_lines[:MAX_PER_KIND])
     return lines[:MAX_STATE_LINES]
 
@@ -777,6 +798,12 @@ def seat_lines(state: dict, civs: Sequence[str], regions: Sequence[str],
                limit: int = MAX_PER_KIND - 1) -> list[str]:
     """Standing-state lines for the seats of learning of a snapshot's
     ``scholarship`` summary in the moment's regions or its civs' lands."""
+    return [text for _sid, text in _seat_rows(state, civs, regions, limit)]
+
+
+def _seat_rows(state: dict, civs: Sequence[str], regions: Sequence[str],
+               limit: int = MAX_PER_KIND - 1) -> list[tuple[Any, str]]:
+    """``seat_lines`` with each seat's id."""
     from chronicler.scholarship_state import LEVEL_NAMES
     rows = [s for s in state.get("seats", []) if s.get("region") in regions or s.get("lord") in civs]
     rows.sort(key=lambda s: (s.get("region") not in regions, -int(s.get("level", 0)),
@@ -798,7 +825,7 @@ def seat_lines(state: dict, civs: Sequence[str], regions: Sequence[str],
             text += ", refugees from a fallen seat among them"
         if s.get("unpaid"):
             text += "; its upkeep unpaid"
-        out.append(text)
+        out.append((s.get("id"), text))
     return out
 
 

@@ -567,8 +567,10 @@ def test_observation_reads_only(world, monkeypatch):
 
 
 def test_no_simulation_module_imports_historiography():
-    # narration_inputs.py reads saved bundles for --narrate and live range narration.
-    allowed = {"main.py", "models.py", "live.py", "historiography.py", "narration_inputs.py"}
+    # narration_inputs.py reads saved bundles for --narrate and live range narration;
+    # narration_provenance.py names the chroniclers' civs and faiths for narration.
+    allowed = {"main.py", "models.py", "live.py", "historiography.py", "narration_inputs.py",
+               "narration_provenance.py"}
     importers = []
     for path in sorted((ROOT / "src" / "chronicler").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -657,7 +659,7 @@ def _sim_view(bundle: dict) -> dict:
     return out
 
 
-H_NARRATION = ("historiography", "chronicle_entries", "gap_summaries")
+H_NARRATION = ("historiography", "chronicle_entries", "gap_summaries", "narration_provenance")
 
 
 def test_resume_from_a_checkpoint_continues_the_chronicles_identically(tmp_path, pure_python):

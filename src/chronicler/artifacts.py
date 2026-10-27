@@ -777,16 +777,21 @@ def artifact_holder_text(a) -> str:
     return f"owned by {a.owner_civ}"
 
 
-def render_artifact_context(artifacts: list) -> str:
+def render_artifact_context(artifacts: list, sheet=None) -> str:
     """Render artifact context block for narrator prompt.
 
     Items are artifacts (described by where they are now) or
     ``(artifact, holder_text)`` pairs (``historical_context.HistoricalView.artifacts``).
+    With ``sheet`` (``narration_provenance.FactSheet``) each line is
+    registered and tagged with its fact id.
     """
     if not artifacts:
         return ""
     lines = ["ARTIFACTS:"]
     for item in artifacts:
         a, holder_info = item if isinstance(item, tuple) else (item, artifact_holder_text(item))
-        lines.append(f"- {a.name} ({a.artifact_type.value}, {holder_info}) — {a.origin_event}")
+        line = f"- {a.name} ({a.artifact_type.value}, {holder_info}) — {a.origin_event}"
+        if sheet is not None:
+            line = sheet.line(line, [(sheet.ids.artifact(a.artifact_id), a.origin_turn)])
+        lines.append(line)
     return "\n".join(lines)

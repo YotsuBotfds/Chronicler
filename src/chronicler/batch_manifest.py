@@ -93,7 +93,7 @@ NON_SIMULATION_ARG_KEYS = (
     "checkpoint", "resume_allow_mismatch", "local_url", "sim_model",
     "narrative_model", "llm_actions", "fork", "interactive", "pause_every", "live", "live_port", "live_origin",
     "analyze",
-    "compare", "checkpoints", "narrate", "budget", "narrate_output",
+    "compare", "checkpoints", "narrate", "budget", "narrate_output", "citations",
 )
 
 # Thread and hash-seed environment: OpenBLAS sums above 10,000 values

@@ -573,6 +573,7 @@ def execute_run(
         narrative_client=_narr,
         event_flavor=event_flavor,
         narrative_style=narrative_style,
+        citations=getattr(args, "citations", True),
     )
 
     # In simulate-only mode, replace narrator with a no-op
@@ -961,13 +962,15 @@ def execute_run(
         # Release the handoff before callbacks can mutate world or bridge state.
         del agent_rows, turn_result
 
-        # Record chronicle entry
+        # Record chronicle entry (with the per-turn narrator's provenance when
+        # it narrated this turn; never in simulate-only or curated modes)
         chronicle_entries.append(ChronicleEntry(
             turn=world.turn, covers_turns=(world.turn, world.turn),
             events=[], named_events=[],
             narrative=chronicle_text, importance=5.0,
             narrative_role=NarrativeRole.RESOLUTION,
             causal_links=[],
+            provenance=engine.take_turn_provenance(),
         ))
 
         # on_turn callback — fires after each turn's data is captured
@@ -1832,6 +1835,12 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Narrator backend: local (LM Studio), api (Claude API), gemini (Gemini API), "
                              "or mechanical (no LLM: curated moments rendered from event descriptions "
                              "and their recorded causal chains; works with --simulate-only)")
+    parser.add_argument("--citations", action=argparse.BooleanOptionalAction, default=True,
+                        help="Narrator prompts tag every fact with its id and ask the model to cite them; "
+                             "the citations are removed from the prose and kept in each entry's provenance "
+                             "(docs/integration/narration-provenance.md). --no-citations sends untagged "
+                             "prompts; the facts each passage was given are recorded either way. "
+                             "Narration only: no effect on the simulation")
     parser.add_argument("--relationship-stats", action="store_true",
                         help="Enable per-tick relationship distribution snapshots")
     parser.add_argument("--validation-sidecar", action="store_true",
@@ -1892,7 +1901,8 @@ def _run_narrate(args: argparse.Namespace) -> None:
     print(f"Curated {len(moments)} moments from {len(events)} events (budget={budget})")
 
     # Narrate
-    engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client)
+    engine = NarrativeEngine(sim_client=sim_client, narrative_client=narrative_client,
+                             citations=getattr(args, "citations", True))
 
     def progress_cb(completed: int, total: int, eta: float | None) -> None:
         eta_str = f" (ETA: {eta:.1f}s)" if eta is not None else ""
@@ -1919,6 +1929,13 @@ def _run_narrate(args: argparse.Namespace) -> None:
         "gap_summaries": [gs.model_dump() for gs in gap_summaries],
         "metadata": bundle.get("metadata", {}),
     }
+    # The entries' provenance names one table (chronicler.narration_provenance);
+    # check them against the source bundle with
+    # ``python -m chronicler.narration_audit BUNDLE --narrated OUTPUT``.
+    from chronicler.narration_provenance import BUNDLE_FIELD, compact_entries
+    provenance_names = compact_entries(result["chronicle_entries"])
+    if provenance_names is not None:
+        result[BUNDLE_FIELD] = provenance_names
 
     # M44: narrator provenance
     result["metadata"]["narrator_mode"] = getattr(args, "narrator", "local")

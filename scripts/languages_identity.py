@@ -45,7 +45,8 @@ from pathlib import Path
 
 IGNORED_NAMES = frozenset({"run_manifest.json"})  # gate tooling, records its own flags
 SIDECAR_SUFFIX = ".languages.json"
-NARRATION_FIELDS = ("languages", "chronicle_entries[].narrative")
+NARRATION_FIELDS = ("languages", "chronicle_entries[].narrative", "chronicle_entries[].provenance",
+                    "narration_provenance")
 NARRATION_FILES = frozenset({"chronicle.md"})
 
 
@@ -54,9 +55,11 @@ def _bundle(path: Path, *, drop_narration: bool) -> bytes:
     data.get("metadata", {}).pop("generated_at", None)
     if drop_narration:
         data.pop("languages", None)
+        data.pop("narration_provenance", None)
         for entry in data.get("chronicle_entries", []):
             if isinstance(entry, dict):
                 entry.pop("narrative", None)
+                entry.pop("provenance", None)  # the narration's own record of its facts
     return json.dumps(data, sort_keys=True).encode("utf-8")
 
 
