@@ -218,14 +218,12 @@ def _compare_identity(saved: dict, current: dict, uses_native: bool) -> list[str
     diff("source package digest", saved["source"]["package_digest"],
          current["source"]["package_digest"])
     s_nat, c_nat = saved["native"], current["native"]
+    # The extension decides which runtimes a turn uses (off mode included),
+    # so its bytes must match; the state layouts matter where native state
+    # is carried.
+    diff("native extension", s_nat.get("sha256"), c_nat.get("sha256"))
     if uses_native:
-        diff("native extension", s_nat.get("sha256"), c_nat.get("sha256"))
         diff("native state layouts", s_nat.get("state_layouts"), c_nat.get("state_layouts"))
-    else:
-        # Off mode with a native ecology/politics runtime records those layouts;
-        # a pure-Python run records none. Either way the extension's presence
-        # decides which runtimes the next turn uses.
-        diff("native extension", s_nat.get("sha256"), c_nat.get("sha256"))
     s_env, c_env = saved["environment"], current["environment"]
     for key in ("implementation", "python", "machine", "packages", "thread_env"):
         diff(f"environment {key}", s_env.get(key), c_env.get(key))

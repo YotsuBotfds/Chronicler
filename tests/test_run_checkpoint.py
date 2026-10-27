@@ -85,6 +85,16 @@ def test_resume_writes_what_the_uninterrupted_run_writes(tmp_path, k):
     assert _outputs(resumed) == _outputs(straight)
 
 
+def test_resume_keeps_the_saved_run_configuration(tmp_path):
+    # The caller's namespace says another seed and reflection interval; the
+    # checkpoint's own (42, 4) decide.
+    straight = _straight(tmp_path)
+    resumed = tmp_path / "resumed"
+    execute_run(_args(resumed, 12, seed=7, reflection_interval=10),
+                checkpoint_resume=rc.read_checkpoint(straight / "ckpt" / "turn_004.ckpt"))
+    assert _outputs(resumed) == _outputs(straight)
+
+
 def test_args_resume_detects_a_checkpoint(tmp_path):
     straight = _straight(tmp_path)
     resumed = tmp_path / "resumed"

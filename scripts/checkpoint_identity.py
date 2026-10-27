@@ -35,6 +35,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -170,24 +171,39 @@ def run_case(out: Path, name: str, ks: list[int] | None, jobs: int, extra: list[
     straight.mkdir()
     ckpt = straight / "ckpt"
     ckpt_args = ["--checkpoint-every", "1", "--checkpoint", str(ckpt / "turn_{turn:04d}.ckpt")]
+    # Checkpoints not in K are deleted as soon as they appear (each is
+    # complete when visible: written to a temporary file and renamed).
+    sizes: dict[int, int] = {}
+    stop = threading.Event()
+
+    def prune() -> None:
+        while True:
+            done = stop.is_set()
+            for path in sorted(ckpt.glob("turn_*.ckpt")):
+                turn = int(path.stem.split("_")[1])
+                if turn not in sizes:
+                    sizes[turn] = path.stat().st_size
+                if turn not in ks:
+                    path.unlink()
+            if done:
+                return
+            stop.wait(0.2)
+
+    pruner = threading.Thread(target=prune, daemon=True)
+    pruner.start()
     with ThreadPoolExecutor(max_workers=min(jobs, 2)) as pool:
         f_plain = pool.submit(_run, _cmd(target, [*cli, *_outputs(plain)]), case / "plain.log", _env())
         f_straight = pool.submit(_run, _cmd(target, [*cli, *_outputs(straight), *ckpt_args]),
                                  case / "straight.log", _env())
         (rc_p, s_p), (rc_s, s_s) = f_plain.result(), f_straight.result()
+    stop.set()
+    pruner.join()
     report["plain"] = {"exit": rc_p, "seconds": round(s_p, 2)}
     report["straight"] = {"exit": rc_s, "seconds": round(s_s, 2)}
     if rc_p or rc_s:
         report["error"] = "straight run failed"
         return report
-    # Checkpoints not in K are not needed.
-    sizes = {}
-    for path in sorted(ckpt.glob("turn_*.ckpt")):
-        turn = int(path.stem.split("_")[1])
-        sizes[turn] = path.stat().st_size
-        if turn not in ks:
-            path.unlink()
-    report["checkpoint_bytes"] = sizes
+    report["checkpoint_bytes"] = dict(sorted(sizes.items()))
     from cities_identity import compare as compare_dirs
     checked, problems = compare_dirs(plain, straight)
     problems = [p for p in problems if not p.startswith("only in new: ckpt/")]

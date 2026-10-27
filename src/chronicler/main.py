@@ -542,6 +542,11 @@ def execute_run(
     if _resume_state is not None:
         seed = _resume_state.seed
         scenario_config = _resume_state.scenario_config
+        # Era reflections follow the saved run's interval (the CLI adopts it
+        # too; a caller's own namespace may not carry it).
+        _saved_interval = _resume_state.run_config.get("simulation_args", {}).get("reflection_interval")
+        if _saved_interval:
+            reflection_interval = _saved_interval
         # The saved run's own label (it may itself continue a legacy resume)
         # carries over, so an exact resume writes the bundle that run writes.
         _saved_info = _resume_state.run_config.get("resume_info")
