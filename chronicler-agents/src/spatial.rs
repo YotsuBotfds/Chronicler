@@ -613,6 +613,21 @@ fn cell_of(side: usize, x: f32, y: f32) -> usize {
     cy * side + cx
 }
 
+/// Z-order (Morton) code of a position quantised to 1/65536 (the cast
+/// saturates, so any value gives a code).
+#[inline]
+fn z_order(x: f32, y: f32) -> u32 {
+    fn spread(v: u32) -> u32 {
+        let mut v = v & 0xFFFF;
+        v = (v | (v << 8)) & 0x00FF_00FF;
+        v = (v | (v << 4)) & 0x0F0F_0F0F;
+        v = (v | (v << 2)) & 0x3333_3333;
+        (v | (v << 1)) & 0x5555_5555
+    }
+    let q = |v: f32| ((v * 65536.0) as u32).min(0xFFFF);
+    spread(q(x)) | (spread(q(y)) << 1)
+}
+
 /// Reusable per-thread buffers.
 #[derive(Default)]
 struct DriftScratch {
@@ -627,8 +642,8 @@ struct DriftScratch {
     cols: NeighborColumns,
     /// Per neighbour: distance and unit direction toward the neighbour.
     geom: Geometry,
-    /// Exact mode: per lane, the block indices within the repulsion radius.
-    rep: [Vec<u32>; DRIFT_LANES],
+    /// Exact mode: the item's agents as (slot, x, y, occupation).
+    agents: Vec<DriftAgent>,
 }
 
 /// Neighbour list as columns, so the distance pass vectorises.
@@ -905,59 +920,72 @@ fn finish_drift(
     (new_x, new_y)
 }
 
-/// Agents of one cell evaluated together against their shared block.
+/// Agents of one cell evaluated together against their shared block by the
+/// portable and AVX2 kernels (the AVX-512 kernel uses `WIDE_LANES`).
 const DRIFT_LANES: usize = 8;
+/// Lanes of the AVX-512 kernel.
+const WIDE_LANES: usize = 16;
 
 /// A drifting agent: (slot, x, y, occupation).
 type DriftAgent = (u32, f32, f32, u8);
 
-/// `compute_drift_excluding` for up to `DRIFT_LANES` agents of one cell at
-/// once, bit for bit; results are appended to `out` in `agents` order.
+/// `compute_drift_excluding` for up to `L` agents of one cell at once, bit
+/// for bit; results are appended to `out` in `agents` order.
 ///
-/// Each neighbour is read once for all lanes, so the distance, direction and
-/// density terms of the lanes vectorise. Every lane computes exactly the
-/// reference expressions. Where the reference skips a neighbour, the density
-/// sums add `+0.0` instead: a sum that starts at `+0.0` is never `-0.0`
-/// (round to nearest gives `-0.0` only for `-0.0 + -0.0`), so adding `+0.0`
-/// leaves it unchanged and the qualifying terms are added in the same order.
-/// The repulsion neighbours (at most `REPULSION_RADIUS` away, a small share
-/// of the block) are listed per lane in block order and summed by the
-/// reference code. A lane's own entries get an infinite distance, as in the
-/// reference.
-fn drift_lanes(
+/// Each neighbour is read once for all lanes, so the distance, direction,
+/// density and repulsion terms of the lanes vectorise. Every lane computes
+/// exactly the reference expressions, in the reference order:
+///
+/// * Density: where the reference skips a neighbour, the sums add `+0.0`
+///   instead. A sum that starts at `+0.0` is never `-0.0` (round to nearest
+///   gives `-0.0` only for `-0.0 + -0.0`), so adding `+0.0` leaves it
+///   unchanged and the qualifying terms are added in the same order.
+/// * Repulsion (neighbours at most `REPULSION_RADIUS` away): the reference
+///   direction `(agent - n) / dist` is the negated density direction
+///   `(n - agent) / dist` bit for bit (IEEE subtraction and division are
+///   symmetric under negation; equal coordinates give `+0.0` either way,
+///   and a `+0.0` / `-0.0` term leaves a sum that is never `-0.0`
+///   unchanged), and `x + f * (-u)` is `x - f * u`. So a lane subtracts
+///   `force * u` with the reference force, in block order, without
+///   recomputing the distance or the direction; other lanes subtract `+0.0`
+///   (`x - 0.0` is `x` for every `x`). The force division runs only for
+///   neighbours some lane repels from. Zero-distance neighbours (below
+///   `REPULSION_MIN_DIST`) take the reference fallback, one lane at a time.
+///
+/// A lane's own entries get an infinite distance, as in the reference.
+#[inline(always)]
+fn drift_lanes<const L: usize>(
     agents: &[DriftAgent],
     attractors: &RegionAttractors,
     neighbors: &NeighborColumns,
-    rep: &mut [Vec<u32>; DRIFT_LANES],
     out: &mut Vec<(u32, f32, f32)>,
 ) {
-    debug_assert!(!agents.is_empty() && agents.len() <= DRIFT_LANES);
+    debug_assert!(!agents.is_empty() && agents.len() <= L);
     let n = neighbors.slot.len();
     // Unused lanes repeat the first agent; their results are not used.
-    let mut ax = [0.0f32; DRIFT_LANES];
-    let mut ay = [0.0f32; DRIFT_LANES];
-    let mut own = [0u32; DRIFT_LANES];
-    for l in 0..DRIFT_LANES {
+    let mut ax = [0.0f32; L];
+    let mut ay = [0.0f32; L];
+    let mut own = [0u32; L];
+    for l in 0..L {
         let a = agents[if l < agents.len() { l } else { 0 }];
         ax[l] = a.1;
         ay[l] = a.2;
         own[l] = a.0;
     }
-    let mut dens_x = [0.0f32; DRIFT_LANES];
-    let mut dens_y = [0.0f32; DRIFT_LANES];
-    let mut dens_count = [0u32; DRIFT_LANES];
-    let mut rep_len = [0usize; DRIFT_LANES];
-    // Entries are written before they are read (only `..rep_len` is read).
-    for list in rep.iter_mut() {
-        if list.len() < n + 1 {
-            list.resize(n + 1, 0);
-        }
-    }
+    let mut dens_x = [0.0f32; L];
+    let mut dens_y = [0.0f32; L];
+    let mut dens_count = [0u32; L];
+    let mut rep_x = [0.0f32; L];
+    let mut rep_y = [0.0f32; L];
     let (slots, xs, ys) = (&neighbors.slot[..n], &neighbors.x[..n], &neighbors.y[..n]);
     for k in 0..n {
         let (ns, nx, ny) = (slots[k], xs[k], ys[k]);
-        let mut near = [false; DRIFT_LANES];
-        for l in 0..DRIFT_LANES {
+        let mut dist = [0.0f32; L];
+        let mut dir_x = [0.0f32; L];
+        let mut dir_y = [0.0f32; L];
+        // All-ones where the lane is within the repulsion radius.
+        let mut near = [0u32; L];
+        for l in 0..L {
             let dx = nx - ax[l];
             let dy = ny - ay[l];
             let r = (dx * dx + dy * dy).sqrt();
@@ -968,27 +996,200 @@ fn drift_lanes(
             dens_x[l] += if skip { 0.0 } else { ux };
             dens_y[l] += if skip { 0.0 } else { uy };
             dens_count[l] += (!skip) as u32;
-            near[l] = !(r > REPULSION_RADIUS);
+            near[l] = if r > REPULSION_RADIUS { 0 } else { u32::MAX };
+            dist[l] = r;
+            dir_x[l] = ux;
+            dir_y[l] = uy;
         }
-        for l in 0..DRIFT_LANES {
-            rep[l][rep_len[l]] = k as u32;
-            rep_len[l] += near[l] as usize;
+        if near.iter().fold(0, |a, &m| a | m) != 0 {
+            // Lanes outside the radius, or at the zero-distance fallback,
+            // subtract `+0.0`, which leaves any value unchanged. The mask
+            // is applied to the bits so the force is computed for every
+            // lane as one vector instead of a branch per lane.
+            let mut fallback = 0u32;
+            for l in 0..L {
+                let r = dist[l];
+                let force = (1.0 / (r * r)).min(REPULSION_FORCE_CAP);
+                let zero = if r < REPULSION_MIN_DIST { near[l] } else { 0 };
+                let regular = near[l] & !zero;
+                rep_x[l] -= f32::from_bits((force * dir_x[l]).to_bits() & regular);
+                rep_y[l] -= f32::from_bits((force * dir_y[l]).to_bits() & regular);
+                fallback |= zero;
+            }
+            if fallback != 0 {
+                for l in 0..agents.len() {
+                    if near[l] != 0 && dist[l] < REPULSION_MIN_DIST {
+                        repulsion_fallback(own[l], ns, &mut rep_x[l], &mut rep_y[l]);
+                    }
+                }
+            }
         }
     }
     for (l, &(slot, x, y, occupation)) in agents.iter().enumerate() {
         let att = attractor_vector(x, y, occupation, attractors);
-        let mut rep_x: f32 = 0.0;
-        let mut rep_y: f32 = 0.0;
-        for &k in &rep[l][..rep_len[l]] {
-            let k = k as usize;
-            let dx = neighbors.x[k] - x;
-            let dy = neighbors.y[k] - y;
-            let dist = (dx * dx + dy * dy).sqrt();
-            repulsion_term(x, y, slot, neighbors, k, dist, &mut rep_x, &mut rep_y);
-        }
-        let pos = finish_drift(x, y, att, (dens_x[l], dens_y[l]), dens_count[l], (rep_x, rep_y));
+        let pos = finish_drift(x, y, att, (dens_x[l], dens_y[l]), dens_count[l], (rep_x[l], rep_y[l]));
         out.push((slot, pos.0, pos.1));
     }
+}
+
+/// Zero-distance repulsion term of `compute_drift_for_agent` (slots on both
+/// sides): a pair gets the same angle, the lower slot flipped by half a turn.
+/// The direction comes from `fallback_directions`, which holds the
+/// reference's `angle.cos()` and `angle.sin()` for each of its 720 angles.
+#[cold]
+#[inline(never)]
+fn repulsion_fallback(agent_slot: u32, neighbor_slot: u32, rep_x: &mut f32, rep_y: &mut f32) {
+    let flip = (agent_slot < neighbor_slot) as usize;
+    let (dir_x, dir_y) = fallback_directions()[flip][((agent_slot ^ neighbor_slot) % 360) as usize];
+    let force = REPULSION_ZERO_DIST_FORCE;
+    *rep_x += force * dir_x;
+    *rep_y += force * dir_y;
+}
+
+/// The zero-distance fallback directions: `[flip][(a ^ b) % 360]` is the
+/// `(angle.cos(), angle.sin())` the reference computes for that angle.
+/// The angle takes only 720 values, and `cos`/`sin` are functions of their
+/// argument's bits, so the table gives the reference's values; it is built
+/// once per process by the same expressions (`fallback_direction`).
+fn fallback_directions() -> &'static [[(f32, f32); 360]; 2] {
+    static TABLE: std::sync::OnceLock<Box<[[(f32, f32); 360]; 2]>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        let mut table = Box::new([[(0.0f32, 0.0f32); 360]; 2]);
+        for flip in 0..2 {
+            for v in 0..360u32 {
+                table[flip][v as usize] = fallback_direction(v, flip == 1);
+            }
+        }
+        table
+    })
+}
+
+/// Direction of the zero-distance fallback for `(a ^ b) % 360 == v`, the
+/// lower slot's (`flip`) turned by half a turn: the expressions of
+/// `compute_drift_for_agent`.
+#[inline(never)]
+fn fallback_direction(v: u32, flip: bool) -> (f32, f32) {
+    let mut angle = v as f32 * (std::f32::consts::PI / 180.0);
+    if flip {
+        angle += std::f32::consts::PI; // flip for symmetry breaking
+    }
+    let dir_x = angle.cos();
+    let dir_y = angle.sin();
+    (dir_x, dir_y)
+}
+
+/// The cell's agents (`item`) in groups of `L` lanes.
+#[inline(always)]
+fn drift_item<const L: usize>(
+    agents: &[DriftAgent],
+    attractors: &RegionAttractors,
+    neighbors: &NeighborColumns,
+    out: &mut Vec<(u32, f32, f32)>,
+) {
+    for group in agents.chunks(L) {
+        drift_lanes::<L>(group, attractors, neighbors, out);
+    }
+}
+
+/// Instruction set of the exact drift lanes, chosen at run time.
+///
+/// Every kernel runs the same `drift_lanes` code, with the same operations
+/// in the same order per lane; only the vector width the compiler may use
+/// differs. IEEE addition, multiplication, division and square root are
+/// correctly rounded at every width, and no kernel enables fused
+/// multiply-add contraction (Rust never contracts) or approximate
+/// reciprocals, so all kernels give the same bits as the scalar reference.
+///
+/// The AVX-512 kernel is compiled only by Rust 1.89 or later, which made the
+/// `avx512f` target feature stable (`build.rs` sets `chronicler_avx512`);
+/// older compilers within the crate's `rust-version` stop at AVX2.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DriftKernel {
+    /// Build target baseline (SSE2 on x86-64), 8 lanes.
+    Portable,
+    /// AVX2, 8 lanes in one register.
+    Avx2,
+    /// AVX-512F, 16 lanes in one register.
+    Avx512,
+}
+
+impl DriftKernel {
+    /// The widest kernel this CPU supports.
+    pub fn detect() -> Self {
+        #[cfg(all(target_arch = "x86_64", chronicler_avx512))]
+        if std::arch::is_x86_feature_detected!("avx512f") {
+            return Self::Avx512;
+        }
+        #[cfg(target_arch = "x86_64")]
+        if std::arch::is_x86_feature_detected!("avx2") {
+            return Self::Avx2;
+        }
+        Self::Portable
+    }
+
+    /// Every kernel this CPU can run (the equivalence tests try each).
+    pub fn available() -> Vec<Self> {
+        #[allow(unused_mut)]
+        let mut out = vec![Self::Portable];
+        #[cfg(target_arch = "x86_64")]
+        if std::arch::is_x86_feature_detected!("avx2") {
+            out.push(Self::Avx2);
+        }
+        #[cfg(all(target_arch = "x86_64", chronicler_avx512))]
+        if std::arch::is_x86_feature_detected!("avx512f") {
+            out.push(Self::Avx512);
+        }
+        out
+    }
+
+    /// Lanes per group.
+    pub fn lanes(self) -> usize {
+        match self {
+            Self::Portable | Self::Avx2 => DRIFT_LANES,
+            Self::Avx512 => WIDE_LANES,
+        }
+    }
+
+    fn run(
+        self,
+        agents: &[DriftAgent],
+        attractors: &RegionAttractors,
+        neighbors: &NeighborColumns,
+        out: &mut Vec<(u32, f32, f32)>,
+    ) {
+        match self {
+            #[cfg(target_arch = "x86_64")]
+            // SAFETY: `available`/`detect` only offer kernels the CPU supports.
+            Self::Avx2 => unsafe { drift_item_avx2(agents, attractors, neighbors, out) },
+            #[cfg(all(target_arch = "x86_64", chronicler_avx512))]
+            Self::Avx512 => unsafe { drift_item_avx512(agents, attractors, neighbors, out) },
+            // `Portable`, and kernels not compiled in (never offered).
+            _ => drift_item::<DRIFT_LANES>(agents, attractors, neighbors, out),
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn drift_item_avx2(
+    agents: &[DriftAgent],
+    attractors: &RegionAttractors,
+    neighbors: &NeighborColumns,
+    out: &mut Vec<(u32, f32, f32)>,
+) {
+    drift_item::<DRIFT_LANES>(agents, attractors, neighbors, out)
+}
+
+#[cfg(all(target_arch = "x86_64", chronicler_avx512))]
+#[target_feature(enable = "avx512f")]
+unsafe fn drift_item_avx512(
+    agents: &[DriftAgent],
+    attractors: &RegionAttractors,
+    neighbors: &NeighborColumns,
+    out: &mut Vec<(u32, f32, f32)>,
+) {
+    drift_item::<WIDE_LANES>(agents, attractors, neighbors, out)
 }
 
 /// Fast mode: deterministic stride sample of at most
@@ -1017,7 +1218,7 @@ pub fn fast_drift_grid_side(n: usize) -> usize {
 }
 
 /// Agents per parallel work item; one cell's agents may span several items.
-const DRIFT_CHUNK: usize = 128;
+const DRIFT_CHUNK: usize = 1024;
 
 /// Below this many drifting agents the drift step runs on one thread.
 const DRIFT_PARALLEL_MIN_AGENTS: usize = 4096;
@@ -1053,9 +1254,9 @@ pub fn spatial_drift_step_with_mode(
 /// positions). Agents are independent given the old positions, so they are
 /// computed in parallel and written back afterwards; each cell's block list
 /// is merged once instead of allocated and sorted per agent, and the cell's
-/// agents are evaluated `DRIFT_LANES` at a time against it (`drift_lanes`).
-/// Fast mode uses a population-sized grid per region and a bounded neighbour
-/// sample.
+/// agents are evaluated several at a time against it (`drift_lanes`, with
+/// the widest `DriftKernel` the CPU supports). Fast mode uses a
+/// population-sized grid per region and a bounded neighbour sample.
 ///
 /// `options.profile_spatial_sort` also times the Morton iteration order
 /// (`SpatialDiagnostics::sort_time_us`); it is off by default because the
@@ -1067,10 +1268,34 @@ pub fn spatial_drift_step_with_options(
     diag: &mut SpatialDiagnostics,
     options: crate::scale::TickOptions,
 ) {
-    use rayon::prelude::*;
+    drift_step(pool, grids, attractors, diag, options.scale_mode, options.profile_spatial_sort, None)
+}
 
-    let mode = options.scale_mode;
-    let profile_sort = options.profile_spatial_sort;
+/// `spatial_drift_step_with_mode` with a chosen lane kernel (tests and
+/// benchmarks; the kernel must be one of `DriftKernel::available()`).
+#[doc(hidden)]
+pub fn spatial_drift_step_with_kernel(
+    pool: &mut AgentPool,
+    grids: &[SpatialGrid],
+    attractors: &[RegionAttractors],
+    diag: &mut SpatialDiagnostics,
+    mode: crate::scale::AgentScaleMode,
+    kernel: DriftKernel,
+) {
+    assert!(DriftKernel::available().contains(&kernel), "{kernel:?} is not supported by this CPU");
+    drift_step(pool, grids, attractors, diag, mode, false, Some(kernel))
+}
+
+fn drift_step(
+    pool: &mut AgentPool,
+    grids: &[SpatialGrid],
+    attractors: &[RegionAttractors],
+    diag: &mut SpatialDiagnostics,
+    mode: crate::scale::AgentScaleMode,
+    profile_sort: bool,
+    kernel: Option<DriftKernel>,
+) {
+    use rayon::prelude::*;
 
     let cap = pool.capacity();
 
@@ -1168,8 +1393,13 @@ pub fn spatial_drift_step_with_options(
             .collect()
     };
 
-    // 2. Drifting agents grouped by (region, cell of their old position).
-    let mut work: Vec<(u32, u32, u32)> = Vec::with_capacity(pool.alive_count());
+    // 2. Drifting agents grouped by (region, cell of their old position),
+    //    in Z order of position within a cell, so each lane group is a
+    //    compact patch: fewer neighbours repel any of its agents. Every
+    //    agent's result is independent of its group (`drift_lanes`), so
+    //    the order does not reach any position.
+    // Key: region (16 bits) | cell (16 bits) | Z code (32 bits); then slot.
+    let mut work: Vec<(u64, u32)> = Vec::with_capacity(pool.alive_count());
     for slot in 0..cap {
         if !pool.is_alive(slot) {
             continue;
@@ -1183,23 +1413,26 @@ pub fn spatial_drift_step_with_options(
             continue;
         }
         let cell = cell_of(indexes[region].side, pool.x[slot], pool.y[slot]);
-        work.push((region as u32, cell as u32, slot as u32));
+        let z = z_order(pool.x[slot], pool.y[slot]);
+        let key = ((region as u64) << 48) | ((cell as u64) << 32) | z as u64;
+        work.push((key, slot as u32));
     }
     work.sort_unstable();
-    let mut items: Vec<&[(u32, u32, u32)]> = Vec::new();
-    for group in work.chunk_by(|a, b| a.0 == b.0 && a.1 == b.1) {
+    let mut items: Vec<&[(u64, u32)]> = Vec::new();
+    for group in work.chunk_by(|a, b| a.0 >> 32 == b.0 >> 32) {
         items.extend(group.chunks(DRIFT_CHUNK));
     }
 
     // 3. New positions from the old ones. Each result depends only on the
     //    snapshot, so the parallel map is exact.
+    let kernel = kernel.unwrap_or_else(DriftKernel::detect);
     let results: Vec<Vec<(u32, f32, f32)>> = {
         let pool_ref = &*pool;
-        let run_item = |scratch: &mut DriftScratch, item: &&[(u32, u32, u32)]| -> Vec<(u32, f32, f32)> {
-            let (region, cell, _) = item[0];
-            let region = region as usize;
+        let run_item = |scratch: &mut DriftScratch, item: &&[(u64, u32)]| -> Vec<(u32, f32, f32)> {
+            let region = (item[0].0 >> 48) as usize;
+            let cell = (item[0].0 >> 32) as u16;
             merge_block(&indexes[region], cell as usize, scratch);
-            let DriftScratch { block, sample, cols, geom, rep, .. } = scratch;
+            let DriftScratch { block, sample, cols, geom, agents, .. } = scratch;
             if !fast {
                 cols.fill(block);
             }
@@ -1207,18 +1440,16 @@ pub fn spatial_drift_step_with_options(
             // (non-finite positions, never seen, keep the per-agent path).
             if !fast && cols.x.iter().chain(&cols.y).all(|v| v.is_finite()) {
                 let mut out = Vec::with_capacity(item.len());
-                let mut lane_agents: [DriftAgent; DRIFT_LANES] = [(0, 0.0, 0.0, 0); DRIFT_LANES];
-                for group in item.chunks(DRIFT_LANES) {
-                    for (l, &(_, _, slot)) in group.iter().enumerate() {
-                        let s = slot as usize;
-                        lane_agents[l] = (slot, pool_ref.x[s], pool_ref.y[s], pool_ref.occupations[s]);
-                    }
-                    drift_lanes(&lane_agents[..group.len()], &attractors[region], cols, rep, &mut out);
-                }
+                agents.clear();
+                agents.extend(item.iter().map(|&(_, slot)| {
+                    let s = slot as usize;
+                    (slot, pool_ref.x[s], pool_ref.y[s], pool_ref.occupations[s])
+                }));
+                kernel.run(agents, &attractors[region], cols, &mut out);
                 return out;
             }
             item.iter()
-                .map(|&(_, _, slot)| {
+                .map(|&(_, slot)| {
                     let s = slot as usize;
                     if fast {
                         sample_block(block, slot, sample);
@@ -1476,9 +1707,17 @@ mod scale_equivalence_tests {
     }
 
     /// Lanes of a cell's agents against the shared block equal the reference
-    /// per-agent query + compute, bit for bit, for every group size.
+    /// per-agent query + compute, bit for bit, for every kernel this CPU can
+    /// run (portable 8 lanes, AVX2 8 lanes, AVX-512 16 lanes) and every group
+    /// size.
     #[test]
     fn exact_lanes_are_bit_identical_to_reference() {
+        for kernel in DriftKernel::available() {
+            lanes_match_reference(kernel);
+        }
+    }
+
+    fn lanes_match_reference(kernel: DriftKernel) {
         let mut rng = Mix(19);
         for case in 0..16u64 {
             let n = [5usize, 60, 400, 1500][(case % 4) as usize];
@@ -1507,14 +1746,14 @@ mod scale_equivalence_tests {
                 }
                 merge_block(&index, cell, &mut scratch);
                 scratch.cols.fill(&scratch.block);
-                let group = 1 + (cell + case as usize) % DRIFT_LANES;
+                let group = 1 + (cell + case as usize) % kernel.lanes();
                 let mut got = Vec::new();
                 for chunk in members.chunks(group) {
                     let agents: Vec<DriftAgent> = chunk
                         .iter()
                         .map(|&s| (s, xs[s as usize], ys[s as usize], occ(s as usize)))
                         .collect();
-                    drift_lanes(&agents, &att, &scratch.cols, &mut scratch.rep, &mut got);
+                    kernel.run(&agents, &att, &scratch.cols, &mut got);
                 }
                 assert_eq!(got.len(), members.len());
                 for (&s, &(slot, gx, gy)) in members.iter().zip(&got) {
@@ -1530,10 +1769,115 @@ mod scale_equivalence_tests {
                     assert_eq!(
                         (expected.0.to_bits(), expected.1.to_bits()),
                         (gx.to_bits(), gy.to_bits()),
-                        "case {case} cell {cell} slot {s}: {expected:?} vs {:?}",
+                        "{kernel:?} case {case} cell {cell} slot {s}: {expected:?} vs {:?}",
                         (gx, gy)
                     );
                 }
+            }
+        }
+    }
+
+    /// The whole exact drift step, with each kernel this CPU can run and
+    /// with the detected one, moves every agent to the position the
+    /// per-agent reference gives, bit for bit. The pool is large enough for
+    /// the parallel path, one cell holds more than `DRIFT_CHUNK` agents
+    /// (split into several items), knots reach the zero-distance fallback,
+    /// and dead and travelling agents keep their positions.
+    #[test]
+    fn exact_drift_step_matches_reference_for_every_kernel() {
+        use crate::agent::Occupation;
+        let mut rng = Mix(31);
+        let regions = 3u16;
+        let mut pool = AgentPool::new(6_000);
+        let occs = [Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+                    Occupation::Scholar, Occupation::Priest];
+        for r in 0..regions {
+            let n = 2_000usize;
+            let mut pts = positions(&mut rng, n);
+            if r == 0 {
+                // One dense cell: 1,100 agents within (0.42..0.48)^2.
+                for p in pts.iter_mut().take(1_100) {
+                    *p = (0.42 + 0.06 * rng.unit(), 0.42 + 0.06 * rng.unit());
+                }
+                // A knot inside the zero-distance fallback radius.
+                for p in pts.iter_mut().skip(1_100).take(60) {
+                    *p = (0.7 + 0.0005 * rng.unit(), 0.3 + 0.0005 * rng.unit());
+                }
+            }
+            for (i, &(x, y)) in pts.iter().enumerate() {
+                let s = pool.spawn(r, 0, occs[i % 5], 30, 0.0, 0.0, 0.0, 0, 1, 2, 0);
+                pool.x[s] = x;
+                pool.y[s] = y;
+            }
+        }
+        for s in (0..pool.capacity()).step_by(97) {
+            pool.kill(s);
+        }
+        for s in (5..pool.capacity()).step_by(89) {
+            pool.trip_phase[s] = crate::agent::TRIP_PHASE_TRANSIT;
+        }
+        let attractors: Vec<RegionAttractors> = (0..regions as u64).map(|r| attractors_for(r + 2)).collect();
+        let mut grids = Vec::new();
+        rebuild_spatial_grids(&pool, &mut grids, regions);
+        let (x0, y0) = (pool.x.clone(), pool.y.clone());
+        let mut expected = Vec::with_capacity(pool.capacity());
+        for s in 0..pool.capacity() {
+            if !pool.is_alive(s) || pool.is_on_trip(s) {
+                expected.push((x0[s], y0[s]));
+                continue;
+            }
+            let r = pool.regions[s] as usize;
+            let list: Vec<(u32, f32, f32)> = grids[r]
+                .query_neighbors(x0[s], y0[s], s as u32)
+                .iter()
+                .map(|&n| (n, x0[n as usize], y0[n as usize]))
+                .collect();
+            expected.push(compute_drift_for_agent(x0[s], y0[s], pool.occupations[s], s as u32, &attractors[r], &list));
+        }
+        let mut runs: Vec<Option<DriftKernel>> = DriftKernel::available().into_iter().map(Some).collect();
+        runs.push(None);
+        for kernel in runs {
+            pool.x.copy_from_slice(&x0);
+            pool.y.copy_from_slice(&y0);
+            let mut diag = SpatialDiagnostics::default();
+            match kernel {
+                Some(k) => spatial_drift_step_with_kernel(
+                    &mut pool, &grids, &attractors, &mut diag, crate::scale::AgentScaleMode::Exact, k,
+                ),
+                None => spatial_drift_step(&mut pool, &grids, &attractors, &mut diag),
+            }
+            for s in 0..pool.capacity() {
+                assert_eq!(
+                    (pool.x[s].to_bits(), pool.y[s].to_bits()),
+                    (expected[s].0.to_bits(), expected[s].1.to_bits()),
+                    "{kernel:?} slot {s}"
+                );
+            }
+        }
+    }
+
+    /// The fallback table holds the reference's `angle.cos()` and
+    /// `angle.sin()` for all 720 angles, whether the two are computed
+    /// together or by separate calls.
+    #[test]
+    fn fallback_directions_match_reference_expressions() {
+        let table = fallback_directions();
+        let cos: fn(f32) -> f32 = std::hint::black_box(f32::cos);
+        let sin: fn(f32) -> f32 = std::hint::black_box(f32::sin);
+        for a in 0..400u32 {
+            for b in [0u32, 1, 7, 359, 360, 361, 1_000, 65_535] {
+                if a == b {
+                    continue;
+                }
+                // `compute_drift_for_agent`'s expressions for slots a and b.
+                let mut angle = ((a ^ b) % 360) as f32 * (std::f32::consts::PI / 180.0);
+                if a < b {
+                    angle += std::f32::consts::PI;
+                }
+                let joint = (angle.cos(), angle.sin());
+                let got = table[(a < b) as usize][((a ^ b) % 360) as usize];
+                assert_eq!((got.0.to_bits(), got.1.to_bits()), (joint.0.to_bits(), joint.1.to_bits()));
+                assert_eq!((got.0.to_bits(), got.1.to_bits()), (cos(angle).to_bits(), sin(angle).to_bits()));
             }
         }
     }
