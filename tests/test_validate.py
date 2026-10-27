@@ -1409,7 +1409,8 @@ def test_needs_oracle_reports_the_spiritual_pairing_without_deciding():
     # The binding thresholds reported are the paired needs' only.
     assert "spiritual" not in result["binding"]["thresholds"]
 
-    # A reversed spiritual pairing reads discordant and changes nothing else.
+    # A reversed spiritual pairing reads discordant (and decides nothing:
+    # the next test).
     reversed_runs = [_spiritual_world(seed, 2, 8 + seed % 3) for seed in range(10)]
     reversed_spiritual = run_needs_oracle(reversed_runs, profile="full")["informational_pairings"]["spiritual"]
     assert reversed_spiritual["pairs"]["net_concordance"] < -0.5

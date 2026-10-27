@@ -1,5 +1,10 @@
 # Procedural drift (2026-10)
 
+> Follow-ups in [`oracle-followups.md`](oracle-followups.md): the cohort
+> oracle's windows (cohort method 3, censored at the pair's first death),
+> age in the needs pairs (measured; age matching not adopted) and the
+> spiritual pairing (needs method 6 reports it beside method 5's verdict).
+
 Branch `fix/procedural-drift` from `main` `7bb2bd4` (PR #52), merged with
 `db5eff4` (PR #53, native turn speed) and `13f735a` (PR #54, checkpoint
 continuation), both byte-identical in output for runs without checkpoints. Diagnosis of
