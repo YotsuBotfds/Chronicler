@@ -857,8 +857,45 @@ pub fn evaluate_region_decisions_ablated<L: crate::pool::SlotLookup>(
     id_to_slot: &L,  // M57b
     ablation: u8,
 ) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_with(
+        pool, slots, regions, region_state, stats, region_id, rng, id_to_slot,
+        DecisionOptions { ablation, ..DecisionOptions::default() },
+    )
+}
+
+/// What a tick's decisions read besides the pool and the region stats.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DecisionOptions {
+    /// The `scale::ABLATE_*` bits in force this tick.
+    pub ablation: u8,
+    /// Community anchoring (`crate::community`, `scale::CommunityAnchoring`).
+    pub community_anchoring: crate::scale::CommunityAnchoring,
+}
+
+/// [`evaluate_region_decisions_ablated`] with community anchoring
+/// (`options.community_anchoring`): an agent with a reason to move (the
+/// migrate gate open) has its community anchor (`community::community_ties`)
+/// subtracted from the migrate utility, unless `scale::ABLATE_COMMUNITY_ANCHOR`
+/// is in force. Off, the anchor is never computed and the decision is
+/// [`evaluate_region_decisions_ablated`]'s exactly. Draws nothing.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
+    pool: &AgentPool,
+    slots: &[usize],
+    regions: &[RegionState],
+    region_state: &RegionState,
+    stats: &RegionStats,
+    region_id: usize,
+    rng: &mut ChaCha8Rng,
+    id_to_slot: &L,  // M57b
+    options: DecisionOptions,
+) -> (PendingDecisions, u32) {
+    let ablation = options.ablation;
     let ablate_needs = ablation & crate::scale::ABLATE_NEEDS != 0;
     let ablate_kin_roots = ablation & crate::scale::ABLATE_KIN_ROOTS != 0;
+    let community_anchoring = options.community_anchoring.enabled
+        && ablation & crate::scale::ABLATE_COMMUNITY_ANCHOR == 0;
+    let full_anchor = options.community_anchoring.full_anchor;
     let mut pending = PendingDecisions::new();
     let mut threat_changed_count: u32 = 0;
 
@@ -983,7 +1020,16 @@ pub fn evaluate_region_decisions_ablated<L: crate::pool::SlotLookup>(
         let u_migrate = if !is_displaced && migrate_util > 0.0
             && best_migration_target != region_id as u16
         {
-            migrate_util
+            // Community anchoring: the agent's community ties at home hold it
+            // back from acting on its reason to move (the gate stays open).
+            if community_anchoring {
+                let ties = crate::community::community_ties(pool, slot, region_id, id_to_slot);
+                pending.migration_drivers.record_community_ties(ties.counted());
+                let anchor = ties.anchor_with(full_anchor);
+                if anchor > 0.0 { migrate_util - anchor } else { migrate_util }
+            } else {
+                migrate_util
+            }
         } else {
             f32::NEG_INFINITY
         };
@@ -2745,6 +2791,131 @@ mod ablation_tests {
         let (kin, kin_next) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_KIN_ROOTS));
         assert!(same(&plain, &kin));
         assert_eq!(plain_next, kin_next);
+    }
+
+    fn decide_with(pool: &AgentPool, regions: &[RegionState], slots: &[usize], options: DecisionOptions)
+        -> (PendingDecisions, u32)
+    {
+        let stats = compute_region_stats(pool, regions, &signals());
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        let ids: std::collections::HashMap<u32, usize> =
+            (0..pool.capacity()).filter(|&s| pool.is_alive(s)).map(|s| (pool.ids[s], s)).collect();
+        let pending = evaluate_region_decisions_with(
+            pool, slots, regions, &regions[0], &stats, 0, &mut rng, &ids, options,
+        ).0;
+        (pending, rng.next_u32())
+    }
+
+    fn anchoring(enabled: bool, ablation: u8) -> DecisionOptions {
+        DecisionOptions {
+            ablation,
+            community_anchoring: crate::scale::CommunityAnchoring { enabled, ..Default::default() },
+        }
+    }
+
+    /// `world(n)` where every agent shares a famine memory and agents form
+    /// friend circles of five (four friends each) in their region.
+    fn community_world(n_agents: usize) -> (AgentPool, Vec<RegionState>, Vec<usize>) {
+        let (mut pool, regions, slots) = world(n_agents);
+        for &s in &slots {
+            let i = pool.memory_count[s] as usize;
+            pool.memory_event_types[s][i] = 3;
+            pool.memory_turns[s][i] = 12;
+            pool.memory_intensities[s][i] = -40;
+            pool.memory_count[s] += 1;
+        }
+        for circle in slots.chunks(5) {
+            for &a in circle {
+                for &b in circle {
+                    if a != b && (pool.rel_count[a] as usize) < crate::relationships::REL_SLOTS {
+                        let i = pool.rel_count[a] as usize;
+                        pool.rel_target_ids[a][i] = pool.ids[b];
+                        pool.rel_sentiments[a][i] = 80;
+                        pool.rel_bond_types[a][i] = crate::relationships::BondType::Friend as u8;
+                        pool.rel_count[a] += 1;
+                    }
+                }
+            }
+        }
+        (pool, regions, slots)
+    }
+
+    #[test]
+    fn community_anchoring_off_or_ablated_is_the_plain_decision() {
+        // Without bonds the id map does not matter: the default options are
+        // `evaluate_region_decisions` exactly.
+        let (pool, regions, slots) = world(600);
+        let (plain, plain_next) = decide(&pool, &regions, &slots, None);
+        let (off, off_next) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
+        assert!(same(&plain, &off));
+        assert_eq!(plain_next, off_next);
+        let (pool, regions, slots) = community_world(400);
+        let (plain, plain_next) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
+        let (off, _) = decide_with(&pool, &regions, &slots, anchoring(false, 0));
+        assert!(same(&plain, &off));
+        let (ablated, ablated_next) =
+            decide_with(&pool, &regions, &slots, anchoring(true, crate::scale::ABLATE_COMMUNITY_ANCHOR));
+        assert!(same(&plain, &ablated));
+        assert_eq!(plain_next, ablated_next);
+        // The ablation bit without anchoring has nothing to switch off.
+        let (bit_only, _) = decide_with(&pool, &regions, &slots, anchoring(false, crate::scale::ABLATE_COMMUNITY_ANCHOR));
+        assert!(same(&plain, &bit_only));
+        assert_eq!(off.migration_drivers.community_ties, [0; crate::migration_drivers::COMMUNITY_TIE_BANDS]);
+    }
+
+    #[test]
+    fn community_anchoring_changes_nothing_without_ties() {
+        let (pool, regions, slots) = world(600);
+        let (plain, plain_next) = decide(&pool, &regions, &slots, None);
+        assert!(!plain.migrations.is_empty());
+        let (on, on_next) = decide_with(&pool, &regions, &slots, anchoring(true, 0));
+        assert!(same(&plain, &on));
+        assert_eq!(plain_next, on_next);
+        // Every agent with a reason to move is counted with no ties.
+        let ties = on.migration_drivers.community_ties;
+        assert!(ties[0] > 0 && ties[1..].iter().all(|&c| c == 0));
+    }
+
+    #[test]
+    fn community_anchoring_only_turns_moves_into_other_choices_and_draws_the_same_numbers() {
+        let (pool, regions, slots) = community_world(600);
+        let (plain, plain_next) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
+        let (on, on_next) = decide_with(&pool, &regions, &slots, anchoring(true, 0));
+        assert_eq!(plain_next, on_next, "the anchor must not change how many numbers are drawn");
+        let movers = |p: &PendingDecisions| p.migrations.iter().map(|m| m.0).collect::<std::collections::BTreeSet<_>>();
+        let (before, after) = (movers(&plain), movers(&on));
+        assert!(after.is_subset(&before), "anchoring never makes an agent move");
+        assert!(after.len() < before.len(), "anchoring holds some movers back");
+        // Agents who did not move in the plain decision decide exactly as before.
+        let others = |p: &PendingDecisions| {
+            let mut out: Vec<(usize, u8, u8)> = p.rebellions.iter().filter(|r| !before.contains(&r.0))
+                .map(|r| (r.0, 0, 0))
+                .chain(p.occupation_switches.iter().filter(|r| !before.contains(&r.0)).map(|r| (r.0, 1, r.1)))
+                .collect();
+            out.sort();
+            out
+        };
+        assert_eq!(others(&plain), others(&on));
+        // Circles of five: every agent with a reason to move counts four ties.
+        let ties = on.migration_drivers.community_ties;
+        assert!(ties[crate::community::COMMUNITY_FULL_TIES as usize] > 0);
+        assert_eq!(ties[..crate::community::COMMUNITY_FULL_TIES as usize].iter().sum::<u32>(), 0);
+    }
+
+    #[test]
+    fn a_stronger_full_anchor_holds_back_at_least_as_many_movers() {
+        let (pool, regions, slots) = community_world(600);
+        let moves = |full_anchor: f32| {
+            let options = DecisionOptions {
+                ablation: 0,
+                community_anchoring: crate::scale::CommunityAnchoring { enabled: true, full_anchor },
+            };
+            decide_with(&pool, &regions, &slots, options).0.migrations.len()
+        };
+        let (none, calibrated, strong) = (moves(0.0), moves(crate::community::COMMUNITY_ANCHOR), moves(1.0));
+        let (plain, _) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
+        assert_eq!(none, plain.migrations.len());
+        assert!(calibrated < none && strong <= calibrated);
     }
 }
 

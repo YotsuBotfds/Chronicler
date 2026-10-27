@@ -676,7 +676,7 @@ def execute_run(
             _shadow_output = (_default_shadow_output_path(output_path) if _shadow_output is None
                               else Path(_shadow_output))
         retarget_outputs(_resume_state, output_path.parent, _shadow_output)
-        _fork_ablation(args, run_config, agent_bridge, world.turn)
+        _fork_ablation(args, run_config, agent_bridge, world.turn, world=world)
     from chronicler.historiography import historiography_on as _historiography_on
     from chronicler.languages import languages_on as _languages_on
 
@@ -1558,6 +1558,20 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if grain_reserves is not None:
         from chronicler.grain_reserves import set_grain_reserves_enabled
         set_grain_reserves_enabled(world, grain_reserves)
+    # Community anchoring switch (persisted on the world): community ties
+    # hold agents back from moving. It acts in the native agent decision, so
+    # an explicit --community-anchoring needs an agent pool; a saved setting
+    # is dormant under --agents off.
+    community_anchoring = getattr(args, "community_anchoring", None)
+    if community_anchoring is True and agent_mode == "off":
+        raise ValueError("Community anchoring requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    if community_anchoring is None and fresh_world:
+        from chronicler.community_anchoring import DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT
+        community_anchoring = _ANCHOR_DEFAULT
+    if community_anchoring is not None:
+        from chronicler.community_anchoring import set_community_anchoring_enabled
+        set_community_anchoring_enabled(world, community_anchoring)
+    _check_ablation_term(decision_ablation, world)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -1633,7 +1647,18 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     return agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config
 
 
-def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "Any", turn: int) -> None:
+def _check_ablation_term(ablation: tuple[str, int] | None, world: "Any") -> None:
+    """An ablation arm must have its term: ``community_anchor`` needs the
+    world's community anchoring (without it there is no anchor to switch off)."""
+    if ablation is None or ablation[0] != "community_anchor":
+        return
+    from chronicler.community_anchoring import community_anchoring_enabled
+    if not community_anchoring_enabled(world):
+        raise ValueError("--decision-ablation community_anchor requires community anchoring (--community-anchoring)")
+
+
+def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "Any", turn: int,
+                   world: "Any" = None) -> None:
     """An exact resume given ``--decision-ablation``: switch the term off in
     the restored native simulator from ``--ablation-start-turn`` (not before
     the checkpoint's turn) and record the fork in the run configuration. A
@@ -1651,6 +1676,8 @@ def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "An
         raise ValueError(f"--ablation-start-turn {ablation[1]} is before the checkpoint's turn {turn}")
     if agent_bridge is None:
         raise ValueError("--decision-ablation requires an agent pool (--agents hybrid, shadow or demographics-only)")
+    if world is not None:
+        _check_ablation_term(ablation, world)
     from chronicler.decision_ablation import apply_decision_ablation
     apply_decision_ablation(agent_bridge._sim, ablation)
     agent_bridge.decision_ablation = ablation
@@ -1781,8 +1808,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Validation experiments only (agent modes): switch a term of the native "
                              "agent decision off from --ablation-start-turn on: needs (the need "
                              "modifiers and the autonomy factor of loyalty drift), kin_roots (marriage "
-                             "and home bonds in a migrant's roots) or placebo (decision draws from "
-                             "another random stream). Turns before the start are the plain run's. "
+                             "and home bonds in a migrant's roots), placebo (decision draws from "
+                             "another random stream) or community_anchor (the community anchor of "
+                             "--community-anchoring). Turns before the start are the plain run's. "
                              "Default: none (docs/integration/ablation-oracles.md)")
     parser.add_argument("--ablation-start-turn", type=int, default=None, metavar="TURN",
                         help="First turn whose agent decisions --decision-ablation switches off")
@@ -1886,6 +1914,13 @@ def _build_parser() -> argparse.ArgumentParser:
                              "markets the merchants may reach, with transit and storage losses, "
                              "and opens the granary in dearth or famine before hunger kills; needs "
                              "an agent mode (default off; saved on resume)")
+    parser.add_argument("--community-anchoring", action=argparse.BooleanOptionalAction, default=None,
+                        help="Community anchoring: an agent's community ties (bonds of some warmth, "
+                             "kin or not but at least one not kin, to people of its own region "
+                             "with whom it shares a memory) hold it back from acting on a reason "
+                             "to move, up to four ties (a community of five); rebellion, "
+                             "occupation switches and staying are untouched; needs an agent pool "
+                             "(default off; saved on resume; docs/integration/community-anchoring.md)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

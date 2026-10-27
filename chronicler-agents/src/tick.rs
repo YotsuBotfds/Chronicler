@@ -14,7 +14,7 @@ use crate::agent::{
     LIFE_EVENT_REBELLION, LIFE_EVENT_WAR_SURVIVAL, LOYALTY_FLIP_THRESHOLD,
     OCCUPATION_COUNT, SKILL_NEWBORN, SKILL_RESET_ON_SWITCH,
 };
-use crate::behavior::{compute_region_stats, evaluate_region_decisions_ablated};
+use crate::behavior::{compute_region_stats, evaluate_region_decisions_with, DecisionOptions};
 use crate::demographics;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
@@ -562,7 +562,7 @@ pub fn try_tick_agents_with_movements(
                 rng.set_stream(
                     ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
                 );
-                evaluate_region_decisions_ablated(
+                evaluate_region_decisions_with(
                     pool_ref,
                     slots,
                     regions,
@@ -571,7 +571,7 @@ pub fn try_tick_agents_with_movements(
                     region_id,
                     &mut rng,
                     id_to_slot_ref,  // M57b
-                    ablation,
+                    DecisionOptions { ablation, community_anchoring: options.community_anchoring },
                 )
             })
             .collect()

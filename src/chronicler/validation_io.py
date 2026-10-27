@@ -156,7 +156,15 @@ NEEDS_AUTONOMY_EXCLUDES_PRIOR_REBELS = True
 # (``validation_gate.CAUSAL_ORACLES_REQUIRED``); with causal oracles required
 # the profile decides (``validation_gate.NEEDS_COMPONENTS_REQUIRED``): the
 # ablation in the full profile, the observational one in the subset.
-NEEDS_ORACLE_METHOD_VERSION = 7
+#
+# Method 8 (docs/integration/community-anchoring.md, section 6) is method 7
+# on arms of fork design 2 (``chronicler.ablation_arms``): procedural worlds
+# fork every 20 turns from turn 100 instead of every 100, template worlds as
+# before. Estimator, cohorts, window and criteria are method 7's. Arms of
+# design 1 are scored by method 7 (``run_needs_oracle(...,
+# method_version=7)``, chosen by ``run_oracles`` from the arms' manifest).
+NEEDS_ORACLE_METHOD_VERSION = 8
+NEEDS_ABLATION_DESIGN1_METHOD_VERSION = 7
 NEEDS_INFORMATIONAL_METHOD_VERSION = 6
 NEEDS_DEATH_CENSORED_METHOD_VERSION = 5
 NEEDS_POST_SNAPSHOT_METHOD_VERSION = 4
@@ -165,8 +173,10 @@ NEEDS_POOLED_METHOD_VERSION = 2
 NEEDS_METHOD_VERSIONS = (
     NEEDS_POOLED_METHOD_VERSION, NEEDS_BINDING_METHOD_VERSION,
     NEEDS_POST_SNAPSHOT_METHOD_VERSION, NEEDS_DEATH_CENSORED_METHOD_VERSION,
-    NEEDS_INFORMATIONAL_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION,
+    NEEDS_INFORMATIONAL_METHOD_VERSION, NEEDS_ABLATION_DESIGN1_METHOD_VERSION, NEEDS_ORACLE_METHOD_VERSION,
 )
+# The ablation methods and the fork design of the arms each reads.
+NEEDS_ABLATION_METHOD_DESIGNS = {NEEDS_ABLATION_DESIGN1_METHOD_VERSION: 1, NEEDS_ORACLE_METHOD_VERSION: 2}
 NEEDS_PAIRINGS = (
     ("autonomy", EVENT_NAME_TO_CODE["rebellion"]),
     ("social", EVENT_NAME_TO_CODE["migration"]),
@@ -250,14 +260,37 @@ NEEDS_BINDING_DIVERGENCE = 0.05
 # term enters the rebel decision. Until causal oracles are required
 # (``validation_gate.CAUSAL_ORACLES_REQUIRED``) method 3's verdict decides and
 # the ablation is reported. ``method_version=3`` re-scores method 3.
-COHORT_ORACLE_METHOD_VERSION = 4
+#
+# Method 5 (docs/integration/community-anchoring.md) is method 4 on arms of
+# fork design 2 (procedural worlds fork every 20 turns) with a reported
+# community component: the community anchor's arm (``community_anchor``,
+# batches run with --community-anchoring; ``NOT_RUN`` otherwise), scored on
+# the same members by method 4's criterion and by the anchor's own exposure
+# (``validation_ablation.community_ablation_result``). It never decides.
+# Arms of design 1 are scored by method 4.
+COHORT_ORACLE_METHOD_VERSION = 5
+COHORT_ABLATION_DESIGN1_METHOD_VERSION = 4
 COHORT_DEATH_CENSORED_METHOD_VERSION = 3
 COHORT_POST_SNAPSHOT_METHOD_VERSION = 2
 COHORT_LEGACY_METHOD_VERSION = 1
 COHORT_METHOD_VERSIONS = (
     COHORT_LEGACY_METHOD_VERSION, COHORT_POST_SNAPSHOT_METHOD_VERSION, COHORT_DEATH_CENSORED_METHOD_VERSION,
-    COHORT_ORACLE_METHOD_VERSION,
+    COHORT_ABLATION_DESIGN1_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION,
 )
+COHORT_ABLATION_METHOD_DESIGNS = {COHORT_ABLATION_DESIGN1_METHOD_VERSION: 1, COHORT_ORACLE_METHOD_VERSION: 2}
+
+
+def _check_arm_designs(oracle: str, method_version: int, designs: dict[int, int], *arms: dict | None) -> None:
+    """Refuse arms of another fork design than the ablation method reads."""
+    want = designs[method_version]
+    for arm in arms:
+        if arm is None:
+            continue
+        got = arm.get("design", 1)
+        if got != want:
+            raise ValueError(
+                f"{oracle} oracle method {method_version} reads arms of fork design {want}, not {got}; "
+                f"score them with method " + str(next(v for v, d in designs.items() if d == got)))
 COHORT_OUTCOME_WINDOW_TURNS = 20
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
@@ -2578,14 +2611,16 @@ def run_needs_oracle(
         raise ValueError(f"needs oracle method_version must be one of {NEEDS_METHOD_VERSIONS}: {method_version!r}")
     if not require_binding and method_version != NEEDS_POOLED_METHOD_VERSION:
         raise ValueError(f"require_binding=False is method {NEEDS_POOLED_METHOD_VERSION}, not {method_version}")
-    if method_version == NEEDS_ORACLE_METHOD_VERSION:
+    if method_version in NEEDS_ABLATION_METHOD_DESIGNS:
+        _check_arm_designs("needs", method_version, NEEDS_ABLATION_METHOD_DESIGNS, ablation, placebo)
         observational = run_needs_oracle(
             seed_runs, exclude_prior_rebels, need_divergence=need_divergence,
             personality_tolerance=personality_tolerance, window=window, confidence=confidence,
             seed_fraction=seed_fraction, thresholds=thresholds, binding_divergence=binding_divergence,
             profile=profile, method_version=NEEDS_INFORMATIONAL_METHOD_VERSION,
         )
-        return _needs_with_ablation(observational, seed_runs, profile, ablation, placebo, require_causal)
+        return _needs_with_ablation(observational, seed_runs, profile, ablation, placebo, require_causal,
+                                    method_version=method_version)
     require_binding = method_version >= NEEDS_BINDING_METHOD_VERSION
     outcome_offset = 1 if method_version >= NEEDS_POST_SNAPSHOT_METHOD_VERSION else 0
     censor_at_death = method_version >= NEEDS_DEATH_CENSORED_METHOD_VERSION
@@ -2834,18 +2869,19 @@ def run_needs_oracle(
 
 
 def _needs_with_ablation(observational: dict, seed_runs: list[dict], profile: str | None,
-                         ablation: dict | None, placebo: dict | None, require_causal: bool | None = None) -> dict:
-    """Method 7: method 6's ``observational`` result with the ablation
-    component; the status from the components that decide
+                         ablation: dict | None, placebo: dict | None, require_causal: bool | None = None, *,
+                         method_version: int = NEEDS_ORACLE_METHOD_VERSION) -> dict:
+    """Methods 7 and 8: method 6's ``observational`` result with the
+    ablation component; the status from the components that decide
     (``validation_gate.needs_components_required``)."""
     from .validation_ablation import needs_ablation_component
 
     if observational.get("status") not in ("PASS", "FAIL"):
         return observational
-    return needs_method_7_result(
+    return needs_ablation_method_result(
         observational, needs_ablation_component(seed_runs, ablation), profile,
         placebo=needs_ablation_component(seed_runs, placebo, arm_name="placebo") if placebo is not None else None,
-        require_causal=require_causal,
+        require_causal=require_causal, method_version=method_version,
     )
 
 
@@ -2855,16 +2891,35 @@ def needs_method_7_result(observational: dict, component: dict, profile: str | N
     ablation ``component`` (``validation_ablation.needs_ablation_component``;
     ``placebo`` the same against the placebo arm). Pure: it re-scores the
     verdict of a saved method 7 result under another mode."""
+    return needs_ablation_method_result(observational, component, profile, placebo=placebo,
+                                        require_causal=require_causal,
+                                        method_version=NEEDS_ABLATION_DESIGN1_METHOD_VERSION)
+
+
+def needs_ablation_method_result(observational: dict, component: dict, profile: str | None, *,
+                                 placebo: dict | None = None, require_causal: bool | None = None,
+                                 method_version: int = NEEDS_ORACLE_METHOD_VERSION) -> dict:
+    """Needs method 7 or 8 (``method_version``) from method 6's
+    ``observational`` result and the ablation ``component`` of arms of the
+    method's fork design. Method 8's components also name their design
+    (``fork_design``); method 7's keep their fields. Pure."""
     from .validation_gate import causal_label, causal_oracles_required, combined_status, needs_components_required
 
+    if method_version not in NEEDS_ABLATION_METHOD_DESIGNS:
+        raise ValueError(f"needs ablation method must be one of {tuple(NEEDS_ABLATION_METHOD_DESIGNS)}")
     require_causal = causal_oracles_required(None, require_causal)
     component = {**component, "label": causal_label(require_causal)}
+    design = NEEDS_ABLATION_METHOD_DESIGNS[method_version]
+    if design >= 2:
+        component["fork_design"] = design
+        if placebo is not None:
+            placebo = {**placebo, "fork_design": design}
     required = needs_components_required(profile, require_causal)
     statuses = {"observational": observational["status"], "ablation": component.get("status")}
     result = {
         "status": combined_status(statuses, required),
         "method": "observational_and_ablation",
-        "method_version": NEEDS_ORACLE_METHOD_VERSION,
+        "method_version": method_version,
         "causal_oracles_required": require_causal,
         "required_components": list(required),
         "component_statuses": statuses,
@@ -3141,13 +3196,32 @@ def cohort_method_4_result(observational: dict, component: dict, *, placebo: dic
     come from the component that decides
     (``validation_gate.cohort_components_required``). Pure: it re-scores the
     verdict of saved components under another mode."""
+    return cohort_ablation_method_result(observational, component, placebo=placebo, require_causal=require_causal,
+                                         method_version=COHORT_ABLATION_DESIGN1_METHOD_VERSION)
+
+
+def cohort_ablation_method_result(observational: dict, component: dict, *, placebo: dict | None = None,
+                                  require_causal: bool | None = None, community: dict | None = None,
+                                  method_version: int = COHORT_ORACLE_METHOD_VERSION) -> dict:
+    """Cohort method 4 or 5 (``method_version``). Method 5 adds the
+    community anchor's ``community`` component
+    (``validation_ablation.community_ablation_result``; reported, never
+    deciding; ``NOT_RUN`` without its arm) and names the fork design in its
+    components; method 4's fields are unchanged. Pure."""
     from .validation_gate import (
         COHORT_OBSERVATIONAL_NOTE, causal_label, causal_oracles_required, cohort_components_required,
         combined_status,
     )
 
+    if method_version not in COHORT_ABLATION_METHOD_DESIGNS:
+        raise ValueError(f"cohort ablation method must be one of {tuple(COHORT_ABLATION_METHOD_DESIGNS)}")
     require_causal = causal_oracles_required(None, require_causal)
     component = {**component, "label": causal_label(require_causal)}
+    design = COHORT_ABLATION_METHOD_DESIGNS[method_version]
+    if design >= 2:
+        component["fork_design"] = design
+        if placebo is not None:
+            placebo = {**placebo, "fork_design": design}
     required = cohort_components_required(require_causal)
     statuses = {"observational": str(observational.get("status") or "MISSING"),
                 "ablation": str(component.get("status") or "MISSING")}
@@ -3155,7 +3229,7 @@ def cohort_method_4_result(observational: dict, component: dict, *, placebo: dic
     result = {
         "status": status,
         "method": "observational_and_ablation",
-        "method_version": COHORT_ORACLE_METHOD_VERSION,
+        "method_version": method_version,
         "causal_oracles_required": require_causal,
         "required_components": list(required),
         "component_statuses": statuses,
@@ -3176,6 +3250,13 @@ def cohort_method_4_result(observational: dict, component: dict, *, placebo: dic
     result["ablation"] = component
     if placebo is not None:
         result["placebo"] = placebo
+    if design >= 2:
+        community = community if community is not None else {
+            "status": "NOT_RUN", "reason": "no community_anchor ablation arm", "arm": "community_anchor"}
+        result["community_ablation"] = {
+            **community, "fork_design": design,
+            "label": "causal evidence (reported; the community anchor of --community-anchoring)",
+        }
     if "per_seed" in observational:
         result["per_seed"] = observational["per_seed"]
     return result
@@ -3183,7 +3264,7 @@ def cohort_method_4_result(observational: dict, component: dict, *, placebo: dic
 
 def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, *,
                       ablation: dict | None = None, placebo: dict | None = None,
-                      require_causal: bool | None = None) -> dict:
+                      require_causal: bool | None = None, community: dict | None = None) -> dict:
     """M53 oracle 4, method 4: method 3's observational result
     (``COHORT_OBSERVATIONAL_NOTE``: it passes synthetic null and reversed
     worlds) and the kin-roots ablation: community members at a fork migrate
@@ -3211,15 +3292,19 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
         method_version = COHORT_ORACLE_METHOD_VERSION
     if isinstance(method_version, bool) or method_version not in COHORT_METHOD_VERSIONS:
         raise ValueError(f"cohort oracle method_version must be one of {COHORT_METHOD_VERSIONS}: {method_version!r}")
-    if method_version == COHORT_ORACLE_METHOD_VERSION:
-        from .validation_ablation import cohort_ablation_result
+    if method_version in COHORT_ABLATION_METHOD_DESIGNS:
+        from .validation_ablation import cohort_ablation_result, community_ablation_result
+        _check_arm_designs("cohort", method_version, COHORT_ABLATION_METHOD_DESIGNS, ablation, placebo, community)
         if not seed_runs:
             return {"status": "SKIP", "reason": "no_bundles"}
-        return cohort_method_4_result(
+        community_component = None
+        if COHORT_ABLATION_METHOD_DESIGNS[method_version] >= 2:
+            community_component = community_ablation_result(seed_runs, community)
+        return cohort_ablation_method_result(
             run_cohort_oracle(seed_runs, method_version=COHORT_DEATH_CENSORED_METHOD_VERSION),
             cohort_ablation_result(seed_runs, ablation),
             placebo=cohort_ablation_result(seed_runs, placebo, arm_name="placebo") if placebo is not None else None,
-            require_causal=require_causal,
+            require_causal=require_causal, community=community_component, method_version=method_version,
         )
     outcome_offset = 1 if method_version >= COHORT_POST_SNAPSHOT_METHOD_VERSION else 0
     censor_at_death = method_version >= COHORT_DEATH_CENSORED_METHOD_VERSION
@@ -4179,13 +4264,14 @@ def run_oracles(
             elif oracle_name == "needs":
                 results[oracle_name] = run_needs_oracle(
                     ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
-                    require_causal=require_causal)
+                    require_causal=require_causal, method_version=ablation_methods(ablation_summary)[0])
             elif oracle_name == "era":
                 results[oracle_name] = run_era_oracle(ensure_seed_runs())
             elif oracle_name == "cohort":
                 results[oracle_name] = run_cohort_oracle(
                     ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
-                    require_causal=require_causal)
+                    community=arms.get("community_anchor"), require_causal=require_causal,
+                    method_version=ablation_methods(ablation_summary)[1])
             elif oracle_name == "artifacts":
                 results[oracle_name] = run_artifact_oracle(ensure_seed_runs())
             elif oracle_name == "arcs":
@@ -4220,6 +4306,15 @@ def run_oracles(
 
 
 ABLATION_DIR_FLAG = "--ablation-dir"
+
+
+def ablation_methods(ablation_summary: dict | None) -> tuple[int, int]:
+    """(needs, cohort) method versions for arms with this report summary
+    (``_load_arms``): design 1 arms are scored by needs method 7 and cohort
+    method 4, design 2 arms and a batch without arms by the current ones."""
+    if ablation_summary is not None and ablation_summary.get("design", 1) == 1:
+        return NEEDS_ABLATION_DESIGN1_METHOD_VERSION, COHORT_ABLATION_DESIGN1_METHOD_VERSION
+    return NEEDS_ORACLE_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION
 
 
 def _load_arms(ablation_dir: Path | None, batch_dir: Path) -> tuple[dict, dict | None]:
@@ -4291,4 +4386,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'needs_method_7_result', 'cohort_method_4_result', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'check_batch_manifest', 'LEGACY_BATCH_FLAG', 'main']
+__all__ = ['SCRUB_KEYS', 'BUNDLE_FILENAME', 'EVENT_NAME_TO_CODE', 'ValidationRequestError', 'ValidationDependencyError', '_has_pyarrow', '_iter_seed_dirs', '_requires_pyarrow_for_selected_inputs', 'scrubbed_equal', 'load_bundles', 'required_seed_count', '_read_json', '_snapshot_turns', '_choose_snapshot_turn', '_load_graph_snapshot', '_load_needs_snapshot', '_read_arrow_columns', '_load_canonical_graph_snapshot', '_load_canonical_needs_snapshot', '_available_turns_from_columns', '_sample_turns', '_columns_for_turn', '_graph_snapshot_from_columns', '_needs_snapshot_from_columns', '_load_validation_summary', '_load_validation_community_summary', '_load_agent_events', '_world_population_series', '_civ_trajectories', 'load_seed_runs', '_total_turns', '_iter_graph_snapshots', '_iter_needs_snapshots', '_iter_joint_sample_turns', '_filter_events_window', '_mean', '_cohen_d', '_collapse_nearby_points', '_trajectory_metric_series', '_trajectory_composite_series', '_smoothed_series', '_significant_slope_pattern', '_agent_count_by_turn', '_final_ginis_from_validation_summary', 'detect_communities', 'compute_needs_diversity', '_needs_candidate_priority', 'detect_inflection_points', 'detect_collapse_episodes', 'compute_cohort_distinctiveness', '_cohort_candidate_priority', 'check_artifact_lifecycle', '_legacy_classify_civ_arc', '_classify_series_by_thirds', 'classify_civ_arc', 'run_determinism_gate', 'run_community_oracle', 'run_needs_oracle', 'run_needs_oracle_best_of', 'run_era_oracle', 'run_cohort_oracle', 'needs_method_7_result', 'cohort_method_4_result', 'needs_ablation_method_result', 'cohort_ablation_method_result', 'ablation_methods', 'run_artifact_oracle', 'run_arc_oracle', 'run_regression_summary', 'run_oracles', 'check_batch_manifest', 'LEGACY_BATCH_FLAG', 'main']

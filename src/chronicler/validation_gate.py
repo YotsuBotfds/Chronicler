@@ -273,7 +273,21 @@ def _cohort_status(
             items.append({"oracle": "cohort_ablation", "status": statuses["ablation"],
                           "reason": f"{CAUSAL_LABEL_REPORTED}: kin-roots ablation {statuses['ablation']}"
                                     + (f" ({detail})" if detail else "")})
+    community = _community_component(result)
+    if community is not None and community.get("status") != "PASS":
+        detail = _ablation_detail(community)
+        items.append({"oracle": "cohort_community_ablation", "status": str(community.get("status") or "MISSING"),
+                      "reason": "reported, never deciding: community-anchor ablation "
+                                f"{community.get('status')}" + (f" ({detail})" if detail else "")})
     return status, reason or None, items
+
+
+def _community_component(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Cohort method 5's community component when its arm ran (None otherwise)."""
+    community = result.get("community_ablation") if isinstance(result, dict) else None
+    if not isinstance(community, dict) or community.get("status") == "NOT_RUN":
+        return None
+    return community
 
 
 def _needs_observational_status(result: dict[str, Any], profile: str) -> tuple[str, list[dict[str, Any]]]:
@@ -448,6 +462,21 @@ def causal_evidence(report: dict[str, Any], profile: str, require_causal: bool) 
             "decides": "ablation" in cohort_components_required(require_causal),
             "label": causal_label(require_causal), "detail": detail,
         })
+        community = _community_component(cohort)
+        if community is not None:
+            migration = community.get("members_migration")
+            by_cohort = community.get("migration_by_cohort")
+            by_cohort = by_cohort if isinstance(by_cohort, dict) else {}
+            parts = [f"members' migration {_ratio_text(migration)}"] if isinstance(migration, dict) else []
+            for name, label in (("full_ties", "four ties"), ("no_ties", "no ties")):
+                if isinstance(by_cohort.get(name), dict):
+                    parts.append(f"{label} {_ratio_text(by_cohort[name])}")
+            rows.append({
+                "oracle": "cohort_community", "component": "ablation (community anchor)",
+                "status": str(community.get("status") or "MISSING"),
+                "decides": False,
+                "label": "reported", "detail": "; ".join(parts) or _ablation_detail(community),
+            })
     return rows
 
 

@@ -10,7 +10,8 @@ from .validation_gate import CAUSAL_ORACLES_FLAG, PROFILE_CHOICES, causal_oracle
 from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
 from .validation_io import (
-    ABLATION_DIR_FLAG, LEGACY_BATCH_FLAG, MANIFEST_FILENAME, _load_arms, check_batch_manifest, summarize_world_shapes,
+    ABLATION_DIR_FLAG, LEGACY_BATCH_FLAG, MANIFEST_FILENAME, _load_arms, ablation_methods, check_batch_manifest,
+    summarize_world_shapes,
 )
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
@@ -79,11 +80,12 @@ def run_oracles(
             elif oracle_name == "needs":
                 results[oracle_name] = runner(
                     ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
-                    require_causal=require_causal)
+                    require_causal=require_causal, method_version=ablation_methods(ablation_summary)[0])
             elif oracle_name == "cohort":
                 results[oracle_name] = runner(
                     ensure_seed_runs(), ablation=arms.get("kin_roots"), placebo=arms.get("placebo"),
-                    require_causal=require_causal)
+                    community=arms.get("community_anchor"), require_causal=require_causal,
+                    method_version=ablation_methods(ablation_summary)[1])
             else:
                 results[oracle_name] = runner(ensure_seed_runs())
         except (ValidationRequestError, ValidationDependencyError):
@@ -144,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="the batch's ablation arms (chronicler.ablation_arms): the needs oracle's "
                              "ablation component and the cohort oracle read them")
     parser.add_argument(CAUSAL_ORACLES_FLAG, action=argparse.BooleanOptionalAction, default=None,
-                        help="let the ablation components (needs method 7, cohort method 4) decide "
+                        help="let the ablation components (needs method 8, cohort method 5) decide "
                              "(default: validation_gate.CAUSAL_ORACLES_REQUIRED, off: they are reported as "
                              "causal evidence, not yet required)")
     args = parser.parse_args(argv)

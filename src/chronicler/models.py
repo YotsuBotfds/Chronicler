@@ -1200,6 +1200,9 @@ class WorldState(BaseModel):
     # Public granaries: stock-target grain procurement and reserves
     # (chronicler.grain_reserves; None = disabled; omitted from output).
     grain_reserves: GrainReserveState | None = Field(default=None, exclude_if=_is_none)
+    # Community anchoring: community ties hold agents back from moving
+    # (chronicler.community_anchoring; True = on, None = off and omitted).
+    community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)

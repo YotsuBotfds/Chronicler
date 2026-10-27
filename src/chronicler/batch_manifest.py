@@ -79,6 +79,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "languages",
     "scholarship",
     "grain_reserves",
+    "community_anchoring",
     "tuning",
     "preset",
     "aggression_bias",

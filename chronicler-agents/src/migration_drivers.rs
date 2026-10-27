@@ -536,7 +536,15 @@ pub struct MigrationDriverStats {
     /// those whose largest term is a voluntary driver.
     pub decided_by_age: [u32; AGE_BANDS],
     pub voluntary_by_age: [u32; AGE_BANDS],
+    /// Community anchoring (`--community-anchoring`; zeros without it):
+    /// evaluated agents with a reason to move (the migrate gate open) by the
+    /// community ties their anchor counts (`community::CommunityTies::counted`,
+    /// 0 .. `community::COMMUNITY_FULL_TIES`).
+    pub community_ties: [u32; COMMUNITY_TIE_BANDS],
 }
+
+/// Bands of `MigrationDriverStats::community_ties`: 0 .. 4 counted ties.
+pub const COMMUNITY_TIE_BANDS: usize = crate::community::COMMUNITY_FULL_TIES as usize + 1;
 
 /// Age bands of the budget: under 20, 20-34, 35-49, 50-64, 65 and over.
 pub const AGE_BANDS: usize = 5;
@@ -614,6 +622,15 @@ impl MigrationDriverStats {
             self.decided_by_age[i] += other.decided_by_age[i];
             self.voluntary_by_age[i] += other.voluntary_by_age[i];
         }
+        for i in 0..COMMUNITY_TIE_BANDS {
+            self.community_ties[i] += other.community_ties[i];
+        }
+    }
+
+    /// Count one agent with a reason to move by its counted community ties.
+    #[inline]
+    pub fn record_community_ties(&mut self, counted: u8) {
+        self.community_ties[(counted as usize).min(COMMUNITY_TIE_BANDS - 1)] += 1;
     }
 
     /// Count one decided migration in its decider's age band.
@@ -1099,5 +1116,5 @@ mod tests {
 
 crate::persist_struct!(MigrationDriverStats {
     evaluated, decided, unexplained, share, present, open, gate, followers, decided_by_age,
-    voluntary_by_age,
+    voluntary_by_age, community_ties,
 });

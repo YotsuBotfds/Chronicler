@@ -8,7 +8,10 @@ decision off (``AgentSimulator.set_decision_ablation``,
 * ``needs``: the need modifiers of the rebel, migrate, switch and stay
   utilities and the autonomy factor of loyalty drift (needs still evolve);
 * ``kin_roots``: the marriage and home-bond parts of a migrant's roots;
-* ``placebo``: no term; the decision draws come from another random stream.
+* ``placebo``: no term; the decision draws come from another random stream;
+* ``community_anchor``: the community anchor (``--community-anchoring``,
+  ``chronicler.community_anchoring``; a world without it has no anchor to
+  switch off, and the arm is refused there).
 
 The plain run and the arm share every turn before T, so the needs and
 cohort oracles compare what the same agents do after T with and without
@@ -19,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
-DECISION_ABLATIONS = ("needs", "kin_roots", "placebo")
+DECISION_ABLATIONS = ("needs", "kin_roots", "placebo", "community_anchor")
 
 
 def decision_ablation_from_args(args: Any, agent_mode: str) -> tuple[str, int] | None:

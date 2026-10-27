@@ -48,7 +48,7 @@ def test_ablation_is_sent_to_the_simulator_only_when_requested():
     assert calls == []
     for name in DECISION_ABLATIONS:
         apply_decision_ablation(Sim(), (name, 101))
-    assert calls == [(["needs"], 101), (["kin_roots"], 101), (["placebo"], 101)]
+    assert calls == [(["needs"], 101), (["kin_roots"], 101), (["placebo"], 101), (["community_anchor"], 101)]
     with pytest.raises(RuntimeError, match="predates decision ablations"):
         apply_decision_ablation(object(), ("needs", 1))
 

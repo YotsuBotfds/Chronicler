@@ -51,7 +51,7 @@ impl AgentScaleMode {
 }
 
 /// Per-tick options that do not belong to region or civ signals.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TickOptions {
     pub scale_mode: AgentScaleMode,
     /// Profiling only: time the discarded Morton sort of the spatial step at
@@ -63,6 +63,24 @@ pub struct TickOptions {
     /// turn on (`DecisionAblation`). Off by default (mask 0): every tick
     /// decides exactly as before.
     pub ablation: DecisionAblation,
+    /// Community anchoring (`--community-anchoring`, `crate::community`).
+    /// Off by default: the anchor is never computed.
+    pub community_anchoring: CommunityAnchoring,
+}
+
+/// The community anchoring switch and its strength (`crate::community`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CommunityAnchoring {
+    pub enabled: bool,
+    /// The anchor of an agent with `community::COMMUNITY_FULL_TIES` ties, in
+    /// utility units (default `community::COMMUNITY_ANCHOR`).
+    pub full_anchor: f32,
+}
+
+impl Default for CommunityAnchoring {
+    fn default() -> Self {
+        Self { enabled: false, full_anchor: crate::community::COMMUNITY_ANCHOR }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -82,8 +100,12 @@ pub const ABLATE_KIN_ROOTS: u8 = 2;
 /// (`agent::DECISION_PLACEBO_STREAM_OFFSET`). No term changes; the arm
 /// differs from the plain run only by chance.
 pub const ABLATE_PLACEBO: u8 = 4;
+/// The community anchor (`crate::community`, `--community-anchoring`):
+/// community ties no longer hold back a move. Without community anchoring
+/// there is no anchor to switch off.
+pub const ABLATE_COMMUNITY_ANCHOR: u8 = 8;
 /// Every known ablation bit.
-pub const ABLATE_KNOWN: u8 = ABLATE_NEEDS | ABLATE_KIN_ROOTS | ABLATE_PLACEBO;
+pub const ABLATE_KNOWN: u8 = ABLATE_NEEDS | ABLATE_KIN_ROOTS | ABLATE_PLACEBO | ABLATE_COMMUNITY_ANCHOR;
 
 /// Which decision terms are switched off, from which tick turn on.
 ///
@@ -107,13 +129,19 @@ impl DecisionAblation {
             "needs" => Some(ABLATE_NEEDS),
             "kin_roots" => Some(ABLATE_KIN_ROOTS),
             "placebo" => Some(ABLATE_PLACEBO),
+            "community_anchor" => Some(ABLATE_COMMUNITY_ANCHOR),
             _ => None,
         }
     }
 
     /// Names of the bits set in `mask`, in bit order.
     pub fn names(mask: u8) -> Vec<&'static str> {
-        [(ABLATE_NEEDS, "needs"), (ABLATE_KIN_ROOTS, "kin_roots"), (ABLATE_PLACEBO, "placebo")]
+        [
+            (ABLATE_NEEDS, "needs"),
+            (ABLATE_KIN_ROOTS, "kin_roots"),
+            (ABLATE_PLACEBO, "placebo"),
+            (ABLATE_COMMUNITY_ANCHOR, "community_anchor"),
+        ]
             .iter()
             .filter(|(bit, _)| mask & bit != 0)
             .map(|&(_, name)| name)
@@ -154,10 +182,13 @@ pub const FAST_FORMATION_PARTNERS: usize = 64; // [CALIBRATE M61b]
 // ---------------------------------------------------------------------------
 
 crate::persist_struct!(TickOptions {
-    scale_mode, profile_spatial_sort, ablation,
+    scale_mode, profile_spatial_sort, ablation, community_anchoring,
 });
 crate::persist_struct!(DecisionAblation {
     mask, start_turn,
+});
+crate::persist_struct!(CommunityAnchoring {
+    enabled, full_anchor,
 });
 crate::persist_enum!(AgentScaleMode {
     Exact = 0, Fast = 1,
@@ -180,14 +211,17 @@ mod tests {
 
     #[test]
     fn decision_ablation_names_round_trip() {
-        for name in ["needs", "kin_roots", "placebo"] {
+        for name in ["needs", "kin_roots", "placebo", "community_anchor"] {
             let bit = DecisionAblation::bit(name).unwrap();
             assert_eq!(bit & ABLATE_KNOWN, bit);
             assert_eq!(DecisionAblation::names(bit), vec![name]);
         }
         assert_eq!(DecisionAblation::bit("terms"), None);
         assert_eq!(DecisionAblation::names(0), Vec::<&str>::new());
-        assert_eq!(DecisionAblation::names(ABLATE_KNOWN), vec!["needs", "kin_roots", "placebo"]);
+        assert_eq!(
+            DecisionAblation::names(ABLATE_KNOWN),
+            vec!["needs", "kin_roots", "placebo", "community_anchor"]
+        );
     }
 
     #[test]
@@ -196,10 +230,20 @@ mod tests {
             scale_mode: AgentScaleMode::Fast,
             profile_spatial_sort: true,
             ablation: DecisionAblation { mask: ABLATE_KIN_ROOTS, start_turn: 301 },
+            community_anchoring: CommunityAnchoring { enabled: true, full_anchor: 0.25 },
         };
         let blob = crate::persist::encode(crate::persist::KIND_AGENT, &options);
         let back: TickOptions = crate::persist::decode(crate::persist::KIND_AGENT, &blob).unwrap();
         assert_eq!(back, options);
-        assert!(crate::persist::schema_of::<TickOptions>().contains("ablation:DecisionAblation{mask:u8,start_turn:u32,}"));
+        let schema = crate::persist::schema_of::<TickOptions>();
+        assert!(schema.contains("ablation:DecisionAblation{mask:u8,start_turn:u32,}"));
+        assert!(schema.contains("community_anchoring:CommunityAnchoring{enabled:bool,full_anchor:f32,}"));
+    }
+
+    #[test]
+    fn community_anchoring_is_off_by_default_at_the_calibrated_strength() {
+        let options = TickOptions::default();
+        assert!(!options.community_anchoring.enabled);
+        assert_eq!(options.community_anchoring.full_anchor, crate::community::COMMUNITY_ANCHOR);
     }
 }

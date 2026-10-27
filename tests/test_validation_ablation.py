@@ -1,5 +1,6 @@
-"""Ablation oracles: needs method 7's ablation component and cohort method 4
-(docs/integration/ablation-oracles.md)."""
+"""Ablation oracles: needs methods 7 and 8 (the ablation component on arms
+of fork designs 1 and 2) and cohort methods 4 and 5
+(docs/integration/ablation-oracles.md, docs/integration/community-anchoring.md)."""
 from __future__ import annotations
 
 import json
@@ -18,11 +19,13 @@ THRESHOLDS = {"safety": 0.30, "material": 0.30, "social": 0.35, "spiritual": 0.3
 EVENT_OF = {"safety": MIG, "material": MIG, "social": MIG, "spiritual": MIG, "autonomy": REB, "purpose": SWITCH}
 
 
-def _world(seeds=6, forks=(100, 200), agents=20, deficit="material", plain=2, ablated=1, extra_events=()):
+def _world(seeds=6, forks=(100, 200), agents=20, deficit="material", plain=2, ablated=1, extra_events=(),
+           design=1):
     """Seeds whose agents 0-9 are below ``deficit``'s threshold at each fork
     (every other need above every threshold) and act ``plain`` / ``ablated``
-    times over the window in the two arms; agents 10-19 act once in both."""
-    runs, arm = [], {"window": 20, "forks": {}}
+    times over the window in the two arms; agents 10-19 act once in both.
+    The arm is of fork ``design`` (1: needs method 7, cohort method 4)."""
+    runs, arm = [], {"window": 20, "forks": {}, "design": design}
     for seed in range(seeds):
         matching = ("civ_affinity", "region", "occupation", "boldness", "ambition", "loyalty_trait")
         cols = {"turn": [], "agent_id": [], **{need: [] for need in NEEDS}, **{key: [] for key in matching}}
@@ -130,9 +133,9 @@ def test_needs_component_without_arm_or_snapshot():
     assert result["status"] == "ERROR" and "turn 150" in result["reason"]
 
 
-def _cohort_world(seeds=6, members_plain=1, members_ablated=2):
+def _cohort_world(seeds=6, members_plain=1, members_ablated=2, design=1):
     """Agents 0-9 form a community (friends sharing a memory); 10-19 do not."""
-    runs, arm = _world(seeds=seeds, forks=(100,), deficit="material", plain=0, ablated=0)
+    runs, arm = _world(seeds=seeds, forks=(100,), deficit="material", plain=0, ablated=0, design=design)
     for run in runs:
         rel = {k: [] for k in ("turn", "agent_id", "target_id", "bond_type", "sentiment")}
         mem = {k: [] for k in ("turn", "agent_id", "event_type", "memory_turn", "valence_sign")}
@@ -181,7 +184,7 @@ def test_needs_method_7_keeps_method_6_and_the_observational_verdict_decides():
 
     runs, arm = _world(plain=2, ablated=1)
     method6 = run_needs_oracle(runs, profile="full", method_version=6)
-    method7 = run_needs_oracle(runs, profile="full", ablation=arm)
+    method7 = run_needs_oracle(runs, profile="full", ablation=arm, method_version=7)
     assert method7["method_version"] == 7
     for key, value in method6.items():
         if key in ("status", "method", "method_version", "criterion"):
@@ -193,7 +196,7 @@ def test_needs_method_7_keeps_method_6_and_the_observational_verdict_decides():
     # profile; the ablation is computed and labelled as causal evidence.
     assert method7["causal_oracles_required"] is False
     for profile in ("full", "subset", None):
-        result = run_needs_oracle(runs, profile=profile, ablation=arm)
+        result = run_needs_oracle(runs, profile=profile, ablation=arm, method_version=7)
         assert result["required_components"] == ["observational"]
         assert result["status"] == run_needs_oracle(runs, profile=profile, method_version=6)["status"]
     # Only the material pairing has a cohort here: it passes, the component
@@ -202,18 +205,22 @@ def test_needs_method_7_keeps_method_6_and_the_observational_verdict_decides():
     assert method7["ablation"]["status"] == "FAIL" and method7["status"] == method6["status"]
     assert method7["ablation"]["label"] == CAUSAL_LABEL_REPORTED
     # Without the arm the component is NOT_RUN and the verdict is method 6's.
-    no_arm = run_needs_oracle(runs, profile="full")
+    no_arm = run_needs_oracle(runs, profile="full", method_version=7)
     assert no_arm["ablation"]["status"] == "NOT_RUN" and no_arm["status"] == method6["status"]
     assert "placebo" not in method7
-    assert run_needs_oracle(runs, profile="full", ablation=arm, placebo=arm)["placebo"]["arm"] == "placebo"
+    assert run_needs_oracle(runs, profile="full", ablation=arm, placebo=arm,
+                            method_version=7)["placebo"]["arm"] == "placebo"
+    # Method 7's component keeps its fields (no fork design key).
+    assert "fork_design" not in method7["ablation"]
 
 
 def test_needs_method_7_with_causal_oracles_required_decides_by_profile():
     from chronicler.validation_gate import CAUSAL_LABEL_REQUIRED
     from chronicler.validation_io import run_needs_oracle
 
-    runs, arm = _world(plain=2, ablated=1)
+    runs, arm = _world(plain=2, ablated=1, design=2)
     full = run_needs_oracle(runs, profile="full", ablation=arm, require_causal=True)
+    assert full["method_version"] == 8 and full["ablation"]["fork_design"] == 2
     assert full["causal_oracles_required"] is True
     assert full["required_components"] == ["ablation"]
     # Four required pairings have no cohort in this world: the ablation, and
@@ -227,7 +234,7 @@ def test_needs_method_7_with_causal_oracles_required_decides_by_profile():
     assert run_needs_oracle(runs, ablation=arm, require_causal=True)["required_components"] == [
         "observational", "ablation"]
     # Identical arms: the ablation fails and, required, fails the oracle.
-    same_runs, same_arm = _world(plain=1, ablated=1)
+    same_runs, same_arm = _world(plain=1, ablated=1, design=2)
     assert run_needs_oracle(same_runs, profile="full", ablation=same_arm, require_causal=True)["status"] == "FAIL"
     assert run_needs_oracle(same_runs, profile="full", require_causal=True)["status"] == "NOT_RUN"
 
@@ -238,8 +245,9 @@ def test_cohort_method_4_keeps_method_3_and_reports_the_ablation():
 
     runs, arm = _cohort_world(members_plain=2, members_ablated=2)
     method3 = run_cohort_oracle(runs, method_version=3)
-    method4 = run_cohort_oracle(runs, ablation=arm)
+    method4 = run_cohort_oracle(runs, ablation=arm, method_version=4)
     assert method4["method_version"] == 4 and method4["observational_method_version"] == 3
+    assert "community_ablation" not in method4 and "fork_design" not in method4["ablation"]
     for key, value in method3.items():
         if key in ("status", "method", "method_version", "reason"):
             continue
@@ -252,17 +260,20 @@ def test_cohort_method_4_keeps_method_3_and_reports_the_ablation():
     ablation = method4["ablation"]
     assert ablation["status"] == "FAIL" and ablation["label"] == CAUSAL_LABEL_REPORTED
     assert ablation["members_migration"]["rate_ratio"] == 1.0
-    assert run_cohort_oracle(runs)["ablation"]["status"] == "NOT_RUN"
+    assert run_cohort_oracle(runs, method_version=4)["ablation"]["status"] == "NOT_RUN"
     assert run_cohort_oracle(runs)["status"] == method3["status"]
+    # Method 5 without a community arm: the component is NOT_RUN, never deciding.
+    method5 = run_cohort_oracle(runs)
+    assert method5["method_version"] == 5 and method5["community_ablation"]["status"] == "NOT_RUN"
 
 
 def test_cohort_method_4_with_causal_oracles_required_decides_by_the_ablation():
     from chronicler.validation_io import cohort_method_4_result, run_cohort_oracle
 
-    runs, arm = _cohort_world(members_plain=1, members_ablated=2)
+    runs, arm = _cohort_world(members_plain=1, members_ablated=2, design=2)
     anchored = run_cohort_oracle(runs, ablation=arm, require_causal=True)
     assert anchored["required_components"] == ["ablation"] and anchored["status"] == "PASS"
-    runs, arm = _cohort_world(members_plain=2, members_ablated=2)
+    runs, arm = _cohort_world(members_plain=2, members_ablated=2, design=2)
     flat = run_cohort_oracle(runs, ablation=arm, require_causal=True)
     assert flat["status"] == "FAIL" and "members' migration rate ratio" in flat["reason"]
     assert run_cohort_oracle(runs, require_causal=True)["status"] == "NOT_RUN"
@@ -382,6 +393,13 @@ def test_comparator_flags_the_new_methods_for_rebaselining():
     assert changes == {"needs": (6, 7), "cohort": (3, 4)}
     assert result["rebaseline_required"] is True
     assert result["new_required_failures"] == []
+    # Fork design 2 (needs 8, cohort 5) against design 1.
+    newer = _report({**_NEEDS_7, "method_version": 8}, {**_COHORT_4, "method_version": 5})
+    result = compare_validation_reports("subset", new, newer, exploratory=True)
+    changes = {item["oracle"]: (item["baseline_method_version"], item["current_method_version"])
+               for item in result["oracle_method_changes"]}
+    assert changes == {"needs": (7, 8), "cohort": (4, 5)}
+    assert result["rebaseline_required"] is True and result["new_required_failures"] == []
 
 
 # ---------------------------------------------------------------------------
