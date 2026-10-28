@@ -4,8 +4,10 @@ The registered `CARGO_PROFILE_DEV_DEBUG=0` experiment passed the same full
 1,088 tests, with two existing ignored cases, while its fresh target occupied
 1,103,060,992 uniquely allocated bytes (1.03 GiB). The prior copied-cache
 qualification target reclaimed 8,905,719,808 bytes (8.29 GiB) when removed.
-That is an observed 87.6% smaller final allocation in these two workflows;
-different cold/warm artifact sets limit attribution solely to debug information.
+Those totals compare different cold/warm artifact sets. The baseline contained
+preexisting cached artifacts that were not separately inventoried before its
+authorized cleanup. A controlled percentage caused by debug information alone
+cannot be derived from these totals.
 No timing speedup, changed default profile, production source change or installed
 wheel change is claimed.
 
@@ -130,8 +132,8 @@ reference, complete verbose compiler log/JSON messages and largest-file samples.
 The previous qualification/cleanup receipts remain intact and hash-linked.
 
 This qualifies the explicit debug-info-only setting for the tested full Rust
-workflow at this source/platform while substantially reducing its observed
-artifact burden. It does not qualify a fresh release extension, different source,
+workflow at this source/platform, with a measured fresh target of 1.03 GiB.
+It does not qualify a fresh release extension, different source,
 scientific behavior, native wheel compatibility or a profile-default rollout.
 Keep symbol-rich builds available when diagnosing Rust failures; debug-info 0
 reduces debugger/source-line detail. No existing build or test default changed.
