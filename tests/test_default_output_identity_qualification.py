@@ -300,5 +300,40 @@ class QualificationContracts(unittest.TestCase):
                     process_cgroup=membership, cgroup_root=group)
 
 
+    def test_valid_nested_pair_allows_kernel_root_without_resource_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            memory, membership, group = root / "meminfo", root / "cgroup", root / "group"
+            memory.write_text("MemAvailable: 2097152 kB\n")
+            membership.write_text("0::/leaf\n")
+            leaf = group / "leaf"
+            leaf.mkdir(parents=True)
+            (leaf / "memory.max").write_text(str(qualification.GIB))
+            (leaf / "memory.current").write_text(str(qualification.GIB // 2))
+            result = qualification.resources(root, meminfo=memory,
+                process_cgroup=membership, cgroup_root=group)
+            self.assertEqual(result["ram_available"], qualification.GIB // 2)
+            self.assertEqual(result["cgroup_limits"][-1],
+                {"path": str(group), "max": "root-unbounded", "current": None})
+
+    def test_visibility_observation_preserves_absent_interfaces_and_bounds_reads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            memory, membership, group = root / "meminfo", root / "cgroup", root / "group"
+            memory.write_text("MemAvailable: 2097152 kB\n" + "x" * 5000)
+            membership.write_text("0::/leaf\n")
+            leaf = group / "leaf"
+            leaf.mkdir(parents=True)
+            (leaf / "memory.max").write_text("max\n")
+            (leaf / "memory.current").write_text("0" * 1000)
+            observation = qualification.resource_visibility(root, meminfo=memory,
+                process_cgroup=membership, cgroup_root=group)
+            self.assertEqual(observation["host_mem_available"], ["MemAvailable: 2097152 kB"])
+            self.assertTrue(observation["ancestors"][0]["memory_current"]["truncated"])
+            self.assertLessEqual(len(observation["ancestors"][0]["memory_current"]["text"]), 128)
+            self.assertEqual(observation["ancestors"][-1]["memory_max"]["error"], "FileNotFoundError")
+            self.assertEqual(observation["ancestors"][-1]["memory_current"]["error"], "FileNotFoundError")
+
+
 if __name__ == "__main__":
     unittest.main()

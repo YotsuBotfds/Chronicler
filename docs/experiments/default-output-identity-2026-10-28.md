@@ -1,6 +1,7 @@
 # Preregistered fixed default export parity — 2026-10-28
 
-Status: DRAFT, not executed. The draft branch does not contain an active workflow.
+Status: DRAFT interface/observability amendment, not executed. The draft branch
+has no active workflow. Earlier activation attempts are retained below.
 Activation requires review of these exact controls; activation is an internal lead
 review within the user's existing separate-branch development authorization.
 
@@ -73,12 +74,16 @@ free disk and 1 GiB available RAM. Host MemAvailable is constrained by observed
 cgroup-v2 limit minus current usage (an actual readable max/current pair,
 including explicitly unbounded max, is required and recorded). The declared
 cgroup directory must exist; a readable ancestor cannot substitute for a missing
-leaf. The kernel hierarchy root may expose current without max: record that as
-an unbounded ancestor while retaining the observed nonroot pair requirement.
+leaf. The kernel hierarchy root may expose neither max nor current: record that as
+an unbounded ancestor with current=null, retaining the observed nonroot pair
+requirement. A root current value, if present, is recorded without assuming a
+root limit.
 Root-current-only visibility without any actual max/current pair deliberately
 refuses this registration. Charged cache receives no speculative
 reclaim credit. Missing visibility or any floor refusal stops work. A real host
-may refuse this protocol. Thresholds do not change after observation.
+may refuse this protocol. Thresholds do not change after observation. Before admission, a bounded host and
+cgroup-interface snapshot is printed to the job log and retained in the journal,
+so visibility refusals can be interpreted without extracting the artifact.
 
 Fresh independent subprocess probes before and after every case verify the
 actual source checkout/path, environment prefix, compiled module origin, and
@@ -129,3 +134,35 @@ environment. It does not capture native checkpoint blobs, full Python/native RNG
 state, or internal per-turn objects. It is not exact-resume qualification, a
 performance benchmark, a world-benefit experiment, or permission to promote any
 held native optimization. Elapsed time is resource accounting, not a speed claim.
+
+
+## Retained pre-simulation activation attempts and interface correction
+
+- Activation 0bcb01146280fb973fab025b435c741c97da6e4c, run 40785232375,
+  failed GitHub workflow validation because runner.temp was used in job-level
+  env. No job, tests, build, or worlds ran. Its proposed YAML was corrected to
+  set the external paths through GITHUB_ENV in a first shell step.
+- Activation d87d016839931b36bd96e5c6a452a35e01fa2ac7, run 40785461589,
+  passed all 18 then-registered pure tests in 0.028 seconds and dependency setup.
+  The helper refused before compilation and before any worlds:
+  hierarchy-root memory usage is not visible. This remains a failed execution,
+  not a simulation or parity result. Artifact 12858608205 is retained with
+  GitHub SHA-256 33a8168dfcc7e6bb7deb68951c09df51c3cd22fb6c668debe85c685a01ab8fb6.
+
+The previous classifier incorrectly required memory.current at the hierarchy
+root. The official [kernel cgroup-v2 guide](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
+states that memory.current exists on non-root cgroups and exempts the root from
+resource-control interfaces. Absence of both files at that root is therefore
+recorded explicitly, while actual nonroot max/current pairs remain required.
+Declared self-root-only visibility still refuses without any actual pair.
+Missing or incomplete nonroot visibility still refuses.
+
+This amendment corrects an interface contract before any native compilation or
+simulation data. Disk/RAM floors, source SHAs, case matrix, CPU/thread limits,
+80/90-minute budgets and acceptance criteria are unchanged. Two additional pure
+fixtures cover a valid nonroot pair with neither root file, and bounded diagnostic
+visibility of missing files. The amended 20-test selection has not run yet.
+
+The final log summary is bounded machine-readable JSON: qualification/errors,
+frozen source SHAs, wheel/native/inventory SHAs, actual elapsed time and all
+18 case statuses. Full raw evidence retention remains unchanged.
