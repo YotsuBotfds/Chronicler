@@ -130,6 +130,9 @@ CHUNKS = {
     "expansion-audit": [
         "tests/test_expansion_audit.py",
     ],
+    "scientific-receipts": [
+        "tests/test_scientific_receipts_audit.py",
+    ],
     "expansion-comparison": [
         "tests/test_expansion_compare.py",
     ],
