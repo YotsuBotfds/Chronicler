@@ -16,7 +16,7 @@ export function RitualGatherings({ bundle, snapshot, currentTurn, onSeek, onSele
   const rows = useMemo(() => gatheringRows(bundle.history, at), [bundle.history, at]);
   if (!hasObservation(bundle.history, "ritual_gatherings")) return null;
   if (!record) return <section className="systems-section" aria-label="Harvest gatherings">
-    <h3>Harvest gatherings</h3><p className="systems-note">No gathering observation at turn {currentTurn}. Schedules, attendance and spending are unknown here.</p>
+    <h3>Harvest gatherings</h3><p className="systems-note">No usable gathering observation at turn {currentTurn}. Missing, stale or future-dated evidence leaves schedules, attendance and spending unknown here.</p>
   </section>;
   const visible = expanded ? history : history.slice(0, HISTORY_LIMIT);
   return <section className="systems-section" aria-label="Harvest gatherings">

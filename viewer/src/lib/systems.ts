@@ -163,7 +163,7 @@ export const SYSTEM_EVENT_TYPES: Record<SystemKey, readonly string[]> = {
     "famine", "famine_ended", "dearth", "dearth_ended", "aid_convoy", "mutual_aid", "locust_swarm",
     "fishery_collapse", "fishery_recovery",
     "granary_opened", "granary_exhausted", "grain_bought",
-    "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved",
+    "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved", "harvest_preparedness",
   ],
   wars: [
     "war_declared", "peace_treaty", "war_ended", "army_raised", "army_destroyed", "siege_begun", "occupation",

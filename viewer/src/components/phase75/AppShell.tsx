@@ -16,6 +16,7 @@ import type {
   WorldState,
 } from "../../types";
 import { isLegacyBundle } from "../../types";
+import { eventSnapshotTurn, isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
 import type { BatchConfig } from "../../types";
 import type { BatchState } from "../../hooks/useBatchConnection";
 import { ERA_LABELS } from "../../lib/format";
@@ -465,6 +466,7 @@ function selectionDescription(
   selection: SelectedEntity | null,
   summary: BatchRunSummary | null,
   currentTurn: number,
+  eventRecorded = true,
 ): string {
   if (surface === "batch") {
     return buildRunSignalSummary(summary);
@@ -474,7 +476,7 @@ function selectionDescription(
   }
   if (selection.kind === "event") {
     // An event pinned at a later turn is not described before it happens.
-    if (selection.turn !== undefined && selection.turn > currentTurn) {
+    if (!eventRecorded || (selection.turn !== undefined && selection.turn > currentTurn)) {
       return `Pinned event not yet recorded at turn ${currentTurn}.`;
     }
     return `Pinned to ${selection.label} at turn ${selection.turn ?? "?"}.`;
@@ -739,10 +741,12 @@ export function AppShell({
     snapshotRelationships,
     civilizations.map((civilization) => civilization.name),
   );
+  const observationSourceTurn = (currentSnapshot?.turn ?? currentTurn) - 1;
   const eventFeed = buildEventFeed(
     bundle?.events_timeline ?? NO_EVENTS,
     currentTurn,
     selectedEntity?.kind === "civilization" ? selectedEntity.id : null,
+    observationSourceTurn,
   );
   const batchSummaries = batchReport?.run_summaries ?? [];
   const leftRailTab = surface === "setup"
@@ -925,7 +929,7 @@ export function AppShell({
       label: event.description,
       turn: event.turn,
     });
-    onSeek(event.turn);
+    onSeek(eventSnapshotTurn(event));
   };
 
   const selectedRegion = selectedEntity?.kind === "region"
@@ -940,15 +944,17 @@ export function AppShell({
   // An event pinned at a later turn stays selected while scrubbing back, but
   // is not shown before its turn; its consequences and accounts are those
   // recorded by the scrubbed turn (the event log's convention).
-  const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn;
-  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? NO_EVENTS, selectedEvent, currentTurn);
+  const selectedEventRecorded = !!selectedEvent && selectedEvent.turn <= currentTurn
+    && observationEventKnown(selectedEvent, observationSourceTurn);
+  const selectedEventProvenance = eventProvenance(bundle?.events_timeline ?? NO_EVENTS, selectedEvent, currentTurn, observationSourceTurn);
   const historiography = bundle?.historiography;
   const accountRows = useMemo(
     () => (historiography ? decodeAccounts(historiography) : []),
     [historiography],
   );
   const selectedEventAccounts = selectedEventRecorded
-    ? accountsForEvent(historiography, selectedEvent?.event_id, accountRows, currentTurn)
+    ? accountsForEvent(historiography, selectedEvent?.event_id, accountRows,
+      isObservationEventType(selectedEvent?.event_type) ? observationSourceTurn : currentTurn)
     : null;
   // The region's terrain at the scrubbed turn (terrain transitions are dated events).
   const selectedRegionTerrain = selectedRegion
@@ -1175,7 +1181,8 @@ export function AppShell({
           previewCivilizations={previewCivilizations}
           selectedScenario={selectedScenario}
           resumeState={resumeState}
-          description={selectionDescription(surface, selectedEntity, selectedBatchSummary, currentTurn)}
+          description={selectionDescription(surface, selectedEntity, selectedBatchSummary, currentTurn,
+            !isObservationEventType(selectedEvent?.event_type) || selectedEventRecorded)}
           inspectorSections={inspectorSections}
           onToggleSection={toggleInspectorSection}
           batchReport={batchReport}
@@ -1860,7 +1867,7 @@ function LeftRail({
                 type="button"
                 className="phase75-event-row"
                 onClick={() => {
-                  onJumpToTurn(event.turn);
+                  onJumpToTurn(eventSnapshotTurn(event));
                   onSelectEvent(event);
                 }}
               >

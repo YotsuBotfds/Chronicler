@@ -7,6 +7,7 @@ import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps 
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { Granaries } from "./Granaries";
 import { HarvestForecasts } from "./HarvestForecasts";
+import { observationEventKnown } from "../../lib/observedSystems";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -38,7 +39,8 @@ export function FoodPanel({
   for (const flow of aid) {
     aidIn.set(flow.to, (aidIn.get(flow.to) ?? 0) + flow.amount);
   }
-  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.food, currentTurn);
+  const events = eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.food, currentTurn)
+    .filter((event) => observationEventKnown(event, at - 1));
   const convoys = events.filter((event) => event.turn === at - 1 && event.event_type === "aid_convoy").length;
   const onsets = spansOfKind(spans, "famine").filter((span) => span.start <= at - 1).length;
   const hasDearth = spans.some((span) => span.kind === "dearth");

@@ -6,6 +6,8 @@ import { HarvestForecasts } from "../HarvestForecasts";
 import { HealthCare } from "../HealthCare";
 import { RitualGatherings } from "../RitualGatherings";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
+import { FoodPanel } from "../FoodPanel";
+import { EpidemicsPanel } from "../EpidemicsPanel";
 
 afterEach(cleanup);
 function props(turn = 7) {
@@ -38,8 +40,6 @@ describe("recorded expansion inspectors", () => {
     forecast.reports.push(report({ id: "harvest:withheld", status: "withheld" }));
     forecast.preparedness = [{ region: 0, region_name: "Valley", owner: 0, owner_name: "Old realm", forecast_id: "r0",
       base_target: 10, extra_target: 5, bought_during_warning: 2.5, paid_during_warning: 7 }];
-    // A later resolution accidentally present in a payload is still not known here.
-    forecast.outcomes = [report({ id: "future-resolution", status: "resolved", resolved_turn: 12, observed_ratio: 0.5 })];
     render(<HarvestForecasts {...p} />);
     const reports = screen.getByRole("table", { name: "Harvest reports at snapshot 7" });
     expect(within(reports).getAllByText("7 / Not delivered")).toHaveLength(2);
@@ -48,8 +48,44 @@ describe("recorded expansion inspectors", () => {
     const purchases = screen.getByRole("table", { name: "Harvest preparedness at snapshot 7" });
     expect(within(purchases).getByText("2.5")).toBeInTheDocument();
     expect(within(purchases).getByText("7")).toBeInTheDocument();
-    expect(screen.queryByText("future-resolution")).not.toBeInTheDocument();
     expect(screen.getByText(/not estimated extra purchases or losses avoided/)).toBeInTheDocument();
+  });
+
+  it.each(["issued_turn", "delivered_turn", "resolved_turn"] as const)("withholds future %s evidence and aggregate scores", (field) => {
+    const p = props();
+    p.snapshot!.harvest_forecasts!.reports[0][field] = 12;
+    p.snapshot!.harvest_forecasts!.counters = { resolved: 99, brier_sum: 80 };
+    render(<HarvestForecasts {...p} />);
+    expect(screen.getByText(/No usable harvest-forecast observation/)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mean Brier score")).not.toBeInTheDocument();
+  });
+
+  it("makes an actual paid-preparedness receipt visible in the Food event history", () => {
+    const p = props();
+    p.bundle.world_state.regions = [{ name: "Valley" }, { name: "Hill" }] as Bundle["world_state"]["regions"];
+    const event = { turn: 6, event_type: "harvest_preparedness", actors: ["Old realm"], importance: 3,
+      description: "The realm pays 7 treasury for actual granary purchases while warned.", consequences: [] };
+    p.bundle.events_timeline = [event];
+    render(<FoodPanel {...p} />);
+    fireEvent.click(within(screen.getByRole("list", { name: "Food events" })).getByText(event.description));
+    expect(p.onSelectEvent).toHaveBeenCalledWith(event);
+  });
+
+  it.each([
+    [FoodPanel, "Food events", "harvest_preparedness", "famine"],
+    [EpidemicsPanel, "Epidemic events", "occupational_injury", "epidemic"],
+  ] as const)("cuts new receipt events off at the observed source in %s", (Panel, label, kind, legacyKind) => {
+    const p = props();
+    p.currentTurn = 9; // The selected snapshot is still 7, whose completed tick is 6.
+    p.bundle.world_state.regions = [{ name: "Valley" }, { name: "Hill" }] as Bundle["world_state"]["regions"];
+    const receipt = { turn: 7, event_type: kind, actors: [], importance: 3, description: "Future receipt", consequences: [] };
+    const legacy = { ...receipt, event_type: legacyKind, description: "Legacy event" };
+    p.bundle.events_timeline = [receipt, legacy];
+    render(<Panel {...p} />);
+    const list = screen.getByRole("list", { name: label });
+    expect(within(list).queryByText(receipt.description)).not.toBeInTheDocument();
+    expect(within(list).getByText(legacy.description)).toBeInTheDocument();
   });
 
   it("shows actual gathering receipts and seeks the containing snapshot", () => {

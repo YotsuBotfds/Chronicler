@@ -25,6 +25,13 @@ stay null gaps rather than zero quantities. Before the first available row,
 an existing system's section explains that its observation is unknown; a
 system never recorded in the run has no section at all.
 
+Issued, actual-delivery, resolved-outcome, gathering-occurrence and last-held
+dates must also be known by that source turn. An internally inconsistent
+summary is unknown as a whole, including its scores/counters, rather than
+leaking later aggregate evidence or inventing an earlier status. Planned
+delivery, expiry, target windows and next-gathering dates may remain in the
+future; those are explicitly plans.
+
 Gathering history accepts only outcomes whose occurrence turn equals their
 containing summary's source turn. It does not replay an old receipt. Each mark
 seeks the snapshot containing that completed occurrence, not the start of the
@@ -88,5 +95,22 @@ use a real combined run after native feature integration; they are separate
 from fixture-based component tests.
 
 Initial focused verification: 23 viewer tests passed with one worker, including
-the actual native forecast cycle; ESLint passed. Full-suite/build and combined
-native browser qualification are coordinated after producer integration.
+the actual native forecast cycle; ESLint passed.
+
+The historical hardening pass rejects an entire summary with future actual
+issue, delivery, resolution, occurrence or last-occurrence dates, including its
+aggregate scores. Future scheduled dates remain plans. New feature event
+receipts use the same completed-tick clock: an event from simulation turn S is
+available at snapshot S+1, including in global feeds, pinned provenance and
+system event lists. Legacy event clocks keep their existing behavior. Event
+navigation selects that containing snapshot; excluded receipts do not consume
+the feed's 24-row limit or its focused-feed threshold. Sparse history uses the
+selected snapshot's actual source boundary.
+
+Before the event-clock follow-up, the hardened viewer passed all 645 tests,
+ESLint and the production build. The first full attempt had a single existing
+10-second lazy-panel import hook timeout during concurrent native compilation;
+an isolated rerun and the subsequent complete run passed without changing
+timeouts. The subsequent event-clock correction passed 224 focused tests with
+one worker (including every bounded bundle-index parity case), ESLint and the
+production build. Combined native browser checks are a separate evidence lane.

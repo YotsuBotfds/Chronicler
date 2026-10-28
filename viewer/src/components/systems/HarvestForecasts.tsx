@@ -16,7 +16,7 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
   const series = useMemo(() => harvestForecastSeries(bundle.history, at), [bundle.history, at]);
   if (!hasObservation(bundle.history, "harvest_forecasts")) return null;
   if (!record) return <section className="systems-section" aria-label="Harvest forecasts">
-    <h3>Harvest forecasts</h3><p className="systems-note">No harvest-forecast observation at turn {currentTurn}. Reports, delivery and preparedness are unknown here.</p>
+    <h3>Harvest forecasts</h3><p className="systems-note">No usable harvest-forecast observation at turn {currentTurn}. Missing, stale or future-dated evidence is unknown here, including aggregate scores and preparedness.</p>
   </section>;
   const totals = forecastTotals(record);
   const reports = record.reports.filter((row) => row.issued_turn <= record.source_turn);

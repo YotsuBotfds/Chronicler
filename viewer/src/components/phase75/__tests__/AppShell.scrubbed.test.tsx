@@ -18,12 +18,12 @@ afterEach(cleanup);
 
 const base = systemsFixture as unknown as Bundle;
 
-function shell(bundle: Bundle, currentTurn: number, surface: AppSurface = "overview") {
+function shell(bundle: Bundle, currentTurn: number, surface: AppSurface = "overview", onSeek = vi.fn()) {
   return (
     <AppShell
       surface={surface} onSurfaceChange={vi.fn()} bundle={bundle} bundleLoading={false} error={null}
       isLive={false} connected={false} serverState="completed" currentTurn={currentTurn} playing={false}
-      speed={1} onSeek={vi.fn()} onPlay={vi.fn()} onPause={vi.fn()} onSetSpeed={vi.fn()} lobbyInit={null}
+      speed={1} onSeek={onSeek} onPlay={vi.fn()} onPause={vi.fn()} onSetSpeed={vi.fn()} lobbyInit={null}
       starting={false} onOpenBundleFile={vi.fn()}
     />
   );
@@ -104,6 +104,21 @@ describe("a turn before the first snapshot", () => {
 
 describe("dated records on the map and in the inspector", () => {
   const region = base.world_state.regions[0];
+
+  it("navigates an experimental receipt to its containing snapshot and hides it when scrubbing back", () => {
+    const receipt: Event = { turn: 10, event_type: "harvest_preparedness", event_id: "receipt", actors: [],
+      importance: 3, description: "Actual purchases recorded after tick ten.", consequences: [] };
+    const bundle = { ...base, events_timeline: [receipt] };
+    const onSeek = vi.fn();
+    const view = render(shell(bundle, 11, "overview", onSeek));
+    pinEvent(receipt);
+    expect(onSeek).toHaveBeenLastCalledWith(11);
+    expect(statRow("Event")).toBe(receipt.event_type);
+    view.rerender(shell(bundle, 10, "overview", onSeek));
+    expect(statRow("Event")).toBe("Unavailable");
+    expect(inspector().textContent).not.toContain(receipt.description);
+    expect(document.querySelector(".phase75-left-rail")?.textContent).not.toContain(receipt.description);
+  });
 
   it("marks a named event's region only from its turn", () => {
     const bundle: Bundle = {

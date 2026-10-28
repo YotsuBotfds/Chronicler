@@ -32,6 +32,31 @@ describe("observed expansion history", () => {
     ]);
   });
 
+  it("allows future plans while rejecting future actual report evidence and aggregates", () => {
+    const row = expansionSnapshot(7);
+    // A pending report legitimately names a future delivery, expiry and winter window.
+    expect(observationAt(row, "harvest_forecasts")).not.toBeNull();
+    for (const field of ["issued_turn", "delivered_turn", "resolved_turn"] as const) {
+      row.harvest_forecasts = forecastObservation(6);
+      row.harvest_forecasts.reports[0][field] = 12;
+      expect(observationAt(row, "harvest_forecasts"), field).toBeNull();
+      expect(harvestForecastSeries([row], 7)[0].Pending, field).toBeNull();
+      expect(harvestForecastSeries([row], 7)[0]["Paid while warned"], field).toBeNull();
+    }
+  });
+
+  it("treats future resolved outcomes and past-gathering claims as unknown, not future schedules", () => {
+    const row = expansionSnapshot(7);
+    row.harvest_forecasts!.outcomes = [report({ resolved_turn: 12, status: "resolved" })];
+    expect(observationAt(row, "harvest_forecasts")).toBeNull();
+    expect(observationAt(row, "ritual_gatherings")).not.toBeNull(); // next_turn=20 is a plan
+    row.ritual_gatherings!.schedules[0].last_turn = 20;
+    expect(observationAt(row, "ritual_gatherings")).toBeNull();
+    row.ritual_gatherings = gatheringObservation(6);
+    row.ritual_gatherings.outcomes[0].turn = 20;
+    expect(observationAt(row, "ritual_gatherings")).toBeNull();
+  });
+
   it("separates pending information, factual preparedness purchases and scores", () => {
     const record = forecastObservation();
     record.reports.push(report({ id: "other", status: "withheld" }));
