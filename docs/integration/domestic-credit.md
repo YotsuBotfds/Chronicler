@@ -451,6 +451,27 @@ seed 53: Dorrathi Clans borrows 130 and then 109 from the merchants of
 Sapphire Coast within five turns of a war). Fiscal-strain onsets, PSI
 crises and revolts do not move beyond their spread in any arm.
 
+**A debt treadmill in a few worlds.** Domestic lenders' assets now grow
+with the interest they are paid, so their offers do not run out as a
+state's debt rises: a state at finance's debt ceiling (ten turns of
+revenue) can roll its debt over indefinitely, borrowing back each turn
+the amortization it pays and paying the interest from revenue, where the
+abstract class's capacity (its formula less what it was owed) ran out,
+the state fell into arrears and defaulted. Template seed 101 (500 turns,
+the gate world): after a war at turn 170 Thornwall Confederacy owes
+700-1,340 for the last 320 turns (9-10 turns of its revenue), pays 75-92
+of interest a turn on a revenue of 110-140, holds no treasury, spends
+nothing on its court and never defaults; its cities hold most of the
+claims (1,062 of 1,225 at turn 476) and their purses grow from tens to
+2,163 (Amber Valley Settlement 1). On `main` the same Thornwall is
+debt-free from turn 100 and hoards 2,000. Such worlds are few: city
+interest above 1,000 in 4 of the template gate's 200 worlds; worlds
+whose debt averages more than a turn of revenue are as common with the
+switch as without (procedural 300 turns: 8 against 9 of 20; template
+gate: 8 of 200). Purses, unlike agent wealth (capped at 100 an agent),
+have no ceiling, so it is cities and guilds that grow without bound. Not
+changed here; it is decision 11.2 (3).
+
 **How wealth moves.** Merchant wealth grows; its distribution moves little.
 The Gini of all agents' wealth rises by 0.007-0.009 (the merchants pulling
 ahead of the other occupations; 2.2 SE template 300, 2.5 SE procedural 300,
@@ -467,7 +488,55 @@ throughout. More procedural polities survive 300 turns (8.6 against 7.95,
 
 ## 9. Gates with the switch on
 
-[pending]
+`scripts/m53b_run_validation.py --profile full --require-strict-regression
+--exploratory-comparison --domestic-credit`, the frozen tree `2a08828` and
+its extension, three workers, one full gate on the machine at a time. The
+comparisons are exploratory (the simulation configuration differs), so NO
+REGRESSION means no required gate newly fails, not that the distributions
+match.
+
+**Baselines.** Template: a fresh full gate of `main` `ac74e5a` (fork design
+2) run on this machine by the parallel session (`spec-communities`
+`main-t-full`: package digest `e4039e6d...9c9c` and extension `8497d374...3d50`,
+the same as this branch's `main` tree; PASS strict, its reports copied to
+`reports/baselines/`). It replaces the re-scored design-1 report suggested
+for an exploratory comparison, so needs method 8 and cohort method 5 score
+both sides. Procedural: `main` `ac74e5a` at design 2, community-anchoring's
+`p-full-off2`.
+
+### Template full (200 seeds x 500 turns)
+
+**PASS strict; EXPLORATORY, NO REGRESSION** against main (3,220 s). Every
+required oracle passes (arcs, artifacts strict, cohort, community, era,
+needs, regression strict), as on main.
+
+| | main `ac74e5a` | `--domestic-credit` | change |
+| --- | ---: | ---: | ---: |
+| satisfaction mean | 0.6212 | 0.6173 | -0.0038 |
+| latest satisfaction mean (last 60 turns) | 0.6330 | 0.6267 | -0.0063 |
+| migration per agent-turn | 0.06340 | 0.06313 | -0.4% |
+| rebellion per agent-turn | 0.03295 | 0.03555 | +7.9% |
+| final Gini within 0.30-0.70 (share of civs) | 0.852 | 0.869 | +0.017 |
+| occupation violations | 0.0012 | 0.0013 | |
+| final living population (mean per world) | 185.3 | 181.8 | -1.9% |
+| extinct worlds | 0 | 0 | |
+
+Informational (causal evidence, not yet required): the needs ablation's
+safety pairing reads 1.071 [0.877, 1.266] (FAIL: its interval reaches 1)
+against main's 1.230 [1.035, 1.424]; the other pairings match main's
+(autonomy 1.372 against 1.469, social 1.117 / 1.121, purpose 1.277 / 1.276,
+material 1.113 / 1.144, spiritual 1.210 / 1.197). The safety pairing is the
+low-power one in template worlds (power 0.66, community-anchoring.md); the
+two estimates differ by about one standard error of their difference and
+domestic credit does not touch the safety need, so this is the oracle's
+sampling, not the feature. The kin-roots cohort ablation fails on both
+sides (0.9915 against 0.9884), as on main.
+
+TEMPLATE_DISCUSSION
+
+### Procedural full (100 seeds x 300 turns, 32 regions x 10 civs)
+
+PROCEDURAL_RESULTS
 
 ## 10. Worked examples
 
@@ -554,9 +623,14 @@ it is promoted:
    merchants (landholders, temples) should lend, or a capped abstract
    lender stay for the first turns, so that young states can borrow as
    before.
-3. A decision on war finance: whether a share of a region's merchant
-   wealth should be off limits to a war chest, or rates rise with the
-   share of the lenders' assets already lent.
+3. A decision on war finance and rollover (the treadmill of 8): whether
+   a share of a region's merchant wealth should be off limits to a war
+   chest; whether lenders should refuse new money to a borrower whose
+   debt service takes more than a set share of its revenue (or rates
+   rise with the share of the lenders' assets already lent), so that a
+   state at the ceiling must deleverage or default as it did against the
+   abstract class; and whether a city's or guild's purse should have a
+   ceiling as agent wealth does.
 4. The merchant tax (`economy.TAX_RATE` x merchant wealth) is not debited
    from the agents; with richer merchants it creates more revenue. Whether
    it should take from merchant wealth is a separate correction.
