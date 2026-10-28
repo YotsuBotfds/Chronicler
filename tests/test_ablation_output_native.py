@@ -41,6 +41,12 @@ def _state_view(world, bridge, memories, history, entries, reflections, pending)
     return {
         "world": world.model_dump(mode="json"),
         "native": bytes(bridge._sim.checkpoint_state()),
+        "pending_private_signals": {key: copy.deepcopy(getattr(world, key)) for key in
+            ("_artifact_intents", "_artifact_lifecycle_intents", "_artifact_prestige_by_civ",
+             "_hazard_events", "_contact_pending")},
+        "observational_archives": {key: getattr(world, key).state.model_dump(mode="json")
+                                   if getattr(world, key) is not None else None
+                                   for key in ("_historiography", "_languages")},
         "memories": {name: {"civilization_name": stream.civilization_name,
                             "entries": copy.deepcopy(stream.entries),
                             "reflections": copy.deepcopy(stream.reflections)}

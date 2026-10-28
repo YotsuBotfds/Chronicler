@@ -32,6 +32,7 @@ def test_output_profile_is_hidden_output_only_and_explicitly_overridable():
 
 @pytest.mark.parametrize("changes,loaded,match", [
     ({}, False, "compatible exact checkpoint"),
+    ({}, "mismatched", "compatible exact checkpoint"),
     ({}, True, "decision-ablation arm"),
     ({"decision_ablation": "needs", "simulate_only": False}, True, "simulate-only"),
     ({"decision_ablation": "needs", "narrator": "api"}, True, "local narrator"),
@@ -45,7 +46,8 @@ def test_profile_rejects_inappropriate_calls_before_world_or_native_work(tmp_pat
         setattr(args, key, value)
     checkpoint = None
     if loaded:
-        checkpoint = SimpleNamespace(state=SimpleNamespace(seed=42, scenario_config=None, run_config={}), mismatches=[])
+        checkpoint = SimpleNamespace(state=SimpleNamespace(seed=42, scenario_config=None, run_config={}, world=SimpleNamespace(turn=101)),
+                                     mismatches=["different native build"] if loaded == "mismatched" else [])
     def unexpected(*args, **kwargs):
         pytest.fail("invalid output profile reached world/native setup")
     monkeypatch.setattr("chronicler.main.generate_world", unexpected)
@@ -124,3 +126,9 @@ def test_failed_or_incomplete_workers_write_failed_manifest_and_preserve_all_che
         assert (failed / "discardable.txt").read_text() == "retain on failure"
     with pytest.raises(Exception, match="not empty"):
         aa.run_ablation_arms(batch, out_root, total_turns=122, env={})
+
+
+def test_duplicate_arm_names_fail_before_creating_a_study(tmp_path):
+    with pytest.raises(ValueError, match="arms must be unique"):
+        aa.run_ablation_arms(tmp_path / "plain", tmp_path / "forks", arms=["needs", "needs"], total_turns=122)
+    assert not (tmp_path / "forks").exists()

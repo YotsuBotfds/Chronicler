@@ -211,6 +211,8 @@ def run_ablation_arms(
     )
 
     arms = tuple(arms)
+    if len(set(arms)) != len(arms):
+        raise ValueError("ablation arms must be unique")
     for arm in arms:
         from chronicler.decision_ablation import DECISION_ABLATIONS
         if arm not in DECISION_ABLATIONS:
