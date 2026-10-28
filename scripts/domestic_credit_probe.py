@@ -134,6 +134,9 @@ def summarize_run(run_dir: Path) -> dict:
     events = bundle.get("events_timeline") or []
     types = Counter(e["event_type"] for e in events)
     out["loans"] = types.get("loan_taken", 0)
+    domestic = [e for e in events if e["event_type"] == "loan_taken" and len(e.get("civs") or []) <= 1]
+    out["domestic_loans"] = len(domestic)
+    out["domestic_loans_before_30"] = sum(1 for e in domestic if e["turn"] < 30)
     out["defaults"] = types.get("state_default", 0)
     out["debasements"] = types.get("debasement", 0)
     out["fiscal_strain_onsets"] = sum(1 for e in events if e["event_type"] == "fiscal_strain"
@@ -158,6 +161,8 @@ def summarize_run(run_dir: Path) -> dict:
     for key in ("issued_domestic", "issued_foreign", "interest_domestic", "interest_foreign",
                 "written_off", "seigniorage"):
         out[key] = totals.get(key, 0)
+    issued = out["issued_domestic"] + out["issued_foreign"]
+    out["foreign_share"] = out["issued_foreign"] / issued if issued else None
     books = state.get("domestic_credit") or {}
     for key, value in (books.get("totals") or {}).items():
         out[f"dc_{key}"] = value
@@ -192,9 +197,13 @@ def compare(off: list[dict], on: list[dict]) -> str:
     lines = [f"Paired runs: {len(seeds)}", "",
              "| measure | off | on | on - off | SE |", "| --- | ---: | ---: | ---: | ---: |"]
     for key in keys:
-        pairs = [(a[s].get(key), b[s].get(key)) for s in seeds]
-        pairs = [(x if x is not None else 0.0, y if y is not None else 0.0) for x, y in pairs
-                 if isinstance(x, (int, float)) or isinstance(y, (int, float))]
+        pairs = []
+        for s in seeds:
+            x, y = a[s].get(key), b[s].get(key)
+            if key.startswith("dc_"):   # the books of the switch: none while off
+                x, y = (0 if x is None else x), (0 if y is None else y)
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                pairs.append((float(x), float(y)))
         if not pairs:
             continue
         xs = [p[0] for p in pairs]
