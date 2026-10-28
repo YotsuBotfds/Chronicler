@@ -23,10 +23,10 @@ function CheckpointResult({ status }: { status: CheckpointStatus }) {
   return (
     <div className="bg-gray-700 rounded p-3 text-sm text-gray-300 space-y-1" role="status">
       <p>
-        Checkpoint saved at turn {status.turn}: <code className="text-green-400">{status.path}</code>
+        Checkpoint saved at turn {status.turn}: <code className="text-green-400 break-all">{status.path}</code>
       </p>
       {status.resumeHint && (
-        <p className="text-gray-400 text-xs font-mono">{status.resumeHint}</p>
+        <p className="text-gray-400 text-xs font-mono break-all">{status.resumeHint}</p>
       )}
     </div>
   );
@@ -202,9 +202,9 @@ export function InterventionPanel({
         {/* Fork info */}
         {forkedPath && (
           <div className="bg-gray-700 rounded p-3 text-sm text-gray-300 space-y-1">
-            <p>Fork saved to: <code className="text-green-400">{forkedPath}</code></p>
+            <p>Fork saved to: <code className="text-green-400 break-all">{forkedPath}</code></p>
             {forkedHint && (
-              <p className="text-gray-400 text-xs font-mono">{forkedHint}</p>
+              <p className="text-gray-400 text-xs font-mono break-all">{forkedHint}</p>
             )}
           </div>
         )}

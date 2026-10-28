@@ -1935,6 +1935,7 @@ function SetupRail({
         <div className="phase75-inline-field">
           <input
             type="number"
+            aria-label="Seed"
             value={state.seed}
             placeholder="Random"
             onChange={(event) => onSeedChange(event.target.value)}
