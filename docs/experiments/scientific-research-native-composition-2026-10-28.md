@@ -14,9 +14,11 @@ seeded seat/region/owner/founding rows; never invent five if fewer qualify.
 These interventions deliberately supply mechanical exposure. They are not
 ordinary world eligibility or independent institutional samples.
 
-All five expansion flags, their prerequisites, funded-context-v2 publication
-and finite research are explicitly requested through the real main parser and
-run configuration. The supplied mechanical world starts at source turn **2**.
+All five expansion flags, their prerequisites and finite research are
+explicitly requested through the real main parser and run configuration.
+Funded-context-v2 is explicitly selected in the seeded mechanical fixture,
+retained in its state and checked in the worker's actual control record.
+The supplied mechanical world starts at source turn **2**.
 Execute sources **2 through 28 inclusive**, final `World.turn == 29`: exactly
 27 source turns. Retain ordinary snapshots and complete real viewer bundles;
 never reconstruct earlier history from final state.
