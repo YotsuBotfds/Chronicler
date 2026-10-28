@@ -18,8 +18,10 @@
 //! destructures it without `..`: adding a field to a persisted struct fails
 //! to compile until the field is persisted (or explicitly skipped as
 //! derived state). The schema string, and so the fingerprint, changes with
-//! any field name, order or type, so a blob from another layout is refused
+//! any persisted field name, order or type (and legacy `skip` names), so a blob from another layout is refused
 //! with a clear error instead of being misread.
+//! Fully derived `transient` fields are the explicit exception: they change
+//! neither payload nor schema and must be rebuilt before use after a restore.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -511,8 +513,13 @@ mod tests {
         c: Option<(u16, f32)>,
         d: HashMap<(u16, u16), f32>,
         cache: Option<u8>,
+        scratch: DefaultOnly,
     }
-    persist_struct!(Sample { a, b, c, d } skip { cache });
+    // Intentionally has no Persist implementation: transient fields impose
+    // only Default, and cannot accidentally enter the encoded payload/schema.
+    #[derive(Debug, PartialEq, Default)]
+    struct DefaultOnly(Vec<u32>);
+    persist_struct!(Sample { a, b, c, d } skip { cache } transient { scratch });
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     enum Kind {
@@ -526,7 +533,8 @@ mod tests {
         let mut d = HashMap::new();
         d.insert((2, 1), f32::NAN);
         d.insert((1, 9), -0.0);
-        let s = Sample { a: 7, b: vec![[1, -2, 3]], c: Some((5, 1.5)), d, cache: Some(9) };
+        let s = Sample { a: 7, b: vec![[1, -2, 3]], c: Some((5, 1.5)), d, cache: Some(9),
+            scratch: DefaultOnly(vec![11, 17]) };
         let blob = encode(KIND_AGENT, &s);
         let back: Sample = decode(KIND_AGENT, &blob).unwrap();
         assert_eq!(back.a, 7);
@@ -535,6 +543,7 @@ mod tests {
         assert_eq!(back.d[&(2, 1)].to_bits(), f32::NAN.to_bits());
         assert_eq!(back.d[&(1, 9)].to_bits(), (-0.0f32).to_bits());
         assert_eq!(back.cache, None);
+        assert_eq!(back.scratch, DefaultOnly::default());
         // Equal maps encode to equal bytes regardless of insertion order.
         assert_eq!(encode(KIND_AGENT, &back), blob);
     }
@@ -562,5 +571,6 @@ mod tests {
             s,
             "Sample{a:u32,b:Vec<[i8;3]>,c:Option<(u16,f32,)>,d:Map<(u16,u16,),f32>,!cache,}"
         );
+        assert_eq!(fingerprint(&s), 0xb415be0745379aa8);
     }
 }

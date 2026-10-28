@@ -7,6 +7,7 @@ an episode for the following turn. Disease, combat and mortality are untouched.
 """
 from __future__ import annotations
 from copy import deepcopy
+import math
 from chronicler.health_care_state import HealthCareState, InjuryEpisode
 
 DEFAULT_ENABLED_FOR_NEW_WORLDS = False
@@ -30,6 +31,12 @@ def set_health_care_enabled(world, enabled: bool) -> None:
 
 def validate_health_care(world) -> None:
     if health_care_on(world):
+        state = world.health_care
+        for name, low, high in (("injury_rate", 0., .25), ("impairment", 0., 1.),
+                                ("care_fraction", 0., 1.), ("recovery_work", 1., 10.)):
+            value = getattr(state, name)
+            if not math.isfinite(value) or not low <= value <= high:
+                raise ValueError(f"invalid health care {name}: expected {low}..{high}")
         ids = [e.agent_id for e in world.health_care.episodes]
         if len(ids) != len(set(ids)):
             raise ValueError("health care has duplicate injury agent IDs")
