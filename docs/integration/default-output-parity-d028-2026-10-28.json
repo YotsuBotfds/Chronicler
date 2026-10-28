@@ -112,7 +112,83 @@
     }
   ],
   "registered_turns": 3200,
-  "independent_artifact_reinspection": "pending; current statement uses completed job logs and controller result",
+  "independent_artifact_reinspection": {
+    "reader_control": "53631aafd1490057356b475d072c9b20d8ddb0e9",
+    "reader_run_id": 40788984730,
+    "reader_run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40788984730",
+    "contract_tests": {
+      "ran": 18,
+      "seconds": 0.061
+    },
+    "qualified": true,
+    "original_run_id": 40786065030,
+    "original_artifact_id": 12859762876,
+    "inventory_payload_files": 974,
+    "baseline": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+    "candidate": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+    "inventory_sha256": "a25a2148d0259bfcc53acb74d5a29acb1e173c3e1a8f105c825c777cc99819cb",
+    "error": null,
+    "stage": null,
+    "reader_elapsed_seconds": 23.20442095,
+    "comparison": {
+      "cases": [
+        {
+          "case": "hybrid_s1234",
+          "files_compared": 10,
+          "differences": 0
+        },
+        {
+          "case": "hybrid_s42",
+          "files_compared": 111,
+          "differences": 0
+        },
+        {
+          "case": "hybrid_s7",
+          "files_compared": 111,
+          "differences": 0
+        },
+        {
+          "case": "off_s42",
+          "files_compared": 9,
+          "differences": 0
+        },
+        {
+          "case": "off_s7",
+          "files_compared": 9,
+          "differences": 0
+        },
+        {
+          "case": "proc48_hybrid_s42",
+          "files_compared": 92,
+          "differences": 0
+        },
+        {
+          "case": "proc48_off_s7",
+          "files_compared": 15,
+          "differences": 0
+        },
+        {
+          "case": "scaled22k_s42",
+          "files_compared": 32,
+          "differences": 0
+        },
+        {
+          "case": "scaled52k_s7",
+          "files_compared": 10,
+          "differences": 0
+        }
+      ],
+      "files_compared": 399,
+      "differences": 0
+    },
+    "outer_artifact_sha256_verified": "025f4c215b1a2e3a556af45dc9d099c9f14343d0ba50ba9c896d8e92be37e8ff",
+    "reader_artifact": {
+      "id": 12861140665,
+      "bytes": 2763,
+      "github_reported_digest": "sha256:0537dc24d2ba3891b42366b0c27f2f9b99fc4820ad1954d9cab9288d224d74a7",
+      "expires_at": "2026-11-27T23:41:12Z"
+    }
+  },
   "artifact": {
     "id": 12859762876,
     "bytes": 54788314,
