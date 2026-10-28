@@ -63,11 +63,31 @@ at 21:11:29.302445. Neither lane was paused inside pytest. The preserved older
 collection failures, interruptions and reader-only adjudications keep their
 original outcomes; these are new complete executions at the newer source.
 
+## Complete offline selection at the same source
+
+The separate offline run also passed: **28/28 chunks, 3,556 passed, 65 skipped,
+zero failed**, in 237.7028 seconds. Every guard passed. The largest chunk,
+`systems-2`, took 48.5574 seconds against the unchanged 110-second limit.
+Full source/runtime inventories matched before/after, the extension was
+absent, and independent completion verification found no live owned wrapper,
+oracle or pytest processes. Completion was 21:33:26.637762 UTC.
+
+External evidence lives in `offline-b257-20261028/` beneath the same root:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `oracle/receipt.json` | `e3cd96201a46f09a767dfa65d8f9452d8438377ac96a73a35cbd116b70bd1c09` |
+| `result.json` | `db84dc26d71e8a7f60a81f43ddf3edf7fc731e9153e4f93cc610a4a1a6adbdfb` |
+| `verified-completion.json` | `6dbc43dbccffbd2980d7cc2d36f7b680ee27d3c3e5baab28909853cfd73154c7` |
+
+This is the complete bounded offline selection, not native execution or the
+full POSIX/subprocess suite. Subsequent lifecycle-audit definitions and their
+selection update have separate focused checks; they are outside frozen b257.
+
 ## Limits
 
 These results qualify Python mechanics at the named source on this host.
 They establish no natural-world efficacy, balance, population scaling,
-cross-platform execution or remote CI result. The updated 28-chunk offline
-lane and long before/after population gates have separate receipts; this
-report does not assume their completion. Main remains untouched, and later
+cross-platform execution or remote CI result. The long before/after population
+gates remain separate and pending. Main remains untouched, and later
 branch commits do not inherit a full-suite pass without their relevant checks.

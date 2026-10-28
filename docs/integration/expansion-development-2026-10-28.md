@@ -260,7 +260,10 @@ The same frozen source subsequently passed its full native Python suite:
 Source/runtime identities and extension `fb20dbc8` matched before/after, with
 zero failures/errors and direct typed acceptance. The [complete readout](python-qualification-b257-2026-10-28.md)
 retains both lanes' source, native, runner and artifact identities. The updated
-28-chunk offline selection remains separate. Full Rust qualification applies
+offline selection also passed at b257: **28 chunks, 3,556 passed, 65 skipped,
+zero failed**, in 237.7 seconds. Its largest chunk took 48.6 seconds against
+the unchanged 110-second limit; source/runtime identities remained unchanged.
+Full Rust qualification applies
 to the unchanged receipt crate tree above; later documentation does not expand
 these source boundaries.
 
