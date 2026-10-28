@@ -217,9 +217,54 @@ complete qualification remain open. Focused mechanics and
 default identity do not substitute for those gates. Source-qualified updates
 will append exact checkpoints; no moving branch name is a test receipt.
 
-The complete-suite source remains `d051d7c0`, with the receipt crate tree above.
-The offline and default-identity follow-ups name their own later frozen source;
-documentation and moving-head changes do not expand those evidence boundaries.
+## Later controlled composition and current qualification
+
+The [native publication study](../experiments/scientific-publication-native-results-2026-10-28.md)
+completed eight real executions at frozen `aae7f337` with release `fb20dbc8`:
+two fixed seeds, five controlled academies, all five expansion systems, and
+legacy/funded-context direct and exact-checkpoint continuations. Each seed
+retained four cancelled legacy trials versus four completed funded-context
+trials, with eight paid trial treasury units in both. At source turn 14 the
+newly available evidence changed paid adoption shares; after the next context
+change the current confidence returned to its prior while archived receipts
+remained. This is a controlled mechanics result, not a natural-world efficacy
+estimate. The report distinguishes exact common outputs, the registered
+publication-rule/provenance differences, final global RNG comparisons and
+native checkpoint identity.
+
+All eight actual exports subsequently passed desktop and 390px browser QA
+across the five inspectors, including source-to-containing-snapshot navigation,
+the publication-rule fork boundary, changed paid shares and retained archives.
+The viewer production source was unchanged. Sixteen browser cases recorded no
+console/page errors or horizontal overflow; generated screenshots stay outside
+Git.
+
+That study also exposed an observer compatibility bug: the health producer
+records censored episodes globally, without assigning disappeared identities
+to a current region. The [reader correction](../experiments/health-censor-audit-compatibility-2026-10-28.md)
+preserves unknown regional counts and audits the actual global counter. A
+read-only inspection of 32 unchanged bundles removed the resulting false
+errors and retained the one historical negative forecast increment. All eight
+new native-study bundles were clean; the correction changes no simulation.
+
+Frozen `b25727e36eb47513a6bd7b3209f15de9c14463c3` has now completed the full
+**no-native Python suite: 7,331 passed, 306 skipped and 526 successful subtests**,
+in 785.41 seconds. Pytest exited zero; its typed qualification receipt passed
+without reader adjudication. Source/runtime identities matched before/after,
+the compiled extension was absent, and the 7,637 serialized parent cases plus
+526 successful subtests reconcile with JUnit's declared 8,163. External receipt
+`no-native-full-b257/result.json` SHA-256 is
+`6932dd36b08a45a4d675c0d09b01c2c904072f4e39a13be8c74a816029372e4e`.
+The separate native suite and updated 28-chunk offline selection at that exact
+source are still pending at this checkpoint. The completed native/full-Rust
+source remains `d051d7c0` with the receipt crate tree above. Later documentation
+does not expand these source boundaries.
+
+The qualification supervisor now supports a separately typed, identity-checked
+cancel-before-tests outcome. It refuses cancellation once pytest has started
+and retains interrupted legacy outcomes. Its portable merged tool selection
+passed 54 guarded tests. This does not retroactively relabel the household
+prototype's manually interrupted pre-test lane or promote that prototype.
 
 Evidence lives outside Git. Generated worlds, build products and machine logs
 are not committed. The roadmap retains the external Kimi source attribution
