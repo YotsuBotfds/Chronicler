@@ -3,9 +3,12 @@
 Branch `feat/domestic-credit` from `main` `ac74e5a` (PR #62, community
 anchoring). Code: `src/chronicler/domestic_credit.py` (behaviour),
 `src/chronicler/domestic_credit_state.py` (persisted state), hooks in
-`finance.py` (Phase 3b), `guilds.py` (a new threat), `agent_bridge.py`
-(a region column), `main.py`, `live.py`, `run_checkpoint.py`,
-`batch_manifest.py`, `scripts/m53b_run_validation.py`; native
+`finance.py` (Phase 3b and its snapshot), `guilds.py` / `guilds_state.py`
+(a new threat and history kinds), `cities_state.py` (history kinds),
+`agent_movements.py` (the guild movement's cause), `agent_bridge.py` (a
+region column), `simulation.py`, `models.py`, `main.py`, `live.py`,
+`run_checkpoint.py`, `batch_manifest.py`, `analytics.py`,
+`scripts/m53b_run_validation.py`; native
 `chronicler-agents/src/credit.rs` (merchant wealth), a satisfaction term in
 `satisfaction.rs` / `tick.rs` and a region field in `region.rs` /
 `ffi/mod.rs`. Probe: `scripts/domestic_credit_probe.py`. Tests:
@@ -16,6 +19,24 @@ anchoring). Code: `src/chronicler/domestic_credit.py` (behaviour),
 **Status: default off** (`DEFAULT_ENABLED_FOR_NEW_WORLDS = False`). With the
 switch off every output is byte-identical to `main`
 ([identity](#5-switch-off-byte-identical-to-main)).
+
+## Result
+
+| | |
+| --- | --- |
+| switch off against `main` `ac74e5a` (9-case matrix) | 399 files, 0 differences (default and `--no-domestic-credit`) |
+| switch on, exact resume (5 cases, every turn or the spread) | 195 resume points, 5,352 files, 0 differences |
+| credit ledger (`CHRONICLER_CHECK_RESOURCES=1`), 40 worlds | every tick balanced; outputs equal the unchecked runs |
+| template full gate (200 x 500) with the switch | PASS strict; EXPLORATORY, NO REGRESSION against main |
+| procedural full gate (100 x 300) with the switch | PASS strict; EXPLORATORY, NO REGRESSION against main |
+| early domestic loans (first 30 turns) | -48% to -63% |
+| merchant wealth (mean over the run) | +5% to +26% |
+| procedural worlds | domestic issuance +64% to +102%, foreign -22% to -31%, defaults -23% to -28% |
+| template worlds | the foreign share of credit +0.13 to +0.17 |
+| all-agent wealth Gini | +0.007 to +0.009 |
+| satisfaction, migration, rebellion | no detectable change (merchant satisfaction -0.009) |
+| pre-registration | 1a, 3, 5, 7 held; 6 mostly; 1b, 4 did not; 2 held in template worlds only |
+| open | a debt treadmill in a few worlds (cities' purses grow from interest without a ceiling); early-game credit; war chests |
 
 ## 1. Why
 
@@ -359,6 +380,19 @@ probe (template seeds 42-61 x 300 turns, procedural 32 x 10 seeds 42-61 x
    exploratory comparisons against main's full reports show no newly
    failing required gate.
 
+### 7.1 How it held
+
+| | prediction | outcome |
+| --- | --- | --- |
+| 1a | early domestic loans fall by over a third | **held**: -63% template, -48% procedural |
+| 1b | whole-run domestic issuance within +-40% | **did not hold**: +60% (template 300), -8% (template 500), +64% (procedural 200), +102% (procedural 300); richer lenders keep lending (8) |
+| 2 | the foreign share rises | **held in template worlds** (+0.13 to +0.17), **reversed in procedural worlds** (-0.18, -0.25: domestic credit replaces foreign) |
+| 3 | merchant wealth +5% or more | **held**: +14%, +5% (+7% over 40 seeds), +18%, +26% |
+| 4 | merchant wealth concentrates (Gini of merchants, Gini over regions) | **did not hold as stated**: neither moves on average; the all-agent Gini rises (+0.007 to +0.009) and procedural merchants' Gini within civs (+0.007 to +0.009) |
+| 5 | defaults, debasements, fiscal strain, PSI crises within +-30% | **held**, at the edge for template defaults at 300 turns (+31%, 1.2 SE); procedural defaults -23% to -28% |
+| 6 | merchant satisfaction within +-0.01; satisfaction +-0.005, migration and rebellion +-5% | **mostly held**: merchant satisfaction -0.009 over 40 template worlds (2.2 SE), -0.011 over 20; satisfaction within, latest satisfaction -0.006 in the template gate; migration within; rebellion +7.9% (template gate) and -6.4% (procedural gate), not an effect in 40 paired worlds (-4.1%, SE 11.5%) |
+| 7 | both gates pass, no newly failing required gate | **held** (9) |
+
 ## 8. What it does (paired worlds)
 
 `scripts/domestic_credit_probe.py`, the frozen tree (`c46e004`; later
@@ -496,13 +530,12 @@ REGRESSION means no required gate newly fails, not that the distributions
 match.
 
 **Baselines.** Template: a fresh full gate of `main` `ac74e5a` (fork design
-2) run on this machine by the parallel session (`spec-communities`
-`main-t-full`: package digest `e4039e6d...9c9c` and extension `8497d374...3d50`,
-the same as this branch's `main` tree; PASS strict, its reports copied to
-`reports/baselines/`). It replaces the re-scored design-1 report suggested
-for an exploratory comparison, so needs method 8 and cohort method 5 score
-both sides. Procedural: `main` `ac74e5a` at design 2, community-anchoring's
-`p-full-off2`.
+2), run on this machine by a parallel session the same day (package digest
+`e4039e6d...9c9c` and extension `8497d374...3d50`, those of this branch's
+`main` tree; PASS strict). It replaces the re-scored design-1 report of the
+ablation-oracles work, so needs method 8 and cohort method 5 score both
+sides. Procedural: the design-2 full gate of `main` `ac74e5a` from the
+community-anchoring work (its switch off).
 
 ### Template full (200 seeds x 500 turns)
 
@@ -537,7 +570,8 @@ beyond the pre-registered +-5% and +-0.005. The two gates ran the same
 seeds, but single worlds diverge chaotically, so a paired check was run
 after the gate: 40 template seeds (42-81) x 500 turns, off and on, the
 rates counted as the regression oracle counts them (agent events over the
-mean sampled agents times turns; `rates.py` in the run directory). Off
+mean sampled agents times turns, from the runs' `agent_events.arrow` and
+the probe's agent counts). Off
 reads 0.0611 migration and 0.0311 rebellion, close to main's gate values.
 
 | per agent-turn (40 paired worlds, 500 turns) | off | on | on - off (SE) |
@@ -557,7 +591,54 @@ merchants' satisfaction about -0.009 (2.2 SE) and the all-agent wealth Gini
 
 ### Procedural full (100 seeds x 300 turns, 32 regions x 10 civs)
 
-PROCEDURAL_RESULTS
+**PASS strict; EXPLORATORY, NO REGRESSION** against main
+(5,294 s). Every required oracle passes, as on main; this time the needs
+ablation's six pairings all pass too.
+
+| | main `ac74e5a` | `--domestic-credit` | change |
+| --- | ---: | ---: | ---: |
+| satisfaction mean | 0.5667 | 0.5679 | +0.0012 |
+| latest satisfaction mean (last 60 turns) | 0.5741 | 0.5734 | -0.0007 |
+| migration per agent-turn | 0.07555 | 0.07589 | +0.5% |
+| rebellion per agent-turn | 0.03863 | 0.03615 | -6.4% |
+| final Gini within 0.30-0.70 (share of civs) | 0.910 | 0.877 | -0.033 |
+| occupation violations | 0.0019 | 0.0021 | |
+| final living population (mean per world) | 540.7 | 534.3 | -1.2% |
+| extinct worlds | 0 | 0 | |
+
+Informational: needs ablation pairings autonomy 1.348 (main 1.440), social
+1.177 (1.167), purpose 1.292 (1.280), material 1.135 (1.119), safety 1.161
+[1.060, 1.263] (1.132 [1.049, 1.215]), spiritual 1.224 (1.222), all PASS;
+the kin-roots cohort ablation fails on both sides (0.993 against 0.992).
+Rebellion moves the other way here (-6.4%), as the paired template worlds
+did: no effect of the switch on rebellion is detectable in either world
+type. The share of civs whose final wealth Gini lies within 0.30-0.70 falls
+here (0.910 -> 0.877) and rose in the template gate (0.852 -> 0.869); the
+regression check asks for 0.20.
+
+### Credit in the gate worlds
+
+`domestic_credit_probe.py summarize` over each gate's batch, per world
+(switch on only: main's gate batches are not kept, so the paired worlds of
+8 carry the comparison).
+
+| per world | template (200 x 500) | procedural (100 x 300) |
+| --- | ---: | ---: |
+| domestic loans before turn 30 | 1.5 | 5.9 |
+| domestic issued / foreign issued | 959 / 578 | 8,393 / 6,512 |
+| lent by merchants / cities / guilds | 704 / 241 / 15 | 6,295 / 2,012 / 86 |
+| interest paid to merchants / cities | 446 / 184 | 4,709 / 1,538 |
+| written off on merchants / cities / guilds | 44 / 12 / 0.9 | 684 / 190 / 12 |
+| lapsed (fallen cities and guilds) | 1.3 | 36 |
+| defaults that hit lenders | 0.87 (71 of 200 worlds) | 7.9 (99 of 100) |
+| guild movements after a default | 0.075 (14 worlds) | 0.84 (46 worlds) |
+| merchant region-turns with grievance | 83 | 967 |
+| merchant credits still due at the end | 2.0 (max 241) | 60 (max 765) |
+| debt / revenue, mean over civ-turns | 0.23 | 1.02 |
+
+Credits still due are payments to the merchants of regions that have none
+at the moment, or whose merchants are all at the wealth ceiling (they are
+sent again each turn); one procedural world ends with 765 owed.
 
 ## 10. Worked examples
 
@@ -637,9 +718,9 @@ replace a third of their foreign credit with domestic credit and default a
 quarter less, and rich merchants finance war chests of 100 and more. Before
 it is promoted:
 
-1. Both full gates with the switch on should pass strict with no newly
-   failing required gate against main reports of the same fork design
-   (9 records the exploratory comparisons of this branch).
+1. Both full gates pass strict with the switch on and no newly failing
+   required gate against main reports of the same fork design (9); they
+   should be rerun on whatever calibration the decisions below lead to.
 2. A decision on early-game credit: whether wealthy agents other than
    merchants (landholders, temples) should lend, or a capped abstract
    lender stay for the first turns, so that young states can borrow as
