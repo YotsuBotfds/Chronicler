@@ -149,3 +149,11 @@ Python bridge regressions cover both paths, disabled configuration and failed
 ticks; together with the health suite, 41 focused tests passed. These tests
 check the wiring with a controlled simulator; the fresh-debug bridge execution
 and release qualification remain separate checks.
+
+After shared bridge hooks landed, the pure suite plus fresh-debug FFI and real
+bridge selection passed 46 tests in 1.85s. The real bridge controls exercise
+both `tick` and `tick_agents` in all three supported modes, capture before
+postprocessing, disable/dormancy cleanup, raw processed WorldState rejection
+before native loading, and exact RunState checkpoint continuation. The market
+fixture now chooses an already populated dear-food destination, so real bridge
+observations are nonempty immediately; an empty region has no market price.

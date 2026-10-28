@@ -32,12 +32,15 @@ def _setup(mode="hybrid", enabled=True):
     if enabled:
         set_transaction_receipts_enabled(world, True)
     bridge = AgentBridge(world, mode=mode)
+    # The destination must already be populated. An empty template region
+    # has no market price until settlers actually arrive.
+    dear = next(r.name for r in reversed(world.regions) if r.population > 0)
     from chronicler.economy import EconomyResult
     bridge._economy_result = EconomyResult(food_sufficiency={
-        r.name: 0.25 if i == len(world.regions)-1 else 2.0 for i, r in enumerate(world.regions)},
+        r.name: 0.25 if r.name == dear else 2.0 for r in world.regions},
         market_demand={r.name: (100.0, 0.0, 0.0, 0.0) for r in world.regions},
-        market_supply={r.name: (25.0 if i == len(world.regions)-1 else 200.0, 0.0, 0.0, 0.0)
-                       for i, r in enumerate(world.regions)})
+        market_supply={r.name: (25.0 if r.name == dear else 200.0, 0.0, 0.0, 0.0)
+                       for r in world.regions})
     return world, bridge
 
 
