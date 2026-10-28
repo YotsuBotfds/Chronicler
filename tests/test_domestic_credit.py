@@ -431,6 +431,19 @@ def test_the_ledger_balances_over_a_run_and_catches_a_broken_book(checked):
         _tick(world, bridge, {THORNWALL: 30})
 
 
+def test_a_carried_rounding_residual_is_not_an_overdraft(checked):
+    world, bridge, sim, city, guild, loan = _with_a_loan()
+    st = world.domestic_credit
+    # The native pool applied a debit a hair short (f32 rounding) and the
+    # merchants then left: the residual waits in the due.
+    sim.merchants = [m for m in sim.merchants if m[0] != THORNWOOD]
+    st.merchant_due[THORNWOOD] = -2e-6
+    for _ in range(3):
+        world.civilizations[THORNWALL].treasury = 40
+        _tick(world, bridge, {THORNWALL: 30})
+    assert st.merchant_due[THORNWOOD] > -1e-5   # what they are paid now waits for them too
+
+
 def test_finance_books_balance_with_domestic_credit():
     world, bridge, sim, city, guild, loan = _with_a_loan()
     for _ in range(6):

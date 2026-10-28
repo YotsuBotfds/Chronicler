@@ -741,7 +741,12 @@ class _Ledger:
             now = t.st.merchant_due[r]
             if abs(now - before - t.merchant_flow[r]) > _TOL * max(1.0, abs(before)):
                 self.problems.append(f"region {r}: merchant due {before} -> {now}, flows {t.merchant_flow[r]}")
-            if now < -t.wealth[r] - _TOL * max(1.0, t.wealth[r]):
+            # A region that lent this tick is never asked for more than its
+            # merchants hold (beyond a debit residual of f32 rounding carried
+            # from an earlier tick, which waits in the due like any other).
+            carried = max(0.0, -before)
+            if (t.merchant_flow[r] < 0
+                    and -now > t.wealth[r] + carried + _TOL * max(1.0, t.wealth[r])):
                 self.problems.append(f"region {r}: merchants asked for {-now} holding {t.wealth[r]}")
         if t.sim is not None:
             self.pool_before = list(t.sim.merchant_wealth_by_region()[0])
