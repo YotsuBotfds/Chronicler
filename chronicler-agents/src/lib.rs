@@ -24,6 +24,7 @@ pub mod formation;
 pub mod household;
 pub mod migration_drivers;
 pub mod community;
+pub mod credit;
 pub mod ecology;
 pub mod spatial;
 pub mod sort;

@@ -250,6 +250,7 @@ fn test_urban_satisfaction_material_bonus() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     };
     let rural = compute_satisfaction_with_culture(&base);
     base.is_urban = true;
@@ -286,6 +287,7 @@ fn test_urban_safety_penalty_respects_cap() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: true,
+        creditor_grievance: 0.0,
     };
     let urban_sat = compute_satisfaction_with_culture(&inp);
     inp.is_urban = false;

@@ -70,7 +70,8 @@ def test_world_state_omits_dormant_layers_and_empty_provenance():
     dumped = json.loads(world.model_dump_json())
     for name in ("governance", "geography", "contact_ledger", "epidemics", "finance", "diplomacy",
                  "techniques", "maritime", "gp_agendas", "nomads", "cities", "agent_movements",
-                 "guilds", "scholarship", "grain_reserves", "community_anchoring", "provenance"):
+                 "guilds", "scholarship", "grain_reserves", "community_anchoring", "domestic_credit",
+                 "provenance"):
         assert name not in dumped
     assert dumped == world.model_dump(mode="json")
     world.provenance.keys["k"] = "1:x:1"

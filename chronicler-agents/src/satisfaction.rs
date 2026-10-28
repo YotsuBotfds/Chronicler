@@ -182,6 +182,10 @@ pub struct SatisfactionInputs {
     pub memory_score: f32,
     // M56b: Urban context
     pub is_urban: bool,
+    /// Domestic credit: the grievance (0..1) of a merchant's region toward
+    /// a lord that defaulted on its merchants (0 for other occupations and
+    /// with the switch off).
+    pub creditor_grievance: f32,
 }
 
 /// Wraps compute_satisfaction(), subtracting the cultural and religious mismatch penalties (capped).
@@ -216,6 +220,11 @@ pub fn compute_satisfaction_with_culture(inp: &SatisfactionInputs) -> f32 {
     let mut penalty = 0.0f32;
     if crate::region::persecuted_belief(inp.agent_belief, inp.persecuting_faith, inp.majority_belief) {
         penalty += crate::agent::PERSECUTION_SAT_WEIGHT * inp.persecution_intensity;
+    }
+    // Domestic credit: merchants whose lord repudiated what they lent it
+    // (inside the social-penalty cap; nothing without the grievance).
+    if inp.occupation == 2 && inp.creditor_grievance > 0.0 {
+        penalty += crate::agent::CREDITOR_GRIEVANCE_WEIGHT * inp.creditor_grievance;
     }
     // M38a: temple priest bonus — faith-blind (Decision 6)
     let temple_bonus = if inp.occupation == 4 && inp.has_temple {
@@ -414,6 +423,7 @@ mod m36_tests {
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
             is_urban: false,
+            creditor_grievance: 0.0,
         });
         assert!((base - with_culture).abs() < 0.001);
     }
@@ -438,7 +448,31 @@ mod m37_tests {
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
             is_urban: false,
+            creditor_grievance: 0.0,
         }
+    }
+
+    #[test]
+    fn creditor_grievance_costs_merchants_only_inside_the_social_cap() {
+        let merchant = || SatisfactionInputs { occupation: 2, civ_stability: 0, demand_supply_ratio: 0.0,
+                                               ..m37_base_inputs() };
+        let calm = compute_satisfaction_with_culture(&merchant());
+        let half = compute_satisfaction_with_culture(&SatisfactionInputs { creditor_grievance: 0.5, ..merchant() });
+        let full = compute_satisfaction_with_culture(&SatisfactionInputs { creditor_grievance: 1.0, ..merchant() });
+        assert!((calm - half - 0.5 * crate::agent::CREDITOR_GRIEVANCE_WEIGHT).abs() < 1e-6);
+        assert!((calm - full - crate::agent::CREDITOR_GRIEVANCE_WEIGHT).abs() < 1e-6);
+        // Other occupations ignore it (the tick passes 0 to them anyway).
+        let farmer = || SatisfactionInputs { civ_stability: 0, demand_supply_ratio: 0.0, ..m37_base_inputs() };
+        assert_eq!(compute_satisfaction_with_culture(&farmer()),
+                   compute_satisfaction_with_culture(&SatisfactionInputs { creditor_grievance: 1.0, ..farmer() }));
+        // Inside the social-penalty cap: with the budget already spent (bad
+        // memories take what the other terms leave) the total stays at the cap.
+        let capped = || SatisfactionInputs { agent_belief: 1, majority_belief: 2, persecuting_faith: 2,
+                                             persecution_intensity: 1.0, memory_score: -1.0, ..merchant() };
+        let base = compute_satisfaction_with_culture(&capped());
+        assert!((calm - base - crate::agent::PENALTY_CAP).abs() < 1e-6, "{calm} {base}");
+        let with = compute_satisfaction_with_culture(&SatisfactionInputs { creditor_grievance: 1.0, ..capped() });
+        assert!((base - with).abs() < 1e-6, "{base} {with}");
     }
 
     #[test]
@@ -785,6 +819,7 @@ mod m41_tests {
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
             is_urban: false,
+            creditor_grievance: 0.0,
         }
     }
 
@@ -864,6 +899,7 @@ mod audit_tests {
             food_sufficiency: 1.0, merchant_margin: 0.0,
             memory_score: 0.0,
             is_urban: false,
+            creditor_grievance: 0.0,
         }
     }
 

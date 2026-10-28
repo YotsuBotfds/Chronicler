@@ -25,6 +25,7 @@ HISTORY_KINDS: tuple[str, ...] = (
     "founded", "grew", "declined", "charter", "refused", "revolt", "concession",
     "suppressed", "free_city", "sacked", "walls", "plague", "famine", "lord", "fell",
     "levy",   # guilds (--guilds): the lord raises the city's dues
+    "loan", "repudiated",   # domestic credit (--domestic-credit): lent to the lord; lost in its default
 )
 
 #: Cumulative counters kept on ``CityState.counters`` (insertion order).

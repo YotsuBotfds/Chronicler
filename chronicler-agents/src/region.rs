@@ -165,6 +165,14 @@ pub struct RegionState {
     /// cleared by Python's builder). False when the batch has no
     /// `raided_this_turn` column.
     pub raided_this_turn: bool,
+    /// Domestic credit (`--domestic-credit`): the grievance, 0..1, of the
+    /// region's merchants toward a lord who defaulted on what they lent it
+    /// (Python `domestic_credit.region_grievances`, recomputed from
+    /// persisted state for every batch). Merchants here lose up to
+    /// `CREDITOR_GRIEVANCE_WEIGHT` of satisfaction inside the social-penalty
+    /// cap. 0 when the batch carries no `creditor_grievance` column (the
+    /// switch off).
+    pub creditor_grievance: f32,
 }
 
 /// Decode a legacy u32 bitmask into the ascending id list it denotes.
@@ -311,6 +319,7 @@ impl RegionState {
             food_severe_turns: 0,
             harsh_rule: 0.0,
             raided_this_turn: false,
+            creditor_grievance: 0.0,
         }
     }
 }
@@ -497,5 +506,5 @@ crate::persist_struct!(RegionState {
     prev_turn_water, soil_pressure_streak, overextraction_streak, is_capital, temple_prestige,
     stockpile, climate_exposure, harvest_shock, city_pull, seat_pull, seat_flight,
     movement_news, movement_news_intensity, market_demand, market_supply, craft_sufficiency,
-    food_severe_turns, harsh_rule, raided_this_turn,
+    food_severe_turns, harsh_rule, raided_this_turn, creditor_grievance,
 });

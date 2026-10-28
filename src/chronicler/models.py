@@ -30,6 +30,7 @@ from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
 from chronicler.grain_reserves_state import GrainReserveState
+from chronicler.domestic_credit_state import DomesticCreditState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1203,6 +1204,10 @@ class WorldState(BaseModel):
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
+    # Domestic credit through real lenders: merchants, guilds and cities fund
+    # the state's domestic loans (chronicler.domestic_credit; None = off and
+    # omitted).
+    domestic_credit: DomesticCreditState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)
@@ -1427,6 +1432,9 @@ class TurnSnapshot(BaseModel):
     epidemics: dict | None = Field(default=None, exclude_if=_is_none)
     # Money, credit and public finance per-turn summary; None (omitted) when off.
     finance: dict | None = Field(default=None, exclude_if=_is_none)
+    # Domestic credit per-turn summary (claims by lender kind, by borrower,
+    # merchants' grievance); None (and omitted) when off.
+    domestic_credit: dict | None = Field(default=None, exclude_if=_is_none)
     # Diplomacy per-turn summary; None (and omitted) when diplomacy is off.
     diplomacy: dict | None = Field(default=None, exclude_if=_is_none)
     # Techniques per-turn summary; None (and omitted) when techniques are off.

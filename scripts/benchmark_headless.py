@@ -107,6 +107,7 @@ def run(workload: dict, output: Path, on_turn=None):
         guilds=False,  # frozen pre-guild oracles; see docs/integration/guilds.md
         scholarship=False,  # frozen pre-scholarship oracles; see docs/integration/scholarship.md
         grain_reserves=False,  # frozen pre-granary oracles; see docs/integration/grain-reserves.md
+        domestic_credit=False,  # frozen pre-domestic-credit oracles; see docs/integration/domestic-credit.md
     )
     with open(os.devnull, "w") as sink, redirect_stdout(sink), \
             patch("chronicler.bundle.datetime", FixedDateTime):

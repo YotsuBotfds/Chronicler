@@ -18,6 +18,7 @@ fn m38a_base_inputs(occupation: u8) -> SatisfactionInputs {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     }
 }
 

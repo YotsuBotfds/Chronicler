@@ -569,17 +569,29 @@ def _new_loan(world, borrower: int, lender: int, principal: int, rate: float, te
 
 
 def _loan_event(world, civ, f: CivFinance, loan: Loan, amount: int, rate: float, lender, causes: list,
-                events: list) -> None:
+                events: list, credit=None, funded=None) -> None:
     """Record material borrowing as a ``loan_taken`` event: opening a credit
     line, or an advance of at least ``LOAN_EVENT_TURNS`` of revenue that also
     grows the line by ``LOAN_EVENT_GROWTH``. Routine top-ups are not events
-    (the open fiscal-strain episode covers them); the line keeps its latest id."""
+    (the open fiscal-strain episode covers them); the line keeps its latest id.
+    With ``--domestic-credit`` (``credit``) a domestic loan names its lenders
+    (``funded``) and carries the main lending region."""
     from chronicler import provenance as prov
     new_line = loan.issued_turn == world.turn and loan.principal == amount
     if not new_line:
         before = loan.principal - amount
         if amount < LOAN_EVENT_TURNS * max(f.revenue_ema, 1.0) or amount < LOAN_EVENT_GROWTH * before:
             return
+    if lender is None and credit is not None:
+        from chronicler.domestic_credit import describe, main_region
+        ev = _event(world, "loan_taken", civ,
+                    f"{civ.name} borrows {amount} from {describe(world, funded or [])} at {rate:.1%}.", 4,
+                    region=main_region(world, funded or []))
+        prov.cite(ev, *causes)
+        loan.event_id = prov.ensure_id(world, ev)
+        events.append(ev)
+        credit.note_loan(funded or [], ev)
+        return
     if lender is None:
         ev = _event(world, "loan_taken", civ,
                     f"{civ.name} borrows {amount} from its merchant houses at {rate:.1%}.", 4)
@@ -724,8 +736,10 @@ def _plan(world, civ_idx: int, civ, f: CivFinance) -> _Plan:
     return _Plan(upkeep, dues)
 
 
-def _write_off_dead(world, events: list) -> None:
-    """Loans of fallen borrowers (and owed to fallen lenders) are lost."""
+def _write_off_dead(world, events: list, credit=None) -> None:
+    """Loans of fallen borrowers (and owed to fallen lenders) are lost.
+    With ``--domestic-credit`` (``credit``) a fallen borrower's domestic
+    lines are lost to the lenders that funded them."""
     st = world.finance
     keep = []
     for loan in st.loans:
@@ -734,13 +748,19 @@ def _write_off_dead(world, events: list) -> None:
         if borrower.regions and not lender_dead and loan.principal > 0:
             keep.append(loan)
             continue
+        losers = None
         if loan.principal > 0:
             st.totals["written_off"] += loan.principal
             st.civs[loan.borrower].written_off_total += loan.principal
+            if credit is not None and loan.lender == DOMESTIC:
+                losers = credit.write_off_line(loan)
         if loan.principal >= MIN_LOAN:
             from chronicler import provenance as prov
             if not borrower.regions:
                 who = "its own merchants" if loan.lender == DOMESTIC else world.civilizations[loan.lender].name
+                if losers is not None:
+                    from chronicler.domestic_credit import describe
+                    who = describe(world, losers)
                 ev = _event(world, "debt_written_off", borrower,
                             f"With {borrower.name} gone, {loan.principal} owed to {who} is lost.", 3)
                 if loan.lender != DOMESTIC:
@@ -781,8 +801,10 @@ class _Lenders:
 
 
 def _borrow(world, civ_idx: int, civ, f: CivFinance, gap: int, book: _Book, lenders: _Lenders,
-            index: dict[str, int], events: list, causes: list) -> int:
-    """Raise up to ``gap`` (domestic first, then foreign). Returns the amount raised."""
+            index: dict[str, int], events: list, causes: list, credit=None) -> int:
+    """Raise up to ``gap`` (domestic first, then foreign). Returns the amount raised.
+    With ``--domestic-credit`` (``credit``) the domestic capacity is what the
+    merchants, guilds and cities of the realm offer, and they fund it."""
     from chronicler.models import Disposition
     st = world.finance
     raised = 0
@@ -796,7 +818,10 @@ def _borrow(world, civ_idx: int, civ, f: CivFinance, gap: int, book: _Book, lend
     loans_made = 0
     excluded = f.excluded_until is not None and world.turn < f.excluded_until
     if gap >= MIN_LOAN:
-        capacity = _domestic_capacity(world, civ_idx, civ, f)
+        if credit is not None:
+            capacity, offers = credit.capacity(civ_idx, civ, f)
+        else:
+            capacity = _domestic_capacity(world, civ_idx, civ, f)
         if excluded:
             capacity = int(EXCLUDED_DOMESTIC_SHARE * capacity)
         dom = min(gap, capacity)
@@ -809,7 +834,8 @@ def _borrow(world, civ_idx: int, civ, f: CivFinance, gap: int, book: _Book, lend
             raised += dom
             gap -= dom
             loans_made += 1
-            _loan_event(world, civ, f, loan, dom, rate, None, causes, events)
+            funded = credit.fund(loan, dom, offers) if credit is not None else None
+            _loan_event(world, civ, f, loan, dom, rate, None, causes, events, credit=credit, funded=funded)
     while gap >= MIN_LOAN and loans_made < MAX_NEW_LOANS and not excluded:
         best = None
         for j, other in enumerate(world.civilizations):
@@ -883,13 +909,15 @@ def _debase(world, civ_idx: int, civ, f: CivFinance, book: _Book, index: dict[st
     return gain
 
 
-def _default(world, civ_idx: int, civ, f: CivFinance, acc, events: list, causes: list) -> None:
+def _default(world, civ_idx: int, civ, f: CivFinance, acc, events: list, causes: list,
+             credit=None) -> None:
     from chronicler import provenance as prov
     from chronicler.culture import _downgrade_disposition
     st = world.finance
     written = 0
     foreign: dict[int, int] = {}
     domestic = 0
+    losses: list[tuple[int, int, int]] = []
     loan_ids: list[str] = []
     haircut = REPEAT_HAIRCUT if f.default_memory >= 0.5 else DEFAULT_HAIRCUT
     for loan in st.loans:
@@ -905,6 +933,8 @@ def _default(world, civ_idx: int, civ, f: CivFinance, acc, events: list, causes:
         written += cut
         if loan.lender == DOMESTIC:
             domestic += cut
+            if credit is not None:
+                losses.extend(credit.write_down(loan, cut))
         else:
             foreign[loan.lender] = foreign.get(loan.lender, 0) + cut
         if loan.event_id:
@@ -937,7 +967,14 @@ def _default(world, civ_idx: int, civ, f: CivFinance, acc, events: list, causes:
         rel = world.relationships.get(lender.name, {}).get(civ.name)
         if rel is not None:
             rel.disposition = _downgrade_disposition(rel.disposition)
-    whom = ", ".join(lender_names + (["its merchant houses"] if domestic else [])) or "its creditors"
+    home = ["its merchant houses"] if domestic else []
+    if domestic and credit is not None:
+        from chronicler.domestic_credit import describe
+        merged: dict[tuple[int, int], int] = {}
+        for kind, key, amount in losses:
+            merged[(kind, key)] = merged.get((kind, key), 0) + amount
+        home = [describe(world, [(k, key, a) for (k, key), a in merged.items()])]
+    whom = ", ".join(lender_names + home) or "its creditors"
     ev = _event(world, "state_default", civ,
                 f"{civ.name} defaults on its debts, repudiating {written} owed to {whom}.", 8,
                 actors=[civ.name, *lender_names],
@@ -946,6 +983,8 @@ def _default(world, civ_idx: int, civ, f: CivFinance, acc, events: list, causes:
     prov.cite(ev, *loan_ids[-4:], *causes)
     prov.ensure_id(world, ev)
     events.append(ev)
+    if credit is not None:
+        credit.on_default(civ_idx, civ, losses, ev, acc)
 
 
 def _deficit_causes(world, civ) -> list[str | None]:
@@ -961,8 +1000,12 @@ def _deficit_causes(world, civ) -> list[str | None]:
     return out
 
 
-def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Event"]:
-    """Phase 3b: revenue, upkeep, debt service, borrowing, debasement, default."""
+def tick_finance(world: "WorldState", acc=None, economy_result=None, agent_bridge=None) -> list["Event"]:
+    """Phase 3b: revenue, upkeep, debt service, borrowing, debasement, default.
+
+    With ``--domestic-credit`` the domestic lender is the realm's merchants,
+    guilds and cities (``chronicler.domestic_credit``; merchant agents' wealth
+    is read from and paid to ``agent_bridge``'s native pool)."""
     if not finance_enabled(world):
         return []
     from chronicler import provenance as prov
@@ -970,7 +1013,13 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
     events: list = []
     turn = world.turn
     st.last_tick_turn = turn
-    _write_off_dead(world, events)
+    credit = None
+    if getattr(world, "domestic_credit", None) is not None:
+        from chronicler.domestic_credit import begin as _credit_begin
+        credit = _credit_begin(world, agent_bridge)
+    _write_off_dead(world, events, credit)
+    if credit is not None:
+        credit.lapse_fallen_lenders(events)
     book = _Book(world, acc)
     index = _region_indices(world)
 
@@ -1044,7 +1093,8 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
             target = max(target, int(WAR_CHEST_SHARE * reserve))
         if book.proj[civ_idx] < target:
             request = target - book.proj[civ_idx] + int(BORROW_BUFFER_TURNS * upkeep)
-            borrowed = _borrow(world, civ_idx, civ, f, request, book, lenders, index, events, causes)
+            borrowed = _borrow(world, civ_idx, civ, f, request, book, lenders, index, events, causes,
+                               credit)
         short = obligations - book.proj[civ_idx]
         if f.arrears_turns >= 1 and short > 0 and short >= DEBASE_MIN_SHORTFALL * obligations:
             _debase(world, civ_idx, civ, f, book, index, acc, events,
@@ -1071,6 +1121,8 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
             principal_paid += pay_principal
             if loan.lender == DOMESTIC:
                 st.totals["interest_domestic"] += pay_interest
+                if credit is not None:
+                    credit.service(loan, pay_interest, pay_principal, max(0, interest - pay_interest))
             else:
                 book.add(loan.lender, pay)
                 st.totals["interest_foreign"] += pay_interest
@@ -1087,7 +1139,7 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
         if (f.arrears_turns >= ARREARS_LIMIT and unpaid_service > 0
                 and debt >= max(2 * MIN_LOAN, DEFAULT_MIN_DEBT_TURNS * f.revenue_ema)
                 and (f.grace_until is None or turn >= f.grace_until)):
-            _default(world, civ_idx, civ, f, acc, events, causes)
+            _default(world, civ_idx, civ, f, acc, events, causes, credit)
         # 5. Surplus: prepay debt (an indebted state at peace that did not just
         # borrow repays from above half its reserve), then the court.
         debt = outstanding_debt(world, civ_idx)
@@ -1107,6 +1159,8 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
                 if loan.lender != DOMESTIC:
                     book.add(loan.lender, pay)
                     _move_specie(world, civ_idx, loan.lender, LOAN_SPECIE_SHARE * pay * f.fineness)
+                elif credit is not None:
+                    credit.repay(loan, pay)
             st.loans = [loan for loan in st.loans if loan.principal > 0]
         court_factor = 1.0
         gov = getattr(civ, "governance", None)
@@ -1138,6 +1192,8 @@ def tick_finance(world: "WorldState", acc=None, economy_result=None) -> list["Ev
         f.last_shortfall = max(0, upkeep - upkeep_paid) + unpaid_service
         f.fiscal_stress = _fiscal_stress(world, civ_idx, f, spent + upkeep + service, r)
         events.extend(_reports(world, civ_idx, civ, f, causes))
+    if credit is not None:
+        credit.finish()
     return events
 
 

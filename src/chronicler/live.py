@@ -1257,6 +1257,14 @@ def run_live(
         _anchor = getattr(args, "community_anchoring", None)
         set_community_anchoring_enabled(
             world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
+        # Domestic credit: new live worlds follow the CLI default (off;
+        # --domestic-credit opts in; merchants lend only with an agent pool).
+        from chronicler.domestic_credit import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT, set_domestic_credit_enabled,
+        )
+        _credit = getattr(args, "domestic_credit", None)
+        set_domestic_credit_enabled(
+            world, (_CREDIT_DEFAULT if _credit is None else bool(_credit)) and world.finance is not None)
         # Historiography: new live worlds follow the CLI default (observational).
         from chronicler.historiography import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,

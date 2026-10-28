@@ -747,6 +747,13 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         codes, intensity = news
         columns["movement_news"] = pa.array(codes, type=pa.uint8())
         columns["movement_news_intensity"] = pa.array(intensity, type=pa.uint8())
+    from chronicler.domestic_credit import region_grievances
+    grievance = region_grievances(world)
+    if grievance is not None:
+        # --domestic-credit: each region's merchants' grievance toward a lord
+        # that defaulted on them, recomputed from persisted state for every
+        # batch; without the column Rust reads 0 (no penalty).
+        columns["creditor_grievance"] = pa.array(grievance, type=pa.float32())
     return pa.record_batch(columns)
 
 
