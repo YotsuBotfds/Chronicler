@@ -613,6 +613,38 @@ def test_snapshot_summary_and_metrics():
     assert D.extract_domestic_credit_metrics([{"history": [{}]}]) == {}
 
 
+def test_snapshot_names_who_holds_each_debt():
+    """``holders`` (the viewer's debt holders): foreign lines by lender,
+    merchants by region, cities and guilds by name, the domestic rate and
+    the write-offs, adding up to finance's debt; nothing for a civ without
+    debt or write-offs, and no key at all when nobody owes anything."""
+    world, bridge, sim, city, guild = _world()
+    assert "holders" not in D.snapshot_summary(world)
+    world, bridge, sim, city, guild, loan = _with_a_loan(city_purse=200.0, guild_purse=60.0)
+    lender = 0 if THORNWALL != 0 else 1
+    world.civilizations[lender].treasury = 500
+    foreign = F.extend_loan(world, lender, THORNWALL, 30)
+    assert foreign is not None
+    row = D.snapshot_summary(world)
+    holders = row["holders"]
+    assert set(holders) == {"Thornwall Confederacy"}
+    held = holders["Thornwall Confederacy"]
+    kinds = row["civs"]["Thornwall Confederacy"]
+    assert held["foreign"] == {world.civilizations[lender].name: [30, round(foreign.rate, 4)]}
+    assert sum(p for p, _rate in held["foreign"].values()) == F.foreign_debt(world, THORNWALL)
+    assert held["rate"] == round(loan.rate, 4)
+    assert set(held["merchants"]) <= {"Verdant Plains", "Thornwood"}
+    assert sum(held["merchants"].values()) == kinds["merchants"]
+    assert held.get("cities", {}) == ({"Thornwood Settlement 1": kinds["city"]} if kinds.get("city") else {})
+    assert held.get("guilds", {}) == ({guild.name: kinds["guild"]} if kinds.get("guild") else {})
+    named = sum(sum(held.get(part, {}).values()) for part in ("merchants", "cities", "guilds"))
+    assert named + kinds.get("houses", 0) + kinds.get("legacy", 0) == F.outstanding_debt(world, THORNWALL, F.DOMESTIC)
+    assert "written_off" not in held
+    world.finance.civs[THORNWALL].written_off_total = 7
+    assert D.snapshot_summary(world)["holders"]["Thornwall Confederacy"]["written_off"] == 7
+    assert F.snapshot_summary(world)["domestic_credit"]["holders"] == D.holders_summary(world)
+
+
 def test_funder_model_round_trips():
     f = Funder(kind=CITY, key=7, principal=3)
     assert Funder.model_validate_json(f.model_dump_json()) == f
