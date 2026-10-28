@@ -6,6 +6,10 @@ The separate [parent-extra archive tool](integration/parent-extra-archive.md)
 copies one finalized parent's state/memory files into verified gzip and performs
 an actual byte-exact restore. Its bounded synthetic checks do not archive live
 cohorts or authorize raw deletion; validation inputs remain raw and untouched.
+The [prospective retention contract](integration/parent-extra-retention-contract.md)
+separately specifies terminal-gate evidence, ownership, protected bytes, original-
+path restoration and capacity accounting. It is a design with no cleanup API or
+cohort storage mutation.
 It stays separate from main. The household-journal experiment is also kept
 on its own review branch: its phase gains did not meet whole-workload
 acceptance, so its Rust code was not integrated. The

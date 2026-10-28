@@ -89,6 +89,11 @@ remaining small-file cases can run under the offline guard. No Windows/macOS
 execution, full new-source qualification, real-cohort archive or reclaimed-space
 measurement is claimed.
 
+The [prospective retention and original-path restoration contract](parent-extra-retention-contract.md)
+describes a possible later reviewed workflow after both official gates finish.
+It implements no deletion or in-place restore operation and does not change the
+copy-only tool or authorize archiving a live cohort.
+
 After integration, the 58 portable archive cases joined the existing bounded
 qualification-tool selection: **112 tests passed under the offline guard in
 3.41 seconds**. The eight alias/change-time capability cases remain in the full
