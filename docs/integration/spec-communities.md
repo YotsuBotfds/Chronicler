@@ -245,13 +245,75 @@ seeds where one applies.
 Nothing in sections 2 or 6 may change after a gate's result; a failed
 prediction is reported as such.
 
-## 4. Gates
+## 4. Identity and tests
 
-_Pending._
+* **Builds**: fresh release extensions (`maturin develop --release
+  --locked`, virtual environments and `CARGO_TARGET_DIR` outside the
+  checkout) of `main` `ac74e5a` and of this branch's frozen tree `138adc7`
+  (a `git archive` export, the tree of every branch gate and identity
+  run): both SHA-256 `8497d374...`, the bytes of PR #62's builds (the Rust
+  source is unchanged). The compiled submodule and its three simulator
+  classes were checked before any run.
+* **Simulation unchanged**: `scripts/turn_speed_identity.py`, the 9-case
+  matrix (hybrid seeds 42, 7 and 1234, off-mode 42 and 7, procedural 48
+  regions hybrid and off, scaled 22k and 52k agents; the hybrid cases
+  write the validation sidecar and its in-run community summary), `main`
+  against the branch: **399 files, 0 differences**.
+* **Old methods re-score exactly**: on both probe batches (section 3) the
+  branch's `run_community_oracle(..., method_version=1)` and
+  `run_cohort_oracle(..., method_version=5)` equal `main`'s validator's
+  community and cohort results, and every other oracle's result is equal.
+* **Tests** (tree `138adc7`): `cargo test --locked` 1,070 passed, 0 failed,
+  2 ignored (36 targets); not-slow 6,777 passed, 3 skipped, 0 failed (with
+  the release extension); `python scripts/run_python_oracle_checks.py`
+  PASS (13 chunks, 2,754 passed, 59 skipped, 0 failed; validation-tooling
+  6.0 s of 110). New: `tests/test_spec_communities.py` (the mirror against
+  the Rust enum, detection, criteria, method 2 and its gate rows, the
+  comparator's method changes, cohort method 6's matching; in the oracle
+  lane) and `tests/test_spec_communities_native.py`; updated: the
+  validation, ablation and community-anchoring tests for cohort method 6
+  as the default (method 5 pinned where they test it).
 
-## 5. Results
+## 5. Gates
 
-_Pending._
+Every gate ran from the frozen tree into a fresh output root, three
+workers, the full profile with `--require-strict-regression`, and was
+compared with its baseline:
+
+| Gate | Baseline | Gate | Comparison |
+| --- | --- | --- | --- |
+| `main` template full 200 x 500 (`ac74e5a`, the baseline) | PR #61's report (`b1c9274` simulation) | PASS (strict) | NO REGRESSION, 12 metric deltas 0; needs 7 -> 8, cohort 4 -> 5 |
+| template full 200 x 500 | `main`'s, above | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
+
+### 5.1 Template full gate
+
+| | predicted | measured |
+| --- | --- | --- |
+| community status (method 1 decides) | PASS | PASS (200 of 200 seeds) |
+| spec component | FAIL (region share) | **FAIL: `region_share` only** |
+| communities above 5% of their region | at least 99% | 25,668 of 25,669 (two lie in regions of 100+ agents) |
+| region share: median / max; region population (median) | | 0.132 / 1.0; 44 |
+| mean communities a seed (3-15) | 2.92 [2.55, 3.29], more likely to fail | **3.13**, PASS (119 of 200 seeds within the band on their own) |
+| median size (5-12); p90; max | 5 (5-6) | 5; 8; 53 |
+| seeds with a community | at least 95% | 200 of 200 |
+| members' share of living agents (median) | 7-11% | 8.6% (mean 10.3%) |
+| cohort observational (method 3 on method 2's communities) | PASS | PASS (200 of 200, median effect 1.48) |
+| members matched to a control | 0.60-0.72 | 0.705 (123,769 of 175,546 over 8,449 snapshots; satisfaction gap 0.043); chosen snapshots 0.567 |
+| kin roots, method 2's members | 0.97-1.00, FAIL | 0.988 [0.975, 1.000] (14,154 agent-forks), FAIL |
+| kin roots, non-members | | 0.987 [0.982, 0.993] |
+| needs (method 8) and every other oracle | equal to `main` | equal (every metric delta 0; needs ablation PASS) |
+
+* The community count, predicted more likely to fail, passed: 3.13, inside
+  the pre-registered interval and above the probe's 2.92. Every other
+  prediction held.
+* **Region share is the one failing criterion**: every community but one
+  is above 5% of its region, as the region sizes require.
+* Method 2's members migrate more than non-members in the plain arm
+  (1.12 against 1.01 moves over the 20 turns after a fork), and the kin
+  roots hold both alike (0.988 against 0.987).
+* Cost: validation 538 s against `main`'s 702 s (batch 1,367 and 1,536 s,
+  arms 1,295 and 1,705 s): the new components add no visible time against
+  the load of the shared machine (`main`'s gate shared it with the probes).
 
 ## 6. Decisions
 
