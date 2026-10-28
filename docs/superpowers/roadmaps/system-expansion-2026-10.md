@@ -1,8 +1,9 @@
 # Systems expansion after the October integration
 
-**Status:** proposed experiments, 2026-10-28. No system in this document is
-implemented or promoted by adding this roadmap. Existing experiments remain
-default off. This complements the Phase 7–9 roadmaps and the
+**Status:** experimental implementation in progress, 2026-10-28. The standing
+below separates implemented slices from proposals and qualification debt.
+Experiments remain default off; no default promotion follows from this roadmap.
+This complements the Phase 7–9 roadmaps and the
 [deferred backlog](../../integration/deferred-backlog-2026-10.md), rather than
 renumbering their milestones.
 
@@ -28,7 +29,34 @@ dependencies. The integration already contains PR #68 debt-holder history,
 public granary history, scholarship recovery, capacity-aware refugees and
 read-only historical forensics; those are not proposed as new work here.
 The [dev-lead handoff](../../integration/dev-lead-2026-10-28.md) records what
-was actually built and tested.
+was built and tested in the first checkpoint. Subsequent work is recorded in
+the [expansion development record](../../integration/expansion-development-2026-10-28.md).
+
+## Current implementation standing
+
+| Candidate | Implemented experimental slice | Remaining boundary |
+| --- | --- | --- |
+| Impairment and care | Stable-ID farmer injuries, next-turn fractional work loss, costly household care and recovery; integer people and food demand remain separate from work. | Fixed-cohort recovery, natural-world balance and large-world cost qualification; no disease or battle injury model. |
+| Delayed warnings | Past-observation harvest reports, delayed contact transmission, paid granary preparation, outcomes and withheld/shuffled controls. | Matched policy comparisons and prospective skill baselines. A discovered negative target increment was corrected; the affected old study remains recorded as a failure. |
+| Recurring gatherings | Bounded local attendance, real food/fund costs, dated actual-arrival contact and bond attempts; cost-only/contact/bond controls. | Wider-world effects and network outcomes. A bond attempt is not a formed bond; selected arrivals are not invented pilgrimages. |
+| Scientific claims | Paid contextual academy trials, delayed evidence, dependence accounting and evidence-driven paid technique effort; default off. | Natural-world informative/withheld/transmission/sham studies. Accounting groups are not certified independent experimental units. |
+| Metrology and loss cover | Bounded native cargo observations, voyage continuity and loss IDs, with incomplete capture and virtual cargo explicitly distinguished. | Private cash, cargo title, per-good settlement and loss ownership. The recorder alone cannot fund inspection fees or insurance. |
+| Water power and firms | Source-audited design and labor/cash dependencies. | No production implementation; avoid adding output before labor and income reconcile. |
+| Domesticates | Source-audited draft-animal proposal. | No new cohort implementation; reconcile ownership, creation, fodder and pastoral accounting first. |
+
+The first three slices have real development runs and historical inspectors.
+The study harness forks one exact checkpoint per seed and records controls,
+source and native identities. Its unchanged continuations matched six of six
+parent final states in the initial 24-run development set. This checks fork
+integrity, not efficacy. The read-only expansion audit found the warning-target
+defect rather than treating all generated observations as valid.
+
+Performance work is separate: reader-owned validation turn indexes preserve
+reports and accelerate repeated turn filtering, but the measured full report
+did not show a reliable overall improvement. A narrowly scoped lean ablation
+output experiment is in development; no timing gain is claimed before paired
+whole-worker measurements. Oracle thresholds, horizons and the offline
+110-second chunk limit are unchanged.
 
 ## Decisions before adding state
 
