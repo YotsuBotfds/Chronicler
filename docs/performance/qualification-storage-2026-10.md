@@ -43,3 +43,34 @@ budget the next arm from actual retained size and peak checkpoint/fork/
 validation requirements plus the disk floor. Nominal cohort-size estimates
 alone do not establish that both procedural arms fit. A guarded stop remains
 an interrupted run, never a pass.
+
+## Fixed-parent lossless archive probe
+
+After all 200 parents in each template source were complete, a separate
+copy-only probe selected the original seed 42 from each. It compressed only
+`state.json`, the historiography/language JSON and four top-level memory JSON
+files. None was a manifest validation input. It verified the original batch's
+required input hashes, created deterministic gzip copies, restored all fourteen
+files to new real paths and checked their exact raw sizes and SHA-256 hashes.
+Inventories of **every** original file in both parent directories and both
+batch manifests matched before/after. No original, sidecar or checkpoint was
+removed or rewritten; active gates kept their existing protocol.
+
+| One completed seed-42 parent | Raw selected bytes | Gzip bytes | Actual restored files |
+| --- | ---: | ---: | ---: |
+| Baseline | 5,080,980 | 365,796 | 7, all exact |
+| Candidate | 4,965,943 | 354,819 | 7, all exact |
+
+These two fixtures demonstrate lossless restoration and compression opportunity,
+not the compression ratio of all 400 parents, net disk recovery or a faster
+simulation. The probe retained originals, gzip copies and restored copies, so
+it recovered no space. Its external script and receipt remain under
+`chronicler-next-evidence/probe_lossless_parent_archive.py` and
+`chronicler-archive-probe-20261028/receipt.json`; receipt SHA-256 is
+`c0e7122e1ebfc647b0f5dabd2aeec6ccc8ae008c5ece134b130646e59aec4b89`.
+
+Any cohort-wide archival/removal still waits for complete fork execution and
+official validation. It must retain every validation sidecar, including
+unhashed resource/economy ledgers, and preserve a hash-linked restoration
+index. The next procedural arm must be budgeted from the **actual** retained
+result and peak requirements, not an extrapolation from these two parents.
