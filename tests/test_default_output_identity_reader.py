@@ -81,6 +81,32 @@ class ReaderContracts(unittest.TestCase):
         with self.assertRaises(reader.Refusal):
             reader.archive_members(fake)
 
+    def test_zip_nul_truncation_is_refused_using_original_filename(self):
+        item = zipfile.ZipInfo("safe\x00hidden")
+        self.assertEqual(item.filename, "safe")
+        fake = mock.Mock()
+        fake.infolist.return_value = [item]
+        with self.assertRaises(reader.Refusal):
+            reader.archive_members(fake)
+
+    def test_actions_token_is_removed_before_any_source_inspection_child(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = mock.Mock(control_root=str(root / "control"),
+                baseline_root=str(root / "baseline"), candidate_root=str(root / "candidate"),
+                archive=str(root / "original.zip"), download=False)
+
+            def stop_before_read(*args):
+                self.assertNotIn("GITHUB_TOKEN", reader.os.environ)
+                raise reader.Refusal("fixture stop")
+
+            with mock.patch.dict(reader.os.environ, {"GITHUB_TOKEN": "fixture-read-token"}), \
+                 mock.patch.object(reader.sys, "version_info", (3, 13, 0)), \
+                 mock.patch.object(reader.importlib.util, "find_spec", return_value=None), \
+                 mock.patch.object(reader, "extract_archive", side_effect=stop_before_read):
+                with self.assertRaisesRegex(reader.Refusal, "fixture stop"):
+                    reader.inspect(args, root / "output")
+
     def test_archive_member_total_and_file_count_caps_are_independent(self):
         item = zipfile.ZipInfo("a")
         item.file_size = 3

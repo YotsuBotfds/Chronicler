@@ -105,6 +105,7 @@ def archive_members(archive):
     files, directories, folded = {}, set(), set()
     total = 0
     for item in rows:
+        require(item.orig_filename == item.filename, "archive name was truncated or normalized")
         directory = item.is_dir()
         name = relative_name(item.filename[:-1] if directory else item.filename)
         require(name.casefold() not in folded, "duplicate or case-aliased archive entry")
@@ -456,8 +457,10 @@ def inspect(args, output):
     require(importlib.util.find_spec("chronicler_agents") is None, "reader environment must have no native extension")
     archive = Path(args.archive).resolve() if args.archive else output / "original-artifact.zip"
     args._phase = "download"
+    token = os.environ.pop("GITHUB_TOKEN", None)
     if args.download:
-        download_archive(archive, os.environ.get("GITHUB_TOKEN"))
+        download_archive(archive, token)
+    token = None  # Do not retain or pass the Actions token to source-inspection children.
     root = output / "payload"
     args._phase = "extract"
     extract_archive(archive, root)
@@ -495,7 +498,12 @@ def inspect(args, output):
             "cases": cases, "comparison": comparison,
             "normalization": NORMALIZATION,
             "scope": "read-only reinspection of pinned completed exports; no new worlds or native pools",
-            "reader_sha256": digest(Path(__file__))["sha256"]}
+            "reader_sha256": digest(Path(__file__))["sha256"],
+            "reader_workflow_sha": os.environ.get("GITHUB_SHA"),
+            "reader_python": sys.version, "reader_executable": sys.executable,
+            "compared_script_sha256": digest(sources["candidate"] / "scripts/turn_speed_identity.py")["sha256"],
+            "directory_comparator_sha256": digest(sources["candidate"] / "scripts/cities_identity.py")["sha256"],
+            "bundle_decoder_sha256": digest(sources["candidate"] / "src/chronicler/bundle_codec.py")["sha256"]}
 
 
 def main(argv=None):

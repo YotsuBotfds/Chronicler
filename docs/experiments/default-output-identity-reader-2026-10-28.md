@@ -41,15 +41,17 @@ size and SHA-256 are checked before extraction. The Actions read token is sent
 only to the fixed GitHub artifact API. Automatic redirects are disabled; every
 HTTPS storage redirect gets a new request without Authorization. Download hosts
 are limited to GitHubusercontent and Azure Blob storage. Neither signed URLs,
-tokens nor raw network exception messages are printed.
+tokens nor raw network exception messages are printed. The token is removed
+from the process environment before any source-inspection child is launched.
 
 Extraction goes into a fresh external output. Bounds are 4 GiB total,
 256 MiB per file, 4,096 files, 8,192 explicit or implicit entries and
 512 characters per path. Traversal, absolute or noncanonical paths, drive names,
 backslashes, encrypted members, special files/symlinks, duplicate/case-aliased
 paths and file/directory conflicts are rejected. Only stored/deflated ZIP entries
-are admitted; streamed bytes must equal their declared sizes. JSON reads are
-bounded to 32 MiB and reject duplicate keys, nonfinite values and numeric overflow.
+are admitted; streamed bytes must equal their declared sizes. Receipt/state JSON
+reads are bounded to 32 MiB; bundle decoding is bounded by the 256 MiB member
+limit. Strict contract parsing rejects duplicate keys, nonfinite values and numeric overflow.
 
 The inventory bytes must match the fixed pin. Every extracted payload file's size
 and SHA-256 and the exact file set must match it, excluding precisely
@@ -77,7 +79,7 @@ Its output must contain precisely the nine registered case summaries, their
 actual per-case compared-file counts and an exactly reconciled aggregate with
 zero differences. Original .log/run_manifest.json exclusions and sole
 metadata.generated_at normalization remain unchanged. Comparison timeout is
-180 seconds and retained comparison output is bounded to 2 MiB.
+180 seconds; its completed comparison log must be at most 2 MiB.
 
 Finally, the full payload inventory, original ZIP and frozen tracked-source
 snapshots are checked again. Any failure keeps the reader result negative.
