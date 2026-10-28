@@ -932,7 +932,7 @@ export interface PauseContext {
   civs: string[];
 }
 
-export type CommandType = "continue" | "inject" | "set" | "fork" | "quit" | "speed";
+export type CommandType = "continue" | "inject" | "set" | "fork" | "quit" | "speed" | "checkpoint";
 
 export interface InjectCommand {
   type: "inject";
@@ -948,7 +948,7 @@ export interface SetCommand {
 }
 
 export interface SimpleCommand {
-  type: "continue" | "fork" | "quit";
+  type: "continue" | "fork" | "quit" | "checkpoint";
 }
 
 export interface SpeedCommand {
@@ -980,6 +980,15 @@ export interface ForkedMessage {
   save_path: string;
   cli_hint: string;
 }
+
+/**
+ * The last exact checkpoint the viewer asked for (the live `checkpoint`
+ * message). The server names the file, under the run's output directory.
+ */
+export type CheckpointStatus =
+  | { state: "saving" }
+  | { state: "saved"; turn: number; path: string; resumeHint: string }
+  | { state: "error"; message: string };
 
 // --- Setup lobby types ---
 

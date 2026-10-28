@@ -391,6 +391,35 @@ describe("useLiveConnection", () => {
     expect(JSON.parse(ws.sent[0])).toEqual({ type: "continue" });
   });
 
+  it("asks for a checkpoint and keeps the server's answer", async () => {
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    expect(result.current.checkpointStatus).toBeNull();
+
+    act(() => result.current.saveCheckpoint());
+    // The message names no file: the server writes under the run's output directory.
+    expect(JSON.parse(ws.sent[0])).toEqual({ type: "checkpoint" });
+    expect(result.current.checkpointStatus).toEqual({ state: "saving" });
+
+    act(() => ws.simulateMessage({ type: "checkpoint_requested", paused: true }));
+    expect(result.current.checkpointStatus).toEqual({ state: "saving" });
+    act(() => ws.simulateMessage({
+      type: "checkpoint_saved", turn: 10, path: "output/live_checkpoints/turn_0010.ckpt", bytes: 1234,
+      exact: true, resume_hint: "--live --resume output/live_checkpoints/turn_0010.ckpt",
+    }));
+    expect(result.current.checkpointStatus).toEqual({
+      state: "saved", turn: 10, path: "output/live_checkpoints/turn_0010.ckpt",
+      resumeHint: "--live --resume output/live_checkpoints/turn_0010.ckpt",
+    });
+
+    act(() => ws.simulateMessage({ type: "checkpoint_error", message: "The run has finished" }));
+    expect(result.current.checkpointStatus).toEqual({ state: "error", message: "The run has finished" });
+    // A refused checkpoint is the panel's to show, not the session's error.
+    expect(result.current.error).toBeNull();
+  });
+
   it("accepts validated live bundle payloads", async () => {
     const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
     await vi.advanceTimersByTimeAsync(10);

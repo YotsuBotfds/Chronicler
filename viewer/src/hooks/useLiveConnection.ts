@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   AckMessage,
   Bundle,
+  CheckpointStatus,
   Command,
   ForkedMessage,
   LobbyInit,
@@ -36,6 +37,10 @@ interface LiveConnectionState {
   setSpeed: (s: number) => void;
   lastAck: AckMessage | null;
   lastForked: ForkedMessage | null;
+  /** The last checkpoint request's outcome (null before the first). */
+  checkpointStatus: CheckpointStatus | null;
+  /** Ask the server for an exact checkpoint at the next turn boundary. */
+  saveCheckpoint: () => void;
   serverState: ServerState;
   lobbyInit: LobbyInit | null;
   sendStart: (params: Omit<StartCommand, "type">) => void;
@@ -59,6 +64,7 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   const [speed, setSpeedState] = useState(1);
   const [lastAck, setLastAck] = useState<AckMessage | null>(null);
   const [lastForked, setLastForked] = useState<ForkedMessage | null>(null);
+  const [checkpointStatus, setCheckpointStatus] = useState<CheckpointStatus | null>(null);
   const [serverState, setServerState] = useState<ServerState>("connecting");
   const [lobbyInit, setLobbyInit] = useState<LobbyInit | null>(null);
   const bundleRef = useRef<Bundle | null>(null);
@@ -82,6 +88,13 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
   const sendCommand = useCallback((cmd: Command) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(cmd));
+    }
+  }, []);
+
+  const saveCheckpoint = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      setCheckpointStatus({ state: "saving" });
+      wsRef.current.send(JSON.stringify({ type: "checkpoint" }));
     }
   }, []);
 
@@ -264,6 +277,23 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
             setLastForked(msg as ForkedMessage);
             break;
 
+          case "checkpoint_requested":
+            // Written at the next turn boundary; checkpoint_saved follows.
+            break;
+
+          case "checkpoint_saved":
+            setCheckpointStatus({
+              state: "saved",
+              turn: msg.turn,
+              path: msg.path,
+              resumeHint: msg.resume_hint ?? "",
+            });
+            break;
+
+          case "checkpoint_error":
+            setCheckpointStatus({ state: "error", message: msg.message });
+            break;
+
           case "narration_started":
             // Loading indicator could be shown via additional state;
             // for now, this is a no-op acknowledgment.
@@ -345,6 +375,8 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
     setSpeed,
     lastAck,
     lastForked,
+    checkpointStatus,
+    saveCheckpoint,
     serverState,
     lobbyInit,
     sendStart,

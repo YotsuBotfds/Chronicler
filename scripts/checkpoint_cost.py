@@ -66,13 +66,14 @@ def main(argv=None) -> int:
 
     def measure(template, world, memories, history, chronicle_entries, era_reflections, pending,
                 run_start, seed, num_turns, agent_bridge, ecology_runtime, politics_runtime,
-                economy_tracker, scenario_config, run_config):
+                economy_tracker, scenario_config, run_config, live=None):
         state = rc.RunState(
             world=world, memories=memories, history=history, chronicle_entries=chronicle_entries,
             era_reflections=era_reflections, pending_injections=pending, start_turn=run_start,
             seed=seed, num_turns=num_turns, agent_bridge=agent_bridge,
             ecology_runtime=ecology_runtime, politics_runtime=politics_runtime,
             economy_tracker=economy_tracker, scenario_config=scenario_config, run_config=run_config,
+            live=live,
         )
         sim = getattr(agent_bridge, "_sim", None)
         if sim is not None:
@@ -112,7 +113,8 @@ def main(argv=None) -> int:
         (directory / "measure_0.ckpt").unlink()
         return original_write(template, world, memories, history, chronicle_entries, era_reflections,
                               pending, run_start, seed, num_turns, agent_bridge, ecology_runtime,
-                              politics_runtime, economy_tracker, scenario_config, run_config)
+                              politics_runtime, economy_tracker, scenario_config, run_config,
+                              live=live)
 
     cm._write_exact_checkpoint = measure
     with tempfile.TemporaryDirectory(prefix="ckpt-cost-") as tmp:

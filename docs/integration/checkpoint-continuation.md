@@ -483,4 +483,334 @@ to `main`, and resume identity is the qualification.
   and package versions).
 * Batch, fork and interactive runs write checkpoints with
   `--checkpoint-every` (batch: in each run's directory); live runs do
-  not. Only the single-run CLI and `execute_run` resume.
+  not. Only the single-run CLI and `execute_run` resume. (Superseded by
+  section 11: live runs write checkpoints, a viewer can ask for one, and
+  `--live --resume` continues any exact checkpoint as a live session.)
+
+## 11. Live and interactive sessions (2026-10, `feat/live-checkpoints`, `fix/interactive-checkpoints`)
+
+Branch `feat/live-checkpoints` from `main` `25854db`. A live session
+(`--live`) writes the exact checkpoints of sections 1-4, a viewer can ask
+for one at a turn boundary, and `--live --resume FILE` continues a
+checkpoint as a live session whose outputs equal the uninterrupted
+session's and whose viewers are sent the same history. No simulation code
+changed (`execute_run` gained a turn-boundary hook that reads the run
+only); outputs without checkpoints are byte-identical to `main`.
+
+Code: `src/chronicler/live_checkpoints.py` (new: the live view and the
+checkpoint control), `live.py` (the `checkpoint` message, the pause, the
+resumed session), `main.py` (`execute_run(turn_boundary=...)`, `--live
+--resume`), `run_checkpoint.py` (`RunState.live`). Viewer: the pause
+panel's **Save checkpoint** (`InterventionPanel`, `useLiveConnection`).
+Script: `scripts/checkpoint_identity.py` live cases. Tests:
+`tests/test_live_checkpoints.py` (offline lane, chunk `live-checkpoints`),
+`tests/test_live_checkpoints_native.py`, `tests/test_live_integration.py`
+(sockets), `tests/live_session_harness.py` (a session without sockets).
+
+### Usage
+
+```sh
+# A live session with an exact checkpoint every 10 turns, as a single run:
+python -m chronicler.main --live --agents hybrid --simulate-only \
+    --output out/chronicle.md --checkpoint-every 10
+
+# In the viewer's pause panel: Save checkpoint. Any client of the session
+# may send the message, while paused or while the run goes on:
+{"type": "checkpoint"}
+
+# Continue a checkpoint as a live session (a live, single or batch run's):
+python -m chronicler.main --live --resume out/live_checkpoints/turn_0020.ckpt \
+    --output out2/chronicle.md
+```
+
+### Protocol
+
+* Client to server: `{"type": "checkpoint"}`, nothing else. A message
+  with any other field (a path, a name, a turn) is refused.
+* The server answers at once with `{"type": "checkpoint_requested",
+  "paused": bool}`, or `{"type": "checkpoint_error", "message"}` in the
+  lobby, during a batch, after the run, for another field, or when the
+  connection's handshake does not carry this session's origin and token.
+* The simulation then sends `{"type": "checkpoint_saved", "turn", "path",
+  "bytes", "exact", "resume_hint"}` (`resume_hint` is `--live --resume
+  PATH`), or `{"type": "checkpoint_error", "turn", "message"}` when the
+  write failed; the run continues either way.
+* When: while running, at the next turn boundary (the end of the current
+  turn, after its own checkpoints and pause); while paused, at once (the
+  pause polls every 50 ms). A request sent before a pause command is
+  written before that command is applied. Requests waiting at one
+  boundary make one file and one reply each.
+* `paused.valid_commands` lists `checkpoint`. A resumed session's first
+  pause has `reason: "resumed"`.
+* The file: `<output dir>/live_checkpoints/turn_<turn:04d>.ckpt`, the
+  output directory being `--output`'s. A second save at the same turn
+  replaces it.
+
+### Safety
+
+* Only a client of this session asks: the handshake's origin and token
+  checks are unchanged (a client without them never reaches the message
+  handler; `tests/test_live_integration.py` shows the refusal), and the
+  `checkpoint` message checks them again from the connection's own
+  handshake request.
+* The client names nothing. The server derives the file from the turn
+  number, under the output directory; it refuses a `live_checkpoints`
+  that is a link or resolves outside the output directory, and a target
+  that is a link or a directory; the write is atomic (temporary file,
+  rename, fsync), as for every checkpoint. At most one file per turn.
+* The reply carries the server's path (the client is local and holds the
+  session token). Paths on the command line (`--checkpoint PATH`) remain
+  the operator's.
+* Checkpoints are still trusted local files (section 3): the digests
+  detect corruption, the restricted loader limits what a pickle builds.
+
+### What a live checkpoint keeps
+
+Everything of section 2, and `RunState.live`, the session's view: the
+`init` message as first sent (JSON text), every `turn` message since (the
+objects the server sent, never changed after they are queued), the
+snapshot pruner (turn messages leave dead civs out; the pruner carries
+which), the speed and the pause interval. A resumed session's server
+starts from that view; turn messages are pruned as the uninterrupted
+session prunes them.
+
+Pause commands that change the world, `inject` and `set`, are recorded:
+each is appended to `run_config["interventions"]` (`{"turn", "command",
+...}`; in the header and the pickle, and carried by every later
+checkpoint), and when a pause changed the run, that turn's scheduled
+checkpoints (`--checkpoint-every`, `--checkpoint-turns`) are written again
+after the pause, so they hold what the next turn starts from (an
+injection waits in the pending list). A viewer's checkpoint holds the run
+as it was when written: a command applied later in the same pause is not
+in it (save again after it). A resume does not replay interventions of
+later pauses; the viewer repeats them (the identity runs do). `fork` is
+unchanged (a legacy state file). Not kept: the viewer's own state (its
+timeline position, the `set` it applies to its copy of the last snapshot)
+and narration (section 10).
+
+The resumed session has no lobby. It takes the checkpoint's configuration
+as `--resume` does (an option given with another value is refused;
+`--turns`, the outputs, `--checkpoint-every` and `--pause-every` are free,
+the pause interval defaulting to the saved session's), restores the
+speed, sends a connecting viewer the saved view (with the new length when
+`--turns` extends the run) and starts paused at the checkpoint's turn:
+continue, intervene, checkpoint or quit (quitting there writes nothing).
+A checkpoint written by a single or batch run resumes live too, exactly;
+its view is rebuilt from the run's history (each turn's snapshot,
+chronicle text, and the events and named events dated in it). On the
+two runs checked (off 300 and hybrid with sidecars 200 turns, rebuilding
+the view of their turn-200 live checkpoints) the rebuilt history,
+chronicle, events and named events equal the live session's; the first
+message's world is the checkpoint's own.
+
+Other live changes: `--live --resume` takes exact checkpoints only (a
+state file is refused; the lobby's `resume_state` is unchanged);
+`--live-port 0` takes a free port, shown in the printed link; `--live
+--simulate-only` makes no LLM calls, as a single run (before, era
+reflections called the local LLM, so a session without one stopped at
+turn 10); live checkpoints record the viewer's world (civs, regions,
+`worldgen`, scenario) in `simulation_args`.
+
+### Identity
+
+`scripts/checkpoint_identity.py run OUT --jobs 2 --case live_hybrid_s42
+--case live_proc32_hybrid_s11 --case live_off_s42`, run on `93de16a` and
+again on `c467b8e` (the branch's source as merged): for each
+case CLI sessions driven over the WebSocket protocol as a viewer drives
+them (`start`, `continue` at every pause, the case's interventions and
+checkpoint requests). `plain` saves nothing; `straight` writes a
+checkpoint at every turn and asks for two (one while running, one while
+paused); every `resume_k` is `--live --resume` of the turn-k checkpoint
+and every `resume_live_k` of a viewer's checkpoint, repeating the
+interventions of later pauses. Compared: every file (as section 6), and
+what a viewer is sent: the view after each turn (the `init` message with
+the turn messages applied, as the server keeps it), the `init` a viewer
+connecting to the resumed session receives (against the uninterrupted
+view at turn k), the server's own `init` at a reconnect during the last
+pause, and the view after completion.
+
+| Case | World, mode | Turns, pauses | Viewer | Resume points | Files per resume | Differences |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| `live_hybrid_s42` | template 8 x 4, hybrid, validation sidecars | 20, every 5 | save asked at 3 (written at 4, then 3); at pause 10 `set` military 90 and `inject` plague on the first civ, then save | 19 + 2 | 20-24 | 0 |
+| `live_proc32_hybrid_s11` | procedural 32 x 8, hybrid, sidecars | 20, every 5 | save asked at 7 (written at 8, then 7), save at pause 15 | 19 + 2 | 24-28 | 0 |
+| `live_off_s42` | template 8 x 4, off (native ecology and politics) | 20, every 5 | save asked at 2 (written at 4, then 2), save at pause 5 | 19 + 2 | 9 | 0 |
+
+A save asked while running is written at the first boundary after the
+request arrives, so its turn depends on timing (the two runs above).
+**Each run: 3 cases, 63 resume points, 1,205 file comparisons, 0
+differences; every view equal** (each resume: the views after turns k+1
+to 20, the connect view, the reconnect view and the final view). Saving
+changed nothing (`plain` against `straight`: 69 files, 0 differences,
+views equal), interventions included.
+
+In-process (`tests/live_session_harness.py`, no sockets) the tests run a
+12-turn template 6 x 3 world, off with the Python oracle, pausing every 4
+turns: resumed at 1, 4, 6 and 11 and from two viewer saves (one asked
+while running, one at pause 8); with interventions, from the checkpoint
+of their turn (not repeated) and from before it (repeated); from a save
+at the resumed pause; from a single run's checkpoint; and extended to 16
+turns. Natively, hybrid with sidecars and off with the native runtimes,
+10 turns, resumed at 2, 5 (a viewer save) and 7.
+
+No simulation change: `scripts/turn_speed_identity.py run` (its 9 cases)
+with `main` `25854db` (exported tree, its own venv and script) against
+the branch on `a2bd649` and on `c467b8e`, then `compare`: **399 files, 0
+differences** each time (section 8). Both venvs were built from the
+lockfile, each with a release extension built from its own tree; the
+Rust tree is unchanged and both builds have SHA-256 `3da1ee1f...ad0b`.
+
+Tests on `c467b8e` (Linux x86-64, 4 shared vCPU, Python 3.13.17): the
+offline oracle lane PASS (15 chunks, 2,793 passed, 61 skipped; chunk
+`live-checkpoints` 13 passed, 2 native skipped); the live, checkpoint and
+origin/token suites with the release extension, 89 passed. Not-slow with
+the extension on `9f52673` (the source differed from `c467b8e` by one
+unused import): 6,824 passed, 3 skipped, 526 subtests. Viewer: 442 tests
+(3 new), lint and build passed. No `cargo test` (Rust unchanged) and no
+validation gate (no simulation change).
+
+### Cost
+
+The view is about a third to a half of a live checkpoint: off template
+world 0.27, 0.56, 0.89 MB of 0.55, 1.09, 1.69 MB at turns 100, 200, 300;
+hybrid with sidecars 0.31 and 0.47 MB of 0.88 and 1.39 MB at 100 and 200
+(zlib level 1, as the rest). A session that never checkpoints keeps
+references to the turn messages it sends (no copies) and one JSON text of
+the first message, and polls the command queue every 50 ms while paused.
+
+### Interactive sessions (2026-10-28, `fix/interactive-checkpoints`)
+
+Branch `fix/interactive-checkpoints` from `main` `39d5ba0` (PR #65
+merged). An `--interactive` session's pauses now keep exact checkpoints
+as a live session's do. Before, a command typed at a pause changed the
+run after that turn's checkpoint was written, and the checkpoint was
+kept: a resume from it lacked the command. On `main`, the
+off template world (seed 42, 8 x 4) with a stat set and an injection at
+pause 10 and a checkpoint at every turn: a `--resume` of the turn-10
+checkpoint differed in 4 of 9 files (bundle, state, historiography
+sidecar, a memory stream); on the branch, 0.
+
+* `inject` and `set` typed at a pause are recorded in
+  `run_config["interventions"]`, as live records them (`{"turn",
+  "command", ...}`), and that turn's scheduled checkpoints
+  (`--checkpoint-every`, `--checkpoint-turns`) are written again after
+  the pause, holding the changed stat and the queued injection.
+* One code path: `PauseInterventions` (`live_checkpoints.py`) is the part
+  of `LiveCheckpoints` that records interventions and tells `execute_run`
+  to write the turn's checkpoints again; `LiveCheckpoints` extends it with
+  the viewer's requests and view, and `run_interactive` passes one to
+  `execute_run(turn_boundary=...)`. An interactive session's checkpoints
+  carry no live view (`RunState.live` is None).
+* `--interactive --resume FILE` continues an exact checkpoint (a single,
+  batch, live or interactive run's) as an interactive session: the
+  checkpoint's configuration as `--resume` adopts it (`--turns`, the
+  outputs, the checkpoint options and `--pause-every` are free; the pause
+  interval defaults, as in a new session, to the reflection interval), and
+  a first pause at the checkpoint's turn ("Resumed at turn k"): continue,
+  type commands (applied to the loaded run and recorded at turn k) or
+  quit, which writes nothing. A state file is refused, as by `--live
+  --resume`.
+* Other commands: `fork` still writes a state file
+  (`fork_save_t<turn>/`), which is not exact; its message now says so.
+  `help`, refused commands and `continue` change nothing; `quit` ends the
+  run after the turn's checkpoints are written again.
+* As in live mode, a resume does not replay the commands of later pauses:
+  they are typed again (the identity runs do).
+
+`scripts/checkpoint_identity.py run OUT --jobs 2 --case
+interactive_hybrid_s42 --case interactive_off_s42` on `68bc026`: CLI
+sessions whose terminal is a pipe. `plain` writes no checkpoint,
+`untouched` only continues, `straight` writes one at every turn; every
+`resume_k` (k = 1..19) is `--interactive --resume` of the turn-k
+checkpoint, continuing at the resumed pause and typing the lines of later
+pauses again, and `single_10` a plain `--resume` of the turn-10
+checkpoint. Compared as section 6 (expected absences there, and
+`fork_save_t10/` in resumes from turn 10 on); the pauses each session
+made are checked too.
+
+| Case | World, mode | Turns, pauses | Lines typed | Resume points | Files per resume | Differences |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| `interactive_hybrid_s42` | template 8 x 4, hybrid, validation sidecars | 20, every 5 | 5: `set` treasury 250; 10: `set` military 90, `inject` plague, `fork`; 15: `help`, a `set` on an unknown civ (refused) | 19 + 1 | 20-31 | 0 |
+| `interactive_off_s42` | template 8 x 4, off (native ecology and politics) | 20, every 5 | 10: `set` stability 20, `inject` rebellion | 19 + 1 | 9 | 0 |
+
+**2 cases, 40 resume points, 687 file comparisons, 0 differences.**
+Checkpointing changed nothing (`plain` against `straight`: 44 files, 0
+differences); the lines change the run (22 and 4 files differ from
+`untouched`); each rewritten checkpoint records its pause's commands
+(hybrid: 1 at turn 5, 2 at turn 10; off: 2 at turn 10) and the
+checkpoint of the turn before does not.
+
+Tests: `tests/test_interactive_checkpoints.py` (offline lane, new chunk
+`interactive-checkpoints` with the existing `tests/test_interactive.py`; a
+scripted terminal, 12-turn template 6 x 3 world, pauses every 4): saving
+changes nothing and the commands change the run; the turn-4 checkpoint
+holds the stat, the pending injection and the record, turn 3's does not,
+turn 8's carries both pauses' records; resumed interactively at 1, 3, 4,
+5, 8 and 11 with later commands typed again; a plain `--resume` at 4 and
+9; `--checkpoint-turns` written again; quit at the resumed pause writes
+nothing; commands at the resumed pause equal a session that paused there;
+`fork` changes nothing and says it is not exact; the CLI refuses a state
+file, adopts a checkpoint's configuration, refuses a differing option and
+keeps `--live` exclusive. `tests/test_interactive_checkpoints_native.py`:
+hybrid with sidecars and off with the native runtimes, 10 turns, commands
+at pause 5, resumed at 2, 5 and 7.
+
+No simulation change: `scripts/turn_speed_identity.py run` (its 9 cases)
+with `main` `39d5ba0` (exported tree, its own script) against the branch
+on `072820e`, then `compare`: **399 files, 0 differences**. One venv
+from the lockfile with a release extension built from the branch's Rust
+tree, which equals `main`'s (SHA-256 `3da1ee1f...ad0b`, as section 11's
+first builds). Tests (Linux x86-64, 4 shared vCPU, Python 3.13.17): the
+offline oracle lane PASS (16 chunks, 2,821 passed, 63 skipped; chunk
+`interactive-checkpoints` 28 passed, 2 native skipped); not-slow with the
+extension on `072820e`: 6,834 passed, 3 skipped, 526 subtests (10 new);
+viewer 444 tests (2 new), lint and build passed. No
+`cargo test` (Rust unchanged), no validation gate.
+
+### Browser QA of the pause panel (2026-10-28, `fix/interactive-checkpoints`)
+
+`viewer/scripts/qa-live-checkpoint.mjs` (opt-in, not CI; `viewer/README.md`)
+drives a running viewer in headless Chromium (Playwright from Node) against
+live sessions it starts itself (`--live --live-port 0 --simulate-only`,
+stopped by their PIDs). Linux, the viewer from the Vite dev server (port
+5173) and from `vite preview` of the production build (4173).
+
+1. Opens the link the session prints (`?ws=...&token=...`), fills the
+   setup form (seed 42, 20 turns, 4 civilizations, 8 regions), clicks Run
+   World and waits for "Paused at Turn 5" (turn shown `5 / 20`, chronicle
+   rail turns 1-5, four civilization metric rows).
+2. Clicks Save checkpoint: the panel shows "Checkpoint saved at turn 5:"
+   with the server's path, `<output dir>/live_checkpoints/turn_0005.ckpt`
+   (the file exists), and the hint `--live --resume <path>`, both inside
+   the panel. Clicks Fork (path and hint inside the panel, the hint naming
+   `--fork`), then Quit: the session exits 0.
+3. Starts `--live --resume <path>` and opens its link: the viewer starts
+   paused at turn 5 ("Paused at Turn 5", `5 / 20`) with the same chronicle
+   rail and civilization metrics as in step 1. Continue runs on to "Paused
+   at Turn 10" with turns 1-10 in the rail; Quit exits 0.
+4. Meanwhile opens the resumed session with the first session's (stale)
+   token and with no token: each viewer shows "Could not connect to the
+   live server..." and no history; the session logs no error and goes on.
+   (A wrong origin is refused in `tests/test_live_integration.py`.)
+
+Found and fixed: the shell's setup form gave its Seed field no accessible
+name (the first run could not fill it; labelled now, as the older
+`SetupLobby` was); the saved path and the resume hint (and the fork path
+and hint) ran past the panel's right edge when the path had no space or
+hyphen, cutting off the file name (a run with such a path failed 1 of 18
+checks; they now wrap anywhere); the live `forked` reply's hint, checked
+next, named a `--load` option the CLI does not have (it now names
+`--fork` with `--seed` and `--turns` and says the state file is not
+exact). After the fixes, 20 of 20 checks on the dev server (off and
+hybrid) and on the built viewer (off); screenshots and reports are kept
+outside the repository. Seen and not changed: before a run, the setup
+surface's timeline rail draws its five placeholder era labels on top of
+each other (cosmetic, unrelated to checkpoints).
+
+### Limits
+
+* A viewer's checkpoint and a resumed session are as exact as section 4
+  allows; `--resume-allow-mismatch` labels them as there.
+* Live and interactive resumes do not replay the commands of later
+  pauses; `fork` writes a state file, not an exact checkpoint.
+* Windows and macOS were not run; browser QA in headless Chromium on
+  Linux only (no other browser, no narrow viewport).

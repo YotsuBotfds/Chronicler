@@ -3,6 +3,7 @@ import type {
   BatchReport,
   BatchRunSummary,
   Bundle,
+  CheckpointStatus,
   Command,
   Event,
   LanguagesField,
@@ -103,6 +104,8 @@ interface AppShellProps {
   liveSendCommand?: (cmd: Command) => void;
   liveForkedPath?: string | null;
   liveForkedHint?: string | null;
+  liveCheckpointStatus?: CheckpointStatus | null;
+  liveSaveCheckpoint?: () => void;
   liveReconnecting?: boolean;
 }
 
@@ -584,6 +587,8 @@ export function AppShell({
   liveSendCommand,
   liveForkedPath,
   liveForkedHint,
+  liveCheckpointStatus,
+  liveSaveCheckpoint,
   liveReconnecting,
 }: AppShellProps) {
   const scenarios = lobbyInit?.scenarios ?? [];
@@ -1254,6 +1259,8 @@ export function AppShell({
             sendCommand={liveSendCommand}
             forkedPath={liveForkedPath}
             forkedHint={liveForkedHint}
+            onSaveCheckpoint={liveSaveCheckpoint}
+            checkpointStatus={liveCheckpointStatus}
           />
         </Suspense>
       )}
@@ -1928,6 +1935,7 @@ function SetupRail({
         <div className="phase75-inline-field">
           <input
             type="number"
+            aria-label="Seed"
             value={state.seed}
             placeholder="Random"
             onChange={(event) => onSeedChange(event.target.value)}

@@ -58,6 +58,106 @@ section 13.
 
 ---
 
+## Interactive checkpoints and live browser QA (2026-10-28, `fix/interactive-checkpoints`)
+
+> **Last updated:** 2026-10-28 (`fix/interactive-checkpoints` from `main` `39d5ba0`; interactive mode, live transport and viewer only, the simulation byte-identical. Commands typed at an `--interactive` pause (`inject`, `set`) are recorded and the turn's checkpoints written again, through the code live mode uses (`PauseInterventions`); `--interactive --resume FILE` continues an exact checkpoint paused at its turn. Interactive identity: 2 cases, 40 resume points, 687 file comparisons, 0 differences (on `main` a resume after a pause's commands differed in 4 of 9 files). Browser QA of Save checkpoint and `--live --resume` in headless Chromium found and fixed three panel/setup defects; 20 of 20 checks after. 9-case matrix 399 files, 0 differences against `main`.)
+
+Details and evidence:
+[`docs/integration/checkpoint-continuation.md`](../../integration/checkpoint-continuation.md),
+section 11 (interactive sessions, browser QA).
+
+- **Interactive**: `inject` and `set` at a pause go to
+  `run_config["interventions"]` and the turn's scheduled checkpoints
+  (`--checkpoint-every`, `--checkpoint-turns`) are written again after
+  the pause. `PauseInterventions` (`live_checkpoints.py`) is the shared
+  part; `LiveCheckpoints` extends it. `--interactive --resume FILE`
+  (exact checkpoints only; a state file is refused) adopts the
+  checkpoint's configuration and first pauses at its turn: commands there
+  are applied to the loaded run and recorded; quit writes nothing.
+  `fork` still writes a state file and now says it is not exact.
+- **Browser QA** (`viewer/scripts/qa-live-checkpoint.mjs`, opt-in): launch
+  from the setup form, Save checkpoint at the pause at turn 5 (server
+  path, file and `--live --resume` hint shown), Fork, Quit, `--live
+  --resume` of the file (paused at turn 5, same chronicle and metrics,
+  Continue to turn 10), a stale or missing token refused. Fixed: the saved
+  path and hint (and the fork path and hint) ran past the panel's edge
+  when the path had no space or hyphen; the shell's Seed field had no
+  accessible name; the live fork hint named a nonexistent `--load`
+  option (now `--fork ... --seed SEED --turns TURNS`). Dev server (off and
+  hybrid) and built viewer: 20 of 20 checks.
+- **Identity and tests**: `scripts/checkpoint_identity.py` cases
+  `interactive_hybrid_s42` (sidecars; commands at pauses 5 and 10, `fork`,
+  `help`, a refused `set`) and `interactive_off_s42` on `68bc026`: every
+  turn 1-19 resumed with `--interactive --resume` plus the turn-10
+  checkpoint with a plain `--resume`, 0 differences; checkpointing changes
+  nothing (44 files). 9-case matrix, `main` `39d5ba0` (exported tree)
+  against `072820e`: 399 files, 0 differences. Release extension built
+  from the unchanged Rust tree, SHA-256 `3da1ee1f...ad0b`. Oracle lane
+  PASS (16 chunks, 2,821 passed, 63 skipped; new chunk
+  `interactive-checkpoints` 28 passed, 2 native skipped); not-slow with
+  the extension on `072820e`: 6,834 passed, 3 skipped, 526 subtests (10
+  new); viewer 444 tests (2 new), lint and build passed. No `cargo
+  test` (Rust unchanged), no validation gate (no simulation change).
+- **Open**: resumes do not replay the commands of later pauses (live and
+  interactive); no terminal counterpart of Save checkpoint (an exact save
+  at an interactive pause needs `--checkpoint-every` on that turn); an
+  interactive resume pauses at the reflection interval unless
+  `--pause-every` is given (the saved session's interval is not
+  recorded); before a run, the setup surface's timeline stacks its five
+  placeholder era labels (cosmetic, not changed); browser QA in headless
+  Chromium on Linux at a desktop viewport only.
+
+---
+
+## Live checkpoints (2026-10-28, `feat/live-checkpoints`)
+
+> **Last updated:** 2026-10-28 (`feat/live-checkpoints` from `main` `25854db`; live mode, CLI and viewer only, the simulation byte-identical. A live session writes exact checkpoints (`--checkpoint-every`, `--checkpoint`), a viewer asks for one at a turn boundary with the `checkpoint` message (the pause panel's Save checkpoint), and `--live --resume FILE` continues any exact checkpoint as a live session, paused at its turn, whose outputs equal the uninterrupted session's and whose viewers are sent the same history. Live identity: 3 cases, 63 resume points, 1,205 file comparisons and every view, 0 differences; 9-case matrix 399 files, 0 differences against `main`.)
+
+Details and evidence:
+[`docs/integration/checkpoint-continuation.md`](../../integration/checkpoint-continuation.md),
+section 11.
+
+- **Protocol**: `{"type": "checkpoint"}` and nothing else; replies
+  `checkpoint_requested`, then `checkpoint_saved` (turn, path, bytes,
+  exact, `--live --resume` hint) or `checkpoint_error`. Written at the next
+  turn boundary while running, at once while paused (a request sent before
+  a pause command is written before it). `paused.valid_commands` lists it.
+- **Safety**: only a client holding the session's origin and token (the
+  handshake, checked again on the message); the client names no path,
+  name or turn; the file is `<output dir>/live_checkpoints/turn_<turn>.ckpt`,
+  refused when that directory or file is a link or leads outside the
+  output directory; at most one file per turn, written atomically.
+- **Kept**: every checkpoint of a live run also holds the session's view
+  (`RunState.live`: the first `init` message, every `turn` message, the
+  snapshot pruner, speed, pause interval). `inject` and `set` are recorded
+  in `run_config["interventions"]`, and a pause that changed the run
+  writes that turn's scheduled checkpoints again. A resumed session takes
+  the checkpoint's configuration, sends the saved view and starts paused
+  (reason `resumed`). Single and batch checkpoints resume live too, with
+  a view rebuilt from the run's history.
+- **Other live changes**: `--live-port 0` takes a free port; `--live
+  --simulate-only` makes no LLM calls (before, era reflections called the
+  local LLM); live checkpoints record the viewer's world in
+  `simulation_args`; `--live --resume` refuses a state file.
+- **Identity and tests**: `scripts/checkpoint_identity.py` live cases
+  (template hybrid with sidecars and interventions, procedural 32 x 8
+  hybrid, off; resume at every turn of 20 and from two viewer saves each)
+  0 differences, views equal, on `93de16a` and `c467b8e`; saving changes
+  nothing (69 files). 9-case
+  matrix against `main` on `a2bd649` and `c467b8e`: 399 files, 0
+  differences. Not-slow with the release extension (SHA-256
+  `3da1ee1f...ad0b`, built from each tree): 6,824 passed, 3 skipped, 526
+  subtests (on `9f52673`); oracle lane PASS, 15 chunks, 2,793 passed (new
+  chunk `live-checkpoints`: 13 passed, 2 native skipped); viewer 442
+  tests, lint and build passed. Rust unchanged; no `cargo test`, no
+  validation gate.
+- **Open**: `--interactive` pauses do not rewrite the turn's checkpoint
+  after a command; a resume does not replay interventions of later
+  pauses (the viewer repeats them); the view is a third to a half of a
+  live checkpoint's bytes; no browser QA of the panel.
+
+---
+
 ## Communities as M53 oracle 1 specifies them (2026-10-28, `feat/spec-communities`)
 
 > **Last updated:** 2026-10-28 (`feat/spec-communities` from `main` `ac74e5a`; validation only, the simulation byte-identical. Added: community oracle method 2, which keeps method 1 as its deciding legacy component and adds M53 oracle 1 as specified, judged by the spec's criteria; and cohort method 6, method 5 with those communities as the member cohort of every component. Results on `main`'s simulation: about a tenth of the agents are members (method 1: nine in ten), 3.1 (template) and 5.4 (procedural) communities a seed, median size 5. No community stays within 5% of its region (regions hold about 40 agents), so the spec component fails and stays informational. Two thirds of members now find a matched control. The kin roots give the spec's members 0.988 and 0.996; the community anchor gives them 0.912 against 0.907 for non-members, so M53's anchoring claim is still not reproduced. Three full gates PASS strict, NO REGRESSION, every metric delta 0, `rebaseline_required` for community 1 -> 2 and cohort 5 -> 6.)

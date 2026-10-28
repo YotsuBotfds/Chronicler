@@ -209,6 +209,13 @@ def test_live_pause_fork(tmp_path):
     from pathlib import Path
     fork_dir = Path(forked["save_path"])
     assert (fork_dir / "state.json").exists()
+    # The hint names options the CLI has (it once named a --load that does not exist).
+    from chronicler.main import _build_parser
+    hint = forked["cli_hint"]
+    assert f"--fork {fork_dir / 'state.json'} --seed SEED --turns TURNS" in hint
+    parsed = _build_parser().parse_args(
+        ["--fork", str(fork_dir / "state.json"), "--seed", "7", "--turns", "5"])
+    assert parsed.fork == str(fork_dir / "state.json")
 
 
 def test_live_server_has_lobby_fields():
