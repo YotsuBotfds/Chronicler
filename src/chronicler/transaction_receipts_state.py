@@ -35,6 +35,7 @@ class TransactionObservation(BaseModel):
     cargo_basis: str             # regional_stock or virtual_shadow
     quantity_basis: str          # native operation, never final cash settlement
     loss_reason: str | None = None
+    loss_id: str | None = None
     # Custody/controller observations do not establish private cargo title.
     cargo_title_owner: str | None = None
     financial_eligible: bool = False
@@ -48,6 +49,7 @@ class TransactionReceiptState(BaseModel):
     source_turn: int | None = None
     frame_digest: str = ""
     complete: bool = False
+    mobility_executed: bool = False
     dropped_rows: int = 0
     counters: dict[str, float] = Field(default_factory=lambda: {
         "frames": 0, "incomplete_frames": 0, "rows": 0, "dropped_rows": 0,

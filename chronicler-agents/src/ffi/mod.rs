@@ -164,6 +164,8 @@ pub struct AgentSimulator {
     snapshot_cache: Option<arrow::record_batch::RecordBatch>,
     /// Rebuilt from Python episodes before economy; consumed after tick.
     health_work: Option<crate::health_care::HealthWork>,
+    /// Optional recorder configuration, restored by Python before each tick.
+    transaction_receipts_limit: Option<usize>,
 }
 
 #[pymethods]
@@ -217,6 +219,7 @@ impl AgentSimulator {
             tick_options: crate::scale::TickOptions::default(),
             snapshot_cache: None,
             health_work: None,
+            transaction_receipts_limit: None,
         }
     }
 
@@ -1229,6 +1232,9 @@ impl AgentSimulator {
 
         // M58a: Build merchant_state from graph + ledger + delivery buffer if all present
         // Use take/put pattern to satisfy borrow checker (need &RouteGraph + &mut ShadowLedger + &mut DeliveryBuffer)
+        if let Some(graph) = &mut self.merchant_graph {
+            graph.receipt_limit = self.transaction_receipts_limit.unwrap_or(0);
+        }
         let merchant_graph_taken = self.merchant_graph.take();
         let mut merchant_ledger_taken = self.merchant_ledger.take();
         let mut merchant_delivery_buf_taken = self.merchant_delivery_buf.take();
@@ -1271,6 +1277,14 @@ impl AgentSimulator {
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
         self.merchant_trip_stats = merchant_stats;
+        if let Some(limit) = self.transaction_receipts_limit {
+            // A successful tick without merchant state did not observe mobility.
+            self.merchant_trip_stats.receipts.get_or_insert_with(|| {
+                let mut frame = crate::transaction_receipts::ReceiptFrame::new(turn, limit);
+                frame.mobility_executed = false;
+                frame
+            });
+        }
         self.knowledge_stats = knowledge_stats;
 
         // M53: demographic debug counters
@@ -3319,6 +3333,31 @@ impl AgentSimulator {
         Ok(stats)
     }
 
+    /// Enable bounded read-only observations; configuration and frames are transient.
+    #[pyo3(signature = (enabled, max_rows = 4096))]
+    pub fn configure_transaction_receipts(&mut self, enabled: bool, max_rows: usize) -> PyResult<()> {
+        if enabled && !(1..=crate::transaction_receipts::MAX_LIMIT).contains(&max_rows) {
+            return Err(PyValueError::new_err("transaction receipt max_rows must be 1..65536"));
+        }
+        self.transaction_receipts_limit = enabled.then_some(max_rows);
+        if let Some(graph) = &mut self.merchant_graph {
+            graph.receipt_limit = self.transaction_receipts_limit.unwrap_or(0);
+        }
+        if !enabled { self.merchant_trip_stats.receipts = None; }
+        Ok(())
+    }
+
+    /// (source turn, cap, dropped rows, mobility executed, rows); reads never drain.
+    /// None/0/0 means disabled or no successful recorded tick yet. Enabled empty
+    /// frames have an explicit source turn. Active rows are mobility-end only.
+    pub fn get_transaction_receipt_frame(&self) -> PyResult<(Option<u32>, usize, u64, bool, PyRecordBatch)> {
+        let frame = self.merchant_trip_stats.receipts.as_ref();
+        let batch = crate::transaction_receipts::to_batch(frame).map_err(arrow_err)?;
+        Ok((frame.map(|f| f.source_turn), frame.map_or(0, |f| f.limit),
+            frame.map_or(0, |f| f.dropped), frame.is_some_and(|f| f.mobility_executed),
+            PyRecordBatch::new(batch)))
+    }
+
     /// Maritime: the last tick's merchant sea-lane crossings, one row per hop
     /// across a sea lane (in slot order), with `raided` set where raiders
     /// seized the cargo (`LossReason::Raid`). Empty unless the merchant route
@@ -4057,4 +4096,4 @@ crate::persist_struct!(AgentSimulator {
     merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
-} skip { snapshot_cache } transient { health_work });
+} skip { snapshot_cache } transient { health_work, transaction_receipts_limit });
