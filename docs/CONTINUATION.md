@@ -39,6 +39,13 @@ Repository identity was verified as public `YotsuBotfds/Chronicler`, GitHub ID
 `continuation/recovered-20261011`; `main` and other development branches are not
 rewritten. No merge or deployment is included.
 
+The [published integration CI record](integration/github-ci-2f9-2026-10-28.md)
+records all five successful GitHub jobs at exact source `2f9d618b`.
+Newer unpushed research work is outside that result. During the workspace
+connection outage, independent GitHub-only work continues on
+`lead/cloud-continuation-20261028`; recover and preserve the newer local
+integration before combining those histories.
+
 ## Source standing
 
 At discovery, public `main` was `edf72991cad58d6670b1f382c33d50d903a6054a`

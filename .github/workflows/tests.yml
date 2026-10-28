@@ -3,13 +3,67 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, lead/cloud-continuation-20261028]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  python-offline:
+    name: Python bounded offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Assert native extension is absent
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.find_spec("chronicler_agents")
+          if spec is not None:
+              raise SystemExit(f"offline lane unexpectedly sees chronicler_agents at {spec.origin}")
+          PY
+
+      - name: Run guarded offline chunks
+        run: python scripts/run_python_oracle_checks.py --output-dir "$RUNNER_TEMP/chronicler-oracle-evidence"
+
+      - name: Retain bounded offline receipts and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-offline-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/chronicler-oracle-evidence/receipt.json
+            ${{ runner.temp }}/chronicler-oracle-evidence/guard-*.json
+            ${{ runner.temp }}/chronicler-oracle-evidence/pytest-*.txt
+          if-no-files-found: warn
+          retention-days: 14
+
   python-no-rust:
     name: Python no-Rust
     runs-on: ubuntu-latest
