@@ -34,6 +34,9 @@ are checked against event kind and actual date; future duplicate IDs cannot
 poison an earlier historical reference. When the dated events record dependency
 lists, funding must cite its proposition and resolution must cite its funding.
 These are recorded dependencies, not proven counterfactual causes.
+Completed and cancelled work must satisfy funding < planned completion ≤
+actual resolution. Failed measurement at funding is the earlier-resolution
+exception; a later publication failure must also wait until planned completion.
 
 The audit checks bounded counts; nonnegative finite quantities; whole counts
 and treasury payments; immutable proposition identities within continuous spans;

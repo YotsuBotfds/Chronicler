@@ -109,14 +109,41 @@ def test_future_actual_rows_and_counters_are_withheld(science_bundle,table,datef
 
 def test_planned_future_completion_for_same_turn_failed_trial_is_allowed(science_bundle):
     row=section(science_bundle,1)['trials_resolved'][0]
-    row.update(status='failed',completion_turn=99)
+    row.update(status='failed',funded_turn=1,completion_turn=99,inputs={},
+               control_output=0,treatment_output=0,observed_control=None,observed_treatment=None,
+               informative=False,supports=None,source_data='',dependence_group='')
+    row['funded_event_id']='1:scientific_trial_funded:0'
     row['event_id']='1:scientific_trial_failed:0'
-    science_bundle['events_timeline'][2].update(event_id=row['event_id'],event_type='scientific_trial_failed')
+    science_bundle['events_timeline'][1].update(turn=1,event_id=row['funded_event_id'])
+    science_bundle['events_timeline'][2].update(event_id=row['event_id'],event_type='scientific_trial_failed',causes=[row['funded_event_id']])
+    section(science_bundle,0).update(trials=0,trial_spent=0)
     for t in range(1,4):
         section(science_bundle,t).update(completed=0,failed=1,evidence_receipts=0,beliefs=[])
     science_bundle['events_timeline']=[e for e in science_bundle['events_timeline'] if e['event_type']!='scientific_evidence_received']
     report=audit_bundle(science_bundle)
-    assert not any('future' in c or 'inverted_trial' in c for c in codes(report))
+    assert report['finding_counts']=={'error':0,'warning':0}
+
+
+@pytest.mark.parametrize('status,funded,planned,resolved',[
+    ('completed',1,1,1),('completed',0,0,1),('completed',0,2,1),
+    ('cancelled',1,1,1),('cancelled',0,0,1),('cancelled',0,2,1),
+    ('failed',0,99,1),('failed',0,0,1)])
+def test_terminal_chronology_rejects_same_turn_completion_or_premature_publication(science_bundle,status,funded,planned,resolved):
+    row=section(science_bundle,1)['trials_resolved'][0]
+    row.update(status=status,funded_turn=funded,completion_turn=planned,resolved_turn=resolved)
+    assert 'inverted_trial_dates' in codes(audit_bundle(science_bundle))
+
+
+def test_later_publication_failure_after_planned_completion_is_allowed(science_bundle):
+    row=section(science_bundle,1)['trials_resolved'][0]
+    row.update(status='failed',event_id='1:scientific_trial_failed:0')
+    science_bundle['events_timeline'][2].update(event_id=row['event_id'],event_type='scientific_trial_failed')
+    for turn in range(4):
+        state=section(science_bundle,turn)
+        state['publication_rule']='funded-context-v2'
+        if turn>=1:state.update(completed=0,failed=1,evidence_receipts=0,beliefs=[])
+    science_bundle['events_timeline']=[e for e in science_bundle['events_timeline'] if e['event_type']!='scientific_evidence_received']
+    assert audit_bundle(science_bundle)['finding_counts']=={'error':0,'warning':0}
 
 
 def test_future_duplicate_event_does_not_poison_historical_prefix(science_bundle):

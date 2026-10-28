@@ -220,7 +220,9 @@ class ScientificReceiptsAudit:
                                  "Unavailable actual measurement inputs and their result identities are withheld.")
                     chronology_ok = False
                     continue
-            if planned is None or planned < funded or (status == "completed" and resolved < planned):
+            valid_plan = planned is not None and funded < planned
+            valid_resolution = valid_plan and (resolved >= planned or (status == "failed" and resolved == funded))
+            if not valid_resolution:
                 self.finding("inverted_trial_dates", source, "Trial planning/funding/resolution dates disagree.", tid)
             claim = claims_here.get(cid)
             if claim is None:
