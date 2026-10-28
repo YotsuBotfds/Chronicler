@@ -87,3 +87,22 @@ call that forgetting or a physical benefit. Report observed exposure for the
 other four systems and resource-ledger checks; enabled flags do not imply a
 particular pathway was exercised. This is a native composition and exact
 continuation proof on controlled inputs, with a fixed fourteen-turn window.
+
+## Prospective setup correction, before the first simulated turn
+
+The first eight attempted workers failed while constructing the fixture:
+`generate_world` may leave regions uncontrolled, and the external runner's
+patron lookup incorrectly required an owner for every region. No call to
+`execute_run`, native world tick, funding or measurement occurred. The intact
+failed attempt is retained at external directory `aae7-publication-8`, with
+9.804257 worker CPU seconds and no comparisons. These are setup failures,
+not scientific empty outcomes and not completed simulations.
+
+Before retrying, amend academy placement to the **first five actually
+controlled regions in region-index order**, with their existing controller
+as patron; if fewer than five exist, retain that count. Unowned technique rows
+use owner -1, the existing representation. Do not assign territories or change
+any other initial condition, action, seed, physical rule, flag or date above.
+The next separately hashed runner uses a new output directory. Retain the same
+maximum eight actual simulation executions and at most 90 further CPU seconds
+under the initial 100-second budget. Do not replace any later world outcome.

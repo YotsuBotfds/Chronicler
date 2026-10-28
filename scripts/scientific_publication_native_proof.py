@@ -61,10 +61,10 @@ def controlled(seed, v2):
         region.resource_effective_yields = [1., 1., 0.]
         region.resource_reserves = [1., .5, 0.]
         region.ecology.soil, region.ecology.water = .8, .7
-        ci = next(i for i, civ in enumerate(world.civilizations) if civ.name == region.controller)
+        ci = next((i for i, civ in enumerate(world.civilizations) if civ.name == region.controller), -1)
         for recipe in ("irrigation", "masonry"):
             world.techniques.rows.append((ri, TECHNIQUE_INDEX[recipe], .5, -1, 6, ci))
-        if ri < 5:
+        if ci >= 0 and len(world.scholarship.seats) < 5:
             world.scholarship.seats.append(Seat(region=ri, kind=ACADEMY, name=f"Controlled academy {ri}",
                 founded_turn=1, founder=ci, lord=ci, scholars=10.))
     for civ in world.civilizations:
