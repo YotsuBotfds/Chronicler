@@ -3,17 +3,106 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
 
 from chronicler.bundle_codec import load_bundle
 from chronicler.run_checkpoint import read_checkpoint
 
 
 def sha(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    checksum = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            checksum.update(block)
+    return checksum.hexdigest()
+
+
+MAX_FILES = 4096
+MAX_PATH_CHARS = 1024
+MAX_REPORT_BYTES = 8 << 20
+MAX_FILE_BYTES = 128 << 20
+MAX_TOTAL_BYTES = 512 << 20
+
+
+class EvidenceInputs:
+    """Bounded evidence paths with an exclusive output outside their root."""
+
+    def __init__(self, root, destination):
+        self.root = Path(root).resolve(strict=True)
+        if not self.root.is_dir():
+            raise ValueError("evidence root must be a directory")
+        self.destination = self._destination(destination)
+        self.report_path = self._resolve("report.json")
+        if self.report_path.stat().st_size > MAX_REPORT_BYTES:
+            raise ValueError("report exceeds the reader byte limit")
+        raw = self.report_path.read_bytes()
+        self.report_sha256 = hashlib.sha256(raw).hexdigest()
+        self.report = json.loads(raw)
+        members = self.report.get("files") if isinstance(self.report, dict) else None
+        if not isinstance(members, dict) or len(members) > MAX_FILES:
+            raise ValueError("report files must be a bounded inventory")
+        self.members, self.paths = members, {}
+        total = 0
+        for name, expected in members.items():
+            if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+                raise ValueError("inventory requires SHA-256 content identities")
+            path = self._resolve(name)
+            total += path.stat().st_size
+            if total > MAX_TOTAL_BYTES:
+                raise ValueError("inventory exceeds the total byte limit")
+            if sha(path) != expected:
+                raise ValueError("changed recorded file: " + name)
+            self.paths[name] = path
+
+    def _destination(self, destination):
+        candidate = Path(destination)
+        # Includes dangling symlinks and existing hard-link aliases.
+        if os.path.lexists(candidate):
+            raise FileExistsError("reader destination must not already exist")
+        parent = candidate.parent.resolve(strict=True)
+        if not parent.is_dir():
+            raise ValueError("reader destination parent must be a directory")
+        resolved = parent / candidate.name
+        if resolved.is_relative_to(self.root):
+            raise ValueError("reader destination must be outside evidence root")
+        return resolved
+
+    def _resolve(self, name):
+        if (not isinstance(name, str) or not name or len(name) > MAX_PATH_CHARS
+                or "\\" in name or PureWindowsPath(name).drive
+                or PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts
+                or str(PurePosixPath(name)) != name or name == "."):
+            raise ValueError("inventory members must be bounded relative file paths")
+        resolved = (self.root / name).resolve(strict=True)
+        if not resolved.is_relative_to(self.root) or not resolved.is_file():
+            raise ValueError("inventory member escapes evidence root or is not a file")
+        if resolved.stat().st_size > MAX_FILE_BYTES:
+            raise ValueError("inventory member exceeds the file byte limit")
+        return resolved
+
+    def input(self, name):
+        if name not in self.paths:
+            raise ValueError("reader input is missing from recorded inventory: " + name)
+        path = self._resolve(name)
+        if path != self.paths[name]:
+            raise ValueError("recorded input path changed during read")
+        return path
+
+    def write_result(self, result):
+        payload = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        if self._resolve("report.json") != self.report_path or sha(self.report_path) != self.report_sha256:
+            raise ValueError("report changed during read")
+        for name, expected in self.members.items():
+            if sha(self.input(name)) != expected:
+                raise ValueError("changed recorded file before write: " + name)
+        destination = self._destination(self.destination)
+        # Exclusive creation also rejects a file or alias appearing after validation.
+        with destination.open("x", encoding="utf-8") as stream:
+            stream.write(payload)
 
 
 def differences(a, b, path=""):
@@ -30,24 +119,22 @@ def differences(a, b, path=""):
 
 
 def main(root, destination):
-    report = json.loads((root / "report.json").read_text())
+    evidence = EvidenceInputs(root, destination)
     errors = []
-    for name, expected in report["files"].items():
-        if sha(root / name) != expected:
-            errors.append("changed recorded file: " + name)
     rows = []
     for seed in (42, 7):
         for arm in ("legacy_direct", "legacy_resume", "v2_fork", "v2_direct"):
-            folder = root / f"seed-{seed}" / arm
-            summary = json.loads((folder / "mechanical-summary.json").read_text())
-            worker = json.loads((folder / "worker-identity.json").read_text())
-            bundle = load_bundle(folder / "chronicle_bundle.json")
+            prefix = f"seed-{seed}/{arm}/"
+            summary = json.loads(evidence.input(prefix + "mechanical-summary.json").read_text())
+            worker = json.loads(evidence.input(prefix + "worker-identity.json").read_text())
+            bundle = load_bundle(evidence.input(prefix + "chronicle_bundle.json"))
             history = bundle["history"]
             if [row["turn"] for row in history] != list(range(3, 17)):
                 errors.append(f"{seed}/{arm}: history dates differ")
             if worker["before"] != worker["after"] or not worker["identities_stable"]:
                 errors.append(f"{seed}/{arm}: worker identity changed")
-            parent = root / f"seed-{seed}" / ("v2_direct" if arm == "v2_direct" else "legacy_direct") / "checkpoint_turn_3.ckpt"
+            parent_arm = "v2_direct" if arm == "v2_direct" else "legacy_direct"
+            parent = evidence.input(f"seed-{seed}/{parent_arm}/checkpoint_turn_3.ckpt")
             funded = {trial.id: trial.model_dump(mode="json") for trial in read_checkpoint(parent).state.world.scientific_claims.trials}
             frozen_fields = ("inputs", "control_output", "treatment_output", "source_data", "environment_block", "dependence_group")
             unchanged = all(all(trial[key] == funded[trial["id"]][key] for key in frozen_fields)
@@ -86,15 +173,14 @@ def main(root, destination):
                 transaction_counters=transactions["counters"],
                 public_purchase_counters=transactions["public_purchases"]["counters"],
                 transaction_complete_all_sources=all(row["transaction_receipts"]["complete"] for row in history),
-                actual_resource_ledger_sidecar=(folder / "validation_resource_ledger.arrow").is_file()))
+                actual_resource_ledger_sidecar=evidence.input(prefix + "validation_resource_ledger.arrow").is_file()))
     scopes = []
     for seed in (42, 7):
-        folder = root / f"seed-{seed}"
-        a, b = (load_bundle(folder / arm / "chronicle_bundle.json") for arm in ("v2_direct", "v2_fork"))
+        a, b = (load_bundle(evidence.input(f"seed-{seed}/{arm}/chronicle_bundle.json")) for arm in ("v2_direct", "v2_fork"))
         scopes.append(dict(seed=seed, v2_complete_bundle_difference_paths=differences(a, b)))
-    result = dict(source_report_sha256=sha(root / "report.json"), errors=errors, runs=rows,
+    result = dict(source_report_sha256=evidence.report_sha256, errors=errors, runs=rows,
                   comparison_scope_details=scopes, reader_sha256=sha(__file__))
-    destination.write_text(json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n")
+    evidence.write_result(result)
     print(json.dumps(dict(errors=errors, runs=len(rows), output=str(destination))))
 
 

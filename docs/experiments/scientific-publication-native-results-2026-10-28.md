@@ -148,3 +148,16 @@ registered simulation source and native binary stayed unchanged after the
 readout. This completes this small controlled native composition check only;
 natural v2 exposure, broader scientific gates and default activation remain
 separate work.
+
+## Reader integrity follow-up
+
+A later reusable-reader correction rejects any destination inside the evidence
+root, existing destinations (including symbolic/hard-link aliases), absolute
+or traversing inventory paths, symbolic-link escapes, unrecorded inputs and
+oversized inventories/files. It verifies recorded hashes before reading and
+again before exclusive output creation, and detects a changed source report.
+Twenty-seven pure temporary-file regressions passed under the offline guard
+in 0.18 seconds, with no native imports, runtime calls or blocked I/O attempts.
+The original external readout above used a safe external destination and stays
+unchanged with its original reader identity; neither native execution nor the
+readout was rerun or rewritten for this tool correction.
