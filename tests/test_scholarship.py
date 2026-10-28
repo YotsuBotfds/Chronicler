@@ -934,7 +934,10 @@ def test_native_hybrid_run_founds_seats(tmp_path):
     from chronicler.main import _build_parser, execute_run
     parser = _build_parser()
     out = tmp_path / "hyb"
-    execute_run(parser.parse_args(["--seed", "42", "--turns", "120", "--civs", "4", "--regions", "8",
+    # Seed 7: its seats hold scholar agents by turn 120 with the merchant tax
+    # paid (2026-10, docs/integration/money-credit.md); seed 42's world seats
+    # none by then (on main it seated them from turn 93 only).
+    execute_run(parser.parse_args(["--seed", "7", "--turns", "120", "--civs", "4", "--regions", "8",
                                    "--agents", "hybrid", "--simulate-only", "--scholarship",
                                    "--output", str(out / "chronicle.md"), "--state", str(out / "state.json")]))
     world = WorldState.load(out / "state.json")
