@@ -247,15 +247,23 @@ def tick_ritual_gatherings(world: "WorldState", acc=None, *, phase10=None, agent
         economy_result = phase10.economy
     # The default calendar cannot be reset by a new ruler, faith or missing
     # ceremony. Newly added regions start at the next calendar boundary.
-    existing = {s.region: s for s in state.schedules}
+    existing = {}
+    for schedule in state.schedules:
+        if (not isinstance(schedule, GatheringSchedule) or isinstance(schedule.region, bool)
+                or not isinstance(schedule.region, int) or not 0 <= schedule.region < len(world.regions)
+                or schedule.region in existing
+                or schedule.gathering_id != f"harvest:{schedule.region}"
+                or schedule.next_turn % CADENCE != SEASON_STEP):
+            raise ValueError("Harvest gathering schedules have invalid or duplicate regional identities/calendar")
+        existing[schedule.region] = schedule
     for rid in range(len(world.regions)):
         if rid not in existing:
             schedule = GatheringSchedule(region=rid, gathering_id=f"harvest:{rid}",
                                          created_turn=world.turn, next_turn=_next_turn(world.turn))
             state.schedules.append(schedule)
             existing[rid] = schedule
-    due = [existing[rid] for rid in sorted(existing) if rid < len(world.regions)
-           and existing[rid].next_turn <= world.turn and world.turn % CADENCE == SEASON_STEP
+    due = [existing[rid] for rid in sorted(existing)
+           if existing[rid].next_turn <= world.turn and world.turn % CADENCE == SEASON_STEP
            and existing[rid].last_turn != world.turn]
     state.outcomes_turn = world.turn
     state.outcomes = []

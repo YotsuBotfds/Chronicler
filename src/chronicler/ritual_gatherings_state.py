@@ -13,7 +13,7 @@ COUNTER_KEYS = ("scheduled", "held", "cancelled", "attendees", "food", "funds", 
 
 
 class GatheringSchedule(BaseModel):
-    region: int
+    region: int = Field(ge=0)
     gathering_id: str
     created_turn: int
     next_turn: int

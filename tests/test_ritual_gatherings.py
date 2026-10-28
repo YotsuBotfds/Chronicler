@@ -11,7 +11,7 @@ from chronicler.contact_ledger import ContactLedgerState, update_contact_ledger
 from chronicler.economy import EconomyResult, FIXED_GOODS
 from chronicler.ffi_constants import BOND_FRIEND, BOND_GRUDGE, BOND_KIN, BOND_MARRIAGE, BOND_RIVAL
 from chronicler.models import AgentEventRecord, FaithRecord, WorldState
-from chronicler.ritual_gatherings_state import RitualGatheringState
+from chronicler.ritual_gatherings_state import GatheringSchedule
 from chronicler.turn_artifacts import AgentRows, Phase10Inputs, Stamp
 from chronicler.world_gen import generate_world
 
@@ -448,6 +448,32 @@ def test_presence_uses_current_bridge_instead_of_stale_phase10_capture():
                           named_agents={}, economy=economy, deaths=())
     _tick(w, Bridge(w, _snapshot(2, start=11)), economy=economy, phase10=phase)
     assert _outcome(w).attendee_ids == [11, 12]
+
+
+def test_negative_region_in_saved_schedule_is_rejected_at_load():
+    with pytest.raises(ValueError):
+        GatheringSchedule(region=-1, gathering_id="harvest:-1", created_turn=0, next_turn=8)
+
+
+@pytest.mark.parametrize("bad", ["duplicate", "negative", "out_of_range", "id", "calendar"])
+def test_mutated_or_duplicate_schedules_cannot_charge_wrong_region(bad):
+    w = _world()
+    schedule = GatheringSchedule(region=RID, gathering_id=f"harvest:{RID}", created_turn=0, next_turn=8)
+    w.ritual_gatherings.schedules = [schedule]
+    if bad == "duplicate":
+        w.ritual_gatherings.schedules.append(schedule.model_copy())
+    elif bad == "negative":
+        schedule.region = -1
+    elif bad == "out_of_range":
+        schedule.region = len(w.regions)
+    elif bad == "id":
+        schedule.gathering_id = "harvest:99"
+    else:
+        schedule.next_turn = 7
+    before = w.model_dump_json()
+    with pytest.raises(ValueError, match="regional identities/calendar"):
+        _tick(w)
+    assert w.model_dump_json() == before
 
 
 def test_input_stamp_rejected_before_costs_or_state_mutation():
