@@ -149,6 +149,61 @@ def test_censored_episodes_are_separate_from_retirements(bundle):
     assert h["censored_episodes"] == 16 and h["episode_retirements"] == 8
 
 
+def test_production_global_only_censor_count_needs_no_regional_assignment(bundle):
+    for snapshot in bundle["history"]:
+        snapshot["health_care"]["censored_episodes"] = 2
+    report = audit_bundle(bundle)
+    assert report["finding_counts"] == {"error": 0, "warning": 0}
+    assert report["observed_mechanisms"]["health_care"]["censored_episodes"] == 16
+    assert report["verified_checks"]["health_care.regional_censor_totals"]["unavailable"] == 8
+
+
+@pytest.mark.parametrize("value,code", [(-1, "negative_quantity"), (.5, "fractional_count"),
+    (None, "invalid_quantity"), (float("nan"), "invalid_quantity")])
+def test_invalid_global_censor_count_stays_unknown_after_later_valid_values(bundle, value, code):
+    for snapshot in bundle["history"]:
+        snapshot["health_care"]["censored_episodes"] = 0
+    bundle["history"][0]["health_care"]["censored_episodes"] = value
+    report = audit_bundle(bundle)
+    assert code in codes(report)
+    assert report["observed_mechanisms"]["health_care"]["censored_episodes"] is None
+
+
+@pytest.mark.parametrize("missing_index", [0, 3, -1])
+@pytest.mark.parametrize("known_value", [0, 2])
+def test_mixed_old_new_censor_coverage_never_resets_unknown_to_known(bundle, missing_index, known_value):
+    for snapshot in bundle["history"]:
+        snapshot["health_care"]["censored_episodes"] = known_value
+    del bundle["history"][missing_index]["health_care"]["censored_episodes"]
+    report = audit_bundle(bundle)
+    assert report["finding_counts"] == {"error": 0, "warning": 0}
+    assert report["observed_mechanisms"]["health_care"]["censored_episodes"] is None
+
+
+def test_explicit_complete_regional_censor_totals_can_be_checked(bundle):
+    for snapshot in bundle["history"]:
+        state = snapshot["health_care"]
+        state["censored_episodes"] = state["regions"][0]["censored_episodes"] = 2
+    assert audit_bundle(bundle)["verified_checks"]["health_care.regional_censor_totals"]["verified"] == 8
+    bundle["history"][0]["health_care"]["regions"][0]["censored_episodes"] = 1
+    report = audit_bundle(bundle)
+    assert "regional_total_mismatch" in codes(report)
+    assert report["verified_checks"]["health_care.regional_censor_totals"]["failed"] == 1
+
+
+def test_partial_regional_censor_coverage_is_unavailable_not_implicitly_zero(bundle):
+    for snapshot in bundle["history"]:
+        state = snapshot["health_care"]
+        state["censored_episodes"] = state["regions"][0]["censored_episodes"] = 2
+        other = {key: 0 for key in ("episodes", "new_injuries", "recoveries", "impaired_work",
+            "care_work", "care_recipients", "recovery_progress", "cared_recovery_progress")}
+        state["regions"].append({"region": 1, "region_name": "There", **other})
+    report = audit_bundle(bundle)
+    assert report["finding_counts"] == {"error": 0, "warning": 0}
+    assert report["verified_checks"]["health_care.regional_censor_totals"]["unavailable"] == 8
+    assert report["observed_mechanisms"]["health_care"]["censored_episodes"] == 16
+
+
 @pytest.mark.parametrize("change,code", [("negative", "negative_quantity"), ("balance", "expense_balance_mismatch"),
     ("attendance", "invalid_attendance"), ("empty", "cost_or_attendance_missing"),
     ("contact", "bounded_effect_exceeded"), ("inflow", "contact_inflow_mismatch"),

@@ -114,6 +114,7 @@ class _Audit:
         self.reports, self.occurrences, self.preparations = {}, set(), set()
         self.observed["scientific_claims"] = observed_defaults()
         self.science = ScientificReceiptsAudit(self)
+        self.censor_complete, self.censor_sum = True, 0.0
 
     def label(self, value):
         text = str(value)
@@ -244,8 +245,12 @@ class _Audit:
         rows, complete = self.rows(state.get("regions"), system, source, "regions")
         if state.get("units") != "worker-turns":
             self.finding(system, "unknown_work_units", source, "Work totals have unknown units; no work-time interpretation supplied.", severity="warning")
-        metrics = HEALTH_METRICS + (("censored_episodes",) if "censored_episodes" in state else ())
+        metrics = HEALTH_METRICS
         self.quantities(state, metrics, system, source)
+        censor_value = _num(state.get("censored_episodes"))
+        censor_valid = censor_value is not None and censor_value >= 0 and censor_value % 1 == 0
+        self.quantities(state, ("censored_episodes",), system, source, required=False)
+        censor_region_sum, censor_regions_complete = 0.0, complete and bool(rows)
         sums = {k: 0.0 for k in metrics}
         seen, valid = set(), complete
         for row in rows:
@@ -254,6 +259,14 @@ class _Audit:
                 self.finding(system, "invalid_or_duplicate_region", source, "Regional work summaries need unique nonnegative region IDs.")
                 valid = False
             seen.add(region)
+            if region is None or region < 0:
+                censor_regions_complete = False
+            if "censored_episodes" not in row:
+                censor_regions_complete = False
+            elif self.quantities(row, ("censored_episodes",), system, source, region):
+                censor_region_sum += row["censored_episodes"]
+            else:
+                censor_regions_complete = False
             ok = self.quantities(row, metrics, system, source, region)
             valid &= ok
             if ok:
@@ -267,11 +280,19 @@ class _Audit:
             self.check("health_care.regional_totals", verdict)
             if verdict == "failed":
                 self.finding(system, "regional_total_mismatch", source, f"Regional {key} does not sum to its recorded total.")
+        censor_verdict = ("verified" if _close(censor_region_sum, censor_value) else "failed") if censor_valid and censor_regions_complete and valid else "unavailable"
+        self.check("health_care.regional_censor_totals", censor_verdict)
+        if censor_verdict == "failed":
+            self.finding(system, "regional_total_mismatch", source, "Explicit regional censored_episodes do not sum to the recorded global total.")
         # Never count repeated active episodes as distinct patients.
         out = self.observed[system]
         out["recorded_turns"] += 1
+        self.censor_complete &= censor_valid
+        if censor_valid:
+            self.censor_sum += censor_value
+        out["censored_episodes"] = self.censor_sum if self.censor_complete else None
         for dest, key in (("episode_turns", "episodes"), ("new_injuries", "new_injuries"),
-                          ("episode_retirements", "recoveries"), ("censored_episodes", "censored_episodes"),
+                          ("episode_retirements", "recoveries"),
                           ("impaired_worker_turns", "impaired_work"), ("care_worker_turns", "care_work")):
             value = _num(state.get(key))
             if dest in ("impaired_worker_turns", "care_worker_turns"):

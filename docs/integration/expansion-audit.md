@@ -44,7 +44,13 @@ counts, unique regional IDs, sums of regional metrics against totals, and cared
 recovery-work progress as a subset of all progress. Active episodes summed over
 snapshots are labelled **episode-turns**, not unique patients. `recoveries` is
 reported as episode retirement, without clinical interpretation. Optional
-`censored_episodes` stays separate, and is unknown when unrecorded. Work time is
+`censored_episodes` stays separate. The production summary records this globally,
+without assigning a current living region to a censored episode. A regional
+sum is checked only when every regional row explicitly records that optional
+field; otherwise that regional check is unavailable. The global aggregate is
+unknown if any inspected health section omits or invalidates the field, even
+if later sections record a valid zero. No missing value is reset to zero.
+Work time is
 not converted into clinical benefit, measured grain loss, currency or deaths.
 If any included health section has unknown units, the combined work/care totals
 are withheld rather than relabelled as worker-turns; unit-independent counts
