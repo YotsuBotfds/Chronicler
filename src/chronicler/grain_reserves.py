@@ -465,10 +465,21 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     ledger = ReserveLedger.current(world, state)
     events: list[Event] = []
     if economy_result is None:
+        from chronicler.harvest_forecasts_state import harvest_forecasts_on
+        if harvest_forecasts_on(world):
+            from chronicler.harvest_forecasts import tick_harvest_forecasts
+            events.extend(tick_harvest_forecasts(world, None))
         if ledger is not None:
             ledger.finish(world, state, agent_bridge)
         return events
     _observe(world, state, economy_result)
+    # Default-off public assessments see only the production already measured
+    # this turn. Rebuild their temporary target from the normal target above.
+    from chronicler.harvest_forecasts_state import harvest_forecasts_on
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import apply_preparedness, tick_harvest_forecasts
+        events.extend(tick_harvest_forecasts(world, economy_result))
+        apply_preparedness(world, economy_result)
 
     civs = world.civilizations
     index = _civ_index(world)
@@ -580,6 +591,9 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     if ledger is not None:
         ledger.after_buy(world, acc, state)
         ledger.finish(world, state, agent_bridge)
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import record_preparedness_purchases
+        record_preparedness_purchases(world)
     return events
 
 
