@@ -40,6 +40,17 @@ Actual native schemas match the prior build, and the cross-build nine-case
 default matrix matched all 399 output files against `5b5252ed` with its older
 native extension. Later receipt Rust changes require their own fresh build.
 
+The subsequent frozen source `d051d7c0` completed both full Python lanes with
+the fresh receipt-native build `fb20dbc8…`: native 7,348 passed / 6 skipped;
+no-native 7,037 passed / 303 skipped. Each separately passed 526 subtests.
+Both raw pytest processes exited zero with unchanged source/runtime identities.
+The original supervisor rejected pytest 9's successful-subtest JUnit accounting;
+separate hash-linked reader-only adjudications accepted the unchanged evidence
+without rerunning tests or replacing those error receipts. The initial native
+collection failure remains failed. The [full-Python readout](python-qualification-d051-2026-10-28.md)
+records exact source/native/runner/reader identities, times, hashes and limits.
+Later development-head changes are outside that frozen qualification.
+
 The initial development harness ran 24 real executions: two seeds, a 40-turn
 parent horizon and shared-checkpoint controls across the first three systems.
 All six unchanged fork continuations matched their parent final state bytes.
@@ -128,7 +139,7 @@ artifact footprint fell 44.6–48.6%. These are measured workload-specific,
 variable workflow results, not native-tick acceleration or cumulative I/O
 measurements. [Full methods and raw pairs](../performance/lean-ablation-output.md).
 
-## Work still running or incomplete
+## Interrupted work and remaining source-specific qualification
 
 The full native/no-Rust Python runs at `527a9ff8` were interrupted around
 54%/64%, without an exit receipt. They are not passes. The 200-seed scholarship
@@ -136,17 +147,18 @@ before/after template gates were also interrupted after 52 finalized seeds per
 arm. Recovery uses separate evidence directories, verified completed inputs,
 immutable sources/native builds and unchanged full horizons/needs/kin arms.
 Recovery and procedural qualification must report their own actual completion.
+At 20:12 UTC on 2026-10-28, recovered template parents were 139/200 baseline
+and 144/200 candidate; needs/kin fork stages had not started. These are dated
+progress counts, not gate passes. The procedural 100-by-300 before/after gate
+had not started.
 
-Complete integration full-Python qualification, new-source warning studies
-and enabled balance/efficacy gates remain incomplete here. The two full Python
-lanes are running on immutable `d051d7c0`, with the receipt extension present
-only in the native environment. A first detached native attempt correctly
-failed collection because its copied driver omitted the checkout root from
-the import path; its receipt remains retained. The fixed launcher has an
-actual cross-tests/scripts import regression and runs into a new destination.
-The [durable supervisor](python-qualification-supervisor.md) preserves source,
-native, interpreter, logs, JUnit and truthful terminal status across shell
-closure; it does not promise survival of machine loss. Focused mechanics and
+The corrected warning development study subsequently completed all eight
+registered runs at d051 with actual worker-environment receipts. All audits
+were clean and all four contrasts matched. The historical negative-increment
+opportunity did not recur: this is arithmetic/no-recurrence evidence, not
+exact reproduction or efficacy. Its [separate readout](../experiments/harvest-target-correction-development-results-2026-10-28.md)
+retains that limitation. Enabled balance/efficacy gates and later-source
+complete qualification remain open. Focused mechanics and
 default identity do not substitute for those gates. Source-qualified updates
 will append exact checkpoints; no moving branch name is a test receipt.
 
