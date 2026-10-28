@@ -2372,6 +2372,17 @@ def run_turn_result(
             world, acc=phase10_acc, economy_result=artifacts.economy, agent_bridge=agent_bridge,
         ))
 
+    # Recurring local harvest gatherings: real surplus grain and projected
+    # treasury, after the granary resource ledger closes, before keep flush.
+    # Current native attendance; recorded arrivals alone can add contact.
+    from chronicler.ritual_gatherings_state import ritual_gatherings_on
+    if ritual_gatherings_on(world):
+        from chronicler.ritual_gatherings import tick_ritual_gatherings
+        _emit(tick_ritual_gatherings(
+            world, acc=phase10_acc, phase10=artifacts.phase10,
+            economy_result=artifacts.economy, agent_bridge=agent_bridge,
+        ))
+
     # C-1 fix: Second flush for Phase 10 keep mutations (stability drains,
     # faction effects, cultural assimilation treasury costs, etc.).
     # The watermark in apply_keep() ensures only new mutations since the first

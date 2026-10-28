@@ -45,10 +45,10 @@ class GatheringOutcome(BaseModel):
     bond_ops: int = 0
     # Actual dated arrival receipts: [agent_id, source_region]. No birth origins.
     arrivals: list[tuple[int, int]] = Field(default_factory=list)
-    grain_before: float = 0.0
-    grain_after: float = 0.0
-    funds_before: int = 0
-    funds_after: int = 0
+    grain_before: float | None = None
+    grain_after: float | None = None
+    funds_before: int | None = None
+    funds_after: int | None = None
 
 
 class RitualGatheringState(BaseModel):

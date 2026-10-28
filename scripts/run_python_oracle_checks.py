@@ -170,6 +170,9 @@ CHUNKS = {
     "grain-reserves": [
         "tests/test_grain_reserves.py",
     ],
+    "ritual-gatherings": [
+        "tests/test_ritual_gatherings.py",
+    ],
     "domestic-credit": [
         "tests/test_domestic_credit.py",
     ],
