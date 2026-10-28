@@ -5,7 +5,7 @@ in Git; machine-specific environments and historical evidence packages are not
 required to edit this branch.
 
 ```sh
-git clone --branch continuation/recovered-20261011 https://github.com/YotsuBotfds/Chronicler.git
+git clone --branch main https://github.com/YotsuBotfds/Chronicler.git
 cd Chronicler
 git status --short --branch
 ```
