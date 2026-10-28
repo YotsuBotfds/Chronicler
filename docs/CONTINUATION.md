@@ -131,3 +131,15 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+## Native household scaling experiment — 2026-10-28
+
+The isolated `lead/native-household-scaling` prototype preserves the old ordered
+household decision semantics and passes focused optimized differential checks,
+but is **not accepted for production promotion**. Its concentrated 100k phase
+improvement did not establish the registered full-workload gain; the fixed
+five-pair default/shock comparisons and all negative/aborted evidence remain
+preserved. No fallback or model parameter was tuned after the result. See
+[`household-decision-journal-results-2026-10.md`](performance/household-decision-journal-results-2026-10.md)
+for source/build identities, paired CPU/wall ratios, limits and the prospective
+contract. This experiment does not activate a feature or qualify a new release.
