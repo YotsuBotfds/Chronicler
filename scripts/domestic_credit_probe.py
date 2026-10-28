@@ -122,7 +122,8 @@ def _pct(values: list[float], q: float) -> float:
 
 def summarize_run(run_dir: Path) -> dict:
     from chronicler.bundle_codec import load_bundle
-    rows = [json.loads(line) for line in (run_dir / "probe_turns.jsonl").read_text().splitlines() if line]
+    probe = run_dir / "probe_turns.jsonl"
+    rows = [json.loads(line) for line in probe.read_text().splitlines() if line] if probe.exists() else []
     out: dict = {"run": run_dir.name}
     for key in PROBE_KEYS:
         vals = [r[key] for r in rows if r.get(key) is not None]
@@ -180,7 +181,10 @@ def summarize_run(run_dir: Path) -> dict:
 
 
 def _summarize(dirs: list[Path], out_path: Path) -> None:
-    runs = [summarize_run(d) for d in dirs if (d / "probe_turns.jsonl").exists()]
+    found = []
+    for d in dirs:   # run directories, or batch directories holding seed_*/
+        found += [d] if (d / "chronicle_bundle.json").exists() else sorted(d.glob("seed_*"))
+    runs = [summarize_run(d) for d in found if (d / "chronicle_bundle.json").exists()]
     out_path.write_text(json.dumps(runs, indent=1))
     print(f"{len(runs)} runs -> {out_path}")
 
