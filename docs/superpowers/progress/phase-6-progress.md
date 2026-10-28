@@ -6,6 +6,63 @@
 
 ---
 
+## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
+
+> **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)
+
+Details and evidence:
+[`docs/integration/domestic-credit.md`](../../integration/domestic-credit.md),
+section 14.
+
+- **The view.** Finance tab: one stacked bar per indebted realm on one
+  scale (merchants, cities, guilds, cold-start houses, legacy lines,
+  foreign lenders), then a borrower in detail: tiles, its debt by holder
+  over time (stacked), foreign debt by lender, the holders at the turn with
+  share, rate and interest due (merchants by region, cities and guilds by
+  name, lenders by name), an arrears/defaults/write-offs strip and the
+  write-offs with their events, its credit events. Readable at 390 px.
+- **Data.** `--domestic-credit` bundles gain
+  `history[n].finance.domestic_credit.holders` (per borrower: foreign lines
+  with rates, the domestic rate, merchants by region, cities and guilds by
+  name, write-offs so far), read from the books after the tick, omitted when
+  empty; nested in `finance`, so the transport contract is unchanged. Older
+  switch-on bundles show domestic claims by kind; default bundles the
+  abstract domestic class and foreign totals; the panel says which.
+- **Identity.** Default flags against `main` `cb9fe70` (exported trees, the
+  same release extension `3da1ee1f...dad0b`): 9 cases, 399 files, 0
+  differences. Switch on (template and procedural 32 x 10, seed 42, 120
+  turns): only the bundle differs, equal once `holders` is removed; +0.7%.
+- **Fixture.** `debt_holders_bundle.json` (283 KB) is trimmed by
+  `scripts/build_debt_holders_fixture.py` from a real procedural 32 x 10
+  `--domestic-credit` run (seed 42, 120 hybrid turns); a Python test checks
+  its shape against a fresh tick.
+- **Lanes.** Viewer: vitest 57 files, 456 tests passed; lint and build
+  pass. Python: offline oracle lane PASS (16 chunks, 2,829 passed, 63
+  skipped; chunk `domestic-credit` 34 tests); `pytest -m "not slow" -n 2`
+  with the release extension 6,842 passed, 3 skipped. No Rust change, so no
+  `cargo test`; no gate run (the simulation is unchanged).
+- **Browser QA** (production build, headless Chromium): the procedural and
+  template switch-on bundles (a borrower with foreign and domestic debt at
+  turn 54, domestic-only borrowers, a borrower after its default), a
+  default bundle, a switch-on bundle written before `holders`, and 390 px
+  width; no console error or warning. QA fixed: a borrower select in place
+  of chips, legends under their charts, a stacked tooltip in text colours,
+  write-offs at their events' turn, two tiles a row and no share column on
+  narrow screens, chart pairs that fit a phone-width panel.
+- **Granaries: not built.** With `--grain-reserves` the bundle carries
+  only the final `world_state.grain_reserves` (granaries at the end, the
+  last turn's flows, world counters) and `granary_opened`,
+  `granary_exhausted`, `grain_bought` events (listed by no panel). Stock
+  per civ and region, fills and draws and relief in famine over time would
+  need a per-turn snapshot field (switch-on only), which is a separate
+  change.
+- **Open**: whether the view is enough for 13.7's promotion item (it
+  covers holders by name, interest and losses); creditor-side views (what
+  a realm or a region's merchants are owed across borrowers) are derivable
+  from `holders` but not drawn.
+
+---
+
 ## Domestic credit, second pass (2026-10-28, `feat/domestic-credit-2`)
 
 > **Last updated:** 2026-10-28 (`feat/domestic-credit-2` from `main` `25854db`, merged with `c2ef6af` (no simulation change; the merged head is byte-identical to the gated tree, switch off and on). Behind the same `--domestic-credit` switch, still default off: lenders lend no new money that would raise the borrower's interest due above half its revenue (the borrower's room), and while the agent pool's wealth builds up from its cold start the realm's abstract merchant houses lend finance's revenue term, fading as `0.98 ** turn`. No war reserve, no purse ceiling. Off is byte-identical to `main`; on resumes exactly; the books balance every tick. Template full 200 x 500 PASS strict, EXPLORATORY NO REGRESSION; procedural full 100 x 300 PASS strict, EXPLORATORY NO REGRESSION. Early credit restored, the ceiling treadmill gone; a borrower at the room can stay there and cities take a growing share of its debt. Not promoted: civic lenders, the merchant tax and a second look at procedural agents come first.)

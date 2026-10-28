@@ -3,6 +3,7 @@ import { factionColor } from "../../lib/colors";
 import {
   civSeries, debtToRevenue, eventsOfTypes, formatShare, orderedCivNames, SYSTEM_EVENT_TYPES, type SystemPanelProps,
 } from "../../lib/systems";
+import { DebtHolders } from "./DebtHolders";
 import { CivLegend, CivLineChart, StatTile, SystemEventList } from "./SystemParts";
 
 const FILTERS: Array<{ key: string; label: string; types: string[] }> = [
@@ -12,9 +13,8 @@ const FILTERS: Array<{ key: string; label: string; types: string[] }> = [
   { key: "debasements", label: "Debasements", types: ["debasement"] },
 ];
 
-export function FinancePanel({
-  bundle, snapshot, currentTurn, onSelectEvent, onSelectCivilization, selectedCivilization,
-}: SystemPanelProps) {
+export function FinancePanel(props: SystemPanelProps) {
+  const { bundle, snapshot, currentTurn, onSelectEvent, onSelectCivilization, selectedCivilization } = props;
   const [filter, setFilter] = useState("all");
   const history = bundle.history;
   const worldCivs = bundle.world_state.civilizations;
@@ -77,6 +77,8 @@ export function FinancePanel({
         </div>
         <p className="systems-note">Gaps are turns a civilization did not exist or held no land; nothing is interpolated.</p>
       </section>
+
+      <DebtHolders {...props} civs={civs} />
 
       <div className="systems-columns">
         {finance && (
