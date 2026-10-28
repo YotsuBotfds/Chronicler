@@ -133,6 +133,7 @@ CHUNKS = {
     ],
     "validation-tooling": [
         "tests/test_batch_manifest.py",
+        "tests/test_validation_turn_index.py",
         "tests/test_batch.py",
         "tests/test_validation_gate.py",
         "tests/test_validation_compare.py",
@@ -169,6 +170,11 @@ CHUNKS = {
     ],
     "grain-reserves": [
         "tests/test_grain_reserves.py",
+    ],
+    "expansion-wiring": [
+        "tests/test_expansion_feature_wiring.py",
+        "tests/test_health_care.py",
+        "tests/test_harvest_forecasts.py",
     ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
