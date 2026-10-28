@@ -171,6 +171,9 @@ jobs:
     name: Rust
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      # Qualified separately at d051: full tests, assertions and overflow checks.
+      CARGO_PROFILE_DEV_DEBUG: "0"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

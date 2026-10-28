@@ -138,6 +138,11 @@ CHUNKS = {
     ],
     "qualification-tools": [
         "tests/test_writer_cadence_diagnostic.py",
+        "tests/test_rust_debug_info_experiment.py::test_assertions_overflow_optimization_and_debug_info_are_independent_requirements",
+        "tests/test_rust_debug_info_experiment.py::test_disk_guard_stops_before_floor_while_other_workers_can_still_grow",
+        "tests/test_rust_debug_info_experiment.py::test_partial_or_filtered_test_log_cannot_claim_full_qualification",
+        "tests/test_rust_debug_info_experiment.py::test_successful_child_cannot_hide_a_last_write_over_storage_limit",
+        "tests/test_rust_debug_info_experiment.py::test_matching_source_does_not_allow_prepare_execute_environment_drift",
         "tests/test_python_qualification.py::test_no_optional_shell_or_pytest_selection_passthrough",
         "tests/test_python_qualification.py::test_environment_removes_inherited_test_filters_and_paths",
         "tests/test_python_qualification.py::test_native_absence_does_not_accept_a_replacement_module",

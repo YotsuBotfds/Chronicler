@@ -38,3 +38,13 @@ and executed no test suite. Independent review found no blocking issue.
 The external evidence directory is `/workspace/chronicler-ci-scheduling-evidence`.
 Remote Actions execution, cache transfer cost and CI wall-time benefit remain
 unmeasured. The existing workflow triggers still exclude lead-branch pushes.
+
+After the [separate full Rust debug-info experiment](rust-debug-info-experiment-2026-10.md),
+the standalone Rust job sets `CARGO_PROFILE_DEV_DEBUG=0`. All 1,088 tests and
+the same two existing ignores matched baseline test names/outcomes. Compiler
+artifacts verified optimization 0, debug information 0, assertions enabled,
+overflow checks enabled and default features. Its fresh target occupied
+1,103,060,992 uniquely allocated bytes. The older warmed target had a different
+artifact history, so this is not a controlled percentage saving or speedup.
+The setting belongs to the Rust test job; the release-wheel job keeps its
+existing release profile. The combined native check still requires both jobs.
