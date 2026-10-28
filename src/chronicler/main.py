@@ -616,6 +616,21 @@ def execute_run(
         else:
             resume_info = _saved_info
 
+    # Internal ablation workers retain all runtime history and sidecars, but
+    # can omit presentation exports that their parent immediately discards.
+    # Validate before retargeting or advancing the restored native simulator.
+    _ablation_output = bool(getattr(args, "ablation_output", False))
+    if _ablation_output:
+        if checkpoint_resume is None or checkpoint_resume.mismatches:
+            raise ValueError("--ablation-output requires a compatible exact checkpoint")
+        if not getattr(args, "simulate_only", False) or _api_mode:
+            raise ValueError("--ablation-output requires --simulate-only and the local narrator")
+        if not (getattr(args, "decision_ablation", None)
+                or _resume_state.run_config.get("decision_ablation")):
+            raise ValueError("--ablation-output requires a decision-ablation arm")
+        if getattr(args, "live", False) or getattr(args, "interactive", False):
+            raise ValueError("--ablation-output is for noninteractive ablation workers")
+
     # Use scenario_config from arg if not passed directly
     if scenario_config is None and _resume_state is None:
         sc_path = getattr(args, "scenario", None)
@@ -1177,11 +1192,11 @@ def execute_run(
     # The languages field, read back through a NameIndex for perspective names.
     languages_export = None
     name_index = None
-    if _languages_on(world):
+    if not _ablation_output and _languages_on(world):
         from chronicler.languages import NameIndex, export as _export_languages
         languages_export = _export_languages(world)
         name_index = NameIndex(languages_export)
-    if _historiography_on(world):
+    if not _ablation_output and _historiography_on(world):
         from chronicler.historiography import AccountIndex, export as _export_historiography
         historiography_export = _export_historiography(world)
         account_index = AccountIndex(historiography_export, names=name_index)
@@ -1252,33 +1267,34 @@ def execute_run(
         agent_bridge.write_final_sidecar_snapshot(world)
         agent_bridge.close()
 
-    # Compile final chronicle
-    actual_turns = world.turn - run_start
-    if world.turn < num_turns:
-        epilogue = f"> Chronicle ended early at turn {world.turn} of {num_turns}."
-    else:
-        epilogue = f"Thus concludes the chronicle of {world.name}, spanning {actual_turns} turns of history."
-    output_text = compile_chronicle(
-        world_name=world.name,
-        entries=chronicle_entries,
-        era_reflections=era_reflections,
-        epilogue=epilogue,
-        gap_summaries=gap_summaries,
-    )
+    if not _ablation_output:
+        # Compile final chronicle
+        actual_turns = world.turn - run_start
+        if world.turn < num_turns:
+            epilogue = f"> Chronicle ended early at turn {world.turn} of {num_turns}."
+        else:
+            epilogue = f"Thus concludes the chronicle of {world.name}, spanning {actual_turns} turns of history."
+        output_text = compile_chronicle(
+            world_name=world.name,
+            entries=chronicle_entries,
+            era_reflections=era_reflections,
+            epilogue=epilogue,
+            gap_summaries=gap_summaries,
+        )
 
-    # Prepend provenance header if provided
-    if provenance_header:
-        output_text = provenance_header + "\n\n" + output_text
+        # Prepend provenance header if provided
+        if provenance_header:
+            output_text = provenance_header + "\n\n" + output_text
 
-    # Write output
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(output_text, encoding="utf-8")
-    print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
+        # Write output
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(output_text, encoding="utf-8")
+        print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
 
-    # Save final state
-    if state_path:
-        world.save(state_path)
-        print(f"Final world state saved to {state_path}")
+        # Save final state
+        if state_path:
+            world.save(state_path)
+            print(f"Final world state saved to {state_path}")
 
     # --- Compute RunResult ---
     output_dir = output_path.parent
@@ -1355,6 +1371,21 @@ def execute_run(
         total_turns=total_turns,
     )
     result.boring_civs = find_boring_civs(result)
+
+    if _ablation_output:
+        from chronicler.ablation_arms import FORK_INFO_FILENAME, fork_info
+        from chronicler.bundle import write_agent_events_arrow
+        from chronicler.artifact_io import atomic_write_json
+        # Bundle metadata uses absolute completed world turns, whereas
+        # RunResult counts turns since the run's origin. Keep that distinction.
+        write_agent_events_arrow(world, output_dir)
+        atomic_write_json(output_dir / FORK_INFO_FILENAME, fork_info({
+            "seed": world.seed,
+            "total_turns": world.turn,
+            "decision_ablation": run_config.get("decision_ablation"),
+            "resume": resume_info,
+        }))
+        return result
 
     # Write viewer bundle
     from chronicler.interestingness import score_run
@@ -1887,6 +1918,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Live mode: also accept a viewer served from ORIGIN (e.g. "
                              "http://localhost:5174); the Vite dev (5173) and preview (4173) "
                              "origins on localhost are always accepted. Repeatable.")
+    parser.add_argument("--ablation-output", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--simulate-only", action="store_true",
                         help="Run simulation without LLM narrative generation")
     parser.add_argument("--agents", type=str, default="off",
@@ -2200,7 +2232,7 @@ def _run_narrate(args: argparse.Namespace) -> None:
 
 # Options an exact resume may set itself: the run's length and where and how
 # often it writes. Everything else comes from the checkpoint.
-_RESUME_FREE_ARGS = frozenset({"turns", "state_every", "tuning_overrides"})
+_RESUME_FREE_ARGS = frozenset({"turns", "state_every", "tuning_overrides", "ablation_output"})
 # Options an exact resume may add when the checkpoint has none: a decision
 # ablation turns the resumed run into a validation fork of the saved one
 # (chronicler.decision_ablation). A saved ablation cannot be changed.

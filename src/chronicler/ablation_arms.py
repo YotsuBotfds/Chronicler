@@ -8,8 +8,8 @@ and runs it to turn T + W + 2 (ticks T+1 .. T+W+1: the final tick's forced
 settlement detection falls after the window). The plain run and the fork
 share every tick up to T; afterwards they differ only through the ablated
 term. Each fork keeps its agent event stream (``agent_events.arrow``) and
-``fork.json``; its other outputs are removed, and a seed's checkpoints once
-all its forks ran. ``ablation_manifest.json`` records the arms, forks and
+``fork.json``; its other outputs are removed, and the plain checkpoints only after
+every fork succeeds. ``ablation_manifest.json`` records the arms, forks and
 the SHA-256 of every kept file; ``chronicler.validate --ablation-dir``
 checks it before the needs and cohort oracles read the forks. See
 docs/integration/ablation-oracles.md.
@@ -119,8 +119,9 @@ def _plain_runs(batch_dir: Path) -> tuple[list[dict], dict]:
     return [{"seed": int(run["seed"]), "dir": str(run["dir"])} for run in runs], manifest
 
 
-def _fork_command(python: str, checkpoint: Path, fork_turn: int, window: int, arm: str, out: Path) -> list[str]:
-    return [
+def _fork_command(python: str, checkpoint: Path, fork_turn: int, window: int, arm: str, out: Path,
+                  *, lean_output: bool = True) -> list[str]:
+    command = [
         python, "-m", "chronicler.main",
         "--resume", str(checkpoint),
         "--turns", str(fork_turn + window + 2),
@@ -129,6 +130,9 @@ def _fork_command(python: str, checkpoint: Path, fork_turn: int, window: int, ar
         "--output", str(out / "chronicle.md"),
         "--state", str(out / "state.json"),
     ]
+    if lean_output:
+        command.append("--ablation-output")
+    return command
 
 
 def _compress_events(path: Path) -> None:
@@ -145,20 +149,31 @@ def _compress_events(path: Path) -> None:
     os.replace(tmp, path)
 
 
-def _keep_fork_outputs(out: Path) -> dict:
-    """Keep the fork's event stream (compressed) and a summary of its bundle;
-    remove the rest."""
+def fork_info(metadata: dict) -> dict:
+    """The existing retained receipt, shared by full and lean output paths."""
+    return {key: metadata.get(key) for key in
+            ("seed", "total_turns", "decision_ablation", "resume")}
+
+
+def _keep_fork_outputs(out: Path, *, lean_output: bool, seed: int,
+                       fork_turn: int, window: int, arm: str) -> dict:
+    """Validate completed outputs before compressing or deleting any artifacts."""
+    if lean_output:
+        info = json.loads((out / FORK_INFO_FILENAME).read_text(encoding="utf-8"))
+        if not isinstance(info, dict) or set(info) != set(fork_info({})):
+            raise ValueError("malformed lean fork receipt")
+    else:
+        bundle = json.loads((out / "chronicle_bundle.json").read_text(encoding="utf-8"))
+        info = fork_info(bundle.get("metadata", {}))
+    expected = {"name": arm, "start_turn": fork_turn + 1, "forked_at": fork_turn + 1}
+    if (type(info.get("seed")) is not int or info["seed"] != seed
+            or type(info.get("total_turns")) is not int
+            or info["total_turns"] != fork_turn + window + 2
+            or info.get("decision_ablation") != expected):
+        raise ValueError(f"incomplete or mismatched fork receipt: {info!r}")
     _compress_events(out / FORK_EVENTS_FILENAME)
-    bundle_path = out / "chronicle_bundle.json"
-    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
-    metadata = bundle.get("metadata", {})
-    info = {
-        "seed": metadata.get("seed"),
-        "total_turns": metadata.get("total_turns"),
-        "decision_ablation": metadata.get("decision_ablation"),
-        "resume": metadata.get("resume"),
-    }
-    atomic_write_json(out / FORK_INFO_FILENAME, info)
+    if not lean_output:
+        atomic_write_json(out / FORK_INFO_FILENAME, info)
     for path in sorted(out.rglob("*"), reverse=True):
         if path.name in (FORK_EVENTS_FILENAME, FORK_INFO_FILENAME) and path.parent == out:
             continue
@@ -181,10 +196,13 @@ def run_ablation_arms(
     env: dict[str, str] | None = None,
     cwd: Path | None = None,
     delete_checkpoints: bool = True,
+    lean_output: bool = True,
     log=print,
 ) -> dict:
     """Run every arm's forks of ``batch_dir``'s seeds into ``out_root``
     (which must be new or empty) and write its ``ablation_manifest.json``.
+    ``lean_output=False`` retains the full worker export path for equivalence
+    checks; both profiles keep identical files after validated cleanup.
 
     Raises ``RuntimeError`` naming the first fork that failed (the manifest
     is then written with status ``failed``)."""
@@ -239,7 +257,6 @@ def run_ablation_arms(
             checkpoint = seed_dir / CHECKPOINT_TURN_FILENAME.format(turn=fork_turn + 1)
             for arm in arms:
                 jobs.append((run, seed_dir, fork_turn, checkpoint, arm))
-    remaining = {run["dir"]: len(forks) * len(arms) for run in runs}
     failures: list[str] = []
     records: list[dict] = []
 
@@ -250,15 +267,27 @@ def run_ablation_arms(
         if not checkpoint.is_file():
             return job, None, f"missing checkpoint {checkpoint}"
         start = time.monotonic()
-        proc = subprocess.run(
-            _fork_command(python, checkpoint, fork_turn, window, arm, out),
-            cwd=cwd, env=env, capture_output=True, text=True, check=False,
-        )
+        try:
+            proc = subprocess.run(
+                _fork_command(python, checkpoint, fork_turn, window, arm, out, lean_output=lean_output),
+                cwd=cwd, env=env, capture_output=True, text=True, check=False,
+            )
+        except OSError as exc:
+            error = f"fork {arm} seed {run['seed']} turn {fork_turn} launch failed: {exc}"
+            (out / "fork.log").write_text(error, encoding="utf-8")
+            return job, None, error
         seconds = time.monotonic() - start
         if proc.returncode != 0:
             (out / "fork.log").write_text(proc.stdout[-8000:] + "\n" + proc.stderr[-8000:], encoding="utf-8")
             return job, None, f"fork {arm} seed {run['seed']} turn {fork_turn} exited {proc.returncode}"
-        info = _keep_fork_outputs(out)
+        try:
+            info = _keep_fork_outputs(out, lean_output=lean_output, seed=run["seed"],
+                                      fork_turn=fork_turn, window=window, arm=arm)
+        except Exception as exc:
+            error = f"fork {arm} seed {run['seed']} turn {fork_turn} output failed: {type(exc).__name__}: {exc}"
+            (out / "fork.log").write_text(
+                proc.stdout[-8000:] + "\n" + proc.stderr[-8000:] + "\n" + error, encoding="utf-8")
+            return job, None, error
         record = {
             "arm": arm,
             "seed": run["seed"],
@@ -278,21 +307,19 @@ def run_ablation_arms(
     started = time.monotonic()
     with ThreadPoolExecutor(max_workers=max(1, int(parallel))) as pool:
         for job, record, error in pool.map(one, jobs):
-            run = job[0]
             if error is not None:
                 failures.append(error)
                 log(f"ablation fork failed: {error}")
             else:
                 records.append(record)
-            remaining[run["dir"]] -= 1
-            if remaining[run["dir"]] == 0 and delete_checkpoints and not failures:
-                for fork_turn in forks:
-                    path = batch_dir / run["dir"] / CHECKPOINT_TURN_FILENAME.format(turn=fork_turn + 1)
-                    if path.exists():
-                        path.unlink()
             done = len(records) + len(failures)
             if done % 50 == 0 or done == len(jobs):
                 log(f"ablation forks: {done}/{len(jobs)}")
+    if delete_checkpoints and not failures:
+        for run in runs:
+            for fork_turn in forks:
+                path = batch_dir / run["dir"] / CHECKPOINT_TURN_FILENAME.format(turn=fork_turn + 1)
+                path.unlink(missing_ok=True)
     records.sort(key=lambda r: (r["arm"], r["seed"], r["fork_turn"]))
     manifest["forks"] = records
     manifest["fork_count"] = len(records)
@@ -317,12 +344,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--turns", required=True, type=int, help="the plain batch's turns")
     parser.add_argument("--parallel", type=int, default=1)
     parser.add_argument("--keep-checkpoints", action="store_true")
+    parser.add_argument("--full-output", action="store_true", help="Use full worker exports (equivalence/timing)")
     args = parser.parse_args(argv)
     env = dict(os.environ)
     env.setdefault("PYTHONHASHSEED", "0")
     run_ablation_arms(
         args.batch_dir, args.out, arms=[a for a in args.arms.split(",") if a], total_turns=args.turns,
         parallel=args.parallel, env=env, delete_checkpoints=not args.keep_checkpoints,
+        lean_output=not args.full_output,
     )
     return 0
 

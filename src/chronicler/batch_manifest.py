@@ -98,7 +98,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "religion_intensity",
     "secession_likelihood",
 )
-OUTPUT_ARG_KEYS = ("simulate_only", "narrator", "validation_sidecar", "relationship_stats", "state_every")
+OUTPUT_ARG_KEYS = ("simulate_only", "narrator", "validation_sidecar", "relationship_stats", "state_every", "ablation_output")
 NON_SIMULATION_ARG_KEYS = (
     "seed", "seed_range", "batch", "parallel", "output", "state", "resume", "checkpoint_every",
     "checkpoint", "checkpoint_turns", "resume_allow_mismatch", "local_url", "sim_model",
