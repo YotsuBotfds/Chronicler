@@ -153,6 +153,14 @@ An already-sent message can arrive after its sender falls, as today; a fallen
 sender cannot create a new relay. Replacement seats never receive messages
 addressed to their predecessors.
 
+This first extension is explicitly closed-cohort dissemination. Renewing a
+canonical question refreshes only its question announcement, not old results'
+publication date, six-turn lifetime or recipient set. Old archived evidence is
+not rebroadcast to a later cycle or newly founded academy. After expiry it
+remains local retained knowledge for its actual recipients; a later academy
+needs new actual trial/result receipts. A durable archive lending/republication
+system would require a separate dated authorization and evidence-age contract.
+
 Before opening, reserve capacity for up to four paid trials, the zero or two
 new topics, two proposal receipts per participant and four evidence receipts
 per participant. Include any existing reservations and pending messages in
@@ -186,6 +194,14 @@ most two recipes per enrolled academy (forty total). Current policy belief
 rows use the same canonical current-context selector, so forty is a proven
 bound, not a truncation. Archived questions remain separately addressable;
 absence of a current-context row cannot be described as forgetting.
+
+The preserved six-turn payment cadence has a structural exposure limit:
+`started_turn + 6k` samples only two of the four three-turn seasons in a
+twelve-turn year. Twenty-five-turn research openings can span all four seasons,
+but topics in the other two seasons never have an eligible paid-use tick under
+this cadence. Retain and report those trials/archives without calling their
+missing paid use an efficacy null. This design does not claim four-season
+economic use or change the cadence to favor coverage.
 
 Opt-in summaries disclose agenda mode/current cycle, actual funding deadlines,
 closed/unfunded slots, capacity reservations/usage/blocked reasons, retained
@@ -241,6 +257,7 @@ archive-preserving research pause.
 | Archive contains failed/cancelled/withheld/null trials | Every paid cost and terminal status stays retained; no selective retry slot. |
 | Multiple current and archived contexts exist for both recipes | At most forty current belief/allocation rows, no clipping or duplicated grant. |
 | Cohorts begin from each of four season origins | Actual 25-turn openings rotate season steps; no absolute-calendar effort regression. |
+| A researched season is outside the two paid-use phases | Archived/current confidence may exist, but no eligible allowance is claimed or invented. |
 | Partial original funding and deadline expiry | Exact costs, explicit unfunded slots, no fictitious trial or refund. |
 | Same tick is called twice around open/close/delivery | No second event, payment, admission, measurement or cycle. |
 | Save before/after opening, funding, closure and pending delivery | Exact enabled continuation across state/history/events/native/common outputs. |
@@ -251,11 +268,13 @@ The companion `tests/test_scientific_research_lifecycle_audit.py` describes
 three mechanical counterexamples in the audited legacy source: the four-trial
 ceiling despite a later academy/context returns, failed work consuming those
 same slots, and the live measurement effect of manually changing `cohort`.
-After a host CPU slot was released, these three focused checks passed in
-0.56 seconds under the offline guard: no native modules, blocked I/O or oracle
-runtime calls. They are evidence of the audited legacy behavior, not implemented
-recurrence. The acceptance matrix above must become meaningful opt-in tests
-after internal design review.
+After a host CPU slot was released, the three original focused checks passed
+under the offline guard. A subsequent prospective review added the explicit
+season/payment coverage counterexample before runtime edits. These are
+seven passing checks in 0.25 seconds, with no native modules, blocked I/O or
+oracle runtime calls. They describe audited legacy/calendar behavior, not implemented recurrence.
+The acceptance matrix above must become meaningful opt-in tests after internal
+design review.
 
 No runtime/model/CLI implementation, gate, world cohort, parameter fit,
 promotion or default change is included. The immediate review question is
