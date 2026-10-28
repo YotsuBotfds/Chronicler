@@ -289,3 +289,22 @@ def test_external_runner_before_after_hash_must_remain_stable(runs):
     data.update(runner_sha256="e"*64,runner_sha256_after="f"*64)
     worker_path.write_text(json.dumps(data))
     assert "external_runner_changed" in compare_paths(runs)["pairs"][0]["blockers"]
+
+
+def test_actual_batch_manifest_environment_schema_is_normalized_without_parent_backfill(runs):
+    for path in runs:
+        worker_path=path.parent/"worker_identity.json"
+        data=json.loads(worker_path.read_text())
+        for side in ("before","after"):
+            env=data[side]["environment"]
+            env.pop("hash_seed")
+            env["thread_env"]["PYTHONHASHSEED"]="0"
+            env.update(executable="/PRIVATE/ACTUAL-WORKER",platform="Linux-x86_64",cpu_count=4,process_cpu_count=4)
+        worker_path.write_text(json.dumps(data))
+    report=compare_paths(runs)
+    assert report["pairs"][0]["comparable_recorded_window"]
+    base=next(r for r in report["runs"] if r["arm"]=="care")
+    assert base["environment"]["hash_seed"]=="0"
+    assert base["environment"]["platform"]=="Linux-x86_64" and base["environment"]["process_cpu_count"]==4
+    assert base["environment"]["executable_path_sha256"]
+    assert "/PRIVATE" not in json.dumps(report)

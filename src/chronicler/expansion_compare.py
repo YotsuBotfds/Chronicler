@@ -61,9 +61,14 @@ def _read(path, limit):
 
 
 def _environment(raw):
-    if not isinstance(raw, Mapping) or any(key not in raw for key in ENV_KEYS):
+    if not isinstance(raw, Mapping) or any(key not in raw for key in ENV_KEYS if key != "hash_seed"):
         return None
     out = {key: raw.get(key) for key in ENV_KEYS}
+    if "hash_seed" not in raw:
+        thread_env = raw.get("thread_env")
+        if not isinstance(thread_env, Mapping) or "PYTHONHASHSEED" not in thread_env:
+            return None
+        out["hash_seed"] = thread_env["PYTHONHASHSEED"]
     if any(not isinstance(out[key], str) or not out[key] for key in ("python", "implementation", "machine")):
         return None
     for key in ("python", "implementation", "machine", "hash_seed"):
@@ -80,6 +85,19 @@ def _environment(raw):
                        for k, v in values.items())):
             return None
         out[key] = dict(values)
+    platform = raw.get("platform")
+    if platform is not None and (not isinstance(platform, str) or len(platform) > 256 or "/" in platform or "\\" in platform):
+        return None
+    out["platform"] = platform
+    for key in ("cpu_count", "process_cpu_count"):
+        value = raw.get(key)
+        if value is not None and (type(value) is not int or value < 1):
+            return None
+        out[key] = value
+    executable = raw.get("executable")
+    if executable is not None and (not isinstance(executable, str) or not 1 <= len(executable) <= 4096):
+        return None
+    out["executable_path_sha256"] = hashlib.sha256(executable.encode()).hexdigest() if executable is not None else None
     return out
 
 

@@ -26,6 +26,12 @@ never fills an unrecorded worker environment. Parent orchestration settings may
 legitimately differ. An optional declared runtime environment must agree with
 the measured one. Optional external runner hashes are disclosed and matched
 when present on both sides; a captured before/after runner hash must remain stable.
+Both checkpoint-header and batch-worker environment formats are supported.
+When the worker format records `PYTHONHASHSEED` only inside its captured thread
+environment, that actual captured value supplies the normalized hash-seed field.
+Public platform/CPU counts remain explicit. An executable path is represented
+by a hash of its text, without following or exposing the path; this is not a
+hash of the executable binary.
 
 The first supported systems are harvest assessments, local harvest gatherings
 and temporary work impairment/care. Unsupported features are catalogued with
@@ -98,9 +104,13 @@ exported Python worlds, within that limited equality scope. The catalog
 contained only development seeds 42 and 43. These are development workflow
 checks, not a powered study or a feature gate.
 
-Final focused verification passed 31 tests under Python 3.13.5 with native
+Final focused verification passed 32 tests under Python 3.13.5 with native
 imports, network and subprocesses blocked (zero attempts). Re-reading the old
 24 bundles with the completed guards preserved all post-fork catalogs and six
 Python-world equalities, and blocked all 12 strict contrasts because actual
 worker environments were unrecorded. The negative-target arm retained its
 additional integrity blocker. Original artifacts were not modified.
+An actual schema-2 worker receipt from the later frozen-source natural study
+was also read successfully: source/native, measured environments and runner
+hashes were recognized, while its unsupported scientific-claims feature remained
+blocked rather than being interpreted as one of the three supported systems.
