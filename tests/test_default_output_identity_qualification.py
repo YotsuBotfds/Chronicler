@@ -167,6 +167,9 @@ class QualificationContracts(unittest.TestCase):
         self._cleanup_counterexample(initial_capture_fails=False)
 
     def _cleanup_counterexample(self, initial_capture_fails):
+        if not (all(hasattr(qualification.os, name) for name in ("waitid", "pidfd_open"))
+                and hasattr(qualification.signal, "pidfd_send_signal")):
+            self.skipTest("Linux waitid/pidfd process APIs are required")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "logs").mkdir()

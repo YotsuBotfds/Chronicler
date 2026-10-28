@@ -1,8 +1,9 @@
 # Preregistered fixed default export parity — 2026-10-28
 
-Status: DRAFT, not executed. The draft branch does not contain an active workflow.
-Activation requires review of these exact controls; activation is an internal lead
-review within the user's existing separate-branch development authorization.
+Status at activation: preregistered and independently source-reviewed; not yet
+executed. The separate automation branch runs the pure contract tests first.
+Only their success permits build/admission and the fixed comparison. Activation
+is within the user's existing separate-branch development authorization.
 
 ## Frozen question and sources
 
