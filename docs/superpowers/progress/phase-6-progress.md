@@ -119,6 +119,15 @@ publication and academy founding dates also bound availability. It introduces
 no measurement, payment, schema or RNG change; valid producer histories retain
 their rules. See the [dated science record](../../integration/scientific-claims.md).
 
+The next [finite research-agenda contract](../../experiments/scientific-research-agendas-prospective-2026-10-28.md)
+is design only at `b25727e3`: source audit proves the current four-trial
+research ceiling, while existing paid adoption can continue. The proposal
+retains every record within existing 20-topic/40-trial budgets, canonical
+question identities, fixed measurement namespace and explicit stop-on-full;
+it does not promise an unlimited archive. Three focused legacy counterexamples
+passed under the offline guard after a CPU slot was released. No recurrent runtime,
+new world cohort, tuning or default change is implemented here.
+
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
 > **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)
