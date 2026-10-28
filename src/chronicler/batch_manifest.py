@@ -85,6 +85,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "harvest_forecasts",
     "ritual_gatherings",
     "scientific_claims",
+    "transaction_receipts",
     "domestic_credit",
     "tuning",
     "preset",

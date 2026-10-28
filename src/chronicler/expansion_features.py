@@ -11,10 +11,16 @@ import argparse
 from importlib import import_module
 from typing import Any
 
-EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims")
+EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings",
+                      "scientific_claims", "transaction_receipts")
 EXPANSION_PREREQUISITES = ("grain_reserves", "contact_ledger", "scholarship", "techniques")
 
 _HELP = {
+    "transaction_receipts": (
+        "Record bounded cargo movement receipts with observed voyage identities "
+        "and explicit regional-stock or virtual basis; requires an agent-backed "
+        "economy (default off; saved state dormant without an agent pool)"
+    ),
     "scientific_claims": (
         "Academy-funded contextual trials, dated evidence and paid adoption effort; "
         "requires --scholarship and --techniques (default off; saved state "
@@ -74,6 +80,8 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
             raise ValueError(f"{name} must be a boolean or None")
         if value is True and name in ("health_care", "ritual_gatherings") and agent_mode != "hybrid":
             raise ValueError(f"--{name.replace('_', '-')} requires --agents hybrid")
+    if values["transaction_receipts"] is True and agent_mode not in ("hybrid", "shadow", "demographics-only"):
+        raise ValueError("--transaction-receipts requires an agent-backed economy")
     if values["scientific_claims"] is True:
         from chronicler.scholarship import scholarship_enabled
         from chronicler.techniques import techniques_enabled

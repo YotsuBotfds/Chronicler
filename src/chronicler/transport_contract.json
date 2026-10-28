@@ -55,6 +55,7 @@
     "harvest_forecasts",
     "ritual_gatherings",
     "scientific_claims",
+    "transaction_receipts",
     "migration"
   ],
   "bundle_systems": [
