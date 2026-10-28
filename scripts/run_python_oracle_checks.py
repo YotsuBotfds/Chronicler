@@ -152,6 +152,10 @@ CHUNKS = {
         "tests/test_run_checkpoint.py",
         "tests/test_run_checkpoint_native.py",
     ],
+    "live-checkpoints": [
+        "tests/test_live_checkpoints.py",
+        "tests/test_live_checkpoints_native.py",
+    ],
     "grain-reserves": [
         "tests/test_grain_reserves.py",
     ],
