@@ -42,6 +42,35 @@ VALUE_TO_ID: dict[str, int] = {
 # CULTURAL_VALUE_EMPTY = 0xFF.
 VALUE_EMPTY: int = 0xFF
 
+# Relationship bond types: the discriminants of
+# chronicler-agents/src/relationships.rs::BondType, as the relationship
+# sidecar (``validation_relationships.arrow``, column ``bond_type``) and the
+# relationship FFI carry them. tests/test_bond_types.py checks this mirror
+# against the Rust source and, with the extension installed, the native
+# behaviour of the kin, marriage and mentor codes.
+BOND_TYPES: dict[str, int] = {
+    "mentor": 0,
+    "rival": 1,
+    "marriage": 2,
+    "exile_bond": 3,
+    "co_religionist": 4,
+    "kin": 5,
+    "friend": 6,
+    "grudge": 7,
+}
+BOND_MENTOR = BOND_TYPES["mentor"]
+BOND_RIVAL = BOND_TYPES["rival"]
+BOND_MARRIAGE = BOND_TYPES["marriage"]
+BOND_EXILE = BOND_TYPES["exile_bond"]
+BOND_CO_RELIGIONIST = BOND_TYPES["co_religionist"]
+BOND_KIN = BOND_TYPES["kin"]
+BOND_FRIEND = BOND_TYPES["friend"]
+BOND_GRUDGE = BOND_TYPES["grudge"]
+# relationships.rs::is_positive_valence (rival and grudge are negative).
+POSITIVE_VALENCE_BONDS = frozenset({
+    BOND_MENTOR, BOND_MARRIAGE, BOND_EXILE, BOND_CO_RELIGIONIST, BOND_KIN, BOND_FRIEND,
+})
+
 # Region ids cross the bridge as uint16.
 MAX_NATIVE_REGIONS = 0xFFFF
 # Civ ids cross the bridge as uint8 with 255 reserved for "none", and civ
@@ -76,4 +105,6 @@ def river_ids_from_mask(mask: int) -> list[int]:
 __all__ = (
     "TERRAIN_MAP", "VALUE_TO_ID", "VALUE_EMPTY", "MAX_CIV_RECORDS",
     "MAX_NATIVE_REGIONS", "check_civ_capacity", "river_ids_from_mask",
+    "BOND_TYPES", "BOND_MENTOR", "BOND_RIVAL", "BOND_MARRIAGE", "BOND_EXILE",
+    "BOND_CO_RELIGIONIST", "BOND_KIN", "BOND_FRIEND", "BOND_GRUDGE", "POSITIVE_VALENCE_BONDS",
 )

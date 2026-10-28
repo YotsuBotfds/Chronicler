@@ -268,16 +268,31 @@ NEEDS_BINDING_DIVERGENCE = 0.05
 # the same members by method 4's criterion and by the anchor's own exposure
 # (``validation_ablation.community_ablation_result``). It never decides.
 # Arms of design 1 are scored by method 4.
-COHORT_ORACLE_METHOD_VERSION = 5
+#
+# Method 6 (docs/integration/spec-communities.md) is method 5 with the
+# communities of community oracle method 2 (M53 oracle 1 as specified:
+# friend, co-religionist and kin edges weighted by sentiment within a
+# region, the native kin code; ``validation_communities``) as the member
+# cohort of every component: the observational one (method 3's estimator,
+# matching and criteria, with a ``matching`` summary), the kin-roots
+# ablation, its placebo and the community anchor's component. Method 5
+# (``method_version=5``) re-scores the communities of method 1.
+COHORT_ORACLE_METHOD_VERSION = 6
+COHORT_LEGACY_COMMUNITY_METHOD_VERSION = 5
 COHORT_ABLATION_DESIGN1_METHOD_VERSION = 4
 COHORT_DEATH_CENSORED_METHOD_VERSION = 3
 COHORT_POST_SNAPSHOT_METHOD_VERSION = 2
 COHORT_LEGACY_METHOD_VERSION = 1
 COHORT_METHOD_VERSIONS = (
     COHORT_LEGACY_METHOD_VERSION, COHORT_POST_SNAPSHOT_METHOD_VERSION, COHORT_DEATH_CENSORED_METHOD_VERSION,
-    COHORT_ABLATION_DESIGN1_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION,
+    COHORT_ABLATION_DESIGN1_METHOD_VERSION, COHORT_LEGACY_COMMUNITY_METHOD_VERSION, COHORT_ORACLE_METHOD_VERSION,
 )
-COHORT_ABLATION_METHOD_DESIGNS = {COHORT_ABLATION_DESIGN1_METHOD_VERSION: 1, COHORT_ORACLE_METHOD_VERSION: 2}
+COHORT_ABLATION_METHOD_DESIGNS = {
+    COHORT_ABLATION_DESIGN1_METHOD_VERSION: 1, COHORT_LEGACY_COMMUNITY_METHOD_VERSION: 2,
+    COHORT_ORACLE_METHOD_VERSION: 2,
+}
+# The cohort methods whose members are community method 2's communities.
+COHORT_SPEC_COMMUNITY_METHODS = frozenset({COHORT_ORACLE_METHOD_VERSION})
 
 
 def _check_arm_designs(oracle: str, method_version: int, designs: dict[int, int], *arms: dict | None) -> None:
@@ -290,7 +305,7 @@ def _check_arm_designs(oracle: str, method_version: int, designs: dict[int, int]
         if got != want:
             raise ValueError(
                 f"{oracle} oracle method {method_version} reads arms of fork design {want}, not {got}; "
-                f"score them with method " + str(next(v for v, d in designs.items() if d == got)))
+                f"score them with method " + str(max(v for v, d in designs.items() if d == got)))
 COHORT_OUTCOME_WINDOW_TURNS = 20
 
 # Era oracle (M53 oracle 3). Recalibrated 2026-10 for living worlds
@@ -1235,12 +1250,20 @@ def detect_communities(
 ) -> list[set[int]]:
     """Detect emergent social communities via deterministic label propagation.
 
+    Community oracle method 1, kept unchanged: the validation sidecar's
+    in-run community summary is built with it, and community method 2 keeps
+    its result as the legacy component (``validation_communities``, which
+    detects communities as M53 oracle 1 specifies them). It propagates over
+    every edge, rivals and grudges included, unweighted and across regions,
+    and its kin-only exclusion tests ``bond_type != 0``: the native code 0
+    is the mentor and kin is 5 (``ffi_constants.BOND_TYPES``), so a pure
+    kin clump passes it.
+
     Parameters
     ----------
     edges:
-        List of (agent_a, agent_b, bond_type, sentiment).
-        BondType: Kin=0, Mentor=1, Friend=2, CoReligionist=3, Marriage=4,
-                  Rival=5, ExileBond=6, Grudge=7.
+        List of (agent_a, agent_b, bond_type, sentiment), bond types as in
+        ``ffi_constants.BOND_TYPES`` (rule 2 below treats 0 as kin).
     mem_sigs:
         Mapping agent_id → list of (event_type, turn, severity) memory tuples.
 
@@ -1657,8 +1680,12 @@ def compute_cohort_distinctiveness(
     *,
     pair_window: tuple[int, int] | None = None,
     deaths: dict[int, int] | None = None,
+    matched_pairs_out: list | None = None,
 ) -> dict:
     """Oracle 4: Validate that community membership anchors behavior.
+
+    ``matched_pairs_out``, when a list, receives the (member, control)
+    pairs (cohort method 6 reports the matching's quality).
 
     Compares migration (or other behavioral event) rates between community
     members and a matched control group of non-community agents drawn from
@@ -1757,6 +1784,8 @@ def compute_cohort_distinctiveness(
 
         community_ids_used.extend(members)
         control_ids_used.extend(used_controls)
+    if matched_pairs_out is not None:
+        matched_pairs_out.extend(matched_pairs)
 
     # --- Compute event rates -----------------------------------------------
     def _rate(id_list: list[int]) -> float:
@@ -2292,7 +2321,32 @@ def run_determinism_gate(batch_dir: Path) -> dict:
     }
 
 
-def run_community_oracle(seed_runs: list[dict]) -> dict:
+def run_community_oracle(seed_runs: list[dict], method_version: int | None = None, *,
+                         spec_required: bool | None = None) -> dict:
+    """M53 oracle 1. Method 2 (``validation_communities``,
+    docs/integration/spec-communities.md): method 1's result as its legacy
+    component and the communities as the spec defines them, judged by the
+    spec's acceptance criteria, as its spec component; the legacy component
+    decides unless ``spec_required`` (default
+    ``validation_gate.COMMUNITY_SPEC_REQUIRED``). ``method_version=1``
+    re-scores method 1 exactly: a community of 5+ (``detect_communities``)
+    at some snapshot from turn 100 in 75% of the seeds."""
+    from .validation_communities import (
+        COMMUNITY_LEGACY_METHOD_VERSION, COMMUNITY_METHOD_VERSIONS, COMMUNITY_ORACLE_METHOD_VERSION,
+        community_method_2_result, spec_component,
+    )
+
+    if method_version is None:
+        method_version = COMMUNITY_ORACLE_METHOD_VERSION
+    if isinstance(method_version, bool) or method_version not in COMMUNITY_METHOD_VERSIONS:
+        raise ValueError(f"community oracle method_version must be one of {COMMUNITY_METHOD_VERSIONS}: "
+                         f"{method_version!r}")
+    if method_version == COMMUNITY_ORACLE_METHOD_VERSION:
+        if not seed_runs:
+            return {"status": "SKIP", "reason": "no_bundles"}
+        return community_method_2_result(
+            run_community_oracle(seed_runs, method_version=COMMUNITY_LEGACY_METHOD_VERSION),
+            spec_component(seed_runs), spec_required=spec_required)
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
 
@@ -3203,11 +3257,13 @@ def cohort_method_4_result(observational: dict, component: dict, *, placebo: dic
 def cohort_ablation_method_result(observational: dict, component: dict, *, placebo: dict | None = None,
                                   require_causal: bool | None = None, community: dict | None = None,
                                   method_version: int = COHORT_ORACLE_METHOD_VERSION) -> dict:
-    """Cohort method 4 or 5 (``method_version``). Method 5 adds the
+    """Cohort method 4, 5 or 6 (``method_version``). Method 5 adds the
     community anchor's ``community`` component
     (``validation_ablation.community_ablation_result``; reported, never
     deciding; ``NOT_RUN`` without its arm) and names the fork design in its
-    components; method 4's fields are unchanged. Pure."""
+    components; method 4's fields are unchanged. Method 6 takes components
+    scored on community method 2's communities (its observational result
+    names ``community_method_version`` and its ``matching``). Pure."""
     from .validation_gate import (
         COHORT_OBSERVATIONAL_NOTE, causal_label, causal_oracles_required, cohort_components_required,
         combined_status,
@@ -3272,7 +3328,10 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
     (``validation_ablation.cohort_ablation_result`` on the ``kin_roots`` arm
     ``ablation``; ``NOT_RUN`` without it). ``placebo`` scores the same
     comparison against the placebo arm (reported). Method 3 decides unless
-    ``require_causal`` (``cohort_method_4_result``).
+    ``require_causal`` (``cohort_method_4_result``). Method 5 adds the
+    community anchor's component (``community``, its arm); method 6 (the
+    default) is method 5 with community method 2's communities as the
+    members of every component (``validation_communities``).
 
     Methods 1-3, re-scored with ``method_version``: community members
     migrate less and rebel more than matched non-members over the
@@ -3282,7 +3341,7 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
     (``_cohort_candidate_priority``); PASS when 60% of analyzed seeds show an
     expected direction with an effect above 0.10 and the median strongest
     effect is above 0.10. Method 2 counts turns t+1 .. t+20 after a turn-t
-    snapshot; method 3 (``COHORT_ORACLE_METHOD_VERSION``) compares each
+    snapshot; method 3 (``COHORT_DEATH_CENSORED_METHOD_VERSION``) compares each
     member with its matched control over the turns both were alive (the
     window ends at the first death of either, ``run["deaths"]``).
     ``method_version=2`` re-scores method 2 exactly, ``method_version=1``
@@ -3297,20 +3356,40 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
         _check_arm_designs("cohort", method_version, COHORT_ABLATION_METHOD_DESIGNS, ablation, placebo, community)
         if not seed_runs:
             return {"status": "SKIP", "reason": "no_bundles"}
+        spec = method_version in COHORT_SPEC_COMMUNITY_METHODS
+        cohort_kw = {"spec_communities": True} if spec else {}
         community_component = None
         if COHORT_ABLATION_METHOD_DESIGNS[method_version] >= 2:
-            community_component = community_ablation_result(seed_runs, community)
+            community_component = community_ablation_result(seed_runs, community, **cohort_kw)
+        observational = (_cohort_observational(seed_runs, COHORT_DEATH_CENSORED_METHOD_VERSION, spec_communities=True)
+                         if spec else run_cohort_oracle(seed_runs, method_version=COHORT_DEATH_CENSORED_METHOD_VERSION))
         return cohort_ablation_method_result(
-            run_cohort_oracle(seed_runs, method_version=COHORT_DEATH_CENSORED_METHOD_VERSION),
-            cohort_ablation_result(seed_runs, ablation),
-            placebo=cohort_ablation_result(seed_runs, placebo, arm_name="placebo") if placebo is not None else None,
+            observational,
+            cohort_ablation_result(seed_runs, ablation, **cohort_kw),
+            placebo=(cohort_ablation_result(seed_runs, placebo, arm_name="placebo", **cohort_kw)
+                     if placebo is not None else None),
             require_causal=require_causal, community=community_component, method_version=method_version,
         )
+    if not seed_runs:
+        return {"status": "SKIP", "reason": "no_bundles"}
+    return _cohort_observational(seed_runs, method_version)
+
+
+def _cohort_observational(seed_runs: list[dict], method_version: int, *, spec_communities: bool = False) -> dict:
+    """Cohort methods 1-3 (``method_version``) on the communities of
+    community method 1 (``detect_communities``), or with
+    ``spec_communities`` on those of community method 2
+    (``validation_communities.oracle1_communities``: method 6's
+    observational component, which also reports its ``matching``)."""
     outcome_offset = 1 if method_version >= COHORT_POST_SNAPSHOT_METHOD_VERSION else 0
     censor_at_death = method_version >= COHORT_DEATH_CENSORED_METHOD_VERSION
     window = COHORT_OUTCOME_WINDOW_TURNS
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}
+    if spec_communities:
+        from .validation_communities import oracle1_needs_columns, oracle1_snapshot, oracle1_turns
+    matching = {"snapshots": 0, "members": 0, "pairs": 0, "satisfaction_gap": 0.0}
+    chosen_matching = {"members": 0, "pairs": 0}
 
     analyzed_seeds = 0
     seeds_with_expected_direction = 0
@@ -3319,32 +3398,40 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
 
     for run in seed_runs:
         total_turns = _total_turns(run)
-        turns = _iter_joint_sample_turns(run, min_turn=0)
+        turns = oracle1_turns(run) if spec_communities else _iter_joint_sample_turns(run, min_turn=0)
         if not turns:
             continue
         best_turn = None
         best_migration_result = None
         best_rebellion_result = None
         best_strongest_effect = -1.0
+        best_members = 0
         for turn in turns:
             # The window's last turn, turn + offset + window - 1, must have been simulated.
             if total_turns and turn + outcome_offset + window > total_turns:
                 continue
-            graph_snapshot = _graph_snapshot_from_columns(
-                run.get("relationship_columns"),
-                run.get("memory_columns"),
-                turn,
-            ) or run.get("graph_snapshot")
-            needs_snapshot = _needs_snapshot_from_columns(
-                run.get("needs_columns"),
-                turn,
-            ) or run.get("needs_snapshot")
-            if not graph_snapshot or not needs_snapshot:
-                continue
-            communities = detect_communities(
-                graph_snapshot["edges"],
-                graph_snapshot["memory_signatures"],
-            )
+            if spec_communities:
+                snapshot = oracle1_snapshot(run, turn)
+                if snapshot is None:
+                    continue
+                communities = snapshot["communities"]
+                needs_snapshot = {"turn": turn, "columns": oracle1_needs_columns(run, turn)}
+            else:
+                graph_snapshot = _graph_snapshot_from_columns(
+                    run.get("relationship_columns"),
+                    run.get("memory_columns"),
+                    turn,
+                ) or run.get("graph_snapshot")
+                needs_snapshot = _needs_snapshot_from_columns(
+                    run.get("needs_columns"),
+                    turn,
+                ) or run.get("needs_snapshot")
+                if not graph_snapshot or not needs_snapshot:
+                    continue
+                communities = detect_communities(
+                    graph_snapshot["edges"],
+                    graph_snapshot["memory_signatures"],
+                )
             if not communities:
                 continue
             events_window = _filter_events_window(run["events"], turn + outcome_offset, window=window)
@@ -3355,13 +3442,24 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
                     "pair_window": (first_turn, first_turn + window - 1),
                     "deaths": run.get("deaths") or {},
                 }
+            matched: list[tuple[int, int]] | None = [] if spec_communities else None
             migration_result = compute_cohort_distinctiveness(
                 communities,
                 events_window,
                 needs_snapshot["columns"],
                 event_type=EVENT_NAME_TO_CODE["migration"],
+                matched_pairs_out=matched,
                 **censoring,
             )
+            members = sum(len(community) for community in communities)
+            if spec_communities:
+                satisfaction = dict(zip(needs_snapshot["columns"]["agent_id"],
+                                        needs_snapshot["columns"].get("satisfaction") or ()))
+                matching["snapshots"] += 1
+                matching["members"] += members
+                matching["pairs"] += len(matched)
+                matching["satisfaction_gap"] += sum(
+                    abs(float(satisfaction.get(a, 0.0)) - float(satisfaction.get(b, 0.0))) for a, b in matched)
             rebellion_result = compute_cohort_distinctiveness(
                 communities,
                 events_window,
@@ -3383,6 +3481,7 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
                 best_strongest_effect = strongest_effect
                 best_migration_result = migration_result
                 best_rebellion_result = rebellion_result
+                best_members = members
         if best_turn is None or best_migration_result is None or best_rebellion_result is None:
             continue
         analyzed_seeds += 1
@@ -3406,6 +3505,10 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
             # Method 3: the chosen snapshot's matched pairs and those a death cut short.
             record["pairs"] = best_migration_result.get("pairs", 0)
             record["censored_pairs"] = best_migration_result.get("censored_pairs", 0)
+        if spec_communities:
+            record["members"] = best_members
+            chosen_matching["members"] += best_members
+            chosen_matching["pairs"] += best_migration_result.get("pairs", 0)
         per_seed.append(record)
 
     if analyzed_seeds == 0:
@@ -3425,13 +3528,34 @@ def run_cohort_oracle(seed_runs: list[dict], method_version: int | None = None, 
         # Method 3; method 2 results keep their bytes without these keys.
         result["comparison"] = "matched_pairs"
         result["outcome_censoring"] = "first_death_in_pair"
+    if spec_communities:
+        # Method 6's observational component (method 5's keeps its bytes).
+        from .validation_communities import COMMUNITY_ORACLE_METHOD_VERSION
+        result["community_method_version"] = COMMUNITY_ORACLE_METHOD_VERSION
     result.update({
         "analyzed_seeds": analyzed_seeds,
         "required_seed_count": required,
         "seeds_with_expected_direction": seeds_with_expected_direction,
         "median_effect_size": median_effect_size,
-        "per_seed": per_seed,
     })
+    if spec_communities:
+        members, pairs = matching["members"], matching["pairs"]
+        result["matching"] = {
+            "rule": "each member with a non-member of the same civ affinity, region and occupation, "
+                    "satisfaction within 0.10 (method 3)",
+            "snapshots": matching["snapshots"],
+            "members": members,
+            "matched_members": pairs,
+            "match_rate": round(pairs / members, 4) if members else None,
+            "mean_satisfaction_gap": round(matching["satisfaction_gap"] / pairs, 4) if pairs else None,
+            "chosen_snapshots": {
+                "members": chosen_matching["members"],
+                "matched_members": chosen_matching["pairs"],
+                "match_rate": (round(chosen_matching["pairs"] / chosen_matching["members"], 4)
+                               if chosen_matching["members"] else None),
+            },
+        }
+    result["per_seed"] = per_seed
     return result
 
 

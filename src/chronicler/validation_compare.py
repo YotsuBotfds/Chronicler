@@ -56,9 +56,12 @@ def _oracle_method_changes(baseline: dict[str, Any], current: dict[str, Any]) ->
     """Oracles scored by different methods in the two reports (needs: method 1
     before 2026-10-25, method 2 before the binding component of method 3,
     method 3 before method 4's outcome window after the snapshot turn, 5
-    and 6 before method 7's ablation component; cohort: method 1 before
-    method 2's outcome window after the snapshot turn, 3 before method 4's
-    ablation).
+    and 6 before method 7's ablation component, 7 before method 8's fork
+    design 2; cohort: method 1 before method 2's outcome window after the
+    snapshot turn, 3 before method 4's ablation, 4 before method 5's fork
+    design 2, 5 before method 6's members from community method 2;
+    community: method 1 before method 2's spec component, M53 oracle 1 as
+    specified, docs/integration/spec-communities.md).
 
     Their statuses are not comparable: re-score the baseline batch with the
     current oracle to compare them.

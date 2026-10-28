@@ -208,9 +208,11 @@ def test_fork_design_2_tiles_procedural_runs_and_keeps_template_forks():
 def test_ablation_methods_follow_the_arms_design():
     from chronicler.validation_io import ablation_methods
 
-    assert ablation_methods(None) == (8, 5)
+    # Design 2 (and no arms) is scored by cohort method 6 (method 5 on the
+    # communities of community method 2; docs/integration/spec-communities.md).
+    assert ablation_methods(None) == (8, 6)
     assert ablation_methods({"status": "verified"}) == (7, 4)  # a design-1 summary has no design key
-    assert ablation_methods({"status": "verified", "design": 2}) == (8, 5)
+    assert ablation_methods({"status": "verified", "design": 2}) == (8, 6)
 
 
 def test_methods_refuse_arms_of_another_design():
@@ -393,14 +395,23 @@ def test_community_component_fails_without_an_anchor():
     assert result["migration_by_cohort"]["full_ties"]["rate_ratio"] == 1.0
 
 
-def test_cohort_method_5_reports_the_community_component_without_deciding():
+@pytest.mark.parametrize("method_version", [5, 6])
+def test_cohort_method_5_reports_the_community_component_without_deciding(method_version):
     from chronicler.validation_gate import adjudicate_validation_report
     from chronicler.validation_io import run_cohort_oracle
 
     runs, arm = _anchored_world(full_plain=1, full_ablated=2)
     kin = {"window": 20, "forks": {seed: {100: {}} for seed in range(6)}, "design": 2}
-    result = run_cohort_oracle(runs, ablation=kin, community=arm)
-    assert result["method_version"] == 5
+    result = run_cohort_oracle(runs, ablation=kin, community=arm, method_version=method_version)
+    assert result["method_version"] == method_version
+    # Method 6 takes community method 2's members (here the same five
+    # friends) and reports method 1's beside them; method 5 PR #62's variant.
+    cohorts = set(result["community_ablation"]["migration_by_cohort"])
+    extra = {"method_1_members", "method_1_non_members"} if method_version == 6 else {
+        "spec_members", "spec_non_members"}
+    assert cohorts == {"members", "non_members", "full_ties", "partial_ties", "no_ties"} | extra
+    assert result["community_ablation"]["members_migration"]["cohort"] == 30
+    assert ("community_method_version" in result["community_ablation"]) is (method_version == 6)
     assert result["community_ablation"]["status"] == "PASS" and result["community_ablation"]["fork_design"] == 2
     assert result["ablation"]["fork_design"] == 2
     assert "community" not in result["required_components"]
@@ -411,7 +422,7 @@ def test_cohort_method_5_reports_the_community_component_without_deciding():
     assert rows["cohort_community"]["status"] == "PASS"
     assert "four ties 0.500" in rows["cohort_community"]["detail"]
     flat_runs, flat_arm = _anchored_world(full_plain=2, full_ablated=2)
-    flat = run_cohort_oracle(flat_runs, ablation=kin, community=flat_arm)
+    flat = run_cohort_oracle(flat_runs, ablation=kin, community=flat_arm, method_version=method_version)
     decision = adjudicate_validation_report(
         "subset", {"results": {"needs": {"status": "PASS"}, "community": {"status": "PASS"}, "cohort": flat}})
     items = {item["oracle"]: item for item in decision["informational_non_pass"]}

@@ -133,8 +133,10 @@ def test_needs_component_without_arm_or_snapshot():
     assert result["status"] == "ERROR" and "turn 150" in result["reason"]
 
 
-def _cohort_world(seeds=6, members_plain=1, members_ablated=2, design=1):
-    """Agents 0-9 form a community (friends sharing a memory); 10-19 do not."""
+def _cohort_world(seeds=6, members_plain=1, members_ablated=2, design=1, bond_type=2):
+    """Agents 0-9 form a community (bonded, sharing a memory); 10-19 do not.
+    The default bond (code 2, the native marriage) joins them for community
+    method 1 only; friend bonds (6) also for method 2 (cohort method 6)."""
     runs, arm = _world(seeds=seeds, forks=(100,), deficit="material", plain=0, ablated=0, design=design)
     for run in runs:
         rel = {k: [] for k in ("turn", "agent_id", "target_id", "bond_type", "sentiment")}
@@ -142,7 +144,7 @@ def _cohort_world(seeds=6, members_plain=1, members_ablated=2, design=1):
         for a in range(10):
             for b in (a + 1, a + 2):
                 if b < 10:
-                    for k, v in zip(rel, (100, a, b, 2, 50)):
+                    for k, v in zip(rel, (100, a, b, bond_type, 50)):
                         rel[k].append(v)
             for k, v in zip(mem, (100, a, 0, 90, -1)):
                 mem[k].append(v)
@@ -261,22 +263,23 @@ def test_cohort_method_4_keeps_method_3_and_reports_the_ablation():
     assert ablation["status"] == "FAIL" and ablation["label"] == CAUSAL_LABEL_REPORTED
     assert ablation["members_migration"]["rate_ratio"] == 1.0
     assert run_cohort_oracle(runs, method_version=4)["ablation"]["status"] == "NOT_RUN"
-    assert run_cohort_oracle(runs)["status"] == method3["status"]
+    assert run_cohort_oracle(runs, method_version=5)["status"] == method3["status"]
     # Method 5 without a community arm: the component is NOT_RUN, never deciding.
-    method5 = run_cohort_oracle(runs)
+    method5 = run_cohort_oracle(runs, method_version=5)
     assert method5["method_version"] == 5 and method5["community_ablation"]["status"] == "NOT_RUN"
+    assert "community_method_version" not in method5 and "matching" not in method5
 
 
 def test_cohort_method_4_with_causal_oracles_required_decides_by_the_ablation():
     from chronicler.validation_io import cohort_method_4_result, run_cohort_oracle
 
     runs, arm = _cohort_world(members_plain=1, members_ablated=2, design=2)
-    anchored = run_cohort_oracle(runs, ablation=arm, require_causal=True)
+    anchored = run_cohort_oracle(runs, ablation=arm, require_causal=True, method_version=5)
     assert anchored["required_components"] == ["ablation"] and anchored["status"] == "PASS"
     runs, arm = _cohort_world(members_plain=2, members_ablated=2, design=2)
-    flat = run_cohort_oracle(runs, ablation=arm, require_causal=True)
+    flat = run_cohort_oracle(runs, ablation=arm, require_causal=True, method_version=5)
     assert flat["status"] == "FAIL" and "members' migration rate ratio" in flat["reason"]
-    assert run_cohort_oracle(runs, require_causal=True)["status"] == "NOT_RUN"
+    assert run_cohort_oracle(runs, require_causal=True, method_version=5)["status"] == "NOT_RUN"
     # The pure combiner re-scores saved components in either mode.
     observational = {"status": "PASS", "method_version": 3, "method": "matched", "analyzed_seeds": 2}
     component = {"status": "FAIL", "reason": "members' migration rate ratio 0.99"}
@@ -284,6 +287,32 @@ def test_cohort_method_4_with_causal_oracles_required_decides_by_the_ablation():
     required = cohort_method_4_result(observational, component, require_causal=True)
     assert (reported["status"], "reason" in reported, reported["analyzed_seeds"]) == ("PASS", False, 2)
     assert (required["status"], required["reason"]) == ("FAIL", "members' migration rate ratio 0.99")
+
+
+def test_cohort_method_6_scores_the_members_of_community_method_2():
+    from chronicler.validation_io import run_cohort_oracle
+
+    # Friends: the same ten members for community methods 1 and 2.
+    runs, arm = _cohort_world(members_plain=1, members_ablated=2, design=2, bond_type=6)
+    method6 = run_cohort_oracle(runs, ablation=arm, placebo=arm, require_causal=True)
+    assert method6["method_version"] == 6 and method6["community_method_version"] == 2
+    assert method6["ablation"]["community_method_version"] == 2
+    assert method6["placebo"]["community_method_version"] == 2
+    assert method6["ablation"]["members_migration"]["cohort"] == 60 and method6["status"] == "PASS"
+    assert method6["observational_method_version"] == 3 and method6["matching"]["members"] > 0
+    method5 = run_cohort_oracle(runs, ablation=arm, require_causal=True, method_version=5)
+    assert method5["ablation"]["members_migration"] == method6["ablation"]["members_migration"]
+    # Marriage bonds make a community for method 1 only: method 6 has no members.
+    runs, arm = _cohort_world(members_plain=1, members_ablated=2, design=2)
+    method6 = run_cohort_oracle(runs, ablation=arm, require_causal=True)
+    assert method6["ablation"]["members_migration"]["cohort"] == 0
+    assert method6["status"] == "FAIL" and method6["ablation"]["failed_criteria"] == ["not_measured"]
+    assert run_cohort_oracle(runs, ablation=arm, require_causal=True, method_version=5)["status"] == "PASS"
+    # Method 6 reads arms of fork design 2; design-1 arms are method 4's.
+    with pytest.raises(ValueError, match="fork design 2, not 1; score them with method 4"):
+        run_cohort_oracle(runs, ablation={**arm, "design": 1})
+    with pytest.raises(ValueError, match="fork design 1, not 2; score them with method 6"):
+        run_cohort_oracle(runs, ablation=arm, method_version=4)
 
 
 def _report(needs=None, cohort=None, **extra):
