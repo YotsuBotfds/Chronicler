@@ -65,8 +65,8 @@ class FullGateContracts(unittest.TestCase):
                               smoke["fork_count"], smoke["checkpoint_turns"]),
                              ("subset", 2, 125, 4, [101]))
             self.assertFalse(smoke["require_strict_regression"])
-            exposures.append(2 * (smoke["seed_count"] * smoke["turns"] + smoke["fork_count"] * 22))
-        self.assertEqual(sum(exposures), 1352)
+            exposures.append(2 * (smoke["seed_count"] * smoke["turns"] + smoke["fork_count"] * 21))
+        self.assertEqual(sum(exposures), 1336)
         self.assertEqual(worker.COHORT_SECONDS, 330 * 60)
         self.assertEqual(worker.SMOKE_SECONDS, 80 * 60)
 

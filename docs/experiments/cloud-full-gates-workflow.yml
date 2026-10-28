@@ -1,0 +1,378 @@
+name: Frozen full simulation gates
+
+on:
+  push:
+    branches: [lead/cloud-full-gates-20261028]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frozen-full-gates-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONNOUSERSITE: "1"
+  PYTHONHASHSEED: "0"
+  PYTHON_CPU_COUNT: "2"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  GOTO_NUM_THREADS: "1"
+  RAYON_NUM_THREADS: "1"
+  CARGO_BUILD_JOBS: "1"
+
+jobs:
+  build:
+    name: Frozen shared native build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      python_version: ${{ steps.manifest.outputs.python_version }}
+      manifest_sha256: ${{ steps.manifest.outputs.manifest_sha256 }}
+      wheel_sha256: ${{ steps.manifest.outputs.wheel_sha256 }}
+      wheel_filename: ${{ steps.manifest.outputs.wheel_filename }}
+      wheel_artifact_id: ${{ steps.shared-wheel.outputs.artifact-id }}
+    steps:
+      - name: Set external task paths
+        shell: bash
+        run: |
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/full-gates-env" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/full-gates-cargo" >> "$GITHUB_ENV"
+      - name: Check out qualification controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out frozen baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 2f9d618b70f3304c02dcaeef12996b4a99e074c0
+          path: baseline
+          persist-credentials: false
+      - name: Check out frozen candidate
+        uses: actions/checkout@v4
+        with:
+          ref: d0281e5f57c508f27cea1676f36e0e6ed1225c9d
+          path: candidate
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Create fresh locked build and test environment
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          test ! -e "$CARGO_TARGET_DIR"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project candidate --check
+          uv sync --project candidate --frozen --no-install-project --python "$(command -v python)"
+          uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" "maturin>=1.5,<2"
+      - name: Run pure worker, comparison, and supervisor contract checks
+        env:
+          PYTHONPATH: ${{ github.workspace }}/candidate/src
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        shell: bash
+        run: |
+          "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
+            -o "pythonpath=$GITHUB_WORKSPACE/candidate/src" \
+            "$GITHUB_WORKSPACE/control/tests/test_default_output_identity_qualification.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_qualification.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_comparison.py"
+      - name: Build and verify one fresh shared wheel
+        shell: bash
+        run: |
+          "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/cloud_full_gate_qualification.py build \
+            --baseline-root "$GITHUB_WORKSPACE/baseline" \
+            --candidate-root "$GITHUB_WORKSPACE/candidate" \
+            --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
+            --evidence "$RUNNER_TEMP/full-gates-build"
+      - name: Bind downstream jobs to the verified build
+        id: manifest
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          root = Path(os.environ["RUNNER_TEMP"]) / "full-gates-build"
+          path = root / "build-manifest.json"
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+          assert manifest["qualified"] is True
+          assert manifest["schema_version"] == 1
+          assert manifest["kind"] == "chronicler-cloud-full-gate-build"
+          assert manifest["github_run_id"] == os.environ["GITHUB_RUN_ID"]
+          assert manifest["github_run_attempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
+          filename = manifest["wheel"]["filename"]
+          assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*\.whl", filename)
+          wheel_sha = hashlib.sha256((root / "wheels" / filename).read_bytes()).hexdigest()
+          assert wheel_sha == manifest["wheel"]["sha256"]
+          version = manifest["python_version"]
+          assert re.fullmatch(r"3\.13\.[0-9]+", version)
+          values = {
+              "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              "wheel_sha256": wheel_sha,
+              "wheel_filename": filename,
+              "python_version": version,
+          }
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          PY
+      - name: Preserve bounded builder records first
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-build-light-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-build/light/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Publish verified shared wheel and manifest
+        if: success()
+        id: shared-wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-wheel-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/full-gates-build/build-manifest.json
+            ${{ runner.temp }}/full-gates-build/wheels/*.whl
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve complete build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-build-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-build/
+          if-no-files-found: warn
+          retention-days: 30
+
+  smoke:
+    name: Schema smoke ${{ matrix.worldgen }} ${{ matrix.arm }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        arm: [baseline, candidate]
+        worldgen: [template, procedural]
+    steps:
+      - name: Set external task paths
+        shell: bash
+        run: echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/full-gates-env" >> "$GITHUB_ENV"
+      - name: Check out qualification controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the frozen cohort source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.arm == 'baseline' && '2f9d618b70f3304c02dcaeef12996b4a99e074c0' || 'd0281e5f57c508f27cea1676f36e0e6ed1225c9d' }}
+          path: source
+          persist-credentials: false
+      - name: Set up the builder's exact Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.build.outputs.python_version }}
+      - name: Download the one verified shared wheel
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.build.outputs.wheel_artifact_id }}
+          path: ${{ runner.temp }}/full-gates-shared
+          merge-multiple: true
+      - name: Create a fresh locked cohort environment
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project source --check
+          uv sync --project source --frozen --no-dev --no-install-project --python "$(command -v python)"
+      - name: Run the fixed subset schema smoke and preserve its original verdict
+        env:
+          COHORT_ARM: ${{ matrix.arm }}
+          COHORT_WORLDGEN: ${{ matrix.worldgen }}
+          BUILD_MANIFEST_SHA256: ${{ needs.build.outputs.manifest_sha256 }}
+          SHARED_WHEEL_SHA256: ${{ needs.build.outputs.wheel_sha256 }}
+          SHARED_WHEEL_FILENAME: ${{ needs.build.outputs.wheel_filename }}
+        shell: bash
+        run: |
+          "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/cloud_full_gate_qualification.py cohort --stage smoke \
+            --arm "$COHORT_ARM" --worldgen "$COHORT_WORLDGEN" \
+            --source-root "$GITHUB_WORKSPACE/source" \
+            --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
+            --build-manifest "$RUNNER_TEMP/full-gates-shared/build-manifest.json" \
+            --build-manifest-sha256 "$BUILD_MANIFEST_SHA256" \
+            --wheel "$RUNNER_TEMP/full-gates-shared/wheels/$SHARED_WHEEL_FILENAME" \
+            --wheel-sha256 "$SHARED_WHEEL_SHA256" \
+            --evidence "$RUNNER_TEMP/full-gates-smoke"
+      - name: Preserve bounded smoke reports and provenance first
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-smoke-light-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-smoke/light/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve complete raw smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-smoke-raw-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-smoke/
+          if-no-files-found: error
+          retention-days: 30
+
+  cohorts:
+    name: Full ${{ matrix.worldgen }} ${{ matrix.arm }}
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        arm: [baseline, candidate]
+        worldgen: [template, procedural]
+    steps:
+      - name: Set external task paths
+        shell: bash
+        run: echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/full-gates-env" >> "$GITHUB_ENV"
+      - name: Check out qualification controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the frozen cohort source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.arm == 'baseline' && '2f9d618b70f3304c02dcaeef12996b4a99e074c0' || 'd0281e5f57c508f27cea1676f36e0e6ed1225c9d' }}
+          path: source
+          persist-credentials: false
+      - name: Set up the builder's exact Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.build.outputs.python_version }}
+      - name: Download the one verified shared wheel
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.build.outputs.wheel_artifact_id }}
+          path: ${{ runner.temp }}/full-gates-shared
+          merge-multiple: true
+      - name: Create a fresh locked cohort environment
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project source --check
+          uv sync --project source --frozen --no-dev --no-install-project --python "$(command -v python)"
+      - name: Run the frozen full cohort with original strict gate policy
+        env:
+          COHORT_ARM: ${{ matrix.arm }}
+          COHORT_WORLDGEN: ${{ matrix.worldgen }}
+          BUILD_MANIFEST_SHA256: ${{ needs.build.outputs.manifest_sha256 }}
+          SHARED_WHEEL_SHA256: ${{ needs.build.outputs.wheel_sha256 }}
+          SHARED_WHEEL_FILENAME: ${{ needs.build.outputs.wheel_filename }}
+        shell: bash
+        run: |
+          "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/cloud_full_gate_qualification.py cohort --stage full \
+            --arm "$COHORT_ARM" --worldgen "$COHORT_WORLDGEN" \
+            --source-root "$GITHUB_WORKSPACE/source" \
+            --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
+            --build-manifest "$RUNNER_TEMP/full-gates-shared/build-manifest.json" \
+            --build-manifest-sha256 "$BUILD_MANIFEST_SHA256" \
+            --wheel "$RUNNER_TEMP/full-gates-shared/wheels/$SHARED_WHEEL_FILENAME" \
+            --wheel-sha256 "$SHARED_WHEEL_SHA256" \
+            --evidence "$RUNNER_TEMP/full-gates-cohort"
+      - name: Preserve bounded cohort reports and provenance first
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-light-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-cohort/light/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Preserve complete raw cohort evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-raw-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-cohort/
+          if-no-files-found: warn
+          retention-days: 30
+
+  compare:
+    name: Strict original-policy comparison and separate causal adjudication
+    needs: [build, smoke, cohorts]
+    if: ${{ always() && needs.build.result == 'success' && needs.smoke.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set external task paths
+        shell: bash
+        run: echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/full-gates-comparison-env" >> "$GITHUB_ENV"
+      - name: Check out qualification controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the exact frozen comparator
+        uses: actions/checkout@v4
+        with:
+          ref: d0281e5f57c508f27cea1676f36e0e6ed1225c9d
+          path: frozen-comparator
+          persist-credentials: false
+      - name: Set up the builder's exact Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.build.outputs.python_version }}
+      - name: Download available cohort light artifacts from this run
+        uses: actions/download-artifact@v4
+        with:
+          pattern: full-gates-light-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-inputs
+          merge-multiple: false
+      - name: Install the frozen comparator's locked dependencies
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project frozen-comparator --check
+          uv sync --project frozen-comparator --frozen --no-dev --no-install-project --python "$(command -v python)"
+      - name: Compare untouched reports and adjudicate causal requirements separately
+        env:
+          PYTHONPATH: ${{ github.workspace }}/frozen-comparator/src
+          BUILD_MANIFEST_SHA256: ${{ needs.build.outputs.manifest_sha256 }}
+        shell: bash
+        run: |
+          "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/cloud_full_gate_comparison.py \
+            --candidate-source "$GITHUB_WORKSPACE/frozen-comparator" \
+            --template-baseline "$RUNNER_TEMP/full-gates-inputs/full-gates-light-baseline-template-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --template-candidate "$RUNNER_TEMP/full-gates-inputs/full-gates-light-candidate-template-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --procedural-baseline "$RUNNER_TEMP/full-gates-inputs/full-gates-light-baseline-procedural-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --procedural-candidate "$RUNNER_TEMP/full-gates-inputs/full-gates-light-candidate-procedural-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --build-manifest-sha256 "$BUILD_MANIFEST_SHA256" \
+            --github-run-id "$GITHUB_RUN_ID" --github-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --control-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/full-gates-comparison"
+      - name: Preserve comparisons and separate causal adjudications
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-comparison-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-comparison/
+          if-no-files-found: warn
+          retention-days: 30
