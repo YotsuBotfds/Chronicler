@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-28 evidence addendum: frozen `d051d7c0` / receipt release `fb20dbc8`
+passed the [full Rust qualification](integration/rust-qualification-d051-2026-10.md).
+The subsequent [writer-cadence diagnostic](performance/ablation-writer-cadence-diagnostic-2026-10.md)
+preserved compared physical/native values through genuine checkpoint continuation
+but failed strict serialized-memory equivalence; it adopted no cadence or source
+change and established no speedup. Each report names its exact inputs and limits.
+
 Repository identity was verified as public `YotsuBotfds/Chronicler`, GitHub ID
 `1187468861`, with existing owner push permission. Recovery uses
 `continuation/recovered-20261011`; `main` and other development branches are not
