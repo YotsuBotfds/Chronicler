@@ -71,6 +71,26 @@ checks passed at 1440px and 390px, including forward/backward scrubbing,
 containing-snapshot navigation, missing rows and legacy omissions. The later
 scientific inspector has separate qualification work.
 
+The scientific observer checkpoint `e746015a` has a separate 232-pass,
+three-skip offline-guarded selection. Its Learning inspector `0cbeaf7f`
+passed 45 focused tests, lint/build and desktop/390px browser checks using an
+ordinary 26-turn controlled export. That export explicitly seeds academies
+and eligible practice and forces DEVELOP decisions; it is mechanical evidence,
+not the preregistered natural-world cohort. It contains four completed trials,
+eight trial treasury and ten paid adoption treasury.
+
+The receipt release was subsequently built from native source `79432d08`
+(crate tree `a4703ef4e9a21b5dbb194d318536a46e6ca8b71c`), without the
+merchant-tax branch. All three schemas and constructor payloads match the
+health release. Forty-six focused Python/native/actual-bridge tests passed,
+and 18 populated-market default-off frames matched native bytes, events,
+snapshots and WorldState. The extension SHA-256 is
+`fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317`;
+wheel SHA-256 is
+`bf7dbf627e61ab5333dd20b8940770840c9742413439975b3777fa73c77b4c1f`.
+This fresh release is reserved for the next complete integration qualification;
+it does not turn the interrupted older full suites into passes.
+
 ## Work still running or incomplete
 
 The full native/no-Rust Python runs at `527a9ff8` were interrupted around
@@ -80,11 +100,15 @@ arm. Recovery uses separate evidence directories, verified completed inputs,
 immutable sources/native builds and unchanged full horizons/needs/kin arms.
 Recovery and procedural qualification must report their own actual completion.
 
-Receipt release-build/full-suite qualification, new-source warning studies,
+Complete integration full-suite qualification, new-source warning studies,
 natural-world scientific controls, enabled balance/efficacy gates and quiet
 paired lean-output timing remain incomplete here. Focused mechanics and
 default identity do not substitute for those gates. Source-qualified updates
 will append exact checkpoints; no moving branch name is a test receipt.
+
+The next immutable integration source is `d051d7c0`, with the receipt crate
+tree above. Later documentation and separately reviewed follow-ups do not
+change which source its full-suite evidence exercises.
 
 Evidence lives outside Git. Generated worlds, build products and machine logs
 are not committed. The roadmap retains the external Kimi source attribution
