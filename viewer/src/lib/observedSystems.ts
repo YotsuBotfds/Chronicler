@@ -1,10 +1,14 @@
-import type { HarvestForecastSnapshot, RitualGatheringsSnapshot, TurnSnapshot } from "../types";
+import type { HarvestForecastSnapshot, RitualGatheringsSnapshot, ScientificClaimsSnapshot, TurnSnapshot } from "../types";
 
-export type ObservationKey = "health_care" | "harvest_forecasts" | "ritual_gatherings";
+export type ObservationKey = "health_care" | "harvest_forecasts" | "ritual_gatherings" | "scientific_claims";
+
+export const SCIENTIFIC_EVENT_TYPES = ["scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed",
+  "scientific_trial_cancelled", "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated"] as const;
 
 const OBSERVATION_EVENT_TYPES = new Set([
   "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved",
   "harvest_preparedness", "harvest_gathering_held", "harvest_gathering_cancelled",
+  ...SCIENTIFIC_EVENT_TYPES,
 ]);
 
 export function isObservationEventType(kind: string | undefined): boolean {
@@ -39,6 +43,15 @@ function evidenceKnown(record: NonNullable<TurnSnapshot[ObservationKey]>, key: O
     if (!Array.isArray(gatherings.outcomes) || !Array.isArray(gatherings.schedules)) return false;
     return gatherings.outcomes.every((row) => row && knownTurn(row.turn, source))
       && gatherings.schedules.every((row) => row && (row.last_turn == null || knownTurn(row.last_turn, source)));
+  }
+  if (key === "scientific_claims") {
+    const science = record as ScientificClaimsSnapshot;
+    if (!Array.isArray(science.propositions) || !Array.isArray(science.beliefs) || !Array.isArray(science.trials_resolved)) return false;
+    return science.propositions.every((row) => row && (row.proposed_turn == null || knownTurn(row.proposed_turn, source)))
+      && science.beliefs.every((row) => row && (row.last_evidence_turn == null || knownTurn(row.last_evidence_turn, source)))
+      && science.trials_resolved.every((row) => row && knownTurn(row.funded_turn, source)
+        && knownTurn(row.resolved_turn, source) && row.status !== "running"
+        && (row.inputs?.turn == null || knownTurn(row.inputs.turn, source)));
   }
   return true;
 }

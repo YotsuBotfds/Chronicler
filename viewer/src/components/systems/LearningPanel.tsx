@@ -5,6 +5,7 @@ import {
 } from "../../lib/learning";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { ScientificClaims } from "./ScientificClaims";
 
 const SCHOLARS = "Scholars";
 
@@ -34,6 +35,8 @@ export function LearningPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Seats of learning">
+      <ScientificClaims bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       {state ? (
         <div className="systems-tiles">
           <StatTile label="Seats of learning" value={living.length} detail={`turn ${at}`} />

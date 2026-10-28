@@ -114,3 +114,13 @@ an isolated rerun and the subsequent complete run passed without changing
 timeouts. The subsequent event-clock correction passed 224 focused tests with
 one worker (including every bounded bundle-index parity case), ESLint and the
 production build. Combined native browser checks are a separate evidence lane.
+
+Production browser checks then passed at 1440px and 390px against the actual
+60-turn combined native bundle (simulation source `527a9ff8`, native `e7ec`)
+and viewer `1505db43`. They compared report delivery/status, injury/care work
+and gathering dates/consumption/payments with the recorded rows while seeking
+forward and backward; checked pinned event headers/body, feeds and navigation;
+and removed early/middle observations to verify unknown history and no final
+fallback. No console/page errors or document/section overflow occurred. Wide
+tables scroll inside their wrappers. The external evidence folder contains
+the decoded source, smoke script, JSON report and desktop/mobile screenshots.

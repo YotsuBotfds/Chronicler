@@ -1,7 +1,9 @@
-import type { HarvestForecastSnapshot, HealthCareSnapshot, RitualGatheringsSnapshot } from "./expansionTypes";
+import type { HarvestForecastSnapshot, HealthCareSnapshot, RitualGatheringsSnapshot, ScientificClaimsSnapshot, TransactionReceiptsSnapshot } from "./expansionTypes";
 export type {
   HarvestForecastReport, HarvestForecastSnapshot, HarvestPreparedness, HealthCareRegion, HealthCareSnapshot,
   RitualGatheringOutcome, RitualGatheringSchedule, RitualGatheringsSnapshot,
+  ScientificAllocation, ScientificBelief, ScientificClaimsSnapshot, ScientificContext, ScientificProposition, ScientificTrial,
+  TransactionReceiptsSnapshot,
 } from "./expansionTypes";
 
 // --- Enums (matching Python str enums) ---
@@ -316,6 +318,10 @@ export interface TurnSnapshot {
   harvest_forecasts?: HarvestForecastSnapshot;
   /** Actual local gatherings, payments and immutable schedules; absent when off. */
   ritual_gatherings?: RitualGatheringsSnapshot;
+  /** Contextual institutional claims and paid trials, recorded only when enabled. */
+  scientific_claims?: ScientificClaimsSnapshot;
+  /** Optional source-dated merchant observations, carried unchanged by transport. */
+  transaction_receipts?: TransactionReceiptsSnapshot;
   /**
    * Agent migrations of the completed turn as [from region index, to region
    * index, agents]; present only in hybrid and shadow runs written after the

@@ -135,6 +135,7 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = [], fa
     if (key === "epidemics" && history.some((snapshot) => snapshot.health_care != null)) {
       return true;
     }
+    if (key === "learning" && history.some((snapshot) => snapshot.scientific_claims != null)) return true;
     if (key === "food" && history.some((snapshot) => snapshot.grain_reserves != null || snapshot.harvest_forecasts != null)) {
       return true;
     }
