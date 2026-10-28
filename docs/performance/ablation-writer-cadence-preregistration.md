@@ -94,3 +94,26 @@ cost; no such change was applied to the completed qualification.
 Actual diagnostic/profiling runs remain pending. The lead subsequently held all
 new build/probe jobs during disk recovery. These are source-based hypotheses,
 not measured CPU shares or implemented optimizations.
+
+## Resumed diagnostic protocol
+
+The lead released one sequential CPU slot after disk recovery. Before launching
+the correctness runs, extend the observational proof with one exact checkpoint
+at completed turn 40 in each control. The observer requests this save after the
+ordinary writer/reflection boundary; it never forces a memory JSON save. Each
+new checkpoint is then genuinely restored and continued 40→60 with its original
+control. Compare continuation boundaries 41–60 and final state with the direct
+30→60 run. Keep raw Python/native section hashes, the memory subgraph's actual
+pickle bytes, and memory-cache contents separate from physical equivalence.
+Checkpoint paths and output-policy metadata may independently differ, so whole
+Python-section differences alone cannot be attributed to the memory cache.
+
+A cache-only serialized difference is still a counterexample to strict carried
+Python checkpoint equivalence; do not waive it or adopt cadence suppression on
+the strength of physical equality. Existing-option profiling may continue after
+a successful physical/continuation check solely to diagnose costs, with that
+failed stronger promise stated explicitly. Any authoritative or continuation
+divergence stops profiling. All profiler workers omit the correctness observer
+and the extra turn-40 checkpoint. Only one profiled repeat per control is planned
+under two active scholarship workers and potentially the lead's other bounded
+lane; no statistical timing or speedup conclusion follows.
