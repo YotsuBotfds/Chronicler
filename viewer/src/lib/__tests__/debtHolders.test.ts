@@ -118,6 +118,16 @@ describe("civDebtHolders", () => {
 });
 
 describe("series and lists", () => {
+  it("keeps missing older lender allocations and write-offs unknown in mixed-version history", () => {
+    const older = at(withoutHolders(fixture), 54);
+    const newer = at(fixture, 55);
+    expect(civDebtHolders(older, CIV, "lenders")!.writtenOff).toBeNull();
+    const { lenders, data } = foreignLenderSeries([older, newer], CIV, civs);
+    expect(lenders.length).toBeGreaterThan(0);
+    expect(lenders.every((name) => data[0][name] === null)).toBe(true);
+    expect(writeOffs([older, newer], CIV, [], "lenders").every((row) => row.amount === null)).toBe(true);
+    expect(troubleRows([older, newer], CIV, "lenders").find((row) => row.id === "written_off")!.segments).toEqual([]);
+  });
   it("lists the indebted realms in world order and the borrowers by peak debt", () => {
     const realms = realmsInDebt(at(fixture, 54), civs, "lenders");
     expect(realms.every((entry) => entry.debt > 0)).toBe(true);

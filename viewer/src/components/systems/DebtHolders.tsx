@@ -104,7 +104,9 @@ export function DebtHolders({
         <h3>Who holds the debt at turn {at}</h3>
         <p className="systems-note">{DETAIL_NOTES[detail]}</p>
         {realms.length === 0 ? (
-          <div className="phase75-empty-state">No civilization owes anything at turn {at}.</div>
+          <div className="phase75-empty-state">{snapshot?.finance
+            ? `No civilization owes anything at turn ${at}.`
+            : `No finance record at turn ${at}.`}</div>
         ) : (
           <>
             <StripLegend items={realmGroups.map((group) => ({ label: HOLDER_LABELS[group], color: HOLDER_COLORS[group] }))} />

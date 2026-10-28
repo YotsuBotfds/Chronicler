@@ -208,7 +208,7 @@ export function civDebtHolders(snapshot: TurnSnapshot | null, civ: string, detai
   for (const entry of rows) {
     groups[entry.group] += entry.amount;
   }
-  const lenders = detail === "lenders" && !!credit;
+  const lenders = detail === "lenders" && credit?.holders !== undefined;
   return {
     civ,
     turn: snapshot.turn,
@@ -283,7 +283,8 @@ export function foreignLenderSeries(
   const lenders = orderedCivNames(worldCivs, names);
   const data = history.map((snapshot) => {
     const row: SeriesRow = { turn: snapshot.turn };
-    const present = !!snapshot.finance?.civs[civ];
+    const fiscal = snapshot.finance?.civs[civ];
+    const present = !!fiscal && (fiscal.foreign_debt === 0 || snapshot.finance?.domestic_credit?.holders !== undefined);
     const foreign = snapshot.finance?.domestic_credit?.holders?.[civ]?.foreign ?? {};
     for (const lender of lenders) {
       row[lender] = present ? (foreign[lender]?.[0] ?? 0) : null;
@@ -316,13 +317,13 @@ export function writeOffs(history: TurnSnapshot[], civ: string, events: Event[],
   const out: WriteOff[] = [];
   let previousTurn: number | null = null;
   let defaults = 0;
-  let written = 0;
+  let written: number | null = 0;
   for (const snapshot of history) {
     const entry = civDebtHolders(snapshot, civ, detail);
     if (!entry) {
       continue;
     }
-    const amount = entry.writtenOff == null ? null : entry.writtenOff - written;
+    const amount = entry.writtenOff == null || written == null ? null : entry.writtenOff - written;
     const defaulted = entry.defaults > defaults;
     if (defaulted || (amount ?? 0) > 0) {
       const from = previousTurn == null ? Number.NEGATIVE_INFINITY : previousTurn - 1;
@@ -336,7 +337,7 @@ export function writeOffs(history: TurnSnapshot[], civ: string, events: Event[],
     }
     previousTurn = snapshot.turn;
     defaults = entry.defaults;
-    written = entry.writtenOff ?? written;
+    written = entry.writtenOff;
   }
   return out;
 }
@@ -356,16 +357,17 @@ export function troubleRows(history: TurnSnapshot[], civ: string, detail: Holder
     };
   });
   const rises = (value: (entry: CivDebtHolders) => number | null) => {
-    let before = 0;
+    let before: number | null = 0;
     return entries.map((entry, index) => {
       if (!entry) {
         return null;
       }
       const now = value(entry);
       if (now == null) {
+        before = null;
         return null;
       }
-      const key = now > before ? `${index}:${now - before}` : null;
+      const key = before != null && now > before ? `${index}:${now - before}` : null;
       before = now;
       return key;
     });
