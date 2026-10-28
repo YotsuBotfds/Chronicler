@@ -191,6 +191,44 @@ def require_matrix(path):
     require(len(matches) == 1 and ast.literal_eval(matches[0]) == CASES, "case matrix changed")
 
 
+def resource_visibility(path, *, meminfo=Path("/proc/meminfo"),
+                        process_cgroup=Path("/proc/self/cgroup"), cgroup_root=Path("/sys/fs/cgroup")):
+    """Bounded observation only; resources() remains the admission authority."""
+    def read(file, limit=128):
+        try:
+            with file.open("rb") as stream:
+                raw = stream.read(limit + 1)
+            return {"text": raw[:limit].decode("utf-8", errors="replace"), "truncated": len(raw) > limit}
+        except OSError as exc:
+            return {"error": type(exc).__name__, "errno": exc.errno}
+
+    membership = read(process_cgroup, 4096)
+    memory = read(meminfo, 4096)
+    snapshot = {"membership": membership,
+                "host_mem_available": [line for line in memory.get("text", "").splitlines()
+                                       if line.startswith("MemAvailable:")][:1],
+                "meminfo_error": memory.get("error"), "ancestors": []}
+    try:
+        snapshot["disk_free"] = shutil.disk_usage(path).free
+    except OSError as exc:
+        snapshot["disk_error"] = type(exc).__name__
+    for line in membership.get("text", "").splitlines():
+        fields = line.split(":", 2)
+        if len(fields) != 3 or fields[:2] != ["0", ""]:
+            continue
+        relative = Path(fields[2])
+        if not relative.is_absolute() or ".." in relative.parts:
+            continue
+        current = cgroup_root.joinpath(*relative.parts[1:])
+        for _ in range(max(0, 16 - len(snapshot["ancestors"]))):
+            snapshot["ancestors"].append({"path": str(current)[:512], "directory_visible": current.is_dir(),
+                "memory_max": read(current / "memory.max"), "memory_current": read(current / "memory.current")})
+            if current == cgroup_root:
+                break
+            current = current.parent
+    return snapshot
+
+
 def resources(path, *, meminfo=Path("/proc/meminfo"),
               process_cgroup=Path("/proc/self/cgroup"), cgroup_root=Path("/sys/fs/cgroup")):
     available = None
@@ -213,10 +251,11 @@ def resources(path, *, meminfo=Path("/proc/meminfo"),
         while True:
             maximum, usage = current / "memory.max", current / "memory.current"
             if current == cgroup_root and not maximum.exists() and not maximum.is_symlink():
-                # The true v2 hierarchy root has current, but cannot have a max.
-                require(usage.is_file(), "hierarchy-root memory usage is not visible")
-                used = int(usage.read_text())
-                require(used >= 0, "invalid hierarchy-root memory usage")
+                # Resource-control interfaces need not exist at the true v2 root.
+                require(usage.is_file() or (not usage.exists() and not usage.is_symlink()),
+                        "invalid hierarchy-root memory usage interface")
+                used = int(usage.read_text()) if usage.is_file() else None
+                require(used is None or used >= 0, "invalid hierarchy-root memory usage")
                 limits.append({"path": str(current), "max": "root-unbounded", "current": used})
             else:
                 require(maximum.is_file() and usage.is_file(), "incomplete cgroup memory visibility")
@@ -274,6 +313,9 @@ class Supervisor:
             stream.flush()
 
     def admission(self, phase, disk, ram):
+        visibility = resource_visibility(self.root)
+        self.event("resource_visibility", phase=phase, **visibility)
+        print(json.dumps({"event": "resource_visibility", "phase": phase, **visibility}), flush=True)
         row = resources(self.root)
         self.event("resources", phase=phase, **row)
         admit(row, disk, ram)
@@ -540,8 +582,13 @@ def execute(args):
             if row["status"] == "started":
                 row["status"] = "failed"
         finish_evidence(root, report, supervisor.cleanup_complete, deadline)
-    print(json.dumps({"qualified": report["qualified"], "error": report.get("error"),
-                      "final_identity_error": report.get("final_identity_error")}), flush=True)
+    summary = {key: report.get(key) for key in (
+        "qualified", "baseline", "candidate", "wheel_sha256", "native_sha256",
+        "inventory_sha256", "elapsed_wall_seconds")}
+    for key in ("error", "final_identity_error", "inventory_error"):
+        summary[key] = str(report[key])[:2048] if key in report else None
+    summary["cases"] = [{key: row[key] for key in ("arm", "case", "status")} for row in rows]
+    print(json.dumps(summary, allow_nan=False), flush=True)
     return 0 if report["qualified"] else 1
 
 
