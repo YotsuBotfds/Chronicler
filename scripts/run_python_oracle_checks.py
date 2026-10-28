@@ -198,6 +198,9 @@ CHUNKS = {
     "scientific-claims": [
         "tests/test_scientific_claims.py",
     ],
+    "scientific-publication": [
+        "tests/test_scientific_publication.py",
+    ],
     "transaction-receipts": [
         "tests/test_transaction_receipts.py",
         "tests/test_public_purchase_receipts.py",
