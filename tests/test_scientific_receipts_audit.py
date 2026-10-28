@@ -109,7 +109,7 @@ def test_future_actual_rows_and_counters_are_withheld(science_bundle,table,datef
 
 def test_planned_future_completion_for_same_turn_failed_trial_is_allowed(science_bundle):
     row=section(science_bundle,1)['trials_resolved'][0]
-    row.update(status='failed',funded_turn=1,completion_turn=99,inputs={},
+    row.update(status='failed',funded_turn=1,completion_turn=2,inputs={},
                control_output=0,treatment_output=0,observed_control=None,observed_treatment=None,
                informative=False,supports=None,source_data='',dependence_group='')
     row['funded_event_id']='1:scientific_trial_funded:0'
