@@ -70,6 +70,22 @@ The recovery used the existing lockfile; no dependency versions were changed.
 Windows Node 26.7.0 passed the tests/build. The existing large-bundle warning
 remains. The isolated event/settlement demo pages use synthetic fixtures.
 
+## Live sessions and exact checkpoints
+
+`--live` serves the viewer over a local WebSocket that accepts only the
+viewer origins and the session token in the link the CLI prints
+(`--live-port 0` takes a free port). `--checkpoint-every N` writes exact
+resume checkpoints in single, batch, fork, interactive and live runs, and
+`--resume FILE` continues one byte for byte. `--live --resume FILE`
+continues any exact checkpoint as a live session: viewers see the saved
+history, and it starts paused at the checkpoint's turn. In a live session
+the pause panel's **Save checkpoint** (the `checkpoint` message, which
+names no file) writes `live_checkpoints/turn_<turn>.ckpt` under the output
+directory at the next turn boundary; `inject` and `set` are recorded in
+the checkpoints that follow. `--live --simulate-only` makes no LLM calls.
+See `docs/integration/checkpoint-continuation.md` (section 11 for live
+sessions); `scripts/checkpoint_identity.py` has live cases (`live_*`).
+
 ## Native and full qualification
 
 Build into the active virtual environment, with an appropriate Rust toolchain:

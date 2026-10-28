@@ -27,10 +27,9 @@ from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
 from chronicler.bundle_codec import decode_bundle
-from chronicler.snapshot_pruning import SnapshotPruner
 from chronicler.transport import BUNDLE_SYSTEMS, bundle_systems
 # The reconnect data's turn reducer lives with the live checkpoints, which rebuild it.
-from chronicler.live_checkpoints import (  # noqa: F401 (apply_turn_message is public here)
+from chronicler.live_checkpoints import (
     LiveCheckpoints, LiveView, apply_turn_message, rebuilt_view, turn_message,
 )
 
