@@ -6,6 +6,10 @@ The subsequent [writer-cadence diagnostic](performance/ablation-writer-cadence-d
 preserved compared physical/native values through genuine checkpoint continuation
 but failed strict serialized-memory equivalence; it adopted no cadence or source
 change and established no speedup. Each report names its exact inputs and limits.
+The [isolated Rust debug-info experiment](performance/rust-debug-info-experiment-2026-10.md)
+then retained all 1,088 passes and two ignored cases with verified unoptimized
+assertion/overflow settings and a 1.03 GiB target; its cache-mismatched timings
+are not a speedup comparison. Installed wheels and default profiles stayed fixed.
 
 Repository identity was verified as public `YotsuBotfds/Chronicler`, GitHub ID
 `1187468861`, with existing owner push permission. Recovery uses
