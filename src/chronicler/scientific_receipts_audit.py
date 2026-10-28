@@ -102,7 +102,8 @@ class ScientificReceiptsAudit:
             for rows in self.a.events.values():
                 for event in rows:
                     turn = integer(event.get("turn"))
-                    if turn is not None and event.get("event_type") in EVENT_KINDS:
+                    kind = event.get("event_type")
+                    if turn is not None and isinstance(kind, str) and kind in EVENT_KINDS:
                         self.events_by_turn.setdefault(turn, []).append(event)
         if not self.a.event_complete:
             self.out["funding_events"] = self.out["evidence_receipt_events"] = None
@@ -244,13 +245,19 @@ class ScientificReceiptsAudit:
             self.out["costs_attached_to_resolved_trials"] += cost
             parent = integer(row.get("parent"))
             self.out["resolved_replication_receipts"] += int(parent is not None and parent >= 0)
+            measurement = None
             if status == "completed":
                 good_outputs = self.quantities(row, ("control_output", "treatment_output", "observed_control", "observed_treatment"), source, tid)
                 informative = row.get("informative")
+                if good_outputs:
+                    measurement = {key: row[key] for key in ("control_output", "treatment_output", "observed_control", "observed_treatment")}
+                    measurement.update(informative=informative if type(informative) is bool else None,
+                                       observed_support=row.get("supports") if type(row.get("supports")) is bool else None)
                 if type(informative) is not bool or (good_outputs and informative != (row["control_output"] > 0 and row["observed_control"] > 0)):
                     self.finding("informative_flag_mismatch", source, "Informative status disagrees with positive physical/comparator observations.", tid)
                 threshold = number(claim.get("threshold")) if claim is not None else None
-                if good_outputs and informative is True and threshold is not None:
+                if (good_outputs and informative is True and threshold is not None
+                        and row["control_output"] > 0 and row["observed_control"] > 0):
                     supports = (row["observed_treatment"] - row["observed_control"]) / row["observed_control"] >= threshold
                     good = type(row.get("supports")) is bool and row["supports"] == supports
                     self.check("support_arithmetic", good)
@@ -270,6 +277,7 @@ class ScientificReceiptsAudit:
                     self.finding("missing_dependence_group", source, "Completed trial lacks its declared dependence group.", tid, "warning")
             self.detail("resolved_trial_details", {"id": tid, "recorded_span_start": self.span_start,
                 "claim": cid, "seat": integer(row.get("seat")),
+                "recipe": self.a.label(claim.get("recipe", "")), "archived_measurement": measurement,
                 "payer": integer(row.get("payer")), "funded_turn": funded, "planned_completion_turn": planned,
                 "resolved_turn": resolved, "status": status, "cost": cost if cost_ok else None,
                 "parent": parent, "funded_event_id": self.a.label(row.get("funded_event_id", "")),

@@ -72,6 +72,8 @@ def test_paid_measurement_archive_and_current_policy_are_separate(science_bundle
     assert row['belief_details'][-1]['last_used_receipt_turn'] is None
     assert row['publication_rules_observed']==['current-context-v1']
     assert row['unique_declared_dependence_groups']==1
+    assert row['resolved_trial_details'][0]['archived_measurement']['observed_support'] is True
+    assert row['resolved_trial_details'][0]['archived_measurement']['control_output']==10
     assert '<then>' not in render_markdown(report)
     assert any('not certified independent' in s for s in report['unobservable'])
 
@@ -170,6 +172,21 @@ def test_uninformative_arm_allows_unequal_noisy_observations(science_bundle):
     for t in range(4):section(science_bundle,t)['controls']['uninformative_tests']=True
     report=audit_bundle(science_bundle)
     assert report['finding_counts']=={'error':0,'warning':0}
+
+
+def test_claimed_informative_zero_comparator_is_diagnostic_not_division(science_bundle):
+    row=section(science_bundle,1)['trials_resolved'][0]
+    row.update(informative=True,observed_control=0)
+    result=audit_bundle(science_bundle)
+    assert 'informative_flag_mismatch' in codes(result)
+    json.dumps(result,allow_nan=False)
+
+
+@pytest.mark.parametrize('kind',[[],{}])
+def test_unrelated_unhashable_event_kind_does_not_crash_science_index(science_bundle,kind):
+    science_bundle['events_timeline'].append(dict(event_id='unrelated',turn=0,event_type=kind))
+    result=audit_bundle(science_bundle)
+    assert result['finding_counts']=={'error':0,'warning':0}
 
 
 def test_counters_do_not_bridge_unrecorded_spans(science_bundle):

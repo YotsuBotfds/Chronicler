@@ -43,6 +43,9 @@ belief probability/group bounds; the neutral prior with zero policy-visible
 groups; and one treasury unit per paid seat split whose shares sum to one.
 Repeated prior resolution rows are diagnostic, rather than new trials. Repeated
 proposition summaries are legitimate persistence.
+Bounded trial details show the recorded physical diagnostic outputs separately
+from noisy observations and their support verdict. They are frozen local model
+diagnostics, not realized harvested goods or estimated policy efficacy.
 
 Across consecutive valid snapshots it checks cumulative monotonicity and
 reconciles new status totals, effort expenditure, funding events and evidence

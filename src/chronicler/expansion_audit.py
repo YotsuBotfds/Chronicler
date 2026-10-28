@@ -815,6 +815,9 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                   f"actually {_md(row['status'])} at {_md(row['resolved_turn'])}; "
                   f"{_md(row['cost'])} treasury paid at funding. Recorded source {_md(row['source_data'])}, "
                   f"declared dependence group {_md(row['declared_dependence_group'])}."]
+        if row.get("archived_measurement") is not None:
+            lines += [f"  Archived {_md(row['recipe'])} diagnostic outputs and noisy observations: "
+                      f"{_md(row['archived_measurement'])}; these are not realized harvest gains or a policy efficacy estimate."]
     lines += ["", "## Findings", ""]
     lines += [f"- **{_md(f['severity'])} / {_md(f['code'])}**, {_md(f['system'])}, "
               f"turn {_md(f['source_turn'])}, ID {_md(f['record_id'])}: {_md(f['detail'])}"
