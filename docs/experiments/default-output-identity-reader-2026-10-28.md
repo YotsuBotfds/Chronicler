@@ -1,6 +1,7 @@
 # Prospective reader of the completed default export artifact — 2026-10-28
 
-Status: DRAFT; no reader execution and no active reader workflow. This fixes a
+Status at activation: source-reviewed; no reader execution yet. The separate
+reader workflow runs its 18 contract tests before extracting the artifact. This fixes a
 reader procedure before extracting or reinspecting the artifact. It is not a
 preregistration of the already completed simulations: their positive 18-case
 summary and the pins below are already known. No new worlds, simulation turns,

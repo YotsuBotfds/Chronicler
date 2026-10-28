@@ -1,0 +1,91 @@
+name: Reinspect completed default output identity
+
+on:
+  push:
+    branches: [lead/cloud-identity-reader-20261028]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: default-output-identity-reader-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  artifact-reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONNOUSERSITE: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Set external reader paths
+        shell: bash
+        run: |
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/default-identity-reader-env" >> "$GITHUB_ENV"
+          echo "READER_OUTPUT=$RUNNER_TEMP/default-identity-reader-output" >> "$GITHUB_ENV"
+          echo "READER_TEST_LOG=$RUNNER_TEMP/default-identity-reader-contracts.txt" >> "$GITHUB_ENV"
+      - name: Check out reader controls
+        uses: actions/checkout@v4
+        with:
+          path: reader
+          persist-credentials: false
+      - name: Check out frozen original controls
+        uses: actions/checkout@v4
+        with:
+          ref: db7ec48b738fa841f1b951c3ae810aa121ef1918
+          path: original-control
+          persist-credentials: false
+      - name: Check out frozen baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 2f9d618b70f3304c02dcaeef12996b4a99e074c0
+          path: baseline
+          persist-credentials: false
+      - name: Check out frozen candidate
+        uses: actions/checkout@v4
+        with:
+          ref: d0281e5f57c508f27cea1676f36e0e6ed1225c9d
+          path: candidate
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run pure reader contract checks
+        shell: bash
+        run: |
+          python -m unittest discover -s reader/tests -p test_default_output_identity_reader.py -v 2>&1 | tee "$READER_TEST_LOG"
+      - name: Create fresh candidate-locked environment without native extension
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project candidate --check
+          uv sync --project candidate --frozen --no-dev --no-install-project --python "$(command -v python)"
+      - name: Reinspect only the pinned completed artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/candidate/src" \
+          "$UV_PROJECT_ENVIRONMENT/bin/python" reader/scripts/default_output_identity_reader.py \
+            --control-root "$GITHUB_WORKSPACE/original-control" \
+            --baseline-root "$GITHUB_WORKSPACE/baseline" \
+            --candidate-root "$GITHUB_WORKSPACE/candidate" \
+            --output "$READER_OUTPUT" --download
+      - name: Retain lightweight reader evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: default-output-identity-reader-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/default-identity-reader-output/reader-result.json
+            ${{ runner.temp }}/default-identity-reader-output/compare.log
+            ${{ runner.temp }}/default-identity-reader-contracts.txt
+          if-no-files-found: warn
+          retention-days: 30
