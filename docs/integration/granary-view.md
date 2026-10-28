@@ -90,11 +90,18 @@ record rather than claiming no debt.
 - Tests cover read-only/copy isolation, stale flow suppression, ownership
   versus control, disabled/dormant field omission, v6/static/live/Batch Lab/
   reconnect preservation, unknown historical gaps and as-of-turn rendering.
-- Focused viewer history, transport and component checks: 25 passed; lint and
-  production build passed. The first full viewer run passed 465 tests and hit
-  the existing 5-second timeout in the exhaustive `bundleIndex` systems and
-  movements fixture tests during concurrent Rust compilation. No test timeout
-  or source was changed to address host contention; quiet integrated rerun
-  remains a release check.
+- Focused viewer history, transport and component checks: 25 passed. The first
+  full run hit the existing 5-second timeout in exhaustive index comparisons
+  under host contention. Those comparisons now run in bounded turn ranges,
+  preserving their entire domains, assertions and the default timeout; see
+  [viewer parity checks](../performance/viewer-parity-tests.md). The full
+  viewer subsequently passed 621 tests across 60 files. Integrated index
+  checks passed 168 tests; lint and the TypeScript/Vite production build passed.
+- Production-browser smoke with Chromium at 1440 px and 390 px verified real
+  35-turn hybrid granary data while scrubbing turns 1, 18, 35 and back to 2.
+  Stocks, targets and keepers matched each selected snapshot. Missing records
+  remained unknown, and legacy bundles never used final-world granaries as
+  history. No console/page errors or horizontal page overflow; narrow tables
+  scroll within their containers.
 
 No calibration gate is claimed by these observation-only changes.
