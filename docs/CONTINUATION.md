@@ -44,8 +44,10 @@ integration before combining those histories.
 
 The [GitHub continuation record](integration/cloud-continuation-2026-10-28.md)
 tracks the isolated artifact-reader correction, faction-history optimization,
-community-capacity diagnostic and validation preflight. Its later code changes
-require their own CI result; the earlier published result does not cover them.
+community-capacity diagnostic and validation preflight. All six Actions jobs
+passed at exact code source `d0281e5f`; the [CI record](integration/github-ci-d028-2026-10-28.md)
+keeps native/no-native, offline, Rust and viewer evidence separate from the
+inaccessible newer local research work and the unexecuted export-parity draft.
 
 ## Source standing
 

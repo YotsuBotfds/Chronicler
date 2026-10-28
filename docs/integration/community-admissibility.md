@@ -6,7 +6,7 @@ Run the detached reader against an existing validation report:
 python -m chronicler.community_admissibility path/to/validation_report.json
 ```
 
-It reads at most 64 MiB, emits JSON on stdout with the input SHA-256, and
+It caps input at 64 MiB, emits JSON on stdout with the input SHA-256, and
 writes no files. It invokes neither simulation nor oracle detection.
 The hash identifies the bytes read; it does not independently verify provenance.
 

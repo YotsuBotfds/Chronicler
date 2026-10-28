@@ -1,0 +1,99 @@
+{
+  "source_commit": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+  "branch": "lead/cloud-continuation-20261028",
+  "run_id": 40782783254,
+  "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40782783254",
+  "scope": "Published cloud continuation only; excludes inaccessible local research-agenda integration.",
+  "lanes": {
+    "offline": {
+      "conclusion": "success",
+      "job_id": 123148383721,
+      "chunks": 29,
+      "passed": 3697,
+      "skipped": 65,
+      "failed": 0,
+      "seconds": 127.5,
+      "chunk_limit_seconds": 110,
+      "slowest_chunk": {
+        "name": "systems-2",
+        "seconds": 21.4
+      }
+    },
+    "python_without_native": {
+      "conclusion": "success",
+      "job_id": 123148383879,
+      "passed": 7486,
+      "skipped": 306,
+      "successful_subtests": 526,
+      "seconds": 374.8
+    },
+    "rust": {
+      "conclusion": "success",
+      "job_id": 123148383726,
+      "passed": 1088,
+      "ignored": 2,
+      "failed": 0,
+      "test_summaries": 37
+    },
+    "viewer": {
+      "conclusion": "success",
+      "job_id": 123148383690,
+      "passed": 703,
+      "test_files": 67,
+      "lint": "success",
+      "build": "success"
+    },
+    "python_native": {
+      "conclusion": "success",
+      "job_id": 123148383504,
+      "passed": 7800,
+      "skipped": 6,
+      "successful_subtests": 526,
+      "seconds": 655.82
+    },
+    "combined_native": {
+      "conclusion": "success",
+      "job_id": 123154190364
+    }
+  },
+  "limitations": [
+    "Successful subtests are separate from parent tests.",
+    "No population gate or performance acceptance is implied.",
+    "The new output-identity protocol remains unexecuted.",
+    "The workspace is unavailable; original local work is not overwritten.",
+    "Artifact digests are GitHub-reported; ZIP bytes and JUnit contents were not independently rehashed or recounted during the workspace outage."
+  ],
+  "conclusion": "success",
+  "created_at": "2026-10-28T22:48:43Z",
+  "completed_by": "2026-10-28T23:02:57Z",
+  "artifacts": [
+    {
+      "id": 12858492130,
+      "name": "python-native-d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "bytes": 133807,
+      "github_reported_digest": "sha256:e045c31693155bb32d38d4952d7b53ec9c529fd89421435d242c5a6f08bc820c",
+      "expires_at": "2026-11-11T23:02:42Z"
+    },
+    {
+      "id": 12858131316,
+      "name": "rust-d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "bytes": 516,
+      "github_reported_digest": "sha256:4a5b692985b4c93c06063b85def756b8d7ee2af68d7dd7d5c011dd53e87cff54",
+      "expires_at": "2026-11-11T22:49:31Z"
+    },
+    {
+      "id": 12857957732,
+      "name": "python-no-rust-d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "bytes": 135280,
+      "github_reported_digest": "sha256:8e8d855f5b6dbd3d40cc8d194cd6bfd40b43cd80c7d71c5e0f49957f643dcb6d",
+      "expires_at": "2026-11-11T22:55:12Z"
+    },
+    {
+      "id": 12857957089,
+      "name": "python-offline-d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "bytes": 38833,
+      "github_reported_digest": "sha256:a6ea20ae56eb80306461efcb300383c8974e2452d0c906c821782766590fb008",
+      "expires_at": "2026-11-11T22:51:00Z"
+    }
+  ]
+}

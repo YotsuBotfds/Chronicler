@@ -44,3 +44,7 @@ Portable cases are registered individually in a new `diagnostics` offline
 chunk. Each chunk retains its 110-second limit. Full native/no-native Python,
 Rust and viewer lanes remain independent. Local execution is unavailable;
 pending remote checks must not be described as passed.
+
+All six Actions jobs subsequently passed at exact code source `d0281e5f`.
+See [the source-qualified CI record](github-ci-d028-2026-10-28.md).
+The separate output-identity draft remains unexecuted.
