@@ -67,6 +67,31 @@ An absent worker with no terminal receipt is interrupted, never passing. A
 subsequent attempt starts the full lane in a new directory. There is no automatic
 acceptance of partial tests, seed outputs, or a previous lane's progress.
 
+## Cancellation before tests — prospective follow-up
+
+Registered on a separate branch from `c815c5f8`, before implementation or
+execution checks. `cancel-before-tests --output PATH --reason TEXT` will cancel
+only a verified owned Linux worker acknowledged at its `before_pytest` pause,
+with the matching live pause marker, no active child and no pytest log, JUnit or
+terminal result. It must verify request/copied-runner hashes, the launch record,
+PID boot/creation identity and exact worker command while holding the control
+lock. Unknown/reused/lost workers, another pause boundary, changed evidence and
+any sign that pytest began must be refused without signalling a process.
+
+Before sending SIGTERM through a verified pidfd, preserve a typed immutable
+cancellation intent containing the reason and hash-linked request, runner,
+launch, status and pause snapshots. A bounded verified exit observation can
+produce a distinct `cancelled_before_tests` terminal state with no pass and no
+test-failure classification. Failure to verify exit stays unknown; subsequent
+pause/resume must not release that worker into pytest. A cancellation is not a
+test result. Unsupported platforms refuse signalling; no PID-only fallback or
+running-test cancellation is added.
+
+Pure rejection-path checks and a real detached, start-paused tiny child will
+exercise this contract. OS/process checks stay outside the bounded offline
+selection. Existing worker result tuples remain compatible; active copied
+runners and the manually cancelled rejected-prototype lane remain unchanged.
+
 ## Verification registered before execution
 
 After the reserved quiet benchmark finishes, run focused tests covering:
