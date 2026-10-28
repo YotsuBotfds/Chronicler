@@ -16,9 +16,13 @@ occurrence and last outcome.
 
 The gathering runs after Phase-10 granary procurement closes its resource
 ledger, before the accumulator's keep flush. It reads a fresh native snapshot
-at that hook, buckets current adults by region once and selects at most 32
-lowest stable agent IDs per region. Children and agents in another region
-cannot attend. A birth origin, civ affinity, planned pilgrimage or historical
+at that hook, buckets eligible adults by region once and selects at most 32
+lowest stable agent IDs per region. **This slice includes only unnamed settled
+farmers, scholars and priests** (native occupations 0, 3 and 4). The snapshot
+does not expose merchant trip phase or deployed soldiers' availability; named
+characters also have Python pilgrimage/agenda travel. All merchants, soldiers
+and named agents are conservatively excluded. Children and agents in another
+region cannot attend. A birth origin, civ affinity, planned pilgrimage or historical
 migration is not evidence of presence. Selection favors older surviving IDs;
 the first slice does not model invitations, travel, representative sampling
 or an entire region's actual participation.

@@ -31,6 +31,7 @@ MAX_ATTENDEES = 32
 MAX_BOND_OPS = 8                # per gathering, not per attendee
 MAX_CONTACT_UNITS = 8           # per gathering, directed arrival source -> host
 ADULT_AGE = 18
+ELIGIBLE_OCCUPATIONS = frozenset({0, 3, 4})  # settled farmer/scholar/priest; see _presence
 FOOD_PER_ATTENDEE = 0.05        # grain consumed, additional to ordinary eating [CALIBRATE]
 KEEP_FOOD_TURNS = 2.0           # do not spend residents' near-term food buffer
 HOST_BASE_COST = 1              # real treasury units [CALIBRATE]
@@ -79,22 +80,31 @@ def _presence(world, bridge) -> dict[int, list[tuple[int, int]]]:
     if batch is None:
         return {}
     from chronicler.columnar import pylist, schema_names
-    required = ("id", "region", "age", "belief")
+    required = ("id", "region", "age", "belief", "occupation")
     if not all(k in schema_names(batch) for k in required):
-        raise ValueError("Harvest gathering snapshot requires id, region, age and belief")
+        raise ValueError("Harvest gathering snapshot requires id, region, age, belief and occupation")
+    # The canonical snapshot has no merchant trip phase or deployed-roster
+    # availability. Named characters also have Python pilgrimage/agenda travel
+    # that may diverge from their native region. Exclude all these categories
+    # rather than claiming their coarse pool region proves local availability.
+    named = set(getattr(bridge, "named_agents", {}))
+    for civ in world.civilizations:
+        if civ.leader.agent_id is not None:
+            named.add(civ.leader.agent_id)
+        named.update(gp.agent_id for gp in civ.great_persons if gp.agent_id is not None)
     # A small heap per region avoids sorting/copying every agent into a bucket.
     import heapq
     buckets: dict[int, list[tuple[int, int]]] = {}
     seen: set[int] = set()
     columns = [pylist(batch.column(k)) for k in required]
-    for aid, rid, age, belief in zip(*columns, strict=True):
+    for aid, rid, age, belief, occupation in zip(*columns, strict=True):
         if (any(v is None or isinstance(v, bool) or not isinstance(v, int)
-                for v in (aid, rid, age, belief))
+                for v in (aid, rid, age, belief, occupation))
                 or not 0 <= aid <= 0xFFFFFFFF or not 0 <= rid < len(world.regions)
-                or age < 0 or not 0 <= belief <= 255 or aid in seen):
+                or age < 0 or not 0 <= belief <= 255 or not 0 <= occupation <= 4 or aid in seen):
             raise ValueError("Harvest gathering snapshot has invalid or duplicate agent rows")
         seen.add(aid)
-        if age < ADULT_AGE:
+        if age < ADULT_AGE or occupation not in ELIGIBLE_OCCUPATIONS or aid in named:
             continue
         bucket = buckets.setdefault(rid, [])
         row = (-aid, belief)

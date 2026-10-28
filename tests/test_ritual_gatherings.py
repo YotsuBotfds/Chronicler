@@ -24,6 +24,7 @@ def _snapshot(n=40, *, rid=RID, start=1, beliefs=None, age=30):
         "region": pa.array([rid] * n, type=pa.uint16()),
         "age": pa.array([age] * n, type=pa.uint16()),
         "belief": pa.array(beliefs if beliefs is not None else [255] * n, type=pa.uint8()),
+        "occupation": pa.array([0] * n, type=pa.uint8()),
     })
 
 
@@ -43,6 +44,7 @@ class Bridge:
         self.committed = committed
         self.reads = self.graph_reads = self.commitment_reads = 0
         self.ops = []
+        self.named_agents = {}
 
     def get_snapshot(self):
         self.reads += 1
@@ -164,6 +166,18 @@ def test_attendance_is_current_local_alive_adults_no_birth_origin():
     assert _outcome(w).attendee_ids == [50, 51, 52, 53]
     assert _outcome(w, 3).attendee_ids == [90, 91, 92, 93, 94]
     assert all(op["agent_a"] >= 50 for op in bridge.ops)
+
+
+def test_travel_ambiguous_occupations_and_named_characters_cannot_attend():
+    w = _world()
+    batch = _snapshot(8)
+    batch = batch.set_column(batch.schema.get_field_index("occupation"), "occupation",
+                             pa.array([0, 1, 2, 3, 4, 0, 3, 4], type=pa.uint8()))
+    bridge = Bridge(w, batch)
+    bridge.named_agents = {6: "a pilgrim"}
+    w.civilizations[0].leader.agent_id = 8
+    _tick(w, bridge)
+    assert _outcome(w).attendee_ids == [1, 4, 5, 7]
 
 
 @pytest.mark.parametrize("reason", ["shortage", "occupied", "food", "funds", "unmeasured_food", "no_host"])

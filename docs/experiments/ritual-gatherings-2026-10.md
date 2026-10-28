@@ -38,7 +38,10 @@ the native simulation's independent friendship formation.
 Mechanism acceptance requires exact stock/fund receipts, no population change,
 no over-budget treasury spend after preceding keep mutations, unspent merchant
 commitments, no expenses/exposure/bonds on cancellation, ≤32 actual local adult
-IDs, ≤8 disjoint eligible bond attempts and ≤8 contact units per occurrence.
+IDs from unnamed farmer/scholar/priest occupations, ≤8 disjoint eligible bond
+attempts and ≤8 contact units per occurrence. Merchants, soldiers and named
+characters are excluded because the snapshot cannot establish their travel
+availability at the ceremony; the first slice makes no attendance claim for them.
 Row order cannot change the selection. Conquest and faith-slot reuse cannot
 reset calendar identity. Test turn 7/8/9 and 19/20/21, same-turn re-entry,
 save/load and exact native checkpoint continuation. Contact pending inputs must
