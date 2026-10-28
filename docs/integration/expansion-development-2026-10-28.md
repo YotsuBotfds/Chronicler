@@ -255,10 +255,14 @@ the compiled extension was absent, and the 7,637 serialized parent cases plus
 526 successful subtests reconcile with JUnit's declared 8,163. External receipt
 `no-native-full-b257/result.json` SHA-256 is
 `6932dd36b08a45a4d675c0d09b01c2c904072f4e39a13be8c74a816029372e4e`.
-The separate native suite and updated 28-chunk offline selection at that exact
-source are still pending at this checkpoint. The completed native/full-Rust
-source remains `d051d7c0` with the receipt crate tree above. Later documentation
-does not expand these source boundaries.
+The same frozen source subsequently passed its full native Python suite:
+**7,645 passed, 6 skipped and 526 successful subtests**, in 1,051.09 seconds.
+Source/runtime identities and extension `fb20dbc8` matched before/after, with
+zero failures/errors and direct typed acceptance. The [complete readout](python-qualification-b257-2026-10-28.md)
+retains both lanes' source, native, runner and artifact identities. The updated
+28-chunk offline selection remains separate. Full Rust qualification applies
+to the unchanged receipt crate tree above; later documentation does not expand
+these source boundaries.
 
 The qualification supervisor now supports a separately typed, identity-checked
 cancel-before-tests outcome. It refuses cancellation once pytest has started
