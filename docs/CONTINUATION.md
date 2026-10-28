@@ -2,6 +2,10 @@
 
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
+The separate [parent-extra archive tool](integration/parent-extra-archive.md)
+copies one finalized parent's state/memory files into verified gzip and performs
+an actual byte-exact restore. Its bounded synthetic checks do not archive live
+cohorts or authorize raw deletion; validation inputs remain raw and untouched.
 It stays separate from main. The household-journal experiment is also kept
 on its own review branch: its phase gains did not meet whole-workload
 acceptance, so its Rust code was not integrated. The

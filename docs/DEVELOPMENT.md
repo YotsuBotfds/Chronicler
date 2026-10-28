@@ -216,3 +216,13 @@ evidence. It refuses a running pytest process; cancellation is never a test pass
 The full focused suite requires local Git and real subprocesses; its OS/process
 cases remain outside the bounded offline guard. Registered pure rejection and
 parser cases run in the existing `qualification-tools` chunk.
+
+## Lossless copies of parent extras
+
+`scripts/archive_parent_extras.py` archives one finalized parent's narrowly
+allowlisted state/memory JSON into a fresh external destination, performs an
+actual restore into another fresh directory, and verifies byte hashes. Explicit
+manifest/index hashes, input/output bounds and unchanged protected validation
+inputs are required. See [the storage protocol](integration/parent-extra-archive.md).
+There is no raw deletion API. Wait for the official gate and its forks to finish
+before archiving a cohort; focused synthetic tests do not qualify a live cohort.
