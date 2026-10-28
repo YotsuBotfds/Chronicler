@@ -49,6 +49,7 @@ def _load_source(root):
     _LOADED_SOURCE = True
 
 MANIFEST = "expansion_experiment_manifest.json"
+WORKER_IDENTITY_SCHEMA_VERSION = 2
 ARMS = {
     "harvest_forecasts": {"normal": {"policy": "normal"}, "withheld": {"policy": "withhold"},
                           "shuffled": {"policy": "shuffle"}},
@@ -139,32 +140,67 @@ def run_job(path: Path):
     from chronicler.main import _adopt_checkpoint_args, _build_parser, execute_run
     parser = _build_parser()
     args = parser.parse_args(job["simulation_args"])
-    checkpoint = None
-    if args.resume:
-        parent = job["request"].get("parent_checkpoint")
-        if (not isinstance(parent, dict) or not isinstance(parent.get("path"), str)
-                or Path(parent["path"]).resolve() != Path(args.resume).resolve()):
-            raise ValueError("experiment request parent differs from the checkpoint being resumed")
-        from chronicler.run_checkpoint import read_checkpoint
-        checkpoint = read_checkpoint(Path(args.resume))
-        conflicts = _adopt_checkpoint_args(parser, args, checkpoint)
-        if conflicts:
-            raise ValueError("; ".join(conflicts))
-    before = {"source": source_identity(), "native": native_identity()}
+    before = {"source": source_identity(), "native": native_identity(), "environment": environment_identity()}
+    runner_before = file_sha256(Path(__file__))
     # No supplied world: normal fresh-world defaults must run before controls.
     try:
+        checkpoint = None
+        if args.resume:
+            parent = job["request"].get("parent_checkpoint")
+            if (not isinstance(parent, dict) or not isinstance(parent.get("path"), str)
+                    or Path(parent["path"]).resolve() != Path(args.resume).resolve()):
+                raise ValueError("experiment request parent differs from the checkpoint being resumed")
+            from chronicler.run_checkpoint import read_checkpoint
+            checkpoint = read_checkpoint(Path(args.resume))
+            conflicts = _adopt_checkpoint_args(parser, args, checkpoint)
+            if conflicts:
+                raise ValueError("; ".join(conflicts))
         execute_run(args, checkpoint_resume=checkpoint, expansion_experiment=job["request"])
     finally:
-        after = {"source": source_identity(), "native": native_identity()}
-        atomic_write_json(path.parent / "worker_identity.json", {"before": before, "after": after})
-    if _identity_key(before) != _identity_key(after):
-        raise RuntimeError("source/native identity changed during a simulation worker")
+        after = {"source": source_identity(), "native": native_identity(), "environment": environment_identity()}
+        runner_after = file_sha256(Path(__file__))
+        environment_stable = before["environment"] == after["environment"]
+        stable = (_identity_key(before) == _identity_key(after) and environment_stable
+                  and runner_before == runner_after)
+        atomic_write_json(path.parent / "worker_identity.json", {
+            "schema_version": WORKER_IDENTITY_SCHEMA_VERSION,
+            "before": before, "after": after,
+            "environment_stable": environment_stable, "identities_stable": stable,
+            "runner_sha256": runner_before, "runner_sha256_after": runner_after,
+        })
+    if not stable:
+        raise RuntimeError("source/native/worker environment or external runner identity changed during a simulation worker")
 
 
 def _identity_key(receipt):
     source, native = receipt["source"], receipt["native"]
     return (source.get("git_sha"), source.get("package_digest"),
             native.get("status"), native.get("sha256"))
+
+
+def _verify_worker_identity(path, simulation_receipt):
+    """Verify actual child observations; the orchestration environment differs.
+
+    Never infer an old worker's environment from a checkpoint or the parent
+    process. Older evidence remains readable by its own producer contract.
+    """
+    worker = strict_json_loads(path.read_text(), label="worker identity")
+    if (not isinstance(worker, dict) or worker.get("schema_version") != WORKER_IDENTITY_SCHEMA_VERSION
+            or worker.get("environment_stable") is not True or worker.get("identities_stable") is not True):
+        raise RuntimeError("worker identity receipt is missing, unsupported or unstable")
+    before, after = worker.get("before"), worker.get("after")
+    if (not isinstance(before, dict) or not isinstance(after, dict)
+            or not isinstance(before.get("environment"), dict) or not before["environment"]
+            or not isinstance(after.get("environment"), dict) or not after["environment"]
+            or not all(isinstance(row.get(key), dict) for row in (before, after) for key in ("source", "native"))):
+        raise RuntimeError("worker identity receipt lacks actual source/native/environment observations")
+    if (before["environment"] != after["environment"]
+            or _identity_key(before) != _identity_key(after)
+            or _identity_key(before) != _identity_key(simulation_receipt)
+            or worker.get("runner_sha256") != file_sha256(Path(__file__))
+            or worker.get("runner_sha256_after") != worker.get("runner_sha256")):
+        raise RuntimeError("worker source/native/environment or external runner identity differs")
+    return worker
 
 
 def _worker_env():
@@ -214,7 +250,9 @@ def _execute(path, seed, horizon, args, request, env):
                 or not isinstance(receipt.get("controls_after"), dict)
                 or set(receipt["controls_after"]) != set(CONTROL_FIELDS[request["feature"]])):
             raise RuntimeError("simulation bundle has no matching experiment receipt")
+        _verify_worker_identity(path / "worker_identity.json", receipt)
         record["receipt"] = receipt
+        record["worker_identity_verified"] = True
         record["status"] = "complete"
     except Exception as exc:
         record["error"] = {"type": type(exc).__name__, "message": str(exc)}
@@ -308,6 +346,7 @@ def run_experiment(args):
     env = _worker_env()
     source_before, native_before = source_identity(), native_identity()
     manifest = {"kind": "chronicler-expansion-experiment", "schema_version": 1, "status": "running",
+                "worker_identity_schema_version": WORKER_IDENTITY_SCHEMA_VERSION,
                 "started_at": _utc(), "config": config, "workers": min(args.workers, len(seeds)),
                 "source_root": str(_SOURCE_ROOT), "source": source_before, "native": native_before,
                 "environment": environment_identity(),

@@ -121,6 +121,16 @@ Failed seeds remain visible; they are not dropped from the cohort. An intact
 manifest marked `complete` means its declared executions completed under the
 recorded identities, not that their effects passed a statistical threshold.
 
+Worker-identity schema 2 additionally measures `before.environment` prior to
+checkpoint restoration and `after.environment` even when execution fails.
+The worker and its parent verify actual environment and external-runner
+stability alongside source/native identity. The environment is not copied
+from a parent/checkpoint header; a one-thread worker can intentionally differ
+from its orchestrator. The exact [prospective metadata amendment](../experiments/scientific-claims-worker-environment-amendment-2026-10.md)
+precedes the first natural science runs and does not change their frozen
+simulation source, controls or horizon. Earlier 24-run artifacts are retained
+under their original producer contract, without invented worker metadata.
+
 The small development examples above test execution, exposure and accounting.
 They cannot establish population benefit. Health cohorts must be selected at
 the common fork and censored at death; future injury or survival cannot select

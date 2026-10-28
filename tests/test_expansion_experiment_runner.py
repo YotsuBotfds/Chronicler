@@ -1,6 +1,7 @@
 """Evidence-harness failures, parent sharing and fresh-configuration boundary."""
 from __future__ import annotations
 
+from copy import deepcopy
 import importlib.util
 import json
 from pathlib import Path
@@ -82,6 +83,51 @@ def test_worker_calls_real_entrypoint_without_supplying_a_preconfigured_world(tm
     assert args.agents == "hybrid" and args.simulate_only is True
     identity = json.loads((directory / "worker_identity.json").read_text())
     assert runner._identity_key(identity["before"]) == runner._identity_key(identity["after"])
+    assert identity["schema_version"] == 2
+    assert identity["before"]["environment"] == identity["after"]["environment"] == runner.environment_identity()
+    assert identity["environment_stable"] is identity["identities_stable"] is True
+    assert identity["runner_sha256"] == identity["runner_sha256_after"] == runner.file_sha256(Path(runner.__file__))
+
+
+@pytest.mark.parametrize("change", ["thread_env", "packages", "python", "affinity_cpu_count"])
+def test_actual_worker_environment_changes_fail_and_remain_in_receipt(tmp_path, monkeypatch, change):
+    runner = _runner()
+    from chronicler import main
+    config = {"feature": "scientific_claims", "worldgen": "template", "regions": 8, "civs": 4}
+    job = tmp_path / "job.json"
+    job.write_text(json.dumps({"source_root": str(ROOT), "simulation_args": runner._simulation_args(
+        42, 60, tmp_path, config), "request": {"feature": "scientific_claims", "arm": "parent"}}))
+    before = runner.environment_identity()
+    after = deepcopy(before)
+    after[change] = {"changed": "observed"} if change in ("thread_env", "packages") else "changed"
+    environments = iter((before, after))
+    monkeypatch.setattr(runner, "environment_identity", lambda: next(environments))
+    monkeypatch.setattr(main, "execute_run", lambda *a, **kw: None)
+    with pytest.raises(RuntimeError, match="worker environment"):
+        runner.run_job(job)
+    saved = json.loads((tmp_path / "worker_identity.json").read_text())
+    assert saved["before"]["environment"] == before and saved["after"]["environment"] == after
+    assert saved["environment_stable"] is saved["identities_stable"] is False
+    assert runner._identity_key(saved["before"]) == runner._identity_key(saved["after"])
+
+
+def test_failed_worker_retains_measured_environment_without_hiding_original_error(tmp_path, monkeypatch):
+    runner = _runner()
+    from chronicler import main
+    config = {"feature": "scientific_claims", "worldgen": "template", "regions": 8, "civs": 4}
+    job = tmp_path / "job.json"
+    job.write_text(json.dumps({"source_root": str(ROOT), "simulation_args": runner._simulation_args(
+        42, 60, tmp_path, config), "request": {"feature": "scientific_claims", "arm": "parent"}}))
+
+    def fail(*a, **kw):
+        raise ValueError("original simulation failure")
+
+    monkeypatch.setattr(main, "execute_run", fail)
+    with pytest.raises(ValueError, match="original simulation failure"):
+        runner.run_job(job)
+    saved = json.loads((tmp_path / "worker_identity.json").read_text())
+    assert saved["before"]["environment"] == saved["after"]["environment"] == runner.environment_identity()
+    assert saved["environment_stable"] is saved["identities_stable"] is True
 
 
 def test_all_arms_reference_one_parent_and_keep_their_full_controls(tmp_path, monkeypatch):
@@ -212,6 +258,50 @@ def test_failed_or_truncated_workers_are_hashed_failures_not_completed_runs(
     assert row["command"][-2] == "--job"
     assert "job.json" in row["files"] and "worker.log" in row["files"]
     assert "receipt" not in row
+
+
+@pytest.mark.parametrize("defect", [None, "missing", "missing_environment", "environment_drift",
+                                   "source_drift", "native_drift", "runner_drift", "false_stability"])
+def test_completed_workers_require_actual_hashed_stable_environment_receipts(tmp_path, monkeypatch, defect):
+    runner = _runner()
+    request = {"arm": "normal", "feature": "scientific_claims"}
+    identity = {"source": runner.source_identity(), "native": runner.native_identity(),
+                "environment": runner.environment_identity()}
+    receipt = {"source": identity["source"], "native": identity["native"], **request,
+               "controls_after": runner.ARMS["scientific_claims"]["normal"]}
+    worker = {"schema_version": 2, "before": deepcopy(identity), "after": deepcopy(identity),
+              "environment_stable": True, "identities_stable": True,
+              "runner_sha256": runner.file_sha256(Path(runner.__file__)),
+              "runner_sha256_after": runner.file_sha256(Path(runner.__file__))}
+    if defect == "missing_environment":
+        worker["before"].pop("environment")
+    elif defect == "environment_drift":
+        worker["after"]["environment"]["thread_env"] = {"OPENBLAS_NUM_THREADS": "8"}
+    elif defect == "source_drift":
+        worker["after"]["source"]["package_digest"] = "changed"
+    elif defect == "native_drift":
+        worker["after"]["native"]["sha256"] = "changed"
+    elif defect == "runner_drift":
+        worker["runner_sha256_after"] = "changed"
+    elif defect == "false_stability":
+        worker["environment_stable"] = False
+
+    def child(command, **kwargs):
+        path = Path(command[-1]).parent
+        (path / "chronicle_bundle.json").write_text(json.dumps({
+            "world_state": {"turn": 60}, "metadata": {"seed": 42, "expansion_experiment": receipt}}))
+        if defect != "missing":
+            (path / "worker_identity.json").write_text(json.dumps(worker))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner.subprocess, "run", child)
+    row = runner._execute(tmp_path / "worker", 42, 60, [], request, {})
+    assert row["status"] == ("complete" if defect is None else "failed")
+    if defect is None:
+        assert row["worker_identity_verified"] is True
+        assert "worker_identity.json" in row["files"]
+    else:
+        assert "worker_identity_verified" not in row and "receipt" not in row
 
 
 def test_source_changes_cannot_be_labelled_a_completed_experiment(tmp_path, monkeypatch):
