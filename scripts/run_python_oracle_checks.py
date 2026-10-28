@@ -18,6 +18,23 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "diagnostics": [
+        "tests/test_community_admissibility.py::test_decomposes_saved_counters_without_changing_report_or_verdict",
+        "tests/test_community_admissibility.py::test_capacity_does_not_imply_region_share_pass",
+        "tests/test_community_admissibility.py::test_empty_exposure_never_becomes_a_pass",
+        "tests/test_community_admissibility.py::test_missing_legacy_future_or_skipped_evidence_is_unavailable",
+        "tests/test_community_admissibility.py::test_version_aliases_are_rejected",
+        "tests/test_community_admissibility.py::test_invalid_or_inconsistent_counters_fail_closed",
+        "tests/test_community_admissibility.py::test_report_cannot_claim_fewer_failures_than_mathematically_forced",
+        "tests/test_community_admissibility.py::test_malformed_known_structure_is_not_missing_evidence",
+        "tests/test_community_admissibility.py::test_spec_pass_cannot_contradict_recorded_share_failures",
+        "tests/test_artifact_io.py::test_strict_json_loads_rejects_numeric_overflow",
+        "tests/test_artifact_io.py::test_strict_json_loads_preserves_finite_numeric_semantics",
+        "tests/test_artifact_io.py::test_strict_json_loads_still_rejects_invalid_numeric_syntax",
+        "tests/test_factions.py::test_faction_history_queries_preserve_counts_and_resync",
+        "tests/test_factions.py::test_faction_history_ties_preserve_contender_order",
+        "tests/test_m53b_run_validation.py::test_main_rejects_unreadable_baseline_before_simulation",
+    ],
     "core": [
         "tests/test_adjacency.py",
         "tests/test_politics.py",
