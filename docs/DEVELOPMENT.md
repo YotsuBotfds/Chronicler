@@ -143,6 +143,19 @@ an older report gives `rebaseline_required`; arms of design 1 are still
 scored by methods 7 and 4. See `docs/integration/ablation-oracles.md` and
 `docs/integration/community-anchoring.md`.
 
+Community method 2 keeps method 1's result as its legacy component, which
+decides, and reports M53 oracle 1 as the spec states it as its spec
+component: communities found over friend, co-religionist and kin edges
+weighted by sentiment within a region (native bond codes from
+`chronicler.ffi_constants.BOND_TYPES`), judged by the spec's count, size
+and region-share criteria (`validation_gate.COMMUNITY_SPEC_REQUIRED`, off).
+Cohort method 6 is method 5 with those communities as the members of every
+component (observational, kin roots, placebo, community anchor). Both
+replace community method 1 and cohort method 5 in a comparison
+(`rebaseline_required`); `run_community_oracle(..., method_version=1)` and
+`run_cohort_oracle(..., method_version=5)` re-score the old methods. See
+`docs/integration/spec-communities.md`.
+
 `--community-anchoring` (default off) lets community ties hold agents
 back from moving (`docs/integration/community-anchoring.md`); the gate
 runner forwards it and then also forks the `community_anchor` arm.

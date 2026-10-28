@@ -40,6 +40,7 @@ The detection here (``detect_oracle1_communities``):
 from __future__ import annotations
 
 import statistics
+from array import array
 from collections import Counter, defaultdict
 
 from .ffi_constants import BOND_CO_RELIGIONIST, BOND_FRIEND, BOND_KIN
@@ -132,12 +133,12 @@ def detect_oracle1_communities(edges, regions: dict[int, int], memory_signatures
 # Snapshots of a seed run, indexed once per run
 # ---------------------------------------------------------------------------
 
-def _turn_rows(columns: dict | None) -> dict[int, list[int]]:
-    rows: dict[int, list[int]] = defaultdict(list)
+def _turn_rows(columns: dict | None) -> dict[int, array]:
+    rows: dict[int, array] = defaultdict(lambda: array("I"))
     if columns and columns.get("turn"):
         for index, turn in enumerate(columns["turn"]):
             rows[int(turn)].append(index)
-    return rows
+    return dict(rows)
 
 
 def _cache(run: dict) -> dict:
@@ -166,9 +167,11 @@ def oracle1_turns(run: dict) -> list[int]:
 
 
 def oracle1_snapshot(run: dict, turn: int) -> dict | None:
-    """``{"turn", "communities", "regions"}`` of one turn of a seed run (None
-    without a needs snapshot or a graph snapshot at that turn). ``regions``
-    maps every living agent to its region."""
+    """``{"turn", "communities", "community_regions", "region_population",
+    "living"}`` of one turn of a seed run (None without a needs snapshot or
+    a graph snapshot at that turn): the communities, the region of each,
+    the living agents of every region and of the world (the needs
+    sidecar's rows)."""
     cache = _cache(run)
     snapshots = cache["snapshots"]
     if turn in snapshots:
@@ -188,8 +191,15 @@ def oracle1_snapshot(run: dict, turn: int) -> dict | None:
     for i in cache["memories"].get(turn, ()):
         signatures[int(mem["agent_id"][i])].append(
             (int(mem["event_type"][i]), int(mem["memory_turn"][i]), int(mem["valence_sign"][i])))
-    snapshot = {"turn": turn, "communities": detect_oracle1_communities(edges, regions, signatures),
-                "regions": regions}
+    communities = detect_oracle1_communities(edges, regions, signatures)
+    snapshot = {
+        "turn": turn,
+        "communities": communities,
+        # Every edge joins one region, so each community has one.
+        "community_regions": [regions[min(community)] for community in communities],
+        "region_population": dict(Counter(regions.values())),
+        "living": len(regions),
+    }
     snapshots[turn] = snapshot
     return snapshot
 
@@ -261,13 +271,11 @@ def spec_component(seed_runs: list[dict]) -> dict:
             snapshot = oracle1_snapshot(run, turn)
             if snapshot is None:
                 continue
-            regions = snapshot["regions"]
-            population = Counter(regions.values())
+            population = snapshot["region_population"]
             communities = snapshot["communities"]
             counts.append(len(communities))
             members = 0
-            for community in communities:
-                region = regions[next(iter(community))]
+            for community, region in zip(communities, snapshot["community_regions"]):
                 share = len(community) / population[region]
                 sizes.append(len(community))
                 seed_sizes.append(len(community))
@@ -280,8 +288,8 @@ def spec_component(seed_runs: list[dict]) -> dict:
                 if population[region] >= ORACLE1_REGION_POPULATION_FOR_MIN_SIZE:
                     in_large_regions += 1
                 members += len(community)
-            if regions:
-                member_shares.append(members / len(regions))
+            if snapshot["living"]:
+                member_shares.append(members / snapshot["living"])
         if not counts:
             continue
         snapshot_total += len(counts)
