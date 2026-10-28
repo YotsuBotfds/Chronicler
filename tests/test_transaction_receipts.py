@@ -40,6 +40,63 @@ def test_disabled_does_not_call_native_or_change_rng_or_world():
     assert vars(world) == before and random.getstate() == rng
 
 
+def test_bridge_rejects_processed_journal_before_loading_fresh_native_pool(monkeypatch):
+    import chronicler.agent_bridge as bridge_module
+    world = _world()
+    _consume(world, [])
+    monkeypatch.setattr(bridge_module, "_load_agent_simulator_class",
+                        lambda: pytest.fail("fresh native pool must not be loaded"))
+    with pytest.raises(ValueError, match="exact native checkpoint"):
+        bridge_module.AgentBridge(world, mode="hybrid")
+
+
+@pytest.mark.parametrize("method", ["tick", "tick_agents"])
+@pytest.mark.parametrize("enabled", [True, False])
+def test_bridge_prepares_each_tick_and_captures_before_world_postprocessing(
+        monkeypatch, method, enabled):
+    import chronicler.agent_bridge as bridge_module
+    import chronicler.economy as economy
+    world = _world()
+    if not enabled:
+        T.set_transaction_receipts_enabled(world, False)
+    calls = []
+    batch = SimpleNamespace(to_pylist=lambda: [_row(0), _row(7)])
+    sim = SimpleNamespace(
+        configure_transaction_receipts=lambda *args: calls.append(("configure", args)),
+        set_merchant_route_graph=lambda batch: None,
+        tick=lambda turn, signals: calls.append(("native", turn)) or "events",
+        get_transaction_receipt_frame=lambda: (world.turn, 4096, 0, True, batch),
+    )
+    bridge = bridge_module.AgentBridge.__new__(bridge_module.AgentBridge)
+    bridge._sim, bridge._gini_by_civ, bridge._economy_result = sim, {}, None
+    bridge.sync_regions = lambda world: None
+    monkeypatch.setattr(economy, "build_merchant_route_graph", lambda world: None)
+    monkeypatch.setattr(bridge_module, "_city_route_graph", lambda world, batch: batch)
+    monkeypatch.setattr(bridge_module, "build_signals", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bridge_module, "_send_movement_table", lambda world, bridge: None)
+
+    def process(events, current, **kwargs):
+        assert events == "events"
+        assert calls == [("configure", (enabled, 4096)), ("native", world.turn)]
+        if enabled:
+            assert current.transaction_receipts.source_turn == world.turn
+            assert current.transaction_receipts.counters["observed_starts"] == 1
+        else:
+            assert current.transaction_receipts is None
+        return ["processed"]
+
+    bridge._process_tick_results = process
+    assert getattr(bridge, method)(world) == ["processed"]
+
+    def fail_tick(*args):
+        raise RuntimeError("native tick failed")
+
+    sim.tick = fail_tick
+    sim.get_transaction_receipt_frame = lambda: pytest.fail("failed tick must not be captured")
+    with pytest.raises(RuntimeError, match="native tick failed"):
+        getattr(bridge, method)(world)
+
+
 @pytest.mark.parametrize("mode", ["hybrid", "shadow", "demographics-only"])
 def test_supported_modes_and_explicit_mode_override(mode):
     world = _world()

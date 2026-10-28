@@ -140,3 +140,12 @@ hashes, state/schema hashes and comparison outputs under
 `/workspace/chronicler-transaction-evidence`. No receipt release wheel or full
 qualification gate has been run. Independent read-only review found no further
 blocker after the raw-state/fresh-pool identity guard was added.
+
+The shared bridge now checks that guard before loading a fresh native pool and
+prepares the recorder immediately before both native tick entrypoints. It
+captures only successful ticks, before world postprocessing. Preparation also
+runs while disabled so a previously enabled recorder is cleared. Five added
+Python bridge regressions cover both paths, disabled configuration and failed
+ticks; together with the health suite, 41 focused tests passed. These tests
+check the wiring with a controlled simulator; the fresh-debug bridge execution
+and release qualification remain separate checks.

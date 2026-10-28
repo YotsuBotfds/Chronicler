@@ -1146,6 +1146,9 @@ class AgentBridge:
         if getattr(world, "health_care", None) is not None:
             from chronicler.health_care import validate_fresh_health_pool
             validate_fresh_health_pool(world, mode=mode)
+        if getattr(world, "transaction_receipts", None) is not None:
+            from chronicler.transaction_receipts import validate_fresh_transaction_receipt_pool
+            validate_fresh_transaction_receipt_pool(world)
         AgentSimulator = _load_agent_simulator_class()
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         # Exact mode is the native default; only a non-default mode is sent,
@@ -1431,7 +1434,12 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         _send_movement_table(world, self)
+        from chronicler.transaction_receipts import (
+            capture_transaction_receipts, prepare_transaction_receipts,
+        )
+        prepare_transaction_receipts(world, self)
         agent_events = self._sim.tick(world.turn, signals)
+        capture_transaction_receipts(world, self)
         return self._process_tick_results(agent_events, world, death_output=death_output)
 
     def tick(
@@ -1457,7 +1465,12 @@ class AgentBridge:
         signals = build_signals(world, shocks=shocks, demands=demands, conquered=conquered,
                                 gini_by_civ=self._gini_by_civ, economy_result=self._economy_result)
         _send_movement_table(world, self)
+        from chronicler.transaction_receipts import (
+            capture_transaction_receipts, prepare_transaction_receipts,
+        )
+        prepare_transaction_receipts(world, self)
         agent_events = self._sim.tick(world.turn, signals)
+        capture_transaction_receipts(world, self)
         return self._process_tick_results(agent_events, world, death_output=death_output)
 
     def _process_tick_results(
