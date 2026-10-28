@@ -41,7 +41,7 @@ the [expansion development record](../../integration/expansion-development-2026-
 | Recurring gatherings | Bounded local attendance, real food/fund costs, dated actual-arrival contact and bond attempts; cost-only/contact/bond controls. | Wider-world effects and network outcomes. A bond attempt is not a formed bond; selected arrivals are not invented pilgrimages. |
 | Scientific claims | Paid contextual academy trials, delayed evidence, dependence accounting and evidence-driven paid technique effort; default off. | Natural-world informative/withheld/transmission/sham studies. Accounting groups are not certified independent experimental units. |
 | Metrology and loss cover | Bounded native cargo observations, voyage continuity and loss IDs, plus independent public-granary stock/payment receipts. Incomplete capture, virtual cargo, foreign treasury credits and domestic producer sinks are distinct. | Private cash, cargo title, general private settlement and loss ownership. The recorders alone cannot fund private inspection fees or insurance. |
-| Water power and firms | Source-audited design and labor/cash dependencies. | No production implementation; avoid adding output before labor and income reconcile. |
+| Water power and firms | Source-audited labor/cash dependencies and optional clamp-only city crafts capacity consumer; no active planner or extra output. | Authoritative workforce, funding and input ownership before workshop activation; discharge/head before water power. |
 | Domesticates | Source-audited draft-animal proposal. | No new cohort implementation; reconcile ownership, creation, fodder and pastoral accounting first. |
 
 The first four slices have development runs and historical inspectors.
@@ -59,6 +59,14 @@ pairs gave a noisy 1.146x median paired ratio (range 0.986–2.115x); final
 precleanup artifact footprint fell 44.6–48.6%. These workload-specific results
 do not establish simulation-tick or universal speedups. Oracle thresholds,
 horizons and the offline 110-second chunk limit are unchanged.
+
+A checkpoint-backed writer-cadence probe rejected sparse writes under the
+strict serialized-memory contract, despite matching physical continuations.
+Its profile did not justify treasury-projection or import-laziness changes.
+CI now overlaps Rust/native Python jobs behind the same combined gate, with
+validated cache/artifact wiring; remote elapsed-time benefit remains unmeasured.
+See the [development record](../../integration/expansion-development-2026-10-28.md)
+for exact offline/full-suite/default-identity source boundaries.
 
 ## Decisions before adding state
 

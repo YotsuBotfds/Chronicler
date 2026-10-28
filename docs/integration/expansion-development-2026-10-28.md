@@ -51,6 +51,13 @@ collection failure remains failed. The [full-Python readout](python-qualificatio
 records exact source/native/runner/reader identities, times, hashes and limits.
 Later development-head changes are outside that frozen qualification.
 
+The next frozen offline selection at `6592252a` passed all **27 chunks**:
+3,434 passed, 64 skipped, zero failed, in 250.3 seconds. Every guard passed;
+the slowest chunk took 47.2 seconds against the unchanged 110-second limit.
+This includes funded-context publication, actual science chronology and strict
+subtest-reader regressions. Source files matched before/after. Later crafts
+capacity and writer-observer additions have their own focused checks below.
+
 The initial development harness ran 24 real executions: two seeds, a 40-turn
 parent horizon and shared-checkpoint controls across the first three systems.
 All six unchanged fork continuations matched their parent final state bytes.
@@ -139,6 +146,37 @@ artifact footprint fell 44.6–48.6%. These are measured workload-specific,
 variable workflow results, not native-tick acceleration or cumulative I/O
 measurements. [Full methods and raw pairs](../performance/lean-ablation-output.md).
 
+The [writer-cadence diagnostic](../performance/ablation-writer-cadence-diagnostic-2026-10.md)
+used real turn-30/40 exact checkpoints at d051. All direct trajectories,
+native states, events and common continuation outputs matched, but sparse
+state writing changed serialized memory-cache bytes. That stronger equivalence
+contract failed, so cadence suppression was not adopted. Periodic writers
+cost only about 1–2% in this fixture; treasury projections cost under 0.1%
+and foreign transfers were absent. Import time was largely required model/
+Arrow dependencies, not demonstrated removable work. These measurements do
+not justify those speculative simulation refactors.
+
+The [craft-capacity consumer](craft-work-cap-consumer.md) optionally clamps
+existing city raw demand with conservative Float32 export. It introduces no
+planner, saved state, extra output or worker allocation; omitted limits retain
+the existing path. Focused actual-native and guarded checks passed. The
+[source audit](public-workshop-source-audit.md) retains workforce, funding and
+input-ownership blockers before an active public workshop can be built.
+
+Frozen `2dd47347`, including that consumer and the science timing follow-ups,
+matched the retained d051/fb20 default matrix: **nine cases, 399 files, zero
+differences**, including raw bundles except their generated timestamps.
+Its frozen source remained unchanged. This also preserves the previously
+established default identity to the older 5b matrix; it does not exercise
+enabled treatment outcomes. Later viewer-only publication labels passed
+21 focused tests, lint/build and actual d051 desktop/mobile browser checks.
+
+The [CI scheduling change](../performance/ci-qualification-scheduling.md)
+overlaps independent Rust and native Python execution and retains the existing
+combined native check. Dependency/release caches and failure artifacts have
+actionlint, compiled-preflight and all 16 barrier-outcome checks. No remote
+Actions run or measured CI speedup is claimed.
+
 ## Interrupted work and remaining source-specific qualification
 
 The full native/no-Rust Python runs at `527a9ff8` were interrupted around
@@ -162,9 +200,9 @@ complete qualification remain open. Focused mechanics and
 default identity do not substitute for those gates. Source-qualified updates
 will append exact checkpoints; no moving branch name is a test receipt.
 
-The next immutable integration source is `d051d7c0`, with the receipt crate
-tree above. Later documentation and separately reviewed follow-ups do not
-change which source its full-suite evidence exercises.
+The complete-suite source remains `d051d7c0`, with the receipt crate tree above.
+The offline and default-identity follow-ups name their own later frozen source;
+documentation and moving-head changes do not expand those evidence boundaries.
 
 Evidence lives outside Git. Generated worlds, build products and machine logs
 are not committed. The roadmap retains the external Kimi source attribution
