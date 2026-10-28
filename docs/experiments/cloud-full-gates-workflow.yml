@@ -311,7 +311,7 @@ jobs:
         with:
           name: full-gates-light-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/full-gates-cohort/light/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
       - name: Preserve complete raw cohort evidence
         if: always()
@@ -319,7 +319,7 @@ jobs:
         with:
           name: full-gates-raw-${{ matrix.arm }}-${{ matrix.worldgen }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/full-gates-cohort/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
   compare:
