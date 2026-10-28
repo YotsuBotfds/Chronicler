@@ -715,9 +715,10 @@ assessment accumulation from individual merchant balances, check exact
 pool debit and treasury credit, and reject deliberately wrong and
 non-finite assessments. A separate corruption of the pool still fails its
 tighter conservation check. The focused Python suite passes 17 tests.
-The read-only native count method also has a Rust test covering both pool
-sizes, dead agents, other occupations and separate affinities; that new
-test has not yet been run on a tax-branch build. The frozen main native
-build is kept separate from this branch. This numerical follow-up changes
+The read-only native count method also has a passing Rust test covering
+both pool sizes, dead agents, other occupations and separate affinities.
+All six focused Rust tax tests pass on a fresh tax-branch crate build.
+The frozen main native build is kept separate from this branch; no tax
+wheel was installed into its environment. This numerical follow-up changes
 no production or restore-mode output and does not complete the merchant
 tax correction's pending confirmatory runs or default economic gates.
