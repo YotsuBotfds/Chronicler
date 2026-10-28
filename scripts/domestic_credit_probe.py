@@ -5,13 +5,17 @@ the distribution of merchant wealth.
 ``domestic_credit_probe.py run RUN_DIR -- <chronicler.main arguments>``
     Runs one simulation in this process (an agent mode) and, every
     ``--every`` turns after the agent tick, reads the native pool (reading
-    only): the merchants' number, total wealth and mean satisfaction, the
-    Gini of merchant agents' wealth (the world's merchants, and the mean over
-    civs by affinity), the Gini of all agents' wealth, and how merchant
+    only): the merchants' number, total wealth and mean satisfaction, all
+    agents' mean satisfaction, the Gini of merchant agents' wealth (the
+    world's merchants, and the mean over civs by affinity), the Gini of
+    all agents' wealth, and how merchant
     wealth is spread over regions (its Gini over populated regions and the
     share of the richest region). Works with the switch on or off and with
-    an extension that predates it. Writes ``RUN_DIR/probe_turns.jsonl``;
-    the CLI writes its usual files (give ``--output RUN_DIR/chronicle.md``).
+    an extension that predates it. Writes ``RUN_DIR/probe_turns.jsonl``,
+    and ``RUN_DIR/borrow.jsonl`` with one row per borrowing call of the
+    fiscal tick (turn, civ, at war, the request and its peacetime part,
+    domestic and foreign amounts raised); the CLI writes its usual files
+    (give ``--output RUN_DIR/chronicle.md``).
 
 ``domestic_credit_probe.py summarize RUN_DIR [RUN_DIR ...] --json OUT``
     Per run: the means of the probe's measures over its sampled turns (and
@@ -20,7 +24,14 @@ the distribution of merchant wealth.
     the end, debt over revenue (median and 90th percentile over living
     civ-turns), fiscal-strain onsets, PSI crises, revolts, and the
     domestic-credit books (lent, interest, repaid and written off by kind of
-    lender, defaults that hit lenders, grievance region-turns).
+    lender, defaults that hit lenders, grievance region-turns); from the
+    turn snapshots, domestic and foreign issuance before turns 30 and 60,
+    the largest city and guild purses, the cities' plunder and fines (their
+    counters at the end), the longest stretch a civ carries
+    debt of eight turns of revenue, the civ-turns paying half the revenue
+    in interest and the longest stretch a civ pays 40% of it or more; from ``borrow.jsonl`` (run mode), what domestic
+    and foreign lenders raised at war and the part beyond the peacetime
+    request (the war chest).
 
 ``domestic_credit_probe.py compare OFF.json ON.json``
     Paired by seed: each measure's mean in both arms and the mean
@@ -74,6 +85,7 @@ def _observe(world, bridge) -> dict:
         "merchants": int(m.sum()),
         "merchant_wealth": round(total, 4),
         "merchant_satisfaction": round(float(sat[m].mean()), 6) if m.any() else None,
+        "satisfaction": round(float(sat.mean()), 6) if len(sat) else None,
         "merchant_gini": round(gini(wealth[m]), 6),
         "merchant_gini_civ": round(sum(civ_ginis) / len(civ_ginis), 6) if civ_ginis else None,
         "agent_gini": round(gini(wealth), 6),
@@ -83,10 +95,52 @@ def _observe(world, bridge) -> dict:
     }
 
 
+def _peace_request(world, civ_idx: int, civ, f, proj: int) -> int:
+    """What the fiscal tick would ask for at peace (obligations plus a turn
+    of upkeep, and the buffer), recomputed from the books before they are
+    paid; the upkeep is approximate (its fractional carry is not known)."""
+    from chronicler import finance as F
+    upkeep = int((F.ARMY_UPKEEP_PER_MILITARY * max(0, civ.military)
+                  + F.ADMIN_PER_REGION * len(civ.regions)
+                  + F.ADMIN_PER_100_POP * max(0, civ.population) / 100.0) * f.price_index)
+    service = 0
+    for loan in world.finance.loans:
+        if loan.borrower == civ_idx and loan.principal > 0:
+            service += int(loan.principal * loan.rate + loan.interest_carry)
+            service += min(loan.principal, int(math.ceil(loan.original / max(1, loan.term))))
+    target = upkeep + service + int(F.MIN_RESERVE_TURNS * upkeep)
+    return target - proj + int(F.BORROW_BUFFER_TURNS * upkeep) if proj < target else 0
+
+
+def _record_borrowing(out):
+    """Wrap ``finance._borrow``: one row per call (turn, civ, at war, the
+    request and its peacetime part, domestic and foreign amounts raised)."""
+    from chronicler import finance as F
+    orig = F._borrow
+
+    def _borrow(world, civ_idx, civ, f, gap, book, *args, **kwargs):
+        totals = world.finance.totals
+        dom0, for0 = totals["issued_domestic"], totals["issued_foreign"]
+        proj = book.proj[civ_idx]
+        row = {"turn": world.turn, "civ": civ_idx,
+               "war": any(civ.name in pair for pair in world.active_wars),
+               "gap": gap, "peace_gap": _peace_request(world, civ_idx, civ, f, proj),
+               "revenue": round(f.revenue_ema, 3)}
+        raised = orig(world, civ_idx, civ, f, gap, book, *args, **kwargs)
+        row["dom"] = totals["issued_domestic"] - dom0
+        row["foreign"] = totals["issued_foreign"] - for0
+        out.write(json.dumps(row, separators=(",", ":")) + "\n")
+        return raised
+
+    F._borrow = _borrow
+
+
 def _run(run_dir: Path, main_args: list[str], every: int) -> None:
     import chronicler.simulation as sim
     run_dir.mkdir(parents=True, exist_ok=True)
     out = open(run_dir / "probe_turns.jsonl", "w")
+    borrow_out = open(run_dir / "borrow.jsonl", "w")
+    _record_borrowing(borrow_out)
     orig_turn = sim.run_turn_result
 
     def run_turn_result(world, action_selector, narrator, seed=0, agent_bridge=None, *a, **k):
@@ -103,13 +157,14 @@ def _run(run_dir: Path, main_args: list[str], every: int) -> None:
         cm.main()
     finally:
         out.close()
+        borrow_out.close()
 
 
 # ---------------------------------------------------------------------------
 # summarize
 # ---------------------------------------------------------------------------
 
-PROBE_KEYS = ("merchants", "merchant_wealth", "merchant_satisfaction", "merchant_gini",
+PROBE_KEYS = ("merchants", "merchant_wealth", "merchant_satisfaction", "satisfaction", "merchant_gini",
               "merchant_gini_civ", "agent_gini", "region_gini", "top_region_share")
 
 
@@ -118,6 +173,88 @@ def _pct(values: list[float], q: float) -> float:
         return 0.0
     s = sorted(values)
     return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
+
+
+HEAVY_DEBT_TURNS = 8.0   # debt of this many turns of revenue (four fifths of finance's ceiling)
+NEAR_LIMIT_SHARE = 0.4   # interest paid of this share of revenue (near the borrower's room, SERVICE_SHARE 0.5)
+EARLY_TURNS = (30, 60)
+
+
+def _history_measures(history: list) -> dict:
+    """From the bundle's turn snapshots: domestic issuance early in the run
+    (finance's cumulative totals), the largest city and guild purses, and
+    how long civs carry heavy debt or pay half their revenue in interest."""
+    out: dict = {}
+    for limit in EARLY_TURNS:
+        rows = [s for s in history if isinstance(s, dict) and s.get("turn", 0) < limit and s.get("finance")]
+        totals = rows[-1]["finance"].get("totals", {}) if rows else {}
+        out[f"issued_domestic_before_{limit}"] = totals.get("issued_domestic", 0)
+        out[f"issued_foreign_before_{limit}"] = totals.get("issued_foreign", 0)
+    city_max = guild_max = 0.0
+    streak: dict[str, int] = {}
+    near: dict[str, int] = {}
+    longest = heavy_turns = half_turns = near_longest = 0
+    for snap in history:
+        if not isinstance(snap, dict):
+            continue
+        for c in ((snap.get("cities") or {}).get("cities") or []):
+            city_max = max(city_max, float(c.get("wealth") or 0.0))
+        for g in ((snap.get("guilds") or {}).get("guilds") or []):
+            guild_max = max(guild_max, float(g.get("wealth") or 0.0))
+        civs = ((snap.get("finance") or {}).get("civs") or {})
+        for name, row in civs.items():
+            rev = max(row.get("revenue_ema", 0.0), 1.0)
+            if row.get("debt", 0) >= HEAVY_DEBT_TURNS * rev:
+                streak[name] = streak.get(name, 0) + 1
+                heavy_turns += 1
+                longest = max(longest, streak[name])
+            else:
+                streak[name] = 0
+            if row.get("interest", 0) >= 0.5 * rev:
+                half_turns += 1
+            if row.get("debt", 0) > 0 and row.get("interest", 0) >= NEAR_LIMIT_SHARE * rev:
+                near[name] = near.get(name, 0) + 1
+                near_longest = max(near_longest, near[name])
+            else:
+                near[name] = 0
+        for name in list(streak):
+            if name not in civs:
+                streak[name] = 0
+        for name in list(near):
+            if name not in civs:
+                near[name] = 0
+    out["city_purse_max"] = city_max
+    out["guild_purse_max"] = guild_max
+    last_cities = next((s.get("cities") for s in reversed(history) if isinstance(s, dict) and s.get("cities")), None)
+    counters = (last_cities or {}).get("counters") or {}
+    out["city_plunder"] = counters.get("plunder", 0)
+    out["city_fines"] = counters.get("fines", 0)
+    out["heavy_debt_streak_max"] = longest
+    out["heavy_debt_civ_turns"] = heavy_turns
+    out["interest_over_half_revenue_civ_turns"] = half_turns
+    out["interest_near_limit_streak_max"] = near_longest
+    return out
+
+
+def _borrow_measures(path: Path) -> dict:
+    """From ``borrow.jsonl`` (run mode): what was raised at war, and the part
+    of it beyond the peacetime request (the war chest; domestic lenders are
+    asked first, so they fund the peacetime part first)."""
+    if not path.exists():
+        return {}
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+    dom = sum(r["dom"] for r in rows)
+    war = [r for r in rows if r["war"]]
+    out = {
+        "borrow_calls": len(rows),
+        "dom_issued_at_war": sum(r["dom"] for r in war),
+        "dom_war_chest": sum(max(0, r["dom"] - r["peace_gap"]) for r in war),
+        "foreign_issued_at_war": sum(r["foreign"] for r in war),
+        "foreign_war_chest": sum(max(0, r["dom"] + r["foreign"] - max(r["peace_gap"], r["dom"])) for r in war),
+    }
+    out["dom_war_share"] = out["dom_issued_at_war"] / dom if dom else None
+    out["dom_war_chest_share"] = out["dom_war_chest"] / dom if dom else None
+    return out
 
 
 def summarize_run(run_dir: Path) -> dict:
@@ -156,6 +293,8 @@ def summarize_run(run_dir: Path) -> dict:
     out["debt_ratio_p50"] = _pct(ratios, 0.5)
     out["debt_ratio_p90"] = _pct(ratios, 0.9)
     out["debt_ratio_mean"] = sum(ratios) / len(ratios) if ratios else 0.0
+    out.update(_history_measures(bundle.get("history") or []))
+    out.update(_borrow_measures(run_dir / "borrow.jsonl"))
     state_path = run_dir / "state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else bundle.get("world_state") or {}
     totals = (state.get("finance") or {}).get("totals") or {}

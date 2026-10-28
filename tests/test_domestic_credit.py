@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -151,6 +152,7 @@ def test_split_is_exact_pro_rata_and_never_above_a_weight():
 
 def test_lenders_fund_a_loan_pro_rata_from_their_wealth(checked):
     world, bridge, sim, city, guild = _borrowing_world()
+    world.turn = 400    # past the pool's cold start: no abstract houses (test_houses_*)
     events, _ = _tick(world, bridge, {THORNWALL: 5})
     loan = _domestic(world)
     assert loan is not None
@@ -614,3 +616,153 @@ def test_snapshot_summary_and_metrics():
 def test_funder_model_round_trips():
     f = Funder(kind=CITY, key=7, principal=3)
     assert Funder.model_validate_json(f.model_dump_json()) == f
+
+
+# ---------------------------------------------------------------------------
+# Second pass: the borrower's room, the cold-start houses
+# ---------------------------------------------------------------------------
+
+def test_lenders_lend_no_money_the_borrower_cannot_service(checked):
+    world, bridge, sim, city, guild, loan = _with_a_loan()
+    world.turn = 400   # past the cold start: real lenders only
+    f = world.finance.civs[THORNWALL]
+    civ = world.civilizations[THORNWALL]
+    t = D.begin(world, bridge)
+    due = D.interest_due(world, THORNWALL)
+    assert due == pytest.approx(sum(ln.principal * ln.rate for ln in F.loans_of(world, THORNWALL)))
+    rate = F._loan_rate(world, THORNWALL, f, foreign=False)
+    room = D.service_room(world, THORNWALL, f)
+    assert room == math.floor((D.SERVICE_SHARE * max(f.revenue_ema, 1.0) - due) / rate)
+    cap, lenders = t.capacity(THORNWALL, civ, f)
+    assert cap == min(sum(o for _k, _key, o in lenders), room)
+    # Interest already at half the revenue: no new money at home, however
+    # rich the lenders.
+    sim.merchants = [[VERDANT, 1000.0]]
+    t = D.begin(world, bridge)
+    f.revenue_ema = due / D.SERVICE_SHARE
+    assert D.service_room(world, THORNWALL, f) == 0
+    assert t.capacity(THORNWALL, civ, f)[0] == 0
+    assert t.lenders(THORNWALL, civ, 1.0)    # they would offer; the room is what binds
+    # A fiscal tick in that state borrows nothing at home.
+    f.revenue_ema = 0.9 * due / D.SERVICE_SHARE
+    for c in world.civilizations:
+        c.treasury = 0
+    issued = world.finance.totals["issued_domestic"]
+    _tick(world, bridge, {THORNWALL: 1})
+    assert world.finance.totals["issued_domestic"] == issued
+
+
+def test_houses_lend_in_the_cold_start_and_fade(checked):
+    from chronicler.domestic_credit_state import HOUSES
+    world, bridge, sim, city, guild = _borrowing_world(city_purse=0.0, guild_purse=0.0,
+                                                        merchants=((VERDANT, 4.0),))
+    civ = world.civilizations[THORNWALL]
+    civ.factions.influence[FactionType.MERCHANT] = 0.4
+    F._ensure(world)
+    f = world.finance.civs[THORNWALL]
+    f.initialized = True
+    f.revenue_ema = 50.0
+    term = F.DOMESTIC_REVENUE_TURNS * 50.0 * 0.4 * f.domestic_trust * D._civ_factors(world, THORNWALL)
+    for turn in (0, 10, 30):
+        world.turn = turn
+        assert D.houses_capacity(world, THORNWALL, civ, f) == pytest.approx(
+            term * (1.0 - D.COLD_START_DECAY) ** turn)
+    world.turn = 400
+    assert D.begin(world, bridge).houses_offer(THORNWALL, civ, f) == 0
+    # Early in a run they lend beside the merchants, never more than their
+    # faded offer, and are named as the realm's merchant houses.
+    world.turn = 10
+    t = D.begin(world, bridge)
+    offer = t.houses_offer(THORNWALL, civ, f)
+    assert offer == math.floor(term * (1.0 - D.COLD_START_DECAY) ** 10)
+    _cap, lenders = t.capacity(THORNWALL, civ, f)
+    assert (HOUSES, THORNWALL, offer) in lenders
+    events, _ = _tick(world, bridge, {THORNWALL: 5})    # a poor turn: it borrows
+    loan = _domestic(world)
+    houses = _claims(world, HOUSES, THORNWALL)
+    assert 0 < houses <= offer
+    assert world.domestic_credit.totals["lent_houses"] == houses
+    ev = next(e for e in events if e.event_type == "loan_taken")
+    assert "its merchant houses" in ev.description
+    # Their claim is deducted from what they offer next.
+    t = D.begin(world, bridge)
+    assert t.houses_offer(THORNWALL, civ, f) == max(0, math.floor(D.houses_capacity(world, THORNWALL, civ, f) - houses))
+    # What they are paid leaves into the finance ledger: what reaches the
+    # merchants' wealth (or waits in their due) is the merchants' own share.
+    assert loan is not None
+    civ.treasury = 500
+    _tick(world, bridge, {THORNWALL: 50})
+    st = world.domestic_credit.totals
+    assert st["interest_houses"] + st["repaid_houses"] > 0
+    merchants = st["interest_merchants"] + st["repaid_merchants"] - st["lent_merchants"]
+    assert world.domestic_credit.merchant_applied + sum(world.domestic_credit.merchant_due) == pytest.approx(merchants)
+
+
+def test_a_default_on_the_houses_raises_no_grievance(checked):
+    from chronicler.domestic_credit_state import HOUSES
+    world, bridge, sim, city, guild = _borrowing_world(city_purse=0.0, guild_purse=0.0, merchants=())
+    world.civilizations[THORNWALL].factions.influence[FactionType.MERCHANT] = 0.5
+    F._ensure(world)
+    f = world.finance.civs[THORNWALL]
+    f.initialized = True
+    f.revenue_ema = 60.0
+    world.turn = 1
+    _tick(world, bridge, {THORNWALL: 5})
+    loan = _domestic(world)
+    assert loan is not None and [fu.kind for fu in _line(world, loan).funders] == [HOUSES]
+    t = D.begin(world, bridge)
+    losses = t.write_down(loan, loan.principal // 2)
+    t.on_default(THORNWALL, world.civilizations[THORNWALL], losses,
+                 SimpleNamespace(event_id="1:state_default:0"))
+    assert world.domestic_credit.defaults_on_lenders == 0
+    assert max(world.domestic_credit.grievance) == 0.0
+
+
+def test_probe_measures_early_credit_purses_debt_stretches_and_war_borrowing(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("domestic_credit_probe_t", ROOT / "scripts" / "domestic_credit_probe.py")
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+
+    def snap(turn, debt, issued, purse):
+        return {"turn": turn,
+                "finance": {"civs": {"A": {"debt": debt, "revenue_ema": 10.0, "interest": 6 if debt else 0}},
+                            "totals": {"issued_domestic": issued, "issued_foreign": 1}},
+                "cities": {"cities": [{"wealth": purse}], "counters": {"plunder": turn, "fines": 1}},
+                "guilds": {"guilds": [{"wealth": 2.0}]}}
+
+    history = [snap(t, 90 if 10 <= t < 15 or 20 <= t < 23 else 0, t, 5.0 + t) for t in range(70)]
+    m = probe._history_measures(history)
+    assert m["issued_domestic_before_30"] == 29 and m["issued_domestic_before_60"] == 59
+    assert m["city_purse_max"] == 74.0 and m["guild_purse_max"] == 2.0
+    assert m["city_plunder"] == 69 and m["city_fines"] == 1
+    assert m["heavy_debt_streak_max"] == 5 and m["heavy_debt_civ_turns"] == 8
+    assert m["interest_over_half_revenue_civ_turns"] == 8
+    assert m["interest_near_limit_streak_max"] == 5
+    rows = [{"turn": 1, "civ": 0, "war": True, "gap": 50, "peace_gap": 10, "revenue": 5, "dom": 30, "foreign": 15},
+            {"turn": 2, "civ": 0, "war": False, "gap": 20, "peace_gap": 20, "revenue": 5, "dom": 10, "foreign": 0}]
+    path = tmp_path / "borrow.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    b = probe._borrow_measures(path)
+    assert b["dom_issued_at_war"] == 30 and b["dom_war_chest"] == 20 and b["foreign_war_chest"] == 15
+    assert b["dom_war_share"] == pytest.approx(0.75) and b["dom_war_chest_share"] == pytest.approx(0.5)
+    assert probe._borrow_measures(tmp_path / "missing.jsonl") == {}
+
+
+def test_cold_start_decay_is_the_native_wealth_decay():
+    import re
+    text = (ROOT / "chronicler-agents" / "src" / "agent.rs").read_text()
+    native = float(re.search(r"pub const WEALTH_DECAY: f32 = ([0-9.]+);", text).group(1))
+    assert D.COLD_START_DECAY == native
+
+
+def test_books_saved_before_the_second_pass_gain_the_new_kind():
+    from chronicler.domestic_credit_state import DomesticCreditState
+    world, bridge, sim, city, guild = _world()
+    st = world.domestic_credit.model_dump()
+    st["totals"] = {k: v for k, v in st["totals"].items() if not k.endswith("_houses")}
+    world.domestic_credit = DomesticCreditState.model_validate(st)
+    F._ensure(world)
+    D.begin(world, bridge)
+    assert all(world.domestic_credit.totals[f"{flow}_houses"] == 0
+               for flow in ("lent", "interest", "repaid", "capitalized", "written_off", "lost", "lapsed"))

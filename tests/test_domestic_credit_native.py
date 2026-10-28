@@ -152,9 +152,12 @@ def test_a_hybrid_run_lends_balances_its_books_and_is_deterministic(tmp_path, mo
     flows = (books["totals"]["interest_merchants"] + books["totals"]["repaid_merchants"]
              - books["totals"]["lent_merchants"])
     assert books["merchant_applied"] + sum(books["merchant_due"]) == pytest.approx(flows, abs=1e-6)
-    loans = [e for e in a["events_timeline"] if e["event_type"] == "loan_taken"
-             and "merchant houses" not in e["description"] and " from the " in e["description"]]
-    assert loans, "domestic loans name their lenders"
+    domestic = [e for e in a["events_timeline"] if e["event_type"] == "loan_taken"
+                and len(e.get("civs") or []) <= 1]
+    assert any("the merchants of" in e["description"] for e in domestic), "domestic loans name their lenders"
+    # Early in a run the cold-start houses lend beside them (section 13).
+    assert any("its merchant houses (" in e["description"] for e in domestic)
+    assert books["totals"]["lent_houses"] > 0
 
 
 def test_a_checkpoint_resume_continues_the_books_exactly(tmp_path):

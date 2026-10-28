@@ -6,6 +6,60 @@
 
 ---
 
+## Domestic credit, second pass (2026-10-28, `feat/domestic-credit-2`)
+
+> **Last updated:** 2026-10-28 (`feat/domestic-credit-2` from `main` `25854db`, merged with `c2ef6af` (no simulation change; the merged head is byte-identical to the gated tree, switch off and on). Behind the same `--domestic-credit` switch, still default off: lenders lend no new money that would raise the borrower's interest due above half its revenue (the borrower's room), and while the agent pool's wealth builds up from its cold start the realm's abstract merchant houses lend finance's revenue term, fading as `0.98 ** turn`. No war reserve, no purse ceiling. Off is byte-identical to `main`; on resumes exactly; the books balance every tick. Template full 200 x 500 PASS strict, EXPLORATORY NO REGRESSION; procedural full 100 x 300 PASS strict, EXPLORATORY NO REGRESSION. Early credit restored, the ceiling treadmill gone; a borrower at the room can stay there and cities take a growing share of its debt. Not promoted: civic lenders, the merchant tax and a second look at procedural agents come first.)
+
+Details and evidence:
+[`docs/integration/domestic-credit.md`](../../integration/domestic-credit.md),
+section 13.
+
+- **The borrower's room.** Domestic capacity is the lesser of the lenders'
+  offers and the principal that keeps the borrower's interest due (all its
+  lines) within `SERVICE_SHARE` = 0.5 of its revenue: lenders ration by
+  what the borrower can carry. No civ at eight or more turns of revenue
+  owed for 50+ turns in 300 gate worlds and 60 paired worlds (PR #63's seed
+  101: 158 turns); largest purse 610 template, 875 procedural (PR #63's
+  template gate 2,209); lenders' write-offs a quarter to two fifths of PR #63's.
+- **Cold-start houses.** Every agent starts with 0.5 wealth, merchants hold
+  their usual 12-17% share of it early, and 82% of main's early capacity was
+  its revenue term: the shortfall was the pool's cold start, not a lack of
+  merchants. The abstract houses (lender kind `houses`, appended) lend that
+  term times `(1 - WEALTH_DECAY) ** turn`, less their claims, receipts into
+  the ledger. Domestic issuance before turn 30: -7% / -13% against the
+  switch off (PR #63 about -65%); the houses fund 7-11% of domestic lending.
+  Other occupations were not made lenders: they would raise credit at every
+  horizon, and farmers' savings drive occupational choice.
+- **War chests: not changed.** 61-75% of domestic credit is raised at war,
+  nearly all of it the war chest, with the switch off and on alike; the
+  switch does not make credit more war-driven.
+- **Identity and conservation.** Off: 9-case matrix, 399 files, 0
+  differences (no flag and explicit `--no-domestic-credit`). On: 3
+  checkpoint cases (two with defaults), 117 resume points, 4,572 files, 0
+  differences; 40 checked worlds balanced and equal their unchecked runs.
+  Merged head against `c2ef6af`, switch off: 399 files, 0 differences;
+  against the gated tree, switch on: 366 files, 0 differences.
+- **Paired worlds** (template 40 x 500, procedural 20 x 300, three arms).
+  Template: domestic issuance +4%, interest +10%, foreign share unchanged,
+  merchant wealth +4%, satisfaction -0.001, Gini +0.005, rates within
+  their spread. Procedural: domestic +34% (PR #63 +129%), foreign +36%
+  (states refused at home borrow abroad), merchant wealth +13%,
+  satisfaction +0.008 (1.2 SE), migration -3.7% (2.3 SE).
+- **Pre-registration**: 1c, 2, 3, 5, 7, 8 held; 4 except procedural
+  defaults above PR #63's (equal); 6 in template worlds, partly in
+  procedural; 1a and 1b did not (5 template gate worlds still pay cities
+  over 1,000; cities' interest -38% and -44% against PR #63, not halved);
+  9 (both gates) held.
+- **Open**: a borrower at the room is refinanced as it repays (4 of 200
+  template, 14 of 100 procedural gate worlds pay 40%+ of revenue in
+  interest for 50+ turns) and cities, whose purses have no ceiling, take a
+  growing share of its debt: decide whether civic lenders pass interest to
+  their burghers or get a ceiling; the merchant tax is not debited; the
+  procedural agent readings need 40 paired worlds; promotion needs the
+  documented 200-seed before/after gates (section 13.7).
+
+---
+
 ## Interactive checkpoints and live browser QA (2026-10-28, `fix/interactive-checkpoints`)
 
 > **Last updated:** 2026-10-28 (`fix/interactive-checkpoints` from `main` `39d5ba0`; interactive mode, live transport and viewer only, the simulation byte-identical. Commands typed at an `--interactive` pause (`inject`, `set`) are recorded and the turn's checkpoints written again, through the code live mode uses (`PauseInterventions`); `--interactive --resume FILE` continues an exact checkpoint paused at its turn. Interactive identity: 2 cases, 40 resume points, 687 file comparisons, 0 differences (on `main` a resume after a pause's commands differed in 4 of 9 files). Browser QA of Save checkpoint and `--live --resume` in headless Chromium found and fixed three panel/setup defects; 20 of 20 checks after. 9-case matrix 399 files, 0 differences against `main`.)

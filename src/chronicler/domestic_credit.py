@@ -21,8 +21,20 @@ Who lends
     ``MAX_LEND_SHARE``: a lender always keeps at least a quarter of its
     wealth. The finance tick's request is split among the lenders pro rata
     to what each offers (largest remainder, in index order). The abstract
-    revenue-times-influence part of the old capacity is gone: only real
-    wealth lends.
+    revenue-times-influence part of the old capacity lends only while the
+    agent pool's wealth is still building up from its cold start: as the
+    realm's **merchant houses** (key = the borrower), it offers that term
+    times ``(1 - COLD_START_DECAY) ** turn`` (the share of the pool's
+    equilibrium wealth not yet accumulated), less what it is owed; its
+    receipts leave into the finance ledger.
+
+The borrower's room
+    However rich its lenders, a borrower gets no new domestic money that
+    would raise its interest due (on every line, domestic and foreign)
+    above ``SERVICE_SHARE`` of its smoothed revenue: lenders lend against
+    what the borrower can service, not only against what they hold. A state
+    at that limit refinances no more than it repays, and pays the rest of
+    its service from revenue or falls into arrears.
 
 Cash flows
     The principal leaves the lenders' wealth when lent; interest and
@@ -74,7 +86,7 @@ import math
 from typing import TYPE_CHECKING, Iterable, Sequence
 
 from chronicler.domestic_credit_state import (
-    CITY, GUILD, KIND_NAMES, LEGACY, MERCHANTS, TOTAL_KEYS, CreditLine, DomesticCreditState, Funder,
+    CITY, GUILD, HOUSES, KIND_NAMES, LEGACY, MERCHANTS, TOTAL_KEYS, CreditLine, DomesticCreditState, Funder,
     domestic_credit_on,
 )
 
@@ -102,6 +114,11 @@ THREAT_SHARE = 0.1        # a guild or city losing this share of its assets reco
 EVENT_LENDERS = 3         # lenders named in an event
 DUE_EPS = 1e-6            # merchant due below this (in absolute value) is not sent
 QUANTUM_DIGITS = 4        # guild and city purses are stored to this many decimals
+# Second pass (2026-10; docs/integration/domestic-credit.md section 13):
+SERVICE_SHARE = 0.5       # no new domestic money that would raise the borrower's interest due above this share of its revenue
+COLD_START_DECAY = 0.02   # the native agents' WEALTH_DECAY (agent.rs): the share of the pool's equilibrium wealth
+                          # not yet accumulated at turn t is (1 - it) ** t; the abstract houses lend that share
+                          # of finance's revenue term (DOMESTIC_REVENUE_TURNS x revenue x merchant influence)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +200,41 @@ def _civ_factors(world, civ_idx: int) -> float:
 def lend_share(world, civ_idx: int, trust: float) -> float:
     """Share of its assets a lender of this civ lends (before its claims)."""
     return min(MAX_LEND_SHARE, LEND_SHARE * max(0.0, trust) * _civ_factors(world, civ_idx))
+
+
+def cold_start_share(turn: int) -> float:
+    """Share of the agent pool's equilibrium wealth not yet accumulated at
+    ``turn``: agents start near zero and their wealth closes
+    ``COLD_START_DECAY`` of its gap to equilibrium a turn."""
+    return (1.0 - COLD_START_DECAY) ** max(0, turn)
+
+
+def houses_capacity(world, civ_idx: int, civ, f) -> float:
+    """What the abstract merchant houses would lend this civ in total:
+    finance's revenue term (``DOMESTIC_REVENUE_TURNS`` x revenue x merchant
+    influence, times domestic trust and the credit factors), scaled by the
+    cold-start share. Its claims on the civ are deducted by the caller."""
+    from chronicler import finance as F
+    term = (F.DOMESTIC_REVENUE_TURNS * max(0.0, f.revenue_ema) * F._merchant_influence(civ)
+            * max(0.0, f.domestic_trust) * _civ_factors(world, civ_idx))
+    return cold_start_share(world.turn) * term
+
+
+def interest_due(world, civ_idx: int) -> float:
+    """Interest a civ owes per turn on all its lines (domestic and foreign)
+    at their current rates."""
+    return sum(loan.principal * loan.rate for loan in world.finance.loans
+               if loan.borrower == civ_idx and loan.principal > 0)
+
+
+def service_room(world, civ_idx: int, f) -> int:
+    """New domestic principal the borrower can take before its interest due
+    reaches ``SERVICE_SHARE`` of its (smoothed) revenue, at the domestic
+    rate it would pay now (whole units, never negative)."""
+    from chronicler import finance as F
+    rate = F._loan_rate(world, civ_idx, f, foreign=False)
+    room = (SERVICE_SHARE * max(f.revenue_ema, 1.0) - interest_due(world, civ_idx)) / max(rate, 1e-9)
+    return int(math.floor(room)) if room > 0 else 0
 
 
 def _cities(world) -> dict:
@@ -382,10 +434,24 @@ class Tick:
                 offer(CITY, sid)
         return out
 
+    def houses_offer(self, civ_idx: int, civ, f) -> int:
+        """The abstract merchant houses' offer while the pool's wealth is
+        still building up (:func:`houses_capacity`), less what the civ
+        already owes them."""
+        claims = self.claims.get((HOUSES, civ_idx), 0)
+        value = houses_capacity(self.world, civ_idx, civ, f) - claims
+        return int(math.floor(value)) if value > 0 else 0
+
     def capacity(self, civ_idx: int, civ, f) -> tuple[int, list[tuple[int, int, int]]]:
-        """Domestic capacity (whole units) and the lenders offering it."""
+        """Domestic capacity (whole units) and the lenders offering it: the
+        real lenders' offers and the cold-start houses', together never more
+        than the borrower's room under ``SERVICE_SHARE`` (:func:`service_room`)."""
         lenders = self.lenders(civ_idx, civ, f.domestic_trust)
-        return sum(amount for _k, _key, amount in lenders), lenders
+        houses = self.houses_offer(civ_idx, civ, f)
+        if houses >= MIN_FUNDING:
+            lenders.append((HOUSES, civ_idx, houses))
+        offered = sum(amount for _k, _key, amount in lenders)
+        return min(offered, service_room(self.world, civ_idx, f)), lenders
 
     def fund(self, loan, amount: int, lenders: list[tuple[int, int, int]]) -> list[tuple[int, int, int]]:
         """Fund ``amount`` (at most the lenders' total offer) of ``loan``:
@@ -525,7 +591,7 @@ class Tick:
         guild, a threat to its privileges)."""
         total: dict[tuple[int, int], int] = {}
         for kind, key, amount in losses:
-            if kind != LEGACY and amount > 0:
+            if kind not in (LEGACY, HOUSES) and amount > 0:
                 total[(kind, key)] = total.get((kind, key), 0) + amount
         if not total:
             return
