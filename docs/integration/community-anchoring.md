@@ -539,8 +539,10 @@ change no simulation code (a tuning-key registration, tests, documents).
   ablated equal the plain decision, ties need a shared memory, a home
   region, a positive bond and a non-kin tie (`community.rs`,
   `behavior.rs` `ablation_tests`, `scale.rs`).
-* **Tests**: `cargo test --locked` CARGO_COUNT; not-slow NOTSLOW_COUNT;
-  `python scripts/run_python_oracle_checks.py` LANE_COUNT. New:
+* **Tests** (final tree, after the last commit that changes code): `cargo test --locked`
+  1,070 passed, 0 failed (36 targets); not-slow 6,756 passed, 3 skipped,
+  0 failed; `python scripts/run_python_oracle_checks.py` PASS (13 chunks,
+  2,735 passed, 59 skipped, 0 failed). New:
   `tests/test_community_anchoring.py`, `tests/test_community_anchoring_native.py`,
   the Rust tests above; updated: the ablation and validation tests for
   methods 8 and 5 and fork design 2 (both designs loaded and scored, each
