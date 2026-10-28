@@ -5,6 +5,7 @@ import {
 } from "../../lib/food";
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { Granaries } from "./Granaries";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -15,7 +16,7 @@ const TABLE_ROWS = 15;
 
 /** Where food is short, how long dearths and famines last, and who sends relief. */
 export function FoodPanel({
-  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, selectedRegion,
+  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, onSelectCivilization, selectedRegion,
 }: SystemPanelProps) {
   const history = bundle.history;
   const regionNames = useMemo(() => regionNamesOf(bundle), [bundle]);
@@ -51,6 +52,8 @@ export function FoodPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Food">
+      <Granaries bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <div className="systems-tiles">
         <StatTile label="Regions in famine" value={famines.length} detail={`turn ${at}`} />
         {hasDearth && <StatTile label="Regions in dearth" value={dearths.length} detail={`turn ${at}`} />}

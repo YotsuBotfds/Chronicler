@@ -302,6 +302,8 @@ export interface TurnSnapshot {
    * written after the viewer map layers).
    */
   food?: FoodSnapshot;
+  /** Public granaries at this snapshot, only with active --grain-reserves. */
+  grain_reserves?: GrainReservesSnapshot;
   /**
    * Agent migrations of the completed turn as [from region index, to region
    * index, agents]; present only in hybrid and shadow runs written after the
@@ -930,6 +932,42 @@ export interface BundleMetadata {
   interestingness_score: number | null;
   bundle_version?: number;
   narrator_mode?: NarratorMode | string;
+}
+
+export interface GranarySnapshotRow {
+  region: number;
+  region_name: string;
+  /** Recorded keeper, a civ index; -1 means no public keeper. */
+  owner: number;
+  owner_name: string | null;
+  /** Territorial controller can differ until the next Phase 2 owner settlement. */
+  controller: string | null;
+  grain: number;
+  target: number;
+  observed: number;
+}
+
+export interface GranaryFlow {
+  kind: "bought" | "released" | "spoiled" | "seized" | "abandoned" | "captured";
+  region: number;
+  amount: number;
+  source: number;
+  seller: number;
+  buyer: number;
+  buyer_name: string | null;
+  seller_name: string | null;
+  sent: number;
+  cost: number;
+  before: number;
+  after: number;
+}
+
+export interface GrainReservesSnapshot {
+  /** Completed simulation turn: history turn T records source_turn T-1. */
+  source_turn: number;
+  granaries: GranarySnapshotRow[];
+  flows: GranaryFlow[];
+  counters: Record<string, number>;
 }
 
 export interface Bundle {

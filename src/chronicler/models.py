@@ -1456,6 +1456,9 @@ class TurnSnapshot(BaseModel):
     # convoys (``mutual_aid.snapshot_summary``); None (and omitted) unless
     # mutual aid runs on an agent-backed economy.
     food: dict | None = Field(default=None, exclude_if=_is_none)
+    # Read-only stocks/targets and completed-turn flows; absent while public
+    # granaries are disabled or dormant (--agents off).
+    grain_reserves: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: the completed turn's agent migrations as
     # [from region index, to region index, agents]; None (and omitted)
     # without an agent pool that records events (hybrid, shadow).

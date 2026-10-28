@@ -462,6 +462,14 @@ def _food_snapshot_fields(world) -> dict:
     return {"food": snapshot_summary(world)}
 
 
+def _grain_reserves_snapshot_fields(world) -> dict:
+    """Read-only granary history; omitted while disabled or dormant."""
+    from chronicler.grain_reserves import grain_reserves_active, snapshot_summary
+    if not grain_reserves_active(world):
+        return {}
+    return {"grain_reserves": snapshot_summary(world)}
+
+
 def _migration_snapshot_fields(world) -> dict:
     """Viewer-only agent migrations of the completed turn (empty without agent events).
 
@@ -945,6 +953,7 @@ def execute_run(
             **_guilds_snapshot_fields(world),
             **_scholarship_snapshot_fields(world),
             **_food_snapshot_fields(world),
+            **_grain_reserves_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
 

@@ -504,6 +504,87 @@ def test_resource_check_catches_grain_and_money_from_nowhere(monkeypatch):
 
 # --- snapshot, metrics, narration ----------------------------------------------------
 
+def test_history_summary_is_read_only_and_keeps_completed_turn_values():
+    from chronicler.grain_reserves_state import ReserveFlow
+    from chronicler.main import _grain_reserves_snapshot_fields
+    world = _world()
+    granary = _granary(world, VERDANT)
+    granary.grain, granary.target, granary.observed = 11.125, 20.25, 3
+    state = world.grain_reserves
+    state.flows_turn = world.turn
+    state.flows = [ReserveFlow(kind=BOUGHT, region=VERDANT, amount=2.25, source=ASHARA,
+                              buyer=THORNWALL, seller=SELURIAN, sent=2.5, cost=4),
+                   ReserveFlow(kind=RELEASED, region=VERDANT, amount=1.5, buyer=THORNWALL,
+                               before=0.5, after=0.65)]
+    world.turn += 1  # run_chronicle captures the snapshot after turn completion
+    before = world.model_dump_json()
+    summary = _grain_reserves_snapshot_fields(world)["grain_reserves"]
+    row = summary["granaries"][VERDANT]
+    assert summary["source_turn"] == 30
+    assert (row["grain"], row["target"], row["owner"], row["owner_name"]) == (
+        11.125, 20.25, THORNWALL, world.civilizations[THORNWALL].name)
+    assert summary["flows"][0]["kind"] == "bought"
+    assert summary["flows"][0]["sent"] == 2.5
+    assert summary["flows"][1]["after"] == 0.65
+    assert world.model_dump_json() == before
+    # No aliased dictionaries/lists leak future mutations into the saved record.
+    state.counters["spoiled"] = 20
+    granary.grain = 1
+    state.flows[0].amount = 0
+    assert row["grain"] == 11.125 and summary["flows"][0]["amount"] == 2.25
+    assert summary["counters"]["spoiled"] == 0
+    world.turn += 1
+    assert G.snapshot_summary(world)["flows"] == []  # stale flows must not repeat
+
+
+def test_history_summary_does_not_initialise_granaries_or_infer_new_owner():
+    world = _world()
+    before = world.model_dump_json()
+    assert G.snapshot_summary(world)["granaries"] == []
+    assert world.model_dump_json() == before
+    granary = _granary(world, VERDANT)
+    world.regions[VERDANT].controller = world.civilizations[SELURIAN].name
+    row = G.snapshot_summary(world)["granaries"][VERDANT]
+    assert row["owner"] == THORNWALL
+    assert row["controller"] == world.civilizations[SELURIAN].name
+    assert granary.owner == THORNWALL
+
+
+def test_history_summary_absent_when_off_or_dormant():
+    from chronicler.main import _grain_reserves_snapshot_fields
+    from chronicler.models import TurnSnapshot
+    world = generate_world(seed=42)
+    base = TurnSnapshot(turn=1, civ_stats={}, region_control={}, relationships={})
+    before = base.model_dump_json()
+    assert _grain_reserves_snapshot_fields(world) == {}
+    G.set_grain_reserves_enabled(world, True)
+    world.agent_mode = "off"
+    assert _grain_reserves_snapshot_fields(world) == {} and G.snapshot_summary(world) == {}
+    assert base.model_copy(update=_grain_reserves_snapshot_fields(world)).model_dump_json() == before
+    assert "grain_reserves" not in json.loads(before)
+
+
+def test_history_summary_survives_bundle_batch_live_and_reconnect_adapters():
+    from chronicler.bundle_codec import decode_bundle, encode_bundle
+    from chronicler.live import _build_init_data_from_bundle, _validate_legacy_live_bundle
+    from chronicler.models import TurnSnapshot
+    from chronicler.transport import snapshot_from_turn_message
+    world = _world()
+    _granary(world, VERDANT).grain = 17.125
+    world.turn += 1
+    summary = G.snapshot_summary(world)
+    snapshot = TurnSnapshot(turn=world.turn, civ_stats={}, region_control={}, relationships={},
+                            grain_reserves=summary).model_dump(mode="json")
+    bundle = {"world_state": world.model_dump(mode="json"), "history": [snapshot],
+              "events_timeline": [], "named_events": [], "chronicle_entries": [],
+              "era_reflections": {}, "metadata": {"total_turns": world.turn}}
+    static = decode_bundle(encode_bundle(bundle))
+    loaded = _validate_legacy_live_bundle(static)
+    reconnect = _build_init_data_from_bundle(loaded)
+    for payload in (static, loaded, reconnect):
+        assert payload["history"][0]["grain_reserves"] == summary
+    assert snapshot_from_turn_message(dict(snapshot, type="turn"))["grain_reserves"] == summary
+
 def test_metrics_and_event_classes():
     from chronicler.curator import event_label
     from chronicler.historiography import ROUTINE
@@ -548,7 +629,10 @@ def test_native_hybrid_run_procures_releases_and_balances(tmp_path, monkeypatch)
     assert len(ledger["turn"]) > 0 and math.fsum(ledger["released"]) == pytest.approx(counters["released"])
     bundle = load_bundle(out / "chronicle_bundle.json")
     assert bundle["world_state"]["grain_reserves"]["counters"]["released"] == pytest.approx(counters["released"])
-    assert "grain_reserves" not in bundle["history"][-1]
+    summary = bundle["history"][-1]["grain_reserves"]
+    assert summary["source_turn"] == bundle["history"][-1]["turn"] - 1
+    assert sum(row["grain"] for row in summary["granaries"]) == pytest.approx(
+        sum(g.grain for g in world.grain_reserves.granaries))
     types = {e["event_type"] for e in bundle["events_timeline"]}
     assert "granary_opened" in types
 

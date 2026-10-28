@@ -79,7 +79,7 @@ import math
 from typing import TYPE_CHECKING
 
 from chronicler.grain_reserves_state import (
-    ABANDONED, BOUGHT, CAPTURED, COUNTER_KEYS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,
+    ABANDONED, BOUGHT, CAPTURED, COUNTER_KEYS, FLOW_KINDS, RELEASED, SEIZED, SPOILED, GrainReserveState, Granary,
     ReserveFlow, grain_reserves_on,
 )
 
@@ -137,6 +137,39 @@ def set_grain_reserves_enabled(world: "WorldState", enabled: bool) -> None:
 def grain_reserves_active(world) -> bool:
     """Switched on and running on an agent-backed goods economy."""
     return grain_reserves_on(world) and world.agent_mode not in (None, "off")
+
+
+def snapshot_summary(world: "WorldState") -> dict:
+    """Read the completed turn's stocks and flows without changing simulation state.
+
+    A snapshot at T is taken after simulation turn T-1. Never repeat an old
+    flow list when a turn made no movements, and never initialise missing
+    granaries or infer their owner from the current territorial controller.
+    Ownership is the granary's recorded keeper (settled in Phase 2).
+    """
+    if not grain_reserves_active(world):
+        return {}
+    state = world.grain_reserves
+    source_turn = world.turn - 1
+
+    def owner_name(index: int) -> str | None:
+        return world.civilizations[index].name if 0 <= index < len(world.civilizations) else None
+
+    return {
+        "source_turn": source_turn,
+        "granaries": [
+            {"region": rid, "region_name": region.name, "owner": granary.owner,
+             "owner_name": owner_name(granary.owner), "controller": region.controller,
+             "grain": granary.grain, "target": granary.target, "observed": granary.observed}
+            for rid, (region, granary) in enumerate(zip(world.regions, state.granaries))
+        ],
+        "flows": [
+            {**flow.model_dump(), "kind": FLOW_KINDS[flow.kind],
+             "buyer_name": owner_name(flow.buyer), "seller_name": owner_name(flow.seller)}
+            for flow in state.flows if state.flows_turn == source_turn
+        ],
+        "counters": dict(state.counters),
+    }
 
 
 def _spoilage() -> float:
