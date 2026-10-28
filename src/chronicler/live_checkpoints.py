@@ -20,6 +20,10 @@ Two pieces run on the simulation thread:
   scheduled checkpoints again, so a checkpoint always holds the state the
   next turn starts from.
 
+The intervention record and that rewrite are :class:`PauseInterventions`,
+which an interactive (terminal) session uses as its turn boundary too
+(``chronicler.interactive``).
+
 Pure Python: no sockets (the server in ``chronicler.live`` feeds the
 request queue).
 """
@@ -141,7 +145,49 @@ def rebuilt_view(state: Any, init_message: dict[str, Any]) -> LiveView:
     return view
 
 
-class LiveCheckpoints:
+class PauseInterventions:
+    """``execute_run``'s turn boundary for a run whose pauses take commands.
+
+    The pause commands that change the run (``inject``, ``set``) are
+    recorded in ``run_config["interventions"]`` (``{"turn", "command",
+    ...}``, carried by every later checkpoint), and ``turn_end`` tells
+    ``execute_run`` after the pause that the run changed, so it writes that
+    turn's scheduled checkpoints again: they hold what the next turn starts
+    from. Interactive sessions use it as it is, live sessions through
+    :class:`LiveCheckpoints`. Runs on the simulation thread."""
+
+    def __init__(self) -> None:
+        self._save: Callable[[str], Path] | None = None
+        self._run_config: dict | None = None
+        self._changed = False
+
+    def bind(self, save: Callable[[str], Path] | None, run_config: dict) -> None:
+        """``save(template)`` writes an exact checkpoint of the run as it
+        stands; interventions are recorded in ``run_config``."""
+        self._save = save
+        self._run_config = run_config
+
+    def live_record(self) -> dict[str, Any] | None:
+        """The checkpoint's ``live`` entry: None outside a live session."""
+        return None
+
+    def note_intervention(self, world: Any, command: dict[str, Any]) -> None:
+        """An ``inject`` or ``set`` at a pause: recorded in the run
+        configuration (and so in every later checkpoint); this boundary's
+        scheduled checkpoints are written again."""
+        self._changed = True
+        if self._run_config is not None:
+            self._run_config["interventions"] = [
+                *self._run_config.get("interventions", []), {"turn": world.turn, **command}]
+
+    def turn_end(self, world: Any) -> bool:
+        """At a turn boundary, after its pause: True when an intervention
+        changed the run since the last boundary."""
+        changed, self._changed = self._changed, False
+        return changed
+
+
+class LiveCheckpoints(PauseInterventions):
     """Client-requested checkpoints and interventions at turn boundaries.
 
     ``request`` is called by the server thread; everything else runs on the
@@ -150,6 +196,7 @@ class LiveCheckpoints:
 
     def __init__(self, output_dir: Path, status_queue: "queue.Queue[dict]", view: LiveView,
                  speed: Callable[[], float], pause_every: int) -> None:
+        super().__init__()
         self.output_dir = Path(output_dir)
         self.status_queue = status_queue
         self.view = view
@@ -158,9 +205,6 @@ class LiveCheckpoints:
         self._requests: "queue.Queue[None]" = queue.Queue()
         self._lock = threading.Lock()
         self._closed = False
-        self._save: Callable[[str], Path] | None = None
-        self._run_config: dict | None = None
-        self._changed = False
 
     # --- server thread -------------------------------------------------------
 
@@ -177,11 +221,6 @@ class LiveCheckpoints:
         return self._closed
 
     # --- simulation thread ---------------------------------------------------
-
-    def bind(self, save: Callable[[str], Path], run_config: dict) -> None:
-        """``save(template)`` writes an exact checkpoint of the run as it stands."""
-        self._save = save
-        self._run_config = run_config
 
     def live_record(self) -> dict[str, Any]:
         return self.view.record(speed=self._speed(), pause_every=self.pause_every)
@@ -238,21 +277,11 @@ class LiveCheckpoints:
                 self.status_queue.put(dict(reply))
         return count
 
-    def note_intervention(self, world: Any, command: dict[str, Any]) -> None:
-        """A viewer's ``inject`` or ``set``: recorded in the run configuration
-        (and so in every later checkpoint); this boundary's scheduled
-        checkpoints are written again."""
-        self._changed = True
-        if self._run_config is not None:
-            self._run_config["interventions"] = [
-                *self._run_config.get("interventions", []), {"turn": world.turn, **command}]
-
     def turn_end(self, world: Any) -> bool:
         """At a turn boundary: write requested checkpoints; True when an
         intervention changed the run since the last boundary."""
         self.service(world)
-        changed, self._changed = self._changed, False
-        return changed
+        return super().turn_end(world)
 
     def close(self, message: str) -> None:
         """The run ended: refuse queued and later requests."""

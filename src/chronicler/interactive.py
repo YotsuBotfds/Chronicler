@@ -1,4 +1,12 @@
-"""Interactive mode — pause at intervals, accept commands, resume."""
+"""Interactive mode — pause at intervals, accept commands, resume.
+
+Exact checkpoints (``--checkpoint-every``) hold the commands typed at a
+pause: ``inject`` and ``set`` are recorded and the turn's checkpoints are
+written again after the pause, as in a live session
+(``chronicler.live_checkpoints.PauseInterventions``). ``--interactive
+--resume FILE`` continues an exact checkpoint as an interactive session
+(docs/integration/checkpoint-continuation.md, section 11).
+"""
 from __future__ import annotations
 
 import argparse
@@ -6,6 +14,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from chronicler.live_checkpoints import PauseInterventions
 from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.types import RunResult
@@ -129,8 +138,18 @@ def interactive_pause(
     pending_injections: list,
     total_turns: int = 0,
     output_dir: Path = Path("output"),
+    interventions: PauseInterventions | None = None,
+    reason: str = "pause_interval",
 ) -> bool:
-    """Pause handler for interactive mode. Returns True to continue, False to quit."""
+    """Pause handler for interactive mode. Returns True to continue, False to quit.
+
+    With ``interventions`` (the session's turn boundary), each ``inject``
+    and ``set`` is recorded, and the turn's scheduled exact checkpoints are
+    written again after the pause. ``reason`` ``"resumed"``: the first pause
+    of a session resumed from a checkpoint."""
+    if reason == "resumed":
+        print(f"\nResumed at turn {world.turn}: continue, intervene or quit "
+              f"(quitting here writes nothing).")
     print("\n" + format_state_summary(world, total_turns))
 
     while True:
@@ -157,7 +176,10 @@ def interactive_pause(
             world.save(fork_dir / "state.json")
             for civ_name, stream in memories.items():
                 stream.save(fork_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
-            print(f"Fork saved to {fork_dir}")
+            # A state file holds the world's fields only: a run resumed or
+            # forked from it is labelled as not exact (metadata.resume).
+            print(f"Fork saved to {fork_dir} (a state file, not an exact checkpoint; "
+                  f"--checkpoint-every writes exact checkpoints)")
 
         elif cmd == "inject":
             event_type, civ_name = cmd_args
@@ -166,6 +188,9 @@ def interactive_pause(
                 print(f"Error: Civ '{civ_name}' not found. Valid civs: {civ_names}")
                 continue
             pending_injections.append((event_type, civ_name))
+            if interventions is not None:
+                interventions.note_intervention(
+                    world, {"command": "inject", "event_type": event_type, "civ": civ_name})
             print(f"Queued: {event_type} -> {civ_name} (fires next turn)")
 
         elif cmd == "set":
@@ -176,6 +201,9 @@ def interactive_pause(
                 print(f"Error: Civ '{civ_name}' not found. Valid civs: {civ_names}")
                 continue
             setattr(civ, stat, value)
+            if interventions is not None:
+                interventions.note_intervention(
+                    world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
             print(f"Set {civ_name}.{stat} = {value}")
 
         elif cmd == "error":
@@ -187,20 +215,49 @@ def run_interactive(
     sim_client: Any = None,
     narrative_client: Any = None,
     scenario_config: Any = None,
-) -> RunResult:
-    """Run in interactive mode with pauses at configured intervals."""
+    exact_resume: Any = None,
+) -> RunResult | None:
+    """Run in interactive mode with pauses at configured intervals.
+
+    Commands that change the run (``inject``, ``set``) are recorded in the
+    run configuration, and the turn's scheduled exact checkpoints are written
+    again after the pause (``PauseInterventions``, as in a live session), so
+    a resume from them continues the session exactly.
+
+    With ``exact_resume`` (``--interactive --resume FILE``, a
+    ``run_checkpoint.LoadedCheckpoint``) the session continues the
+    checkpoint exactly and first pauses at its turn; quitting there writes
+    nothing and returns None."""
     pause_every = args.pause_every or getattr(args, 'reflection_interval', None) or 10
     total_turns = args.turns or 50
     output_dir = Path(args.output).parent
+    interventions = PauseInterventions()
 
-    pending_injections: list[tuple[str, str]] = []
+    pending_injections: list[tuple[str, str]] | None = []
 
     def on_pause(world, memories, injections):
         return interactive_pause(
             world, memories, injections,
             total_turns=total_turns,
             output_dir=output_dir,
+            interventions=interventions,
         )
+
+    if exact_resume is not None:
+        state = exact_resume.state
+        print(f"Resuming exactly from {args.resume} at turn {state.world.turn} of {total_turns}, "
+              f"pausing every {pause_every} turns")
+        # Commands at this pause go into the loaded run (its configuration
+        # and pending injections), which execute_run continues.
+        interventions.bind(None, state.run_config)
+        if not interactive_pause(state.world, state.memories, state.pending_injections,
+                                 total_turns=total_turns, output_dir=output_dir,
+                                 interventions=interventions, reason="resumed"):
+            print(f"Quit at turn {state.world.turn} before any resumed turn: nothing was "
+                  f"written; {args.resume} still holds the run.")
+            return None
+        interventions.turn_end(state.world)
+        pending_injections = None  # the checkpoint's own
 
     from chronicler.main import execute_run
     return execute_run(
@@ -211,4 +268,6 @@ def run_interactive(
         pause_every=pause_every,
         pending_injections=pending_injections,
         scenario_config=scenario_config,
+        checkpoint_resume=exact_resume,
+        turn_boundary=interventions,
     )

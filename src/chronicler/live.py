@@ -1061,7 +1061,10 @@ def make_live_pause(
                 status_queue.put({
                     "type": "forked",
                     "save_path": str(fork_dir),
-                    "cli_hint": f"Resume from fork: --load {fork_dir / 'state.json'}",
+                    # A state file: --fork explores it with a new seed (there
+                    # is no --load); the viewer's Save checkpoint is exact.
+                    "cli_hint": (f"Fork from it with a new seed: --fork {fork_dir / 'state.json'} "
+                                 f"--seed SEED --turns TURNS (a state file, not an exact checkpoint)"),
                 })
 
             else:

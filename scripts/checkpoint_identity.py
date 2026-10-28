@@ -37,6 +37,19 @@
     server's own ``init`` at a reconnect during the last pause and the view
     after completion.
 
+``run OUT_DIR --case interactive_...``
+    Interactive sessions (``--interactive``; section 11), the terminal a
+    pipe: at each pause the case's lines, then ``continue``. ``plain`` saves
+    nothing, ``untouched`` types only ``continue`` (the lines must change
+    the run), ``straight`` writes a checkpoint at every turn; every
+    ``resume_k`` is ``--interactive --resume`` of the turn-k checkpoint,
+    typing ``continue`` at the resumed pause and the lines of later pauses,
+    and ``single_k`` a plain ``--resume`` of the checkpoint of the last pause
+    whose lines change the run (written again after that pause). Also
+    checks the pauses each session made, and that the checkpoint of a pause
+    whose lines change the run records its commands
+    (``run_config["interventions"]``) and the one before it does not.
+
 ``cases``
     Lists the case matrix.
 """
@@ -566,12 +579,190 @@ def run_live_case(out: Path, name: str, ks: list[int] | None, jobs: int, extra: 
     return report
 
 
+# --- interactive sessions -------------------------------------------------------------
+
+# name -> (world, CLI arguments, turns, pause interval, the lines typed at each
+# pause before ``continue``). ``{civ}`` is the world's first civ; a line that
+# sets or injects on it changes the run. ``fork`` writes fork_save_t<turn>/ (a
+# state file), which a resume from that turn on does not write again; a set on
+# an unknown civ is refused and changes nothing.
+INTERACTIVE_CASES: dict[str, tuple[dict, list[str], int, int, dict[int, list[str]]]] = {
+    "interactive_hybrid_s42": (
+        {"seed": 42, "civs": 4, "regions": 8}, ["--agents", "hybrid", "--validation-sidecar"], 20, 5,
+        {5: ['set "{civ}" treasury 250'],
+         10: ['set "{civ}" military 90', 'inject plague "{civ}"', "fork"],
+         15: ["help", 'set "Nobody" military 50']}),
+    "interactive_off_s42": (
+        {"seed": 42, "civs": 4, "regions": 8}, ["--agents", "off"], 20, 5,
+        {10: ['set "{civ}" stability 20', 'inject rebellion "{civ}"']}),
+}
+_PAUSE_LINE = re.compile(r"^=== Turn (\d+) / \d+")
+_RESUMED_LINE = re.compile(r"^Resumed at turn (\d+):")
+_FORK_ABSENT = re.compile(r"^only in base: fork_save_t(\d+)/")
+
+
+def _changes(lines: list[str]) -> int:
+    return sum(1 for line in lines if line.startswith(("set ", "inject ")) and "{civ}" in line)
+
+
+def _typed(at_pause: dict[int, list[str]], civ: str, turns: int, pause_every: int,
+           resumed_at: int | None) -> str:
+    """The terminal's input: ``continue`` at a resumed pause, then at every
+    later pause its lines and ``continue``."""
+    lines = [] if resumed_at is None else ["continue"]
+    for turn in range(pause_every, turns + 1, pause_every):
+        if resumed_at is None or turn > resumed_at:
+            lines += [line.format(civ=civ) for line in at_pause.get(turn, [])] + ["continue"]
+    return "\n".join(lines) + "\n"
+
+
+def _interactive_session(cmd: list[str], log: Path, env: dict, typed: str) -> dict:
+    """One ``--interactive`` CLI process, its terminal a pipe; the pauses it made."""
+    t0 = time.monotonic()
+    with open(log, "w") as fh:
+        try:
+            code = subprocess.run(cmd, env=env, input=typed, text=True, stdout=fh,
+                                  stderr=subprocess.STDOUT, cwd=str(log.parent),
+                                  timeout=_LIVE_TIMEOUT).returncode
+        except subprocess.TimeoutExpired:
+            code = -1
+    pauses, resumed = [], False
+    for line in log.read_text().splitlines():
+        if _RESUMED_LINE.match(line):
+            resumed = True
+        elif (m := _PAUSE_LINE.match(line)):
+            pauses.append([int(m.group(1)), "resumed" if resumed else "pause_interval"])
+            resumed = False
+    return {"exit": code, "seconds": round(time.monotonic() - t0, 2), "pauses": pauses}
+
+
+def run_interactive_case(out: Path, name: str, ks: list[int] | None, jobs: int, extra: list[str],
+                         keep: bool, resume_hash_seed: str) -> dict:
+    from chronicler.run_checkpoint import describe
+    from chronicler.world_gen import generate_world
+    world, cli, turns, pause_every, at_pause = INTERACTIVE_CASES[name]
+    civ = generate_world(seed=world["seed"], num_regions=world["regions"],
+                         num_civs=world["civs"]).civilizations[0].name
+    cli = ["--seed", str(world["seed"]), "--civs", str(world["civs"]), "--regions",
+           str(world["regions"]), *cli, "--turns", str(turns), *extra]
+    case = out / name
+    if case.exists():
+        shutil.rmtree(case)
+    case.mkdir(parents=True)
+    ks = sorted({k for k in (ks if ks is not None else range(1, turns)) if 0 < k < turns})
+    changing = sorted(t for t, lines in at_pause.items() if _changes(lines))
+    pause_turns = list(range(pause_every, turns + 1, pause_every))
+    report: dict = {"case": name, "cli": cli, "civ": civ, "turns": turns,
+                    "pause_every": pause_every, "at_pause": at_pause, "ks": ks, "results": {}}
+    plain, straight, untouched = case / "plain", case / "straight", case / "untouched"
+    for folder in (plain, straight, untouched):
+        folder.mkdir()
+    ckpt = straight / "ckpt"
+
+    def interactive_cmd(directory: Path, *more: str) -> list[str]:
+        return [sys.executable, "-m", "chronicler.main", "--interactive", "--pause-every",
+                str(pause_every), *more, *_outputs(directory)]
+
+    typed = _typed(at_pause, civ, turns, pause_every, None)
+    with ThreadPoolExecutor(max_workers=min(jobs, 2)) as pool:
+        runs = {
+            "plain": pool.submit(_interactive_session, interactive_cmd(plain, *cli),
+                                 case / "plain.log", _env(), typed),
+            "straight": pool.submit(_interactive_session, interactive_cmd(
+                straight, *cli, "--checkpoint-every", "1", "--checkpoint",
+                str(ckpt / "turn_{turn:04d}.ckpt")), case / "straight.log", _env(), typed),
+            "untouched": pool.submit(_interactive_session, interactive_cmd(untouched, *cli),
+                                     case / "untouched.log", _env(),
+                                     _typed({}, civ, turns, pause_every, None)),
+        }
+        for key, future in runs.items():
+            report[key] = future.result()
+    expected_pauses = [[t, "pause_interval"] for t in pause_turns]
+    if any(report[key]["exit"] or report[key]["pauses"] != expected_pauses
+           for key in ("plain", "straight", "untouched")):
+        report["error"] = "a straight session failed or paused elsewhere"
+        (case / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+        print(f"{name}: FAIL ({report['error']})", flush=True)
+        return report
+    from cities_identity import compare as compare_dirs
+    checked, problems = compare_dirs(plain, straight)
+    problems = [p for p in problems if not p.startswith("only in new: ckpt/")]
+    report["checkpointing_changes_nothing"] = {"files": checked, "differences": problems}
+    _, changed = compare_dirs(plain, untouched)
+    changed = [d for d in changed if not d.startswith("only in base: fork_save_t")]
+    report["the_lines_change_the_run"] = len(changed)
+    # The checkpoint of a pause whose lines change the run is written again
+    # after it and records them; the checkpoint before it does not.
+    recorded = {}
+    for turn in changing:
+        mine = [i for i in describe(ckpt / f"turn_{turn:04d}.ckpt")["run_config"]
+                .get("interventions", []) if i["turn"] == turn]
+        before = [i for i in describe(ckpt / f"turn_{turn - 1:04d}.ckpt")["run_config"]
+                  .get("interventions", []) if i["turn"] == turn]
+        recorded[str(turn)] = {"recorded": mine, "ok": len(mine) == _changes(at_pause[turn])
+                               and not before}
+    report["recorded"] = recorded
+    print(f"{name}: plain vs straight: {checked} files, {len(problems)} differences; the lines "
+          f"change {len(changed)} files; commands recorded at "
+          f"{[t for t, r in recorded.items() if r['ok']]} of {changing}", flush=True)
+
+    points = [(k, "resume") for k in ks] + ([(changing[-1], "single")] if changing else [])
+
+    def resume(point) -> tuple[str, dict]:
+        k, kind = point
+        label = f"{kind}_{k:04d}"
+        rdir = case / label
+        rdir.mkdir()
+        path = str(ckpt / f"turn_{k:04d}.ckpt")
+        if kind == "resume":
+            seen = _interactive_session(interactive_cmd(rdir, "--resume", path), case / f"{label}.log",
+                                        _env(resume_hash_seed),
+                                        _typed(at_pause, civ, turns, pause_every, k))
+            expected = [[k, "resumed"]] + [[t, "pause_interval"] for t in pause_turns if t > k]
+        else:
+            code, secs = _run(_cmd(0, ["--resume", path, *_outputs(rdir)]), case / f"{label}.log",
+                              _env(resume_hash_seed))
+            seen, expected = {"exit": code, "seconds": round(secs, 2), "pauses": []}, []
+        result = {"turn": k, **seen}
+        if seen["exit"] == 0:
+            n, diffs = _compare_resume(straight, rdir, k)
+            diffs = [d for d in diffs
+                     if not ((m := _FORK_ABSENT.match(d)) and int(m.group(1)) <= k)]
+            if seen["pauses"] != expected:
+                diffs.append(f"paused at {seen['pauses']}, expected {expected}")
+            result.update(files=n, differences=diffs)
+            if not diffs and not keep:
+                shutil.rmtree(rdir)
+                (case / f"{label}.log").unlink()
+        return label, result
+
+    with ThreadPoolExecutor(max_workers=min(jobs, 2)) as pool:
+        for label, result in pool.map(resume, points):
+            report["results"][label] = result
+            status = (f"FAIL exit {result['exit']}" if result["exit"]
+                      else f"{result['files']} files, {len(result['differences'])} differences")
+            print(f"{name}: {label}: {status}", flush=True)
+            for line in result.get("differences", [])[:10]:
+                print(f"    {line}", flush=True)
+    passed = (not problems and len(changed) > 0 and all(r["ok"] for r in recorded.values())
+              and all(r["exit"] == 0 and "files" in r and not r["differences"]
+                      for r in report["results"].values()))
+    report["pass"] = passed
+    if passed and not keep:
+        for folder in (ckpt, plain, untouched):
+            shutil.rmtree(folder)
+    (case / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(f"{name}: {'PASS' if passed else 'FAIL'} ({len(points)} resume points)", flush=True)
+    return report
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("out", type=Path)
-    r.add_argument("--case", action="append", choices=sorted(CASES) + sorted(LIVE_CASES),
+    r.add_argument("--case", action="append",
+                   choices=sorted(CASES) + sorted(LIVE_CASES) + sorted(INTERACTIVE_CASES),
                    required=True)
     r.add_argument("--ks", type=str, default=None, help="comma-separated resume turns (default: all)")
     r.add_argument("--jobs", type=int, default=1, choices=(1, 2))
@@ -588,12 +779,16 @@ def main(argv=None) -> int:
             print(f"{name}: live, {turns} turns, pause every {pause_every}, start {start}, "
                   f"resume at 1..{turns - 1} and each viewer checkpoint, script {script}: "
                   f"{' '.join(cli)}")
+        for name, (world, cli, turns, pause_every, at_pause) in INTERACTIVE_CASES.items():
+            print(f"{name}: interactive, {turns} turns, pause every {pause_every}, world {world}, "
+                  f"resume at 1..{turns - 1}, lines {at_pause}: {' '.join(cli)}")
         return 0
     a.out.mkdir(parents=True, exist_ok=True)
     ks = [int(x) for x in a.ks.split(",")] if a.ks else None
     status = 0
     for name in a.case:
-        runner = run_live_case if name in LIVE_CASES else run_case
+        runner = (run_live_case if name in LIVE_CASES
+                  else run_interactive_case if name in INTERACTIVE_CASES else run_case)
         report = runner(a.out.resolve(), name, ks, a.jobs, a.cli_arg, a.keep, a.resume_hash_seed)
         status |= not report.get("pass", False)
     return status

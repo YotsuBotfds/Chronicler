@@ -83,8 +83,14 @@ the pause panel's **Save checkpoint** (the `checkpoint` message, which
 names no file) writes `live_checkpoints/turn_<turn>.ckpt` under the output
 directory at the next turn boundary; `inject` and `set` are recorded in
 the checkpoints that follow. `--live --simulate-only` makes no LLM calls.
-See `docs/integration/checkpoint-continuation.md` (section 11 for live
-sessions); `scripts/checkpoint_identity.py` has live cases (`live_*`).
+`--interactive` pauses do the same with commands typed in the terminal,
+and `--interactive --resume FILE` continues an exact checkpoint as an
+interactive session, paused first at its turn. See
+`docs/integration/checkpoint-continuation.md` (section 11 for live and
+interactive sessions); `scripts/checkpoint_identity.py` has live and
+interactive cases (`live_*`, `interactive_*`), and
+`viewer/scripts/qa-live-checkpoint.mjs` is an opt-in browser check of the
+pause panel's Save checkpoint and `--live --resume`.
 
 ## Native and full qualification
 

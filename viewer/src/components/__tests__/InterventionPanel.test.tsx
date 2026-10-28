@@ -174,5 +174,26 @@ describe("InterventionPanel", () => {
       );
       expect(screen.getByText(/disk full/)).toBeDefined();
     });
+
+    it("wraps long paths and hints inside the panel", () => {
+      // A path without spaces or hyphens ran past the panel's edge (browser
+      // QA, scripts/qa-live-checkpoint.mjs); the path and hint now break anywhere.
+      const path = "/srv/chronicler_runs/a_long_output_directory/live_checkpoints/turn_0005.ckpt";
+      render(
+        <InterventionPanel
+          pauseContext={checkpointContext}
+          sendCommand={vi.fn()}
+          onSaveCheckpoint={vi.fn()}
+          checkpointStatus={{ state: "saved", turn: 5, path, resumeHint: `--live --resume ${path}` }}
+          forkedPath="/srv/chronicler_runs/a_long_output_directory/fork_save_t5"
+          forkedHint="Fork from it with a new seed: --fork /srv/chronicler_runs/a_long_output_directory/fork_save_t5/state.json"
+        />,
+      );
+      expect(screen.getByText(path).className).toContain("break-all");
+      expect(screen.getByText(`--live --resume ${path}`).className).toContain("break-all");
+      expect(screen.getByText("/srv/chronicler_runs/a_long_output_directory/fork_save_t5").className)
+        .toContain("break-all");
+      expect(screen.getByText(/--fork \/srv/).className).toContain("break-all");
+    });
   });
 });

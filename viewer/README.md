@@ -16,6 +16,26 @@ sea) and per-region food, war, epidemic and technique rows in the inspector;
 bundles without them get none of these. See
 [viewer-systems.md](../docs/integration/viewer-systems.md).
 
+## Live checkpoint browser QA (opt-in, not CI)
+
+`scripts/qa-live-checkpoint.mjs` drives the live pause panel's **Save
+checkpoint** and `--live --resume` in headless Chromium (Playwright,
+`require("playwright")`). Start the viewer (`npm run dev`, or `npm run build`
+and `npm run preview`), then from `viewer/`:
+
+```sh
+PYTHONPATH=../src node scripts/qa-live-checkpoint.mjs --python <python with chronicler's dependencies> \
+    [--viewer http://localhost:5173] [--agents off] [--out DIR]
+```
+
+It starts its own `--live --simulate-only` sessions (stopped by their PIDs),
+launches a 20-turn world from the setup form, saves a checkpoint at the pause
+at turn 5, resumes it with `--live --resume`, checks the resumed viewer's
+history and pause, and checks that a stale or missing session token is
+refused. Screenshots, logs and `report.json` go to `--out`. See
+[checkpoint-continuation.md](../docs/integration/checkpoint-continuation.md),
+section 11.
+
 ## React + TypeScript + Vite scaffold notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

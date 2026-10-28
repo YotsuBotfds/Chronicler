@@ -6,6 +6,57 @@
 
 ---
 
+## Interactive checkpoints and live browser QA (2026-10-28, `fix/interactive-checkpoints`)
+
+> **Last updated:** 2026-10-28 (`fix/interactive-checkpoints` from `main` `39d5ba0`; interactive mode, live transport and viewer only, the simulation byte-identical. Commands typed at an `--interactive` pause (`inject`, `set`) are recorded and the turn's checkpoints written again, through the code live mode uses (`PauseInterventions`); `--interactive --resume FILE` continues an exact checkpoint paused at its turn. Interactive identity: 2 cases, 40 resume points, 687 file comparisons, 0 differences (on `main` a resume after a pause's commands differed in 4 of 9 files). Browser QA of Save checkpoint and `--live --resume` in headless Chromium found and fixed three panel/setup defects; 20 of 20 checks after. 9-case matrix 399 files, 0 differences against `main`.)
+
+Details and evidence:
+[`docs/integration/checkpoint-continuation.md`](../../integration/checkpoint-continuation.md),
+section 11 (interactive sessions, browser QA).
+
+- **Interactive**: `inject` and `set` at a pause go to
+  `run_config["interventions"]` and the turn's scheduled checkpoints
+  (`--checkpoint-every`, `--checkpoint-turns`) are written again after
+  the pause. `PauseInterventions` (`live_checkpoints.py`) is the shared
+  part; `LiveCheckpoints` extends it. `--interactive --resume FILE`
+  (exact checkpoints only; a state file is refused) adopts the
+  checkpoint's configuration and first pauses at its turn: commands there
+  are applied to the loaded run and recorded; quit writes nothing.
+  `fork` still writes a state file and now says it is not exact.
+- **Browser QA** (`viewer/scripts/qa-live-checkpoint.mjs`, opt-in): launch
+  from the setup form, Save checkpoint at the pause at turn 5 (server
+  path, file and `--live --resume` hint shown), Fork, Quit, `--live
+  --resume` of the file (paused at turn 5, same chronicle and metrics,
+  Continue to turn 10), a stale or missing token refused. Fixed: the saved
+  path and hint (and the fork path and hint) ran past the panel's edge
+  when the path had no space or hyphen; the shell's Seed field had no
+  accessible name; the live fork hint named a nonexistent `--load`
+  option (now `--fork ... --seed SEED --turns TURNS`). Dev server (off and
+  hybrid) and built viewer: 20 of 20 checks.
+- **Identity and tests**: `scripts/checkpoint_identity.py` cases
+  `interactive_hybrid_s42` (sidecars; commands at pauses 5 and 10, `fork`,
+  `help`, a refused `set`) and `interactive_off_s42` on `68bc026`: every
+  turn 1-19 resumed with `--interactive --resume` plus the turn-10
+  checkpoint with a plain `--resume`, 0 differences; checkpointing changes
+  nothing (44 files). 9-case matrix, `main` `39d5ba0` (exported tree)
+  against `072820e`: 399 files, 0 differences. Release extension built
+  from the unchanged Rust tree, SHA-256 `3da1ee1f...ad0b`. Oracle lane
+  PASS (16 chunks, 2,821 passed, 63 skipped; new chunk
+  `interactive-checkpoints` 28 passed, 2 native skipped); not-slow with
+  the extension on `072820e`: 6,834 passed, 3 skipped, 526 subtests (10
+  new); viewer 444 tests (2 new), lint and build passed. No `cargo
+  test` (Rust unchanged), no validation gate (no simulation change).
+- **Open**: resumes do not replay the commands of later pauses (live and
+  interactive); no terminal counterpart of Save checkpoint (an exact save
+  at an interactive pause needs `--checkpoint-every` on that turn); an
+  interactive resume pauses at the reflection interval unless
+  `--pause-every` is given (the saved session's interval is not
+  recorded); before a run, the setup surface's timeline stacks its five
+  placeholder era labels (cosmetic, not changed); browser QA in headless
+  Chromium on Linux at a desktop viewport only.
+
+---
+
 ## Live checkpoints (2026-10-28, `feat/live-checkpoints`)
 
 > **Last updated:** 2026-10-28 (`feat/live-checkpoints` from `main` `25854db`; live mode, CLI and viewer only, the simulation byte-identical. A live session writes exact checkpoints (`--checkpoint-every`, `--checkpoint`), a viewer asks for one at a turn boundary with the `checkpoint` message (the pause panel's Save checkpoint), and `--live --resume FILE` continues any exact checkpoint as a live session, paused at its turn, whose outputs equal the uninterrupted session's and whose viewers are sent the same history. Live identity: 3 cases, 63 resume points, 1,205 file comparisons and every view, 0 differences; 9-case matrix 399 files, 0 differences against `main`.)
