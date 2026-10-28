@@ -362,15 +362,16 @@ impl AgentSimulator {
     /// of turn `start_turn` or later (`scale::DecisionAblation`). `names`
     /// lists `"needs"` (the need terms of the decision and the autonomy
     /// factor of loyalty drift), `"kin_roots"` (marriage and home bonds in a
-    /// migrant's roots) or `"placebo"` (decision draws from another random
-    /// stream, no term changed); an empty list switches nothing off. Never
-    /// called by a plain run: the default ablates nothing.
+    /// migrant's roots), `"placebo"` (decision draws from another random
+    /// stream, no term changed) or `"community_anchor"` (the community
+    /// anchor of `set_community_anchoring`); an empty list switches nothing
+    /// off. Never called by a plain run: the default ablates nothing.
     pub fn set_decision_ablation(&mut self, names: Vec<String>, start_turn: u32) -> PyResult<()> {
         let mut mask = 0u8;
         for name in &names {
             mask |= crate::scale::DecisionAblation::bit(name).ok_or_else(|| {
                 PyValueError::new_err(format!(
-                    "decision ablation must be 'needs', 'kin_roots' or 'placebo', got {name:?}"
+                    "decision ablation must be 'needs', 'kin_roots', 'placebo' or 'community_anchor', got {name:?}"
                 ))
             })?;
         }
@@ -387,6 +388,32 @@ impl AgentSimulator {
     pub fn decision_ablation(&self) -> (Vec<&'static str>, u32) {
         let a = self.tick_options.ablation;
         (crate::scale::DecisionAblation::names(a.mask), a.start_turn)
+    }
+
+    /// Community anchoring (`--community-anchoring`, `community.rs`) for
+    /// later ticks: community ties at home hold an agent back from acting on
+    /// a reason to move. `full_anchor` is the anchor of an agent with
+    /// `COMMUNITY_FULL_TIES` ties, in utility units (default and None: the
+    /// calibrated `COMMUNITY_ANCHOR`; it must be finite and not negative).
+    /// Never called by a run without the switch.
+    #[pyo3(signature = (enabled, full_anchor=None))]
+    pub fn set_community_anchoring(&mut self, enabled: bool, full_anchor: Option<f32>) -> PyResult<()> {
+        let full_anchor = full_anchor.unwrap_or(crate::community::COMMUNITY_ANCHOR);
+        if !full_anchor.is_finite() || full_anchor < 0.0 {
+            return Err(PyValueError::new_err(format!(
+                "community anchor must be finite and not negative, got {full_anchor}"
+            )));
+        }
+        self.snapshot_cache = None; // later ticks change: drop the cached snapshot
+        self.tick_options.community_anchoring = crate::scale::CommunityAnchoring { enabled, full_anchor };
+        Ok(())
+    }
+
+    /// Community anchoring in force: (enabled, full anchor).
+    #[getter]
+    pub fn community_anchoring(&self) -> (bool, f32) {
+        let c = self.tick_options.community_anchoring;
+        (c.enabled, c.full_anchor)
     }
 
     /// Profiling only: when on, later ticks at 100,000 agents or more also
@@ -1811,6 +1838,9 @@ impl AgentSimulator {
             m.insert(format!("decided_age_{band}"), d.decided_by_age[i] as f64);
             m.insert(format!("voluntary_age_{band}"), d.voluntary_by_age[i] as f64);
         }
+        for (i, count) in d.community_ties.iter().enumerate() {
+            m.insert(format!("community_ties_{i}"), *count as f64);
+        }
         m
     }
 
@@ -1937,6 +1967,44 @@ impl AgentSimulator {
                 Arc::new(civ_affinity_col.finish()) as _,
                 Arc::new(region_col.finish()) as _,
                 Arc::new(occupation_col.finish()) as _,
+            ],
+        )
+        .map_err(arrow_err)?;
+        Ok(PyRecordBatch::new(batch))
+    }
+
+    /// Community anchoring: every living agent's community ties as the
+    /// decision counts them now (`community::community_ties`), as
+    /// [agent_id: u32, ties: u8, non_kin: u8, counted: u8]. Read-only; the
+    /// validator recomputes the same ties from the sidecars, and tests check
+    /// the two agree.
+    pub fn get_community_ties(&self) -> PyResult<PyRecordBatch> {
+        let ids = self.pool.build_id_slots();
+        let alive: Vec<usize> = (0..self.pool.capacity()).filter(|&s| self.pool.alive[s]).collect();
+        let mut id_col = UInt32Builder::with_capacity(alive.len());
+        let mut ties_col = UInt8Builder::with_capacity(alive.len());
+        let mut non_kin_col = UInt8Builder::with_capacity(alive.len());
+        let mut counted_col = UInt8Builder::with_capacity(alive.len());
+        for slot in alive {
+            let ties = crate::community::community_ties(&self.pool, slot, self.pool.regions[slot] as usize, &ids);
+            id_col.append_value(self.pool.ids[slot]);
+            ties_col.append_value(ties.ties);
+            non_kin_col.append_value(ties.non_kin);
+            counted_col.append_value(ties.counted());
+        }
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("agent_id", DataType::UInt32, false),
+            Field::new("ties", DataType::UInt8, false),
+            Field::new("non_kin", DataType::UInt8, false),
+            Field::new("counted", DataType::UInt8, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(id_col.finish()) as _,
+                Arc::new(ties_col.finish()) as _,
+                Arc::new(non_kin_col.finish()) as _,
+                Arc::new(counted_col.finish()) as _,
             ],
         )
         .map_err(arrow_err)?;

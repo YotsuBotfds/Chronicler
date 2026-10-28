@@ -255,6 +255,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
     from chronicler.nomads import nomads_enabled
     from chronicler.scholarship import scholarship_enabled
     from chronicler.grain_reserves import grain_reserves_enabled
+    from chronicler.community_anchoring import community_anchoring_enabled
     from chronicler.techniques import techniques_enabled
 
     return {
@@ -275,6 +276,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "guilds": bool(guilds_enabled(world)),
         "scholarship": bool(scholarship_enabled(world)),
         "grain_reserves": bool(grain_reserves_enabled(world)),
+        "community_anchoring": bool(community_anchoring_enabled(world)),
         # The observational layers are read without importing them (they are
         # imported only by the modules that run or narrate them).
         "historiography": getattr(world, "_historiography", None) is not None,

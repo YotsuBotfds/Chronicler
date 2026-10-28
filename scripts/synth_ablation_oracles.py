@@ -77,6 +77,31 @@ EXPOSURE = {
         "purpose": (1.00, 0.12, 0.045, 0.5),
         "members": (1.00, 0.85, 0.045, 0.5),
     },
+    # Measured on the full gates of docs/integration/ablation-oracles.md
+    # (section 3; main 7c44ed8 with the arms): per pairing, q from the seeds
+    # with a cohort over their forks (independent forks), the mean cohort of a
+    # fork that has one over its agents, and the ablated arm's events per
+    # agent-turn (docs/integration/community-anchoring.md, section 6).
+    "template_gate": {
+        "agents": 185,
+        "safety": (0.030, 0.104, 0.045, 0.5),
+        "material": (0.527, 0.184, 0.051, 0.5),
+        "social": (1.00, 0.021, 0.057, 0.5),
+        "spiritual": (0.650, 0.225, 0.049, 0.5),
+        "autonomy": (0.155, 0.239, 0.087, 1.0),
+        "purpose": (1.00, 0.175, 0.047, 0.5),
+        "members": (1.00, 0.862, 0.054, 0.5),
+    },
+    "procedural_gate": {
+        "agents": 542,
+        "safety": (0.146, 0.0152, 0.050, 0.5),
+        "material": (0.400, 0.0166, 0.065, 0.5),
+        "social": (1.00, 0.0765, 0.060, 0.5),
+        "spiritual": (1.00, 0.415, 0.057, 0.5),
+        "autonomy": (0.510, 0.123, 0.076, 1.0),
+        "purpose": (1.00, 0.129, 0.035, 0.5),
+        "members": (1.00, 0.845, 0.063, 0.5),
+    },
 }
 SCALES = {
     # name: (world, seeds, forks per seed)
@@ -84,6 +109,13 @@ SCALES = {
     "procedural_full": ("procedural", 100, 2),
     "template_subset": ("template", 20, 1),
     "procedural_subset": ("procedural", 20, 1),
+    # Gate exposure (measured): the method 7 designs and the fork spacings
+    # weighed for method 8 (forks every 100, 50 or 20 turns from turn 100).
+    "template_gate_every100": ("template_gate", 200, 4),
+    "procedural_gate_every100": ("procedural_gate", 100, 2),
+    "procedural_gate_every50": ("procedural_gate", 100, 4),
+    "procedural_gate_every20": ("procedural_gate", 100, 9),
+    "procedural_gate_200_seeds": ("procedural_gate", 200, 2),
 }
 # name: (needs effect, cohort effect, age confound): the plain arm's rate over
 # the ablated arm's minus 1, for every needs pairing / for members' migration.

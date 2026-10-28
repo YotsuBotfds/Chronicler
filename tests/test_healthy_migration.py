@@ -74,7 +74,10 @@ def test_native_migration_budget_reports_every_term(make_world):
                  for driver in ("frontier", "wage", "chain", "urban", "learning")}
     expected |= {f"{kind}_age_{band}" for kind in ("decided", "voluntary")
                  for band in ("under20", "20_34", "35_49", "50_64", "65plus")}
+    # Community anchoring's tie bands (zeros without --community-anchoring).
+    expected |= {f"community_ties_{k}" for k in range(5)}
     assert set(budget) == expected
+    assert all(budget[f"community_ties_{k}"] == 0 for k in range(5))
     assert budget["evaluated"] > 0
     assert sum(budget[f"share_{t}"] for t in DRIVER_TERMS) == pytest.approx(
         budget["decided"] - budget["unexplained"])

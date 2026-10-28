@@ -142,6 +142,9 @@ K_CARGO_FILL = "economy.cargo_fill"
 # Guilds (--guilds): movement news as information packets (0 turns the news
 # off while guilds stay on; for the news-on/off comparison).
 K_GUILD_NEWS = "guilds.movement_news"
+# Community anchoring (chronicler.community_anchoring): the anchor of an agent
+# with four community ties, in utility units (native default 0.120143).
+K_COMMUNITY_FULL_ANCHOR = "agents.community_full_anchor"
 
 # Politics
 K_SECESSION_STABILITY_THRESHOLD = "politics.secession_stability_threshold"
@@ -318,6 +321,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_YIELD_PENALTY_REACHES_GOODS,
     K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
     K_GUILD_NEWS,
+    K_COMMUNITY_FULL_ANCHOR,
     # Politics
     K_SECESSION_STABILITY_THRESHOLD, K_SECESSION_SURVEILLANCE_THRESHOLD,
     K_PROXY_WAR_SECESSION_BONUS, K_BALANCE_OF_POWER_DOMINANCE,

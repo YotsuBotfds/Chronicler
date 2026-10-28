@@ -63,7 +63,7 @@ from chronicler.batch_manifest import (
     record_batch_run,
     write_batch_manifest,
 )
-from chronicler.ablation_arms import GATE_ARMS, checkpoint_turns, run_ablation_arms
+from chronicler.ablation_arms import COMMUNITY_ARM, GATE_ARMS, checkpoint_turns, fork_every, run_ablation_arms
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     CAUSAL_ORACLES_FLAG,
@@ -180,11 +180,26 @@ def require_causal(args: argparse.Namespace) -> bool:
 
 
 def _ablation_args(args: argparse.Namespace) -> list[str]:
-    """The batch's fork checkpoints (``--checkpoint-turns``), when the arms run."""
+    """The batch's fork checkpoints (``--checkpoint-turns``), when the arms
+    run: the fork design's turns for the batch's world
+    (``chronicler.ablation_arms.fork_every``)."""
     if not ablation_enabled(args):
         return []
-    turns = checkpoint_turns(args.turns)
+    worldgen = "procedural" if getattr(args, "worldgen", None) == "procedural" else None
+    turns = checkpoint_turns(args.turns, every=fork_every(worldgen))
     return ["--checkpoint-turns", ",".join(str(t) for t in turns)] if turns else []
+
+
+def ablation_arms_for(args: argparse.Namespace) -> list[str]:
+    """``--ablation-arms``, else the gate's arms (``GATE_ARMS``) and, when the
+    batch runs ``--community-anchoring``, the community anchor's arm."""
+    requested = getattr(args, "ablation_arms", None)
+    if requested:
+        return [arm for arm in str(requested).split(",") if arm]
+    arms = list(GATE_ARMS)
+    if getattr(args, "community_anchoring", None) is True:
+        arms.append(COMMUNITY_ARM)
+    return arms
 
 
 def _ablation_dir_for(batch_dir: Path) -> Path:
@@ -199,7 +214,7 @@ def run_arms(args: argparse.Namespace, batch_dir: Path, cwd: Path, env: dict[str
     """Fork every seed of ``batch_dir`` into its ablation arms (None when off)."""
     if not ablation_enabled(args):
         return None
-    arms = [arm for arm in str(getattr(args, "ablation_arms", None) or ",".join(GATE_ARMS)).split(",") if arm]
+    arms = ablation_arms_for(args)
     out = _ablation_dir_for(batch_dir)
     print(f"> ablation arms {','.join(arms)} into {out}")
     manifest = run_ablation_arms(
@@ -322,6 +337,14 @@ def _grain_reserves_args(args: argparse.Namespace) -> list[str]:
     return ["--grain-reserves" if grain_reserves else "--no-grain-reserves"]
 
 
+def _community_anchoring_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit community-anchoring switch; omitted keeps the CLI default."""
+    anchoring = getattr(args, "community_anchoring", None)
+    if anchoring is None:
+        return []
+    return ["--community-anchoring" if anchoring else "--no-community-anchoring"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -389,6 +412,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_community_anchoring_args(args),
         *_historiography_args(args),
         *_languages_args(args),
         *_ablation_args(args),
@@ -432,6 +456,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_community_anchoring_args(args),
         *_historiography_args(args),
         *_languages_args(args),
         *_ablation_args(args),
@@ -446,6 +471,10 @@ def _determinism_manifest_args(args: argparse.Namespace, agents: str) -> argpars
     run_args.agents = agents
     run_args.simulate_only = True
     run_args.validation_sidecar = agents == "hybrid"
+    if agents == "off":
+        # Community anchoring acts in the agent decision: an aggregate run
+        # is not sent the switch (``_community_anchoring_args``).
+        run_args.community_anchoring = None
     if (getattr(args, "worldgen", None) or "template") != "procedural":
         run_args.worldgen = run_args.regions = run_args.civs = None
     run_args.parallel = None
@@ -516,6 +545,8 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_guilds_args(args))
         cmd.extend(_scholarship_args(args))
         cmd.extend(_grain_reserves_args(args))
+        if agents != "off":
+            cmd.extend(_community_anchoring_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -913,6 +944,13 @@ def main() -> None:
         help="Forward --grain-reserves/--no-grain-reserves to every simulation run (default: CLI default).",
     )
     parser.add_argument(
+        "--community-anchoring",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --community-anchoring/--no-community-anchoring to every agent-mode simulation run "
+             "(default: CLI default; docs/integration/community-anchoring.md).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -935,8 +973,8 @@ def main() -> None:
     parser.add_argument(
         "--ablation-arms",
         default=None,
-        help=f"Comma-separated arms to fork (default {','.join(GATE_ARMS)}; 'placebo' adds the "
-             "calibration arm).",
+        help=f"Comma-separated arms to fork (default {','.join(GATE_ARMS)}, and {COMMUNITY_ARM} with "
+             "--community-anchoring; 'placebo' adds the calibration arm).",
     )
     parser.add_argument(
         CAUSAL_ORACLES_FLAG,
@@ -1073,6 +1111,7 @@ def main() -> None:
         "guilds": args.guilds,
         "scholarship": args.scholarship,
         "grain_reserves": args.grain_reserves,
+        "community_anchoring": args.community_anchoring,
         "historiography": args.historiography,
         "languages": args.languages,
         "ablation_oracles": arms_result is not None,

@@ -11,8 +11,24 @@ term. Each fork keeps its agent event stream (``agent_events.arrow``) and
 ``fork.json``; its other outputs are removed, and a seed's checkpoints once
 all its forks ran. ``ablation_manifest.json`` records the arms, forks and
 the SHA-256 of every kept file; ``chronicler.validate --ablation-dir``
-checks it before the needs (method 7) and cohort (method 4) oracles read
-the forks. See docs/integration/ablation-oracles.md.
+checks it before the needs and cohort oracles read the forks. See
+docs/integration/ablation-oracles.md.
+
+Fork designs (``ABLATION_DESIGN``; the manifest records its design):
+
+* design 1 (``schema_version`` 1; needs method 7, cohort method 4): a fork
+  every 100 turns from turn 100 in every world;
+* design 2 (``schema_version`` 2; needs method 8, cohort method 5): every
+  100 turns in template worlds, every 20 in procedural worlds
+  (``fork_every``): there the agents short of material goods or safety are
+  few (a procedural fork has 3.6 below the material threshold where a
+  template fork has 18), and forks every 20 turns tile the window from
+  turn 101 without overlap, which gives each required needs pairing the
+  power the first pre-registration assumed (docs/integration/community-anchoring.md,
+  section 6). Template worlds keep design 1's forks.
+
+Batches forked under design 1 are re-scored by needs method 7 and cohort
+method 4 as before.
 """
 from __future__ import annotations
 
@@ -30,35 +46,60 @@ from chronicler.artifact_io import atomic_write_json
 
 ABLATION_MANIFEST_FILENAME = "ablation_manifest.json"
 ABLATION_MANIFEST_KIND = "chronicler-ablation-arms"
-ABLATION_MANIFEST_SCHEMA_VERSION = 1
+# The manifest's schema version is its fork design (1 or 2, above).
+ABLATION_MANIFEST_SCHEMA_VERSION = 2
+ABLATION_DESIGNS = (1, 2)
+ABLATION_DESIGN = 2
 FORK_EVENTS_FILENAME = "agent_events.arrow"
 FORK_INFO_FILENAME = "fork.json"
 CHECKPOINT_TURN_FILENAME = "checkpoint_turn_{turn}.ckpt"
 
 # Pre-registered fork rule (docs/integration/ablation-oracles.md): a fork at
-# every multiple of ABLATION_FORK_EVERY from ABLATION_FIRST_FORK on whose
-# window fits the plain run (T + window < total turns; a run of N turns
-# ticks 0 .. N-1). Needs snapshots are written every 10 turns.
+# every ``fork_every`` turns from ABLATION_FIRST_FORK on whose window fits
+# the plain run (T + window < total turns; a run of N turns ticks
+# 0 .. N-1). Needs snapshots are written every 10 turns.
 ABLATION_FIRST_FORK = 100
 ABLATION_FORK_EVERY = 100
+# Design 2, procedural worlds: forks tile the turns from 101 (window 20).
+ABLATION_FORK_EVERY_PROCEDURAL = 20
 ABLATION_WINDOW_TURNS = 20
-# The arms the gate runs (the placebo is for calibration).
+# The arms the gate runs (the placebo is for calibration; community_anchor
+# is added when the batch runs --community-anchoring).
 GATE_ARMS = ("needs", "kin_roots")
+COMMUNITY_ARM = "community_anchor"
 
 
-def fork_turns(total_turns: int, window: int = ABLATION_WINDOW_TURNS) -> list[int]:
-    """Fork turns of a plain run of ``total_turns`` turns."""
+def fork_every(worldgen: str | None = None, design: int = ABLATION_DESIGN) -> int:
+    """Turns between forks under ``design`` for a plain run of ``worldgen``
+    (``None`` or ``"template"``: template worlds)."""
+    if design not in ABLATION_DESIGNS:
+        raise ValueError(f"unknown ablation design {design!r}")
+    if design >= 2 and worldgen == "procedural":
+        return ABLATION_FORK_EVERY_PROCEDURAL
+    return ABLATION_FORK_EVERY
+
+
+def fork_turns(total_turns: int, window: int = ABLATION_WINDOW_TURNS, every: int = ABLATION_FORK_EVERY) -> list[int]:
+    """Fork turns of a plain run of ``total_turns`` turns, a fork every ``every`` turns."""
     out = []
     turn = ABLATION_FIRST_FORK
     while turn + window < total_turns:
         out.append(turn)
-        turn += ABLATION_FORK_EVERY
+        turn += every
     return out
 
 
-def checkpoint_turns(total_turns: int, window: int = ABLATION_WINDOW_TURNS) -> list[int]:
+def checkpoint_turns(total_turns: int, window: int = ABLATION_WINDOW_TURNS,
+                     every: int = ABLATION_FORK_EVERY) -> list[int]:
     """The ``--checkpoint-turns`` a plain run writes for its forks (T + 1)."""
-    return [turn + 1 for turn in fork_turns(total_turns, window)]
+    return [turn + 1 for turn in fork_turns(total_turns, window, every)]
+
+
+def batch_worldgen(manifest: dict) -> str | None:
+    """The world generator a plain batch manifest records (None: template)."""
+    simulation = manifest.get("simulation") if isinstance(manifest.get("simulation"), dict) else {}
+    worldgen = simulation.get("worldgen")
+    return worldgen if isinstance(worldgen, str) else None
 
 
 def fork_dir(out_root: Path, arm: str, seed_dir_name: str, fork_turn: int) -> Path:
@@ -69,13 +110,13 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _plain_runs(batch_dir: Path) -> list[dict]:
+def _plain_runs(batch_dir: Path) -> tuple[list[dict], dict]:
     manifest_path = Path(batch_dir) / "batch_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     runs = manifest.get("runs") or []
     if manifest.get("status") != "complete" or not runs:
         raise ValueError(f"plain batch {batch_dir} is not complete")
-    return [{"seed": int(run["seed"]), "dir": str(run["dir"])} for run in runs]
+    return [{"seed": int(run["seed"]), "dir": str(run["dir"])} for run in runs], manifest
 
 
 def _fork_command(python: str, checkpoint: Path, fork_turn: int, window: int, arm: str, out: Path) -> list[str]:
@@ -166,19 +207,22 @@ def run_ablation_arms(
     # sets a one-thread rayon pool); the checkpoint refuses another.
     env = dict(os.environ if env is None else env)
     env.setdefault("RAYON_NUM_THREADS", "1")
-    forks = fork_turns(total_turns, window)
-    runs = _plain_runs(batch_dir)
+    runs, plain = _plain_runs(batch_dir)
+    worldgen = batch_worldgen(plain)
+    every = fork_every(worldgen)
+    forks = fork_turns(total_turns, window, every)
     plain_manifest = batch_dir / "batch_manifest.json"
     manifest: dict[str, Any] = {
         "kind": ABLATION_MANIFEST_KIND,
         "schema_version": ABLATION_MANIFEST_SCHEMA_VERSION,
+        "design": ABLATION_DESIGN,
         "status": "running",
         "started_at": _utc_now(),
         "plain_batch_dir": str(batch_dir),
         "plain_manifest_sha256": file_sha256(plain_manifest),
         "arms": list(arms),
         "window_turns": window,
-        "fork_rule": {"first": ABLATION_FIRST_FORK, "every": ABLATION_FORK_EVERY,
+        "fork_rule": {"first": ABLATION_FIRST_FORK, "every": every, "worldgen": worldgen or "template",
                       "plain_total_turns": total_turns},
         "fork_turns": forks,
         "seeds": [run["seed"] for run in runs],

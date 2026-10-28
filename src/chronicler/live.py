@@ -1249,6 +1249,14 @@ def run_live(
         _reserves = getattr(args, "grain_reserves", None)
         set_grain_reserves_enabled(
             world, _RESERVES_DEFAULT if _reserves is None else bool(_reserves))
+        # Community anchoring: new live worlds follow the CLI default (off;
+        # --community-anchoring opts in; dormant without an agent pool).
+        from chronicler.community_anchoring import (
+            DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT, set_community_anchoring_enabled,
+        )
+        _anchor = getattr(args, "community_anchoring", None)
+        set_community_anchoring_enabled(
+            world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
         # Historiography: new live worlds follow the CLI default (observational).
         from chronicler.historiography import (
             DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,

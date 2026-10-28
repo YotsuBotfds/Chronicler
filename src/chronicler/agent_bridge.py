@@ -1153,6 +1153,10 @@ class AgentBridge:
         from chronicler.decision_ablation import apply_decision_ablation
         apply_decision_ablation(self._sim, decision_ablation)
         self.decision_ablation = decision_ablation
+        # Community anchoring (--community-anchoring, saved on the world):
+        # sent only when on, so a run without it makes the calls it always made.
+        from chronicler.community_anchoring import apply_community_anchoring
+        apply_community_anchoring(self._sim, world)
         self._mode = mode
         world._agent_bridge = self
         # M54a: Wire river topology and ecology config from tuning overrides

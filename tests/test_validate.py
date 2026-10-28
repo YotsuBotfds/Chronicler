@@ -1336,7 +1336,8 @@ def test_needs_oracle_method_version_argument():
     from chronicler.validate import run_needs_oracle
 
     runs = [_material_world(seed, 4, 0) for seed in (1, 2)]
-    assert run_needs_oracle(runs)["method_version"] == 7
+    assert run_needs_oracle(runs)["method_version"] == 8
+    assert run_needs_oracle(runs, method_version=7)["method_version"] == 7
     assert run_needs_oracle(runs, method_version=6)["method_version"] == 6
     assert run_needs_oracle(runs, require_binding=False)["method_version"] == 2
     assert run_needs_oracle(runs, method_version=2) == run_needs_oracle(runs, require_binding=False)
@@ -1344,7 +1345,7 @@ def test_needs_oracle_method_version_argument():
     assert method4["method_version"] == 4
     assert "outcome_censoring" not in method4 and "censored_pairs" not in method4
     assert "censored_pairs" not in method4["binding"]
-    for bad in (1, 8, True, "4"):
+    for bad in (1, 9, True, "4"):
         with pytest.raises(ValueError, match="method_version"):
             run_needs_oracle(runs, method_version=bad)
     with pytest.raises(ValueError, match="require_binding=False is method 2"):
@@ -1815,21 +1816,25 @@ def test_cohort_oracle_method_version_argument():
     from chronicler.validate import run_cohort_oracle
 
     runs = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
-    # Method 4 (the default) is method 3's verdict with the kin-roots
-    # ablation, here not run (no arm); method 3 decides.
+    # Method 5 (the default) is method 3's verdict with the kin-roots
+    # ablation and the community component, here not run (no arms); method
+    # 3 decides. Method 4 is the same without the community component.
     default = run_cohort_oracle(runs)
     method3 = run_cohort_oracle(runs, method_version=3)
-    assert (default["status"], default["method_version"]) == (method3["status"], 4)
+    assert (default["status"], default["method_version"]) == (method3["status"], 5)
     assert default["ablation"]["reason"] == "no kin_roots ablation arm"
+    assert default["community_ablation"]["status"] == "NOT_RUN"
     assert {k: v for k, v in default.items() if k in method3 and k not in ("method", "method_version")} == {
         k: v for k, v in method3.items() if k not in ("method", "method_version")}
+    method4 = run_cohort_oracle(runs, method_version=4)
+    assert method4["method_version"] == 4 and "community_ablation" not in method4
     assert method3["method_version"] == 3
     method2 = run_cohort_oracle(runs, method_version=2)
     assert method2["method_version"] == 2
     # Method 2 keeps its report bytes: no comparison, censoring or pair keys.
     assert not {"comparison", "outcome_censoring"} & set(method2)
     assert not {"pairs", "censored_pairs"} & set(method2["per_seed"][0])
-    for bad in (0, 5, True, "2"):
+    for bad in (0, 6, True, "2"):
         with pytest.raises(ValueError, match="method_version"):
             run_cohort_oracle(runs, method_version=bad)
     assert run_cohort_oracle([], method_version=1) == {"status": "SKIP", "reason": "no_bundles"}
