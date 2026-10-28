@@ -256,6 +256,8 @@ CHUNKS = {
     "scientific-research": [
         "tests/test_scientific_research_state.py",
         "tests/test_scientific_research.py",
+        "tests/test_scientific_research_wiring.py",
+        "tests/test_scientific_research_experiment.py",
     ],
     "transaction-receipts": [
         "tests/test_transaction_receipts.py",
