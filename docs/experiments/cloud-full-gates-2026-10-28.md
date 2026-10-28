@@ -239,3 +239,16 @@ compiled artifact. It does not establish natural efficacy of optional systems,
 independence of observed groups, successful household optimization, full
 checkpoint byte parity across sources, or a wall-clock speedup. Resource
 accounting and exported evidence retain their actual limits.
+
+## Activation standing
+
+At activation, the combined controller/workflow draft `46270605` includes the
+independently reviewed comparison reader from `c37a8c45`. No smoke or full cohort
+has run yet. The active workflow first executes all contract tests; only success
+permits the fresh build, then all four smoke jobs and required artifact uploads.
+Only complete smoke success permits the four full cohorts. Scientific comparisons
+and pipeline publication remain separately reported.
+
+The earlier default-output study and independent artifact reader completed in
+runs 40786065030 and 40788984730. Their success does not substitute for these
+new full gates. Baseline/candidate simulation source pins remain unchanged.
