@@ -132,6 +132,7 @@ CHUNKS = {
     ],
     "scientific-receipts": [
         "tests/test_scientific_receipts_audit.py",
+        "tests/test_scientific_research_audit.py",
     ],
     "expansion-comparison": [
         "tests/test_expansion_compare.py",
@@ -251,6 +252,10 @@ CHUNKS = {
     ],
     "scientific-publication": [
         "tests/test_scientific_publication.py",
+    ],
+    "scientific-research": [
+        "tests/test_scientific_research_state.py",
+        "tests/test_scientific_research.py",
     ],
     "transaction-receipts": [
         "tests/test_transaction_receipts.py",
