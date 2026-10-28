@@ -532,7 +532,28 @@ domestic credit does not touch the safety need, so this is the oracle's
 sampling, not the feature. The kin-roots cohort ablation fails on both
 sides (0.9915 against 0.9884), as on main.
 
-TEMPLATE_DISCUSSION
+Rebellion per agent-turn reads +7.9% and the latest satisfaction -0.006,
+beyond the pre-registered +-5% and +-0.005. The two gates ran the same
+seeds, but single worlds diverge chaotically, so a paired check was run
+after the gate: 40 template seeds (42-81) x 500 turns, off and on, the
+rates counted as the regression oracle counts them (agent events over the
+mean sampled agents times turns; `rates.py` in the run directory). Off
+reads 0.0611 migration and 0.0311 rebellion, close to main's gate values.
+
+| per agent-turn (40 paired worlds, 500 turns) | off | on | on - off (SE) |
+| --- | ---: | ---: | ---: |
+| migration | 0.06145 | 0.06129 | -0.3% (2.0%) |
+| rebellion | 0.03112 | 0.02984 | -4.1% (11.5%) |
+| occupation switches | 0.04749 | 0.04800 | +1.1% (1.7%) |
+| merchant satisfaction (mean of samples) | 0.4416 | 0.4330 | -0.0086 (0.0039) |
+| Gini of all agents' wealth (mean of samples) | 0.6186 | 0.6257 | +0.0071 (0.0031) |
+
+Rebellion is concentrated in a minority of worlds, so its paired standard
+error is 11% of its level: the gate's +7.9% (about 1.6 of its own standard
+errors) is not an effect the switch has, and the paired worlds read -4.1%.
+What the switch does to agents is small and shows in the paired worlds:
+merchants' satisfaction about -0.009 (2.2 SE) and the all-agent wealth Gini
++0.007 (2.3 SE), as the shorter probes found.
 
 ### Procedural full (100 seeds x 300 turns, 32 regions x 10 civs)
 
