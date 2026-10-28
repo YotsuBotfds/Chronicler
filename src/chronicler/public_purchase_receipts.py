@@ -9,7 +9,7 @@ from chronicler.transaction_receipts import transaction_receipts_active
 from chronicler.transaction_receipts_state import PublicPurchaseFrame, PublicPurchaseObservation
 
 _COUNTERS = ("frames", "unavailable_frames", "observed_purchases", "dropped_rows",
-             "duplicate_keys", "buyer_paid", "foreign_ruler_credited", "domestic_producer_sink",
+             "retained_key_duplicates", "buyer_paid", "foreign_ruler_credited", "domestic_producer_sink",
              "sent", "received", "transit_loss")
 
 
@@ -40,6 +40,7 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
     available = reason is None
     rows, seen = [], set()
     observed, dropped, duplicates = 0, 0, 0
+    overflowed = False
     sums = {key: 0 for key in _COUNTERS}
     digest = hashlib.sha256()
     digest.update(json.dumps([world.turn, state.max_rows, available, reason, flow_start]).encode())
@@ -98,6 +99,7 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
                 dropped += 1
             elif len(rows) == state.max_rows:
                 dropped += 1
+                overflowed = True
             else:
                 rows.append(row)
                 seen.add(ident)
@@ -108,13 +110,14 @@ def capture_public_purchases(world, *, economy_result, opening_treasuries=None,
         return
     counters = {key: (old.counters.get(key, 0) if old is not None else 0) for key in _COUNTERS}
     sums.update(frames=1, unavailable_frames=int(not available), observed_purchases=observed,
-                dropped_rows=dropped, duplicate_keys=duplicates)
+                dropped_rows=dropped, retained_key_duplicates=duplicates)
     for key, value in sums.items():
         counters[key] += value
     state.public_purchases = PublicPurchaseFrame(
         source_turn=world.turn, available=available, complete=available and dropped == 0,
         unavailable_reason=reason, max_rows=state.max_rows, dropped_rows=dropped,
-        duplicate_keys=duplicates, observed_purchases=observed, rows=rows,
+        retained_key_duplicates=duplicates, duplicate_detection_complete=available and not overflowed,
+        observed_purchases=observed, rows=rows,
         frame_digest=fingerprint, counters=counters)
 
 

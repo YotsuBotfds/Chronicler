@@ -61,9 +61,11 @@ activity. Disabling or dormancy keeps the existing receipt gating rules.
 
 Overflow reports dropped rows and `complete=false`, while authoritative
 purchases continue unchanged. Duplicate retained semantic keys are omitted and
-counted as dropped/incomplete. The key set is bounded by the cap; duplicate
-counts cover detected collisions, while overflow already makes any unchecked
-remainder incomplete. Scalar public counters sum all observed authoritative
+counted as dropped/incomplete. The key set is bounded by the cap;
+`retained_key_duplicates` counts only collisions with those retained keys.
+`duplicate_detection_complete=false` explicitly marks unknown duplicate counts
+after any cap overflow. Overflow already makes the unchecked remainder
+incomplete. Scalar public counters sum all observed authoritative
 flows, even when row storage overflows; they are not financial entitlements.
 An identical repeated capture is inert. Conflicting same-turn and reversed
 captures raise before changing the public journal.
@@ -99,3 +101,13 @@ release is unchanged: native crate tree
 There was no Rust edit or new build. Evidence is retained outside Git under
 `/workspace/chronicler-public-purchase-evidence`. These are bounded component
 checks; complete integration/scientific gates remain separately recorded.
+
+Independent read-only review confirmed treasury replay, sink/credit separation,
+phase windows, frozen names and schema-old pickle handling. Its cap1/A,B,B edge
+led to explicit `retained_key_duplicates` naming and a
+`duplicate_detection_complete` flag: the bounded recorder cannot claim to count
+duplicates among discarded keys. Unavailable capture also has unknown scan
+scope. An early candidate frame's pickle preserves known retained counts while
+backfilling unknown duplicate scope, without recreating old transactions. The
+expanded public selection passed 23 tests; its pure selection passed 21 tests
+under the offline guard. No further blocker was found by the reviewer.

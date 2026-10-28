@@ -87,11 +87,26 @@ class PublicPurchaseFrame(BaseModel):
     unavailable_reason: str | None = None
     max_rows: int
     dropped_rows: int = 0
-    duplicate_keys: int = 0
+    retained_key_duplicates: int = 0
+    duplicate_detection_complete: bool = False
     observed_purchases: int = 0
     rows: list[PublicPurchaseObservation] = Field(default_factory=list)
     frame_digest: str
     counters: dict[str, float] = Field(default_factory=dict)
+
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        # Early candidate frames used a generic name for this retained-key
+        # count. Preserve that fact, but do not infer a complete duplicate scan.
+        if "retained_key_duplicates" not in self.__dict__:
+            self.__dict__["retained_key_duplicates"] = self.__dict__.pop("duplicate_keys", 0)
+        self.__dict__.setdefault("duplicate_detection_complete", False)
+        counters = self.__dict__.get("counters", {})
+        if "duplicate_keys" in counters and "retained_key_duplicates" not in counters:
+            counters = dict(counters)
+            counters["retained_key_duplicates"] = counters.pop("duplicate_keys")
+            self.__dict__["counters"] = counters
 
 
 class TransactionReceiptState(BaseModel):

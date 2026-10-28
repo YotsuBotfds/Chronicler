@@ -114,6 +114,7 @@ def test_empty_unavailable_and_unknown_are_distinct_and_do_not_republish_old_row
     _tick(world, result)
     frame = world.transaction_receipts.public_purchases
     assert frame.complete and frame.available and frame.rows == []
+    assert frame.duplicate_detection_complete
     world.turn += 1
     assert P.snapshot_summary(world)["source_turn"] == world.turn-1
     G.tick_grain_reserves(world, economy_result=None)
@@ -121,6 +122,7 @@ def test_empty_unavailable_and_unknown_are_distinct_and_do_not_republish_old_row
     unavailable = P.snapshot_summary(world)
     assert unavailable["source_turn"] == world.turn-1 and not unavailable["available"]
     assert unavailable["unavailable_reason"] == "economy_unavailable"
+    assert not unavailable["duplicate_detection_complete"]
     world.turn += 1
     unknown = P.snapshot_summary(world)
     assert unknown["source_turn"] is None and unknown["rows"] == []
@@ -176,7 +178,7 @@ def test_overflow_duplicates_and_conflicts_are_explicit_without_financial_action
     P.capture_public_purchases(world, **inputs)
     frame = world.transaction_receipts.public_purchases
     assert not frame.complete and frame.available and frame.dropped_rows == 1
-    assert frame.duplicate_keys == 1 and len(frame.rows) == 1
+    assert frame.retained_key_duplicates == 1 and len(frame.rows) == 1
     assert before == [c.treasury for c in world.civilizations]
     snapshot = frame.model_dump_json()
     world.grain_reserves.flows[1].cost += 1
@@ -226,7 +228,7 @@ def test_actual_two_purchase_overflow_retains_authoritative_flows_and_full_scala
     assert len(purchases) == 2
     frame = world.transaction_receipts.public_purchases
     assert frame.available and not frame.complete and frame.dropped_rows == 1
-    assert frame.duplicate_keys == 0 and len(frame.rows) == 1
+    assert frame.retained_key_duplicates == 0 and len(frame.rows) == 1
     assert frame.observed_purchases == 2
     assert frame.counters["buyer_paid"] == sum(f.cost for f in purchases)
     assert before-world.civilizations[THORNWALL].treasury == sum(f.cost for f in purchases)
@@ -241,3 +243,41 @@ def test_reversed_public_clock_rejects_before_journal_mutation():
     with pytest.raises(ValueError, match="ahead of the world"):
         P.capture_public_purchases(world, **inputs)
     assert world.transaction_receipts.model_dump_json() == before
+
+
+def test_unretained_a_b_b_keys_report_unknown_duplicate_count_after_overflow():
+    world, result, _, _, _ = _scenario()
+    inputs = _basis(world, result)
+    _tick(world, result)
+    a = deepcopy(next(f for f in world.grain_reserves.flows if f.kind == BOUGHT))
+    b = deepcopy(a)
+    b.source = THORNWOOD
+    world.turn += 1
+    world.grain_reserves.flows_turn = world.turn
+    world.grain_reserves.flows = [a, b, deepcopy(b)]
+    world.transaction_receipts.max_rows = 1
+    before = [c.treasury for c in world.civilizations]
+    P.capture_public_purchases(world, **inputs)
+    frame = world.transaction_receipts.public_purchases
+    assert frame.available and not frame.complete
+    assert frame.observed_purchases == 3 and frame.dropped_rows == 2
+    assert len(frame.rows) == 1 and frame.rows[0].source_region == a.source
+    assert frame.retained_key_duplicates == 0
+    assert not frame.duplicate_detection_complete
+    assert before == [c.treasury for c in world.civilizations]
+
+
+
+def test_early_public_frame_pickle_preserves_retained_count_but_duplicate_scope_is_unknown():
+    world, result, _, _, _ = _scenario()
+    _tick(world, result)
+    frame = world.transaction_receipts.public_purchases
+    frame.__dict__["duplicate_keys"] = frame.__dict__.pop("retained_key_duplicates")
+    frame.__dict__.pop("duplicate_detection_complete")
+    frame.counters["duplicate_keys"] = frame.counters.pop("retained_key_duplicates")
+    restored = pickle.loads(pickle.dumps(frame))
+    assert restored.retained_key_duplicates == 0
+    assert not restored.duplicate_detection_complete
+    assert "duplicate_keys" not in restored.model_dump()
+    assert restored.counters["retained_key_duplicates"] == 0
+    assert "duplicate_keys" not in restored.counters
