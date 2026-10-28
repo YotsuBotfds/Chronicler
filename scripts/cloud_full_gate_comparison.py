@@ -7,6 +7,7 @@ runs here. Original reports and gate decisions are never rewritten.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import importlib
 import json
@@ -30,6 +31,8 @@ MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_ROOT_BYTES = 128 * 1024 * 1024
 MAX_FILES = 64
 MAX_RAW_ENTRIES = 100000
+MAX_RETENTION_BYTES = 3 * 1024 * 1024
+MAX_API_BODY_BYTES = 1024 * 1024
 CLASSES = ("AgentSimulator", "EcologySimulator", "PoliticsSimulator")
 ENV_KEYS = ("python", "implementation", "machine", "thread_env", "packages", "affinity_cpu_count")
 SIMULATION_ARGUMENTS = ["worldgen","regions","civs","scenario","turns","reflection_interval","agents","agent_scale_mode","decision_ablation","ablation_start_turn","mutual_aid","fisheries","campaigns","governance","contact_ledger","epidemiology","finance","diplomacy","techniques","maritime","gp_agendas","nomads","cities","agent_movements","guilds","historiography","languages","scholarship","grain_reserves","community_anchoring","capacity_aware_refugees","health_care","harvest_forecasts","ritual_gatherings","scientific_claims","transaction_receipts","domestic_credit","tuning","preset","aggression_bias","tech_diffusion_rate","resource_abundance","trade_friction","severity_multiplier","cultural_drift_speed","religion_intensity","secession_likelihood"]
@@ -291,7 +294,7 @@ def _builder(build, build_hash, run_id, attempt):
     if (type(elapsed) not in (int, float) or not math.isfinite(elapsed)
             or not 0 <= elapsed <= 80 * 60):
         _fail("builder resource budget was not met")
-    for key in ("error", "final_identity_error", "light_error"):
+    for key in ("error", "final_identity_error", "light_error", "finalization_error", "receipt_recovery_errors"):
         if key in build:
             _fail("builder retained an execution/finalization error")
     native, wheel = build.get("native"), build.get("wheel")
@@ -407,6 +410,8 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
     for row in forks:
         if not isinstance(row, dict):
             _fail("invalid fork record")
+        for name in ("seed", "fork_turn", "total_turns"):
+            _int(row.get(name), "fork " + name)
         key = (row.get("seed"), row.get("fork_turn"), row.get("arm"))
         if key not in expected_keys or key in seen:
             _fail("missing, duplicate or unexpected fork identity")
@@ -496,7 +501,7 @@ def load_cohort(root, role, files, anchor, run_id, attempt):
                             ("identities_stable", True)):
             _eq(value.get(key), wanted, "cohort " + key)
     _eq(result.get("execution_complete"), True, "cohort execution completion")
-    for key in ("error", "final_identity_error", "light_error"):
+    for key in ("error", "final_identity_error", "light_error", "finalization_error", "receipt_recovery_errors"):
         if key in result:
             _fail("cohort retained an execution/finalization error: " + key)
     _eq(result.get("stage"), "full", "full cohort stage")
@@ -666,14 +671,147 @@ def analyze(cohorts, modules):
         issues.append("one or more original strict gates failed")
     return {
         "schema_version": 1, "kind": "chronicler-cloud-full-gate-comparison",
-        "execution_complete": True, "qualification_pass": not issues,
+        "execution_complete": True, "scientific_comparison_pass": not issues,
         "unqualified_reasons": issues, "original_decisions": original,
         "causal_required_decisions": causal,
         "causal_required_all_pass": all(value["ok"] for value in causal.values()),
         "comparisons": comparisons,
+        "pipeline_qualified": None,
+        "pipeline_scope": "Scientific comparison does not override failed producer jobs or unknown raw-artifact publication.",
         "causal_scope": "Separate adjudication of the same saved reports; no simulation or oracle rerun.",
         "raw_scope": "Original raw-file hashes are copied controller attestations; this reader verifies downloaded lightweight bytes only.",
     }
+
+
+
+def _utc(value, label):
+    if not isinstance(value, str):
+        _fail(label + " timestamp is missing")
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ComparisonInputError("invalid " + label + " timestamp") from exc
+    if stamp.tzinfo is None or stamp.utcoffset().total_seconds() != 0:
+        _fail(label + " timestamp must be UTC")
+    return stamp
+
+
+def validate_retention(envelope, *, run_id, attempt, control_sha):
+    """Assess current-run publication metadata, never download a raw archive."""
+    _schema(envelope, "chronicler-cloud-full-gate-retention-index")
+    for key, value in (
+        ("repo_full_name", "YotsuBotfds/Chronicler"), ("github_run_id", run_id),
+        ("github_run_attempt", attempt), ("control_sha", control_sha),
+    ):
+        _eq(envelope.get(key), value, "retention " + key)
+    job_result = envelope.get("cohort_job_result")
+    if job_result not in ("success", "failure", "cancelled", "skipped", None):
+        _fail("unknown aggregate cohort job result")
+    if envelope.get("complete") is not True:
+        if envelope.get("complete") is not False:
+            _fail("retention completion must be boolean")
+        return {"status": "unavailable", "raw_publication_verified": None,
+                "cohort_job_result": job_result,
+                "pipeline_requirements_met": False if job_result in ("failure", "cancelled", "skipped") else None,
+                "reason": "Current-run artifact API collection did not complete.",
+                "collector_error": str(envelope.get("error") or "unavailable")[:512]}
+    url = "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/" + run_id + "/artifacts?per_page=100"
+    _eq(envelope.get("api_url"), url, "retention API endpoint")
+    observed = _utc(envelope.get("observed_at"), "retention observation")
+    now = datetime.now(timezone.utc)
+    if (observed - now).total_seconds() > 300:
+        _fail("retention observation is in the future")
+    raw = envelope.get("raw_response")
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_API_BODY_BYTES:
+        _fail("retention API response body exceeds its bound")
+    _eq(hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+        _hash(envelope.get("raw_response_sha256"), "retention API response"),
+        "verbatim retention API body")
+    response = _json(raw.encode("utf-8"), "retention API response")
+    if not isinstance(response, dict):
+        _fail("retention API response must be an object")
+    total = _int(response.get("total_count"), "retention artifact count")
+    artifacts = response.get("artifacts")
+    if not isinstance(artifacts, list) or total > 100 or len(artifacts) != total:
+        _fail("retention API response is truncated, paginated or unbounded")
+    _eq(envelope.get("total_count"), total, "retention copied count")
+    _eq(envelope.get("artifacts"), artifacts, "retention copied artifact metadata")
+    wanted = {"full-gates-raw-" + arm + "-" + worldgen + "-" + run_id + "-" + attempt
+              for worldgen in ("template", "procedural") for arm in ("baseline", "candidate")}
+    selected, seen_ids = {}, set()
+    for item in artifacts:
+        if not isinstance(item, dict):
+            _fail("invalid retention artifact record")
+        ident = _int(item.get("id"), "retention artifact ID", minimum=1)
+        if ident in seen_ids:
+            _fail("duplicate retention artifact ID")
+        seen_ids.add(ident)
+        name = item.get("name")
+        if not isinstance(name, str) or not name:
+            _fail("invalid retention artifact name")
+        if name not in wanted:
+            continue
+        if name in selected:
+            _fail("duplicate registered raw artifact name")
+        workflow = item.get("workflow_run")
+        if not isinstance(workflow, dict):
+            _fail("raw artifact workflow identity is missing")
+        _eq(workflow.get("id"), int(run_id), "raw artifact workflow run")
+        _eq(workflow.get("head_sha"), control_sha, "raw artifact control source")
+        _int(item.get("size_in_bytes"), "raw artifact compressed bytes", minimum=1)
+        digest = item.get("digest")
+        if not isinstance(digest, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+            _fail("raw artifact archive digest is missing")
+        _eq(item.get("expired"), False, "raw artifact nonexpiry")
+        expires = _utc(item.get("expires_at"), "raw artifact expiry")
+        created = _utc(item.get("created_at"), "raw artifact creation")
+        if expires <= now or expires <= observed or created > observed and (created - observed).total_seconds() > 300:
+            _fail("raw artifact is expired or its creation is inconsistent")
+        selected[name] = {
+            key: item[key] for key in
+            ("id", "name", "size_in_bytes", "digest", "expired", "created_at", "expires_at", "workflow_run")}
+    missing = sorted(wanted - selected.keys())
+    published = not missing
+    if job_result in ("failure", "cancelled", "skipped"):
+        ready, status = False, "producer_jobs_not_successful"
+    elif not published:
+        ready, status = False, "missing_raw_artifacts"
+    elif job_result != "success":
+        ready, status = None, "producer_job_result_unknown"
+    else:
+        ready, status = True, "verified"
+    return {"status": status, "raw_publication_verified": published,
+            "cohort_job_result": job_result, "pipeline_requirements_met": ready,
+            "observed_at": envelope["observed_at"], "artifacts": selected, "missing": missing,
+            "scope": "Current-run API archive metadata and producer aggregate conclusion; raw contents are not downloaded."}
+
+
+def _retention(path, *, run_id, attempt, control_sha):
+    if path is None:
+        return {"status": "unknown", "raw_publication_verified": None,
+                "pipeline_requirements_met": None, "reason": "No current-run retention index was supplied."}, None
+    evidence = None
+    try:
+        raw, identity = _read(path, limit=MAX_RETENTION_BYTES)
+        evidence = {"path": str(path), "bytes": len(raw),
+                    "sha256": hashlib.sha256(raw).hexdigest(), "identity": identity}
+        result = validate_retention(_json(raw, "retention index"), run_id=run_id,
+                                    attempt=attempt, control_sha=control_sha)
+        result["index"] = {key: evidence[key] for key in ("path", "bytes", "sha256")}
+        return result, evidence
+    except (ComparisonInputError, OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError) as exc:
+        result = {"status": "invalid", "raw_publication_verified": None,
+                  "pipeline_requirements_met": None, "reason": str(exc)[:512]}
+        if evidence is not None:
+            result["index"] = {key: evidence[key] for key in ("path", "bytes", "sha256")}
+        return result, evidence
+
+
+def _recheck_retention(evidence):
+    if evidence is not None:
+        raw, identity = _read(Path(evidence["path"]), limit=MAX_RETENTION_BYTES)
+        if identity != evidence["identity"] or hashlib.sha256(raw).hexdigest() != evidence["sha256"]:
+            _fail("retention API index changed while comparing")
 
 
 def _recheck(roots, inventories):
@@ -682,7 +820,7 @@ def _recheck(roots, inventories):
         _eq(current, inventories[role], "unchanged input artifacts")
 
 
-def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candidate_source):
+def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candidate_source, retention_index=None):
     _hash(anchor, "external build manifest anchor")
     if not isinstance(control_sha, str) or re.fullmatch(r"[0-9a-f]{40}", control_sha) is None:
         _fail("external control SHA is missing")
@@ -699,6 +837,10 @@ def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candida
         for other in list(roots.values())[i + 1:]:
             if _under(root, other) or _under(other, root):
                 _fail("artifact input roots overlap")
+    if retention_index is not None:
+        retention_index = _absolute(retention_index)
+        if _under(retention_index, output) or _under(output, retention_index):
+            _fail("output and retention index paths overlap")
     inodes = set()
     inventories = {role: _inventory(root, inodes) for role, root in roots.items()}
     cohorts = {role: load_cohort(root, role, inventories[role], anchor, run_id, attempt)
@@ -716,6 +858,15 @@ def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candida
         for key in keys:
             _eq(signature.get(key), normalized[0].get(key), "cross-profile simulation " + key)
     result = analyze(cohorts, modules)
+    retention, retention_evidence = _retention(
+        retention_index, run_id=run_id, attempt=attempt, control_sha=control_sha)
+    if retention_evidence is not None and retention_evidence["identity"][:2] in inodes:
+        retention = {"status": "invalid", "raw_publication_verified": None,
+                     "pipeline_requirements_met": None, "reason": "Retention evidence aliases a cohort input."}
+        retention_evidence = None
+    result["retention"] = retention
+    result["pipeline_qualified"] = (
+        retention["pipeline_requirements_met"] if result["scientific_comparison_pass"] else False)
     result.update(
         baseline_source=BASELINE, candidate_source=CANDIDATE,
         github_run_id=run_id, github_run_attempt=attempt, control_sha=control_sha,
@@ -729,11 +880,14 @@ def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candida
     )
     summary = (
         "# Fixed cloud full-gate comparison\n\n"
-        + "Original strict qualification: **" + ("PASS" if result["qualification_pass"] else "FAIL") + "**.\n\n"
+        + "Original-policy scientific comparison: **" + ("PASS" if result["scientific_comparison_pass"] else "FAIL") + "**.\n\n"
         + "Template comparison: " + result["comparisons"]["template"]["status"] + ".\n\n"
         + "Procedural comparison: " + result["comparisons"]["procedural"]["status"] + ".\n\n"
         + "Causal-required same-report adjudication: **"
         + ("PASS" if result["causal_required_all_pass"] else "FAIL") + "**.\n\n"
+        + "Pipeline qualification: **"
+        + ("PASS" if result["pipeline_qualified"] is True else
+           "FAIL" if result["pipeline_qualified"] is False else "UNKNOWN") + "**.\n\n"
         + "NO_REGRESSION alone does not establish that either original gate passed. "
         + "Causal adjudication retains each original report and changes no historical oracle result.\n"
     )
@@ -746,13 +900,16 @@ def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candida
     if any(len(raw) > MAX_FILE_BYTES for raw in payloads.values()) or sum(map(len, payloads.values())) > MAX_ROOT_BYTES:
         _fail("derived output byte bound exceeded")
     _recheck(roots, inventories)
+    _recheck_retention(retention_evidence)
     output.mkdir(parents=False, exist_ok=False)
     for name, raw in payloads.items():
         with (output / name).open("xb") as stream:
             stream.write(raw)
     _recheck(roots, inventories)
+    _recheck_retention(retention_evidence)
     receipt = {"schema_version": 1, "kind": "chronicler-cloud-full-gate-comparison-receipt",
-               "execution_complete": True, "qualification_pass": result["qualification_pass"],
+               "execution_complete": True, "scientific_comparison_pass": result["scientific_comparison_pass"],
+               "pipeline_qualified": result["pipeline_qualified"],
                "files": {name: {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
                          for name, raw in payloads.items()}}
     with (output / "receipt.json").open("xb") as stream:
@@ -770,17 +927,18 @@ def main(argv=None):
     parser.add_argument("--github-run-id", required=True)
     parser.add_argument("--github-run-attempt", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--retention-index", type=Path)
     args = parser.parse_args(argv)
     try:
         modules = frozen_modules(args.candidate_source)
         result = run({role: getattr(args, role.replace("-", "_")) for role in ROLES}, args.output,
                      anchor=args.build_manifest_sha256, run_id=args.github_run_id,
                      attempt=args.github_run_attempt, control_sha=args.control_sha,
-                     modules=modules, candidate_source=args.candidate_source)
+                     modules=modules, candidate_source=args.candidate_source, retention_index=args.retention_index)
     except (ComparisonInputError, OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError, RecursionError) as exc:
         sys.stderr.write("Full-gate comparison refused: " + str(exc) + "\n")
         return 1
-    return 0 if result["qualification_pass"] else 2
+    return 0 if result["pipeline_qualified"] is True else 2 if result["pipeline_qualified"] is False else 1
 
 
 if __name__ == "__main__":

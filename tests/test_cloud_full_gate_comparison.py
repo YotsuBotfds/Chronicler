@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import json
@@ -182,7 +183,7 @@ def _cohort(root, role, build_raw, *, fail=False, smoke=False):
              "prefix": "/synthetic", "source_file": "/synthetic/source/src/chronicler/__init__.py"}
     provenance = {
         "schema_version": 1, "kind": "chronicler-cloud-full-gate-provenance",
-        "stage": "full", "arm": arm, "worldgen": worldgen, "source_sha": source,
+        "stage": "smoke" if smoke else "full", "arm": arm, "worldgen": worldgen, "source_sha": source,
         "control_sha": "c" * 40, "github_run_id": "1234", "github_run_attempt": "1",
         "identities_stable": True, "build_manifest_sha256": _sha(build_raw),
         "wheel_sha256": "e" * 64, "native_sha256": "a" * 64,
@@ -196,7 +197,7 @@ def _cohort(root, role, build_raw, *, fail=False, smoke=False):
     if smoke:
         result = json.loads((root / "result.json").read_text())
         result["kind"] = "chronicler-cloud-full-gate-smoke"
-        result.update(stage="smoke", qualified=False, budget_seconds=4800)
+        result.update(stage="smoke", qualified=False, smoke_pass=True, budget_seconds=4800)
         (root / "result.json").write_bytes(_raw(result))
 
 
@@ -267,8 +268,44 @@ def matrix(tmp_path):
     return roots, _sha(build_raw)
 
 
+
+def _retention_envelope(*, remove=None, jobs="success"):
+    observed = datetime.now(timezone.utc)
+    artifacts = []
+    for number, role in enumerate(Q.ROLES, 1):
+        worldgen, arm = role.split("-")
+        artifacts.append({
+            "id": number, "name": f"full-gates-raw-{arm}-{worldgen}-1234-1",
+            "size_in_bytes": 1234, "digest": "sha256:" + "8" * 64, "expired": False,
+            "created_at": (observed - timedelta(seconds=1)).isoformat(),
+            "expires_at": (observed + timedelta(days=30)).isoformat(),
+            "workflow_run": {"id": 1234, "head_sha": "c" * 40},
+        })
+    if remove is not None:
+        artifacts.pop(remove)
+    response = {"total_count": len(artifacts), "artifacts": artifacts}
+    raw = json.dumps(response)
+    return {
+        "schema_version": 1, "kind": "chronicler-cloud-full-gate-retention-index",
+        "repo_full_name": "YotsuBotfds/Chronicler", "github_run_id": "1234",
+        "github_run_attempt": "1", "control_sha": "c" * 40,
+        "cohort_job_result": jobs, "complete": True, "observed_at": observed.isoformat(),
+        "api_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/1234/artifacts?per_page=100",
+        "raw_response": raw, "raw_response_sha256": _sha(raw.encode()),
+        "total_count": len(artifacts), "artifacts": artifacts,
+    }
+
+
+def _retention_file(tmp_path, envelope=None):
+    path = tmp_path / "retention-index.json"
+    path.write_bytes(_raw(envelope if envelope is not None else _retention_envelope()))
+    return path
+
+
 def _run(matrix, tmp_path, **kwargs):
     roots, anchor = matrix
+    if "retention_index" not in kwargs:
+        kwargs["retention_index"] = _retention_file(tmp_path)
     return Q.run(roots, tmp_path / "comparison", anchor=anchor, run_id="1234", attempt="1",
                  control_sha="c" * 40, modules=MODULES, candidate_source=ROOT, **kwargs)
 
@@ -285,8 +322,10 @@ def test_complete_four_cohorts_compare_original_policy_and_keep_causal_failures(
     roots, _ = matrix
     before = {str(path): path.read_bytes() for root in roots.values() for path in root.rglob("*") if path.is_file()}
     result = _run(matrix, tmp_path)
-    assert result["execution_complete"] and result["qualification_pass"]
+    assert result["execution_complete"] and result["scientific_comparison_pass"]
     assert not result["causal_required_all_pass"]
+    assert result["pipeline_qualified"] is True
+    assert result["retention"]["raw_publication_verified"] is True
     assert all(item["ok"] for item in result["original_decisions"].values())
     assert all(not item["ok"] for item in result["causal_required_decisions"].values())
     for value in result["comparisons"].values():
@@ -296,7 +335,7 @@ def test_complete_four_cohorts_compare_original_policy_and_keep_causal_failures(
         assert value["cohort"]["unverified"] == []
     assert all(Path(path).read_bytes() == raw for path, raw in before.items())
     receipt = json.loads((tmp_path / "comparison/receipt.json").read_text())
-    assert receipt["execution_complete"] and receipt["qualification_pass"]
+    assert receipt["execution_complete"] and receipt["scientific_comparison_pass"]
     for name, record in receipt["files"].items():
         assert _record((tmp_path / "comparison" / name).read_bytes()) == record
 
@@ -308,7 +347,7 @@ def test_same_original_failures_do_not_become_qualification_from_no_regression(t
         roots[role] = tmp_path / role
         _cohort(roots[role], role, build_raw, fail=True)
     result = _run((roots, _sha(build_raw)), tmp_path)
-    assert result["execution_complete"] and not result["qualification_pass"]
+    assert result["execution_complete"] and not result["scientific_comparison_pass"]
     assert all(not decision["ok"] for decision in result["original_decisions"].values())
     assert all(value["status"] == "NO_REGRESSION" for value in result["comparisons"].values())
     assert "one or more original strict gates failed" in result["unqualified_reasons"]
@@ -321,6 +360,8 @@ def test_same_original_failures_do_not_become_qualification_from_no_regression(t
     lambda result: result["expected"].update(seed_count=99),
     lambda result: result.update(gate_pass=False),
     lambda result: result.update(gate_exit_code=2),
+    lambda result: result.update(finalization_error="synthetic late copy failure"),
+    lambda result: result.update(receipt_recovery_errors=["synthetic negative receipt write failure"]),
 ])
 def test_incomplete_wrong_source_or_forged_gate_receipts_fail_before_output(matrix, tmp_path, change):
     _mutate(matrix[0]["procedural-candidate"], "result.json", change, seal=False)
@@ -512,5 +553,100 @@ def test_known_oversize_artifact_is_refused_before_open(matrix, tmp_path):
     with path.open("wb") as stream:
         stream.truncate(Q.MAX_FILE_BYTES + 1)
     with pytest.raises(Q.ComparisonInputError, match="byte bound"):
+        _run(matrix, tmp_path)
+    assert not (tmp_path / "comparison").exists()
+
+
+def test_original_gates_and_no_regression_cannot_hide_one_missing_raw_archive(matrix, tmp_path):
+    path = _retention_file(tmp_path, _retention_envelope(remove=0))
+    result = _run(matrix, tmp_path, retention_index=path)
+    assert result["scientific_comparison_pass"]
+    assert all(decision["ok"] for decision in result["original_decisions"].values())
+    assert all(value["status"] == "NO_REGRESSION" for value in result["comparisons"].values())
+    assert result["pipeline_qualified"] is False
+    assert not result["retention"]["raw_publication_verified"]
+    assert len(result["retention"]["missing"]) == 1
+
+
+@pytest.mark.parametrize("kind", ["omitted", "api-failure", "invalid-json", "wrong-run"])
+def test_unknown_or_invalid_retention_preserves_science_but_never_qualifies_pipeline(matrix, tmp_path, kind):
+    if kind == "omitted":
+        path = None
+    else:
+        envelope = _retention_envelope()
+        if kind == "api-failure":
+            envelope.update(complete=False, error="artifact metadata request failed")
+        elif kind == "wrong-run":
+            envelope["github_run_id"] = "other-run"
+        path = _retention_file(tmp_path, envelope)
+        if kind == "invalid-json":
+            path.write_text("{")
+    result = _run(matrix, tmp_path, retention_index=path)
+    assert result["scientific_comparison_pass"]
+    assert result["pipeline_qualified"] is None
+    assert "qualification_pass" not in result
+    assert (tmp_path / "comparison/receipt.json").is_file()
+    assert all(item["ok"] for item in result["original_decisions"].values())
+
+
+@pytest.mark.parametrize("jobs", ["failure", "cancelled", "skipped", None])
+def test_published_raw_archives_cannot_hide_unsuccessful_or_unknown_producers(matrix, tmp_path, jobs):
+    result = _run(matrix, tmp_path,
+                  retention_index=_retention_file(tmp_path, _retention_envelope(jobs=jobs)))
+    assert result["scientific_comparison_pass"]
+    assert result["retention"]["raw_publication_verified"]
+    assert result["pipeline_qualified"] is (None if jobs is None else False)
+
+
+@pytest.mark.parametrize("change", [
+    lambda e: e.update(total_count=101),
+    lambda e: e["artifacts"][0].update(digest=None),
+    lambda e: e["artifacts"][0].update(expired=True),
+    lambda e: e["artifacts"][0].update(expires_at="2020-01-01T00:00:00+00:00"),
+    lambda e: e["artifacts"][0].update(size_in_bytes=0),
+    lambda e: e["artifacts"][0]["workflow_run"].update(head_sha="9" * 40),
+    lambda e: e["artifacts"][0]["workflow_run"].update(id=999),
+    lambda e: e["artifacts"][1].update(id=e["artifacts"][0]["id"]),
+])
+def test_invalid_archive_metadata_is_not_publication_evidence(change):
+    envelope = _retention_envelope()
+    change(envelope)
+    # Reseal the exact raw API body too, so semantic checks are exercised.
+    response = {"total_count": envelope["total_count"], "artifacts": envelope["artifacts"]}
+    envelope["raw_response"] = json.dumps(response)
+    envelope["raw_response_sha256"] = _sha(envelope["raw_response"].encode())
+    with pytest.raises(Q.ComparisonInputError):
+        Q.validate_retention(envelope, run_id="1234", attempt="1", control_sha="c" * 40)
+
+
+def test_missing_retention_makes_cli_nonzero_while_retaining_scientific_readout(matrix, tmp_path, monkeypatch):
+    monkeypatch.setattr(Q, "frozen_modules", lambda root: MODULES)
+    args = ["--candidate-source", str(ROOT), "--build-manifest-sha256", matrix[1],
+            "--control-sha", "c" * 40, "--github-run-id", "1234", "--github-run-attempt", "1",
+            "--output", str(tmp_path / "comparison")]
+    for role, path in matrix[0].items():
+        args += ["--" + role, str(path)]
+    assert Q.main(args) != 0
+    result = json.loads((tmp_path / "comparison/comparison.json").read_text())
+    assert result["scientific_comparison_pass"] and result["pipeline_qualified"] is None
+
+
+def test_float_fork_seed_cannot_alias_a_registered_integer_after_raw_paths_are_resealed(matrix, tmp_path):
+    root = matrix[0]["template-baseline"]
+    ablation = json.loads((root / "report/ablation_manifest.json").read_text())
+    row = ablation["forks"][0]
+    old_directory = row["dir"]
+    row.update(seed=42.0, run_dir="seed_42.0", dir="needs/seed_42.0/fork_100")
+    (root / "report/ablation_manifest.json").write_bytes(_raw(ablation))
+    inventory = json.loads((root / "raw-inventory.json").read_text())
+    for name in ("agent_events.arrow", "fork.json"):
+        before = "raw/full_gate/ablation_42/" + old_directory + "/" + name
+        after = "raw/full_gate/ablation_42/" + row["dir"] + "/" + name
+        inventory["files"][after] = deepcopy(inventory["files"][before])
+    inventory["file_count"] = len(inventory["files"])
+    inventory["total_bytes"] = sum(v["bytes"] for v in inventory["files"].values())
+    (root / "raw-inventory.json").write_bytes(_raw(inventory))
+    _reseal_reports(root)
+    with pytest.raises(Q.ComparisonInputError, match="fork seed must be an integer"):
         _run(matrix, tmp_path)
     assert not (tmp_path / "comparison").exists()
