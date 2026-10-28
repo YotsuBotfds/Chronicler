@@ -563,3 +563,22 @@ def test_gate_summaries_show_the_informational_binding_failure():
     decision = adjudicate_validation_report("subset", report)
     assert "needs_binding=FAIL" in format_gate_summary(decision)
     assert "| needs_binding | FAIL |" in format_gate_markdown(decision, report)
+
+
+def test_report_reader_rejects_numeric_overflow_without_changing_input(tmp_path):
+    from chronicler.validation_gate import (
+        ValidationGateInputError,
+        load_validation_report,
+    )
+
+    path = tmp_path / "report.json"
+    original = b'{"results":{"needs":{"status":"PASS","metric":1e9999}}}'
+    path.write_bytes(original)
+
+    with pytest.raises(
+        ValidationGateInputError,
+        match="invalid report JSON: non-finite JSON number",
+    ):
+        load_validation_report(path)
+
+    assert path.read_bytes() == original

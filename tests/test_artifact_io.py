@@ -298,3 +298,42 @@ def test_atomic_write_json_outputs_strict_parseable_json(tmp_path):
     assert text.endswith("\n")
     assert json.loads(text) == {"ok": True, "items": [1, 2]}
     assert strict_json_loads(text, label="artifact") == {"ok": True, "items": [1, 2]}
+
+
+@pytest.mark.parametrize(
+    "token", ["1e309", "-1e309", "1E9999", "-1.7976931348623159e308"]
+)
+@pytest.mark.parametrize("template", ["{}", '{{"outer": [0, {}]}}'])
+def test_strict_json_loads_rejects_numeric_overflow(token, template):
+    from chronicler.artifact_io import ArtifactIOError, strict_json_loads
+
+    with pytest.raises(ArtifactIOError, match="non-finite JSON number"):
+        strict_json_loads(template.format(token), label="report")
+
+
+def test_strict_json_loads_preserves_finite_numeric_semantics():
+    import math
+
+    from chronicler.artifact_io import strict_json_dumps, strict_json_loads
+
+    integer = 10 ** 400
+    text = (
+        '{"values":[1e308,-1e308,1e-9999,-0.0,0e9999],'
+        f'"integer":{integer},"text":"1e9999"}}'
+    )
+    result = strict_json_loads(text)
+
+    assert result["values"] == [1e308, -1e308, 0.0, -0.0, 0.0]
+    assert math.copysign(1.0, result["values"][3]) == -1.0
+    assert type(result["integer"]) is int
+    assert result["integer"] == integer
+    assert result["text"] == "1e9999"
+    assert strict_json_loads(strict_json_dumps(result)) == result
+
+
+@pytest.mark.parametrize("text", ["01", "1e+", "+1"])
+def test_strict_json_loads_still_rejects_invalid_numeric_syntax(text):
+    from chronicler.artifact_io import ArtifactIOError, strict_json_loads
+
+    with pytest.raises(ArtifactIOError, match="invalid report"):
+        strict_json_loads(text, label="report")
