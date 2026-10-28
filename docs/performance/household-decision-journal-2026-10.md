@@ -121,3 +121,24 @@ files for artifact comparison. Do not change seed, origin,food values, exposure
 thresholds or the candidate after seeing its result without a new prospective
 amendment. The >=5% exposed-whole-workload and <=3% ordinary-whole-workload
 regression rules remain decisive; a fast isolated phase is insufficient.
+
+### Boundary clarification before the five-pair qualification
+
+The first exposure pilot has completed and its mixed timings are retained;
+it is not a performance verdict. The original registration named fresh-process,
+complete-run and warmed-turn boundaries without assigning a primary among
+the two full-workload boundaries. This clarification is made after that pilot,
+before the five-pair qualification: require the registered gain/regression
+criteria on both total process user+system CPU (including imports/setup and
+final exports) and complete `execute_run` CPU. Report warmed turn-window CPU
+and wall/RSS separately; a favorable warmed window cannot qualify a failed
+full-workload comparison. This adds no favorable-boundary selection or relaxed
+threshold, and does not relabel the pilot as prospectively ranked evidence.
+
+The exact environment preflight compares the resolved Python executable bytes,
+sysconfig/build/optimization flags, all distribution versions, complete runtime
+package trees excluding bytecode caches, loaded dynamic-library bytes and
+thread settings. NumPy, SciPy, Arrow, Pydantic/core and the other required
+packages match between the arms; only the intentional native extension differs.
+Each source/native identity and every timing/exposure arm remain in external
+receipts. No fallback threshold or fixture parameter is changed for this test.
