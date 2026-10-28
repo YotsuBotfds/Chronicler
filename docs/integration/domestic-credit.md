@@ -20,6 +20,15 @@ region column), `simulation.py`, `models.py`, `main.py`, `live.py`,
 switch off every output is byte-identical to `main`
 ([identity](#5-switch-off-byte-identical-to-main)).
 
+**Second pass (2026-10-28, [section 13](#13-second-pass-2026-10-28-featdomestic-credit-2)):**
+lenders lend no new money that would raise the borrower's interest due
+above half its revenue, and while the agent pool's wealth builds up from
+its cold start the realm's abstract merchant houses lend finance's revenue
+term again, fading as `0.98 ** turn`; no war reserve, no purse ceiling.
+Early credit is restored and the ceiling treadmill is gone; still default
+off (13.7). Sections 1-12 below are PR #63's; what the second pass
+supersedes is marked there.
+
 ## Result
 
 | | |
@@ -1031,3 +1040,326 @@ said:
    against main's full reports show no newly failing required gate (cohort
    method 6 and community method 2 report `rebaseline_required` against
    those older reports, as expected).
+
+### 13.4 Identity, resume and conservation
+
+Environment: Linux, Python 3.13.17, `PYTHONHASHSEED=0`, one virtualenv
+per tree outside the checkout, each with a release extension built fresh
+(`maturin develop --release --locked`, its own `CARGO_TARGET_DIR`), the
+compiled `chronicler_agents.chronicler_agents` and the real
+`AgentSimulator`, `EcologySimulator` and `PoliticsSimulator` classes
+verified. `main` `25854db` from an exported tree; the branch's frozen tree
+`004907f` (the pre-registration commit; every later commit changes tests,
+the probe or documentation only). Both extensions have SHA-256
+`3da1ee1f...dad0b` (no Rust change), as PR #63's branch build had.
+
+| | |
+| --- | --- |
+| switch off against `main` (`scripts/turn_speed_identity.py`, 9-case matrix) | no flag: 399 files, 0 differences; explicit `--no-domestic-credit`: 399 files, 0 differences |
+| switch on, exact resume (`scripts/checkpoint_identity.py --cli-arg=--domestic-credit`) | `hybrid_s42` 60 turns, 59 resume points, 1,780 files; `proc32_hybrid_s11` 40 turns, 39 points, 1,176 files (a default at turn 32 on the houses and the merchants of a region); `hybrid_s42_long` 200 turns, 19 points, 1,616 files (a default at turn 77): 117 resume points, 4,572 files, 0 differences; writing checkpoints changes nothing |
+| credit ledger checked every tick (`CHRONICLER_CHECK_RESOURCES=1`) | template seeds 42-61 x 300 and procedural 32 x 10 seeds 42-61 x 200: 40 of 40 runs balanced; their final states are byte-identical to unchecked runs of the same seeds (40 of 40) |
+
+Every resume case lends from merchants, cities and houses; the straight
+runs equal the runs without checkpoints. Over the checked runs, per run:
+template, merchants lent 241, cities 46, guilds 4, the houses 77 (21% of
+domestic lending at 300 turns); procedural, merchants 2,386, cities 492,
+guilds 26, the houses 384 (12%).
+
+### 13.5 Results
+
+**Paired worlds** (`scripts/domestic_credit_probe.py`, the frozen tree's
+copy for the runs, summarized again with the current probe, which adds
+read-only measures; means per run, SE of the paired difference). Arms:
+the switch off (`main`), PR #63 (`main` with the switch), this branch with
+the switch. Template seeds 42-81 x 500 turns:
+
+| measure | off | PR #63 | this branch | PR #63 - off (SE) | branch - off (SE) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| domestic issued before turn 30 | 109 | 40 | 102 | **-69** (7) | -8 (5) |
+| domestic issued before turn 60 | 142 | 121 | 152 | -20 (17) | +10 (12) |
+| domestic loans before turn 30 | 3.55 | 1.6 | 3.5 | **-1.95** (0.25) | -0.05 (0.18) |
+| domestic issued | 602 | 747 | 627 | +145 (196) | +25 (156) |
+| foreign issued | 425 | 559 | 586 | +133 (134) | +161 (152) |
+| foreign share of issuance | 0.40 | 0.55 | 0.40 | **+0.14** (0.04) | -0.00 (0.04) |
+| domestic interest paid | 252 | 496 | 277 | +244 (189) | +25 (69) |
+| interest received by cities | 0 | 63 | 35 | | |
+| the houses' part of domestic lending | | | 68 (11%) | | |
+| largest city purse | 89 | 99 | 95 | +9 (7) | +6 (7) |
+| worlds: a civ at 8+ turns of revenue owed for 50+ turns | 0 | 1 | 0 | | |
+| worlds: a civ paying 40%+ of revenue in interest for 50+ turns | 0 | 1 | 1 | | |
+| defaults / debasements | 1.15 / 1.23 | 1.18 / 1.35 | 1.35 / 1.23 | +0.03 / +0.13 | +0.20 (0.21) / 0 |
+| fiscal-strain onsets / PSI crises | 5.75 / 1.55 | 6.3 / 1.48 | 6.6 / 1.83 | +0.55 / -0.08 | +0.85 (1.28) / +0.28 (0.46) |
+| share of domestic issuance at war | 0.71 | 0.49 | 0.61 | **-0.19** (0.08) | -0.09 (0.06) |
+| merchant wealth, mean | 374 | 401 | 389 | +27 (+7%) (14) | +15 (+4%) (9) |
+| satisfaction, mean | 0.6209 | 0.6130 | 0.6198 | **-0.0079** (0.0028) | -0.0010 (0.0033) |
+| merchant satisfaction, mean | 0.4416 | 0.4330 | 0.4385 | **-0.0086** (0.0039) | -0.0031 (0.0050) |
+| Gini of all agents' wealth, mean | 0.6186 | 0.6257 | 0.6235 | **+0.0071** (0.0031) | +0.0049 (0.0029) |
+| written off on merchants | 0 | 24 | 12 | | |
+| population at the end / polities alive | 184 / 2.90 | 184 / 2.93 | 185 / 2.95 | | |
+
+Procedural 32 x 10, seeds 52-71 x 300 turns:
+
+| measure | off | PR #63 | this branch | PR #63 - off (SE) | branch - off (SE) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| domestic issued before turn 30 | 467 | 153 | 406 | **-314** (23) | **-61** (18) |
+| domestic issued before turn 60 | 769 | 555 | 832 | **-214** (78) | +62 (85) |
+| domestic loans before turn 30 | 11.8 | 5.75 | 11.3 | **-6.05** (0.68) | -0.5 (0.55) |
+| domestic issued | 4,159 | 9,544 | 5,571 | **+5,385** (865) | **+1,413** (588) |
+| foreign issued | 6,790 | 6,986 | 9,211 | +196 (972) | +2,421 (1,330) |
+| foreign share of issuance | 0.60 | 0.40 | 0.61 | **-0.19** (0.04) | +0.01 (0.03) |
+| domestic interest paid | 2,136 | 7,256 | 3,650 | **+5,120** (876) | **+1,514** (485) |
+| interest received by cities | 0 | 1,724 | 767 | | |
+| the houses' part of domestic lending | | | 401 (7%) | | |
+| largest city purse | 81 | 319 | 191 | **+238** (43) | **+110** (26) |
+| worlds: a civ at 8+ turns of revenue owed for 50+ turns | 0 | 2 | 0 | | |
+| worlds: a civ paying 40%+ of revenue in interest for 50+ turns | 0 | 10 | 1 | | |
+| worlds whose cities received over 1,000 of interest | 0 | 14 | 5 | | |
+| defaults / debasements | 8.6 / 5.75 | 9.3 / 6.35 | 9.3 / 5.3 | +0.7 (1.35) / +0.6 | +0.7 (1.14) / -0.45 (0.68) |
+| fiscal-strain onsets / PSI crises | 25.0 / 7.65 | 27.7 / 8.55 | 24.5 / 7.7 | +2.65 / +0.9 | -0.55 (2.5) / +0.05 (1.0) |
+| written off on merchants / cities | 0 | 806 / 193 | 195 / 43 | | |
+| share of domestic issuance at war | 0.75 | 0.57 | 0.66 | **-0.18** (0.05) | **-0.09** (0.04) |
+| merchant wealth, mean | 962 | 1,225 | 1,086 | **+264 (+27%)** (59) | **+125 (+13%)** (44) |
+| satisfaction, mean | 0.555 | 0.560 | 0.563 | +0.005 (0.006) | +0.008 (0.006) |
+| merchant satisfaction, mean | 0.368 | 0.375 | 0.379 | +0.007 (0.008) | +0.012 (0.008) |
+| Gini of all agents' wealth, mean | 0.600 | 0.607 | 0.602 | **+0.007** (0.003) | +0.002 (0.003) |
+| population at the end / polities alive | 537 / 8.0 | 534 / 8.9 | 533 / 8.55 | -3 / **+0.9** (0.29) | -4 / +0.55 (0.40) |
+
+Agent rates per agent-turn, counted as the regression oracle counts them
+(the runs' `agent_events.arrow` over the probe's agent counts):
+
+| per agent-turn | template off | PR #63 - off | branch - off | procedural off | PR #63 - off | branch - off |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| migration | 0.06145 | -0.3% (SE 2.0%) | -1.9% (1.9%) | 0.07699 | -0.1% (1.8%) | **-3.7% (1.6%)** |
+| rebellion | 0.03112 | -4.1% (11.5%) | -14.5% (9.4%) | 0.03619 | -14.9% (12.1%) | -18.6% (13.9%) |
+| occupation switches | 0.04749 | +1.1% (1.7%) | +0.9% (2.5%) | 0.03761 | +2.2% (1.6%) | +0.2% (1.6%) |
+
+The off and PR #63 arms of the template set reproduce PR #63's own 40
+paired worlds exactly (migration 0.06145 and 0.06129, rebellion 0.03112
+and 0.02984, section 9).
+
+What it does. Early credit is back: domestic issuance before turn 30 is
+within 7-13% of the switch off (PR #63: about -65%), and the houses fund
+7-11% of all domestic lending over a run. In template worlds the switch now
+changes credit little over a run: domestic issuance +4%, domestic interest
++10%, the foreign share unchanged (PR #63: +0.14), merchant wealth +4%.
+Procedural worlds still lend more at home (+34%, PR #63 +129%) and borrow
+more abroad too (+36%, 1.8 SE): a state refused at home by the room turns
+to foreign lenders, which finance does not limit by the borrower's
+interest. Lenders lose much less in defaults (procedural write-offs on
+merchants 195 against PR #63's 806): they no longer lend past what the
+borrower can service. The ceiling treadmill is gone: no world
+in either set (nor in either gate) has a civ at eight or more turns of
+revenue owed for 50 turns. What remains is a borrower at the room (13.6).
+
+**Gates** (`scripts/m53b_run_validation.py --profile full
+--require-strict-regression --exploratory-comparison --domestic-credit`,
+the frozen tree and its extension, three workers, one full gate on the
+machine at a time). Baselines: main's template full report (`ac74e5a`,
+the simulation unchanged since; spec-communities `main-t-full`) and
+main's procedural full report (community-anchoring `p-full-off2`).
+
+Template full (200 seeds x 500 turns): **PASS strict; EXPLORATORY, NO
+REGRESSION** against main (4,008 s). Every required oracle passes (arcs,
+artifacts strict, cohort, community, era, needs, regression strict), as on
+main; cohort method 6 and community method 2 against main's methods 5 and
+1 are reported as method changes (`rebaseline_required`), as expected.
+
+| | main | PR #63 | this branch | branch - main |
+| --- | ---: | ---: | ---: | ---: |
+| satisfaction mean | 0.6212 | 0.6173 | 0.6180 | -0.0032 |
+| latest satisfaction mean (last 60 turns) | 0.6330 | 0.6267 | 0.6276 | -0.0055 |
+| migration per agent-turn | 0.06340 | 0.06313 | 0.06312 | -0.4% |
+| rebellion per agent-turn | 0.03295 | 0.03555 | 0.03471 | +5.3% |
+| final Gini within 0.30-0.70 (share of civs) | 0.852 | 0.869 | 0.827 | -0.025 |
+| occupation violations | 0.0012 | 0.0013 | 0.0014 | |
+| final living population (mean per world) | 185.3 | 181.8 | 184.7 | -0.3% |
+| era: silent collapses / collapse episodes | 1 / 4,666 | 0 / 4,595 | 0 / 4,675 | |
+| arcs: seeds with three types | 151 | 164 | 163 | |
+| artifacts per civ per 100 turns | 1.85 | 1.87 | 1.85 | |
+| extinct worlds | 0 | 0 | 0 | |
+
+Informational: the needs ablation's six pairings all pass (safety 1.218
+[0.966, 1.471], PR #63's gate 1.071 [0.877, 1.266]); the kin-roots cohort
+ablation fails, as on main (0.998). The paired worlds put the gate's
+movements in proportion: satisfaction -0.001 (SE 0.003) and rebellion
+-14.5% (SE 9.4%) in 40 paired worlds, so the gate's -0.0055 and +5.3% are
+the spread of single worlds.
+
+Procedural full (100 seeds x 300 turns, 32 regions x 10 civs): **PASS
+strict; EXPLORATORY, NO REGRESSION** against main (5,949 s). Every required
+oracle passes, as on main; cohort and community report method changes
+(`rebaseline_required`), as expected.
+
+| | main | PR #63 | this branch | branch - main |
+| --- | ---: | ---: | ---: | ---: |
+| satisfaction mean | 0.5667 | 0.5679 | 0.5706 | +0.0039 |
+| latest satisfaction mean (last 60 turns) | 0.5741 | 0.5734 | 0.5760 | +0.0019 |
+| migration per agent-turn | 0.07555 | 0.07589 | 0.07554 | -0.0% |
+| rebellion per agent-turn | 0.03863 | 0.03615 | 0.03574 | -7.5% |
+| final Gini within 0.30-0.70 (share of civs) | 0.910 | 0.877 | 0.892 | -0.018 |
+| occupation violations | 0.0019 | 0.0021 | 0.0018 | |
+| final living population (mean per world) | 540.7 | 534.3 | 537.5 | -0.6% |
+| era: silent collapses / collapse episodes | 1 / 4,431 | 0 / 4,441 | 0 / 4,354 | |
+| arcs: seeds with three types | 97 | 97 | 100 | |
+| artifacts per civ per 100 turns | 2.50 | 2.44 | 2.38 | |
+| extinct worlds | 0 | 0 | 0 | |
+
+Informational: the needs ablation's six pairings all pass (safety 1.232
+[1.141, 1.323]; main 1.132 [1.049, 1.215]); the kin-roots cohort ablation
+fails, as on main (0.990). The paired procedural worlds' migration -3.7%
+(2.3 SE) does not appear in the gate (0.07554 against main's 0.07555 over
+100 worlds), and satisfaction reads +0.004 there against +0.008 paired.
+
+Credit in the gate worlds (`domestic_credit_probe.py summarize` over each
+batch; main's gate batches are not kept, so the paired worlds carry the
+comparison with the switch off):
+
+| per world | template, PR #63 | template, branch | procedural, PR #63 | procedural, branch |
+| --- | ---: | ---: | ---: | ---: |
+| domestic loans before turn 30 | 1.5 | 3.66 | 5.9 | 11.34 |
+| domestic issued / foreign issued | 959 / 578 | 908 / 614 | 8,393 / 6,512 | 6,122 / 9,051 |
+| lent by merchants / cities / guilds / houses | 704 / 241 / 15 / - | 630 / 193 / 12 / 72 | 6,295 / 2,012 / 86 / - | 4,405 / 1,251 / 67 / 399 |
+| interest paid to merchants / cities / houses | 446 / 184 / - | 351 / 114 / 24 | 4,709 / 1,538 / - | 3,018 / 855 / 159 |
+| written off on merchants / cities | 44 / 12 | 19 / 4 | 684 / 190 | 208 / 45 |
+| defaults that hit lenders | 0.87 | 0.80 | 7.9 | 6.74 |
+| guild movements after a default (worlds) | 0.075 (14) | 0.04 (9) | 0.84 (46) | 0.56 (39) |
+| merchant credits still due at the end (max) | 2.0 (241) | 0.8 (24) | 60 (765) | 33 (293) |
+| worlds whose cities received over 1,000 of interest | 4 | 5 | 55 | 30 |
+| largest city purse | 2,209 (seed 101) | 610 | | 875 |
+| worlds: 8+ turns of revenue owed for 50+ turns | | 0 (longest 33) | | 0 (longest 39) |
+| worlds: 40%+ of revenue in interest for 50+ turns | | 4 (longest 97) | | 14 (longest 94) |
+
+(PR #63's gate batches are deleted; its census kept the rows shown, and
+seed 101's purse is from a rerun of `main` with the switch. Its four
+treadmill worlds in this branch's gate: domestic interest 169, 964, 605 and
+1,482 a run against 24,157, 12,546, 5,002 and 6,398.)
+
+**Pre-registration (13.3), how it held:**
+
+| | prediction | outcome |
+| --- | --- | --- |
+| 1a | template gate: at most 1 world with cities paid over 1,000; largest purse below 500 | **did not hold**: 5 worlds; largest purse 610 (PR #63: 4; 2,209) |
+| 1b | cities' interest per gate world below half PR #63's | **did not hold**: -38% template (114 against 184), -44% procedural (855 against 1,538) |
+| 1c | paired domestic interest less than a third of the way to PR #63; heavy-debt 50+ worlds no more than off + 1 | **held**: +25 against +244 (template), +1,514 against +5,120 (procedural); 0 heavy-debt worlds in both sets |
+| 2 | early issuance within +-20% (turn 30), +-25% (turn 60); gate loans before turn 30 at least 2.5 and 9; houses under a quarter | **held**: -7%, -13%; +7%, +8%; 3.66 and 11.34; 7-11% (21% in the 300-turn checked runs) |
+| 3 | whole-run domestic issuance within +-30% (template), -10% to +50% and below PR #63's (procedural) | **held**: +4%; +34% (PR #63 +129%) |
+| 4 | defaults, debasements, fiscal strain, PSI crises within +-30%; procedural defaults above PR #63's | **held** except the last: within +-18% everywhere; procedural defaults equal PR #63's (9.3 and 9.3; in this seed set PR #63 does not lower them) |
+| 5 | merchant wealth -5% to +15%, below PR #63's procedural gain | **held**: +4%, +13% (PR #63 +7%, +27%) |
+| 6 | satisfaction +-0.005, merchant satisfaction +-0.01, Gini +-0.01; rates within 2 SE; Gini no higher than PR #63's | **held in template worlds; partly in procedural**: satisfaction +0.008 (1.2 SE) and merchant satisfaction +0.012 (1.4 SE) outside their ranges, though not different from zero; migration -3.7% (2.3 SE) |
+| 7 | war share within +-0.15 | **held**: -0.09, -0.09 |
+| 8 | foreign share within +-0.10 | **held**: -0.00, +0.01 |
+| 9 | both gates PASS strict, no newly failing required gate | **held**: template and procedural PASS strict, EXPLORATORY NO REGRESSION; cohort method 6 and community method 2 `rebaseline_required`, as expected |
+
+1a and 1b were predicted from the four treadmill worlds, which in the
+development runs happened not to rebuild their debt (their histories
+diverge); across 200 worlds the count of cities paid over 1,000 measures
+the volume of civic lending rather than the ceiling treadmill, and the
+room does not stop a borrower from staying at the room for a long time
+with its cities as the main lenders (13.6).
+
+### 13.6 Decisions
+
+**Made here.**
+
+* **The borrower's room** (problem 1): domestic lenders lend nothing that
+  would raise the borrower's interest due above half its revenue. It
+  removes the ceiling treadmill (a civ at eight or more turns of revenue
+  owed for 50+ turns: PR #63's seed 101 for 158 turns; none here in 300
+  gate worlds and 60 paired worlds) and bounds how much a state pays its
+  lenders. It does not end every long debt: a state at the room whose
+  revenue covers its interest is refinanced as it repays and can stay
+  there (template seed 110: Dorrathi Clans owes 600-760, 6.6-8.2 turns of
+  revenue, for about 150 turns, paying 42-48% of its revenue in interest,
+  never defaulting). That is a perpetual debt of the early modern kind,
+  serviced from revenue; finance defaults only on unpaid service, and a
+  lender paid in full has no reason to refuse. Such stretches (40%+ of
+  revenue in interest for 50+ turns) occur in 4 of 200 template and 14 of
+  100 procedural gate worlds, up to 97 turns.
+* **No ceiling on purses, no exposure-dependent rates** (13.2). The room
+  bounds the interest; it does not bound who receives it. Within one
+  borrower's line, cities' offers grow with their purses (which have no
+  ceiling) while merchants are capped at 100 an agent and decay, so at the
+  room cities take a growing share of each refinancing (template seed 193:
+  Ashkari's claims held by cities 132 -> 273 while its merchants' fell 431
+  -> 136; seed 110: Thornwood Settlement 2's claims 189 -> 441, its purse 58
+  -> 419). Purses stay far below PR #63's (template gate largest 610
+  against 2,209; procedural paired median of the largest purse 159
+  against 274, off 73) but above the switch off. This is the one
+  accumulation the second pass leaves; it is decision 13.7 (1).
+* **Cold-start houses** (problem 2) rather than other wealthy agents: 13.2.
+  They fund 7-11% of domestic lending over a run; by turn 200 they offer
+  2% of their initial term.
+* **No war reserve** (problem 3): the evidence does not support it (13.1;
+  the war share of domestic credit is 0.61-0.66 with this branch against
+  0.71-0.75 off).
+* **The merchant tax** (problem 4) is left as it is; its interaction is in
+  13.2.
+
+### 13.7 Promotion
+
+**Recommendation: not yet.** The switch makes the realm's domestic
+creditors real and keeps their books exactly, both full gates pass, early
+credit and the ceiling treadmill are fixed, and in template worlds its
+fiscal footprint is now small (domestic issuance +4%, interest +10%,
+merchant wealth +4%, agents' satisfaction, migration and rebellion within
+their spread). Three things should come first:
+
+1. **Civic lenders.** Decide how a city's or guild's interest income
+   leaves its purse: either the purse passes interest through to the
+   burghers who fund it (the merchants of its region, whose wealth is
+   capped and decays), as communes lending to their lords did, or the
+   purse has a ceiling as agent wealth does. Purses feed sack plunder and
+   free-city treasuries (half the purse each), so their size is not only
+   bookkeeping.
+2. **The merchant tax** (11.2 (4)). With the switch, interest paid to
+   merchants raises the base of a tax the agents never pay, and the room
+   and the houses' term are shares of that revenue. Debit it (a switch-off
+   change of the goods economy, with its own gates) or decide it stays.
+3. **A second look at procedural agents**: migration -3.7% (2.3 SE) and
+   merchant satisfaction +0.012 (1.4 SE) in 20 paired procedural worlds;
+   the procedural gate reads migration at main's level (0.07554 against
+   0.07555) and satisfaction +0.004, so neither is established. Rerun on
+   40 paired procedural worlds with whatever 1 and 2 change.
+
+**Evidence a promotion PR needs** (the repo's rule: a documented 200-seed
+before/after full gate, as `defaults-wave8.md` and
+`techniques-default.md` did):
+
+* the flip alone (`DEFAULT_ENABLED_FOR_NEW_WORLDS = True`, CLI help, live
+  comments, a new-world default test; the benchmark pins and frozen
+  oracle fixtures pinned to the switch off so they replay the same
+  worlds), on a tree whose calibration is final;
+* template full gate (200 x 500) of `main` and of the branch with no
+  flags, the same seeds, both PASS strict, and a non-exploratory
+  comparison with no newly failing required gate (oracle method changes
+  re-baselined first, so that cohort and community compare);
+* the same for the procedural full gate (100 x 300, `--worldgen
+  procedural`);
+* identity: the branch with an explicit `--no-domestic-credit` against
+  `main` with no flags (9-case matrix, 0 differences), and a save written
+  before the flip resumed with its setting kept;
+* exact resume and the checked ledger with the new default (as 13.4);
+* the paired probes rerun (40 template x 500, 40 procedural x 300) with
+  agent rates, against the pre-registered ranges of the change that is
+  promoted;
+* the viewer showing who holds a realm's debt (11.2 (5)), or a decision
+  that it is not needed for the default.
+
+### 13.8 Tests and lanes
+
+`tests/test_domestic_credit.py` adds: the borrower's room (its formula,
+capacity the lesser of the offers and the room, no money at half the
+revenue in interest, no domestic issue in a fiscal tick there); the houses
+(their faded offer, less their claims, named in the event, receipts into
+the ledger only, gone by turn 400); a default on the houses raising no
+grievance; the cold-start decay read from `agent.rs`; books saved before
+the second pass gaining the `houses` totals; and the probe's measures on
+synthetic snapshots. The real-lender test of PR #63 runs past the cold
+start. `tests/test_domestic_credit_native.py`'s hybrid run now checks that
+loans name real lenders and that the houses lend early.
+
+| Lane | Result |
+| --- | --- |
+| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,786 passed, 59 skipped (chunk `domestic-credit` 32 tests, 1.2 s) |
+| `pytest -m "not slow"` (release extension) | 6,813 passed, 3 skipped, 15 deselected (the final tree; an earlier run on the frozen tree failed one native test that filtered out loans naming the houses, fixed in the test) |
+| `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,076 passed, 0 failed, 2 ignored |
