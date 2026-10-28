@@ -284,6 +284,12 @@ compared with its baseline:
 | --- | --- | --- | --- |
 | `main` template full 200 x 500 (`ac74e5a`, the baseline) | PR #61's report (`b1c9274` simulation) | PASS (strict) | NO REGRESSION, 12 metric deltas 0; needs 7 -> 8, cohort 4 -> 5 |
 | template full 200 x 500 | `main`'s, above | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
+| procedural full 100 x 300 (32 x 10, fork design 2) | PR #62's `p-full-off2` (`main`'s simulation, design 2) | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
+
+Against their baselines, every other oracle's result is equal field for
+field (the procedural needs result differs only in the placebo component
+the baseline's extra arm added), and the community result's method 1
+component equals the baseline's community result.
 
 ### 5.1 Template full gate
 
@@ -315,6 +321,58 @@ compared with its baseline:
   arms 1,295 and 1,705 s): the new components add no visible time against
   the load of the shared machine (`main`'s gate shared it with the probes).
 
+### 5.2 Procedural full gate
+
+| | predicted | measured |
+| --- | --- | --- |
+| community status (method 1 decides) | PASS | PASS (100 of 100 seeds) |
+| spec component | FAIL (region share) | **FAIL: `region_share` only** |
+| communities above 5% of their region | at least 99% | 11,275 of 11,276 (four lie in regions of 100+ agents) |
+| region share: median / max; region population (median) | | 0.150 / 1.0; 37 |
+| mean communities a seed (3-15) | 5.61 [5.00, 6.22], PASS | 5.37, PASS (99 of 100 seeds within the band) |
+| median size (5-12); p90; max | 5 (5-6) | 5; 7; 43 |
+| seeds with a community | at least 95% | 100 of 100 |
+| members' share of living agents (median) | 5-7% | 5.3% (mean 5.7%) |
+| cohort observational | PASS | PASS (100 of 100, median effect 1.12) |
+| members matched to a control | 0.50-0.65 | 0.580 (50,056 of 86,294 over 2,664 snapshots; satisfaction gap 0.043); chosen snapshots 0.493 |
+| kin roots, method 2's members | 0.97-1.00, FAIL | 0.996 [0.986, 1.005] (25,754 agent-forks), FAIL |
+| kin roots, non-members | | 0.993 [0.990, 0.996] |
+| needs (method 8) | equal to `main` | equal (needs ablation PASS) |
+
+Every prediction held. Method 2's members again migrate more than
+non-members in the plain arm (1.33 against 1.21 moves over the window).
+Cost: batch 1,393 s, two arms 3,424 s (1,800 forks), validation 618 s
+(PR #62's design-2 gate: 637 s).
+
 ## 6. Decisions
 
-_Pending._
+The rule applied here was fixed before the gates (section 3.2, prediction
+2): the spec component decides only if it passes its acceptance criteria
+on `main`'s simulation.
+
+* **The spec component stays informational; method 1 decides.** It fails
+  on `main`'s simulation in both worlds, on the region share alone
+  (sections 5.1, 5.2). `validation_gate.COMMUNITY_SPEC_REQUIRED` stays
+  False. The community oracle's verdict is method 1's, unchanged; its
+  report and the gate summary list the spec component (`community_spec`)
+  with the criteria it fails.
+* **The region-share criterion cannot hold at the gate worlds' scale.** A
+  community of the spec's minimum size (5) exceeds 5% of any region with
+  fewer than 100 living agents. The regions that hold communities have 44
+  (template) and 37 (procedural) living agents (median); of the default
+  gates' 36,945 communities, six lay in a region of 100 or more. The spec
+  sized its sidecars for 50K agents; the criterion fits regions of
+  thousands. It was measured as written and not changed: a restated
+  criterion (for example a share of the civ, or an absolute bound) would
+  be a new pre-registration and is left open.
+* **Cohort method 6 replaces method 5 as the default.** Its components
+  measure the communities the spec defines: a tenth of the agents, of whom
+  two thirds find a matched control (method 1: nine in ten agents, one in
+  thirteen matched). The deciding rule is method 5's (the observational
+  component; causal components reported, `--require-causal-oracles`
+  off). The observational component is method 3's estimator and stays
+  non-discriminating (best of every snapshot, either behaviour): its PASS
+  is no more evidence than before.
+* **The kin roots do not anchor the spec's communities either**: 0.988
+  and 0.996 for their members against 0.987 and 0.993 for non-members
+  (template, procedural), against the pre-registered 0.85.
