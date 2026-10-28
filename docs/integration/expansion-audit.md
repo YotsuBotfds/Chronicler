@@ -40,6 +40,9 @@ snapshots are labelled **episode-turns**, not unique patients. `recoveries` is
 reported as episode retirement, without clinical interpretation. Optional
 `censored_episodes` stays separate, and is unknown when unrecorded. Work time is
 not converted into clinical benefit, measured grain loss, currency or deaths.
+If any included health section has unknown units, the combined work/care totals
+are withheld rather than relabelled as worker-turns; unit-independent counts
+remain available.
 
 Forecast chains are indexed by their recorded stable report ID. Persistence
 of a pending/delivered report or retained resolved outcome across snapshots is
@@ -51,6 +54,8 @@ are diagnostic. Planned delivery, target, expiry and next-calendar dates may
 lie in the future. Actual issue, delivery, resolution, occurrence and payment
 evidence may not. Premature actual outcomes are flagged and withheld, including
 their numerical values and future-issued report names/IDs.
+An event ID is ambiguous only among copies dated at or before the receipt's
+source turn. A future duplicate cannot invalidate an earlier historical view.
 
 Preparation is a per-turn `(source_turn, forecast_id, region)` observation,
 not a new simulated purchase ID. Duplicate rows in the same turn are rejected.
@@ -148,7 +153,7 @@ arm bundles retain pre-intervention parent history; whole-bundle totals cannot
 be interpreted as treatment-only quantities. The associated exact source,
 native/control metadata and fork boundaries must accompany cross-study claims.
 
-Focused verification passed 53 tests under Python 3.13.5 with native imports,
+Focused verification passed 56 tests under Python 3.13.5 with native imports,
 network and child processes blocked (zero attempts). This covers v6/legacy
 decoding, start/end cutoffs, future-body withholding, gaps, duplicate and
 conflicting receipts, counter/expense/flow/score arithmetic, malformed optional

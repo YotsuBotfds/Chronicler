@@ -180,11 +180,17 @@ class _Audit:
             if self.event_complete:
                 self.finding(system, "dangling_event_id", source, "A recorded event ID has no timeline record.", rid, "warning")
             return None
-        if len(rows) != 1:
+        visible = [event for event in rows if _int(event.get("turn")) is not None and event["turn"] <= source]
+        if not visible:
+            self.check(key, "failed")
+            self.finding(system, "future_or_undated_event_reference", source,
+                         "A receipt cites actual event evidence unavailable at its date; event body withheld.", rid)
+            return None
+        if len(visible) != 1:
             self.check(key, "failed")
             self.finding(system, "ambiguous_event_id", source, "The timeline repeats a referenced stable event ID.", rid)
             return None
-        event = rows[0]
+        event = visible[0]
         turn = _int(event.get("turn"))
         if turn is None or turn > source:
             self.check(key, "failed")
@@ -265,6 +271,12 @@ class _Audit:
                           ("episode_retirements", "recoveries"), ("censored_episodes", "censored_episodes"),
                           ("impaired_worker_turns", "impaired_work"), ("care_worker_turns", "care_work")):
             value = _num(state.get(key))
+            if dest in ("impaired_worker_turns", "care_worker_turns"):
+                if state.get("units") != "worker-turns":
+                    out[dest] = None
+                elif out[dest] is not None and value is not None and value >= 0:
+                    out[dest] += value
+                continue
             if value is not None and value >= 0:
                 out[dest] = (out[dest] or 0) + value
 
@@ -470,7 +482,7 @@ class _Audit:
                 chain["resolved_turn"] = resolved
                 # Runtime resolutions cite issue/delivery IDs but have no
                 # resolved_event_id field; match only exact recorded dependencies.
-                chain["resolution_event_ids"] = self.related_events("harvest_forecast_resolved", resolved, row)
+                chain["resolution_event_ids"] = self.related_events("harvest_forecast_resolved", resolved, row, source)
                 self.check("harvest_forecasts.resolution_event_links", "verified" if chain["resolution_event_ids"] else "unavailable")
             if scored:
                 self.quantities(row, ("observed_ratio", "brier"), system, source, rid)
@@ -535,7 +547,7 @@ class _Audit:
             self.verify_purchases(row, source, snapshot)
             if row["paid_during_warning"] > 0:
                 self.observed[system]["paid_preparation_receipts"] += 1
-                links = self.related_events("harvest_preparedness", source, report)
+                links = self.related_events("harvest_preparedness", source, report, source)
                 chain["preparation_event_ids"] = sorted(set(chain["preparation_event_ids"] + links))
                 self.check("harvest_forecasts.preparation_event_links", "verified" if links else "unavailable")
         out = self.observed[system]
@@ -543,13 +555,15 @@ class _Audit:
         out["funds_paid_during_warnings"] += paid
         self.counters(system, state, source, {"bought_during_warning": bought, "paid_during_warning": paid}, complete and a and b)
 
-    def related_events(self, kind, turn, report):
+    def related_events(self, kind, turn, report, source):
         links = []
         required = report.get("delivered_event_id") if kind == "harvest_preparedness" else report.get("issued_event_id")
         if not required:
             return links
-        return [self.label(eid) for eid in sorted(self.related.get(
-            (kind, turn, report.get("recipient_region_name"), required), []))]
+        candidates = self.related.get((kind, turn, report.get("recipient_region_name"), required), [])
+        return [self.label(eid) for eid in sorted(set(candidates))
+                if sum(_int(e.get("turn")) is not None and e["turn"] <= source
+                       for e in self.events[eid]) == 1]
 
     def verify_purchases(self, row, source, snapshot):
         state = snapshot.get("grain_reserves")
@@ -609,25 +623,26 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
             audit.events.setdefault(event["event_id"], []).append(event)
     for eid, events in audit.events.items():
         if len(events) != 1:
-            visible = [e for e in events if _int(e.get("turn")) is not None and e["turn"] <= as_of.completed
-                       and e.get("event_type") in ("harvest_forecast_issued", "harvest_forecast_delivered",
+            visible = [e for e in events if _int(e.get("turn")) is not None and e["turn"] <= as_of.completed]
+            relevant = any(e.get("event_type") in ("harvest_forecast_issued", "harvest_forecast_delivered",
                             "harvest_preparedness", "harvest_forecast_resolved", "occupational_injury",
-                            "harvest_gathering_held", "harvest_gathering_cancelled")]
-            if visible:
-                audit.finding("events", "duplicate_event_id", min(e["turn"] for e in visible),
+                            "harvest_gathering_held", "harvest_gathering_cancelled") for e in visible)
+            if len(visible) > 1 and relevant:
+                audit.finding("events", "duplicate_event_id", sorted(e["turn"] for e in visible)[1],
                               "Relevant timeline events repeat a stable event ID.", eid)
-            continue
-        event = events[0]
-        if event.get("event_type") not in ("harvest_preparedness", "harvest_forecast_resolved"):
-            continue
-        causes = event.get("causes")
-        if not isinstance(causes, list):
-            continue
-        if len(causes) > 100:
-            audit.truncated.add("max_event_causes")
-        for cause in causes[:100]:
-            if isinstance(cause, str) and isinstance(event.get("region"), str) and _int(event.get("turn")) is not None:
-                audit.related.setdefault((event["event_type"], event["turn"], event["region"], cause), []).append(eid)
+        for event in events:
+            if _int(event.get("turn")) is None or event["turn"] > as_of.completed:
+                continue
+            if event.get("event_type") not in ("harvest_preparedness", "harvest_forecast_resolved"):
+                continue
+            causes = event.get("causes")
+            if not isinstance(causes, list):
+                continue
+            if len(causes) > 100:
+                audit.truncated.add("max_event_causes")
+            for cause in causes[:100]:
+                if isinstance(cause, str) and isinstance(event.get("region"), str) and _int(event.get("turn")) is not None:
+                    audit.related.setdefault((event["event_type"], event["turn"], event["region"], cause), []).append(eid)
     grouped = {}
     if len(history) > limits.max_snapshots:
         audit.truncated.add("max_snapshots")
@@ -694,7 +709,7 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
         observations.append("Reports were recorded but none has a dated scored outcome in this view; forecast scoring cannot yet be examined.")
     if forecasts["delivered_report_ids"] and not forecasts["paid_preparation_receipts"]:
         observations.append("Delivered reports have no positive recorded warning-period payment in the inspected coverage; delivery alone does not establish material preparation.")
-    if work["impaired_worker_turns"] > 0 and work["care_worker_turns"] == 0:
+    if _num(work["impaired_worker_turns"]) is not None and work["impaired_worker_turns"] > 0 and work["care_worker_turns"] == 0:
         observations.append("Work impairment was recorded with zero recorded caregiver work allocation in the inspected coverage.")
 
     def finite(value):

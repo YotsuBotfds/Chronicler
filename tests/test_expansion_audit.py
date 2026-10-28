@@ -390,3 +390,31 @@ def test_real_shuffled_seed43_negative_warning_increment_is_actionable():
     assert finding["record_id"] == "harvest:2:0:6" and finding["source_turn"] == 32
     assert finding["evidence"]["extra_target"] == -1.126938305182808
     assert result["status"] == "issues_found"
+
+
+def test_future_duplicate_ids_do_not_change_an_earlier_asof_audit(bundle):
+    original = audit_bundle(bundle, as_of=AsOf.after(8))
+    for event_row in list(bundle["events_timeline"]):
+        later = copy.deepcopy(event_row)
+        later.update(turn=99, description="SECRET-FUTURE-DUPLICATE", causes=["future"] * 101)
+        bundle["events_timeline"].append(later)
+    assert audit_bundle(bundle, as_of=AsOf.after(8)) == original
+
+
+def test_duplicates_become_ambiguous_only_at_their_recorded_boundary(bundle):
+    later = copy.deepcopy(bundle["events_timeline"][0])
+    later["turn"] = 9
+    bundle["events_timeline"].append(later)
+    result = audit_bundle(bundle)
+    assert any(f["code"] == "duplicate_event_id" and f["source_turn"] == 9 for f in result["findings"])
+    assert not any(f["code"] == "ambiguous_event_id" and f["source_turn"] < 9 for f in result["findings"])
+
+
+def test_unknown_work_units_withhold_all_unit_dependent_totals_but_keep_counts(bundle):
+    bundle["history"][2]["health_care"]["units"] = "kg"
+    result = audit_bundle(bundle)
+    assert "unknown_work_units" in codes(result)
+    health_row = result["observed_mechanisms"]["health_care"]
+    assert health_row["episode_turns"] == 48 and health_row["new_injuries"] == 8
+    assert health_row["impaired_worker_turns"] is None and health_row["care_worker_turns"] is None
+    assert not any("zero recorded caregiver" in s for s in result["descriptive_observations"])
