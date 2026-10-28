@@ -16,6 +16,7 @@ import sys
 import time
 
 SOURCE = "aae7f337be0fc76d40e61662083f50047af7fda6"
+PACKAGE = "320316b63413ef814e231bddb42773c54697f000691e08932c86e27bfcae20b4"
 NATIVE = "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317"
 ARMS = ("legacy_direct", "legacy_resume", "v2_fork", "v2_direct")
 FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims", "transaction_receipts")
@@ -36,6 +37,7 @@ def write(path, value):
 
 
 def identity():
+    import chronicler_agents  # Capture the actual loaded binary both times.
     from chronicler.batch_manifest import source_identity, native_identity, environment_identity
     return dict(source=source_identity(), native=native_identity(), environment=environment_identity(),
                 runner_sha256=sha(SCRIPT), registration_sha256=sha(REGISTRATION))
@@ -92,7 +94,8 @@ def worker(args):
     from chronicler.run_checkpoint import read_checkpoint
     from chronicler.expansion_experiment import controls_for_state
     before = identity()
-    assert before["source"]["git_sha"] == SOURCE and before["native"]["sha256"] == NATIVE
+    assert (before["source"]["git_sha"] == SOURCE and before["source"]["package_digest"] == PACKAGE
+            and before["native"]["sha256"] == NATIVE)
     assert Path(before["source"]["package_dir"]).resolve() == Path(args.source_root).resolve() / "src/chronicler"
     origin = util.find_spec("chronicler_agents.chronicler_agents").origin
     assert origin.endswith(tuple(EXTENSION_SUFFIXES))
