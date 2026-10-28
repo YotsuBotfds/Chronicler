@@ -97,6 +97,7 @@ OFF_SCHOLAR_SHARE = 0.10      # --agents off: scholars as a share of the region'
 
 # Strikes and falls.
 STRIKE_COOLDOWN = 10          # turns between strikes on one seat
+RECOVERY_TURNS = 10           # minimum regional recovery after any seat falls
 SACK_FALL = 0.5               # a sack destroys the seat with this chance (else a level)
 FAMINE_STRIKE = 0.3           # a famine report in its region costs a level with this chance
 PERSECUTION_TURNS = 5         # turns of persecution of its faith that close the seat
@@ -269,6 +270,14 @@ class _Tick:
         cities = getattr(world, "cities", None)
         self.cities = {c.settlement_id: c for c in cities.cities} if cities is not None else {}
         self.scholars = _observe(phase10, len(world.regions))
+        # Fallen records persist across save/resume. Recovery belongs to the
+        # region, so a different patron or kind cannot bypass a recent fall.
+        self.falls: dict[int, Seat] = {}
+        for seat in self.state.seats:
+            if seat.fallen_turn is not None:
+                previous = self.falls.get(seat.region)
+                if previous is None or seat.fallen_turn >= previous.fallen_turn:
+                    self.falls[seat.region] = seat
 
     def civ(self, idx: int):
         civs = self.world.civilizations
@@ -643,6 +652,7 @@ def _fall(t: _Tick, si: int, seat: Seat, region, cause: int, what: str, causes, 
     seat.fallen_turn = world.turn
     seat.fall_cause = cause
     seat.pull = 0.0
+    t.falls[seat.region] = seat
     _bump(t.state, "fallen")
     _bump(t.state, f"fall_{FALL_CAUSES[cause]}")
     refuge = _refuge(t, si, seat)
@@ -700,6 +710,54 @@ def _seat_regions(world) -> set[int]:
     return {s.region for _i, s in living_seats(world)}
 
 
+def _in_famine(t: _Tick, region) -> bool:
+    """An actual famine, including the gaps between its reports; dearth
+    alone does not close founding. Episodes persist in saves and close at
+    the end of the turn, so a seat may open from the following turn."""
+    from chronicler import provenance as prov
+    from chronicler.ecology import FAMINE_SEVERE_TURNS
+
+    if any(ev.turn == t.world.turn and ev.region == region.name
+           and ev.event_type == "famine" and ev.episode != "end"
+           for ev in t.turn_events):
+        return True
+    episode = t.world.provenance.episodes.get(prov.episode_key("famine", region.name))
+    if episode is not None and episode.event_type == "famine":
+        return True
+    # The current measured run can deepen a dearth before its next report.
+    if (region.food_severe_turns or 0) >= FAMINE_SEVERE_TURNS:
+        return True
+    # Aggregate mode and older saves may have only the food-crisis cooldown.
+    return region.famine_cooldown > 0 and not region.dearth_cooldown
+
+
+def _founding_ready(t: _Tick, region_i: int) -> bool:
+    """Common site conditions for every patron, before its founding draw."""
+    region = t.world.regions[region_i]
+    previous = t.falls.get(region_i)
+    return (bool(region.controller) and not _occupied(region)
+            and not _in_famine(t, region)
+            and not any(city.region == region_i and city.last_sack == t.world.turn
+                        for city in t.cities.values())
+            and _sack_cause(t, region) is None
+            and (previous is None
+                 or t.world.turn - previous.fallen_turn >= RECOVERY_TURNS))
+
+
+def _record_founding(t: _Tick, seat: Seat, actors: Iterable[str], description: str,
+                     importance: int) -> None:
+    """Keep a reestablishment attached to the fall it follows, even when
+    another kind of institution or a new ruler restores learning there."""
+    previous = t.falls.get(seat.region)
+    cause = None
+    if previous is not None:
+        cause = next((eid for _turn, kind, eid in reversed(previous.history) if kind == "fell"), None)
+        description += f"; learning returns after the fall of {previous.name}"
+    ev = _emit(t, "seat_founded", actors, description, importance=importance,
+               region=t.world.regions[seat.region].name, causes=(cause,))
+    _note(seat, t.world.turn, "founded", ev.event_id)
+
+
 def _new_seat(t: _Tick, region_i: int, kind: int, name: str, lord: int, faith: int,
               city: int = 0) -> Seat:
     world = t.world
@@ -725,12 +783,12 @@ def _found_academies(t: _Tick) -> None:
         if not civ.regions or ci in has or not civ.capital_region:
             continue
         ri = names.get(civ.capital_region)
-        if ri is None or ri in taken or world.regions[ri].controller != civ.name:
+        if (ri is None or ri in taken or world.regions[ri].controller != civ.name
+                or not _founding_ready(t, ri)):
             continue
         if (civ.culture < ACADEMY_CULTURE or civ.stability < ACADEMY_STABILITY
                 or projected_treasury(t, civ) < ACADEMY_TREASURY
-                or any(civ.name in pair for pair in world.active_wars)
-                or world.regions[ri].famine_cooldown > 0):
+                or any(civ.name in pair for pair in world.active_wars)):
             continue
         chance = ACADEMY_CHANCE * (LEARNED_FACTOR if _learned(civ) else 1.0)
         if _rng(world, "academy", ci).random() >= chance:
@@ -742,10 +800,8 @@ def _found_academies(t: _Tick) -> None:
         seat = _new_seat(t, ri, ACADEMY, f"the Academy of {region.name}", ci,
                          faiths.uid_or_slot(world, civ.civ_majority_faith))
         ruler = f"{civ.leader.name} of {civ.name}" if civ.leader is not None else civ.name
-        ev = _emit(t, "seat_founded", [civ.name],
-                   f"{ruler} founds {seat.name} at the court in {region.name}", importance=5,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [civ.name],
+                         f"{ruler} founds {seat.name} at the court in {region.name}", 5)
         taken.add(ri)
 
 
@@ -753,7 +809,7 @@ def _found_schools(t: _Tick) -> None:
     world = t.world
     taken = _seat_regions(world)
     for ri, region in enumerate(world.regions):
-        if ri in taken or not region.controller or _occupied(region):
+        if ri in taken or not _founding_ready(t, ri):
             continue
         temple = _any_temple(region)
         if temple is None or temple.temple_prestige < SCHOOL_PRESTIGE + SCHOOL_COST:
@@ -774,10 +830,8 @@ def _found_schools(t: _Tick) -> None:
         seat = _new_seat(t, ri, TEMPLE_SCHOOL, f"the Temple School of {region.name}",
                          t.lord_of(region), temple_faith)
         priests = f"The priests of {faith}" if faith else f"The temple priests of {region.name}"
-        ev = _emit(t, "seat_founded", [region.controller],
-                   f"{priests} open {seat.name} at their temple", importance=4,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [region.controller],
+                         f"{priests} open {seat.name} at their temple", 4)
         taken.add(ri)
 
 
@@ -791,7 +845,7 @@ def _found_libraries(t: _Tick) -> None:
         if city.region in taken or city.rank < LIBRARY_RANK or city.wealth < LIBRARY_FEE:
             continue
         region = world.regions[city.region]
-        if _occupied(region):
+        if not _founding_ready(t, city.region):
             continue
         if _rng(world, "library", sid).random() >= LIBRARY_CHANCE:
             continue
@@ -799,10 +853,8 @@ def _found_libraries(t: _Tick) -> None:
         _bump(t.state, "fees", LIBRARY_FEE)
         seat = _new_seat(t, city.region, LIBRARY, f"the Library of {city.name}", t.lord_of(region),
                          faiths.uid_or_slot(world, region.majority_belief), city=sid)
-        ev = _emit(t, "seat_founded", [region.controller or ""],
-                   f"The burghers of {city.name} found {seat.name}", importance=4,
-                   region=region.name)
-        _note(seat, world.turn, "founded", ev.event_id)
+        _record_founding(t, seat, [region.controller or ""],
+                         f"The burghers of {city.name} found {seat.name}", 4)
         taken.add(city.region)
 
 
