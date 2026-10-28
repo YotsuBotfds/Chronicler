@@ -9,7 +9,7 @@
  */
 import { readFileSync } from "node:fs";
 import { delimiter } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import { buildEventFeed, eventProvenance, terrainAt } from "../../components/phase75/appShellHelpers";
 import {
@@ -173,10 +173,17 @@ function turnsOf(events: Event[], history: TurnSnapshot[]): number[] {
 }
 
 /** Every index lookup against its reference at every turn. */
-function compareTimeline(events: Event[], history: TurnSnapshot[], regions: string[], stride = 1) {
+function timelineComparison(events: Event[], history: TurnSnapshot[], regions: string[], stride = 1) {
   const turns = turnsOf(events, history).filter((_, index) => index % stride === 0);
   const actors = [...new Set(events.flatMap((event) => event.actors ?? []))].slice(0, 12);
   const selectable = events.filter((_, index) => index % Math.max(1, Math.floor(events.length / 40)) === 0);
+  return { events, regions, turns, actors, selectable };
+}
+
+type TimelineComparison = ReturnType<typeof timelineComparison>;
+
+/** Same assertions and order, scheduled in bounded groups of turns for fixture histories. */
+function compareTimelineTurns({ events, regions, actors, selectable }: TimelineComparison, turns: number[]) {
   for (const turn of turns) {
     expect(buildEventFeed(events, turn, null)).toEqual(referenceEventFeed(events, turn, null));
     for (const civ of [...actors, "Nobody"]) {
@@ -204,6 +211,10 @@ function compareTimeline(events: Event[], history: TurnSnapshot[], regions: stri
     expect(eventsOfType(events, "raid").filter((event) => event.region && event.turn === turn - 1))
       .toEqual(events.filter((event) => event.event_type === "raid" && event.region && event.turn === turn - 1));
   }
+}
+
+/** Once-per-timeline lookups without a turn cutoff, kept outside the turn batches. */
+function compareTimelineRemainder({ events, selectable }: TimelineComparison) {
   for (const selected of selectable) {
     const indexed = eventProvenance(events, selected);
     const reference = referenceProvenance(events, selected);
@@ -213,11 +224,78 @@ function compareTimeline(events: Event[], history: TurnSnapshot[], regions: stri
   expect(eventByKey(events, "no-such-event")).toBeNull();
 }
 
-function compareTechniques(history: TurnSnapshot[]) {
-  for (const turn of turnsOf([], history)) {
+function compareTimeline(events: Event[], history: TurnSnapshot[], regions: string[], stride = 1) {
+  const comparison = timelineComparison(events, history, regions, stride);
+  compareTimelineTurns(comparison, comparison.turns);
+  compareTimelineRemainder(comparison);
+}
+
+function compareTechniques(history: TurnSnapshot[], turns: number[]) {
+  for (const turn of turns) {
     expect(practisedTechniquesBy(history, turn))
       .toEqual(practisedTechniques(history.filter((snapshot) => snapshot.turn <= turn)));
   }
+}
+
+const TURNS_PER_TEST = 20;
+
+/** Slice the original ordered domain: no skipped, duplicated or newly sampled turns. */
+function turnRanges(turns: number[]): Array<[number, number, number[]]> {
+  const ranges: Array<[number, number, number[]]> = [];
+  for (let offset = 0; offset < turns.length; offset += TURNS_PER_TEST) {
+    const chunk = turns.slice(offset, offset + TURNS_PER_TEST);
+    ranges.push([chunk[0], chunk[chunk.length - 1], chunk]);
+  }
+  return ranges;
+}
+
+function compareBundleInRanges(bundle: Bundle, stride = 1) {
+  // Decode and prepare each fixture once. All tests retain the same arrays,
+  // so production WeakMap indexes are reused across adjacent turn ranges.
+  const comparison = timelineComparison(bundle.events_timeline, bundle.history,
+    bundle.world_state.regions.map((region) => region.name), stride);
+  const timelineRanges = turnRanges(comparison.turns);
+  const techniqueTurns = turnsOf([], bundle.history);
+  const techniqueRanges = turnRanges(techniqueTurns);
+  beforeAll(() => {
+    // Build lazy production indexes once outside timed range bodies. Expected
+    // results remain independent filters, including every first/cold return.
+    const events = comparison.events;
+    expect(eventsUpTo(events, 0)).toEqual(events.filter((event) => event.turn <= 0)
+      .sort((left, right) => right.turn - left.turn));
+    const actor = comparison.actors[0] ?? "Nobody";
+    expect(actorEventsUpTo(events, actor, 0)).toEqual(events
+      .filter((event) => event.turn <= 0 && event.actors.includes(actor))
+      .sort((left, right) => right.turn - left.turn));
+    for (const types of Object.values(SYSTEM_EVENT_TYPES)) {
+      expect(typedEventsUpTo(events, types, 0)).toEqual(referenceEventsOfTypes(events, types, 0));
+    }
+    expect(eventsOfType(events, "terrain_transition"))
+      .toEqual(events.filter((event) => event.event_type === "terrain_transition"));
+    const firstKey = comparison.selectable[0];
+    if (firstKey) {
+      expect(eventByKey(events, eventKey(firstKey)))
+        .toBe(events.find((event) => eventKey(event) === eventKey(firstKey)));
+    }
+    expect(eventByKey(events, "no-such-event")).toBeNull();
+    const selected = comparison.selectable.find((event) => event.event_id);
+    if (selected) expect(eventProvenance(events, selected, 0)).toEqual(referenceProvenance(events, selected, 0));
+    expect(practisedTechniquesBy(bundle.history, 0))
+      .toEqual(practisedTechniques(bundle.history.filter((snapshot) => snapshot.turn <= 0)));
+  });
+  it("schedules every original timeline and technique turn once in order", () => {
+    expect(timelineRanges.flatMap(([, , turns]) => turns)).toEqual(comparison.turns);
+    expect(techniqueRanges.flatMap(([, , turns]) => turns)).toEqual(techniqueTurns);
+  });
+  it.each(timelineRanges)("timeline turns %i through %i", (_first, _last, turns) => {
+    compareTimelineTurns(comparison, turns);
+  });
+  it("provenance and event keys without a turn cutoff", () => {
+    compareTimelineRemainder(comparison);
+  });
+  it.each(techniqueRanges)("technique turns %i through %i", (_first, _last, turns) => {
+    compareTechniques(bundle.history, turns);
+  });
 }
 
 describe("scrub indexes against the filters they replace", () => {
@@ -226,15 +304,12 @@ describe("scrub indexes against the filters they replace", () => {
     compareTimeline(events, [], REGIONS);
   });
 
-  it.each(fixtures)("%s fixture", (_name, bundle) => {
-    compareTimeline(bundle.events_timeline, bundle.history, bundle.world_state.regions.map((region) => region.name));
-    compareTechniques(bundle.history);
+  describe.each(fixtures)("%s fixture", (_name, bundle) => {
+    compareBundleInRanges(bundle);
   });
 
-  it.runIf(generated.length > 0).each(generated)("generated bundle %s", (_name, bundle) => {
-    const regions = bundle.world_state.regions.map((region) => region.name);
-    compareTimeline(bundle.events_timeline, bundle.history, regions, 7);
-    compareTechniques(bundle.history);
+  describe.each(generated)("generated bundle %s", (_name, bundle) => {
+    compareBundleInRanges(bundle, 7);
   });
 });
 
