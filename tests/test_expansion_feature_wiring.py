@@ -286,6 +286,27 @@ def test_batch_lab_forwards_feature_defaults_and_explicit_overrides(monkeypatch,
         assert getattr(received[0], feature) is (True if explicit is None else explicit)
 
 
+def test_live_cli_defaults_reach_batch_lab_before_the_lobby_starts(tmp_path, monkeypatch):
+    from chronicler import live
+
+    class LobbyBoundary(Exception):
+        pass
+
+    server = live.LiveServer()
+
+    def stop_before_socket_start():
+        raise LobbyBoundary
+
+    monkeypatch.setattr(server, "start", stop_before_socket_start)
+    monkeypatch.setattr(live, "build_lobby_init", lambda args: {})
+    flags = ["--" + feature.replace("_", "-") for feature in FEATURES]
+    args = _args(tmp_path, "--grain-reserves", "--contact-ledger", *flags)
+    with pytest.raises(LobbyBoundary):
+        live.run_live(args, server=server)
+    for feature in (*FEATURES, "grain_reserves", "contact_ledger"):
+        assert server._client_defaults[feature] is True
+
+
 @pytest.mark.parametrize("feature", FEATURES)
 def test_live_fresh_world_opts_in_and_raw_resume_preserves_saved_state(tmp_path, feature):
     from chronicler.live import _live_world
