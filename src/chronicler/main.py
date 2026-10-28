@@ -540,7 +540,8 @@ def execute_run(
         Recorded in the bundle's ``metadata.resume`` for a resume that is not
         exact (a legacy state file, or a checkpoint of another build).
     turn_boundary : object or None
-        Live mode's checkpoint control (``chronicler.live_checkpoints.LiveCheckpoints``):
+        The pause's checkpoint control (``chronicler.live_checkpoints``:
+        ``LiveCheckpoints`` in live mode, ``PauseInterventions`` in interactive mode):
         ``bind(save, run_config)`` before the first turn, where ``save(template)``
         writes an exact checkpoint of the run as it stands; ``live_record()``,
         stored in every checkpoint; ``turn_end(world)`` after each turn's pause,
@@ -1114,9 +1115,10 @@ def execute_run(
         should_continue = True
         if _pause_every and on_pause and world.turn % _pause_every == 0:
             should_continue = on_pause(world, memories, _pending)
-        # Live turn boundary: the checkpoints a viewer asked for, and this
-        # turn's scheduled ones again when the pause changed the run (an
-        # injection or a stat set), so they hold what the next turn starts from.
+        # Turn boundary (live or interactive): the checkpoints a viewer asked
+        # for, and this turn's scheduled ones again when the pause changed the
+        # run (an injection or a stat set), so they hold what the next turn
+        # starts from.
         if turn_boundary is not None and turn_boundary.turn_end(world):
             if _exact_path is not None:
                 _save_exact(_checkpoint_template)
@@ -2205,8 +2207,9 @@ def main() -> None:
         mode_flags.append("--interactive")
     if args.live:
         mode_flags.append("--live")
-    # --live --resume continues an exact checkpoint as a live session.
-    if args.resume and not args.live:
+    # --live --resume and --interactive --resume continue an exact
+    # checkpoint as a live or interactive session.
+    if args.resume and not (args.live or args.interactive):
         mode_flags.append("--resume")
     if getattr(args, "analyze", None):
         mode_flags.append("--analyze")
@@ -2229,6 +2232,10 @@ def main() -> None:
         if args.live and not is_checkpoint(Path(args.resume)):
             print(f"Error: --live --resume continues an exact checkpoint (--checkpoint-every or a "
                   f"viewer's checkpoint); {args.resume} is not one", file=sys.stderr)
+            sys.exit(2)
+        if args.interactive and not is_checkpoint(Path(args.resume)):
+            print(f"Error: --interactive --resume continues an exact checkpoint "
+                  f"(--checkpoint-every); {args.resume} is not one", file=sys.stderr)
             sys.exit(2)
         if is_checkpoint(Path(args.resume)):
             try:
@@ -2408,8 +2415,10 @@ def main() -> None:
 
     elif args.interactive:
         from chronicler.interactive import run_interactive
-        result = run_interactive(args, sim_client=sim_client, narrative_client=narrative_client, scenario_config=scenario_config)
-        print(f"\nInteractive session complete: {result.output_dir}")
+        result = run_interactive(args, sim_client=sim_client, narrative_client=narrative_client,
+                                 scenario_config=scenario_config, exact_resume=exact_resume)
+        if result is not None:
+            print(f"\nInteractive session complete: {result.output_dir}")
 
     elif args.live:
         from chronicler.live import run_live
