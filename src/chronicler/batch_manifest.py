@@ -80,6 +80,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "scholarship",
     "grain_reserves",
     "community_anchoring",
+    "capacity_aware_refugees",
     "domestic_credit",
     "tuning",
     "preset",

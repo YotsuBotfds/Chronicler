@@ -1430,6 +1430,12 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
+    # Macro refugee destinations are capacity-aware only by explicit opt-in;
+    # loaded worlds retain their saved choice. Agent-owned modes are dormant.
+    capacity_aware_refugees = getattr(args, "capacity_aware_refugees", None)
+    if capacity_aware_refugees is not None:
+        from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
+        set_capacity_aware_refugees_enabled(world, capacity_aware_refugees)
     # Adjacent mutual aid (persisted on the world). It moves goods-economy
     # stocks, so an explicit --mutual-aid needs an agent mode; a default-on or
     # saved setting is simply dormant under --agents off.
@@ -1968,6 +1974,11 @@ def _build_parser() -> argparse.ArgumentParser:
                              "to move, up to four ties (a community of five); rebellion, "
                              "occupation switches and staying are untouched; needs an agent pool "
                              "(default off; saved on resume; docs/integration/community-anchoring.md)")
+    parser.add_argument("--capacity-aware-refugees", action=argparse.BooleanOptionalAction, default=None,
+                        help="Route aggregate/shadow famine refugees and overflow migrants to "
+                             "permitted neighboring regions with available capacity, redistributing "
+                             "blocked shares before transit losses; source tolls stay unchanged "
+                             "(default off; dormant in hybrid/demographics-only; saved on resume)")
     parser.add_argument("--domestic-credit", action=argparse.BooleanOptionalAction, default=None,
                         help="Domestic credit through real lenders: the state's domestic loans are "
                              "funded by the merchant agents of its regions, its guilds and its "

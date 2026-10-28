@@ -345,6 +345,14 @@ def _community_anchoring_args(args: argparse.Namespace) -> list[str]:
     return ["--community-anchoring" if anchoring else "--no-community-anchoring"]
 
 
+def _capacity_aware_refugees_args(args: argparse.Namespace) -> list[str]:
+    """Forward explicit macro refugee routing in every population mode."""
+    enabled = getattr(args, "capacity_aware_refugees", None)
+    if enabled is None:
+        return []
+    return ["--capacity-aware-refugees" if enabled else "--no-capacity-aware-refugees"]
+
+
 def _domestic_credit_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit domestic-credit switch; omitted keeps the CLI default."""
     credit = getattr(args, "domestic_credit", None)
@@ -420,6 +428,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_capacity_aware_refugees_args(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -465,6 +474,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_guilds_args(args),
         *_scholarship_args(args),
         *_grain_reserves_args(args),
+        *_capacity_aware_refugees_args(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -557,6 +567,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_guilds_args(args))
         cmd.extend(_scholarship_args(args))
         cmd.extend(_grain_reserves_args(args))
+        cmd.extend(_capacity_aware_refugees_args(args))
         if agents != "off":
             cmd.extend(_community_anchoring_args(args))
             cmd.extend(_domestic_credit_args(args))
@@ -964,6 +975,13 @@ def main() -> None:
              "(default: CLI default; docs/integration/community-anchoring.md).",
     )
     parser.add_argument(
+        "--capacity-aware-refugees",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --capacity-aware-refugees/--no-capacity-aware-refugees to every run "
+             "(default off; acts in aggregate/shadow only).",
+    )
+    parser.add_argument(
         "--domestic-credit",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -1132,6 +1150,7 @@ def main() -> None:
         "scholarship": args.scholarship,
         "grain_reserves": args.grain_reserves,
         "community_anchoring": args.community_anchoring,
+        "capacity_aware_refugees": args.capacity_aware_refugees,
         "domestic_credit": args.domestic_credit,
         "historiography": args.historiography,
         "languages": args.languages,

@@ -1204,6 +1204,8 @@ class WorldState(BaseModel):
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
+    # Capacity-aware aggregate/shadow refugees (default off and omitted).
+    capacity_aware_refugees: bool = Field(default=False, exclude_if=operator.not_)
     # Domestic credit through real lenders: merchants, guilds and cities fund
     # the state's domestic loans (chronicler.domestic_credit; None = off and
     # omitted).

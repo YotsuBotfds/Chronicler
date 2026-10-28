@@ -410,12 +410,22 @@ def process_migration(world: WorldState, acc=None) -> list[Event]:
             eligible.append((adj_region, adj_region.controller))
 
         if eligible:
-            share = surplus // len(eligible)
-            remainder = surplus - share * len(eligible)
-            for adj_region, ctrl_name in eligible:
-                amount = share + (1 if remainder > 0 else 0)
-                if remainder > 0:
-                    remainder -= 1
+            from chronicler.refugee_routing import apportion_refugees, capacity_aware_refugees_enabled
+            if capacity_aware_refugees_enabled(world):
+                # Fill all reachable headroom before anyone is lost to a full
+                # destination. The source departure remains the whole surplus.
+                arrivals = [(dest, dest.controller, amount) for dest, amount in
+                            apportion_refugees(world, (r for r, _ in eligible), surplus)]
+            else:
+                share = surplus // len(eligible)
+                remainder = surplus - share * len(eligible)
+                arrivals = []
+                for adj_region, ctrl_name in eligible:
+                    amount = share + (1 if remainder > 0 else 0)
+                    if remainder > 0:
+                        remainder -= 1
+                    arrivals.append((adj_region, ctrl_name, amount))
+            for adj_region, ctrl_name, amount in arrivals:
                 # Migrants who find no room die on the way (the destination's
                 # residents stay; see utils.add_region_pop).
                 add_region_pop(adj_region, amount, flow="immigrated")

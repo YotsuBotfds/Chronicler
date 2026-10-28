@@ -306,6 +306,9 @@ class LiveServer:
 
         if "simulate_only" in config and not isinstance(config.get("simulate_only"), bool):
             return "batch_start config 'simulate_only' must be a boolean"
+        if "capacity_aware_refugees" in config:
+            if config["capacity_aware_refugees"] is not None and not isinstance(config["capacity_aware_refugees"], bool):
+                return "batch_start config 'capacity_aware_refugees' must be a boolean or null"
 
         if "parallel" in config:
             value = config.get("parallel")
@@ -525,6 +528,8 @@ class LiveServer:
                 narrator=config.get("narrator", self._client_defaults.get("narrator", "local")),
                 agents=config.get("agents", self._client_defaults.get("agents", "off")),
                 preset=config.get("preset", self._client_defaults.get("preset")),
+                capacity_aware_refugees=config.get(
+                    "capacity_aware_refugees", self._client_defaults.get("capacity_aware_refugees")),
             )
 
             try:
@@ -1275,6 +1280,8 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
         _anchor = getattr(args, "community_anchoring", None)
         set_community_anchoring_enabled(
             world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
+        from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
+        set_capacity_aware_refugees_enabled(world, bool(getattr(args, "capacity_aware_refugees", None)))
         # Domestic credit: new live worlds follow the CLI default (off;
         # --domestic-credit opts in; merchants lend only with an agent pool).
         from chronicler.domestic_credit import (
@@ -1378,6 +1385,7 @@ def run_live(
         "narrator": _normalize_narrator(getattr(args, "narrator", "local"), "local"),
         "agents": getattr(args, "agents", "off"),
         "preset": getattr(args, "preset", None),
+        "capacity_aware_refugees": getattr(args, "capacity_aware_refugees", None),
     }
     output_dir = Path(args.output).parent
     view = LiveView()

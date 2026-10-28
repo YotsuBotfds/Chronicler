@@ -281,6 +281,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "scholarship": bool(scholarship_enabled(world)),
         "grain_reserves": bool(grain_reserves_enabled(world)),
         "community_anchoring": bool(community_anchoring_enabled(world)),
+        "capacity_aware_refugees": getattr(world, "capacity_aware_refugees", False) is True,
         "domestic_credit": bool(domestic_credit_on(world)),
         # The observational layers are read without importing them (they are
         # imported only by the modules that run or narrate them).
