@@ -42,6 +42,11 @@ connection outage, independent GitHub-only work continues on
 `lead/cloud-continuation-20261028`; recover and preserve the newer local
 integration before combining those histories.
 
+The [GitHub continuation record](integration/cloud-continuation-2026-10-28.md)
+tracks the isolated artifact-reader correction, faction-history optimization,
+community-capacity diagnostic and validation preflight. Its later code changes
+require their own CI result; the earlier published result does not cover them.
+
 ## Source standing
 
 At discovery, public `main` was `edf72991cad58d6670b1f382c33d50d903a6054a`

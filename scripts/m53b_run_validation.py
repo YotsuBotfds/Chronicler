@@ -1066,6 +1066,11 @@ def main() -> None:
         parser.error(f"--ablation-oracles applies to the {' and '.join(ABLATION_PROFILES)} profiles")
     if args.profile in ABLATION_PROFILES and require_causal(args) and not ablation_enabled(args):
         parser.error(f"{CAUSAL_ORACLES_FLAG} needs the ablation arms (--ablation-oracles)")
+    if args.baseline_report is not None:
+        try:
+            load_validation_report(args.baseline_report)
+        except ValidationGateInputError as exc:
+            parser.error(f"--baseline-report: {exc}")
     try:
         check_batch_destination(_profile_batch_dir(args))
         if ablation_enabled(args):

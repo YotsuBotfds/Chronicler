@@ -534,17 +534,21 @@ def test_validate_batch_rejects_baseline_output_collision_before_overwrite(monke
     assert current_path.read_text(encoding="utf-8") == "baseline-original"
 
 
-def test_main_preserves_manifest_when_comparison_input_is_bad_and_gate_fails(monkeypatch, tmp_path):
+def test_main_preserves_manifest_when_comparison_input_becomes_bad_and_gate_fails(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(_report(regression="FAIL", determinism="SKIP"))
     baseline_path = tmp_path / "baseline.json"
-    baseline_path.write_text("not-json", encoding="utf-8")
+    baseline_path.write_text(runner.json.dumps(_report(determinism="SKIP")), encoding="utf-8")
 
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
-    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    def run_full_with_changed_baseline(args, cwd, env):
+        baseline_path.write_text("not-json", encoding="utf-8")
+        return tmp_path
+
+    monkeypatch.setattr(runner, "run_full", run_full_with_changed_baseline)
     monkeypatch.setattr(
         runner.sys,
         "argv",
@@ -577,17 +581,21 @@ def test_main_preserves_manifest_when_comparison_input_is_bad_and_gate_fails(mon
     assert Path(manifest["comparison_summary_path"]).exists()
 
 
-def test_main_exits_one_when_gate_passes_but_comparison_input_is_bad(monkeypatch, tmp_path):
+def test_main_exits_one_when_gate_passes_but_comparison_input_becomes_bad(monkeypatch, tmp_path):
     runner = _load_runner()
     report_text = runner.json.dumps(_report(determinism="SKIP"))
     baseline_path = tmp_path / "baseline.json"
-    baseline_path.write_text("not-json", encoding="utf-8")
+    baseline_path.write_text(runner.json.dumps(_report(determinism="SKIP")), encoding="utf-8")
 
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=report_text, stderr="")
 
     monkeypatch.setattr(runner.subprocess, "run", fake_run)
-    monkeypatch.setattr(runner, "run_full", lambda args, cwd, env: tmp_path)
+    def run_full_with_changed_baseline(args, cwd, env):
+        baseline_path.write_text("not-json", encoding="utf-8")
+        return tmp_path
+
+    monkeypatch.setattr(runner, "run_full", run_full_with_changed_baseline)
     monkeypatch.setattr(
         runner.sys,
         "argv",
@@ -748,3 +756,48 @@ def test_main_compares_other_cohorts_only_when_exploratory(monkeypatch, tmp_path
     else:
         assert manifest["comparison_status"] == "ERROR"
         assert "different cohorts" in manifest["comparison_error"]
+
+
+@pytest.mark.parametrize(
+    "profile", ("subset", "full", "determinism-off", "determinism-hybrid"),
+)
+@pytest.mark.parametrize(
+    "baseline_kind",
+    ("missing", "directory", "invalid-json", "array", "duplicate-key", "non-finite", "overflow"),
+)
+def test_main_rejects_unreadable_baseline_before_simulation(
+    monkeypatch, tmp_path, capsys, profile, baseline_kind,
+):
+    runner = _load_runner()
+    baseline_path = tmp_path / "baseline.json"
+    if baseline_kind == "directory":
+        baseline_path.mkdir()
+    elif baseline_kind != "missing":
+        contents = {
+            "invalid-json": "not-json",
+            "array": "[]",
+            "duplicate-key": '{"results": {}, "results": {}}',
+            "non-finite": '{"value": NaN}',
+            "overflow": '{"value": 1e9999}',
+        }
+        baseline_path.write_text(contents[baseline_kind], encoding="utf-8")
+    output_root = tmp_path / "runs"
+    launches = []
+
+    def forbidden(*args, **kwargs):
+        launches.append((args, kwargs))
+        raise AssertionError("invalid baseline must be rejected before simulation or child launch")
+
+    for name in ("run_subset", "run_full", "run_determinism", "run_arms", "validate_batch", "_run"):
+        monkeypatch.setattr(runner, name, forbidden)
+    monkeypatch.setattr(runner.subprocess, "run", forbidden)
+    monkeypatch.setattr(runner.sys, "argv", [
+        "m53b_run_validation.py", "--profile", profile, "--parallel", "1",
+        "--output-root", str(output_root), "--baseline-report", str(baseline_path),
+    ])
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main()
+    assert exc_info.value.code == 2
+    assert "--baseline-report:" in capsys.readouterr().err
+    assert launches == []
+    assert not output_root.exists()

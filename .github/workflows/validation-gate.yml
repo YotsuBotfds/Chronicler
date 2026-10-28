@@ -61,6 +61,22 @@ jobs:
           uv pip install --python .venv/bin/python "maturin>=1.5,<2"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
+      - name: Check comparison inputs before native build
+        env:
+          BASELINE_REPORT_INPUT: ${{ github.event.inputs.baseline_report || '' }}
+          FAIL_ON_REGRESSION_INPUT: ${{ github.event.inputs.fail_on_regression || 'false' }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from chronicler.validation_gate import load_validation_report
+          baseline = os.environ["BASELINE_REPORT_INPUT"]
+          if os.environ["FAIL_ON_REGRESSION_INPUT"] == "true" and not baseline:
+              raise SystemExit("fail_on_regression requires baseline_report")
+          if baseline:
+              load_validation_report(Path(baseline))
+          PY
+
       - name: Build Rust extension wheel
         run: |
           cd chronicler-agents
