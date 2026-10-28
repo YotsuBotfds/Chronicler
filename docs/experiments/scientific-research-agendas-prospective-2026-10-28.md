@@ -305,3 +305,35 @@ No runtime/model/CLI implementation, gate, world cohort, parameter fit,
 promotion or default change is included. The immediate review question is
 whether this finite retained-record contract is coherent; a durable external
 archive and unlimited chronology remain roadmap work.
+
+### Prospective host-identity amendment
+
+Before CLI release, the retained archive must bind to the actual scholarship
+registry that supplied its academy IDs. `set_scholarship_enabled(False)` drops
+that registry and re-enabling creates an empty one; subsequent births can reuse
+index zero. A matching seat index, region or founding turn alone therefore cannot
+authorize inherited knowledge.
+
+Activation will persist a deterministic research-host seal on both the plan and
+the existing scholarship state, plus at most twenty immutable enrolled-seat
+birth records (index, region, kind, founding turn, founder and name). The seal
+uses declared source data, without RNG, random UUIDs or process object identity.
+It is an identity boundary for the supported producer, not authentication.
+Scholarship reset creates an unsealed registry, even if a new seat happens to
+have identical birth fields. An existing research plan must never automatically
+bind to that registry. Missing/mismatched seals or changed enrolled births reject
+policy, funding and delivery before cached grants, guards or money can mutate.
+
+The seal is truly lazy: worlds without research retain their raw scholarship
+JSON and pickle bytes. Exact JSON/pickle/checkpoint restoration preserves it.
+New academy admission records its immutable birth before it can participate;
+fall, changing owner, level, scholars or other mutable circumstances do not
+change birth identity. With scholarship absent the archive is dormant; an
+explicit research pause remains safe and retains the plan, while resuming paid
+research still requires the original host. A recreated mismatched host fails
+closed rather than erasing, relabeling or inheriting old receipts.
+
+Acceptance adds same-index replacement (including identical birth fields but
+an unsealed reset registry), immutable-birth mutation, valid restoration and
+host-absent pause counterexamples. The frozen legacy proof additionally compares
+standalone scholarship states and all previously retained nested worlds.
