@@ -18,7 +18,8 @@ stand-ins of the exported shape (``mutual_aid.snapshot_summary`` and
 ``[from region, to region, agents]`` rows): ``sufficiency`` 1.0 for each
 controlled region and ``None`` elsewhere, no aid, and one row moving 5 agents
 from the first controlled region to the next, plus explicitly empty granary,
-injury/care, harvest-report and gathering summaries. These are transport shapes;
+injury/care, harvest-report, gathering, scientific-claim and merchant-receipt
+summaries. These are transport shapes;
 they do not qualify the mechanisms or establish natural-world observations.
 ``generated_at`` is fixed so
 the file is reproducible. The committed file is built without the native
@@ -53,6 +54,21 @@ def _stand_ins(bundle: dict) -> None:
                                      "preparedness": [], "counters": {}, "calibration": []}
         snap["ritual_gatherings"] = {"source_turn": snap["turn"] - 1, "schedules": [],
                                     "outcomes": [], "counters": {}}
+        snap["scientific_claims"] = {
+            "source_turn": snap["turn"] - 1, "active": False,
+            **dict.fromkeys(("seats", "claims", "trials", "completed", "cancelled", "failed",
+                             "trial_spent", "effort_spent", "evidence_receipts", "pending_messages",
+                             "expired_messages", "withheld_results"), 0),
+            "controls": {"withhold_information": False, "transmission_enabled": True,
+                         "uninformative_tests": False},
+            "propositions": [], "beliefs": [], "trials_resolved": [], "allocations": [],
+        }
+        snap["transaction_receipts"] = {
+            "source_turn": snap["turn"] - 1, "phase": "merchant_mobility",
+            "complete": True, "mobility_executed": True, "dropped_rows": 0,
+            "max_rows": 4096, "active_count": 0, "known_active_count": 0,
+            "counters": {}, "rows": [],
+        }
 
 
 def build(out: Path) -> None:

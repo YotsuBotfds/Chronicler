@@ -127,6 +127,9 @@ CHUNKS = {
     "history-forensics": [
         "tests/test_history_forensics.py",
     ],
+    "expansion-audit": [
+        "tests/test_expansion_audit.py",
+    ],
     "turn-speed": [
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
@@ -180,6 +183,15 @@ CHUNKS = {
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
         "tests/test_narration_expansion_context.py",
+    ],
+    "scientific-claims": [
+        "tests/test_scientific_claims.py",
+    ],
+    "transaction-receipts": [
+        "tests/test_transaction_receipts.py",
+    ],
+    "expansion-experiments": [
+        "tests/test_expansion_experiment_runner.py",
     ],
     "domestic-credit": [
         "tests/test_domestic_credit.py",

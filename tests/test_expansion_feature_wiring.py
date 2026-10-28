@@ -18,7 +18,9 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FEATURES = ("harvest_forecasts", "health_care", "ritual_gatherings")
+FEATURES = ("harvest_forecasts", "health_care", "ritual_gatherings",
+            "scientific_claims", "transaction_receipts")
+PREREQUISITES = ("--grain-reserves", "--contact-ledger", "--scholarship", "--techniques")
 
 
 def _parser():
@@ -107,9 +109,9 @@ def test_fresh_default_off_and_explicit_opt_in_reach_real_configuration(
 
     world = _world()
     flag = "--" + feature.replace("_", "-")
-    # Both prerequisite flags are harmless for the other two experiments.
+    # Unrelated prerequisite flags do not prevent an explicit opt-in.
     args, config = configure_without_native(
-        world, "--grain-reserves", "--contact-ledger", flag, fresh=True,
+        world, *PREREQUISITES, flag, fresh=True,
     )
     assert getattr(world, feature) is not None
     assert config["simulation_args"][feature] is True
@@ -124,7 +126,7 @@ def test_loaded_omitted_preserves_state_and_explicit_off_clears_it(
     world = _world()
     _switch(world, feature, True)
     state = getattr(world, feature)
-    _args_out, config = configure_without_native(world, "--grain-reserves", "--contact-ledger")
+    _args_out, config = configure_without_native(world, *PREREQUISITES)
     assert getattr(world, feature) is state
     assert config["simulation_args"][feature] is None
 
@@ -159,7 +161,7 @@ def test_explicit_forecasts_require_granaries_before_constructing_native_runtime
     assert not configure_without_native.constructions
 
 
-@pytest.mark.parametrize("feature", FEATURES)
+@pytest.mark.parametrize("feature", tuple(f for f in FEATURES if f != "scientific_claims"))
 def test_saved_experiments_are_dormant_in_off_mode_until_explicitly_reenabled(
     feature, configure_without_native,
 ):
@@ -171,6 +173,25 @@ def test_saved_experiments_are_dormant_in_off_mode_until_explicitly_reenabled(
     assert getattr(world, feature) is state
     assert getattr(module, f"{feature}_active")(world) is False
     assert module.snapshot_summary(world) == {}
+
+
+def test_scientific_claims_require_host_systems_but_allow_aggregate_trials(
+        configure_without_native):
+    for absent in ("--scholarship", "--techniques"):
+        flags = [flag for flag in ("--scholarship", "--techniques") if flag != absent]
+        # Techniques is a default, so its explicit disable proves the boundary.
+        if absent == "--techniques":
+            flags.append("--no-techniques")
+        with pytest.raises(ValueError, match="scholarship and --techniques"):
+            configure_without_native(_world(), "--scientific-claims", *flags, mode="off")
+    world = _world()
+    configure_without_native(world, "--scientific-claims", "--scholarship", "--techniques", mode="off")
+    from chronicler.scientific_claims import scientific_claims_active
+    assert scientific_claims_active(world)
+    state = world.scientific_claims
+    configure_without_native(world, "--no-scholarship", mode="off")
+    assert world.scientific_claims is state
+    assert not scientific_claims_active(world)
 
 
 def test_exact_world_checkpoint_keeps_enabled_state_and_feature_header(tmp_path):
@@ -300,10 +321,10 @@ def test_live_cli_defaults_reach_batch_lab_before_the_lobby_starts(tmp_path, mon
     monkeypatch.setattr(server, "start", stop_before_socket_start)
     monkeypatch.setattr(live, "build_lobby_init", lambda args: {})
     flags = ["--" + feature.replace("_", "-") for feature in FEATURES]
-    args = _args(tmp_path, "--grain-reserves", "--contact-ledger", *flags)
+    args = _args(tmp_path, *PREREQUISITES, *flags)
     with pytest.raises(LobbyBoundary):
         live.run_live(args, server=server)
-    for feature in (*FEATURES, "grain_reserves", "contact_ledger"):
+    for feature in (*FEATURES, "grain_reserves", "contact_ledger", "scholarship", "techniques"):
         assert server._client_defaults[feature] is True
 
 
@@ -311,7 +332,7 @@ def test_live_cli_defaults_reach_batch_lab_before_the_lobby_starts(tmp_path, mon
 def test_live_fresh_world_opts_in_and_raw_resume_preserves_saved_state(tmp_path, feature):
     from chronicler.live import _live_world
     flag = "--" + feature.replace("_", "-")
-    args = _args(tmp_path, flag, "--grain-reserves", "--contact-ledger")
+    args = _args(tmp_path, flag, *PREREQUISITES)
     world, _ = _live_world(args, {"seed": 42, "regions": 8, "civs": 4})
     assert getattr(world, feature) is not None
     resumed, _ = _live_world(_args(tmp_path), {"resume_state": world.model_dump()})
