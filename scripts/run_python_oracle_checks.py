@@ -178,6 +178,7 @@ CHUNKS = {
     ],
     "ritual-gatherings": [
         "tests/test_ritual_gatherings.py",
+        "tests/test_narration_expansion_context.py",
     ],
     "domestic-credit": [
         "tests/test_domestic_credit.py",

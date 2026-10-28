@@ -61,6 +61,12 @@ EVENT_LABELS: dict[str, str] = {
     "restoration": "{a} is restored, breaking free of {b}",
     "twilight_absorption": "{a} is absorbed into {b}",
     "collapse": "{a} collapses",
+    "occupational_injury": "temporary work injuries are reported in {a}",
+    "harvest_forecast_issued": "{a} issues a harvest assessment",
+    "harvest_forecast_delivered": "a harvest assessment reaches {a}",
+    "harvest_forecast_resolved": "a harvest assessment for {a} is closed",
+    "harvest_gathering_held": "{a} holds a local harvest gathering",
+    "harvest_gathering_cancelled": "a local harvest gathering in {a} is cancelled",
 }
 
 # Recorded descriptions that mislead, read as what was recorded.
@@ -177,6 +183,10 @@ ROUTINE_TYPES: frozenset[str] = frozenset({
     "agenda_declared", "ambition_declared", "technique_adopted", "movement_spread",
     "institution_enforcement_lapse", "reform_lapsed", "preaching", "shrine_commissioned",
     "seat_patron", "seat_master", "grain_bought",
+    # Recurring work-injury and forecast bulletins remain bounded context.
+    # Gatherings already emit only salient first/change/cancellation events.
+    "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered",
+    "harvest_forecast_resolved",
 })
 
 
@@ -788,6 +798,18 @@ def standing_state_facts(
                     text += f" ({reports} reports)"
             food_lines.append(([("food", ("region", region))], text))
     lines.extend(food_lines[:MAX_PER_KIND])
+    # Optional systems read their dated snapshot receipts, never final world
+    # state. Reserve bounded room only when a corresponding event is the
+    # moment's subject; otherwise existing state priorities remain unchanged.
+    from chronicler.narration_expansion_context import expansion_state_facts
+    expansion = expansion_state_facts(snapshot, civs, regions, at_turn)
+    expansion = expansion[:MAX_STATE_LINES]
+    expansion_focus = any(ev.event_type == "occupational_injury"
+                          or ev.event_type.startswith(("harvest_forecast_", "harvest_gathering_"))
+                          for ev in events)
+    if expansion_focus and expansion:
+        return lines[:max(0, MAX_STATE_LINES - len(expansion))] + expansion
+    lines.extend(expansion)
     return lines[:MAX_STATE_LINES]
 
 
