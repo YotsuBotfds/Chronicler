@@ -26,9 +26,10 @@ the distribution of merchant wealth.
     domestic-credit books (lent, interest, repaid and written off by kind of
     lender, defaults that hit lenders, grievance region-turns); from the
     turn snapshots, domestic and foreign issuance before turns 30 and 60,
-    the largest city and guild purses, the longest stretch a civ carries
-    debt of eight turns of revenue and the civ-turns paying half the
-    revenue in interest; from ``borrow.jsonl`` (run mode), what domestic
+    the largest city and guild purses, the cities' plunder and fines (their
+    counters at the end), the longest stretch a civ carries
+    debt of eight turns of revenue, the civ-turns paying half the revenue
+    in interest and the longest stretch a civ pays 40% of it or more; from ``borrow.jsonl`` (run mode), what domestic
     and foreign lenders raised at war and the part beyond the peacetime
     request (the war chest).
 
@@ -175,6 +176,7 @@ def _pct(values: list[float], q: float) -> float:
 
 
 HEAVY_DEBT_TURNS = 8.0   # debt of this many turns of revenue (four fifths of finance's ceiling)
+NEAR_LIMIT_SHARE = 0.4   # interest paid of this share of revenue (near the borrower's room, SERVICE_SHARE 0.5)
 EARLY_TURNS = (30, 60)
 
 
@@ -190,7 +192,8 @@ def _history_measures(history: list) -> dict:
         out[f"issued_foreign_before_{limit}"] = totals.get("issued_foreign", 0)
     city_max = guild_max = 0.0
     streak: dict[str, int] = {}
-    longest = heavy_turns = half_turns = 0
+    near: dict[str, int] = {}
+    longest = heavy_turns = half_turns = near_longest = 0
     for snap in history:
         if not isinstance(snap, dict):
             continue
@@ -209,14 +212,27 @@ def _history_measures(history: list) -> dict:
                 streak[name] = 0
             if row.get("interest", 0) >= 0.5 * rev:
                 half_turns += 1
+            if row.get("debt", 0) > 0 and row.get("interest", 0) >= NEAR_LIMIT_SHARE * rev:
+                near[name] = near.get(name, 0) + 1
+                near_longest = max(near_longest, near[name])
+            else:
+                near[name] = 0
         for name in list(streak):
             if name not in civs:
                 streak[name] = 0
+        for name in list(near):
+            if name not in civs:
+                near[name] = 0
     out["city_purse_max"] = city_max
     out["guild_purse_max"] = guild_max
+    last_cities = next((s.get("cities") for s in reversed(history) if isinstance(s, dict) and s.get("cities")), None)
+    counters = (last_cities or {}).get("counters") or {}
+    out["city_plunder"] = counters.get("plunder", 0)
+    out["city_fines"] = counters.get("fines", 0)
     out["heavy_debt_streak_max"] = longest
     out["heavy_debt_civ_turns"] = heavy_turns
     out["interest_over_half_revenue_civ_turns"] = half_turns
+    out["interest_near_limit_streak_max"] = near_longest
     return out
 
 

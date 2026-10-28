@@ -728,14 +728,17 @@ def test_probe_measures_early_credit_purses_debt_stretches_and_war_borrowing(tmp
         return {"turn": turn,
                 "finance": {"civs": {"A": {"debt": debt, "revenue_ema": 10.0, "interest": 6 if debt else 0}},
                             "totals": {"issued_domestic": issued, "issued_foreign": 1}},
-                "cities": {"cities": [{"wealth": purse}]}, "guilds": {"guilds": [{"wealth": 2.0}]}}
+                "cities": {"cities": [{"wealth": purse}], "counters": {"plunder": turn, "fines": 1}},
+                "guilds": {"guilds": [{"wealth": 2.0}]}}
 
     history = [snap(t, 90 if 10 <= t < 15 or 20 <= t < 23 else 0, t, 5.0 + t) for t in range(70)]
     m = probe._history_measures(history)
     assert m["issued_domestic_before_30"] == 29 and m["issued_domestic_before_60"] == 59
     assert m["city_purse_max"] == 74.0 and m["guild_purse_max"] == 2.0
+    assert m["city_plunder"] == 69 and m["city_fines"] == 1
     assert m["heavy_debt_streak_max"] == 5 and m["heavy_debt_civ_turns"] == 8
     assert m["interest_over_half_revenue_civ_turns"] == 8
+    assert m["interest_near_limit_streak_max"] == 5
     rows = [{"turn": 1, "civ": 0, "war": True, "gap": 50, "peace_gap": 10, "revenue": 5, "dom": 30, "foreign": 15},
             {"turn": 2, "civ": 0, "war": False, "gap": 20, "peace_gap": 20, "revenue": 5, "dom": 10, "foreign": 0}]
     path = tmp_path / "borrow.jsonl"
