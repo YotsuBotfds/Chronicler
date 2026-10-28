@@ -12,8 +12,11 @@ import json
 import statistics
 import sys
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from math import ceil, comb
 from pathlib import Path
+from types import MappingProxyType
+from typing import Mapping
 
 from .artifact_io import ArtifactIOError, strict_json_dumps
 from .batch_manifest import (
@@ -587,6 +590,79 @@ def _load_needs_snapshot(sidecar_dir: Path, turn: int | None) -> dict | None:
     return _read_json(path)
 
 
+@dataclass(frozen=True, slots=True)
+class _TurnRows:
+    """Immutable row selection for one loaded table, separate from its schema.
+
+    Normal sidecars have monotonic turns: each turn is one range, so index
+    space scales with sampled turns. Legacy shuffled rows retain their source
+    order in compact, read-only uint64 index buffers. Nothing is keyed by a
+    file path or object id outside the lifetime of the loaded columns.
+    """
+
+    rows: Mapping
+    turns: tuple[int, ...]
+
+
+def _build_turn_rows(columns: dict) -> _TurnRows:
+    values = columns.get("turn")
+    if not values:
+        return _TurnRows(MappingProxyType({}), ())
+    spans = {}
+    previous = None
+    start = 0
+    monotonic = True
+    for row, value in enumerate(values):
+        turn = int(value)
+        if previous is not None and turn != previous:
+            spans[previous] = range(start, row)
+            start = row
+            if turn < previous:
+                monotonic = False
+        previous = turn
+    spans[previous] = range(start, len(values))
+    if monotonic:
+        return _TurnRows(MappingProxyType(spans), tuple(spans))
+    # A turn can occur in several disjoint runs. Never sort the source table:
+    # graph edge order, duplicate rows and first-occurrence ties are observable.
+    indexes = defaultdict(lambda: array("Q"))
+    for row, value in enumerate(values):
+        indexes[int(value)].append(row)
+    frozen = {turn: memoryview(rows).toreadonly() for turn, rows in indexes.items()}
+    return _TurnRows(MappingProxyType(frozen), tuple(sorted(frozen)))
+
+
+class _IndexedColumns(dict):
+    """Reader-owned columns plus their private immutable row index.
+
+    Loaded columns are read-only inputs throughout validation. The index is
+    metadata, never a synthetic column. Plain caller-owned dictionaries are
+    not wrapped or cached by the selection helpers, so later edits to those
+    dictionaries are always observed. Every file read creates a fresh owner.
+    """
+
+    __slots__ = ("_turn_rows",)
+
+    def __init__(self, columns: dict):
+        super().__init__(columns)
+        self._turn_rows = _build_turn_rows(self)
+
+    def __reduce__(self):
+        # Copy/pickle the data, not mappingproxy/memoryview metadata. A restored
+        # owner indexes its own arrays rather than retaining another's index.
+        return type(self), (dict(self),)
+
+
+def _rows_for_turn(columns: dict | None, turn: int):
+    if not columns or not columns.get("turn"):
+        return ()
+    if isinstance(columns, _IndexedColumns):
+        return columns._turn_rows.rows.get(turn, ())
+    # Caller dictionaries may be edited between calls. Keep the old one-shot
+    # predicate selection, without caching or building an unused full index.
+    return [row for row, value in enumerate(columns["turn"]) if int(value) == turn]
+
+
 def _read_arrow_columns(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -594,7 +670,7 @@ def _read_arrow_columns(path: Path) -> dict | None:
         return None
     import pyarrow.ipc as ipc
     table = ipc.open_file(path).read_all()
-    return {name: _compact_column(table.column(name)) for name in table.column_names}
+    return _IndexedColumns({name: _compact_column(table.column(name)) for name in table.column_names})
 
 
 def _compact_column(column):
@@ -626,67 +702,32 @@ def _load_canonical_graph_snapshot(seed_dir: Path, target_turn: int) -> dict | N
 
     available_turns: set[int] = set()
     if rel_cols and rel_cols.get("turn"):
-        available_turns.update(int(turn) for turn in rel_cols["turn"])
+        available_turns.update(_available_turns_from_columns(rel_cols))
     if mem_cols and mem_cols.get("turn"):
-        available_turns.update(int(turn) for turn in mem_cols["turn"])
+        available_turns.update(_available_turns_from_columns(mem_cols))
     chosen_turn = _choose_snapshot_turn(sorted(available_turns), target_turn)
     if chosen_turn is None:
         return None
 
-    edges: list[tuple[int, int, int, int]] = []
-    if rel_cols:
-        for idx, turn in enumerate(rel_cols.get("turn", [])):
-            if int(turn) != chosen_turn:
-                continue
-            edges.append((
-                int(rel_cols["agent_id"][idx]),
-                int(rel_cols["target_id"][idx]),
-                int(rel_cols["bond_type"][idx]),
-                int(rel_cols["sentiment"][idx]),
-            ))
-
-    mem_sigs: dict[int, list[tuple[int, int, int]]] = {}
-    if mem_cols:
-        for idx, turn in enumerate(mem_cols.get("turn", [])):
-            if int(turn) != chosen_turn:
-                continue
-            agent_id = int(mem_cols["agent_id"][idx])
-            mem_sigs.setdefault(agent_id, []).append((
-                int(mem_cols["event_type"][idx]),
-                int(mem_cols["memory_turn"][idx]),
-                int(mem_cols["valence_sign"][idx]),
-            ))
-
-    return {
-        "turn": chosen_turn,
-        "edges": edges,
-        "memory_signatures": mem_sigs,
-    }
+    return _graph_snapshot_from_columns(rel_cols, mem_cols, chosen_turn)
 
 
 def _load_canonical_needs_snapshot(seed_dir: Path, target_turn: int) -> dict | None:
     cols = _read_arrow_columns(seed_dir / "validation_needs.arrow")
     if not cols or not cols.get("turn"):
         return None
-    chosen_turn = _choose_snapshot_turn(sorted({int(turn) for turn in cols["turn"]}), target_turn)
+    chosen_turn = _choose_snapshot_turn(_available_turns_from_columns(cols), target_turn)
     if chosen_turn is None:
         return None
 
-    filtered: dict[str, list] = {}
-    for name, values in cols.items():
-        if name == "turn":
-            continue
-        filtered[name] = [
-            values[idx]
-            for idx, turn in enumerate(cols["turn"])
-            if int(turn) == chosen_turn
-        ]
-    return {"turn": chosen_turn, "columns": filtered}
+    return _needs_snapshot_from_columns(cols, chosen_turn)
 
 
 def _available_turns_from_columns(columns: dict | None) -> list[int]:
     if not columns or not columns.get("turn"):
         return []
+    if isinstance(columns, _IndexedColumns):
+        return list(columns._turn_rows.turns)
     return sorted({int(turn) for turn in columns["turn"]})
 
 
@@ -698,11 +739,7 @@ def _sample_turns(turns: list[int], min_turn: int = 100) -> list[int]:
 def _columns_for_turn(columns: dict | None, turn: int) -> dict | None:
     if not columns or not columns.get("turn"):
         return None
-    indexes = [
-        idx
-        for idx, row_turn in enumerate(columns["turn"])
-        if int(row_turn) == turn
-    ]
+    indexes = _rows_for_turn(columns, turn)
     if not indexes:
         return None
     return {
@@ -719,9 +756,7 @@ def _graph_snapshot_from_columns(
 ) -> dict | None:
     edges: list[tuple[int, int, int, int]] = []
     if relationship_columns and relationship_columns.get("turn"):
-        for idx, row_turn in enumerate(relationship_columns["turn"]):
-            if int(row_turn) != turn:
-                continue
+        for idx in _rows_for_turn(relationship_columns, turn):
             edges.append((
                 int(relationship_columns["agent_id"][idx]),
                 int(relationship_columns["target_id"][idx]),
@@ -731,9 +766,7 @@ def _graph_snapshot_from_columns(
 
     memory_signatures: dict[int, list[tuple[int, int, int]]] = {}
     if memory_columns and memory_columns.get("turn"):
-        for idx, row_turn in enumerate(memory_columns["turn"]):
-            if int(row_turn) != turn:
-                continue
+        for idx in _rows_for_turn(memory_columns, turn):
             agent_id = int(memory_columns["agent_id"][idx])
             memory_signatures.setdefault(agent_id, []).append((
                 int(memory_columns["event_type"][idx]),
