@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 MAX_CYCLES = 10
 FUNDING_WINDOW = 24
@@ -23,12 +23,26 @@ class ResearchSeatBirth(BaseModel):
     founder: int
     name: str
 
+    @field_validator("kind", mode="before")
+    @classmethod
+    def actual_kind_integer(cls, value):
+        if type(value) is not int:
+            raise ValueError("academy birth kind must be an actual integer")
+        return value
+
 
 class ResearchHostIdentity(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, revalidate_instances="always")
 
     schema_version: Literal[1]
     seal: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def actual_schema_integer(cls, value):
+        if type(value) is not int:
+            raise ValueError("research host schema version must be an actual integer")
+        return value
 
 
 class ResearchCycle(BaseModel):
@@ -81,6 +95,13 @@ class ResearchAgendas(BaseModel):
     blocked_turn: int | None
     host_seal: str = Field(pattern=r"^[0-9a-f]{64}$")
     academy_births: list[ResearchSeatBirth] = Field(max_length=20)
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def actual_schema_integer(cls, value):
+        if type(value) is not int:
+            raise ValueError("research agenda schema version must be an actual integer")
+        return value
 
     @model_validator(mode="after")
     def cycle_ids(self):

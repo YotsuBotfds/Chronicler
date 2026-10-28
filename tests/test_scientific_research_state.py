@@ -9,7 +9,7 @@ import pytest
 from chronicler.models import WorldState
 from chronicler.scholarship_state import ScholarshipState
 from chronicler.scientific_claims_state import AdoptionEffort, ProposalReceipt, ScienceMessage, ScientificClaimsState
-from chronicler.scientific_research_state import ResearchAgendas, ResearchCycle
+from chronicler.scientific_research_state import ResearchAgendas, ResearchCycle, ResearchSeatBirth
 from test_scientific_claims import _world
 
 
@@ -167,3 +167,17 @@ def test_allocation_topic_is_lazy_and_old_missing_identity_is_unknown_not_zero()
 def test_present_invalid_research_host_identity_never_means_unbound(bad):
     with pytest.raises(ValueError):
         ScholarshipState.model_validate({"scientific_research_identity": bad})
+
+
+@pytest.mark.parametrize("value", [True, 1.0, "1"])
+def test_literal_schema_versions_do_not_accept_numeric_aliases(value):
+    with pytest.raises(ValueError):
+        ScientificClaimsState.model_validate({"research_agendas": {**_plan().model_dump(), "schema_version": value}})
+    with pytest.raises(ValueError):
+        ScholarshipState.model_validate({"scientific_research_identity": {"schema_version": value, "seal": "0" * 64}})
+
+
+@pytest.mark.parametrize("value", [False, 0.0, "0"])
+def test_academy_birth_kind_does_not_accept_boolean_or_numeric_aliases(value):
+    with pytest.raises(ValueError):
+        ResearchSeatBirth(seat=0, region=0, kind=value, founded_turn=-1, founder=-1, name="academy")
