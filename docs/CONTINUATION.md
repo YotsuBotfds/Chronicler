@@ -8,6 +8,13 @@ acceptance, so its Rust code was not integrated. The
 [negative result](performance/household-decision-journal-results-2026-10.md)
 and full candidate Rust qualification retain their exact source boundaries.
 
+Frozen `b25727e3` now has [complete native/no-native Python and 28-chunk offline
+qualification](integration/python-qualification-b257-2026-10-28.md): 7,645 native
+and 7,331 no-native parent tests passed, each with 526 successful subtests;
+all offline chunks passed with the unchanged 110-second limit. Later finite
+research agendas remain prospective work on a separate branch. The long
+before/after population gates retain their original sources and remain pending.
+
 2026-10-28 evidence addendum: frozen `d051d7c0` / receipt release `fb20dbc8`
 passed the [full Rust qualification](integration/rust-qualification-d051-2026-10.md).
 The subsequent [writer-cadence diagnostic](performance/ablation-writer-cadence-diagnostic-2026-10.md)
