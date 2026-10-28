@@ -32,8 +32,12 @@ def frozen_source(tmp_path):
     source = tmp_path / "source"
     (source / "src/chronicler").mkdir(parents=True)
     (source / "tests").mkdir()
+    (source / "scripts").mkdir()
     (source / "src/chronicler/__init__.py").write_text("")
-    (source / "tests/test_tiny.py").write_text("def test_tiny():\n    assert 2 + 2 == 4\n")
+    (source / "scripts/__init__.py").write_text("")
+    (source / "scripts/helper.py").write_text("VALUE = 4\n")
+    (source / "tests/helper.py").write_text("VALUE = 2\n")
+    (source / "tests/test_tiny.py").write_text("from scripts.helper import VALUE as four\nfrom tests.helper import VALUE as two\n\ndef test_tiny():\n    assert two + two == four\n")
     (source / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
     subprocess.run(["git", "init", "-q", str(source)], check=True)
     subprocess.run(["git", "-C", str(source), "add", "."], check=True)
@@ -102,7 +106,7 @@ def test_environment_removes_inherited_test_filters_and_paths(tool, monkeypatch)
     monkeypatch.setenv("PYTHONPATH", "/another/checkout")
     env = tool.child_environment(Path("/frozen"))
     assert all(key not in env for key in tool.PYTEST_OVERRIDE_ENV)
-    assert env["PYTHONPATH"] == str(Path("/frozen/src"))
+    assert env["PYTHONPATH"] == os.pathsep.join((str(Path("/frozen/src")), str(Path("/frozen"))))
     assert all(env[key] == value for key, value in tool.THREAD_ENV.items())
 
 

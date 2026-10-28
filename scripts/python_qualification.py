@@ -154,7 +154,10 @@ def child_environment(source: Path) -> dict[str, str]:
     for key in PYTEST_OVERRIDE_ENV:
         env.pop(key, None)
     env.update(THREAD_ENV)
-    env["PYTHONPATH"] = str(source / "src")
+    # A copied script has its evidence directory at sys.path[0], unlike
+    # `python -m pytest` from the checkout. Preserve the checkout-level
+    # tests/scripts imports as well as routing the package to frozen src.
+    env["PYTHONPATH"] = os.pathsep.join((str(source / "src"), str(source)))
     return env
 
 

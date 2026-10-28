@@ -15,7 +15,7 @@ tool. A passing Python suite does not qualify Rust tests, scientific balance,
 new mechanisms, performance, rendering, or another operating system.
 
 The child invocation is fixed: full pytest, quiet output, the chosen source's
-`src` on the import path, no pytest cache, an external temporary directory and
+`src` and the checkout root on the import path, no pytest cache, an external temporary directory and
 JUnit output. There are no extra-command, test-selection or pytest-argument
 passthroughs. Inherited pytest argument/plugin overrides and configured addopts
 are cleared; the frozen checkout's test paths and conftest still apply. Native
@@ -130,3 +130,10 @@ These are tool checks, not full-source, Rust, population, performance, or
 cross-platform qualification. Windows/macOS execution and machine-loss
 recovery were not run. Existing interrupted suites and recovered scholarship
 gate jobs are not reclassified, changed or controlled by this follow-up tool.
+
+The first full-suite launch exposed a launcher-path defect: a copied runner
+does not receive the checkout root at `sys.path[0]` as `python -m pytest` does.
+That attempt ended at collection with missing checkout-level `tests`/`scripts`
+imports and remains a failed execution receipt. The corrected fixed environment
+includes both `src` and the checkout root; the actual tiny fixture now imports
+both namespaces so this boundary is exercised before another full attempt.
