@@ -19,7 +19,9 @@ import os
 from pathlib import Path
 import platform
 import re
+import select
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -29,6 +31,11 @@ import xml.etree.ElementTree as ET
 
 KIND = "chronicler-python-qualification"
 VERSION = 1
+CANCEL_KIND = KIND + "-cancellation"
+CANCEL_INPUTS = ("request.json", "supervisor.py", "launch.json", "status.json", "pause-request.json")
+CANCEL_INTENT = "cancel-before-tests-intent.json"
+CANCEL_RESULT = "cancel-before-tests.json"
+CANCEL_UNKNOWN = "cancel-before-tests-unknown.json"
 THREAD_ENV = {
     "PYTHONHASHSEED": "0", "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONUNBUFFERED": "1", "RAYON_NUM_THREADS": "1",
@@ -419,6 +426,14 @@ def observation(output: Path) -> dict:
     request = read_json(output / "request.json")
     if request.get("kind") != KIND or request.get("version") != VERSION:
         raise ValueError("unsupported qualification request")
+    if (output / CANCEL_UNKNOWN).exists():
+        return {"state": "cancellation_unknown", "passed": False, "exit_code": 2, "output": str(output)}
+    if (output / CANCEL_RESULT).exists():
+        verify_cancellation(output, request)
+        return {"state": "cancelled_before_tests", "passed": False, "tests_started": False,
+                "outcome": "cancelled_before_tests", "output": str(output)}
+    if (output / CANCEL_INTENT).exists() or (output / "cancellation-inputs").exists():
+        return {"state": "cancellation_unknown", "passed": False, "exit_code": 2, "output": str(output)}
     if (output / "launch-error.json").exists():
         return {"state": "launch_error", "passed": False, "exit_code": 2, "output": str(output),
                 "error": read_json(output / "launch-error.json")}
@@ -454,7 +469,7 @@ def observation(output: Path) -> dict:
 def control(output: Path, action: str) -> dict:
     with control_lock(output):
         status = observation(output)
-        if status["state"] in ("complete", "interrupted", "launch_error"):
+        if status["state"] in ("complete", "interrupted", "launch_error", "cancelled_before_tests", "cancellation_unknown"):
             raise ValueError("cannot control a completed or interrupted qualification")
         marker = output / "pause-request.json"
         if action == "pause":
@@ -462,6 +477,169 @@ def control(output: Path, action: str) -> dict:
                 atomic_json(marker, {"requested_at": utc_now(), "request_id": uuid.uuid4().hex})
         else:
             marker.unlink(missing_ok=True)
+    return observation(output)
+
+
+def before_tests_pause(status: dict, marker: dict, run_id: str) -> None:
+    """A matching marker keeps the worker inside its pre-pytest boundary."""
+    pause = status.get("pause", {})
+    if (not isinstance(pause, dict) or status.get("run_id") != run_id or status.get("state") != "paused"
+            or status.get("active_child_pid") is not None or pause.get("boundary") != "before_pytest"
+            or not marker.get("request_id") or pause.get("request_id") != marker["request_id"]):
+        raise ValueError("cancellation requires an acknowledged before_pytest pause with no child")
+
+
+def no_pytest_artifacts(output: Path) -> None:
+    if any((output / name).exists() for name in ("pytest.log", "pytest-junit.xml", "result.json", "launch-error.json")):
+        raise ValueError("pytest/final artifacts exist; cancellation before tests is refused")
+
+
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def owned_paused_worker(output: Path, request: dict) -> tuple[dict, dict, dict]:
+    status = read_json(output / "status.json")
+    try:
+        marker = read_json(output / "pause-request.json")
+    except FileNotFoundError as exc:
+        raise ValueError("cancellation requires an acknowledged before_pytest pause with no child") from exc
+    before_tests_pause(status, marker, request["run_id"])
+    no_pytest_artifacts(output)
+    if worker_liveness(status) != "verified_alive":
+        raise ValueError("cancellation requires a live verified worker creation identity")
+    saved = status["worker_identity"]
+    command = [request["python"], str(output / "supervisor.py"), "_worker", str(output / "request.json")]
+    launch = read_json(output / "launch.json")
+    launched_identity = launch.get("worker_identity")
+    if (launch.get("command") != command or launch.get("pid") != saved["pid"]
+            or not isinstance(launched_identity, dict)
+            or any(launched_identity.get(key) != saved.get(key) for key in ("pid", "start_ticks", "boot_id"))):
+        raise ValueError("launch record does not own the acknowledged worker")
+    actual = (Path("/proc") / str(saved["pid"]) / "cmdline").read_bytes().rstrip(b"\0").split(b"\0")
+    if [os.fsdecode(value) for value in actual] != command:
+        raise ValueError("live worker command differs from the owned launch")
+    # Some Linux kernels omit /proc/PID/task/TID/children. Read process
+    # parent IDs instead; unexpected inspection failures remain unknown.
+    children = set()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "stat").read_text()
+        except FileNotFoundError:
+            continue
+        fields = raw[raw.rfind(")") + 2:].split()
+        if int(fields[1]) == saved["pid"]:
+            children.add(int(entry.name))
+    if children:
+        raise ValueError("worker has OS children; cancellation before tests is refused")
+    if request.get("runner_sha256") != file_hash(output / "supervisor.py"):
+        raise ValueError("copied runner differs from the immutable request")
+    return status, marker, launch
+
+
+def verify_cancellation(output: Path, request: dict) -> None:
+    intent, result = read_json(output / CANCEL_INTENT), read_json(output / CANCEL_RESULT)
+    if (intent.get("kind") != CANCEL_KIND or result.get("kind") != CANCEL_KIND
+            or intent.get("version") != VERSION or result.get("version") != VERSION
+            or intent.get("run_id") != request["run_id"] or result.get("run_id") != request["run_id"]
+            or result.get("state") != "cancelled_before_tests" or result.get("passed") is not False
+            or result.get("tests_started") is not False or result.get("worker_exit_observed") is not True
+            or intent.get("state") != "cancellation_requested_before_tests" or intent.get("signal") != "SIGTERM"
+            or result.get("intent_sha256") != file_hash(output / CANCEL_INTENT)
+            or not isinstance(intent.get("reason"), str) or not intent["reason"].strip()):
+        raise ValueError("invalid cancellation receipt")
+    events = result.get("pidfd_exit_events")
+    if (not isinstance(events, list) or not events or any(not isinstance(row, list) or len(row) != 2
+            or any(type(value) is not int for value in row) or not row[1] & getattr(select, "POLLIN", 1) for row in events)):
+        raise ValueError("cancellation receipt has no verified pidfd exit observation")
+    files = intent.get("files", {})
+    if set(files) != set(CANCEL_INPUTS):
+        raise ValueError("cancellation receipt lacks immutable input snapshots")
+    for name, digest in files.items():
+        if file_hash(output / "cancellation-inputs" / name) != digest or file_hash(output / name) != digest:
+            raise ValueError("cancellation input/snapshot bytes changed")
+    status = read_json(output / "cancellation-inputs/status.json")
+    before_tests_pause(status, read_json(output / "cancellation-inputs/pause-request.json"), request["run_id"])
+    if status.get("worker_identity") != intent.get("worker_identity"):
+        raise ValueError("cancellation worker identity differs from its acknowledged snapshot")
+    if request.get("runner_sha256") != files["supervisor.py"]:
+        raise ValueError("cancelled runner differs from the request")
+    no_pytest_artifacts(output)
+    identity = intent.get("worker_identity", {})
+    current = process_identity(identity.get("pid", -1))
+    if (current is not None and not current.get("missing") and current.get("state") != "Z"
+            and current.get("start_ticks") == identity.get("start_ticks") and current.get("boot_id") == identity.get("boot_id")):
+        raise ValueError("cancelled worker is still alive")
+
+
+def cancel_before_tests(output: Path, reason: str) -> dict:
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("cancellation requires a nonempty reason")
+    if (not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open")
+            or not hasattr(signal, "pidfd_send_signal")):
+        raise ValueError("cancellation requires verified Linux pidfd signalling")
+    with control_lock(output):
+        if any((output / name).exists() for name in (CANCEL_INTENT, CANCEL_RESULT, CANCEL_UNKNOWN, "cancellation-inputs")):
+            raise ValueError("cancellation evidence already exists; inspect status")
+        request = read_json(output / "request.json")
+        if request.get("kind") != KIND or request.get("version") != VERSION:
+            raise ValueError("unsupported qualification request")
+        status, marker, _ = owned_paused_worker(output, request)
+        pid = status["worker_identity"]["pid"]
+        descriptor = os.pidfd_open(pid)
+        try:
+            # Recheck ownership/boundary after obtaining a stable kernel handle.
+            checked, checked_marker, _ = owned_paused_worker(output, request)
+            if checked["worker_identity"] != status["worker_identity"] or checked_marker != marker:
+                raise ValueError("worker/pause changed before cancellation")
+            snapshots = output / "cancellation-inputs"
+            snapshots.mkdir(exist_ok=False)
+            files = {}
+            for name in CANCEL_INPUTS:
+                data = (output / name).read_bytes()
+                with (snapshots / name).open("xb") as stream:
+                    stream.write(data); stream.flush(); os.fsync(stream.fileno())
+                files[name] = hashlib.sha256(data).hexdigest()
+            sync_directory(snapshots)
+            intent = {"kind": CANCEL_KIND, "version": VERSION, "run_id": request["run_id"],
+                      "requested_at": utc_now(), "reason": reason.strip(), "worker_identity": status["worker_identity"],
+                      "files": files, "signal": "SIGTERM", "exit_wait_seconds": 2,
+                      "state": "cancellation_requested_before_tests", "passed": False,
+                      "controller_sha256": file_hash(Path(__file__))}
+            atomic_json(output / CANCEL_INTENT, intent)
+            sync_directory(output)
+            try:
+                # The pause marker remains in place, and the control lock is
+                # held until exit; resume cannot launch a child in this gap.
+                if any(file_hash(output / name) != digest for name, digest in files.items()):
+                    raise ValueError("cancellation inputs changed before signal")
+                owned_paused_worker(output, request)
+                signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+                poller = select.poll(); poller.register(descriptor, select.POLLIN)
+                events = poller.poll(2000)
+                if not any(fd == descriptor and mask & select.POLLIN for fd, mask in events):
+                    raise ValueError("worker exit unverified within cancellation bound")
+                no_pytest_artifacts(output)
+                result = {"kind": CANCEL_KIND, "version": VERSION, "run_id": request["run_id"],
+                          "state": "cancelled_before_tests", "completed_at": utc_now(), "passed": False,
+                          "tests_started": False, "worker_exit_observed": True,
+                          "pidfd_exit_events": events,
+                          "intent_sha256": file_hash(output / CANCEL_INTENT)}
+                atomic_json(output / CANCEL_RESULT, result)
+                sync_directory(output)
+            except BaseException as exc:
+                atomic_json(output / CANCEL_UNKNOWN, {"at": utc_now(), "passed": False,
+                            "intent_sha256": file_hash(output / CANCEL_INTENT), "error": f"{type(exc).__name__}: {exc}"})
+                sync_directory(output)
+                raise
+        finally:
+            os.close(descriptor)
     return observation(output)
 
 
@@ -504,7 +682,7 @@ def launch(args: argparse.Namespace) -> dict:
             return {"state": "launched", "pid": child.pid, "passed": False, "output": str(output)}
         code = child.wait()
         result = observation(output)
-        if not (output / "result.json").exists():
+        if not (output / "result.json").exists() and result["state"] not in ("cancelled_before_tests", "cancellation_unknown"):
             result.update(state="interrupted", exit_code=code or 1, passed=False)
         return result
     except BaseException as exc:
@@ -528,6 +706,9 @@ def parser() -> argparse.ArgumentParser:
     for name in ("status", "pause", "resume"):
         cmd = commands.add_parser(name)
         cmd.add_argument("--output", type=Path, required=True)
+    cancel = commands.add_parser("cancel-before-tests", help="Cancel only a verified worker paused before pytest")
+    cancel.add_argument("--output", type=Path, required=True)
+    cancel.add_argument("--reason", required=True)
     return p
 
 
@@ -542,6 +723,8 @@ def main(argv: list[str] | None = None) -> int:
             result = launch(args)
         elif args.action == "status":
             result = observation(args.output.resolve())
+        elif args.action == "cancel-before-tests":
+            result = cancel_before_tests(args.output.resolve(), args.reason)
         else:
             result = control(args.output.resolve(), args.action)
         print(json.dumps(result, sort_keys=True, indent=2))

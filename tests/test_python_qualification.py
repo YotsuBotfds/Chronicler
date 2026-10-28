@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -348,3 +349,217 @@ def test_real_tiny_child(tool, frozen_source, tmp_path, monkeypatch, detached):
     assert receipt["source_before"] == receipt["source_after"]
     with pytest.raises(FileExistsError):
         tool.launch(args)
+
+
+@pytest.mark.parametrize("change", [
+    lambda s, m: s.update(state="pytest_running"),
+    lambda s, m: s.update(active_child_pid=123),
+    lambda s, m: s["pause"].update(boundary="after_pytest"),
+    lambda s, m: m.update(request_id="another-request"),
+    lambda s, m: s.update(run_id="another-run"),
+    lambda s, m: s.update(pause=None),
+])
+def test_cancel_requires_the_matching_before_test_boundary(tool, change):
+    status = {"run_id": "run", "state": "paused", "active_child_pid": None,
+              "pause": {"boundary": "before_pytest", "request_id": "pause"}}
+    marker = {"request_id": "pause"}
+    tool.before_tests_pause(status, marker, "run")
+    change(status, marker)
+    with pytest.raises(ValueError, match="before_pytest"):
+        tool.before_tests_pause(status, marker, "run")
+
+
+@pytest.mark.parametrize("liveness", ["unknown", "reused_pid", "exited"])
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open"), reason="Linux cancellation preflight")
+def test_cancel_never_signals_unverified_workers(tool, frozen_source, tmp_path, monkeypatch, liveness):
+    request, output = request_fixture(tool, frozen_source, tmp_path)
+    status = {"run_id": request["run_id"], "state": "paused", "active_child_pid": None,
+              "pause": {"boundary": "before_pytest", "request_id": "pause"}}
+    tool.atomic_json(output / "status.json", status)
+    tool.atomic_json(output / "pause-request.json", {"request_id": "pause"})
+    monkeypatch.setattr(tool, "worker_liveness", lambda status: liveness)
+    monkeypatch.setattr(tool.os, "pidfd_open", lambda pid: pytest.fail("must not acquire a process handle"), raising=False)
+    with pytest.raises(ValueError, match="live verified"):
+        tool.cancel_before_tests(output, "prototype rejected")
+    assert not (output / tool.CANCEL_INTENT).exists()
+
+
+@pytest.mark.parametrize("name", ["pytest.log", "pytest-junit.xml", "result.json"])
+def test_cancel_refuses_any_evidence_that_tests_or_finalization_began(tool, tmp_path, name):
+    (tmp_path / name).write_text("")
+    with pytest.raises(ValueError, match="artifacts exist"):
+        tool.no_pytest_artifacts(tmp_path)
+
+
+def test_cancel_requires_a_reason_and_refuses_unsupported_signalling(tool, tmp_path, monkeypatch):
+    with pytest.raises(SystemExit):
+        tool.parser().parse_args(["cancel-before-tests", "--output", str(tmp_path)])
+    with pytest.raises(ValueError, match="nonempty reason"):
+        tool.cancel_before_tests(tmp_path, " ")
+    monkeypatch.setattr(tool.sys, "platform", "unsupported")
+    with pytest.raises(ValueError, match="Linux pidfd"):
+        tool.cancel_before_tests(tmp_path, "reason")
+
+
+def test_recovered_unknown_cancellation_refuses_any_new_signal(tool, tmp_path, monkeypatch):
+    (tmp_path / tool.CANCEL_UNKNOWN).write_text("{}")
+    monkeypatch.setattr(tool.sys, "platform", "linux")
+    monkeypatch.setattr(tool, "owned_paused_worker", lambda *a: pytest.fail("unknown evidence must precede ownership probes"))
+    monkeypatch.setattr(tool.os, "pidfd_open", lambda *a: pytest.fail("must not acquire a process handle"), raising=False)
+    monkeypatch.setattr(tool.signal, "pidfd_send_signal", lambda *a: pytest.fail("must not send a signal"), raising=False)
+    with pytest.raises(ValueError, match="already exists"):
+        tool.cancel_before_tests(tmp_path, "do not override unknown evidence")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open"), reason="Linux owned-command preflight")
+def test_cancel_rejects_a_live_pid_running_another_command(tool, frozen_source, tmp_path, monkeypatch):
+    request, output = request_fixture(tool, frozen_source, tmp_path)
+    identity = tool.process_identity(os.getpid())
+    status = {"run_id": request["run_id"], "state": "paused", "active_child_pid": None, "worker_identity": identity,
+              "pause": {"boundary": "before_pytest", "request_id": "pause"}}
+    command = [request["python"], str(output / "supervisor.py"), "_worker", str(output / "request.json")]
+    tool.atomic_json(output / "status.json", status)
+    tool.atomic_json(output / "pause-request.json", {"request_id": "pause"})
+    tool.atomic_json(output / "launch.json", {"command": command, "pid": os.getpid(), "worker_identity": identity})
+    monkeypatch.setattr(tool.os, "pidfd_open", lambda pid: pytest.fail("must reject command before a process handle"))
+    with pytest.raises(ValueError, match="live worker command"):
+        tool.cancel_before_tests(output, "this PID is not the launched worker")
+    assert not (output / tool.CANCEL_INTENT).exists()
+
+
+def _real_paused_lane(tool, frozen_source, output):
+    source, head = frozen_source
+    native_sha = None
+    if importlib.util.find_spec("chronicler_agents") is not None:
+        spec = importlib.util.find_spec("chronicler_agents.chronicler_agents")
+        native_sha = tool.file_hash(Path(spec.origin))
+    args = argparse.Namespace(source=source, git_sha=head, python=Path(sys.executable), native_sha=native_sha,
+                              no_native=native_sha is None, output=output, detach=True, start_paused=True)
+    launch = tool.launch(args)
+    until = time.monotonic() + 15
+    while time.monotonic() < until:
+        state = tool.observation(output)
+        if state.get("pause_acknowledged"):
+            return launch
+        if state["state"] in ("complete", "interrupted"):
+            pytest.fail(str(state))
+        time.sleep(.02)
+    pytest.fail("real tiny worker did not acknowledge its initial pause")
+
+
+def _stop_own_test_worker(tool, output):
+    """Only cleanup a fixture-owned worker if a regression refuses cancellation."""
+    launch = tool.read_json(output / "launch.json")
+    saved = launch["worker_identity"]
+    current = tool.process_identity(saved["pid"])
+    if (current and not current.get("missing") and current.get("state") != "Z"
+            and all(current.get(key) == saved.get(key) for key in ("start_ticks", "boot_id"))):
+        try:
+            raw = (Path("/proc") / str(saved["pid"]) / "cmdline").read_bytes()
+        except FileNotFoundError:
+            return
+        if not raw:
+            return  # SIGTERM may already have cleared the exiting worker's mm.
+        actual = raw.rstrip(b"\0").split(b"\0")
+        assert [os.fsdecode(value) for value in actual] == launch["command"]
+        try:
+            descriptor = os.pidfd_open(saved["pid"])
+        except ProcessLookupError:
+            return
+        try:
+            fresh = tool.process_identity(saved["pid"])
+            if fresh and all(fresh.get(key) == saved.get(key) for key in ("start_ticks", "boot_id")):
+                signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        finally:
+            os.close(descriptor)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open")
+                    or not hasattr(signal, "pidfd_send_signal"), reason="verified Linux pidfd cancellation")
+def test_real_cancelled_before_tests_preserves_evidence_without_a_test_result(tool, frozen_source, tmp_path):
+    output = tmp_path / "cancelled-evidence"
+    _real_paused_lane(tool, frozen_source, output)
+    original = {name: (output / name).read_bytes() for name in tool.CANCEL_INPUTS}
+    try:
+        result = tool.cancel_before_tests(output, "Rejected performance prototype; do not run pytest")
+    finally:
+        _stop_own_test_worker(tool, output)
+    assert result["state"] == "cancelled_before_tests" and result["passed"] is False
+    assert result["tests_started"] is False and "pytest_exit_code" not in result
+    assert {name: (output / name).read_bytes() for name in tool.CANCEL_INPUTS} == original
+    assert {name: (output / "cancellation-inputs" / name).read_bytes() for name in tool.CANCEL_INPUTS} == original
+    assert not any((output / name).exists() for name in ("pytest.log", "pytest-junit.xml", "result.json"))
+    for action in ("pause", "resume"):
+        with pytest.raises(ValueError):
+            tool.control(output, action)
+    with pytest.raises(ValueError, match="already exists"):
+        tool.cancel_before_tests(output, "second request")
+    terminal = (output / tool.CANCEL_RESULT).read_bytes()
+    for change in ({"passed": True}, {"tests_started": True}, {"worker_exit_observed": False}, {"pidfd_exit_events": []}):
+        receipt = json.loads(terminal)
+        receipt.update(change)
+        tool.atomic_json(output / tool.CANCEL_RESULT, receipt)
+        with pytest.raises(ValueError):
+            tool.observation(output)
+    (output / tool.CANCEL_RESULT).write_bytes(terminal)
+    (output / "cancellation-inputs/status.json").write_text("{}")
+    with pytest.raises(ValueError, match="snapshot bytes changed"):
+        tool.observation(output)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open")
+                    or not hasattr(signal, "pidfd_send_signal"), reason="verified Linux pidfd cancellation")
+def test_unverified_exit_stays_unknown_and_cannot_resume(tool, frozen_source, tmp_path, monkeypatch):
+    output = tmp_path / "unknown-cancellation"
+    _real_paused_lane(tool, frozen_source, output)
+    monkeypatch.setattr(tool.select, "poll", lambda: SimpleNamespace(register=lambda *a: None, poll=lambda ms: []))
+    try:
+        with pytest.raises(ValueError, match="exit unverified"):
+            tool.cancel_before_tests(output, "cancel before pytest")
+    finally:
+        _stop_own_test_worker(tool, output)
+    state = tool.observation(output)
+    assert state["state"] == "cancellation_unknown" and not state["passed"]
+    assert not (output / tool.CANCEL_RESULT).exists() and not (output / "pytest.log").exists()
+    with pytest.raises(ValueError):
+        tool.control(output, "resume")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux") or not hasattr(os, "pidfd_open")
+                    or not hasattr(signal, "pidfd_send_signal"), reason="verified Linux cancellation refusal")
+def test_real_running_pytest_is_never_signalled(tool, frozen_source, tmp_path, monkeypatch):
+    source, _ = frozen_source
+    entered, release = tmp_path / "entered", tmp_path / "release"
+    (source / "tests/test_tiny.py").write_text(
+        "from pathlib import Path\nimport time\n\ndef test_wait():\n"
+        f"    Path({str(entered)!r}).write_text('entered')\n"
+        "    until = time.monotonic() + 10\n"
+        f"    while not Path({str(release)!r}).exists() and time.monotonic() < until:\n"
+        "        time.sleep(.01)\n"
+        f"    assert Path({str(release)!r}).exists()\n")
+    subprocess.run(["git", "-C", str(source), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(source), "-c", "user.name=Qualification fixture", "-c", "user.email=qualification@example.invalid",
+                    "-c", "commit.gpgsign=false", "commit", "-qm", "explicit running-test barrier"], check=True)
+    head = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    output = tmp_path / "running-evidence"
+    _real_paused_lane(tool, (source, head), output)
+    try:
+        tool.control(output, "resume")
+        until = time.monotonic() + 10
+        while not entered.exists() and time.monotonic() < until:
+            time.sleep(.02)
+        assert entered.exists(), tool.observation(output)
+        with monkeypatch.context() as patch:
+            patch.setattr(tool.signal, "pidfd_send_signal", lambda *a: pytest.fail("running pytest must never be signalled"))
+            with pytest.raises(ValueError, match="before_pytest"):
+                tool.cancel_before_tests(output, "too late")
+        assert not (output / tool.CANCEL_INTENT).exists()
+    finally:
+        release.write_text("finish normally")
+        until = time.monotonic() + 10
+        while tool.observation(output)["state"] not in ("complete", "interrupted") and time.monotonic() < until:
+            time.sleep(.02)
+        _stop_own_test_worker(tool, output)
+    assert tool.observation(output)["passed"]

@@ -19,6 +19,9 @@
 > The copied-runner import correction and pytest 9 successful-subtest reader
 > correction retain failed original receipts; any completed-suite adjudication
 > is separately hash-linked and does not claim a new execution.
+> Its separate cancellation follow-up verifies a pre-pytest pause and owned
+> Linux process before signalling; cancellation has its own evidence state and
+> never counts as a passing or failing test suite.
 > Completed d051 full suites are now [accepted by that reader-only correction](../../integration/python-qualification-d051-2026-10-28.md):
 > native 7,348 passed / 6 skipped; no-native 7,037 passed / 303 skipped, each
 > with 526 additional successful subtests. Later frozen `6592252a` passed

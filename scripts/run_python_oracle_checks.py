@@ -156,6 +156,10 @@ CHUNKS = {
         "tests/test_python_qualification.py::test_junit_must_describe_actual_executed_test_cases",
         "tests/test_python_qualification.py::test_pytest9_successful_subtests_require_matching_terminal_evidence",
         "tests/test_python_qualification.py::test_unreconciled_or_unsuccessful_subtests_cannot_earn_a_pass",
+        "tests/test_python_qualification.py::test_cancel_requires_the_matching_before_test_boundary",
+        "tests/test_python_qualification.py::test_cancel_refuses_any_evidence_that_tests_or_finalization_began",
+        "tests/test_python_qualification.py::test_cancel_requires_a_reason_and_refuses_unsupported_signalling",
+        "tests/test_python_qualification.py::test_recovered_unknown_cancellation_refuses_any_new_signal",
     ],
     "turn-speed": [
         "tests/test_turn_speed.py",

@@ -92,6 +92,21 @@ exercise this contract. OS/process checks stay outside the bounded offline
 selection. Existing worker result tuples remain compatible; active copied
 runners and the manually cancelled rejected-prototype lane remain unchanged.
 
+The implementation uses Linux pidfds and checks process parent IDs in `/proc`
+before signalling. The observed kernel omits the optional per-task `children`
+file; an unexpected process-inspection error remains a refusal. It leaves the
+pause marker in place and holds the control lock throughout the bounded exit
+wait. The copied worker, request, launch, status and marker are preserved byte
+for byte under `cancellation-inputs/`; the intent and final receipt hash-link
+those originals and snapshots. File/directory fsync precedes signalling.
+
+`cancel-before-tests-intent.json` records the requested cancellation;
+`cancel-before-tests.json` records verified exit with `tests_started: false`.
+An incomplete request or `cancel-before-tests-unknown.json` reports
+`cancellation_unknown` and blocks pause/resume. A successful cancellation
+command's zero exit status means that cancellation completed, never that tests
+passed. It produces neither a pytest result nor a test-failure classification.
+
 ## Verification registered before execution
 
 After the reserved quiet benchmark finishes, run focused tests covering:
@@ -130,6 +145,10 @@ python scripts/python_qualification.py run \
 python scripts/python_qualification.py status --output /outside/source/qualification-001
 python scripts/python_qualification.py pause --output /outside/source/qualification-001
 python scripts/python_qualification.py resume --output /outside/source/qualification-001
+
+# Only a verified before-pytest pause can be cancelled.
+python scripts/python_qualification.py cancel-before-tests \
+  --output /outside/source/qualification-001 --reason "Candidate rejected before tests"
 ```
 
 Replace the uppercase identity placeholders with complete lowercase hashes.
@@ -185,3 +204,20 @@ The real foreground/detached tiny children each execute two successful subtests.
 Regression cases reject missing/mismatched terminal summaries, failed subtests,
 duplicate counters, wrong parent counts and trailing output. These checks do
 not add cross-platform or scientific qualification.
+
+Cancellation follow-up checks passed on Linux/Python 3.13.5: **54 passed**
+without native (10.17 s), **54 passed** with native/fb20 (8.40 s). Actual tiny
+workers exercise acknowledged pre-test cancellation, immutable snapshot
+corruption, unverified-exit handling and a running pytest barrier: cancellation
+is refused, no signal is sent, and that test completes normally. The guarded
+`qualification-tools` chunk passed **35 tests** in 1.41 s (7.51 s including
+startup), retaining its 110-second cap. Only pure cancellation rejection/parser
+checks were added there; real process and OS checks remain excluded.
+
+Intermediate failed checks exposed the missing optional kernel children file,
+an exiting-fixture cleanup race and a missing-marker refusal that needed a
+typed error; their logs remain external. The manually cancelled rejected
+prototype was read without mutation and still reports `interrupted`, with its
+separate original manual record retained. No active copied runner or existing
+simulation qualification was rewritten. Windows/macOS cancellation was not run
+and the signalling action is deliberately unsupported there.

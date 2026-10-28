@@ -210,5 +210,9 @@ Linux detached mode and cooperative before/after-pytest controls retain
 execution evidence when a launching shell exits. Partial or interrupted lanes
 never earn a pass. See
 [the preregistered protocol and usage](integration/python-qualification-supervisor.md).
-Its focused tests require local Git and real subprocesses and remain outside
-the bounded offline-guard selection.
+`cancel-before-tests --output PATH --reason TEXT` can stop only a verified
+Linux worker acknowledged before pytest, using a pidfd and immutable cancellation
+evidence. It refuses a running pytest process; cancellation is never a test pass.
+The full focused suite requires local Git and real subprocesses; its OS/process
+cases remain outside the bounded offline guard. Registered pure rejection and
+parser cases run in the existing `qualification-tools` chunk.
