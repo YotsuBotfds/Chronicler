@@ -1,10 +1,13 @@
 """Pure runner orchestration guards; these tests execute no native worlds."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+pytestmark = pytest.mark.skipif(os.name != "posix", reason="proof uses POSIX per-worker CPU limits")
 
 
 def runner():

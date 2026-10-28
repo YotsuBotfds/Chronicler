@@ -89,12 +89,14 @@ def cli(folder, seed):
 
 
 def preflight(seed):
+    from chronicler import scientific_claims
     from chronicler.main import _build_parser
     from chronicler.expansion_features import configure_expansion_features, expansion_feature_flags
     from chronicler.grain_reserves import set_grain_reserves_enabled
     from chronicler.contact_ledger import set_contact_ledger_enabled
     from chronicler.scientific_research import validate_state
     from chronicler.techniques_state import TECHNIQUE_INDEX
+    from chronicler.resources import get_season_id
     world = controlled(seed)
     set_grain_reserves_enabled(world, True)
     set_contact_ledger_enabled(world, True)
@@ -108,13 +110,17 @@ def preflight(seed):
         rows = [list(row) for row in world.techniques.rows if row[0] == seat.region]
         assert all(any(row[1] == TECHNIQUE_INDEX[recipe] and row[2] == .5 for row in rows)
                    for recipe in ("irrigation", "masonry"))
-        seats.append(dict(seat=index, region=seat.region, owner=owner, birth=seat.model_dump(), practice_rows=rows))
+        context = scientific_claims._context(world, index)
+        assert context is not None
+        seats.append(dict(seat=index, region=seat.region, owner=owner, birth=seat.model_dump(),
+                          practice_rows=rows, initial_context=context.model_dump()))
     assert len(seats) <= 5 and world.turn == 2
     flags = expansion_feature_flags(world)
     assert all(flags[name] for name in (*FEATURES, "scientific_research_agendas"))
     assert world.scientific_claims.publication_rule == "funded-context-v2"
     return dict(seed=seed, actual_academy_count=len(seats), academies=seats, flags=flags,
         host_seal=world.scientific_claims.research_agendas.host_seal, source_turn=2,
+        calendar_season=get_season_id(world.turn),
         research=world.scientific_claims.research_agendas.model_dump())
 
 
@@ -131,6 +137,7 @@ def checkpoint_identity(loaded):
 def worker(args):
     resource.setrlimit(resource.RLIMIT_CPU, (12, 12))
     import numpy as np
+    from chronicler_agents import AgentSimulator
     from chronicler import main
     from chronicler.models import ActionType
     from chronicler.run_checkpoint import read_checkpoint
@@ -165,6 +172,7 @@ def worker(args):
         final = read_checkpoint(folder / "checkpoint_turn_29.ckpt")
         world, state = final.state.world, final.state.world.scientific_claims
         assert world.turn == 29 and final.state.agent_bridge is not None
+        assert isinstance(final.state.agent_bridge._sim, AgentSimulator)
         assert final.header["exact"] is (args.arm != "paused_fork")
         assert final.header["flags"]["scientific_research_agendas"] is (args.arm != "paused_fork")
         blob = final.state.agent_bridge._sim.checkpoint_state()
@@ -184,6 +192,7 @@ def worker(args):
             events=dict(Counter(e.event_type for e in world.events_timeline)),
             feature_sections={name: sum(isinstance(row.get(name), dict) for row in bundle["history"]) for name in FEATURES},
             active_native_pools=pools, native_agent_final_sha256=hashlib.sha256(blob).hexdigest(), rng=rng,
+            checkpoint_sections=[row["name"] for row in final.header["sections"]],
             resume_metadata=bundle["metadata"].get("resume"),
             experiment_receipt=bundle["metadata"].get("expansion_experiment"),
             effective_simulation_args=final.state.run_config["simulation_args"]))
