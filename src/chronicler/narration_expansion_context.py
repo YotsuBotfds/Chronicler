@@ -108,7 +108,7 @@ def expansion_state_facts(snapshot, civs, regions, at_turn):
                     f"from {row.get('source_region_name') or 'its recorded source'}, issued on turn "
                     f"{row['issued_turn']} and {delivery}: assessors estimate {100 * row['probability']:.0f}% "
                     f"production-shortfall risk for turns {row['target_start']}-{row['target_end']} "
-                    "(a reported estimate; the future outcome is not established)")
+                    "(a reported risk estimate)")
             keys = [("harvest_report", row["id"])]
             spending = next((p for p in _rows(forecasts, "preparedness")
                              if p.get("forecast_id") == row["id"] and status == "delivered"

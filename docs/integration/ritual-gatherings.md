@@ -92,3 +92,16 @@ ancestry, accounts or narrator truth.
 
 The [preregistered checks and causal study](../experiments/ritual-gatherings-2026-10.md)
 separate mechanism tests from unrun scientific and performance qualification.
+
+Verification on the isolated implementation through `b1735547` passed **42
+Python mechanism tests and three real-native tests** (45 total). Native checks
+used the frozen baseline extension SHA-256
+`43243cb026c6a6a141d15a5df743c96f8aca05c6bdc7c5ce1adbda8e31a6afd5`
+with one native/BLAS thread and exercised the existing APIs: real friendship
+creation and date-preserving refresh, full protected relationship slots, the
+production turn hook, and exact checkpoint write/read with continuation across
+the following occurrence. No Rust source or native schema was changed by this
+feature. The 42 mechanism tests also passed with native imports, network and
+child processes blocked. These focused results qualify these contracts; full
+composed health/forecast qualification, default-off output identity, broader
+seed studies and performance measurement are separate gates.

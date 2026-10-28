@@ -95,7 +95,7 @@ def test_gathering_cancellation_describes_only_recorded_zero_expenses():
 def test_forecasts_are_dated_claims_and_delivery_state_is_explicit(status, expected):
     text = _text(_snap(harvest_forecasts=_forecast(status)))
     assert expected in text and "assessors estimate 75%" in text and "turns 9-11" in text
-    assert "future outcome is not established" in text
+    assert "reported risk estimate" in text
     assert all(word not in text.lower() for word in ("calibrated", "actual shortfall", "excess spending", "avoided"))
     assert ("purchases during the warning: 12.00 grain for 4 treasury units" in text) == (status == "delivered")
 
