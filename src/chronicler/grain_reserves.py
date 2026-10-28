@@ -475,6 +475,10 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
             events.extend(tick_harvest_forecasts(world, None))
         if ledger is not None:
             ledger.finish(world, state, agent_bridge)
+        from chronicler.transaction_receipts_state import transaction_receipts_on
+        if transaction_receipts_on(world):
+            from chronicler.public_purchase_receipts import capture_public_purchases
+            capture_public_purchases(world, economy_result=None)
         return events
     _observe(world, state, economy_result)
     # Default-off public assessments see only the production already measured
@@ -510,6 +514,7 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
               for i in range(len(civs))]
     loss = _transit_loss()
     flows = _flows(world, state)
+    purchase_flow_start = len(flows)
     graph = _route_graph(world)
     foreign_bought: dict[int, list] = {}
 
@@ -598,6 +603,12 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
     if harvest_forecasts_on(world):
         from chronicler.harvest_forecasts import record_preparedness_purchases
         events.extend(record_preparedness_purchases(world))
+    from chronicler.transaction_receipts_state import transaction_receipts_on
+    if transaction_receipts_on(world):
+        from chronicler.public_purchase_receipts import capture_public_purchases
+        capture_public_purchases(world, economy_result=economy_result,
+                                 opening_treasuries=projected, demand=demand, price=price,
+                                 flow_start=purchase_flow_start)
     return events
 
 

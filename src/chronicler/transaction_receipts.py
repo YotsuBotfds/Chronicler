@@ -216,8 +216,14 @@ def snapshot_summary(world) -> dict:
     if not transaction_receipts_active(world):
         return {}
     state = world.transaction_receipts
+    from chronicler.public_purchase_receipts import snapshot_summary as public_summary
+    public = public_summary(world)
     if state.source_turn != world.turn - 1:
-        return {}
+        frame = getattr(state, "public_purchases", None)
+        if frame is None or frame.source_turn != world.turn - 1:
+            return {}
+        return {"source_turn": None, "phase": "merchant_mobility", "complete": False,
+                "mobility_executed": False, "rows": [], "public_purchases": public}
     return {
         "source_turn": state.source_turn, "phase": "merchant_mobility",
         "complete": state.complete, "mobility_executed": state.mobility_executed,
@@ -226,4 +232,5 @@ def snapshot_summary(world) -> dict:
         "known_active_count": sum(v.voyage_id is not None for v in state.active.values()),
         "counters": dict(state.counters),
         "rows": [row.model_dump(mode="json") for row in state.frame],
+        "public_purchases": public,
     }
