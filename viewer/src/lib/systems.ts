@@ -136,7 +136,7 @@ export function presentSystems(history: TurnSnapshot[], events: Event[] = [], fa
       return true;
     }
     if (key === "learning" && history.some((snapshot) => snapshot.scientific_claims != null)) return true;
-    if (key === "food" && history.some((snapshot) => snapshot.grain_reserves != null || snapshot.harvest_forecasts != null)) {
+    if (key === "food" && history.some((snapshot) => snapshot.grain_reserves != null || snapshot.harvest_forecasts != null || snapshot.transaction_receipts != null)) {
       return true;
     }
     return key === "food" && events.some((event) => (event.event_type === "famine" || event.event_type === "dearth")

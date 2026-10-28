@@ -208,16 +208,4 @@ export interface ScientificClaimsSnapshot {
   allocations: ScientificAllocation[];
 }
 
-/** Transport support; an empty shape fixture does not qualify merchant finance. */
-export interface TransactionReceiptsSnapshot {
-  source_turn: number;
-  phase: "merchant_mobility";
-  complete: boolean;
-  mobility_executed: boolean;
-  dropped_rows: number;
-  max_rows: number;
-  active_count: number;
-  known_active_count: number;
-  counters: Record<string, number>;
-  rows: Array<Record<string, unknown>>;
-}
+export type { TransactionReceiptsSnapshot } from "./transactionTypes";

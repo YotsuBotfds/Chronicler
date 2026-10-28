@@ -8,6 +8,7 @@ import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from 
 import { Granaries } from "./Granaries";
 import { HarvestForecasts } from "./HarvestForecasts";
 import { observationEventKnown } from "../../lib/observedSystems";
+import { Transactions } from "./Transactions";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -55,6 +56,8 @@ export function FoodPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Food">
+      <Transactions bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <HarvestForecasts bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
         onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <Granaries bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}

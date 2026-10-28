@@ -5,6 +5,7 @@ export type {
   ScientificAllocation, ScientificBelief, ScientificClaimsSnapshot, ScientificContext, ScientificProposition, ScientificTrial,
   TransactionReceiptsSnapshot,
 } from "./expansionTypes";
+export type { NativeTransactionObservation, PublicPurchaseFrame, PublicPurchaseObservation } from "./transactionTypes";
 
 // --- Enums (matching Python str enums) ---
 
