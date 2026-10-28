@@ -1163,6 +1163,8 @@ def main() -> None:
         "community_anchoring": args.community_anchoring,
         "capacity_aware_refugees": args.capacity_aware_refugees,
         **{name: getattr(args, name, None) for name in EXPANSION_FEATURES},
+        **({"scientific_research_agendas": args.scientific_research_agendas}
+           if getattr(args, "scientific_research_agendas", None) is not None else {}),
         "domestic_credit": args.domestic_credit,
         "historiography": args.historiography,
         "languages": args.languages,

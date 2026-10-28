@@ -85,6 +85,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "harvest_forecasts",
     "ritual_gatherings",
     "scientific_claims",
+    "scientific_research_agendas",
     "transaction_receipts",
     "domestic_credit",
     "tuning",
@@ -194,8 +195,10 @@ def _json_value(value: Any) -> Any:
 def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[str, Any]:
     """The requested simulation configuration of a run namespace: each
     ``SIMULATION_ARG_KEYS`` value as given (None: the CLI default) and the
-    tuning overrides in effect."""
-    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS}
+    tuning overrides in effect. The new nested research switch is omitted
+    when unspecified so legacy manifests/checkpoints keep their exact shape."""
+    config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS
+              if key != "scientific_research_agendas" or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})
     return config

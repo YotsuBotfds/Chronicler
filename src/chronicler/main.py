@@ -1762,6 +1762,8 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         "simulation_args": simulation_config(args),
         "output_args": output_config(args),
     }
+    if world.scientific_claims is not None and world.scientific_claims.research_agendas is not None:
+        run_config["simulation_args"]["scientific_research_agendas"] = world.scientific_claims.research_agendas.enabled
     if decision_ablation is not None:
         run_config["decision_ablation"] = {"name": decision_ablation[0], "start_turn": decision_ablation[1],
                                            "forked_at": None}
@@ -2249,6 +2251,21 @@ def _adopt_checkpoint_args(parser: argparse.ArgumentParser, args: argparse.Names
     config = state.run_config
     saved = {**config.get("simulation_args", {}), **config.get("output_args", {})}
     conflicts = []
+    # This nested switch did not exist in legacy checkpoint configuration.
+    # The persisted plan is authoritative; explicit changes require the
+    # separately declared experiment-fork seam, never an exact resume flag.
+    science = getattr(state.world, "scientific_claims", None)
+    research = science.research_agendas if science is not None else None
+    effective_research = research.enabled if research is not None else False
+    given_research = getattr(args, "scientific_research_agendas", None)
+    recorded_research = saved.pop("scientific_research_agendas", effective_research)
+    if recorded_research != effective_research:
+        conflicts.append("checkpoint research switch conflicts with its retained research state")
+    if given_research is not None and given_research != effective_research:
+        conflicts.append(f"--scientific-research-agendas {given_research!r} conflicts with the checkpoint "
+                         f"(saved: {effective_research!r}); use a declared experiment fork to change research policy")
+    elif research is not None:
+        args.scientific_research_agendas = effective_research
     for key, value in saved.items():
         if key in _RESUME_FREE_ARGS:
             continue

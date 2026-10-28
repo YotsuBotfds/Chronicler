@@ -129,7 +129,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
     assert (manifest["kind"], manifest["schema_version"], manifest["status"]) == ("chronicler-batch", 1, "complete")
     assert manifest["seeds"] == [42, 43, 44] and manifest["turns"] == 3
     simulation = manifest["simulation"]
-    assert set(simulation) == set(SIMULATION_ARG_KEYS) | {"tuning_overrides"}
+    assert set(simulation) == (set(SIMULATION_ARG_KEYS) - {"scientific_research_agendas"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)
     assert manifest["outputs"]["simulate_only"] is True
     environment = manifest["environment"]

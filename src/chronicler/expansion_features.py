@@ -14,8 +14,14 @@ from typing import Any
 EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings",
                       "scientific_claims", "transaction_receipts")
 EXPANSION_PREREQUISITES = ("grain_reserves", "contact_ledger", "scholarship", "techniques")
+EXPANSION_SWITCHES = EXPANSION_FEATURES + ("scientific_research_agendas",)
 
 _HELP = {
+    "scientific_research_agendas": (
+        "Finite recurring paid academy research with retained topics and evidence; "
+        "requires --scientific-claims, --scholarship and --techniques (default off; "
+        "--no-scientific-research-agendas pauses new funding while retaining knowledge)"
+    ),
     "transaction_receipts": (
         "Record bounded cargo movement receipts with observed voyage identities "
         "and explicit regional-stock or virtual basis; requires an agent-backed "
@@ -45,7 +51,7 @@ _HELP = {
 
 
 def add_expansion_arguments(parser: argparse.ArgumentParser, *, forwarding: bool = False) -> None:
-    for name in EXPANSION_FEATURES:
+    for name in EXPANSION_SWITCHES:
         flag = "--" + name.replace("_", "-")
         parser.add_argument(
             flag, action=argparse.BooleanOptionalAction, default=None,
@@ -57,7 +63,7 @@ def add_expansion_arguments(parser: argparse.ArgumentParser, *, forwarding: bool
 def expansion_arguments(args: Any) -> list[str]:
     """Forward explicit requests, including explicit disables, to child runs."""
     flags = []
-    for name in EXPANSION_FEATURES:
+    for name in EXPANSION_SWITCHES:
         value = getattr(args, name, None)
         if value is not None:
             if not isinstance(value, bool):
@@ -75,6 +81,12 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
     serialization and runtime paths stay unchanged.
     """
     values = {name: getattr(args, name, None) for name in EXPANSION_FEATURES}
+    research = getattr(args, "scientific_research_agendas", None)
+    if research is not None and type(research) is not bool:
+        raise ValueError("scientific_research_agendas must be a boolean or None")
+    if research is True and (values["scientific_claims"] is False or (
+            values["scientific_claims"] is not True and getattr(world, "scientific_claims", None) is None)):
+        raise ValueError("--scientific-research-agendas requires --scientific-claims")
     for name, value in values.items():
         if value is not None and not isinstance(value, bool):
             raise ValueError(f"{name} must be a boolean or None")
@@ -105,10 +117,18 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
                 continue
             module = import_module("chronicler." + name)
             getattr(module, f"set_{name}_enabled")(world, value)
+    if research is not None:
+        from chronicler.scientific_research import set_research_agendas_enabled
+        set_research_agendas_enabled(world, research)
 
 
 def expansion_feature_flags(world: Any) -> dict[str, bool]:
-    return {name: getattr(world, name, None) is not None for name in EXPANSION_FEATURES}
+    flags = {name: getattr(world, name, None) is not None for name in EXPANSION_FEATURES}
+    state = getattr(world, "scientific_claims", None)
+    plan = state.research_agendas if state is not None else None
+    if plan is not None:
+        flags["scientific_research_agendas"] = plan.enabled
+    return flags
 
 
 def expansion_snapshot_fields(world: Any) -> dict:

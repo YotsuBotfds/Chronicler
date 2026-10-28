@@ -142,3 +142,18 @@ the external probe SHA-256 is
 `d94ad72090574924ec13cff88345176b5521b862b10da440b454dae1817b9244`.
 The evidence root retains `b257-frozen-scholarship` and the three new
 `host-bound-legacy-*` folders alongside earlier unchanged probes.
+
+## Shared run configuration
+
+`--scientific-research-agendas` explicitly activates finite research after
+`--scientific-claims --scholarship --techniques`. The negative flag pauses new
+research and retains the archive; `--no-scientific-claims` remains the separate
+whole-system clear. Single, batch, live and gate command generation share
+the same tri-state forwarding. Omission preserves loaded plans and adds no
+research key to legacy simulation configuration or checkpoint feature flags.
+Present finite plans record their effective enabled/paused setting.
+
+Exact resume adopts the actual retained setting, including old checkpoints
+whose configuration has no new key. A contradictory explicit flag rejects
+instead of changing policy during an exact continuation. A research policy
+intervention must use the separately declared experiment-fork seam.
