@@ -1,6 +1,6 @@
 # Harvest assessments: first-slice pre-registration
 
-Registered before implementation/parameter fitting on base `5b5252ed`, 2026-10-29.
+Registered before implementation/parameter fitting on base `5b5252ed`, 2026-10-28.
 The feature is default off. This is a proposal being implemented, not a claim
 of behavioral efficacy or full scientific qualification.
 
@@ -13,8 +13,9 @@ Only a delivered warning can raise its temporary target; ordinary procurement
 then pays for available grain within its existing budget, route, commitment,
 transit and storage constraints. No food, treasury or yield is granted.
 
-`--harvest-forecasts` requires grain reserves and an agent-backed goods economy.
-Enabling an incompatible configuration fails explicitly. Forecasts concern
+`--harvest-forecasts` requires grain reserves, the contact ledger and an
+agent-backed goods economy. An explicit incompatible request fails; an omitted
+flag preserves a saved setting dormant while prerequisites are absent. Forecasts concern
 local food production/demand, not realized hunger after trade and reserve
 release. Calibration and preparedness expenditures are separate records.
 
@@ -25,7 +26,8 @@ promotion is part of this slice.
 ## Frozen initial rule
 
 - One assessor per living civilization's owned capital. Keep at most six
-  present/past observations per region; at least three are needed to publish.
+  present/past observations per region; at least three from the last six turns
+  are needed to publish.
 - Normalize each measured food harvest/demand ratio by the current public
   grain seasonal multiplier, capped at four. At summer close (step 5 of the
   existing 12-turn year), the mean normalized signal times winter's public
@@ -70,6 +72,13 @@ hunger person-turns in the registered winter windows. Report Brier error versus
 seasonal climatology, false alarms, treasury purchases, spoilage and unmet
 targets separately. Do not select episodes based on treatment-induced famine
 or tune against the held-out cohort. A null/inconclusive result stays such.
+
+Clarification before qualification: production/demand is a realized, policy-
+sensitive prediction target. Preparation can change later survival, labor and
+food demand, even though reserve releases do not directly change measured
+production. Its Brier score is not a pure exogenous-climate hazard score, and
+it must be reported by arm rather than pooled as policy-independent accuracy.
+Exogeneity is checked separately on the regional climate-shock vectors.
 
 Required mechanical evidence: flag-off output/RNG identity; same-turn rejection;
 expiry and ownership cancellation; deterministic contact choice and queue;

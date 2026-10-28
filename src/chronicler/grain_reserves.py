@@ -233,6 +233,10 @@ def open_granaries(world: "WorldState", economy_result: "EconomyResult | None",
     sufficiency and post-trade food supply), then spoil. Returns events."""
     if not grain_reserves_active(world):
         return []
+    from chronicler.harvest_forecasts_state import harvest_forecasts_on
+    if harvest_forecasts_on(world):
+        from chronicler.harvest_forecasts import clear_stale_preparedness
+        clear_stale_preparedness(world)
     from chronicler.ecology import FAMINE_SEVERE_SUFFICIENCY, FAMINE_SEVERE_TURNS
     from chronicler.models import Event
     from chronicler import provenance as prov
@@ -593,7 +597,7 @@ def tick_grain_reserves(world: "WorldState", acc=None, economy_result: "EconomyR
         ledger.finish(world, state, agent_bridge)
     if harvest_forecasts_on(world):
         from chronicler.harvest_forecasts import record_preparedness_purchases
-        record_preparedness_purchases(world)
+        events.extend(record_preparedness_purchases(world))
     return events
 
 

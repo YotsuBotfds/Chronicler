@@ -34,23 +34,55 @@ def validate_harvest_forecasts(world, *, agent_mode: str | None = None) -> None:
     if not harvest_forecasts_on(world):
         return
     from chronicler.grain_reserves_state import grain_reserves_on
+    from chronicler.contact_ledger import ledger_enabled
     mode = world.agent_mode if agent_mode is None else agent_mode
-    if not grain_reserves_on(world) or mode in (None, "off"):
-        raise ValueError("harvest forecasts require --grain-reserves and an agent-backed goods economy")
+    if not grain_reserves_on(world) or mode in (None, "off") or not ledger_enabled(world):
+        raise ValueError("harvest forecasts require --grain-reserves, --contact-ledger "
+                         "and an agent-backed goods economy")
 
 
 def harvest_forecasts_active(world) -> bool:
     if not harvest_forecasts_on(world):
         return False
     from chronicler.grain_reserves_state import grain_reserves_on
-    return grain_reserves_on(world) and world.agent_mode not in (None, "off")
+    from chronicler.contact_ledger import ledger_enabled
+    return (grain_reserves_on(world) and world.agent_mode not in (None, "off")
+            and ledger_enabled(world))
 
 
 def set_harvest_forecasts_enabled(world, enabled: bool, *, policy: str = "normal") -> None:
     if not enabled:
+        if harvest_forecasts_on(world):
+            _restore_targets(world, world.harvest_forecasts.preparedness)
         world.harvest_forecasts = None
     elif not harvest_forecasts_on(world):
         world.harvest_forecasts = HarvestForecastState(policy=policy)
+
+
+def _restore_targets(world, rows) -> None:
+    """Remove only our known previous increment, never a newly rebuilt target."""
+    granaries = getattr(getattr(world, "grain_reserves", None), "granaries", ())
+    for row in rows:
+        rid = row["region"]
+        if 0 <= rid < len(granaries):
+            granary = granaries[rid]
+            if math.isclose(granary.target, row["base_target"] + row["extra_target"],
+                            rel_tol=0.0, abs_tol=1e-9):
+                granary.target = row["base_target"]
+
+
+def clear_stale_preparedness(world) -> None:
+    """Before Phase 2 reads last turn's target, honor expiry and ownership."""
+    if not harvest_forecasts_on(world):
+        return
+    state = world.harvest_forecasts
+    live = {report.id for report in state.reports
+            if report.status == "delivered" and report.expires_turn >= world.turn
+            and 0 <= report.recipient_region < len(world.regions)
+            and world.regions[report.recipient_region].controller == report.owner_name}
+    active = harvest_forecasts_active(world)
+    _restore_targets(world, [row for row in state.preparedness
+                            if not active or row["forecast_id"] not in live])
 
 
 def _noise(world, source: int) -> float:
@@ -123,7 +155,8 @@ def _publish(world, state, index) -> list:
         if (not civ.regions or rid is None or world.regions[rid].controller != civ.name
                 or rid not in observers):
             continue
-        observations = observers[rid].observations
+        observations = [(turn, value) for turn, value in observers[rid].observations
+                        if 0 <= world.turn - turn < OBSERVATIONS]
         if len(observations) < MIN_OBSERVATIONS:
             continue
         predicted = math.fsum(value for _, value in observations) / len(observations) * SEASON_MOD[0][3]
@@ -182,6 +215,8 @@ def tick_harvest_forecasts(world, economy_result) -> list:
     if not harvest_forecasts_active(world):
         return []
     state = world.harvest_forecasts
+    if state.last_tick_turn is not None and state.last_tick_turn > world.turn:
+        raise ValueError("harvest forecast state is ahead of the world turn")
     if state.last_tick_turn == world.turn:
         return []
     state.last_tick_turn = world.turn
@@ -192,11 +227,11 @@ def tick_harvest_forecasts(world, economy_result) -> list:
     living = []
     for report in state.reports:
         rid = report.recipient_region
-        if (rid >= len(world.regions) or index.get(world.regions[rid].controller) != report.owner):
-            events.append(_finish_report(world, state, report, cancelled=True))
-            continue
         if world.turn > report.expires_turn:
             events.append(_finish_report(world, state, report))
+            continue
+        if (rid >= len(world.regions) or index.get(world.regions[rid].controller) != report.owner):
+            events.append(_finish_report(world, state, report, cancelled=True))
             continue
         if report.status == "pending" and world.turn >= report.delivery_turn:
             if state.policy == "withhold":
@@ -219,7 +254,9 @@ def tick_harvest_forecasts(world, economy_result) -> list:
     observers = {o.region: o for o in state.observers}
     factor = SEASON_MOD[0][get_season_id(world.turn)]
     for rid, ratio in sorted(ratios.items()):
-        observer = observers.setdefault(rid, HarvestObserver(region=rid))
+        if rid not in observers:
+            observers[rid] = HarvestObserver(region=rid)
+        observer = observers[rid]
         observer.observations.append((world.turn, min(SIGNAL_CAP, ratio / factor)))
         observer.observations[:] = observer.observations[-OBSERVATIONS:]
     state.observers = [observers[rid] for rid in sorted(observers)]
@@ -237,6 +274,7 @@ def apply_preparedness(world, economy_result) -> None:
     previous = {row["region"]: row for row in state.preparedness}
     for report in state.reports:
         if (report.status != "delivered" or report.probability < WARNING_THRESHOLD
+                or report.delivered_turn is None or report.delivered_turn > world.turn
                 or not report.delivery_turn <= world.turn <= report.expires_turn):
             continue
         rid = report.recipient_region
@@ -258,22 +296,42 @@ def apply_preparedness(world, economy_result) -> None:
         })
 
 
-def record_preparedness_purchases(world) -> None:
+def record_preparedness_purchases(world) -> list:
     """Actual completed-turn purchases while warned, not causal excess."""
     if not harvest_forecasts_active(world):
-        return
+        return []
     from chronicler.grain_reserves_state import BOUGHT
     state = world.harvest_forecasts
     if world.grain_reserves.flows_turn != world.turn:
-        return
+        return []
+    events = []
+    reports = {report.id: report for report in state.reports}
+    purchases = {}
+    for flow in world.grain_reserves.flows:
+        if flow.kind == BOUGHT:
+            row = purchases.setdefault(flow.region, [[], 0])
+            row[0].append(flow.amount)
+            row[1] += flow.cost
     for row in state.preparedness:
-        flows = [f for f in world.grain_reserves.flows if f.kind == BOUGHT and f.region == row["region"]]
+        amounts, paid = purchases.get(row["region"], ((), 0))
+        bought = math.fsum(amounts)
+        if row["bought_during_warning"] == bought and row["paid_during_warning"] == paid:
+            continue
         state.counters["bought_during_warning"] -= row["bought_during_warning"]
         state.counters["paid_during_warning"] -= row["paid_during_warning"]
-        row["bought_during_warning"] = math.fsum(f.amount for f in flows)
-        row["paid_during_warning"] = sum(f.cost for f in flows)
+        row["bought_during_warning"] = bought
+        row["paid_during_warning"] = paid
         state.counters["bought_during_warning"] += row["bought_during_warning"]
         state.counters["paid_during_warning"] += row["paid_during_warning"]
+        if paid > 0 and row["forecast_id"] in reports:
+            report = reports[row["forecast_id"]]
+            events.append(_emit(
+                world, "harvest_preparedness", report,
+                f"While warned of winter shortfall, {report.owner_name} buys {bought:.1f} grain "
+                f"for the granary in {report.recipient_region_name} ({paid} treasury).",
+                (report.delivered_event_id,),
+            ))
+    return events
 
 
 def snapshot_summary(world) -> dict:
@@ -281,6 +339,8 @@ def snapshot_summary(world) -> dict:
         return {}
     state = world.harvest_forecasts
     source_turn = world.turn - 1
+    if state.last_tick_turn != source_turn:
+        return {}
     return {"source_turn": source_turn,
             "reports": [r.model_dump() for r in state.reports],
             "outcomes": [r.model_dump() for r in state.outcomes],
