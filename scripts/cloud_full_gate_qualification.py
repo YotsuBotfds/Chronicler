@@ -40,6 +40,9 @@ LIGHT_SOURCES = dict(REPORT_FILES, **{
     "provenance.json": "provenance.json", "build-manifest.json": "build-manifest.json",
     "raw-inventory.json": "raw-inventory.json",
 })
+PARENT_REQUIRED = {"chronicle_bundle.json", "agent_events.arrow", "validation_needs.arrow",
+                   "validation_relationships.arrow", "validation_memory_signatures.arrow",
+                   "validation_summary.json", "validation_community_summary.json"}
 RUNTIME_KEYS = ("python", "implementation", "machine", "thread_env", "packages", "affinity_cpu_count")
 
 
@@ -258,8 +261,11 @@ def validate_records(run, batch, ablation, report, decision, config, source_sha,
             sorted(row["seed"] for row in parent_rows) == seeds, "parent seed set differs")
     require(all(type(row.get("total_turns")) is int and row["total_turns"] == config["turns"]
                 for row in parent_rows), "parent horizon differs")
-    require(all(isinstance(row.get("files"), dict) and row["files"] for row in parent_rows),
-            "parent validation-file hashes missing")
+    require(all(row.get("dir") == f'seed_{row["seed"]}' for row in parent_rows), "parent run directory differs")
+    for row in parent_rows:
+        files = row.get("files")
+        require(isinstance(files, dict) and {row["dir"] + "/" + name for name in PARENT_REQUIRED} <= set(files),
+                "core parent validation-file hashes missing")
     simulation = batch["simulation"]
     require(simulation.get("agents") == "hybrid" and simulation.get("regions") == config["regions"]
             and simulation.get("civs") == config["civs"], "wrong parent simulation shape")
@@ -352,9 +358,53 @@ def summarize(report):
     summary = {key: report.get(key) for key in ("kind", "qualified", "smoke_pass", "stage", "execution_complete", "gate_pass",
         "gate_exit_code", "arm", "worldgen", "source_sha", "wheel_sha256", "native_sha256",
         "build_manifest_sha256", "raw_inventory_sha256", "light_index_sha256", "elapsed_wall_seconds")}
-    for key in ("error", "final_identity_error", "inventory_error", "light_error"):
+    for key in ("error", "final_identity_error", "inventory_error", "light_error", "finalization_error"):
         summary[key] = str(report[key])[:2048] if key in report else None
     print(json.dumps(summary, allow_nan=False), flush=True)
+
+
+def finish_receipts(root, report, primary, deadline, started):
+    """Publish matching receipts after bounds; invalidate both on a late copy error."""
+    paths = (root / primary, root / "light" / primary)
+    desired = dict(report)
+    report["qualified"] = False
+    if "smoke_pass" in report:
+        report["smoke_pass"] = False
+    for path in paths:
+        write(path, report)  # Establish negative receipts before attempting publication.
+    try:
+        require(time.monotonic() <= deadline, "aggregate budget exceeded before final receipts")
+        records = controls.payload_inventory(root / "light")
+        desired["elapsed_wall_seconds"] = time.monotonic() - started
+        receipt_bytes = len((json.dumps(desired, indent=2, sort_keys=True, allow_nan=False) + "\n").encode("utf-8"))
+        require(receipt_bytes <= MAX_FILE_BYTES and all(row["bytes"] <= MAX_FILE_BYTES for row in records.values()),
+                "lightweight metadata exceeds per-file bound")
+        total = sum(row["bytes"] for name, row in records.items() if name != primary) + receipt_bytes
+        require(len(records) <= MAX_LIGHT_FILES and total <= MAX_LIGHT_BYTES,
+                "complete lightweight package including receipts exceeds registered bounds")
+        require(time.monotonic() <= deadline, "aggregate budget exceeded after lightweight inventory")
+        write(paths[0], desired)
+        require(time.monotonic() <= deadline, "aggregate budget exceeded before authoritative receipt")
+        write(paths[1], desired)  # Final authoritative publication; no later fallible I/O.
+        report.clear()
+        report.update(desired)
+    except Exception as exc:
+        report["qualified"] = False
+        if "smoke_pass" in report:
+            report["smoke_pass"] = False
+        report["finalization_error"] = type(exc).__name__ + ": " + str(exc)
+        report["elapsed_wall_seconds"] = time.monotonic() - started
+        recovery_errors = []
+        for path in paths:
+            try:
+                write(path, report)
+            except Exception as recovery:
+                recovery_errors.append(type(recovery).__name__ + ": " + str(recovery)[:1024])
+        if recovery_errors:
+            report["receipt_recovery_errors"] = recovery_errors
+            print(json.dumps({"event": "receipt_recovery_incomplete", "qualified": False,
+                              "errors": recovery_errors}), flush=True)
+    return report.get("qualified", False) or report.get("smoke_pass", False)
 
 
 def build(args):
@@ -444,9 +494,7 @@ def build(args):
             report["qualified"] = False
             report["light_error"] = type(exc).__name__ + ": " + str(exc)
             (root / "light").mkdir(exist_ok=True)
-        report["elapsed_wall_seconds"] = time.monotonic() - started
-        write(root / "build-manifest.json", report)
-        write(root / "light/build-manifest.json", report)
+        finish_receipts(root, report, "build-manifest.json", deadline, started)
     summarize(report)
     return 0 if report["qualified"] else 1
 
@@ -554,9 +602,7 @@ def cohort(args):
             report["qualified"] = report["smoke_pass"] = False
             report["light_error"] = type(exc).__name__ + ": " + str(exc)
             (root / "light").mkdir(exist_ok=True)
-        report["elapsed_wall_seconds"] = time.monotonic() - started
-        write(root / "result.json", report)
-        write(root / "light/result.json", report)
+        finish_receipts(root, report, "result.json", deadline, started)
     summarize(report)
     if report["qualified"] or report["smoke_pass"]:
         return 0
