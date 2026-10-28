@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import observations from "../../../__fixtures__/scientific_claims_observations.json";
+import { publicationPolicyExample } from "../../../__fixtures__/publicationPolicyExamples";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import { ScientificClaims } from "../ScientificClaims";
 
@@ -13,6 +14,29 @@ function props(turn = 13) {
 }
 
 describe("recorded academy claims and evidence inspector", () => {
+  it("labels the actual legacy fixture as current-context publication when metadata is omitted", () => {
+    const p = props();
+    expect(p.snapshot.scientific_claims!.publication_rule).toBeUndefined();
+    render(<ScientificClaims {...p} />);
+    expect(screen.getByLabelText("Scientific publication policy")).toHaveTextContent("Current-context publication.");
+  });
+
+  it.each(["funded-context-v2", "future-v3"])("labels synthetic reader-only policy %s without assuming another rule", (rule) => {
+    const p = props(), snapshot = publicationPolicyExample(rule);
+    p.bundle.history = [snapshot]; p.snapshot = snapshot;
+    render(<ScientificClaims {...p} />);
+    const policy = screen.getByLabelText("Scientific publication policy");
+    if (rule === "funded-context-v2") {
+      expect(policy).toHaveTextContent("Publish results for the funding context.");
+      expect(policy).toHaveTextContent("Published results refer to the setting recorded at funding");
+      expect(policy).toHaveTextContent("Current-context policy confidence can still use no applicable evidence");
+    } else {
+      expect(policy).toHaveTextContent("Publication rule unrecognized (future-v3).");
+      expect(policy).toHaveTextContent("Publication eligibility is unknown");
+    }
+    expect(policy).not.toHaveTextContent("Current-context publication.");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
   it("shows contextual local confidence and real paid effort without multiplying per-recipe expense", () => {
     const p = props(); render(<ScientificClaims {...p} />);
     expect(screen.getByText(/Recorded after simulation turn 12/)).toBeInTheDocument();

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { hasObservation, observationAt, observationEventKnown, SCIENTIFIC_EVENT_TYPES } from "../../lib/observedSystems";
-import { scientificClaimsSeries, scientificContext, scientificTrials } from "../../lib/scientificClaims";
+import { scientificClaimsSeries, scientificContext, scientificPublication, scientificTrials } from "../../lib/scientificClaims";
 import { eventByKey } from "../../lib/bundleIndex";
 import { eventsOfTypes, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, SystemEventList } from "./SystemParts";
@@ -22,6 +22,7 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
     <h3>Academy claims and evidence</h3><p className="systems-note">No usable scientific-claims observation at turn {currentTurn}. Missing, stale or future-dated evidence leaves local confidence, trials and spending unknown.</p>
   </section>;
   const visible = expanded ? history : history.slice(0, HISTORY_LIMIT);
+  const publication = scientificPublication(record.publication_rule);
   const seatName = (id: number) => record.beliefs.find((row) => row.seat === id)?.seat_name ?? `Seat ${id}`;
   const regionName = (id: number) => record.beliefs.find((row) => row.region === id)?.region_name ?? null;
   const events = eventsOfTypes(bundle.events_timeline, SCIENTIFIC_EVENT_TYPES, currentTurn)
@@ -34,6 +35,7 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
   return <section className="systems-section" aria-label="Academy claims and evidence">
     <h3>Academy claims and evidence · snapshot {at}</h3>
     <p className="systems-note">Recorded after simulation turn {record.source_turn}. {record.active ? "The pilot is active." : "The pilot is enabled but dormant."} Confidence is a local policy score for a contextual proposition, not a probability that a technique is universally true. Information allocates ordinary paid adoption effort; it does not directly change yields.</p>
+    <p className="systems-note" aria-label="Scientific publication policy"><strong>Publication policy at this snapshot: {publication.label}.</strong> {publication.detail}</p>
     <div className="systems-tiles">
       <StatTile label="Propositions" value={record.claims} detail={`${record.seats} participating seats`} />
       <StatTile label="Completed trials" value={record.completed} detail={`${record.cancelled} cancelled; ${record.failed} failed`} />

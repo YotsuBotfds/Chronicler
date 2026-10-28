@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import observations from "../../__fixtures__/scientific_claims_observations.json";
 import type { ScientificClaimsSnapshot, TurnSnapshot } from "../../types";
 import { observationAt } from "../observedSystems";
-import { scientificClaimsSeries, scientificContext, scientificTrials } from "../scientificClaims";
+import { scientificClaimsSeries, scientificContext, scientificPublication, scientificTrials } from "../scientificClaims";
 import { presentSystems } from "../systems";
 import { bundleFromInitMessage, snapshotFromMessage } from "../transport";
 
@@ -10,6 +10,16 @@ const history = observations.history.map((row) => ({ ...row, civ_stats: {}, regi
 const at = (t: number) => structuredClone(history.find((row) => row.turn === t)!);
 
 describe("scientific claims recorded history", () => {
+  it.each([undefined, "current-context-v1"])("treats documented legacy publication %s as current-context", (rule) => {
+    expect(scientificPublication(rule).label).toBe("Current-context publication");
+  });
+
+  it("distinguishes funded-context publication from current-context policy evidence", () => {
+    expect(scientificPublication("funded-context-v2")).toMatchObject({ label: "Publish results for the funding context" });
+    expect(scientificPublication("funded-context-v2").detail).toContain("Current-context policy confidence");
+    expect(scientificPublication("future-v3").label).toContain("unrecognized (future-v3)");
+    expect(scientificPublication(null).label).toContain("unrecognized (invalid value)");
+  });
   it("reads actual paid controlled mechanical observations without claiming world qualification", () => {
     expect(observations.fixture).toMatch(/controlled mechanical.*no scientific world qualification/);
     expect(scientificTrials(history, 1)).toEqual([]);

@@ -188,6 +188,8 @@ export interface ScientificAllocation {
 
 export interface ScientificClaimsSnapshot {
   source_turn: number;
+  /** Omitted by legacy current-context-v1 exports; future values remain explicit unknowns. */
+  publication_rule?: string;
   active: boolean;
   seats: number;
   claims: number;

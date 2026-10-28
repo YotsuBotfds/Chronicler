@@ -19,6 +19,18 @@ values. A seasonal/ecological/climate mismatch can return the prior and no
 currently applicable evidence while older receipts remain archived. The table
 does not describe this as forgetting or absence of all historical receipts.
 
+The observation's publication rule is labelled separately. Legacy exports that
+omit `publication_rule` use documented `current-context-v1`: the registered
+context must remain applicable when a result is due. Explicit `funded-context-v2`
+can publish a valid measurement recorded at funding after current conditions
+change, provided academy access remains available. Its archived funding context
+does not imply that current-context policy confidence uses that evidence now.
+Unrecognized future values remain explicitly unknown rather than inheriting
+either known rule. Synthetic reader-only v2/future-policy examples contain zero
+observations and are separate from the actual controlled/natural run fixtures.
+The label describes the selected snapshot's policy; older resolution rows are
+not assumed to have used that same rule.
+
 Trial calculations and noisy measurements have separate labels. A resolution
 is not added grain harvest or proof of a world effect. Cancelled/failed records
 show their actual status, reason and cost without presenting completed
@@ -69,3 +81,20 @@ suite passed all 680 tests across 65 files with one worker (159.74 seconds),
 followed by ESLint, the production build and a repeated desktop/mobile science
 browser pass. That final source includes the explicit distinction between
 archived receipts and evidence used by current-context policy.
+
+The publication-label follow-up passed 21 focused tests, ESLint and the build;
+the broad suite was not repeated for this scoped change. Its actual-run browser
+QA used the 60-turn `d051d7c0` combined-all-five checkpointed bundle, SHA-256
+`3176353bf41dd253bac6aed81118897394c961e5dba52e5593631da58df4f5cd`.
+Desktop and 390px mobile checks compared native journal quantities, bases and
+voyage IDs at snapshots 1, 2, 21, 46, 60 and back to 1; public procurement stayed
+unknown because this older run did not capture that domain. All 1,053 native
+rows belong to complete shared-stock frames with known voyage identities.
+
+Natural science in that run has no participating academy seats, claims, trials
+or receipts; its one learning seat is a library. Checks at snapshots 1, 45, 60
+and back to 2 confirmed the legacy publication label and empty recorded science
+state, without invented tables or effects. No console/page errors or document/
+section overflow occurred. This evidence does not exercise v2 publication or
+public procurement; the labelled synthetic policy cases test reader labeling
+only, and the earlier controlled lanes retain their own scope.
