@@ -8,7 +8,7 @@
 
 ## Domestic credit, second pass (2026-10-28, `feat/domestic-credit-2`)
 
-> **Last updated:** 2026-10-28 (`feat/domestic-credit-2` from `main` `25854db`. Behind the same `--domestic-credit` switch, still default off: lenders lend no new money that would raise the borrower's interest due above half its revenue (the borrower's room), and while the agent pool's wealth builds up from its cold start the realm's abstract merchant houses lend finance's revenue term, fading as `0.98 ** turn`. No war reserve, no purse ceiling. Off is byte-identical to `main`; on resumes exactly; the books balance every tick. Template full 200 x 500 PASS strict, EXPLORATORY NO REGRESSION; procedural full 100 x 300 PASS strict, EXPLORATORY NO REGRESSION. Early credit restored, the ceiling treadmill gone; a borrower at the room can stay there and cities take a growing share of its debt. Not promoted: civic lenders, the merchant tax and a second look at procedural agents come first.)
+> **Last updated:** 2026-10-28 (`feat/domestic-credit-2` from `main` `25854db`, merged with `c2ef6af` (no simulation change; the merged head is byte-identical to the gated tree, switch off and on). Behind the same `--domestic-credit` switch, still default off: lenders lend no new money that would raise the borrower's interest due above half its revenue (the borrower's room), and while the agent pool's wealth builds up from its cold start the realm's abstract merchant houses lend finance's revenue term, fading as `0.98 ** turn`. No war reserve, no purse ceiling. Off is byte-identical to `main`; on resumes exactly; the books balance every tick. Template full 200 x 500 PASS strict, EXPLORATORY NO REGRESSION; procedural full 100 x 300 PASS strict, EXPLORATORY NO REGRESSION. Early credit restored, the ceiling treadmill gone; a borrower at the room can stay there and cities take a growing share of its debt. Not promoted: civic lenders, the merchant tax and a second look at procedural agents come first.)
 
 Details and evidence:
 [`docs/integration/domestic-credit.md`](../../integration/domestic-credit.md),
@@ -37,6 +37,8 @@ section 13.
   differences (no flag and explicit `--no-domestic-credit`). On: 3
   checkpoint cases (two with defaults), 117 resume points, 4,572 files, 0
   differences; 40 checked worlds balanced and equal their unchecked runs.
+  Merged head against `c2ef6af`, switch off: 399 files, 0 differences;
+  against the gated tree, switch on: 366 files, 0 differences.
 - **Paired worlds** (template 40 x 500, procedural 20 x 300, three arms).
   Template: domestic issuance +4%, interest +10%, foreign share unchanged,
   merchant wealth +4%, satisfaction -0.001, Gini +0.005, rates within

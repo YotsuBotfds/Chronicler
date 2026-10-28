@@ -1059,6 +1059,14 @@ the probe or documentation only). Both extensions have SHA-256
 | switch on, exact resume (`scripts/checkpoint_identity.py --cli-arg=--domestic-credit`) | `hybrid_s42` 60 turns, 59 resume points, 1,780 files; `proc32_hybrid_s11` 40 turns, 39 points, 1,176 files (a default at turn 32 on the houses and the merchants of a region); `hybrid_s42_long` 200 turns, 19 points, 1,616 files (a default at turn 77): 117 resume points, 4,572 files, 0 differences; writing checkpoints changes nothing |
 | credit ledger checked every tick (`CHRONICLER_CHECK_RESOURCES=1`) | template seeds 42-61 x 300 and procedural 32 x 10 seeds 42-61 x 200: 40 of 40 runs balanced; their final states are byte-identical to unchecked runs of the same seeds (40 of 40) |
 
+After the gates the branch was merged with `main` `c2ef6af` (PRs #65 and
+#66, live and interactive checkpoints; no simulation file, no Rust). The
+merged head `1eb4478` against `c2ef6af` with the switch off: 399 files, 0
+differences (no flag and explicit `--no-domestic-credit`); against the
+frozen tree `004907f` with the switch on, the six hybrid cases of the
+matrix: 366 files, 0 differences. So the gates and paired worlds below
+describe the merged head's simulation.
+
 Every resume case lends from merchants, cities and houses; the straight
 runs equal the runs without checkpoints. Over the checked runs, per run:
 template, merchants lent 241, cities 46, guilds 4, the houses 77 (21% of
@@ -1360,6 +1368,6 @@ loans name real lenders and that the houses lend early.
 
 | Lane | Result |
 | --- | --- |
-| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,786 passed, 59 skipped (chunk `domestic-credit` 32 tests, 1.2 s) |
-| `pytest -m "not slow"` (release extension) | 6,813 passed, 3 skipped, 15 deselected (the final tree; an earlier run on the frozen tree failed one native test that filtered out loans naming the houses, fixed in the test) |
+| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,786 passed, 59 skipped (chunk `domestic-credit` 32 tests, 1.2 s); merged head: PASS, 16 chunks, 2,827 passed, 63 skipped |
+| `pytest -m "not slow"` (release extension) | 6,813 passed, 3 skipped, 15 deselected before the merge; merged head 6,840 passed, 3 skipped, 15 deselected (an earlier run on the frozen tree failed one native test that filtered out loans naming the houses, fixed in the test) |
 | `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,076 passed, 0 failed, 2 ignored |
