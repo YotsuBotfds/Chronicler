@@ -1572,6 +1572,25 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         from chronicler.community_anchoring import set_community_anchoring_enabled
         set_community_anchoring_enabled(world, community_anchoring)
     _check_ablation_term(decision_ablation, world)
+    # Domestic credit switch (persisted on the world): the realm's merchants,
+    # guilds and cities fund the state's domestic loans and receive their
+    # interest, repayments and losses. It changes finance's domestic lender
+    # and its merchants are agents, so an explicit --domestic-credit needs
+    # finance and an agent pool; a saved setting keeps its books either way.
+    domestic_credit = getattr(args, "domestic_credit", None)
+    if domestic_credit is True:
+        from chronicler.finance import finance_enabled as _finance_on
+        if not _finance_on(world):
+            raise ValueError("Domestic credit changes finance's domestic lender (--finance)")
+        if agent_mode == "off":
+            raise ValueError("Domestic credit lends merchant agents' wealth: it requires an agent pool "
+                             "(--agents hybrid, shadow or demographics-only)")
+    if domestic_credit is None and fresh_world:
+        from chronicler.domestic_credit import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT
+        domestic_credit = _CREDIT_DEFAULT
+    if domestic_credit is not None:
+        from chronicler.domestic_credit import set_domestic_credit_enabled
+        set_domestic_credit_enabled(world, domestic_credit)
     # In-world historiography (saved with the world in a state sidecar):
     # chroniclers and archives that record the run with their own biases.
     # Observational only; the simulation never reads it.
@@ -1921,6 +1940,13 @@ def _build_parser() -> argparse.ArgumentParser:
                              "to move, up to four ties (a community of five); rebellion, "
                              "occupation switches and staying are untouched; needs an agent pool "
                              "(default off; saved on resume; docs/integration/community-anchoring.md)")
+    parser.add_argument("--domestic-credit", action=argparse.BooleanOptionalAction, default=None,
+                        help="Domestic credit through real lenders: the state's domestic loans are "
+                             "funded by the merchant agents of its regions, its guilds and its "
+                             "cities, which keep a reserve, receive the interest and repayments "
+                             "and lose what a default writes off (merchants, guilds and cities "
+                             "that lose gain grievance); needs --finance and an agent pool "
+                             "(default off; saved on resume; docs/integration/domestic-credit.md)")
     parser.add_argument("--historiography", action=argparse.BooleanOptionalAction, default=None,
                         help="In-world historiography: court and temple chroniclers record events "
                              "with their own biases (omissions, inflated victories, blamed enemies, "

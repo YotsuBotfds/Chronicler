@@ -2115,7 +2115,7 @@ def run_turn_result(
     # debasement and default, after every ordinary income of the turn.
     if getattr(world, "finance", None) is not None:
         from chronicler.finance import tick_finance
-        _emit(tick_finance(world, acc=acc, economy_result=economy_result))
+        _emit(tick_finance(world, acc=acc, economy_result=economy_result, agent_bridge=agent_bridge))
 
     # Phase 4: Technology. With --techniques, per-region practice, diffusion
     # along the contact ledger, inventions and the era derived from them.

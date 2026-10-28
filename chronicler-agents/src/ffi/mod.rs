@@ -416,6 +416,32 @@ impl AgentSimulator {
         (c.enabled, c.full_anchor)
     }
 
+    /// Domestic credit (`--domestic-credit`): the merchant agents' wealth by
+    /// home region (a merchant on a trip counts at the region its trip
+    /// started from), as (total wealth, merchants) per region index. Reads
+    /// only. Never called by a run without the switch.
+    pub fn merchant_wealth_by_region(&self) -> (Vec<f64>, Vec<u32>) {
+        crate::credit::merchant_wealth_by_region(&self.pool, self.regions.len())
+    }
+
+    /// Domestic credit: add (positive) or take (negative) `amounts[i]` from
+    /// the wealth of the merchants of region `region_ids[i]` (principal
+    /// lent, interest and repayments; `credit::apply_merchant_transfers`).
+    /// Returns the change actually made for each entry; nothing is kept for
+    /// a later call. Never called by a run without the switch.
+    pub fn apply_merchant_transfers(&mut self, region_ids: Vec<u16>, amounts: Vec<f64>) -> PyResult<Vec<f64>> {
+        if region_ids.len() != amounts.len() {
+            return Err(PyValueError::new_err(format!(
+                "apply_merchant_transfers: {} region ids for {} amounts", region_ids.len(), amounts.len()
+            )));
+        }
+        if let Some(bad) = amounts.iter().find(|a| !a.is_finite()) {
+            return Err(PyValueError::new_err(format!("apply_merchant_transfers: amount {bad} is not finite")));
+        }
+        self.snapshot_cache = None; // the pool changes: drop the cached snapshot
+        Ok(crate::credit::apply_merchant_transfers(&mut self.pool, self.regions.len(), &region_ids, &amounts))
+    }
+
     /// Profiling only: when on, later ticks at 100,000 agents or more also
     /// time the (unused) Morton sort of the spatial step and report it as
     /// `get_spatial_diagnostics()["sort_time_us"]`. Off by default (the
@@ -644,6 +670,21 @@ impl AgentSimulator {
         let movement_news_intensity_col = rb
             .column_by_name("movement_news_intensity")
             .and_then(|c| c.as_any().downcast_ref::<arrow::array::UInt8Array>());
+        // Domestic credit: merchants' grievance toward a defaulting lord
+        // (absent when the switch is off = 0, no penalty).
+        let creditor_grievance_col = rb
+            .column_by_name("creditor_grievance")
+            .and_then(|c| c.as_any().downcast_ref::<arrow::array::Float32Array>());
+        if let Some(arr) = creditor_grievance_col {
+            for i in 0..arrow::array::Array::len(arr) {
+                let v = arr.value(i);
+                if !v.is_finite() || !(0.0..=1.0).contains(&v) {
+                    return Err(PyValueError::new_err(format!(
+                        "creditor_grievance row {i} must be in [0, 1], got {v}"
+                    )));
+                }
+            }
+        }
         // Merchant routing: the economy's demand and post-trade supply per
         // goods category (absent = 0: no non-food market, no food tally).
         const NC: usize = crate::economy::NUM_CATEGORIES;
@@ -840,6 +881,7 @@ impl AgentSimulator {
                     food_severe_turns: food_severe_turns_col.map_or(0, |arr| arr.value(i)),
                     harsh_rule: harsh_rule_col.map_or(0.0, |arr| arr.value(i)),
                     raided_this_turn: raided_col.map_or(false, |arr| arr.value(i)),
+                    creditor_grievance: creditor_grievance_col.map_or(0.0, |arr| arr.value(i)),
                     // M58a: Per-good stockpile
                     stockpile: {
                         let mut s = [0.0f32; crate::economy::NUM_GOODS];
@@ -1054,6 +1096,7 @@ impl AgentSimulator {
                 r.food_severe_turns = food_severe_turns_col.map_or(0, |arr| arr.value(i));
                 r.harsh_rule = harsh_rule_col.map_or(0.0, |arr| arr.value(i));
                 r.raided_this_turn = raided_col.map_or(false, |arr| arr.value(i));
+                r.creditor_grievance = creditor_grievance_col.map_or(0.0, |arr| arr.value(i));
                 // M58a: Per-good stockpile
                 for (g, col) in stockpile_cols.iter().enumerate() {
                     if let Some(arr) = col {

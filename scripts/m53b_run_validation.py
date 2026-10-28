@@ -345,6 +345,14 @@ def _community_anchoring_args(args: argparse.Namespace) -> list[str]:
     return ["--community-anchoring" if anchoring else "--no-community-anchoring"]
 
 
+def _domestic_credit_args(args: argparse.Namespace) -> list[str]:
+    """Forward an explicit domestic-credit switch; omitted keeps the CLI default."""
+    credit = getattr(args, "domestic_credit", None)
+    if credit is None:
+        return []
+    return ["--domestic-credit" if credit else "--no-domestic-credit"]
+
+
 def _historiography_args(args: argparse.Namespace) -> list[str]:
     """Forward an explicit historiography switch; omitted keeps the CLI default."""
     historiography = getattr(args, "historiography", None)
@@ -413,6 +421,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_scholarship_args(args),
         *_grain_reserves_args(args),
         *_community_anchoring_args(args),
+        *_domestic_credit_args(args),
         *_historiography_args(args),
         *_languages_args(args),
         *_ablation_args(args),
@@ -457,6 +466,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_scholarship_args(args),
         *_grain_reserves_args(args),
         *_community_anchoring_args(args),
+        *_domestic_credit_args(args),
         *_historiography_args(args),
         *_languages_args(args),
         *_ablation_args(args),
@@ -473,8 +483,10 @@ def _determinism_manifest_args(args: argparse.Namespace, agents: str) -> argpars
     run_args.validation_sidecar = agents == "hybrid"
     if agents == "off":
         # Community anchoring acts in the agent decision: an aggregate run
-        # is not sent the switch (``_community_anchoring_args``).
+        # is not sent the switch (``_community_anchoring_args``); domestic
+        # credit lends merchant agents' wealth, likewise.
         run_args.community_anchoring = None
+        run_args.domestic_credit = None
     if (getattr(args, "worldgen", None) or "template") != "procedural":
         run_args.worldgen = run_args.regions = run_args.civs = None
     run_args.parallel = None
@@ -547,6 +559,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_grain_reserves_args(args))
         if agents != "off":
             cmd.extend(_community_anchoring_args(args))
+            cmd.extend(_domestic_credit_args(args))
         cmd.extend(_historiography_args(args))
         cmd.extend(_languages_args(args))
         _run(cmd, cwd, env)
@@ -951,6 +964,13 @@ def main() -> None:
              "(default: CLI default; docs/integration/community-anchoring.md).",
     )
     parser.add_argument(
+        "--domestic-credit",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Forward --domestic-credit/--no-domestic-credit to every agent-mode simulation run "
+             "(default: CLI default; docs/integration/domestic-credit.md).",
+    )
+    parser.add_argument(
         "--historiography",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -1112,6 +1132,7 @@ def main() -> None:
         "scholarship": args.scholarship,
         "grain_reserves": args.grain_reserves,
         "community_anchoring": args.community_anchoring,
+        "domestic_credit": args.domestic_credit,
         "historiography": args.historiography,
         "languages": args.languages,
         "ablation_oracles": arms_result is not None,

@@ -1077,6 +1077,7 @@ fn test_memory_satisfaction_inside_cap() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.20, // negative memory — should be absorbed (no budget)
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     let sat_no_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
@@ -1092,6 +1093,7 @@ fn test_memory_satisfaction_inside_cap() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     // Memory should have no effect when budget is fully consumed
@@ -1120,6 +1122,7 @@ fn test_memory_satisfaction_partial_budget() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     let sat_neg_mem = compute_satisfaction_with_culture(&SatisfactionInputs {
@@ -1135,6 +1138,7 @@ fn test_memory_satisfaction_partial_budget() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: -0.10, // negative memory
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     let diff = sat_no_mem - sat_neg_mem;
@@ -1163,6 +1167,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     // Positive memory = +0.05 should reduce the 0.10 cultural penalty
@@ -1179,6 +1184,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.05,
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     assert!(sat_pos_mem > sat_no_mem,
@@ -1200,6 +1206,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.50, // much larger than the 0.10 cultural penalty
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     // Should recover the full 0.10 cultural penalty but not more
@@ -1216,6 +1223,7 @@ fn test_memory_satisfaction_positive_reduces_penalty() {
         food_sufficiency: 1.0, merchant_margin: 0.0,
         memory_score: 0.0,
         is_urban: false,
+        creditor_grievance: 0.0,
     });
 
     // M-6 audit: positive memories now cap at 50% of accumulated penalty,

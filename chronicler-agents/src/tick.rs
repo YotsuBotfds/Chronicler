@@ -1584,6 +1584,7 @@ fn update_satisfaction(
                                 merchant_margin: region.merchant_margin,
                                 memory_score: crate::memory::compute_memory_satisfaction_score(pool_ref, slot),
                                 is_urban: pool_ref.settlement_ids[slot] != 0,
+                                creditor_grievance: if occ == 2 { region.creditor_grievance } else { 0.0 },
                             },
                         );
 
