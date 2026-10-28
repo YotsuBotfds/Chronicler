@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import errno
 import json
+import math
 import os
 import secrets
 import stat
@@ -27,11 +28,19 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _parse_finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ArtifactIOError("non-finite JSON number")
+    return number
+
+
 def strict_json_loads(text: str, *, label: str = "JSON") -> Any:
-    """Load JSON while rejecting NaN/Infinity and duplicate object keys."""
+    """Load JSON while rejecting non-finite numbers and duplicate object keys."""
     try:
         return json.loads(
             text,
+            parse_float=_parse_finite_float,
             parse_constant=_reject_constant,
             object_pairs_hook=_reject_duplicate_keys,
         )
