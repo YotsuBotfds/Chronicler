@@ -20,9 +20,25 @@ def _setup(mode="hybrid", enabled=True):
     from chronicler.world_gen import generate_world
     world = generate_world(seed=42, num_regions=12, num_civs=4)
     world.agent_mode = mode
+    # Controlled merchant market: stocked origins, a dear food destination and
+    # connected intra-civ routes. This is an FFI observation fixture, not a run.
+    owner = world.civilizations[0].name
+    world.civilizations[0].regions = [r.name for r in world.regions]
+    for civ in world.civilizations[1:]:
+        civ.regions = []
+    for region in world.regions:
+        region.controller = owner
+        region.stockpile.goods = {"grain": 50.0}
     if enabled:
         set_transaction_receipts_enabled(world, True)
-    return world, AgentBridge(world, mode=mode)
+    bridge = AgentBridge(world, mode=mode)
+    from chronicler.economy import EconomyResult
+    bridge._economy_result = EconomyResult(food_sufficiency={
+        r.name: 0.25 if i == len(world.regions)-1 else 2.0 for i, r in enumerate(world.regions)},
+        market_demand={r.name: (100.0, 0.0, 0.0, 0.0) for r in world.regions},
+        market_supply={r.name: (25.0 if i == len(world.regions)-1 else 200.0, 0.0, 0.0, 0.0)
+                       for i, r in enumerate(world.regions)})
+    return world, bridge
 
 
 def _tick(world, bridge, *, graph=True):
@@ -54,7 +70,8 @@ def test_enabled_receipts_preserve_native_events_pool_and_payload_every_tick(mod
         assert (source, limit, dropped, executed) == again[:4]
         assert rows.equals(again[4])
         assert source == b.turn - 1 and executed and dropped == 0
-        assert all(row["physical_stock"] == (mode == "hybrid") for row in rows.to_pylist())
+        from chronicler.columnar import pylist
+        assert all(value == (mode == "hybrid") for value in pylist(rows.column("physical_stock")))
         seen += rows.num_rows
     assert seen > 0, "the native fixture must exercise actual merchant observations"
     assert "transaction_receipts_limit" not in ba._sim.checkpoint_schema()[2]

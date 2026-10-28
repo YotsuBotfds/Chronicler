@@ -80,7 +80,16 @@ def capture_transaction_receipts(world, bridge) -> None:
     source_turn, limit, dropped, executed, batch = sim.get_transaction_receipt_frame()
     if source_turn is None:
         return  # Restored transient buffer: saved Python frame remains authoritative.
-    rows = batch.to_pylist() if hasattr(batch, "to_pylist") else list(batch)
+    if hasattr(batch, "to_pylist"):
+        rows = batch.to_pylist()
+    elif hasattr(batch, "column"):
+        # pyo3-arrow exports arro3 batches, which iterate columns, not rows.
+        from chronicler.columnar import pylist, schema_names
+        names = schema_names(batch)
+        columns = [pylist(batch.column(name)) for name in names]
+        rows = [dict(zip(names, row)) for row in zip(*columns)]
+    else:
+        rows = list(batch)
     consume_transaction_frame(world, source_turn, limit, dropped, executed, rows)
 
 

@@ -105,3 +105,38 @@ No full scientific gate for future metrology or insurance has been run or is
 implied. Introducing inspection fees requires an explicit native private cash
 payer/receiver contract; current merchant income is a regional delivered-margin
 share, so assessing per-trip fees here would invent an account boundary.
+
+## Dated focused evidence: 2026-10-28
+
+The receipt Rust source was frozen at `79432d08`. One-job focused Rust execution
+passed 7 receipt tests and 6 existing maritime tests; compilation took 32.60s.
+The already-built debug cdylib was copied to a separate import directory; the
+installed qualified health release was not replaced. Five fresh-debug FFI tests
+passed alongside 26 Python tests in 10.20s. A later dedicated columnar-capture
+regression brings the pure suite to 27 tests; the offline oracle guard also
+passed all 27 in 0.22s with no native imports or blocked I/O.
+
+The initial fresh-debug test exposed arro3 batch iteration yielding columns;
+capture now decodes through the project's existing columnar helpers. The FFI
+fixture explicitly provides stocked origins, a dear food destination and
+connected intra-civ routes, and requires nonempty actual merchant observations.
+It is a controlled market fixture, not a complete simulation study.
+
+Against the previously installed health release, all three simulator schemas
+and constructor payload bytes match. Default-off controls across six turns in
+each of hybrid, shadow and demographics-only modes also match per-turn native
+payload bytes, events, agent snapshots and WorldState JSON. These are 18
+controlled native frames, separate from full-run/scientific gates.
+
+- Health release extension SHA-256:
+  `e7ec77283075cb9b817ad47490fc98a3e77685451bbcd4ce8f5b8bcad9db5867`.
+- Receipt debug extension SHA-256:
+  `8ca80c2790485c7bbd73cd5cb3b39d0fa8705e20f5315a23e7c63e855fe899ba`.
+- Agent schema `dcf0c34097c88451`; ecology `4ab7f8c199b5e5f8`;
+  politics `b1a710f3450f5015`.
+
+The external evidence manifest records native source-file hashes, extension
+hashes, state/schema hashes and comparison outputs under
+`/workspace/chronicler-transaction-evidence`. No receipt release wheel or full
+qualification gate has been run. Independent read-only review found no further
+blocker after the raw-state/fresh-pool identity guard was added.

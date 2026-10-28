@@ -265,3 +265,18 @@ def test_fresh_pool_guard_rejects_even_empty_processed_journal_and_allows_explic
     T.validate_fresh_transaction_receipt_pool(world)
     T.set_transaction_receipts_enabled(world, True)
     T.validate_fresh_transaction_receipt_pool(world)
+
+
+def test_columnar_capture_handles_batches_that_iterate_columns():
+    world = _world()
+    rows = [_row(0), _row(7)]
+    class ColumnBatch:
+        schema = SimpleNamespace(names=list(rows[0]))
+        def column(self, name):
+            return SimpleNamespace(to_pylist=lambda: [row[name] for row in rows])
+        def __iter__(self):
+            raise AssertionError("an Arrow batch iterates columns, not observations")
+    sim = SimpleNamespace(get_transaction_receipt_frame=lambda: (10, 4096, 0, True, ColumnBatch()))
+    T.capture_transaction_receipts(world, sim)
+    assert len(world.transaction_receipts.frame) == 2
+    assert world.transaction_receipts.active[41].voyage_id == "seed:42:voyage:41:10"
