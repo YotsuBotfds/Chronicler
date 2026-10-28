@@ -306,11 +306,13 @@ class ReaderContracts(unittest.TestCase):
                 self.assertEqual(len(command), 5)
                 self.assertNotIn("--faith-ids", command)
                 self.assertNotIn("GITHUB_TOKEN", kwargs["env"])
+                self.assertEqual(kwargs["env"]["LD_LIBRARY_PATH"], "/fixture/runtime/lib")
                 kwargs["stdout"].write(text.encode())
                 return mock.Mock(returncode=0)
 
             with mock.patch.object(reader.subprocess, "run", side_effect=child), \
-                 mock.patch.dict(reader.os.environ, {"GITHUB_TOKEN": "fixture-read-token"}):
+                 mock.patch.dict(reader.os.environ, {"GITHUB_TOKEN": "fixture-read-token",
+                                                       "LD_LIBRARY_PATH": "/fixture/runtime/lib"}):
                 result = reader.run_compare(payload, candidate, output, counts)
             self.assertEqual(result["files_compared"], 9)
 

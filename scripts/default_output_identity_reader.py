@@ -434,7 +434,7 @@ def verify_cases(root, inventory, rows, helper, candidate):
 
 def run_compare(root, candidate, output, counts):
     log = output / "compare.log"
-    environment = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "LANG", "LC_ALL") if key in os.environ}
+    environment = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "LANG", "LC_ALL", "LD_LIBRARY_PATH") if key in os.environ}
     environment.update(PYTHONPATH=str(candidate / "src"), PYTHONDONTWRITEBYTECODE="1",
                        PYTHONNOUSERSITE="1", PYTHONHASHSEED="0")
     command = [sys.executable, str(candidate / "scripts/turn_speed_identity.py"), "compare",
