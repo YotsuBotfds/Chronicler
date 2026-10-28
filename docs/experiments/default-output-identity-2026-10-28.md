@@ -130,3 +130,13 @@ environment. It does not capture native checkpoint blobs, full Python/native RNG
 state, or internal per-turn objects. It is not exact-resume qualification, a
 performance benchmark, a world-benefit experiment, or permission to promote any
 held native optimization. Elapsed time is resource accounting, not a speed claim.
+
+## Activation record
+
+The first activation, control source `0bcb0114`, was rejected during GitHub
+workflow validation in [run 40785232375](https://github.com/YotsuBotfds/Chronicler/actions/runs/40785232375).
+It created no jobs and ran no contract tests, builds, or worlds. The workflow's
+job-level environment used the unavailable `runner` expression context.
+The corrected activation sets external environment/Cargo paths through a shell
+step and `GITHUB_ENV`. Cases, source commits, floors, budgets and acceptance
+criteria are unchanged. The failed activation remains a failure.

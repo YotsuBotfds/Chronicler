@@ -31,9 +31,12 @@ jobs:
       RAYON_NUM_THREADS: "1"
       PYTHON_CPU_COUNT: "1"
       CARGO_BUILD_JOBS: "1"
-      UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/default-identity-env
-      CARGO_TARGET_DIR: ${{ runner.temp }}/default-identity-cargo
     steps:
+      - name: Set external task paths
+        shell: bash
+        run: |
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/default-identity-env" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/default-identity-cargo" >> "$GITHUB_ENV"
       - name: Check out qualification controls
         uses: actions/checkout@v4
         with:
