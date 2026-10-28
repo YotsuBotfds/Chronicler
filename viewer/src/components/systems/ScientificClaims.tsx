@@ -52,15 +52,15 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
         <tbody>{record.propositions.map((row) => <tr key={row.id}><td>{row.id} {eventLink(row.event_id, "Proposal event")}</td><td>{row.recipe}</td><td>{row.proposed_turn ?? "Date not recorded"} / {seatName(row.origin_seat)}</td>
           <td>{scientificContext(row.context)}</td><td>{percent(row.threshold)} relative grain output</td></tr>)}</tbody>
       </table></div>}
-    <h4>Local confidence and received evidence</h4>
-    <p className="systems-note">Dependence groups deduplicate source blocks in the policy's evidence accounting. Their count does not establish independent world units or replication quality. A seat with no applicable received evidence retains the prior score.</p>
+    <h4>Current-context policy confidence</h4>
+    <p className="systems-note">Dependence groups deduplicate source blocks in the policy's evidence accounting. Their count does not establish independent world units or replication quality. A seat with no applicable received evidence retains the prior score. Archived receipts can remain when a change of season, ecology or climate makes their proposition inapplicable to the current policy.</p>
     {record.beliefs.length === 0 ? <p className="systems-note">No local belief observation recorded.</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Scientific beliefs at snapshot ${at}`}>
-        <thead><tr><th>Seat</th><th>Region</th><th>Ruler then</th><th>Claim</th><th>Local confidence</th><th>Dependence groups</th><th>Last evidence received</th></tr></thead>
+        <thead><tr><th>Seat</th><th>Region</th><th>Ruler then</th><th>Claim</th><th>Local confidence</th><th>Dependence groups</th><th>Last evidence used by policy</th></tr></thead>
         <tbody>{record.beliefs.map((row) => <tr key={`${row.seat}:${row.claim}`}><td>{row.seat_name}</td>
           <td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.region_name)}>{row.region_name}</button></td>
           <td>{row.owner_name ? <button type="button" className="systems-link" onClick={() => onSelectCivilization(row.owner_name!)}>{row.owner_name}</button> : "No ruler recorded"}</td>
-          <td>{row.claim}</td><td>{percent(row.confidence)}</td><td>{row.independent_groups}</td><td>{row.last_evidence_turn ?? "None recorded"} {eventLink(row.last_evidence_event_id, "Evidence event")}</td></tr>)}</tbody>
+          <td>{row.claim}</td><td>{percent(row.confidence)}</td><td>{row.independent_groups}</td><td>{row.last_evidence_turn ?? "None applicable"} {eventLink(row.last_evidence_event_id, "Evidence event")}</td></tr>)}</tbody>
       </table></div>}
     <h4>Paid adoption allocations in simulation turn {record.source_turn}</h4>
     <p className="systems-note">Actual treasury paid this completed turn: {show(record.allocations.reduce((sum, row) => sum + row.paid, 0))}. The whole seat payment is recorded on its first allocation row; a zero on another recipe is not a separate free programme.</p>

@@ -37,6 +37,17 @@ describe("recorded academy claims and evidence inspector", () => {
     expect(within(history).queryByText(/13 \/ 14/)).not.toBeInTheDocument();
   });
 
+  it("distinguishes archived receipts from evidence currently used by policy", () => {
+    const p = props(7);
+    expect(p.snapshot.scientific_claims!.evidence_receipts).toBeGreaterThan(0);
+    expect(p.snapshot.scientific_claims!.beliefs.every((row) => row.last_evidence_turn == null && row.independent_groups === 0)).toBe(true);
+    render(<ScientificClaims {...p} />);
+    const table = screen.getByRole("table", { name: "Scientific beliefs at snapshot 7" });
+    expect(within(table).getByRole("columnheader", { name: "Last evidence used by policy" })).toBeInTheDocument();
+    expect(within(table).getAllByText("None applicable")).toHaveLength(p.snapshot.scientific_claims!.beliefs.length);
+    expect(screen.getByText(/Archived receipts can remain/)).toBeInTheDocument();
+  });
+
   it("labels sham measurements and withholds future evidence including totals", () => {
     const p = props(2); p.snapshot.scientific_claims!.controls.uninformative_tests = true;
     const view = render(<ScientificClaims {...p} />);

@@ -14,6 +14,10 @@ and resolved trial. Confidence is an institutional policy score, not universal
 truth. The dependence-group count does not qualify independent world units.
 Sham controls produce measurements with no treatment information and still use
 ordinary posterior updates; withholding information is a separate control.
+Belief confidence/groups and the last evidence used are current-context policy
+values. A seasonal/ecological/climate mismatch can return the prior and no
+currently applicable evidence while older receipts remain archived. The table
+does not describe this as forgetting or absence of all historical receipts.
 
 Trial calculations and noisy measurements have separate labels. A resolution
 is not added grain harvest or proof of a world effect. Cancelled/failed records
@@ -60,5 +64,8 @@ trial totals and actual allocation payments at snapshots 1, 2, 7, 13, 14, 25,
 cutoffs in feeds and pinned headers/body; and verified missing/legacy history
 with copies that removed observations. Both viewports had no console/page
 errors or document/section overflow, including expanded trial provenance. Wide
-tables scroll internally. This browser lane is distinct from the full viewer
-suite, which is scheduled after the shared benchmark window.
+tables scroll internally. After the shared benchmark window, the full viewer
+suite passed all 680 tests across 65 files with one worker (159.74 seconds),
+followed by ESLint, the production build and a repeated desktop/mobile science
+browser pass. That final source includes the explicit distinction between
+archived receipts and evidence used by current-context policy.
