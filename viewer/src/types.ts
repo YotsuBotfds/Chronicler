@@ -3,6 +3,7 @@ export type {
   HarvestForecastReport, HarvestForecastSnapshot, HarvestPreparedness, HealthCareRegion, HealthCareSnapshot,
   RitualGatheringOutcome, RitualGatheringSchedule, RitualGatheringsSnapshot,
   ScientificAllocation, ScientificBelief, ScientificClaimsSnapshot, ScientificContext, ScientificProposition, ScientificTrial,
+  ScientificResearchAgendas, ScientificResearchCycle, ResearchCapacityKey,
   TransactionReceiptsSnapshot,
 } from "./expansionTypes";
 export type { NativeTransactionObservation, PublicPurchaseFrame, PublicPurchaseObservation } from "./transactionTypes";

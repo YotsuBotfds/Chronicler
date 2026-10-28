@@ -105,8 +105,8 @@ describe("a turn before the first snapshot", () => {
 describe("dated records on the map and in the inspector", () => {
   const region = base.world_state.regions[0];
 
-  it("navigates an experimental receipt to its containing snapshot and hides it when scrubbing back", () => {
-    const receipt: Event = { turn: 10, event_type: "harvest_preparedness", event_id: "receipt", actors: [],
+  it.each(["harvest_preparedness", "scientific_research_agenda_opened", "scientific_research_agenda_closed", "scientific_research_capacity_blocked"])("navigates %s to its containing snapshot and hides it when scrubbing back", (kind) => {
+    const receipt: Event = { turn: 10, event_type: kind, event_id: "receipt", actors: [],
       importance: 3, description: "Actual purchases recorded after tick ten.", consequences: [] };
     const bundle = { ...base, events_timeline: [receipt] };
     const onSeek = vi.fn();

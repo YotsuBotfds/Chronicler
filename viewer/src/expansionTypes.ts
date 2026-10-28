@@ -132,6 +132,11 @@ export interface ScientificProposition {
   threshold: number;
   proposed_turn?: number;
   event_id?: string;
+  /** Full canonical protocol is recorded only by finite research agendas. */
+  metric?: string;
+  comparator?: number;
+  intervention?: number;
+  horizon?: number;
 }
 
 export interface ScientificBelief {
@@ -184,6 +189,60 @@ export interface ScientificAllocation {
   /** Whole seat expense appears on its first row; other rows carry zero. */
   paid: number;
   event_id?: string;
+  /** Actual topic used at payment, independent of later end-turn beliefs. */
+  claim_id?: number | null;
+}
+
+export interface ScientificResearchCycle {
+  id: number;
+  legacy_adopted: boolean;
+  opening_roster_complete: boolean;
+  opened_turn: number | null;
+  origin_seat: number;
+  participants: number[];
+  claims: number[];
+  trials: number[];
+  announcement_event_id: string;
+  closed_turn: number | null;
+  close_reason: string;
+  unfunded_originals: number[];
+  unfunded_replications: number[];
+  slot_reasons: Record<string, string>;
+  original_deadline: number | null;
+  funding_deadline: number | null;
+  next_open_not_before: number | null;
+  opening_roster_scope: "observed_at_legacy_activation" | "frozen_at_actual_opening";
+}
+
+export type ResearchCapacityKey = "topics" | "trials" | "proposals" | "receipts" | "messages" | "cycles" | "seats";
+
+export interface ScientificResearchAgendas {
+  schema_version: 1;
+  rule: "finite-retained-v1";
+  enabled: boolean;
+  enabled_turn: number;
+  current_cycle_id: number | null;
+  next_open_turn: number;
+  opening_interval: 25;
+  funding_window: 24;
+  original_window: 12;
+  effort_started_turn: number | null;
+  effort_cadence: 6;
+  paid_use_seasons: number[];
+  origin_cursor: number;
+  blocked_reason: string;
+  blocked_turn: number | null;
+  capacity: Record<ResearchCapacityKey, { used: number; reserved: number; limit: number }>;
+  archive: {
+    retained_topics: number;
+    retained_trials: number;
+    retained_proposals: number;
+    retained_receipts: number;
+    raw_records_retained: true;
+    trial_details_scope: "resolved_this_source_turn_only";
+    historical_export_completeness: "not_inferred";
+  };
+  cycles: ScientificResearchCycle[];
 }
 
 export interface ScientificClaimsSnapshot {
@@ -208,6 +267,8 @@ export interface ScientificClaimsSnapshot {
   beliefs: ScientificBelief[];
   trials_resolved: ScientificTrial[];
   allocations: ScientificAllocation[];
+  /** Absent legacy metadata preserves the single-cohort reader behavior. */
+  research_agendas?: ScientificResearchAgendas;
 }
 
 export type { TransactionReceiptsSnapshot } from "./transactionTypes";

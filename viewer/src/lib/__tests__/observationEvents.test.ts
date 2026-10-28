@@ -5,7 +5,8 @@ import { eventSnapshotTurn, observationEventKnown } from "../observedSystems";
 const kinds = ["occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered",
   "harvest_forecast_resolved", "harvest_preparedness", "harvest_gathering_held", "harvest_gathering_cancelled",
   "scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed", "scientific_trial_cancelled",
-  "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated"];
+  "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated",
+  "scientific_research_agenda_opened", "scientific_research_agenda_closed", "scientific_research_capacity_blocked"];
 const event = (event_type: string, turn: number, id: string, actors = ["Old realm"], causes: string[] = []) =>
   ({ event_type, turn, event_id: id, actors, causes });
 

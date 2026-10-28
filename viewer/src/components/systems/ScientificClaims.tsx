@@ -4,6 +4,8 @@ import { scientificClaimsSeries, scientificContext, scientificPublication, scien
 import { eventByKey } from "../../lib/bundleIndex";
 import { eventsOfTypes, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, SystemEventList } from "./SystemParts";
+import { researchAgendasAt } from "../../lib/researchAgendas";
+import { ResearchAgendas } from "./ResearchAgendas";
 
 const show = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const percent = (n: number) => `${show(100 * n)}%`;
@@ -15,11 +17,14 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
   const [expanded, setExpanded] = useState(false);
   const at = snapshot?.turn ?? currentTurn;
   const record = observationAt(snapshot, "scientific_claims");
+  const raw = snapshot?.scientific_claims;
+  const agenda = raw && raw.source_turn === snapshot!.turn - 1 ? researchAgendasAt(raw) : null;
   const history = useMemo(() => scientificTrials(bundle.history, at), [bundle.history, at]);
   const series = useMemo(() => scientificClaimsSeries(bundle.history, at), [bundle.history, at]);
   if (!hasObservation(bundle.history, "scientific_claims")) return null;
   if (!record) return <section className="systems-section" aria-label="Academy claims and evidence">
     <h3>Academy claims and evidence</h3><p className="systems-note">No usable scientific-claims observation at turn {currentTurn}. Missing, stale or future-dated evidence leaves local confidence, trials and spending unknown.</p>
+    {agenda?.status === "unknown" && <p className="systems-note">Present research-agenda metadata is unsupported, incomplete or inconsistent. Its contents and science totals are withheld; archive completeness is unknown.</p>}
   </section>;
   const visible = expanded ? history : history.slice(0, HISTORY_LIMIT);
   const publication = scientificPublication(record.publication_rule);
@@ -34,10 +39,11 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
   };
   return <section className="systems-section" aria-label="Academy claims and evidence">
     <h3>Academy claims and evidence · snapshot {at}</h3>
-    <p className="systems-note">Recorded after simulation turn {record.source_turn}. {record.active ? "The pilot is active." : "The pilot is enabled but dormant."} Confidence is a local policy score for a contextual proposition, not a probability that a technique is universally true. Information allocates ordinary paid adoption effort; it does not directly change yields.</p>
+    <p className="systems-note">Recorded after simulation turn {record.source_turn}. {agenda?.status === "known" ? (record.active ? "Academy science is active." : "Academy science is enabled but dormant.") : (record.active ? "The pilot is active." : "The pilot is enabled but dormant.")} Confidence is a local policy score for a contextual proposition, not a probability that a technique is universally true. Information allocates ordinary paid adoption effort; it does not directly change yields.</p>
     <p className="systems-note" aria-label="Scientific publication policy"><strong>Publication policy at this snapshot: {publication.label}.</strong> {publication.detail}</p>
+    {agenda?.status === "known" && <ResearchAgendas record={agenda.record} source={record.source_turn} eventLink={eventLink} />}
     <div className="systems-tiles">
-      <StatTile label="Propositions" value={record.claims} detail={`${record.seats} participating seats`} />
+      <StatTile label="Propositions" value={record.claims} detail={`${record.seats} ${agenda?.status === "known" ? "lifetime enrolled" : "participating"} seats`} />
       <StatTile label="Completed trials" value={record.completed} detail={`${record.cancelled} cancelled; ${record.failed} failed`} />
       <StatTile label="Trial spending" value={record.trial_spent} detail="actual treasury paid so far" />
       <StatTile label="Adoption effort spending" value={record.effort_spent} detail="actual treasury paid so far" />
@@ -47,12 +53,12 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
     <p className="systems-note">Controls: information {record.controls.withhold_information ? "withheld" : "available"}; transmission {record.controls.transmission_enabled ? "enabled" : "disabled"}; {record.controls.uninformative_tests ? "sham measurements with no treatment information" : "ordinary noisy measurements"}. Sham measurements still undergo ordinary posterior updates.</p>
     <CivLineChart data={series} civs={["Trial spending", "Adoption effort spending"]}
       color={(name) => name === "Trial spending" ? "#9a7fc4" : "#5aa88f"} currentTurn={at} label="Recorded scientific spending over time" step />
-    <h4>Contextual propositions</h4>
+    <h4>{agenda?.status === "known" ? "Retained canonical topics" : "Contextual propositions"}</h4>
     {record.propositions.length === 0 ? <p className="systems-note">No proposition recorded.</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Scientific propositions at snapshot ${at}`}>
         <thead><tr><th>Claim</th><th>Recipe</th><th>Proposed / origin seat</th><th>Registered context</th><th>Support threshold</th></tr></thead>
         <tbody>{record.propositions.map((row) => <tr key={row.id}><td>{row.id} {eventLink(row.event_id, "Proposal event")}</td><td>{row.recipe}</td><td>{row.proposed_turn ?? "Date not recorded"} / {seatName(row.origin_seat)}</td>
-          <td>{scientificContext(row.context)}</td><td>{percent(row.threshold)} relative grain output</td></tr>)}</tbody>
+          <td>{scientificContext(row.context)}{agenda?.status === "known" && <div>Metric: {row.metric}; comparator / intervention: {row.comparator} / {row.intervention}; horizon: {row.horizon} turn.</div>}</td><td>{percent(row.threshold)} relative grain output</td></tr>)}</tbody>
       </table></div>}
     <h4>Current-context policy confidence</h4>
     <p className="systems-note">Dependence groups deduplicate source blocks in the policy's evidence accounting. Their count does not establish independent world units or replication quality. A seat with no applicable received evidence retains the prior score. Archived receipts can remain when a change of season, ecology or climate makes their proposition inapplicable to the current policy.</p>
@@ -66,12 +72,13 @@ export function ScientificClaims({ bundle, snapshot, currentTurn, onSeek, onSele
       </table></div>}
     <h4>Paid adoption allocations in simulation turn {record.source_turn}</h4>
     <p className="systems-note">Actual treasury paid this completed turn: {show(record.allocations.reduce((sum, row) => sum + row.paid, 0))}. The whole seat payment is recorded on its first allocation row; a zero on another recipe is not a separate free programme.</p>
+    {agenda?.status === "known" && <p className="systems-note">The topic and confidence below were used when payment occurred. Later delivery or publication can change the end-turn confidence above without changing that earlier allocation.</p>}
     {record.allocations.length === 0 ? <p className="systems-note">No paid allocation recorded this completed turn.</p> :
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Scientific allocations at snapshot ${at}`}>
-        <thead><tr><th>Seat</th><th>Region</th><th>Recipe</th><th>Effort share</th><th>Confidence used</th><th>Treasury paid</th></tr></thead>
+        <thead><tr><th>Seat</th><th>Region</th><th>Recipe</th>{agenda?.status === "known" && <th>Topic used at payment</th>}<th>Effort share</th><th>Confidence used</th><th>Treasury paid</th></tr></thead>
         <tbody>{record.allocations.map((row, i) => <tr key={`${row.seat}:${row.recipe}:${i}`}><td>{seatName(row.seat)}</td>
           <td>{regionName(row.region) ? <button type="button" className="systems-link" onClick={() => onSelectRegion(regionName(row.region)!)}>{regionName(row.region)}</button> : `Region ${row.region}`}</td>
-          <td>{row.recipe}</td><td>{percent(row.share)}</td><td>{percent(row.confidence)}</td><td>{row.paid} {eventLink(row.event_id, "Allocation event")}</td></tr>)}</tbody>
+          <td>{row.recipe}</td>{agenda?.status === "known" && <td>{row.claim_id ?? "Unknown at legacy activation"}</td>}<td>{percent(row.share)}</td><td>{percent(row.confidence)}</td><td>{row.paid} {eventLink(row.event_id, "Allocation event")}</td></tr>)}</tbody>
       </table></div>}
     <h4>Dated trial resolutions</h4>
     <p className="systems-note">Only resolutions saved by this snapshot appear below. Trial calculations use a fixed crew; their outputs are not added harvest. Noisy measured outputs and support classifications are distinct from the modelled trial outputs. Cancelled and failed trials have no completed measurement here.</p>

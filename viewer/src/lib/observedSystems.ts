@@ -1,9 +1,11 @@
 import type { HarvestForecastSnapshot, RitualGatheringsSnapshot, ScientificClaimsSnapshot, TurnSnapshot } from "../types";
+import { researchAgendasAt } from "./researchAgendas";
 
 export type ObservationKey = "health_care" | "harvest_forecasts" | "ritual_gatherings" | "scientific_claims";
 
 export const SCIENTIFIC_EVENT_TYPES = ["scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed",
-  "scientific_trial_cancelled", "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated"] as const;
+  "scientific_trial_cancelled", "scientific_trial_failed", "scientific_evidence_received", "scientific_adoption_allocated",
+  "scientific_research_agenda_opened", "scientific_research_agenda_closed", "scientific_research_capacity_blocked"] as const;
 
 const OBSERVATION_EVENT_TYPES = new Set([
   "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered", "harvest_forecast_resolved",
@@ -46,6 +48,7 @@ function evidenceKnown(record: NonNullable<TurnSnapshot[ObservationKey]>, key: O
   }
   if (key === "scientific_claims") {
     const science = record as ScientificClaimsSnapshot;
+    if (researchAgendasAt(science).status === "unknown") return false;
     if (!Array.isArray(science.propositions) || !Array.isArray(science.beliefs) || !Array.isArray(science.trials_resolved)) return false;
     return science.propositions.every((row) => row && (row.proposed_turn == null || knownTurn(row.proposed_turn, source)))
       && science.beliefs.every((row) => row && (row.last_evidence_turn == null || knownTurn(row.last_evidence_turn, source)))
