@@ -38,6 +38,15 @@
 
 ## Dev-lead integration for cross-examination (2026-10-28)
 
+Finite research follow-up: retained knowledge now binds lazily to its original
+scholarship registry and immutable academy births; scholarship off/on cannot
+give old receipts to a new seat with a reused index. Absent-host dormancy/pause
+retains the archive, and present replacement hosts reject before cached grants
+or payments. Focused guarded coverage: 269 passed, 2 skipped; twenty legacy raw
+JSON/pickle artifacts match frozen b257 exactly. This remains default-off,
+bounded mechanical evidence; shared CLI/native composition is still pending.
+See [the research integration record](../../integration/scientific-research-agendas.md).
+
 The branch contains the original PR #68 ancestry and historical unknown-value
 fixes, public granary snapshots and Food-tab inspection, default-off
 capacity-aware aggregate refugees, scholarship recovery guards, read-only

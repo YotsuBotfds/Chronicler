@@ -103,3 +103,42 @@ These are bounded controlled Python mechanics and compatibility proofs. They
 do not qualify natural recurrence, native composition, scientific efficacy or
 default activation. The known two-season paid-use gap and finite storage/
 institution limits remain as registered; no threshold was tuned from outcomes.
+
+## Scholarship registry identity boundary
+
+Research activation now lazily binds the plan to its actual scholarship
+registry and retains up to twenty immutable enrolled academy birth records.
+The deterministic seal uses declared world/activation/birth data, without
+simulation RNG, UUIDs or process identity. It is a producer identity boundary,
+not authentication. Scholarship reset creates an unsealed registry; retained
+science never binds itself to that replacement, including when a newly reused
+seat zero has identical founding fields. Changed enrolled births also reject
+before guards, cached grants or payments. Fall, level, scholars and current
+lord remain mutable circumstances, not identity. Ordinary admission appends
+one new birth record with its new seat index.
+
+The original host can be restored through nested JSON, Python pickle or deep
+copy. An absent host leaves science dormant and permits an explicit research
+pause without deleting knowledge; enabling paid research again requires the
+original host. A present replacement registry fails closed. The snapshot v1
+shape is unchanged by this internal persisted identity metadata.
+
+**269 focused guarded checks passed, 2 skipped, in 9.26 seconds**, including
+the existing scholarship, science/publication/experiment suites and identity
+counterexamples. The guard loaded no native modules and blocked no I/O; the
+scholarship suite made six ecology and six politics Python-oracle factory
+calls. A smaller state/mechanics selection passed 84 checks in 1.81 seconds
+without those runtime calls.
+
+The frozen b257 raw-byte probe was repeated after changing ScholarshipState's
+base to the same lazy serialization wrapper. All sixteen prior files remained
+exact. Standalone empty/seeded scholarship JSON and pickle added four exact
+files, for **twenty raw artifacts** without stripping. Empty scholarship pickle
+is 483 bytes, SHA-256
+`d37e707c3685353827bec1f91ea1c059315a263f4b908aaca0c07a72fb4fa5a3`.
+The four-file scholarship manifest SHA-256 is
+`917b705c2a5ce635a612333861ab9f36cc9915767c37ba00d54f2bc49809cafd`;
+the external probe SHA-256 is
+`d94ad72090574924ec13cff88345176b5521b862b10da440b454dae1817b9244`.
+The evidence root retains `b257-frozen-scholarship` and the three new
+`host-bound-legacy-*` folders alongside earlier unchanged probes.

@@ -7,6 +7,7 @@ import pickle
 import pytest
 
 from chronicler.models import WorldState
+from chronicler.scholarship_state import ScholarshipState
 from chronicler.scientific_claims_state import AdoptionEffort, ProposalReceipt, ScienceMessage, ScientificClaimsState
 from chronicler.scientific_research_state import ResearchAgendas, ResearchCycle
 from test_scientific_claims import _world
@@ -14,7 +15,8 @@ from test_scientific_claims import _world
 
 def _plan():
     return ResearchAgendas(schema_version=1, rule="finite-retained-v1", enabled=True,
-        enabled_turn=0, next_open_turn=25, origin_cursor=-1, cycles=[], blocked_reason="", blocked_turn=None)
+        enabled_turn=0, next_open_turn=25, origin_cursor=-1, cycles=[], blocked_reason="", blocked_turn=None,
+        host_seal="0" * 64, academy_births=[])
 
 
 def _state():
@@ -25,6 +27,7 @@ def _state():
 
 @pytest.mark.parametrize("factory,name", [
     (ScientificClaimsState, "research_agendas"),
+    (ScholarshipState, "scientific_research_identity"),
     (lambda: ProposalReceipt(seat=0, claim=0, received_turn=0), "agenda_id"),
     (lambda: ScienceMessage(kind="proposal", record=0, sender=0, recipient=1,
                            sent_turn=0, delivery_turn=1, expires_turn=6, hops=1), "agenda_id"),
@@ -158,3 +161,9 @@ def test_allocation_topic_is_lazy_and_old_missing_identity_is_unknown_not_zero()
     old._set_research_value(0)
     restored = AdoptionEffort.model_validate_json(old.model_dump_json())
     assert restored.claim_id == 0 and restored.model_dump()["claim_id"] == 0
+
+
+@pytest.mark.parametrize("bad", [None, {}, {"schema_version": 1, "seal": "bad"}])
+def test_present_invalid_research_host_identity_never_means_unbound(bad):
+    with pytest.raises(ValueError):
+        ScholarshipState.model_validate({"scientific_research_identity": bad})

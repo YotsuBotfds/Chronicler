@@ -12,6 +12,25 @@ OPENING_INTERVAL = 25
 ORIGINAL_WINDOW = 12
 
 
+class ResearchSeatBirth(BaseModel):
+    """Immutable founding fields, never a current living/context predicate."""
+    model_config = ConfigDict(extra="forbid", strict=True, revalidate_instances="always")
+
+    seat: int = Field(ge=0)
+    region: int = Field(ge=0)
+    kind: Literal[0]
+    founded_turn: int
+    founder: int
+    name: str
+
+
+class ResearchHostIdentity(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, revalidate_instances="always")
+
+    schema_version: Literal[1]
+    seal: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class ResearchCycle(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, validate_assignment=True,
                               revalidate_instances="always")
@@ -59,6 +78,8 @@ class ResearchAgendas(BaseModel):
     cycles: list[ResearchCycle] = Field(max_length=MAX_CYCLES)
     blocked_reason: str
     blocked_turn: int | None
+    host_seal: str = Field(pattern=r"^[0-9a-f]{64}$")
+    academy_births: list[ResearchSeatBirth] = Field(max_length=20)
 
     @model_validator(mode="after")
     def cycle_ids(self):

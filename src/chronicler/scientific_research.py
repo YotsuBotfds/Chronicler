@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
+import json
 import math
 
 from chronicler import scientific_claims as C
@@ -11,7 +13,7 @@ from chronicler.scientific_claims_state import (
 )
 from chronicler.scientific_research_state import (
     FUNDING_WINDOW, MAX_CYCLES, OPENING_INTERVAL, ORIGINAL_WINDOW,
-    ResearchAgendas, ResearchCycle,
+    ResearchAgendas, ResearchCycle, ResearchHostIdentity, ResearchSeatBirth,
 )
 
 
@@ -28,7 +30,40 @@ def _audience(state, cycle):
     return state.seat_ids if cycle.legacy_adopted else cycle.participants
 
 
-def validate_state(world, plan=None):
+def _seat_birth(seat_id, seat):
+    return ResearchSeatBirth(seat=seat_id, region=seat.region, kind=seat.kind,
+        founded_turn=seat.founded_turn, founder=seat.founder, name=seat.name)
+
+
+def _host_seal(world):
+    """Deterministic source identity; no simulation RNG or process identities."""
+    data = dict(rule="research-host-v1", seed=world.seed, activated_turn=world.turn,
+        cohort=world.scientific_claims.cohort,
+        births=[dict(seat=i, region=s.region, kind=s.kind, founded_turn=s.founded_turn,
+                     founder=s.founder, name=s.name) for i, s in enumerate(world.scholarship.seats)])
+    return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _validate_host(world, plan, *, candidate_host=False, allow_absent_host=False):
+    state = world.scientific_claims
+    births = {birth.seat: birth for birth in plan.academy_births}
+    if [birth.seat for birth in plan.academy_births] != state.seat_ids:
+        raise ValueError("retained academy births do not match enrolled identities")
+    if not C.scholarship_on(world):
+        if allow_absent_host:
+            return births
+        raise ValueError("retained research requires its original scholarship registry")
+    identity = world.scholarship.scientific_research_identity
+    if not candidate_host and (identity is None or identity.seal != plan.host_seal):
+        raise ValueError("scholarship registry does not match retained research host")
+    for seat_id, birth in births.items():
+        if not 0 <= seat_id < len(world.scholarship.seats) or birth != _seat_birth(
+                seat_id, world.scholarship.seats[seat_id]):
+            raise ValueError("enrolled academy birth changed beneath retained research")
+    return births
+
+
+def validate_state(world, plan=None, *, candidate_host=False, allow_absent_host=False):
     """Reject unsupported archives before any guard, money or state mutation."""
     state = world.scientific_claims
     plan = state.research_agendas if plan is None else plan
@@ -36,6 +71,8 @@ def validate_state(world, plan=None):
         raise ValueError("research archive validation requires explicit agenda state")
     ResearchAgendas.model_validate(plan, strict=True)
     try:
+        births = _validate_host(world, plan, candidate_host=candidate_host,
+                                allow_absent_host=allow_absent_host)
         for name in ("trial_spent", "effort_spent", "cancelled", "failed", "expired_messages",
                      "withheld_results", "unfunded_trials", "unfunded_effort"):
             if type(getattr(state, name)) is not int or getattr(state, name) < 0:
@@ -60,7 +97,7 @@ def validate_state(world, plan=None):
                 or len(state.reported_allocations) > MAX_SEATS):
             raise ValueError("retained research archive exceeds its row capacity")
         if len(set(state.seat_ids)) != len(state.seat_ids) or any(
-                type(s) is not int or not 0 <= s < len(world.scholarship.seats) for s in state.seat_ids):
+                type(s) is not int or s not in births for s in state.seat_ids):
             raise ValueError("invalid retained academy identity")
         if [c.id for c in state.claims] != list(range(len(state.claims))):
             raise ValueError("canonical topic IDs must be append-only")
@@ -161,7 +198,7 @@ def validate_state(world, plan=None):
         for allocation in state.last_effort:
             if (type(allocation.seat) is not int or allocation.seat not in state.seat_ids or type(allocation.region) is not int
                     or not 0 <= allocation.region < len(world.regions)
-                    or allocation.region != world.scholarship.seats[allocation.seat].region
+                    or allocation.region != births[allocation.seat].region
                     or allocation.recipe not in C.RECIPES
                     or type(allocation.paid) is not int or allocation.paid not in (0, 1)
                     or any(type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1
@@ -285,13 +322,17 @@ def set_research_agendas_enabled(world, enabled: bool):
     state = getattr(world, "scientific_claims", None)
     if not enabled and (state is None or state.research_agendas is None):
         return
-    if not C.scientific_claims_active(world):
+    if state is None:
         raise ValueError("research agendas require enabled science, scholarship and techniques")
     plan = state.research_agendas
     if plan is not None:
-        validate_state(world, plan)
+        validate_state(world, plan, allow_absent_host=not enabled)
+        if enabled and not C.scientific_claims_active(world):
+            raise ValueError("research agendas require enabled science, scholarship and techniques")
         plan.enabled = enabled
         return
+    if not C.scientific_claims_active(world):
+        raise ValueError("research agendas require enabled science, scholarship and techniques")
     cycles = []
     if state.claims:
         if len(state.claims) != 2:
@@ -304,8 +345,12 @@ def set_research_agendas_enabled(world, enabled: bool):
             unfunded_replications=[], slot_reasons={}))
     plan = ResearchAgendas(schema_version=1, rule="finite-retained-v1", enabled=True,
         enabled_turn=world.turn, next_open_turn=world.turn + OPENING_INTERVAL if cycles else world.turn,
-        origin_cursor=cycles[0].origin_seat if cycles else -1, cycles=cycles, blocked_reason="", blocked_turn=None)
-    validate_state(world, plan)
+        origin_cursor=cycles[0].origin_seat if cycles else -1, cycles=cycles, blocked_reason="", blocked_turn=None,
+        host_seal=_host_seal(world), academy_births=[_seat_birth(i, world.scholarship.seats[i])
+                                                  for i in state.seat_ids])
+    validate_state(world, plan, candidate_host=True)
+    identity = ResearchHostIdentity(schema_version=1, seal=plan.host_seal)
+    world.scholarship._set_research_value(identity)
     state._set_research_value(plan)
 
 
@@ -549,7 +594,9 @@ def tick_research_agendas(world, acc, plan):
         if len(state.seat_ids) >= MAX_SEATS:
             break
         if seat not in state.seat_ids and C._academy(world, seat) is not None:
+            birth = _seat_birth(seat, world.scholarship.seats[seat])
             state.seat_ids.append(seat)
+            plan.academy_births.append(birth)
     C._finish_trials(world, events)
     _receive(world, plan, events)
     for cycle in plan.cycles:

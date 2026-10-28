@@ -52,6 +52,79 @@ def test_research_goes_beyond_four_trials_with_stable_topics_and_retained_knowle
     assert len(C.snapshot_summary(world)["beliefs"]) <= 4
 
 
+@pytest.mark.parametrize("entry", [C.tick_scientific_claims, C.prepare_adoption_effort,
+    lambda w: C.confidence(w, 0, 0), lambda w: set_research_agendas_enabled(w, True)])
+@pytest.mark.parametrize("same_birth", [True, False])
+def test_reset_host_never_inherits_archive_at_reused_seat_zero(entry, same_birth):
+    from chronicler.scholarship import set_scholarship_enabled
+    world = research_world()
+    advance(world, 0, 13)  # cached paid grants and real retained local receipts
+    old_seats = deepcopy(world.scholarship.seats)
+    old_receipts = [r.model_dump() for r in world.scientific_claims.receipts]
+    set_scholarship_enabled(world, False)
+    set_scholarship_enabled(world, True)
+    world.scholarship.seats.extend(old_seats)
+    if not same_birth:
+        world.scholarship.seats[0].founded_turn = world.turn
+        world.scholarship.seats[0].name = "Replacement academy"
+    assert world.scholarship.scientific_research_identity is None
+    before = pickle.dumps(world, protocol=5)
+    with pytest.raises(ValueError, match="registry does not match"):
+        entry(world)
+    assert pickle.dumps(world, protocol=5) == before
+    assert [r.model_dump() for r in world.scientific_claims.receipts] == old_receipts
+
+
+@pytest.mark.parametrize("field,value", [("founded_turn", 2), ("region", 2),
+    ("name", "A different birth"), ("founder", 0), ("kind", 1)])
+def test_changed_enrolled_birth_is_rejected_before_guards_or_cached_grants(field, value):
+    world = research_world()
+    advance(world, 0, 13)
+    setattr(world.scholarship.seats[0], field, value)
+    before = pickle.dumps(world, protocol=5)
+    with pytest.raises(ValueError, match="birth|Input should be"):
+        C.prepare_adoption_effort(world)
+    assert pickle.dumps(world, protocol=5) == before
+
+
+def test_bound_host_restores_exactly_but_absent_host_only_allows_dormancy_and_pause():
+    from chronicler.models import WorldState
+    from chronicler.scholarship import set_scholarship_enabled
+    world = research_world()
+    advance(world, 0, 2)
+    for restored in (WorldState.model_validate_json(world.model_dump_json()),
+                     pickle.loads(pickle.dumps(world, protocol=5)), world.model_copy(deep=True)):
+        validate_state(restored)
+        assert restored.scholarship.scientific_research_identity.seal == restored.scientific_claims.research_agendas.host_seal
+        advance(restored, 2, 14)
+    set_scholarship_enabled(world, False)
+    before = pickle.dumps(world, protocol=5)
+    assert C.tick_scientific_claims(world) == [] and C.prepare_adoption_effort(world) == {}
+    assert C.confidence(world, 0, 0) == .5 and C.snapshot_summary(world) is None
+    assert pickle.dumps(world, protocol=5) == before
+    set_research_agendas_enabled(world, False)
+    assert world.scientific_claims.research_agendas.enabled is False
+    assert world.scientific_claims.receipts
+    before = pickle.dumps(world, protocol=5)
+    with pytest.raises(ValueError):
+        set_research_agendas_enabled(world, True)
+    assert pickle.dumps(world, protocol=5) == before
+
+
+def test_mutable_academy_status_does_not_rewrite_birth_and_new_admission_is_distinct():
+    world = research_world()
+    advance(world, 0, 2)
+    plan = world.scientific_claims.research_agendas
+    original = [b.model_dump() for b in plan.academy_births]
+    seat = world.scholarship.seats[0]
+    seat.lord, seat.level, seat.scholars, seat.fallen_turn = 1, 0, 0., 2
+    world.scholarship.seats.append(Seat(region=0, name="New seat", founded_turn=2, founder=1))
+    advance(world, 2, 3)
+    assert [b.model_dump() for b in plan.academy_births[:2]] == original
+    assert plan.academy_births[-1].seat == 2 and plan.academy_births[-1].founded_turn == 2
+    assert all(r.seat != 2 for r in world.scientific_claims.receipts)
+
+
 def test_same_canonical_question_renews_at_another_origin_after_first_origin_falls():
     world = research_world()
     advance(world, 0, 24)
