@@ -63,3 +63,34 @@ The frozen source, compiled extension, parent-checkpoint digest/header, exact
 commands, controls, profiler overhead/limitations, call counts, output inventories,
 completion/failure states and any counterexamples must be retained. CPU execution
 waits until the lead's qualification budget has a free slot.
+
+## Source inspection before CPU profiling
+
+`MemoryStream.json_text()` populates `_encoded`; the class currently has no
+checkpoint reducer that drops this derived cache. The exact checkpoint pickler
+therefore carries it. Changing writer cadence can change intermediate Python
+payload bytes even when entries/reflections and the native simulation match.
+Do not equate unchanged WorldState JSON with complete checkpoint-byte identity.
+A later continuation test must establish the relevant promise, or a future
+worker profile must explicitly exclude new checkpoint/callback paths. The final
+mandatory memory save may rebuild the same cache, which does not establish its
+identity at earlier boundaries.
+
+Another candidate is public procurement: each foreign successful purchase calls
+`finance.transfer`, constructs `_Book`, and recomputes `_projections` over pending
+keep changes. This can revisit an expanding accumulator for every purchase. A
+phase-local book could avoid the repeated scans, but it must preserve each
+ordered clamped/integer debit, foreign credit, domestic sink and finance specie
+movement. Current receipt instrumentation already reuses opening projections;
+it does not optimize the authoritative purchase kernel. Profiling must establish
+whether that kernel matters before any refactor.
+
+The full Rust qualification also measured a workflow constraint: its warm debug
+cache was 1.7 GiB, but the complete copied test target expanded to 8.3 GiB and was
+removed after completion to preserve active gate capacity. A future build-profile
+or target-lifecycle study could retain all tests while reducing debug-artifact
+cost; no such change was applied to the completed qualification.
+
+Actual diagnostic/profiling runs remain pending. The lead subsequently held all
+new build/probe jobs during disk recovery. These are source-based hypotheses,
+not measured CPU shares or implemented optimizations.
