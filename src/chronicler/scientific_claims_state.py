@@ -48,6 +48,7 @@ class ScientificTrial(BaseModel):
     payer: int
     funded_turn: int
     completion_turn: int
+    resolved_turn: int | None = None
     cost: int
     parent: int = -1
     method: str = "fixed-crew-grain-v1"
@@ -98,7 +99,7 @@ class AdoptionEffort(BaseModel):
     recipe: str
     share: float
     confidence: float
-    paid: int
+    paid: int  # whole seat payment on its first allocation row; zero on others
 
 
 class ScientificClaimsState(BaseModel):
@@ -118,6 +119,8 @@ class ScientificClaimsState(BaseModel):
     effort_spent: int = 0
     cancelled: int = 0
     failed: int = 0
+    expired_messages: int = 0
+    withheld_results: int = 0
     unfunded_trials: int = 0
     unfunded_effort: int = 0
     last_tick_turn: int = -1

@@ -344,7 +344,7 @@ def _civ_practice(pm: dict, suit, regions, members: list[int], k: int) -> float:
 # ---------------------------------------------------------------------------
 
 def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
-                     learning=None) -> tuple[dict, dict]:
+                     learning=None, claims_effort=None) -> tuple[dict, dict]:
     """One turn of growth, diffusion and decay. Returns (practice, meta).
 
     ``learning`` (``--scholarship``): per region index, the adoption hazard
@@ -428,6 +428,11 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
             inflow = 0.0
             if prereq_ok:
                 growth = ADOPT_RATE * p * (1.0 - p / cap) * (1.0 - shortfall) * disruption
+                if claims_effort is not None and 0.0 < p < cap:
+                    # Paid academy effort changes adoption within this same
+                    # physical kernel; no belief appears in any yield formula.
+                    growth += (claims_effort.get((t, k), 0.0) * p * (1.0 - p / cap)
+                               * (1.0 - shortfall) * disruption)
                 if p < cap and hazard > 0.0:
                     inflow = (cap - p) * -math.expm1(-DIFFUSION_SCALE * rate * hazard)
             forget = (BASE_FORGET + SHORTFALL_FORGET * shortfall) * p
@@ -922,7 +927,11 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
     if getattr(world, "scholarship", None) is not None:
         from chronicler.scholarship import learning_factors
         learning = learning_factors(world)
-    practice, meta = _update_practice(world, st, ctrl, links, suit, learning)
+    claims_effort = None
+    if getattr(world, "scientific_claims", None) is not None:
+        from chronicler.scientific_claims import prepare_adoption_effort
+        claims_effort = prepare_adoption_effort(world, acc)
+    practice, meta = _update_practice(world, st, ctrl, links, suit, learning, claims_effort)
     if learning is not None:
         # Scholars fleeing a fallen seat (last Phase 10) carry techniques to
         # their refuge; the region where it fell loses part of its practice.

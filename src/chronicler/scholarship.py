@@ -337,6 +337,9 @@ def tick_scholarship(world: "WorldState", events: Iterable["Event"] = (), acc=No
     _found_schools(t)
     _found_libraries(t)
     t.state.last_tick_turn = world.turn
+    if getattr(world, "scientific_claims", None) is not None:
+        from chronicler.scientific_claims import tick_scientific_claims
+        t.events.extend(tick_scientific_claims(world, acc))
     return t.events
 
 
