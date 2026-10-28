@@ -174,3 +174,27 @@ The probe and both output arms are retained in the review workspace as
 `e891aaa7d11d45ded2d7541ec1d9e0a8133365bd1d561f35118402faf7babfeb`.
 Both arms used the shared interpreter with `PYTHONPATH=<checkout>/src` and
 `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1`, executing that exact probe.
+
+Observer runtime `97b6a051` passed 232 tests with three expected skips across
+science, techniques, scholarship and three narration suites under the offline
+guard, in 92.55 seconds on the shared host. Its guard receipt recorded no
+loaded native modules or network/child-process attempts. The same feature-off
+probe still produced the byte-identical `3cfef520...bb27` full output hash.
+
+A separate real `execute_run` export at that source captured 26 complete
+turns with the ordinary snapshot/bundle writer: four completed trials,
+eight treasury units spent on trials and ten on paid adoption. The fixture
+explicitly starts with seeded academies/local practices and stable initial
+grain eligibility, chooses DEVELOP every turn, and uses agents-off Python
+ecology/politics paths. It is labelled controlled/mechanical in bundle
+metadata; its history is captured each turn without final-world backfill.
+The actual timeline contains two proposals, four funding records, four
+completions, twenty evidence receipts and ten reported allocations. This is
+viewer/observability evidence, not a natural-world or benefit qualification.
+The complete bundle SHA-256 is
+`c11f16589856ee415a8ce2c23d0d31f2c6bfd812fb73128959cab6ed872f7f0a`;
+the observation-only export SHA-256 is
+`af39a3dd283b073cc9ab808f6492c3bd78fd39c98f3a63d1d404fee7098427dd`.
+The external export script SHA-256 is
+`a7124eba43be98e222a5e1f50e102ae9c9d41d6ffd525df811789d0c5a99b974`.
+All artifacts/receipts remain outside Git in the review workspace.
