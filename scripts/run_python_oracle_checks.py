@@ -139,6 +139,8 @@ CHUNKS = {
         "tests/test_python_qualification.py::test_native_absence_does_not_accept_a_replacement_module",
         "tests/test_python_qualification.py::test_compiled_native_bytes_must_match_the_requested_hash",
         "tests/test_python_qualification.py::test_junit_must_describe_actual_executed_test_cases",
+        "tests/test_python_qualification.py::test_pytest9_successful_subtests_require_matching_terminal_evidence",
+        "tests/test_python_qualification.py::test_unreconciled_or_unsuccessful_subtests_cannot_earn_a_pass",
     ],
     "turn-speed": [
         "tests/test_turn_speed.py",
