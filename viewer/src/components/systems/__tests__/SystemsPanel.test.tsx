@@ -7,6 +7,7 @@ import movementsFixture from "../../../__fixtures__/movements_bundle.json";
 import learningFixture from "../../../__fixtures__/learning_bundle.json";
 import faithsFixture from "../../../__fixtures__/faiths_bundle.json";
 import faithsLegacyFixture from "../../../__fixtures__/faiths_legacy_bundle.json";
+import debtFixture from "../../../__fixtures__/debt_holders_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
@@ -111,6 +112,73 @@ describe("FinancePanel", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: "Debasements" }));
     expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("debasement");
+  });
+
+  it("shows a finance-only run's debt as the abstract domestic class and one foreign total", () => {
+    render(<FinancePanel {...props()} />);
+    expect(screen.getByText(/This run had no --domestic-credit/)).toBeInTheDocument();
+    const bars = screen.getByRole("list", { name: "Debt by holder at turn 120" });
+    const owing = Object.entries(LAST.finance!.civs).filter(([, row]) => row.debt > 0);
+    expect(within(bars).getAllByRole("listitem")).toHaveLength(owing.length);
+    const [civ, row] = owing[0];
+    fireEvent.click(within(bars).getByRole("button", { name: new RegExp(civ) }));
+    const table = screen.getByRole("table", { name: `Holders of the debt of ${civ} at turn 120` });
+    expect(within(table).queryByRole("columnheader", { name: "Rate" })).toBeNull();
+    const domestic = within(table).getByRole("rowheader", { name: /Domestic creditors/ }).closest("tr")!;
+    expect(domestic).toHaveTextContent(String(row.debt - row.foreign_debt));
+    expect(screen.queryByLabelText(`Foreign debt of ${civ} by lender`)).toBeNull();
+  });
+});
+
+describe("FinancePanel debt holders (--domestic-credit)", () => {
+  /** Trimmed from a real --domestic-credit run: procedural 32 x 10, seed 42, 120 hybrid turns. */
+  const debt = debtFixture as unknown as Bundle;
+  const turn54 = debt.history.find((entry) => entry.turn === 54)!;
+
+  it("names who holds a realm's debt at the scrubbed turn and opens lenders and regions", () => {
+    const p = props(debt, turn54);
+    render(<FinancePanel {...p} />);
+    const bars = screen.getByRole("list", { name: "Debt by holder at turn 54" });
+    const owing = Object.values(turn54.finance!.civs).filter((row) => row.debt > 0);
+    expect(within(bars).getAllByRole("listitem")).toHaveLength(owing.length);
+    expect(within(bars).getByRole("img", { name: /^Khidutain Clans owes 231: merchants 21 .*foreign lenders 180/ }))
+      .toBeInTheDocument();
+    fireEvent.click(within(bars).getByRole("button", { name: /Khidutain Clans/ }));
+    const section = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
+    const table = within(section).getByRole("table", { name: "Holders of the debt of Khidutain Clans at turn 54" });
+    expect(within(table).getByRole("columnheader", { name: "Interest" })).toBeInTheDocument();
+    const sylenen = within(table).getByRole("button", { name: "Sylenen Kingdom" }).closest("tr")!;
+    expect(sylenen).toHaveTextContent("133");
+    expect(sylenen).toHaveTextContent("8.4%");
+    expect(sylenen).toHaveTextContent((133 * 0.0841).toFixed(1));
+    fireEvent.click(within(table).getByRole("button", { name: "Sylenen Kingdom" }));
+    expect(p.onSelectCivilization).toHaveBeenCalledWith("Sylenen Kingdom");
+    fireEvent.click(within(table).getByRole("button", { name: "Suqikan Expanse" }));
+    expect(p.onSelectRegion).toHaveBeenCalledWith("Suqikan Expanse");
+    expect(within(table).getByText("Brohamoor Bog Settlement 1")).toBeInTheDocument();
+    expect(within(table).getByText("the Merchant Guild of Brohamoor Bog Settlement 1")).toBeInTheDocument();
+    expect(within(section).getByText("Interest due")).toBeInTheDocument();
+    expect(within(section).getByLabelText("Debt of Khidutain Clans by holder")).toBeInTheDocument();
+    expect(within(section).getByLabelText("Foreign debt of Khidutain Clans by lender")).toBeInTheDocument();
+    expect(within(section).getByRole("group", { name: "Arrears, defaults and write-offs of Khidutain Clans over time" }))
+      .toBeInTheDocument();
+  });
+
+  it("lists a borrower's defaults and write-offs with their events, and follows the shell's selection", () => {
+    const last = debt.history[debt.history.length - 1];
+    const p = { ...props(debt, last), selectedCivilization: "Khidutain Clans" };
+    render(<FinancePanel {...p} />);
+    const losses = screen.getByRole("table", { name: "Defaults and write-offs of Khidutain Clans" });
+    const rows = within(losses).getAllByRole("row").slice(1);
+    // Listed at the turn of their events (the snapshot after records them).
+    expect(rows.map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual(["64", "54"]);
+    expect(rows[0]).toHaveTextContent("131");
+    fireEvent.click(within(rows[1]).getByRole("button", { name: /defaults on its debts, repudiating 124/ }));
+    expect(p.onSelectEvent).toHaveBeenCalledWith(expect.objectContaining({ event_type: "state_default", turn: 54 }));
+    const credit = screen.getByRole("list", { name: "Credit events of Khidutain Clans" });
+    expect(within(credit).getAllByRole("listitem").length).toBeGreaterThan(2);
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrower" }), { target: { value: "Saqeduni Empire" } });
+    expect(screen.getByRole("region", { name: "Creditors of Saqeduni Empire" })).toBeInTheDocument();
   });
 });
 

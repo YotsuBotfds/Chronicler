@@ -858,6 +858,76 @@ def claims_by_borrower(world) -> dict[int, list[int]]:
     return out
 
 
+def holders_summary(world) -> dict[str, dict]:
+    """Who holds each living civ's debt, by civ name (for the viewer).
+
+    Per borrower: ``foreign`` (lender civ name -> [principal, rate]), the
+    domestic line's ``rate``, the claims of ``merchants`` by region name and
+    of ``cities`` and ``guilds`` by name (the abstract ``houses`` and
+    ``legacy`` claims are in the summary's ``civs``), and ``written_off``,
+    the debt written off on the civ so far (finance's cumulative count).
+    Empty parts are left out, and so is a civ with neither debt nor
+    write-offs. Read-only: built from the persisted books."""
+    from chronicler.cities_state import cities_on
+    from chronicler.finance import DOMESTIC
+    fin = world.finance
+    civs, regions = world.civilizations, world.regions
+    lines = {line.loan_id: line for line in world.domestic_credit.lines}
+    city_names: dict[int, str] = {}
+    if cities_on(world):
+        for city in world.cities.cities + world.cities.fallen:
+            city_names.setdefault(city.settlement_id, city.name)
+    guilds = _guilds(world)
+    by_civ: dict[int, list] = {}
+    for loan in fin.loans:
+        if loan.principal > 0:
+            by_civ.setdefault(loan.borrower, []).append(loan)
+    out: dict[str, dict] = {}
+    for c, civ in enumerate(civs):
+        if not civ.regions:
+            continue
+        foreign: dict[int, list[float]] = {}
+        domestic = [0, 0.0]
+        claims: dict[tuple[int, int], int] = {}
+        for loan in by_civ.get(c, []):
+            if loan.lender == DOMESTIC:
+                domestic[0] += loan.principal
+                domestic[1] += loan.principal * loan.rate
+                line = lines.get(loan.loan_id)
+                for fu in line.funders if line is not None else []:
+                    if fu.principal > 0 and fu.kind in (MERCHANTS, CITY, GUILD):
+                        claims[(fu.kind, fu.key)] = claims.get((fu.kind, fu.key), 0) + fu.principal
+            else:
+                row = foreign.setdefault(loan.lender, [0, 0.0])
+                row[0] += loan.principal
+                row[1] += loan.principal * loan.rate
+        entry: dict = {}
+        if foreign:
+            entry["foreign"] = {civs[j].name: [p, round(i / p, 4)] for j, (p, i) in sorted(foreign.items())}
+        if domestic[0]:
+            entry["rate"] = round(domestic[1] / domestic[0], 4)
+        for kind, label in ((MERCHANTS, "merchants"), (CITY, "cities"), (GUILD, "guilds")):
+            named: dict[str, int] = {}
+            for (k, key), amount in sorted(claims.items()):
+                if k != kind:
+                    continue
+                if kind == MERCHANTS:
+                    name = regions[key].name if 0 <= key < len(regions) else f"region {key}"
+                elif kind == CITY:
+                    name = city_names.get(key, f"city {key}")
+                else:
+                    name = guilds[key].name if 0 <= key < len(guilds) else f"guild {key}"
+                named[name] = named.get(name, 0) + amount
+            if named:
+                entry[label] = named
+        written = fin.civs[c].written_off_total if c < len(fin.civs) else 0
+        if written:
+            entry["written_off"] = written
+        if entry:
+            out[civ.name] = entry
+    return out
+
+
 def snapshot_summary(world) -> dict:
     """Per-turn summary, carried as ``TurnSnapshot.finance["domestic_credit"]``."""
     st = world.domestic_credit
@@ -870,13 +940,17 @@ def snapshot_summary(world) -> dict:
             civs[world.civilizations[c].name] = {KIND_NAMES[k]: v for k, v in enumerate(row) if v}
     grievance = {world.regions[r].name: round(g, 4) for r, g in enumerate(st.grievance)
                  if g >= 0.01 and r < len(world.regions)}
-    return {
+    out = {
         "claims": {KIND_NAMES[k]: v for k, v in enumerate(kinds)},
         "civs": civs,
         "lenders": sum(len(line.funders) for line in st.lines),
         "merchant_due": round(sum(st.merchant_due), 4),
         "grievance": grievance,
     }
+    holders = holders_summary(world)
+    if holders:
+        out["holders"] = holders
+    return out
 
 
 def extract_domestic_credit_metrics(bundles: Iterable[dict]) -> dict:
