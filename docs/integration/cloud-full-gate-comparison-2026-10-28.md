@@ -49,7 +49,9 @@ PYTHONPATH=/abs/candidate/src python /abs/control/scripts/cloud_full_gate_compar
 The output's parent must already exist. The script checks the candidate's
 detached Git HEAD and SHA-256 of its package initializer, artifact JSON helper,
 validation gate and comparator before importing them from that checkout. It
-rejects modules already imported from another directory. The four source-file
+rejects modules already imported from another directory. Bytecode writing is
+disabled before importing frozen source, and its HEAD/file pins are rechecked
+before output and before the final receipt. The four source-file
 pins were derived from the exact candidate and independently checked against
 the GitHub bytes; they are not a claim about the comparison interpreter's
 native runtime. The comparison environment needs the locked Python

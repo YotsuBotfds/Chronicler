@@ -612,16 +612,22 @@ def load_cohort(root, role, files, anchor, run_id, attempt):
             "builder": builder, "result": result, "provenance": provenance}
 
 
-def frozen_modules(candidate_source):
+def verify_frozen_source(candidate_source):
     root = _absolute(candidate_source)
     head, _ = _read(root / ".git" / "HEAD", limit=256)
     _eq(head.decode("ascii").strip(), CANDIDATE, "detached candidate checkout")
     for name, wanted in FROZEN_FILES.items():
         raw, _ = _read(root / name)
         _eq(hashlib.sha256(raw).hexdigest(), wanted, "frozen reader file " + name)
+    return root
+
+
+def frozen_modules(candidate_source):
+    root = verify_frozen_source(candidate_source)
     src = root / "src"
+    sys.dont_write_bytecode = True
     sys.path.insert(0, str(src))
-    modules = {}
+    modules = {"_frozen_source": str(root)}
     for name in ("artifact_io", "validation_gate", "validation_compare"):
         module = importlib.import_module("chronicler." + name)
         if Path(module.__file__).resolve() != src / "chronicler" / (name + ".py"):
@@ -814,6 +820,13 @@ def _recheck_retention(evidence):
             _fail("retention API index changed while comparing")
 
 
+def _recheck_source(modules):
+    # main() always supplies this proof; pure synthetic API tests use explicit
+    # modules without claiming a detached checkout qualification.
+    if "_frozen_source" in modules:
+        verify_frozen_source(modules["_frozen_source"])
+
+
 def _recheck(roots, inventories):
     for role, root in roots.items():
         current = _inventory(root, set())
@@ -901,12 +914,14 @@ def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candida
         _fail("derived output byte bound exceeded")
     _recheck(roots, inventories)
     _recheck_retention(retention_evidence)
+    _recheck_source(modules)
     output.mkdir(parents=False, exist_ok=False)
     for name, raw in payloads.items():
         with (output / name).open("xb") as stream:
             stream.write(raw)
     _recheck(roots, inventories)
     _recheck_retention(retention_evidence)
+    _recheck_source(modules)
     receipt = {"schema_version": 1, "kind": "chronicler-cloud-full-gate-comparison-receipt",
                "execution_complete": True, "scientific_comparison_pass": result["scientific_comparison_pass"],
                "pipeline_qualified": result["pipeline_qualified"],
