@@ -3,7 +3,9 @@
 Pure data with no simulation imports, so :mod:`chronicler.models` can import
 it. A lender is named by its kind and key: the merchants of a region (key =
 region index in ``world.regions``), a guild (key = index in
-``GuildState.guilds``) or a city (key = its M56a ``settlement_id``).
+``GuildState.guilds``), a city (key = its M56a ``settlement_id``) or, for
+the abstract creditor class, ``legacy`` (key -1) or ``houses`` (key = the
+borrower's civ index).
 Borrowers are civilization indices in ``world.civilizations``; a credit
 line is the ``finance.Loan`` with the same ``loan_id``.
 
@@ -17,8 +19,12 @@ from pydantic import BaseModel, Field
 #: ``Funder.kind`` names. ``legacy`` holds the part of a domestic line lent
 #: before the switch was on (the abstract creditor class of ``finance``):
 #: what it receives leaves the treasury into the finance ledger only.
-KIND_NAMES: tuple[str, ...] = ("merchants", "guild", "city", "legacy")
-MERCHANTS, GUILD, CITY, LEGACY = range(len(KIND_NAMES))
+#: ``houses`` (2026-10, second pass) is the abstract creditor class lending
+#: while the agent pool's wealth is still building up from its cold start
+#: (key = the borrower's civ index; its receipts leave into the finance
+#: ledger as ``legacy``'s do).
+KIND_NAMES: tuple[str, ...] = ("merchants", "guild", "city", "legacy", "houses")
+MERCHANTS, GUILD, CITY, LEGACY, HOUSES = range(len(KIND_NAMES))
 
 #: Flow names of the ledger (``DomesticCreditState.totals`` keys are
 #: ``<flow>_<kind name>``): principal lent, interest received, principal
