@@ -1,6 +1,6 @@
 # Existing template causal diagnostics — 2026-10-28
 
-This is a **read-only diagnosis of the completed candidate report**, not a new
+This is a **read-only diagnosis of completed original reports**, not a new
 experiment, parameter fit or gate adjudication. Source is frozen
 `5b5252eded6d45957347af744f01847d2f735ef3`, native
 `43243cb026c6a6a141d15a5df743c96f8aca05c6bdc7c5ce1adbda8e31a6afd5`.
@@ -8,7 +8,9 @@ The recovered cohort has 200 seeds, 500 turns, eight regions/four civilizations,
 scholarship enabled, and 800 forks for each of `needs` and `kin_roots`.
 The original report SHA-256 is
 `3485dfe796b8fb9f07aac0feeed63e15dad5f32910bede44ccafe30d94e0927c`.
-The baseline is not assumed complete or equivalent in this document.
+The initial analysis used only that candidate. The following comparison was
+added after the baseline independently completed; it does not assume that the
+two versions produce the same world trajectories or exposure cohorts.
 
 The original strict observational decision is PASS. Its causal components and
 community specification are reported, not required. A causal-required read of
@@ -17,6 +19,55 @@ were already documented in [community anchoring, section 10](../integration/comm
 the 15–30% anchoring claim was not reproduced, stronger coefficients were not
 adopted merely to meet the number, and observational cohort PASS is explicitly
 non-discriminating. This result is not evidence of a newly introduced regression.
+
+## Completed baseline comparison: one informational status crossing
+
+Both original strict observational gates independently passed under their
+unchanged requirements. Both separately fail a causal-required adjudication.
+The baseline uses source `cb9fe70c81658fb65c6f511b821447f1d7b55b54` and the
+same recorded native binary as the candidate. Its original report SHA-256 is
+`d781ff1401364fbaf64ec2c8b8797189c1a6a7791fffb730bd3402938ab540bd`.
+
+| Informational causal pairing | Baseline | Candidate | Report-level interpretation |
+| --- | --- | --- | --- |
+| Social → migration | RR 1.0886, lower 1.0549; FAIL minimum | RR 1.0794, lower 1.0497; FAIL minimum | Positive contrasts; both miss the point-estimate magnitude criterion. |
+| Safety → migration | RR 1.1327, lower 1.0026; PASS | RR 1.0579, lower 0.9852; FAIL lower bound and minimum | A new informational subcomponent PASS→FAIL crossing. |
+| Kin roots → fewer member moves | RR 0.9926, upper 1.0024; FAIL bound and minimum | RR 0.9848, upper 0.9957; FAIL minimum | Candidate clears the directional bound; neither reaches 15%. |
+| Community share specification | FAIL; 25,550 of 25,550 groups above cap | FAIL; 25,676 of 25,677 above cap | The density feasibility problem persists. |
+
+The bounds in this table are the **one-sided 95% deciding bounds**. Baseline
+safety's two-sided 95% interval is `[0.9758, 1.2896]`; the candidate's is
+`[0.9701, 1.1456]`. Its marginal one-sided pass does not conflict with a
+two-sided interval containing one. The intervals overlap, but overlap itself
+is not a paired test. The observed status crossing does **not** establish a
+statistically significant deterioration between source versions.
+
+Safety cohort composition also changes: baseline has 332 agent-forks in 28
+seeds (26 informative), candidate 477 in 32 seeds (23 informative); counts
+of plain/ablated moves are 367/324 versus 585/553. Matching seed labels does
+not make these the same post-evolution agents or exposures. The needs/ablation
+kernel equality proof rules out a direct edit of those seven files, not an
+upstream trajectory, composition, random-stream-consumption or feedback effect.
+Attribution requires a separate trace; the aggregate ratios do not identify it.
+
+In the baseline, **none** of the 25,550 group observations lies in a region
+with at least 100 living agents. Every one is therefore below the necessary
+domain for a five-agent group to fit under the 5% cap. Candidate coverage
+improves only to three observations; neither run tests that global claim in
+a population-sufficient domain.
+
+Independent original-result packets remain outside Git:
+
+- Baseline packet SHA-256 `db5beb13641d521c3dbe1bd8502cbc56d067917996f9a4affa236cf531bec1f9`.
+- Candidate packet SHA-256 `22188d886d021256f16f1664d257204be7b39fb0faf54f13bd1be30a64c18a9d`.
+- Separate report-level comparison facts SHA-256 `23f87444d51ff5a034ccd9be7335e53fdb5e1bb745d6c0d8aa05528b44136733`.
+- Seven-file byte-equality proof SHA-256 `0a2ef1c956772ef0d8d399b88b1e25825b0af4d6a585366ab7cc780941fa04dc`.
+
+The comparison facts are in
+`/workspace/chronicler-causal-diagnostic-evidence/paired-report-facts.json`.
+This comparison rescores no gate, changes no requirement and makes no new
+paired-significance claim. It leaves the original PASS decisions and both
+causal-required FAIL adjudications intact.
 
 ## Community share is structurally infeasible for almost all observed groups
 
