@@ -113,6 +113,18 @@ def test_replacement_academy_cannot_revive_original_seat_trial():
     assert world.scientific_claims.receipts == []
 
 
+def test_later_rule_change_does_not_rewrite_past_cancellations():
+    world = _world()
+    _tick(world, 2)
+    _tick(world, 3)
+    assert all(t.status == "cancelled" for t in world.scientific_claims.trials)
+    past = [t.model_dump() for t in world.scientific_claims.trials]
+    world.scientific_claims.publication_rule = FUNDED_CONTEXT_PUBLICATION
+    _tick(world, 4)
+    assert [t.model_dump() for t in world.scientific_claims.trials] == past
+    assert world.scientific_claims.receipts == [] and world.scientific_claims.trial_spent == 4
+
+
 @pytest.mark.parametrize("loss", ["fallen", "level", "population"])
 def test_lost_publication_access_still_cancels_without_refund_or_receipt(loss):
     world = _v2()

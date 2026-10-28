@@ -149,6 +149,20 @@ fork lineage. This separate opt-in rule has mechanical checks, not a new
 natural-world cohort or benefit qualification. The original d051 execution
 cohort and its low/empty exposures remain intact.
 
+At publication runtime `21ebe317`, 121 focused science/publication/helper/
+runner checks passed under the offline guard in 14.78 seconds. The fixed
+mechanical cases include all four season-ending starts and a complete-turn
+checkpoint split between funding and publication. A separate legacy-mode
+comparison with frozen `d051d7c0` ran fourteen complete turns from source
+turn 2 with identical controlled initial academies and DEVELOP choices.
+Every serialized world, source-dated science summary, empty-narrator
+chronicle and Python RNG record matched byte for byte; combined SHA-256
+`5b3381059eb74cb7ffa505282baa205808fff21779412b096e734ab9380e1c0e`.
+The external probe SHA-256 is
+`6e3696e05b9153f49aba9bb27415f36fdf7f3e9c72836bd8a62d553a73b7184c`.
+This checks legacy compatibility and mechanical publication, not world
+benefit or the still-unrun v2 natural cohort.
+
 Focused mechanical tests cover the physical evaluator, all controls,
 transmission dates/topology, failed/cancelled/null trials, dependency/source
 deduplication, exact projected expenses, technique gates, complete-turn hook

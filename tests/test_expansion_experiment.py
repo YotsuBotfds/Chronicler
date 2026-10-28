@@ -129,7 +129,8 @@ def test_wrong_parent_or_changed_registration_is_rejected_atomically(tmp_path):
     assert world.harvest_forecasts.policy == "normal"
 
 
-def test_scientific_fork_preserves_funded_trials_receipts_and_exact_control_history(tmp_path):
+@pytest.mark.parametrize("controls", [{"withhold_information": True}, {"publication_rule": "funded-context-v2"}])
+def test_scientific_fork_preserves_funded_trials_receipts_and_exact_control_history(tmp_path, controls):
     from chronicler.batch_manifest import file_sha256
     from chronicler.run_checkpoint import save_world
     from chronicler.scientific_claims_state import (
@@ -153,15 +154,15 @@ def test_scientific_fork_preserves_funded_trials_receipts_and_exact_control_hist
     checkpoint = tmp_path / "science-parent.ckpt"
     save_world(checkpoint, world)
     request = _request("scientific_claims")
-    request.update(fork=True, controls={"withhold_information": True},
+    request.update(fork=True, controls=controls,
                    parent_checkpoint={"path": str(checkpoint), "sha256": file_sha256(checkpoint)})
     receipt = apply_expansion_experiment(world, {"expansion_experiment": {"arm": "parent"}},
                                         request, resumed=True)
-    assert state.model_dump() == {**before, "withhold_information": True}
+    assert state.model_dump() == {**before, **controls}
     assert receipt["controls_before"] == {"withhold_information": False,
                                            "transmission_enabled": True, "uninformative_tests": False,
                                            "publication_rule": "current-context-v1"}
-    assert receipt["controls_after"] == {**receipt["controls_before"], "withhold_information": True}
+    assert receipt["controls_after"] == {**receipt["controls_before"], **controls}
     assert receipt["parent_checkpoint"]["turn"] == receipt["applied_before_turn"] == 1
     assert receipt["previous_experiment"] == {"arm": "parent"}
 
