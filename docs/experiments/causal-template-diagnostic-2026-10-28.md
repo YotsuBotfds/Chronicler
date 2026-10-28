@@ -18,7 +18,9 @@ that same report fails. Neither outcome is rewritten here. These weaknesses
 were already documented in [community anchoring, section 10](../integration/community-anchoring.md):
 the 15–30% anchoring claim was not reproduced, stronger coefficients were not
 adopted merely to meet the number, and observational cohort PASS is explicitly
-non-discriminating. This result is not evidence of a newly introduced regression.
+non-discriminating. Those known failures alone do not establish a newly
+introduced regression. The safety subcomponent's new status crossing is
+recorded separately below.
 
 ## Completed baseline comparison: one informational status crossing
 
@@ -177,6 +179,12 @@ Useful next work can be specified before running anything:
    scenario, not a sampling resolution knob. Preserve the original cohort,
    thresholds and failure; record density, population survival and performance
    together. Larger worlds alone do not guarantee this domain.
+   The existing 3–15 community-count band is global per world snapshot, not
+   normalized by regions or population. Future larger-world diagnostics should
+   report regional coverage and community density separately; changing that
+   acceptance definition requires a versioned new claim, preserving the
+   original M53 outcome. Raising population cannot be promised to fix every
+   criterion, since group sizes and counts may also change.
 3. **Decompose dose, gates and delay.** Before further calibration, specify
    controlled needs × migration opportunity × cooldown cases with other needs
    held high, plus kin-root exposure by age, marriage and home-bond strength.
