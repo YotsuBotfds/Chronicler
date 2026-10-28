@@ -504,3 +504,198 @@ chaotically, so only consistent shifts are read as effects.
   and cities fund domestic loans and bear their losses;
   [domestic-credit.md](domestic-credit.md)); inflation into the MMP; a
   recoinage reform.
+
+## The merchant tax (2026-10-28, `fix/merchant-tax`)
+
+Branch `fix/merchant-tax` from `main` `cb9fe70` (PR #67). PRs #63 and #67
+noted that "the merchant tax is not debited from agent wealth, so richer
+merchants create more revenue" (`domestic-credit.md`, 11.2 (4) and 13.2,
+problem 4). This section traces it, gives the verdict, and describes the
+correction, its pre-registration and its results. It is a **correction
+of default behaviour**, not an optimization: every agent-mode run changes.
+
+### Trace (`main` `cb9fe70`)
+
+1. **Assessment (native).** `AgentSimulator::tick_economy`
+   (`chronicler-agents/src/ffi/mod.rs:2520`) sums, per civ that controls a
+   region, the wealth of every living merchant agent of its affinity, in
+   f32, wherever the agent stands (`ffi/mod.rs:2795-2829`, the live pool's
+   `wealth`). `tick_economy_core` assesses `treasury_tax = tax_rate * mw`
+   (`economy.rs:1848`; `tax_rate` 0.05, `economy.rs:163`; Python
+   `economy.TAX_RATE`, `economy.py:40`) and the tick packs it in the civ
+   result batch (`ffi/mod.rs:2983`). The same sum, times a food gate, is
+   the tithe base (`economy.rs:1842-1850`).
+2. **Into the treasury.** `reconstruct_economy_result` reads it into
+   `EconomyResult.treasury_tax` (`economy.py:1594-1601`).
+   `simulation._apply_treasury_tax_from_economy` (`simulation.py:1799-1821`,
+   called in Phase 2 at `simulation.py:2105`) adds `int(tax + carry)` to
+   the civ's treasury as a `keep` change and carries the fraction
+   (`world._treasury_tax_carry`). This happens in every agent mode
+   (hybrid, shadow, demographics-only); `--agents off` has no economy
+   result and no tax.
+3. **Who reads it.** Finance counts it as revenue (every positive `keep`
+   treasury change, `finance._turn_revenue`, `finance.py:383`, used at
+   `finance.py:1036`). So it feeds the revenue EMA, the reserve target, the
+   debt ceiling, the court and, with `--domestic-credit`, the borrower's
+   room and the cold-start houses. Finance also reads it back as the
+   creditor class's wealth, `treasury_tax / TAX_RATE`
+   (`finance._merchant_wealth_now`, `finance.py:649-657`).
+4. **Who pays it: nobody.** Agent wealth is written only by the wealth
+   tick (income, 2% decay, clamp to 0..100; `tick.rs:1351-1354`; a
+   merchant's income is `region.merchant_trade_income`, `tick.rs:1338`),
+   by inheritance (`household.rs:76`, `125`), by domestic credit's
+   transfers (`credit.rs:104`, `131`, only with that switch) and by spawn
+   and death (`pool.rs`). None of them is told of the tax, and
+   `tick_economy` writes no agent wealth. The Python oracle
+   (`economy.py:2060`) assesses the same tax from a snapshot; it is a test
+   surface, not a production path.
+5. **The tithe has the same shape** (not changed here). The clergy's tithe
+   pays `int(TITHE_RATE * tithe_base)` (`TITHE_RATE` 0.10,
+   `factions.py:35`) into the treasury when the clergy's influence is at
+   least 0.15 (`factions.py:426`), and every priest's income gains
+   `TITHE_RATE * tithe_base / priests` (`tick.rs:1347`). The base is the
+   same merchant wealth, and neither payment is debited from the merchants.
+
+Measured on `main` (the probe below; template seeds 900-919 x 300 turns
+and procedural 32 x 10 seeds 900-909 x 200, hybrid; the probe only
+reads): the tax paid into the treasuries 4,957 and 7,006 a run, 8.1% and
+7.8% of revenue. The merchants earned an estimated 673 and 1,469 a run as
+merchants (each region's per-merchant trade income times the merchants
+standing there), so the treasuries were paid 7.4 and 4.8 times what the
+merchants earned, while the merchants' wealth was untouched. Merchants
+hold more than they earn because agents carry their wealth across
+occupations (about 5% of agents switch a turn), and the tax took 5% of
+that stock every turn it was held.
+
+### Verdict: money creation
+
+The base is a stock that was credited to agents and is never debited.
+This is not an abstraction of a levy on flows that never reached the
+agents. The tax is computed from `pool.wealth`, the same wealth the
+merchants keep, bequeath, carry into other occupations and, under
+`--domestic-credit`, lend. Each turn the treasury is credited 5% of that
+stock and the stock does not change. So a unit of wealth held by merchants
+for its whole life (2% decay) pays about 2.5 units of revenue and is still
+there. With `--domestic-credit`, where merchant wealth and treasuries
+exchange money under an exact ledger, interest paid to merchants comes
+back to the treasury about 2.5 times over as tax.
+
+### Correction
+
+* **Native debit, same tick, same base.** `tick_economy` gains
+  `debit_merchant_tax` (default true). The merchants that make up the
+  assessment (living, merchant, affinity of a civ that controls a region)
+  each pay `tax_rate` of their own wealth: `new = old * (1 - rate)` in f32
+  (`chronicler-agents/src/tax.rs`, `plan_merchant_tax`). Per civ the tick
+  reports what they paid, the sum of `old - new` in f64, as the civ result
+  column `tax_collected` (Float64). The new wealth is written only after
+  every result batch is packed (`apply_merchant_tax`), so a failed tick
+  changes nothing (as with the delivery buffer), and the snapshot cache is
+  dropped. The call keeps no state: nothing crosses a turn and nothing is
+  checkpointed. No random draws; slots in order.
+* **The treasury is paid what was paid.** `reconstruct_economy_result(...,
+  tax_debited=True)` reads `tax_collected` into
+  `EconomyResult.tax_collected` and refuses an extension that does not
+  report it. `_apply_treasury_tax_from_economy` pays the treasury from it
+  (whole units, the fraction carried as before) and keeps the carry of a
+  civ not taxed this turn. So per civ and tick, `credited + carry after -
+  carry before = paid`. `treasury_tax` stays the assessment, the tax base
+  finance reads (`treasury_tax / TAX_RATE`: the merchants' wealth before
+  they pay).
+* **Restore key.** `economy.merchant_tax_debited` (tuning, default 1). At
+  0 the tick is called with `debit_merchant_tax=False` and the treasury is
+  paid the assessment, as before: byte-identical to `main` (below). Like
+  the production ledger's keys, it is for comparisons and for reproducing
+  earlier runs.
+* **`--agents off`**: unchanged (no merchant agents, no tax). **Shadow and
+  demographics-only** modes tick the economy and credit the tax; their
+  merchants now pay it too.
+* **Domestic credit.** Its fiscal tick (Phase 3b) reads the merchants'
+  wealth after they paid (`merchant_wealth_by_region`), so merchants lend
+  from what they hold. Its room and the houses' term are shares of
+  revenue, which no longer includes tax nobody paid. Its ledger is
+  unchanged and must still balance.
+* **Contracts.** Treasury changes stay `keep`. No accumulator category,
+  enum, action-weight bucket or cap changes. No native state is added
+  (the state schema is unchanged). The tithe is not changed.
+* **Ledger.** `CHRONICLER_CHECK_RESOURCES=1` adds
+  `chronicler.merchant_tax.TaxLedger`. It reads the pool's merchant wealth
+  by civ affinity (`AgentSimulator.merchant_wealth_by_civ`, read only)
+  before and after the economy tick. Per civ it checks that the merchants'
+  wealth fell by exactly what the tick reports paid (1e-9 relative) and
+  that nobody else's changed (under the restore key, nobody's). It checks
+  that what was paid is the rate of their wealth and agrees with the
+  assessment (1e-5 relative, f32 products), and that `credited + carry
+  change = paid` (1e-9). A broken book raises `AssertionError("merchant
+  tax ledger does not balance ...")`.
+* **Probe.** `scripts/merchant_tax_probe.py` (`run`, `summarize`,
+  `compare`) extends `domestic_credit_probe.py`. Per turn it records the
+  assessment, the payment, the credit, the tithe base, the tithe to the
+  treasuries and the merchants' trade income. It also records occupation
+  shares and wealth, treasury, revenue, and agent rates per agent-turn. It
+  only reads: a probe run's final state equals a plain run's (both trees,
+  template seed 900 x 300).
+
+### Pre-registration
+
+Written and committed before any gate of the branch and before any run of
+the confirmatory sets. Development runs seen before it, all on seeds
+disjoint from the confirmatory ones: template seeds 900-919 x 300 turns
+(`main` and the branch, and both with `--domestic-credit`), procedural
+32 x 10 seeds 900-909 x 200 (`main` and the branch), the tests, smoke runs,
+and the scholarship test's worlds (seeds 7, 11, 42, 1234, 2024 x 120
+turns). Fresh `main` full gates of `cb9fe70` were started before this was
+written; they measure `main` only.
+
+Development results (branch - `main`, paired, with SE): template merchant
+wealth -54% (SE 4%), tax paid -55%, revenue -6.1% (2.6%), treasury -7.5%
+(3.9%), all-agent Gini -0.051 (0.004), satisfaction +0.008 (0.006),
+defaults -0.25 (0.25), migration +0.1% (3%), rebellion +4.6% (15%);
+procedural merchant wealth -50% (5%), revenue -1.4% (2.2%), Gini -0.039
+(0.005), migration -3.7% (2.9%), rebellion -13% (9%). Per-agent wealth
+fell in every occupation (farmers -19% to -25%, merchants -52% to -54%).
+
+Confirmatory sets: paired `main` against the branch's frozen tree,
+template seeds 42-81 x 500 and procedural 32 x 10 seeds 42-61 x 300 in the
+default configuration, and template 42-81 x 500 with `--domestic-credit`
+in both arms; the checked runs; both full gates. Predictions, branch
+against `main`, paired means over the run unless said:
+
+1. **Merchant wealth** (the pool's total, probe): template -45% to -65%,
+   procedural -40% to -60%.
+2. **The tax** paid into the treasuries: -45% to -65% in both sets; its
+   share of revenue falls from about 8% to 3-5%.
+3. **The tithe** (its base, and what reaches treasuries): -40% to -70%.
+4. **Every occupation's wealth falls** (per agent): farmers -10% to -35%,
+   soldiers and scholars -20% to -45%, priests -25% to -50%, merchants
+   -45% to -65%.
+5. **All-agent wealth Gini**: -0.025 to -0.07 in both sets. In the gates,
+   the share of civs whose final Gini is within 0.30-0.70 is not lower
+   than `main`'s by more than 0.02.
+6. **Revenue** per living civ-turn: template -3% to -10%, procedural -6%
+   to +2%. **Treasury**: template -2% to -12%, procedural within +-10%.
+7. **Fiscal crises**: defaults, debasements, fiscal-strain onsets and PSI
+   crises within +-30% of `main` in both sets; template foreign issuance
+   not more than 10% above `main`'s.
+8. **Satisfaction** (all agents): 0 to +0.015 (less inequality); merchants'
+   satisfaction within +-0.02.
+9. **Occupations**: each occupation's share of agents within +-0.005
+   (absolute); occupation switches per agent-turn not different by more
+   than two standard errors of the paired difference.
+10. **Migration and rebellion** per agent-turn: not different by more than
+    two standard errors of the paired difference.
+11. **Population** at the end, and polities alive, within +-5%.
+12. **Domestic credit** (both arms with the switch): merchants lend less
+    (-10% to -50%) and cities more; the foreign share of issuance rises by
+    0.02 to 0.15; the Gini as in 5.
+13. **Conservation**: every tick balanced in every checked run (template
+    42-61 x 300 and procedural 42-61 x 200, default and with
+    `--domestic-credit`: 80 runs), the credit ledger included; their final
+    states byte-identical to unchecked runs.
+14. **Identity**: the restore key against `main` (9-case matrix): 0
+    differences. The default against `main`: the three `--agents off`
+    cases identical, every hybrid case different.
+15. **Gates**: template full (200 x 500) and procedural full (100 x 300)
+    PASS strict, and the strict comparisons against fresh `main` full
+    gates of `cb9fe70` (same oracle methods, nothing to rebaseline) show
+    NO REGRESSION.
