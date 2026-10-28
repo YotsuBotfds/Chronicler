@@ -501,6 +501,7 @@ def execute(args):
         require(len(wheels) == 1, "exactly one fresh wheel required")
         wheel = wheels[0]
         wheel_sha = sha(wheel)
+        report["wheel_sha256"] = wheel_sha
         with zipfile.ZipFile(wheel) as archive:
             members = [name for name in archive.namelist()
                        if name.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES))]
@@ -526,6 +527,7 @@ def execute(args):
                 require(identity["native"]["sha256"] == wheel_native_sha, "loaded binary differs from built wheel")
                 if native_sha is None:
                     native_sha, schemas = identity["native"]["sha256"], identity["schemas"]
+                    report["native_sha256"] = native_sha
                     native_file = Path(identity["native"]["module_file"])
                     shutil.copyfile(native_file, root / "native" / native_file.name)
                 require(identity["native"]["sha256"] == native_sha and identity["schemas"] == schemas,
