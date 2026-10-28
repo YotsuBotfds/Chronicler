@@ -84,6 +84,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "health_care",
     "harvest_forecasts",
     "ritual_gatherings",
+    "scientific_claims",
     "domestic_credit",
     "tuning",
     "preset",

@@ -11,9 +11,14 @@ import argparse
 from importlib import import_module
 from typing import Any
 
-EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings")
+EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims")
 
 _HELP = {
+    "scientific_claims": (
+        "Academy-funded contextual trials, dated evidence and paid adoption effort; "
+        "requires --scholarship and --techniques (default off; saved state "
+        "dormant without prerequisites)"
+    ),
     "health_care": (
         "Temporary occupational injuries and household care: lost work and "
         "care time constrain farming and work income; requires --agents hybrid "
@@ -68,6 +73,11 @@ def configure_expansion_features(world: Any, args: Any, *, agent_mode: str) -> N
             raise ValueError(f"{name} must be a boolean or None")
         if value is True and name in ("health_care", "ritual_gatherings") and agent_mode != "hybrid":
             raise ValueError(f"--{name.replace('_', '-')} requires --agents hybrid")
+    if values["scientific_claims"] is True:
+        from chronicler.scholarship import scholarship_enabled
+        from chronicler.techniques import techniques_enabled
+        if not scholarship_enabled(world) or not techniques_enabled(world):
+            raise ValueError("--scientific-claims requires --scholarship and --techniques")
     if values["harvest_forecasts"] is True:
         from chronicler.contact_ledger import ledger_enabled
         from chronicler.grain_reserves import grain_reserves_enabled
