@@ -173,6 +173,7 @@ CHUNKS = {
     ],
     "expansion-wiring": [
         "tests/test_expansion_feature_wiring.py",
+        "tests/test_expansion_experiment.py",
         "tests/test_health_care.py",
         "tests/test_harvest_forecasts.py",
     ],

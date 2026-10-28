@@ -7,8 +7,6 @@ Default: fully local inference via LM Studio. No API key required.
 """
 from __future__ import annotations
 
-from chronicler.expansion_features import expansion_snapshot_fields
-
 import argparse
 import logging
 import signal
@@ -22,6 +20,7 @@ from chronicler.bundle import assemble_bundle, write_bundle
 from chronicler.climate import get_climate_phase
 from chronicler.chronicle import compile_chronicle
 from chronicler.decision_ablation import DECISION_ABLATIONS, decision_ablation_from_args
+from chronicler.expansion_features import expansion_snapshot_fields
 from chronicler.models import ChronicleEntry, NarrativeRole
 from chronicler.interestingness import find_boring_civs
 from chronicler.llm import DEFAULT_LOCAL_URL, LLMClient, create_clients
@@ -514,6 +513,7 @@ def execute_run(
     checkpoint_resume: Any | None = None,
     resume_info: dict | None = None,
     turn_boundary: Any | None = None,
+    expansion_experiment: dict | None = None,
 ) -> RunResult:
     """Shared entry point for single runs, batch, fork, and interactive modes.
 
@@ -557,6 +557,10 @@ def execute_run(
         stored in every checkpoint; ``turn_end(world)`` after each turn's pause,
         True when the pause changed the run, which writes that turn's scheduled
         checkpoints again. Reads the run only.
+    expansion_experiment : dict or None
+        Explicit source-owned experimental controls, recorded with resolved
+        state and provenance. Applying them to a supplied/resumed world requires
+        an intervention fork; omitting them preserves ordinary run behavior.
     """
     # Fallback clients
     _sim = sim_client or _DummyClient()
@@ -736,6 +740,25 @@ def execute_run(
     elif resume_info is not None:
         run_config["lineage"].append({"resumed_at": start_turn, "kind": resume_info.get("kind"),
                                       "exact": False})
+
+    # Explicit, source-owned experimental controls are applied only after
+    # normal world defaults or exact state restoration, before the first turn.
+    if expansion_experiment is not None:
+        from chronicler.expansion_experiment import apply_expansion_experiment
+        _experiment_resumed = not fresh_world
+        receipt = apply_expansion_experiment(
+            world, run_config, expansion_experiment, resumed=_experiment_resumed)
+        run_config["expansion_experiment"] = receipt
+        if _experiment_resumed:
+            prior_resume = resume_info
+            resume_info = {"kind": "experiment-fork", "exact": False, "turn": start_turn}
+            if prior_resume is not None:
+                resume_info["previous"] = prior_resume
+            run_config["resume_info"] = resume_info
+            run_config["lineage"].append({
+                "resumed_at": start_turn, "kind": "experiment-fork", "exact": False,
+                "experiment": receipt,
+            })
 
     remaining = num_turns - start_turn
     sim_model = getattr(_sim, "model", "unknown") or "LM Studio default"
@@ -1362,6 +1385,8 @@ def execute_run(
     # has no such key.
     if run_config.get("decision_ablation") is not None:
         bundle["metadata"]["decision_ablation"] = dict(run_config["decision_ablation"])
+    if run_config.get("expansion_experiment") is not None:
+        bundle["metadata"]["expansion_experiment"] = dict(run_config["expansion_experiment"])
     _set_narrative_token_metadata(bundle["metadata"], _narr, _narr_token_baseline)
 
     # M53: relationship stats metadata
