@@ -12,7 +12,7 @@ from chronicler.accumulator import StatAccumulator
 from chronicler.models import WorldState
 from chronicler.scholarship_state import ACADEMY, LIBRARY, ScholarshipState, Seat
 from chronicler.scientific_claims_state import (
-    EvidenceReceipt, ProposalReceipt, ScientificClaimsState,
+    EvidenceReceipt, ProposalReceipt,
 )
 from chronicler.techniques_state import TECHNIQUE_INDEX as K, TechniqueState
 from war_fixtures import war_world
@@ -313,12 +313,66 @@ def test_controls_separate_information_from_spending(monkeypatch):
         assert control.scientific_claims.effort_spent == reference.effort_spent
         assert [(t.claim, t.seat, t.funded_turn) for t in control.scientific_claims.trials] == [
             (t.claim, t.seat, t.funded_turn) for t in reference.trials]
-        assert C.confidence(control, 0, 0) == .5
         assert all(e.share == .5 for e in control.scientific_claims.last_effort)
+        assert [(t.control_output, t.treatment_output) for t in control.scientific_claims.trials] == [
+            (t.control_output, t.treatment_output) for t in reference.trials]
     assert withheld.scientific_claims.receipts == []
+    assert C.confidence(withheld, 0, 0) == .5
     assert withheld.scientific_claims.withheld_results == 4
-    assert all(not t.informative for t in uninformative.scientific_claims.trials)
+    assert all(t.informative and not t.supports for t in uninformative.scientific_claims.trials)
+    assert C.confidence(uninformative, 0, 0) == .25  # ordinary posterior, two null observations
     assert any(e.share > .5 for e in reference.last_effort if e.recipe == "irrigation")
+
+
+def test_registered_sham_measurements_do_not_discriminate_treatment_benefit():
+    # Prospective amendment f5a1fae9 freezes this measurement-only domain and
+    # criteria. Physical inputs are held fixed; no world outcomes are fitted.
+    base = _world(seats=(0,))
+    _tick(base, 0)
+    support = {False: [0, 0], True: [0, 0]}
+    different_sham_beliefs = 0
+    for seed in range(1000, 2000):
+        for sham in (False, True):
+            world = base.model_copy(deep=True)
+            world.seed, world.turn = seed, 1
+            world.scientific_claims.uninformative_tests = sham
+            C._finish_trials(world)
+            for i, trial in enumerate(world.scientific_claims.trials):
+                assert trial.informative
+                support[sham][i] += int(trial.supports)
+            if sham:
+                different_sham_beliefs += C.confidence(world, 0, 0) != C.confidence(world, 0, 1)
+    sham_difference = abs(support[True][0] - support[True][1]) / 1000
+    informed_difference = (support[False][0] - support[False][1]) / 1000
+    assert sham_difference <= .08
+    assert informed_difference >= .25
+    assert different_sham_beliefs > 0  # no forced equal confidence/no-evidence shortcut
+    print(f"frozen seeds1000..1999: informed={support[False]}, sham={support[True]}, "
+          f"distinct sham beliefs={different_sham_beliefs}")
+
+
+def test_policy_cannot_read_hidden_physics_until_new_observations_arrive(monkeypatch):
+    world = _world()
+    _complete(world, monkeypatch)
+    world.turn = 12
+    changed = world.model_copy(deep=True)
+    observed = [(t.observed_control, t.observed_treatment) for t in changed.scientific_claims.trials]
+    before_confidence = C.confidence(world, 0, 0)
+    before_effort = C.prepare_adoption_effort(world)
+    before_output = C.evaluate_trial(changed, 0, changed.scientific_claims.claims[0])[:2]
+    # This controlled intervention changes canonical physical truth, with
+    # context, budget and received measurements held fixed. Policy cannot see it.
+    monkeypatch.setitem(T.GRAIN_YIELD, "irrigation", -.05)
+    after_output = C.evaluate_trial(changed, 0, changed.scientific_claims.claims[0])[:2]
+    assert after_output != before_output
+    assert [(t.observed_control, t.observed_treatment) for t in changed.scientific_claims.trials] == observed
+    assert C.confidence(changed, 0, 0) == before_confidence
+    assert C.prepare_adoption_effort(changed) == before_effort
+    _tick(changed, 12)  # independently planned paid replication measures new physics
+    _tick(changed, 13)
+    assert C.confidence(changed, 0, 0) == before_confidence  # remote result not yet received
+    _tick(changed, 14)
+    assert C.confidence(changed, 0, 0) < before_confidence
 
 
 def test_local_only_keeps_local_observations_and_stops_remote_protocols(monkeypatch):

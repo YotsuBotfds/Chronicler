@@ -62,8 +62,12 @@ their sum matches the actual paid expense.
 
 The persisted `withhold_information` control preserves proposals, funded
 testing and effort budgets while removing outcome receipts and policy use.
-`uninformative_tests` preserves physical diagnostics and costs but gives
-observations zero weight. `transmission_enabled=False` retains own evidence
+`uninformative_tests` preserves physical diagnostics and costs but centers
+both sham readings on the physical comparator with independent measurement
+noise. These observations use the ordinary posterior; realized beliefs can
+differ without reliable treatment discrimination. The prospective amendment
+and frozen measurement-only seed check distinguish this from withholding.
+`transmission_enabled=False` retains own evidence
 and blocks remote protocols/results. A fixed-eligibility fixture checks that
 withheld and uninformative arms have the same trial schedule and treasury
 expenses as the informed arm. Geographic or later physical/treasury changes
@@ -95,3 +99,12 @@ practice. Historical belief work is bounded by the cohort, not population.
 No measured speedup or world-outcome benefit is asserted here. Scientific
 qualification, parameter fitting, broader sectors, new academies/cohorts and
 default activation require separately preregistered paired world runs.
+
+The prospectively frozen measurement-only sham check (seeds 1000..1999,
+retained physical inputs) observed 727 irrigation and 319 masonry supports
+under informative measurements, versus 329 and 319 under sham measurements.
+Sham confidence differed between the claims in 458 seeds. These figures
+check the implemented measurement rule; they do not qualify independent
+world outcomes. An explicit policy test changes the hidden physical grain
+coefficient while keeping received observations and eligibility fixed:
+confidence and paid allocation change only after new evidence arrives.

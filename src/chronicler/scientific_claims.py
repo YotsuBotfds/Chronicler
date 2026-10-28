@@ -210,9 +210,9 @@ def _finish_trials(world) -> None:
                                            state.cohort, trial.id, trial.source_data))
         sigma = MEASUREMENT_NOISE * trial.control_output
         trial.observed_control = max(0., trial.control_output + rng.gauss(0., sigma))
-        trial.observed_treatment = max(0., trial.treatment_output + rng.gauss(0., sigma))
-        trial.informative = (not state.uninformative_tests and trial.control_output > 0.
-                             and trial.observed_control > 0.)
+        center = trial.control_output if state.uninformative_tests else trial.treatment_output
+        trial.observed_treatment = max(0., center + rng.gauss(0., sigma))
+        trial.informative = trial.control_output > 0. and trial.observed_control > 0.
         if trial.informative:
             trial.supports = ((trial.observed_treatment - trial.observed_control)
                               / trial.observed_control >= claim.threshold)
