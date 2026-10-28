@@ -140,5 +140,11 @@ All three actual native checkpoint schema tuples match the frozen prior
 binary exactly; this is separate from extension identity, which changed.
 The initial focused run's failed schema expectation and starting-wealth test
 fixture are retained in external evidence; neither is counted as a pass.
-The default-off cross-binary matrix is running separately. Flag-on world,
-balance and performance qualification remain pending; no promotion is claimed.
+The default-off cross-binary matrix passes all 9 cases and 399 file comparisons:
+source `5b5252ed` with the old `43243cb0...` binary against frozen integration
+`527a9ff8` with the new `e7ec7728...` binary. Bundles match both decoded and
+as raw bytes after removing only `generated_at`. A separate 30-turn hybrid
+seed-900 default-versus-three-explicit-off-switches check matches all 10 files.
+The nine focused health tests were also repeated against frozen integrated
+source `d86b8cc6` with the new binary and pass. Flag-on world, balance and
+performance qualification remain pending; no promotion is claimed.
