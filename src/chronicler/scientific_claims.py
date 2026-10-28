@@ -387,7 +387,8 @@ def prepare_adoption_effort(world, acc=None) -> dict[tuple[int, int], float]:
     if state.last_effort_turn != world.turn:
         state.last_effort_turn = world.turn
         state.last_effort = []
-        if world.turn % EFFORT_CADENCE == 0:
+        if (state.started_turn is not None and world.turn >= state.started_turn
+                and (world.turn - state.started_turn) % EFFORT_CADENCE == 0):
             used_regions = set()
             for seat_id in state.seat_ids:
                 seat = _academy(world, seat_id)

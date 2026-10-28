@@ -18,6 +18,13 @@ support frequency <= 0.08 and informative irrigation-minus-masonry support
 frequency >= 0.25. These are implementation checks, not an inferential power
 or world-benefit claim; nonidentical realized sham beliefs are expected.
 
+**Prospective calendar correction, 2026-10-28:** independent controlled
+fixtures starting in all four seasons found that an absolute turn-modulo-six
+effort schedule never overlaps summer or winter claims. Before world
+qualification, anchor the same six-turn interval to the persisted cohort
+`started_turn`. Keep context matching, costs and effort allowance unchanged.
+This corrects calendar exposure; it is not parameter fitting to outcomes.
+
 ## Question and causal edges
 
 Does paid, locally transmitted evidence reallocate a fixed paid adoption
@@ -77,8 +84,9 @@ unfavorable result. Unfunded requests do not produce observations.
 
 Observed control and treatment add independent namespaced measurement errors
 with standard deviation 3% of physical control output. There is no hidden
-truth-bit draw. Zero-output or intentionally uninformative tests have no
-evidential weight. The measured relative difference is compared with the
+truth-bit draw. Zero-output tests have no evidential weight. Comparator-
+centered sham observations use the ordinary evidence rules described below.
+The measured relative difference is compared with the
 claim's 2% threshold. The physical outputs themselves do not update belief.
 
 Each record stores its immutable trial ID, source-data signature, protocol,
@@ -105,7 +113,8 @@ and reads no unreceived result or physical diagnostic. Conditional on fixed
 context, received records and budget, allocation does not change until new
 evidence arrives.
 
-Every sixth turn, each applicable participating academy may pay one treasury
+Every sixth turn relative to cohort `started_turn`, each applicable
+participating academy may pay one treasury
 unit for adoption effort, regardless of its confidence. Its fixed effort is
 split between applicable locally known recipes in proportion to confidence.
 The combined extra adoption-rate allowance is at most 0.01 per region. The

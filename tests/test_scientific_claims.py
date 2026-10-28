@@ -406,6 +406,39 @@ def test_fixed_paid_allowance_is_bounded_and_exactly_once(monkeypatch):
     assert C.prepare_adoption_effort(world) == {}
 
 
+@pytest.mark.parametrize("start", [0, 3, 6, 9])
+def test_all_four_origin_seasons_have_paid_cohort_relative_exposure_and_resume(start, monkeypatch):
+    monkeypatch.setattr(C, "MEASUREMENT_NOISE", 0.)
+    world, resumed = _world(), _world()
+    _run(world, start, start + 26)
+    _run(resumed, start, start + 1)
+    resumed = WorldState.model_validate_json(resumed.model_dump_json())
+    _run(resumed, start + 1, start + 26)
+    assert resumed.model_dump_json() == world.model_dump_json()
+    assert world.scientific_claims.started_turn == start
+    assert world.scientific_claims.trial_spent == 8
+    assert all(t.status == "completed" for t in world.scientific_claims.trials)
+    assert world.scientific_claims.effort_spent > 0
+
+
+def test_year_and_context_boundaries_keep_strict_eligibility(monkeypatch):
+    world = _world()
+    monkeypatch.setattr(C, "MEASUREMENT_NOISE", 0.)
+    _tick(world, 11)  # last winter step, one turn before the year/season boundary
+    _tick(world, 12)
+    assert world.scientific_claims.started_turn == 11
+    assert all(t.status == "cancelled" for t in world.scientific_claims.trials)
+    assert world.scientific_claims.receipts == []
+    world.turn = 17  # cadence matches, registered season does not
+    assert C.prepare_adoption_effort(world) == {}
+    world.turn = 23  # next winter, same cohort-relative cadence
+    assert C.prepare_adoption_effort(world)
+    changed = world.model_copy(deep=True)
+    changed.turn = 35
+    changed.regions[0].ecology.water = .1
+    assert all(r != 0 for r, k in C.prepare_adoption_effort(changed))
+
+
 def test_effort_uses_existing_prerequisites_suitability_and_growth_kernel():
     world = _world()
     ctrl = T._controllers(world, T._civ_indices(world))

@@ -50,9 +50,16 @@ this narrow kernel; broader world inference needs its own dependence design.
 
 Evidence applies only in the claimed grain, soil/water quarter-bands,
 season and climate phase, with sedentary farming and existing local practice.
-It does not imply a universal technique benefit. On every sixth turn an
+It does not imply a universal technique benefit. On every sixth turn relative
+to the persisted cohort start an
 applicable academy can pay one treasury unit for a fixed adoption allowance,
 split by confidence. The total extra rate is at most 0.01 per region.
+
+The calendar correction was checked before world qualification with cohorts
+starting at turns 0, 3, 6 and 9. Each retained paid adoption opportunities and
+serialized continuation equality. The 36 focused checks passed under Python
+3.13.5 with the installed native extension; this is mechanical verification,
+not a population or causal-benefit gate.
 `techniques._update_practice` applies it inside its existing logistic growth,
 prerequisite, suitability, workforce-shortfall and disruption gates. At zero
 practice it cannot invent a technique, and above the suitability cap it
