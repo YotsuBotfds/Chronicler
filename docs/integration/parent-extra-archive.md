@@ -88,3 +88,10 @@ are capability-dependent and belong to the full filesystem test lane; the
 remaining small-file cases can run under the offline guard. No Windows/macOS
 execution, full new-source qualification, real-cohort archive or reclaimed-space
 measurement is claimed.
+
+After integration, the 58 portable archive cases joined the existing bounded
+qualification-tool selection: **112 tests passed under the offline guard in
+3.41 seconds**. The eight alias/change-time capability cases remain in the full
+filesystem suite. The merged guard recorded no native module, blocked I/O or
+runtime execution. This focused result does not extend b257's frozen full-suite
+or 28-chunk qualification to later source commits.

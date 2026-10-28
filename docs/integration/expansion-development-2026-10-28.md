@@ -273,6 +273,16 @@ and retains interrupted legacy outcomes. Its portable merged tool selection
 passed 54 guarded tests. This does not retroactively relabel the household
 prototype's manually interrupted pre-test lane or promote that prototype.
 
+The later [parent-extra archive tool](parent-extra-archive.md) provides bounded
+copy, actual restoration and verification for finalized parent JSON/memory
+outputs. It protects validation inputs and every original parent file, uses
+hash-linked deterministic gzip, rejects aliases and malformed/oversized streams,
+and exposes no raw-deletion operation. Sixty-six filesystem tests passed;
+58 portable cases then joined the guarded tool selection, which passed all
+112 tests. No live cohort was archived and no simulation speedup or net storage
+recovery is claimed by that tool. The separate completed pytest-scratch cleanup
+retained all qualification records and is documented in the storage decisions.
+
 Evidence lives outside Git. Generated worlds, build products and machine logs
 are not committed. The roadmap retains the external Kimi source attribution
 and distinguishes implemented slices from larger proposed systems.
