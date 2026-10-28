@@ -1488,3 +1488,9 @@ only; Ashkari Nomads after its turn-77 default), the template run without
 the switch and a switch-on bundle written before `holders`; also at 390 px
 width (no horizontal page scroll). No console error or warning.
 Screenshots stay outside the repository.
+
+| Lane | Result |
+| --- | --- |
+| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 16 chunks: 2,829 passed, 63 skipped (chunk `domestic-credit` 34 tests) |
+| `pytest -m "not slow" -n 2` (release extension) | 6,842 passed, 3 skipped |
+| viewer `vitest run`, `eslint .`, `tsc -b && vite build` | 57 files, 456 tests passed; lint and build pass |
