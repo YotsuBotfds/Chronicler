@@ -17,7 +17,8 @@ new mechanisms, performance, rendering, or another operating system.
 The child invocation is fixed: full pytest, quiet output, the chosen source's
 `src` on the import path, no pytest cache, an external temporary directory and
 JUnit output. There are no extra-command, test-selection or pytest-argument
-passthroughs. Inherited pytest argument/plugin overrides are cleared. Native
+passthroughs. Inherited pytest argument/plugin overrides and configured addopts
+are cleared; the frozen checkout's test paths and conftest still apply. Native
 execution preloads the actual compiled submodule and checks the three exported
 simulator classes; absence is checked without accepting a fake replacement.
 
@@ -27,19 +28,23 @@ bytes. Before and after pytest, capture/check source HEAD, clean status,
 tracked-file hashes, interpreter/version/platform, dependency versions, native
 file/hash and thread environment. Use one-thread numerical/native settings and
 `PYTHONHASHSEED=0`; do not print inherited credentials or the full environment.
+Tracked symlinks and submodules are rejected: a clean link name does not freeze
+its target bytes, including links checked out as text on Windows.
 
 Only the following earns a passing terminal receipt: child exit zero, a valid
-JUnit report without failures/errors and unchanged required source/runtime
+JUnit report with executed test cases, no failures/errors and unchanged required source/runtime
 identities. Nonzero test exits, missing/malformed JUnit, changed identities,
 launch errors, and interrupted work remain distinct failed/unknown evidence.
 Logs, JUnit and atomic live/terminal receipts remain in the external destination.
 File writes flush and replace atomically. Do not overwrite another run.
+Status rechecks pass/outcome/exit consistency, both required artifact hashes and
+actual JUnit cases/counts before returning a verified passing receipt.
 
 ## Detachment and process boundaries
 
-Foreground execution is portable Python. Optional detached launch uses a new
-session where the host supports it, redirected input/output, a copied immutable
-runner and a PID creation identity. Status must verify that identity before
+Foreground execution uses portable Python. Detached launch is Linux-only in
+this version: it uses a new session, redirected input/output, a copied immutable
+runner and a PID/boot/creation identity. Status must verify that identity before
 claiming a worker is alive; unsupported liveness inspection reports unknown.
 Shell-exit survival is tested separately from machine-loss behavior. No machine
 restart, container teardown, or disconnected-host survival is promised.
@@ -74,7 +79,54 @@ Mocked probes test orchestration contracts. A real tiny-child result qualifies
 the tool path on its recorded host only. Record all commands, failures, passes,
 skips, source/runner identities and platform limits before reporting completion.
 
+## Usage
+
+Run from any checkout containing the tool; the source being qualified is named
+explicitly and can be a different immutable worktree:
+
+```sh
+python scripts/python_qualification.py run \
+  --source /path/to/frozen-checkout --git-sha FULL_SOURCE_SHA \
+  --python /path/to/isolated-env/bin/python --native-sha EXTENSION_SHA256 \
+  --output /outside/source/qualification-001 --detach
+
+# A separate no-native lane uses its own interpreter and fresh destination.
+python scripts/python_qualification.py run \
+  --source /path/to/frozen-checkout --git-sha FULL_SOURCE_SHA \
+  --python /path/to/no-native-env/bin/python --no-native \
+  --output /outside/source/qualification-002 --detach
+
+python scripts/python_qualification.py status --output /outside/source/qualification-001
+python scripts/python_qualification.py pause --output /outside/source/qualification-001
+python scripts/python_qualification.py resume --output /outside/source/qualification-001
+```
+
+Replace the uppercase identity placeholders with complete lowercase hashes.
+Omit `--detach` for foreground execution. `--start-paused` permits a deliberate
+pre-pytest boundary acknowledgement. A pause requested during pytest stays
+pending until that whole child exits; this tool cannot create a quiet interval
+halfway through a test suite.
+
+Receipts are `request.json`, `launch.json`, `status.json` and terminal
+`result.json`; execution artifacts are `supervisor.log`, `pytest.log` and
+`pytest-junit.xml`. `status` reports lost/reused Linux workers as interrupted
+and reports unverified liveness as unknown on unsupported hosts. Neither
+launch nor progress is a passing result.
+
 ## Evidence status
 
-Preregistered; implementation and checks pending. Existing interrupted full
-suites and recovered scholarship gate jobs are not reclassified by this plan.
+Preregistration commit: `02f46f31`. Focused mocked and actual tiny-child checks
+ran after the reserved benchmark window on Linux/x86-64, Python 3.13.5:
+**27 passed** in the no-native environment (4.04 s), and **27 passed** with
+the actual compiled extension (9.52 s), SHA-256
+`fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317`.
+
+Terminal-receipt corruption, a changed external symlink target, source/runtime
+changes, missing/malformed/empty JUnit evidence, failed launch, and cooperative
+pause/resume have explicit regression cases. Foreground and detached tiny
+pytest jobs produce verified one-test passing receipts.
+
+These are tool checks, not full-source, Rust, population, performance, or
+cross-platform qualification. Windows/macOS execution and machine-loss
+recovery were not run. Existing interrupted suites and recovered scholarship
+gate jobs are not reclassified, changed or controlled by this follow-up tool.

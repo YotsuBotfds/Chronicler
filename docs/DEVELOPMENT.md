@@ -200,3 +200,15 @@ and inspect the ledger before changing code. Record platform, interpreter,
 source identity, commands, passes/skips and unrun gates. Preserve unsupported
 platform failures and fail-closed persistence behavior. Do not publish run data,
 credentials or private evidence packages with source changes.
+
+## Durable Python qualification evidence
+
+`scripts/python_qualification.py` runs a fixed full pytest lane against an
+explicit clean source SHA, interpreter and native binary SHA (or verified
+native absence), with fresh external output, atomic receipts and JUnit/logs.
+Linux detached mode and cooperative before/after-pytest controls retain
+execution evidence when a launching shell exits. Partial or interrupted lanes
+never earn a pass. See
+[the preregistered protocol and usage](integration/python-qualification-supervisor.md).
+Its focused tests require local Git and real subprocesses and remain outside
+the bounded offline-guard selection.
