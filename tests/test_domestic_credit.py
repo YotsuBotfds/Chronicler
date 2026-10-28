@@ -718,6 +718,34 @@ def test_a_default_on_the_houses_raises_no_grievance(checked):
     assert max(world.domestic_credit.grievance) == 0.0
 
 
+def test_probe_measures_early_credit_purses_debt_stretches_and_war_borrowing(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("domestic_credit_probe_t", ROOT / "scripts" / "domestic_credit_probe.py")
+    probe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe)
+
+    def snap(turn, debt, issued, purse):
+        return {"turn": turn,
+                "finance": {"civs": {"A": {"debt": debt, "revenue_ema": 10.0, "interest": 6 if debt else 0}},
+                            "totals": {"issued_domestic": issued, "issued_foreign": 1}},
+                "cities": {"cities": [{"wealth": purse}]}, "guilds": {"guilds": [{"wealth": 2.0}]}}
+
+    history = [snap(t, 90 if 10 <= t < 15 or 20 <= t < 23 else 0, t, 5.0 + t) for t in range(70)]
+    m = probe._history_measures(history)
+    assert m["issued_domestic_before_30"] == 29 and m["issued_domestic_before_60"] == 59
+    assert m["city_purse_max"] == 74.0 and m["guild_purse_max"] == 2.0
+    assert m["heavy_debt_streak_max"] == 5 and m["heavy_debt_civ_turns"] == 8
+    assert m["interest_over_half_revenue_civ_turns"] == 8
+    rows = [{"turn": 1, "civ": 0, "war": True, "gap": 50, "peace_gap": 10, "revenue": 5, "dom": 30, "foreign": 15},
+            {"turn": 2, "civ": 0, "war": False, "gap": 20, "peace_gap": 20, "revenue": 5, "dom": 10, "foreign": 0}]
+    path = tmp_path / "borrow.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    b = probe._borrow_measures(path)
+    assert b["dom_issued_at_war"] == 30 and b["dom_war_chest"] == 20 and b["foreign_war_chest"] == 15
+    assert b["dom_war_share"] == pytest.approx(0.75) and b["dom_war_chest_share"] == pytest.approx(0.5)
+    assert probe._borrow_measures(tmp_path / "missing.jsonl") == {}
+
+
 def test_cold_start_decay_is_the_native_wealth_decay():
     import re
     text = (ROOT / "chronicler-agents" / "src" / "agent.rs").read_text()

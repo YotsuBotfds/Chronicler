@@ -164,8 +164,12 @@ runner forwards it and then also forks the `community_anchor` arm.
 makes the realm's merchant agents, guilds and cities the domestic lenders:
 they fund the state's domestic loans from their wealth, receive the
 interest and repayments and lose what a default writes off
-(`docs/integration/domestic-credit.md`). The gate runner forwards it to
-the agent-mode runs; `CHRONICLER_CHECK_RESOURCES=1` also checks its books.
+(`docs/integration/domestic-credit.md`). Lenders lend no new money that
+would raise the borrower's interest due above half its revenue, and while
+the agent pool's wealth builds up from its cold start the realm's abstract
+merchant houses lend finance's revenue term, fading as `0.98 ** turn`
+(section 13 there). The gate runner forwards it to the agent-mode runs;
+`CHRONICLER_CHECK_RESOURCES=1` also checks its books.
 
 ## Continuing on another machine
 
