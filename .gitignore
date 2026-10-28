@@ -22,6 +22,7 @@ viewer/node_modules/
 CLAUDE.md
 
 # Ad hoc local run artifacts
+ci-evidence/
 chronicle_bundle.json
 test/batch_*/
 test_narration*.md

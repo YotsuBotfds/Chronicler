@@ -25,6 +25,13 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
       - name: Install Python dependencies from the lockfile
         run: |
           python -m pip install --upgrade pip
@@ -43,10 +50,19 @@ jobs:
           PY
 
       - name: Run Python tests without Rust extension
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml=ci-evidence/no-rust.xml
 
-  python-native:
-    name: Python native
+      - name: Retain no-Rust test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-no-rust-${{ github.sha }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-native-tests:
+    name: Python native execution
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -60,8 +76,36 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Identify Rust compiler
+        id: compiler
+        shell: bash
+        run: echo "digest=$(rustc --version --verbose | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Restore release build cache
+        uses: actions/cache@v4
+        with:
+          path: chronicler-agents/target/release
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-${{ github.sha }}
+          restore-keys: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-
 
       - name: Install Python dependencies from the lockfile
         run: |
@@ -83,6 +127,11 @@ jobs:
           python - <<'PY'
           from importlib import util
           from importlib.machinery import EXTENSION_SUFFIXES
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
           import chronicler_agents as ca
           import pytest
 
@@ -96,11 +145,84 @@ jobs:
               if not isinstance(cls, type):
                   raise SystemExit(f"{name} is not a real native class: {cls!r}")
 
-          raise SystemExit(pytest.main(["-q"]))
+          evidence = Path("ci-evidence")
+          evidence.mkdir(exist_ok=True)
+          (evidence / "native-identity.json").write_text(json.dumps({
+              "source_commit": os.environ["GITHUB_SHA"],
+              "python": sys.version,
+              "executable": sys.executable,
+              "compiled_extension": origin,
+              "sha256": hashlib.sha256(Path(origin).read_bytes()).hexdigest(),
+              "classes": ["AgentSimulator", "EcologySimulator", "PoliticsSimulator"],
+          }, indent=2) + "\n", encoding="utf-8")
+          raise SystemExit(pytest.main(["-q", "--junitxml=ci-evidence/native.xml"]))
           PY
 
+      - name: Retain native Python test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-native-${{ github.sha }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python for PyO3 test linkage
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Run Rust tests
-        run: cargo test --manifest-path chronicler-agents/Cargo.toml --quiet
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --locked --manifest-path chronicler-agents/Cargo.toml --quiet 2>&1 | tee ci-evidence/rust.txt
+
+      - name: Retain Rust test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-${{ github.sha }}
+          path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  python-native:
+    name: Python native
+    if: always()
+    needs: [python-native-tests, rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require complete native Python and Rust success
+        env:
+          PYTHON_RESULT: ${{ needs.python-native-tests.result }}
+          RUST_RESULT: ${{ needs.rust.result }}
+        shell: bash
+        run: |
+          test "$PYTHON_RESULT" = success
+          test "$RUST_RESULT" = success
 
   viewer:
     name: Viewer
