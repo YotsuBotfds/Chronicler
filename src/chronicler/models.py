@@ -30,6 +30,9 @@ from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
 from chronicler.grain_reserves_state import GrainReserveState
+from chronicler.health_care_state import HealthCareState
+from chronicler.harvest_forecasts_state import HarvestForecastState
+from chronicler.ritual_gatherings_state import RitualGatheringState
 from chronicler.domestic_credit_state import DomesticCreditState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
@@ -1201,6 +1204,10 @@ class WorldState(BaseModel):
     # Public granaries: stock-target grain procurement and reserves
     # (chronicler.grain_reserves; None = disabled; omitted from output).
     grain_reserves: GrainReserveState | None = Field(default=None, exclude_if=_is_none)
+    # Bounded opt-in systems; optional authoritative state survives dormant modes.
+    health_care: HealthCareState | None = Field(default=None, exclude_if=_is_none)
+    harvest_forecasts: HarvestForecastState | None = Field(default=None, exclude_if=_is_none)
+    ritual_gatherings: RitualGatheringState | None = Field(default=None, exclude_if=_is_none)
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
@@ -1459,6 +1466,10 @@ class TurnSnapshot(BaseModel):
     # Read-only stocks/targets and completed-turn flows; absent while public
     # granaries are disabled or dormant (--agents off).
     grain_reserves: dict | None = Field(default=None, exclude_if=_is_none)
+    # Completed-turn observations only; absent when the corresponding system is dormant.
+    health_care: dict | None = Field(default=None, exclude_if=_is_none)
+    harvest_forecasts: dict | None = Field(default=None, exclude_if=_is_none)
+    ritual_gatherings: dict | None = Field(default=None, exclude_if=_is_none)
     # Viewer only: the completed turn's agent migrations as
     # [from region index, to region index, agents]; None (and omitted)
     # without an agent pool that records events (hybrid, shadow).

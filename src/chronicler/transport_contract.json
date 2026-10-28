@@ -51,6 +51,9 @@
     "scholarship",
     "food",
     "grain_reserves",
+    "health_care",
+    "harvest_forecasts",
+    "ritual_gatherings",
     "migration"
   ],
   "bundle_systems": [
