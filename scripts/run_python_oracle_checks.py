@@ -124,6 +124,9 @@ CHUNKS = {
         "tests/test_historical_parity.py",
         "tests/test_narration_provenance.py",
     ],
+    "history-forensics": [
+        "tests/test_history_forensics.py",
+    ],
     "turn-speed": [
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
