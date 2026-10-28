@@ -134,6 +134,7 @@ CHUNKS = {
         "tests/test_expansion_compare.py",
     ],
     "qualification-tools": [
+        "tests/test_writer_cadence_diagnostic.py",
         "tests/test_python_qualification.py::test_no_optional_shell_or_pytest_selection_passthrough",
         "tests/test_python_qualification.py::test_environment_removes_inherited_test_filters_and_paths",
         "tests/test_python_qualification.py::test_native_absence_does_not_accept_a_replacement_module",
