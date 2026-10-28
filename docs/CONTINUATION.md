@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The later lead branch's source-qualified work is indexed in
+[the October 28 expansion record](integration/expansion-development-2026-10-28.md).
+It stays separate from main. The household-journal experiment is also kept
+on its own review branch: its phase gains did not meet whole-workload
+acceptance, so its Rust code was not integrated. The
+[negative result](performance/household-decision-journal-results-2026-10.md)
+and full candidate Rust qualification retain their exact source boundaries.
+
 2026-10-28 evidence addendum: frozen `d051d7c0` / receipt release `fb20dbc8`
 passed the [full Rust qualification](integration/rust-qualification-d051-2026-10.md).
 The subsequent [writer-cadence diagnostic](performance/ablation-writer-cadence-diagnostic-2026-10.md)
