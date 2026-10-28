@@ -302,8 +302,9 @@ def boot_id():
 
 
 class Supervisor:
-    def __init__(self, root, deadline):
+    def __init__(self, root, deadline, *, budget_label="80-minute"):
         self.root, self.deadline = root, deadline
+        self.budget_label = budget_label
         self.cleanup_complete = True
         self.children = []
 
@@ -347,8 +348,8 @@ class Supervisor:
             finally:
                 os.close(descriptor)
 
-    def command(self, label, command, env, cwd):
-        require(time.monotonic() < self.deadline, "aggregate 80-minute child wall limit reached")
+    def command(self, label, command, env, cwd, *, allowed_exit_codes=(0,)):
+        require(time.monotonic() < self.deadline, f"aggregate {self.budget_label} child wall limit reached")
         self.admission(label + ":before", 3, 1)
         self.event("child_start", label=label, command=command, cwd=str(cwd))
         boot = boot_id()  # Read before creating a child.
@@ -368,7 +369,7 @@ class Supervisor:
                 while True:
                     if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
                         break
-                    require(time.monotonic() < self.deadline, "aggregate 80-minute child wall limit reached")
+                    require(time.monotonic() < self.deadline, f"aggregate {self.budget_label} child wall limit reached")
                     self.admission(label + ":running", 3, 1)
                     time.sleep(1)
                 require(not session_live(child.pid), "child exited with live same-session descendants")
@@ -395,7 +396,8 @@ class Supervisor:
             self.event("child_exit", label=label, returncode=child.returncode)
             if failed:
                 raise failed
-            require(child.returncode == 0, label + " exited " + str(child.returncode))
+            require(child.returncode in allowed_exit_codes, label + " exited " + str(child.returncode))
+            return child.returncode
 
 def probe(args):
     import chronicler
