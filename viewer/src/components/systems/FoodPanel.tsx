@@ -6,6 +6,7 @@ import {
 import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { Granaries } from "./Granaries";
+import { HarvestForecasts } from "./HarvestForecasts";
 
 const SERIES = ["Short of food", "In dearth", "In famine"];
 const SERIES_COLORS: Record<string, string> = {
@@ -52,6 +53,8 @@ export function FoodPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Food">
+      <HarvestForecasts bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <Granaries bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
         onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       <div className="systems-tiles">

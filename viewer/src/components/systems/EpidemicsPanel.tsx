@@ -4,9 +4,10 @@ import {
   SYSTEM_EVENT_TYPES, type SystemPanelProps,
 } from "../../lib/systems";
 import { StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
+import { HealthCare } from "./HealthCare";
 
 export function EpidemicsPanel({
-  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, selectedRegion,
+  bundle, snapshot, currentTurn, onSeek, onSelectEvent, onSelectRegion, onSelectCivilization, selectedRegion,
 }: SystemPanelProps) {
   const history = bundle.history;
   const regions = bundle.world_state.regions;
@@ -19,6 +20,8 @@ export function EpidemicsPanel({
 
   return (
     <div className="systems-panel-body" aria-label="Epidemics">
+      <HealthCare bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} onSeek={onSeek}
+        onSelectEvent={onSelectEvent} onSelectRegion={onSelectRegion} onSelectCivilization={onSelectCivilization} />
       {epidemics ? (
         <div className="systems-tiles">
           <StatTile label="Active outbreaks" value={epidemics.active.length} detail={`turn ${at}`} />

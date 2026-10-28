@@ -5,6 +5,7 @@ import {
 import type { FaithRecord } from "../../types";
 import type { SystemPanelProps } from "../../lib/systems";
 import { StatTile, SystemEventList } from "./SystemParts";
+import { RitualGatherings } from "./RitualGatherings";
 
 /**
  * The run's faiths by permanent identity (docs/integration/permanent-faiths.md):
@@ -12,7 +13,8 @@ import { StatTile, SystemEventList } from "./SystemParts";
  * slot it holds or held, and the later church that took a vanished faith's
  * slot. As known at the scrubbed turn.
  */
-export function FaithsPanel({ bundle, currentTurn, onSelectEvent, onSelectRegion, onSelectCivilization }: SystemPanelProps) {
+export function FaithsPanel(props: SystemPanelProps) {
+  const { bundle, currentTurn, onSelectEvent, onSelectRegion, onSelectCivilization } = props;
   const table = useMemo(() => faithTable(bundle), [bundle]);
   const civs = bundle.world_state.civilizations;
   const regions = bundle.world_state.regions;
@@ -61,6 +63,7 @@ export function FaithsPanel({ bundle, currentTurn, onSelectEvent, onSelectRegion
 
   return (
     <div className="systems-panel-body" aria-label="Faiths">
+      <RitualGatherings {...props} />
       <div className="systems-tiles">
         <StatTile label="Faiths founded" value={known.length} detail={`by turn ${currentTurn}`} />
         <StatTile label="Holding a slot" value={holding.length} />

@@ -1,3 +1,9 @@
+import type { HarvestForecastSnapshot, HealthCareSnapshot, RitualGatheringsSnapshot } from "./expansionTypes";
+export type {
+  HarvestForecastReport, HarvestForecastSnapshot, HarvestPreparedness, HealthCareRegion, HealthCareSnapshot,
+  RitualGatheringOutcome, RitualGatheringSchedule, RitualGatheringsSnapshot,
+} from "./expansionTypes";
+
 // --- Enums (matching Python str enums) ---
 
 export type TechEra =
@@ -304,6 +310,12 @@ export interface TurnSnapshot {
   food?: FoodSnapshot;
   /** Public granaries at this snapshot, only with active --grain-reserves. */
   grain_reserves?: GrainReservesSnapshot;
+  /** Actual hybrid injury and household-care observations; absent when off. */
+  health_care?: HealthCareSnapshot;
+  /** Delayed harvest reports and actual preparedness purchases; absent when off. */
+  harvest_forecasts?: HarvestForecastSnapshot;
+  /** Actual local gatherings, payments and immutable schedules; absent when off. */
+  ritual_gatherings?: RitualGatheringsSnapshot;
   /**
    * Agent migrations of the completed turn as [from region index, to region
    * index, agents]; present only in hybrid and shadow runs written after the
