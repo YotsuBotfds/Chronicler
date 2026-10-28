@@ -667,3 +667,41 @@ it is promoted:
   share of merchant capital tied up in public debt).
 * A guild or city that lost heavily could refuse to lend for a while
   (today only the realm's domestic trust records it).
+
+## 12. Tests and lanes
+
+`tests/test_domestic_credit.py` (26 tests, guarded-lane chunk
+`domestic-credit`): the integer split; who lends and the quarter kept; that
+merchants lend only where merchants live; a loan funded pro rata from the
+lenders' wealth, named in its event and noted by its city and guild;
+interest and principal paid to the funders; unpaid interest capitalized
+into the claims; prepayment; a default landing on the lenders with
+grievance, the repudiation in the histories and the guild threat, with
+finance's domestic consequences kept; grievance decaying and reaching the
+region batch (absent when off); a fallen borrower's lines lost and a
+fallen city's claim lapsing; the merchant due sent once a tick, carried
+when it cannot be applied and applied when merchants return; the ledger
+over a run and a broken book caught; a carried rounding residual not taken
+for an overdraft; finance's books with the switch; legacy lines; no
+domestic-credit code while off; save/load resume identity with outstanding
+lines; the switch, CLI, manifest, checkpoint flags, requirements, the
+new-world default and a saved setting kept; live; the gate runner's
+forwarding (not to aggregate determinism runs); the snapshot summary and
+metrics. A stand-in simulator implements the two native calls with
+`credit.rs`'s rule.
+
+`tests/test_domestic_credit_native.py` (4 tests, real extension): the
+merchant wealth calls read and move wealth exactly once, refuse malformed
+input and take nothing where no merchants live; the grievance column costs
+merchants satisfaction and refuses values outside 0..1; a 60-turn hybrid
+run with the switch and `CHRONICLER_CHECK_RESOURCES=1` lends, balances and
+is deterministic; checkpoint resumes at turns 15 and 30 reproduce every
+file. Rust: `credit.rs` (5 unit tests: home region, pro rata debit, credit
+up to the ceiling, no merchants or no wealth, no state kept) and
+`satisfaction.rs` (the grievance costs merchants only, inside the cap).
+
+| Lane | Result |
+| --- | --- |
+| `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,761 passed, 59 skipped |
+| `pytest -m "not slow"` (frozen tree, release extension) | 6,786 passed, 3 skipped, 15 deselected |
+| `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,076 passed, 0 failed, 2 ignored |
