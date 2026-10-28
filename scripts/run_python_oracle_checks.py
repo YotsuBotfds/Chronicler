@@ -130,6 +130,16 @@ CHUNKS = {
     "expansion-audit": [
         "tests/test_expansion_audit.py",
     ],
+    "expansion-comparison": [
+        "tests/test_expansion_compare.py",
+    ],
+    "qualification-tools": [
+        "tests/test_python_qualification.py::test_no_optional_shell_or_pytest_selection_passthrough",
+        "tests/test_python_qualification.py::test_environment_removes_inherited_test_filters_and_paths",
+        "tests/test_python_qualification.py::test_native_absence_does_not_accept_a_replacement_module",
+        "tests/test_python_qualification.py::test_compiled_native_bytes_must_match_the_requested_hash",
+        "tests/test_python_qualification.py::test_junit_must_describe_actual_executed_test_cases",
+    ],
     "turn-speed": [
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
@@ -190,6 +200,7 @@ CHUNKS = {
     ],
     "transaction-receipts": [
         "tests/test_transaction_receipts.py",
+        "tests/test_public_purchase_receipts.py",
     ],
     "expansion-experiments": [
         "tests/test_expansion_experiment_runner.py",

@@ -91,6 +91,43 @@ wheel SHA-256 is
 This fresh release is reserved for the next complete integration qualification;
 it does not turn the interrupted older full suites into passes.
 
+At frozen `d051d7c0` with that receipt release, the default nine-case matrix
+matched **399 files with zero differences** against `5b5252ed`/the original
+extension. All five experiments also ran together for 60 turns with resource
+checks. Continuing from an exact turn-30 checkpoint matched the final state
+bytes, all 60 historical snapshots and both event timelines. Changing only
+checkpoint output frequency also preserved final state bytes. This is one
+seed's composition/continuation evidence, not balance or efficacy qualification.
+The complete frozen crate subsequently passed **1,088 Rust tests**, with two
+existing performance-budget tests ignored; see the
+[Rust receipt](rust-qualification-d051-2026-10.md).
+
+The final scientific-viewer checkpoint `e8212644` passed **680 tests across
+65 files**, lint/build and repeated desktop/mobile browser checks. Later
+[Transactions inspection](transactions-view.md) and
+[public purchase observations](public-purchase-receipts.md) have focused,
+guarded and real controlled-fixture evidence of their own. Their source is
+later than the frozen complete-suite source. The public domain distinguishes
+actual foreign ruler credits from domestic producer sinks; it supplies no
+private sale or insurance account.
+
+The registered ten-run natural scientific cohort completed at `d051d7c0`
+using the separately identified environment-aware runner. Both normal forks
+matched their parent final state bytes and actual worker environments matched.
+Seed 42 had no academy exposure. Seed 43 completed two trials for four treasury;
+all arms had zero adoption spending and zero remote evidence receipts. No
+adoption, transmission or economic benefit is identified. The
+[readout](../experiments/scientific-claims-development-2026-10.md) retains every
+arm and the empty-exposure seed. Later publication-rule development is separate.
+
+The lean-output experiment retained exact event/receipt bytes and oracle
+results across all timed comparisons. Its five whole-orchestrator pairs had
+a 1.146x median paired full/lean ratio, range 0.986–2.115x. Clean direct-worker
+medians were 1.157–1.361x across the four seed/fork cohorts; final precleanup
+artifact footprint fell 44.6–48.6%. These are measured workload-specific,
+variable workflow results, not native-tick acceleration or cumulative I/O
+measurements. [Full methods and raw pairs](../performance/lean-ablation-output.md).
+
 ## Work still running or incomplete
 
 The full native/no-Rust Python runs at `527a9ff8` were interrupted around
@@ -100,9 +137,16 @@ arm. Recovery uses separate evidence directories, verified completed inputs,
 immutable sources/native builds and unchanged full horizons/needs/kin arms.
 Recovery and procedural qualification must report their own actual completion.
 
-Complete integration full-suite qualification, new-source warning studies,
-natural-world scientific controls, enabled balance/efficacy gates and quiet
-paired lean-output timing remain incomplete here. Focused mechanics and
+Complete integration full-Python qualification, new-source warning studies
+and enabled balance/efficacy gates remain incomplete here. The two full Python
+lanes are running on immutable `d051d7c0`, with the receipt extension present
+only in the native environment. A first detached native attempt correctly
+failed collection because its copied driver omitted the checkout root from
+the import path; its receipt remains retained. The fixed launcher has an
+actual cross-tests/scripts import regression and runs into a new destination.
+The [durable supervisor](python-qualification-supervisor.md) preserves source,
+native, interpreter, logs, JUnit and truthful terminal status across shell
+closure; it does not promise survival of machine loss. Focused mechanics and
 default identity do not substitute for those gates. Source-qualified updates
 will append exact checkpoints; no moving branch name is a test receipt.
 

@@ -40,11 +40,11 @@ the [expansion development record](../../integration/expansion-development-2026-
 | Delayed warnings | Past-observation harvest reports, delayed contact transmission, paid granary preparation, outcomes and withheld/shuffled controls. | Matched policy comparisons and prospective skill baselines. A discovered negative target increment was corrected; the affected old study remains recorded as a failure. |
 | Recurring gatherings | Bounded local attendance, real food/fund costs, dated actual-arrival contact and bond attempts; cost-only/contact/bond controls. | Wider-world effects and network outcomes. A bond attempt is not a formed bond; selected arrivals are not invented pilgrimages. |
 | Scientific claims | Paid contextual academy trials, delayed evidence, dependence accounting and evidence-driven paid technique effort; default off. | Natural-world informative/withheld/transmission/sham studies. Accounting groups are not certified independent experimental units. |
-| Metrology and loss cover | Bounded native cargo observations, voyage continuity and loss IDs, with incomplete capture and virtual cargo explicitly distinguished. | Private cash, cargo title, per-good settlement and loss ownership. The recorder alone cannot fund inspection fees or insurance. |
+| Metrology and loss cover | Bounded native cargo observations, voyage continuity and loss IDs, plus independent public-granary stock/payment receipts. Incomplete capture, virtual cargo, foreign treasury credits and domestic producer sinks are distinct. | Private cash, cargo title, general private settlement and loss ownership. The recorders alone cannot fund private inspection fees or insurance. |
 | Water power and firms | Source-audited design and labor/cash dependencies. | No production implementation; avoid adding output before labor and income reconcile. |
 | Domesticates | Source-audited draft-animal proposal. | No new cohort implementation; reconcile ownership, creation, fodder and pastoral accounting first. |
 
-The first three slices have real development runs and historical inspectors.
+The first four slices have development runs and historical inspectors.
 The study harness forks one exact checkpoint per seed and records controls,
 source and native identities. Its unchanged continuations matched six of six
 parent final states in the initial 24-run development set. This checks fork
@@ -53,10 +53,12 @@ defect rather than treating all generated observations as valid.
 
 Performance work is separate: reader-owned validation turn indexes preserve
 reports and accelerate repeated turn filtering, but the measured full report
-did not show a reliable overall improvement. A narrowly scoped lean ablation
-output experiment is in development; no timing gain is claimed before paired
-whole-worker measurements. Oracle thresholds, horizons and the offline
-110-second chunk limit are unchanged.
+did not show a reliable overall improvement. The lean ablation output path is
+implemented with exact retained-file/oracle checks. Five whole-orchestrator
+pairs gave a noisy 1.146x median paired ratio (range 0.986–2.115x); final
+precleanup artifact footprint fell 44.6–48.6%. These workload-specific results
+do not establish simulation-tick or universal speedups. Oracle thresholds,
+horizons and the offline 110-second chunk limit are unchanged.
 
 ## Decisions before adding state
 
