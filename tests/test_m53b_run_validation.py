@@ -110,12 +110,13 @@ def test_profile_defaults_match_documented_validation_scales():
     assert (override.seeds, override.turns) == (3, 7)
 
 
-@pytest.mark.parametrize("parallel, workers", [("1", 1), ("3", 3), (None, 12)])
+@pytest.mark.parametrize("parallel, workers", [("0", 0), ("1", 1), ("3", 3), ("12", 12), (None, 3)])
 def test_gate_runner_parallel_is_the_batch_worker_count(monkeypatch, tmp_path, parallel, workers):
     from chronicler.batch import parallel_workers
     from chronicler.main import _build_parser
 
     runner = _load_runner()
+    monkeypatch.setattr(runner, "automatic_workers", lambda: 3)
     commands = []
 
     class Stop(Exception):
@@ -135,7 +136,9 @@ def test_gate_runner_parallel_is_the_batch_worker_count(monkeypatch, tmp_path, p
         runner.main()
     [cmd] = commands
     cli = _build_parser().parse_args(cmd[cmd.index("chronicler.main") + 1:])
-    assert parallel_workers(cli.parallel, cpu_count=64) == workers
+    assert cli.parallel == workers
+    if workers:
+        assert parallel_workers(cli.parallel, cpu_count=64) == workers
 
 
 def test_build_env_prepends_absolute_repo_src(monkeypatch):

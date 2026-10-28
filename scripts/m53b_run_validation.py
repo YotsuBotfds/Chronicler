@@ -64,6 +64,7 @@ from chronicler.batch_manifest import (
     write_batch_manifest,
 )
 from chronicler.ablation_arms import COMMUNITY_ARM, GATE_ARMS, checkpoint_turns, fork_every, run_ablation_arms
+from chronicler.cpu_budget import automatic_workers
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     CAUSAL_ORACLES_FLAG,
@@ -850,8 +851,9 @@ def main() -> None:
     parser.add_argument("--seed-start", type=int, default=42)
     parser.add_argument("--seeds", type=int, default=None)
     parser.add_argument("--turns", type=int, default=None)
-    parser.add_argument("--parallel", type=int, default=12,
-                        help="batch worker processes (passed as --parallel N; 1 is one worker, 0 sequential)")
+    parser.add_argument("--parallel", type=int, default=None,
+                        help="batch worker processes (default: affinity/cgroup-aware CPU budget, "
+                             "reserving one CPU when possible; 1 is one worker, 0 sequential)")
     parser.add_argument(
         "--worldgen",
         choices=WORLDGEN_CHOICES,
@@ -1044,6 +1046,8 @@ def main() -> None:
              "(seeds, turns, world, simulation configuration); the comparison is labelled exploratory.",
     )
     parsed = parser.parse_args()
+    if parsed.parallel is None:
+        parsed.parallel = automatic_workers()
     if parsed.worldgen != "procedural" and (parsed.regions is not None or parsed.civs is not None):
         parser.error("--regions and --civs require --worldgen procedural")
     args = apply_profile_defaults(parsed)

@@ -19,6 +19,7 @@ from chronicler.batch_manifest import (
     write_batch_manifest,
 )
 from chronicler.interestingness import score_run
+from chronicler.cpu_budget import automatic_workers
 from chronicler.types import RunResult
 
 # Type alias for progress callbacks: (completed, total, current_seed) -> None
@@ -37,14 +38,15 @@ def parallel_workers(parallel: Any, cpu_count: int | None = None) -> int:
     An explicit count (``--parallel N``, a Batch Lab worker count) is N
     workers, 1 included. Anything else that asks for a parallel batch (a bare
     ``--parallel``, argparse's ``const=-1``; Batch Lab's ``True``) sizes the
-    pool to ``cpu_count - 1``, at least 1. ``None`` and 0 run sequentially and
+    pool to the affinity/cgroup-aware CPU budget, reserving one CPU when
+    possible. ``cpu_count`` is an optional caller-supplied budget override.
+    ``None`` and 0 run sequentially and
     never reach here. Results do not depend on the count: each seed runs in
     one worker, deterministically.
     """
     if isinstance(parallel, int) and not isinstance(parallel, bool) and parallel >= 1:
         return parallel
-    cores = multiprocessing.cpu_count() if cpu_count is None else cpu_count
-    return max(1, cores - 1)
+    return automatic_workers() if cpu_count is None else max(1, cpu_count - 1)
 
 
 def run_batch(
