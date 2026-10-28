@@ -614,7 +614,8 @@ turn 10); live checkpoints record the viewer's world (civs, regions,
 ### Identity
 
 `scripts/checkpoint_identity.py run OUT --jobs 2 --case live_hybrid_s42
---case live_proc32_hybrid_s11 --case live_off_s42` on `93de16a`: for each
+--case live_proc32_hybrid_s11 --case live_off_s42`, run on `93de16a` and
+again on `c467b8e` (the branch's source as merged): for each
 case CLI sessions driven over the WebSocket protocol as a viewer drives
 them (`start`, `continue` at every pause, the case's interventions and
 checkpoint requests). `plain` saves nothing; `straight` writes a
@@ -630,15 +631,17 @@ pause, and the view after completion.
 
 | Case | World, mode | Turns, pauses | Viewer | Resume points | Files per resume | Differences |
 | --- | --- | --- | --- | ---: | ---: | ---: |
-| `live_hybrid_s42` | template 8 x 4, hybrid, validation sidecars | 20, every 5 | save asked at 3 (written at 4); at pause 10 `set` military 90 and `inject` plague on the first civ, then save | 19 + 2 | 20-24 | 0 |
-| `live_proc32_hybrid_s11` | procedural 32 x 8, hybrid, sidecars | 20, every 5 | save asked at 7 (written at 8), save at pause 15 | 19 + 2 | 24-28 | 0 |
-| `live_off_s42` | template 8 x 4, off (native ecology and politics) | 20, every 5 | save asked at 2 (written at 4), save at pause 5 | 19 + 2 | 9 | 0 |
+| `live_hybrid_s42` | template 8 x 4, hybrid, validation sidecars | 20, every 5 | save asked at 3 (written at 4, then 3); at pause 10 `set` military 90 and `inject` plague on the first civ, then save | 19 + 2 | 20-24 | 0 |
+| `live_proc32_hybrid_s11` | procedural 32 x 8, hybrid, sidecars | 20, every 5 | save asked at 7 (written at 8, then 7), save at pause 15 | 19 + 2 | 24-28 | 0 |
+| `live_off_s42` | template 8 x 4, off (native ecology and politics) | 20, every 5 | save asked at 2 (written at 4, then 2), save at pause 5 | 19 + 2 | 9 | 0 |
 
-**3 cases, 63 resume points, 1,205 file comparisons, 0 differences;
-every view equal** (each resume: the views after turns k+1 to 20, the
-connect view, the reconnect view and the final view). Saving changed
-nothing (`plain` against `straight`: 69 files, 0 differences, views
-equal), interventions included.
+A save asked while running is written at the first boundary after the
+request arrives, so its turn depends on timing (the two runs above).
+**Each run: 3 cases, 63 resume points, 1,205 file comparisons, 0
+differences; every view equal** (each resume: the views after turns k+1
+to 20, the connect view, the reconnect view and the final view). Saving
+changed nothing (`plain` against `straight`: 69 files, 0 differences,
+views equal), interventions included.
 
 In-process (`tests/live_session_harness.py`, no sockets) the tests run a
 12-turn template 6 x 3 world, off with the Python oracle, pausing every 4
@@ -651,10 +654,19 @@ turns. Natively, hybrid with sidecars and off with the native runtimes,
 
 No simulation change: `scripts/turn_speed_identity.py run` (its 9 cases)
 with `main` `25854db` (exported tree, its own venv and script) against
-the branch, then `compare`: **399 files, 0 differences** (section 8; see
-the branch's ledger entry for the commits). Both venvs were built from
-the lockfile, each with a release extension built from its own tree; the
+the branch on `a2bd649` and on `c467b8e`, then `compare`: **399 files, 0
+differences** each time (section 8). Both venvs were built from the
+lockfile, each with a release extension built from its own tree; the
 Rust tree is unchanged and both builds have SHA-256 `3da1ee1f...ad0b`.
+
+Tests on `c467b8e` (Linux x86-64, 4 shared vCPU, Python 3.13.17): the
+offline oracle lane PASS (15 chunks, 2,793 passed, 61 skipped; chunk
+`live-checkpoints` 13 passed, 2 native skipped); the live, checkpoint and
+origin/token suites with the release extension, 89 passed. Not-slow with
+the extension on `9f52673` (the source differed from `c467b8e` by one
+unused import): 6,824 passed, 3 skipped, 526 subtests. Viewer: 442 tests
+(3 new), lint and build passed. No `cargo test` (Rust unchanged) and no
+validation gate (no simulation change).
 
 ### Cost
 
