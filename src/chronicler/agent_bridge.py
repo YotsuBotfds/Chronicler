@@ -1143,6 +1143,9 @@ class AgentBridge:
             raise ValueError(
                 f"agent_scale_mode must be one of {AGENT_SCALE_MODES}, got {agent_scale_mode!r}"
             )
+        if getattr(world, "health_care", None) is not None:
+            from chronicler.health_care import validate_fresh_health_pool
+            validate_fresh_health_pool(world, mode=mode)
         AgentSimulator = _load_agent_simulator_class()
         self._sim = AgentSimulator(num_regions=len(world.regions), seed=world.seed)
         # Exact mode is the native default; only a non-default mode is sent,

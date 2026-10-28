@@ -4,6 +4,7 @@ import pytest
 from chronicler.health_care import (
     health_care_active, health_care_on, set_health_care_enabled,
     prepare_health_care, finish_health_care, snapshot_summary, validate_health_care,
+    validate_fresh_health_pool,
 )
 from chronicler.health_care_state import HealthCareState, InjuryEpisode
 
@@ -126,3 +127,64 @@ def test_stale_and_future_summaries_are_unrecorded(sample_world):
     assert snapshot_summary(w) == {}
     w.health_care.last_tick_turn = w.turn + 1
     assert snapshot_summary(w) == {}
+
+
+def test_fresh_pool_guard_respects_initial_empty_dormant_and_disabled_state(sample_world):
+    w = world(sample_world)
+    w.health_care.episodes = [episode()]
+    validate_fresh_health_pool(w)  # explicitly injected initial cohort
+    w.health_care.last_tick_turn = 0
+    w.turn = 1
+    with pytest.raises(ValueError, match="exact checkpoint"):
+        validate_fresh_health_pool(w)
+    w.health_care.episodes = []  # extinct/dead cohort has no IDs to rebind
+    validate_fresh_health_pool(w)
+    w.health_care.episodes = [episode()]
+    w.agent_mode = "off"
+    validate_fresh_health_pool(w)  # preserved but dormant state is not resolved
+    with pytest.raises(ValueError, match="exact checkpoint"):
+        validate_fresh_health_pool(w, mode="hybrid")
+    set_health_care_enabled(w, False)
+    w.agent_mode = "hybrid"
+    validate_fresh_health_pool(w)
+
+
+def test_entrypoint_rejects_saved_ids_before_constructor_and_disable_clears(sample_world, tmp_path, monkeypatch):
+    from chronicler.main import _configure_run
+    import chronicler.agent_bridge as ab
+    w = world(sample_world)
+    w.turn = 1
+    w.health_care.last_tick_turn = 0
+    w.health_care.episodes = [episode()]
+    w = type(w).model_validate_json(w.model_dump_json())  # raw saves lack a native pool
+    def forbidden():
+        raise AssertionError("native construction reached")
+    monkeypatch.setattr(ab, "_load_agent_simulator_class", forbidden)
+    args = SimpleNamespace(agents="hybrid", health_care=None)
+    with pytest.raises(ValueError, match="exact checkpoint"):
+        _configure_run(args, w, False, tmp_path / "chronicle.md")
+    args.health_care = False
+    with pytest.raises(AssertionError, match="native construction"):
+        _configure_run(args, w, False, tmp_path / "chronicle.md")
+    assert w.health_care is None
+
+
+def test_initial_constructor_and_restored_extinct_pool_are_allowed(sample_world, monkeypatch):
+    import chronicler.agent_bridge as ab
+    w = world(sample_world)
+    w.health_care.episodes = [episode()]
+    def forbidden():
+        raise AssertionError("native construction reached")
+    monkeypatch.setattr(ab, "_load_agent_simulator_class", forbidden)
+    with pytest.raises(AssertionError, match="native construction"):
+        ab.AgentBridge(w, mode="hybrid")
+    w.health_care.last_tick_turn = 0
+    w.health_care.episodes = []
+    w.turn = 1
+    sim = Sim()
+    sim.last_tick_alive = 0  # zero also occurs after a legitimate extinct tick
+    bridge = object.__new__(ab.AgentBridge)
+    bridge.__setstate__({"_sim": sim, "_mode": "hybrid"})
+    prepare_health_care(w, bridge)
+    finish_health_care(w, bridge)
+    assert w.health_care.episodes == []

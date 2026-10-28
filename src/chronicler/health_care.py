@@ -11,6 +11,10 @@ import math
 from chronicler.health_care_state import HealthCareState, InjuryEpisode
 
 DEFAULT_ENABLED_FOR_NEW_WORLDS = False
+_POOL_RESUME_ERROR = (
+    "active saved health episodes require an exact checkpoint with their native pool; "
+    "resume a .ckpt file or use --no-health-care to discard the episodes"
+)
 
 
 def health_care_on(world) -> bool:
@@ -40,6 +44,19 @@ def validate_health_care(world) -> None:
         ids = [e.agent_id for e in world.health_care.episodes]
         if len(ids) != len(set(ids)):
             raise ValueError("health care has duplicate injury agent IDs")
+
+
+def validate_fresh_health_pool(world, *, mode: str | None = None) -> None:
+    """Guard the explicit fresh AgentBridge constructor, not restored runtimes.
+
+    The supplied constructor mode is authoritative even when a low-level
+    caller has not yet synchronized world.agent_mode. Exact continuation
+    restores the saved bridge without invoking this constructor.
+    """
+    effective_mode = mode if mode is not None else getattr(world, "agent_mode", None)
+    if (health_care_on(world) and effective_mode == "hybrid" and world.health_care.episodes
+            and world.health_care.last_tick_turn >= 0):
+        raise ValueError(_POOL_RESUME_ERROR)
 
 
 def prepare_health_care(world, bridge) -> None:

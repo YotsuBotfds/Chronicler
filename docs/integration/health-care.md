@@ -75,6 +75,21 @@ inside preparation/economy is not a complete health continuation. The compiled
 extension identity still changes, so an old binary's exact checkpoint remains
 subject to the existing fail-closed identity checks. No migration waiver is
 introduced. Raw state saves do not become exact native continuations.
+An active previously ticked injury cohort cannot resume through a freshly
+constructed pool: `AgentBridge.__init__` rejects it before native construction,
+after entrypoints apply explicit disables. Resume an exact checkpoint or drop
+the feature with `--no-health-care`. Empty/dead cohorts and dormant non-hybrid
+state do not resolve saved IDs and remain permitted. Initial controlled
+cohorts (`last_tick_turn = -1`) are deliberately allowed. Low-level callers
+must use the guarded bridge constructor or restore a complete exact checkpoint;
+manually pairing saved ID-keyed state with an unrelated runtime is unsupported.
+Exact resumes use `__setstate__` to restore their native runtime and do not run
+the fresh constructor. No population statistic is used as an identity proof:
+`last_tick_alive == 0` also occurs with legitimately extinct pools.
+
+This Python-only constructor guard and its tests were added after the frozen
+`527a9ff8` qualification source; they require no native rebuild. The frozen
+cross-binary matrix below therefore does not include this additional guard.
 
 ## Preregistered acceptance and ablations
 
@@ -118,7 +133,8 @@ Retain failures and do not tune parameters against confirmatory seeds.
 
 ## Verification standing
 
-Focused Python tests: 9 passed, including six controlled state/ablation tests,
+Focused Python tests: 12 passed, including nine controlled state/ablation and
+fresh-pool provenance tests,
 a 12-turn native run with forced-visible onsets, native prepared-input
 checkpoint omission, and a 20-turn true `execute_run` checkpoint continuation
 with an active injury cohort. All run files match after normalizing only the
