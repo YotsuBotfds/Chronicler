@@ -139,6 +139,10 @@ K_LAND_CARGO_CAP = "economy.land_cargo_cap"
 K_RIVER_CARGO_CAP = "economy.river_cargo_cap"
 K_SEA_CARGO_CAP = "economy.sea_cargo_cap"
 K_CARGO_FILL = "economy.cargo_fill"
+# Merchant tax (2026-10, docs/integration/money-credit.md): 1 (the default) is
+# the correction, the merchants pay the tax the treasury collects; 0 restores
+# the earlier rule (the treasury is paid, nobody pays).
+K_MERCHANT_TAX_DEBITED = "economy.merchant_tax_debited"
 # Guilds (--guilds): movement news as information packets (0 turns the news
 # off while guilds stay on; for the news-on/off comparison).
 K_GUILD_NEWS = "guilds.movement_news"
@@ -320,6 +324,7 @@ KNOWN_OVERRIDES: set[str] = {
     K_OVEREXTRACTION_REALIZED, K_MINE_SOIL_REALIZED, K_FISHERY_CHARGES_LANDED_CATCH,
     K_YIELD_PENALTY_REACHES_GOODS,
     K_LAND_CARGO_CAP, K_RIVER_CARGO_CAP, K_SEA_CARGO_CAP, K_CARGO_FILL,
+    K_MERCHANT_TAX_DEBITED,
     K_GUILD_NEWS,
     K_COMMUNITY_FULL_ANCHOR,
     # Politics

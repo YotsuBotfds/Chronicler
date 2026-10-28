@@ -603,6 +603,13 @@ class EconomyResult:
     # economy tick, or from a native extension built before 2026-10.
     slot_output: dict[str, tuple[float, float, float]] = field(default_factory=dict)
     forage_output: dict[str, float] = field(default_factory=dict)
+    # Merchant tax (2026-10, docs/integration/money-credit.md): by civ index,
+    # what the civ's merchant agents paid this tick (the native economy's
+    # ``tax_collected``), which the treasury receives. ``treasury_tax`` stays
+    # the assessment (rate x merchant wealth, the tax base finance reads).
+    # None when nobody paid: the Python oracle, and the earlier rule
+    # (``economy.merchant_tax_debited`` 0).
+    tax_collected: dict[int, float] | None = None
 
 
 def compute_production(
@@ -1493,12 +1500,18 @@ def reconstruct_economy_result(
     conservation_batch,
     world,
     require_oracle_shadow: bool = False,
+    tax_debited: bool = False,
 ) -> EconomyResult:
     """Reconstruct a Python EconomyResult from five Rust return batches.
 
     Produces the same field shapes as compute_economy() so that downstream
     consumers (agent_bridge, action_engine, tick_factions, EconomyTracker,
     detect_supply_shocks) need no contract changes.
+
+    ``tax_debited``: the tick took the merchant tax from the merchants
+    (``tick_economy(..., debit_merchant_tax=True)``); their payments are read
+    into ``tax_collected``, and an extension that does not report them
+    (built before 2026-10) is refused.
     """
     result = EconomyResult()
     region_names = [r.name for r in world.regions]
@@ -1600,6 +1613,15 @@ def reconstruct_economy_result(
         vals = pylist(civ_result_batch.column(field_name))
         for i, cid in enumerate(cr_ids):
             target[cid] = vals[i]
+    if tax_debited:
+        if "tax_collected" not in set(schema_names(civ_result_batch)):
+            raise RuntimeError(
+                "the installed chronicler_agents extension does not report the merchant tax its "
+                "merchants paid (tax_collected); rebuild it, or restore the earlier rule with the "
+                "tuning key economy.merchant_tax_debited: 0"
+            )
+        paid = pylist(civ_result_batch.column("tax_collected"))
+        result.tax_collected = {cid: float(paid[i]) for i, cid in enumerate(cr_ids)}
 
     # --- Observability batch → imports, stockpile levels, trade dependency ---
     # Each column is decoded once (it was decoded again for every region).

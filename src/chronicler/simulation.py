@@ -1796,29 +1796,45 @@ def prune_inactive_wars(world: WorldState) -> None:
         world.war_start_turns.pop(key, None)
 
 
-def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result) -> None:
+def _apply_treasury_tax_from_economy(world: WorldState, acc, economy_result, tax_ledger=None) -> None:
     """Apply M42 treasury tax with deterministic fractional carryover.
 
     Economy tax is computed as a float. Carrying fractional remainders avoids
     persistent truncation bias where small civs can remain permanently tax-exempt.
+
+    Merchant tax (2026-10, ``chronicler.merchant_tax``): where the merchants
+    paid the tax (``economy_result.tax_collected``) the treasury is paid
+    exactly that, and a civ not taxed this turn keeps its carry, so every
+    unit taken from them reaches the treasury. Otherwise (the Python oracle,
+    the earlier rule) the assessment ``treasury_tax`` is paid, as before.
     """
     if economy_result is None or acc is None:
         return
 
     prior_carry = getattr(world, "_treasury_tax_carry", {})
-    next_carry: dict[int, float] = {}
+    paid = getattr(economy_result, "tax_collected", None)
+    if paid is None:
+        taxes = economy_result.treasury_tax
+        next_carry: dict[int, float] = {}
+    else:
+        taxes = paid
+        next_carry = dict(prior_carry)
+    credited: dict[int, int] = {}
 
-    for civ_idx, tax in economy_result.treasury_tax.items():
+    for civ_idx, tax in taxes.items():
         if civ_idx >= len(world.civilizations):
             continue
 
         gross = max(0.0, float(tax) + float(prior_carry.get(civ_idx, 0.0)))
         whole_tax = int(gross)
         next_carry[civ_idx] = gross - whole_tax
+        credited[civ_idx] = whole_tax
         if whole_tax > 0:
             acc.add(civ_idx, world.civilizations[civ_idx], "treasury", whole_tax, "keep")
 
     world._treasury_tax_carry = next_carry
+    if tax_ledger is not None:
+        tax_ledger.after_credit(taxes, credited, prior_carry, next_carry)
 
 
 def _capture_agent_snapshot(world: WorldState, agent_bridge: object):
@@ -2003,6 +2019,7 @@ def run_turn_result(
 
     economy_result = None
     snapshot = None
+    tax_ledger = None
     if agent_bridge is not None:
         region_map = world.region_map
         snapshot = agent_bridge.get_snapshot()
@@ -2055,14 +2072,30 @@ def run_turn_result(
                 # this economy tick is about to consume.
                 from chronicler.contact_ledger import observe_phase2
                 observe_phase2(world, phase2_trade_routes, agent_bridge)
-            rust_return = agent_bridge._sim.tick_economy(
-                region_input, trade_route_input,
-                season_id, is_winter, trade_friction,
-            )
+            # Merchant tax (2026-10, chronicler.merchant_tax): the tick takes
+            # the tax from the merchants it assesses; the tuning key
+            # economy.merchant_tax_debited 0 restores the earlier rule.
+            from chronicler.merchant_tax import TaxLedger, merchant_tax_debited
+            tax_debited = merchant_tax_debited(world)
+            tax_ledger = TaxLedger.begin(world, agent_bridge._sim, tax_debited)
+            if tax_debited:
+                rust_return = agent_bridge._sim.tick_economy(
+                    region_input, trade_route_input,
+                    season_id, is_winter, trade_friction,
+                )
+            else:
+                rust_return = agent_bridge._sim.tick_economy(
+                    region_input, trade_route_input,
+                    season_id, is_winter, trade_friction,
+                    debit_merchant_tax=False,
+                )
             economy_result = reconstruct_economy_result(
                 *rust_return, world,
                 require_oracle_shadow=(world.agent_mode == "hybrid"),
+                tax_debited=tax_debited,
             )
+            if tax_ledger is not None:
+                tax_ledger.after_economy(economy_result)
             if _grain_reserves_on(world):
                 # Public granaries (--grain-reserves): cover the shortfall of
                 # food on hand before anything reads this turn's sufficiency.
@@ -2101,8 +2134,8 @@ def run_turn_result(
     # Phase 2: Automatic Effects (NEW)
     _emit(apply_automatic_effects(world, acc=acc, cross_routes=phase2_trade_routes))
 
-    # M42: Apply treasury tax (keep category)
-    _apply_treasury_tax_from_economy(world, acc, economy_result)
+    # M42: Apply treasury tax (keep category): what the merchants paid
+    _apply_treasury_tax_from_economy(world, acc, economy_result, tax_ledger=tax_ledger)
     if _cities_on(world):
         # Cities: dues assessed in last turn's Phase 10, paid to the lords.
         from chronicler.cities import pay_dues

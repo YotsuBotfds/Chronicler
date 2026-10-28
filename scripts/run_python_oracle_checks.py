@@ -167,6 +167,10 @@ CHUNKS = {
     "domestic-credit": [
         "tests/test_domestic_credit.py",
     ],
+    "merchant-tax": [
+        "tests/test_merchant_tax.py",
+        "tests/test_merchant_tax_native.py",
+    ],
     "faiths": [
         "tests/test_permanent_faiths.py",
     ],

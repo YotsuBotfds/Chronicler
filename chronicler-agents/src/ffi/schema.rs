@@ -242,6 +242,9 @@ pub fn economy_civ_result_schema() -> Schema {
         Field::new("treasury_tax", DataType::Float32, false),
         Field::new("tithe_base", DataType::Float32, false),
         Field::new("priest_tithe_share", DataType::Float32, false),
+        // Merchant tax (2026-10, `crate::tax`): what the civ's merchants
+        // paid this tick (0 under the earlier rule, nobody pays).
+        Field::new("tax_collected", DataType::Float64, false),
     ])
 }
 

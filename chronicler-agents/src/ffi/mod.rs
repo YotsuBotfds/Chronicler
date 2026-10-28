@@ -424,6 +424,14 @@ impl AgentSimulator {
         crate::credit::merchant_wealth_by_region(&self.pool, self.regions.len())
     }
 
+    /// Merchant tax: the living merchant agents' total wealth by civ
+    /// affinity (index = affinity, 256 entries), in f64. Reads only; used
+    /// by the resource ledger's check of the tax
+    /// (`CHRONICLER_CHECK_RESOURCES=1`).
+    pub fn merchant_wealth_by_civ(&self) -> Vec<f64> {
+        crate::tax::merchant_wealth_by_civ(&self.pool)
+    }
+
     /// Domestic credit: add (positive) or take (negative) `amounts[i]` from
     /// the wealth of the merchants of region `region_ids[i]` (principal
     /// lent, interest and repayments; `credit::apply_merchant_transfers`).
@@ -2517,6 +2525,14 @@ impl AgentSimulator {
     ///
     /// Python calls this with dedicated economy input batches (NOT build_region_batch).
     /// Rust derives agent counts from the live pool.
+    ///
+    /// The merchant tax (2026-10, `crate::tax`): with `debit_merchant_tax`
+    /// (the default) each living civ's merchant agents pay the tax they are
+    /// assessed, `tax_rate` of their own wealth, once this tick, after every
+    /// result batch is packed; the civ result's `tax_collected` (f64) is
+    /// exactly what they paid. `false` restores the earlier rule (the tax is
+    /// assessed, nobody pays it, `tax_collected` is 0).
+    #[pyo3(signature = (region_input_batch, trade_route_batch, season_id, is_winter, trade_friction, debit_merchant_tax=true))]
     pub fn tick_economy(
         &mut self,
         region_input_batch: PyRecordBatch,
@@ -2524,6 +2540,7 @@ impl AgentSimulator {
         season_id: u8,
         is_winter: bool,
         trade_friction: f32,
+        debit_merchant_tax: bool,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
         use arrow::array::{
             Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
@@ -2830,6 +2847,15 @@ impl AgentSimulator {
             }
         }
 
+        // Merchant tax: the same merchants pay what they are assessed (the
+        // pool changes only after the result batches are packed, below).
+        let merchant_tax = if debit_merchant_tax {
+            let taxed: Vec<bool> = (0..n_civs).map(|c| active_civ_flags[c]).collect();
+            crate::tax::plan_merchant_tax(&self.pool, &taxed, self.economy_config.tax_rate)
+        } else {
+            crate::tax::MerchantTax { payments: Vec::new(), collected: vec![0.0; n_civs] }
+        };
+
         // --- Unpack trade routes ---
         let mut routes: Vec<TradeRouteInput> = Vec::with_capacity(n_routes);
         if n_routes > 0 {
@@ -2977,12 +3003,14 @@ impl AgentSimulator {
         let mut cr_tax = Float32Builder::with_capacity(n_civ_out);
         let mut cr_tb = Float32Builder::with_capacity(n_civ_out);
         let mut cr_pts = Float32Builder::with_capacity(n_civ_out);
+        let mut cr_collected: Vec<f64> = Vec::with_capacity(n_civ_out);
         for &civ_id in &active_civ_ids {
             let cr = &output.civ_results[civ_id as usize];
             cr_cid.append_value(civ_id);
             cr_tax.append_value(cr.treasury_tax);
             cr_tb.append_value(cr.tithe_base);
             cr_pts.append_value(cr.priest_tithe_share);
+            cr_collected.push(merchant_tax.collected[civ_id as usize]);
         }
         let civ_result_batch = RecordBatch::try_new(
             Arc::new(economy_civ_result_schema()),
@@ -2991,6 +3019,7 @@ impl AgentSimulator {
                 Arc::new(cr_tax.finish()),
                 Arc::new(cr_tb.finish()),
                 Arc::new(cr_pts.finish()),
+                Arc::new(Float64Array::from(cr_collected)),
             ],
         ).map_err(arrow_err)?;
 
@@ -3121,6 +3150,12 @@ impl AgentSimulator {
         // If any batch packing above failed via `?`, we exit early and the buffer is preserved.
         if let Some(buf) = self.merchant_delivery_buf.as_mut() {
             buf.clear();
+        }
+
+        // Merchant tax: the merchants pay, once, what `tax_collected` reports.
+        if !merchant_tax.payments.is_empty() {
+            crate::tax::apply_merchant_tax(&mut self.pool, &merchant_tax);
+            self.snapshot_cache = None; // the pool changed: drop the cached snapshot
         }
 
         // What each slot produced is what the Phase 9 ecology tick depletes
