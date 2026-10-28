@@ -176,6 +176,9 @@ pub struct AgentPool {
 
     /// Free-list: indices of dead slots available for reuse.
     free_slots: Vec<usize>,
+    /// Derived one-turn manual-work deductions, (expected stable id, loss)
+    /// by slot. Cleared when wealth consumes them; never checkpointed.
+    pub health_work_loss: Vec<(u32, f32)>,
 }
 
 impl AgentPool {
@@ -248,6 +251,7 @@ impl AgentPool {
             count: 0,
             next_id: 1,
             free_slots: Vec::new(),
+            health_work_loss: Vec::new(),
         }
     }
 
@@ -1761,4 +1765,4 @@ crate::persist_struct!(AgentPool {
     trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,
     pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
     free_slots,
-});
+} skip { health_work_loss });

@@ -1304,6 +1304,9 @@ pub fn wealth_tick(
     signals: &TickSignals,
     wealth_percentiles: &mut [f32],
 ) {
+    // The Python-authoritative health builder supplies exactly one turn.
+    // Stable-id guards prevent deductions reaching a reused slot.
+    let health_loss = std::mem::take(&mut pool.health_work_loss);
     // --- Step 1: Accumulation + Decay ---
     let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
     for slot in 0..pool.capacity() {
@@ -1348,6 +1351,12 @@ pub fn wealth_tick(
             }
         };
 
+        let income = if occ == 0 {
+            match health_loss.get(slot) {
+                Some(&(id, loss)) if id == pool.ids[slot] && loss != 0.0 => income * (1.0 - loss),
+                _ => income,
+            }
+        } else { income };
         pool.wealth[slot] += income;
         // Multiplicative decay
         pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;

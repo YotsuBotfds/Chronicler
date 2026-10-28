@@ -2055,6 +2055,9 @@ def run_turn_result(
                 # this economy tick is about to consume.
                 from chronicler.contact_ledger import observe_phase2
                 observe_phase2(world, phase2_trade_routes, agent_bridge)
+            if getattr(world, "health_care", None) is not None:
+                from chronicler.health_care import prepare_health_care
+                prepare_health_care(world, agent_bridge)
             rust_return = agent_bridge._sim.tick_economy(
                 region_input, trade_route_input,
                 season_id, is_winter, trade_friction,
@@ -2224,6 +2227,10 @@ def run_turn_result(
     else:
         # --agents=off: apply ALL categories (no agents to produce guard stats)
         acc.apply(world)
+
+    if getattr(world, "health_care", None) is not None and agent_bridge is not None:
+        from chronicler.health_care import finish_health_care
+        _emit(finish_health_care(world, agent_bridge))
 
     if agent_bridge is None:
         for region in world.regions:

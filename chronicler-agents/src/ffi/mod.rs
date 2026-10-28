@@ -162,6 +162,8 @@ pub struct AgentSimulator {
     /// a held batch equals a fresh export. Arrow arrays are shared, so
     /// handing it out again copies nothing.
     snapshot_cache: Option<arrow::record_batch::RecordBatch>,
+    /// Rebuilt from Python episodes before economy; consumed after tick.
+    health_work: Option<crate::health_care::HealthWork>,
 }
 
 #[pymethods]
@@ -214,7 +216,31 @@ impl AgentSimulator {
             pending_promotion_memories: Vec::new(),
             tick_options: crate::scale::TickOptions::default(),
             snapshot_cache: None,
+            health_work: None,
         }
+    }
+
+    pub fn prepare_health_work(&mut self, ids: Vec<u32>, excluded: Vec<u32>, urban: Vec<u16>,
+        impairment: f32, care_fraction: f32) -> PyResult<Vec<(u32, u16, u32, f32)>> {
+        if !impairment.is_finite() || !(0.0..=1.0).contains(&impairment)
+            || !care_fraction.is_finite() || !(0.0..=1.0).contains(&care_fraction) {
+            return Err(PyValueError::new_err("health work fractions must be finite in 0..1"));
+        }
+        let work = crate::health_care::prepare(&mut self.pool, &ids, &excluded, &urban,
+            self.num_regions, impairment, care_fraction);
+        let rows = work.rows.clone();
+        self.health_work = Some(work);
+        Ok(rows)
+    }
+
+    pub fn finish_health_work(&mut self, turn: u32, rate: f32)
+        -> PyResult<(Vec<(u32, u16)>, Vec<(u32, u16, u16)>, Vec<(u16, f64, f64, u32)>)> {
+        if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
+            return Err(PyValueError::new_err("health injury rate must be finite in 0..1"));
+        }
+        self.pool.health_work_loss.clear();
+        let Some(work) = self.health_work.take() else { return Ok((Vec::new(), Vec::new(), Vec::new())) };
+        Ok(crate::health_care::finish(work, &self.pool, self.master_seed, turn, rate))
     }
 
     /// Exact checkpoint: every field this simulator carries between ticks,
@@ -2830,6 +2856,18 @@ impl AgentSimulator {
             }
         }
 
+        // Rural impairment/care removes productive work, not people or demand.
+        // City craft allocation is already reflected in farm_labor_factor;
+        // only non-city workers can contribute these additive deductions.
+        if let Some(work) = &self.health_work {
+            for (r, inp) in region_inputs.iter_mut().enumerate() {
+                let farmers = agent_counts[r].farmer_count as f32;
+                if farmers > 0.0 && work.losses[r] > 0.0 {
+                    inp.farm_labor_factor = (farmers * inp.farm_labor_factor - work.losses[r]).max(0.0) / farmers;
+                }
+            }
+        }
+
         // --- Unpack trade routes ---
         let mut routes: Vec<TradeRouteInput> = Vec::with_capacity(n_routes);
         if n_routes > 0 {
@@ -2920,6 +2958,10 @@ impl AgentSimulator {
         let mut rr_forage = Float32Builder::with_capacity(n_out);
 
         for rr in &output.region_results {
+            if let Some(work) = &mut self.health_work {
+                let r = rr.region_id as usize;
+                if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }
+            }
             for (slot, builder) in rr_slot_out.iter_mut().enumerate() {
                 builder.append_value(rr.slot_output[slot]);
             }
@@ -4015,4 +4057,4 @@ crate::persist_struct!(AgentSimulator {
     merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
-} skip { snapshot_cache });
+} skip { snapshot_cache, health_work });
