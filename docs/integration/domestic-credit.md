@@ -97,6 +97,9 @@ always keeps a quarter of its wealth (`offer <= share x wealth`). The
 domestic capacity is the sum of the offers; a borrower excluded after a
 default still gets a quarter of it (`EXCLUDED_DOMESTIC_SHARE`, unchanged).
 The abstract revenue-times-influence part is gone: only real wealth lends.
+*(Superseded in part, 2026-10-28: that term lends again while the agent
+pool's wealth builds up from its cold start, and every domestic loan is
+limited by the borrower's room; [13.2](#132-design).)*
 
 The finance tick asks for what it asked before (`_borrow`'s gap); the loan
 is split among the lenders pro rata to their offers, in whole units
@@ -248,6 +251,8 @@ receipts leave into the ledger, and the claims still add up.
 | `THREAT_SHARE` | 0.1 | loss share of assets that is a guild threat / history entry | [CALIBRATE] |
 | `CREDITOR_GRIEVANCE_WEIGHT` (Rust) | 0.10 | merchant satisfaction lost at full grievance | [CALIBRATE]; persecution's weight is 0.09 per unit of intensity |
 | `EVENT_LENDERS` | 3 | lenders named in an event | |
+| `SERVICE_SHARE` (second pass) | 0.5 | no new domestic money that would raise the borrower's interest due (all its lines) above this share of its smoothed revenue | [CALIBRATE]; about half of revenue in interest is where early modern domestic creditors stopped financing crowns (13.2) |
+| `COLD_START_DECAY` (second pass) | 0.02 | the cold-start houses lend finance's revenue term times `(1 - this) ** turn` | = the native agents' `WEALTH_DECAY` (tested): the share of the pool's equilibrium wealth not yet accumulated |
 
 ## 4. Conservation: the credit ledger
 
@@ -505,6 +510,7 @@ switch as without (procedural 300 turns: 8 against 9 of 20; template
 gate: 8 of 200). Purses, unlike agent wealth (capped at 100 an agent),
 have no ceiling, so it is cities and guilds that grow without bound. Not
 changed here; it is decision 11.2 (3).
+*(Fixed in the second pass by the borrower's room, [13.2](#132-design).)*
 
 **How wealth moves.** Merchant wealth grows; its distribution moves little.
 The Gini of all agents' wealth rises by 0.007-0.009 (the merchants pulling
@@ -699,7 +705,8 @@ had grown rich on earlier interest.
   repaid (the region's merchants are), and wealthier merchants are paid
   more. Credits that find no merchant wait in the due rather than being
   given to someone else.
-* **The abstract revenue-times-influence term is gone.** Only real wealth
+* **The abstract revenue-times-influence term is gone.** *(Superseded:
+  it returns for the pool's cold start only, [13.2](#132-design).)* Only real wealth
   lends; early domestic credit halves (8). Keeping it would leave domestic
   credit partly lent by nobody.
 * **Fallen lenders' claims lapse**, as debts to a fallen foreign lender
@@ -733,6 +740,10 @@ it is promoted:
    state at the ceiling must deleverage or default as it did against the
    abstract class; and whether a city's or guild's purse should have a
    ceiling as agent wealth does.
+
+   *(Items 2 and 3 are decided in the second pass, [13.6](#136-decisions):
+   a cold-start abstract lender; lenders refuse money the borrower cannot
+   service; no war reserve and no purse ceiling. Item 1 is rerun there.)*
 4. The merchant tax (`economy.TAX_RATE` x merchant wealth) is not debited
    from the agents; with richer merchants it creates more revenue. Whether
    it should take from merchant wealth is a separate correction.
@@ -786,3 +797,237 @@ up to the ceiling, no merchants or no wealth, no state kept) and
 | `python scripts/run_python_oracle_checks.py` (no-Rust interpreter) | PASS, 14 chunks: 2,761 passed, 59 skipped |
 | `pytest -m "not slow"` (frozen tree, release extension) | 6,786 passed, 3 skipped, 15 deselected |
 | `cargo test --locked` (`CARGO_PROFILE_TEST_DEBUG=0`) | 1,076 passed, 0 failed, 2 ignored |
+
+## 13. Second pass (2026-10-28, `feat/domestic-credit-2`)
+
+Branch `feat/domestic-credit-2` from `main` `25854db` (PR #64; the
+simulation is PR #63's). Code: `domestic_credit.py` (the borrower's room,
+the cold-start houses), `domestic_credit_state.py` (a lender kind appended),
+`scripts/domestic_credit_probe.py` (borrowing calls, early issuance, purses,
+heavy-debt stretches, all-agent satisfaction), tests in
+`tests/test_domestic_credit.py`. No native change, no new switch: all of it
+runs only with `--domestic-credit`. Sections 1-12 are PR #63's and stand,
+except where marked superseded; 11.2 (2) and (3) are decided here.
+
+### 13.1 What was measured first
+
+Runs of `main` with the switch off and on (PR #63's behaviour), with this
+branch's probe (it only reads), hybrid, `PYTHONHASHSEED=0`.
+
+**The treadmill.** The four template gate worlds whose cities received over
+1,000 of interest (seeds 101, 177, 209, 125; 500 turns), per run:
+
+| | switch off | PR #63 |
+| --- | ---: | ---: |
+| domestic interest paid | 1,292 | 12,030 |
+| interest received by cities | 0 | 5,704 |
+| largest city purse (mean of the four) | 92 | 873 (2,209 in seed 101) |
+| longest stretch of a civ at 8+ turns of revenue owed | 22 | 67 (158 in seed 101) |
+| civ-turns paying half the revenue or more in interest | 35 | 179 |
+
+In seed 101 Thornwall borrows 44-75 every turn from turn 175 to 500, almost
+all of it at peace: it borrows back its amortization and pays the interest
+from revenue. At finance's debt ceiling (10 turns of revenue) the domestic
+rate is about 7% (4% + 0.3 points per turn of revenue owed), so interest
+alone takes about 70% of revenue and amortization another 50%; the state can
+service its debt only by borrowing again. The abstract class stopped
+lending when its formula (a fixed multiple of revenue and smoothed merchant
+wealth) was used up, and the state defaulted. Real lenders' offers grow
+with the interest they are paid, so they never stop.
+
+**Who holds wealth early.** Agent wealth by occupation (agents by civ
+affinity), template seeds 42-51 and procedural 32 x 10 seeds 42-46, main
+with the switch off, mean per living civ (template / procedural):
+
+| turn | agents' wealth | farmers | scholars | soldiers | merchants | priests | merchants' share of agents | main's capacity | of it, the revenue term | half the merchants' wealth |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | 107 / 103 | 44% / 45% | 17% / 18% | 14% / 14% | 14% / 12% | 10% / 12% | 15% / 14% | 25 / 25 | 82% / 83% | 7 / 6 |
+| 30 | 257 / 265 | 37% / 38% | 17% / 16% | 15% / 16% | 16% / 15% | 15% / 15% | 15% / 14% | 42 / 45 | 64% / 66% | 20 / 20 |
+| 60 | 403 / 445 | 36% / 33% | 20% / 19% | 17% / 17% | 15% / 17% | 11% / 14% | 13% / 13% | 84 / 70 | 64% / 53% | 32 / 38 |
+
+Main's capacity is the abstract class's formula before what it is owed.
+Every agent starts with 0.5 wealth (`STARTING_WEALTH`) and closes 2% of
+the gap to its equilibrium a turn (`WEALTH_DECAY`), so the pool's wealth is
+still building up for a hundred turns. Merchants are not few: they are
+13-15% of agents and hold 12-17% of the pool's wealth from turn 10 on, as
+later. What young realms lack is not merchants but accumulated wealth of
+any kind, and what main's abstract class lent early was mostly its revenue
+term (82% of its capacity at turn 10).
+
+**War borrowing.** Each borrowing call of the fiscal tick, with what it
+would have asked at peace (obligations plus a turn of upkeep and the
+buffer); the rest is the war chest (finance keeps a belligerent's treasury
+at its full reserve target, eight turns of revenue):
+
+| | switch off | PR #63 |
+| --- | ---: | ---: |
+| template 42-61 x 300: share of domestic issuance raised at war (war chest) | 0.66 (0.65) | 0.43 (0.42) |
+| template: domestic issued at war, per run | 236 | 266 (+29, SE 68) |
+| procedural 42-51 x 200: share raised at war | 0.74 | 0.73 |
+| procedural: domestic issued at war, per run | 2,040 | 2,526 (+486, SE 585) |
+| the four treadmill worlds: domestic issued at war (share) | 1,856 (0.58) | 5,752 (0.55) |
+
+Most domestic credit is war credit with the switch off and on alike, and
+nearly all of it is the war chest rather than unpaid obligations. PR #63
+does not make credit more war-driven; it raises war borrowing only in the
+treadmill worlds, where it raises all borrowing.
+
+### 13.2 Design
+
+**The borrower's room (problem 1).** Domestic lenders lend no new money that
+would raise the borrower's interest due, on all its lines (domestic and
+foreign, at their current rates), above `SERVICE_SHARE` = 0.5 of its
+smoothed revenue:
+
+    room = floor((SERVICE_SHARE x revenue_ema - interest due) / domestic rate now)
+    domestic capacity = min(sum of the lenders' offers, room)
+
+and the loan is split among the lenders pro rata to their offers, as
+before. Why:
+
+* Lenders ration credit by what the borrower can carry, not only by what
+  they hold: a lender asks whether the borrower's revenue covers the
+  interest, and past some burden a higher rate only raises the chance of
+  default, so lenders refuse rather than charge more. PR #63's offers
+  depend on the lenders' assets alone; this is the missing borrower side.
+  It does what the abstract class's revenue-scaled formula did
+  implicitly, without lending from nowhere.
+* Half of revenue in interest is the order at which early modern domestic
+  creditors stopped financing crowns (France in the 1780s, with debt
+  service about half of royal revenue; Castile, whose juros came to absorb
+  the revenues assigned to them before its suspensions of payment), and
+  the upper end of what states carried for long. In finance's terms it
+  binds at about 7.9 turns of revenue owed at base rates (about 5 with a
+  fresh default's premium), below the 10-turn ceiling, so ordinary borrowing is
+  untouched and the tail is cut.
+* Interest, not interest plus amortization: finance amortizes every line
+  over 20 turns and re-amortizes it on every advance, so rolling principal
+  over is ordinary refinancing; the burden is the interest. Counting
+  amortization at the same share would bind at about 4.8 turns of revenue
+  and cut ordinary credit.
+* At the limit lenders refinance no more than the borrower repays: the
+  state pays the rest of its service from revenue, deleverages, or falls
+  into arrears, and finance's default rule takes over as it did against
+  the abstract class.
+* Foreign lenders are finance's, unchanged (switch off and on): a state
+  refused at home may still borrow abroad, as on main.
+
+Not chosen: **rates rising with the lender's exposure** (finance keeps one
+blended line per borrower and lender class; a funder-dependent rate would
+pay more interest to the most exposed, richest lenders and feed the purses;
+the borrower's rate already rises with its debt), and **a ceiling on civic
+purses** (purses already lose 2% a turn, so a purse settles at fifty turns
+of its income; they grew because a state paid 60-70% of its revenue to its
+cities for 320 turns. With the room that income is bounded by the
+borrower's revenue. A ceiling would cap the symptom and also change sack
+plunder and free-city treasuries, which take half the purse).
+
+**Cold-start houses (problem 2).** The abstract creditor class lends again,
+as the realm's merchant houses (lender kind `houses`, key = the borrower's
+civ index), only while the pool's wealth builds up:
+
+    houses' offer = floor((1 - COLD_START_DECAY) ** turn x DOMESTIC_REVENUE_TURNS
+                          x revenue_ema x merchant influence x trust x credit factors - their claims)
+
+`COLD_START_DECAY` = 0.02 is the native `WEALTH_DECAY` (a test reads
+`agent.rs`): `0.98 ** t` is the share of the pool's equilibrium wealth not
+yet accumulated at turn t (82% at turn 10, 55% at 30, 13% at 100, 2% at
+200). So early in a run domestic capacity is about main's (the real lenders
+hold about what main's wealth term counted, the houses lend its revenue
+term), and it passes to the real lenders at the rate their wealth appears.
+Capped: never more than main's revenue term. The clock is the world's turn,
+not the civ's age: a state founded at turn 200 (a secession, a free city)
+inherits agents with 200 turns of wealth. The houses are serviced and
+written down pro rata like any funder; what they are paid leaves into the
+finance ledger (as the abstract class's receipts and `legacy` lines do); a
+default on them raises no grievance and no history entry (nobody in the
+pool lost); events name them "its merchant houses".
+
+Not chosen: **other wealthy agents lending**. Every occupation is
+cold-started alike, so other lenders would raise credit at every horizon
+rather than restore early credit: priests hold about as much as merchants
+(10-15% of the pool's wealth), so temples would double the lending base at
+turn 10 and at turn 300 alike, and all agents would multiply it about six
+times. Farmers, the largest holders (33-45%), are the peasantry (the pool
+has no landholding occupation), and agent wealth drives occupational choice
+(peer wealth), household formation and prosperity memories, so lending
+their savings would reach food production. The cost of the houses: early in
+a run part of domestic credit is again lent by nobody in the pool, for a
+bounded time.
+
+**War chests (problem 3): not changed.** The evidence (13.1) does not
+support taking part of a region's merchant wealth out of wartime lending:
+the war share of domestic credit is the same or lower with the switch, the
+amount raised at war moves within noise outside the treadmill worlds, and
+there the room bounds it. War was the main purpose of public borrowing from
+merchants; a reserve held back from belligerents would cut wartime credit
+below what main's abstract class supplied. Whether a belligerent should
+borrow to hold an idle reserve at all is finance's rule (on by default, with
+the switch off too) and outside this switch.
+
+**The merchant tax (problem 4, not fixed here).** Revenue includes the
+merchant tax (5% of merchant wealth a turn), which is not debited from the
+agents. The room and the houses' term are shares of revenue, so richer
+merchants widen the room through a tax they never pay, and interest paid to
+merchants raises the tax base. Debiting the tax would lower merchant wealth
+(and the merchants' offers) and leave revenue as it is: the room would then
+be read from revenue actually collected. Fixing it changes the switch-off
+path (it is the goods economy's tax) and is a separate correction.
+
+**Contracts.** No random draws; fixed orders (the houses come after the
+cities in the lender list). `KIND_NAMES` gains `houses` at the end (index 4;
+the ledger's totals gain `<flow>_houses`, set to 0 on books saved before;
+tested). Nothing is added to the region batch or the native pool, so the
+native state schema is unchanged. The ledger checks the houses like every
+kind (claims, flows, finance's counters); their receipts reach no purse or
+due. With the switch off none of this runs.
+
+### 13.3 Pre-registration
+
+Written and committed before any confirmatory run or gate. Development
+runs of this code seen before it: the four treadmill worlds (500 turns),
+procedural 32 x 10 seeds 42-51 x 200 turns, template seeds 282-301 x 300
+turns (all three arms), and smoke runs. The confirmatory sets are new:
+paired template seeds 42-81 x 500 turns and procedural 32 x 10 seeds 52-71
+x 300 turns, each with three arms (the switch off on `main`, which is
+byte-identical to this branch's switch off; PR #63, `main` with the switch;
+this branch with the switch), and the two full gates (template 200 x 500,
+procedural 100 x 300, `--domestic-credit --exploratory-comparison`) against
+main's full reports. Predictions, this branch against the switch off unless
+said:
+
+1. **Treadmill.** (a) Template gate: at most 1 world whose cities receive
+   over 1,000 of interest (PR #63: 4 of 200), and the largest city purse
+   below 500 (PR #63: 2,209). (b) Interest received by cities per world in
+   both gates less than half PR #63's (template 184, procedural 1,538).
+   (c) Paired: domestic interest paid less than a third of the way from off
+   to PR #63 (new - off < (PR #63 - off) / 3); worlds with a civ at 8+
+   turns of revenue owed for 50+ consecutive turns no more than with the
+   switch off, plus one.
+2. **Early credit.** Domestic issuance before turn 30 within +-20% of the
+   switch off in both paired sets (PR #63: about -63%), before turn 60
+   within +-25%. Domestic loan events before turn 30 per gate world at least
+   2.5 template and 9 procedural (PR #63's gates: 1.5 and 5.9). The houses
+   fund under a quarter of all domestic lending over a run.
+3. **Whole-run credit.** Domestic issuance within +-30% of the switch off in
+   template worlds; in procedural worlds below PR #63's (which doubled it
+   at 300 turns), within -10% to +50% of the switch off.
+4. **Defaults and fiscal crises.** Defaults, debasements, fiscal-strain
+   onsets and PSI crises within +-30% of the switch off; procedural
+   defaults above PR #63's (PR #63: -23% to -28%).
+5. **Merchant wealth.** Mean over the run between -5% and +15% of the switch
+   off, and below PR #63's gain in procedural worlds (PR #63: +26% at 300
+   turns).
+6. **Agents** (paired). All-agent satisfaction within +-0.005, merchant
+   satisfaction within +-0.01, all-agent wealth Gini within +-0.01 of the
+   switch off; migration, rebellion and occupation switches per agent-turn
+   not different from the switch off by more than two standard errors of
+   the paired difference; and against PR #63 the all-agent Gini no higher.
+7. **War.** The share of domestic issuance raised at war within +-0.15 of
+   the switch off.
+8. **Foreign share** of issuance within +-0.10 of the switch off in both
+   world types (PR #63: +0.17 template, -0.25 procedural).
+9. **Gates.** Both full gates PASS strict, and the exploratory comparisons
+   against main's full reports show no newly failing required gate (cohort
+   method 6 and community method 2 report `rebaseline_required` against
+   those older reports, as expected).

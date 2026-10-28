@@ -5,9 +5,10 @@ the distribution of merchant wealth.
 ``domestic_credit_probe.py run RUN_DIR -- <chronicler.main arguments>``
     Runs one simulation in this process (an agent mode) and, every
     ``--every`` turns after the agent tick, reads the native pool (reading
-    only): the merchants' number, total wealth and mean satisfaction, the
-    Gini of merchant agents' wealth (the world's merchants, and the mean over
-    civs by affinity), the Gini of all agents' wealth, and how merchant
+    only): the merchants' number, total wealth and mean satisfaction, all
+    agents' mean satisfaction, the Gini of merchant agents' wealth (the
+    world's merchants, and the mean over civs by affinity), the Gini of
+    all agents' wealth, and how merchant
     wealth is spread over regions (its Gini over populated regions and the
     share of the richest region). Works with the switch on or off and with
     an extension that predates it. Writes ``RUN_DIR/probe_turns.jsonl``,
@@ -83,6 +84,7 @@ def _observe(world, bridge) -> dict:
         "merchants": int(m.sum()),
         "merchant_wealth": round(total, 4),
         "merchant_satisfaction": round(float(sat[m].mean()), 6) if m.any() else None,
+        "satisfaction": round(float(sat.mean()), 6) if len(sat) else None,
         "merchant_gini": round(gini(wealth[m]), 6),
         "merchant_gini_civ": round(sum(civ_ginis) / len(civ_ginis), 6) if civ_ginis else None,
         "agent_gini": round(gini(wealth), 6),
@@ -161,7 +163,7 @@ def _run(run_dir: Path, main_args: list[str], every: int) -> None:
 # summarize
 # ---------------------------------------------------------------------------
 
-PROBE_KEYS = ("merchants", "merchant_wealth", "merchant_satisfaction", "merchant_gini",
+PROBE_KEYS = ("merchants", "merchant_wealth", "merchant_satisfaction", "satisfaction", "merchant_gini",
               "merchant_gini_civ", "agent_gini", "region_gini", "top_region_share")
 
 
