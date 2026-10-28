@@ -185,11 +185,30 @@ Smoke artifacts have their own smoke prefix; the full reader never selects
 them. No cross-run downloads or reusable report cache substitutes for fresh work.
 
 A failed raw upload leaves the job/workflow failed. The scientific reader may
-still preserve a valid comparison of retained light reports, but it cannot
-certify full raw retention. Overall qualification also requires all four full
-raw uploads and actual workflow job conclusions; root reviews their GitHub
-artifact IDs and digests. A reader exit zero cannot override a failed cohort,
-missing archive or failed upload.
+still preserve a valid comparison of retained light reports, but light records
+alone cannot certify server-side publication. A separate standard-library
+collector makes exactly one read-only current-run artifacts API request, with
+per_page=100, a 1 MiB response cap, no redirects, no pagination and no retries.
+Its job has actions:read only in addition to contents:read. The API token exists
+only in that collector step, is removed from its environment before the request,
+is never printed, and is absent from the frozen-reader step. Exact response text,
+SHA, bounded metadata and any collection failure are retained.
+
+The reader independently binds the index to the fixed repository, actual run,
+attempt and control SHA. It checks the four exact full raw artifact names,
+positive IDs/sizes, valid digests, nonexpired archives and matching workflow
+identity. The workflow aggregate cohort result is separately recorded from
+needs.cohorts.result; success proves all four generation/upload jobs succeeded.
+No raw archives are downloaded by this metadata check.
+
+Results distinguish scientific_comparison_pass from pipeline_qualified. The
+latter can be true only after the scientific criteria, four raw publications
+and successful cohort-job aggregate all verify. Missing API evidence yields
+unknown retention/pipeline status; known missing publication or failed jobs
+yield a false pipeline result. Neither can produce a green qualification exit.
+A self-consistent all-scientific-PASS/raw-missing counterexample is tested.
+Original oracle reports and comparisons remain unchanged in every outcome.
+Root also reviews the actual artifact IDs/digests and workflow conclusions.
 
 ## Frozen comparison and separate causal adjudication
 

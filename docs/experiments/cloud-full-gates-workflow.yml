@@ -87,6 +87,7 @@ jobs:
             -o "pythonpath=$GITHUB_WORKSPACE/candidate/src" \
             "$GITHUB_WORKSPACE/control/tests/test_default_output_identity_qualification.py" \
             "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_qualification.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_fetch_cloud_full_gate_retention.py" \
             "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_comparison.py"
       - name: Build and verify one fresh shared wheel
         shell: bash
@@ -129,6 +130,13 @@ jobs:
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               for key, value in values.items():
                   output.write(f"{key}={value}\n")
+          print(json.dumps({
+              "kind": "verified-shared-wheel-outputs",
+              "baseline_sha": manifest["baseline_sha"],
+              "candidate_sha": manifest["candidate_sha"],
+              "control_sha": manifest["control_sha"],
+              "native": manifest["native"], **values,
+          }, sort_keys=True), flush=True)
           PY
       - name: Preserve bounded builder records first
         if: always()
@@ -316,6 +324,9 @@ jobs:
 
   compare:
     name: Strict original-policy comparison and separate causal adjudication
+    permissions:
+      contents: read
+      actions: read
     needs: [build, smoke, cohorts]
     if: ${{ always() && needs.build.result == 'success' && needs.smoke.result == 'success' }}
     runs-on: ubuntu-latest
@@ -352,7 +363,16 @@ jobs:
           python -m pip install "uv>=0.5,<1"
           uv lock --project frozen-comparator --check
           uv sync --project frozen-comparator --frozen --no-dev --no-install-project --python "$(command -v python)"
+      - name: Observe bounded current-run raw artifact publication
+        env:
+          GH_ARTIFACT_READ_TOKEN: ${{ github.token }}
+          COHORT_JOB_RESULT: ${{ needs.cohorts.result }}
+        shell: bash
+        run: |
+          python control/scripts/fetch_cloud_full_gate_retention.py \
+            --output "$RUNNER_TEMP/full-gates-retention/index.json"
       - name: Compare untouched reports and adjudicate causal requirements separately
+        if: ${{ !cancelled() }}
         env:
           PYTHONPATH: ${{ github.workspace }}/frozen-comparator/src
           BUILD_MANIFEST_SHA256: ${{ needs.build.outputs.manifest_sha256 }}
@@ -367,12 +387,15 @@ jobs:
             --build-manifest-sha256 "$BUILD_MANIFEST_SHA256" \
             --github-run-id "$GITHUB_RUN_ID" --github-run-attempt "$GITHUB_RUN_ATTEMPT" \
             --control-sha "$GITHUB_SHA" \
+            --retention-index "$RUNNER_TEMP/full-gates-retention/index.json" \
             --output "$RUNNER_TEMP/full-gates-comparison"
       - name: Preserve comparisons and separate causal adjudications
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: full-gates-comparison-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/full-gates-comparison/
+          path: |
+            ${{ runner.temp }}/full-gates-comparison/
+            ${{ runner.temp }}/full-gates-retention/
           if-no-files-found: warn
           retention-days: 30
