@@ -304,9 +304,26 @@ export function StackedAreaChart({
           <XAxis dataKey="turn" type="number" domain={["dataMin", "dataMax"]} stroke="#6b7280" tick={{ fontSize: 10 }} />
           <YAxis stroke="#6b7280" tick={{ fontSize: 10 }} allowDecimals={false} />
           <Tooltip
-            contentStyle={TOOLTIP_STYLE}
-            labelFormatter={(turn) => `Turn ${turn}`}
-            formatter={(value) => (typeof value === "number" && format ? format(value) : value)}
+            content={({ active, payload, label: turn }) => {
+              if (!active || !payload?.length) {
+                return null;
+              }
+              const values = new Map(payload.map((item) => [String(item.dataKey), Number(item.value ?? 0)]));
+              const shown = [...series].reverse().filter((entry) => (values.get(entry.key) ?? 0) > 0);
+              const total = shown.reduce((sum, entry) => sum + (values.get(entry.key) ?? 0), 0);
+              const text = (value: number) => (format ? format(value) : String(value));
+              return (
+                <div className="systems-tooltip" style={TOOLTIP_STYLE}>
+                  <strong>Turn {turn}: {text(total)}</strong>
+                  {shown.map((entry) => (
+                    <span key={entry.key}>
+                      <span className="phase75-civ-swatch" style={{ backgroundColor: entry.color }} />
+                      {entry.label}: {text(values.get(entry.key) ?? 0)}
+                    </span>
+                  ))}
+                </div>
+              );
+            }}
           />
           {series.map((entry) => (
             <Area

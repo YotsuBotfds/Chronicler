@@ -413,7 +413,7 @@ button.systems-strip-label:hover {
 
 .systems-chart-pair {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -499,8 +499,34 @@ button.systems-strip-label:hover {
 }
 
 .debt-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.systems-tiles.debt-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+}
+
+.debt-chart {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.systems-tooltip {
+  display: grid;
+  gap: 3px;
+  padding: 6px 9px;
+  color: var(--phase75-ink);
+}
+
+.systems-tooltip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .debt-holders-table .debt-group-row th {
@@ -557,5 +583,18 @@ button.systems-strip-label:hover {
 
   .debt-realm-track {
     grid-column: 1 / -1;
+  }
+
+  .debt-holders-table th,
+  .debt-holders-table td {
+    padding: 6px 6px;
+  }
+
+  .debt-holders-table .debt-member-row td:first-child {
+    padding-left: 18px;
+  }
+
+  .debt-col-share {
+    display: none;
   }
 }

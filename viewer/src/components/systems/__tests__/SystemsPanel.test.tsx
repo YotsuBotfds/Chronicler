@@ -146,7 +146,7 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     fireEvent.click(within(bars).getByRole("button", { name: /Khidutain Clans/ }));
     const section = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
     const table = within(section).getByRole("table", { name: "Holders of the debt of Khidutain Clans at turn 54" });
-    expect(within(table).getByRole("columnheader", { name: "Interest / turn" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Interest" })).toBeInTheDocument();
     const sylenen = within(table).getByRole("button", { name: "Sylenen Kingdom" }).closest("tr")!;
     expect(sylenen).toHaveTextContent("133");
     expect(sylenen).toHaveTextContent("8.4%");
@@ -170,13 +170,14 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     render(<FinancePanel {...p} />);
     const losses = screen.getByRole("table", { name: "Defaults and write-offs of Khidutain Clans" });
     const rows = within(losses).getAllByRole("row").slice(1);
-    expect(rows.map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual(["65", "55"]);
+    // Listed at the turn of their events (the snapshot after records them).
+    expect(rows.map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual(["64", "54"]);
     expect(rows[0]).toHaveTextContent("131");
     fireEvent.click(within(rows[1]).getByRole("button", { name: /defaults on its debts, repudiating 124/ }));
     expect(p.onSelectEvent).toHaveBeenCalledWith(expect.objectContaining({ event_type: "state_default", turn: 54 }));
     const credit = screen.getByRole("list", { name: "Credit events of Khidutain Clans" });
     expect(within(credit).getAllByRole("listitem").length).toBeGreaterThan(2);
-    fireEvent.click(within(screen.getByRole("group", { name: "Borrower" })).getByRole("button", { name: "Saqeduni Empire" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrower" }), { target: { value: "Saqeduni Empire" } });
     expect(screen.getByRole("region", { name: "Creditors of Saqeduni Empire" })).toBeInTheDocument();
   });
 });

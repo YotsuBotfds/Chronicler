@@ -18,6 +18,13 @@ function interestText(value: number | null): string {
   return value == null ? "-" : value.toFixed(1);
 }
 
+function lendingText(count: number): string {
+  if (count === 0) {
+    return "no foreign lender";
+  }
+  return count === 1 ? "1 lending civilization" : `${count} lending civilizations`;
+}
+
 function share(part: number, whole: number): string {
   return whole > 0 ? formatShare(part / whole, 0) : "-";
 }
@@ -139,34 +146,27 @@ export function DebtHolders({
           <div className="debt-detail-head">
             <h3>Creditors of {civ}</h3>
             {candidates.length > 1 && (
-              <div className="systems-filter" role="group" aria-label="Borrower">
-                {candidates.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className={`phase75-layer-chip${name === civ ? " active" : ""}`}
-                    aria-pressed={name === civ}
-                    onClick={() => setChosen(name)}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
+              <label className="phase75-layer-select">
+                <span>Borrower</span>
+                <select value={civ} onChange={(event) => setChosen(event.target.value)}>
+                  {candidates.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
             )}
           </div>
 
           {current ? (
-            <div className="systems-tiles">
+            <div className="systems-tiles debt-tiles">
               <StatTile label="Debt" value={current.debt}
                 detail={`${debtToRevenue(current.debt, current.revenue).toFixed(2)} turns of revenue`} />
               <StatTile label="Domestic" value={current.domestic} detail={`${share(current.domestic, current.debt)} of the debt`} />
               <StatTile label="Foreign" value={current.foreign}
-                detail={lenders ? `${current.rows.filter((row) => row.group === "foreign" && row.civ).length} lending civilizations` : "one total"} />
+                detail={lenders ? lendingText(current.rows.filter((row) => row.group === "foreign" && row.civ).length) : "one total"} />
               <StatTile label="Interest paid" value={current.interestPaid} detail="in this turn's fiscal tick" />
               {current.interestDue != null && (
                 <StatTile label="Interest due" value={current.interestDue.toFixed(1)} detail="per turn at the lines' rates" />
               )}
-              <StatTile label="Arrears" value={current.arrears} detail="turns running" />
+              <StatTile label="Arrears" value={current.arrears} detail={current.arrears === 1 ? "turn running" : "turns running"} />
               <StatTile label="Defaults" value={current.defaults} detail="so far" />
               {current.writtenOff != null && <StatTile label="Written off" value={current.writtenOff} detail="on its debts so far" />}
             </div>
@@ -174,26 +174,30 @@ export function DebtHolders({
             <div className="phase75-empty-state">{civ} has no finance record at turn {at}.</div>
           )}
 
-          <StripLegend items={stacked.map((group) => ({ label: HOLDER_LABELS[group], color: HOLDER_COLORS[group] }))} />
           <div className="systems-chart-pair">
-            <StackedAreaChart
-              data={series}
-              series={stacked.map((group) => ({ key: group, label: HOLDER_LABELS[group], color: HOLDER_COLORS[group] }))}
-              currentTurn={currentTurn}
-              label={`Debt of ${civ} by holder`}
-            />
-            {foreign.lenders.length > 0 && (
-              <CivLineChart
-                data={foreign.data}
-                civs={foreign.lenders}
-                color={factionColor}
+            <div className="debt-chart">
+              <StackedAreaChart
+                data={series}
+                series={stacked.map((group) => ({ key: group, label: HOLDER_LABELS[group], color: HOLDER_COLORS[group] }))}
                 currentTurn={currentTurn}
-                label={`Foreign debt of ${civ} by lender`}
-                step
+                label={`Debt of ${civ} by holder`}
               />
+              <StripLegend items={stacked.map((group) => ({ label: HOLDER_LABELS[group], color: HOLDER_COLORS[group] }))} />
+            </div>
+            {foreign.lenders.length > 0 && (
+              <div className="debt-chart">
+                <CivLineChart
+                  data={foreign.data}
+                  civs={foreign.lenders}
+                  color={factionColor}
+                  currentTurn={currentTurn}
+                  label={`Foreign debt of ${civ} by lender`}
+                  step
+                />
+                <StripLegend items={foreign.lenders.map((name) => ({ label: name, color: factionColor(name) }))} />
+              </div>
             )}
           </div>
-          {foreign.lenders.length > 0 && <StripLegend items={foreign.lenders.map((name) => ({ label: name, color: factionColor(name) }))} />}
 
           <div className="systems-columns">
             <div className="systems-stack">
@@ -202,8 +206,8 @@ export function DebtHolders({
                   <table className="systems-table debt-holders-table" aria-label={`Holders of the debt of ${civ} at turn ${at}`}>
                     <thead>
                       <tr>
-                        <th>Holder</th><th>Owed</th><th>Share</th>
-                        {lenders && <><th>Rate</th><th>Interest / turn</th></>}
+                        <th>Holder</th><th>Owed</th><th className="debt-col-share">Share</th>
+                        {lenders && <><th>Rate</th><th>Interest</th></>}
                       </tr>
                     </thead>
                     <tbody>
@@ -216,7 +220,7 @@ export function DebtHolders({
                               <span className="phase75-civ-swatch" style={{ backgroundColor: HOLDER_COLORS[group] }} /> {HOLDER_LABELS[group]}
                             </th>
                             <td>{total}</td>
-                            <td>{share(total, current.debt)}</td>
+                            <td className="debt-col-share">{share(total, current.debt)}</td>
                             {lenders && <><td>{rateText(single ? single.rate : null)}</td><td>{interestText(interest)}</td></>}
                           </tr>,
                           ...named.map((row) => (
@@ -229,7 +233,7 @@ export function DebtHolders({
                                 ) : row.label}
                               </td>
                               <td>{row.amount}</td>
-                              <td>{share(row.amount, current.debt)}</td>
+                              <td className="debt-col-share">{share(row.amount, current.debt)}</td>
                               {lenders && <><td>{rateText(row.rate)}</td><td>{interestText(row.interest)}</td></>}
                             </tr>
                           )),
@@ -243,7 +247,8 @@ export function DebtHolders({
               )}
               <p className="systems-note">
                 {lenders
-                  ? "Merchants are named by the region they live in; foreign lenders and regions open in the inspector."
+                  ? "Interest is due per turn at the line's rate. Merchants are named by the region they live in; "
+                    + "foreign lenders and regions open in the inspector."
                   : "The bundle does not name individual lenders."}
               </p>
             </div>
@@ -269,7 +274,7 @@ export function DebtHolders({
                     <tbody>
                       {lossesSoFar.map((loss) => (
                         <tr key={loss.turn}>
-                          <td>{loss.turn}</td>
+                          <td>{loss.events.length > 0 ? loss.events[0].turn : `by ${loss.turn}`}</td>
                           <td>{loss.amount ?? "-"}</td>
                           <td>
                             {loss.events.length > 0 ? loss.events.map((event, index) => (
