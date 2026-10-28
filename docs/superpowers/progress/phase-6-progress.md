@@ -101,6 +101,15 @@ access boundaries and exact continuations; no natural-world benefit or new
 cohort is qualified. The original d051 cohort stays intact. See the
 [prospective amendment](../../experiments/scientific-publication-amendment-2026-10.md).
 
+A separately [registered native composition fixture](../../experiments/scientific-publication-native-composition-2026-10-28.md)
+completed eight controlled hybrid executions on frozen `aae7f337`/native
+`fb20dbc8`, seeds 42/7, actual source turns 2–15. Legacy exact resumes and
+direct-v2/checkpoint-v2 composition matched the declared output/native scope;
+funded-context publication, later contextual paid use and all five expansion
+sections were observed. The [dated result](../../experiments/scientific-publication-native-results-2026-10-28.md)
+retains initial setup failures, explicit prefix/provenance differences and
+empty pathways. It is not a natural-world or efficacy qualification.
+
 The separate chronology follow-up prevents future proposal/evidence receipts
 from funding, policy use or relay before arrival. Funding, completion, actual
 publication and academy founding dates also bound availability. It introduces
