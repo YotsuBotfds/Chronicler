@@ -189,7 +189,7 @@ def _event_is_win(event: Event, civ: Civilization, faction_type: FactionType) ->
 def count_faction_wins(world, civ: Civilization, faction_type: FactionType, lookback: int = 10) -> int:
     min_turn = world.turn - lookback
     count = 0
-    for event in world.events_timeline:
+    for event in history_index(world).events_for_actor(world, civ.name):
         if event.turn < min_turn:
             continue
         if _event_is_win(event, civ, faction_type):
@@ -258,7 +258,7 @@ def get_struggling_factions(civ: Civilization) -> tuple[FactionType, FactionType
 def resolve_win_tie(world, civ: Civilization, contenders: tuple[FactionType, FactionType]) -> FactionType:
     min_turn = world.turn - 10
     latest: dict[FactionType, int] = {ft: -1 for ft in contenders}
-    for event in world.events_timeline:
+    for event in history_index(world).events_for_actor(world, civ.name):
         if event.turn < min_turn or civ.name not in event.actors:
             continue
         for ft in contenders:

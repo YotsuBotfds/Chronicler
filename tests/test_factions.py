@@ -658,3 +658,101 @@ class TestHolyWarClergyBoost:
             f"clergy influence should increase from holy-war bonus "
             f"but went from {clergy_before} to {clergy_after}"
         )
+
+
+def _legacy_faction_count(world, civ, faction, lookback=10):
+    return sum(
+        event.turn >= world.turn - lookback and _event_is_win(event, civ, faction)
+        for event in world.events_timeline
+    )
+
+
+def _legacy_faction_tie(world, civ, contenders):
+    latest = {faction: -1 for faction in contenders}
+    for event in world.events_timeline:
+        if event.turn < world.turn - 10 or civ.name not in event.actors:
+            continue
+        for faction in contenders:
+            if _event_is_win(event, civ, faction):
+                latest[faction] = max(latest[faction], event.turn)
+    if latest[contenders[0]] != latest[contenders[1]]:
+        return max(latest, key=latest.get)
+    return FactionType.MILITARY if FactionType.MILITARY in contenders else contenders[0]
+
+
+def test_faction_history_queries_preserve_counts_and_resync():
+    from chronicler.factions import resolve_win_tie
+
+    civ = _make_civ()
+
+    def event(turn, kind, actors, description="", importance=5):
+        return Event(
+            turn=turn, event_type=kind, actors=actors,
+            description=description, importance=importance,
+        )
+
+    # Source order differs from turn order; duplicate actors count once.
+    # Existing behavior includes future-dated entries.
+    events = [
+        event(19, "war", [civ.name, "Other"], "attacker_wins"),
+        event(34, "expand", [civ.name]),
+        event(20, "cultural_work", [civ.name]),
+        event(999, "war", ["Other", "Third"], "attacker_wins"),
+        event(28, "trade", [civ.name, civ.name, "Other"]),
+        event(23, "WAR", [civ.name, "Other"], "ATTACKER_WINS"),
+        event(25, "persecution", [civ.name]),
+        event(26, "city_charter", [civ.name]),
+        event(29, "expand", []),
+    ]
+    world = _make_world(turn=30, events=events)
+    expected = {
+        FactionType.MILITARY: 2, FactionType.MERCHANT: 1,
+        FactionType.CULTURAL: 1, FactionType.CLERGY: 1, FactionType.BURGHER: 1,
+    }
+    for faction, count in expected.items():
+        assert count_faction_wins(world, civ, faction) == count
+    contenders = (FactionType.MILITARY, FactionType.MERCHANT)
+
+    def check():
+        for faction in FactionType:
+            assert count_faction_wins(world, civ, faction) == _legacy_faction_count(world, civ, faction)
+        assert resolve_win_tie(world, civ, contenders) == _legacy_faction_tie(world, civ, contenders)
+
+    check()
+    assert resolve_win_tie(world, civ, contenders) == FactionType.MILITARY
+    world.events_timeline.append(event(35, "trade", [civ.name, "Other"]))
+    check()
+    assert resolve_win_tie(world, civ, contenders) == FactionType.MERCHANT
+    # The existing cache detects replaced lists, tails, and truncation.
+    world.events_timeline = [
+        event(22, "trade", [civ.name, "Other"]), event(23, "expand", [civ.name]),
+    ]
+    check()
+    world.events_timeline[-1] = event(24, "trade", [civ.name, "Other"])
+    check()
+    del world.events_timeline[1:]
+    check()
+
+
+@pytest.mark.parametrize("contenders", [
+    (FactionType.MILITARY, FactionType.MERCHANT),
+    (FactionType.MERCHANT, FactionType.MILITARY),
+    (FactionType.CULTURAL, FactionType.CLERGY),
+    (FactionType.CLERGY, FactionType.CULTURAL),
+])
+def test_faction_history_ties_preserve_contender_order(contenders):
+    from chronicler.factions import resolve_win_tie
+
+    civ = _make_civ()
+    rows = [
+        Event(
+            turn=25, event_type=kind, actors=[civ.name, "Other"],
+            description="attacker_wins", importance=5,
+        )
+        for kind in ("war", "trade", "cultural_work", "persecution")
+    ]
+    for events in ([], rows, list(reversed(rows))):
+        world = _make_world(turn=30, events=events)
+        expected = FactionType.MILITARY if FactionType.MILITARY in contenders else contenders[0]
+        assert resolve_win_tie(world, civ, contenders) == expected
+        assert resolve_win_tie(world, civ, contenders) == _legacy_faction_tie(world, civ, contenders)
