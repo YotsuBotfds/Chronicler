@@ -177,6 +177,23 @@ combined native check. Dependency/release caches and failure artifacts have
 actionlint, compiled-preflight and all 16 barrier-outcome checks. No remote
 Actions run or measured CI speedup is claimed.
 
+The later Rust debug-info experiment retained the same 1,088 passes/two ignored
+tests with assertions and overflow checks verified, in a fresh 1.03 GiB target.
+Its explicit setting now applies to standalone Rust CI; mixed cache histories
+prevent a controlled percentage-saving claim. The [storage decisions](../performance/qualification-storage-2026-10.md)
+also record completed-cache cleanup and the capacity checks before procedural
+qualification. Live simulation evidence remains intact.
+
+The independent [scientific receipt reader](scientific-receipts-audit.md) now
+checks dated trials, cumulative accounts and sparse allocation events without
+conflating archive receipts with current policy confidence. Reinspection of all
+ten natural-study runs was clean; six strict post-fork contrasts matched.
+The semantic review fixed impossible terminal chronologies, and malformed
+JSON field probes found no remaining crashes in their tested scope. The
+integrated audit/comparator/cap/observer selection passed **172 tests, 7 skipped**;
+the new Rust tool's five portable pure checks also passed under the offline
+guard. These follow-ups do not extend the older full-suite source boundary.
+
 ## Interrupted work and remaining source-specific qualification
 
 The full native/no-Rust Python runs at `527a9ff8` were interrupted around
