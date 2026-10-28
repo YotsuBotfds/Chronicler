@@ -383,6 +383,30 @@ def test_replication_is_planned_without_reading_first_result(monkeypatch):
         (t.seat, t.claim, t.funded_turn, t.cost) for t in b.scientific_claims.trials]
 
 
+@pytest.mark.parametrize("first_result", ["observed", "withheld", "cancelled"])
+def test_replication_funding_cites_original_funding_not_an_unused_result(first_result, monkeypatch):
+    monkeypatch.setattr(C, "MEASUREMENT_NOISE", 0.)
+    world = _world()
+    world.scientific_claims.withhold_information = first_result == "withheld"
+    _tick(world, 0)
+    if first_result == "cancelled":
+        world.regions[0].ecology.water = .1
+    _tick(world, 1)
+    world.regions[0].ecology.water = .7
+    for turn in range(2, 13):
+        events = _tick(world, turn)
+    state = world.scientific_claims
+    assert len(state.trials) == 4 and state.trial_spent == 8
+    replicas = [t for t in state.trials if t.parent >= 0]
+    by_id = {e.event_id: e for e in events}
+    for trial in replicas:
+        original = next(t for t in state.trials if t.id == trial.parent)
+        claim = next(c for c in state.claims if c.id == trial.claim)
+        assert trial.funded_turn == 12
+        assert by_id[trial.funded_event_id].causes == [claim.event_id, original.funded_event_id]
+        assert original.event_id not in by_id[trial.funded_event_id].causes
+
+
 def test_controls_separate_information_from_spending(monkeypatch):
     informed, withheld, uninformative = _world(), _world(), _world()
     withheld.scientific_claims.withhold_information = True

@@ -101,12 +101,26 @@ The ordinary event timeline records `scientific_claim_proposed`,
 `scientific_evidence_received` and `scientific_adoption_allocated`.
 Claim/trial integer IDs remain cohort-local domain identities; ordinary event
 IDs remain emission-turn/type/counter identities. A funding cites its proposal
-and, for replication, the original resolved trial. Resolution cites funding;
+and, for replication, the original funding event. Resolution cites funding;
 a genuine receipt cites resolution and the sender's receipt where applicable.
 Paid allocation cites the received informative records actually used, or
 the proposal when no informative evidence has arrived. Withholding produces
 completed records explicitly marked withheld and no evidence-receipt event.
 Failed/cancelled work never fabricates a receipt.
+
+The separate replication-cause correction reflects the actual scheduler:
+original funding time/existence schedules replication, even if the first
+result was cancelled, withheld or unfavorable. Its resolved event is not
+claimed as a decision input. This changes recorded provenance only; trial
+timing, payments, measurements and policy stay the same.
+
+Five focused provenance/schedule checks passed, covering observed, withheld
+and cancelled first results. Repeating the fourteen-turn controlled legacy
+probe after this correction changed exactly the two replication events'
+second cause references (repeated in two retained world snapshots). Every
+other serialized value, physical state, science summary, chronicle and Python
+RNG record matched. The full-output hash above belongs to pre-correction
+publication runtime `21ebe317`; the provenance changes are intentional.
 
 The first paid allocation per academy is reported. A later event requires
 a changed recipe set or at least five percentage points of changed share

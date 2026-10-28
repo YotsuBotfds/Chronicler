@@ -207,7 +207,7 @@ def _fund_trial(world, claim, seat_id: int, parent: int, acc, events=None) -> No
     funded = _emit(world, events, "scientific_trial_funded", seat_id,
                    f"{world.scholarship.seats[seat_id].name} pays {TRIAL_COST} treasury units "
                    f"for trial #{trial.id} of its contextual {claim.recipe} grain-output claim",
-                   causes=(claim.event_id, parent_trial.event_id if parent_trial else ""), payer=payer)
+                   causes=(claim.event_id, parent_trial.funded_event_id if parent_trial else ""), payer=payer)
     trial.funded_event_id = funded.event_id
     try:
         region_id = world.scholarship.seats[seat_id].region
