@@ -58,3 +58,21 @@ def test_disk_guard_stops_before_floor_while_other_workers_can_still_grow(experi
 def test_partial_or_filtered_test_log_cannot_claim_full_qualification(experiment):
     with pytest.raises(ValueError, match="full expected"):
         experiment.test_results("Running tests/one.rs (target/test)\ntest one ... ok\ntest result: ok. 1088 passed; 0 failed; 2 ignored; 0 measured; 1 filtered out\n")
+
+
+def test_successful_child_cannot_hide_a_last_write_over_storage_limit(experiment):
+    terminal = {"free_bytes": 8 * experiment.GIB,
+                "target": {"allocated_unique_bytes": experiment.TARGET_CAP + 1}}
+    with pytest.raises(RuntimeError, match="target exceeds"):
+        experiment.verify_stage_completion(0, terminal)
+    terminal["target"]["allocated_unique_bytes"] = 0
+    terminal["free_bytes"] = experiment.FLOOR
+    with pytest.raises(RuntimeError, match="stopping reserve"):
+        experiment.verify_stage_completion(0, terminal)
+
+
+def test_matching_source_does_not_allow_prepare_execute_environment_drift(experiment):
+    recorded = {"PATH": "fixed", "LD_LIBRARY_PATH": None}
+    experiment.verify_environment(dict(recorded), recorded)
+    with pytest.raises(ValueError, match="LD_LIBRARY_PATH"):
+        experiment.verify_environment({**recorded, "LD_LIBRARY_PATH": "/different"}, recorded)

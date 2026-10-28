@@ -161,6 +161,20 @@ def guard_reason(sample):
     return None
 
 
+def verify_stage_completion(exit_code, terminal_sample):
+    reason = guard_reason(terminal_sample)
+    if reason:
+        raise RuntimeError(reason)
+    if exit_code != 0:
+        raise RuntimeError(f"child exited {exit_code}; artifacts/logs retained")
+
+
+def verify_environment(env, recorded):
+    changed = [key for key, value in recorded.items() if env.get(key) != value]
+    if changed:
+        raise ValueError(f"prepared environment changed: {', '.join(changed)}")
+
+
 def verify_profiles(messages):
     artifacts = []
     for line in messages.splitlines():
@@ -209,10 +223,8 @@ def prepare(args, env):
         raise FileExistsError("prepare requires new target and evidence paths")
     args.output.mkdir(parents=True, exist_ok=False)
     receipt = {"status": "preparing", "started_at": utc(), "target": str(args.target), "source": str(SOURCE),
-               "runner_sha256": file_sha(__file__), "environment": {key: env.get(key) for key in (
-                   "PATH", "CARGO_HOME", "RUSTUP_HOME", "CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "CARGO_PROFILE_DEV_DEBUG",
-                   "PYO3_PYTHON", "LIBRARY_PATH", "LD_LIBRARY_PATH", "RAYON_NUM_THREADS", "OMP_NUM_THREADS",
-                   "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_INCREMENTAL")},
+               "runner_sha256": file_sha(__file__), "environment": {
+                   key: env.get(key) for key in json.loads((BASELINE / "qualification.json").read_text())["environment"]},
                "guard": {"floor_bytes": FLOOR, "stopping_reserve_bytes": STOP_RESERVE,
                          "target_allocated_cap_bytes": TARGET_CAP, "sample_interval_seconds": 1},
                "baseline": {"receipt": str(BASELINE / "qualification.json"),
@@ -281,6 +293,7 @@ def execute(args, env):
         write_json(receipt_path, report)
 
     def frozen():
+        verify_environment(env, prepared["environment"])
         if (immutable_identity(env) != prepared["immutable"] or file_sha(__file__) != prepared["runner_sha256"]
                 or file_sha(BASELINE / "qualification.json") != prepared["baseline"]["receipt_sha256"]
                 or file_sha(BASELINE / "cargo-test-full.log") != prepared["baseline"]["log_sha256"]):
@@ -339,9 +352,12 @@ def execute(args, env):
                                          "stdout_sha256": file_sha(stdout),
                                          "stderr_sha256": None if stderr is None else file_sha(stderr)})
                 persist()
-        sample(label)
-        if stop_reason or proc.returncode:
-            raise RuntimeError(stop_reason or f"{label} exited {proc.returncode}; artifacts/logs retained")
+        terminal_sample = sample(label)
+        report["stages"][-1]["terminal_guard_stop"] = guard_reason(terminal_sample)
+        persist()
+        if stop_reason:
+            raise RuntimeError(stop_reason)
+        verify_stage_completion(proc.returncode, terminal_sample)
         frozen()
         return stdout
 
@@ -367,8 +383,15 @@ def execute(args, env):
         raise
     finally:
         report["final_storage"] = sample("final")
+        terminal_reason = guard_reason(report["final_storage"])
+        if terminal_reason:
+            report["status"] = "failed"
+            report.setdefault("failure", f"RuntimeError: {terminal_reason}")
+            report["final_guard_stop"] = terminal_reason
         report["finished_at"] = utc()
         persist()
+        if terminal_reason:
+            raise RuntimeError(terminal_reason)
     print(json.dumps({"status": report["status"], "receipt": str(receipt_path),
                       "final_allocated_bytes": report["final_storage"]["target"]["allocated_unique_bytes"]}))
 
