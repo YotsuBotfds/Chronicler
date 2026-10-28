@@ -97,6 +97,8 @@ def test_moves_and_deaths_cleanup_without_changing_population(sample_world):
     sim.finish_health_work = lambda *args: ([], [], [(0, .5, .0, 0)])
     tick(w, sim)
     assert w.health_care.episodes == []
+    assert snapshot_summary(w)["censored_episodes"] == 1
+    assert snapshot_summary(w)["recoveries"] == 0
     assert [r.population for r in w.regions] == pops
 
 

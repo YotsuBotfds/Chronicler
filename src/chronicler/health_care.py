@@ -85,8 +85,10 @@ def finish_health_care(world, bridge) -> list:
             "cared_recovery_progress": 0.0,
         }
     kept = []
+    censored = 0
     for episode in state.episodes:
         if episode.agent_id not in alive:
+            censored += 1
             continue
         region, giver, care = assignments[episode.agent_id]
         row = by_region[region]
@@ -112,7 +114,7 @@ def finish_health_care(world, bridge) -> list:
         by_region[region]["episodes"] += 1
     metrics = ("episodes", "new_injuries", "recoveries", "impaired_work", "care_work",
                "care_recipients", "recovery_progress", "cared_recovery_progress")
-    state.summary = {"source_turn": world.turn, "units": "worker-turns",
+    state.summary = {"source_turn": world.turn, "units": "worker-turns", "censored_episodes": censored,
                      **{k: sum(row[k] for row in by_region.values()) for k in metrics},
                      "regions": [by_region[r] for r in sorted(by_region)]}
     state.last_tick_turn = world.turn

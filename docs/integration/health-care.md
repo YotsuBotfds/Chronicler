@@ -46,8 +46,13 @@ wealth and behavioral feedback may still change those outcomes.
 hold stable agent ID, onset turn, remaining recovery work and origin region.
 There are no persistent slots or lifetime medical histories. The completed
 summary freezes region/civ names and indices and records worker-turns lost,
-care allocations, recovery progress, new episodes and recoveries. It is only
-exported for the immediately completed source turn; dormant, stale, future
+care allocations, recovery progress, new episodes and recoveries.
+The global `censored_episodes` counts prior episode IDs no longer available
+after the tick; these are not counted as recoveries. It does not invent a
+death cause or place for an unknown ID. Native death records can distinguish
+competing deaths from invalid imported IDs in an experiment.
+The completed record is only exported for the immediately completed source
+turn; dormant, stale, future
 and missing records are unrecorded, not zeroes.
 
 Before the goods tick, `prepare_health_care` resolves patients and spouses and
@@ -98,9 +103,10 @@ Retain failures and do not tune parameters against confirmatory seeds.
    32x10 seeds 900–904, 100 turns. Report exposure, onsets, impaired/care
    person-turns, recovery with competing deaths, production, population and
    needs without selecting only surviving or treated-famine observations.
-7. Held-out confirmation: template 42–61 x 200, procedural 42–61 x 200;
+7. Held-out confirmation: template 2000–2019 x 200, procedural 3000–3019 x 200;
    paired enabled/no-care and disabled arms. Controlled-cohort tests establish
-   recovery causality; natural world differences include feedback and do not
+   recovery causality; seed 42 is a pre-observed unit/integration fixture,
+   not a held-out unit. Natural world differences include feedback and do not
    promise identical injury cohorts. Full documented before/after gates are
    required before promotion; bounded checks do not qualify default-on use.
 8. Performance: compare 100k and 1M agent cases at the same populations and
@@ -112,9 +118,27 @@ Retain failures and do not tune parameters against confirmatory seeds.
 
 ## Verification standing
 
-Focused Python controlled tests pass (5 at initial implementation). Rust
-tests cover budget/eligibility, income consumption, slot reuse, stable ordering,
-survivor/actual-work selection and persistence exclusion; compilation, enabled
-native integration, exact resume and world gates are pending a fresh central
-native build. No empirical production, balance or performance qualification
-is claimed here.
+Focused Python tests: 9 passed, including six controlled state/ablation tests,
+a 12-turn native run with forced-visible onsets, native prepared-input
+checkpoint omission, and a 20-turn true `execute_run` checkpoint continuation
+with an active injury cohort. All run files match after normalizing only the
+bundle's wall-clock timestamp. The forced-visible fixture uses rate 0.25;
+the experimental default remains 0.01.
+
+Rust: 1,081 passed, 2 ignored. The five new tests cover budget/eligibility,
+income consumption, slot reuse, survivor/actual-work selection and persistence.
+Actual constant, nonlinear and slot-curve economy kernels establish that
+aggregate farmer income tracks effective work without charging availability
+twice. Existing mixed-city income proxy semantics are preserved, not redesigned.
+Macro-level tests retain the old Sample schema string/fingerprint while adding
+a Default-only transient field without a Persist implementation.
+
+The fresh release binary was built from Rust inputs of `86a91e78` (tree
+`adbe580cbeda6843b77d335e73e1ae10f7be6a9f`), extension SHA-256
+`e7ec77283075cb9b817ad47490fc98a3e77685451bbcd4ce8f5b8bcad9db5867`.
+All three actual native checkpoint schema tuples match the frozen prior
+binary exactly; this is separate from extension identity, which changed.
+The initial focused run's failed schema expectation and starting-wealth test
+fixture are retained in external evidence; neither is counted as a pass.
+The default-off cross-binary matrix is running separately. Flag-on world,
+balance and performance qualification remain pending; no promotion is claimed.
