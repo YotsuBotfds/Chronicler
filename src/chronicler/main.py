@@ -764,6 +764,9 @@ def execute_run(
         receipt = apply_expansion_experiment(
             world, run_config, expansion_experiment, resumed=_experiment_resumed)
         run_config["expansion_experiment"] = receipt
+        if receipt.get("research_policy") is not None:
+            research_after = receipt["research_policy"]["after"]
+            run_config["simulation_args"]["scientific_research_agendas"] = research_after.get("enabled", False)
         if _experiment_resumed:
             prior_resume = resume_info
             resume_info = {"kind": "experiment-fork", "exact": False, "turn": start_turn}

@@ -28,7 +28,7 @@ def _load_source(root):
     """Select simulation code before importing it; never mix loaded packages."""
     global _SOURCE_ROOT, _LOADED_SOURCE, atomic_write_json, strict_json_loads, THREAD_ENV_VARS
     global check_batch_destination, environment_identity, file_sha256, native_identity, source_identity
-    global CONTROL_FIELDS, SCHEMA_VERSION
+    global CONTROL_FIELDS, SCHEMA_VERSION, allowed_control_fields, RESEARCH_CONFIGURATION_SUPPORTED
     root = Path(root).resolve()
     if _LOADED_SOURCE and root == _SOURCE_ROOT:
         return
@@ -45,6 +45,10 @@ def _load_source(root):
         native_identity, source_identity,
     )
     from chronicler.expansion_experiment import CONTROL_FIELDS, SCHEMA_VERSION
+    from chronicler import expansion_experiment as source_experiment
+    RESEARCH_CONFIGURATION_SUPPORTED = hasattr(source_experiment, "allowed_control_fields")
+    allowed_control_fields = getattr(source_experiment, "allowed_control_fields",
+                                    lambda feature: set(CONTROL_FIELDS[feature]))
     _SOURCE_ROOT = root
     _LOADED_SOURCE = True
 
@@ -106,6 +110,8 @@ def build_parser():
     parser.add_argument("--fork-turn", type=_positive, default=4)
     parser.add_argument("--arms", help="comma-separated registered arm names; default all")
     parser.add_argument("--controls", type=Path, help="JSON object of shared source-owned control overrides")
+    parser.add_argument("--scientific-research-agendas", action=argparse.BooleanOptionalAction, default=None,
+                        help="initial finite research policy in the shared science parent; resumes inherit it")
     parser.add_argument("--registration", type=Path, help="frozen preregistration file; required for confirmatory")
     parser.add_argument("--worldgen", choices=("template", "procedural"), default="template")
     parser.add_argument("--regions", type=_positive)
@@ -125,6 +131,8 @@ def _simulation_args(seed, turns, path, config, *, resume=None, checkpoint=None)
         args.extend(["--grain-reserves", "--contact-ledger"])
     elif config["feature"] == "scientific_claims":
         args.extend(["--scholarship", "--techniques"])
+    if resume is None and config.get("scientific_research_agendas") is not None:
+        args.append("--" + ("" if config["scientific_research_agendas"] else "no-") + "scientific-research-agendas")
     if resume is not None:
         args.extend(["--resume", str(resume)])
     if checkpoint is not None:
@@ -291,7 +299,9 @@ def _seed_runs(seed, root, config, env):
         row = _execute(directory, seed, config["turns"], _simulation_args(
             seed, config["turns"], directory, config, resume=checkpoint), request, env)
         parent_controls = parent.get("receipt", {}).get("controls_after")
-        if (row["status"] == "complete" and isinstance(parent_controls, dict)
+        research_policy = row.get("receipt", {}).get("research_policy")
+        research_unchanged = research_policy is None or research_policy["before"] == research_policy["after"]
+        if (row["status"] == "complete" and research_unchanged and isinstance(parent_controls, dict)
                 and row["receipt"]["controls_after"] == parent_controls):
             equal = (row["files"].get("state.json") is not None
                      and row["files"].get("state.json") == parent["files"].get("state.json"))
@@ -310,6 +320,9 @@ def run_experiment(args):
             raise ValueError(f"--{name.replace('_', '-')} is required")
     if args.feature not in CONTROL_FIELDS:
         raise ValueError("selected simulation source does not register this experiment feature")
+    if args.scientific_research_agendas is not None and (
+            args.feature != "scientific_claims" or not RESEARCH_CONFIGURATION_SUPPORTED):
+        raise ValueError("initial research policy requires science and a source supporting finite research")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", args.name):
         raise ValueError("experiment name must be a bounded plain identifier")
     if args.turns <= args.fork_turn:
@@ -319,7 +332,7 @@ def run_experiment(args):
     if not arms or len(set(arms)) != len(arms) or any(arm not in ARMS[args.feature] for arm in arms):
         raise ValueError("unknown or duplicate experiment arms")
     controls = {} if args.controls is None else strict_json_loads(args.controls.read_text(), label="controls")
-    if not isinstance(controls, dict) or set(controls) - set(CONTROL_FIELDS[args.feature]):
+    if not isinstance(controls, dict) or set(controls) - allowed_control_fields(args.feature):
         raise ValueError("unknown shared experiment controls")
     # Arm-defining controls are fixed by their names, not silently overridden.
     arm_fields = set().union(*(set(row) for row in ARMS[args.feature].values()))
@@ -335,6 +348,8 @@ def run_experiment(args):
               "arms": arms, "controls": controls, "registration": registration,
               "worldgen": args.worldgen, "regions": args.regions or (32 if args.worldgen == "procedural" else 8),
               "civs": args.civs or (10 if args.worldgen == "procedural" else 4)}
+    if args.scientific_research_agendas is not None:
+        config["scientific_research_agendas"] = args.scientific_research_agendas
     root = args.output_root.resolve()
     check_batch_destination(root)
     root.mkdir(parents=True, exist_ok=True)

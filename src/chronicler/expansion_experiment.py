@@ -1,8 +1,9 @@
 """Validated experiment controls applied after normal run configuration.
 
 An explicit request can change only the registered controls of one enabled
-expansion system. It cannot replace state, advance time, enable systems or
-alter native inputs directly. Ordinary runs never import this module.
+expansion system, including validated finite-research activation/pause within
+enabled science. It cannot replace state, advance time, enable a host system
+or alter native inputs directly. Ordinary runs never import this module.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ CONTROL_FIELDS = {
     "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests", "publication_rule"),
 }
 _BOOLEAN_CONTROLS = {"care_enabled", "contact_enabled", "bonds_enabled", "withhold_information",
-                     "transmission_enabled", "uninformative_tests"}
+                     "transmission_enabled", "uninformative_tests", "research_enabled"}
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\Z")
 _REQUEST_FIELDS = {
     "schema_version", "experiment", "cohort", "feature", "arm", "controls", "fork",
@@ -39,6 +40,17 @@ def controls_for_state(feature: str, state) -> dict:
     if feature not in CONTROL_FIELDS or state is None:
         raise ValueError("experiment requires an enabled known expansion system")
     return {name: deepcopy(getattr(state, name)) for name in CONTROL_FIELDS[feature]}
+
+
+def allowed_control_fields(feature: str) -> set[str]:
+    """Actual request controls; research metadata is never a mutable field."""
+    return set(CONTROL_FIELDS[feature]) | ({"research_enabled"} if feature == "scientific_claims" else set())
+
+
+def _research_identity(state):
+    plan = state.research_agendas
+    return ({"mode": "legacy"} if plan is None else
+            {"mode": plan.rule, **plan.model_dump(mode="json")})
 
 
 def _parent_identity(parent, world, *, resumed):
@@ -87,7 +99,7 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     if type(fork) is not bool or fork != bool(resumed):
         raise ValueError("resumed experiment controls require an explicit fork=True request")
     controls = request.get("controls")
-    if not isinstance(controls, dict) or set(controls) - set(CONTROL_FIELDS[feature]):
+    if not isinstance(controls, dict) or set(controls) - allowed_control_fields(feature):
         raise ValueError("unknown experiment control fields")
     for name, value in controls.items():
         if name in _BOOLEAN_CONTROLS and type(value) is not bool:
@@ -98,8 +110,24 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     before = controls_for_state(feature, state)
     # Pydantic's source-owned schema validates enum choices, finite bounds and
     # existing state. Only control fields are copied back after all validation.
-    candidate = type(state).model_validate({**state.model_dump(), **controls})
+    candidate = type(state).model_validate({**state.model_dump(), **{
+        name: value for name, value in controls.items() if name != "research_enabled"}})
     after = controls_for_state(feature, candidate)
+    research_policy = None
+    if feature == "scientific_claims" and ("research_enabled" in controls or state.research_agendas is not None):
+        from chronicler.scientific_research import set_research_agendas_enabled, validate_state
+        # A private candidate host avoids installing a seal before every
+        # requested control, archive, parent and registration is validated.
+        view = world.model_copy(deep=False)
+        view.scientific_claims = candidate
+        if world.scholarship is not None:
+            view.scholarship = world.scholarship.model_copy(deep=True)
+        if "research_enabled" in controls:
+            set_research_agendas_enabled(view, controls["research_enabled"])
+        elif candidate.research_agendas is not None:
+            validate_state(view, allow_absent_host=True)
+        research_policy = {"before": _research_identity(state), "after": _research_identity(candidate),
+                           "requested_enabled": controls.get("research_enabled")}
     parent = _parent_identity(request.get("parent_checkpoint"), world, resumed=resumed)
     registration = request.get("registration")
     if registration is not None:
@@ -122,7 +150,12 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
         "source": source_identity(), "native": native_identity(),
         "previous_experiment": deepcopy(run_config.get("expansion_experiment")),
     }
+    if research_policy is not None:
+        receipt["research_policy"] = research_policy
     strict_json_dumps(receipt)
+    if "research_enabled" in controls:
+        # Invoke the validated API; never setattr a derived mode or lineage.
+        set_research_agendas_enabled(world, controls["research_enabled"])
     for name, value in after.items():
         setattr(state, name, value)
     return receipt

@@ -157,3 +157,49 @@ Exact resume adopts the actual retained setting, including old checkpoints
 whose configuration has no new key. A contradictory explicit flag rejects
 instead of changing policy during an exact continuation. A research policy
 intervention must use the separately declared experiment-fork seam.
+
+The existing `expansion_experiment` request accepts the source-owned boolean
+`controls.research_enabled` for enabled science. It calls the validated API;
+mode/lineage are never assigned as arbitrary controls. All controls, archive,
+host identity, parent checkpoint and registration are validated before mutation.
+The old four `controls_before`/`controls_after` fields stay unchanged. A separate
+`research_policy` receipt records before/after legacy or finite mode, actual
+activation, cycle memberships and host/birth lineage, plus the requested switch.
+`execute_run` records the effective run configuration and the existing
+`experiment-fork` lineage with `exact: false`, actual turn and parent checkpoint.
+
+For a direct API caller, the intervention request is:
+
+```python
+request = {
+    "schema_version": 1, "experiment": "research-policy", "cohort": "development",
+    "feature": "scientific_claims", "arm": "pause", "fork": True,
+    "controls": {"research_enabled": False},
+    "parent_checkpoint": {"path": "/path/to/parent.ckpt", "sha256": parent_sha256},
+}
+execute_run(args, checkpoint_resume=loaded_parent, expansion_experiment=request)
+```
+
+The optional experiment harness flag initializes the common science parent:
+
+```sh
+python scripts/run_expansion_experiment.py --feature scientific_claims \
+  --scientific-research-agendas --cohort development --seeds 42 \
+  --turns 60 --fork-turn 4 --workers 1 --output-root /new/evidence/directory
+```
+
+Resumed arms inherit the actual parent policy rather than forwarding an initial
+flag that might conflict with a later declared parent intervention. Research
+activation inside a comparison window intentionally blocks a strict matched
+science contrast; enable it in the common parent before information-control
+forks. The harness rejects a requested initial research mode against a source
+that does not support it. With the new flag omitted, old source-run manifests
+and argument lists retain their previous shape.
+
+**70 focused guarded checks passed in 2.80 seconds** for policy intervention and
+existing control/harness behavior. This includes an actual three-turn aggregate
+entrypoint/checkpoint fork proving nonexact receipt/header/lineage and effective
+configuration, plus mutation-free failures for malformed controls, wrong parent,
+changed registration and missing/replaced host. Shared wiring separately passed
+93 checks in 2.47 seconds. These do not replace the pending registered native
+composition proof.

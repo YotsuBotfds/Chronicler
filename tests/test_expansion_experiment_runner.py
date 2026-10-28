@@ -47,6 +47,29 @@ def test_source_selection_refuses_to_mix_an_already_imported_checkout(tmp_path):
     assert runner.source_identity() == before
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_research_initial_policy_is_explicit_only_on_parent_resumes_inherit_actual_saved_mode(tmp_path, enabled):
+    runner = _runner()
+    from chronicler.main import _build_parser
+    config = {"feature": "scientific_claims", "worldgen": "template", "regions": 8, "civs": 4,
+              "scientific_research_agendas": enabled}
+    fresh = _build_parser().parse_args(runner._simulation_args(42, 30, tmp_path, config))
+    resumed = _build_parser().parse_args(runner._simulation_args(42, 30, tmp_path, config, resume=tmp_path / "parent.ckpt"))
+    assert fresh.scientific_research_agendas is enabled
+    assert resumed.scientific_research_agendas is None
+
+
+def test_research_policy_requires_supported_science_before_output_claim(tmp_path, monkeypatch):
+    runner = _runner()
+    output = tmp_path / "unused"
+    with pytest.raises(ValueError, match="initial research policy requires"):
+        runner.run_experiment(_args(runner, output, "--scientific-research-agendas"))
+    monkeypatch.setattr(runner, "RESEARCH_CONFIGURATION_SUPPORTED", False)
+    with pytest.raises(ValueError, match="initial research policy requires"):
+        runner.run_experiment(_args(runner, output, "--feature", "scientific_claims", "--scientific-research-agendas"))
+    assert not output.exists()
+
+
 def test_new_external_runner_rejects_older_source_without_feature_before_claiming_output(tmp_path, monkeypatch):
     runner = _runner()
     monkeypatch.setattr(runner, "CONTROL_FIELDS", {key: value for key, value in runner.CONTROL_FIELDS.items()

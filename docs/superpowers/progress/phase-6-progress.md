@@ -47,6 +47,14 @@ JSON/pickle artifacts match frozen b257 exactly. This remains default-off,
 bounded mechanical evidence; shared CLI/native composition is still pending.
 See [the research integration record](../../integration/scientific-research-agendas.md).
 
+Research controls now reach the shared single/live/batch/gate paths. Exact
+resume rejects a contradictory switch, while the declared experiment-fork
+seam accepts validated activation/pause and records separate mode/activation/
+cycle/host lineage with `exact: false`. Omitted flags preserve legacy config
+and header shape. Wiring: 93 focused passes; policy/harness: 70 passes including
+a real short aggregate checkpoint fork. Registered native recurrence/export
+composition remains pending, with no efficacy or default-activation claim.
+
 The branch contains the original PR #68 ancestry and historical unknown-value
 fixes, public granary snapshots and Food-tab inspection, default-off
 capacity-aware aggregate refugees, scholarship recovery guards, read-only
