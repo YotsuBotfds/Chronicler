@@ -1,21 +1,46 @@
 import { useState, useCallback, useEffect } from "react";
-import type { PauseContext, Command, PendingAction, InjectCommand } from "../types";
+import type { PauseContext, Command, PendingAction, InjectCommand, CheckpointStatus } from "../types";
 
 interface InterventionPanelProps {
   pauseContext: PauseContext;
   sendCommand: (cmd: Command) => void;
   forkedPath?: string | null;
   forkedHint?: string | null;
+  /** Ask for an exact checkpoint; shown when the server lists `checkpoint`. */
+  onSaveCheckpoint?: () => void;
+  checkpointStatus?: CheckpointStatus | null;
 }
 
 let nextId = 0;
+
+function CheckpointResult({ status }: { status: CheckpointStatus }) {
+  if (status.state === "saving") {
+    return <p className="text-sm text-gray-300" role="status">Saving checkpoint…</p>;
+  }
+  if (status.state === "error") {
+    return <p className="text-sm text-red-400" role="status">{status.message}</p>;
+  }
+  return (
+    <div className="bg-gray-700 rounded p-3 text-sm text-gray-300 space-y-1" role="status">
+      <p>
+        Checkpoint saved at turn {status.turn}: <code className="text-green-400">{status.path}</code>
+      </p>
+      {status.resumeHint && (
+        <p className="text-gray-400 text-xs font-mono">{status.resumeHint}</p>
+      )}
+    </div>
+  );
+}
 
 export function InterventionPanel({
   pauseContext,
   sendCommand,
   forkedPath,
   forkedHint,
+  onSaveCheckpoint,
+  checkpointStatus,
 }: InterventionPanelProps) {
+  const canCheckpoint = !!onSaveCheckpoint && pauseContext.valid_commands.includes("checkpoint");
   const [injectEvent, setInjectEvent] = useState(pauseContext.injectable_events[0] || "");
   const [injectCiv, setInjectCiv] = useState(pauseContext.civs[0] || "");
   const [setCiv, setSetCiv] = useState(pauseContext.civs[0] || "");
@@ -184,6 +209,9 @@ export function InterventionPanel({
           </div>
         )}
 
+        {/* Checkpoint result */}
+        {canCheckpoint && checkpointStatus && <CheckpointResult status={checkpointStatus} />}
+
         {/* Action buttons */}
         <div className="flex gap-3 justify-between">
           <div className="flex gap-2">
@@ -193,6 +221,15 @@ export function InterventionPanel({
             >
               Fork
             </button>
+            {canCheckpoint && (
+              <button
+                onClick={onSaveCheckpoint}
+                disabled={checkpointStatus?.state === "saving"}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 text-gray-200 rounded text-sm"
+              >
+                Save checkpoint
+              </button>
+            )}
             <button
               onClick={() => sendCommand({ type: "quit" })}
               className="px-4 py-2 bg-red-800 hover:bg-red-700 text-gray-200 rounded text-sm"

@@ -194,6 +194,8 @@ function App() {
       liveSendCommand={liveConn.sendCommand}
       liveForkedPath={liveConn.lastForked?.save_path}
       liveForkedHint={liveConn.lastForked?.cli_hint}
+      liveCheckpointStatus={liveConn.checkpointStatus}
+      liveSaveCheckpoint={liveConn.saveCheckpoint}
       liveReconnecting={!liveConn.connected && !!wsUrl}
     />
   );
