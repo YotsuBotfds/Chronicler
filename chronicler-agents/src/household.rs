@@ -3,7 +3,7 @@
 //! All functions are pure (no state, no RNG). Households are derived from
 //! marriage bonds + parent links, not stored as entities.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::behavior::PendingDecisions;
 use crate::pool::AgentPool;
@@ -226,6 +226,62 @@ pub fn resolve_dependents(
 
 // ─── Joint Migration Consolidation ─────────────────────────────────────────
 
+type Migration = (usize, u16, u16);
+
+#[derive(Default)]
+struct MigrationPositions {
+    first: Option<usize>,
+    last: Option<usize>,
+}
+
+/// Mutable list semantics without moving/scanning all entries on each remove.
+/// A removal clears the slot's logical generation; old entries cannot be its
+/// current first/last again. Appends preserve list order, including duplicates.
+/// Only the active last entry survives the reference's final deduplication.
+struct MigrationJournal {
+    entries: Vec<Migration>,
+    positions: HashMap<usize, MigrationPositions>,
+}
+
+impl MigrationJournal {
+    fn new(entries: Vec<Migration>) -> Self {
+        let mut positions: HashMap<usize, MigrationPositions> =
+            HashMap::with_capacity(entries.len());
+        for (i, &(slot, _, _)) in entries.iter().enumerate() {
+            let p = positions.entry(slot).or_default();
+            p.first.get_or_insert(i);
+            p.last = Some(i);
+        }
+        Self { entries, positions }
+    }
+
+    fn first(&self, slot: usize) -> Option<Migration> {
+        self.positions.get(&slot)?.first.map(|i| self.entries[i])
+    }
+
+    fn remove(&mut self, slot: usize) {
+        if let Some(p) = self.positions.get_mut(&slot) {
+            p.first = None;
+            p.last = None;
+        }
+    }
+
+    fn push(&mut self, migration: Migration) {
+        let i = self.entries.len();
+        let p = self.positions.entry(migration.0).or_default();
+        p.first.get_or_insert(i);
+        p.last = Some(i);
+        self.entries.push(migration);
+    }
+
+    fn finish(self) -> Vec<Migration> {
+        let Self { entries, positions } = self;
+        entries.into_iter().enumerate().filter_map(|(i, migration)| {
+            (positions[&migration.0].last == Some(i)).then_some(migration)
+        }).collect()
+    }
+}
+
 /// Consolidate household migrations in place. Runs post-decision, pre-apply.
 /// Only touches migrations, rebellions, and occupation_switches.
 /// Never touches loyalty_flips or loyalty_drifts (background operations).
@@ -276,11 +332,14 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
         sorted_pairs.sort_unstable();
 
         let bucket = &mut pending_decisions[bucket_idx];
+        let mut migrations = MigrationJournal::new(std::mem::take(&mut bucket.migrations));
+        let rebellions: HashSet<usize> = bucket.rebellions.iter().map(|&(s, _)| s).collect();
+        let mut suppressed_actions = HashSet::new();
 
         for (low_slot, high_slot) in sorted_pairs {
             // Determine lead: the one who is migrating. If both, lower slot leads.
-            let low_mig = bucket.migrations.iter().find(|m| m.0 == low_slot).copied();
-            let high_mig = bucket.migrations.iter().find(|m| m.0 == high_slot).copied();
+            let low_mig = migrations.first(low_slot);
+            let high_mig = migrations.first(high_slot);
 
             let (lead_slot, lead_from, lead_to, trailing_slot) = match (low_mig, high_mig) {
                 (Some(lm), _) => (lm.0, lm.1, lm.2, high_slot), // lower leads
@@ -289,7 +348,7 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
             };
 
             // Pre-apply recheck: lead still has migration?
-            if !bucket.migrations.iter().any(|m| m.0 == lead_slot) {
+            if migrations.first(lead_slot).is_none() {
                 continue;
             }
 
@@ -299,13 +358,15 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
             );
 
             // Check trailing spouse rebellion -> CANCEL (short-circuit precedence)
-            let spouse_rebelling = bucket.rebellions.iter().any(|&(s, _)| s == trailing_slot);
+            let spouse_rebelling = rebellions.contains(&trailing_slot)
+                && !suppressed_actions.contains(&trailing_slot);
             if spouse_rebelling {
                 stats.household_migrations_cancelled_rebellion += 1;
                 // CANCEL: remove all household migrations
-                bucket.migrations.retain(|m| m.0 != lead_slot && m.0 != trailing_slot);
+                migrations.remove(lead_slot);
+                migrations.remove(trailing_slot);
                 for &dep in &dep_slots {
-                    bucket.migrations.retain(|m| m.0 != dep);
+                    migrations.remove(dep);
                 }
                 continue;
             }
@@ -319,9 +380,10 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
             if is_catastrophic {
                 stats.household_migrations_cancelled_catastrophe += 1;
                 // CANCEL: remove all household migrations
-                bucket.migrations.retain(|m| m.0 != lead_slot && m.0 != trailing_slot);
+                migrations.remove(lead_slot);
+                migrations.remove(trailing_slot);
                 for &dep in &dep_slots {
-                    bucket.migrations.retain(|m| m.0 != dep);
+                    migrations.remove(dep);
                 }
                 continue;
             }
@@ -335,39 +397,29 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
 
             // APPROVED: trailing spouse follows
             // Remove trailing's existing migration (if different destination)
-            bucket.migrations.retain(|m| m.0 != trailing_slot);
-            bucket.migrations.push((trailing_slot, lead_from, lead_to));
+            migrations.remove(trailing_slot);
+            migrations.push((trailing_slot, lead_from, lead_to));
             bucket.migration_followers.push((trailing_slot, lead_term));
             // Remove trailing from rebellion/switch (primary action replaced)
-            bucket.rebellions.retain(|&(s, _)| s != trailing_slot);
-            bucket.occupation_switches.retain(|&(s, _)| s != trailing_slot);
+            suppressed_actions.insert(trailing_slot);
             stats.household_migrations_follow += 1;
             stats.migration_drivers.record_follower(lead_term);
 
             // APPROVED: dependents follow
             for &dep in &dep_slots {
-                bucket.migrations.retain(|m| m.0 != dep);
-                bucket.migrations.push((dep, lead_from, lead_to));
+                migrations.remove(dep);
+                migrations.push((dep, lead_from, lead_to));
                 bucket.migration_followers.push((dep, lead_term));
-                bucket.rebellions.retain(|&(s, _)| s != dep);
-                bucket.occupation_switches.retain(|&(s, _)| s != dep);
+                suppressed_actions.insert(dep);
                 stats.household_migrations_follow += 1;
                 stats.household_dependent_overrides += 1;
                 stats.migration_drivers.record_follower(lead_term);
             }
         }
 
-        // Deduplicate by slot (keep last entry for each slot)
-        let bucket = &mut pending_decisions[bucket_idx];
-        let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        let mut deduped: Vec<(usize, u16, u16)> = Vec::new();
-        for &mig in bucket.migrations.iter().rev() {
-            if seen.insert(mig.0) {
-                deduped.push(mig);
-            }
-        }
-        deduped.reverse();
-        bucket.migrations = deduped;
+        bucket.migrations = migrations.finish();
+        bucket.rebellions.retain(|&(s, _)| !suppressed_actions.contains(&s));
+        bucket.occupation_switches.retain(|&(s, _)| !suppressed_actions.contains(&s));
     }
 }
 
@@ -423,3 +475,11 @@ crate::persist_struct!(HouseholdStats {
     household_migrations_cancelled_catastrophe, household_dependent_overrides,
     births_married_parent, births_unmarried_parent, migration_drivers,
 });
+
+#[cfg(test)]
+#[path = "household_reference.rs"]
+mod reference;
+
+#[cfg(test)]
+#[path = "household_journal_tests.rs"]
+mod journal_tests;
