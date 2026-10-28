@@ -432,6 +432,12 @@ impl AgentSimulator {
         crate::tax::merchant_wealth_by_civ(&self.pool)
     }
 
+    /// Read-only merchant counts for the resource ledger's f32 assessment
+    /// error bound. No production result or persisted state changes.
+    pub fn merchant_count_by_civ(&self) -> Vec<usize> {
+        crate::tax::merchant_count_by_civ(&self.pool)
+    }
+
     /// Domestic credit: add (positive) or take (negative) `amounts[i]` from
     /// the wealth of the merchants of region `region_ids[i]` (principal
     /// lent, interest and repayments; `credit::apply_merchant_transfers`).

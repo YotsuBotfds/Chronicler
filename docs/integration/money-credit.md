@@ -624,9 +624,17 @@ back to the treasury about 2.5 times over as tax.
   before and after the economy tick. Per civ it checks that the merchants'
   wealth fell by exactly what the tick reports paid (1e-9 relative) and
   that nobody else's changed (under the restore key, nobody's). It checks
-  that what was paid is the rate of their wealth and agrees with the
-  assessment (1e-5 relative, f32 products), and that `credited + carry
-  change = paid` (1e-9). A broken book raises `AssertionError("merchant
+  that what was paid is the rate of their wealth (1e-5 relative, f32
+  products), and that `credited + carry change = paid` (1e-9). The
+  assessment is compared with an independent f64 reference using the
+  sequential f32 accumulation's forward-error bound, `gamma_n =
+  n*u/(1-n*u)`, with each civ's living merchant count, the native f32
+  rate, and the reference's f64 rounding included. This avoids a false
+  failure from the old fixed 1e-5 assessment tolerance at 1,000 or more
+  merchants while still rejecting assessments outside that bound; it does
+  not relax the pool or treasury conservation checks. Both wealth and
+  counts are read only when resource checks are enabled. A broken book
+  raises `AssertionError("merchant
   tax ledger does not balance ...")`.
 * **Probe.** `scripts/merchant_tax_probe.py` (`run`, `summarize`,
   `compare`) extends `domestic_credit_probe.py`. Per turn it records the
@@ -699,3 +707,17 @@ against `main`, paired means over the run unless said:
     PASS strict, and the strict comparisons against fresh `main` full
     gates of `cb9fe70` (same oracle methods, nothing to rebaseline) show
     NO REGRESSION.
+
+### Numerical ledger follow-up (`lead/merchant-tax-ledger`)
+
+The 1,000- and 10,000-merchant regression cases reproduce the native f32
+assessment accumulation from individual merchant balances, check exact
+pool debit and treasury credit, and reject deliberately wrong and
+non-finite assessments. A separate corruption of the pool still fails its
+tighter conservation check. The focused Python suite passes 17 tests.
+The read-only native count method also has a Rust test covering both pool
+sizes, dead agents, other occupations and separate affinities; that new
+test has not yet been run on a tax-branch build. The frozen main native
+build is kept separate from this branch. This numerical follow-up changes
+no production or restore-mode output and does not complete the merchant
+tax correction's pending confirmatory runs or default economic gates.

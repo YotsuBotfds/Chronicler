@@ -31,6 +31,8 @@ See docs/integration/money-credit.md.
 """
 from __future__ import annotations
 
+import math
+import struct
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -55,6 +57,32 @@ _TOL = 1e-9          # pool and treasury books (f64 sums of f32 wealth)
 _RATE_TOL = 1e-5     # what was paid against rate x wealth (f32 products)
 
 
+def _assessment_reference(wealth: float, count: int, rate: float) -> tuple[float, float]:
+    """Independent f64 assessment and a forward-error bound for the f32 one.
+
+    The native assessment sums ``count`` nonnegative f32 wealth values and
+    multiplies by its f32 rate. For round-to-nearest arithmetic, n operations
+    have relative error at most gamma_n = n*u/(1-n*u). Use count+1 operations
+    conservatively for both that computation (u=2**-24) and this reference's
+    f64 sum/product (u=2**-53). If R is this reference and A the native result,
+    |A-R| <= |R|*(gamma32+gamma64)/(1-gamma64). Nonnegative f32 additions cannot
+    underflow; add half a subnormal unit for the final f32 product. Outward
+    padding covers the f64 rounding in the bound calculation itself.
+
+    This bounds only assessment approximation. Pool and treasury conservation
+    keep their separate, much tighter _TOL checks.
+    """
+    rate32 = struct.unpack("f", struct.pack("f", rate))[0]
+    reference = rate32 * wealth
+    n = count + 1
+    if n * 2.0**-24 >= 1.0:
+        return reference, math.inf
+    gamma32 = (n * 2.0**-24) / (1.0 - n * 2.0**-24)
+    gamma64 = (n * 2.0**-53) / (1.0 - n * 2.0**-53)
+    bound = abs(reference) * (gamma32 + gamma64) / (1.0 - gamma64) + 2.0**-150
+    return reference, math.nextafter(bound + 16 * math.ulp(bound), math.inf)
+
+
 class TaxLedger:
     """One tick's merchant-tax balances (``CHRONICLER_CHECK_RESOURCES=1``).
 
@@ -77,6 +105,10 @@ class TaxLedger:
         self.debited = debited
         self.rate = tax_rate(world)
         self.before = [float(w) for w in sim.merchant_wealth_by_civ()]
+        if not hasattr(sim, "merchant_count_by_civ"):
+            raise RuntimeError("rebuild chronicler_agents for merchant-tax assessment checks "
+                               "(merchant_count_by_civ is missing)")
+        self.counts = list(sim.merchant_count_by_civ())
         self.problems: list[str] = []
         self.paid: dict[int, float] = {}
 
@@ -109,8 +141,10 @@ class TaxLedger:
                 if want < 0.0 or abs(want - self.rate * before) > _RATE_TOL * max(1.0, self.rate * before):
                     self.problems.append(f"civ {civ}: paid {want} on merchant wealth {before} at rate {self.rate}")
                 tax = float(assessed.get(civ, 0.0))
-                if abs(want - tax) > _RATE_TOL * max(1.0, tax):
-                    self.problems.append(f"civ {civ}: paid {want}, assessed {tax}")
+                reference, error = _assessment_reference(before, self.counts[civ], self.rate)
+                if not math.isfinite(tax) or abs(tax - reference) > error:
+                    self.problems.append(f"civ {civ}: assessed {tax}, reference {reference}, "
+                                         f"f32 error bound {error}")
         if set(paid) - set(assessed):
             self.problems.append(f"paid by civs never assessed: {sorted(set(paid) - set(assessed))}")
         self._raise()

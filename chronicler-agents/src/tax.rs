@@ -82,6 +82,18 @@ pub fn merchant_wealth_by_civ(pool: &AgentPool) -> Vec<f64> {
     out
 }
 
+/// Number of terms in each civ's merchant-wealth assessment. The resource
+/// ledger uses this to bound the rounding error of its f32 accumulation.
+pub fn merchant_count_by_civ(pool: &AgentPool) -> Vec<usize> {
+    let mut out = vec![0usize; 256];
+    for slot in 0..pool.capacity() {
+        if pool.is_alive(slot) && pool.occupation(slot) == Occupation::Merchant as u8 {
+            out[pool.civ_affinity(slot) as usize] += 1;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +192,23 @@ mod tests {
             assert!((tax.collected[civ] - 0.05 * before[civ]).abs() <= 1e-5 * before[civ]);
         }
         assert_eq!(before[2], after[2]);
+    }
+
+    #[test]
+    fn assessment_counts_include_only_living_merchants_of_each_affinity() {
+        for n in [1000, 10000] {
+            let mut pool = AgentPool::new(n + 4);
+            for _ in 0..n {
+                agent(&mut pool, 0, Occupation::Merchant, 0.1);
+            }
+            agent(&mut pool, 1, Occupation::Merchant, 1.0);
+            agent(&mut pool, 0, Occupation::Farmer, 2.0);
+            let dead = agent(&mut pool, 0, Occupation::Merchant, 3.0);
+            pool.kill(dead);
+            let counts = merchant_count_by_civ(&pool);
+            assert_eq!(counts[0], n);
+            assert_eq!(counts[1], 1);
+            assert_eq!(counts.iter().sum::<usize>(), n + 1);
+        }
     }
 }

@@ -110,11 +110,16 @@ def test_the_tuning_key_restores_the_earlier_rule(sample_world):
 class _Pool:
     """Stand-in for the native pool's merchant wealth by civ affinity."""
 
-    def __init__(self, wealth):
+    def __init__(self, wealth, counts=None):
         self.wealth = list(wealth) + [0.0] * (256 - len(wealth))
+        self.counts = (list(counts) if counts is not None else [int(w > 0.0) for w in wealth])
+        self.counts += [0] * (256 - len(self.counts))
 
     def merchant_wealth_by_civ(self):
         return list(self.wealth)
+
+    def merchant_count_by_civ(self):
+        return list(self.counts)
 
 
 def _ledger(world, pool, debited=True):
@@ -166,6 +171,45 @@ def test_the_ledger_under_the_earlier_rule_expects_no_payment(sample_world):
     result = SimpleNamespace(treasury_tax={0: 5.0, 1: 2.0}, tax_collected=None)
     ledger.after_economy(result)
     assert _credit(sample_world, result, ledger)[:2] == [5, 2]
+
+
+@pytest.mark.parametrize("count", [1000, 10000])
+def test_assessment_rounding_does_not_reject_balanced_large_pools(sample_world, count):
+    """The native assessment adds f32 wealth in slot order. That ordinary
+    error can exceed the former 1e-5 check while debit/credit conserve exactly.
+    Use individual merchant balances, not a perturbation of an aggregate.
+    """
+    import math
+    import numpy as np
+
+    balances = np.full(count, 0.1, dtype=np.float32)
+    pool = _Pool([math.fsum(balances.tolist())], counts=[count])
+    ledger = _ledger(sample_world, pool)
+    native_sum = np.float32(0.0)
+    for wealth in balances:
+        native_sum = np.float32(native_sum + wealth)
+    assessed = float(np.float32(np.float32(0.05) * native_sum))
+    after = balances * np.float32(1.0 - np.float32(0.05))
+    paid = math.fsum(float(old) - float(new) for old, new in zip(balances, after))
+    pool.wealth[0] = math.fsum(after.tolist())
+    assert abs(paid - assessed) > 1e-5 * max(1.0, assessed), "regresses the original failure"
+    result = SimpleNamespace(treasury_tax={0: assessed}, tax_collected={0: paid})
+    ledger.after_economy(result)
+    _credit(sample_world, result, ledger)
+
+    # The approximation allowance must still catch wrong assessments, while
+    # conservation remains independently strict even for a large pool.
+    from chronicler.merchant_tax import _assessment_reference
+    reference, bound = _assessment_reference(ledger.before[0], count, 0.05)
+    for bad, message in ((reference + 2 * bound, "assessed"), (float("nan"), "assessed")):
+        wrong = _ledger(sample_world, _Pool([ledger.before[0]], counts=[count]))
+        wrong.sim.wealth[0] = pool.wealth[0]
+        with pytest.raises(AssertionError, match=message):
+            wrong.after_economy(SimpleNamespace(treasury_tax={0: bad}, tax_collected={0: paid}))
+    broken = _ledger(sample_world, _Pool([ledger.before[0]], counts=[count]))
+    broken.sim.wealth[0] = pool.wealth[0] + 1e-4
+    with pytest.raises(AssertionError, match="merchant wealth"):
+        broken.after_economy(result)
 
 
 def test_the_ledger_is_off_without_the_check(sample_world, monkeypatch):
