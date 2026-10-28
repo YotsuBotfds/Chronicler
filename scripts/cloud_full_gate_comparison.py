@@ -32,6 +32,7 @@ MAX_FILES = 64
 MAX_RAW_ENTRIES = 100000
 CLASSES = ("AgentSimulator", "EcologySimulator", "PoliticsSimulator")
 ENV_KEYS = ("python", "implementation", "machine", "thread_env", "packages", "affinity_cpu_count")
+SIMULATION_ARGUMENTS = ["worldgen","regions","civs","scenario","turns","reflection_interval","agents","agent_scale_mode","decision_ablation","ablation_start_turn","mutual_aid","fisheries","campaigns","governance","contact_ledger","epidemiology","finance","diplomacy","techniques","maritime","gp_agendas","nomads","cities","agent_movements","guilds","historiography","languages","scholarship","grain_reserves","community_anchoring","capacity_aware_refugees","health_care","harvest_forecasts","ritual_gatherings","scientific_claims","transaction_receipts","domestic_credit","tuning","preset","aggression_bias","tech_diffusion_rate","resource_abundance","trade_friction","severity_multiplier","cultural_drift_speed","religion_intensity","secession_likelihood"]
 REPORT_FILES = (
     "validate_report_full.json", "gate_decision_full.json", "gate_summary_full.md",
     "run_manifest.json", "batch_manifest.json", "ablation_manifest.json",
@@ -42,8 +43,8 @@ INDEXED_FILES = frozenset(
 )
 ALL_FILES = INDEXED_FILES | {"result.json", "artifact-index.json"}
 ROLES = ("template-baseline", "template-candidate", "procedural-baseline", "procedural-candidate")
-OFF_FEATURES = (
-    "campaigns", "contact_ledger", "finance", "fisheries", "mutual_aid",
+FEATURE_ARGUMENTS = (
+    "campaigns", "governance", "contact_ledger", "finance", "fisheries", "mutual_aid",
     "epidemiology", "diplomacy", "techniques", "maritime", "gp_agendas",
     "nomads", "cities", "agent_movements", "guilds", "scholarship",
     "grain_reserves", "community_anchoring", "capacity_aware_refugees",
@@ -180,6 +181,8 @@ def _inventory(root, inodes):
             name = _relative(path.relative_to(root).as_posix())
             if name not in ALL_FILES:
                 _fail("unexpected artifact file: " + name)
+            if st.st_size > MAX_ROOT_BYTES - total or len(files) >= MAX_FILES:
+                _fail("artifact root byte/file bound exceeded before reading")
             raw, ident = _read(path)
             inode = ident[:2]
             if inode in inodes:
@@ -221,6 +224,17 @@ def expected_cohort(worldgen):
     }
 
 
+def registered_simulation(expected):
+    # main.py resolves these defaults before batch_manifest.simulation_config.
+    # The complete key set is frozen from d028; missing or extra keys refuse.
+    result = {key: None for key in SIMULATION_ARGUMENTS}
+    result.update(turns=expected["turns"], agents="hybrid", reflection_interval=10,
+                  regions=expected["regions"], civs=expected["civs"],
+                  worldgen="procedural" if expected["worldgen"] == "procedural" else None,
+                  tuning_overrides={})
+    return result
+
+
 def _env_signature(environment):
     if not isinstance(environment, dict) or any(k not in environment for k in ENV_KEYS):
         _fail("runtime environment is incomplete")
@@ -229,15 +243,19 @@ def _env_signature(environment):
             _fail("runtime environment has an invalid " + key)
     if not isinstance(environment["packages"], dict) or not environment["packages"]:
         _fail("runtime package versions are missing")
+    _eq(sorted(environment["packages"]), sorted(("numpy", "scipy", "pyarrow", "pydantic", "arro3-core", "chronicler-agents")),
+        "runtime package identity set")
     if any(not isinstance(v, str) or not v for v in environment["packages"].values()):
         _fail("runtime package version is unavailable")
     _eq(environment["affinity_cpu_count"], 2, "runtime CPU affinity count")
     threads = environment["thread_env"]
     if not isinstance(threads, dict):
         _fail("thread environment is missing")
-    for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "BLIS_NUM_THREADS",
+                "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS", "RAYON_NUM_THREADS"):
         _eq(threads.get(key), "1", key)
     _eq(threads.get("PYTHONHASHSEED"), "0", "PYTHONHASHSEED")
+    _eq(threads.get("PYTHON_CPU_COUNT"), "2", "PYTHON_CPU_COUNT")
     return {key: environment[key] for key in ENV_KEYS}
 
 
@@ -247,7 +265,7 @@ def _schemas(schemas):
     for name, value in schemas.items():
         if not isinstance(value, dict) or set(value) != {"version", "fingerprint", "schema_sha256"}:
             _fail("invalid compiled schema record")
-        _int(value["version"], name + " schema version", minimum=1)
+        _int(value["version"], name + " schema version")
         if not isinstance(value["fingerprint"], str) or not value["fingerprint"]:
             _fail("missing compiled state fingerprint")
         _hash(value["schema_sha256"], name + " raw schema hash")
@@ -268,6 +286,14 @@ def _builder(build, build_hash, run_id, attempt):
         "builder source stability")
     if not isinstance(build.get("python_version"), str) or re.fullmatch(r"3\.13\.[0-9]+", build["python_version"]) is None:
         _fail("builder must record its actual Python 3.13 patch")
+    _eq(build.get("budget_seconds"), 80 * 60, "builder resource budget")
+    elapsed = build.get("elapsed_wall_seconds")
+    if (type(elapsed) not in (int, float) or not math.isfinite(elapsed)
+            or not 0 <= elapsed <= 80 * 60):
+        _fail("builder resource budget was not met")
+    for key in ("error", "final_identity_error", "light_error"):
+        if key in build:
+            _fail("builder retained an execution/finalization error")
     native, wheel = build.get("native"), build.get("wheel")
     if not isinstance(native, dict) or not isinstance(wheel, dict):
         _fail("builder native/wheel identity is missing")
@@ -302,11 +328,19 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
         _fail("simulation configuration is missing")
     _eq(simulation.get("agents"), "hybrid", "agent mode")
     _eq(simulation.get("turns"), expected["turns"], "simulation horizon")
+    _eq(simulation, registered_simulation(expected), "complete registered simulation configuration")
     if simulation.get("scenario") is not None or simulation.get("decision_ablation") is not None:
         _fail("unexpected scenario or parent ablation")
-    for name in OFF_FEATURES:
-        if simulation.get(name) is not None and simulation.get(name) is not False:
-            _fail("unexpected active experimental feature: " + name)
+    for name in FEATURE_ARGUMENTS:
+        if simulation.get(name) is not None:
+            _fail("unexpected explicit feature argument: " + name)
+    for name in ("agent_scale_mode", "decision_ablation", "ablation_start_turn",
+                 "tuning", "preset", "aggression_bias", "tech_diffusion_rate", "resource_abundance",
+                 "trade_friction", "severity_multiplier", "cultural_drift_speed",
+                 "religion_intensity", "secession_likelihood"):
+        if simulation.get(name) is not None:
+            _fail("unexpected requested simulation override: " + name)
+    _eq(simulation.get("tuning_overrides"), {}, "default tuning overrides")
     if expected["worldgen"] == "procedural":
         for key in ("worldgen", "regions", "civs"):
             _eq(simulation.get(key), expected[key], "procedural simulation " + key)
@@ -323,7 +357,11 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
         _eq(row.get("dir"), "seed_" + str(seed), "parent directory")
         _eq(row.get("bundle"), row["dir"] + "/chronicle_bundle.json", "parent bundle")
         files = row.get("files")
-        if not isinstance(files, dict) or row["bundle"] not in files:
+        required = {row["dir"] + "/" + name for name in (
+            "chronicle_bundle.json", "agent_events.arrow", "validation_needs.arrow",
+            "validation_relationships.arrow", "validation_memory_signatures.arrow",
+            "validation_summary.json", "validation_community_summary.json")}
+        if not isinstance(files, dict) or not required.issubset(files):
             _fail("parent validation hashes are missing")
         for name, value in files.items():
             _relative(name)
@@ -352,6 +390,10 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
         ("plain_manifest_sha256", digest["report/batch_manifest.json"]["sha256"]),
     ):
         _eq(ablation.get(key), value, "ablation " + key)
+    _eq(ablation.get("fork_rule"), {
+        "first": 100, "every": 20 if expected["worldgen"] == "procedural" else 100,
+        "worldgen": expected["worldgen"], "plain_total_turns": expected["turns"],
+    }, "registered ablation fork rule")
     if ablation.get("failures"):
         _fail("ablation execution failures remain")
     for key in ("git_sha", "package_digest"):
@@ -375,6 +417,7 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
         _eq(row.get("decision_ablation"), {"name": arm, "start_turn": turn + 1, "forked_at": turn + 1},
             "fork intervention")
         directory = _relative(row.get("dir"))
+        _eq(directory, arm + "/seed_" + str(seed) + "/fork_" + str(turn), "registered fork directory")
         if directory in directories:
             _fail("duplicate fork output directory")
         directories.add(directory)
@@ -392,8 +435,14 @@ def _manifest_checks(batch, ablation, report, run, expected, source, digest, nat
         ("window_turns", 20), ("forks", expected["fork_count"]), ("native_sha256", native_sha),
     ):
         _eq(summary.get(key), value, "verified ablation " + key)
-    if not isinstance(summary.get("history_identity"), str) or not summary["history_identity"]:
-        _fail("ablation common-history verification is missing")
+    _eq(summary.get("history_identity"),
+        "every fork's agent events equal the plain run's up to the fork turn",
+        "ablation common-history verification")
+    for name in FEATURE_ARGUMENTS:
+        if name in run and run[name] is not None:
+            _fail("unexpected requested run feature: " + name)
+        if name in run:
+            _eq(run[name], simulation.get(name), "run/batch requested feature " + name)
     for key, value in (
         ("profile", "full"), ("worldgen", expected["worldgen"]), ("seed_start", 42),
         ("seeds", expected["seed_count"]), ("turns", expected["turns"]), ("parallel", 2),
@@ -447,6 +496,17 @@ def load_cohort(root, role, files, anchor, run_id, attempt):
                             ("identities_stable", True)):
             _eq(value.get(key), wanted, "cohort " + key)
     _eq(result.get("execution_complete"), True, "cohort execution completion")
+    for key in ("error", "final_identity_error", "light_error"):
+        if key in result:
+            _fail("cohort retained an execution/finalization error: " + key)
+    _eq(result.get("stage"), "full", "full cohort stage")
+    _eq(provenance.get("stage"), "full", "full provenance stage")
+    _eq(result.get("qualified"), result.get("gate_pass"), "full cohort qualification state")
+    _eq(result.get("budget_seconds"), 330 * 60, "full cohort resource budget")
+    elapsed = result.get("elapsed_wall_seconds")
+    if (type(elapsed) not in (int, float) or not math.isfinite(elapsed)
+            or not 0 <= elapsed <= 330 * 60):
+        _fail("full cohort resource budget was not met")
     _eq(provenance.get("github_run_id"), run_id, "cohort GitHub run")
     _eq(provenance.get("github_run_attempt"), attempt, "cohort GitHub attempt")
     _eq(files["build-manifest.json"]["sha256"], anchor, "externally anchored build manifest")
@@ -476,15 +536,62 @@ def load_cohort(root, role, files, anchor, run_id, attempt):
         for key in ("git_sha", "package_digest"):
             _eq(probe.get("source", {}).get(key), batch.get("source", {}).get(key), "actual source " + key)
     _eq(_env_signature(batch.get("environment")), builder["environment"], "batch runtime environment")
+    for phase in ("before", "after"):
+        probe = provenance[phase]
+        affinity = probe.get("affinity")
+        if (not isinstance(affinity, list) or len(affinity) != 2
+                or any(type(cpu) is not int or cpu < 0 for cpu in affinity)
+                or len(set(affinity)) != 2):
+            _fail("actual two-CPU affinity mask is missing")
+        for name in ("prefix", "source_file"):
+            if not isinstance(probe.get(name), str) or not probe[name]:
+                _fail("actual interpreter/source path is missing")
+    for name in ("affinity", "prefix", "source_file"):
+        _eq(provenance["before"][name], provenance["after"][name], "within-cohort actual " + name)
     raw = get("raw-inventory.json")
     _schema(raw, "chronicler-cloud-full-gate-raw-inventory")
     _eq(raw.get("complete"), True, "raw inventory completion")
+    _eq(raw.get("scope"),
+        "worker payload before derived light copies; excludes final receipts and inventory",
+        "raw inventory scope")
     _check_index_records(raw.get("files"), "raw inventory", bound=MAX_RAW_ENTRIES)
     _eq(raw.get("file_count"), len(raw["files"]), "raw inventory file count")
     _eq(raw.get("total_bytes"), sum(v["bytes"] for v in raw["files"].values()), "raw inventory byte count")
+    for phase in ("before", "after"):
+        name = "source-snapshot-" + phase + ".json"
+        record = raw["files"].get(name)
+        if not isinstance(record, dict) or record.get("bytes", 0) <= 0:
+            _fail("raw source snapshot attestation is missing")
+        _eq(record["sha256"], provenance["source_snapshot_" + phase + "_sha256"],
+            "raw source snapshot hash")
     for name in REPORT_FILES:
         original = ("raw/full_gate/ablation_42/" if name == "ablation_manifest.json" else "raw/full_gate/batch_42/") + name
         _eq(raw["files"].get(original), records["report/" + name], "unaltered original " + name)
+    # Every parent/fork validation hash must link to the copied raw inventory.
+    # These remain controller attestations, not a local re-read of raw Arrow data.
+    def raw_link(name, digest):
+        record = raw["files"].get(name)
+        if not isinstance(record, dict) or record.get("bytes", 0) <= 0:
+            _fail("raw validation input is missing: " + name)
+        _eq(record["sha256"], digest, "raw validation input hash " + name)
+    parents_for_links = batch.get("runs")
+    if not isinstance(parents_for_links, list):
+        _fail("parent validation records are missing")
+    for parent in parents_for_links:
+        if not isinstance(parent, dict) or not isinstance(parent.get("files"), dict):
+            _fail("parent validation records are malformed")
+        for name, digest in parent["files"].items():
+            raw_link("raw/full_gate/batch_42/" + _relative(name), digest)
+    ablation_for_links = get("report/ablation_manifest.json")
+    forks_for_links = ablation_for_links.get("forks")
+    if not isinstance(forks_for_links, list):
+        _fail("fork validation records are missing")
+    for fork in forks_for_links:
+        if not isinstance(fork, dict) or not isinstance(fork.get("files"), dict):
+            _fail("fork validation records are malformed")
+        directory = _relative(fork.get("dir"))
+        for name, digest in fork["files"].items():
+            raw_link("raw/full_gate/ablation_42/" + directory + "/" + _relative(name), digest)
     report, decision = get("report/validate_report_full.json"), get("report/gate_decision_full.json")
     run, ablation = get("report/run_manifest.json"), get("report/ablation_manifest.json")
     simulation = _manifest_checks(batch, ablation, report, run, expected, source, files, builder["native_sha256"])
@@ -575,8 +682,10 @@ def _recheck(roots, inventories):
         _eq(current, inventories[role], "unchanged input artifacts")
 
 
-def run(roots, output, *, anchor, run_id, attempt, modules, candidate_source):
+def run(roots, output, *, anchor, run_id, attempt, control_sha, modules, candidate_source):
     _hash(anchor, "external build manifest anchor")
+    if not isinstance(control_sha, str) or re.fullmatch(r"[0-9a-f]{40}", control_sha) is None:
+        _fail("external control SHA is missing")
     if not isinstance(run_id, str) or not run_id.isdigit() or not isinstance(attempt, str) or not attempt.isdigit():
         _fail("GitHub run identity must be decimal strings")
     _eq(sorted(roots), sorted(ROLES), "four fixed cohort roles")
@@ -595,6 +704,7 @@ def run(roots, output, *, anchor, run_id, attempt, modules, candidate_source):
     cohorts = {role: load_cohort(root, role, inventories[role], anchor, run_id, attempt)
                for role, root in roots.items()}
     signatures = [item["builder"] for item in cohorts.values()]
+    _eq(signatures[0]["control_sha"], control_sha, "externally pinned control source")
     for signature in signatures[1:]:
         _eq(signature, signatures[0], "shared builder/runtime identity")
     # Compare all unchanged non-world physics settings across profiles too.
@@ -608,7 +718,7 @@ def run(roots, output, *, anchor, run_id, attempt, modules, candidate_source):
     result = analyze(cohorts, modules)
     result.update(
         baseline_source=BASELINE, candidate_source=CANDIDATE,
-        github_run_id=run_id, github_run_attempt=attempt,
+        github_run_id=run_id, github_run_attempt=attempt, control_sha=control_sha,
         build_manifest_sha256=anchor,
         reader={"python": sys.version, "executable": sys.executable,
                 "candidate_source_path": str(candidate_source), "frozen_file_sha256": FROZEN_FILES,
@@ -656,6 +766,7 @@ def main(argv=None):
         parser.add_argument("--" + role, type=Path, required=True)
     parser.add_argument("--candidate-source", type=Path, required=True)
     parser.add_argument("--build-manifest-sha256", required=True)
+    parser.add_argument("--control-sha", required=True)
     parser.add_argument("--github-run-id", required=True)
     parser.add_argument("--github-run-attempt", required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -664,8 +775,9 @@ def main(argv=None):
         modules = frozen_modules(args.candidate_source)
         result = run({role: getattr(args, role.replace("-", "_")) for role in ROLES}, args.output,
                      anchor=args.build_manifest_sha256, run_id=args.github_run_id,
-                     attempt=args.github_run_attempt, modules=modules, candidate_source=args.candidate_source)
-    except (ComparisonInputError, OSError, ValueError, TypeError, KeyError, OverflowError, RecursionError) as exc:
+                     attempt=args.github_run_attempt, control_sha=args.control_sha,
+                     modules=modules, candidate_source=args.candidate_source)
+    except (ComparisonInputError, OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError, RecursionError) as exc:
         sys.stderr.write("Full-gate comparison refused: " + str(exc) + "\n")
         return 1
     return 0 if result["qualification_pass"] else 2
