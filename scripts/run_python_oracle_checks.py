@@ -142,6 +142,7 @@ CHUNKS = {
         "tests/test_validation_compare.py",
         "tests/test_validation_ablation.py",
         "tests/test_decision_ablation.py",
+        "tests/test_ablation_output.py",
         "tests/test_spec_communities.py",
     ],
     "learning": [
