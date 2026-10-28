@@ -65,6 +65,9 @@ from chronicler.batch_manifest import (
 )
 from chronicler.ablation_arms import COMMUNITY_ARM, GATE_ARMS, checkpoint_turns, fork_every, run_ablation_arms
 from chronicler.cpu_budget import automatic_workers
+from chronicler.expansion_features import (
+    EXPANSION_FEATURES, add_expansion_arguments, expansion_arguments,
+)
 from chronicler.validation_compare import compare_validation_reports, format_comparison_markdown
 from chronicler.validation_gate import (
     CAUSAL_ORACLES_FLAG,
@@ -430,6 +433,7 @@ def run_subset(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path
         *_scholarship_args(args),
         *_grain_reserves_args(args),
         *_capacity_aware_refugees_args(args),
+        *expansion_arguments(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -476,6 +480,7 @@ def run_full(args: argparse.Namespace, cwd: Path, env: dict[str, str]) -> Path:
         *_scholarship_args(args),
         *_grain_reserves_args(args),
         *_capacity_aware_refugees_args(args),
+        *expansion_arguments(args),
         *_community_anchoring_args(args),
         *_domestic_credit_args(args),
         *_historiography_args(args),
@@ -569,6 +574,7 @@ def run_determinism(args: argparse.Namespace, cwd: Path, env: dict[str, str], ag
         cmd.extend(_scholarship_args(args))
         cmd.extend(_grain_reserves_args(args))
         cmd.extend(_capacity_aware_refugees_args(args))
+        cmd.extend(expansion_arguments(args))
         if agents != "off":
             cmd.extend(_community_anchoring_args(args))
             cmd.extend(_domestic_credit_args(args))
@@ -1045,6 +1051,7 @@ def main() -> None:
         help="When --baseline-report is set, compare even if the baseline measured a different cohort "
              "(seeds, turns, world, simulation configuration); the comparison is labelled exploratory.",
     )
+    add_expansion_arguments(parser, forwarding=True)
     parsed = parser.parse_args()
     if parsed.parallel is None:
         parsed.parallel = automatic_workers()
@@ -1155,6 +1162,7 @@ def main() -> None:
         "grain_reserves": args.grain_reserves,
         "community_anchoring": args.community_anchoring,
         "capacity_aware_refugees": args.capacity_aware_refugees,
+        **{name: getattr(args, name, None) for name in EXPANSION_FEATURES},
         "domestic_credit": args.domestic_credit,
         "historiography": args.historiography,
         "languages": args.languages,

@@ -306,9 +306,10 @@ class LiveServer:
 
         if "simulate_only" in config and not isinstance(config.get("simulate_only"), bool):
             return "batch_start config 'simulate_only' must be a boolean"
-        if "capacity_aware_refugees" in config:
-            if config["capacity_aware_refugees"] is not None and not isinstance(config["capacity_aware_refugees"], bool):
-                return "batch_start config 'capacity_aware_refugees' must be a boolean or null"
+        from chronicler.expansion_features import EXPANSION_FEATURES
+        for field in ("capacity_aware_refugees", "grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+            if field in config and config[field] is not None and not isinstance(config[field], bool):
+                return f"batch_start config '{field}' must be a boolean or null"
 
         if "parallel" in config:
             value = config.get("parallel")
@@ -531,6 +532,10 @@ class LiveServer:
                 capacity_aware_refugees=config.get(
                     "capacity_aware_refugees", self._client_defaults.get("capacity_aware_refugees")),
             )
+
+            from chronicler.expansion_features import EXPANSION_FEATURES
+            for name in ("grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+                setattr(args, name, config.get(name, self._client_defaults.get(name)))
 
             try:
                 workers = config.get("workers")
@@ -1320,6 +1325,8 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
         _epi = getattr(args, "epidemiology", None)
         set_epidemiology_enabled(
             world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
+    from chronicler.expansion_features import configure_expansion_features
+    configure_expansion_features(world, args, agent_mode=getattr(args, "agents", "off"))
     return world, scenario_config
 
 
@@ -1387,6 +1394,9 @@ def run_live(
         "preset": getattr(args, "preset", None),
         "capacity_aware_refugees": getattr(args, "capacity_aware_refugees", None),
     }
+    from chronicler.expansion_features import EXPANSION_FEATURES
+    for name in ("grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+        server._client_defaults[name] = getattr(args, name, None)
     output_dir = Path(args.output).parent
     view = LiveView()
     state = exact_resume.state if exact_resume is not None else None

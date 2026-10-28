@@ -261,6 +261,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
     from chronicler.community_anchoring import community_anchoring_enabled
     from chronicler.domestic_credit_state import domestic_credit_on
     from chronicler.techniques import techniques_enabled
+    from chronicler.expansion_features import expansion_feature_flags
 
     return {
         "campaigns": bool(world.campaigns_enabled),
@@ -283,6 +284,7 @@ def feature_flags(world: Any) -> dict[str, bool]:
         "community_anchoring": bool(community_anchoring_enabled(world)),
         "capacity_aware_refugees": getattr(world, "capacity_aware_refugees", False) is True,
         "domestic_credit": bool(domestic_credit_on(world)),
+        **expansion_feature_flags(world),
         # The observational layers are read without importing them (they are
         # imported only by the modules that run or narrate them).
         "historiography": getattr(world, "_historiography", None) is not None,

@@ -12,12 +12,14 @@ The source is a real 10-turn ``--agents off`` run (seed 42, 4 civs, 8
 regions) with the default systems and ``--scholarship`` (off by default),
 which writes every snapshot system of
 ``chronicler/transport_contract.json`` except the agent-mode ``food`` and
-``migration`` and ``grain_reserves`` fields, plus the ``historiography``, ``languages`` and
-``pruned_civ_stats`` fields. ``food``, ``migration`` and ``grain_reserves`` are added as
+``migration``, ``grain_reserves`` and expansion experiment fields, plus the
+``historiography``, ``languages`` and ``pruned_civ_stats`` fields. Agent-only fields are added as
 stand-ins of the exported shape (``mutual_aid.snapshot_summary`` and
 ``[from region, to region, agents]`` rows): ``sufficiency`` 1.0 for each
 controlled region and ``None`` elsewhere, no aid, and one row moving 5 agents
-from the first controlled region to the next, plus an empty granary summary.
+from the first controlled region to the next, plus explicitly empty granary,
+injury/care, harvest-report and gathering summaries. These are transport shapes;
+they do not qualify the mechanisms or establish natural-world observations.
 ``generated_at`` is fixed so
 the file is reproducible. The committed file is built without the native
 extension (the Python ecology path; ``PYTHONHASHSEED=0``): with it the same
@@ -43,6 +45,14 @@ def _stand_ins(bundle: dict) -> None:
         snap["migration"] = [[controlled[0], controlled[1], 5]] if len(controlled) > 1 else []
         # Transport shape only: the source run has no agent economy or granaries.
         snap["grain_reserves"] = {"source_turn": snap["turn"] - 1, "granaries": [], "flows": [], "counters": {}}
+        snap["health_care"] = {"source_turn": snap["turn"] - 1, "units": "worker-turns", "regions": [],
+                                **dict.fromkeys(("episodes", "new_injuries", "recoveries", "impaired_work",
+                                                 "care_work", "care_recipients", "recovery_progress",
+                                                 "cared_recovery_progress"), 0)}
+        snap["harvest_forecasts"] = {"source_turn": snap["turn"] - 1, "reports": [], "outcomes": [],
+                                     "preparedness": [], "counters": {}, "calibration": []}
+        snap["ritual_gatherings"] = {"source_turn": snap["turn"] - 1, "schedules": [],
+                                    "outcomes": [], "counters": {}}
 
 
 def build(out: Path) -> None:

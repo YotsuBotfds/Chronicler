@@ -7,6 +7,8 @@ Default: fully local inference via LM Studio. No API key required.
 """
 from __future__ import annotations
 
+from chronicler.expansion_features import expansion_snapshot_fields
+
 import argparse
 import logging
 import signal
@@ -954,6 +956,7 @@ def execute_run(
             **_scholarship_snapshot_fields(world),
             **_food_snapshot_fields(world),
             **_grain_reserves_snapshot_fields(world),
+            **expansion_snapshot_fields(world),
             **_migration_snapshot_fields(world),
         )
 
@@ -1652,6 +1655,8 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if languages is not None:
         from chronicler.languages import set_languages_enabled
         set_languages_enabled(world, languages)
+    from chronicler.expansion_features import configure_expansion_features
+    configure_expansion_features(world, args, agent_mode=agent_mode)
     agent_bridge = None
     if agent_mode in ("demographics-only", "shadow", "hybrid"):
         world.agent_mode = agent_mode
@@ -1989,6 +1994,8 @@ def _build_parser() -> argparse.ArgumentParser:
                              "permitted neighboring regions with available capacity, redistributing "
                              "blocked shares before transit losses; source tolls stay unchanged "
                              "(default off; dormant in hybrid/demographics-only; saved on resume)")
+    from chronicler.expansion_features import add_expansion_arguments
+    add_expansion_arguments(parser)
     parser.add_argument("--domestic-credit", action=argparse.BooleanOptionalAction, default=None,
                         help="Domestic credit through real lenders: the state's domestic loans are "
                              "funded by the merchant agents of its regions, its guilds and its "
