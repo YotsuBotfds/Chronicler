@@ -1,0 +1,86 @@
+name: Fixed default output identity
+
+on:
+  push:
+    branches: [lead/cloud-identity-20261028]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: default-output-identity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  default-output-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONNOUSERSITE: "1"
+      PYTHONHASHSEED: "0"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      GOTO_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+      PYTHON_CPU_COUNT: "1"
+      CARGO_BUILD_JOBS: "1"
+      UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/default-identity-env
+      CARGO_TARGET_DIR: ${{ runner.temp }}/default-identity-cargo
+    steps:
+      - name: Check out qualification controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out frozen baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 2f9d618b70f3304c02dcaeef12996b4a99e074c0
+          path: baseline
+          persist-credentials: false
+      - name: Check out frozen candidate
+        uses: actions/checkout@v4
+        with:
+          ref: d0281e5f57c508f27cea1676f36e0e6ed1225c9d
+          path: candidate
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run pure qualification contract checks
+        run: python -m unittest discover -s control/tests -p test_default_output_identity_qualification.py -v
+      - name: Create fresh locked environment
+        shell: bash
+        run: |
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          test ! -e "$CARGO_TARGET_DIR"
+          python -m pip install "uv>=0.5,<1"
+          uv lock --project candidate --check
+          uv sync --project candidate --frozen --no-dev --no-install-project --python "$(command -v python)"
+          uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" "maturin>=1.5,<2"
+      - name: Run registered fixed export parity
+        shell: bash
+        run: |
+          python control/scripts/default_output_identity_qualification.py run \
+            --baseline-root "$GITHUB_WORKSPACE/baseline" \
+            --candidate-root "$GITHUB_WORKSPACE/candidate" \
+            --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
+            --evidence "$RUNNER_TEMP/default-identity-evidence"
+      - name: Preserve all qualification evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: default-output-identity-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/default-identity-evidence/
+          if-no-files-found: warn
+          retention-days: 30
