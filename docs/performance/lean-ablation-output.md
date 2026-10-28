@@ -106,7 +106,10 @@ stages is excluded. No profile trims runtime history or reduces the horizon.
 | 43 / 400 | 2.769 | 2.019 | 1.361× | 1.048–1.643× | 15,862,792 / 8,784,396 |
 
 These are the **clean supplemental** worker measurements described below.
-Transient output bytes fall **44.6–48.6%**. Final retained bytes are identical in
+The precleanup artifact footprint falls **44.6–48.6%**. This is the file
+inventory at worker exit, not cumulative write traffic or a memory peak; repeated
+periodic overwrites and compression temporary files are not counted as cumulative
+I/O. Final retained bytes are identical in
 each pair: respectively 43,466; 143,738; 70,490; and 240,722 bytes. The raw Arrow
 bytes before compression also match in every recorded direct pair.
 
