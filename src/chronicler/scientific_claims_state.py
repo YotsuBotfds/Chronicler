@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from chronicler.scientific_research_state import LazyResearchModel, ResearchAgendas
+
 
 MAX_SEATS = 20
 MAX_CLAIMS = 20
@@ -74,11 +76,20 @@ class ScientificTrial(BaseModel):
     event_id: str = ""
 
 
-class ProposalReceipt(BaseModel):
+class ProposalReceipt(LazyResearchModel):
+    lazy_name = "agenda_id"
+    lazy_backing = "_agenda_id"
+    lazy_payload = int
+
     seat: int
     claim: int
     received_turn: int
     hops: int = 0
+
+    @property
+    def agenda_id(self):
+        value = self._research_value()
+        return 0 if value is None else value
 
 
 class EvidenceReceipt(BaseModel):
@@ -90,7 +101,11 @@ class EvidenceReceipt(BaseModel):
     event_id: str = ""
 
 
-class ScienceMessage(BaseModel):
+class ScienceMessage(LazyResearchModel):
+    lazy_name = "agenda_id"
+    lazy_backing = "_agenda_id"
+    lazy_payload = int
+
     kind: Literal["proposal", "evidence"]
     record: int
     sender: int
@@ -99,6 +114,11 @@ class ScienceMessage(BaseModel):
     delivery_turn: int
     expires_turn: int
     hops: int
+
+    @property
+    def agenda_id(self):
+        value = self._research_value()
+        return 0 if value is None else value
 
 
 class AdoptionEffort(BaseModel):
@@ -111,7 +131,11 @@ class AdoptionEffort(BaseModel):
     event_id: str = ""  # present only for a first/materially changed allocation
 
 
-class ScientificClaimsState(BaseModel):
+class ScientificClaimsState(LazyResearchModel):
+    lazy_name = "research_agendas"
+    lazy_backing = "_research_agendas"
+    lazy_payload = ResearchAgendas
+
     cohort: int = 0
     started_turn: int | None = None
     seat_ids: list[int] = Field(default_factory=list, max_length=MAX_SEATS)
@@ -137,6 +161,10 @@ class ScientificClaimsState(BaseModel):
     unfunded_effort: int = 0
     last_tick_turn: int = -1
     last_effort_turn: int = -1
+
+    @property
+    def research_agendas(self):
+        return self._research_value()
 
 
 def scientific_claims_on(world) -> bool:

@@ -124,9 +124,12 @@ is design only at `b25727e3`: source audit proves the current four-trial
 research ceiling, while existing paid adoption can continue. The proposal
 retains every record within existing 20-topic/40-trial budgets, canonical
 question identities, fixed measurement namespace and explicit stop-on-full;
-it does not promise an unlimited archive. Three focused legacy counterexamples
-passed under the offline guard after a CPU slot was released. No recurrent runtime,
-new world cohort, tuning or default change is implemented here.
+it does not promise an unlimited archive. Focused legacy/calendar counterexamples
+passed under the offline guard after a CPU slot was released. The
+[lazy-state foundation](../../integration/scientific-research-agendas.md)
+retains disabled raw pickle/JSON identity against twelve frozen-source artifacts;
+the coherent recurrent scheduler remains pending. No new world cohort, tuning
+or default change is implemented here.
 
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
