@@ -38,10 +38,15 @@ probes, worlds, audits, comparison and final hashing. This is not a speed
 comparison or a claim about another environment.
 
 Artifact `12859762876` is 54,788,314 bytes and expires November 27.
-The [structured record](default-output-parity-d028-2026-10-28.json) transcribes
-the completed job log and controller summary. Independent ZIP/payload reinspection
-is being implemented separately; no independently recounted compared-file total
-is claimed yet.
+The [structured record](default-output-parity-d028-2026-10-28.json) retains
+the completed controller result and the subsequent independent verification.
+Reader source `53631aaf` passed all 18 contract tests and completed
+[read-only reinspection in run 40788984730](https://github.com/YotsuBotfds/Chronicler/actions/runs/40788984730).
+It verified the actual ZIP size/SHA-256, pinned inventory and all **974 payload
+files**, the original source/audit/probe/wheel/native cross-links, and unchanged
+payloads after comparison. A fresh invocation of the frozen comparator confirmed
+**399 file pairs across nine cases, zero differences**. No new worlds or native
+pools were created. Its 23.20442095-second reader duration is not a speed result.
 
 This qualifies default exported-file preservation for these sources, fixtures
 and build. It does not qualify native checkpoint/RNG byte identity, feature-on
