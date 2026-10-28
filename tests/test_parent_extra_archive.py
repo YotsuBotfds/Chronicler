@@ -341,6 +341,37 @@ def test_stream_writes_reserve_next_block_before_writing(batch,monkeypatch):
     assert reservations and all(value>=A.BLOCK for value in reservations)
 
 
+def test_index_size_is_bounded_before_creation_with_the_same_reader_cap(batch,monkeypatch):
+    before=A.inventory(batch/'seed_42')
+    monkeypatch.setattr(A,'MAX_JSON_BYTES',(batch/'batch_manifest.json').stat().st_size+512)
+    with pytest.raises(ValueError,match='serialized metadata JSON'): archive(batch)
+    output=batch.parent/'archive-one'
+    assert output.is_dir() and not (output/'index.json').exists()
+    assert not (output/'archive-receipt.json').exists()
+    assert json.loads((output/'status.json').read_text())['passed'] is False
+    assert not (batch.parent/'restored-one').exists()
+    assert A.inventory(batch/'seed_42')==before
+
+
+def test_metadata_reserves_encoded_bytes_before_exclusive_creation(batch,monkeypatch):
+    path=batch.parent/'metadata.json';value={'text':'λ'*37};seen=[]
+    expected=(json.dumps(value,sort_keys=True,indent=2,allow_nan=False)+'\n').encode('utf-8')
+    def blocked(parent,additional=0):
+        seen.append((parent,additional))
+        assert not path.exists()
+        raise ValueError('fixture metadata disk reserve refused')
+    monkeypatch.setattr(A,'space',blocked)
+    with pytest.raises(ValueError,match='metadata disk reserve'): A.write_new(path,value)
+    assert seen==[(path.parent,len(expected)+A.BLOCK)] and not path.exists()
+
+
+def test_oversized_metadata_never_opens_a_destination(batch,monkeypatch):
+    path=batch.parent/'metadata.json'
+    monkeypatch.setattr(A,'MAX_JSON_BYTES',8)
+    with pytest.raises(ValueError,match='serialized metadata JSON'): A.write_new(path,{'text':'too large'})
+    assert not path.exists()
+
+
 def test_duplicate_index_keys_are_rejected_even_with_matching_trusted_hash(batch):
     output,_,_=archive(batch)
     path=output/'index.json';text=path.read_text();path.write_text(text.replace('"version": 1','"version": 1, "version": 1'))

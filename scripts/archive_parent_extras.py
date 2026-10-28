@@ -26,6 +26,7 @@ MAX_PARENT_BYTES = 512 << 20
 MAX_PARENT_FILES = 10_000
 MAX_PARENT_ENTRIES = 12_000
 MAX_SELECTED_FILES = 256
+MAX_JSON_BYTES = 32 << 20
 MIN_FREE_BYTES = 3 << 30
 HEX = re.compile(r'[0-9a-f]{64}\Z')
 
@@ -106,7 +107,9 @@ def snapshot(path):
             'device': before.st_dev, 'inode': before.st_ino}
 
 
-def strict_json(path, max_bytes=32 << 20):
+def strict_json(path, max_bytes=None):
+    if max_bytes is None:
+        max_bytes = MAX_JSON_BYTES
     path = regular(path)
     if path.stat().st_size > max_bytes:
         raise ValueError('JSON input exceeds byte bound')
@@ -136,9 +139,12 @@ def sync_dir(path):
 
 
 def write_new(path, value):
-    with path.open('x', encoding='utf-8') as stream:
-        json.dump(value, stream, sort_keys=True, indent=2, allow_nan=False)
-        stream.write('\n')
+    encoded = (json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + '\n').encode('utf-8')
+    if len(encoded) > MAX_JSON_BYTES:
+        raise ValueError('serialized metadata JSON exceeds reader byte bound')
+    space(path.parent, len(encoded) + BLOCK)
+    with path.open('xb') as stream:
+        stream.write(encoded)
         stream.flush()
         os.fsync(stream.fileno())
     sync_dir(path.parent)
@@ -205,7 +211,7 @@ def manifest_parent(batch, seed, expected):
     path = batch / 'batch_manifest.json'
     if type(seed) is not int or not isinstance(expected, str) or not HEX.fullmatch(expected):
         raise ValueError('explicit integer seed and manifest SHA-256 required')
-    if regular(path).stat().st_size > 32 << 20 or sha(path) != expected:
+    if regular(path).stat().st_size > MAX_JSON_BYTES or sha(path) != expected:
         raise ValueError('explicit manifest SHA-256 does not match')
     manifest = strict_json(path)
     if (not isinstance(manifest, dict) or manifest.get('kind') != 'chronicler-batch'
@@ -254,7 +260,7 @@ def index_data(archive, expected):
     archive = canonical(archive)
     path = archive / 'index.json'
     if (not isinstance(expected, str) or not HEX.fullmatch(expected)
-            or regular(path).stat().st_size > 32 << 20 or sha(path) != expected):
+            or regular(path).stat().st_size > MAX_JSON_BYTES or sha(path) != expected):
         raise ValueError('explicit index SHA-256 does not match')
     data = strict_json(path)
     if (not isinstance(data, dict) or data.get('kind') != KIND

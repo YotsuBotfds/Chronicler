@@ -18,7 +18,10 @@ whole parent to 12,000 directory entries / 10,000 files / 512 MiB. Enumeration
 is bounded before sorting or hashing. Hash and compressed-input readers stop
 at the recorded size plus one byte for change detection; decompression checks
 the declared raw size before writing. Per-block space checks reserve the next
-write plus 1 MiB above a 3 GiB floor. Concurrent external disk growth can still
+write plus 1 MiB above a 3 GiB floor. Index/status/receipt JSON is encoded and
+checked against the shared 32 MiB reader cap before exclusive creation; each
+metadata write reserves its exact encoded size plus 1 MiB as well.
+Concurrent external disk growth can still
 cause an IO failure; failed evidence remains and no source file is removed.
 A fresh external destination holds deterministic individual
 gzip streams, raw/compressed hashes, metadata and an immutable hashable index.
@@ -76,10 +79,11 @@ That probe is separate from this tool's synthetic tests and does not establish
 a cohort-wide compression ratio or permission to delete originals.
 
 Local focused validation on Linux / Python 3.13.5 without the native extension:
-**63 passed in 1.69 seconds**. This includes actual synthetic archive/restore,
+**66 passed in 1.63 seconds**. This includes actual synthetic archive/restore,
 unchanged protected files, deterministic bytes, alias refusal, source/manifest
 changes, ctime, bounded enumeration/read/write checks, malformed indexes and
-truncated/multiple-member/bomb streams. Alias and filesystem change-time checks
+truncated/multiple-member/bomb streams, and pre-creation metadata size/reserve
+checks. Alias and filesystem change-time checks
 are capability-dependent and belong to the full filesystem test lane; the
 remaining small-file cases can run under the offline guard. No Windows/macOS
 execution, full new-source qualification, real-cohort archive or reclaimed-space
