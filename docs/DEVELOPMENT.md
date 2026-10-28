@@ -124,20 +124,28 @@ distributions. See `docs/integration/validation-integrity.md`.
 The full profile also runs the ablation oracles (`--ablation-oracles`, the
 default there and opt-in for a subset; `--no-ablation-oracles` opts out):
 the batch writes exact checkpoints at the fork turns (`--checkpoint-turns`),
-and each seed is forked at every 100th turn with the need terms (`needs`)
-and the kin roots (`kin_roots`) switched off for 22 turns, into
-`ablation_<first seed>` beside the batch. The forks keep only their agent
-events; the checkpoints (about 1.2 GB for the template full gate) are
-removed once forked. On four shared cores the two arms add about 23-28
-minutes to the template full gate (800 forks per arm), 9 minutes to the
-procedural one (200 forks per arm) and 1-2 minutes to a subset that asks
-for them; `--ablation-arms needs,kin_roots,placebo` adds the placebo arm
-(half as much again). Their verdicts are causal evidence, reported but not
-yet required: the gate is decided by the needs oracle's observational
-verdict and cohort method 3, as before; `--require-causal-oracles` makes the
-ablations decide. Needs method 7 and cohort method 4 replace methods 6 and
-3, so comparing with an older report gives `rebaseline_required`. See
-`docs/integration/ablation-oracles.md`.
+and each seed is forked with the need terms (`needs`) and the kin roots
+(`kin_roots`) switched off for 22 turns, into `ablation_<first seed>`
+beside the batch: at every 100th turn in template worlds and every 20th
+from turn 100 in procedural worlds (fork design 2, for the power of the
+sparse needs pairings). The forks keep only their agent events; the
+checkpoints (about 1.2 GB for the template full gate, 4.5 GB for the
+procedural one) are removed once forked. On four shared cores the two arms
+add about 23-28 minutes to the template full gate (800 forks per arm),
+about 45 minutes to the procedural one (900 forks per arm) and 1-2 minutes to a
+subset that asks for them; `--ablation-arms needs,kin_roots,placebo` adds
+the placebo arm (half as much again). Their verdicts are causal evidence,
+reported but not yet required: the gate is decided by the needs oracle's
+observational verdict and cohort method 3, as before;
+`--require-causal-oracles` makes the ablations decide. Needs method 8 and
+cohort method 5 (fork design 2) replace methods 7 and 4, so comparing with
+an older report gives `rebaseline_required`; arms of design 1 are still
+scored by methods 7 and 4. See `docs/integration/ablation-oracles.md` and
+`docs/integration/community-anchoring.md`.
+
+`--community-anchoring` (default off) lets community ties hold agents
+back from moving (`docs/integration/community-anchoring.md`); the gate
+runner forwards it and then also forks the `community_anchor` arm.
 
 ## Continuing on another machine
 
