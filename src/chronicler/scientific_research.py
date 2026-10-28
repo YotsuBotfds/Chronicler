@@ -85,7 +85,8 @@ def validate_state(world, plan=None, *, candidate_host=False, allow_absent_host=
                 for name in ("last_tick_turn", "last_effort_turn"))
                 or state.started_turn is not None and type(state.started_turn) is not int):
             raise ValueError("invalid research guard or effort anchor")
-        if plan.enabled_turn > world.turn or plan.blocked_turn is not None and plan.blocked_turn > world.turn:
+        if (not plan.enabled_turn <= plan.policy_changed_turn <= world.turn
+                or plan.blocked_turn is not None and plan.blocked_turn > world.turn):
             raise ValueError("future actual research activation or blocked date")
         if (state.last_tick_turn > world.turn or state.last_effort_turn > world.turn
                 or state.started_turn is not None and not 0 <= state.started_turn <= world.turn):
@@ -329,7 +330,9 @@ def set_research_agendas_enabled(world, enabled: bool):
         validate_state(world, plan, allow_absent_host=not enabled)
         if enabled and not C.scientific_claims_active(world):
             raise ValueError("research agendas require enabled science, scholarship and techniques")
-        plan.enabled = enabled
+        if plan.enabled != enabled:
+            plan.enabled = enabled
+            plan.policy_changed_turn = world.turn
         return
     if not C.scientific_claims_active(world):
         raise ValueError("research agendas require enabled science, scholarship and techniques")
@@ -344,7 +347,8 @@ def set_research_agendas_enabled(world, enabled: bool):
             close_reason="legacy funding closed prospectively at activation", unfunded_originals=[],
             unfunded_replications=[], slot_reasons={}))
     plan = ResearchAgendas(schema_version=1, rule="finite-retained-v1", enabled=True,
-        enabled_turn=world.turn, next_open_turn=world.turn + OPENING_INTERVAL if cycles else world.turn,
+        enabled_turn=world.turn, policy_changed_turn=world.turn,
+        next_open_turn=world.turn + OPENING_INTERVAL if cycles else world.turn,
         origin_cursor=cycles[0].origin_seat if cycles else -1, cycles=cycles, blocked_reason="", blocked_turn=None,
         host_seal=_host_seal(world), academy_births=[_seat_birth(i, world.scholarship.seats[i])
                                                   for i in state.seat_ids])
@@ -616,7 +620,7 @@ def tick_research_agendas(world, acc, plan):
 def snapshot_summary(world, plan):
     state = world.scientific_claims
     source = world.turn - 1
-    if (plan.enabled_turn > source or state.last_effort_turn > source
+    if (plan.policy_changed_turn > source or state.last_effort_turn > source
             or not C.scientific_claims_active(world)):
         return None
     view = C._SummaryView(world, source)

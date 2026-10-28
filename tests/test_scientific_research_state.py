@@ -15,7 +15,7 @@ from test_scientific_claims import _world
 
 def _plan():
     return ResearchAgendas(schema_version=1, rule="finite-retained-v1", enabled=True,
-        enabled_turn=0, next_open_turn=25, origin_cursor=-1, cycles=[], blocked_reason="", blocked_turn=None,
+        enabled_turn=0, policy_changed_turn=0, next_open_turn=25, origin_cursor=-1, cycles=[], blocked_reason="", blocked_turn=None,
         host_seal="0" * 64, academy_births=[])
 
 

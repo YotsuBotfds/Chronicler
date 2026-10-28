@@ -55,6 +55,7 @@ def test_finite_pause_resume_preserves_activation_host_records_and_does_not_blin
     receipt = apply_expansion_experiment(world, {}, _fork(world, tmp_path, research_enabled=enabled), resumed=True)
     expected = deepcopy(before)
     expected["research_agendas"]["enabled"] = enabled
+    expected["research_agendas"]["policy_changed_turn"] = world.turn
     assert state.model_dump() == expected
     assert "research_enabled" not in state.__dict__
     assert receipt["research_policy"]["before"]["enabled"] is not enabled

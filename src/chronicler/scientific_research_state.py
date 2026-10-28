@@ -73,6 +73,7 @@ class ResearchAgendas(BaseModel):
     rule: Literal["finite-retained-v1"]
     enabled: bool
     enabled_turn: int = Field(ge=0)
+    policy_changed_turn: int = Field(ge=0)
     next_open_turn: int = Field(ge=0)
     origin_cursor: int = Field(ge=-1)
     cycles: list[ResearchCycle] = Field(max_length=MAX_CYCLES)

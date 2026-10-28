@@ -213,6 +213,23 @@ def test_partial_next_turn_effort_is_never_relabelled_as_prior_snapshot():
     assert C.snapshot_summary(world) is None
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_prospective_pause_or_resume_never_leaks_into_prior_completed_source(enabled):
+    world = research_world()
+    if enabled:
+        set_research_agendas_enabled(world, False)
+    advance(world, 0, 2)
+    assert C.snapshot_summary(world)["research_agendas"]["enabled"] is not enabled
+    set_research_agendas_enabled(world, enabled)
+    plan = world.scientific_claims.research_agendas
+    assert plan.policy_changed_turn == 2 and C.snapshot_summary(world) is None
+    advance(world, 2, 3)
+    assert C.snapshot_summary(world)["source_turn"] == 2
+    assert C.snapshot_summary(world)["research_agendas"]["enabled"] is enabled
+    set_research_agendas_enabled(world, enabled)  # same setting is not a new change
+    assert plan.policy_changed_turn == 2 and C.snapshot_summary(world) is not None
+
+
 def test_lazy_allocation_claim_is_the_actual_phase_four_canonical_topic():
     world = research_world()
     advance(world, 0, 13)
@@ -235,13 +252,15 @@ def test_exact_python_checkpoint_with_renewed_question_and_running_trial(tmp_pat
     assert resumed.model_dump_json() == world.model_dump_json()
 
 
-@pytest.mark.parametrize("change", ["activation", "next_open", "tick", "effort", "duplicate_message"])
+@pytest.mark.parametrize("change", ["activation", "policy", "next_open", "tick", "effort", "duplicate_message"])
 def test_inconsistent_clock_or_duplicate_message_is_rejected_without_mutation(change):
     world = research_world()
     advance(world, 0, 1)
     state = world.scientific_claims
     if change == "activation":
         state.research_agendas.enabled_turn = 2
+    elif change == "policy":
+        state.research_agendas.policy_changed_turn = 2
     elif change == "next_open":
         state.research_agendas.next_open_turn = 1
     elif change == "tick":

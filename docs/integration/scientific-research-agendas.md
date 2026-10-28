@@ -203,3 +203,9 @@ configuration, plus mutation-free failures for malformed controls, wrong parent,
 changed registration and missing/replaced host. Shared wiring separately passed
 93 checks in 2.47 seconds. These do not replace the pending registered native
 composition proof.
+
+Pause/resume also retains an actual internal `policy_changed_turn` (distinct
+from immutable activation). A prospective toggle before the next tick cannot
+appear against the previous completed source: summary capture is unavailable
+until that actual source has completed. Repeating the same setting does not
+invent another policy date. This does not add a snapshot v1 field.
