@@ -1683,7 +1683,8 @@ def found_guild_movement(world: "WorldState", guild, city, threat: str, *, resto
     _bump(state, "founded")
     why = {"levy": "against the new dues", "charter": "for its lost charter",
            "sack": "after the sack", "occupation": "under the occupation",
-           "repeal": "for its repealed charter"}.get(threat, "")
+           "repeal": "for its repealed charter",
+           "default": "after the crown repudiated its loans"}.get(threat, "")
     repeal = state.reforms[restores].repeal_event_id if restores >= 0 else None
     ev = _emit(t, "movement_founded", [civ.name],
                f"In {city.name}, {name} takes up its cause {why}: its {round(guild.masters)} masters "

@@ -30,6 +30,7 @@ from chronicler.agent_movements_state import MovementState
 from chronicler.guilds_state import GuildState
 from chronicler.scholarship_state import ScholarshipState
 from chronicler.grain_reserves_state import GrainReserveState
+from chronicler.domestic_credit_state import DomesticCreditState
 
 StockFraction = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 
@@ -1203,6 +1204,10 @@ class WorldState(BaseModel):
     # Community anchoring: community ties hold agents back from moving
     # (chronicler.community_anchoring; True = on, None = off and omitted).
     community_anchoring: bool | None = Field(default=None, exclude_if=_is_none)
+    # Domestic credit through real lenders: merchants, guilds and cities fund
+    # the state's domestic loans (chronicler.domestic_credit; None = off and
+    # omitted).
+    domestic_credit: DomesticCreditState | None = Field(default=None, exclude_if=_is_none)
     # Causal provenance index (chronicler.provenance); omitted while empty.
     provenance: ProvenanceState = Field(default_factory=ProvenanceState,
                                         exclude_if=_is_empty_provenance)

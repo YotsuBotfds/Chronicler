@@ -22,12 +22,14 @@ CRAFT, MERCHANT = range(len(KIND_NAMES))
 HISTORY_KINDS: tuple[str, ...] = (
     "founded", "privilege", "lost", "levy", "threat", "movement", "charter", "repealed",
     "walls", "dissolved",
+    "loan", "repudiated",   # domestic credit (--domestic-credit): lent to the lord; lost in its default
 )
 
 #: Threats to a guild's privileges (``Guild.history`` "threat" entries name
 #: them; each may raise a guild movement).
-THREAT_NAMES: tuple[str, ...] = ("levy", "charter", "sack", "occupation", "repeal")
-LEVY, CHARTER_REVOKED, SACK, OCCUPATION, REPEAL = range(len(THREAT_NAMES))
+THREAT_NAMES: tuple[str, ...] = ("levy", "charter", "sack", "occupation", "repeal",
+                                 "default")   # domestic credit: the lord repudiated what the guild lent it
+LEVY, CHARTER_REVOKED, SACK, OCCUPATION, REPEAL, DEFAULT = range(len(THREAT_NAMES))
 
 #: Cumulative counters kept on ``GuildState.counters`` (insertion order).
 COUNTER_KEYS: tuple[str, ...] = (

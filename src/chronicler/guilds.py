@@ -51,6 +51,7 @@ from typing import TYPE_CHECKING, Iterable
 from chronicler.guilds_state import (
     CHARTER_REVOKED, COUNTER_KEYS, CRAFT, KIND_NAMES, LEVY, MERCHANT, OCCUPATION, REPEAL, SACK,
     THREAT_NAMES, Guild, GuildState, guilds_on,
+    DEFAULT as DEFAULT_THREAT,
 )
 from chronicler.utils import stable_hash_int
 
@@ -443,6 +444,12 @@ def _update(t: _Tick, gi: int, guild: Guild, city) -> None:
     if restores >= 0:
         r = world.agent_movements.reforms[restores]
         threats.append((REPEAL, [r.repeal_event_id]))
+    if getattr(world, "domestic_credit", None) is not None:
+        # Domestic credit: the lord repudiated a material share of what the
+        # guild lent it this turn (noted by the default in Phase 3b).
+        for turn, kind, eid in guild.history:
+            if turn == world.turn and kind == "repudiated":
+                threats.append((DEFAULT_THREAT, [eid]))
     _adopt_charter(t, guild)
     _sync_privileges(t, gi, guild, city)
     guild.last_charter = city.charter

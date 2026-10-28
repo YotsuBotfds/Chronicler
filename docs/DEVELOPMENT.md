@@ -147,6 +147,13 @@ scored by methods 7 and 4. See `docs/integration/ablation-oracles.md` and
 back from moving (`docs/integration/community-anchoring.md`); the gate
 runner forwards it and then also forks the `community_anchor` arm.
 
+`--domestic-credit` (default off; needs `--finance` and an agent pool)
+makes the realm's merchant agents, guilds and cities the domestic lenders:
+they fund the state's domestic loans from their wealth, receive the
+interest and repayments and lose what a default writes off
+(`docs/integration/domestic-credit.md`). The gate runner forwards it to
+the agent-mode runs; `CHRONICLER_CHECK_RESOURCES=1` also checks its books.
+
 ## Continuing on another machine
 
 Fetch the continuation, create a personal branch from its current remote SHA,

@@ -6,6 +6,54 @@
 
 ---
 
+## Domestic credit through real lenders (2026-10-28, `feat/domestic-credit`)
+
+> **Last updated:** 2026-10-28 (`feat/domestic-credit` from `main` `ac74e5a`. Added: a default-off switch `--domestic-credit` (needs finance and an agent pool) that makes the realm's merchant agents, guilds and cities finance's domestic lender: they fund domestic loans from their wealth (half their assets less their claims, a quarter always kept), receive interest and repayments pro rata to their claims and lose what defaults write off; merchant wealth moves through a native call, and losers gain grievance (merchants' satisfaction inside the social cap, cities' grievance, a guild threat). Off is byte-identical to `main`; on resumes exactly; the books balance every turn under `CHRONICLER_CHECK_RESOURCES=1`. Template full 200 x 500 and procedural full 100 x 300 with the switch on PASS strict, EXPLORATORY NO REGRESSION against main. Kept off: open decisions on early-game credit, war chests and a debt treadmill in a few worlds.)
+
+Details and evidence:
+[`docs/integration/domestic-credit.md`](../../integration/domestic-credit.md).
+
+- **Lenders and flows** (`domestic_credit.py`, hooks in `finance.py`;
+  native `credit.rs`). Merchants lend by home region from the live pool,
+  guilds and cities from their purses. Claims sit on credit lines keyed by
+  the loan; interest, principal, capitalized interest and write-offs are
+  split pro rata in whole units. Merchant flows reach the pool at the end
+  of the fiscal tick; what cannot be applied stays due (persisted). The
+  abstract revenue-times-influence capacity is gone.
+- **Consequences.** Finance's domestic-default consequences are kept.
+  Merchants of losing regions gain a grievance (up to 0.10 satisfaction,
+  `creditor_grievance` region column); losing cities gain grievance;
+  guilds and cities that lost a tenth of their assets record the
+  repudiation, and for a guild it is a threat (a guild movement may rise).
+  Loan and default events name the lenders.
+- **Identity and conservation.** Switch off: 9-case matrix, 399 files, 0
+  differences (default and explicit `--no-domestic-credit`). Switch on: 5
+  checkpoint cases, 195 resume points, 5,352 files, 0 differences. 40
+  checked worlds balanced every tick and equal their unchecked runs.
+- **Paired worlds** (20-40 seeds, 200-500 turns). Early domestic credit
+  halves; merchant wealth +5% to +26%; procedural worlds lend at home what
+  they borrowed abroad (domestic +64% to +102%, foreign -22% to -31%) and
+  default a quarter less; template worlds borrow abroad more (foreign
+  share +0.13 to +0.17); all-agent wealth Gini +0.007 to +0.009; merchant
+  satisfaction about -0.009; migration and rebellion unchanged within
+  their spread. Pre-registration: 1a, 3, 5, 7 held, 6 mostly; 1b and 4 did
+  not; 2 held in template worlds only.
+- **Gates** (frozen tree `2a08828`): template full PASS strict, needs and
+  cohort methods of fork design 2 against a fresh main gate (satisfaction
+  -0.004, migration -0.4%, rebellion +7.9%, not an effect in 40 paired
+  worlds); procedural full PASS strict (satisfaction +0.001, migration
+  +0.5%, rebellion -6.4%). Informational: the template needs ablation's
+  low-power safety pairing reads 1.071 [0.877, 1.266] against main's 1.230.
+- **Open**: a debt treadmill in a few worlds (lenders' assets grow with the
+  interest, so a state at the debt ceiling rolls over indefinitely and its
+  cities' purses, which have no ceiling, grow to thousands: 4 of 200
+  template worlds); early-game credit (other wealthy agents as lenders, or
+  a capped abstract lender for young states); war-chest borrowing from rich
+  merchants; the merchant tax is not debited from the agents; no viewer
+  view of who holds the debt.
+
+---
+
 ## Community anchoring and fork design 2 (2026-10-28, `feat/community-anchoring`)
 
 > **Last updated:** 2026-10-28 (`feat/community-anchoring` from `main` `b1c9274`. Added: a default-off community anchoring term (`--community-anchoring`), where positive same-region bonds with a shared memory, at least one of them non-kin, lower the odds of acting on a reason to move (no draw; persisted in checkpoints; off is byte-identical to `main`). Also added: a `community_anchor` ablation arm and fork design 2, under which procedural full gates fork every 20 turns from turn 100 (needs method 8, cohort method 5; design-1 arms keep methods 7 and 4). Results: with design 2 the procedural needs ablation passes (material 1.119 [1.093, 1.145]). The anchor at its calibrated strength gives the oracle's members 0.909 (template) and 0.941 (procedural) against M53's at most 0.85. Agents with four ties get 0.873 and 0.899, also failing the pre-registered restated band. Matching the M53 number takes about twice the anchor and cuts all migration by 16%, so it is not adopted. The switch stays off; M53 oracle 4's anchoring claim is recorded as not reproduced; the causal components stay reported only.)

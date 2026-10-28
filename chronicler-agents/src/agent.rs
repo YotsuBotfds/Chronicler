@@ -236,6 +236,10 @@ pub const CONQUEST_BONUS: f32 = 3.0;        // [CALIBRATE] one-shot wealth spike
 pub const SCHOLAR_INCOME: f32 = 0.20;       // [CALIBRATE] equilibrium ~10
 pub const PRIEST_INCOME: f32 = 0.20;        // [CALIBRATE] equilibrium ~10; M42 adds tithe
 pub const CLASS_TENSION_WEIGHT: f32 = 0.11; // [CALIBRATE] M57 tuning: further soften inequality penalty to recover global satisfaction floor.
+/// Domestic credit (`--domestic-credit`): satisfaction a merchant loses at full
+/// grievance toward a lord that defaulted on its region's merchants (inside the
+/// social-penalty cap `PENALTY_CAP`).
+pub const CREDITOR_GRIEVANCE_WEIGHT: f32 = 0.10; // [CALIBRATE] docs/integration/domestic-credit.md
 
 // Named character promotion thresholds (M30) [CALIBRATE: post-M28]
 pub const PROMOTION_SKILL_THRESHOLD: f32 = 0.9;
