@@ -208,6 +208,18 @@ storage before their retained fork/checkpoint costs) therefore lack a disk
 admission budget. One arm is not admitted by this arithmetic either: it needs
 a measured conservative full retained-output and transient bound first.
 
+The audited old `5b5252ed` and current `2f9d618b` sources both use ablation
+design 2. For procedural 300-turn parents, `fork_every=20` and
+`T + window < total_turns` give nine fork turns (100, 120, ..., 260), hence
+**900 parent checkpoints and 1,800 needs/kin forks per 100-seed source**.
+Checkpoint headers are at T+1 and fork horizons at T+22. The normal runner
+finishes the entire parent batch before entering its fork stage, so its peak
+includes all those parent checkpoints even if its existing later checkpoint
+cleanup is retained. The historical ~5 GB parent figure does not bound this
+complete modern protocol. Freeze the actual source, arms, output profile and
+checkpoint retention policy before measuring/admitting it; additional arms add
+work, and this retention proposal never prunes the recovered template checkpoints.
+
 The historical procedural **2.5 GB validation peak is RSS memory**, as described
 in [the procedural cost table](procedural-gates.md#cost-and-the-full-profiles-size).
 It is not an extra measured disk allocation. Keep RAM and disk budgets separate;
