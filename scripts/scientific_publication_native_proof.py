@@ -205,8 +205,12 @@ def orchestrate(args):
     before = identity()
     write(root / "freeze.json", before)
     runs = []
+    halted = False
     for seed in (42, 7):
         for arm in ARMS:
+            if halted:
+                runs.append(dict(seed=seed, arm=arm, status="not_attempted_after_failure"))
+                continue
             log = root / f"seed-{seed}-{arm}.log"
             used = resource.getrusage(resource.RUSAGE_CHILDREN)
             if used.ru_utime + used.ru_stime >= 90:
@@ -222,6 +226,7 @@ def orchestrate(args):
                 except subprocess.TimeoutExpired:
                     row = dict(seed=seed, arm=arm, status="wall_timeout_censored")
             runs.append(row)
+            halted = row["status"] != "complete"
             write(root / "progress.json", runs)
             print(json.dumps(row), flush=True)
     comparisons = []

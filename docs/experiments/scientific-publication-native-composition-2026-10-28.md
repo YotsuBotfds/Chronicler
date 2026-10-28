@@ -106,3 +106,8 @@ any other initial condition, action, seed, physical rule, flag or date above.
 The next separately hashed runner uses a new output directory. Retain the same
 maximum eight actual simulation executions and at most 90 further CPU seconds
 under the initial 100-second budget. Do not replace any later world outcome.
+Before that second batch, run a fixture-only check for both seeds and both
+initial rules: actual patrons/indexes, academy count clamped to available
+controlled regions, calendar, local technique rows and all five flags plus
+prerequisites. It creates no native pool or simulated turn. Stop remaining
+workers after a failure instead of repeating a systematic setup error.
