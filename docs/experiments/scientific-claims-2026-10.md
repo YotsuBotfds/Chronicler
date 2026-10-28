@@ -4,6 +4,20 @@ Written before implementation outcome runs or parameter tuning, on integration
 `8f180a03`. This default-off pilot is narrower than a general science system.
 The parameters below are illustrative design choices, not fitted estimates.
 
+**Prospective control amendment, 2026-10-28:** mechanical acceptance fixtures
+were run for the original zero-weight uninformative arm. Before any world
+qualification, review identified that it duplicated withholding rather than
+testing an evidence process with no information about treatment benefit. The
+uninformative arm below is therefore amended to use comparator-centered sham
+observations with ordinary posterior updates. The original preregistration
+remains in commit `0da8094a`; no parameter is being fitted to world outcomes.
+The new measurement-only null check is frozen before its first run: seeds
+1000 through 1999 inclusive, fixed retained physical inputs, one observation
+per claim/seed. Its mechanical criteria are absolute difference in sham
+support frequency <= 0.08 and informative irrigation-minus-masonry support
+frequency >= 0.25. These are implementation checks, not an inferential power
+or world-benefit claim; nonidentical realized sham beliefs are expected.
+
 ## Question and causal edges
 
 Does paid, locally transmitted evidence reallocate a fixed paid adoption
@@ -110,8 +124,11 @@ Persist controls on ScientificClaimsState:
   messages travel. This isolates geographic spread, with its trial spending
   reported separately because fewer replication protocols can arrive.
 * `uninformative_tests`: preserve paid trial scheduling and physical
-  diagnostics, but observations carry no information and confidence stays
-  at its prior. Paid effort still occurs.
+  diagnostics. Both observed readings are centered on the physical
+  comparator, with the same independent measurement-noise rule. The ordinary
+  informative/support/posterior rules still apply; realized confidence can
+  change or differ across claims, but these observations cannot reliably
+  distinguish the true treatment benefits. Paid effort still occurs.
 
 Information is not allowed to decide which unfavorable trials disappear or
 whether a planned replication is funded. Endogenous treasury/eligibility
@@ -137,11 +154,16 @@ expired and withheld work must remain visible in counters/records.
    dependent environmental blocks cannot create extra evidential weight.
 6. Trials and effort debit exactly their recorded costs, once, including
    cancellations, accumulator paths and saved/resumed runs.
-7. Withheld/uninformative controls keep spending and scheduling equal in fixed
-   eligible fixtures while removing evidence-driven allocation. Local-only
-   fixtures retain local confidence and remove remote information effects.
+7. Withheld/sham controls keep spending and scheduling equal in fixed eligible
+   fixtures. Withheld evidence cannot alter allocation; sham evidence has no
+   reliable treatment discrimination on the frozen measurement-only seed
+   cohort, without forced equal beliefs. Local-only fixtures retain local
+   confidence and remove remote information effects.
 8. Technique physics, prerequisites, caps and ordinary growth remain the
    authority; no grain is created by an experiment or receipt.
+9. Hold received observations and eligibility fixed while changing hidden
+   physical yield coefficients. Confidence and paid allocation stay unchanged
+   until an actual new observation arrives.
 
 Later confirmatory world cohorts must be preregistered separately after this
 mechanical pilot is stable: seed, scenario eligibility, horizon, exposure,
