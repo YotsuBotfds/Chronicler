@@ -645,6 +645,27 @@ def test_snapshot_names_who_holds_each_debt():
     assert F.snapshot_summary(world)["domestic_credit"]["holders"] == D.holders_summary(world)
 
 
+def test_viewer_debt_holders_fixture_keeps_the_snapshot_shape():
+    """viewer/src/__fixtures__/debt_holders_bundle.json (trimmed from a real
+    run by scripts/build_debt_holders_fixture.py) carries the finance and
+    domestic-credit summaries in the shape a fiscal tick writes today."""
+    fixture = json.loads((ROOT / "viewer/src/__fixtures__/debt_holders_bundle.json").read_text(encoding="utf-8"))
+    world, bridge, sim, city, guild, loan = _with_a_loan(city_purse=200.0, guild_purse=60.0)
+    world.civilizations[0].treasury = 500
+    assert F.extend_loan(world, 0, THORNWALL, 30) is not None
+    world.finance.civs[THORNWALL].written_off_total = 7
+    fresh = F.snapshot_summary(world)
+    rows = [snap["finance"] for snap in fixture["history"] if "finance" in snap]
+    assert rows and all(set(row) == set(fresh) for row in rows)
+    assert set(next(iter(rows[0]["civs"].values()))) == set(next(iter(fresh["civs"].values())))
+    credit = [row["domestic_credit"] for row in rows]
+    assert set().union(*credit) == set(fresh["domestic_credit"])
+    held = [entry for row in credit for entry in row.get("holders", {}).values()]
+    assert set().union(*held) == set(fresh["domestic_credit"]["holders"]["Thornwall Confederacy"])
+    assert set().union(*(kinds for row in credit for kinds in row["civs"].values())) <= set(D.KIND_NAMES)
+    assert all(len(pair) == 2 for entry in held for pair in entry.get("foreign", {}).values())
+
+
 def test_funder_model_round_trips():
     f = Funder(kind=CITY, key=7, principal=3)
     assert Funder.model_validate_json(f.model_dump_json()) == f

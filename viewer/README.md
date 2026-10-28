@@ -16,6 +16,12 @@ sea) and per-region food, war, epidemic and technique rows in the inspector;
 bundles without them get none of these. See
 [viewer-systems.md](../docs/integration/viewer-systems.md).
 
+The **Finance** tab also shows who holds each realm's debt. A bundle written
+with `--domestic-credit` names the lenders (foreign civilizations, merchants
+by region, cities and guilds) with rates, interest due and write-offs; a
+default bundle shows the domestic creditor class and foreign debt as totals.
+See [domestic-credit.md](../docs/integration/domestic-credit.md), section 14.
+
 ## Live checkpoint browser QA (opt-in, not CI)
 
 `scripts/qa-live-checkpoint.mjs` drives the live pause panel's **Save
