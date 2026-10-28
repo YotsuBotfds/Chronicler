@@ -98,6 +98,9 @@ class RunState:
     run_config: dict = field(default_factory=dict)
     # Identity-keyed markers re-bound to the restored objects on load.
     markers: dict = field(default_factory=dict)
+    # A live session's presentation state: what a newly connecting viewer is
+    # sent (chronicler.live_checkpoints.LiveView.record); None for other runs.
+    live: dict | None = None
 
 
 @dataclass

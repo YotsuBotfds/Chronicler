@@ -173,8 +173,10 @@ def _resolve_checkpoint_template(args: argparse.Namespace, output_path: Path) ->
 
 def _write_exact_checkpoint(template, world, memories, history, chronicle_entries, era_reflections,
                             pending, run_start, seed, num_turns, agent_bridge, ecology_runtime,
-                            politics_runtime, economy_tracker, scenario_config, run_config) -> Path:
-    """Write an exact resume checkpoint (``chronicler.run_checkpoint``)."""
+                            politics_runtime, economy_tracker, scenario_config, run_config,
+                            live=None) -> Path:
+    """Write an exact resume checkpoint (``chronicler.run_checkpoint``);
+    ``live`` is a live session's presentation state (``RunState.live``)."""
     from chronicler.run_checkpoint import RunState, checkpoint_path, write_checkpoint
     state = RunState(
         world=world, memories=memories, history=history, chronicle_entries=chronicle_entries,
@@ -182,6 +184,7 @@ def _write_exact_checkpoint(template, world, memories, history, chronicle_entrie
         seed=seed, num_turns=num_turns, agent_bridge=agent_bridge,
         ecology_runtime=ecology_runtime, politics_runtime=politics_runtime,
         economy_tracker=economy_tracker, scenario_config=scenario_config, run_config=run_config,
+        live=live,
     )
     path = checkpoint_path(template, world.turn)
     report = write_checkpoint(path, state, exact=run_config.get("resume_info") is None,
@@ -500,6 +503,7 @@ def execute_run(
     quit_check: Callable[[], bool] | None = None,
     checkpoint_resume: Any | None = None,
     resume_info: dict | None = None,
+    turn_boundary: Any | None = None,
 ) -> RunResult:
     """Shared entry point for single runs, batch, fork, and interactive modes.
 
@@ -535,6 +539,13 @@ def execute_run(
     resume_info : dict or None
         Recorded in the bundle's ``metadata.resume`` for a resume that is not
         exact (a legacy state file, or a checkpoint of another build).
+    turn_boundary : object or None
+        Live mode's checkpoint control (``chronicler.live_checkpoints.LiveCheckpoints``):
+        ``bind(save, run_config)`` before the first turn, where ``save(template)``
+        writes an exact checkpoint of the run as it stands; ``live_record()``,
+        stored in every checkpoint; ``turn_end(world)`` after each turn's pause,
+        True when the pause changed the run, which writes that turn's scheduled
+        checkpoints again. Reads the run only.
     """
     # Fallback clients
     _sim = sim_client or _DummyClient()
@@ -726,6 +737,18 @@ def execute_run(
 
     # Pending injections list — shared mutable object with on_pause callback
     _pending = pending_injections if pending_injections is not None else []
+
+    def _save_exact(template) -> Path:
+        """An exact checkpoint of the run as it stands at this turn boundary."""
+        return _write_exact_checkpoint(
+            template, world, memories, history, chronicle_entries, era_reflections, _pending,
+            run_start, seed, num_turns, agent_bridge, ecology_runtime, politics_runtime,
+            economy_tracker, scenario_config, run_config,
+            live=turn_boundary.live_record() if turn_boundary is not None else None,
+        )
+
+    if turn_boundary is not None:
+        turn_boundary.bind(_save_exact, run_config)
 
     for turn_num in range(start_turn, num_turns):
         named_events_before = len(world.named_events)
@@ -1069,17 +1092,9 @@ def execute_run(
         # into the next turn. Written after the turn is complete; reads only.
         _exact_path = None
         if _checkpoint_every and (world.turn % _checkpoint_every == 0 or _interrupt_requested):
-            _exact_path = _write_exact_checkpoint(
-                _checkpoint_template, world, memories, history, chronicle_entries,
-                era_reflections, _pending, run_start, seed, num_turns, agent_bridge,
-                ecology_runtime, politics_runtime, economy_tracker, scenario_config, run_config,
-            )
+            _exact_path = _save_exact(_checkpoint_template)
         if world.turn in _checkpoint_turns:
-            _write_exact_checkpoint(
-                _checkpoint_turn_template, world, memories, history, chronicle_entries,
-                era_reflections, _pending, run_start, seed, num_turns, agent_bridge,
-                ecology_runtime, politics_runtime, economy_tracker, scenario_config, run_config,
-            )
+            _save_exact(_checkpoint_turn_template)
 
         # Ctrl-C during the turn: save this completed turn, then stop.
         if _interrupt_requested:
@@ -1096,10 +1111,19 @@ def execute_run(
             raise KeyboardInterrupt
 
         # on_pause callback — returns False to quit early
+        should_continue = True
         if _pause_every and on_pause and world.turn % _pause_every == 0:
             should_continue = on_pause(world, memories, _pending)
-            if not should_continue:
-                break
+        # Live turn boundary: the checkpoints a viewer asked for, and this
+        # turn's scheduled ones again when the pause changed the run (an
+        # injection or a stat set), so they hold what the next turn starts from.
+        if turn_boundary is not None and turn_boundary.turn_end(world):
+            if _exact_path is not None:
+                _save_exact(_checkpoint_template)
+            if world.turn in _checkpoint_turns:
+                _save_exact(_checkpoint_turn_template)
+        if not should_continue:
+            break
 
         # quit_check — for graceful mid-run shutdown (e.g., live mode quit)
         if quit_check is not None and quit_check():
@@ -1762,7 +1786,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", type=str, default=None,
                         help="Resume from an exact checkpoint (--checkpoint-every), which continues "
                              "byte for byte as the uninterrupted run, or from a saved state JSON "
-                             "file (a legacy resume: not exact, and labelled in the bundle)")
+                             "file (a legacy resume: not exact, and labelled in the bundle). "
+                             "With --live, continues an exact checkpoint as a live session")
     parser.add_argument("--checkpoint-every", type=_positive_int, default=None, metavar="N",
                         help="Write an exact resume checkpoint every N turns (and on Ctrl-C); "
                              "off by default")
@@ -1808,7 +1833,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--live", action="store_true", default=False,
                         help="Live mode: start WebSocket server for viewer connection")
     parser.add_argument("--live-port", type=int, default=8765,
-                        help="WebSocket server port for live mode (default: 8765)")
+                        help="WebSocket server port for live mode (default: 8765; 0 takes a free "
+                             "port, shown in the printed viewer link)")
     parser.add_argument("--live-origin", action="append", default=None, metavar="ORIGIN",
                         help="Live mode: also accept a viewer served from ORIGIN (e.g. "
                              "http://localhost:5174); the Vite dev (5173) and preview (4173) "
@@ -2179,7 +2205,8 @@ def main() -> None:
         mode_flags.append("--interactive")
     if args.live:
         mode_flags.append("--live")
-    if args.resume:
+    # --live --resume continues an exact checkpoint as a live session.
+    if args.resume and not args.live:
         mode_flags.append("--resume")
     if getattr(args, "analyze", None):
         mode_flags.append("--analyze")
@@ -2199,6 +2226,10 @@ def main() -> None:
     exact_resume = None
     if args.resume:
         from chronicler.run_checkpoint import CheckpointError, is_checkpoint, read_checkpoint
+        if args.live and not is_checkpoint(Path(args.resume)):
+            print(f"Error: --live --resume continues an exact checkpoint (--checkpoint-every or a "
+                  f"viewer's checkpoint); {args.resume} is not one", file=sys.stderr)
+            sys.exit(2)
         if is_checkpoint(Path(args.resume)):
             try:
                 exact_resume = read_checkpoint(Path(args.resume),
@@ -2382,8 +2413,9 @@ def main() -> None:
 
     elif args.live:
         from chronicler.live import run_live
-        result = run_live(args)
-        print(f"\nLive session complete: {result.output_dir}")
+        result = run_live(args, exact_resume=exact_resume)
+        if result is not None:
+            print(f"\nLive session complete: {result.output_dir}")
 
     else:
         # Single run (default) or resume

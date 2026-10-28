@@ -27,8 +27,11 @@ from chronicler.memory import MemoryStream, sanitize_civ_name
 from chronicler.models import WorldState
 from chronicler.simulation import get_injectable_event_types
 from chronicler.bundle_codec import decode_bundle
-from chronicler.snapshot_pruning import SnapshotPruner
-from chronicler.transport import BUNDLE_SYSTEMS, bundle_systems, snapshot_from_turn_message
+from chronicler.transport import BUNDLE_SYSTEMS, bundle_systems
+# The reconnect data's turn reducer lives with the live checkpoints, which rebuild it.
+from chronicler.live_checkpoints import (
+    LiveCheckpoints, LiveView, apply_turn_message, rebuilt_view, turn_message,
+)
 
 _SUPPORTED_NARRATORS = {"local", "api", "gemini"}
 _SUPPORTED_AGENT_MODES = {"off", "demographics-only", "shadow", "hybrid"}
@@ -137,15 +140,6 @@ def _build_init_data_from_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     return init
 
 
-def apply_turn_message(init_data: dict[str, Any], message: dict[str, Any]) -> None:
-    """Append a live ``turn`` message to the reconnect ``init`` data."""
-    init_data["history"].append(snapshot_from_turn_message(message))
-    init_data["chronicle_entries"][str(message["turn"])] = message.get("chronicle_text", "")
-    init_data["events_timeline"].extend(message.get("events", []))
-    init_data["named_events"].extend(message.get("named_events", []))
-    init_data["current_turn"] = message["turn"]
-
-
 def apply_completed_message(init_data: dict[str, Any], message: dict[str, Any]) -> None:
     """Merge a ``completed`` message's bundle systems into the reconnect ``init`` data."""
     systems = message.get("systems")
@@ -208,6 +202,9 @@ class LiveServer:
         # Batch state
         self._batch_thread: threading.Thread | None = None
         self._batch_cancel_event = threading.Event()
+        # The running session's checkpoint control (chronicler.live_checkpoints),
+        # set by run_live once the simulation starts.
+        self.checkpoints: LiveCheckpoints | None = None
 
     def ws_url(self) -> str:
         """The WebSocket URL a client opens, with the session token."""
@@ -230,6 +227,49 @@ class LiveServer:
         if not hmac.compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8")):
             return "Missing or invalid session token"
         return None
+
+    def checkpoint_reply(self, msg: dict, *, origin: str | None, path: str) -> dict:
+        """The reply to a ``checkpoint`` message: queue an exact checkpoint
+        for the next turn boundary (at once while paused).
+
+        Only a client of this session (the handshake's origin and token,
+        checked again here) may ask, and the message names nothing: the
+        server writes ``<output dir>/live_checkpoints/turn_<turn>.ckpt``
+        (chronicler.live_checkpoints) and reports the path itself."""
+        reason = self.handshake_error(origin, path)
+        if reason is not None:
+            return {"type": "checkpoint_error", "message": f"Not authorized: {reason}"}
+        extra = sorted(str(key) for key in msg if key != "type")
+        if extra:
+            return {"type": "checkpoint_error",
+                    "message": "checkpoint takes no fields (got " + ", ".join(extra) + "); the "
+                               "server writes it under the run's output directory"}
+        checkpoints = self.checkpoints
+        if self._server_state != "running" or checkpoints is None:
+            return {"type": "checkpoint_error", "message": "No live run to checkpoint"}
+        if not checkpoints.request():
+            return {"type": "checkpoint_error", "message": "The run has finished"}
+        return {"type": "checkpoint_requested", "paused": self._paused}
+
+    def _record_snapshot(self, snapshot: dict) -> None:
+        """Keep a simulation message for clients that connect later: an
+        ``init`` message is the reconnect data, ``turn`` messages extend it."""
+        if snapshot.get("type") == "init":
+            self._init_data = snapshot
+        elif snapshot.get("type") == "turn" and self._init_data is not None:
+            apply_turn_message(self._init_data, snapshot)
+
+    def _record_status(self, status: dict) -> None:
+        """Keep a status message's effect on the session (pause, completion)."""
+        if status.get("type") == "completed" and self._init_data is not None:
+            # The finished run's historiography and languages, for reconnect.
+            apply_completed_message(self._init_data, status)
+        if status.get("type") == "paused":
+            self._paused = True
+            self._last_paused_msg = status
+        elif status.get("type") == "ack" and not status.get("still_paused", True):
+            self._paused = False
+            self._last_paused_msg = None
 
     @property
     def speed(self) -> float:
@@ -628,6 +668,16 @@ class LiveServer:
                         self._batch_cancel_event.set()
                         continue
 
+                    # An exact checkpoint at the next turn boundary (paused or not).
+                    if msg_type == "checkpoint":
+                        request = getattr(websocket, "request", None)
+                        await websocket.send(json.dumps(self.checkpoint_reply(
+                            msg,
+                            origin=request.headers.get("Origin") if request is not None else None,
+                            path=request.path if request is not None else "",
+                        )))
+                        continue
+
                     if msg_type == "batch_load_report":
                         report_path = msg.get("path", "")
                         if not isinstance(report_path, str):
@@ -769,13 +819,7 @@ class LiveServer:
                 try:
                     while True:
                         snapshot = self.snapshot_queue.get_nowait()
-                        # Only store init messages as reconnect data;
-                        # turn messages update the existing init data below
-                        if snapshot.get("type") == "init":
-                            self._init_data = snapshot
-                        elif snapshot.get("type") == "turn" and self._init_data is not None:
-                            # Append turn data to init for reconnect
-                            apply_turn_message(self._init_data, snapshot)
+                        self._record_snapshot(snapshot)
                         async with client_lock:
                             if client_ws is not None:
                                 try:
@@ -794,15 +838,7 @@ class LiveServer:
                 try:
                     while True:
                         status = self.status_queue.get_nowait()
-                        if status.get("type") == "completed" and self._init_data is not None:
-                            # The finished run's historiography and languages, for reconnect.
-                            apply_completed_message(self._init_data, status)
-                        if status.get("type") == "paused":
-                            self._paused = True
-                            self._last_paused_msg = status
-                        elif status.get("type") == "ack" and not status.get("still_paused", True):
-                            self._paused = False
-                            self._last_paused_msg = None
+                        self._record_status(status)
                         async with client_lock:
                             if client_ws is not None:
                                 try:
@@ -861,36 +897,52 @@ def make_live_pause(
     command_queue: queue.Queue,
     status_queue: queue.Queue,
     output_dir: Path | None = None,
+    checkpoints: LiveCheckpoints | None = None,
 ):
     """Create a pause callback for live mode that communicates via queues.
 
     Returns a closure ``live_pause(world, memories, pending_injections) -> bool``
     that blocks on the command_queue until a ``continue`` or ``quit`` command
-    is received.
+    is received. With ``checkpoints`` (chronicler.live_checkpoints), a
+    viewer's checkpoint requests are written while paused, and each
+    ``inject`` and ``set`` is recorded as an intervention.
     """
 
     def live_pause(
         world: WorldState,
         memories: dict[str, MemoryStream],
         pending_injections: list,
+        reason: str = "pause_interval",
     ) -> bool:
         civ_names = [c.name for c in world.civilizations]
         injectable_events = get_injectable_event_types()
+        valid_commands = ["continue", "quit", "inject", "set", "fork"]
+        if checkpoints is not None:
+            valid_commands.append("checkpoint")
 
         # Put paused status on the queue
         status_queue.put({
             "type": "paused",
             "turn": world.turn,
-            "reason": "pause_interval",
-            "valid_commands": ["continue", "quit", "inject", "set", "fork"],
+            "reason": reason,
+            "valid_commands": valid_commands,
             "injectable_events": injectable_events,
             "settable_stats": sorted(VALID_STATS),
             "civs": civ_names,
         })
 
-        # Block waiting for commands
+        # Block waiting for commands. Checkpoint requests arrive on their own
+        # queue; those sent before a command are written before it is applied.
         while True:
-            cmd = command_queue.get()  # blocks
+            if checkpoints is None:
+                cmd = command_queue.get()  # blocks
+            else:
+                try:
+                    cmd = command_queue.get(timeout=0.05)
+                except queue.Empty:
+                    checkpoints.service(world)
+                    continue
+                checkpoints.service(world)
             cmd_type = cmd.get("type")
 
             if cmd_type == "continue":
@@ -925,6 +977,9 @@ def make_live_pause(
                     continue
 
                 pending_injections.append((event_type, civ))
+                if checkpoints is not None:
+                    checkpoints.note_intervention(
+                        world, {"command": "inject", "event_type": event_type, "civ": civ})
                 status_queue.put({
                     "type": "ack",
                     "command": "inject",
@@ -979,6 +1034,9 @@ def make_live_pause(
 
                 # Apply the change
                 setattr(civ_obj, stat, value)
+                if checkpoints is not None:
+                    checkpoints.note_intervention(
+                        world, {"command": "set", "civ": civ_name, "stat": stat, "value": value})
                 status_queue.put({
                     "type": "ack",
                     "command": "set",
@@ -1104,52 +1162,9 @@ def resolve_start_seed(seed: int | None) -> int:
     return seed
 
 
-def run_live(
-    args: Any,
-) -> Any:
-    """Run simulation in live mode with WebSocket server.
-
-    Phase 1: Start WebSocket server in lobby state, wait for client to send start.
-    Phase 2: Generate world from client params, run simulation.
-    """
-    import random
-    from chronicler.main import execute_run
-    from chronicler.models import TurnSnapshot, Event, NamedEvent
-    from chronicler.llm import create_clients
-
-    port = getattr(args, "live_port", 8765) or 8765
-
-    # --- Phase 1: Lobby ---
-    server = LiveServer(port=port, allowed_origins=getattr(args, "live_origin", None) or ())
-    server._client_defaults = {
-        "local_url": getattr(args, "local_url", "http://localhost:1234/v1"),
-        "sim_model": getattr(args, "sim_model", None),
-        "narrative_model": getattr(args, "narrative_model", None),
-        "narrator": _normalize_narrator(getattr(args, "narrator", "local"), "local"),
-        "agents": getattr(args, "agents", "off"),
-        "preset": getattr(args, "preset", None),
-    }
-    server._lobby_init = build_lobby_init(args)
-    server.start()
-    actual_port = server._actual_port or port
-    print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
-    print(f"Open viewer: {server.viewer_url()}")
-    extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
-    if extra:
-        print(f"Also accepting viewers served from: {', '.join(extra)}")
-    print("Waiting for client to launch simulation...")
-
-    # Block until client sends start (interruptible via Ctrl+C)
-    while not server.start_event.wait(timeout=1.0):
-        pass
-
-    params = server._start_params
-    if params is None:
-        raise RuntimeError("start_event set but no _start_params")
-
-    # --- Phase 2: Simulation ---
-
-    # Resolve world and scenario from client params
+def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
+    """The world a lobby ``start`` message asks for, with the CLI's switches
+    (``execute_run`` sees a supplied world and keeps these settings)."""
     scenario_config = None
     if params.get("resume_state"):
         world = WorldState.model_validate(params["resume_state"])
@@ -1295,33 +1310,168 @@ def run_live(
         _epi = getattr(args, "epidemiology", None)
         set_epidemiology_enabled(
             world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
+    return world, scenario_config
 
-    # Construct LLM clients from client-selected models
+
+def _live_clients(args: Any, server: "LiveServer") -> tuple[Any, Any, dict[str, Any]]:
+    """The session's LLM clients. ``--simulate-only`` makes no LLM calls, as
+    a single run does (era reflections included)."""
+    from chronicler.llm import create_clients
     client_config = server._resolve_client_config()
+    if getattr(args, "simulate_only", False):
+        from chronicler.main import _DummyClient
+        return _DummyClient(), _DummyClient(), client_config
     sim_client, narrative_client = create_clients(
         local_url=client_config.get("local_url", "http://localhost:1234/v1"),
         sim_model=client_config.get("sim_model"),
         narrative_model=client_config.get("narrative_model"),
         narrator=client_config.get("narrator", "local"),
     )
+    return sim_client, narrative_client, client_config
 
-    pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
-    total_turns = params.get("turns") or args.turns or 50
+
+def _record_live_world_args(args: Any, params: dict) -> None:
+    """The client's world parameters in ``args``, so the run configuration
+    that checkpoints record (``batch_manifest.simulation_config``) describes
+    the world this session built. ``execute_run`` receives the built world
+    and reads none of them."""
+    args.civs = params.get("civs")
+    args.regions = params.get("regions")
+    worldgen = params.get("worldgen")
+    args.worldgen = worldgen if isinstance(worldgen, str) else None
+    scenario = params.get("scenario")
+    args.scenario = str(Path("scenarios") / scenario) if isinstance(scenario, str) and scenario else None
+
+
+def run_live(
+    args: Any,
+    exact_resume: Any | None = None,
+    *,
+    server: "LiveServer | None" = None,
+) -> Any:
+    """Run simulation in live mode with WebSocket server.
+
+    Phase 1: Start WebSocket server in lobby state, wait for client to send start.
+    Phase 2: Generate world from client params, run simulation.
+
+    With ``exact_resume`` (a ``run_checkpoint.LoadedCheckpoint``: ``--live
+    --resume FILE``) there is no lobby: the session continues the checkpoint
+    exactly, shows a connecting viewer the history so far, and starts paused
+    at the checkpoint's turn (reason ``resumed``). Quitting there writes
+    nothing. ``server`` replaces the WebSocket server (tests).
+    """
+    from chronicler.main import execute_run
+    from chronicler.models import TurnSnapshot, Event, NamedEvent
+
+    # --live-port 0 takes a free port (the printed link carries it).
+    port = getattr(args, "live_port", None)
+    port = 8765 if port is None else port
+    if server is None:
+        server = LiveServer(port=port, allowed_origins=getattr(args, "live_origin", None) or ())
+    server._client_defaults = {
+        "local_url": getattr(args, "local_url", "http://localhost:1234/v1"),
+        "sim_model": getattr(args, "sim_model", None),
+        "narrative_model": getattr(args, "narrative_model", None),
+        "narrator": _normalize_narrator(getattr(args, "narrator", "local"), "local"),
+        "agents": getattr(args, "agents", "off"),
+        "preset": getattr(args, "preset", None),
+    }
     output_dir = Path(args.output).parent
+    view = LiveView()
+    state = exact_resume.state if exact_resume is not None else None
 
-    init_sent = [False]
+    if state is None:
+        # --- Phase 1: Lobby ---
+        server._lobby_init = build_lobby_init(args)
+        server.start()
+        actual_port = server._actual_port or port
+        print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
+        print(f"Open viewer: {server.viewer_url()}")
+        extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
+        if extra:
+            print(f"Also accepting viewers served from: {', '.join(extra)}")
+        print("Waiting for client to launch simulation...", flush=True)
+
+        # Block until client sends start (interruptible via Ctrl+C)
+        while not server.start_event.wait(timeout=1.0):
+            pass
+
+        params = server._start_params
+        if params is None:
+            raise RuntimeError("start_event set but no _start_params")
+
+        # --- Phase 2: Simulation ---
+        pause_every = getattr(args, "pause_every", None) or getattr(args, "reflection_interval", 10) or 10
+        total_turns = params.get("turns") or args.turns or 50
+        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
+                                             lambda: server.speed, pause_every)
+        world, scenario_config = _live_world(args, params)
+        _record_live_world_args(args, params)
+        sim_client, narrative_client, client_config = _live_clients(args, server)
+    else:
+        # --- Resumed session: the checkpoint's run, configuration and view ---
+        world = state.world
+        scenario_config = state.scenario_config
+        record = state.live
+        pause_every = (getattr(args, "pause_every", None)
+                       or (record or {}).get("pause_every")
+                       or getattr(args, "reflection_interval", 10) or 10)
+        total_turns = args.turns
+        sim_client, narrative_client, client_config = _live_clients(args, server)
+
+    init_sent = [state is not None]
     world_ref = [world]
-    # Turn messages leave dead civs out, as the bundle's history does.
-    snapshot_pruner = SnapshotPruner(record_tails=False)
 
-    def _serialize_snapshot(snapshot, chronicle_text, events, named_events):
-        """Serialize turn data to a dict for the WebSocket protocol."""
-        snap_dict = snapshot_pruner.prune(snapshot.model_dump(mode="json"))
-        snap_dict["type"] = "turn"
-        snap_dict["chronicle_text"] = chronicle_text
-        snap_dict["events"] = [e.model_dump(mode="json") for e in events]
-        snap_dict["named_events"] = [ne.model_dump(mode="json") for ne in named_events]
-        return snap_dict
+    def _init_message(w: WorldState) -> dict[str, Any]:
+        return {
+            "type": "init",
+            "state": "running",
+            "total_turns": total_turns,
+            "pause_every": pause_every,
+            "current_turn": 0,
+            "world_state": w.model_dump(mode="json"),
+            "history": [],
+            "chronicle_entries": {},
+            "events_timeline": [],
+            "named_events": [],
+            "era_reflections": {},
+            "metadata": {
+                "seed": w.seed,
+                "total_turns": total_turns,
+                "generated_at": "",
+                "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
+                "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
+                "narrator_mode": client_config.get("narrator", "local"),
+                "scenario_name": getattr(w, "scenario_name", None),
+                "interestingness_score": None,
+            },
+            "speed": server.speed,
+        }
+
+    if state is not None:
+        if record is not None:
+            # The view the saved session's viewers saw, and its speed.
+            view = LiveView.from_record(record)
+            server.speed = record.get("speed", server.speed)
+            how = "the saved session's history"
+        else:
+            view = rebuilt_view(state, _init_message(world))
+            how = "a history rebuilt from the checkpoint (it was not written by a live session)"
+        server._init_data = view.init_data(total_turns=total_turns, pause_every=pause_every)
+        server._server_state = "running"
+        server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
+                                             lambda: server.speed, pause_every)
+        server.start()
+        actual_port = server._actual_port or port
+        print(f"Resumed live session at turn {world.turn} of {total_turns} on "
+              f"ws://localhost:{actual_port} (session token required); viewers see {how}")
+        print(f"Open viewer: {server.viewer_url()}")
+        extra = [o for o in server.allowed_origins if o not in DEFAULT_VIEWER_ORIGINS]
+        if extra:
+            print(f"Also accepting viewers served from: {', '.join(extra)}")
+        print(f"Paused at turn {world.turn}: continue from the viewer.", flush=True)
+
+    checkpoints = server.checkpoints
 
     def on_turn_cb(
         snapshot: TurnSnapshot,
@@ -1331,63 +1481,72 @@ def run_live(
     ) -> None:
         if not init_sent[0]:
             init_sent[0] = True
-            w = world_ref[0]
-            init_msg = {
-                "type": "init",
-                "state": "running",
-                "total_turns": total_turns,
-                "pause_every": pause_every,
-                "current_turn": 0,
-                "world_state": w.model_dump(mode="json"),
-                "history": [],
-                "chronicle_entries": {},
-                "events_timeline": [],
-                "named_events": [],
-                "era_reflections": {},
-                "metadata": {
-                    "seed": w.seed,
-                    "total_turns": total_turns,
-                    "generated_at": "",
-                    "sim_model": getattr(sim_client, "model", "unknown") or "unknown",
-                    "narrative_model": getattr(narrative_client, "model", "unknown") or "unknown",
-                    "narrator_mode": client_config.get("narrator", "local"),
-                    "scenario_name": getattr(w, "scenario_name", None),
-                    "interestingness_score": None,
-                },
-                "speed": server.speed,
-            }
+            init_msg = _init_message(world_ref[0])
+            view.record_init(init_msg)
             server.snapshot_queue.put(init_msg)
 
-        snap_dict = _serialize_snapshot(snapshot, chronicle_text, events, named_events)
+        # Turn messages leave dead civs out, as the bundle's history does.
+        snap_dict = turn_message(snapshot, chronicle_text, events, named_events, view.pruner)
+        view.record_turn(snap_dict)
         server.snapshot_queue.put(snap_dict)
 
         spd = server.speed
         if spd > 0:
             time.sleep(1.0 / spd)
 
-    pending_injections: list[tuple[str, str]] = []
     pause_fn = make_live_pause(
         server.command_queue,
         server.status_queue,
         output_dir=output_dir,
+        checkpoints=checkpoints,
     )
 
-    # Override args with client params for execute_run
-    args.turns = total_turns
-    args.seed = world.seed
+    try:
+        if state is not None:
+            from chronicler.run_checkpoint import checkpoint_path, write_checkpoint
 
-    result = execute_run(
-        args,
-        sim_client=sim_client,
-        narrative_client=narrative_client,
-        world=world,
-        on_pause=pause_fn,
-        pause_every=pause_every,
-        pending_injections=pending_injections,
-        scenario_config=scenario_config,
-        on_turn=on_turn_cb,
-        quit_check=lambda: server.quit_event.is_set(),
-    )
+            def save_loaded(template: str) -> Path:
+                """The checkpoint as loaded, with what this pause changed."""
+                state.live = checkpoints.live_record()
+                path = checkpoint_path(template, state.world.turn)
+                write_checkpoint(path, state, exact=exact_resume.exact,
+                                 lineage=state.run_config.get("lineage"))
+                return path
+
+            checkpoints.bind(save_loaded, state.run_config)
+            # Paused at the checkpoint's turn until a viewer continues.
+            if not pause_fn(world, state.memories, state.pending_injections, reason="resumed"):
+                print(f"Quit at turn {world.turn} before any resumed turn: nothing was written; "
+                      f"{args.resume} still holds the run.")
+                time.sleep(0.5)
+                server.stop()
+                return None
+            checkpoints.turn_end(world)
+            pending_injections = None  # the checkpoint's own
+        else:
+            pending_injections = []
+
+        # Override args with client params for execute_run
+        args.turns = total_turns
+        if state is None:
+            args.seed = world.seed
+
+        result = execute_run(
+            args,
+            sim_client=sim_client,
+            narrative_client=narrative_client,
+            world=world if state is None else None,
+            on_pause=pause_fn,
+            pause_every=pause_every,
+            pending_injections=pending_injections,
+            scenario_config=scenario_config if state is None else None,
+            on_turn=on_turn_cb,
+            quit_check=lambda: server.quit_event.is_set(),
+            checkpoint_resume=exact_resume,
+            turn_boundary=checkpoints,
+        )
+    finally:
+        checkpoints.close("The run has finished; no turn boundary is left to checkpoint")
 
     bundle_path = output_dir / "chronicle_bundle.json"
     server.status_queue.put({

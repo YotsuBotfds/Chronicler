@@ -797,3 +797,117 @@ async def test_narrate_range_offloads_work_and_keeps_queue_drain_alive(running_l
         assert paused_msg["type"] == "paused"
 
         release_worker.set()
+
+
+# --- exact checkpoints over a real connection (chronicler.live_checkpoints) ------
+
+def _checkpoint_session_args(tmp_path):
+    return argparse.Namespace(
+        seed=None, turns=None, civs=None, regions=None, worldgen=None,
+        output=str(tmp_path / "chronicle.md"), state=str(tmp_path / "state.json"),
+        resume=None, reflection_interval=3, llm_actions=False, scenario=None,
+        simulate_only=True, agents="off", local_url=None, live_port=0, pause_every=3,
+        narrator="local",
+    )
+
+
+@pytest.fixture
+def checkpoint_session(tmp_path):
+    """``run_live`` in a thread with a real server on a free port."""
+    from chronicler.live import LiveServer, run_live
+
+    server = LiveServer(port=0)
+    outcome = {}
+
+    def run():
+        try:
+            outcome["result"] = run_live(_checkpoint_session_args(tmp_path), server=server)
+        except BaseException as exc:  # reported by the test
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while server._actual_port is None and time.monotonic() < deadline:
+        time.sleep(0.02)
+    try:
+        yield server, outcome
+    finally:
+        if thread.is_alive():  # end the session: a one-turn run that quits
+            server.quit_event.set()
+            if server._server_state == "lobby":
+                server._handle_start({"type": "start", "turns": 1, "civs": 2, "regions": 3})
+        thread.join(timeout=20)
+
+
+async def _until(ws, kind: str, seen: list) -> dict:
+    while True:
+        msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10.0))
+        seen.append(msg)
+        if msg["type"] == kind:
+            return msg
+
+
+@pytest.mark.asyncio
+async def test_unauthenticated_clients_cannot_ask_for_a_checkpoint(checkpoint_session, tmp_path):
+    from websockets.exceptions import InvalidStatus
+
+    server, _ = checkpoint_session
+    base = f"ws://localhost:{server._actual_port}"
+    for uri, origin in [(base, None), (base + "/?token=wrong", "http://localhost:5173"),
+                        (server.ws_url(), "https://untrusted.example")]:
+        with pytest.raises(InvalidStatus) as refused:
+            async with ws_client.connect(uri, origin=origin) as ws:
+                await ws.send(json.dumps({"type": "checkpoint"}))
+        assert refused.value.response.status_code == 403
+    assert server.checkpoints is None and not (tmp_path / "live_checkpoints").exists()
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_round_trip(checkpoint_session, tmp_path):
+    """Refused in the lobby and with a path; written at a turn boundary while
+    running and while paused, under the output directory, and resumable."""
+    import chronicler.run_checkpoint as rc
+    from chronicler.live_checkpoints import LIVE_CHECKPOINT_DIR
+
+    server, outcome = checkpoint_session
+    seen: list = []
+    async with ws_client.connect(server.ws_url(), origin="http://localhost:5173") as ws:
+        assert (await _until(ws, "init", seen))["state"] == "lobby"
+        await ws.send(json.dumps({"type": "checkpoint"}))
+        assert (await _until(ws, "checkpoint_error", seen))["message"] == "No live run to checkpoint"
+        await ws.send(json.dumps({"type": "speed", "value": 1000}))
+        await ws.send(json.dumps({"type": "start", "turns": 6, "civs": 2, "regions": 3, "seed": 7}))
+
+        await _until(ws, "turn", seen)
+        await ws.send(json.dumps({"type": "checkpoint"}))
+        await _until(ws, "checkpoint_requested", seen)
+        running = await _until(ws, "checkpoint_saved", seen)
+        # The first pause (turn 3), unless the request was answered there.
+        paused = next((m for m in seen if m["type"] == "paused"), None)
+        if paused is None:
+            paused = await _until(ws, "paused", seen)
+        assert paused["turn"] == 3 and "checkpoint" in paused["valid_commands"]
+        evil = tmp_path.parent / "evil.ckpt"
+        await ws.send(json.dumps({"type": "checkpoint", "path": str(evil)}))
+        assert "takes no fields" in (await _until(ws, "checkpoint_error", seen))["message"]
+        await ws.send(json.dumps({"type": "checkpoint"}))
+        assert (await _until(ws, "checkpoint_requested", seen))["paused"] is True
+        at_pause = await _until(ws, "checkpoint_saved", seen)
+        await ws.send(json.dumps({"type": "continue"}))
+        await _until(ws, "paused", seen)  # turn 6, the last
+        await ws.send(json.dumps({"type": "continue"}))
+        await _until(ws, "completed", seen)
+
+    assert not evil.exists()
+    assert running["turn"] <= 3 and at_pause["turn"] == 3
+    for saved in (running, at_pause):
+        path = Path(saved["path"])
+        assert path == tmp_path / LIVE_CHECKPOINT_DIR / f"turn_{saved['turn']:04d}.ckpt"
+        loaded = rc.read_checkpoint(path)
+        assert loaded.exact and loaded.state.world.turn == saved["turn"]
+        assert len(loaded.state.live["turns"]) == saved["turn"]
+    deadline = time.monotonic() + 10
+    while "result" not in outcome and "error" not in outcome and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    assert "error" not in outcome and outcome["result"].total_turns == 6

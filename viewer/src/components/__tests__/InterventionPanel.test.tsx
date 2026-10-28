@@ -116,4 +116,63 @@ describe("InterventionPanel", () => {
     expect(screen.getByLabelText(/stat name/i)).toHaveValue("stability");
     expect(screen.queryByText(/pending actions/i)).toBeNull();
   });
+
+  describe("Save checkpoint", () => {
+    const checkpointContext: PauseContext = {
+      ...mockContext,
+      valid_commands: [...mockContext.valid_commands, "checkpoint"],
+    };
+
+    it("is offered only when the server lists checkpoint", () => {
+      const onSave = vi.fn();
+      const { rerender } = render(
+        <InterventionPanel pauseContext={mockContext} sendCommand={vi.fn()} onSaveCheckpoint={onSave} />,
+      );
+      expect(screen.queryByRole("button", { name: /save checkpoint/i })).toBeNull();
+      rerender(
+        <InterventionPanel pauseContext={checkpointContext} sendCommand={vi.fn()} onSaveCheckpoint={onSave} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /save checkpoint/i }));
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the saved file, or the server's refusal", () => {
+      const { rerender } = render(
+        <InterventionPanel
+          pauseContext={checkpointContext}
+          sendCommand={vi.fn()}
+          onSaveCheckpoint={vi.fn()}
+          checkpointStatus={{ state: "saving" }}
+        />,
+      );
+      expect(screen.getByText(/saving checkpoint/i)).toBeDefined();
+      expect(screen.getByRole("button", { name: /save checkpoint/i })).toBeDisabled();
+      rerender(
+        <InterventionPanel
+          pauseContext={checkpointContext}
+          sendCommand={vi.fn()}
+          onSaveCheckpoint={vi.fn()}
+          checkpointStatus={{
+            state: "saved",
+            turn: 20,
+            path: "output/live_checkpoints/turn_0020.ckpt",
+            resumeHint: "--live --resume output/live_checkpoints/turn_0020.ckpt",
+          }}
+        />,
+      );
+      expect(screen.getByText(/checkpoint saved at turn 20/i)).toBeDefined();
+      expect(screen.getByText("output/live_checkpoints/turn_0020.ckpt")).toBeDefined();
+      expect(screen.getByText(/--live --resume/)).toBeDefined();
+      expect(screen.getByRole("button", { name: /save checkpoint/i })).toBeEnabled();
+      rerender(
+        <InterventionPanel
+          pauseContext={checkpointContext}
+          sendCommand={vi.fn()}
+          onSaveCheckpoint={vi.fn()}
+          checkpointStatus={{ state: "error", message: "Checkpoint not written: disk full" }}
+        />,
+      );
+      expect(screen.getByText(/disk full/)).toBeDefined();
+    });
+  });
 });
