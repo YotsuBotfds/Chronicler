@@ -1364,7 +1364,9 @@ def run_live(
     from chronicler.main import execute_run
     from chronicler.models import TurnSnapshot, Event, NamedEvent
 
-    port = getattr(args, "live_port", 8765) or 8765
+    # --live-port 0 takes a free port (the printed link carries it).
+    port = getattr(args, "live_port", None)
+    port = 8765 if port is None else port
     if server is None:
         server = LiveServer(port=port, allowed_origins=getattr(args, "live_origin", None) or ())
     server._client_defaults = {

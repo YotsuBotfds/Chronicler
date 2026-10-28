@@ -1833,7 +1833,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--live", action="store_true", default=False,
                         help="Live mode: start WebSocket server for viewer connection")
     parser.add_argument("--live-port", type=int, default=8765,
-                        help="WebSocket server port for live mode (default: 8765)")
+                        help="WebSocket server port for live mode (default: 8765; 0 takes a free "
+                             "port, shown in the printed viewer link)")
     parser.add_argument("--live-origin", action="append", default=None, metavar="ORIGIN",
                         help="Live mode: also accept a viewer served from ORIGIN (e.g. "
                              "http://localhost:5174); the Vite dev (5173) and preview (4173) "
