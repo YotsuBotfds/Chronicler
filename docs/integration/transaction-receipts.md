@@ -137,8 +137,9 @@ controlled native frames, separate from full-run/scientific gates.
 
 The external evidence manifest records native source-file hashes, extension
 hashes, state/schema hashes and comparison outputs under
-`/workspace/chronicler-transaction-evidence`. No receipt release wheel or full
-qualification gate has been run. Independent read-only review found no further
+`/workspace/chronicler-transaction-evidence`. At that debug stage no receipt
+release wheel or full qualification gate had been run. Independent read-only
+review found no further
 blocker after the raw-state/fresh-pool identity guard was added.
 
 The shared bridge now checks that guard before loading a fresh native pool and
@@ -157,3 +158,36 @@ postprocessing, disable/dormancy cleanup, raw processed WorldState rejection
 before native loading, and exact RunState checkpoint continuation. The market
 fixture now chooses an already populated dear-food destination, so real bridge
 observations are nonempty immediately; an empty region has no market price.
+
+## Isolated release evidence, 2026-10-28
+
+A fresh receipt release wheel was subsequently built with one cargo job in a
+separate copied warm dependency cache and installed into its own environment.
+The release build took 4m 00s. No qualified health environment or frozen source
+was replaced. Native crate tree
+`a4703ef4e9a21b5dbb194d318536a46e6ca8b71c` is unchanged from the receipt Rust
+freeze at `79432d08`; bridge-test source is `442f0b07`. The build uses the
+existing release profile (`opt-level=3`, `codegen-units=1`, `lto=true`) and does
+not include later merchant-tax branch changes.
+
+The combined pure/FFI/actual-bridge receipt selection passed **46 tests in
+0.80s** on this release extension. All three native simulator schemas and
+constructor payload bytes match the preceding health release. Eighteen
+per-turn default-off controls (six turns in each supported mode, using the
+populated dear-food market fixture) also match native payload bytes, events,
+agent snapshots and WorldState JSON.
+
+- Wheel SHA-256:
+  `bf7dbf627e61ab5333dd20b8940770840c9742413439975b3777fa73c77b4c1f`.
+- Installed extension SHA-256:
+  `fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317`.
+- Interpreter: CPython 3.13.5, Linux x86-64; one Rayon/BLAS/OMP worker for
+  focused checks. Schemas retain the fingerprints above.
+
+External `release-manifest.json` and build/test/control logs are under
+`/workspace/chronicler-transaction-evidence`; the isolated environment is
+`/workspace/chronicler-receipts-venv`. These tests qualify the bounded receipt
+mechanics/bridge boundary on this native source. Complete integration, full-run
+checkpoint/output comparisons and scientific gates remain separately owned
+and recorded by integration. This release evidence does not authorize financial
+use of the observed cargo or turn it into private title/settlement.
