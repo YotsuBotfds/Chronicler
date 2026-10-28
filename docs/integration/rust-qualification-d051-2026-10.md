@@ -73,6 +73,20 @@ before and after. These elapsed times were under concurrent qualification load,
 not controlled performance measurements. The occupied CPU slot was released
 explicitly for the waiting full no-Rust Python lane after the process exited.
 
+After completion, the copied full-test target had expanded to about 8.3 GiB
+through its debug library and integration-test binaries. Under an explicit disk
+recovery request, the completed job was confirmed exited, accessible process
+executables/cwd/maps/file descriptors showed no references to that target, and
+**only the disposable copied target** was removed. This reclaimed
+8,905,719,808 bytes; free space rose from 3,206,033,408 to 12,111,753,216 bytes.
+The original cache, all source, installed extension/wheels, logs and receipts
+were retained. The installed `fb20dbc8…` binary digest was rechecked afterward.
+`cache-cleanup.json` records the cleanup and inaccessible process-field limits;
+its SHA-256 is
+`e48a80103c7204b6653f192b0104343acf59510a39971e8ef22d3369434e6c43`.
+The isolated target path above is now an execution record, not a retained build.
+No further build or profiling job was started during the resource recovery.
+
 The two ignored cases are the pre-existing release-mode, Ryzen 9950X budget
 checks in `tests/regression.rs`: `regression_6k_24r_under_3s` and
 `regression_10k_24r_under_6s`. They were not newly excluded or relabelled. Their
@@ -106,3 +120,13 @@ The full logs preserve every suite, ignored case, command and exit code.
 This result does not replace the full Python lanes, controlled feature
 interventions or the documented population/regression scientific gates. Those
 retain their own source and build receipts.
+
+## Workflow observation
+
+The dependency cache was 1.7 GiB, but the complete debug test target grew to
+8.3 GiB. Scheduling should budget for the complete integration-test binaries,
+retain the source/build receipts, and discard a completed disposable target
+when disk is needed by live gates. This cleanup changes no test count or gate
+criterion. Reduced debug-information profiles could be investigated separately
+for build time/storage, with all tests retained and an explicit profile receipt;
+no such compiler-profile change was made in this qualification.
