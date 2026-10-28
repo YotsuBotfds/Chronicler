@@ -35,6 +35,17 @@ def test_seed_ranges_do_not_manufacture_replicates():
             runner.parse_seeds(value)
 
 
+def test_source_selection_refuses_to_mix_an_already_imported_checkout(tmp_path):
+    runner = _runner()
+    other = tmp_path / "other" / "src" / "chronicler"
+    other.mkdir(parents=True)
+    (other / "main.py").write_text("# Different source fixture")
+    before = runner.source_identity()
+    with pytest.raises(ValueError, match="different Chronicler source"):
+        runner._load_source(tmp_path / "other")
+    assert runner.source_identity() == before
+
+
 def test_worker_calls_real_entrypoint_without_supplying_a_preconfigured_world(tmp_path, monkeypatch):
     runner = _runner()
     from chronicler import main
@@ -87,6 +98,17 @@ def test_all_arms_reference_one_parent_and_keep_their_full_controls(tmp_path, mo
     assert parents[0]["sha256"] == runner.file_sha256(Path(parents[0]["path"]))
     assert all(call[3]["fork"] is True and call[1] == 12 for call in calls[1:])
     assert {call[3]["arm"]: call[3]["controls"] for call in calls[1:]} == runner.ARMS["ritual_gatherings"]
+
+
+def test_worker_rejects_a_receipt_parent_different_from_its_actual_resume_path(tmp_path):
+    runner = _runner()
+    config = {"feature": "harvest_forecasts", "worldgen": "template", "regions": 8, "civs": 4}
+    cli = runner._simulation_args(42, 12, tmp_path, config, resume=tmp_path / "actual.ckpt")
+    path = tmp_path / "job.json"
+    path.write_text(json.dumps({"source_root": str(ROOT), "simulation_args": cli, "request": {
+        "parent_checkpoint": {"path": str(tmp_path / "claimed.ckpt"), "sha256": "unused"}}}))
+    with pytest.raises(ValueError, match="checkpoint being resumed"):
+        runner.run_job(path)
 
 
 def test_a_failed_parent_never_launches_its_treatment_arms(tmp_path, monkeypatch):

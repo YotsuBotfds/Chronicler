@@ -122,3 +122,45 @@ common parents, failed-parent containment, output preservation, truncated-run
 failure, source drift and binary identity independent of import-path labels.
 These tests replace subprocess outcomes only in their deliberate unit fixtures;
 the production runner always executes the real simulator and reads its outputs.
+
+## First actual development studies, 2026-10-28
+
+The commands above were executed for all three features, seeds 42–43, completion
+horizon 40, common fork boundary 4, one worker. The health study used the same
+arguments with `--feature health_care`. Simulation source was frozen at
+`527a9ff804a157a1278f86fbf1b4ac3065f195a9`, package digest
+`e1d0aee1c2a64aa86f4235e1dcc3ef679044b139c18426afa5d8492f71465263`.
+The fresh native extension SHA-256 was
+`e7ec77283075cb9b817ad47490fc98a3e77685451bbcd4ce8f5b8bcad9db5867`.
+External runner source was commit `e7b2add9`, file SHA-256
+`f8c628415f6fb71898eaa491822133a73a6c51da5b4deb120661c8efb48d1799`.
+
+All **24 actual executions** completed their declared horizons with stable
+source/native/runner identities: eight forecast, ten gathering and six health
+runs, including the full parents. All six no-op control forks had final state
+bytes identical to their uninterrupted parents. These are development execution
+and continuation results, not full gates or estimates of population benefit.
+
+- Forecast normal arms delivered 17/21 reports for seeds 42/43 and recorded
+  89.60/112.39 received grain with 15/19 treasury paid while warnings were
+  active. Withheld arms delivered no reports and recorded no warning-associated
+  purchases; ordinary granary purchases are a separate quantity. Shuffled arms
+  also ran. These receipts do not identify causal excess purchases.
+- Gathering normal arms held 4/10 occurrences, cancelled 20/14, recorded
+  102/281 attendances, consumed 5.10/14.05 grain and spent 12/30 treasury.
+  They attempted 25/54 bond updates and added 0/15 gathering contact units.
+  Disabled channels recorded zero respective activity. Seed 42 supplies no
+  gathering-contact exposure and cannot establish an effect of that channel.
+- In source turns 4–39, health care arms recorded 2.0/3.0 worker-turns of care
+  over 10/15 recipient-turns. No-care arms recorded zero care. New injury counts
+  and later worlds diverged, so their aggregate recovery totals are not a fixed
+  patient-cohort causal estimate. The controlled mechanism tests remain distinct.
+
+The complete evidence, worker logs and artifacts are retained outside Git.
+Manifest SHA-256 values identify the records independently of local paths:
+
+| Study | Manifest SHA-256 |
+| --- | --- |
+| Forecasts | `8ea7c17ac5360ac6b2b71a50ceacdd5941c95ee5c70a1c836441963a5f9b9fbf` |
+| Gatherings | `d18a6193611b443b2be2fb4d3700c813050b0dcead310b0f3f6f323d2003c29b` |
+| Health/care | `4a688490f0b331b9f538b7607cb6907bc37e64fc27e8f006eea19f18b4d060ce` |

@@ -133,6 +133,10 @@ def run_job(path: Path):
     args = parser.parse_args(job["simulation_args"])
     checkpoint = None
     if args.resume:
+        parent = job["request"].get("parent_checkpoint")
+        if (not isinstance(parent, dict) or not isinstance(parent.get("path"), str)
+                or Path(parent["path"]).resolve() != Path(args.resume).resolve()):
+            raise ValueError("experiment request parent differs from the checkpoint being resumed")
         from chronicler.run_checkpoint import read_checkpoint
         checkpoint = read_checkpoint(Path(args.resume))
         conflicts = _adopt_checkpoint_args(parser, args, checkpoint)
