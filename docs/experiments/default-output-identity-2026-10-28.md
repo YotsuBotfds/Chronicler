@@ -61,15 +61,17 @@ The job limit is 90 minutes. One aggregate helper deadline of 80 minutes covers
 build, installation, probes, all worlds, audits and comparison; it is not reset
 between cases. Child termination has a bounded 10-second TERM and 5-second KILL
 cleanup margin. Private-session leaders remain unreaped through ownership and
-live-writer checks. Unexpected process groups or uncertain cleanup fail
-qualification; no global host-process or arbitrary escaped-session cleanup claim
+live-writer checks. Verified same-session members are signalled through pidfds,
+including members using another process group. Uncertain cleanup fails
+qualification and withholds final payload hashing; no global host-process or arbitrary escaped-session cleanup claim
 is made. Outer job cancellation may prevent later upload; absent evidence is not
 a pass.
 
 Disk admission is 12 GiB before build and 6 GiB after build. Available RAM must
 be at least 2 GiB at those admission points. Runtime monitoring requires 3 GiB
 free disk and 1 GiB available RAM. Host MemAvailable is constrained by observed
-cgroup-v2 limit minus current usage; charged cache receives no speculative
+cgroup-v2 limit minus current usage (an actual readable max/current pair,
+including explicitly unbounded max, is required and recorded); charged cache receives no speculative
 reclaim credit. Missing visibility or any floor refusal stops work. A real host
 may refuse this protocol. Thresholds do not change after observation.
 
@@ -86,7 +88,11 @@ require agent_events.arrow; a null fixture without it refuses this registration
 rather than establishing a general native-runtime defect. Four validation-sidecar
 fixtures require all five core validation outputs. Conditional extra exports are
 retained and compared. Actual seed/mode/region shape, final world/bundle turn,
-and every completed history turn must match the fixed case.
+and every completed history turn must match the fixed case. Explicit CLI off
+serializes agent_mode as null in these frozen sources; null or off is admitted
+only for explicit off cases. Hybrid cases require the hybrid field. Audits record
+both CLI mode and serialized mode. These single runs do not require a nonexistent
+run_manifest.json.
 
 ## Acceptance and limits
 
@@ -101,7 +107,11 @@ field, even if named the same, refuses admission. No other normalization is adde
 Every raw output and log, excluded manifest, independent probe, audit, wheel,
 compiled binary copy, resource journal and before/after source record is retained.
 inventory.json gives size and SHA-256 for every payload file except its own
-self-reference, including result.json. Neither logs nor manifests are deleted.
+self-reference and the final result.json receipt. The final receipt pins the
+completed inventory SHA; it stays negative until inventory completion. Inventory
+failure, uncertain cleanup, and deadline overrun cannot earn a positive receipt.
+Raw case files are also rehashed against their pinned per-case audits after
+comparison, so neither compared exports nor their audit manifests may change. Neither logs nor manifests are deleted.
 Final tracked-source bytes/modes/clean standing, installed native hash and wheel
 hash must remain unchanged. Failure retains partial outputs and unattempted cases.
 

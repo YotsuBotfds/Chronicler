@@ -65,7 +65,10 @@ def sha(path):
 
 
 def write(path, value):
-    Path(path).write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    path = Path(path)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def strict_json(raw):
@@ -124,14 +127,16 @@ def case_contract(name, files, state, bundle):
     for world in (state, bundle["world_state"]):
         require(type(world.get("turn")) is int and world["turn"] == turns, "incomplete world horizon")
         require(type(world.get("seed")) is int and world["seed"] == seed, "wrong world seed")
-        require(world.get("agent_mode") == mode, "wrong agent mode")
+        allowed_modes = (None, "off") if mode == "off" else ("hybrid",)
+        require("agent_mode" in world and world["agent_mode"] in allowed_modes, "wrong agent mode")
         require(len(world["regions"]) == regions, "wrong region shape")
         require(len(world["civilizations"]) >= civs, "starting civilizations missing")
     metadata = bundle["metadata"]
     require(metadata.get("seed") == seed and metadata.get("total_turns") == turns, "wrong bundle horizon")
     require([row["turn"] for row in bundle["history"]] == list(range(1, turns + 1)),
             "history must cover every completed turn")
-    return {"seed": seed, "turns": turns, "mode": mode, "regions": regions,
+    return {"seed": seed, "turns": turns, "cli_mode": mode,
+            "serialized_mode": state["agent_mode"], "regions": regions,
             "initial_civs_requested": civs, "final_civs": len(state["civilizations"]),
             "scale_target": target, "files": len(files)}
 
@@ -186,33 +191,36 @@ def require_matrix(path):
     require(len(matches) == 1 and ast.literal_eval(matches[0]) == CASES, "case matrix changed")
 
 
-def resources(path):
+def resources(path, *, meminfo=Path("/proc/meminfo"),
+              process_cgroup=Path("/proc/self/cgroup"), cgroup_root=Path("/sys/fs/cgroup")):
     available = None
-    for line in Path("/proc/meminfo").read_text().splitlines():
+    for line in meminfo.read_text().splitlines():
         if line.startswith("MemAvailable:"):
             available = int(line.split()[1]) * 1024
     require(available is not None, "MemAvailable unavailable")
     limits = []
     observed_v2 = False
     # Conservatively count charged cgroup page cache as used; do not invent reclaimable RAM.
-    for line in Path("/proc/self/cgroup").read_text().splitlines():
+    for line in process_cgroup.read_text().splitlines():
         group, controllers, relative = line.split(":", 2)
         if group != "0" or controllers:
             continue
         observed_v2 = True
         require(relative.startswith("/") and ".." not in Path(relative).parts, "invalid cgroup path")
-        current = Path("/sys/fs/cgroup").joinpath(*Path(relative).parts[1:])
+        current = cgroup_root.joinpath(*Path(relative).parts[1:])
         while True:
             maximum, usage = current / "memory.max", current / "memory.current"
-            if maximum.is_file() and usage.is_file():
+            if maximum.is_file() or usage.is_file():
+                require(maximum.is_file() and usage.is_file(), "incomplete cgroup memory visibility")
                 cap, used = maximum.read_text().strip(), int(usage.read_text())
-                if cap != "max":
-                    limits.append({"path": str(current), "max": int(cap), "current": used})
-            if current == Path("/sys/fs/cgroup"):
+                require(used >= 0 and (cap == "max" or int(cap) > 0), "invalid cgroup memory values")
+                limits.append({"path": str(current), "max": "max" if cap == "max" else int(cap), "current": used})
+            if current == cgroup_root:
                 break
             current = current.parent
-    require(observed_v2, "cgroup v2 resource visibility required")
-    ram = min([available] + [max(0, row["max"] - row["current"]) for row in limits])
+    require(observed_v2 and limits, "cgroup v2 memory visibility required")
+    ram = min([available] + [max(0, row["max"] - row["current"])
+                            for row in limits if row["max"] != "max"])
     return {"disk_free": shutil.disk_usage(path).free, "ram_available": ram,
             "host_mem_available": available, "cgroup_limits": limits}
 
@@ -241,9 +249,15 @@ def session_live(sid):
     return rows
 
 
+def boot_id():
+    return Path("/proc/sys/kernel/random/boot_id").read_text()
+
+
 class Supervisor:
     def __init__(self, root, deadline):
         self.root, self.deadline = root, deadline
+        self.cleanup_complete = True
+        self.children = []
 
     def event(self, kind, **fields):
         with (self.root / "progress.jsonl").open("a", encoding="utf-8") as stream:
@@ -255,21 +269,51 @@ class Supervisor:
         self.event("resources", phase=phase, **row)
         admit(row, disk, ram)
 
+    def signal_session(self, child, owner, boot, sig):
+        require(boot_id() == boot, "boot identity changed; cleanup ownership uncertain")
+        leader = process_stat(child.pid)
+        require(leader and leader["session"] == child.pid and leader["pgrp"] == child.pid,
+                "unreaped private-session leader unavailable")
+        if owner is not None:
+            require(leader["birth"] == owner["birth"], "private-session leader birth changed")
+        # A verified same-session member can use another process group.
+        # pidfds prevent reuse between the membership/birth checks and signal.
+        for member in session_live(child.pid):
+            try:
+                descriptor = os.pidfd_open(member["pid"])
+            except ProcessLookupError:
+                continue
+            try:
+                current = process_stat(member["pid"])
+                if current is None:
+                    continue
+                require(current["birth"] == member["birth"] and current["session"] == child.pid,
+                        "session-member identity changed before signal")
+                try:
+                    signal.pidfd_send_signal(descriptor, sig)
+                except ProcessLookupError:
+                    pass
+            finally:
+                os.close(descriptor)
+
     def command(self, label, command, env, cwd):
         require(time.monotonic() < self.deadline, "aggregate 80-minute child wall limit reached")
         self.admission(label + ":before", 3, 1)
         self.event("child_start", label=label, command=command, cwd=str(cwd))
+        boot = boot_id()  # Read before creating a child.
         log = self.root / "logs" / (label + ".log")
         with log.open("wb") as stream:
             child = subprocess.Popen(command, cwd=cwd, env=env, stdout=stream,
                                      stderr=subprocess.STDOUT, start_new_session=True)
-            # Do not poll/wait/communicate until the private session is quiescent.
-            owner = process_stat(child.pid)
-            boot = Path("/proc/sys/kernel/random/boot_id").read_text()
-            require(owner and owner["session"] == child.pid and owner["pgrp"] == child.pid,
-                    "private child session could not be established")
-            failed = None
+            self.children.append(child)
+            self.cleanup_complete = False
+            owner = failed = cleanup_error = None
             try:
+                # Protection starts immediately after successful Popen.
+                owner = process_stat(child.pid)
+                require(owner and owner["session"] == child.pid and owner["pgrp"] == child.pid,
+                        "private child session could not be established")
+                # No poll/wait/communicate until the owned session is quiescent.
                 while True:
                     if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
                         break
@@ -280,34 +324,27 @@ class Supervisor:
             except Exception as exc:
                 failed = exc
             finally:
-                live = session_live(child.pid)
-                if live:
-                    current = process_stat(child.pid)
-                    require(current and current["birth"] == owner["birth"] and
-                            current["session"] == child.pid and
-                            Path("/proc/sys/kernel/random/boot_id").read_text() == boot,
-                            "child ownership lease changed; cleanup refused")
-                    require(all(row["pgrp"] == child.pid for row in live),
-                            "unexpected child process group; cleanup uncertain")
+                try:
                     for sig, seconds in ((signal.SIGTERM, 10), (signal.SIGKILL, 5)):
-                        try:
-                            os.killpg(child.pid, sig)
-                        except ProcessLookupError:
-                            pass
                         end = time.monotonic() + seconds
                         while session_live(child.pid) and time.monotonic() < end:
+                            self.signal_session(child, owner, boot, sig)
                             time.sleep(.1)
                         if not session_live(child.pid):
                             break
-                remaining = session_live(child.pid)
-                self.event("child_cleanup", label=label, same_session_live=remaining)
-                require(not remaining, "live owned writers remain; cleanup incomplete")
-                child.wait(timeout=2)
-                self.event("child_exit", label=label, returncode=child.returncode)
+                    require(not session_live(child.pid), "live owned writers remain; cleanup incomplete")
+                    child.wait(timeout=2)
+                    self.children.remove(child)
+                    self.cleanup_complete = True
+                except Exception as exc:
+                    cleanup_error = type(exc).__name__ + ": " + str(exc)
+                self.event("child_cleanup", label=label, complete=self.cleanup_complete,
+                           cleanup_error=cleanup_error)
+            require(self.cleanup_complete, "child cleanup unverified: " + str(cleanup_error))
+            self.event("child_exit", label=label, returncode=child.returncode)
             if failed:
                 raise failed
             require(child.returncode == 0, label + " exited " + str(child.returncode))
-
 
 def probe(args):
     import chronicler
@@ -458,7 +495,8 @@ def execute(args):
                 [py, str(SCRIPT), "inspect", "--case-root", str(arm_root / name),
                  "--case", name, "--out", str(audit)], env, arm_root)
             row["status"] = "complete"
-            supervisor.event("case_complete", arm=arm, case=name, audit_sha256=sha(audit))
+            row["audit_sha256"] = sha(audit)
+            supervisor.event("case_complete", arm=arm, case=name, audit_sha256=row["audit_sha256"])
         require_case_sets(*[{path.name for path in (root / "raw" / arm).iterdir() if path.is_dir()}
                             for arm in ("baseline", "candidate")])
         supervisor.command("compare", [py, str(candidate / "scripts/turn_speed_identity.py"), "compare",
@@ -470,6 +508,7 @@ def execute(args):
         report["error"] = type(exc).__name__ + ": " + str(exc)
     finally:
         try:
+            require(supervisor.cleanup_complete, "cleanup unverified; final source/raw inventories withheld")
             after = {name: source_snapshot(source, expected[name], deadline) for name, source in roots.items()}
             write(root / "sources-after.json", after)
             require(before == after, "tracked source bytes/modes or source standing changed")
@@ -477,6 +516,13 @@ def execute(args):
                 require(sha(native_file) == native_expected, "installed native binary changed")
             if wheel is not None:
                 require(sha(wheel) == wheel_sha, "built wheel changed")
+            for row in rows:
+                if row["status"] == "complete":
+                    audit = root / "audits" / (row["arm"] + "-" + row["case"] + ".json")
+                    require(sha(audit) == row["audit_sha256"], "case audit changed")
+                    original = strict_json(audit.read_bytes())["files"]
+                    actual = payload_inventory(root / "raw" / row["arm"] / row["case"])
+                    require(actual == original, "raw case exports changed after audit")
             require(time.monotonic() <= deadline, "aggregate child wall budget exceeded")
         except Exception as exc:
             report["qualified"] = False
@@ -484,12 +530,29 @@ def execute(args):
         for row in rows:
             if row["status"] == "started":
                 row["status"] = "failed"
-        report["elapsed_wall_seconds"] = WALL_SECONDS - max(0, deadline - time.monotonic())
-        write(root / "result.json", report)
-        write(root / "inventory.json", payload_inventory(root, exclude=("inventory.json",)))
+        finish_evidence(root, report, supervisor.cleanup_complete, deadline)
     print(json.dumps({"qualified": report["qualified"], "error": report.get("error"),
                       "final_identity_error": report.get("final_identity_error")}), flush=True)
     return 0 if report["qualified"] else 1
+
+
+def finish_evidence(root, report, quiescent, deadline):
+    desired = report["qualified"]
+    report["qualified"] = False
+    write(root / "result.json", report)  # Durable negative until inventory is complete.
+    try:
+        require(quiescent, "live-writer cleanup unverified; payload inventory withheld")
+        inventory = payload_inventory(root, exclude=("inventory.json", "result.json"))
+        write(root / "inventory.json", inventory)
+        report["inventory_sha256"] = sha(root / "inventory.json")
+        require(time.monotonic() <= deadline, "aggregate wall budget exceeded during inventory")
+        report["qualified"] = desired
+    except Exception as exc:
+        report["qualified"] = False
+        report["inventory_error"] = type(exc).__name__ + ": " + str(exc)
+    report["elapsed_wall_seconds"] = time.monotonic() - (deadline - WALL_SECONDS)
+    write(root / "result.json", report)
+    return report["qualified"]
 
 
 def main():
