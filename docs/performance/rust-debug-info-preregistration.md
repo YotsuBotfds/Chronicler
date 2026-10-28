@@ -70,7 +70,8 @@ bytes, file counts and filesystem free bytes every second, and largest final
 files. These are sampled target peaks, not an instantaneous peak or process RSS.
 Two scholarship workers continue growing their output, so startup free space
 alone is insufficient. Stop the owned process group if free space falls below
-3 GiB plus a 512 MiB stopping reserve, or target size exceeds its declared cap;
+3 GiB plus a 512 MiB stopping reserve, or unique allocated target size exceeds
+the registered 2 GiB cap;
 report the trigger and preserve failure evidence. Sampling cannot guarantee an
 instantaneous hard filesystem floor. Never signal another worker or clean a
 shared target. No automatic failed-artifact deletion.
