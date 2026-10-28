@@ -16,8 +16,13 @@ Frozen `b25727e3` now has [complete native/no-native Python and 28-chunk offline
 qualification](integration/python-qualification-b257-2026-10-28.md): 7,645 native
 and 7,331 no-native parent tests passed, each with 526 successful subtests;
 all offline chunks passed with the unchanged 110-second limit. Later finite
-research agendas remain prospective work on a separate branch. The long
-before/after population gates retain their original sources and remain pending.
+research implementation is preserved in unpublished local source `22a48ffa`;
+its native proof was not launched. The older before/after population gates
+subsequently completed on `cb9fe70c` / `5b5252ed` and their original native
+runtime. The [last-observed recovery record](integration/population-gate-recovery-record-2026-10-28.md)
+keeps required-oracle PASS / NO_REGRESSION distinct from both causal-required
+FAILs. Its raw local evidence is currently inaccessible and was not freshly
+rehashed during the GitHub-only continuation.
 
 2026-10-28 evidence addendum: frozen `d051d7c0` / receipt release `fb20dbc8`
 passed the [full Rust qualification](integration/rust-qualification-d051-2026-10.md).
