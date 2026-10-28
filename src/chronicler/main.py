@@ -372,15 +372,6 @@ def _finance_snapshot_fields(world) -> dict:
     return {"finance": snapshot_summary(world)}
 
 
-def _domestic_credit_snapshot_fields(world) -> dict:
-    """Domestic credit per-turn summary for the viewer snapshot (empty when off)."""
-    from chronicler.domestic_credit_state import domestic_credit_on
-    if not domestic_credit_on(world):
-        return {}
-    from chronicler.domestic_credit import snapshot_summary
-    return {"domestic_credit": snapshot_summary(world)}
-
-
 def _diplomacy_snapshot_fields(world) -> dict:
     """Diplomacy per-turn summary for the viewer snapshot (empty when off)."""
     from chronicler.diplomacy import diplomacy_enabled, snapshot_summary
@@ -920,7 +911,6 @@ def execute_run(
             **_contact_snapshot_fields(world),
             **_epidemic_snapshot_fields(world),
             **_finance_snapshot_fields(world),
-            **_domestic_credit_snapshot_fields(world),
             **_diplomacy_snapshot_fields(world),
             **_techniques_snapshot_fields(world),
             **_maritime_snapshot_fields(world),

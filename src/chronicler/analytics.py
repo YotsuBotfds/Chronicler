@@ -1471,7 +1471,7 @@ def generate_report(
     reserve_metrics = extract_grain_reserve_metrics(bundles)
     if reserve_metrics.get("runs"):
         report["grain_reserves"] = reserve_metrics
-    # Domestic credit: present only for runs whose bundles carry history[n].domestic_credit.
+    # Domestic credit: present only for runs whose bundles carry history[n].finance.domestic_credit.
     from chronicler.domestic_credit import extract_domestic_credit_metrics
     credit_metrics = extract_domestic_credit_metrics(bundles)
     if credit_metrics.get("runs"):

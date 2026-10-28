@@ -621,8 +621,9 @@ def begin(world, agent_bridge=None) -> Tick | None:
 
 def region_grievances(world) -> list[float] | None:
     """Per region index, its merchants' grievance toward a defaulting lord
-    (the region batch's ``creditor_grievance`` column), or None when off."""
-    if not domestic_credit_on(world):
+    (the region batch's ``creditor_grievance`` column), or None when off
+    (or dormant without finance, whose tick lets it decay)."""
+    if not domestic_credit_on(world) or getattr(world, "finance", None) is None:
         return None
     g = world.domestic_credit.grievance
     return [min(1.0, max(0.0, g[r])) if r < len(g) else 0.0 for r in range(len(world.regions))]
@@ -787,7 +788,7 @@ def claims_by_borrower(world) -> dict[int, list[int]]:
 
 
 def snapshot_summary(world) -> dict:
-    """Per-turn summary for ``TurnSnapshot.domestic_credit``."""
+    """Per-turn summary, carried as ``TurnSnapshot.finance["domestic_credit"]``."""
     st = world.domestic_credit
     kinds = [0] * len(KIND_NAMES)
     civs = {}
@@ -808,16 +809,17 @@ def snapshot_summary(world) -> dict:
 
 
 def extract_domestic_credit_metrics(bundles: Iterable[dict]) -> dict:
-    """Aggregate domestic-credit metrics over bundles that carry
-    ``history[n].domestic_credit`` (and the final world state's books)."""
+    """Aggregate domestic-credit metrics over bundles whose history carries
+    ``finance["domestic_credit"]`` (and the final world state's books)."""
     runs = 0
     claim_turns = {k: 0 for k in KIND_NAMES}
     peak = 0
     grievance_turns = 0
     totals: dict[str, int] = {}
     for bundle in bundles:
-        rows = [h.get("domestic_credit") for h in bundle.get("history") or []
-                if isinstance(h, dict) and h.get("domestic_credit")]
+        rows = [(h.get("finance") or {}).get("domestic_credit") for h in bundle.get("history") or []
+                if isinstance(h, dict)]
+        rows = [row for row in rows if row]
         if not rows:
             continue
         runs += 1

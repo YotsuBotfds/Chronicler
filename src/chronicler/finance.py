@@ -1401,7 +1401,13 @@ def snapshot_summary(world) -> dict:
             "debasements": f.debasements,
             "credit_premium": round(f.credit_premium, 5),
         }
-    return {"civs": civs, "loans": len(st.loans), "totals": dict(sorted(st.totals.items()))}
+    out = {"civs": civs, "loans": len(st.loans), "totals": dict(sorted(st.totals.items()))}
+    if getattr(world, "domestic_credit", None) is not None:
+        # --domestic-credit: who holds the domestic claims (and merchants'
+        # grievance); absent without the switch.
+        from chronicler.domestic_credit import snapshot_summary as credit_summary
+        out["domestic_credit"] = credit_summary(world)
+    return out
 
 
 def extract_finance_metrics(bundles: Iterable[dict]) -> dict:

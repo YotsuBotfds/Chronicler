@@ -1432,9 +1432,6 @@ class TurnSnapshot(BaseModel):
     epidemics: dict | None = Field(default=None, exclude_if=_is_none)
     # Money, credit and public finance per-turn summary; None (omitted) when off.
     finance: dict | None = Field(default=None, exclude_if=_is_none)
-    # Domestic credit per-turn summary (claims by lender kind, by borrower,
-    # merchants' grievance); None (and omitted) when off.
-    domestic_credit: dict | None = Field(default=None, exclude_if=_is_none)
     # Diplomacy per-turn summary; None (and omitted) when diplomacy is off.
     diplomacy: dict | None = Field(default=None, exclude_if=_is_none)
     # Techniques per-turn summary; None (and omitted) when techniques are off.
