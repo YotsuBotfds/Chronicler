@@ -127,9 +127,11 @@ question identities, fixed measurement namespace and explicit stop-on-full;
 it does not promise an unlimited archive. Focused legacy/calendar counterexamples
 passed under the offline guard after a CPU slot was released. The
 [lazy-state foundation](../../integration/scientific-research-agendas.md)
-retains disabled raw pickle/JSON identity against twelve frozen-source artifacts;
-the coherent recurrent scheduler remains pending. No new world cohort, tuning
-or default change is implemented here.
+and coherent internal scheduler retain disabled raw pickle/JSON identity
+against sixteen frozen-source artifacts. The default-off internal API has
+186 focused guarded checks; shared CLI wiring, native composition and broader
+qualification remain follow-ups. No new natural-world cohort, tuning or
+default change is implemented here.
 
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 

@@ -121,7 +121,11 @@ class ScienceMessage(LazyResearchModel):
         return 0 if value is None else value
 
 
-class AdoptionEffort(BaseModel):
+class AdoptionEffort(LazyResearchModel):
+    lazy_name = "claim_id"
+    lazy_backing = "_claim_id"
+    lazy_payload = int
+
     seat: int
     region: int
     recipe: str
@@ -129,6 +133,10 @@ class AdoptionEffort(BaseModel):
     confidence: float
     paid: int  # whole seat payment on its first allocation row; zero on others
     event_id: str = ""  # present only for a first/materially changed allocation
+
+    @property
+    def claim_id(self):
+        return self._research_value()  # old paid rows have unknown topic identity
 
 
 class ScientificClaimsState(LazyResearchModel):

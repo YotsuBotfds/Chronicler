@@ -7,7 +7,7 @@ import pickle
 import pytest
 
 from chronicler.models import WorldState
-from chronicler.scientific_claims_state import ProposalReceipt, ScienceMessage, ScientificClaimsState
+from chronicler.scientific_claims_state import AdoptionEffort, ProposalReceipt, ScienceMessage, ScientificClaimsState
 from chronicler.scientific_research_state import ResearchAgendas, ResearchCycle
 from test_scientific_claims import _world
 
@@ -28,6 +28,7 @@ def _state():
     (lambda: ProposalReceipt(seat=0, claim=0, received_turn=0), "agenda_id"),
     (lambda: ScienceMessage(kind="proposal", record=0, sender=0, recipient=1,
                            sent_turn=0, delivery_turn=1, expires_turn=6, hops=1), "agenda_id"),
+    (lambda: AdoptionEffort(seat=0, region=0, recipe="irrigation", share=.5, confidence=.5, paid=1), "claim_id"),
 ])
 def test_legacy_reads_dumps_and_copies_never_add_lazy_state(factory, name):
     value = factory()
@@ -149,3 +150,11 @@ def test_adopted_legacy_unknown_opening_is_none_never_negative():
     assert ResearchCycle(**values).opened_turn is None
     with pytest.raises(ValueError):
         ResearchCycle(**{**values, "opened_turn": -1})
+
+
+def test_allocation_topic_is_lazy_and_old_missing_identity_is_unknown_not_zero():
+    old = AdoptionEffort(seat=0, region=0, recipe="irrigation", share=1., confidence=.5, paid=1)
+    assert old.claim_id is None and "claim_id" not in old.model_dump()
+    old._set_research_value(0)
+    restored = AdoptionEffort.model_validate_json(old.model_dump_json())
+    assert restored.claim_id == 0 and restored.model_dump()["claim_id"] == 0

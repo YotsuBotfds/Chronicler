@@ -191,7 +191,7 @@ def _emit(world, events, kind: str, seat_id: int, description: str, *, causes=()
     return event
 
 
-def _fund_trial(world, claim, seat_id: int, parent: int, acc, events=None) -> None:
+def _fund_trial(world, claim, seat_id: int, parent: int, acc, events=None, *, research_cycle=None) -> None:
     state = world.scientific_claims
     if len(state.trials) >= MAX_TRIALS:
         return
@@ -203,12 +203,15 @@ def _fund_trial(world, claim, seat_id: int, parent: int, acc, events=None) -> No
                             funded_turn=world.turn, completion_turn=world.turn + 1,
                             cost=TRIAL_COST, parent=parent)
     state.trials.append(trial)
+    if research_cycle is not None:
+        research_cycle.trials.append(trial.id)
     state.trial_spent += TRIAL_COST
     parent_trial = next((t for t in state.trials if t.id == parent), None)
     funded = _emit(world, events, "scientific_trial_funded", seat_id,
                    f"{world.scholarship.seats[seat_id].name} pays {TRIAL_COST} treasury units "
                    f"for trial #{trial.id} of its contextual {claim.recipe} grain-output claim",
-                   causes=(claim.event_id, parent_trial.funded_event_id if parent_trial else ""), payer=payer)
+                   causes=(claim.event_id, parent_trial.funded_event_id if parent_trial else "",
+                           research_cycle.announcement_event_id if research_cycle is not None else ""), payer=payer)
     trial.funded_event_id = funded.event_id
     try:
         region_id = world.scholarship.seats[seat_id].region
@@ -392,6 +395,10 @@ def tick_scientific_claims(world, acc=None) -> list:
     if not scientific_claims_active(world):
         return []
     state = world.scientific_claims
+    plan = state.research_agendas
+    if plan is not None:
+        from chronicler.scientific_research import tick_research_agendas
+        return tick_research_agendas(world, acc, plan)
     if state.last_tick_turn == world.turn:
         return []
     state.last_tick_turn = world.turn
@@ -485,6 +492,10 @@ def confidence(world, seat_id: int, claim_id: int) -> float:
     """Only received information, deduped source data and capped block weight."""
     if not scientific_claims_active(world):
         return 0.5
+    plan = world.scientific_claims.research_agendas
+    if plan is not None:
+        from chronicler.scientific_research import confidence as research_confidence
+        return research_confidence(world, seat_id, claim_id, plan)
     claim = next((c for c in world.scientific_claims.claims if c.id == claim_id), None)
     if claim is None:
         return 0.5
@@ -502,6 +513,10 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
     if not scientific_claims_active(world):
         return {}
     state = world.scientific_claims
+    plan = state.research_agendas
+    if plan is not None:
+        from chronicler import scientific_research as research
+        research.validate_state(world, plan)
     if state.last_effort_turn != world.turn:
         state.last_effort_turn = world.turn
         state.last_effort = []
@@ -516,6 +531,8 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
                          and p.received_turn <= world.turn}
                 claims = [c for c in state.claims if c.id in known and c.proposed_turn <= world.turn
                           and _applicable(world, seat_id, c)]
+                if plan is not None:
+                    claims = research.policy_claims(world, seat_id, plan)
                 if not claims:
                     continue
                 used_regions.add(seat.region)
@@ -523,7 +540,8 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
                     state.unfunded_effort += 1
                     continue
                 state.effort_spent += EFFORT_COST
-                beliefs = [confidence(world, seat_id, c.id) for c in claims]
+                beliefs = ([confidence(world, seat_id, c.id) for c in claims] if plan is None else
+                           [research.confidence_from_evidence(world, seat_id, c) for c in claims])
                 total = sum(beliefs)
                 shares = {c.recipe: belief / total for c, belief in zip(claims, beliefs)}
                 reported = state.reported_allocations.get(seat_id)
@@ -535,6 +553,8 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
                               for receipt in _received_evidence(world, seat_id, claim)]
                     if not causes:
                         causes = [c.event_id for c in claims]
+                    if plan is not None:
+                        causes = research.allocation_causes(world, seat_id, claims, plan)
                     allocation_id = _emit(world, events, "scientific_adoption_allocated", seat_id,
                                            f"{seat.name} pays {EFFORT_COST} treasury unit for its fixed local "
                                            "adoption allowance: " + ", ".join(
@@ -542,10 +562,13 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
                                            causes=causes).event_id
                     state.reported_allocations[seat_id] = shares
                 for i, (claim, belief) in enumerate(zip(claims, beliefs)):
-                    state.last_effort.append(AdoptionEffort(seat=seat_id, region=seat.region,
-                                                            recipe=claim.recipe, share=belief / total,
-                                                            confidence=belief, paid=EFFORT_COST if i == 0 else 0,
-                                                            event_id=allocation_id))
+                    effort = AdoptionEffort(seat=seat_id, region=seat.region,
+                                            recipe=claim.recipe, share=belief / total,
+                                            confidence=belief, paid=EFFORT_COST if i == 0 else 0,
+                                            event_id=allocation_id)
+                    if plan is not None:
+                        effort._set_research_value(claim.id)
+                    state.last_effort.append(effort)
     grants: dict[tuple[int, int], float] = {}
     used: dict[int, float] = {}
     for effort in state.last_effort:
@@ -564,6 +587,10 @@ def snapshot_summary(world) -> dict | None:
     source_turn = world.turn - 1
     if source_turn < 0 or state.last_tick_turn != source_turn:
         return None
+    plan = state.research_agendas
+    if plan is not None:
+        from chronicler.scientific_research import snapshot_summary as research_summary
+        return research_summary(world, plan)
     active = scientific_claims_active(world)
     beliefs = []
     if active:

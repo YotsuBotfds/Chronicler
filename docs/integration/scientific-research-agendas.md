@@ -2,8 +2,9 @@
 
 The [prospective contract](../experiments/scientific-research-agendas-prospective-2026-10-28.md)
 and its peer amendments were committed before runtime changes. This line is
-default off and separate from main; an internal API and coherent scheduler
-are still required before this foundation is usable as recurring research.
+default off and separate from main. The internal scheduler/API checkpoint is
+implemented below; shared CLI wiring and broader/native qualification remain
+separate follow-ups.
 
 ## Lazy retained-state foundation
 
@@ -38,3 +39,67 @@ External artifacts are under `/workspace/chronicler-science-research-evidence`:
 The external probe `/tmp/export_scientific_raw_model_identity.py` SHA-256 is
 `45396ce08f6a8961fc25330d4ff1190fabf15254ce82aa51bc20d64bfd512b0e`.
 Existing natural/native research evidence was not modified or rerun.
+
+## Coherent internal scheduler and observation checkpoint
+
+The explicit API is
+`chronicler.scientific_research.set_research_agendas_enabled(world, bool)`.
+It validates retained state before activation or pause. Core tick, confidence,
+adoption and summary paths dispatch on substate **presence**, including when
+paused. Absent research still follows the old path. Shared CLI/harness control
+surface is not claimed complete at this checkpoint.
+
+Canonical topic reuse, actual agenda question keys, per-cycle original/replica
+membership and closed-cohort delivery are implemented. The measurement
+`cohort` and original effort `started_turn` never advance. New windows have
+explicit origin/lag/arrival/date checks; adopted legacy work retains its own
+late-funding/dynamic-delivery rules and unknown opening roster/deadlines.
+
+Capacity records distinguish committed rows from outstanding reservations.
+Unpaid slots release when funding closes; already-paid running/publication
+receipt obligations survive until delivery, actual expiry or an impossible
+publication. Pending messages are a subset of owed receipts, not duplicate
+capacity. Reservations are storage, not earmarked cash: every actual payment
+still uses projected treasury and accumulator `keep` semantics.
+
+Malformed controls/counters, raw grants, duplicate messages, impossible dates,
+overlapping funding windows and broken references are rejected before tick/
+effort guards, payments or backing attachment mutate. Current allowance rows
+carry genuinely lazy `claim_id`, set at Phase 4 payment. Legacy rows remain
+unknown; new current-context beliefs cannot overwrite that paid identity.
+Allocation provenance cites the actual local renewed question and evidence.
+Next-turn partial Phase 4 state cannot be relabelled as the prior snapshot.
+
+New-mode summaries freeze version 1 / `finite-retained-v1`, current/open cycle,
+actual dates, planned windows, used/reserved/limit capacities, reasoned unfilled
+slots, archive counts and non-inferred historical completeness. They select
+canonical current-context policy rows without silent clipping. Retained raw
+state is distinct from the snapshot's source-turn-only resolution details.
+
+**186 focused guarded checks passed in 10.48 seconds**, covering the existing
+pilot/publication and experiment seams plus new state, lifecycle and mechanics.
+No native module, network/child-process attempt or oracle runtime call occurred.
+Mechanical cases include fourteen trials over several cycles; same-topic work
+at another academy after its first origin falls; explicit new-academy knowledge;
+all forty paid trials retained at capacity (80 trial treasury); ordinary info
+controls; replay aliases/shared blocks; context A→B→A; pause/resume and exact
+Python checkpoints; late actual publication; phase-order/canonical-paid-topic
+separation; and pending/already-applied projected treasury.
+
+The legacy raw-identity probe was repeated after these hooks. All original
+twelve artifacts still matched frozen b257. A second independent probe added
+standalone paid allocation and a nested world with source-12 payments: both
+pickle and JSON matched, bringing the comparison to **sixteen artifacts** with
+no stripping. The allocation remains 283 pickle bytes, SHA-256
+`0106847e7c276281aa96d401c39333330001653e7859f6de87ef95000a734162`.
+The four added artifacts' identical manifest SHA-256 is
+`85ffb32125c2b55ef593193d8647525be857f4f81c2f40e9c154c879145d88e6`;
+external probe SHA-256
+`1a634c32836bb9a21dbba798afadd4f85db6a4e1544752c5cafb920e2ec3e353`.
+Evidence folders are `b257-frozen-paid`, `coherent-legacy-paid` and
+`coherent-legacy-models` under the same external evidence root above.
+
+These are bounded controlled Python mechanics and compatibility proofs. They
+do not qualify natural recurrence, native composition, scientific efficacy or
+default activation. The known two-season paid-use gap and finite storage/
+institution limits remain as registered; no threshold was tuned from outcomes.
