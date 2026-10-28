@@ -64,6 +64,7 @@ class ScientificTrial(BaseModel):
     supports: bool | None = None
     status: Literal["running", "completed", "cancelled", "failed"] = "running"
     reason: str = ""
+    funded_event_id: str = ""
     event_id: str = ""
 
 
@@ -80,6 +81,7 @@ class EvidenceReceipt(BaseModel):
     received_turn: int
     sender: int
     hops: int = 0
+    event_id: str = ""
 
 
 class ScienceMessage(BaseModel):
@@ -100,6 +102,7 @@ class AdoptionEffort(BaseModel):
     share: float
     confidence: float
     paid: int  # whole seat payment on its first allocation row; zero on others
+    event_id: str = ""  # present only for a first/materially changed allocation
 
 
 class ScientificClaimsState(BaseModel):
@@ -112,6 +115,7 @@ class ScientificClaimsState(BaseModel):
     receipts: list[EvidenceReceipt] = Field(default_factory=list, max_length=MAX_SEATS * MAX_TRIALS)
     messages: list[ScienceMessage] = Field(default_factory=list, max_length=MAX_MESSAGES)
     last_effort: list[AdoptionEffort] = Field(default_factory=list, max_length=MAX_SEATS * 2)
+    reported_allocations: dict[int, dict[str, float]] = Field(default_factory=dict, max_length=MAX_SEATS)
     withhold_information: bool = False
     transmission_enabled: bool = True
     uninformative_tests: bool = False

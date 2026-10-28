@@ -46,6 +46,14 @@ def _forecast(status="delivered"):
                            "paid_during_warning": 4, "extra_target": 5}]}
 
 
+def _science():
+    return {"source_turn": 9, "propositions": [{"id": 0, "recipe": "irrigation", "proposed_turn": 0}],
+            "beliefs": [{"seat": 1, "seat_name": "Then-academy", "region": 0, "region_name": "Here",
+                         "owner_name": "A", "claim": 0, "confidence": 2 / 3, "independent_groups": 1,
+                         "last_evidence_turn": 7}],
+            "allocations": [{"seat": 1, "region": 0, "recipe": "irrigation", "share": 2 / 3, "paid": 1}]}
+
+
 def _text(snapshot, civs=("A",), regions=("Here",), at=9):
     return "\n".join(text for _keys, text in expansion_state_facts(snapshot, civs, regions, at))
 
@@ -196,3 +204,63 @@ def test_optional_event_kinds_are_readable_and_recurring_bulletins_are_folded():
     lines, omitted = NC.select_prompt_events(events)
     assert len(lines) <= NC.ROUTINE_FILL
     assert len(lines) + sum(len(line.folded) for line in lines) + sum(omitted.values()) == 100
+
+
+def test_scientific_context_describes_dated_local_belief_and_paid_share_without_truth_claims():
+    state = _science()
+    snapshot = _snap(scientific_claims=state)
+    before = copy.deepcopy(snapshot.model_dump())
+    text = _text(snapshot)
+    assert "Then-academy in Here records 67% local confidence" in text
+    assert "contextual irrigation grain-output claim #0" in text
+    assert "last informative evidence received on turn 7" in text
+    assert "paid allowance on turn 9 assigns 67%" in text
+    assert all(word not in text.lower() for word in ("verified", "proved", "independent", "higher yield", "effective"))
+    assert snapshot.model_dump() == before
+    facts = NC.standing_state_facts(snapshot, [_event("scientific_evidence_received")])
+    refs = [FactIds([], []).snapshot(snapshot.turn, kind, key) for keys, _ in facts for kind, key in keys]
+    assert any(ref.startswith("s10.scientific_belief.") for ref in refs)
+    assert any(ref.startswith("s10.scientific_allocation.") for ref in refs)
+
+
+@pytest.mark.parametrize("change", ["source", "future_proposal", "future_receipt", "missing_date", "invalid_confidence", "other_focus"])
+def test_scientific_context_rejects_undated_future_or_unrelated_records(change):
+    state = _science()
+    if change == "source":
+        state["source_turn"] = 10
+    elif change == "future_proposal":
+        state["propositions"][0]["proposed_turn"] = 10
+    elif change == "future_receipt":
+        state["beliefs"][0]["last_evidence_turn"] = 10
+    elif change == "missing_date":
+        state["propositions"][0].pop("proposed_turn")
+    elif change == "invalid_confidence":
+        state["beliefs"][0]["confidence"] = float("nan")
+    else:
+        state["beliefs"][0].update(region_name="Elsewhere", owner_name="Other")
+    assert _text(_snap(scientific_claims=state)) == ""
+
+
+def test_scientific_prior_and_missing_payment_are_not_received_evidence_or_paid_work():
+    state = _science()
+    state["beliefs"][0].update(last_evidence_turn=None, confidence=.5)
+    state["allocations"][0]["paid"] = 0
+    text = _text(_snap(scientific_claims=state))
+    assert "50% local confidence" in text and "no informative evidence receipt" in text
+    assert "paid allowance" not in text
+
+
+def test_scientific_labels_and_repeat_folding_share_existing_event_and_state_budgets(monkeypatch):
+    kinds = ("scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed",
+             "scientific_trial_cancelled", "scientific_trial_failed", "scientific_evidence_received",
+             "scientific_adoption_allocated")
+    for kind in kinds:
+        event = _event(kind)
+        assert "scientific_" not in NC.event_text(event)
+        assert NC.is_routine(event) == (kind not in ("scientific_trial_cancelled", "scientific_trial_failed"))
+    events = [_event("scientific_evidence_received") for _ in range(100)]
+    lines, omitted = NC.select_prompt_events(events)
+    assert len(lines) <= NC.ROUTINE_FILL
+    assert len(lines) + sum(len(line.folded) for line in lines) + sum(omitted.values()) == 100
+    monkeypatch.setattr(NC, "MAX_STATE_LINES", 1)
+    assert len(NC.standing_state_facts(_snap(scientific_claims=_science()), events)) == 1

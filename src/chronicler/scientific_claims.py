@@ -27,6 +27,7 @@ REPLICATION_LAG = 12
 EFFORT_CADENCE = 6
 EFFORT_COST = 1
 EFFORT_ALLOWANCE = 0.01
+ALLOCATION_EVENT_DELTA = 0.05  # observation only; does not control paid effort
 MAX_HOPS = 3
 DELIVERY_LIFETIME = 6
 
@@ -166,7 +167,30 @@ def _pay(world, seat_id: int, cost: int, acc) -> int:
     return ci
 
 
-def _fund_trial(world, claim, seat_id: int, parent: int, acc) -> None:
+def _emit(world, events, kind: str, seat_id: int, description: str, *, causes=(), payer=None):
+    """Assign ordinary timeline identity; domain claim/trial IDs stay separate.
+
+    Phase owners append returned records to their event list. Standalone
+    helpers may omit the destination, but still get deterministic references.
+    No cause is inferred from a recipe's physical diagnostic or its label.
+    """
+    from chronicler import provenance
+    from chronicler.models import Event
+    seat = world.scholarship.seats[seat_id]
+    region = world.regions[seat.region]
+    if payer is None:
+        payer = _payer(world, seat)
+    actors = ([world.civilizations[payer].name] if 0 <= payer < len(world.civilizations) else [])
+    event = Event(turn=world.turn, event_type=kind, actors=actors + [seat.name],
+                  region=region.name, description=description, importance=3)
+    provenance.cite(event, *causes)
+    provenance.observe_now(world, event)
+    if events is not None:
+        events.append(event)
+    return event
+
+
+def _fund_trial(world, claim, seat_id: int, parent: int, acc, events=None) -> None:
     state = world.scientific_claims
     if len(state.trials) >= MAX_TRIALS:
         return
@@ -179,6 +203,12 @@ def _fund_trial(world, claim, seat_id: int, parent: int, acc) -> None:
                             cost=TRIAL_COST, parent=parent)
     state.trials.append(trial)
     state.trial_spent += TRIAL_COST
+    parent_trial = next((t for t in state.trials if t.id == parent), None)
+    funded = _emit(world, events, "scientific_trial_funded", seat_id,
+                   f"{world.scholarship.seats[seat_id].name} pays {TRIAL_COST} treasury units "
+                   f"for trial #{trial.id} of its contextual {claim.recipe} grain-output claim",
+                   causes=(claim.event_id, parent_trial.event_id if parent_trial else ""), payer=payer)
+    trial.funded_event_id = funded.event_id
     try:
         region_id = world.scholarship.seats[seat_id].region
         control, treatment, inputs = evaluate_trial(world, region_id, claim)
@@ -192,9 +222,25 @@ def _fund_trial(world, claim, seat_id: int, parent: int, acc) -> None:
         trial.status, trial.reason = "failed", str(exc)
         trial.resolved_turn = world.turn
         state.failed += 1
+        trial.event_id = _emit(world, events, "scientific_trial_failed", seat_id,
+                               f"Paid trial #{trial.id} at {world.scholarship.seats[seat_id].name} "
+                               "fails to produce valid physical measurements",
+                               causes=(trial.funded_event_id,), payer=payer).event_id
 
 
-def _finish_trials(world) -> None:
+def _record_receipt(world, receipt: EvidenceReceipt, events=None) -> None:
+    state = world.scientific_claims
+    trial = next(t for t in state.trials if t.id == receipt.trial)
+    forwarded = next((r for r in state.receipts
+                      if r.seat == receipt.sender and r.trial == receipt.trial), None)
+    receipt.event_id = _emit(world, events, "scientific_evidence_received", receipt.seat,
+                             f"{world.scholarship.seats[receipt.seat].name} receives the recorded "
+                             f"result of trial #{receipt.trial} as local evidence",
+                             causes=(trial.event_id, forwarded.event_id if forwarded else "")).event_id
+    state.receipts.append(receipt)
+
+
+def _finish_trials(world, events=None) -> None:
     state = world.scientific_claims
     claims = {c.id: c for c in state.claims}
     for trial in state.trials:
@@ -205,6 +251,10 @@ def _finish_trials(world) -> None:
             trial.status, trial.reason = "cancelled", "academy or registered context unavailable"
             trial.resolved_turn = world.turn
             state.cancelled += 1
+            trial.event_id = _emit(world, events, "scientific_trial_cancelled", trial.seat,
+                                   f"Paid trial #{trial.id} at {world.scholarship.seats[trial.seat].name} "
+                                   "is cancelled because its academy or registered context is unavailable",
+                                   causes=(trial.funded_event_id,), payer=trial.payer).event_id
             continue
         rng = random.Random(stable_hash_int("scientific_claims.measurement", world.seed,
                                            state.cohort, trial.id, trial.source_data))
@@ -218,14 +268,21 @@ def _finish_trials(world) -> None:
                               / trial.observed_control >= claim.threshold)
         trial.status = "completed"
         trial.resolved_turn = world.turn
+        seat_name = world.scholarship.seats[trial.seat].name
+        withheld = "; its result is withheld from institutional belief updates" if state.withhold_information else ""
+        trial.event_id = _emit(world, events, "scientific_trial_completed", trial.seat,
+                               f"{seat_name} completes paid trial #{trial.id} of {claim.recipe}, "
+                               f"recording local test outputs of {trial.observed_control:.3f} and "
+                               f"{trial.observed_treatment:.3f} grain{withheld}",
+                               causes=(trial.funded_event_id,), payer=trial.payer).event_id
         if state.withhold_information:
             state.withheld_results += 1
         else:
-            state.receipts.append(EvidenceReceipt(seat=trial.seat, trial=trial.id,
-                                                  received_turn=world.turn, sender=trial.seat))
+            _record_receipt(world, EvidenceReceipt(seat=trial.seat, trial=trial.id,
+                                                  received_turn=world.turn, sender=trial.seat), events)
 
 
-def _receive(world) -> None:
+def _receive(world, events=None) -> None:
     state = world.scientific_claims
     if not state.transmission_enabled:
         state.expired_messages += len(state.messages)
@@ -248,9 +305,9 @@ def _receive(world) -> None:
                                                         received_turn=world.turn, hops=msg.hops))
         elif not state.withhold_information:
             if not any(r.seat == msg.recipient and r.trial == msg.record for r in state.receipts):
-                state.receipts.append(EvidenceReceipt(seat=msg.recipient, trial=msg.record,
+                _record_receipt(world, EvidenceReceipt(seat=msg.recipient, trial=msg.record,
                                                       received_turn=world.turn, sender=msg.sender,
-                                                      hops=msg.hops))
+                                                      hops=msg.hops), events)
     state.messages = pending
 
 
@@ -268,8 +325,8 @@ def _transmit(world) -> None:
     records = [("proposal", p.claim, p.seat, p.hops, claims[p.claim].proposed_turn)
                for p in state.proposals]
     if not state.withhold_information:
-        records += [("evidence", r.trial, r.seat, r.hops, trials[r.trial].completion_turn)
-                    for r in state.receipts]
+        records += [("evidence", r.trial, r.seat, r.hops, trials[r.trial].resolved_turn)
+                    for r in state.receipts if trials[r.trial].resolved_turn is not None]
     for kind, record, sender, hops, published in sorted(records):
         source = _academy(world, sender)
         if source is None or hops >= MAX_HOPS or world.turn + 1 > published + DELIVERY_LIFETIME:
@@ -296,13 +353,14 @@ def tick_scientific_claims(world, acc=None) -> list:
     if state.last_tick_turn == world.turn:
         return []
     state.last_tick_turn = world.turn
+    events = []
     for i, seat in enumerate(world.scholarship.seats):
         if len(state.seat_ids) >= MAX_SEATS:
             break
         if i not in state.seat_ids and _academy(world, i) is not None:
             state.seat_ids.append(i)
-    _finish_trials(world)
-    _receive(world)
+    _finish_trials(world, events)
+    _receive(world, events)
     if not state.claims:
         for seat_id in state.seat_ids:
             ctx = _context(world, seat_id)
@@ -315,6 +373,11 @@ def tick_scientific_claims(world, acc=None) -> list:
                 continue
             state.started_turn = world.turn
             state.claims = candidates
+            for claim in candidates:
+                claim.event_id = _emit(world, events, "scientific_claim_proposed", seat_id,
+                                       f"{world.scholarship.seats[seat_id].name} proposes claim #{claim.id}: "
+                                       f"{claim.recipe} practice raises grain output by at least "
+                                       f"{100 * claim.threshold:.0f}% under its recorded local protocol").event_id
             state.proposals = [ProposalReceipt(seat=seat_id, claim=c.id, received_turn=world.turn)
                                for c in candidates]
             break
@@ -322,7 +385,7 @@ def tick_scientific_claims(world, acc=None) -> list:
         originals = [t for t in state.trials if t.claim == claim.id and t.parent < 0]
         if not originals:
             if _applicable(world, claim.origin_seat, claim):
-                _fund_trial(world, claim, claim.origin_seat, -1, acc)
+                _fund_trial(world, claim, claim.origin_seat, -1, acc, events)
             continue
         original = originals[0]
         if (world.turn < original.funded_turn + REPLICATION_LAG
@@ -331,36 +394,46 @@ def tick_scientific_claims(world, acc=None) -> list:
         for seat_id in state.seat_ids:
             if (seat_id != original.seat and _applicable(world, seat_id, claim)
                     and any(p.seat == seat_id and p.claim == claim.id for p in state.proposals)):
-                _fund_trial(world, claim, seat_id, original.id, acc)
+                _fund_trial(world, claim, seat_id, original.id, acc, events)
                 break
     _transmit(world)
-    return []
+    return events
 
 
-def _received_groups(world, seat_id: int, claim: ScientificClaim):
-    """Return policy-visible source groups and the last informative receipt."""
+def _received_evidence(world, seat_id: int, claim: ScientificClaim):
+    """Policy-visible receipts only, with duplicate source data removed."""
     state = world.scientific_claims
     if state.withhold_information or not _applicable(world, seat_id, claim):
-        return {}, None
+        return []
     trials = {t.id: t for t in state.trials}
-    groups: dict[str, list[float]] = {}
+    visible = []
     sources = set()
-    last_date = None
     for receipt in sorted(state.receipts, key=lambda r: (r.received_turn, r.trial)):
         if receipt.seat != seat_id or receipt.received_turn > world.turn:
             continue
         trial = trials.get(receipt.trial)
         if (trial is None or trial.claim != claim.id or trial.status != "completed"
-                or trial.completion_turn > world.turn
+                or trial.completion_turn > world.turn or trial.resolved_turn is None
+                or trial.resolved_turn > world.turn
                 or not trial.informative or trial.supports is None
                 or not trial.source_data or not trial.dependence_group
                 or trial.inputs.get("context") != claim.context.model_dump()
                 or trial.source_data in sources):
             continue
         sources.add(trial.source_data)
+        visible.append(receipt)
+    return visible
+
+
+def _received_groups(world, seat_id: int, claim: ScientificClaim):
+    """Return policy-visible source groups and the last informative receipt."""
+    trials = {t.id: t for t in world.scientific_claims.trials}
+    receipts = _received_evidence(world, seat_id, claim)
+    groups: dict[str, list[float]] = {}
+    for receipt in receipts:
+        trial = trials[receipt.trial]
         groups.setdefault(trial.dependence_group, []).append(float(trial.supports))
-        last_date = receipt.received_turn
-    return groups, last_date
+    return groups, receipts[-1].received_turn if receipts else None
 
 
 def confidence(world, seat_id: int, claim_id: int) -> float:
@@ -375,7 +448,7 @@ def confidence(world, seat_id: int, claim_id: int) -> float:
     return (1. + support) / (2. + len(groups))
 
 
-def prepare_adoption_effort(world, acc=None) -> dict[tuple[int, int], float]:
+def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, int], float]:
     """Phase 4 fixed paid effort; beliefs change allocation, not its budget.
 
     Returning the saved same-turn allocation is idempotent for the debit.
@@ -406,10 +479,27 @@ def prepare_adoption_effort(world, acc=None) -> dict[tuple[int, int], float]:
                 state.effort_spent += EFFORT_COST
                 beliefs = [confidence(world, seat_id, c.id) for c in claims]
                 total = sum(beliefs)
+                shares = {c.recipe: belief / total for c, belief in zip(claims, beliefs)}
+                reported = state.reported_allocations.get(seat_id)
+                changed = (reported is None or set(reported) != set(shares)
+                           or any(abs(shares[k] - reported[k]) >= ALLOCATION_EVENT_DELTA for k in shares))
+                allocation_id = ""
+                if changed:
+                    causes = [receipt.event_id for claim in claims
+                              for receipt in _received_evidence(world, seat_id, claim)]
+                    if not causes:
+                        causes = [c.event_id for c in claims]
+                    allocation_id = _emit(world, events, "scientific_adoption_allocated", seat_id,
+                                           f"{seat.name} pays {EFFORT_COST} treasury unit for its fixed local "
+                                           "adoption allowance: " + ", ".join(
+                                               f"{100 * share:.0f}% to {recipe}" for recipe, share in shares.items()),
+                                           causes=causes).event_id
+                    state.reported_allocations[seat_id] = shares
                 for i, (claim, belief) in enumerate(zip(claims, beliefs)):
                     state.last_effort.append(AdoptionEffort(seat=seat_id, region=seat.region,
                                                             recipe=claim.recipe, share=belief / total,
-                                                            confidence=belief, paid=EFFORT_COST if i == 0 else 0))
+                                                            confidence=belief, paid=EFFORT_COST if i == 0 else 0,
+                                                            event_id=allocation_id))
     grants: dict[tuple[int, int], float] = {}
     used: dict[int, float] = {}
     for effort in state.last_effort:
@@ -443,12 +533,14 @@ def snapshot_summary(world) -> dict | None:
                 # Context is evaluated at the completed turn, as it was for
                 # that turn's policy. A view does not alter the real calendar.
                 groups, last_date = _received_groups(view, seat_id, claim)
+                visible = _received_evidence(view, seat_id, claim)
                 support = sum(sum(v) / len(v) for v in groups.values())
                 beliefs.append({"seat": seat_id, "seat_name": seat.name,
                                 "region": seat.region, "region_name": region.name,
                                 "owner": _payer(world, seat), "owner_name": region.controller,
                                 "claim": claim.id, "confidence": (1. + support) / (2. + len(groups)),
-                                "independent_groups": len(groups), "last_evidence_turn": last_date})
+                                "independent_groups": len(groups), "last_evidence_turn": last_date,
+                                "last_evidence_event_id": visible[-1].event_id if visible else ""})
     return {"source_turn": source_turn, "active": active, "seats": len(state.seat_ids),
             "claims": len(state.claims), "trials": len(state.trials),
             "completed": sum(t.status == "completed" for t in state.trials),
@@ -460,7 +552,8 @@ def snapshot_summary(world) -> dict | None:
                          "transmission_enabled": state.transmission_enabled,
                          "uninformative_tests": state.uninformative_tests},
             "propositions": [{"id": c.id, "recipe": c.recipe, "origin_seat": c.origin_seat,
-                              "context": c.context.model_dump(), "threshold": c.threshold}
+                              "context": c.context.model_dump(), "threshold": c.threshold,
+                              "proposed_turn": c.proposed_turn, "event_id": c.event_id}
                              for c in state.claims],
             "beliefs": beliefs[:MAX_SEATS * len(RECIPES)],
             "trials_resolved": [t.model_dump() for t in state.trials if t.resolved_turn == source_turn],

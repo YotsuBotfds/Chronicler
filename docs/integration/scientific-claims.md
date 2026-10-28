@@ -54,16 +54,16 @@ It does not imply a universal technique benefit. On every sixth turn relative
 to the persisted cohort start an
 applicable academy can pay one treasury unit for a fixed adoption allowance,
 split by confidence. The total extra rate is at most 0.01 per region.
+`techniques._update_practice` applies it inside its existing logistic growth,
+prerequisite, suitability, workforce-shortfall and disruption gates. At zero
+practice it cannot invent a technique, and above the suitability cap it
+cannot turn decay into growth. No belief is read by the yield functions.
 
 The calendar correction was checked before world qualification with cohorts
 starting at turns 0, 3, 6 and 9. Each retained paid adoption opportunities and
 serialized continuation equality. The 36 focused checks passed under Python
 3.13.5 with the installed native extension; this is mechanical verification,
 not a population or causal-benefit gate.
-`techniques._update_practice` applies it inside its existing logistic growth,
-prerequisite, suitability, workforce-shortfall and disruption gates. At zero
-practice it cannot invent a technique, and above the suitability cap it
-cannot turn decay into growth. No belief is read by the yield functions.
 
 Both experiment and effort payments use exact projected treasury and `keep`
 mutations. Same-turn guards prevent duplicate debits. Effort allocation rows
@@ -92,6 +92,44 @@ at most forty copied current belief rows with institutional names, confidence,
 dependence-group counts and last evidence dates, and current paid allocations.
 Only trials resolved in that completed turn appear in `trials_resolved`;
 the snapshot does not repeat every lifetime trial record each turn.
+
+## Dated provenance and narration
+
+The ordinary event timeline records `scientific_claim_proposed`,
+`scientific_trial_funded`, `scientific_trial_completed`,
+`scientific_trial_cancelled`, `scientific_trial_failed`,
+`scientific_evidence_received` and `scientific_adoption_allocated`.
+Claim/trial integer IDs remain cohort-local domain identities; ordinary event
+IDs remain emission-turn/type/counter identities. A funding cites its proposal
+and, for replication, the original resolved trial. Resolution cites funding;
+a genuine receipt cites resolution and the sender's receipt where applicable.
+Paid allocation cites the received informative records actually used, or
+the proposal when no informative evidence has arrived. Withholding produces
+completed records explicitly marked withheld and no evidence-receipt event.
+Failed/cancelled work never fabricates a receipt.
+
+The first paid allocation per academy is reported. A later event requires
+a changed recipe set or at least five percentage points of changed share
+since the last report. This threshold only limits event reporting: all actual
+payments and allocations still occur and appear in snapshots. A bounded map
+retains at most twenty reported splits; it is not a policy input. Ordinary
+proposal/funding/completion/receipt/allocation events are routine narrator
+records and share existing repeat-folding and prompt budgets.
+
+All events carry their actual simulated turn S and belong to observation
+snapshot S+1 with `source_turn=S`. Propositions add `proposed_turn` and
+`event_id`; resolved trials include `funded_event_id` and their resolved
+`event_id`; belief rows include the last informative receipt's event ID.
+An allocation row carries an event ID only when that payment was reported.
+After a dormant host resumes, an observation's actual `resolved_turn`, rather
+than its planned completion, starts its message lifetime. Unknown or future
+actual resolution dates cannot influence beliefs.
+
+Narration reads at most one focused science line from the dated snapshot.
+It names recorded local confidence, actual receipt dates and a paid allowance
+share; it does not translate confidence into verified physical truth or
+certified independent populations. Future/undated propositions and future
+receipts are ignored, with no fallback to the final world.
 
 ## Verification and limits
 

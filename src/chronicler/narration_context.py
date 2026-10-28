@@ -67,6 +67,13 @@ EVENT_LABELS: dict[str, str] = {
     "harvest_forecast_resolved": "a harvest assessment for {a} is closed",
     "harvest_gathering_held": "{a} holds a local harvest gathering",
     "harvest_gathering_cancelled": "a local harvest gathering in {a} is cancelled",
+    "scientific_claim_proposed": "an academy in {a} proposes a contextual grain-output claim",
+    "scientific_trial_funded": "{a} funds a local academy trial",
+    "scientific_trial_completed": "an academy in {a} records a local trial result",
+    "scientific_trial_cancelled": "a paid academy trial in {a} is cancelled",
+    "scientific_trial_failed": "a paid academy trial in {a} fails to produce a measurement",
+    "scientific_evidence_received": "an academy in {a} receives a recorded trial result",
+    "scientific_adoption_allocated": "an academy in {a} allocates paid local adoption effort",
 }
 
 # Recorded descriptions that mislead, read as what was recorded.
@@ -187,6 +194,8 @@ ROUTINE_TYPES: frozenset[str] = frozenset({
     # Gatherings already emit only salient first/change/cancellation events.
     "occupational_injury", "harvest_forecast_issued", "harvest_forecast_delivered",
     "harvest_forecast_resolved",
+    "scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed",
+    "scientific_evidence_received", "scientific_adoption_allocated",
 })
 
 
@@ -805,7 +814,7 @@ def standing_state_facts(
     expansion = expansion_state_facts(snapshot, civs, regions, at_turn)
     expansion = expansion[:MAX_STATE_LINES]
     expansion_focus = any(ev.event_type == "occupational_injury"
-                          or ev.event_type.startswith(("harvest_forecast_", "harvest_gathering_"))
+                          or ev.event_type.startswith(("harvest_forecast_", "harvest_gathering_", "scientific_"))
                           for ev in events)
     if expansion_focus and expansion:
         return lines[:max(0, MAX_STATE_LINES - len(expansion))] + expansion

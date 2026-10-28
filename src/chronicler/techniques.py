@@ -930,7 +930,7 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
     claims_effort = None
     if getattr(world, "scientific_claims", None) is not None:
         from chronicler.scientific_claims import prepare_adoption_effort
-        claims_effort = prepare_adoption_effort(world, acc)
+        claims_effort = prepare_adoption_effort(world, acc, events=events)
     practice, meta = _update_practice(world, st, ctrl, links, suit, learning, claims_effort)
     if learning is not None:
         # Scholars fleeing a fallen seat (last Phase 10) carry techniques to

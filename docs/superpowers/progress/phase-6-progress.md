@@ -51,6 +51,19 @@ merchant-tax experiment remain separate. Individual integration notes and the
 
 ---
 
+## Default-off contextual scientific claims (2026-10-28)
+
+The separate dev-lead line includes a bounded academy pilot: two contextual
+grain-output claims, paid physical-function trials, dated local evidence and
+paid adoption effort inside ordinary technique gates. Calendar cadence is
+cohort-relative; withholding, local-only delivery and comparator-centered
+sham observations remain explicit controls. Factual event chains and dated
+narration now expose funding, resolution, receipt and reported allocation.
+See [the pilot notes](../../integration/scientific-claims.md) and its
+[prospective contract](../../experiments/scientific-claims-2026-10.md).
+Controlled mechanical checks do not qualify world benefits, scientific
+independence or default activation; paired natural-world arms remain next.
+
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
 > **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)

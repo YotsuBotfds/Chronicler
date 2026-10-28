@@ -161,6 +161,90 @@ def test_trials_are_paid_dated_and_do_not_create_goods(monkeypatch):
     assert [r.model_dump_json() for r in world.regions] == physical
 
 
+def test_events_link_domain_claims_funding_results_receipts_and_paid_policy(monkeypatch):
+    world = _world()
+    monkeypatch.setattr(C, "MEASUREMENT_NOISE", 0.)
+    start = _tick(world, 0)
+    assert [e.event_type for e in start] == ["scientific_claim_proposed"] * 2 + ["scientific_trial_funded"] * 2
+    claims, trials = world.scientific_claims.claims, world.scientific_claims.trials
+    assert [c.id for c in claims] == [0, 1]  # domain identity is not a timeline ID
+    assert all(c.event_id.startswith("0:scientific_claim_proposed:") for c in claims)
+    assert all(t.funded_event_id and not t.event_id for t in trials)
+    by_id = {e.event_id: e for e in start}
+    assert by_id[trials[0].funded_event_id].causes == [claims[0].event_id]
+    complete = _tick(world, 1)
+    by_id.update({e.event_id: e for e in complete})
+    for trial in trials:
+        receipt = next(r for r in world.scientific_claims.receipts if r.trial == trial.id and r.seat == 0)
+        assert by_id[trial.event_id].event_type == "scientific_trial_completed"
+        assert by_id[trial.event_id].causes == [trial.funded_event_id]
+        assert by_id[receipt.event_id].event_type == "scientific_evidence_received"
+        assert by_id[receipt.event_id].causes == [trial.event_id]
+    remote = _tick(world, 2)
+    by_id.update({e.event_id: e for e in remote})
+    receipt = next(r for r in world.scientific_claims.receipts if r.trial == 0 and r.seat == 1)
+    origin = next(r for r in world.scientific_claims.receipts if r.trial == 0 and r.seat == 0)
+    assert by_id[receipt.event_id].causes == [trials[0].event_id, origin.event_id]
+    assert all(e.turn == 2 for e in remote)
+    assert _tick(world, 2) == []
+    world.turn = 12
+    policy = []
+    C.prepare_adoption_effort(world, events=policy)
+    allocation = next(e for e in policy if "Academy 1" in e.actors)
+    received = {r.event_id for r in world.scientific_claims.receipts if r.seat == 1}
+    assert set(allocation.causes) <= received and receipt.event_id in allocation.causes
+    assert all(e.event_id for e in world.scientific_claims.last_effort)
+    assert C.prepare_adoption_effort(world, events=policy)
+    assert len(policy) == len({e.event_id for e in policy})  # same-turn call cannot re-emit/debit
+
+
+def test_repeated_unchanged_paid_allocations_are_not_event_spam(monkeypatch):
+    world = _world()
+    world.climate_config.period = 200  # keep registered eligibility while testing the observer
+    _complete(world, monkeypatch)
+    world.turn = 12
+    first = []
+    C.prepare_adoption_effort(world, events=first)
+    assert first and all(e.event_type == "scientific_adoption_allocated" for e in first)
+    before = world.scientific_claims.effort_spent
+    world.turn = 24
+    repeated = []
+    C.prepare_adoption_effort(world, events=repeated)
+    assert repeated == []
+    assert world.scientific_claims.effort_spent > before
+    assert all(not row.event_id for row in world.scientific_claims.last_effort)
+    # Actual separately funded replication and delivery change a later split.
+    for turn in (24, 25, 26):
+        _tick(world, turn)
+    world.turn = 36
+    changed = []
+    C.prepare_adoption_effort(world, events=changed)
+    assert changed and all(e.event_type == "scientific_adoption_allocated" for e in changed)
+
+
+def test_withheld_and_failed_work_emit_no_fictitious_evidence_receipts(monkeypatch):
+    world = _world()
+    world.scientific_claims.withhold_information = True
+    _tick(world, 0)
+    events = _tick(world, 1)
+    assert all(e.event_type == "scientific_trial_completed" for e in events)
+    assert all("withheld from institutional belief updates" in e.description for e in events)
+    assert world.scientific_claims.receipts == []
+    world.turn = 12
+    paid = []
+    C.prepare_adoption_effort(world, events=paid)
+    proposal_ids = {c.event_id for c in world.scientific_claims.claims}
+    assert all(set(e.causes) <= proposal_ids for e in paid)
+    failed = _world()
+    monkeypatch.setattr(C, "evaluate_trial", lambda *args: (_ for _ in ()).throw(ValueError("invalid")))
+    events = _tick(failed, 0)
+    assert len([e for e in events if e.event_type == "scientific_trial_failed"]) == 2
+    assert not any(e.event_type == "scientific_evidence_received" for e in events)
+    for trial in failed.scientific_claims.trials:
+        event = next(e for e in events if e.event_id == trial.event_id)
+        assert event.causes == [trial.funded_event_id]
+
+
 def test_paid_failure_cancellation_and_null_records_survive(monkeypatch):
     failed = _world()
     def fail(*a):
@@ -513,6 +597,24 @@ def test_no_early_or_unreceived_diagnostics_in_policy(monkeypatch):
     assert C.confidence(world, 1, 0) == .5
 
 
+def test_actual_resolution_dates_gate_belief_and_message_lifetime(monkeypatch):
+    world = _world()
+    monkeypatch.setattr(C, "MEASUREMENT_NOISE", 0.)
+    _tick(world, 0)
+    # A dormant host system can resume after the nominal one-turn horizon.
+    # Observation publication is its actual resolved date, not its old plan.
+    _tick(world, 12)
+    completed = [t for t in world.scientific_claims.trials if t.parent < 0]
+    assert all(t.completion_turn == 1 and t.resolved_turn == 12 for t in completed)
+    pending = [m for m in world.scientific_claims.messages if m.kind == "evidence"]
+    assert pending and all(m.delivery_turn == 13 and m.expires_turn == 18 for m in pending)
+    trial = completed[0]
+    trial.resolved_turn = 13
+    assert C.confidence(world, 0, trial.claim) == .5
+    trial.resolved_turn = None  # legacy/unknown actual outcome date is not evidence
+    assert C.confidence(world, 0, trial.claim) == .5
+
+
 def test_delivery_expiry_and_fallen_or_local_only_destinations(monkeypatch):
     expired, fallen, stopped = _world(), _world(), _world()
     for world in (expired, fallen, stopped):
@@ -606,3 +708,9 @@ def test_full_turn_hooks_and_exact_continuation_use_paid_runtime(tmp_path):
     assert split.model_dump_json() == uninterrupted.model_dump_json()
     assert split.scientific_claims.trial_spent == 8
     assert split.scientific_claims.effort_spent > 0
+    kinds = {e.event_type for e in split.events_timeline}
+    assert {"scientific_claim_proposed", "scientific_trial_funded", "scientific_trial_completed",
+            "scientific_evidence_received", "scientific_adoption_allocated"} <= kinds
+    by_id = {e.event_id: e for e in split.events_timeline}
+    assert all(cause in by_id and by_id[cause].turn <= e.turn
+               for e in split.events_timeline if e.event_type.startswith("scientific_") for cause in e.causes)

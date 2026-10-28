@@ -1,4 +1,4 @@
-"""Bounded, dated reads of the three optional expansion snapshot receipts.
+"""Bounded, dated reads of optional expansion snapshot receipts.
 
 No simulation imports or world-state fallbacks. Estimates remain estimates,
 attendance remains selected local presence and work-time inputs are not deaths,
@@ -120,4 +120,43 @@ def expansion_state_facts(snapshot, civs, regions, at_turn):
                 keys.append(("harvest_preparedness", row["id"]))
             facts.append((keys, text))
             break
+    science = _dated(snapshot, "scientific_claims", at_turn)
+    if science is not None:
+        source = science["source_turn"]
+        propositions = {p["id"]: p for p in _rows(science, "propositions")
+                        if isinstance(p.get("id"), int) and not isinstance(p["id"], bool)
+                        and isinstance(p.get("proposed_turn"), int)
+                        and not isinstance(p["proposed_turn"], bool)
+                        and p["proposed_turn"] <= source and isinstance(p.get("recipe"), str)}
+        rows = [r for r in _rows(science, "beliefs") if r.get("region_name") and r.get("seat_name")
+                and isinstance(r.get("seat"), int) and not isinstance(r["seat"], bool)
+                and isinstance(r.get("claim"), int) and not isinstance(r["claim"], bool)
+                and r["claim"] in propositions and _focus(r, civs, regions, "owner_name")
+                and _number(r.get("confidence")) is not None and r["confidence"] <= 1
+                and (r.get("last_evidence_turn") is None
+                     or (isinstance(r["last_evidence_turn"], int)
+                         and not isinstance(r["last_evidence_turn"], bool)
+                         and r["last_evidence_turn"] <= source))]
+        rows.sort(key=lambda r: (r["region_name"] not in regions, str(r["seat_name"]), str(r["claim"])))
+        if rows:
+            row = rows[0]
+            claim = propositions[row["claim"]]
+            text = (f"{row['seat_name']} in {row['region_name']} records "
+                    f"{100 * row['confidence']:.0f}% local confidence in its contextual "
+                    f"{claim['recipe']} grain-output claim #{row['claim']}")
+            if row.get("last_evidence_turn") is None:
+                text += "; no informative evidence receipt is recorded for this context"
+            else:
+                text += f"; last informative evidence received on turn {row['last_evidence_turn']}"
+            keys = [("scientific_belief", (row["seat"], row["claim"]))]
+            paid = sum(a["paid"] for a in _rows(science, "allocations")
+                       if a.get("seat") == row["seat"] and _number(a.get("paid")) is not None)
+            allocation = next((a for a in _rows(science, "allocations")
+                               if a.get("seat") == row.get("seat") and a.get("recipe") == claim["recipe"]
+                               and _number(a.get("share")) is not None and a["share"] <= 1), None) if paid > 0 else None
+            if allocation is not None:
+                text += (f"; its recorded paid allowance on turn {source} assigns "
+                         f"{100 * allocation['share']:.0f}% to this recipe")
+                keys.append(("scientific_allocation", (row["seat"], row["claim"])))
+            facts.append((keys, text))
     return facts
