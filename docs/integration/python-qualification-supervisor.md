@@ -39,6 +39,12 @@ Logs, JUnit and atomic live/terminal receipts remain in the external destination
 File writes flush and replace atomically. Do not overwrite another run.
 Status rechecks pass/outcome/exit consistency, both required artifact hashes and
 actual JUnit cases/counts before returning a verified passing receipt.
+Pytest 9 counts successful subtests in its JUnit `tests` header without writing
+additional testcase elements. Such an excess is accepted only when the final
+pytest summary independently matches every serialized passed/skipped case and
+the exact successful-subtest excess. Failed, unsupported or mismatched subtest
+accounting remains an error. Receipts report parent cases and successful
+subtests separately, retaining the declared JUnit total.
 
 ## Detachment and process boundaries
 
@@ -137,3 +143,20 @@ That attempt ended at collection with missing checkout-level `tests`/`scripts`
 imports and remains a failed execution receipt. The corrected fixed environment
 includes both `src` and the checkout root; the actual tiny fixture now imports
 both namespaces so this boundary is exercised before another full attempt.
+
+The corrected full-source executions on frozen `d051d7c0` subsequently exited
+zero: native/fb20 had 7,348 passed and 6 skipped in 1,049.62 s; no-native had
+7,037 passed and 303 skipped in 738.74 s. Each also passed 526 subtests. The
+original strict reader rejected pytest 9's JUnit header accounting, so those
+original terminal receipts remain `qualification_error`. A later reader-only
+adjudication may validate the unchanged hashed logs/XML and recorded stable
+before/after identities; it must hash-link the original receipt and both runner
+versions, preserve the original result, and state that no tests were rerun.
+The initial collection failure remains a failed attempt.
+
+Reader-correction checks passed on the same Linux/Python 3.13.5 host: **36
+passed** without native (3.76 s) and **36 passed** with native/fb20 (4.53 s).
+The real foreground/detached tiny children each execute two successful subtests.
+Regression cases reject missing/mismatched terminal summaries, failed subtests,
+duplicate counters, wrong parent counts and trailing output. These checks do
+not add cross-platform or scientific qualification.

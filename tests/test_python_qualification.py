@@ -37,7 +37,7 @@ def frozen_source(tmp_path):
     (source / "scripts/__init__.py").write_text("")
     (source / "scripts/helper.py").write_text("VALUE = 4\n")
     (source / "tests/helper.py").write_text("VALUE = 2\n")
-    (source / "tests/test_tiny.py").write_text("from scripts.helper import VALUE as four\nfrom tests.helper import VALUE as two\n\ndef test_tiny():\n    assert two + two == four\n")
+    (source / "tests/test_tiny.py").write_text("from scripts.helper import VALUE as four\nfrom tests.helper import VALUE as two\n\ndef test_tiny(subtests):\n    for value in (two, four):\n        with subtests.test(value=value):\n            assert value % two == 0\n")
     (source / "pyproject.toml").write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
     subprocess.run(["git", "init", "-q", str(source)], check=True)
     subprocess.run(["git", "-C", str(source), "add", "."], check=True)
@@ -136,6 +136,30 @@ def test_junit_must_describe_actual_executed_test_cases(tool, tmp_path, xml, err
     path.write_text(xml)
     with pytest.raises(error):
         tool.junit_counts(path)
+
+
+def test_pytest9_successful_subtests_require_matching_terminal_evidence(tool, tmp_path):
+    path, log = tmp_path / "junit.xml", tmp_path / "pytest.log"
+    path.write_text('<testsuites><testsuite tests="4" failures="0" errors="0" skipped="1"><testcase name="parent" /><testcase name="skip"><skipped /></testcase></testsuite></testsuites>')
+    log.write_text("progress\n1 passed, 1 skipped, 2 subtests passed in 0.01s\n")
+    assert tool.junit_counts(path, log) == {"tests": 2, "failures": 0, "errors": 0, "skipped": 1,
+                                            "subtests_passed": 2, "junit_declared_tests": 4}
+    with pytest.raises(ValueError, match="JUnit declared counts"):
+        tool.junit_counts(path)
+
+
+@pytest.mark.parametrize("summary", [
+    "", "mocked pytest execution", "1 passed, 1 subtests passed in 0.01s",
+    "2 passed, 2 subtests passed in 0.01s", "1 passed, 1 subtests passed, 1 subtests failed in 0.01s",
+    "1 passed, 2 subtests passed, 1 failed in 0.01s", "1 passed, 2 subtests passed, 1 passed in 0.01s",
+    "1 passed, 2 subtests passed in 0.01s\ntrailing output",
+])
+def test_unreconciled_or_unsuccessful_subtests_cannot_earn_a_pass(tool, tmp_path, summary):
+    path, log = tmp_path / "junit.xml", tmp_path / "pytest.log"
+    path.write_text('<testsuites><testsuite tests="3" failures="0" errors="0" skipped="0"><testcase name="parent" /></testsuite></testsuites>')
+    log.write_text(summary + "\n")
+    with pytest.raises(ValueError):
+        tool.junit_counts(path, log)
 
 
 @pytest.mark.parametrize("code,junit,outcome", [(0, True, "pass"), (1, True, "test_failure"), (0, False, "qualification_error")])
@@ -320,6 +344,7 @@ def test_real_tiny_child(tool, frozen_source, tmp_path, monkeypatch, detached):
     assert result["state"] == "complete" and result["passed"], result
     receipt = tool.read_json(output / "result.json")
     assert receipt["junit"]["tests"] == 1 and receipt["junit"]["skipped"] == 0
+    assert receipt["junit"]["subtests_passed"] == 2 and receipt["junit"]["junit_declared_tests"] == 3
     assert receipt["source_before"] == receipt["source_after"]
     with pytest.raises(FileExistsError):
         tool.launch(args)

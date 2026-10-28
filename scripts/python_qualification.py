@@ -255,7 +255,37 @@ def boundary(output: Path, status: dict, label: str) -> None:
     update_status(output, status, state=label)
 
 
-def junit_counts(path: Path) -> dict:
+def successful_subtests(log: Path, actual: dict, difference: int) -> int:
+    """Reconcile pytest 9's passed-subtest stats without inventing test cases.
+
+    Its JUnit reporter increments ``tests`` for successful subtest reports but
+    serializes only their parent testcase. Require the final pytest summary to
+    independently account for both that excess and every serialized testcase.
+    Unsupported/failed subtest accounting remains a qualification error.
+    """
+    lines = log.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        raise ValueError("JUnit subtest counts require a terminal pytest summary")
+    line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", lines[-1]).strip("= ")
+    summary = re.fullmatch(r"(.+) in [0-9]+(?:\.[0-9]+)?s(?: \([^()]+\))?", line)
+    if summary is None:
+        raise ValueError("JUnit subtest counts require a terminal pytest summary")
+    counters = {}
+    for item in summary[1].split(", "):
+        token = re.fullmatch(r"([0-9]+) (passed|skipped|xfailed|xpassed|subtests passed|warnings?)", item)
+        if token is None or token[2] in counters:
+            raise ValueError("unsupported pytest summary for successful subtest accounting")
+        counters[token[2]] = int(token[1])
+    skipped = counters.get("skipped", 0) + counters.get("xfailed", 0)
+    passed = counters.get("passed", 0) + counters.get("xpassed", 0)
+    subtests = counters.get("subtests passed", 0)
+    if (actual["failures"] or actual["errors"] or skipped != actual["skipped"]
+            or passed + skipped != actual["tests"] or subtests != difference):
+        raise ValueError("pytest summary does not reconcile JUnit test cases and successful subtests")
+    return subtests
+
+
+def junit_counts(path: Path, pytest_log: Path | None = None) -> dict:
     root = ET.parse(path).getroot()
     if root.tag not in ("testsuites", "testsuite"):
         raise ValueError("JUnit root must be testsuites or testsuite")
@@ -266,11 +296,19 @@ def junit_counts(path: Path) -> dict:
     cases = list(root.iter("testcase"))
     actual = {"tests": len(cases), **{key: sum(case.find(tag) is not None for case in cases)
                                      for key, tag in (("failures", "failure"), ("errors", "error"), ("skipped", "skipped"))}}
-    if counts != actual:
-        raise ValueError("JUnit declared counts differ from its test cases")
-    if counts["tests"] <= counts["skipped"] or any(value < 0 for value in counts.values()):
+    if any(value < 0 for value in counts.values()):
         raise ValueError("JUnit report has no tests or invalid counts")
-    return counts
+    if any(counts[key] != actual[key] for key in ("failures", "errors", "skipped")):
+        raise ValueError("JUnit declared counts differ from its test cases")
+    difference = counts["tests"] - actual["tests"]
+    if difference:
+        if difference < 0 or pytest_log is None:
+            raise ValueError("JUnit declared counts differ from its test cases")
+        subtests = successful_subtests(pytest_log, actual, difference)
+        actual.update(subtests_passed=subtests, junit_declared_tests=counts["tests"])
+    if actual["tests"] <= actual["skipped"]:
+        raise ValueError("JUnit report has no tests or invalid counts")
+    return actual
 
 
 def verify_terminal(output: Path, request: dict, result: dict) -> None:
@@ -296,7 +334,7 @@ def verify_terminal(output: Path, request: dict, result: dict) -> None:
     if passed:
         if type(result.get("pytest_exit_code")) is not int or result["pytest_exit_code"] != 0:
             raise ValueError("passing receipt has no successful pytest exit")
-        counts = junit_counts(output / "pytest-junit.xml")
+        counts = junit_counts(output / "pytest-junit.xml", output / "pytest.log")
         reported = result.get("junit")
         if (not isinstance(reported, dict) or any(type(value) is not int for value in reported.values())
                 or reported != counts or counts["failures"] or counts["errors"]):
@@ -355,7 +393,7 @@ def worker(request: dict) -> int:
             raise ValueError("source or runtime identity changed during qualification")
         if file_hash(Path(__file__)) != request["runner_sha256"]:
             raise ValueError("copied runner bytes changed during qualification")
-        result["junit"] = junit_counts(output / "pytest-junit.xml")
+        result["junit"] = junit_counts(output / "pytest-junit.xml", output / "pytest.log")
         result["passed"] = code == 0 and result["junit"]["failures"] == 0 and result["junit"]["errors"] == 0
         result["outcome"] = "pass" if result["passed"] else "test_failure"
         result["exit_code"] = 0 if result["passed"] else 1
