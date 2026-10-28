@@ -131,6 +131,46 @@ fn journal_matches_reference_when_later_pairs_read_replaced_lead_decisions() {
 }
 
 #[test]
+fn journal_later_pairs_observe_suppressed_rebellion_and_keep_prior_follower_records() {
+    let mut pool = AgentPool::new(8);
+    let a = spawn(&mut pool, 0, 30);
+    let b = spawn(&mut pool, 0, 28);
+    let c = spawn(&mut pool, 0, 25);
+    let d = spawn(&mut pool, 0, 10);
+    upsert_symmetric(&mut pool, a, b, BondType::Marriage as u8, 50, 1);
+    pool.parent_id_0[d] = pool.ids[a];
+    pool.parent_id_1[d] = pool.ids[b];
+    // Only C has this stale/asymmetric bond, so D remains a dependent of A/B.
+    pool.rel_count[c] = 1;
+    pool.rel_bond_types[c][0] = BondType::Marriage as u8;
+    pool.rel_target_ids[c][0] = pool.ids[d];
+    for catastrophic in [false, true] {
+        let mut input = vec![PendingDecisions::new()];
+        input[0].migrations = vec![(a, 0, 1), (c, 0, 2)];
+        input[0].rebellions = vec![(d, 0), (d, 2)];
+        input[0].occupation_switches = vec![(d, 4), (d, 1)];
+        let mut regions: Vec<_> = (0..3).map(RegionState::new).collect();
+        regions[2].food_sufficiency = 0.0;
+        let contested = [false, false, catastrophic];
+        compare(&pool, &input, &regions, &contested, &pool.build_id_slots());
+        let mut stats = HouseholdStats::default();
+        consolidate_household_migrations(&pool, &mut input, &regions, &contested,
+                                         &pool.build_id_slots(), &mut stats);
+        assert!(input[0].rebellions.is_empty());
+        assert!(input[0].occupation_switches.is_empty());
+        assert_eq!(stats.household_migrations_cancelled_rebellion, 0);
+        if catastrophic {
+            assert_eq!(stats.household_migrations_cancelled_catastrophe, 1);
+            assert_eq!(input[0].migrations, vec![(a, 0, 1), (b, 0, 1)]);
+            assert_eq!(input[0].migration_followers.iter().map(|x| x.0).collect::<Vec<_>>(), vec![b, d]);
+        } else {
+            assert_eq!(input[0].migrations, vec![(a, 0, 1), (c, 0, 2), (b, 0, 1), (d, 0, 2)]);
+            assert_eq!(input[0].migration_followers.iter().map(|x| x.0).collect::<Vec<_>>(), vec![b, d, d]);
+        }
+    }
+}
+
+#[test]
 fn journal_matches_reference_for_seeded_conflicts_stale_and_recycled_slots() {
     for seed in 0..768 {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
