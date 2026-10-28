@@ -321,8 +321,9 @@ resumed run writes compared byte for byte with the straight run.
 | `shadow_s42` | 40 | 39 (every turn) | 429 | 0 |
 | `demographics_s42` | 40 | 39 (every turn) | 351 | 0 |
 
-Every case lends, is paid and (all but `shadow_s42`) defaults within its
-turns; the straight runs equal the runs without checkpoints. The native
+Every case lends and is paid; `hybrid_s42_long`, `proc32_hybrid_s11` and
+`demographics_s42` also default on their lenders within their turns; the
+straight runs equal the runs without checkpoints. The native
 tests resume a 40-turn hybrid run at turns 15 and 30 the same way.
 
 ## 7. Pre-registration
@@ -395,6 +396,32 @@ per run; SE of the paired difference.
 | guild movements raised by a default | 0 | 0.05 | | 0 | 0.40 | |
 | polities alive at the end | 3.0 | 2.95 | -0.05 (0.09) | 8.7 | 8.95 | +0.25 (0.30) |
 
+At the gates' horizons (added after the pre-registration, same seeds and
+measures; template 500 turns, procedural 300 turns; the frozen tree
+`2a08828`):
+
+| measure | template off | on | on - off (SE) | procedural off | on | on - off (SE) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| domestic loans before turn 30 | 3.8 | 1.4 | **-2.4** (0.32) | 11.45 | 5.95 | **-5.5** (0.69) |
+| domestic issued | 723 | 664 | -59 (199) | 4,752 | 9,604 | **+4,852** (1,170) |
+| foreign issued | 441 | 441 | +0 (141) | 8,193 | 5,663 | **-2,530** (1,010) |
+| foreign share of issuance | 0.37 | 0.53 | **+0.17** (0.07) | 0.63 | 0.38 | **-0.25** (0.04) |
+| domestic interest paid | 311 | 372 | +61 (88) | 2,605 | 7,103 | **+4,498** (1,150) |
+| debt / revenue, mean | 0.18 | 0.19 | +0.02 (0.03) | 0.94 | 1.00 | +0.06 (0.11) |
+| defaults | 0.80 | 0.95 | +0.15 (0.23) | 10.2 | 7.9 | -2.3 (1.3) |
+| debasements | 0.85 | 1.00 | +0.15 (0.22) | 6.65 | 5.5 | -1.15 (1.06) |
+| fiscal-strain onsets | 6.05 | 6.3 | +0.25 (2.7) | 25.7 | 25.3 | -0.4 (3.0) |
+| PSI crises (of them fiscal distress) | 1.5 (0.15) | 1.55 (0.15) | +0.05 (0.25) | 7.35 (2.75) | 8.05 (2.25) | +0.7 (0.78) |
+| revolts | 2.95 | 1.9 | -1.05 (0.92) | 16.0 | 16.0 | 0.0 (2.1) |
+| merchant wealth, mean | 373 | 392 | +19 (+5%) (21) | 997 | 1,255 | **+258 (+26%)** (57) |
+| merchant satisfaction, mean | 0.441 | 0.431 | **-0.011** (0.005) | 0.383 | 0.378 | -0.005 (0.007) |
+| Gini of merchants' wealth, mean | 0.531 | 0.533 | +0.002 (0.006) | 0.516 | 0.512 | -0.003 (0.003) |
+| Gini of merchants' wealth within civs, mean | 0.472 | 0.471 | -0.000 (0.008) | 0.439 | 0.446 | **+0.007** (0.003) |
+| Gini of all agents' wealth, mean | 0.621 | 0.629 | +0.008 (0.006) | 0.597 | 0.604 | **+0.007** (0.003) |
+| Gini of merchant wealth over regions, mean | 0.376 | 0.388 | +0.012 (0.007) | 0.468 | 0.458 | -0.010 (0.005) |
+| polities alive at the end | 2.9 | 2.8 | -0.1 (0.12) | 7.95 | 8.6 | **+0.65** (0.26) |
+| population at the end | 185 | 186 | +1 (8) | 600 | 551 | -50 (27) |
+
 Who lent (switch on, per run): template merchants 441, cities 62, guilds
 3.7; procedural merchants 3,535, cities 804, guilds 45 (merchants 81-87%,
 cities 12-18%, guilds under 1%). Of what they lent, procedural lenders
@@ -402,33 +429,41 @@ received 2,820 of interest, were repaid 3,371 and lost 492 in defaults, 4
 with fallen borrowers and 10 in lapses; 5.0 defaults a run hit lenders and
 merchants of some region held a grievance in 632 region-turns a run.
 
-**How credit changes.** Early, domestic credit falls by half or more, as
-real lenders start poor (an agent starts with 0.5 wealth; the abstract class
-lent mostly its revenue-times-influence term). Later the merchants are the
-richer for it: interest no longer vanishes, and principal on loan escapes
-the agents' 2% wealth decay, so merchant wealth is 14-18% higher over the
-run (from about turn 50 on; it is 12% lower around turn 30, when the first
-loans take their cash). Richer lenders offer more, so over the whole run
-domestic issuance rises by 60% and domestic interest more than doubles.
+**How credit changes.** Early, domestic credit falls by half or more in
+every arm, as real lenders start poor (an agent starts with 0.5 wealth; the
+abstract class lent mostly its revenue-times-influence term). Later the
+merchants are the richer for it: interest no longer vanishes, and principal
+on loan escapes the agents' 2% wealth decay, so merchant wealth is higher
+from about turn 50 on (it is 12% lower around turn 30, when the first loans
+take their cash): +14% and +5% over 300 and 500 template turns, +18% and
++26% over 200 and 300 procedural turns. Richer lenders offer more:
+procedural domestic issuance rises by 64% (200 turns) and doubles (300
+turns) and replaces foreign credit (foreign issuance -22% and -31%, its
+share 0.62 -> 0.44 and 0.63 -> 0.38), with defaults and debasements about a
+quarter lower. In template worlds (four civs, 25 merchants) the effect on
+issuance is horizon-dependent (+60% at 300 turns, -8% at 500, both within
+the chaotic spread of single worlds) while the foreign share rises (+0.13,
++0.17): the four civs borrow abroad what their few merchants cannot lend.
 Rich merchants also fund the war chest: a belligerent borrows to keep its
-full reserve target, and where the abstract class was capped by its formula,
-the merchants of a trading region now lend 100 and more at once (seed 53:
-Dorrathi Clans borrows 130 and then 109 from the merchants of Sapphire Coast
-within five turns of a war). In procedural worlds the domestic market
-replaces foreign credit (foreign issuance -22%, its share 0.62 -> 0.44) and
-defaults and debasements fall by a quarter; in template worlds (four civs,
-25 merchants) both kinds of credit grow and debt over revenue rises.
+full reserve target, and where the abstract class was capped by its formula
+the merchants of a trading region now lend 100 and more at once (template
+seed 53: Dorrathi Clans borrows 130 and then 109 from the merchants of
+Sapphire Coast within five turns of a war). Fiscal-strain onsets, PSI
+crises and revolts do not move beyond their spread in any arm.
 
 **How wealth moves.** Merchant wealth grows; its distribution moves little.
-The Gini of all agents' wealth rises in template worlds (+0.009, the
-merchants pulling ahead of the other occupations), the Gini of merchants'
-wealth within each civ in procedural worlds (+0.009). Over regions,
-concentration does not change on average over the run and rises at its end
-(region Gini +0.03-0.04, the richest region's share +0.02-0.03), where the
-regions that lent longest have collected most interest. Merchants' mean
-satisfaction does not move (-0.008 and 0.000); single late turns of the
-template probe read -0.03 to -0.07 (turns 270-300), within the turn-to-turn
-swing of +-0.03 the series shows throughout.
+The Gini of all agents' wealth rises by 0.007-0.009 (the merchants pulling
+ahead of the other occupations; 2.2 SE template 300, 2.5 SE procedural 300,
+smaller elsewhere), the Gini of merchants' wealth within each civ by 0.007-0.009
+in procedural worlds (2.4-2.6 SE). The world Gini of merchants' wealth does
+not move. Over regions, concentration does not change on average (region
+Gini +0.012 template 500, -0.010 procedural); the richest region's share and
+the region Gini at single end turns move both ways. Merchants' mean
+satisfaction moves -0.011 (template 500, 2 SE), -0.008, -0.005 and 0.000;
+single late turns of the template probe read -0.03 to -0.07 (turns
+270-300), within the turn-to-turn swing of +-0.03 the series shows
+throughout. More procedural polities survive 300 turns (8.6 against 7.95,
+2.5 SE) and their worlds end with 8% fewer people (1.8 SE).
 
 ## 9. Gates with the switch on
 
