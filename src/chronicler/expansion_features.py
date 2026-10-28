@@ -12,6 +12,7 @@ from importlib import import_module
 from typing import Any
 
 EXPANSION_FEATURES = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims")
+EXPANSION_PREREQUISITES = ("grain_reserves", "contact_ledger", "scholarship", "techniques")
 
 _HELP = {
     "scientific_claims": (

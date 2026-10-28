@@ -306,8 +306,8 @@ class LiveServer:
 
         if "simulate_only" in config and not isinstance(config.get("simulate_only"), bool):
             return "batch_start config 'simulate_only' must be a boolean"
-        from chronicler.expansion_features import EXPANSION_FEATURES
-        for field in ("capacity_aware_refugees", "grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+        from chronicler.expansion_features import EXPANSION_FEATURES, EXPANSION_PREREQUISITES
+        for field in ("capacity_aware_refugees", *EXPANSION_PREREQUISITES, *EXPANSION_FEATURES):
             if field in config and config[field] is not None and not isinstance(config[field], bool):
                 return f"batch_start config '{field}' must be a boolean or null"
 
@@ -533,8 +533,8 @@ class LiveServer:
                     "capacity_aware_refugees", self._client_defaults.get("capacity_aware_refugees")),
             )
 
-            from chronicler.expansion_features import EXPANSION_FEATURES
-            for name in ("grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+            from chronicler.expansion_features import EXPANSION_FEATURES, EXPANSION_PREREQUISITES
+            for name in (*EXPANSION_PREREQUISITES, *EXPANSION_FEATURES):
                 setattr(args, name, config.get(name, self._client_defaults.get(name)))
 
             try:
@@ -1394,8 +1394,8 @@ def run_live(
         "preset": getattr(args, "preset", None),
         "capacity_aware_refugees": getattr(args, "capacity_aware_refugees", None),
     }
-    from chronicler.expansion_features import EXPANSION_FEATURES
-    for name in ("grain_reserves", "contact_ledger", *EXPANSION_FEATURES):
+    from chronicler.expansion_features import EXPANSION_FEATURES, EXPANSION_PREREQUISITES
+    for name in (*EXPANSION_PREREQUISITES, *EXPANSION_FEATURES):
         server._client_defaults[name] = getattr(args, name, None)
     output_dir = Path(args.output).parent
     view = LiveView()
