@@ -60,6 +60,8 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Mapping
+from numbers import Integral, Real
 from typing import TYPE_CHECKING, Iterable
 
 from chronicler.cities_state import (
@@ -1022,7 +1024,40 @@ def region_pulls(world: "WorldState") -> list[float]:
     return pulls
 
 
-def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | None:
+def _apply_craft_work_caps(craft: list[float], caps: Mapping[int, float]) -> None:
+    """Clamp this call's freshly built craft ceilings, including Float32 export.
+
+    This consumes a raw-load limit, not evidence that labor was reserved.
+    No caller-owned list, agent row or persistent state is changed.
+    """
+    if not isinstance(caps, Mapping):
+        raise TypeError("craft_work_caps must map region indices to raw-load limits")
+    import numpy as np
+    for region, cap in caps.items():
+        if isinstance(region, bool) or not isinstance(region, Integral):
+            raise ValueError("craft_work_caps keys must be integer region indices")
+        if not 0 <= region < len(craft):
+            raise ValueError("craft_work_caps region index out of range")
+        if isinstance(cap, bool) or not isinstance(cap, Real):
+            raise ValueError("craft_work_caps values must be finite nonnegative numbers")
+        try:
+            limit = float(cap)
+        except OverflowError as exc:
+            raise ValueError("craft_work_caps values must be finite nonnegative numbers") from exc
+        if not math.isfinite(limit) or limit < 0.0:
+            raise ValueError("craft_work_caps values must be finite nonnegative numbers")
+        value = min(craft[region], limit)
+        # Arrow's nearest Float32 can round above a binding caller limit.
+        # Only that case needs a lower representable value; absent/loose caps
+        # retain the existing Python arithmetic and native rounding.
+        rounded = np.float32(value)
+        if float(rounded) > limit:
+            value = float(np.nextafter(rounded, np.float32(0.0)))
+        craft[region] = value
+
+
+def economy_columns(world: "WorldState", snapshot, *,
+                    craft_work_caps: Mapping[int, float] | None = None) -> dict[str, list[float]] | None:
     """Phase 2 goods-economy inputs of the cities, per region index, from the
     agent rows the economy reads (the last tick's):
 
@@ -1035,6 +1070,12 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
     ``craft_demand``
         CRAFT_DEMAND_PER_CAPITA x the region's agents: the wares its people
         want (every region, city or not).
+
+    Optional ``craft_work_caps`` maps region indices to finite nonnegative
+    raw-load ceilings. It only clamps ``craft_raw_demand`` (also raw-market
+    demand), without allocating work or changing farm labor/wares demand.
+    Unlisted regions retain their existing ceiling; caps are never cached.
+    Invalid caps raise when city columns can be built.
 
     None (no columns) with the switch off or without agent rows; with the
     switch on and no city every region is at 1.0 and 0.0, and wants wares."""
@@ -1063,6 +1104,8 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
     wares = [CRAFT_DEMAND_PER_CAPITA * float(p) for p in people]
     cities = [c for c in world.cities.cities if c.region < n]
     if not cities or sid.size == 0:
+        if craft_work_caps is not None:
+            _apply_craft_work_caps(craft, craft_work_caps)
         return {"farm_labor_factor": factor, "craft_raw_demand": craft, "craft_demand": wares}
     farmer = occupation == 0
     region_farmers = np.bincount(region[farmer], minlength=n)
@@ -1076,14 +1119,17 @@ def economy_columns(world: "WorldState", snapshot) -> dict[str, list[float]] | N
         if region_farmers[r] > 0:
             factor[r] -= (1.0 - URBAN_FARM_LABOR[city.rank]) * float(city_farmers[s]) / float(region_farmers[r])
         craft[r] += CRAFT_RAW_PER_RESIDENT * float(city_civilians[s])
+    if craft_work_caps is not None:
+        _apply_craft_work_caps(craft, craft_work_caps)
     return {"farm_labor_factor": [min(1.0, max(0.0, f)) for f in factor], "craft_raw_demand": craft,
             "craft_demand": wares}
 
 
-def with_economy_columns(world: "WorldState", region_input, snapshot):
+def with_economy_columns(world: "WorldState", region_input, snapshot, *,
+                         craft_work_caps: Mapping[int, float] | None = None):
     """The economy region-input batch with :func:`economy_columns` appended
     (unchanged when there are none)."""
-    columns = economy_columns(world, snapshot)
+    columns = economy_columns(world, snapshot, craft_work_caps=craft_work_caps)
     if columns is None:
         return region_input
     import pyarrow as pa
