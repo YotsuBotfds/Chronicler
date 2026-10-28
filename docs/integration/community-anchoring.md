@@ -9,7 +9,29 @@ This branch adds a spec-faithful community anchoring term behind a switch
 that is off by default (A), redesigns the forks of procedural worlds for
 power and reruns the needs ablation (B).
 
-RESULTS_SUMMARY
+**Results:**
+
+* **Community anchoring** (`--community-anchoring`, off by default) is the
+  term M53 describes: positive bonds to people of the same region with whom
+  the agent shares a memory, at least one of them non-kin, lower the odds
+  of acting on a reason to move. Switched off, output is byte-identical to
+  `main`. Switched on, migration falls 5-7%, every required oracle passes
+  in both full gates, and the anchor scales with an agent's ties.
+* **It does not reproduce M53's 15-30%.** At the strength calibrated from
+  the spec's band, the oracle's community members migrate 9.1% (template)
+  and 5.9% (procedural) less over the 20-turn window, about what
+  non-members show. The oracle's members are about nine in ten agents
+  (section 1). Agents with four ties migrate 10-13% less, not the predicted
+  22%: a reason to move persists, so a held mover moves later. Matching
+  the M53 number takes about twice the anchor and cuts all migration by
+  16% (section 7). The switch stays off, the claim is recorded as not
+  reproduced, and the cohort oracle's causal components stay reported only
+  (section 10).
+* **Fork design 2** forks procedural worlds every 20 turns from turn 100,
+  which restores the needs ablation's power with the real exposure. The
+  procedural material pairing now passes: 1.119 [1.093, 1.145], where PR
+  #61 measured 1.067 [0.947, 1.187]. Needs method 8 and cohort method 5
+  score design-2 arms; design-1 arms keep methods 7 and 4.
 
 ## 1. What M53 means by anchoring
 
@@ -182,7 +204,126 @@ Broader effects are reported against `main`'s full-gate reports
 per agent-turn of 5-7%. The constants were not changed after any measured
 outcome.
 
-CAUSAL_AND_GATES
+## 4. The causal test with the switch on
+
+Full gates with `--community-anchoring` (frozen tree `e67c083`, extension
+`8497d374...`): template 200 seeds x 500 turns, forks at 100-400 (800 per
+arm); procedural 32 x 10, 100 x 300, forks every 20 turns from 100 (900 per
+arm); arms `needs`, `kin_roots` and `community_anchor`. Migration of the
+cohort over the 20 turns after a fork, plain arm (anchor on) over the
+`community_anchor` arm (anchor off from tick T+1); 95% interval;
+(agent-forks; informative seeds):
+
+| Cohort at the fork | predicted (template / procedural) | template | procedural |
+| --- | ---: | ---: | ---: |
+| **oracle community members** (method 4's cohort; criterion RR <= 0.85, bound < 1) | 0.93 / 0.95 | 0.909 [0.901, 0.917] (130,400; 200) **FAIL** | 0.941 [0.937, 0.945] (417,781; 100) **FAIL** |
+| oracle non-members | 0.92 / 0.95 | 0.895 [0.874, 0.917] (20,446) | 0.938 [0.927, 0.948] (70,065) |
+| four counted ties (restated criterion 0.70-0.85, bound < 1) | 0.77 / 0.78 | 0.873 [0.856, 0.891] (18,830) **FAIL** | 0.899 [0.888, 0.911] (29,309) **FAIL** |
+| one to three counted ties | 0.88 / 0.90 | 0.898 [0.889, 0.907] (69,204) | 0.931 [0.926, 0.936] (210,944) |
+| no counted tie (criterion: interval within 0.97-1.03) | 1.00 / 1.00 | 0.926 [0.917, 0.936] (62,812) **FAIL** | 0.952 [0.948, 0.957] (247,593) **FAIL** |
+| dose: four < one to three < none | holds | holds | holds |
+| members of communities as oracle 1 specifies them | 0.90 / 0.91 | 0.912 [0.898, 0.925] (37,927) | 0.932 [0.923, 0.941] (71,053) |
+| spec non-members | | 0.906 [0.898, 0.914] | 0.942 [0.938, 0.946] |
+| members' rebellion (reported) | 1.00 | 1.013 [0.993, 1.032] | 1.008 [0.997, 1.019] |
+
+Agents with four ties, by part of the window (plain / ablated moves):
+first ablated turn 0.763 (template) and 0.798 (procedural), turns 1-5
+0.820 and 0.875, turns 6-20 0.897 and 0.910.
+
+* **The pre-registered claim fails, as predicted.** The anchor lowers the
+  oracle members' migration by 9.1% (template) and 5.9% (procedural),
+  against the 15% minimum. The oracle's members are 86-89% of the agents
+  and hold about the ties the non-members hold, so the anchor moves both
+  alike (non-members 10.5% and 6.2%): with this cohort, a community anchor
+  cannot be told from a general one.
+* **The anchor is weaker over the window than calibrated.** For agents
+  with four ties it gives about a fifth fewer moves on the first ablated
+  turn (0.763 and 0.798), near the per-decision target, but 10-13% fewer
+  over the 20 turns (0.873 and 0.899). A held mover keeps its reason to move
+  and leaves later; an unanchored mover who left is settled for five turns.
+  The calibration counted the settling lock but not this deferral of a
+  persistent reason, so it predicted 0.77-0.78 where the window shows
+  0.87-0.90: the 20-turn effect is about half the per-decision one. The
+  restated criterion (0.70-0.85) fails on the minimum effect in both
+  worlds.
+* **It also reaches agents without ties** (0.926 template, 0.952
+  procedural; the specificity criterion fails): household followers move
+  with an anchored lead (four in ten migration units on `main` are
+  followers), ties form during the window, and the regions an anchored
+  mover does not enter are less crowded for others.
+* **Dose holds** in both worlds: four ties < one to three < none. The
+  effect is largest where the ties are, as the mechanism says.
+* **It does not follow oracle 1's communities.** Members of communities as
+  the spec defines them are anchored slightly more than non-members in
+  procedural worlds (0.932 against 0.942) and not at all in template ones
+  (0.912 against 0.906). About a third of those members have no counted
+  tie of their own (section 3).
+* **Rebellion** barely moves (members 1.013 template, 1.008 procedural),
+  as designed: the anchor acts only on the migrate utility. The one
+  exception is template agents with four ties, whose rebellion rises 3.7%
+  [1.0%, 6.4%]: an agent held at home rebels there instead.
+
+## 5. What else moves, and the gates
+
+### 5.1 Paired by seed
+
+The same seeds with the switch off and on. Procedural: the two full gates'
+plain batches, 100 seeds x 300 turns. Template: seeds 42-91 of the
+flag-on gate against a flag-off batch of the same seeds, 50 x 500. Rates
+are per agent-turn over the whole run (agent-turns from every turn's civ
+populations). The paired column is the mean +- standard error of the
+per-seed log ratio of rates, or of the difference:
+
+| Per seed | procedural off -> on | paired | template off -> on | paired |
+| --- | --- | ---: | --- | ---: |
+| migration | 0.0753 -> 0.0715 | **-5.3% +- 0.9%** | 0.0637 -> 0.0596 | **-6.8% +- 1.8%** |
+| rebellion | 0.0385 -> 0.0374 | -3.3% +- 8.8% | 0.0339 -> 0.0367 | -8.1% +- 23.2% |
+| occupation switches | 0.0381 -> 0.0374 | -1.9% +- 0.7% | 0.0476 -> 0.0456 | -4.1% +- 1.7% |
+| deaths | 0.01856 -> 0.01831 | -1.2% +- 0.6% | 0.01663 -> 0.01645 | -1.1% +- 0.7% |
+| births | 0.01879 -> 0.01857 | -1.1% +- 0.5% | 0.01648 -> 0.01630 | -0.9% +- 0.6% |
+| loyalty flips | 0.00653 -> 0.00664 | +1.1% +- 2.4% | 0.00224 -> 0.00209 | -8.2% +- 7.6% |
+| final population | 541 -> 545 | +4.8 +- 11.4 | 186.5 -> 185.9 | -0.6 +- 5.2 |
+| populated regions (end) | 19.64 -> 19.55 | -0.09 +- 0.33 | 5.06 -> 5.20 | +0.14 +- 0.13 |
+| regional concentration (HHI of population shares, end) | 0.0728 -> 0.0723 | -0.0004 +- 0.0013 | 0.2595 -> 0.2444 | **-0.0152 +- 0.0070** |
+| largest region's share | 0.114 -> 0.114 | +0.0004 +- 0.0025 | 0.336 -> 0.323 | -0.013 +- 0.008 |
+| people in regions above capacity | 4.2% -> 3.4% | -0.8 +- 1.0 points | 5.1% -> 2.9% | -2.2 +- 1.5 points |
+
+* Migration falls 5.3% and 6.8%, inside the predicted 5-7%.
+* Occupation switches fall with it (1.9% and 4.1%): fewer arrivals take up
+  a new trade. Deaths and births fall about 1%, and the population does
+  not change.
+* Template worlds end less concentrated: the HHI falls 0.015, about two
+  standard errors. The largest region's share and the share of people
+  above capacity fall too, within the noise. With the anchor, fewer people
+  follow the pull into the most crowded regions. Procedural worlds have
+  20 populated regions, not 5, and show no change.
+* Rebellion and loyalty flips have no detectable change. Template
+  rebellion comes in bursts: its rate ratio (1.08) and its paired log ratio
+  (-8%) disagree in sign, and both are inside the noise.
+
+### 5.2 Full gates with the switch on, against `main`
+
+Exploratory comparisons (another configuration: `community_anchoring`
+None against True), against `main`'s full-gate reports of PR #61, which
+were re-scored:
+
+| Full gate | `main` (PR #61) | switch on |
+| --- | --- | --- |
+| template: gate | PASS (strict), NO REGRESSION | PASS (strict), NO REGRESSION |
+| template: migration per agent-turn (floor 0.05) | 0.0634 | 0.0586 |
+| template: satisfaction mean | 0.6212 | 0.6209 |
+| template: needs ablation | PASS (method 7) | PASS (method 8; design 2 keeps template forks every 100 turns): every pairing passes, safety 1.173 [1.027, 1.319] |
+| template: kin roots, members | 0.988 FAIL | 0.992 FAIL |
+| procedural: gate | PASS (strict), NO REGRESSION | PASS (strict), NO REGRESSION |
+| procedural: migration per agent-turn | 0.0755 | 0.0717 |
+| procedural: satisfaction mean | 0.5667 | 0.5708 |
+| procedural: needs ablation | FAIL (material, design 1) | PASS (method 8, design 2): material 1.128 [1.108, 1.149], safety 1.101 [1.005, 1.196] |
+| procedural: kin roots, members | 0.996 FAIL | 0.991 FAIL |
+
+Every required oracle passes with the switch on, in both worlds. The
+informational rows are the two cohort ablations (kin roots and the
+community anchor). The template migration rate's distance to its strict
+floor narrows from 0.0134 to 0.0086.
 
 ## 6. The procedural material pairing: fork design 2
 
@@ -296,6 +437,40 @@ and cohort 4 -> 5 under "Oracle method changes" (`rebaseline_required`).
   4.3 s), validation 637 s; 1 h 36 min in all. The two default arms take
   about 45 minutes (four times design 1's 9 minutes).
 
+## 7. A stronger anchor (exploratory, not adopted)
+
+This probe was run after the gates, so it asks a separate question: what
+would meeting M53's number cost? Setup: template seeds 42-81 x 200 turns,
+one fork at turn 100, the `community_anchor` arm, and the full anchor set
+by `agents.community_full_anchor`. Ratios are plain / ablated migration
+over the 20-turn window, +- the 95% half-width. Migration is per
+agent-turn over the run, against the same seeds with the switch off
+(0.0638). Cohorts per fork: members 6,314; non-members 1,114; four ties
+983; no tie 3,019; spec members 1,789.
+
+| Full anchor | migration | members | non-members | four ties | one to three | no tie | spec members | spec non-members |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.120 (calibrated) | 0.0607 (-4.9%) | 0.944 +- 0.037 | 0.902 +- 0.078 | 0.976 +- 0.072 | 0.931 +- 0.043 | 0.941 +- 0.038 | 0.969 +- 0.072 | 0.930 +- 0.037 |
+| 0.24 | 0.0537 (-15.8%) | 0.811 +- 0.037 | 0.866 +- 0.113 | 0.739 +- 0.078 | 0.799 +- 0.042 | 0.857 +- 0.054 | 0.734 +- 0.055 | 0.848 +- 0.042 |
+| 0.36 | 0.0498 (-21.9%) | 0.753 +- 0.041 | 0.739 +- 0.090 | 0.672 +- 0.063 | 0.705 +- 0.049 | 0.818 +- 0.052 | 0.659 +- 0.065 | 0.784 +- 0.039 |
+| 0.60 | 0.0424 (-33.5%) | 0.651 +- 0.038 | 0.517 +- 0.061 | 0.447 +- 0.068 | 0.606 +- 0.036 | 0.718 +- 0.045 | 0.601 +- 0.058 | 0.646 +- 0.036 |
+
+* At the calibrated anchor, the probe agrees with the full gate within its
+  much wider intervals (one fork, 40 seeds).
+* **Reaching the M53 number takes about twice the anchor.** At 0.24, the
+  members' ratio is 0.81 and agents with four ties are at 0.74, inside the
+  15-30% band. The cost: migration falls 16% over the whole run, and agents
+  with no tie are held back almost as much (0.86). Members are still not
+  separated from non-members (0.81 against 0.87, overlapping intervals).
+  At 0.36 the run's migration rate (0.0498) is below the template gate's
+  strict floor of 0.05. That floor is measured on 500-turn runs; these are
+  200 turns.
+* **Oracle 1's communities do separate at strength:** spec members 0.73
+  against 0.85 at 0.24, 0.66 against 0.78 at 0.36. A stronger anchor does
+  act on communities as the spec defines them. The oracle's own member
+  cohort is too broad to show it.
+* No anchor strength gives a consistent change in rebellion.
+
 ## 8. Versions and re-scoring
 
 * **Fork design** (`chronicler.ablation_arms`, `ABLATION_DESIGN` 2; the
@@ -374,4 +549,60 @@ change no simulation code (a tuning-key registration, tests, documents).
 
 ## 10. Decisions
 
-DECISIONS_SECTION
+### 10.1 Community anchoring
+
+* **The switch stays off by default and experimental.** It is not
+  promoted at any strength, and the calibrated full anchor (0.120143)
+  remains its default.
+* **The term does what it says, but weakly over the window.** It holds
+  movers back in proportion to their ties (dose holds in both worlds) and
+  draws no numbers. Switched on, migration falls 5-7% and every gate
+  passes. The pre-registered mechanism criterion failed, though: agents
+  with four ties are at 0.87 and 0.90, against 0.70-0.85. So did the
+  specificity criterion: agents with no tie are at 0.93 and 0.95, against
+  0.97-1.03.
+* **The stronger anchor is not adopted** (section 7). Meeting M53's
+  member-level 15% takes about twice the anchor. That cuts all migration by
+  about 16% and holds back agents without ties almost as much, and it
+  still does not separate the oracle's members from its non-members.
+  Tuning to the oracle's number would buy a pass, not a mechanism.
+* **M53 oracle 4's anchoring claim is recorded as not reproduced.** The
+  claim is that community members migrate 15-30% less. Neither term meets
+  it: the kin roots give 0.99, and the community anchor gives 0.91
+  (template) and 0.94 (procedural) at its calibrated strength. The cohort
+  oracle's causal components (kin roots, community anchor) stay reported
+  and never decide, and `--require-causal-oracles` stays off. Cohort method
+  3's observational verdict is unchanged: PASS, non-discriminating.
+* **The restated claim was pre-registered and is not adopted.** It
+  required a 15-30% reduction for agents with four counted ties, an upper
+  bound below 1, no-tie agents within 0.97-1.03 and dose ordering. It
+  failed on the minimum effect in both worlds, and on specificity. Dose
+  held.
+
+### 10.2 Fork design 2
+
+* **Adopted.** Procedural full gates now fork every 20 turns from turn 100
+  (needs method 8, cohort method 5); template full gates keep every 100.
+  With the real exposure, the procedural needs component passes: material
+  1.119 [1.093, 1.145] on `main`'s simulation and 1.128 with the switch on.
+  The placebo arm stays at 1 throughout.
+* **Cost:** the two default arms take about 45 minutes in a procedural full
+  gate, against 9 before.
+* **Template power is reported, not raised:** safety 0.66 and the needs
+  component 0.58 at +20%. Raising them would need 19 forks a seed. Both
+  template full gates passed every pairing anyway (safety 1.230 on `main`,
+  1.173 with the switch on).
+
+### 10.3 Follow-ups
+
+* **Community detection as oracle 1 specifies it, as a new community oracle
+  method.** That means friend, co-religionist and kin edges weighted by
+  sentiment, within a region, the kin code corrected, and the spec's size
+  and count criteria. The cohort oracle would then compare those
+  communities. `validation_ablation.detect_spec_communities` already
+  computes them (informational). With that cohort the anchoring question
+  can be asked again: a stronger anchor does separate spec members from
+  non-members (section 7).
+* **The calibration model should count the deferral of a persistent reason
+  to move.** Over the 20-turn window the effect is about half the
+  per-decision one.

@@ -6,6 +6,36 @@
 
 ---
 
+## Community anchoring and fork design 2 (2026-10-28, `feat/community-anchoring`)
+
+> **Last updated:** 2026-10-28 (`feat/community-anchoring` from `main` `b1c9274`. Added: a default-off community anchoring term (`--community-anchoring`), where positive same-region bonds with a shared memory, at least one of them non-kin, lower the odds of acting on a reason to move (no draw; persisted in checkpoints; off is byte-identical to `main`). Also added: a `community_anchor` ablation arm and fork design 2, under which procedural full gates fork every 20 turns from turn 100 (needs method 8, cohort method 5; design-1 arms keep methods 7 and 4). Results: with design 2 the procedural needs ablation passes (material 1.119 [1.093, 1.145]). The anchor at its calibrated strength gives the oracle's members 0.909 (template) and 0.941 (procedural) against M53's at most 0.85. Agents with four ties get 0.873 and 0.899, also failing the pre-registered restated band. Matching the M53 number takes about twice the anchor and cuts all migration by 16%, so it is not adopted. The switch stays off; M53 oracle 4's anchoring claim is recorded as not reproduced; the causal components stay reported only.)
+
+Details and evidence:
+[`docs/integration/community-anchoring.md`](../../integration/community-anchoring.md).
+
+- **Term** (`chronicler-agents/src/community.rs`, `behavior.rs`). The anchor
+  is 0.120143 x counted ties / 4, subtracted from the migrate utility when
+  the gate is open. It never closes the gate, and never touches rebellion,
+  switching or staying. The strength was calibrated from the midpoint of
+  the spec's band through the decision model, before any run with the
+  switch on (pre-registration in the doc, section 3).
+- **Switch off**: identical to `main`. The 9-case turn-speed matrix
+  compared 399 files, template batches 1,110 files and procedural batches
+  351 files, all with 0 differences. Switch on: exact resume at every turn
+  (3 cases, 157 resume points, 0 differences).
+- **Gates with the switch on** (template full 200 x 500, procedural full
+  100 x 300): every required oracle passes in both. Migration falls 5.3%
+  (procedural) and 6.8% (template), as predicted. Template worlds end less
+  concentrated (HHI -0.015). Rebellion and population show no detectable
+  change.
+- **Open**: community detection as oracle 1 specifies it (edge types,
+  within a region, the kin code, the size criteria), as a new community
+  oracle method. The oracle's members are about nine in ten agents today,
+  so the cohort oracle cannot discriminate. Template safety power stays at
+  0.66 (reported).
+
+---
+
 ## Ablation oracles (2026-10-27, `feat/ablation-oracles`)
 
 > **Last updated:** 2026-10-27 (`feat/ablation-oracles` from `main` `2106ef2`, fast-forwarded to `8a68658`, merged with `7c44ed8` (PR #59) and `9d82e77` (PR #60, simulation and validator inputs identical to `7c44ed8`): a default-off native decision ablation (`--decision-ablation needs|kin_roots|placebo --ablation-start-turn T`: no random draw, persisted in checkpoints, every output byte-identical when unset) and gate arms forked from exact checkpoints of the plain batch (every 100 turns, 20-turn window, cohorts fixed at the fork), on by default in the full profile, opt-in in subsets; needs oracle method 7 and cohort method 4 add the ablations to methods 6 and 3 as causal evidence, reported but not yet required: the gate is decided by method 6's observational verdict and cohort method 3 (labelled non-discriminating), as on `main`; `--require-causal-oracles` / `CAUSAL_ORACLES_REQUIRED` (off) makes the ablations decide; synthetic worlds without the effect, age-confounded or reversed pass the ablations in 0 of 1,000 batches at every scale, power at +20% 97-99% (needs, full) and at -20% 100% (cohort); causal evidence on `main`: template full needs PASS (+12% to +47%), cohort FAIL (members' migration 0.988 [0.984, 0.993] against the spec's at most 0.85); procedural full needs FAIL (material -> migration +6.7% [-5.3%, +18.7%], the other four pass), cohort FAIL (0.996); the four kept gate reports re-score to template full PASS, procedural full PASS, template subset PASS, procedural subset FAIL (needs, as `main`), each `main`'s own verdict; methods 6 and 3 re-score every batch exactly, the comparator flags `rebaseline_required`; the two default arms cost 0.6 (procedural) to 1.2 (template) times the plain batch. Open decisions: kin anchoring against the M53 15-30% claim; the power of the procedural material pairing.)
