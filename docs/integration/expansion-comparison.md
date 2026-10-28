@@ -33,17 +33,17 @@ Public platform/CPU counts remain explicit. An executable path is represented
 by a hash of its text, without following or exposing the path; this is not a
 hash of the executable binary.
 
-The first supported systems are harvest assessments, local harvest gatherings
-and temporary work impairment/care. Unsupported features are catalogued with
-explicit blockers; this version does not interpret scientific-claims trials or
-beliefs. Canonical arm labels are checked against their recorded controls, so an
+Supported systems are harvest assessments, local harvest gatherings,
+temporary work impairment/care and [institutional science receipts](scientific-receipts-audit.md).
+Unsupported features are catalogued with explicit blockers.
+Canonical arm labels are checked against their recorded controls, so an
 arm called `no_contact` with contact enabled cannot silently pass. Care contrasts
 also require the injury rate, impairment, care allocation fraction and ordinary
 recovery-work setting to match.
 
 Every matched contrast requires one unambiguous baseline and alternative for
 the same feature, experiment, cohort and seed. Baselines default to `normal`
-for forecasts/gatherings and `care` for health (`--baseline` selects another
+for forecasts/gatherings/science and `care` for health (`--baseline` selects another
 recorded arm). Pairs must agree on source/package/native identities, checkpoint,
 flags, actual worker environments, registration, pre-intervention controls, end horizon and
 canonical historical/event prefix before treatment. A fresh parent remains in
@@ -110,7 +110,12 @@ imports, network and subprocesses blocked (zero attempts). Re-reading the old
 Python-world equalities, and blocked all 12 strict contrasts because actual
 worker environments were unrecorded. The negative-target arm retained its
 additional integrity blocker. Original artifacts were not modified.
-An actual schema-2 worker receipt from the later frozen-source natural study
+At that tooling checkpoint, an actual schema-2 worker receipt from the later frozen-source natural study
 was also read successfully: source/native, measured environments and runner
 hashes were recognized, while its unsupported scientific-claims feature remained
-blocked rather than being interpreted as one of the three supported systems.
+blocked rather than being interpreted as one of the three then-supported systems.
+The subsequent science extension checks all four science controls, including
+the legacy-default versus explicit funded-context publication rule, and current
+summary controls against the actual treatment receipt. It separates new
+funding/counter changes from later resolution-attached historical costs and
+never reconstructs an omitted receipt archive from final world state.

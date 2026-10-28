@@ -178,11 +178,11 @@ def test_parent_only_and_legacy_bundles_are_unpaired_not_qualified(runs,tmp_path
 
 
 def test_unknown_feature_is_named_but_never_interpreted(runs):
-    change(runs[2],lambda b:b["metadata"]["expansion_experiment"].update(feature="scientific_claims"))
+    change(runs[2],lambda b:b["metadata"]["expansion_experiment"].update(feature="unknown_future_system"))
     report=compare_paths(runs)
-    unknown=next(r for r in report["runs"] if r["feature"]=="scientific_claims")
+    unknown=next(r for r in report["runs"] if r["feature"]=="unknown_future_system")
     assert unknown["metrics"]=={} and "missing_or_unknown_experiment_receipt" in unknown["blockers"]
-    assert not next(p for p in report["pairs"] if p["feature"]=="scientific_claims")["comparable_recorded_window"]
+    assert not next(p for p in report["pairs"] if p["feature"]=="unknown_future_system")["comparable_recorded_window"]
 
 
 def test_malformed_nonfinite_metadata_is_unknown_and_never_exported_as_nan(runs):

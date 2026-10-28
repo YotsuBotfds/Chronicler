@@ -13,13 +13,16 @@ from typing import Mapping
 
 from chronicler.bundle_codec import decode_bundle
 from chronicler.expansion_audit import AuditError, Limits, _md, audit_bundle
+from chronicler.historical_context import AsOf
+from chronicler.scientific_receipts_audit import COUNTERS as SCIENCE_COUNTERS, LEGACY_RULE, PUBLICATION_RULES
 
 FEATURES = {
     "harvest_forecasts": ("policy",),
     "ritual_gatherings": ("contact_enabled", "bonds_enabled"),
     "health_care": ("care_enabled", "injury_rate", "impairment", "care_fraction", "recovery_work"),
+    "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests", "publication_rule"),
 }
-BASELINES = {"harvest_forecasts": "normal", "ritual_gatherings": "normal", "health_care": "care"}
+BASELINES = {"harvest_forecasts": "normal", "ritual_gatherings": "normal", "health_care": "care", "scientific_claims": "normal"}
 ENV_KEYS = ("python", "implementation", "machine", "hash_seed", "packages", "thread_env", "affinity_cpu_count")
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\Z")
 CONTROL_BOUNDS = {"injury_rate": (0, .25), "impairment": (0, 1), "care_fraction": (0, 1), "recovery_work": (1, 10)}
@@ -103,6 +106,10 @@ def _environment(raw):
 
 def _controls(raw, feature, blockers):
     fields = FEATURES.get(feature, ())
+    if (feature == "scientific_claims" and isinstance(raw, Mapping)
+            and set(raw) == set(fields) - {"publication_rule"}):
+        # The original source-owned serialization omits the legacy default.
+        raw = {**raw, "publication_rule": LEGACY_RULE}
     if not isinstance(raw, Mapping) or set(raw) != set(fields):
         blockers.append("incomplete_or_unknown_controls")
         return None
@@ -110,10 +117,12 @@ def _controls(raw, feature, blockers):
         blockers.append("malformed_controls")
         return None
     for name, value in raw.items():
-        if name.endswith("enabled"):
+        if name.endswith("enabled") or name in ("withhold_information", "uninformative_tests"):
             valid = type(value) is bool
         elif name == "policy":
             valid = value in ("normal", "withhold", "shuffle")
+        elif name == "publication_rule":
+            valid = value in PUBLICATION_RULES
         else:
             low, high = CONTROL_BOUNDS[name]
             try:
@@ -128,6 +137,14 @@ def _controls(raw, feature, blockers):
 
 
 def _window_metrics(feature, observed, start):
+    if feature == "scientific_claims":
+        row = observed[feature]
+        return {key: row[key] for key in ("funding_events", "evidence_receipt_events",
+            "receipt_events_with_forwarded_cause", "resolved_trial_receipts", "completed_trial_receipts",
+            "cancelled_trial_receipts", "failed_trial_receipts", "resolved_replication_receipts",
+            "costs_attached_to_resolved_trials", "allocation_rows", "paid_seat_allocations",
+            "allocation_funds", "reported_allocation_events", "current_policy_belief_rows",
+            "belief_rows_with_declared_groups", "unique_declared_dependence_groups")}
     if feature == "health_care":
         row = observed[feature]
         return {k: row[k] for k in ("episode_turns", "new_injuries", "episode_retirements",
@@ -208,6 +225,11 @@ def _inspect(path, limits):
                      "no_bonds": {"contact_enabled": True, "bonds_enabled": False},
                      "cost_only": {"contact_enabled": False, "bonds_enabled": False}}
                     if feature == "ritual_gatherings" else
+                    {"normal": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": False},
+                     "withheld": {"withhold_information": True, "transmission_enabled": True, "uninformative_tests": False},
+                     "no_transmission": {"withhold_information": False, "transmission_enabled": False, "uninformative_tests": False},
+                     "uninformative": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": True}}
+                    if feature == "scientific_claims" else
                     {"care": {"care_enabled": True}, "no_care": {"care_enabled": False}}).get(arm)
         if expected is not None and any(controls_after.get(k) != v for k, v in expected.items()):
             blockers.append("named_arm_control_mismatch")
@@ -318,8 +340,29 @@ def _inspect(path, limits):
         if feature == "harvest_forecasts" and window["details_omitted"]["report_chains"]:
             blockers.append("forecast_chain_detail_limit")
         metrics = _window_metrics(feature, window["observed_mechanisms"], start)
+        if feature == "scientific_claims":
+            for row in selected:
+                section = row.get(feature)
+                if isinstance(section, Mapping) and controls_after is not None:
+                    recorded = section.get("controls")
+                    recorded = {**recorded, "publication_rule": section.get("publication_rule", LEGACY_RULE)} if isinstance(recorded, Mapping) else None
+                    if recorded != controls_after:
+                        blockers.append("science_snapshot_controls_mismatch")
+            boundary = [row for row in history if isinstance(row, Mapping) and row.get("turn") == start]
+            boundary_audit = audit_bundle({**bundle, "history": boundary}, as_of=AsOf.after(start - 1), limits=limits)
+            boundary_science = boundary_audit["observed_mechanisms"][feature]
+            before = (boundary_science["latest_cumulative_counters"]
+                      if boundary_science["latest_counter_source_turn"] == start - 1
+                      and boundary_audit["scan_complete"] and not boundary_audit["finding_counts"]["error"] else None)
+            latest = window["observed_mechanisms"][feature]
+            after = latest["latest_cumulative_counters"] if latest["latest_counter_source_turn"] == end - 1 else None
+            for key in SCIENCE_COUNTERS:
+                value = (after[key] - before[key] if before is not None and after is not None
+                         and type(before.get(key)) is int and before[key] >= 0 else None)
+                metrics["cumulative_" + key + "_change"] = value
         required_tables = {"health_care": ("regions",), "ritual_gatherings": ("outcomes", "schedules"),
-                           "harvest_forecasts": ("reports", "outcomes", "preparedness")}.get(feature, ())
+                           "harvest_forecasts": ("reports", "outcomes", "preparedness"),
+                           "scientific_claims": ("propositions", "trials_resolved", "beliefs", "allocations")}.get(feature, ())
         if any(window["verified_checks"].get(f"{feature}.{table}_recorded", {}).get("unavailable", 0)
                for table in required_tables):
             blockers.append("incomplete_feature_receipts")
@@ -406,6 +449,9 @@ def compare_paths(paths, *, baseline=None, max_runs=64, audit_limits=None):
                     if any(base["controls_after"][k] != arm["controls_after"][k]
                            for k in FEATURES[feature] if k != "care_enabled"):
                         blockers.append("non_care_health_controls_differ")
+                if feature == "scientific_claims" and base["controls_after"] and arm["controls_after"]:
+                    if base["controls_after"]["publication_rule"] != arm["controls_after"]["publication_rule"]:
+                        blockers.append("publication_rule_mismatch")
                 if (base["external_runner_sha256"] is not None and arm["external_runner_sha256"] is not None
                         and base["external_runner_sha256"] != arm["external_runner_sha256"]):
                     blockers.append("external_runner_mismatch")

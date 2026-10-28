@@ -17,8 +17,9 @@ from typing import Any, Mapping
 
 from chronicler.bundle_codec import decode_bundle
 from chronicler.historical_context import AsOf, Phase
+from chronicler.scientific_receipts_audit import EVENT_KINDS as SCIENCE_EVENTS, ScientificReceiptsAudit, observed_defaults
 
-SYSTEMS = ("health_care", "harvest_forecasts", "ritual_gatherings")
+SYSTEMS = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims")
 HEALTH_METRICS = ("episodes", "new_injuries", "recoveries", "impaired_work", "care_work",
                   "care_recipients", "recovery_progress", "cared_recovery_progress")
 ACTUAL_FORECAST = ("observed_ratio", "outcome_shortfall", "brier")
@@ -111,6 +112,8 @@ class _Audit:
                 "arrival_receipts": 0, "held_with_contact": 0, "held_with_bond_attempts": 0,
                 "cancellation_reasons": {}, "occurrence_details": []}}
         self.reports, self.occurrences, self.preparations = {}, set(), set()
+        self.observed["scientific_claims"] = observed_defaults()
+        self.science = ScientificReceiptsAudit(self)
 
     def label(self, value):
         text = str(value)
@@ -624,7 +627,7 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
     for eid, events in audit.events.items():
         if len(events) != 1:
             visible = [e for e in events if _int(e.get("turn")) is not None and e["turn"] <= as_of.completed]
-            relevant = any(e.get("event_type") in ("harvest_forecast_issued", "harvest_forecast_delivered",
+            relevant = any(e.get("event_type") in (*SCIENCE_EVENTS, "harvest_forecast_issued", "harvest_forecast_delivered",
                             "harvest_preparedness", "harvest_forecast_resolved", "occupational_injury",
                             "harvest_gathering_held", "harvest_gathering_cancelled") for e in visible)
             if len(visible) > 1 and relevant:
@@ -682,7 +685,7 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
                 continue
             coverage["turns"].append(source)
             {"health_care": audit.health, "harvest_forecasts": audit.forecasts,
-             "ritual_gatherings": audit.gathering}[system](state, source, snapshot)
+             "ritual_gatherings": audit.gathering, "scientific_claims": audit.science.process}[system](state, source, snapshot)
     for system, coverage in audit.coverage.items():
         turns = coverage.pop("turns")
         spans = _spans(turns)
@@ -711,6 +714,12 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
         observations.append("Delivered reports have no positive recorded warning-period payment in the inspected coverage; delivery alone does not establish material preparation.")
     if _num(work["impaired_worker_turns"]) is not None and work["impaired_worker_turns"] > 0 and work["care_worker_turns"] == 0:
         observations.append("Work impairment was recorded with zero recorded caregiver work allocation in the inspected coverage.")
+    science = audit.observed["scientific_claims"]
+    if science["recorded_turns"]:
+        if not science["funding_events"] and not science["resolved_trial_receipts"]:
+            observations.append("Science summaries were recorded without observed funding/resolution exposure; a zero mechanism count is not an efficacy null result.")
+        if science["completed_trial_receipts"] and not science["allocation_rows"]:
+            observations.append("Completed science measurements were recorded without paid adoption allocations in this coverage; publication alone does not exercise paid use.")
 
     def finite(value):
         if isinstance(value, dict):
@@ -736,14 +745,19 @@ def audit_bundle(bundle: Mapping[str, Any], *, as_of: AsOf | None = None, limits
             "Summaries cannot identify unique patients, clinical recovery, deaths or the causes of episode censoring.",
             "A bundle alone cannot independently establish native attendance location/age/occupation, merchant commitments, friendship success or pandemic imports.",
             "Equal purchase quantities on different turns are not duplicate purchases; granary-flow reconciliation is observational, not attributable excess spending.",
-            "Without a recorded event ID, matching prose or chronology does not prove a forecast dependency."],
+            "Without a recorded event ID, matching prose or chronology does not prove a forecast dependency.",
+            "Science summaries omit the full archive receipt list and running trials. Resolution costs are attached to earlier funding, not new resolution-turn payments.",
+            "Declared science dependence groups are policy bookkeeping, not certified independent experiments. Current policy belief rows do not reconstruct local context or the complete archived evidence.",
+            "A neutral current belief can coexist with archived off-context evidence; missing last-used evidence is not proof of forgetting."],
         "requires_interventions": ["Care efficacy or avoided deaths", "Forecast skill versus seasonal baselines and withheld/shuffled reports",
-            "Additional spending or reduced shortage attributable to a warning", "Gathering benefits versus cost-only, no-contact and no-bond controls"],
+            "Additional spending or reduced shortage attributable to a warning", "Gathering benefits versus cost-only, no-contact and no-bond controls",
+            "Scientific information utility versus withheld, local-only and uninformative observations, with publication rule matched"],
         "contracts_checked": {"version": "first_slice_2026_10", "gathering_max_attendance": 32,
             "gathering_max_bond_attempts": 8, "gathering_max_contact_units": 8,
             "grain_per_attendee": 0.05, "funds": "1 + ceil(attendees / 16)", "production_shortfall_ratio": 0.6},
         "limits": asdict(limits), "truncated_by": sorted(audit.truncated),
-        "details_omitted": {"report_chains": details_omitted, "gathering_occurrences": occurrence_omitted}}
+        "details_omitted": {"report_chains": details_omitted, "gathering_occurrences": occurrence_omitted,
+                            **dict(audit.science.detail_omissions)}}
 
 
 def audit_path(path: str | Path, *, as_of: AsOf | None = None, limits: Limits | None = None) -> dict:
@@ -794,6 +808,13 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines += [f"- {_md(row['gathering_id'])}, turn {row['turn']}, {_md(row['region_name'])}, host {_md(row['host_name'])}: "
                   f"{_md(row['status'])}; {row['attendance_count']} selected attendees, {row['food']} food / {row['funds']} funds; "
                   f"{row['bond_ops']} bond attempts / {row['contact_units']} additional contact units."]
+    lines += ["", "### Scientific trial receipts", ""]
+    for row in report["observed_mechanisms"].get("scientific_claims", {}).get("resolved_trial_details", []):
+        lines += [f"- Trial {_md(row['id'])}, claim {_md(row['claim'])}, seat {_md(row['seat'])}: "
+                  f"funded {_md(row['funded_turn'])}, planned completion {_md(row['planned_completion_turn'])}, "
+                  f"actually {_md(row['status'])} at {_md(row['resolved_turn'])}; "
+                  f"{_md(row['cost'])} treasury paid at funding. Recorded source {_md(row['source_data'])}, "
+                  f"declared dependence group {_md(row['declared_dependence_group'])}."]
     lines += ["", "## Findings", ""]
     lines += [f"- **{_md(f['severity'])} / {_md(f['code'])}**, {_md(f['system'])}, "
               f"turn {_md(f['source_turn'])}, ID {_md(f['record_id'])}: {_md(f['detail'])}"

@@ -33,6 +33,12 @@ The report separates these categories:
 | Unobservable facts | Claims the bundle alone cannot independently establish |
 | Scientific claims requiring interventions | Effects needing matched controls and qualification |
 
+The fourth system, [institutional science receipts](scientific-receipts-audit.md),
+checks paid trial/status/counter arithmetic, funded versus actual resolution
+dates, immutable proposition context, current belief records and every paid
+allocation. Archived evidence counts remain separate from current applicability;
+declared dependence groups do not establish independent experiments.
+
 Health checks cover nonnegative finite work/count quantities, whole episode
 counts, unique regional IDs, sums of regional metrics against totals, and cared
 recovery-work progress as a subset of all progress. Active episodes summed over
