@@ -352,18 +352,22 @@ impl<K: Persist + Ord + Hash + Eq, V: Persist> Persist for HashMap<K, V> {
 ///
 /// The list must name every field: the struct is destructured without
 /// `..`. Fields after `skip` are derived caches that are rebuilt from the
-/// persisted state; they are restored as `Default::default()`.
+/// persisted state; they are restored as `Default::default()`. Existing `skip`
+/// names remain in the schema for compatibility. `transient` fields are
+/// fully derived inputs/caches recreated before use, defaulted on decode and
+/// absent from both payload and schema; adding one preserves the wire format.
 #[macro_export]
 macro_rules! persist_struct {
-    ($ty:ident { $($f:ident),* $(,)? } $(skip { $($s:ident),* $(,)? })?) => {
+    ($ty:ident { $($f:ident),* $(,)? } $(skip { $($s:ident),* $(,)? })?
+        $(transient { $($t:ident),* $(,)? })?) => {
         impl $crate::persist::Persist for $ty {
             fn put(&self, w: &mut $crate::persist::Writer) {
-                let $ty { $($f,)* $($($s: _,)*)? } = self;
+                let $ty { $($f,)* $($($s: _,)*)? $($($t: _,)*)? } = self;
                 $( $crate::persist::Persist::put($f, w); )*
             }
             fn get(r: &mut $crate::persist::Reader<'_>) -> $crate::persist::Result<Self> {
                 $( let $f = $crate::persist::Persist::get(r)?; )*
-                Ok($ty { $($f,)* $($($s: Default::default(),)*)? })
+                Ok($ty { $($f,)* $($($s: Default::default(),)*)? $($($t: Default::default(),)*)? })
             }
             fn schema(s: &mut String) {
                 s.push_str(stringify!($ty));

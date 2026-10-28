@@ -1765,4 +1765,4 @@ crate::persist_struct!(AgentPool {
     trip_path_len, trip_path_cursor, pkt_type_and_hops, pkt_source_region, pkt_source_turn,
     pkt_intensity, pkt_source_civ, arrived_this_turn, trip_home_region, alive, count, next_id,
     free_slots,
-} skip { health_work_loss });
+} transient { health_work_loss });

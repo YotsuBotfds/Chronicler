@@ -57,8 +57,13 @@ Work costs belong to the work region; active episodes follow the patient's
 completed-turn location after migration. Native income consumes its inputs
 once, guarded by expected stable ID so reused slots cannot inherit a loss.
 
-The native work cache and slot-indexed income inputs are explicitly skipped
-by native persistence. Their fields do not change the native state schema;
+The native work cache and slot-indexed income inputs use an explicit
+`transient` persistence clause: defaulted on decode and absent from both the
+payload and schema. Existing `skip` fields retain their original schema
+markers. This distinction matters: the first implementation used `skip`,
+which omits bytes but still adds field names to the fingerprint; the schema
+test caught that, and it was corrected before release qualification. The
+new transient fields do not change the native state schema;
 restoring an exact checkpoint rebuilds them from Python before the next goods
 tick. These are turn-boundary checkpoints: a hand-made native-only checkpoint
 inside preparation/economy is not a complete health continuation. The compiled

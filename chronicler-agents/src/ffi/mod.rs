@@ -4057,4 +4057,4 @@ crate::persist_struct!(AgentSimulator {
     merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
-} skip { snapshot_cache, health_work });
+} skip { snapshot_cache } transient { health_work });

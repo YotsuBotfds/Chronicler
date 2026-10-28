@@ -73,7 +73,7 @@ pub fn prepare(pool: &mut AgentPool, ids: &[u32], excluded: &[u32], urban: &[u16
         let r = pool.regions[slot] as usize;
         if r < regions && eligible(pool, slot, &excluded, &urban) {
             out.workers.push(Worker { slot, id: pool.ids[slot], region: r,
-                available: 1.0 - deductions.get(&slot).copied().unwrap_or(0.0) });
+                available: 1.0 - pool.health_work_loss.get(slot).map_or(0.0, |x| x.1) });
         }
     }
     out
@@ -161,6 +161,7 @@ mod tests {
     fn income_consumes_loss_once_and_a_reused_slot_is_protected() {
         let mut pool = AgentPool::new(8);
         let a = farmer(&mut pool, 0, 30); let id = pool.ids[a];
+        pool.wealth[a] = 0.0;
         prepare(&mut pool, &[id], &[], &[], 1, 0.5, 0.0);
         let mut region = RegionState::new(0); region.resource_yields[0] = 1.0;
         region.farmer_income_modifier = 1.0; region.farm_productivity = 1.0;
@@ -175,6 +176,7 @@ mod tests {
         prepare(&mut pool, &[id], &[], &[], 1, 0.5, 0.0);
         pool.kill(a); let replacement = farmer(&mut pool, 0, 30);
         assert_eq!(replacement, a); assert_ne!(pool.ids[a], id);
+        pool.wealth[a] = 0.0;
         crate::tick::wealth_tick(&mut pool, &[region], &signals, &mut ranks);
         assert_eq!(pool.wealth[a], agent::BASE_FARMER_INCOME * (1.0 - agent::WEALTH_DECAY));
     }
@@ -192,5 +194,50 @@ mod tests {
         assert_eq!(alive, vec![(id, 1)]);
         assert_eq!(new, vec![(working_id, 0, 0)]);
         assert!(pool.is_alive(idle));
+    }
+
+    #[test]
+    fn actual_economy_productivity_does_not_double_charge_health_income() {
+        use crate::economy::{EconomyRegionInput, EconomyConfig, RegionAgentCounts,
+            NUM_GOODS, tick_economy_core};
+        for (curve, slots) in [(false, false), (true, false), (true, true)] {
+            let mut pool = AgentPool::new(10);
+            for _ in 0..10 { let s = farmer(&mut pool, 0, 30); pool.wealth[s] = 0.0; }
+            married(&mut pool, 0, 1);
+            let patient = pool.ids[0];
+            let work = prepare(&mut pool, &[patient], &[], &[], 1, 0.5, 0.2);
+            let available = 10.0 - work.losses[0];
+            let input = EconomyRegionInput {
+                region_id: 0, terrain: 0, storage_population: 10,
+                resource_types: [0, 255, 255], resource_yields: [1.0, 0.0, 0.0],
+                production_caps: [None; 3], stockpile: [0.0; NUM_GOODS], subsistence_yield: 0.0,
+                farm_labor_factor: available / 10.0, craft_raw_demand: 0.0, craft_demand: 0.0,
+                farm_labor_ref: if curve { 5.0 } else { 0.0 }, farm_labor_half: 5.0,
+                slot_curves: slots, slot_labor_ref: [0.0; 3], slot_labor_half: [0.0; 3],
+            };
+            let counts = RegionAgentCounts { population: 10, farmer_count: 10,
+                soldier_count: 0, merchant_count: 0, wealthy_count: 0 };
+            let config = EconomyConfig::default();
+            let output = tick_economy_core(&[input], &[counts], &[], &[0.0], &[0], 1,
+                &[0], &config, 1.0, false, None);
+            let rr = &output.region_results[0];
+            assert_eq!(rr.market_demand[0], 10.0 * config.per_capita_food);
+            let expected_work = if curve { crate::economy::effective_farm_labor(available, 5.0, 5.0) } else { available };
+            assert!((rr.slot_output[0] - expected_work).abs() < 1e-5);
+            if !curve { assert_eq!(rr.farm_productivity, 1.0); }
+            let mut region = RegionState::new(0);
+            region.resource_yields[0] = 1.0;
+            region.farmer_income_modifier = rr.farmer_income_modifier;
+            region.farm_productivity = rr.farm_productivity;
+            let signals = crate::signals::TickSignals { civs: vec![], contested_regions: vec![false] };
+            let mut ranks = vec![0.0; 10];
+            crate::tick::wealth_tick(&mut pool, &[region], &signals, &mut ranks);
+            let expected_income = agent::BASE_FARMER_INCOME * rr.farmer_income_modifier
+                * expected_work * (1.0 - agent::WEALTH_DECAY);
+            assert!((pool.wealth.iter().sum::<f32>() - expected_income).abs() < 1e-5,
+                "curve={curve} slots={slots}: income must scale with effective work only once");
+            assert!((pool.wealth[0] / pool.wealth[2] - 0.5).abs() < 1e-6);
+            assert!((pool.wealth[1] / pool.wealth[2] - 0.8).abs() < 1e-6);
+        }
     }
 }
