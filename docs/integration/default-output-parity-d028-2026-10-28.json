@@ -1,0 +1,122 @@
+{
+  "control_commit": "db7ec48b738fa841f1b951c3ae810aa121ef1918",
+  "run_id": 40786065030,
+  "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40786065030",
+  "conclusion": "success",
+  "python": "3.13.17",
+  "contract_tests": {
+    "ran": 20,
+    "seconds": 0.028,
+    "conclusion": "success"
+  },
+  "qualified": true,
+  "baseline": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+  "candidate": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+  "wheel_sha256": "ef15138971a6c0597987aebb4070d47f6940ea5ab0659e552f907a30d046057a",
+  "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+  "inventory_sha256": "a25a2148d0259bfcc53acb74d5a29acb1e173c3e1a8f105c825c777cc99819cb",
+  "elapsed_wall_seconds": 545.1992515139996,
+  "error": null,
+  "final_identity_error": null,
+  "inventory_error": null,
+  "cases": [
+    {
+      "arm": "baseline",
+      "case": "off_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "off_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "hybrid_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "hybrid_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "hybrid_s1234",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "proc48_hybrid_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "proc48_off_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "scaled22k_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "baseline",
+      "case": "scaled52k_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "off_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "off_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "hybrid_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "hybrid_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "hybrid_s1234",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "proc48_hybrid_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "proc48_off_s7",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "scaled22k_s42",
+      "status": "complete"
+    },
+    {
+      "arm": "candidate",
+      "case": "scaled52k_s7",
+      "status": "complete"
+    }
+  ],
+  "registered_turns": 3200,
+  "independent_artifact_reinspection": "pending; current statement uses completed job logs and controller result",
+  "artifact": {
+    "id": 12859762876,
+    "bytes": 54788314,
+    "github_reported_digest": "sha256:025f4c215b1a2e3a556af45dc9d099c9f14343d0ba50ba9c896d8e92be37e8ff",
+    "expires_at": "2026-11-27T23:24:53Z"
+  }
+}
