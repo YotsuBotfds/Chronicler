@@ -32,6 +32,8 @@ from .ablation_arms import (
     fork_every,
     fork_turns as rule_fork_turns,
 )
+from .ffi_constants import BOND_CO_RELIGIONIST, BOND_EXILE, BOND_FRIEND, BOND_KIN, BOND_MENTOR
+from .validation_communities import COMMUNITY_ORACLE_METHOD_VERSION
 
 ABLATION_CONFIDENCE = 0.95
 
@@ -69,8 +71,8 @@ PLACEBO_ARM = "placebo"
 # sentiment >= 20, to a living agent of the same region, sharing a memory key
 # (event type, memory turn // 5); counted up to 4 when one tie is non-kin.
 COMMUNITY_ABLATION_ARM = "community_anchor"
-COMMUNITY_TIE_BOND_TYPES = frozenset({0, 3, 4, 5, 6})
-COMMUNITY_KIN_BOND = 5
+COMMUNITY_TIE_BOND_TYPES = frozenset({BOND_MENTOR, BOND_EXILE, BOND_CO_RELIGIONIST, BOND_KIN, BOND_FRIEND})
+COMMUNITY_KIN_BOND = BOND_KIN
 COMMUNITY_TIE_MIN_SENTIMENT = 20
 COMMUNITY_MEMORY_BUCKET = 5
 COMMUNITY_FULL_TIES = 4
@@ -80,11 +82,13 @@ COMMUNITY_FULL_TIES = 4
 # effect that grows with the ties.
 COMMUNITY_FULL_TIES_BAND = (0.70, 0.85)
 COMMUNITY_NO_TIES_TOLERANCE = 0.03
-# Communities as M53 oracle 1's text specifies them (informational): label
-# propagation over friend, co-religionist and kin edges weighted by
-# sentiment, positive and within a region; 5+ members, >= 80% of them sharing
-# a memory, and a non-kin positive edge (by the native kin code).
-SPEC_COMMUNITY_BOND_TYPES = frozenset({4, 5, 6})
+# Communities as PR #62 read M53 oracle 1 (informational, cohort method 5's
+# ``spec_members``): label propagation over friend, co-religionist and kin
+# edges weighted by sentiment, positive and within a region; 5+ members,
+# >= 80% of them sharing a memory key (event type, memory turn // 5) with
+# another member, and a non-kin positive edge (by the native kin code).
+# Community method 2 (``validation_communities``) is oracle 1 as specified.
+SPEC_COMMUNITY_BOND_TYPES = frozenset({BOND_CO_RELIGIONIST, BOND_KIN, BOND_FRIEND})
 
 _COUNTED = {"migration": 1, "rebellion": 2, "occupation_switch": 3}
 _CODE_NAMES = {code: name for name, code in _COUNTED.items()}
@@ -456,11 +460,30 @@ def needs_ablation_component(seed_runs: list[dict], arm: dict | None, *, confide
     }
 
 
+def _fork_communities(run: dict, fork_turn: int, spec_communities: bool) -> list[set[int]] | None:
+    """The communities at a fork: community method 1's
+    (``detect_communities``, None without a graph snapshot), or with
+    ``spec_communities`` method 2's (``validation_communities``)."""
+    from .validation_io import _graph_snapshot_from_columns, detect_communities
+
+    if spec_communities:
+        from .validation_communities import oracle1_communities
+        return oracle1_communities(run, fork_turn)
+    graph = _graph_snapshot_from_columns(run.get("relationship_columns"), run.get("memory_columns"), fork_turn)
+    if graph is None:
+        return None
+    return detect_communities(graph["edges"], graph["memory_signatures"])
+
+
 def cohort_ablation_result(seed_runs: list[dict], arm: dict | None, *, confidence: float = ABLATION_CONFIDENCE,
-                           min_effect: float = COHORT_ABLATION_MIN_EFFECT, arm_name: str = COHORT_ABLATION_ARM) -> dict:
+                           min_effect: float = COHORT_ABLATION_MIN_EFFECT, arm_name: str = COHORT_ABLATION_ARM,
+                           spec_communities: bool = False) -> dict:
     """Cohort oracle method 4 for one arm: community members at the fork
-    migrate less with the kin roots than without them."""
-    from .validation_io import _graph_snapshot_from_columns, _needs_snapshot_from_columns, detect_communities
+    migrate less with the kin roots than without them. With
+    ``spec_communities`` (cohort method 6) the members are community
+    method 2's (``validation_communities``); the component then records
+    ``community_method_version`` 2."""
+    from .validation_io import _needs_snapshot_from_columns
 
     if arm is None:
         return {"status": "NOT_RUN", "reason": f"no {arm_name} ablation arm", "arm": arm_name}
@@ -477,14 +500,13 @@ def cohort_ablation_result(seed_runs: list[dict], arm: dict | None, *, confidenc
         communities_seen = 0
         for fork_turn, ablated_turns in sorted(forks.items()):
             needs = _needs_snapshot_from_columns(run.get("needs_columns"), fork_turn)
-            graph = _graph_snapshot_from_columns(run.get("relationship_columns"), run.get("memory_columns"), fork_turn)
             if needs is None:
                 missing.append(f"seed {run.get('seed')} turn {fork_turn}")
                 continue
             alive = {int(agent) for agent in needs["columns"]["agent_id"]}
             members: set[int] = set()
-            if graph is not None:
-                communities = detect_communities(graph["edges"], graph["memory_signatures"])
+            communities = _fork_communities(run, fork_turn, spec_communities)
+            if communities is not None:
                 communities_seen += len(communities)
                 for community in communities:
                     members.update(int(agent) for agent in community)
@@ -526,6 +548,9 @@ def cohort_ablation_result(seed_runs: list[dict], arm: dict | None, *, confidenc
             f"members' migration rate ratio {members_migration['rate_ratio']} (upper bound "
             f"{members_migration['upper_bound']}); needs at most {1 - min_effect:.2f} and a bound below 1"
         )
+    if spec_communities:
+        # Cohort method 6 (method 4 and 5 components keep their bytes).
+        extra["community_method_version"] = COMMUNITY_ORACLE_METHOD_VERSION
     return {
         "status": status,
         **extra,
@@ -645,11 +670,16 @@ def detect_spec_communities(edges, regions: dict[int, int], memory_signatures: d
 _COMMUNITY_COHORTS = (
     "members", "non_members", "full_ties", "partial_ties", "no_ties", "spec_members", "spec_non_members",
 )
+# Cohort method 6: the members are community method 2's; method 1's members
+# (method 5's cohort) are reported beside them.
+_SPEC_COMMUNITY_COHORTS = (
+    "members", "non_members", "full_ties", "partial_ties", "no_ties", "method_1_members", "method_1_non_members",
+)
 
 
 def community_ablation_result(seed_runs: list[dict], arm: dict | None, *, confidence: float = ABLATION_CONFIDENCE,
                               min_effect: float = COHORT_ABLATION_MIN_EFFECT,
-                              arm_name: str = COMMUNITY_ABLATION_ARM) -> dict:
+                              arm_name: str = COMMUNITY_ABLATION_ARM, spec_communities: bool = False) -> dict:
     """Cohort method 5's community component: what the community anchor
     (arm ``community_anchor``) does to the migration of agents at the fork.
 
@@ -661,14 +691,19 @@ def community_ablation_result(seed_runs: list[dict], arm: dict | None, *, confid
     exposure: agents with ``COMMUNITY_FULL_TIES`` counted ties migrate
     15-30% less (upper bound below 1), agents without a counted tie within
     ``COMMUNITY_NO_TIES_TOLERANCE`` of no effect (95% interval), and the
-    effect grows with the ties."""
+    effect grows with the ties.
+
+    With ``spec_communities`` (cohort method 6) the members are community
+    method 2's (``validation_communities``) and method 1's members are
+    reported as ``method_1_members`` / ``method_1_non_members``."""
     from .validation_io import _graph_snapshot_from_columns, _needs_snapshot_from_columns, detect_communities
 
     if arm is None:
         return {"status": "NOT_RUN", "reason": f"no {arm_name} ablation arm", "arm": arm_name}
     window = int(arm["window"])
+    cohort_names = _SPEC_COMMUNITY_COHORTS if spec_communities else _COMMUNITY_COHORTS
     tallies: dict[tuple[str, str], list[tuple[int, int, int]]] = {
-        (cohort, event): [] for cohort in _COMMUNITY_COHORTS for event in ("migration", "rebellion")
+        (cohort, event): [] for cohort in cohort_names for event in ("migration", "rebellion")
     }
     offsets = {cohort: ([0] * window, [0] * window) for cohort in ("members", "full_ties")}
     per_seed = []
@@ -690,19 +725,30 @@ def community_ablation_result(seed_runs: list[dict], arm: dict | None, *, confid
             if graph is not None:
                 for community in detect_communities(graph["edges"], graph["memory_signatures"]):
                     members.update(int(agent) for agent in community)
-                for community in detect_spec_communities(graph["edges"], regions, graph["memory_signatures"]):
-                    spec_members.update(community)
+                if not spec_communities:
+                    for community in detect_spec_communities(graph["edges"], regions, graph["memory_signatures"]):
+                        spec_members.update(community)
                 counted = {agent: c for agent, (_t, _nk, c) in
                            community_ties(graph["edges"], regions, graph["memory_signatures"]).items()}
+            if spec_communities:
+                from .validation_communities import oracle1_communities
+                legacy_members = members
+                members = set()
+                for community in oracle1_communities(run, fork_turn):
+                    members.update(community)
             cohorts = {
                 "members": [a for a in alive if a in members],
                 "non_members": [a for a in alive if a not in members],
                 "full_ties": [a for a in alive if counted.get(a, 0) >= COMMUNITY_FULL_TIES],
                 "partial_ties": [a for a in alive if 0 < counted.get(a, 0) < COMMUNITY_FULL_TIES],
                 "no_ties": [a for a in alive if counted.get(a, 0) == 0],
-                "spec_members": [a for a in alive if a in spec_members],
-                "spec_non_members": [a for a in alive if a not in spec_members],
             }
+            if spec_communities:
+                cohorts["method_1_members"] = [a for a in alive if a in legacy_members]
+                cohorts["method_1_non_members"] = [a for a in alive if a not in legacy_members]
+            else:
+                cohorts["spec_members"] = [a for a in alive if a in spec_members]
+                cohorts["spec_non_members"] = [a for a in alive if a not in spec_members]
             first, last = fork_turn + 1, fork_turn + window
             plain_turns = _plain_turns(run["events"], first, last)
             ablated_turns = _windowed(ablated_turns, first, last)
@@ -724,15 +770,15 @@ def community_ablation_result(seed_runs: list[dict], arm: dict | None, *, confid
         per_seed.append({
             "seed": run.get("seed"),
             "forks": sorted(forks),
-            "migration": {cohort: list(seed_tally[(cohort, "migration")]) for cohort in _COMMUNITY_COHORTS},
+            "migration": {cohort: list(seed_tally[(cohort, "migration")]) for cohort in cohort_names},
         })
     if missing:
         return {"status": "ERROR", "reason": "no needs snapshot at fork turn: " + ", ".join(missing[:5]),
                 "arm": arm_name}
     if not per_seed:
         return {"status": "NOT_RUN", "reason": "no seed of the batch has a fork in the arm", "arm": arm_name}
-    migration = {cohort: ablation_ratio(tallies[(cohort, "migration")], confidence) for cohort in _COMMUNITY_COHORTS}
-    rebellion = {cohort: ablation_ratio(tallies[(cohort, "rebellion")], confidence) for cohort in _COMMUNITY_COHORTS}
+    migration = {cohort: ablation_ratio(tallies[(cohort, "migration")], confidence) for cohort in cohort_names}
+    rebellion = {cohort: ablation_ratio(tallies[(cohort, "rebellion")], confidence) for cohort in cohort_names}
     status, failed = judge(migration["members"], "decrease", min_effect)
     # The candidate restated claim (reported, not deciding).
     full = migration["full_ties"]
@@ -761,6 +807,9 @@ def community_ablation_result(seed_runs: list[dict], arm: dict | None, *, confid
             f"members' migration rate ratio {migration['members']['rate_ratio']} (upper bound "
             f"{migration['members']['upper_bound']}); needs at most {1 - min_effect:.2f} and a bound below 1"
         )
+    if spec_communities:
+        # Cohort method 6 (method 5's component keeps its bytes).
+        extra["community_method_version"] = COMMUNITY_ORACLE_METHOD_VERSION
     by_cohort = {}
     for cohort, stats in migration.items():
         if cohort == "full_ties":

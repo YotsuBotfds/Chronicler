@@ -6,6 +6,36 @@
 
 ---
 
+## Communities as M53 oracle 1 specifies them (2026-10-28, `feat/spec-communities`)
+
+> **Last updated:** 2026-10-28 (`feat/spec-communities` from `main` `ac74e5a`; validation only, the simulation byte-identical. Added: community oracle method 2, which keeps method 1 as its deciding legacy component and adds M53 oracle 1 as specified, judged by the spec's criteria; and cohort method 6, method 5 with those communities as the member cohort of every component. Results on `main`'s simulation: about a tenth of the agents are members (method 1: nine in ten), 3.1 (template) and 5.4 (procedural) communities a seed, median size 5. No community stays within 5% of its region (regions hold about 40 agents), so the spec component fails and stays informational. Two thirds of members now find a matched control. The kin roots give the spec's members 0.988 and 0.996; the community anchor gives them 0.912 against 0.907 for non-members, so M53's anchoring claim is still not reproduced. Three full gates PASS strict, NO REGRESSION, every metric delta 0, `rebaseline_required` for community 1 -> 2 and cohort 5 -> 6.)
+
+Details and evidence:
+[`docs/integration/spec-communities.md`](../../integration/spec-communities.md).
+
+- **Detection** (`chronicler/validation_communities.py`): friend,
+  co-religionist and kin edges with positive sentiment between living
+  agents of one region, weighted by sentiment; method 1's label
+  propagation; kept with 5+ members, a friend or co-religionist edge and
+  one memory tuple (event type, turn, valence) held by 80%. Bond codes come
+  from `ffi_constants.BOND_TYPES`, checked against the Rust enum and, with
+  the extension, against the native kin behaviour.
+- **Region share** is a community's size over its region's living agents
+  at the snapshot, for every community; 0 of 26,228 (flag-on) and 2 of
+  36,945 (default gates) communities stay within 5%. Restating it for small
+  worlds is a separate decision.
+- **Pre-registration** before any gate, from probes of `main` on other
+  seeds: every prediction held but the template count (predicted more
+  likely to fail; 3.13 passed).
+- **Identity and tests**: 9-case matrix 399 files, 0 differences; old
+  methods re-score `main`'s results exactly; `cargo test` 1,070 passed;
+  not-slow 6,777 passed, 3 skipped; oracle lane PASS (2,754 passed).
+- **Open**: the region-share criterion; why the anchor misses the spec's
+  members although they hold more ties; the observational cohort component
+  remains non-discriminating.
+
+---
+
 ## Domestic credit through real lenders (2026-10-28, `feat/domestic-credit`)
 
 > **Last updated:** 2026-10-28 (`feat/domestic-credit` from `main` `ac74e5a`. Added: a default-off switch `--domestic-credit` (needs finance and an agent pool) that makes the realm's merchant agents, guilds and cities finance's domestic lender: they fund domestic loans from their wealth (half their assets less their claims, a quarter always kept), receive interest and repayments pro rata to their claims and lose what defaults write off; merchant wealth moves through a native call, and losers gain grievance (merchants' satisfaction inside the social cap, cities' grievance, a guild threat). Off is byte-identical to `main`; on resumes exactly; the books balance every turn under `CHRONICLER_CHECK_RESOURCES=1`. Template full 200 x 500 and procedural full 100 x 300 with the switch on PASS strict, EXPLORATORY NO REGRESSION against main. Kept off: open decisions on early-game credit, war chests and a debt treadmill in a few worlds.)

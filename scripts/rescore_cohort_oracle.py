@@ -83,8 +83,8 @@ def rescore(directory: Path, turns: int | None) -> dict:
             version = recorded.get("method_version", 1)
             out["report"] = str(reports[0])
             out["report_method"] = version
-            if version >= vio.COHORT_ORACLE_METHOD_VERSION:
-                # Method 4 reads the batch's ablation arms (chronicler.validate --ablation-dir).
+            if version >= vio.COHORT_ABLATION_DESIGN1_METHOD_VERSION:
+                # Methods 4-6 read the batch's ablation arms (chronicler.validate --ablation-dir).
                 out["rescore_equals_report"] = None
             else:
                 out["rescore_equals_report"] = recorded == out.get(f"method_{version}")

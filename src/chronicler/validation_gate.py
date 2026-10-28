@@ -55,6 +55,14 @@ CAUSAL_LABEL_REQUIRED = "causal evidence (required)"
 # (oracle-followups.md): its PASS is no evidence.
 COHORT_OBSERVATIONAL_NOTE = "non-discriminating: passes synthetic null and reversed worlds"
 
+# Community oracle method 2 (docs/integration/spec-communities.md): method
+# 1's result as its legacy component and M53 oracle 1 as specified as its
+# spec component. Until the spec component passes its acceptance criteria
+# on `main`'s simulation it is reported and method 1 decides (the decision
+# and its evidence are in that document). True makes the spec component
+# decide.
+COMMUNITY_SPEC_REQUIRED = False
+
 # Needs oracle method 7 with causal oracles required: which of its components
 # decides PASS. The full profile's ablation arms fork every seed four
 # (template) or two (procedural) times and measure each pairing's causal
@@ -140,6 +148,10 @@ def _oracle_item(
         reason = result.get("reason")
         if oracle == "cohort" and _is_cohort_with_components(result):
             reason = _cohort_status(result, causal_oracles_required(report, require_causal))[1]
+        if oracle == "community" and _is_community_with_components(result) and not reason:
+            spec_status = result["spec"].get("status")
+            reason = ("spec component (M53 oracle 1 as specified) decides" if result.get("spec_required")
+                      else f"method 1 decides; spec component (M53 oracle 1 as specified) {spec_status}, reported")
         if reason:
             item["reason"] = str(reason)
         adjudication = result.get("regression_adjudication") or result.get("creation_rate_adjudication")
@@ -265,7 +277,9 @@ def _cohort_status(
                                     f"oracles are required"})
     else:
         observational_reason = result.get("observational_reason")
-        reason = f"method 3 (observational), {COHORT_OBSERVATIONAL_NOTE}"
+        basis = ("method 3 on community method 2's communities" if result.get("community_method_version") == 2
+                 else "method 3")
+        reason = f"{basis} (observational), {COHORT_OBSERVATIONAL_NOTE}"
         if status != "PASS" and observational_reason:
             reason = f"{observational_reason}; {reason}"
         if statuses["ablation"] != "PASS":
@@ -280,6 +294,35 @@ def _cohort_status(
                       "reason": "reported, never deciding: community-anchor ablation "
                                 f"{community.get('status')}" + (f" ({detail})" if detail else "")})
     return status, reason or None, items
+
+
+def _is_community_with_components(result: Any) -> bool:
+    return (
+        isinstance(result, dict) and _is_version(result, 2)
+        and isinstance(result.get("spec"), dict) and "legacy_status" in result
+    )
+
+
+def _community_items(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Community method 2: the component that does not decide, when it does
+    not pass, as an informational item (``community_spec`` or
+    ``community_legacy``)."""
+    if not _is_community_with_components(result):
+        return []
+    spec = result["spec"]
+    if result.get("spec_required"):
+        legacy = str(result.get("legacy_status") or "MISSING")
+        if legacy == "PASS":
+            return []
+        return [{"oracle": "community_legacy", "status": legacy,
+                 "reason": "method 1; informational while the spec component decides"}]
+    status = str(spec.get("status") or "MISSING")
+    if status == "PASS":
+        return []
+    reason = "reported, not deciding: M53 oracle 1 as specified (method 2) " + status
+    if spec.get("reason"):
+        reason += f" ({spec['reason']})"
+    return [{"oracle": "community_spec", "status": status, "reason": reason}]
 
 
 def _community_component(result: dict[str, Any]) -> dict[str, Any] | None:
@@ -389,6 +432,8 @@ def adjudicate_validation_report(
             status, component_items = _needs_status_for_profile(result, profile, require_causal)
         if oracle == "cohort" and isinstance(result, dict):
             status, _reason, component_items = _cohort_status(result, require_causal)
+        if oracle == "community" and isinstance(result, dict):
+            component_items = _community_items(result)
         item = _oracle_item(report, oracle, status, require_causal)
         if oracle == "needs" and isinstance(result, dict) and status == "FAIL" and "reason" not in item:
             reason = _needs_failure_reason(result, profile, require_causal)
@@ -456,8 +501,9 @@ def causal_evidence(report: dict[str, Any], profile: str, require_causal: bool) 
         migration = ablation.get("members_migration")
         detail = (f"members' migration {_ratio_text(migration)}" if isinstance(migration, dict)
                   else _ablation_detail(ablation))
+        members_of = " on community method 2's members" if cohort.get("community_method_version") == 2 else ""
         rows.append({
-            "oracle": "cohort", "component": "ablation (kin roots)",
+            "oracle": "cohort", "component": "ablation (kin roots)" + members_of,
             "status": str(ablation.get("status") or "MISSING"),
             "decides": "ablation" in cohort_components_required(require_causal),
             "label": causal_label(require_causal), "detail": detail,
@@ -472,7 +518,7 @@ def causal_evidence(report: dict[str, Any], profile: str, require_causal: bool) 
                 if isinstance(by_cohort.get(name), dict):
                     parts.append(f"{label} {_ratio_text(by_cohort[name])}")
             rows.append({
-                "oracle": "cohort_community", "component": "ablation (community anchor)",
+                "oracle": "cohort_community", "component": "ablation (community anchor)" + members_of,
                 "status": str(community.get("status") or "MISSING"),
                 "decides": False,
                 "label": "reported", "detail": "; ".join(parts) or _ablation_detail(community),

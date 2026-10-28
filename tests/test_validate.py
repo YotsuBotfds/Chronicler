@@ -1727,10 +1727,13 @@ def test_run_cohort_oracle_uses_all_sampled_turns(monkeypatch, method_version, w
     assert events == original_events
 
 
-def _cohort_world(seed, rebels=4, event_offset=0, turn=100, total_turns=140):
-    """One snapshot at ``turn``: agents 0-4 a community (friends sharing a
-    memory), 5-9 their matched non-members; the first ``rebels`` members
-    rebel on turn ``turn + event_offset``."""
+def _cohort_world(seed, rebels=4, event_offset=0, turn=100, total_turns=140, bond_type=2):
+    """One snapshot at ``turn``: agents 0-4 a community sharing a memory,
+    5-9 their matched non-members; the first ``rebels`` members rebel on
+    turn ``turn + event_offset``. The default bond (code 2, the native
+    marriage) joins them for community method 1, which propagates over
+    every edge; method 2 (M53 oracle 1 as specified) needs friend (6),
+    co-religionist (4) or kin (5) bonds."""
     from chronicler.validation_io import EVENT_NAME_TO_CODE
 
     edges = [(i, j) for i in range(5) for j in range(i + 1, 5)]
@@ -1740,7 +1743,7 @@ def _cohort_world(seed, rebels=4, event_offset=0, turn=100, total_turns=140):
         "bundle": {"metadata": {"total_turns": total_turns}},
         "relationship_columns": {
             "turn": [turn] * len(edges), "agent_id": [a for a, _b in edges], "target_id": [b for _a, b in edges],
-            "bond_type": [2] * len(edges), "sentiment": [50] * len(edges),
+            "bond_type": [bond_type] * len(edges), "sentiment": [50] * len(edges),
         },
         "memory_columns": {
             "turn": [turn] * 5, "agent_id": list(range(5)), "event_type": [0] * 5,
@@ -1816,16 +1819,27 @@ def test_cohort_oracle_method_version_argument():
     from chronicler.validate import run_cohort_oracle
 
     runs = [_cohort_world(seed, event_offset=1) for seed in (1, 2)]
-    # Method 5 (the default) is method 3's verdict with the kin-roots
-    # ablation and the community component, here not run (no arms); method
-    # 3 decides. Method 4 is the same without the community component.
-    default = run_cohort_oracle(runs)
+    # Method 5 is method 3's verdict with the kin-roots ablation and the
+    # community component, here not run (no arms); method 3 decides. Method
+    # 4 is the same without the community component.
+    method5 = run_cohort_oracle(runs, method_version=5)
     method3 = run_cohort_oracle(runs, method_version=3)
-    assert (default["status"], default["method_version"]) == (method3["status"], 5)
-    assert default["ablation"]["reason"] == "no kin_roots ablation arm"
-    assert default["community_ablation"]["status"] == "NOT_RUN"
-    assert {k: v for k, v in default.items() if k in method3 and k not in ("method", "method_version")} == {
+    assert (method5["status"], method5["method_version"]) == (method3["status"], 5)
+    assert method5["ablation"]["reason"] == "no kin_roots ablation arm"
+    assert method5["community_ablation"]["status"] == "NOT_RUN"
+    assert {k: v for k, v in method5.items() if k in method3 and k not in ("method", "method_version")} == {
         k: v for k, v in method3.items() if k not in ("method", "method_version")}
+    # Method 6 (the default) is method 5 on community method 2's communities:
+    # the marriage bonds of this world make none (method 1 counts them).
+    default = run_cohort_oracle(runs)
+    assert (default["status"], default["method_version"], default["observational_status"]) == ("SKIP", 6, "SKIP")
+    friends = [_cohort_world(seed, event_offset=1, bond_type=6) for seed in (1, 2)]
+    default = run_cohort_oracle(friends)
+    assert (default["status"], default["method_version"], default["community_method_version"]) == (
+        run_cohort_oracle(friends, method_version=3)["status"], 6, 2)
+    assert default["matching"]["members"] == 5 * default["matching"]["snapshots"] == 10
+    assert default["matching"]["match_rate"] == 1.0 and default["matching"]["mean_satisfaction_gap"] == 0.0
+    assert [seed["members"] for seed in default["per_seed"]] == [5, 5]
     method4 = run_cohort_oracle(runs, method_version=4)
     assert method4["method_version"] == 4 and "community_ablation" not in method4
     assert method3["method_version"] == 3
@@ -1834,7 +1848,7 @@ def test_cohort_oracle_method_version_argument():
     # Method 2 keeps its report bytes: no comparison, censoring or pair keys.
     assert not {"comparison", "outcome_censoring"} & set(method2)
     assert not {"pairs", "censored_pairs"} & set(method2["per_seed"][0])
-    for bad in (0, 6, True, "2"):
+    for bad in (0, 7, True, "2"):
         with pytest.raises(ValueError, match="method_version"):
             run_cohort_oracle(runs, method_version=bad)
     assert run_cohort_oracle([], method_version=1) == {"status": "SKIP", "reason": "no_bundles"}
