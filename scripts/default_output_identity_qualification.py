@@ -200,6 +200,7 @@ def resources(path, *, meminfo=Path("/proc/meminfo"),
     require(available is not None, "MemAvailable unavailable")
     limits = []
     observed_v2 = False
+    observed_pair = False
     # Conservatively count charged cgroup page cache as used; do not invent reclaimable RAM.
     for line in process_cgroup.read_text().splitlines():
         group, controllers, relative = line.split(":", 2)
@@ -208,19 +209,27 @@ def resources(path, *, meminfo=Path("/proc/meminfo"),
         observed_v2 = True
         require(relative.startswith("/") and ".." not in Path(relative).parts, "invalid cgroup path")
         current = cgroup_root.joinpath(*Path(relative).parts[1:])
+        require(current.is_dir(), "declared cgroup directory is not visible")
         while True:
             maximum, usage = current / "memory.max", current / "memory.current"
-            if maximum.is_file() or usage.is_file():
+            if current == cgroup_root and not maximum.exists() and not maximum.is_symlink():
+                # The true v2 hierarchy root has current, but cannot have a max.
+                require(usage.is_file(), "hierarchy-root memory usage is not visible")
+                used = int(usage.read_text())
+                require(used >= 0, "invalid hierarchy-root memory usage")
+                limits.append({"path": str(current), "max": "root-unbounded", "current": used})
+            else:
                 require(maximum.is_file() and usage.is_file(), "incomplete cgroup memory visibility")
                 cap, used = maximum.read_text().strip(), int(usage.read_text())
                 require(used >= 0 and (cap == "max" or int(cap) > 0), "invalid cgroup memory values")
                 limits.append({"path": str(current), "max": "max" if cap == "max" else int(cap), "current": used})
+                observed_pair = True
             if current == cgroup_root:
                 break
             current = current.parent
-    require(observed_v2 and limits, "cgroup v2 memory visibility required")
+    require(observed_v2 and observed_pair, "at least one actual cgroup max/current pair is required")
     ram = min([available] + [max(0, row["max"] - row["current"])
-                            for row in limits if row["max"] != "max"])
+                            for row in limits if type(row["max"]) is int])
     return {"disk_free": shutil.disk_usage(path).free, "ram_available": ram,
             "host_mem_available": available, "cgroup_limits": limits}
 
@@ -539,7 +548,7 @@ def execute(args):
 def finish_evidence(root, report, quiescent, deadline):
     desired = report["qualified"]
     report["qualified"] = False
-    write(root / "result.json", report)  # Durable negative until inventory is complete.
+    write(root / "result.json", report)  # Keep the receipt negative until inventory is complete.
     try:
         require(quiescent, "live-writer cleanup unverified; payload inventory withheld")
         inventory = payload_inventory(root, exclude=("inventory.json", "result.json"))

@@ -71,7 +71,12 @@ Disk admission is 12 GiB before build and 6 GiB after build. Available RAM must
 be at least 2 GiB at those admission points. Runtime monitoring requires 3 GiB
 free disk and 1 GiB available RAM. Host MemAvailable is constrained by observed
 cgroup-v2 limit minus current usage (an actual readable max/current pair,
-including explicitly unbounded max, is required and recorded); charged cache receives no speculative
+including explicitly unbounded max, is required and recorded). The declared
+cgroup directory must exist; a readable ancestor cannot substitute for a missing
+leaf. The kernel hierarchy root may expose current without max: record that as
+an unbounded ancestor while retaining the observed nonroot pair requirement.
+Root-current-only visibility without any actual max/current pair deliberately
+refuses this registration. Charged cache receives no speculative
 reclaim credit. Missing visibility or any floor refusal stops work. A real host
 may refuse this protocol. Thresholds do not change after observation.
 

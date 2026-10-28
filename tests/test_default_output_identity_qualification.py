@@ -258,5 +258,47 @@ class QualificationContracts(unittest.TestCase):
             self.assertGreater(saved["elapsed_wall_seconds"], qualification.WALL_SECONDS)
 
 
+    def test_valid_nested_cgroup_allows_kernel_root_current_without_max(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            memory, membership, group = root / "meminfo", root / "cgroup", root / "group"
+            memory.write_text("MemAvailable: 2097152 kB\n")
+            membership.write_text("0::/leaf\n")
+            leaf = group / "leaf"
+            leaf.mkdir(parents=True)
+            (group / "memory.current").write_text("100\n")
+            (leaf / "memory.max").write_text(str(qualification.GIB))
+            (leaf / "memory.current").write_text(str(qualification.GIB // 2))
+            result = qualification.resources(root, meminfo=memory,
+                process_cgroup=membership, cgroup_root=group)
+            self.assertEqual(result["ram_available"], qualification.GIB // 2)
+            self.assertEqual(result["cgroup_limits"][-1]["max"], "root-unbounded")
+
+    def test_missing_declared_cgroup_is_not_replaced_by_readable_ancestor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            memory, membership, group = root / "meminfo", root / "cgroup", root / "group"
+            memory.write_text("MemAvailable: 2097152 kB\n")
+            membership.write_text("0::/missing/leaf\n")
+            group.mkdir()
+            (group / "memory.max").write_text("max\n")
+            (group / "memory.current").write_text("100\n")
+            with self.assertRaises(qualification.Refusal):
+                qualification.resources(root, meminfo=memory,
+                    process_cgroup=membership, cgroup_root=group)
+
+    def test_root_current_only_refuses_without_any_actual_max_current_pair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            memory, membership, group = root / "meminfo", root / "cgroup", root / "group"
+            memory.write_text("MemAvailable: 2097152 kB\n")
+            membership.write_text("0::/\n")
+            group.mkdir()
+            (group / "memory.current").write_text("100\n")
+            with self.assertRaises(qualification.Refusal):
+                qualification.resources(root, meminfo=memory,
+                    process_cgroup=membership, cgroup_root=group)
+
+
 if __name__ == "__main__":
     unittest.main()
