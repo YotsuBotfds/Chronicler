@@ -93,3 +93,31 @@ coordinates compiler/benchmark windows and freezes source, interpreter,
 extension digest, crate tree, Cargo lock and CPU/thread environment for each
 receipt. Frozen environments and shared target caches are never silently
 replaced.
+
+## Prospective full-boundary pilot fixture
+
+Before its first exposure run, `scripts/household_shock_benchmark.py` freezes
+the seed42,20k-target,12-template-region/4-civilization pilot,20 warm-up and
+8 measured turns. It pairs actual native adults aged at least20 in ascending
+ID order within ascending region order, inserts symmetric Marriage bonds
+through the existing FFI, and records every chosen pair. Initial populations
+follow the existing scaling harness and must stay below50k per region.
+
+The origin is the largest initial population region, ties by region index;
+its actual adjacent regions, in region-index order, are the neighbors. From
+turn20 onward only native `SyncRegion.food_sufficiency` inputs are overridden:
+origin0.05, neighbors1.5; other fields and regions stay as built. This is a
+forced-condition performance fixture, not physical food spending, and does
+not establish a balanced intervention. The cohort-control arm keeps the
+same marriages without a food-input override. Default production runs and
+the nine-case identity matrix remain unwrapped.
+
+Keep both binary arms, chosen pairs, complete per-turn exposure records,
+cancellations/zero exposures and the initial/realized population distribution.
+The existing complete-turn timer includes the same lightweight exposure
+collection in both arms; imports, warm-up and final exports are separately
+available through process/run timings. The first pilot retains actual run
+files for artifact comparison. Do not change seed, origin,food values, exposure
+thresholds or the candidate after seeing its result without a new prospective
+amendment. The >=5% exposed-whole-workload and <=3% ordinary-whole-workload
+regression rules remain decisive; a fast isolated phase is insufficient.
