@@ -122,6 +122,49 @@ def test_selected_and_ancestral_future_content_never_leaks():
     assert report["ancestors"] == [] and "FUTURE SECRET" not in json.dumps(report)
 
 
+def test_future_duplicate_ids_do_not_change_known_event_accounts_or_ancestry(bundle):
+    expected = inspect_bundle(bundle, "6:famine:0", as_of=AsOf.after(7))
+    extended = copy.deepcopy(bundle)
+    for original in bundle["events_timeline"]:
+        duplicate = copy.deepcopy(original)
+        duplicate.update(turn=10, description="FUTURE DUPLICATE SECRET")
+        extended["events_timeline"].append(duplicate)
+    reader = HistoryForensics(extended)
+    assert reader.inspect("6:famine:0", as_of=AsOf.after(7)) == expected
+    # Once both copies are known, ambiguity remains an explicit failure.
+    with pytest.raises(ForensicsError, match="ambiguous"):
+        reader.inspect("6:famine:0", as_of=AsOf.after(10))
+    # The visible index belongs to the query; a later query cannot poison it.
+    assert reader.inspect("6:famine:0", as_of=AsOf.after(7)) == expected
+    assert by_chronicler(expected)["seat:0"]["summary"] == "Recorded famine"
+
+
+def test_future_only_duplicate_causes_remain_unavailable_until_their_dates():
+    selected = event(2, "known", ["later-id"])
+    future = event(10, "future", description="FIRST FUTURE SECRET")
+    future["event_id"] = "later-id"
+    later = dict(future, turn=12, description="SECOND FUTURE SECRET")
+    source = {"events_timeline": [selected, future, later]}
+    reader = HistoryForensics(source)
+    report = reader.inspect(selected["event_id"], as_of=AsOf.after(2))
+    assert report["edges"] == [{"cause_id": "later-id", "effect_id": selected["event_id"],
+                                "status": "after_as_of"}]
+    assert report["ancestors"] == []
+    assert "SECRET" not in json.dumps(report)
+    with pytest.raises(ForensicsError, match="not known"):
+        reader.inspect("later-id", as_of=AsOf.before(10))
+    assert reader.inspect("later-id", as_of=AsOf.after(10))["selected"]["description"] == "FIRST FUTURE SECRET"
+    assert reader.inspect(selected["event_id"], as_of=AsOf.after(12))["edges"][0]["status"] == "ambiguous"
+
+
+def test_undated_duplicate_cannot_be_assumed_to_belong_to_the_future():
+    known = event(1, "known")
+    undated = copy.deepcopy(known)
+    undated.pop("turn")
+    with pytest.raises(ForensicsError, match="ambiguous"):
+        inspect_bundle({"events_timeline": [known, undated]}, known["event_id"], as_of=AsOf.after(1))
+
+
 @pytest.mark.parametrize("limit,expected", [
     (Limits(max_depth=0), "max_depth"), (Limits(max_nodes=1), "max_nodes"),
     (Limits(max_edges=1), "max_edges"), (Limits(max_accounts=1), "max_accounts"),

@@ -81,6 +81,14 @@ malformed cause lists and cycles. A future record's text is never included
 in an earlier view. An ambiguous cause is not silently resolved to the first
 matching event.
 
+Identity checks use the requested historical horizon. A later dated duplicate
+cannot make a previously known selected event, its plain account or its ancestor
+ambiguous. Both copies still become ambiguous once their dates are known; an
+undated copy remains unresolved rather than being assigned to the future.
+The same reader can serve earlier and later queries without mutating its
+index. Three added regressions cover these boundaries; all 34 forensic tests
+passed on 2026-10-28. This is a reader correction, with no simulation changes.
+
 The defaults are `--max-nodes 200` (including the selected event),
 `--max-edges 1000`, `--max-depth 20`, and `--max-accounts 20` per event.
 These bounds appear in each report. `truncated_by` names each reached

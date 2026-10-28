@@ -163,9 +163,21 @@ class HistoryForensics:
                     dated.extend((_turn(row.get("turn")), _turn(row.get("lost_turn"))))
         self.last_recorded = max((t for t in dated if t is not None), default=-1)
 
-    def _unique(self, event_id: str) -> int:
+    def _matches(self, event_id: str, as_of: AsOf | None = None) -> list[int]:
         matches = self.indices.get(event_id, [])
+        if as_of is None:
+            return matches
+        # An undated candidate cannot safely be assigned to the future. Dated
+        # future copies, however, must not change an earlier event's identity.
+        return [i for i in matches
+                if (turn := _turn(self.events[i].get("turn"))) is None or as_of.knows(turn)]
+
+    def _unique(self, event_id: str, as_of: AsOf | None = None) -> int:
+        matches = self._matches(event_id, as_of)
         if not matches:
+            if as_of is not None and self.indices.get(event_id):
+                raise ForensicsError(
+                    f"event_id {event_id!r} is not known after completed turn {as_of.completed}")
             hint = (f" {self.missing_ids} timeline records have no stable event_id; "
                     "legacy records cannot be selected by invented ids.") if self.missing_ids else ""
             raise ForensicsError(f"event_id {event_id!r} was not found.{hint}")
@@ -173,8 +185,8 @@ class HistoryForensics:
             raise ForensicsError(f"event_id {event_id!r} is ambiguous ({len(matches)} records)")
         return matches[0]
 
-    def _key(self, event_id: str) -> tuple:
-        matches = self.indices.get(event_id, [])
+    def _key(self, event_id: str, as_of: AsOf | None = None) -> tuple:
+        matches = self._matches(event_id, as_of)
         if len(matches) != 1:
             return (float("inf"), float("inf"), event_id)
         i = matches[0]
@@ -182,9 +194,9 @@ class HistoryForensics:
         return (t if t is not None else float("inf"), i, event_id)
 
     def _accounts(self, eid: str, view: AccountIndex | None,
-                  limit: int) -> tuple[list[dict], int]:
+                  limit: int, *, as_of: AsOf) -> tuple[list[dict], int]:
         rows = list(view.accounts_for(eid)) if view is not None else []
-        event = self.events[self._unique(eid)]
+        event = self.events[self._unique(eid, as_of)]
         for chronicler in self.plain.get(eid, []):
             rows.append({"account_id": f"{chronicler}/{eid}", "chronicler": chronicler,
                          "turn": event["turn"], "_plain": True})
@@ -231,11 +243,12 @@ class HistoryForensics:
         or the latest recorded event/account/loss when no horizon is given.
         """
         limits = limits or Limits()
-        selected_i = self._unique(event_id)
         point = as_of or AsOf.after(self.declared_completed if self.declared_completed is not None
                                    else self.last_recorded)
         if type(point.turn) is not int or not isinstance(point.phase, Phase):
             raise ForensicsError("as_of must have an integer turn and a historical_context.Phase")
+        selected_i = self._unique(event_id, point)
+        event_key = lambda eid: self._key(eid, point)
         selected_turn = _turn(self.events[selected_i].get("turn"))
         if selected_turn is None:
             raise ForensicsError(f"event_id {event_id!r} has no integer turn")
@@ -256,22 +269,26 @@ class HistoryForensics:
 
         while queue:
             effect = queue.popleft()
-            i = self._unique(effect)
+            i = self._unique(effect, point)
             ev = self.events[i]
             causes = ev.get("causes") or []
             if not isinstance(causes, list) or any(not isinstance(c, str) or not c for c in causes):
                 diagnostic("invalid_causes", effect)
                 continue
-            for cause in sorted(set(causes), key=self._key):
+            for cause in sorted(set(causes), key=event_key):
                 if len(edges) >= limits.max_edges:
                     truncated.add("max_edges")
                     break
                 edge = {"cause_id": cause, "effect_id": effect, "status": "recorded"}
-                matches = self.indices.get(cause, [])
+                matches = self._matches(cause, point)
                 ct = _turn(self.events[matches[0]].get("turn")) if len(matches) == 1 else None
                 if not matches:
-                    edge["status"] = "dangling"
-                    diagnostic("dangling_id", effect, cause)
+                    if self.indices.get(cause):
+                        edge["status"] = "after_as_of"
+                        diagnostic("cause_after_as_of", effect, cause)
+                    else:
+                        edge["status"] = "dangling"
+                        diagnostic("dangling_id", effect, cause)
                 elif len(matches) > 1:
                     edge["status"] = "ambiguous"
                     diagnostic("duplicate_event_id", effect, cause)
@@ -302,7 +319,7 @@ class HistoryForensics:
             if edge["status"] == "recorded":
                 parents[edge["effect_id"]].append(edge["cause_id"])
         color: dict[str, int] = {}
-        for start in sorted(distance, key=self._key):
+        for start in sorted(distance, key=event_key):
             if color.get(start):
                 continue
             color[start] = 1
@@ -320,9 +337,9 @@ class HistoryForensics:
                     stack.append((parent, iter(parents[parent])))
 
         def node(eid: str) -> dict:
-            i = self._unique(eid)
+            i = self._unique(eid, point)
             raw = self.events[i]
-            accounts, omitted = self._accounts(eid, view, limits.max_accounts)
+            accounts, omitted = self._accounts(eid, view, limits.max_accounts, as_of=point)
             if omitted:
                 truncated.add("max_accounts")
             # Whitelist record fields; never copy mutable input objects out.
@@ -334,9 +351,9 @@ class HistoryForensics:
             return out
 
         selected = node(event_id)
-        ancestors = [node(eid) for eid in sorted(distance, key=self._key) if eid != event_id]
-        edges.sort(key=lambda e: (self._key(e["effect_id"]), self._key(e["cause_id"]), e["status"]))
-        diagnostics.sort(key=lambda d: (d["kind"], self._key(d["event_id"]), self._key(d.get("cause_id", ""))))
+        ancestors = [node(eid) for eid in sorted(distance, key=event_key) if eid != event_id]
+        edges.sort(key=lambda e: (event_key(e["effect_id"]), event_key(e["cause_id"]), e["status"]))
+        diagnostics.sort(key=lambda d: (d["kind"], event_key(d["event_id"]), event_key(d.get("cause_id", ""))))
         return {
             "version": 1, "interpretation": INTERPRETATION,
             "as_of": {"turn": point.turn, "phase": point.phase.value, "completed_turn": point.completed},
