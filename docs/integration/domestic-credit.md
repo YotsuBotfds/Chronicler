@@ -250,15 +250,80 @@ not balance ...")`):
 * cumulatively, the merchants' flows (interest + repaid - lent) equal what
   reached their wealth plus what is still due.
 
-Results: [pending].
+Runs checked with `CHRONICLER_CHECK_RESOURCES=1`, every tick balanced (the
+production ledger's own checks ran alongside): 20 template worlds (seeds
+42-61 x 300 turns) and 20 procedural 32 x 10 worlds (seeds 42-61 x 200
+turns), hybrid, switch on; their final states are byte-identical to the
+unchecked runs of the same seeds (40 of 40), so the checks only read. The
+native test (60 turns, twice) and the guarded-lane tests run with the
+checks too, and a book with one claim changed by a unit fails them
+(`test_the_ledger_balances_over_a_run_and_catches_a_broken_book`).
+
+A first checked batch stopped three template worlds on the overdraft check
+("merchants asked for 1.9e-06 holding -0.0", turns 86, 207 and 209): a debit
+residual of f32 rounding, carried in the due of a region whose merchants
+had since left, was counted as a request this tick. The check now applies
+to regions that lent this tick and allows the carried residual (`2a08828`;
+the check is not run without the environment variable, so no simulation
+output changed).
+
+Over those runs the books close as designed: in the procedural worlds the
+merchants lent 3,535 a run and were paid 2,299 of interest and 2,750 of
+principal; what reached their wealth plus what is still due equals those
+flows to within 1e-6 at every turn, with 10.7 still due at the end (credits
+waiting for merchants to return to a region).
+
+Environment for every run in this note: Linux, Python 3.13.17,
+`PYTHONHASHSEED=0`, one virtualenv per tree with a release extension built
+fresh (`maturin develop --release --locked`, its own `CARGO_TARGET_DIR`;
+compiled `chronicler_agents.chronicler_agents`, `AgentSimulator`,
+`EcologySimulator` and `PoliticsSimulator` real classes). `main` `ac74e5a`
+from an exported tree: extension SHA-256 `8497d374...3d50`. Branch frozen
+tree `2a08828` (identity, checkpoints, checked runs, gates; `c46e004` for
+the paired probe, which differs only in the ledger check):
+`3da1ee1f...dad0b`.
 
 ## 5. Switch off: byte-identical to `main`
 
-[pending]
+`scripts/turn_speed_identity.py`, the 9-case matrix (`--agents off` 300
+turns seeds 42 and 7, hybrid 200 turns seeds 42, 7 and 1234 with and
+without sidecars, procedural 48 x 10 hybrid and off, the 22k and 52k agent
+worlds), main's exported tree and extension against the frozen branch tree
+and its extension:
+
+| branch run | files compared | differences |
+| --- | ---: | ---: |
+| no flag (default off) | 399 | 0 |
+| explicit `--no-domestic-credit` | 399 | 0 |
+
+The same result on `c46e004`, before the ledger-check change. With the
+switch off no domestic-credit code runs (`test_domestic_credit_never_runs_while_off`),
+the region batch carries no `creditor_grievance` column (Rust reads 0 and
+adds no penalty: the term is skipped at grievance 0), the world, bundle and
+checkpoint omit the state (`tests/test_serialization_dormant_fields.py`),
+and the finance snapshot has no `domestic_credit` key. The native state
+schema gains `creditor_grievance`, so a native checkpoint written by `main`
+is refused by this build with a clear error (as with every native schema
+change).
 
 ## 6. Checkpoints with the switch on
 
-[pending]
+`scripts/checkpoint_identity.py` with `--cli-arg=--domestic-credit`, the
+frozen tree: one straight run with a checkpoint at every resume turn, one
+without checkpoints, and a resume from every checkpoint; every file each
+resumed run writes compared byte for byte with the straight run.
+
+| case | turns | resume points | files compared | differences |
+| --- | ---: | ---: | ---: | ---: |
+| `hybrid_s42` (template, sidecars) | 60 | 59 (every turn) | 1,780 | 0 |
+| `proc32_hybrid_s11` (procedural 32 x 8, sidecars) | 40 | 39 (every turn) | 1,176 | 0 |
+| `hybrid_s42_long` (template, sidecars; two defaults and a lapse) | 200 | 19 (the spread) | 1,616 | 0 |
+| `shadow_s42` | 40 | 39 (every turn) | 429 | 0 |
+| `demographics_s42` | 40 | 39 (every turn) | 351 | 0 |
+
+Every case lends, is paid and (all but `shadow_s42`) defaults within its
+turns; the straight runs equal the runs without checkpoints. The native
+tests resume a 40-turn hybrid run at turns 15 and 30 the same way.
 
 ## 7. Pre-registration
 
@@ -295,7 +360,75 @@ probe (template seeds 42-61 x 300 turns, procedural 32 x 10 seeds 42-61 x
 
 ## 8. What it does (paired worlds)
 
-[pending]
+`scripts/domestic_credit_probe.py`, the frozen tree (`c46e004`; later
+commits change the ledger check and documentation only), hybrid, paired by
+seed with the switch off (byte-identical to `main`) and on. Template:
+seeds 42-61 x 300 turns; procedural 32 regions x 10 civs: seeds 42-61 x
+200 turns. Merchant measures are read from the native pool every tenth turn
+after the agent tick and averaged over the run ("mean") or taken at the
+last sample ("end"); the rest is from the bundles and final states. Means
+per run; SE of the paired difference.
+
+| measure | template off | on | on - off (SE) | procedural off | on | on - off (SE) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| domestic loans before turn 30 | 3.8 | 1.4 | **-2.4** (0.32) | 11.45 | 5.95 | **-5.5** (0.69) |
+| domestic loan events | 5.3 | 3.75 | -1.55 (0.46) | 25.1 | 22.6 | -2.5 (2.0) |
+| domestic issued | 317 | 507 | **+190** (91) | 2,666 | 4,383 | **+1,717** (528) |
+| foreign issued | 263 | 400 | +137 (84) | 4,435 | 3,437 | **-998** (479) |
+| foreign share of issuance | 0.42 | 0.55 | +0.13 (0.07) | 0.62 | 0.44 | **-0.18** (0.03) |
+| domestic interest paid | 125 | 313 | +188 (90) | 1,330 | 2,820 | **+1,490** (454) |
+| debt / revenue, mean over civ-turns | 0.19 | 0.27 | +0.08 (0.04) | 0.88 | 0.85 | -0.04 (0.09) |
+| defaults | 0.65 | 0.85 | +0.20 (0.17) | 7.7 | 5.55 | **-2.15** (0.90) |
+| debasements | 0.85 | 1.00 | +0.15 (0.22) | 6.1 | 4.45 | -1.65 (0.87) |
+| fiscal-strain onsets | 3.8 | 4.95 | +1.15 (1.48) | 20.1 | 17.1 | -3.0 (1.7) |
+| PSI crises (of them fiscal distress) | 0.85 (0.10) | 1.05 (0.15) | +0.20 (0.25) | 4.35 (1.8) | 4.95 (1.6) | +0.60 (0.64) |
+| revolts | 1.45 | 1.15 | -0.30 (0.60) | 8.75 | 7.65 | -1.1 (1.2) |
+| merchant wealth, mean | 334 | 379 | **+45 (+14%)** (19) | 886 | 1,043 | **+157 (+18%)** (38) |
+| merchant wealth, end | 425 | 473 | +48 (50) | 1,297 | 1,621 | +324 (111) |
+| merchants (agents), mean | 25.3 | 26.3 | +1.0 (0.8) | 78.8 | 80.0 | +1.2 (1.4) |
+| merchant satisfaction, mean | 0.424 | 0.415 | -0.008 (0.006) | 0.376 | 0.376 | +0.000 (0.005) |
+| Gini of merchants' wealth, mean | 0.508 | 0.511 | +0.003 (0.005) | 0.488 | 0.487 | -0.001 (0.004) |
+| Gini of merchants' wealth within civs, mean | 0.439 | 0.446 | +0.007 (0.007) | 0.409 | 0.418 | **+0.009** (0.003) |
+| Gini of all agents' wealth, mean | 0.596 | 0.605 | **+0.009** (0.004) | 0.570 | 0.572 | +0.002 (0.002) |
+| Gini of merchant wealth over regions, mean / end | 0.384 / 0.371 | 0.390 / 0.400 | +0.006 / +0.029 | 0.462 / 0.438 | 0.452 / 0.479 | -0.010 / +0.042 (0.021) |
+| richest region's share of merchant wealth, end | 0.43 | 0.46 | +0.03 (0.04) | 0.15 | 0.17 | +0.02 (0.01) |
+| guild movements raised by a default | 0 | 0.05 | | 0 | 0.40 | |
+| polities alive at the end | 3.0 | 2.95 | -0.05 (0.09) | 8.7 | 8.95 | +0.25 (0.30) |
+
+Who lent (switch on, per run): template merchants 441, cities 62, guilds
+3.7; procedural merchants 3,535, cities 804, guilds 45 (merchants 81-87%,
+cities 12-18%, guilds under 1%). Of what they lent, procedural lenders
+received 2,820 of interest, were repaid 3,371 and lost 492 in defaults, 4
+with fallen borrowers and 10 in lapses; 5.0 defaults a run hit lenders and
+merchants of some region held a grievance in 632 region-turns a run.
+
+**How credit changes.** Early, domestic credit falls by half or more, as
+real lenders start poor (an agent starts with 0.5 wealth; the abstract class
+lent mostly its revenue-times-influence term). Later the merchants are the
+richer for it: interest no longer vanishes, and principal on loan escapes
+the agents' 2% wealth decay, so merchant wealth is 14-18% higher over the
+run (from about turn 50 on; it is 12% lower around turn 30, when the first
+loans take their cash). Richer lenders offer more, so over the whole run
+domestic issuance rises by 60% and domestic interest more than doubles.
+Rich merchants also fund the war chest: a belligerent borrows to keep its
+full reserve target, and where the abstract class was capped by its formula,
+the merchants of a trading region now lend 100 and more at once (seed 53:
+Dorrathi Clans borrows 130 and then 109 from the merchants of Sapphire Coast
+within five turns of a war). In procedural worlds the domestic market
+replaces foreign credit (foreign issuance -22%, its share 0.62 -> 0.44) and
+defaults and debasements fall by a quarter; in template worlds (four civs,
+25 merchants) both kinds of credit grow and debt over revenue rises.
+
+**How wealth moves.** Merchant wealth grows; its distribution moves little.
+The Gini of all agents' wealth rises in template worlds (+0.009, the
+merchants pulling ahead of the other occupations), the Gini of merchants'
+wealth within each civ in procedural worlds (+0.009). Over regions,
+concentration does not change on average over the run and rises at its end
+(region Gini +0.03-0.04, the richest region's share +0.02-0.03), where the
+regions that lent longest have collected most interest. Merchants' mean
+satisfaction does not move (-0.008 and 0.000); single late turns of the
+template probe read -0.03 to -0.07 (turns 270-300), within the turn-to-turn
+swing of +-0.03 the series shows throughout.
 
 ## 9. Gates with the switch on
 
@@ -303,7 +436,50 @@ probe (template seeds 42-61 x 300 turns, procedural 32 x 10 seeds 42-61 x
 
 ## 10. Worked examples
 
-[pending]
+Template seed 42, hybrid, 200 turns, `--domestic-credit` (the frozen
+tree's checkpoint-identity run `hybrid_s42_long`, identical to the smoke
+run). Every arrow is a recorded `causes` link, read from the bundle; the
+claims and the grievance are the snapshot's `finance["domestic_credit"]`.
+
+**Thornwall Confederacy borrows from its merchants and cities, defaults on
+them, and a guild rises.** Kethani Empire goes to war with Thornwall seeking
+tribute (t0). Thornwall "borrows 14 from the merchants of Verdant Plains
+(9) and the merchants of Thornwood (5) at 4.3%" (t11, citing the war; the
+event's region is Verdant Plains, its capital and main lender), and "39
+from the merchants of Thornwood (17), the merchants of Verdant Plains (14),
+the city of Verdant Plains Settlement 1 (6) and others at 4.0%" (t33; both
+cities note the loan in their histories; the fiscal strain of t35 cites it).
+By turn 50 it owes 166 at home (merchants 127, cities 39), by turn 72 291
+(merchants 155, cities 50, a guild 2) and 80 abroad: Kethani lent 40 at
+9.8% in the famine and plague of t60. It defaults (t73), "repudiating 154
+owed to Kethani Empire, the merchants of Verdant Plains (54), the city of
+Verdant Plains Settlement 1 (16), the merchants of Iron Peaks (14) and
+others" (citing the t33 and t63 loans, the plague and the famine of t70).
+Its home claims are halved (merchants 84, cities 27). The merchants of
+Verdant Plains hold a grievance of 0.24; three cities and two merchant
+guilds record the repudiation, and the same turn "In Verdant Plains
+Settlement 1, the Merchant Guild of Verdant Plains Settlement 1 takes up
+its cause after the crown repudiated its loans" (the movement cites the
+default). Thornwood Settlement 1 is abandoned (t75): "With the city of
+Thornwood Settlement 1 gone, the 11 Thornwall Confederacy owed it lapses"
+(t76, citing the city's fall and the loan). A second default (t81, the
+repeat haircut of 80%: 118 repudiated) leaves 17 owed at home and raises
+the merchants' grievance to 0.42; two of Thornwall's great merchants vow to
+lend to the crown after the defaults (t77, t81). Thornwall is debt-free by
+turn 100; the grievance has decayed to 0.17 by then and 0.06 by turn 120.
+
+    t0 war_declared (tribute) -> t11 loan_taken (merchants of Verdant Plains, Thornwood)
+    t33 loan_taken (merchants, Verdant Plains Settlement 1) -> t35 fiscal_strain
+    t33, t63 loan_taken; t70 plague, famine -> t73 state_default -> t73 movement_founded (merchant guild)
+    t75 city_fell (Thornwood Settlement 1), t33 loan_taken -> t76 debt_written_off (lapse)
+
+**A war chest from a trading region** (template seed 53, 300 turns, the
+probe's run). Dorrathi Clans' merchants of Sapphire Coast lend most of a
+130 advance at t226 and 108 of 109 at t231, while Vrashni Dominion's
+merchants of Sunfire Steppe and Amber Valley fund 110 at t184 and t246: in
+this world 5.9 times as much is lent at home as with the abstract class,
+nearly all of it in the last 120 turns, when the trading regions' merchants
+had grown rich on earlier interest.
 
 ## 11. Decisions
 
