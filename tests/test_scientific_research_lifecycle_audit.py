@@ -76,3 +76,20 @@ def test_manual_cohort_rotation_changes_an_already_funded_legacy_measurement():
             for trial in world.scientific_claims.trials] == [
         (trial.id, trial.inputs, trial.control_output, trial.treatment_output)
         for trial in rotated.scientific_claims.trials]
+
+
+def test_legacy_original_can_fund_long_after_question_and_later_academy_enrollment():
+    world = _world(seats=(0,), treasury=20)
+    world.climate_config.period = 10000
+    _tick(world, 4)
+    state = world.scientific_claims
+    assert state.started_turn == 4 and state.trials == []
+    world.scholarship.seats.append(Seat(region=1, kind=ACADEMY, name="Later academy",
+                                       founded_turn=50, lord=0, scholars=10.))
+    _tick(world, 50)
+    assert state.seat_ids == [0, 1] and state.trials == []
+    for civ in world.civilizations:
+        civ.treasury = 1000
+    _tick(world, 100)  # same season/context as the question at source4
+    assert len(state.trials) == 2 and all(trial.funded_turn == 100 for trial in state.trials)
+    assert all(claim.proposed_turn == 4 for claim in state.claims)

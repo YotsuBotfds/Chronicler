@@ -105,6 +105,13 @@ Original/replication selection is scoped to that agenda's trial membership;
 an older cycle's trials cannot suppress or become the parent of a new cycle's
 replication. A replicating academy must actually receive that agenda's dated
 question; an old question receipt alone does not authorize new-cycle funding.
+Proposal known/delivery/relay keys include `(agenda, canonical claim, recipient)`;
+evidence keys remain `(seat, global trial)`. Never relabel an old proposal
+receipt or message as a later announcement, nor renew its sent/received/expiry
+dates merely because the canonical question matches.
+An identical topic can be renewed by another academy after the first proposer
+falls. Fund originals from the actual agenda origin, not the immutable claim's
+historical origin; retain the first claim ID/date/event and historical payer.
 
 Canonical claim reuse keeps same-topic source deduplication and within-block
 group means across cycles. A second alias of the same recorded source adds
@@ -160,6 +167,10 @@ not rebroadcast to a later cycle or newly founded academy. After expiry it
 remains local retained knowledge for its actual recipients; a later academy
 needs new actual trial/result receipts. A durable archive lending/republication
 system would require a separate dated authorization and evidence-age contract.
+Adopted legacy cycle zero is an explicit exception to the new frozen-roster
+assertion: its pre-existing dynamically enrolled recipients and pending paid
+work retain ordinary legacy delivery semantics until actual result expiry.
+Its unknown historical opening roster must not be reconstructed as frozen.
 
 Before opening, reserve capacity for up to four paid trials, the zero or two
 new topics, two proposal receipts per participant and four evidence receipts
@@ -168,6 +179,9 @@ the check. These bounds give at most 400 proposals and 800 evidence receipts
 over ten cycles. Release unused reservations on closure without deleting
 records or changing money totals. No ordinary debit/evaluation happens before
 its record capacity is available.
+For adopted legacy work with unknown historical opening recipients, reserve
+against the full twenty possible enrolled recipients, not an invented smaller
+frozen opening roster.
 
 Every actual trial still costs two projected treasury units with floor twenty;
 ordinary academy upkeep and accumulator `keep` semantics remain. Evaluation
@@ -194,6 +208,9 @@ most two recipes per enrolled academy (forty total). Current policy belief
 rows use the same canonical current-context selector, so forty is a proven
 bound, not a truncation. Archived questions remain separately addressable;
 absence of a current-context row cannot be described as forgetting.
+Respect production phase order: source-turn Phase 10 publication/delivery can
+change the end-turn confidence row but cannot alter that same source's earlier
+Phase 4 payment/share. Allocation rows retain the confidence actually used.
 
 The preserved six-turn payment cadence has a structural exposure limit:
 `started_turn + 6k` samples only two of the four three-turn seasons in a
@@ -233,6 +250,11 @@ rewriting status/date/cost; the first new agenda is no earlier than activation
 plus 25. Reject an inconsistent unsupported archive before mutating it. A
 fresh empty opt-in world opens cycle zero at its first eligible actual turn.
 `started_turn` is assigned only as it was for the first pilot and never reset.
+Mark an adopted cycle explicitly as legacy, with historical opening-roster and
+deadline completeness unavailable. The legacy source permits arbitrarily late
+first funding and later academy enrollment; its records cannot be retrospectively
+judged against new age-0–23 funding windows or participant-at-opening rules.
+Only the prospective activation close is a new scheduling intervention.
 
 A research-specific pause stops new trial funding and new agenda creation but
 retains the opt-in substate and uses its archive-aware selectors, publication,
@@ -247,6 +269,7 @@ archive-preserving research pause.
 | --- | --- |
 | Renew same context/question in cycles 0 and 1 | Same canonical claim IDs; new stable paid trial IDs; no duplicate recipe vote. |
 | New context at another/new academy | New immutable contextual topics when capacity permits; actual source dates and payer. |
+| Renew the same canonical topic after its first origin falls | Fund from a different current agenda origin; retain first topic ID/date/event unchanged. |
 | Same source alias is received in a later cycle | No added group/weight or confidence increase. |
 | Two contradictory readings share a block across cycles | One total policy unit with its ordinary within-block mean. |
 | Context A→B→A while A's archive is positive | Old A confidence returns; no list reset, reroll or replacement receipt. |
@@ -259,7 +282,9 @@ archive-preserving research pause.
 | Cohorts begin from each of four season origins | Actual 25-turn openings rotate season steps; no absolute-calendar effort regression. |
 | A researched season is outside the two paid-use phases | Archived/current confidence may exist, but no eligible allowance is claimed or invented. |
 | Partial original funding and deadline expiry | Exact costs, explicit unfunded slots, no fictitious trial or refund. |
+| Adopt a legacy pilot with late originals or later academy enrollment | Preserve valid old funding/delivery; legacy opening roster/deadlines remain unknown, not fabricated new-window violations. |
 | Same tick is called twice around open/close/delivery | No second event, payment, admission, measurement or cycle. |
+| New receipt arrives in Phase 10 of a paid turn | End-turn confidence can change; earlier Phase 4 payment/confidence/shares stay unchanged. |
 | Save before/after opening, funding, closure and pending delivery | Exact enabled continuation across state/history/events/native/common outputs. |
 | Research pause/resume on a populated archive | Retain metadata/knowledge; no legacy fallthrough, backfill or repeated payment. |
 | Recurrence absent, including old JSON and Pydantic pickle | Existing source serialization/RNG/outputs remain identical without stripping fields. |
@@ -271,7 +296,7 @@ same slots, and the live measurement effect of manually changing `cohort`.
 After a host CPU slot was released, the three original focused checks passed
 under the offline guard. A subsequent prospective review added the explicit
 season/payment coverage counterexample before runtime edits. These are
-seven passing checks in 0.25 seconds, with no native modules, blocked I/O or
+eight passing checks in 0.40 seconds, with no native modules, blocked I/O or
 oracle runtime calls. They describe audited legacy/calendar behavior, not implemented recurrence.
 The acceptance matrix above must become meaningful opt-in tests after internal
 design review.
