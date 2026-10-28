@@ -9,12 +9,16 @@ from collections import Counter
 import math
 from typing import Mapping
 
+from chronicler.scientific_research_audit import ResearchAgendasAudit
+
 SYSTEM = "scientific_claims"
 LEGACY_RULE = "current-context-v1"
 PUBLICATION_RULES = (LEGACY_RULE, "funded-context-v2")
 EVENT_KINDS = frozenset(("scientific_claim_proposed", "scientific_trial_funded",
     "scientific_trial_completed", "scientific_trial_cancelled", "scientific_trial_failed",
-    "scientific_evidence_received", "scientific_adoption_allocated"))
+    "scientific_evidence_received", "scientific_adoption_allocated",
+    "scientific_research_agenda_opened", "scientific_research_agenda_closed",
+    "scientific_research_capacity_blocked"))
 COUNTERS = ("seats", "claims", "trials", "completed", "cancelled", "failed",
     "trial_spent", "effort_spent", "evidence_receipts", "expired_messages", "withheld_results")
 
@@ -54,6 +58,7 @@ class ScientificReceiptsAudit:
         self.last_source, self.span_start = None, None
         self.events_by_turn = None
         self.detail_omissions = Counter()
+        self.agendas = ResearchAgendasAudit(self)
 
     def finding(self, code, source, detail, rid=None, severity="error"):
         self.a.finding(SYSTEM, code, source, detail, rid, severity)
@@ -141,6 +146,11 @@ class ScientificReceiptsAudit:
             self.span_start = source
         self.last_source = source
         self.out["recorded_turns"] += 1
+        if not self.agendas.begin(state, source):
+            self.claims.clear()
+            self.trials.clear()
+            self.previous = None
+            return
         tables = {}
         complete = True
         for name in ("propositions", "trials_resolved", "beliefs", "allocations"):
@@ -382,4 +392,4 @@ class ScientificReceiptsAudit:
             self.previous = (source, clean)
         else:
             self.previous = None
-
+        self.agendas.process(state, source, tables, complete)

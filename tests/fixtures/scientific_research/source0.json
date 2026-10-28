@@ -1,0 +1,297 @@
+{
+  "fixture_kind": "controlled mechanical unit, not full execute_run or qualification",
+  "world_state": {
+    "turn": 1
+  },
+  "history": [
+    {
+      "turn": 1,
+      "scientific_claims": {
+        "source_turn": 0,
+        "active": true,
+        "seats": 2,
+        "claims": 2,
+        "trials": 2,
+        "completed": 0,
+        "cancelled": 0,
+        "failed": 0,
+        "trial_spent": 4,
+        "effort_spent": 0,
+        "evidence_receipts": 0,
+        "pending_messages": 2,
+        "expired_messages": 0,
+        "withheld_results": 0,
+        "controls": {
+          "withhold_information": false,
+          "transmission_enabled": true,
+          "uninformative_tests": false
+        },
+        "propositions": [
+          {
+            "id": 0,
+            "recipe": "irrigation",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02,
+            "proposed_turn": 0,
+            "event_id": "0:scientific_claim_proposed:0",
+            "metric": "grain_output",
+            "comparator": 0.0,
+            "intervention": 1.0,
+            "horizon": 1
+          },
+          {
+            "id": 1,
+            "recipe": "masonry",
+            "origin_seat": 0,
+            "context": {
+              "crop": "grain",
+              "soil_band": 3,
+              "water_band": 2,
+              "season": 0,
+              "climate_phase": "temperate",
+              "crew": 4,
+              "protocol": "fixed-crew-grain-v1"
+            },
+            "threshold": 0.02,
+            "proposed_turn": 0,
+            "event_id": "0:scientific_claim_proposed:1",
+            "metric": "grain_output",
+            "comparator": 0.0,
+            "intervention": 1.0,
+            "horizon": 1
+          }
+        ],
+        "beliefs": [
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 0,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null,
+            "last_evidence_event_id": ""
+          },
+          {
+            "seat": 0,
+            "seat_name": "Academy 0",
+            "region": 0,
+            "region_name": "Avalon",
+            "owner": 0,
+            "owner_name": "A",
+            "claim": 1,
+            "confidence": 0.5,
+            "independent_groups": 0,
+            "last_evidence_turn": null,
+            "last_evidence_event_id": ""
+          }
+        ],
+        "trials_resolved": [],
+        "allocations": [],
+        "research_agendas": {
+          "schema_version": 1,
+          "rule": "finite-retained-v1",
+          "enabled": true,
+          "enabled_turn": 0,
+          "current_cycle_id": 0,
+          "next_open_turn": 25,
+          "opening_interval": 25,
+          "funding_window": 24,
+          "original_window": 12,
+          "effort_started_turn": 0,
+          "effort_cadence": 6,
+          "paid_use_seasons": [
+            0,
+            2
+          ],
+          "origin_cursor": 0,
+          "blocked_reason": "",
+          "blocked_turn": null,
+          "capacity": {
+            "topics": {
+              "used": 2,
+              "reserved": 0,
+              "limit": 20
+            },
+            "trials": {
+              "used": 2,
+              "reserved": 2,
+              "limit": 40
+            },
+            "proposals": {
+              "used": 2,
+              "reserved": 2,
+              "limit": 400
+            },
+            "receipts": {
+              "used": 0,
+              "reserved": 8,
+              "limit": 800
+            },
+            "messages": {
+              "used": 2,
+              "reserved": 8,
+              "limit": 1200
+            },
+            "cycles": {
+              "used": 1,
+              "reserved": 0,
+              "limit": 10
+            },
+            "seats": {
+              "used": 2,
+              "reserved": 0,
+              "limit": 20
+            }
+          },
+          "archive": {
+            "retained_topics": 2,
+            "retained_trials": 2,
+            "retained_proposals": 2,
+            "retained_receipts": 0,
+            "raw_records_retained": true,
+            "trial_details_scope": "resolved_this_source_turn_only",
+            "historical_export_completeness": "not_inferred"
+          },
+          "cycles": [
+            {
+              "id": 0,
+              "legacy_adopted": false,
+              "opening_roster_complete": true,
+              "opened_turn": 0,
+              "origin_seat": 0,
+              "participants": [
+                0,
+                1
+              ],
+              "claims": [
+                0,
+                1
+              ],
+              "trials": [
+                0,
+                1
+              ],
+              "announcement_event_id": "0:scientific_research_agenda_opened:0",
+              "closed_turn": null,
+              "close_reason": "",
+              "unfunded_originals": [],
+              "unfunded_replications": [],
+              "slot_reasons": {},
+              "original_deadline": 11,
+              "funding_deadline": 23,
+              "next_open_not_before": 25,
+              "opening_roster_scope": "frozen_at_actual_opening"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "events_timeline": [
+    {
+      "turn": 0,
+      "event_type": "scientific_claim_proposed",
+      "actors": [
+        "A",
+        "Academy 0"
+      ],
+      "description": "Academy 0 proposes claim #0: irrigation practice raises grain output by at least 2% under its recorded local protocol",
+      "consequences": [],
+      "importance": 3,
+      "source": "aggregate",
+      "shock_region": null,
+      "shock_category": null,
+      "event_id": "0:scientific_claim_proposed:0",
+      "region": "Avalon"
+    },
+    {
+      "turn": 0,
+      "event_type": "scientific_claim_proposed",
+      "actors": [
+        "A",
+        "Academy 0"
+      ],
+      "description": "Academy 0 proposes claim #1: masonry practice raises grain output by at least 2% under its recorded local protocol",
+      "consequences": [],
+      "importance": 3,
+      "source": "aggregate",
+      "shock_region": null,
+      "shock_category": null,
+      "event_id": "0:scientific_claim_proposed:1",
+      "region": "Avalon"
+    },
+    {
+      "turn": 0,
+      "event_type": "scientific_research_agenda_opened",
+      "actors": [
+        "A",
+        "Academy 0"
+      ],
+      "description": "Academy 0 opens paid research agenda #0 for contextual claims [0, 1]",
+      "consequences": [],
+      "importance": 3,
+      "source": "aggregate",
+      "shock_region": null,
+      "shock_category": null,
+      "event_id": "0:scientific_research_agenda_opened:0",
+      "causes": [
+        "0:scientific_claim_proposed:0",
+        "0:scientific_claim_proposed:1"
+      ],
+      "region": "Avalon"
+    },
+    {
+      "turn": 0,
+      "event_type": "scientific_trial_funded",
+      "actors": [
+        "A",
+        "Academy 0"
+      ],
+      "description": "Academy 0 pays 2 treasury units for trial #0 of its contextual irrigation grain-output claim",
+      "consequences": [],
+      "importance": 3,
+      "source": "aggregate",
+      "shock_region": null,
+      "shock_category": null,
+      "event_id": "0:scientific_trial_funded:0",
+      "causes": [
+        "0:scientific_claim_proposed:0",
+        "0:scientific_research_agenda_opened:0"
+      ],
+      "region": "Avalon"
+    },
+    {
+      "turn": 0,
+      "event_type": "scientific_trial_funded",
+      "actors": [
+        "A",
+        "Academy 0"
+      ],
+      "description": "Academy 0 pays 2 treasury units for trial #1 of its contextual masonry grain-output claim",
+      "consequences": [],
+      "importance": 3,
+      "source": "aggregate",
+      "shock_region": null,
+      "shock_category": null,
+      "event_id": "0:scientific_trial_funded:1",
+      "causes": [
+        "0:scientific_claim_proposed:1",
+        "0:scientific_research_agenda_opened:0"
+      ],
+      "region": "Avalon"
+    }
+  ]
+}

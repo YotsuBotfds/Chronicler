@@ -308,3 +308,306 @@ def test_actual_batch_manifest_environment_schema_is_normalized_without_parent_b
     assert base["environment"]["platform"]=="Linux-x86_64" and base["environment"]["process_cpu_count"]==4
     assert base["environment"]["executable_path_sha256"]
     assert "/PRIVATE" not in json.dumps(report)
+
+
+# Exact source-0 shape from the producer's controlled two-academy mechanical
+# fixture. Later dates below are synthetic reader fixtures, not runtime evidence.
+_FINITE_RESEARCH_FIXTURE = json.loads((Path(__file__).parent /
+    "fixtures/scientific_research/source0.json").read_text())
+_FINITE_RESEARCH_SOURCE0 = _FINITE_RESEARCH_FIXTURE["history"][0]["scientific_claims"]
+_FINITE_RESEARCH_EVENTS = [{key: row[key] for key in ("turn", "event_type", "event_id", "causes")
+                           if key in row} for row in _FINITE_RESEARCH_FIXTURE["events_timeline"]]
+
+
+def finite_research_reader_template():
+    return {"metadata": {"seed": 42, "total_turns": 4}, "world_state": {"turn": 4},
+            "events_timeline": copy.deepcopy(_FINITE_RESEARCH_EVENTS),
+            "history": [{"turn": source + 1, "scientific_claims": {
+                **copy.deepcopy(_FINITE_RESEARCH_SOURCE0), "source_turn": source}} for source in range(4)]}
+
+
+@pytest.fixture
+def finite_research_runs(tmp_path):
+    from test_scientific_receipts_audit import write_study
+    paths = write_study(tmp_path, finite_research_reader_template())
+    # No terminal outcome is invented for these running-trial reader fixtures.
+    # Withholding is therefore not an observed arm in this small fixture.
+    return paths[0], paths[1], paths[3]
+
+
+def research_pair(report):
+    return next(row for row in report["pairs"] if row["arm"] == "no_transmission")
+
+
+def test_finite_agendas_are_disclosed_separately_from_source_owned_controls(finite_research_runs):
+    before = [path.read_bytes() for path in finite_research_runs]
+    report = compare_paths(finite_research_runs)
+    pair = research_pair(report)
+    assert pair["comparable_recorded_window"] and pair["blockers"] == []
+    normal = next(row for row in report["runs"] if row["arm"] == "normal")
+    context = normal["research_agendas"]
+    assert context["mode_trace"] == [
+        {"source_turn": source, "mode": "finite-retained-v1", "enabled": True} for source in range(1, 4)]
+    assert context["boundary_source_turn"] == 0 and context["boundary_enabled_turn"] == 0
+    assert context["boundary_cycle_lineage"]
+    assert set(normal["controls_after"]) == {
+        "withhold_information", "transmission_enabled", "uninformative_tests", "publication_rule"}
+    assert report["noop_checks"][0]["final_exported_python_world_equal"] is True
+    assert "finite\\-retained\\-v1" in render_markdown(report)
+    assert [path.read_bytes() for path in finite_research_runs] == before
+
+
+def test_paused_agendas_remain_finite_and_match_only_the_same_pause_trace(finite_research_runs):
+    def pause(bundle):
+        for snapshot in bundle["history"][1:]:
+            agenda = snapshot["scientific_claims"]["research_agendas"]
+            agenda.update(enabled=False, current_cycle_id=None)
+            agenda["cycles"][0].update(closed_turn=1, close_reason="research_paused")
+            agenda["capacity"]["trials"]["reserved"] = 0
+            agenda["capacity"]["receipts"]["reserved"] = 4
+            agenda["capacity"]["messages"]["reserved"] = 4
+    for path in finite_research_runs:
+        change(path, pause)
+    report = compare_paths(finite_research_runs)
+    assert research_pair(report)["comparable_recorded_window"]
+    assert all(row["mode"] == "finite-retained-v1" and row["enabled"] is False
+               for run in report["runs"] for row in run["research_agendas"]["mode_trace"]
+               if row["source_turn"] >= 1)
+    change(finite_research_runs[2], lambda bundle: bundle["history"][2]["scientific_claims"][
+        "research_agendas"].__setitem__("enabled", True))
+    pair = research_pair(compare_paths(finite_research_runs))
+    assert "research_agenda_mode_mismatch" in pair["blockers"]
+    assert pair["arm_minus_baseline"] is None
+
+
+def test_legacy_and_finite_research_modes_cannot_form_a_strict_contrast(finite_research_runs):
+    def legacy(bundle):
+        for snapshot in bundle["history"]:
+            snapshot["scientific_claims"].pop("research_agendas")
+    change(finite_research_runs[2], legacy)
+    report = compare_paths(finite_research_runs)
+    pair = research_pair(report)
+    assert "research_agenda_mode_mismatch" in pair["blockers"]
+    assert "research_agenda_lineage_mismatch" in pair["blockers"]
+    assert not pair["comparable_recorded_window"]
+
+
+@pytest.mark.parametrize("malformed", [None, {"schema_version": 2, "rule": "SECRET_UNKNOWN_BODY"},
+    {"schema_version": 1, "rule": "SECRET_UNKNOWN_BODY"}])
+def test_present_unknown_research_mode_fails_closed_without_exporting_its_body(
+        finite_research_runs, malformed):
+    def unknown(bundle):
+        bundle["history"][1]["scientific_claims"]["research_agendas"] = copy.deepcopy(malformed)
+    change(finite_research_runs[2], unknown)
+    report = compare_paths(finite_research_runs)
+    pair = research_pair(report)
+    assert "research_agenda_mode_unavailable" in pair["blockers"]
+    assert pair["arm_minus_baseline"] is None
+    assert "SECRET_UNKNOWN_BODY" not in json.dumps(report)
+    assert "SECRET_UNKNOWN_BODY" not in render_markdown(report)
+
+
+def test_future_actual_agenda_metadata_is_unknown_and_not_final_state_backfilled(finite_research_runs):
+    def future(bundle):
+        agenda = bundle["history"][1]["scientific_claims"]["research_agendas"]
+        agenda.update(enabled_turn=999, blocked_reason="SECRET_FUTURE_BODY")
+        bundle["world_state"]["scientific_claims"] = copy.deepcopy(_FINITE_RESEARCH_SOURCE0)
+    change(finite_research_runs[2], future)
+    report = compare_paths(finite_research_runs)
+    assert "research_agenda_mode_unavailable" in research_pair(report)["blockers"]
+    assert "SECRET_FUTURE_BODY" not in json.dumps(report)
+
+
+def test_exact_preintervention_agenda_lineage_is_required(finite_research_runs):
+    def changed_roster(bundle):
+        for snapshot in bundle["history"]:
+            agenda = snapshot["scientific_claims"]["research_agendas"]
+            agenda["cycles"][0]["participants"] = [0]
+    change(finite_research_runs[2], changed_roster)
+    pair = research_pair(compare_paths(finite_research_runs))
+    assert "research_agenda_lineage_mismatch" in pair["blockers"]
+    assert not pair["comparable_recorded_window"]
+
+
+def test_absent_boundary_cannot_be_filled_from_final_research_state(finite_research_runs):
+    def remove_boundary(bundle):
+        bundle["world_state"]["scientific_claims"] = copy.deepcopy(bundle["history"][0]["scientific_claims"])
+        bundle["history"][0].pop("scientific_claims")
+    change(finite_research_runs[2], remove_boundary)
+    pair = research_pair(compare_paths(finite_research_runs))
+    assert "research_agenda_lineage_unavailable" in pair["blockers"]
+    assert not pair["comparable_recorded_window"]
+
+
+def test_control_equality_alone_cannot_label_changed_derived_mode_a_noop(finite_research_runs):
+    def legacy_parent(bundle):
+        for snapshot in bundle["history"]:
+            snapshot["scientific_claims"].pop("research_agendas")
+    change(finite_research_runs[0], legacy_parent)
+    report = compare_paths(finite_research_runs)
+    assert report["noop_checks"] == []
+    assert research_pair(report)["comparable_recorded_window"]
+
+
+def test_new_postintervention_cycle_rosters_are_outcomes_not_pairing_lineage():
+    from chronicler.expansion_compare import _science_research_context
+
+    def snapshot(source, *, opened=False, participants=(0, 1)):
+        section = copy.deepcopy(_FINITE_RESEARCH_SOURCE0)
+        section['source_turn'] = source
+        agenda = section['research_agendas']
+        agenda['current_cycle_id'] = None
+        agenda['cycles'][0].update(closed_turn=24, close_reason='funding_window_elapsed')
+        if opened:
+            cycle = copy.deepcopy(agenda['cycles'][0])
+            cycle.update(id=1, opened_turn=25, participants=list(participants), trials=[],
+                announcement_event_id='25:scientific_research_agenda_opened:0',
+                closed_turn=None, close_reason='', original_deadline=36,
+                funding_deadline=48, next_open_not_before=50)
+            agenda['cycles'].append(cycle)
+            agenda.update(current_cycle_id=1, next_open_turn=50)
+            agenda['capacity']['cycles']['used'] = 2
+        return {'turn': source + 1, 'scientific_claims': section}
+
+    # These are bounded metadata reader fixtures. No runtime opening schedule,
+    # trial lifecycle, or causal effect is claimed by constructing them.
+    base_history = [snapshot(24), snapshot(25, opened=True), snapshot(26, opened=True)]
+    arm_history = [snapshot(24), snapshot(25, opened=True, participants=(0,)),
+                   snapshot(26, opened=True, participants=(0,))]
+    base_blockers, arm_blockers = [], []
+    base = _science_research_context(base_history, 25, 27, base_blockers)
+    arm = _science_research_context(arm_history, 25, 27, arm_blockers)
+    assert base_blockers == arm_blockers == []
+    for key in ('mode_trace', 'activation_trace', 'boundary_mode', 'boundary_enabled',
+                'boundary_enabled_turn', 'boundary_cycle_lineage'):
+        assert base[key] == arm[key]
+    assert base['recorded_program_sha256'] != arm['recorded_program_sha256']
+
+
+def test_activation_epoch_is_distinct_from_matching_enabled_mode():
+    from chronicler.expansion_compare import _science_research_context
+
+    def history(enabled_turn):
+        rows = []
+        for source in (1, 2):
+            section = copy.deepcopy(_FINITE_RESEARCH_SOURCE0)
+            section['source_turn'] = source
+            agenda = section['research_agendas']
+            agenda.update(enabled_turn=enabled_turn, next_open_turn=26)
+            agenda['cycles'][0].update(opened_turn=1,
+                announcement_event_id='1:scientific_research_agenda_opened:0',
+                original_deadline=12, funding_deadline=24, next_open_not_before=26)
+            rows.append({'turn': source + 1, 'scientific_claims': section})
+        return rows
+
+    a_blockers, b_blockers = [], []
+    a = _science_research_context(history(0), 2, 3, a_blockers)
+    b = _science_research_context(history(1), 2, 3, b_blockers)
+    assert a_blockers == b_blockers == []
+    assert a['mode_trace'] == b['mode_trace']
+    assert a['activation_trace'] != b['activation_trace']
+    assert a['boundary_enabled_turn'] != b['boundary_enabled_turn']
+
+
+def test_exact_boundary_pause_is_compared_even_when_treatment_modes_match(finite_research_runs):
+    def paused_since(bundle, closed_turn):
+        for snapshot in bundle['history']:
+            if snapshot['turn'] - 1 < closed_turn:
+                continue
+            agenda = snapshot['scientific_claims']['research_agendas']
+            agenda.update(enabled=False, current_cycle_id=None)
+            agenda['cycles'][0].update(closed_turn=closed_turn, close_reason='research_paused')
+            agenda['capacity']['trials']['reserved'] = 0
+            agenda['capacity']['receipts']['reserved'] = 4
+            agenda['capacity']['messages']['reserved'] = 4
+
+    for path in finite_research_runs[:2]:
+        change(path, lambda bundle: paused_since(bundle, 1))
+    change(finite_research_runs[2], lambda bundle: paused_since(bundle, 0))
+    report = compare_paths(finite_research_runs)
+    base = next(row for row in report['runs'] if row['arm'] == 'normal')['research_agendas']
+    arm = next(row for row in report['runs'] if row['arm'] == 'no_transmission')['research_agendas']
+    assert base['mode_trace'] == arm['mode_trace']
+    assert base['boundary_enabled'] is True and arm['boundary_enabled'] is False
+    assert 'research_agenda_mode_mismatch' in research_pair(report)['blockers']
+
+
+@pytest.mark.parametrize('invalid', [float('nan'), float('inf'), float('-inf')])
+def test_nonfinite_unknown_boundary_does_not_crash_or_produce_an_identity(finite_research_runs, invalid):
+    from chronicler.bundle_codec import load_bundle
+
+    path = finite_research_runs[2]
+    bundle = load_bundle(path)
+    agenda = bundle['history'][0]['scientific_claims']['research_agendas']
+    agenda.update(enabled_turn=invalid, blocked_reason='SECRET_INVALID_BODY')
+    # Deliberately malformed JSON numeric literals bypass the strict producer
+    # writer. The reader must withhold identity, not crash during prefix hash.
+    bundle['world_state']['unqualified_numeric'] = invalid
+    path.write_text(json.dumps(bundle))
+    report = compare_paths(finite_research_runs)
+    pair = research_pair(report)
+    assert 'research_agenda_lineage_unavailable' in pair['blockers']
+    assert 'pre_intervention_history_identity_unavailable' in pair['blockers']
+    assert pair['arm_minus_baseline'] is None
+    run = next(row for row in report['runs'] if row['arm'] == 'no_transmission')
+    assert run['pre_intervention_prefix_sha256'] is None
+    assert run['final_exported_python_world_sha256'] is None
+    assert 'SECRET_INVALID_BODY' not in json.dumps(report, allow_nan=False)
+
+
+@pytest.mark.parametrize('claim_ids_recorded', [True, False])
+def test_legacy_activation_paid_topic_unknown_blocks_only_the_strict_contrast(
+        finite_research_runs, claim_ids_recorded):
+    from chronicler.bundle_codec import load_bundle
+    from chronicler.expansion_audit import audit_bundle
+
+    def activate_after_legacy_paid_phase(bundle):
+        # Synthetic reader fixture: legacy paid work at source1 is followed by
+        # internal finite activation on the same source turn, adopting cycle0.
+        # Anchor1 is the legacy paid calendar, not an invented runtime outcome.
+        bundle['history'][0]['scientific_claims'].pop('research_agendas')
+        bundle['events_timeline'] = [row for row in bundle['events_timeline']
+            if row['event_type'] != 'scientific_research_agenda_opened']
+        for row in bundle['events_timeline']:
+            if 'causes' in row:
+                row['causes'] = [cause for cause in row['causes']
+                    if cause != '0:scientific_research_agenda_opened:0']
+        for snapshot in bundle['history'][1:]:
+            state = snapshot['scientific_claims']
+            state['effort_spent'] = 1
+            agenda = state['research_agendas']
+            agenda.update(enabled_turn=1, current_cycle_id=None, next_open_turn=26,
+                effort_started_turn=1)
+            agenda['cycles'][0].update(legacy_adopted=True, opening_roster_complete=False,
+                opened_turn=0, announcement_event_id='', closed_turn=1,
+                close_reason='legacy funding closed prospectively at activation',
+                original_deadline=None, funding_deadline=None, next_open_not_before=None,
+                opening_roster_scope='observed_at_legacy_activation')
+            agenda['capacity']['trials']['reserved'] = 0
+            agenda['capacity']['receipts']['reserved'] = 4
+            agenda['capacity']['messages']['reserved'] = 4
+            if state['source_turn'] == 1:
+                state['allocations'] = [dict(seat=0, recipe=recipe, share=.5,
+                    confidence=.5, paid=int(cid == 0), event_id='')
+                    for cid, recipe in enumerate(('irrigation', 'masonry'))]
+                for cid, row in enumerate(state['allocations']):
+                    if claim_ids_recorded:
+                        row['claim_id'] = cid
+                    elif cid == 1:
+                        row['claim_id'] = None  # Both omission and explicit unknown are legitimate here.
+
+    for path in finite_research_runs:
+        change(path, activate_after_legacy_paid_phase)
+    audit = audit_bundle(load_bundle(finite_research_runs[1]))
+    assert audit['finding_counts']['error'] == 0
+    attribution = audit['observed_mechanisms']['scientific_claims']['research_agendas']
+    assert attribution['paid_topic_attribution_complete'] is claim_ids_recorded
+    report = compare_paths(finite_research_runs)
+    pair = research_pair(report)
+    assert pair['comparable_recorded_window'] is claim_ids_recorded
+    assert 'record_integrity_failed' not in pair['blockers']
+    blocker = 'research_paid_topic_attribution_unavailable'
+    assert (blocker in pair['blockers']) is (not claim_ids_recorded)
+    if not claim_ids_recorded:
+        assert pair['arm_minus_baseline'] is None
+        assert attribution['paid_allocation_details'] == []

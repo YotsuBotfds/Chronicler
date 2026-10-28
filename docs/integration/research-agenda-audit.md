@@ -38,3 +38,60 @@ adversarial reader fixtures: unsupported metadata, future actual dates, planned
 future deadlines, legacy unknowns, pauses, immutable membership, capacity
 conservation, late resolution coverage, actual allocation identity and contrast
 lineage. No cohort simulation or efficacy qualification is part of this task.
+
+## Implemented reader boundary
+
+`scientific_research_audit.py` has a pure dated mode/lineage reader and a bounded
+history auditor. Known v1 metadata checks actual dates and inclusive funding
+windows, immutable opening membership, append-only funding membership, immutable
+closed cycles, nonoverlapping funding histories and the fixed grain protocol.
+It checks used/reserved limits, complete retained ID membership, archive/core
+count agreement and only the reservation inequalities observable in summaries.
+It does not reconstruct recipient or parent-trial bodies from reserved counts.
+
+Known future deadlines and earliest next-opening dates are plans. Future actual
+activation/opening/closure/blockage dates withhold the metadata body. Present
+unsupported metadata yields an explicit finding and `scan_complete=false`;
+absence alone preserves the legacy report shape. Detail rows and cycle table
+processing share the host's bounds. Output explains that paused funding can
+coexist with old paid work, deliveries and ordinary paid knowledge use.
+
+Comparator mode/activity traces and immutable activation ancestry are disclosed
+outside experiment controls. The exact pre-intervention source boundary is
+required for finite arms. Later cycle outcomes can differ between treatments.
+No-op checks additionally require the recorded program digest to match.
+An internal API can activate research after legacy Phase 4 paid in that same
+source. Only at actual `enabled_turn`, with an adopted legacy cycle zero, an
+unknown paid claim ID is legitimate: its row is withheld, attribution is marked
+unavailable, and strict contrasts are blocked. Missing IDs elsewhere in finite
+mode remain integrity issues. This exception never invents canonical identity.
+Nonfinite malformed prefix data blocks its identity hash instead of crashing or
+being silently normalized. The experiment setter and runtime remain unchanged.
+
+## Focused evidence and limits
+
+The final focused command ran the agenda reader, existing science-receipt reader,
+expansion audit and expansion comparator modules: **212 passed in 1.58 seconds**,
+exit 0, in a one-thread Python environment with plugin autoload disabled. The
+external stdout and receipt are retained under
+`/workspace/chronicler-research-agenda-audit-evidence/focused-002`; qualification
+receipt SHA-256 is
+`ef4e307900779586942fa111ecacdf90b80cc8afe2dfafbd2e04d72ae43630b3`.
+The receipt anchors the tested consumer/test/fixture bytes before and after.
+
+The first exploratory reader run passed 122 cases and failed one test-only
+expectation that `AsOf(0)` meant before source 0. The API defaults to end of that
+turn; changing the fixture to `AsOf.before(0)` corrected the expectation and the
+targeted case passed. Subsequent chronology/protocol hardening and independent
+comparator review passed 139 cases and a broader 208-case reader selection.
+The producer then confirmed the precise same-source legacy activation exception;
+that follow-up and strict comparison blockers passed the final 212-case selection.
+Both successful broader receipts remain retained. These are test outcomes, not
+simulation performance data.
+
+The committed source-0 JSON fixture is literal output from one producer
+mechanical unit with two academies, two canonical propositions and two running
+original trials. Later-date and adversarial copies test reader behavior only;
+they do not assert physically realized scheduler trajectories. No runtime,
+checkpoint continuation, native build, cohort, information efficacy or full
+milestone gate is qualified by these reader tests.

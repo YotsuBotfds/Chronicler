@@ -814,7 +814,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append(f"| {_md(key)} | {row['verified']} | {row['failed']} | {row['unavailable']} |")
     lines += ["", "## Observed mechanisms", ""]
     for system, values in report["observed_mechanisms"].items():
-        lines.append(f"- **{_md(system)}**: " + "; ".join(f"{_md(k)}: {_md(v)}" for k, v in values.items() if not isinstance(v, list)) + ".")
+        lines.append(f"- **{_md(system)}**: " + "; ".join(f"{_md(k)}: {_md(v)}" for k, v in values.items() if not isinstance(v, list) and k != "research_agendas") + ".")
     lines += ["", *[f"- {_md(value)}" for value in report["descriptive_observations"]]]
     lines += ["", "### Forecast cross-examination", ""]
     for row in report["observed_mechanisms"]["harvest_forecasts"]["report_chains"]:
@@ -839,6 +839,24 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         if row.get("archived_measurement") is not None:
             lines += [f"  Archived {_md(row['recipe'])} diagnostic outputs and noisy observations: "
                       f"{_md(row['archived_measurement'])}; these are not realized harvest gains or a policy efficacy estimate."]
+    agendas = report["observed_mechanisms"].get("scientific_claims", {}).get("research_agendas")
+    if agendas is not None:
+        lines += ["", "### Research agenda coverage", "",
+            f"- Schema {_md(agendas['schema_version'])}, rule {_md(agendas['rule'])}; "
+            f"{agendas['enabled_turns']} enabled / {agendas['paused_turns']} paused dated summaries; "
+            f"{agendas['unsupported_turns']} unsupported sections withheld.",
+            f"- Paid canonical attribution complete in scanned rows: {agendas['paid_topic_attribution_complete']}.",
+            "- Retained capacity counts do not establish full historical trial/receipt export completeness. "
+            "Trial bodies are exported only on their actual resolution source turn; paused funding does not erase retained knowledge."]
+        for row in agendas["cycle_details"]:
+            lines.append(f"- Source {row['source_turn']}, agenda {row['id']}: opened {_md(row['opened_turn'])}, "
+                f"roster scope {_md(row['opening_roster_scope'])}, canonical topics {_md(row['claims'])}; "
+                f"original/funding deadlines {_md(row['original_deadline'])}/{_md(row['funding_deadline'])}, "
+                f"closed {_md(row['closed_turn'])}.")
+        for row in agendas["paid_allocation_details"]:
+            lines.append(f"- Source {row['source_turn']}, seat {_md(row['seat'])}: actual Phase 4 claim {row['claim_id']}, "
+                f"confidence {_md(row['phase4_confidence'])}, share {_md(row['share'])}; "
+                f"recorded canonical context {_md(row['funded_topic_context'])}.")
     lines += ["", "## Findings", ""]
     lines += [f"- **{_md(f['severity'])} / {_md(f['code'])}**, {_md(f['system'])}, "
               f"turn {_md(f['source_turn'])}, ID {_md(f['record_id'])}: {_md(f['detail'])}"

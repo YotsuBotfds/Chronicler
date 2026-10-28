@@ -15,6 +15,7 @@ from chronicler.bundle_codec import decode_bundle
 from chronicler.expansion_audit import AuditError, Limits, _md, audit_bundle
 from chronicler.historical_context import AsOf
 from chronicler.scientific_receipts_audit import COUNTERS as SCIENCE_COUNTERS, LEGACY_RULE, PUBLICATION_RULES
+from chronicler.scientific_research_audit import research_agenda_identity
 
 FEATURES = {
     "harvest_forecasts": ("policy",),
@@ -171,6 +172,58 @@ def _window_metrics(feature, observed, start):
     return {}
 
 
+def _science_research_context(history, start, end, blockers):
+    """Compare recorded research policy/ancestry without treating it as a knob.
+
+    The source-owned experiment setter accepts only its registered mutable
+    controls. Agenda identity is observed independently at actual snapshot dates;
+    the final world cannot fill an absent boundary or unknown retained metadata.
+    """
+    identities = {}
+    unknown = False
+    for snapshot in history:
+        if not isinstance(snapshot, Mapping) or type(snapshot.get("turn")) is not int:
+            continue
+        source = snapshot["turn"] - 1
+        if not 0 <= source < end:
+            continue
+        section = snapshot.get("scientific_claims")
+        identity = research_agenda_identity(section, source)
+        if (not isinstance(section, Mapping) or type(section.get("source_turn")) is not int
+                or section["source_turn"] != source):
+            identity = {"mode": "unknown", "enabled": None, "enabled_turn": None, "cycle_lineage": None}
+        if source in identities:
+            unknown = True
+        identities[source] = identity
+        unknown |= identity["mode"] == "unknown"
+    selected = [(source, identities[source]) for source in sorted(identities) if source >= start]
+    if not selected or any(row["mode"] == "unknown" for _, row in selected):
+        blockers.append("research_agenda_mode_unavailable")
+    mode_trace = [{"source_turn": source, "mode": row["mode"], "enabled": row["enabled"]}
+                  for source, row in selected]
+    activation_trace = [{"source_turn": source, "enabled_turn": row["enabled_turn"]}
+                        for source, row in selected]
+    boundary = identities.get(start - 1)
+    finite = any(row["mode"] == "finite-retained-v1" for _, row in selected)
+    if finite and (boundary is None or boundary["mode"] == "unknown" or boundary["cycle_lineage"] is None):
+        blockers.append("research_agenda_lineage_unavailable")
+    return {"mode_trace": mode_trace, "activation_trace": activation_trace,
+            "boundary_source_turn": start - 1,
+            "boundary_mode": None if boundary is None else boundary["mode"],
+            "boundary_enabled": None if boundary is None else boundary["enabled"],
+            "boundary_enabled_turn": None if boundary is None else boundary["enabled_turn"],
+            "boundary_cycle_lineage": None if boundary is None else boundary["cycle_lineage"],
+            "recorded_program_sha256": None if unknown or not identities else _digest(
+                [{"source_turn": source, **row} for source, row in sorted(identities.items())])}
+
+
+def _science_noop_program_match(first, second):
+    a, b = first.get("research_agendas"), second.get("research_agendas")
+    return (isinstance(a, Mapping) and isinstance(b, Mapping)
+            and a.get("recorded_program_sha256") is not None
+            and a["recorded_program_sha256"] == b.get("recorded_program_sha256"))
+
+
 def _inspect(path, limits):
     raw, encoded = _read(path, limits.max_file_bytes)
     input_limited = False
@@ -319,9 +372,14 @@ def _inspect(path, limits):
     full = audit_bundle(bundle, limits=limits)
     if full["finding_counts"]["error"]:
         blockers.append("record_integrity_failed")
+    if feature == "scientific_claims":
+        agenda_audit = full["observed_mechanisms"][feature].get("research_agendas")
+        if isinstance(agenda_audit, Mapping) and agenda_audit.get("paid_topic_attribution_complete") is False:
+            blockers.append("research_paid_topic_attribution_unavailable")
     if not full["scan_complete"] or input_limited:
         blockers.append("full_audit_truncated")
     metrics, coverage, prefix_sha, final_world_sha = {}, None, None, None
+    research = None
     if "invalid_window" not in blockers:
         history = bundle.get("history") or []
         # No final-state backfill: treatment-window quantities come solely
@@ -341,6 +399,7 @@ def _inspect(path, limits):
             blockers.append("forecast_chain_detail_limit")
         metrics = _window_metrics(feature, window["observed_mechanisms"], start)
         if feature == "scientific_claims":
+            research = _science_research_context(history, start, end, blockers)
             for row in selected:
                 section = row.get(feature)
                 if isinstance(section, Mapping) and controls_after is not None:
@@ -372,12 +431,18 @@ def _inspect(path, limits):
         prefix = [r for r in history if isinstance(r, Mapping) and type(r.get("turn")) is int and r["turn"] <= start]
         events = [r for r in bundle.get("events_timeline", []) if isinstance(r, Mapping)
                   and type(r.get("turn")) is int and r["turn"] < start]
-        prefix_sha = _digest({"history": prefix, "events": events})
+        try:
+            prefix_sha = _digest({"history": prefix, "events": events})
+        except (TypeError, ValueError, OverflowError):
+            blockers.append("pre_intervention_history_identity_unavailable")
         if isinstance(bundle.get("world_state"), Mapping):
             # Equality of exported Python world state is a no-op check only;
             # it does not establish native pool or every output byte identity.
-            final_world_sha = _digest(bundle["world_state"])
-    return {"input_name": path.name, "sha256": hashlib.sha256(raw).hexdigest(), "input_bytes": len(raw),
+            try:
+                final_world_sha = _digest(bundle["world_state"])
+            except (TypeError, ValueError, OverflowError):
+                final_world_sha = None
+    result = {"input_name": path.name, "sha256": hashlib.sha256(raw).hexdigest(), "input_bytes": len(raw),
         "experiment": experiment, "feature": feature, "cohort": cohort,
         "seed": seed, "arm": arm, "intervention_fork": fork, "window": {"start": start, "end_exclusive": end},
         "controls_before": controls_before, "controls_after": controls_after, "identity": identity,
@@ -394,6 +459,9 @@ def _inspect(path, limits):
                   "truncated_by": sorted(set(full["truncated_by"] + (["max_snapshots"] if input_limited else []))),
                   "findings": full["findings"][:10]},
         "blockers": sorted(set(blockers))}
+    if feature == "scientific_claims":
+        result["research_agendas"] = research
+    return result
 
 
 def compare_paths(paths, *, baseline=None, max_runs=64, audit_limits=None):
@@ -417,7 +485,8 @@ def compare_paths(paths, *, baseline=None, max_runs=64, audit_limits=None):
         parents = [r for r in group if not r["intervention_fork"] and r["arm"] == "parent"]
         for run in group:
             if (run["intervention_fork"] and run["controls_before"] is not None
-                    and run["controls_before"] == run["controls_after"] and len(parents) == 1):
+                    and run["controls_before"] == run["controls_after"] and len(parents) == 1
+                    and (feature != "scientific_claims" or _science_noop_program_match(run, parents[0]))):
                 parent = parents[0]
                 a, b = run["final_exported_python_world_sha256"], parent["final_exported_python_world_sha256"]
                 equal = a == b if a is not None and b is not None else None
@@ -452,6 +521,16 @@ def compare_paths(paths, *, baseline=None, max_runs=64, audit_limits=None):
                 if feature == "scientific_claims" and base["controls_after"] and arm["controls_after"]:
                     if base["controls_after"]["publication_rule"] != arm["controls_after"]["publication_rule"]:
                         blockers.append("publication_rule_mismatch")
+                    a, b = base.get("research_agendas"), arm.get("research_agendas")
+                    if not isinstance(a, Mapping) or not isinstance(b, Mapping):
+                        blockers.append("research_agenda_mode_unavailable")
+                    else:
+                        if any(a[field] != b[field] for field in (
+                                "mode_trace", "boundary_mode", "boundary_enabled")):
+                            blockers.append("research_agenda_mode_mismatch")
+                        if any(a[field] != b[field] for field in (
+                                "activation_trace", "boundary_mode", "boundary_enabled_turn", "boundary_cycle_lineage")):
+                            blockers.append("research_agenda_lineage_mismatch")
                 if (base["external_runner_sha256"] is not None and arm["external_runner_sha256"] is not None
                         and base["external_runner_sha256"] != arm["external_runner_sha256"]):
                     blockers.append("external_runner_mismatch")
@@ -528,6 +607,8 @@ def render_markdown(report):
             f"Measured worker environment: {_md(row['environment'])}; declared runtime environment: {_md(row['declared_runtime_environment'])}.",
             f"Captured worker environment before/after: {_md(row['worker_environment_before'])} → {_md(row['worker_environment_after'])}.",
             f"Controls before/after: {_md(row['controls_before'])} → {_md(row['controls_after'])}.",
+            *([f"Recorded research mode/lineage: {_md(row['research_agendas'])}."]
+              if row.get("feature") == "scientific_claims" else []),
             f"Post-fork coverage: {_md(row['coverage'])}; observed metrics: {_md(row['metrics'])}.",
             f"Record audit: {_md(row['audit'])}.", ""]
     lines += ["", "## Paired post-intervention contrasts", ""]
