@@ -89,6 +89,12 @@ access boundaries and exact continuations; no natural-world benefit or new
 cohort is qualified. The original d051 cohort stays intact. See the
 [prospective amendment](../../experiments/scientific-publication-amendment-2026-10.md).
 
+The separate chronology follow-up prevents future proposal/evidence receipts
+from funding, policy use or relay before arrival. Funding, completion, actual
+publication and academy founding dates also bound availability. It introduces
+no measurement, payment, schema or RNG change; valid producer histories retain
+their rules. See the [dated science record](../../integration/scientific-claims.md).
+
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
 > **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)

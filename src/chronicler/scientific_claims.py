@@ -49,7 +49,8 @@ def _academy(world, seat_id: int):
     if not scholarship_on(world) or not 0 <= seat_id < len(world.scholarship.seats):
         return None
     seat = world.scholarship.seats[seat_id]
-    if (seat.kind != ACADEMY or seat.fallen_turn is not None or seat.level <= 0
+    if (seat.kind != ACADEMY or seat.founded_turn > world.turn
+            or seat.fallen_turn is not None or seat.level <= 0
             or not 0 <= seat.region < len(world.regions)):
         return None
     return seat
@@ -252,6 +253,12 @@ def _valid_funded_measurement(trial, claim) -> bool:
                     for value in (trial.control_output, trial.treatment_output)))
 
 
+def _trial_available(trial, turn: int) -> bool:
+    """A completed record is available only after all its actual dates."""
+    return (trial.status == "completed" and trial.resolved_turn is not None
+            and trial.funded_turn < trial.completion_turn <= trial.resolved_turn <= turn)
+
+
 def _finish_trials(world, events=None) -> None:
     state = world.scientific_claims
     claims = {c.id: c for c in state.claims}
@@ -259,6 +266,8 @@ def _finish_trials(world, events=None) -> None:
         if trial.status != "running" or world.turn < trial.completion_turn:
             continue
         claim = claims[trial.claim]
+        if world.turn <= trial.funded_turn or claim.proposed_turn > world.turn:
+            continue
         funded_rule = getattr(state, "publication_rule", LEGACY_PUBLICATION) == FUNDED_CONTEXT_PUBLICATION
         if funded_rule:
             seat = _academy(world, trial.seat)
@@ -352,10 +361,14 @@ def _transmit(world) -> None:
     known.update(("evidence", r.trial, r.seat) for r in state.receipts)
     known.update((m.kind, m.record, m.recipient) for m in state.messages)
     records = [("proposal", p.claim, p.seat, p.hops, claims[p.claim].proposed_turn)
-               for p in state.proposals]
+               for p in state.proposals if p.received_turn <= world.turn
+               and claims[p.claim].proposed_turn <= world.turn]
     if not state.withhold_information:
         records += [("evidence", r.trial, r.seat, r.hops, trials[r.trial].resolved_turn)
-                    for r in state.receipts if trials[r.trial].resolved_turn is not None]
+                    for r in state.receipts if r.received_turn <= world.turn
+                    and _trial_available(trials[r.trial], world.turn)
+                    and r.received_turn >= trials[r.trial].resolved_turn
+                    and claims[trials[r.trial].claim].proposed_turn <= world.turn]
     for kind, record, sender, hops, published in sorted(records):
         source = _academy(world, sender)
         if source is None or hops >= MAX_HOPS or world.turn + 1 > published + DELIVERY_LIFETIME:
@@ -411,6 +424,8 @@ def tick_scientific_claims(world, acc=None) -> list:
                                for c in candidates]
             break
     for claim in state.claims:
+        if claim.proposed_turn > world.turn:
+            continue
         originals = [t for t in state.trials if t.claim == claim.id and t.parent < 0]
         if not originals:
             if _applicable(world, claim.origin_seat, claim):
@@ -422,7 +437,8 @@ def tick_scientific_claims(world, acc=None) -> list:
             continue
         for seat_id in state.seat_ids:
             if (seat_id != original.seat and _applicable(world, seat_id, claim)
-                    and any(p.seat == seat_id and p.claim == claim.id for p in state.proposals)):
+                    and any(p.seat == seat_id and p.claim == claim.id and p.received_turn <= world.turn
+                            for p in state.proposals)):
                 _fund_trial(world, claim, seat_id, original.id, acc, events)
                 break
     _transmit(world)
@@ -432,7 +448,8 @@ def tick_scientific_claims(world, acc=None) -> list:
 def _received_evidence(world, seat_id: int, claim: ScientificClaim):
     """Policy-visible receipts only, with duplicate source data removed."""
     state = world.scientific_claims
-    if state.withhold_information or not _applicable(world, seat_id, claim):
+    if (state.withhold_information or claim.proposed_turn > world.turn
+            or not _applicable(world, seat_id, claim)):
         return []
     trials = {t.id: t for t in state.trials}
     visible = []
@@ -441,9 +458,8 @@ def _received_evidence(world, seat_id: int, claim: ScientificClaim):
         if receipt.seat != seat_id or receipt.received_turn > world.turn:
             continue
         trial = trials.get(receipt.trial)
-        if (trial is None or trial.claim != claim.id or trial.status != "completed"
-                or trial.completion_turn > world.turn or trial.resolved_turn is None
-                or trial.resolved_turn > world.turn
+        if (trial is None or trial.claim != claim.id or not _trial_available(trial, world.turn)
+                or receipt.received_turn < trial.resolved_turn
                 or not trial.informative or trial.supports is None
                 or not trial.source_data or not trial.dependence_group
                 or trial.inputs.get("context") != claim.context.model_dump()
@@ -498,7 +514,8 @@ def prepare_adoption_effort(world, acc=None, *, events=None) -> dict[tuple[int, 
                     continue
                 known = {p.claim for p in state.proposals if p.seat == seat_id
                          and p.received_turn <= world.turn}
-                claims = [c for c in state.claims if c.id in known and _applicable(world, seat_id, c)]
+                claims = [c for c in state.claims if c.id in known and c.proposed_turn <= world.turn
+                          and _applicable(world, seat_id, c)]
                 if not claims:
                     continue
                 used_regions.add(seat.region)
@@ -552,12 +569,14 @@ def snapshot_summary(world) -> dict | None:
     if active:
         view = _SummaryView(world, source_turn)
         for seat_id in state.seat_ids:
-            seat = _academy(world, seat_id)
+            seat = _academy(view, seat_id)
             if seat is None:
                 continue
             region = world.regions[seat.region]
             for claim in state.claims:
-                if not any(p.seat == seat_id and p.claim == claim.id for p in state.proposals):
+                if claim.proposed_turn > source_turn or not any(
+                        p.seat == seat_id and p.claim == claim.id and p.received_turn <= source_turn
+                        for p in state.proposals):
                     continue
                 # Context is evaluated at the completed turn, as it was for
                 # that turn's policy. A view does not alter the real calendar.

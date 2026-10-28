@@ -407,6 +407,104 @@ def test_replication_funding_cites_original_funding_not_an_unused_result(first_r
         assert original.event_id not in by_id[trial.funded_event_id].causes
 
 
+def test_future_proposal_receipt_cannot_fund_replication_or_become_present_belief():
+    world = _world(seats=(0, 1))
+    _tick(world, 0)
+    state = world.scientific_claims
+    state.proposals += [ProposalReceipt(seat=1, claim=c.id, received_turn=20) for c in state.claims]
+    for turn in range(1, 13):
+        _tick(world, turn)
+    assert len(state.trials) == 2 and state.trial_spent == 4
+    world.turn = 13
+    assert all(b["seat"] != 1 for b in C.snapshot_summary(world)["beliefs"])
+    for turn in range(13, 25):
+        _tick(world, turn)
+    assert len(state.trials) == 4
+    assert all(t.funded_turn == 24 for t in state.trials if t.parent >= 0)
+
+
+@pytest.mark.parametrize("kind", ["proposal", "evidence", "future_resolution", "future_completion", "future_claim",
+                                 "future_funding", "unfinished", "before_publication"])
+def test_future_institutional_records_cannot_be_relayed_early(kind, monkeypatch):
+    world = _world(seats=(0, 1, 2))
+    for i, region in enumerate(world.regions):
+        region.adjacencies = [world.regions[j].name for j in (i - 1, i + 1) if 0 <= j < 3]
+    _complete(world, monkeypatch)
+    state = world.scientific_claims
+    state.messages = []
+    if kind == "proposal":
+        state.proposals = [ProposalReceipt(seat=1, claim=0, received_turn=20)]
+        state.receipts = []
+    else:
+        state.proposals = []
+        state.receipts = [EvidenceReceipt(seat=1, trial=0, received_turn=20 if kind == "evidence" else 1, sender=0)]
+        if kind == "future_resolution":
+            state.trials[0].resolved_turn = 20
+        elif kind == "future_completion":
+            state.trials[0].completion_turn = 20
+        elif kind == "future_claim":
+            state.claims[0].proposed_turn = 20
+        elif kind == "future_funding":
+            state.trials[0].funded_turn = 20
+        elif kind == "unfinished":
+            state.trials[0].status = "running"
+        elif kind == "before_publication":
+            state.receipts[0].received_turn = 0
+        assert C._received_evidence(world, 1, state.claims[0]) == []
+    C._transmit(world)
+    assert state.messages == []
+
+
+def test_future_proposal_cannot_pay_for_an_original_trial():
+    from chronicler.scientific_claims_state import ScientificClaim
+    world = _world(seats=(0,))
+    state = world.scientific_claims
+    state.seat_ids = [0]
+    state.claims = [ScientificClaim(id=0, recipe="irrigation", origin_seat=0,
+                                   proposed_turn=20, context=C._context(world, 0))]
+    state.proposals = [ProposalReceipt(seat=0, claim=0, received_turn=20)]
+    _tick(world, 12)
+    assert state.trials == [] and state.trial_spent == 0
+    _tick(world, 24)
+    assert len(state.trials) == 1 and state.trials[0].funded_turn == 24
+
+
+@pytest.mark.parametrize("future_field", ["proposed_turn", "funded_turn"])
+def test_future_trial_or_proposal_cannot_publish_before_its_actual_availability(future_field):
+    world = _world(seats=(0,))
+    _tick(world, 0)
+    state = world.scientific_claims
+    record = state.claims[0] if future_field == "proposed_turn" else state.trials[0]
+    setattr(record, future_field, 20)
+    _tick(world, 1)
+    assert state.trials[0].status == "running"
+    assert state.trials[0].resolved_turn is None
+    assert not any(r.trial == 0 for r in state.receipts)
+
+
+def test_backdated_receipt_cannot_make_a_future_claim_visible_to_current_policy(monkeypatch):
+    world = _world()
+    _complete(world, monkeypatch)
+    state = world.scientific_claims
+    state.claims[0].proposed_turn = 20
+    world.turn = 12
+    assert C.confidence(world, 0, 0) == .5
+    C.prepare_adoption_effort(world)
+    assert not any(e.recipe == "irrigation" for e in state.last_effort)
+
+
+def test_academy_cannot_register_or_fund_before_its_actual_founding_date():
+    world = _world(seats=(0,))
+    world.scholarship.seats[0].founded_turn = 20
+    _tick(world, 0)
+    assert world.scientific_claims.seat_ids == []
+    assert world.scientific_claims.claims == [] and world.scientific_claims.trial_spent == 0
+    _tick(world, 20)
+    assert world.scientific_claims.seat_ids == [0]
+    assert len(world.scientific_claims.trials) == 2
+    assert all(t.funded_turn == 20 for t in world.scientific_claims.trials)
+
+
 def test_controls_separate_information_from_spending(monkeypatch):
     informed, withheld, uninformative = _world(), _world(), _world()
     withheld.scientific_claims.withhold_information = True

@@ -145,6 +145,22 @@ share; it does not translate confidence into verified physical truth or
 certified independent populations. Future/undated propositions and future
 receipts are ignored, with no fallback to the final world.
 
+The separate chronology correction also gates runtime decisions and relays on
+the actual dates. A proposal receipt cannot fund replication, appear as a
+current belief or be forwarded before its `received_turn`; the claim itself
+must already have been proposed. Evidence cannot be forwarded before its
+receipt arrives or used before the recorded publication. A completed trial
+must satisfy `funded_turn < completion_turn <= resolved_turn <= current_turn`,
+and a receipt cannot precede its resolution. A running trial waits until its
+funding and proposal actually exist, and a seat cannot act before its founding.
+These checks add no measurement, payment, date rewrite or RNG draw. Ordinary
+producer histories already meet them; the earlier replication funding-cause
+correction remains the intentional change to valid recorded provenance.
+The science and publication files passed 88 focused checks in 5.02 seconds
+under the offline guard, with no native modules loaded or blocked I/O
+attempts. This receipt covers mechanical chronology and publication, not a
+new world cohort or scientific-benefit qualification.
+
 ## Verification and limits
 
 An independent [prospective publication amendment](../experiments/scientific-publication-amendment-2026-10.md)
