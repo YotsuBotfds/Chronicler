@@ -195,3 +195,54 @@ Manifest SHA-256 values identify the records independently of local paths:
 | Forecasts | `8ea7c17ac5360ac6b2b71a50ceacdd5941c95ee5c70a1c836441963a5f9b9fbf` |
 | Gatherings | `d18a6193611b443b2be2fb4d3700c813050b0dcead310b0f3f6f323d2003c29b` |
 | Health/care | `4a688490f0b331b9f538b7607cb6907bc37e64fc27e8f006eea19f18b4d060ce` |
+
+## First natural science development cohort, 2026-10-28
+
+The prospectively registered science command above completed all ten actual
+executions to completion horizon 60, seeds 42–43, template 8/4, shared fork
+boundary 1 and one worker. Simulation source stayed frozen at
+`d051d7c06b1a490841d148b8906bde22f2f5d0f0`, package digest
+`c14bc2f0178139b58d778926e1f803597ee0856958b02da67882b851845c8129`.
+The fresh native extension SHA-256 was
+`fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317`.
+The separate environment-aware runner was commit `0885c450`, file SHA-256
+`b2f691f6ce1b9b7dfc4245d9e1951104e09de68aabafee19a2e1e81c94abee61`.
+No academy was seeded, action forced, context stabilized, seed replaced or
+horizon extended after looking at the outcomes.
+
+All ten actual worker identity sidecars passed schema-2 source/native/runner
+and before/after environment verification. Actual worker environments matched
+within each seed's parent/arms. Both normal no-op forks finished with final
+state bytes identical to their uninterrupted parent. The readout rechecked
+every recorded per-run file hash, found continuous source-turn observations
+0–59 and no accounting/channel errors. The manifest is `complete` as an
+execution record, not a scientific gate.
+
+| Seed / arms | Registered academy IDs | Completed trials | Trial expense | Local result receipts | Paid adoption expense |
+| --- | --- | --- | --- | --- | --- |
+| 42 / every arm | 0 | 0 | 0 | 0 | 0 |
+| 43 / normal, local-only, sham | 2 | 2 | 4 | 2 | 0 |
+| 43 / withheld | 2 | 2 | 4 | 0 (2 withheld) | 0 |
+
+The parent has the normal arm's same values. Seed 42 never founded an academy
+within this horizon. In seed 43 the academy in Amber Valley proposed its two
+claims at source turn 43 and completed the two paid trials at source turn 44.
+No arm recorded remote evidence, a replication or paid adoption. In the normal
+arm both noisy measurements supported their grain-output claims, including
+masonry; the system does not replace those observations with an omniscient
+recipe-validity label. This single pair does not establish a false-positive
+rate or treatment effect.
+
+This cohort therefore checks execution, information withholding and exact
+continuation with explicitly low/empty exposure. It cannot identify a remote
+knowledge effect, adoption effect, population benefit or absence of benefit.
+The horizon and original outcomes remain intact. Future exposure designs or
+publication-rule amendments need separate prospective records and runs;
+favorable seeds or completed trials must not be selected afterward.
+
+Evidence is retained outside Git under
+`/workspace/chronicler-science-natural-evidence/d051-dev-60-env2`. Manifest
+SHA-256:
+`b65f193077e290f324a0ee92e191b46530032eaaebf6b525efcfbdce87d49ab5`.
+The readonly readout and its script hash are alongside that evidence; the
+readout does not rewrite any run artifact or infer old worker environments.
