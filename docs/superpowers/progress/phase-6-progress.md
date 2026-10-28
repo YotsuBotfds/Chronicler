@@ -64,6 +64,15 @@ See [the pilot notes](../../integration/scientific-claims.md) and its
 Controlled mechanical checks do not qualify world benefits, scientific
 independence or default activation; paired natural-world arms remain next.
 
+The experiment harness now accepts complete normal/withheld/local-only/sham
+science configurations, forwards both real prerequisites and preserves one
+identified parent checkpoint and intervention lineage. Its first natural-world
+development cohort is registered before execution: seeds 42–43, template 8/4,
+60 turns, completion-turn-1 fork and one worker, retaining empty exposures.
+The [development protocol](../../experiments/scientific-claims-development-2026-10.md)
+and [runner notes](../../integration/expansion-experiments.md) define the scope;
+the registration is not a world-benefit qualification.
+
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
 > **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)

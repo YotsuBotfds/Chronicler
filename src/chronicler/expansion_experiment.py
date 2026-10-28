@@ -17,8 +17,10 @@ CONTROL_FIELDS = {
     "harvest_forecasts": ("policy",),
     "ritual_gatherings": ("contact_enabled", "bonds_enabled"),
     "health_care": ("care_enabled", "injury_rate", "impairment", "care_fraction", "recovery_work"),
+    "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests"),
 }
-_BOOLEAN_CONTROLS = {"care_enabled", "contact_enabled", "bonds_enabled"}
+_BOOLEAN_CONTROLS = {"care_enabled", "contact_enabled", "bonds_enabled", "withhold_information",
+                     "transmission_enabled", "uninformative_tests"}
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\Z")
 _REQUEST_FIELDS = {
     "schema_version", "experiment", "cohort", "feature", "arm", "controls", "fork",

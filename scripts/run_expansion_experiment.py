@@ -57,6 +57,12 @@ ARMS = {
                           "no_bonds": {"contact_enabled": True, "bonds_enabled": False},
                           "cost_only": {"contact_enabled": False, "bonds_enabled": False}},
     "health_care": {"care": {"care_enabled": True}, "no_care": {"care_enabled": False}},
+    "scientific_claims": {
+        "normal": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": False},
+        "withheld": {"withhold_information": True, "transmission_enabled": True, "uninformative_tests": False},
+        "no_transmission": {"withhold_information": False, "transmission_enabled": False, "uninformative_tests": False},
+        "uninformative": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": True},
+    },
 }
 
 
@@ -116,6 +122,8 @@ def _simulation_args(seed, turns, path, config, *, resume=None, checkpoint=None)
             "--" + config["feature"].replace("_", "-")]
     if config["feature"] == "harvest_forecasts":
         args.extend(["--grain-reserves", "--contact-ledger"])
+    elif config["feature"] == "scientific_claims":
+        args.extend(["--scholarship", "--techniques"])
     if resume is not None:
         args.extend(["--resume", str(resume)])
     if checkpoint is not None:
@@ -262,6 +270,8 @@ def run_experiment(args):
     for name in ("feature", "cohort", "seeds", "turns", "output_root"):
         if getattr(args, name) is None:
             raise ValueError(f"--{name.replace('_', '-')} is required")
+    if args.feature not in CONTROL_FIELDS:
+        raise ValueError("selected simulation source does not register this experiment feature")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", args.name):
         raise ValueError("experiment name must be a bounded plain identifier")
     if args.turns <= args.fork_turn:

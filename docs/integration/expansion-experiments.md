@@ -1,7 +1,8 @@
 # Running controlled expansion studies
 
 `scripts/run_expansion_experiment.py` writes reproducible experiment evidence
-for harvest forecasts, harvest gatherings and health/care. It does not issue a
+for harvest forecasts, harvest gatherings, health/care and contextual scientific
+claims. It does not issue a
 scientific gate verdict or promote a feature. The default cohort is not guessed:
 `--cohort development` or `--cohort confirmatory` is required. Confirmatory runs
 also require a registration file, whose digest is retained; the label and hash
@@ -39,6 +40,7 @@ by the system's own state schema:
 | `harvest_forecasts` | `normal`, `withheld`, `shuffled` | None; arm names fix `policy` |
 | `ritual_gatherings` | `normal`, `no_contact`, `no_bonds`, `cost_only` | None; arms fix the two channel switches |
 | `health_care` | `care`, `no_care` | `injury_rate`, `impairment`, `care_fraction`, `recovery_work` |
+| `scientific_claims` | `normal`, `withheld`, `no_transmission`, `uninformative` | None; arms fix all three information switches |
 
 The receipt stores **all** resolved control parameters before and after the
 intervention, rather than only overrides. State progress stays intact. An
@@ -46,6 +48,15 @@ already-delivered report is not retroactively withheld by a later policy
 change. Choose the fork boundary accordingly and register it before running.
 The default boundary is completion turn 4, before assessment publication at
 source turn 5 and the first gathering at source turn 8.
+
+Scientific claims require scholarship and techniques; the runner explicitly
+enables both. Its four arms fix the complete `withhold_information`,
+`transmission_enabled` and `uninformative_tests` configuration. The first
+[natural-world development protocol](../experiments/scientific-claims-development-2026-10.md)
+uses **`--fork-turn 1`**, before a trial first funded at source turn 0 can
+resolve. The general turn-4 default is unsuitable for that before-receipt
+question. Existing receipts and funded work are retained when controls change;
+neither the experiment seam nor the runner rewinds a cohort's progress.
 
 ## Invocation
 
@@ -67,6 +78,13 @@ python scripts/run_expansion_experiment.py \
     --feature ritual_gatherings --cohort development --name gathering-probe \
     --seeds 42-43 --turns 40 --workers 1 \
     --output-root /path/to/new/gathering-evidence
+
+python scripts/run_expansion_experiment.py \
+    --source-root /path/to/frozen-checkout \
+    --feature scientific_claims --cohort development --name science-natural-dev-60 \
+    --seeds 42-43 --turns 60 --fork-turn 1 --workers 1 \
+    --registration /path/to/frozen-checkout/docs/experiments/scientific-claims-development-2026-10.md \
+    --output-root /path/to/new/science-evidence
 ```
 
 `--arms` selects comma-separated registered arms. `--controls FILE.json`
@@ -109,7 +127,10 @@ the common fork and censored at death; future injury or survival cannot select
 the analysis sample. Forecast production/demand scores include policy feedback;
 climate-vector exogeneity and preparation losses are separate diagnostics.
 Gatherings need actual attendance/contact/accepted bond evidence, not merely
-an enabled flag. Preserve empty exposures and inconclusive results. See the
+an enabled flag. Scientific claims need actual eligible academies, paid trials,
+dated receipts and allocations; copied records or dependence-block counters
+do not establish independent experimental units. Preserve empty exposures
+and inconclusive results. See the
 [qualification plan](expansion-qualification.md) and each system's registered
 mechanism criteria before assigning confirmatory seeds or making claims.
 

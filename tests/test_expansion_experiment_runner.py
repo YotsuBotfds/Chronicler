@@ -46,6 +46,16 @@ def test_source_selection_refuses_to_mix_an_already_imported_checkout(tmp_path):
     assert runner.source_identity() == before
 
 
+def test_new_external_runner_rejects_older_source_without_feature_before_claiming_output(tmp_path, monkeypatch):
+    runner = _runner()
+    monkeypatch.setattr(runner, "CONTROL_FIELDS", {key: value for key, value in runner.CONTROL_FIELDS.items()
+                                                  if key != "scientific_claims"})
+    output = tmp_path / "unused"
+    with pytest.raises(ValueError, match="source does not register"):
+        runner.run_experiment(_args(runner, output, "--feature", "scientific_claims"))
+    assert not output.exists()
+
+
 def test_worker_calls_real_entrypoint_without_supplying_a_preconfigured_world(tmp_path, monkeypatch):
     runner = _runner()
     from chronicler import main
@@ -98,6 +108,49 @@ def test_all_arms_reference_one_parent_and_keep_their_full_controls(tmp_path, mo
     assert parents[0]["sha256"] == runner.file_sha256(Path(parents[0]["path"]))
     assert all(call[3]["fork"] is True and call[1] == 12 for call in calls[1:])
     assert {call[3]["arm"]: call[3]["controls"] for call in calls[1:]} == runner.ARMS["ritual_gatherings"]
+
+
+def test_scientific_arms_have_complete_distinct_controls_and_real_prerequisite_flags(tmp_path):
+    runner = _runner()
+    expected = {
+        "normal": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": False},
+        "withheld": {"withhold_information": True, "transmission_enabled": True, "uninformative_tests": False},
+        "no_transmission": {"withhold_information": False, "transmission_enabled": False, "uninformative_tests": False},
+        "uninformative": {"withhold_information": False, "transmission_enabled": True, "uninformative_tests": True},
+    }
+    assert runner.ARMS["scientific_claims"] == expected
+    from chronicler.main import _build_parser
+    config = {"feature": "scientific_claims", "worldgen": "template", "regions": 8, "civs": 4}
+    parsed = _build_parser().parse_args(runner._simulation_args(42, 60, tmp_path, config, checkpoint=1))
+    assert parsed.scientific_claims is parsed.scholarship is parsed.techniques is True
+    assert parsed.agents == "hybrid" and parsed.checkpoint_turns == (1,)
+    assert parsed.harvest_forecasts is parsed.ritual_gatherings is parsed.health_care is None
+    assert parsed.grain_reserves is parsed.contact_ledger is None
+
+
+def test_scientific_forks_share_pre_resolution_parent_without_clearing_state(tmp_path, monkeypatch):
+    runner = _runner()
+    from chronicler.ablation_arms import CHECKPOINT_TURN_FILENAME
+    calls = []
+
+    def execute(path, seed, horizon, args, request, env):
+        path.mkdir(parents=True)
+        calls.append((horizon, args, request))
+        if request["arm"] == "parent":
+            (path / CHECKPOINT_TURN_FILENAME.format(turn=1)).write_bytes(b"common-scientific-checkpoint")
+        return {"seed": seed, "arm": request["arm"], "status": "complete"}
+
+    monkeypatch.setattr(runner, "_execute", execute)
+    config = {"feature": "scientific_claims", "name": "science-probe", "cohort": "development",
+              "registration": None, "controls": {}, "fork_turn": 1, "turns": 60,
+              "worldgen": "template", "regions": 8, "civs": 4, "arms": list(runner.ARMS["scientific_claims"])}
+    records = runner._seed_runs(42, tmp_path, config, {})
+    assert len(records) == 5 and len(calls) == 5
+    parents = [call[2]["parent_checkpoint"] for call in calls[1:]]
+    assert all(parent == parents[0] for parent in parents)
+    assert {call[2]["arm"]: call[2]["controls"] for call in calls[1:]} == runner.ARMS["scientific_claims"]
+    assert all(set(call[2]["controls"]) == set(runner.CONTROL_FIELDS["scientific_claims"]) for call in calls[1:])
+    assert all(call[0] == 60 and call[2]["fork"] is True for call in calls[1:])
 
 
 def test_worker_rejects_a_receipt_parent_different_from_its_actual_resume_path(tmp_path):
