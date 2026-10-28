@@ -27,6 +27,7 @@ def _request(feature="harvest_forecasts", **extra):
     ("health_care", {"care_enabled": False, "injury_rate": 0.0, "care_fraction": 0.1}),
     ("scientific_claims", {"withhold_information": True, "transmission_enabled": False,
                            "uninformative_tests": True}),
+    ("scientific_claims", {"publication_rule": "funded-context-v2"}),
 ])
 def test_only_controls_change_and_receipt_resolves_every_source_parameter(feature, controls):
     world = _world(feature)
@@ -39,7 +40,8 @@ def test_only_controls_change_and_receipt_resolves_every_source_parameter(featur
     expected = {**before, **controls}
     assert state.model_dump() == expected
     assert receipt["controls_after"] == controls_for_state(feature, state)
-    assert receipt["controls_before"] == {name: before[name] for name in receipt["controls_after"]}
+    assert receipt["controls_before"] == {
+        name: before.get(name, type(state).model_fields[name].default) for name in receipt["controls_after"]}
     assert receipt["source"]["package_digest"] and receipt["native"]["status"] in ("found", "absent")
     assert receipt["intervention_fork"] is False and receipt["applied_before_turn"] == 0
     assert config == {}  # execute_run owns storing the returned receipt.
@@ -58,6 +60,8 @@ def test_only_controls_change_and_receipt_resolves_every_source_parameter(featur
     ("scientific_claims", {"uninformative_tests": 1}),
     ("scientific_claims", {"trials": []}),
     ("scientific_claims", {"reported_allocations": {}}),
+    ("scientific_claims", {"publication_rule": "future-context-v9"}),
+    ("scientific_claims", {"publication_rule": True}),
 ])
 def test_invalid_or_unregistered_changes_are_rejected_before_any_mutation(feature, controls):
     world = _world(feature)
@@ -155,7 +159,8 @@ def test_scientific_fork_preserves_funded_trials_receipts_and_exact_control_hist
                                         request, resumed=True)
     assert state.model_dump() == {**before, "withhold_information": True}
     assert receipt["controls_before"] == {"withhold_information": False,
-                                           "transmission_enabled": True, "uninformative_tests": False}
+                                           "transmission_enabled": True, "uninformative_tests": False,
+                                           "publication_rule": "current-context-v1"}
     assert receipt["controls_after"] == {**receipt["controls_before"], "withhold_information": True}
     assert receipt["parent_checkpoint"]["turn"] == receipt["applied_before_turn"] == 1
     assert receipt["previous_experiment"] == {"arm": "parent"}

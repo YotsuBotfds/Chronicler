@@ -40,7 +40,7 @@ by the system's own state schema:
 | `harvest_forecasts` | `normal`, `withheld`, `shuffled` | None; arm names fix `policy` |
 | `ritual_gatherings` | `normal`, `no_contact`, `no_bonds`, `cost_only` | None; arms fix the two channel switches |
 | `health_care` | `care`, `no_care` | `injury_rate`, `impairment`, `care_fraction`, `recovery_work` |
-| `scientific_claims` | `normal`, `withheld`, `no_transmission`, `uninformative` | None; arms fix all three information switches |
+| `scientific_claims` | `normal`, `withheld`, `no_transmission`, `uninformative` | `publication_rule` (default `current-context-v1`); arms fix all three information switches |
 
 The receipt stores **all** resolved control parameters before and after the
 intervention, rather than only overrides. State progress stays intact. An
@@ -57,6 +57,13 @@ uses **`--fork-turn 1`**, before a trial first funded at source turn 0 can
 resolve. The general turn-4 default is unsuitable for that before-receipt
 question. Existing receipts and funded work are retained when controls change;
 neither the experiment seam nor the runner rewinds a cohort's progress.
+
+A separate [prospective publication amendment](../experiments/scientific-publication-amendment-2026-10.md)
+adds the explicit shared control `publication_rule="funded-context-v2"`.
+It can be supplied through `--controls FILE.json` only in a source that
+registers that rule. Legacy/default execution remains v1. This metadata is
+resolved alongside all information switches in each control receipt; it does
+not silently replace the rule of the original frozen d051 study.
 
 ## Invocation
 

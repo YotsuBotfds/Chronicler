@@ -78,6 +78,17 @@ The [development protocol](../../experiments/scientific-claims-development-2026-
 and [runner notes](../../integration/expansion-experiments.md) define the scope;
 the registration is not a world-benefit qualification.
 
+## Optional funded-context science publication (2026-10-28)
+
+The independent publication amendment retains `current-context-v1` as the
+default and adds explicit `funded-context-v2` controls for surviving academies
+to publish valid recorded funding-time measurements after context changes.
+Current-context policy gates, access-loss cancellations, paid costs and
+information controls remain distinct. Mechanical checks cover calendar/data/
+access boundaries and exact continuations; no natural-world benefit or new
+cohort is qualified. The original d051 cohort stays intact. See the
+[prospective amendment](../../experiments/scientific-publication-amendment-2026-10.md).
+
 ## Viewer: who holds the debt (2026-10-28, `feat/viewer-debt-holders`)
 
 > **Last updated:** 2026-10-28 (`feat/viewer-debt-holders` from `main` `cb9fe70`; viewer, plus one finance-snapshot key written only with `--domestic-credit`. The Finance panel shows who holds each realm's debt: every indebted realm by holder at the scrubbed turn, and one borrower's holders over time and at the turn, foreign debt by lender, rates, interest due, arrears, defaults and write-offs with their events. Default bundles byte-identical to `main` (9-case matrix, 399 files, 0 differences). No granary view: the bundle carries no per-turn granary record.)

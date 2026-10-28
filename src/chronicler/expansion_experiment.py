@@ -17,7 +17,7 @@ CONTROL_FIELDS = {
     "harvest_forecasts": ("policy",),
     "ritual_gatherings": ("contact_enabled", "bonds_enabled"),
     "health_care": ("care_enabled", "injury_rate", "impairment", "care_fraction", "recovery_work"),
-    "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests"),
+    "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests", "publication_rule"),
 }
 _BOOLEAN_CONTROLS = {"care_enabled", "contact_enabled", "bonds_enabled", "withhold_information",
                      "transmission_enabled", "uninformative_tests"}
@@ -92,7 +92,7 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     for name, value in controls.items():
         if name in _BOOLEAN_CONTROLS and type(value) is not bool:
             raise ValueError(f"experiment control {name} must be a boolean")
-        if name not in _BOOLEAN_CONTROLS and name != "policy" and type(value) not in (int, float):
+        if name not in _BOOLEAN_CONTROLS and name not in ("policy", "publication_rule") and type(value) not in (int, float):
             raise ValueError(f"experiment control {name} must be a finite number")
     state = getattr(world, feature, None)
     before = controls_for_state(feature, state)

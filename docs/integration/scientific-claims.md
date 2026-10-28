@@ -133,6 +133,22 @@ receipts are ignored, with no fallback to the final world.
 
 ## Verification and limits
 
+An independent [prospective publication amendment](../experiments/scientific-publication-amendment-2026-10.md)
+adds the explicit `publication_rule="funded-context-v2"` experiment control.
+The default remains `current-context-v1`, omitted from saved state and
+summaries for legacy compatibility. V2 publishes a valid recorded funding-time
+measurement while the original academy and living regional access survive,
+even when present context changes. Current context still gates policy use;
+old observations are not replaced by new physical measurements. New academies
+cannot revive a fallen seat's trial, and ownership change alone does not
+erase a surviving institution's records. Missing funded data fails, lost
+publication access cancels, and paid costs are retained without rerolls.
+Only v2 summaries carry the additive `publication_rule` string. The shared
+experiment seam records its resolved value and requires ordinary intervention
+fork lineage. This separate opt-in rule has mechanical checks, not a new
+natural-world cohort or benefit qualification. The original d051 execution
+cohort and its low/empty exposures remain intact.
+
 Focused mechanical tests cover the physical evaluator, all controls,
 transmission dates/topology, failed/cancelled/null trials, dependency/source
 deduplication, exact projected expenses, technique gates, complete-turn hook

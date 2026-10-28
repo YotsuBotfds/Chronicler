@@ -36,6 +36,13 @@ still yields a retained paid cancellation. Missing/invalid funded measurement
 data yields a retained paid failure. Null physical output remains a completed
 uninformative result. No fee is refunded and no outcome is rerolled.
 
+Publication access means the original seat ID still names a living academy:
+no fallen date, positive level, a valid region index and positive regional
+population. A new academy at another seat ID cannot revive its predecessor's
+trial. A controller/owner change alone does not erase the surviving academy's
+records; the original trial payer remains recorded, while current policy
+still needs a valid current patron and matching local context.
+
 Current-context eligibility still gates policy confidence and paid adoption.
 A valid archived result need not be applicable now. Actual publication time
 continues to anchor receipt dates and message expiry. Withholding creates no

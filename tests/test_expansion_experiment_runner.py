@@ -188,13 +188,15 @@ def test_scientific_forks_share_pre_resolution_parent_without_clearing_state(tmp
 
     monkeypatch.setattr(runner, "_execute", execute)
     config = {"feature": "scientific_claims", "name": "science-probe", "cohort": "development",
-              "registration": None, "controls": {}, "fork_turn": 1, "turns": 60,
+              "registration": None, "controls": {"publication_rule": "current-context-v1"}, "fork_turn": 1, "turns": 60,
               "worldgen": "template", "regions": 8, "civs": 4, "arms": list(runner.ARMS["scientific_claims"])}
     records = runner._seed_runs(42, tmp_path, config, {})
     assert len(records) == 5 and len(calls) == 5
     parents = [call[2]["parent_checkpoint"] for call in calls[1:]]
     assert all(parent == parents[0] for parent in parents)
-    assert {call[2]["arm"]: call[2]["controls"] for call in calls[1:]} == runner.ARMS["scientific_claims"]
+    assert {call[2]["arm"]: call[2]["controls"] for call in calls[1:]} == {
+        name: {"publication_rule": "current-context-v1", **controls}
+        for name, controls in runner.ARMS["scientific_claims"].items()}
     assert all(set(call[2]["controls"]) == set(runner.CONTROL_FIELDS["scientific_claims"]) for call in calls[1:])
     assert all(call[0] == 60 and call[2]["fork"] is True for call in calls[1:])
 
@@ -268,7 +270,7 @@ def test_completed_workers_require_actual_hashed_stable_environment_receipts(tmp
     identity = {"source": runner.source_identity(), "native": runner.native_identity(),
                 "environment": runner.environment_identity()}
     receipt = {"source": identity["source"], "native": identity["native"], **request,
-               "controls_after": runner.ARMS["scientific_claims"]["normal"]}
+               "controls_after": {"publication_rule": "current-context-v1", **runner.ARMS["scientific_claims"]["normal"]}}
     worker = {"schema_version": 2, "before": deepcopy(identity), "after": deepcopy(identity),
               "environment_stable": True, "identities_stable": True,
               "runner_sha256": runner.file_sha256(Path(runner.__file__)),

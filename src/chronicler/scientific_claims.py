@@ -12,7 +12,7 @@ import random
 from chronicler.scientific_claims_state import (
     AdoptionEffort, ClaimContext, EvidenceReceipt, MAX_SEATS, MAX_TRIALS,
     ProposalReceipt, ScienceMessage, ScientificClaim, ScientificClaimsState,
-    ScientificTrial, scientific_claims_on,
+    ScientificTrial, scientific_claims_on, LEGACY_PUBLICATION, FUNDED_CONTEXT_PUBLICATION,
 )
 from chronicler.scholarship_state import ACADEMY, scholarship_on
 from chronicler.techniques_state import GRAIN, TECHNIQUE_INDEX, TechniqueState, techniques_on
@@ -240,6 +240,18 @@ def _record_receipt(world, receipt: EvidenceReceipt, events=None) -> None:
     state.receipts.append(receipt)
 
 
+def _valid_funded_measurement(trial, claim) -> bool:
+    """Validate recorded evidence without rereading current physical truth."""
+    return (trial.method == claim.context.protocol
+            and trial.inputs.get("context") == claim.context.model_dump()
+            and trial.inputs.get("turn") == trial.funded_turn
+            and trial.inputs.get("environment") == trial.environment_block
+            and bool(trial.source_data) and bool(trial.environment_block)
+            and trial.dependence_group == f"{claim.id}:{trial.method}:{trial.environment_block}"
+            and all(math.isfinite(value) and value >= 0
+                    for value in (trial.control_output, trial.treatment_output)))
+
+
 def _finish_trials(world, events=None) -> None:
     state = world.scientific_claims
     claims = {c.id: c for c in state.claims}
@@ -247,13 +259,30 @@ def _finish_trials(world, events=None) -> None:
         if trial.status != "running" or world.turn < trial.completion_turn:
             continue
         claim = claims[trial.claim]
-        if not _applicable(world, trial.seat, claim):
-            trial.status, trial.reason = "cancelled", "academy or registered context unavailable"
+        funded_rule = getattr(state, "publication_rule", LEGACY_PUBLICATION) == FUNDED_CONTEXT_PUBLICATION
+        if funded_rule:
+            seat = _academy(world, trial.seat)
+            access = seat is not None and world.regions[seat.region].population > 0
+            cancellation_subject = "academy or publication access"
+        else:
+            access = _applicable(world, trial.seat, claim)
+            cancellation_subject = "academy or registered context"
+        if not access:
+            trial.status, trial.reason = "cancelled", cancellation_subject + " unavailable"
             trial.resolved_turn = world.turn
             state.cancelled += 1
             trial.event_id = _emit(world, events, "scientific_trial_cancelled", trial.seat,
                                    f"Paid trial #{trial.id} at {world.scholarship.seats[trial.seat].name} "
-                                   "is cancelled because its academy or registered context is unavailable",
+                                   f"is cancelled because its {cancellation_subject} is unavailable",
+                                   causes=(trial.funded_event_id,), payer=trial.payer).event_id
+            continue
+        if funded_rule and not _valid_funded_measurement(trial, claim):
+            trial.status, trial.reason = "failed", "funded measurement record unavailable or invalid"
+            trial.resolved_turn = world.turn
+            state.failed += 1
+            trial.event_id = _emit(world, events, "scientific_trial_failed", trial.seat,
+                                   f"Paid trial #{trial.id} at {world.scholarship.seats[trial.seat].name} "
+                                   "has no valid recorded funded-context measurement to publish",
                                    causes=(trial.funded_event_id,), payer=trial.payer).event_id
             continue
         rng = random.Random(stable_hash_int("scientific_claims.measurement", world.seed,
@@ -541,7 +570,7 @@ def snapshot_summary(world) -> dict | None:
                                 "claim": claim.id, "confidence": (1. + support) / (2. + len(groups)),
                                 "independent_groups": len(groups), "last_evidence_turn": last_date,
                                 "last_evidence_event_id": visible[-1].event_id if visible else ""})
-    return {"source_turn": source_turn, "active": active, "seats": len(state.seat_ids),
+    result = {"source_turn": source_turn, "active": active, "seats": len(state.seat_ids),
             "claims": len(state.claims), "trials": len(state.trials),
             "completed": sum(t.status == "completed" for t in state.trials),
             "cancelled": state.cancelled, "failed": state.failed,
@@ -558,6 +587,10 @@ def snapshot_summary(world) -> dict | None:
             "beliefs": beliefs[:MAX_SEATS * len(RECIPES)],
             "trials_resolved": [t.model_dump() for t in state.trials if t.resolved_turn == source_turn],
             "allocations": [e.model_dump() for e in state.last_effort]}
+    rule = getattr(state, "publication_rule", LEGACY_PUBLICATION)
+    if rule != LEGACY_PUBLICATION:
+        result["publication_rule"] = rule
+    return result
 
 
 class _SummaryView:

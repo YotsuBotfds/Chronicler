@@ -15,6 +15,12 @@ MAX_SEATS = 20
 MAX_CLAIMS = 20
 MAX_TRIALS = 40
 MAX_MESSAGES = (MAX_CLAIMS + MAX_TRIALS) * MAX_SEATS
+LEGACY_PUBLICATION = "current-context-v1"
+FUNDED_CONTEXT_PUBLICATION = "funded-context-v2"
+
+
+def _is_legacy_publication(value):
+    return value == LEGACY_PUBLICATION
 
 
 class ClaimContext(BaseModel):
@@ -119,6 +125,8 @@ class ScientificClaimsState(BaseModel):
     withhold_information: bool = False
     transmission_enabled: bool = True
     uninformative_tests: bool = False
+    publication_rule: Literal["current-context-v1", "funded-context-v2"] = Field(
+        default=LEGACY_PUBLICATION, exclude_if=_is_legacy_publication)
     trial_spent: int = 0
     effort_spent: int = 0
     cancelled: int = 0
