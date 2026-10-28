@@ -42,6 +42,11 @@ informative observations. Source signatures deduplicate aliases; a shared
 climate-cluster/year/protocol group contributes at most one unit of evidence.
 Distinct dependent observations average within that unit. Records include
 the source signature, method, environmental block, parent trial and dates.
+The snapshot's `independent_groups` is this capped accounting count, not proof
+of independent world experimental units. Harvest years have Markov
+persistence and every trial shares the canonical physical evaluator. The
+paired relative-output measurement cancels common physical yield scale in
+this narrow kernel; broader world inference needs its own dependence design.
 
 Evidence applies only in the claimed grain, soil/water quarter-bands,
 season and climate phase, with sedentary farming and existing local practice.
@@ -108,3 +113,19 @@ check the implemented measurement rule; they do not qualify independent
 world outcomes. An explicit policy test changes the hidden physical grain
 coefficient while keeping received observations and eligibility fixed:
 confidence and paid allocation change only after new evidence arrives.
+
+At runtime commit `35c58455`, the focused offline-guarded science, technique
+and scholarship suites passed 130 tests with three expected skips. The
+guard blocked native imports and observed no network or child-process
+attempts. A separate feature-off probe compared frozen `8f180a03` against
+`35c58455`: seeds 42 and 43, eight regions/four civilizations, sixteen
+complete turns each, with scholarship and techniques enabled. All complete
+serialized world states, empty-narrator chronicle text and Python RNG states
+matched byte for byte, without stripping any fields. Combined output SHA-256:
+`3cfef52071b2d4f4321306df896102a40b402744d30c91215a776eca8854bb27`.
+The probe and both output arms are retained in the review workspace as
+`/tmp/scientific-off-identity.py`, `/tmp/scientific-off-baseline.json` and
+`/tmp/scientific-off-final.json`; probe SHA-256:
+`e891aaa7d11d45ded2d7541ec1d9e0a8133365bd1d561f35118402faf7babfeb`.
+Both arms used the shared interpreter with `PYTHONPATH=<checkout>/src` and
+`OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1`, executing that exact probe.
