@@ -138,6 +138,12 @@ CHUNKS = {
     ],
     "qualification-tools": [
         "tests/test_writer_cadence_diagnostic.py",
+        "tests/test_scientific_native_proof_reader.py::test_success_creates_only_new_external_output_and_keeps_inputs",
+        "tests/test_scientific_native_proof_reader.py::test_any_output_inside_evidence_is_rejected_before_analysis",
+        "tests/test_scientific_native_proof_reader.py::test_existing_destination_and_aliases_never_overwrite[ordinary]",
+        "tests/test_scientific_native_proof_reader.py::test_unsafe_inventory_paths_are_rejected_before_output",
+        "tests/test_scientific_native_proof_reader.py::test_missing_changed_unrecorded_and_unbounded_inputs_fail_closed",
+        "tests/test_scientific_native_proof_reader.py::test_input_hashes_are_rechecked_before_any_output",
         "tests/test_rust_debug_info_experiment.py::test_assertions_overflow_optimization_and_debug_info_are_independent_requirements",
         "tests/test_rust_debug_info_experiment.py::test_disk_guard_stops_before_floor_while_other_workers_can_still_grow",
         "tests/test_rust_debug_info_experiment.py::test_partial_or_filtered_test_log_cannot_claim_full_qualification",
