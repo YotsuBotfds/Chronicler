@@ -74,3 +74,19 @@ official validation. It must retain every validation sidecar, including
 unhashed resource/economy ledgers, and preserve a hash-linked restoration
 index. The next procedural arm must be budgeted from the **actual** retained
 result and peak requirements, not an extrapolation from these two parents.
+
+## Completed qualification scratch cleanup
+
+After all three b257 lanes passed and their children exited, their three pytest
+basetemp directories were removed. These held temporary test fixtures, not the
+long-gate parents, forks or checkpoints. Hash inventories verified that all
+85 retained qualification records were unchanged, including logs, JUnit,
+guards, requests, copied supervisors and source/runtime inventories. Live
+current-user process references were checked; privileged system services and
+verified exited zombies were explicitly outside that inspection scope.
+
+The observed free-space delta was 989,130,752 bytes under concurrent gate
+output. External preflight/result records remain in
+`chronicler-next-evidence/passed-b257-scratch-cleanup/`; result SHA-256 is
+`2c601fdc55a09a5c9d0b22ee084b219e7a27cbb0009d30c00bafb9ca2fa9f698`.
+The archive probe's originals, compressed copies and restored copies remain.
