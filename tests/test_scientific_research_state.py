@@ -8,7 +8,7 @@ import pytest
 
 from chronicler.models import WorldState
 from chronicler.scientific_claims_state import ProposalReceipt, ScienceMessage, ScientificClaimsState
-from chronicler.scientific_research_state import ResearchAgendas
+from chronicler.scientific_research_state import ResearchAgendas, ResearchCycle
 from test_scientific_claims import _world
 
 
@@ -140,3 +140,12 @@ def test_unvalidated_model_copy_external_update_is_rejected():
     state = ScientificClaimsState().model_copy(update={"research_agendas": _plan()})
     with pytest.raises(ValueError, match="unvalidated research update"):
         _ = state.research_agendas
+
+
+def test_adopted_legacy_unknown_opening_is_none_never_negative():
+    values = dict(id=0, legacy_adopted=True, opening_roster_complete=False, opened_turn=None,
+        origin_seat=0, participants=[0], claims=[0, 1], trials=[], announcement_event_id="",
+        closed_turn=None, close_reason="", unfunded_originals=[], unfunded_replications=[], slot_reasons={})
+    assert ResearchCycle(**values).opened_turn is None
+    with pytest.raises(ValueError):
+        ResearchCycle(**{**values, "opened_turn": -1})

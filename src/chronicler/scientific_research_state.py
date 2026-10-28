@@ -19,7 +19,7 @@ class ResearchCycle(BaseModel):
     id: int = Field(ge=0, lt=MAX_CYCLES)
     legacy_adopted: bool
     opening_roster_complete: bool
-    opened_turn: int | None
+    opened_turn: int | None = Field(ge=0)
     origin_seat: int = Field(ge=0)
     participants: list[int] = Field(max_length=20)
     claims: list[int] = Field(min_length=2, max_length=2)
