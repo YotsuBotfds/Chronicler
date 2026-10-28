@@ -79,7 +79,8 @@ def clear_stale_preparedness(world) -> None:
     live = {report.id for report in state.reports
             if report.status == "delivered" and report.expires_turn >= world.turn
             and 0 <= report.recipient_region < len(world.regions)
-            and world.regions[report.recipient_region].controller == report.owner_name}
+            and world.regions[report.recipient_region].controller == report.owner_name
+            and world.regions[report.recipient_region].population > 0}
     active = harvest_forecasts_active(world)
     _restore_targets(world, [row for row in state.preparedness
                             if not active or row["forecast_id"] not in live])
@@ -219,6 +220,15 @@ def tick_harvest_forecasts(world, economy_result) -> list:
         raise ValueError("harvest forecast state is ahead of the world turn")
     if state.last_tick_turn == world.turn:
         return []
+    # _observe does not rebuild a base for empty/unobserved granaries. Remove
+    # only their known old increment before discarding its restoration record.
+    from chronicler.grain_reserves import _demand
+    granaries = world.grain_reserves.granaries
+    _restore_targets(world, [row for row in state.preparedness
+        if 0 <= row["region"] < len(granaries) and (
+            economy_result is None or granaries[row["region"]].owner < 0
+            or world.regions[row["region"]].population <= 0
+            or _demand(economy_result, world.regions[row["region"]].name) <= 0)])
     state.last_tick_turn = world.turn
     state.preparedness = []
     ratios = _ratios(world, economy_result) if economy_result is not None else {}
@@ -281,12 +291,16 @@ def apply_preparedness(world, economy_result) -> None:
         region = world.regions[rid]
         granary = world.grain_reserves.granaries[rid]
         demand = _demand(economy_result, region.name)
-        if granary.owner != report.owner or demand <= 0:
+        if granary.owner != report.owner or demand <= 0 or region.population <= 0:
             continue
         base = previous[rid]["base_target"] if rid in previous else granary.target
-        extra = min(EXTRA_TURNS, EXTRA_TURNS * report.probability * report.confidence) * demand
-        granary.target = min(MAX_TOTAL_TURNS * demand, base + extra)
+        wanted = max(0.0, min(EXTRA_TURNS, EXTRA_TURNS * report.probability * report.confidence)) * demand
+        # The cap limits our addition, never the existing base. Demand may
+        # shrink after the economy measured it or before this helper repeats.
+        extra = min(wanted, max(0.0, MAX_TOTAL_TURNS * demand - base))
+        granary.target = base + extra
         if rid in previous:
+            previous[rid]["extra_target"] = extra
             continue
         state.preparedness.append({
             "region": rid, "region_name": region.name, "owner": report.owner,

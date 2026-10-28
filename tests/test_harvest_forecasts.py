@@ -365,3 +365,71 @@ def test_real_native_goods_run_issues_delivers_and_scores_reports():
     assert state.counters["resolved"] > 0
     assert all(r.issued_turn < r.delivered_turn <= r.expires_turn for r in state.outcomes
                if r.delivered_turn is not None)
+
+
+@pytest.mark.parametrize("base", [0.0, 2.5, 4.126938305182808])
+def test_warning_caps_only_addition_when_current_demand_is_smaller_than_base(base):
+    world = _world()
+    _warning(world)
+    result = _economy(world, pop={AMBER: 1})  # current demand = 0.5; six turns = 3
+    granary = _granary(world, AMBER)
+    granary.target = base
+    H.tick_harvest_forecasts(world, result)
+    H.apply_preparedness(world, result)
+    [row] = world.harvest_forecasts.preparedness
+    assert granary.target >= base
+    assert 0 <= row["extra_target"] <= H.EXTRA_TURNS * 0.5
+    assert row["extra_target"] <= max(0, H.MAX_TOTAL_TURNS * 0.5 - base)
+    assert granary.target == base + row["extra_target"]
+    # An already applied target stays based on the original base as demand
+    # changes again, and disabling restores that base rather than a stale sum.
+    result.market_demand[world.regions[AMBER].name] = (0.25, 0.0, 0.0, 0.0)
+    H.apply_preparedness(world, result)
+    assert row["extra_target"] == granary.target - base >= 0
+    H.set_harvest_forecasts_enabled(world, False)
+    assert granary.target == base
+
+
+def test_empty_recipient_keeps_unobserved_base_and_accrues_no_paid_preparation():
+    world = _world()
+    _warning(world)
+    result = _economy(world, pop={AMBER: 1})
+    granary = _granary(world, AMBER)
+    granary.target = 4.126938305182808
+    # The economy observed 0.5 demand before this turn's native population
+    # change. _observe deliberately skips the now-empty region.
+    world.regions[AMBER].population = 0
+    G.tick_grain_reserves(world, economy_result=result)
+    assert granary.target == 4.126938305182808
+    assert granary.observed == 0
+    assert world.harvest_forecasts.preparedness == []
+    assert world.harvest_forecasts.counters["paid_during_warning"] == 0
+    assert world.harvest_forecasts.counters["bought_during_warning"] == 0
+
+
+@pytest.mark.parametrize("missing", ["population", "demand", "economy"])
+def test_unobserved_next_turn_restores_known_extra_before_losing_its_record(missing):
+    world = _world()
+    _warning(world)
+    result = _economy(world)
+    granary = _granary(world, AMBER)
+    granary.target = 2.0
+    H.tick_harvest_forecasts(world, result)
+    H.apply_preparedness(world, result)
+    assert granary.target > 2.0
+    world.turn += 1
+    if missing == "population":
+        world.regions[AMBER].population = 0
+    elif missing == "demand":
+        result.market_demand[world.regions[AMBER].name] = (0.0, 0.0, 0.0, 0.0)
+    else:
+        result = None
+    # Save/load at the waiting boundary retains the restoration instruction.
+    resumed = WorldState.model_validate_json(world.model_dump_json())
+    for current in (world, resumed):
+        H.tick_harvest_forecasts(current, result)
+        assert current.grain_reserves.granaries[AMBER].target == 2.0
+        if result is not None:
+            H.apply_preparedness(current, result)
+        assert current.harvest_forecasts.preparedness == []
+    assert resumed.model_dump_json() == world.model_dump_json()

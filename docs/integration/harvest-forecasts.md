@@ -36,8 +36,9 @@ An incomplete window is unscored. Repeating a tick does not duplicate the
 queue/observations; a reversed world turn is rejected explicitly.
 
 A delivered risk of at least 0.6 temporarily raises the granary's normal
-target by up to two turns of current food demand, with at most six target
-turns in total. The usual harvest EMA and target are computed first; the
+target by up to two turns of current food demand, using only remaining
+headroom below six turns. An existing base above that cap is preserved,
+never reduced by a warning. The usual harvest EMA and target are computed first; the
 increment is rebuilt from that base each turn, never compounded. Existing
 granary procurement then decides whether it can buy: real treasury, surplus
 beyond local needs, merchant commitments, route permissions, budget limits,
@@ -121,3 +122,34 @@ the proposed runtime/efficacy thresholds in the pre-registration remain
 outstanding. The implementation is O(regions + contact edges + procurement
 flows), uses no new native export, and performs no agent-pair scan; a numerical
 overhead claim still requires a quiet paired benchmark.
+
+
+## Population/demand boundary correction, 2026-10-28
+
+Read-only artifact inspection found a negative forecast increment in the
+original `forecast-dev-40/seed_43/shuffled/chronicle_bundle.json` at snapshot
+33/source turn 32, report `harvest:2:0:6` (Stormbreak Cliffs): base target
+4.126938305182808, increment -1.126938305182808, final target 3.0. The economy
+had measured positive demand before the region emptied; normal granary
+observation then skipped the empty region and retained its base. The warning
+incorrectly capped the whole target against smaller current demand. The
+original failed artifact is retained; these findings do not relabel that study
+as passing. New source requires a new study.
+
+The corrected warning caps only its nonnegative addition. It cannot reduce an
+existing base even if demand shrinks. Empty recipients get no preparedness
+increment or paid-preparation row. When normal granary observation cannot
+rebuild a target (empty region, zero demand, missing economy or unowned
+granary), the module restores its known old addition before discarding that
+restoration record. It does not restore a newly rebuilt ordinary base merely
+because it happens to equal yesterday's raised target. Same-turn reapplication
+updates the recorded addition without compounding it; disabling restores the
+recorded base.
+
+Seven new regressions cover the numerical failure, bounded demand-shrink
+headroom, no empty-region payment attribution, and exact JSON continuation
+through unobserved boundaries. The forecast plus existing granary selection
+passed 58 tests. No baseline granary source, parameter, EMA, route, stock or
+cash arithmetic changed. In particular, ordinary base-target procurement under
+a stale positive economy demand remains baseline behavior; it is not counted
+as empty-region forecast preparation.
