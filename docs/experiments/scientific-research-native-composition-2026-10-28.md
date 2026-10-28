@@ -56,7 +56,7 @@ systematic setup failure stops the batch and remains recorded. No simulated
 trial, action or outcome is used to choose a fixture correction.
 
 Initial budget: at most **60 aggregate child CPU seconds**, each worker capped
-at 12 CPU seconds and 60 wall seconds. Stop after the first failed worker;
+at 12 CPU seconds and 180 wall seconds on a shared host. Stop after the first failed worker;
 record failures, timeouts and budget censoring instead of manufacturing a
 complete proof. No extra world runs are authorized by this protocol.
 
@@ -77,4 +77,5 @@ history and archive identity at the shared checkpoint; later differences are
 explicit intervention outcomes, not a no-op comparison or efficacy estimate.
 
 This is development composition evidence for the new retained-research path.
-It does not replace natural exposure studies, full Python/Rust qualification,+the default regression matrix, or a future durable external archive design.
+It does not replace natural exposure studies, full Python/Rust qualification,
+the default regression matrix, or a future durable external archive design.
