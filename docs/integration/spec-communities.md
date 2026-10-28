@@ -11,7 +11,34 @@ adds community oracle method 2, the communities as M53 oracle 1's text
 defines them with the spec's acceptance criteria, and cohort method 6,
 which takes those communities as its member cohort.
 
-**Results:** _pending (section 5)._
+**Results:**
+
+* **Community method 2** detects communities as oracle 1 specifies them
+  (friend, co-religionist and kin edges weighted by sentiment within a
+  region, the native kin code from a mirrored enum, a memory tuple held by
+  80% of members) and judges them by the spec's criteria. On `main`'s
+  simulation they look as the spec expects in every respect but one: 3.1
+  (template) and 5.4 (procedural) communities a seed, median size 5, a
+  community in every seed, about a tenth of the agents (method 1: nine in
+  ten). **No community stays within 5% of its region**: regions hold a
+  median of 37-44 agents, and a community of five exceeds 5% of any region
+  under 100. The spec component therefore fails on `main`, is reported,
+  and method 1 still decides (section 6).
+* **Cohort method 6** takes those communities as its members. Matching
+  works now (58-71% of members find a control, against 8-10%), the
+  observational verdict still passes as method 3's always does, and the
+  kin roots hold the spec's members as little as anyone (0.988 template,
+  0.996 procedural).
+* **The community anchor does not single out the spec's communities**:
+  with `--community-anchoring` their members migrate 0.912 [0.892, 0.932]
+  as much, non-members 0.907, against M53's at most 0.85.
+* **Validation only**: the 9-case identity matrix compares 399 files with
+  0 differences; three full gates (template, procedural, template with the
+  anchor) pass strict with NO REGRESSION and every metric delta 0, the
+  method changes reported as `rebaseline_required`. Every pre-registered
+  prediction held but one: the template community count, predicted more
+  likely to fail than to pass, passed (3.13, inside its predicted
+  interval).
 
 ## 1. What method 1 does and what the spec says
 
@@ -276,15 +303,19 @@ prediction is reported as such.
 
 ## 5. Gates
 
-Every gate ran from the frozen tree into a fresh output root, three
-workers, the full profile with `--require-strict-regression`, and was
-compared with its baseline:
+Every gate ran from a frozen tree (`main`'s export, or the branch's
+`138adc7`) into a fresh output root, three workers, the full profile with
+`--require-strict-regression`, and was compared with its baseline. This
+branch launched a full gate only when none ran on the machine; another
+session's full gate started during the last two minutes (validation) of
+the branch's template gate, which affects its timings only.
 
 | Gate | Baseline | Gate | Comparison |
 | --- | --- | --- | --- |
-| `main` template full 200 x 500 (`ac74e5a`, the baseline) | PR #61's report (`b1c9274` simulation) | PASS (strict) | NO REGRESSION, 12 metric deltas 0; needs 7 -> 8, cohort 4 -> 5 |
+| `main` template full 200 x 500 (`ac74e5a`, the baseline; no `main` template full report of PR #62's code existed) | PR #61's template full report | PASS (strict) | NO REGRESSION, 12 metric deltas 0; needs 7 -> 8, cohort 4 -> 5 |
 | template full 200 x 500 | `main`'s, above | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
 | procedural full 100 x 300 (32 x 10, fork design 2) | PR #62's `p-full-off2` (`main`'s simulation, design 2) | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
+| template full 200 x 500 with `--community-anchoring` (arms `needs`, `kin_roots`, `community_anchor`) | PR #62's `t-full-on` (the same configuration) | **PASS (strict)** | **NO REGRESSION**, 12 metric deltas 0; community 1 -> 2, cohort 5 -> 6 (`rebaseline_required`) |
 
 Against their baselines, every other oracle's result is equal field for
 field (the procedural needs result differs only in the placebo component
@@ -344,6 +375,49 @@ non-members in the plain arm (1.33 against 1.21 moves over the window).
 Cost: batch 1,393 s, two arms 3,424 s (1,800 forks), validation 618 s
 (PR #62's design-2 gate: 637 s).
 
+### 5.3 The community anchor on the spec's communities
+
+Template full gate with `--community-anchoring` (the calibrated full
+anchor 0.120143): migration of each cohort at the fork over the 20 turns
+after it, plain arm (anchor on) over the `community_anchor` arm (anchor
+off from tick T+1); 95% interval; agent-forks.
+
+| Cohort at the fork | predicted | measured |
+| --- | ---: | ---: |
+| **method 2's members** (claim: RR <= 0.85, bound < 1) | 0.90 (0.88-0.93), about 14,000, +-0.02 | **0.912 [0.892, 0.932]** (14,418) **FAIL** |
+| method 2's non-members | 0.91 (0.89-0.92) | 0.907 [0.899, 0.915] (136,428) |
+| method 1's members (PR #62: 0.909 [0.901, 0.917], 130,400) | reproduced exactly | 0.909 [0.9007, 0.9173] (130,400) |
+| method 1's non-members (PR #62: 0.895) | reproduced exactly | 0.895 [0.874, 0.917] (20,446) |
+| four counted ties / one to three / none (PR #62: 0.873 / 0.898 / 0.926) | reproduced exactly | 0.873 / 0.898 / 0.926 |
+| members' rebellion (reported) | | 1.004 [0.975, 1.034] |
+
+* **The anchor does not single out the spec's communities.** Their
+  members migrate 8.8% less with it, non-members 9.3% less: the
+  difference (0.005) is inside both intervals and has the other sign from
+  the one the tie counts predicted. The pre-registered predictions held
+  (members' ratio in range, the M53 claim fails, no separation); the
+  dose-weighted estimate (0.898 against 0.908) got the order wrong. PR
+  #62's variant behaved the same way: its members also held more ties
+  (mean 1.85 against 1.11) and were anchored no more (0.912 against
+  0.906).
+* Method 2's members hold more counted ties than non-members (mean 2.16
+  against 1.31 in the probe; four ties 27% against 10%), and the anchor
+  scales with ties (dose holds: 0.873 < 0.898 < 0.926). Yet their own
+  ratio is the non-members'. One reading the data allow, not tested here:
+  members' moves come from the groups' shared distress (famine and
+  migration memories, section 3.1) and from household followers, which
+  the anchor (on the migrate utility of an agent with the gate open) does
+  not hold back as it holds a voluntary mover.
+* With the anchor on, method 2's members still migrate more than
+  non-members (1.02 against 0.93 moves over the window); kin roots
+  1.000 [0.986, 1.014] for members, 0.993 for non-members.
+* The rest of the gate equals PR #62's flag-on gate: every other oracle's
+  result field for field, the batch's metrics, and every cohort above that
+  does not depend on the community method. The spec component fails on
+  region share alone (26,228 of 26,228 communities above 5%; mean count
+  3.20, median size 5, members 8.8% of living agents; match rate 0.708).
+* Cost: batch 1,430 s, three arms 2,021 s (2,400 forks), validation 649 s.
+
 ## 6. Decisions
 
 The rule applied here was fixed before the gates (section 3.2, prediction
@@ -376,3 +450,22 @@ on `main`'s simulation.
 * **The kin roots do not anchor the spec's communities either**: 0.988
   and 0.996 for their members against 0.987 and 0.993 for non-members
   (template, procedural), against the pre-registered 0.85.
+* **M53 oracle 4's anchoring claim stays not reproduced, now on the
+  spec's own communities.** With the anchor on, their members migrate
+  0.912 as much (non-members 0.907); on `main` they migrate more than
+  non-members, not 15-30% less. The causal components stay reported and
+  `--require-causal-oracles` stays off. The anchor switch stays off by
+  default; this branch does not change it or its strength.
+
+### 6.1 Open
+
+* **Region share**: keep it informational, or restate it for worlds of
+  hundreds of agents (a new pre-registration), after which the spec
+  component could decide.
+* **Why the anchor misses the spec's members** although they hold more
+  ties (section 5.3): a breakdown of their moves by driver (distress,
+  household follower, voluntary pull) at the fork would test the reading
+  given there.
+* **The observational cohort component** stays non-discriminating with
+  either cohort; a discriminating observational test, or the causal one
+  deciding, needs a claim the model meets.
