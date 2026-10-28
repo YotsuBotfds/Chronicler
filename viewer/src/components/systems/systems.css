@@ -428,6 +428,99 @@ button.systems-strip-label:hover {
   color: var(--phase75-muted-strong);
 }
 
+/* Debt holders (Finance) */
+
+.debt-realms {
+  display: grid;
+  gap: 6px;
+}
+
+.debt-realm {
+  display: grid;
+  grid-template-columns: minmax(110px, 230px) 4ch minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.debt-realm-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.debt-realm-name span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.debt-realm.active .debt-realm-name {
+  font-weight: 600;
+}
+
+.debt-realm-total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--phase75-ink);
+}
+
+.debt-realm-track {
+  height: 16px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.debt-realm-bar {
+  display: flex;
+  gap: 2px;
+  height: 100%;
+  min-width: 4px;
+}
+
+.debt-realm-bar span {
+  flex-basis: 0;
+  min-width: 2px;
+  height: 100%;
+}
+
+.debt-realm-bar span:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.debt-realm-bar span:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.debt-realm-bar span:only-child {
+  border-radius: 3px;
+}
+
+.debt-detail-head {
+  display: grid;
+  gap: 8px;
+}
+
+.debt-holders-table .debt-group-row th {
+  color: var(--phase75-ink);
+  font-weight: 500;
+  white-space: normal;
+}
+
+.debt-holders-table .debt-member-row td:first-child {
+  padding-left: 30px;
+}
+
+.debt-event-link {
+  display: block;
+}
+
+.debt-event-link + .debt-event-link {
+  margin-top: 4px;
+}
+
 /* Region inspector */
 
 .systems-region-detail {
@@ -455,5 +548,14 @@ button.systems-strip-label:hover {
   .systems-strip-row,
   .systems-strip-axis {
     grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .debt-realm {
+    grid-template-columns: minmax(0, 1fr) 4ch;
+    gap: 2px 8px;
+  }
+
+  .debt-realm-track {
+    grid-column: 1 / -1;
   }
 }

@@ -1,5 +1,7 @@
 import { memo, useState } from "react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
 import type { Event } from "../../types";
 import type { SeriesRow, StripRow } from "../../lib/systems";
 import { humanize } from "../../lib/systems";
@@ -268,6 +270,61 @@ export function CivLineChart({
             />
           ))}
         </LineChart>
+      </ResponsiveContainer>
+    </figure>
+  );
+}
+
+/** Panel surface behind the charts: the gap drawn between stacked fills. */
+const SURFACE = "#151819";
+
+/**
+ * Parts of one whole over time: one stacked area per series, in the given
+ * order (bottom first), the scrubbed turn marked. Null values are gaps.
+ */
+export function StackedAreaChart({
+  data,
+  series,
+  currentTurn,
+  label,
+  format,
+}: {
+  data: SeriesRow[];
+  series: Array<{ key: string; label: string; color: string }>;
+  currentTurn: number;
+  label: string;
+  format?: (value: number) => string;
+}) {
+  return (
+    <figure className="systems-chart" aria-label={label}>
+      <figcaption>{label}</figcaption>
+      <ResponsiveContainer width="100%" height={210}>
+        <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis dataKey="turn" type="number" domain={["dataMin", "dataMax"]} stroke="#6b7280" tick={{ fontSize: 10 }} />
+          <YAxis stroke="#6b7280" tick={{ fontSize: 10 }} allowDecimals={false} />
+          <Tooltip
+            contentStyle={TOOLTIP_STYLE}
+            labelFormatter={(turn) => `Turn ${turn}`}
+            formatter={(value) => (typeof value === "number" && format ? format(value) : value)}
+          />
+          {series.map((entry) => (
+            <Area
+              key={entry.key}
+              type="linear"
+              dataKey={entry.key}
+              name={entry.label}
+              stackId="parts"
+              stroke={SURFACE}
+              strokeWidth={1.5}
+              fill={entry.color}
+              fillOpacity={0.9}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          ))}
+          <ReferenceLine x={currentTurn} stroke="#7ebec3" strokeWidth={2} />
+        </AreaChart>
       </ResponsiveContainer>
     </figure>
   );

@@ -688,6 +688,43 @@ export interface FinanceSnapshot {
   /** Number of open credit lines. */
   loans: number;
   totals: Record<string, number>;
+  /** Who funds domestic loans; present only with --domestic-credit. */
+  domestic_credit?: DomesticCreditSnapshot;
+}
+
+/**
+ * Who holds one borrower's debt at the turn boundary
+ * (`finance.domestic_credit.holders`, bundles written with --domestic-credit
+ * since the holders view). Empty parts are omitted.
+ */
+export interface DebtHoldersRecord {
+  /** Foreign lender civilization -> [principal, rate per turn]. */
+  foreign?: Record<string, [number, number]>;
+  /** Rate per turn of the domestic line. */
+  rate?: number;
+  /** Merchants' claims by region name. */
+  merchants?: Record<string, number>;
+  /** Cities' claims by city name. */
+  cities?: Record<string, number>;
+  /** Guilds' claims by guild name. */
+  guilds?: Record<string, number>;
+  /** Debt written off on this civilization so far (cumulative). */
+  written_off?: number;
+}
+
+export interface DomesticCreditSnapshot {
+  /** Outstanding domestic claims of all borrowers by kind of lender (merchants, guild, city, legacy, houses). */
+  claims: Record<string, number>;
+  /** Per living borrower: its domestic claims by kind of lender, non-zero only. */
+  civs: Record<string, Record<string, number>>;
+  /** Number of funder claims on open lines. */
+  lenders: number;
+  /** Merchant credits (or debits) not yet applied to the agents' wealth. */
+  merchant_due: number;
+  /** Merchants' grievance toward a defaulting lord, by region (0.01 and above). */
+  grievance: Record<string, number>;
+  /** Per borrower, who holds its debt; absent in older bundles and when nobody owes anything. */
+  holders?: Record<string, DebtHoldersRecord>;
 }
 
 export interface DiplomacyTreaty {
