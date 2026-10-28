@@ -500,4 +500,7 @@ chaotically, so only consistent shifts are read as effects.
 * Diplomacy: route tribute and indemnities through `finance.transfer`, and
   consider loans as treaty terms (`finance.extend_loan`).
 * Optional: credit merchant agents with domestic interest through a bridge
-  signal; inflation into the MMP; a recoinage reform.
+  signal (done behind `--domestic-credit`, default off: merchants, guilds
+  and cities fund domestic loans and bear their losses;
+  [domestic-credit.md](domestic-credit.md)); inflation into the MMP; a
+  recoinage reform.

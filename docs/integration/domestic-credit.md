@@ -518,4 +518,57 @@ had grown rich on earlier interest.
 
 ## 11. Decisions
 
-[pending]
+### 11.1 Made here
+
+* **Lenders are collective per region, not per agent.** A region's
+  merchants hold one claim and are paid pro rata to their wealth when the
+  money comes back. Agents die, migrate, inherit and change occupation; a
+  per-agent claim would need a native column, a persisted claim ledger and
+  rules for each of those. The cost: a merchant who lent and left is not
+  repaid (the region's merchants are), and wealthier merchants are paid
+  more. Credits that find no merchant wait in the due rather than being
+  given to someone else.
+* **The abstract revenue-times-influence term is gone.** Only real wealth
+  lends; early domestic credit halves (8). Keeping it would leave domestic
+  credit partly lent by nobody.
+* **Fallen lenders' claims lapse**, as debts to a fallen foreign lender
+  already do; claims of a fallen borrower are lost to the lenders.
+* **Finance's domestic-default consequences are kept** (trust, economy,
+  merchant influence) and the new ones are added from who lost; nothing
+  else of finance changes (rates, terms, ceilings, foreign lending).
+* **No action-weight bucket.** Creditors' leverage over the crown acts
+  through the existing satisfaction, city and guild channels.
+
+### 11.2 Default and promotion
+
+The switch stays **off**. It changes fiscal dynamics materially: early
+domestic credit halves, merchant wealth grows 5-26%, procedural worlds
+replace a third of their foreign credit with domestic credit and default a
+quarter less, and rich merchants finance war chests of 100 and more. Before
+it is promoted:
+
+1. Both full gates with the switch on should pass strict with no newly
+   failing required gate against main reports of the same fork design
+   (9 records the exploratory comparisons of this branch).
+2. A decision on early-game credit: whether wealthy agents other than
+   merchants (landholders, temples) should lend, or a capped abstract
+   lender stay for the first turns, so that young states can borrow as
+   before.
+3. A decision on war finance: whether a share of a region's merchant
+   wealth should be off limits to a war chest, or rates rise with the
+   share of the lenders' assets already lent.
+4. The merchant tax (`economy.TAX_RATE` x merchant wealth) is not debited
+   from the agents; with richer merchants it creates more revenue. Whether
+   it should take from merchant wealth is a separate correction.
+5. The viewer should show who holds a realm's debt (the finance snapshot
+   carries it) and narration could tell creditor grievance.
+
+### 11.3 Follow-ups
+
+* Per-agent claims (native column) if lenders' identity matters for
+  narration or migration.
+* Calibrate `LEND_SHARE`, the grievance steps and
+  `CREDITOR_GRIEVANCE_WEIGHT` against historical lending to states (the
+  share of merchant capital tied up in public debt).
+* A guild or city that lost heavily could refuse to lend for a while
+  (today only the realm's domestic trust records it).
