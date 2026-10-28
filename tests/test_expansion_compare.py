@@ -556,8 +556,9 @@ def test_nonfinite_unknown_boundary_does_not_crash_or_produce_an_identity(finite
 
 
 @pytest.mark.parametrize('claim_ids_recorded', [True, False])
-def test_legacy_activation_paid_topic_unknown_blocks_only_the_strict_contrast(
-        finite_research_runs, claim_ids_recorded):
+@pytest.mark.parametrize('different_activation_roster', [False, True])
+def test_activation_in_window_requires_preboundary_finite_program_even_with_known_paid_topics(
+        finite_research_runs, claim_ids_recorded, different_activation_roster):
     from chronicler.bundle_codec import load_bundle
     from chronicler.expansion_audit import audit_bundle
 
@@ -598,13 +599,20 @@ def test_legacy_activation_paid_topic_unknown_blocks_only_the_strict_contrast(
 
     for path in finite_research_runs:
         change(path, activate_after_legacy_paid_phase)
+    if different_activation_roster:
+        def change_activation_roster(bundle):
+            for snapshot in bundle['history'][1:]:
+                snapshot['scientific_claims']['research_agendas']['cycles'][0]['participants'] = [0, 2]
+        change(finite_research_runs[2], change_activation_roster)
     audit = audit_bundle(load_bundle(finite_research_runs[1]))
     assert audit['finding_counts']['error'] == 0
     attribution = audit['observed_mechanisms']['scientific_claims']['research_agendas']
     assert attribution['paid_topic_attribution_complete'] is claim_ids_recorded
     report = compare_paths(finite_research_runs)
     pair = research_pair(report)
-    assert pair['comparable_recorded_window'] is claim_ids_recorded
+    assert not pair['comparable_recorded_window']
+    assert 'agenda_activation_inside_comparison_window' in pair['blockers']
+    assert pair['arm_minus_baseline'] is None
     assert 'record_integrity_failed' not in pair['blockers']
     blocker = 'research_paid_topic_attribution_unavailable'
     assert (blocker in pair['blockers']) is (not claim_ids_recorded)

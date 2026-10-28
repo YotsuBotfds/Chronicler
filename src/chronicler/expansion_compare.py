@@ -207,6 +207,10 @@ def _science_research_context(history, start, end, blockers):
     finite = any(row["mode"] == "finite-retained-v1" for _, row in selected)
     if finite and (boundary is None or boundary["mode"] == "unknown" or boundary["cycle_lineage"] is None):
         blockers.append("research_agenda_lineage_unavailable")
+    elif finite and boundary["mode"] != "finite-retained-v1":
+        # Equal activation dates observed after controls began do not prove
+        # common pre-intervention program state or activation order.
+        blockers.append("agenda_activation_inside_comparison_window")
     return {"mode_trace": mode_trace, "activation_trace": activation_trace,
             "boundary_source_turn": start - 1,
             "boundary_mode": None if boundary is None else boundary["mode"],

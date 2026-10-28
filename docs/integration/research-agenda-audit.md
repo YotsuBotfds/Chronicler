@@ -28,8 +28,8 @@ All rows/details/events use the existing shared audit limits.
 
 Strict comparisons disclose mode/activity and immutable activation lineage
 separately from mutable experiment controls. Compatible finite arms require
-the recorded pre-intervention boundary at source `start - 1`; unknown/missing
-lineage blocks comparison. Later cycle outcomes are not required to match.
+the recorded pre-intervention boundary at source `start - 1`, with a finite plan
+already present; unknown/missing finite lineage blocks comparison. Later cycle outcomes are not required to match.
 No-op labels also require compatible recorded research history. Derived mode
 must never enter `controls_for_state` or its control setter.
 
@@ -70,7 +70,7 @@ being silently normalized. The experiment setter and runtime remain unchanged.
 
 ## Focused evidence and limits
 
-The final focused command ran the agenda reader, existing science-receipt reader,
+The `eec7e016` implementation check ran the agenda reader, existing science-receipt reader,
 expansion audit and expansion comparator modules: **212 passed in 1.58 seconds**,
 exit 0, in a one-thread Python environment with plugin autoload disabled. The
 external stdout and receipt are retained under
@@ -95,3 +95,27 @@ original trials. Later-date and adversarial copies test reader behavior only;
 they do not assert physically realized scheduler trajectories. No runtime,
 checkpoint continuation, native build, cohort, information efficacy or full
 milestone gate is qualified by these reader tests.
+
+
+## Strict activation boundary follow-up
+
+Finite agenda contrasts now require known finite metadata, actual activation
+identity and immutable cycle ancestry at the exact source `start - 1`. A known
+legacy boundary followed by equal activation dates inside the measured window
+cannot establish common pre-intervention agenda state or activation order. It
+adds `agenda_activation_inside_comparison_window`; per-run descriptive records
+remain visible, while strict contrast deltas are withheld. Enable the program in
+the common parent before forking to obtain the required boundary evidence.
+No registration override or activation-study waiver is inferred.
+
+This rule also blocks coincidentally different same-source legacy adoption
+rosters even when all paid claim IDs are known. The auditor still reads legitimate
+same-source unknown legacy payments as unavailable attribution, rather than
+corruption. Cycles opened after an established common finite boundary remain
+possible treatment outcomes and need not match between arms.
+
+After this focused policy change, all **52 comparator cases passed in 1.20
+seconds**. Cases cover known/unknown paid IDs crossed with matching/differing
+activation rosters, alongside existing compatible finite/paused histories and
+later-cycle outcomes. The earlier 212-case full reader receipt remains anchored
+to `eec7e016`; this follow-up is a separately tested comparator-only change.
