@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: the managed workspace recovered with the unpublished finite-research
+integration intact at `22a48ffa`. That history is preserved separately on
+`lead/research-continuation-20261029`. A new isolated branch combines it with
+the cloud-tested artifact/baseline fixes, actor-history reuse, detached community
+admissibility reader, arc classifier projection and viewer debt-history repairs.
+See [the recovered integration record](integration/recovered-integration-2026-10-29.md)
+for exact source and pending qualification boundaries. Main is unchanged.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)

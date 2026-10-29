@@ -79,7 +79,9 @@ export function DebtHolders({
   const foreign = useMemo(
     () => (civ && level === "lenders" ? foreignLenderSeries(history, civ, civs) : { lenders: [], data: [] }),
     [history, civ, civs, level]);
-  const trouble = useMemo(() => (civ ? troubleRows(history, civ, level) : []), [history, civ, level]);
+  const trouble = useMemo(
+    () => (civ ? troubleRows(history, civ, level, bundle.events_timeline) : []),
+    [history, civ, level, bundle.events_timeline]);
   const losses = useMemo(
     () => (civ ? writeOffs(history, civ, bundle.events_timeline, level) : []), [history, civ, bundle.events_timeline, level]);
 
@@ -96,13 +98,16 @@ export function DebtHolders({
   const events = civ
     ? creditEventsOf(eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.finance, currentTurn), civ)
     : [];
-  const lenders = detail === "lenders";
+  // Timelines retain the bundle's richest detail, but the scrubbed snapshot
+  // may predate lender records (for example, after resuming an older save).
+  const currentDetail = snapshot ? holderDetail([snapshot]) : null;
+  const lenders = currentDetail === "lenders";
 
   return (
     <>
       <section className="systems-section" aria-label="Who holds the debt">
         <h3>Who holds the debt at turn {at}</h3>
-        <p className="systems-note">{DETAIL_NOTES[detail]}</p>
+        <p className="systems-note">{DETAIL_NOTES[currentDetail ?? detail]}</p>
         {realms.length === 0 ? (
           <div className="phase75-empty-state">{snapshot?.finance
             ? `No civilization owes anything at turn ${at}.`
@@ -245,13 +250,15 @@ export function DebtHolders({
                   </table>
                 </div>
               ) : (
-                <div className="phase75-empty-state">{civ} owes nothing at turn {at}.</div>
+                <div className="phase75-empty-state">{current
+                  ? `${civ} owes nothing at turn ${at}.`
+                  : `${civ} has no holder record at turn ${at}.`}</div>
               )}
               <p className="systems-note">
                 {lenders
                   ? "Interest is due per turn at the line's rate. Merchants are named by the region they live in; "
                     + "foreign lenders and regions open in the inspector."
-                  : "The bundle does not name individual lenders."}
+                  : "This snapshot does not name individual lenders."}
               </p>
             </div>
 

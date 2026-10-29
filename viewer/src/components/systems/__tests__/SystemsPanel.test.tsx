@@ -116,7 +116,7 @@ describe("FinancePanel", () => {
 
   it("shows a finance-only run's debt as the abstract domestic class and one foreign total", () => {
     render(<FinancePanel {...props()} />);
-    expect(screen.getByText(/This run had no --domestic-credit/)).toBeInTheDocument();
+    expect(screen.getByText(/This snapshot records finance totals only/)).toBeInTheDocument();
     const bars = screen.getByRole("list", { name: "Debt by holder at turn 120" });
     const owing = Object.entries(LAST.finance!.civs).filter(([, row]) => row.debt > 0);
     expect(within(bars).getAllByRole("listitem")).toHaveLength(owing.length);
@@ -162,6 +162,72 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     expect(within(section).getByLabelText("Foreign debt of Khidutain Clans by lender")).toBeInTheDocument();
     expect(within(section).getByRole("group", { name: "Arrears, defaults and write-offs of Khidutain Clans over time" }))
       .toBeInTheDocument();
+  });
+
+  it.each(["kinds", "totals"] as const)("uses the scrubbed snapshot's %s detail in a mixed-version history", (level) => {
+    const older: TurnSnapshot = {
+      ...turn54,
+      finance: { ...turn54.finance!, domestic_credit: { ...turn54.finance!.domestic_credit! } },
+    };
+    if (level === "kinds") {
+      delete older.finance!.domestic_credit!.holders;
+    } else {
+      delete older.finance!.domestic_credit;
+    }
+    const mixed: Bundle = {
+      ...debt,
+      history: debt.history.map((snapshot) => snapshot.turn === older.turn ? older : snapshot),
+    };
+    const p = { ...props(mixed, older), selectedCivilization: "Khidutain Clans" };
+    const shown = render(<FinancePanel {...p} />);
+    const section = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
+    const table = within(section).getByRole("table", { name: "Holders of the debt of Khidutain Clans at turn 54" });
+    expect(older.finance!.civs["Khidutain Clans"].foreign_debt).toBeGreaterThan(0);
+    expect(within(section).getByText("one total")).toBeInTheDocument();
+    expect(within(section).getByText("This snapshot does not name individual lenders.")).toBeInTheDocument();
+    expect(within(section).queryByText("no foreign lender")).toBeNull();
+    expect(within(table).queryByRole("columnheader", { name: "Rate" })).toBeNull();
+    expect(within(table).queryByRole("columnheader", { name: "Interest" })).toBeNull();
+    expect(within(section).queryAllByText("Written off").some((label) => label.closest(".systems-tile"))).toBe(false);
+    expect(screen.getByText(level === "kinds"
+      ? /This snapshot records domestic claims by kind of lender only/
+      : /This snapshot records finance totals only/)).toBeInTheDocument();
+    // Later observations still belong on the timeline; they do not supply
+    // lender detail to an earlier snapshot.
+    expect(within(section).getByLabelText("Foreign debt of Khidutain Clans by lender")).toBeInTheDocument();
+
+    const newer = debt.history.find((snapshot) => snapshot.turn === 55)!;
+    shown.rerender(<FinancePanel {...p} snapshot={newer} currentTurn={newer.turn} />);
+    const newerSection = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
+    const newerTable = within(newerSection).getByRole("table", { name: "Holders of the debt of Khidutain Clans at turn 55" });
+    expect(within(newerTable).getByRole("columnheader", { name: "Rate" })).toBeInTheDocument();
+    expect(within(newerSection).getByText(/lending civilization/)).toBeInTheDocument();
+    expect(within(newerSection).getAllByText("Written off").some((label) => label.closest(".systems-tile"))).toBe(true);
+  });
+
+  it("shows a fallen borrower's write-off event with an unknown amount", () => {
+    const next = debt.history.find((snapshot) => snapshot.turn === 55)!;
+    const finance = { ...next.finance!, civs: { ...next.finance!.civs } };
+    delete finance.civs["Khidutain Clans"];
+    const fallen = { ...next, finance };
+    const event = {
+      turn: 54, event_type: "debt_written_off", actors: ["Khidutain Clans", "Sylenen Kingdom"],
+      description: "With Khidutain Clans gone, its debt to Sylenen Kingdom is lost.",
+      consequences: [], importance: 3, event_id: "synthetic:fallen-borrower",
+    };
+    const projected: Bundle = { ...debt, history: [turn54, fallen], events_timeline: [event] };
+    const p = { ...props(projected, fallen), selectedCivilization: "Khidutain Clans" };
+    render(<FinancePanel {...p} />);
+    const section = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
+    expect(within(section).getByText("Khidutain Clans has no holder record at turn 55.")).toBeInTheDocument();
+    expect(within(section).queryByText("Khidutain Clans owes nothing at turn 55.")).toBeNull();
+    const losses = within(section).getByRole("table", { name: "Defaults and write-offs of Khidutain Clans" });
+    const row = within(losses).getAllByRole("row")[1];
+    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["54", "-", event.description]);
+    expect(within(section).getByTitle("Khidutain Clans: write-off event recorded by turn 55 (amount not recorded)"))
+      .toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: event.description }));
+    expect(p.onSelectEvent).toHaveBeenCalledWith(event);
   });
 
   it("lists a borrower's defaults and write-offs with their events, and follows the shell's selection", () => {
