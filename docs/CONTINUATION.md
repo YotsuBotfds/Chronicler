@@ -5,8 +5,13 @@ registers fresh C76 versus qualified combined `95f73a74` exports with distinct
 retained wheels. The original 8bbc helper, matrix, comparator and historical
 registry remain unchanged. This source-only draft has no world, native,
 performance, full-CI or activation claim; root review precedes publication.
-The unchanged 25 original and 23 new contracts passed together under a strict
-no-subprocess/network/project-import guard (48 tests, 75 successful subtests).
+The preserved first draft's unchanged 25 original and 23 adapter contracts passed
+together under a strict no-subprocess/network/project-import guard (48 tests,
+75 successful subtests). Its child closes push/workflow authority and moves
+all dependency preparation inside the admitted controller deadline; separate
+pure qualification passed 53 tests and 84 successful subtests, and unfiltered
+actionlint passed the exact dormant template. Root/peer review precedes
+publication or activation.
 
 A separate inactive control draft reuses the vetted export-parity helper through
 a closed source-pair registry for public `2f9d618b` versus complete recovered

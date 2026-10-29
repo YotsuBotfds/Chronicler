@@ -21,6 +21,7 @@ import re
 import shutil
 import stat
 import sys
+import sysconfig
 import time
 from types import MappingProxyType, ModuleType
 import urllib.error
@@ -51,6 +52,12 @@ Refusal, require = H.Refusal, H.require
 REPOSITORY = "YotsuBotfds/Chronicler"
 REPOSITORY_ID = 1187468861
 PYTHON = "3.13.17"
+UV_VERSION = "0.13.6"
+ACTIVE_BRANCH = "lead/cloud-native-default-output-identity-20261029"
+WORKFLOW_PATH = ".github/workflows/native-default-output-identity.yml"
+TEMPLATE_PATH = "docs/experiments/native-default-output-identity-workflow.yml"
+JOB_KEY = "native-default-output-identity"
+WORKFLOW_SHA = "273bbafe275b585c03a121c9f88ff81b9f7767aae21d85f4c3e1fbc89b9f434f"
 WHEEL_NAME = "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl"
 NATIVE_MEMBER = "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so"
 GIB = 1024 ** 3
@@ -423,8 +430,77 @@ def require_complete(rows):
         and re.fullmatch("[0-9a-f]{64}", row["audit_sha256"]) for row in rows), "not all registered cases complete")
 
 
-def install_command(py, wheel):
-    return ["uv", "pip", "install", "--no-deps", "--reinstall", "--python", py, str(wheel)]
+def install_command(py, wheel, uv="uv"):
+    return [uv, "pip", "install", "--no-deps", "--reinstall", "--python", py, str(wheel)]
+
+
+def producer_context(env):
+    require(env.get("GITHUB_REPOSITORY") == REPOSITORY and env.get("GITHUB_ACTIONS") == "true"
+        and env.get("GITHUB_EVENT_NAME") == "push" and env.get("GITHUB_REF") == "refs/heads/" + ACTIVE_BRANCH
+        and env.get("GITHUB_WORKFLOW_REF") == REPOSITORY + "/" + WORKFLOW_PATH + "@refs/heads/" + ACTIVE_BRANCH
+        and env.get("GITHUB_JOB") == JOB_KEY and env.get("GITHUB_RUN_ATTEMPT") == "1"
+        and re.fullmatch("[1-9][0-9]*", env.get("GITHUB_RUN_ID", "")) is not None
+        and re.fullmatch("[0-9a-f]{40}", env.get("GITHUB_SHA", "")) is not None,
+        "closed first-attempt push producer required")
+    return {"control_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"],
+        "run_attempt": "1", "job_key": JOB_KEY, "workflow_ref": env["GITHUB_WORKFLOW_REF"],
+        "event": "push", "branch": ACTIVE_BRANCH}
+
+
+def workflow_contract(control):
+    template, active = control / TEMPLATE_PATH, control / WORKFLOW_PATH
+    require(not template.is_symlink() and not active.is_symlink()
+        and H.sha(template) == WORKFLOW_SHA and active.read_bytes() == template.read_bytes(),
+        "active workflow differs from reviewed dormant template")
+
+
+ENVIRONMENT_PROBE = """import importlib.metadata as m, importlib.util as u, json, platform, sys
+if platform.python_version() != '3.13.17' or platform.python_implementation() != 'CPython':
+    raise RuntimeError('wrong dependency environment interpreter')
+if u.find_spec('chronicler') is not None or u.find_spec('chronicler_agents') is not None:
+    raise RuntimeError('project/native import available in fresh dependency environment')
+for name in ('chronicler', 'chronicler-agents'):
+    try: m.distribution(name)
+    except m.PackageNotFoundError: pass
+    else: raise RuntimeError('project/native distribution in fresh dependency environment')
+print(json.dumps({'python': platform.python_version(), 'prefix': sys.prefix, 'project_or_native_installed': False}))
+"""
+
+
+def prepare_environment(root, sources, py, prefix, env, supervisor):
+    require(not prefix.exists() and all(not prefix.is_relative_to(source) for source in
+        sources.values()) and not root.is_relative_to(prefix)
+        and not prefix.is_relative_to(root), "fresh external common prefix required")
+    require(platform.python_version() == PYTHON and platform.python_implementation() == "CPython",
+            "registered bootstrap interpreter required")
+    supervisor.command("install-exact-uv", [sys.executable, "-m", "pip", "install",
+        "--disable-pip-version-check", "--no-cache-dir", "--only-binary=:all:", "uv==" + UV_VERSION], env, root)
+    uv = Path(sysconfig.get_path("scripts")) / "uv"
+    require(not uv.is_symlink() and uv.is_file(), "installed uv executable missing")
+    uv_identity = {"path": str(uv.resolve()), "bytes": uv.stat().st_size, "sha256": H.sha(uv)}
+    supervisor.command("uv-version", [uv_identity["path"], "--version"], env, root)
+    with (root / "logs/uv-version.log").open("rb") as stream:
+        version = stream.read(4097)
+    require(len(version) <= 4096 and re.fullmatch(rb"uv 0\.13\.6(?: \([^\r\n]*\))?\r?\n?", version),
+            "actual uv installer version differs")
+    prepared_env = dict(env, UV_PROJECT_ENVIRONMENT=str(prefix))
+    supervisor.command("locked-input-check", [uv_identity["path"], "lock", "--project", str(sources["candidate"]), "--check"], prepared_env, root)
+    supervisor.command("fresh-locked-environment", [uv_identity["path"], "sync", "--project", str(sources["candidate"]),
+        "--frozen", "--no-dev", "--no-install-project", "--no-build", "--python", sys.executable], prepared_env, root)
+    require(Path(py) == prefix / "bin/python" and Path(py).is_file(), "wrong prepared interpreter path")
+    supervisor.command("fresh-environment-probe", [py, "-I", "-B", "-c", ENVIRONMENT_PROBE], prepared_env, root)
+    with (root / "logs/fresh-environment-probe.log").open("rb") as stream:
+        probe_raw = stream.read(4097)
+    require(len(probe_raw) <= 4096, "fresh environment probe exceeded bound")
+    observation = H.strict_json(probe_raw)
+    require(observation == {"python": PYTHON, "prefix": str(prefix), "project_or_native_installed": False},
+            "fresh dependency environment identity differs")
+    supervisor.admission("environment-prepared", 6, 2)
+    require(H.sha(uv) == uv_identity["sha256"], "installer changed during preparation")
+    result = {"uv": uv_identity, "version": version.decode().strip(), "environment": observation,
+              "bootstrap_python": sys.executable, "bootstrap_version": sys.version}
+    H.write(root / "environment-preparation.json", result)
+    return result
 
 
 def runtime_seal():
@@ -483,7 +559,9 @@ def run_cases(root, roots, py, prefix, env, supervisor, report):
         if arm != current_arm:
             wheel_path = root / "wheels" / arm / WHEEL_NAME
             require(H.sha(wheel_path) == wheel.sha256, "arm wheel changed before installation")
-            supervisor.command("install-" + arm, install_command(py, wheel_path), env, root)
+            installer = report["installer"]["uv"]
+            require(H.sha(installer["path"]) == installer["sha256"], "selected installer changed")
+            supervisor.command("install-" + arm, install_command(py, wheel_path, installer["path"]), env, root)
             supervisor.admission("prepared-" + arm, 6, 2)
             current_arm = arm
         arm_root = root / "raw" / arm
@@ -537,10 +615,8 @@ def finish_report(root, report, quiescent, deadline):
 
 def execute(args):
     require(getattr(args, "execute", False) is True, "inactive: explicit --execute required")
-    require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY and os.environ.get("GITHUB_ACTIONS") == "true"
-        and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "closed manual GitHub job required")
-    control = os.environ.get("GITHUB_SHA", "")
-    require(re.fullmatch("[0-9a-f]{40}", control) is not None, "exact control source required")
+    producer = producer_context(os.environ)
+    control = producer["control_sha"]
     require(not [key for key in os.environ if key.startswith("GIT_") and key != "GIT_PAGER"], "ambient Git override refused")
     require(not [key for key in os.environ if key.startswith("CHRONICLER_") and key != "CHRONICLER_QUIET"],
             "unexpected simulation environment switch")
@@ -558,9 +634,12 @@ def execute(args):
         PYTHONNOUSERSITE="1", PYTHONOPTIMIZE="0", OPENBLAS_THREAD_TIMEOUT="16", CHRONICLER_QUIET="1")
     for key in ("GITHUB_TOKEN", "GH_TOKEN", "PYTHONPATH", "PYTHONHOME"):
         env.pop(key, None)
+    for key in tuple(env):
+        if key.startswith(("PIP_", "UV_")) or key == "VIRTUAL_ENV": env.pop(key)
+    env["PIP_CONFIG_FILE"] = os.devnull
     expected = {**SOURCES, "control": control}
     report = {"qualified": False, "status": "pending", "baseline": SOURCES["baseline"], "candidate": SOURCES["candidate"],
-        "control": control, "cases": case_rows(), "normalization": "metadata.generated_at only; original .log/run_manifest exclusions",
+        "control": control, "producer": producer, "cases": case_rows(), "normalization": "metadata.generated_at only; original .log/run_manifest exclusions",
         "native_sha256_by_arm": {arm: pin.native_sha256 for arm, pin in WHEELS.items()},
         "wheel_sha256_by_arm": {arm: pin.sha256 for arm, pin in WHEELS.items()},
         "limitations": ["exports only; no checkpoint/RNG or broad science qualification", "no CPU/wall/RSS performance claim",
@@ -571,6 +650,7 @@ def execute(args):
         allowed = os.sched_getaffinity(0); os.sched_setaffinity(0, {min(allowed)})
         supervisor.admission("initial", 12, 2)
         before = {name: H.source_snapshot(source, expected[name], deadline) for name, source in roots.items()}
+        workflow_contract(roots["control"])
         require(all(before[arm]["crate_tree"] == CRATES[arm] for arm in SOURCES), "wrong registered crate tree")
         for relative in ("uv.lock", "pyproject.toml", "scripts/turn_speed_identity.py", "scripts/cities_identity.py", "src/chronicler/bundle_codec.py"):
             require(H.sha(roots["baseline"] / relative) == H.sha(roots["candidate"] / relative), "shared input differs: " + relative)
@@ -578,6 +658,7 @@ def execute(args):
             H.require_matrix(roots[arm] / "scripts/turn_speed_identity.py")
         H.write(root / "freeze.json", {"sources": before, "matrix": H.CASES, "helper_sha256": H.sha(H.SCRIPT),
             "adapter_sha256": H.sha(SCRIPT), "thread_caps": H.CAPS, "affinity": sorted(os.sched_getaffinity(0))})
+        report["installer"] = prepare_environment(root, roots, py, prefix, env, supervisor)
         input_paths = admit_inputs(root, supervisor, deadline)
         supervisor.admission("inputs-prepared", 6, 2)
         native_copies = run_cases(root, roots, py, prefix, env, supervisor, report)
@@ -597,6 +678,9 @@ def execute(args):
                 require(H.sha(root / "wheels" / arm / WHEEL_NAME) == wheel.sha256, "retained arm wheel changed")
             for arm, copy in native_copies.items():
                 require(H.sha(copy) == WHEELS[arm].native_sha256, "retained arm native changed")
+            if "installer" in report:
+                require(H.sha(report["installer"]["uv"]["path"]) == report["installer"]["uv"]["sha256"],
+                        "selected installer changed after execution")
             if "installed_native_path" in report:
                 require(H.sha(report["installed_native_path"]) == WHEELS[report["installed_native_arm"]].native_sha256,
                         "last installed native changed after final probe")

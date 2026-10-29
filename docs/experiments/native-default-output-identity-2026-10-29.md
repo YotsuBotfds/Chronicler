@@ -3,8 +3,12 @@
 This source-only control draft is based on original controller `8bbc8f00`.
 It does not activate a workflow, import a native runtime or run worlds. The
 new adapter's default command describes an inactive registration; execution
-requires explicit `run --execute` in a manual GitHub job. The workflow is only
-a template in this directory and also has an explicit false job condition.
+requires explicit `run --execute` in the registered first-attempt push job.
+The workflow is only a template in this directory; its absence from
+`.github/workflows` is the dormancy hold. The closed activation branch, exact
+workflow path, event, job and first attempt are checked by the controller, and
+active workflow bytes must equal the reviewed template. This avoids the
+platform restriction on dispatching a new manual workflow absent from `main`.
 Push and activation remain held for root review.
 
 The original `arc_output_identity_qualification.py`, its historical source
@@ -31,7 +35,13 @@ origin remains D028/a470; C76's original qualified native bytes were the same
 06db. Every baseline world uses C76's own fresh Python source, not D028 code,
 old exports or a rebound checkpoint. No wealth503 authority is granted.
 
-One fresh CPython 3.13.17 prefix uses identical locked dependencies. At each
+After the initial 12/2 GiB admission and source checks, the original supervisor
+installs exact uv 0.13.6, observes its actual absolute executable/version/hash,
+checks the lock and creates one fresh external CPython 3.13.17 prefix with
+identical locked dependencies and no installed project/native package. These
+commands share the controller deadline, resource checks and cleanup; dependency
+builds are refused. The workflow creates no dependency environment beforehand.
+The selected installer is rechecked before each arm and at finalization. At each
 arm boundary, installation forces replacement despite both wheels having
 version 0.1.0. Before/after each case, actual source/native/schema, one-CPU
 affinity, caps, interpreter flags and dependency versions must match the
@@ -56,7 +66,7 @@ authority. Visible resource counters are neither hidden-provider proof nor a
 memory reservation. The current nearly-full local workspace is not admitted.
 
 Focused contracts use only small synthetic bytes, metadata and inert scheduling
-models. The unchanged 25 original contracts and 23 adapter contracts passed
+models. The preserved first draft's unchanged 25 original and 23 adapter contracts passed
 together locally: 48 tests, 75 successful subtests, no failures, errors or skips.
 The strict observer recorded no subprocess/network attempts and no imported
 project/native modules. The first run took 0.208 seconds on Python 3.12.14;
@@ -64,6 +74,13 @@ this stdlib-only result does not qualify the registered CPython 3.13.17 runtime.
 Small temporary fixture I/O was allowed. Source identities and exact results
 are retained externally in `native-default-output-identity-source-qualification-20261029`.
 No real input artifact, native pool or world was used by those contracts.
+The child adds closed push/workflow and budgeted preparation contracts: 53
+tests (25 unchanged original, 28 adapter), 84 successful subtests, no failures,
+errors or skips, in 0.225 seconds under the same strict observer. Unfiltered
+actionlint 1.7.12 passed the exact child template. Child receipts are separate
+in `native-default-output-identity-push-source-qualification-20261029`.
+The preserved `9903816b` draft and its unfiltered constant-false lint diagnostic
+remain unchanged. Neither pure nor lint success activates a workflow.
 
 A future positive controller receipt still needs independent completed-job and
 publication reconciliation under a new closed study registration. It cannot

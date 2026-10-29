@@ -50,6 +50,12 @@ def publication(pin):
     return run, job, artifact
 
 
+def producer_env():
+    return dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY=A.REPOSITORY,GITHUB_EVENT_NAME="push",
+        GITHUB_REF="refs/heads/"+A.ACTIVE_BRANCH,GITHUB_WORKFLOW_REF=A.REPOSITORY+"/"+A.WORKFLOW_PATH+
+        "@refs/heads/"+A.ACTIVE_BRANCH,GITHUB_JOB=A.JOB_KEY,GITHUB_RUN_ATTEMPT="1",GITHUB_RUN_ID="42",GITHUB_SHA="1"*40)
+
+
 def probe_value(arm, source, prefix):
     wheel = A.WHEELS[arm]
     runtime = dict(python=A.PYTHON, version=A.PYTHON + " (synthetic stdlib contract)", implementation="CPython",
@@ -152,6 +158,77 @@ class Contracts(unittest.TestCase):
         cmd = A.install_command("/env/bin/python", Path("/wheels/baseline/" + A.WHEEL_NAME))
         self.assertEqual(cmd, ["uv", "pip", "install", "--no-deps", "--reinstall", "--python",
                                "/env/bin/python", "/wheels/baseline/" + A.WHEEL_NAME])
+        self.assertEqual(A.install_command("/env/bin/python",Path("/arm.whl"),"/selected/uv")[0],"/selected/uv")
+
+    def test_push_producer_is_closed_before_any_io(self):
+        env=producer_env()
+        self.assertEqual(A.producer_context(env)["run_id"],"42")
+        for field,value in (("GITHUB_EVENT_NAME","workflow_dispatch"),("GITHUB_REF","refs/heads/main"),
+            ("GITHUB_WORKFLOW_REF",env["GITHUB_WORKFLOW_REF"].replace(A.WORKFLOW_PATH,"other.yml")),
+            ("GITHUB_RUN_ATTEMPT","2"),("GITHUB_JOB","other"),("GITHUB_RUN_ID","0"),("GITHUB_SHA","bad")):
+            with self.subTest(field=field), mock.patch.dict(A.os.environ,dict(env,**{field:value}),clear=True), \
+                 mock.patch.object(Path,"mkdir",side_effect=AssertionError("mkdir")):
+                with self.assertRaisesRegex(A.Refusal,"closed first-attempt"):
+                    A.execute(SimpleNamespace(execute=True))
+
+    def test_active_workflow_must_equal_exact_reviewed_template(self):
+        template=(SCRIPT.parents[1]/A.TEMPLATE_PATH).read_bytes()
+        self.assertEqual(hashlib.sha256(template).hexdigest(),A.WORKFLOW_SHA)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            for name in (A.TEMPLATE_PATH,A.WORKFLOW_PATH):
+                path=root/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(template)
+            A.workflow_contract(root)
+            (root/A.WORKFLOW_PATH).write_bytes(template+b"# changed\n")
+            with self.assertRaises(A.Refusal): A.workflow_contract(root)
+
+    def test_environment_setup_observes_selected_uv_and_uses_one_supervisor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp).resolve(); root=base/"evidence"; (root/"logs").mkdir(parents=True)
+            prefix=base/"env"; uv=base/"hostbin/uv"; uv.parent.mkdir(); uv.write_bytes(b"inert installer")
+            roots={name:base/name for name in ("baseline","candidate","control")}
+            labels=[]
+            class Supervisor:
+                deadline=time.monotonic()+4800
+                def command(self,label,command,env,cwd):
+                    labels.append((label,list(command),dict(env)))
+                    if label=="uv-version": (root/"logs/uv-version.log").write_text("uv 0.13.6\n")
+                    if label=="fresh-locked-environment":
+                        (prefix/"bin").mkdir(parents=True); (prefix/"bin/python").write_bytes(b"never executed")
+                    if label=="fresh-environment-probe":
+                        (root/"logs/fresh-environment-probe.log").write_bytes(encoded(dict(python=A.PYTHON,
+                            prefix=str(prefix),project_or_native_installed=False)))
+                def admission(self,*args): labels.append(("admission",args,{}))
+            supervisor=Supervisor(); deadline=supervisor.deadline
+            with mock.patch.object(A.sysconfig,"get_path",return_value=str(uv.parent)), \
+                 mock.patch.object(A.platform,"python_version",return_value=A.PYTHON), \
+                 mock.patch.object(A.platform,"python_implementation",return_value="CPython"):
+                result=A.prepare_environment(root,roots,str(prefix/"bin/python"),prefix,{},supervisor)
+            self.assertEqual([row[0] for row in labels],["install-exact-uv","uv-version","locked-input-check",
+                "fresh-locked-environment","fresh-environment-probe","admission"])
+            self.assertEqual(supervisor.deadline,deadline)
+            self.assertIn("uv==0.13.6",labels[0][1]); self.assertEqual(labels[1][1],[str(uv),"--version"])
+            self.assertIn("--no-install-project",labels[3][1]); self.assertIn("--no-build",labels[3][1])
+            self.assertEqual(labels[3][2]["UV_PROJECT_ENVIRONMENT"],str(prefix))
+            self.assertEqual(labels[-1][1],("environment-prepared",6,2))
+            self.assertEqual(result["uv"]["sha256"],hashlib.sha256(uv.read_bytes()).hexdigest())
+            with self.assertRaisesRegex(A.Refusal,"fresh external"):
+                A.prepare_environment(root,roots,str(prefix/"bin/python"),prefix,{},supervisor)
+
+    def test_wrong_observed_uv_version_stops_before_dependency_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp).resolve(); (base/"logs").mkdir(); uv=base/"uv"; uv.write_bytes(b"inert")
+            labels=[]
+            def command(label,*args):
+                labels.append(label)
+                if label=="uv-version": (base/"logs/uv-version.log").write_text("uv 0.1.0\n")
+            with mock.patch.object(A.sysconfig,"get_path",return_value=str(base)), \
+                 mock.patch.object(A.platform,"python_version",return_value=A.PYTHON), \
+                 mock.patch.object(A.platform,"python_implementation",return_value="CPython"):
+                with self.assertRaisesRegex(A.Refusal,"actual uv"):
+                    A.prepare_environment(base,{"candidate":base/"source"},str(base.parent/"env/bin/python"),
+                        base.parent/"env",{},SimpleNamespace(command=command))
+            self.assertEqual(labels,["install-exact-uv","uv-version"])
 
     def test_completed_producer_publication_identities_and_original_expiry(self):
         for pin in A.ARTIFACTS.values():
@@ -302,7 +379,9 @@ class Contracts(unittest.TestCase):
             for folder in ("raw","probes","audits","native/baseline","native/candidate","wheels/baseline","wheels/candidate"):
                 (root/folder).mkdir(parents=True,exist_ok=True)
             (prefix/"lib").mkdir(parents=True); (prefix/"lib/native.so").write_bytes(b"inert fixture, never imported")
-            report={"qualified":False,"cases":A.case_rows()}
+            installer=base/"uv"; installer.write_bytes(b"inert installer")
+            report={"qualified":False,"cases":A.case_rows(),"installer":{"uv":{"path":str(installer),
+                "sha256":hashlib.sha256(installer.read_bytes()).hexdigest()}}}
             commands=[]
             class Supervisor:
                 def admission(self,*args): pass
@@ -357,15 +436,47 @@ class Contracts(unittest.TestCase):
             root=Path(tmp)
             args=SimpleNamespace(execute=True,evidence=str(root/"evidence"),baseline_root=str(root/"base"),
                                  candidate_root=str(root/"new"),python=str(root/"env/bin/python"))
-            env=dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY=A.REPOSITORY,GITHUB_EVENT_NAME="workflow_dispatch",GITHUB_SHA="1"*40)
+            env=producer_env()
             with mock.patch.dict(A.os.environ,env,clear=True), mock.patch.object(A.os,"sched_getaffinity",return_value={4}), \
                  mock.patch.object(A.os,"sched_setaffinity"), mock.patch.object(A.H.Supervisor,"admission"), \
                  mock.patch.object(A.H,"source_snapshot",side_effect=A.Refusal("wrong source commit")), \
+                 mock.patch.object(A,"prepare_environment",side_effect=AssertionError("environment preparation")), \
                  mock.patch.object(A,"admit_inputs",side_effect=AssertionError("input admission")), \
                  mock.patch.object(A.H.Supervisor,"command",side_effect=AssertionError("child")), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(A.execute(args),1)
             result=json.loads((root/"evidence/result.json").read_text())
             self.assertFalse(result["qualified"]); self.assertIn("wrong source commit",result["error"])
+
+    def test_initial_admission_and_source_checks_precede_budgeted_environment(self):
+        for resource_refusal in (True,False):
+            with self.subTest(resource_refusal=resource_refusal), tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp).resolve(); events=[]
+                args=SimpleNamespace(execute=True,evidence=str(root/"evidence"),baseline_root=str(root/"base"),
+                    candidate_root=str(root/"new"),python=str(root/"env/bin/python"))
+                def admission(self,phase,*limits):
+                    events.append((phase,limits))
+                    if resource_refusal: raise A.Refusal("synthetic initial resource refusal")
+                def snapshot(source,expected,deadline):
+                    events.append(("source",expected))
+                    return {"crate_tree":A.CRATES["baseline"] if expected==A.SOURCES["baseline"] else A.CRATES["candidate"]}
+                def preparation(evidence,sources,py,prefix,env,supervisor):
+                    events.append(("prepare",supervisor.deadline))
+                    self.assertGreater(supervisor.deadline,time.monotonic())
+                    self.assertLessEqual(supervisor.deadline,time.monotonic()+A.H.WALL_SECONDS)
+                    raise A.Refusal("synthetic stop before actual preparation")
+                with mock.patch.dict(A.os.environ,producer_env(),clear=True), \
+                     mock.patch.object(A.os,"sched_getaffinity",return_value={4}), mock.patch.object(A.os,"sched_setaffinity"), \
+                     mock.patch.object(A.H.Supervisor,"admission",new=admission), \
+                     mock.patch.object(A.H,"source_snapshot",side_effect=snapshot), \
+                     mock.patch.object(A,"workflow_contract"), mock.patch.object(A.H,"sha",return_value="0"*64), \
+                     mock.patch.object(A.H,"require_matrix"), mock.patch.object(A,"prepare_environment",side_effect=preparation), \
+                     mock.patch.object(A,"admit_inputs",side_effect=AssertionError("artifact admission")), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(A.execute(args),1)
+                self.assertEqual(events[0],("initial",(12,2)))
+                prepared=[i for i,row in enumerate(events) if row[0]=="prepare"]
+                self.assertEqual(len(prepared),0 if resource_refusal else 1)
+                if prepared: self.assertEqual([row[0] for row in events[:prepared[0]]],["initial","source","source","source"])
 
     def test_terminal_inventory_error_cannot_leave_positive_status(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -379,7 +490,12 @@ class Contracts(unittest.TestCase):
     def test_workflow_is_a_dormant_closed_template(self):
         root=SCRIPT.parents[1]
         text=(root/"docs/experiments/native-default-output-identity-workflow.yml").read_text()
-        self.assertIn("if: ${{ false }}",text)
+        self.assertIn("branches: ["+A.ACTIVE_BRANCH+"]",text)
+        self.assertIn("paths: ["+A.WORKFLOW_PATH+"]",text)
+        self.assertIn("github.event_name == 'push'",text)
+        self.assertNotIn("workflow_dispatch",text)
+        self.assertNotIn("pip install",text)
+        self.assertNotIn("uv sync",text)
         self.assertFalse((root/".github/workflows/native-default-output-identity.yml").exists())
         for source in A.SOURCES.values(): self.assertIn("ref: "+source,text)
         for flag in ("--faith-ids","--checkpoint","--resume","maturin build","--scientific-claims"):
