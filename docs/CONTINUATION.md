@@ -1,10 +1,13 @@
 # Recovered continuation — 2026-10-11
 
-The current consolidation is `lead/review-integration-20261029`. Its runtime,
-tests and scripts match qualified `9d5cb7e4`; the only additional executable
-change is source-reviewed CI preflight `77e83c43`, which still needs this
-integration's hosted check. The earlier docs-only `lead/recovered-review-20261029`
-branch and every producing source/ref remain preserved. Main is unchanged.
+The current consolidation is `lead/review-integration-20261029`. Exact source
+`1205b6e4` passed all six CI jobs in run `40835337456`, with independently
+verified artifacts. Its runtime, tests and scripts match qualified `9d5cb7e4`;
+the additional CI preflight `77e83c43` now also has hosted qualification.
+The [integration readout](integration/review-integration-ci-2026-10-29.md)
+records the exact source, counts and evidence. The earlier docs-only
+`lead/recovered-review-20261029` branch and every producing source/ref remain
+preserved. Main is unchanged.
 
 The [corrected observer/validation CI readout](integration/practice-growth-observer-ci-2026-10-29.md)
 records all six jobs passing at `9d5cb7e4`: 8,323 native Python parents,
@@ -27,8 +30,10 @@ their separate source/activation review. The original 926-tick proof is unchange
 
 The [CI wrapper preflight](performance/ci-wrapper-contract-preflight-2026-10-29.md)
 checks two existing contracts before the native wheel build and before the
-no-Rust full suite, with separate guarded receipts. Existing 27 pure contracts
-and unfiltered workflow lint pass; its new hosted execution is pending.
+no-Rust full suite, with separate guarded receipts. Each hosted preflight
+passed both cases with zero native, factory or blocked-I/O attempts. These
+four executions are separate from full-suite counts. Each check took two
+observed seconds; this is gate-order evidence, not a controlled speedup.
 It preserves all full selections, original artifact layouts and 110-second
 bounds, adding two separate small artifacts for future producers.
 

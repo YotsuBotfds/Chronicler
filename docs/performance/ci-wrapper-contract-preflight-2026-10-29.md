@@ -1,6 +1,6 @@
 # Turn-wrapper contract preflight — 2026-10-29
 
-This source-only change adds two existing contract checks to each full Python
+This change adds two existing contract checks to each full Python
 job after locked dependency installation. The native job checks them before
 building its release wheel; the no-Rust job checks them before its full suite.
 The jobs still run independently, with no new prerequisite runner.
@@ -11,8 +11,10 @@ hundreds of seconds of suite work. Its signature assertion caught a private
 keyword added to `run_turn_result` but missing from `run_turn`. Corrected source
 `9d5cb7e4` passed all six existing jobs in run
 [40831049842](https://github.com/YotsuBotfds/Chronicler/actions/runs/40831049842).
-The new ordering targets this already observed failure; no timing saving has
-been measured for the proposed workflow.
+The new ordering targets this already observed failure. It is now qualified
+at exact integration source `1205b6e4` in
+[run 40835337456](https://github.com/YotsuBotfds/Chronicler/actions/runs/40835337456);
+no controlled timing saving has been measured.
 
 Each preflight selects exactly these nodes in a separate pytest process:
 
@@ -38,9 +40,9 @@ Each lane uploads only its guard JSON, pytest log and JUnit XML in a separate
 - `wrapper-contract-native-<source SHA>`
 - `wrapper-contract-no-rust-<source SHA>`
 
-Successful future producers therefore publish seven artifacts instead of the
-previous five. Exact-set readers must register the two additional artifacts
-for that future source and count these two-node receipts separately from the
+This producer publishes seven artifacts instead of the
+previous five. Exact-set readers register the two additional artifacts
+for this source and count these two-node receipts separately from the
 full-suite results. Sources `95f73a74`, `b35ccd7d` and `9d5cb7e4` retain their
 original five-artifact contract. A preflight refusal may leave later suite or
 wheel artifacts absent; its own bounded evidence is still retained.
@@ -53,5 +55,13 @@ native, dependency, threshold or scientific policy source is modified.
 Local qualification ran only the existing 27 workflow/wheel contracts under
 the offline guard: 27 passed in 0.19 seconds, no skips, native imports, factory
 calls or blocked I/O. Unfiltered actionlint and diff checks passed. The new
-two-node preflight was not executed locally, and this workflow has not been
-pushed or activated. No local World, native build or new simulation ran.
+two-node preflight was not executed locally. Hosted qualification then passed
+all six jobs, with both preflights independently verifying two passes and no
+skips, native imports, factory calls or blocked I/O. Their executions remain
+separate from the unchanged full-suite counts. Each check took two observed
+seconds, with one second for its evidence upload. Native preflight finished
+at 07:25:46 UTC before the build began at 07:25:47; no-Rust preflight finished
+at 07:25:45 before the full suite began at 07:25:46. The
+[integration evidence](../integration/review-integration-ci-2026-10-29.md)
+records all seven verified original artifacts and the independent peer.
+No local World, native build or new simulation ran.

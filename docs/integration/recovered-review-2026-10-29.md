@@ -2,8 +2,13 @@
 
 The consolidated branch is `lead/review-integration-20261029`; main remains
 unchanged. Runtime, tests, scripts, viewer and Rust match qualified `9d5cb7e4`.
-The only additional executable change is CI wrapper preflight `77e83c43`, with
-its own hosted integration check pending. The prior docs-only review branch
+The additional executable CI wrapper preflight `77e83c43` is now qualified:
+all six jobs passed at exact integration source `1205b6e4`, run `40835337456`.
+The [integration readout](review-integration-ci-2026-10-29.md) records the
+independently verified seven-artifact result. Each early two-case preflight
+passed before its expensive build or suite; those four executions are counted
+separately. No controlled wall-clock improvement is claimed. The prior docs-only
+review branch
 `lead/recovered-review-20261029` remains preserved at `06d357e4`, as do the exact
 C76 producer branch, checkout, source/path/package identity and every study ref.
 
