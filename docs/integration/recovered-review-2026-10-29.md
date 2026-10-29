@@ -253,15 +253,15 @@ and 9,152,457,132 bytes verified remotely. The completed producer, original
 source/roles, all 23 comparison/light authority files and original artifact
 expiry reconcile. Independent local readers streamed the small published
 authority pack and its 29 members; no multi-GB raw archive or world was loaded
-locally. The original kin-root failures remain. Baseline reuse and candidate
-world proofs stay unqualified.
+locally. The original kin-root failures remain. This qualifies retained bytes;
+final historical-baseline reuse still requires the candidate prerequisites below.
 
 The first paired build at `75cb1771`, run `40818391220`, is retained as failed.
 Both release wheels and real compiled-class/schema probes completed, with the
 historical extension reproduced byte-for-byte. The candidate Rust regression
 executable then failed to load `libpython3.13.so.1.0`; no regression assertions
-ran and final publication did not qualify. A separate source correction will
-supply only the selected Python library directory to that regression child,
+ran and final publication did not qualify. The separate source correction
+supplies only the selected Python library directory to that regression child,
 preserving release-build context. The first wheels cannot be retroactively
 treated as a complete successful producer.
 
@@ -272,9 +272,23 @@ exactly, and the candidate is distinct under equal fully recorded build
 contexts. All three artifacts, 105 outer members, both inner native payloads
 and completion seals reconcile. The loader change applies only to the
 regression command. This completes the build prerequisite without granting
-baseline reuse or outcome worlds. A separately registered 926-tick bootstrap
-is being prepared from unchanged checkpoint/determinism kernels; its scope
-does not replace long-window ablations or full population gates.
+baseline reuse or outcome worlds.
+
+The [926-tick candidate bootstrap](../experiments/wealth-floor-candidate-bootstrap-result-2026-10-29.md)
+now passes at `40db80d3`, run `40824399844`, on its first attempt. Its 162
+guarded preflight cases, six native checkpoint cases, nine own-build headers,
+cross-native rejection before restoration, and both genuine 200-turn repeat
+pairs pass. All 698 published members and completion seals reconcile. The
+determinism-only profile's incidental arcs failures, artifact PARTIAL results
+and template regression failure remain visible.
+
+That result covers checkpoint turns 6/12 through 14, roster 30 and decoded
+bundle determinism. Observed CPU affinity was four, with a logical count of
+two and numerical thread caps of one. A separately fixed 19-execution,
+3,097-tick production primer is being implemented to cover late checkpoints
+and actual two-CPU execution. It has no result yet. All six final admission
+pins remain null; long-window ablations and full population outcomes remain
+separate from these mechanical proofs.
 
 ## Separate verification corrections
 
