@@ -1,23 +1,23 @@
 # DORMANT TEMPLATE. Copy exact bytes to the registered workflow path only after
 # independent source and activation review. This file itself activates no job.
-name: Dormant CBF versus 535 default output identity
+name: Dormant CBF versus 090 default output identity
 
 on:
   push:
-    branches: [lead/cloud-cbf-535-default-identity-20261029]
-    paths: [.github/workflows/cbf-535-default-identity.yml]
+    branches: [lead/cloud-cbf-090-default-identity-20261029]
+    paths: [.github/workflows/cbf-090-default-identity.yml]
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: cbf-535-default-identity-${{ github.ref }}
+  group: cbf-090-default-identity-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  cbf-535-default-identity:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-cbf-535-default-identity-20261029' && github.run_attempt == '1'
+  cbf-090-default-identity:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-cbf-090-default-identity-20261029' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -40,7 +40,7 @@ jobs:
     steps:
       - name: Select fresh external environment path
         shell: bash
-        run: echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/cbf-535-default-env" >> "$GITHUB_ENV"
+        run: echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/cbf-090-default-env" >> "$GITHUB_ENV"
       - name: Check out reviewed controls
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -52,10 +52,10 @@ jobs:
           ref: cbf6e368ebd218c1f54179bee4accffc1ab2a4c0
           path: baseline
           persist-credentials: false
-      - name: Check out exact qualified 535 source
+      - name: Check out exact qualified 090 source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: 535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab
+          ref: 0900f3d203cc74102809bb871a1a057ba91a951f
           path: candidate
           persist-credentials: false
       - name: Set up exact Python runtime
@@ -64,25 +64,25 @@ jobs:
           python-version: "3.13.17"
       - name: Check unchanged original pure contracts
         run: python -B -m unittest discover -s control/tests -p test_arc_output_identity_qualification.py -v
-      - name: Check closed CBF to 535 pure contracts
-        run: python -B -m unittest discover -s control/tests -p test_cbf_535_default_identity.py -v
+      - name: Check closed CBF to 090 pure contracts
+        run: python -B -m unittest discover -s control/tests -p test_cbf_090_default_identity.py -v
       - name: Describe inactive registration
-        run: python -B control/scripts/cbf_535_default_identity.py describe
+        run: python -B control/scripts/cbf_090_default_identity.py describe
       - name: Execute after separate source and activation review
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          python -B control/scripts/cbf_535_default_identity.py run --execute \
+          python -B control/scripts/cbf_090_default_identity.py run --execute \
             --baseline-root "$GITHUB_WORKSPACE/baseline" \
             --candidate-root "$GITHUB_WORKSPACE/candidate" \
             --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
-            --evidence "$RUNNER_TEMP/cbf-535-default-evidence"
+            --evidence "$RUNNER_TEMP/cbf-090-default-evidence"
       - name: Retain complete positive or negative evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4888f43607fa02 # v4.6.2
         with:
-          name: cbf-535-default-identity-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cbf-535-default-evidence/
+          name: cbf-090-default-identity-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cbf-090-default-evidence/
           if-no-files-found: warn
           retention-days: 30

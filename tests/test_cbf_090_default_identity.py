@@ -18,11 +18,11 @@ from unittest import mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("cbf_535_contracts", ROOT/"scripts/cbf_535_default_identity.py")
+spec = importlib.util.spec_from_file_location("cbf_090_contracts", ROOT/"scripts/cbf_090_default_identity.py")
 B = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = B
 spec.loader.exec_module(B)
-SAVED = json.loads((ROOT/"tests/fixtures/cbf_535_default_identity_inputs.json").read_bytes())["arms"]
+SAVED = json.loads((ROOT/"tests/fixtures/cbf_090_default_identity_inputs.json").read_bytes())["arms"]
 NOW = datetime(2026, 10, 29, tzinfo=timezone.utc)
 
 
@@ -155,7 +155,7 @@ class Contracts(unittest.TestCase):
 
     def test_utility_apis_do_not_call_old_pair_orchestration(self):
         import ast
-        tree = ast.parse((ROOT/"scripts/cbf_535_default_identity.py").read_bytes())
+        tree = ast.parse((ROOT/"scripts/cbf_090_default_identity.py").read_bytes())
         called = {n.func.attr for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute)
                   and isinstance(n.func.value,ast.Name) and n.func.value.id == "A"}
         self.assertEqual(called, {"ArtifactPin","WheelPin","validate_publication","Transport","inspect_artifact",

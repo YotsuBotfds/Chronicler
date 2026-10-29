@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed, dormant CBF-to-535 default-export qualification; never a speed gate.
+"""Closed, dormant CBF-to-090 default-export qualification; never a speed gate.
 
 Only ``run --execute`` may prepare an environment or run the original matrix.
 The original helper and C76/95 adapter remain byte-exact authenticated utilities.
@@ -39,7 +39,7 @@ def load_utilities(directory=SCRIPT.parent):
         if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
             raise RuntimeError("immutable utility bytes changed: " + name)
         buffers[name] = raw
-    name = "_cbf_535_authenticated_export_utilities"
+    name = "_cbf_090_authenticated_export_utilities"
     module = ModuleType(name)
     module.__file__ = str(directory / "native_default_output_identity_qualification.py")
     sys.modules[name] = module  # dataclasses resolves postponed annotations here.
@@ -51,15 +51,15 @@ A = load_utilities()
 H, require, Refusal = A.H, A.require, A.Refusal
 SOURCES = MappingProxyType({
     "baseline": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
-    "candidate": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+    "candidate": "0900f3d203cc74102809bb871a1a057ba91a951f",
 })
 CRATES = MappingProxyType({"baseline": "912a1a2489f8f8c548df19302bb2c0a4365fc32e",
-                          "candidate": "6503ceebc4efdcd3c4f51b0058c4e562fd94b5a6"})
-ACTIVE_BRANCH = "lead/cloud-cbf-535-default-identity-20261029"
-WORKFLOW_PATH = ".github/workflows/cbf-535-default-identity.yml"
-TEMPLATE_PATH = "docs/experiments/cbf-535-default-identity-workflow.yml"
-JOB_KEY = "cbf-535-default-identity"
-WORKFLOW_SHA = "f00a7a7a9d5c039e313f2a75a5292110754985777b2dbc2185a21d610512715b"
+                          "candidate": "803c79c8d5c024cbb8d67c58af7ffa731d79c129"})
+ACTIVE_BRANCH = "lead/cloud-cbf-090-default-identity-20261029"
+WORKFLOW_PATH = ".github/workflows/cbf-090-default-identity.yml"
+TEMPLATE_PATH = "docs/experiments/cbf-090-default-identity-workflow.yml"
+JOB_KEY = "cbf-090-default-identity"
+WORKFLOW_SHA = "be1881e8133f69c0b1f5104ab21d06e3cb1d4023f22536428a0bc3b3d0ee9520"
 ARTIFACTS = MappingProxyType({
     "baseline-wheel": A.ArtifactPin(12882944002, 40841527996, 123338805674, SOURCES["baseline"],
         "native-wheel-" + SOURCES["baseline"], 3850581,
@@ -69,29 +69,29 @@ ARTIFACTS = MappingProxyType({
         "python-native-" + SOURCES["baseline"], 143075,
         "3e32164e432c7f666d214ab7df470bf656992a1dde88b56405de0b8f1a745af4",
         "2026-11-12T08:33:41Z", ".github/workflows/tests.yml"),
-    "candidate-wheel": A.ArtifactPin(12889933258, 40856653564, 123389207402, SOURCES["candidate"],
-        "native-wheel-" + SOURCES["candidate"], 3851094,
-        "995541eb42120db917e59f4c13c3dfb9e14cb105d016a151ab3f63cf0e20a1f0",
-        "2026-11-12T10:33:21Z", ".github/workflows/tests.yml"),
-    "candidate-preflight": A.ArtifactPin(12890820671, 40856653564, 123389207402, SOURCES["candidate"],
-        "python-native-" + SOURCES["candidate"], 143644,
-        "5a76d18800cbe3842c6dfc0e0a6866ce259e2241d31a3db1b61474da3f71970c",
-        "2026-11-12T10:33:19Z", ".github/workflows/tests.yml"),
+    "candidate-wheel": A.ArtifactPin(12893517727, 40865043984, 123417559998, SOURCES["candidate"],
+        "native-wheel-" + SOURCES["candidate"], 3850543,
+        "a8be042cacdbc049c099738e89b90961492b724561963e30c30e843cb2a52fac",
+        "2026-11-12T11:35:09Z", ".github/workflows/tests.yml"),
+    "candidate-preflight": A.ArtifactPin(12894166162, 40865043984, 123417559998, SOURCES["candidate"],
+        "python-native-" + SOURCES["candidate"], 143055,
+        "992884c0bc8df0d5cda19a07418e384c1229fc9735262e0a678a44e81ef90db0",
+        "2026-11-12T11:35:08Z", ".github/workflows/tests.yml"),
 })
 WHEELS = MappingProxyType({
     "baseline": A.WheelPin("baseline-wheel", "chronicler-agents/target/wheels/" + A.WHEEL_NAME,
         3915395, "556c6677c4cb998cd6ad4b284d0f67a7e79368f86831b458c3885943de3b95ac",
         13695168, "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"),
     "candidate": A.WheelPin("candidate-wheel", "chronicler-agents/target/wheels/" + A.WHEEL_NAME,
-        3915580, "a597e17b230575838bee84c538688c9d9d7e4172295e3892e55141552b9f201d",
-        13694480, "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165"),
+        3915587, "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532",
+        13693904, "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"),
 })
 # Expected values only. Candidate changes no Persist definitions/schema machinery;
 # standard CI did NOT measure these schemas. Actual fields start null below.
 EXPECTED_SCHEMAS = json.loads(json.dumps(A.SCHEMAS))
 CI_QUALIFICATION = MappingProxyType({
-    "candidate_root": "44c63da4b426d7bf34d0b20dc3a5aacc831dee5821dbba7b9686c42d26cb16e0",
-    "candidate_peer": "08cd1c07d4ea4e29057db695e6aad9d8dd84deb1d31b07806d334936039a3c32",
+    "candidate_root": "384415aab76a180370173e18918a640ab973c741b578fbe94ad01213e09dec77",
+    "candidate_peer": "1bbdea1d6774e0bb38bdafd1a6463a5a959e193e96e94aa85c04f606e993b958",
     "scope": "Full standard CI only; no default-output, performance or science grant",
 })
 SHARED_FILES = ("uv.lock", "pyproject.toml", "scripts/turn_speed_identity.py",
@@ -108,7 +108,7 @@ def producer_context(env):
         and env.get("GITHUB_JOB") == JOB_KEY and env.get("GITHUB_RUN_ATTEMPT") == "1"
         and re.fullmatch("[1-9][0-9]*", env.get("GITHUB_RUN_ID", "")) is not None
         and re.fullmatch("[0-9a-f]{40}", env.get("GITHUB_SHA", "")) is not None,
-        "closed first-attempt CBF-to-535 push required")
+        "closed first-attempt CBF-to-090 push required")
     return {"control_sha": env["GITHUB_SHA"], "run_id": env["GITHUB_RUN_ID"], "run_attempt": "1",
             "job_key": JOB_KEY, "event": "push", "branch": ACTIVE_BRANCH, "workflow_ref": env["GITHUB_WORKFLOW_REF"]}
 
@@ -372,7 +372,7 @@ def execute(args):
         "native_sha256_by_arm": {arm: w.native_sha256 for arm, w in WHEELS.items()},
         "wheel_sha256_by_arm": {arm: w.sha256 for arm, w in WHEELS.items()},
         "normalization": "metadata.generated_at only; original .log/run_manifest exclusions",
-        "limitations": ["Exact CBF-to-535 default exports only; no checkpoint/RNG/science/performance/adoption grant",
+        "limitations": ["Exact CBF-to-090 default exports only; no checkpoint/RNG/science/performance/adoption grant",
                         "Requires separate completed-job/publication and independent artifact qualification",
                         "Standard CI did not measure schemas; actual fresh fields stay null until real probes"]}
     before, inputs, copies = {}, {}, {}

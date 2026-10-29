@@ -501,219 +501,219 @@
     },
     "candidate": {
       "job": {
-        "check_run_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/check-runs/123389207402",
-        "completed_at": "2026-10-29T10:33:33Z",
+        "check_run_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/check-runs/123417559998",
+        "completed_at": "2026-10-29T11:35:19Z",
         "conclusion": "success",
-        "created_at": "2026-10-29T10:19:33Z",
-        "head_branch": "lead/shared-live-slots-integration-20261029",
-        "head_sha": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40856653564/job/123389207402",
-        "id": 123389207402,
+        "created_at": "2026-10-29T11:23:41Z",
+        "head_branch": "lead/native-region-partition-reuse-20261029",
+        "head_sha": "0900f3d203cc74102809bb871a1a057ba91a951f",
+        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984/job/123417559998",
+        "id": 123417559998,
         "labels": [
           "ubuntu-latest"
         ],
         "name": "Python native execution",
-        "node_id": "CR_kwDORsdWPc8AAAAcupHjag",
+        "node_id": "CR_kwDORsdWPc8AAAAcvEKDvg",
         "run_attempt": 1,
-        "run_id": 40856653564,
-        "run_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564",
+        "run_id": 40865043984,
+        "run_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984",
         "runner_group_id": 0,
         "runner_group_name": "GitHub Actions",
-        "runner_id": 1000001211,
-        "runner_name": "GitHub Actions 1000001211",
-        "started_at": "2026-10-29T10:19:36Z",
+        "runner_id": 1000001235,
+        "runner_name": "GitHub Actions 1000001235",
+        "started_at": "2026-10-29T11:23:43Z",
         "status": "completed",
         "steps": [
           {
-            "completed_at": "2026-10-29T10:19:38Z",
+            "completed_at": "2026-10-29T11:23:45Z",
             "conclusion": "success",
             "name": "Set up job",
             "number": 1,
-            "started_at": "2026-10-29T10:19:37Z",
+            "started_at": "2026-10-29T11:23:44Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:41Z",
+            "completed_at": "2026-10-29T11:23:48Z",
             "conclusion": "success",
             "name": "Check out repository",
             "number": 2,
-            "started_at": "2026-10-29T10:19:38Z",
+            "started_at": "2026-10-29T11:23:45Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:41Z",
+            "completed_at": "2026-10-29T11:23:49Z",
             "conclusion": "success",
             "name": "Set up Python",
             "number": 3,
-            "started_at": "2026-10-29T10:19:41Z",
+            "started_at": "2026-10-29T11:23:48Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:42Z",
+            "completed_at": "2026-10-29T11:23:49Z",
             "conclusion": "success",
             "name": "Restore uv artifacts",
             "number": 4,
-            "started_at": "2026-10-29T10:19:41Z",
+            "started_at": "2026-10-29T11:23:49Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:42Z",
+            "completed_at": "2026-10-29T11:23:50Z",
             "conclusion": "success",
             "name": "Set up Rust",
             "number": 5,
-            "started_at": "2026-10-29T10:19:42Z",
+            "started_at": "2026-10-29T11:23:49Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:42Z",
+            "completed_at": "2026-10-29T11:23:50Z",
             "conclusion": "success",
             "name": "Identify Rust compiler",
             "number": 6,
-            "started_at": "2026-10-29T10:19:42Z",
+            "started_at": "2026-10-29T11:23:50Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:43Z",
+            "completed_at": "2026-10-29T11:23:50Z",
             "conclusion": "success",
             "name": "Restore Cargo downloads",
             "number": 7,
-            "started_at": "2026-10-29T10:19:42Z",
+            "started_at": "2026-10-29T11:23:50Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:43Z",
+            "completed_at": "2026-10-29T11:23:50Z",
             "conclusion": "success",
             "name": "Restore release build cache",
             "number": 8,
-            "started_at": "2026-10-29T10:19:43Z",
+            "started_at": "2026-10-29T11:23:50Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:50Z",
+            "completed_at": "2026-10-29T11:23:54Z",
             "conclusion": "success",
             "name": "Install Python dependencies from the lockfile",
             "number": 9,
-            "started_at": "2026-10-29T10:19:43Z",
+            "started_at": "2026-10-29T11:23:50Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:53Z",
+            "completed_at": "2026-10-29T11:23:56Z",
             "conclusion": "success",
             "name": "Check turn-wrapper contracts before the full suite",
             "number": 10,
-            "started_at": "2026-10-29T10:19:50Z",
+            "started_at": "2026-10-29T11:23:54Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:19:55Z",
+            "completed_at": "2026-10-29T11:23:57Z",
             "conclusion": "success",
             "name": "Retain native turn-wrapper preflight evidence",
             "number": 11,
-            "started_at": "2026-10-29T10:19:53Z",
+            "started_at": "2026-10-29T11:23:56Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:22:45Z",
+            "completed_at": "2026-10-29T11:26:22Z",
             "conclusion": "success",
             "name": "Build Rust extension wheel",
             "number": 12,
-            "started_at": "2026-10-29T10:19:55Z",
+            "started_at": "2026-10-29T11:23:57Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:19Z",
+            "completed_at": "2026-10-29T11:35:08Z",
             "conclusion": "success",
             "name": "Run Python tests with real native extension preloaded",
             "number": 13,
-            "started_at": "2026-10-29T10:22:45Z",
+            "started_at": "2026-10-29T11:26:22Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:21Z",
+            "completed_at": "2026-10-29T11:35:09Z",
             "conclusion": "success",
             "name": "Retain native Python test results",
             "number": 14,
-            "started_at": "2026-10-29T10:33:19Z",
+            "started_at": "2026-10-29T11:35:08Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:23Z",
+            "completed_at": "2026-10-29T11:35:11Z",
             "conclusion": "success",
             "name": "Retain the identified native wheel",
             "number": 15,
-            "started_at": "2026-10-29T10:33:21Z",
+            "started_at": "2026-10-29T11:35:09Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:27Z",
+            "completed_at": "2026-10-29T11:35:15Z",
             "conclusion": "success",
             "name": "Post Restore release build cache",
             "number": 26,
-            "started_at": "2026-10-29T10:33:23Z",
+            "started_at": "2026-10-29T11:35:11Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:28Z",
+            "completed_at": "2026-10-29T11:35:15Z",
             "conclusion": "success",
             "name": "Post Restore Cargo downloads",
             "number": 27,
-            "started_at": "2026-10-29T10:33:27Z",
+            "started_at": "2026-10-29T11:35:15Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:30Z",
+            "completed_at": "2026-10-29T11:35:17Z",
             "conclusion": "success",
             "name": "Post Restore uv artifacts",
             "number": 28,
-            "started_at": "2026-10-29T10:33:28Z",
+            "started_at": "2026-10-29T11:35:15Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:30Z",
+            "completed_at": "2026-10-29T11:35:17Z",
             "conclusion": "success",
             "name": "Post Set up Python",
             "number": 29,
-            "started_at": "2026-10-29T10:33:30Z",
+            "started_at": "2026-10-29T11:35:17Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:30Z",
+            "completed_at": "2026-10-29T11:35:17Z",
             "conclusion": "success",
             "name": "Post Check out repository",
             "number": 30,
-            "started_at": "2026-10-29T10:33:30Z",
+            "started_at": "2026-10-29T11:35:17Z",
             "status": "completed"
           },
           {
-            "completed_at": "2026-10-29T10:33:30Z",
+            "completed_at": "2026-10-29T11:35:17Z",
             "conclusion": "success",
             "name": "Complete job",
             "number": 31,
-            "started_at": "2026-10-29T10:33:30Z",
+            "started_at": "2026-10-29T11:35:17Z",
             "status": "completed"
           }
         ],
-        "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/jobs/123389207402",
+        "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/jobs/123417559998",
         "workflow_name": "Tests"
       },
       "preflight": {
         "artifact": {
-          "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12890820671/zip",
-          "created_at": "2026-10-29T10:33:20Z",
-          "digest": "sha256:5a76d18800cbe3842c6dfc0e0a6866ce259e2241d31a3db1b61474da3f71970c",
+          "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12894166162/zip",
+          "created_at": "2026-10-29T11:35:09Z",
+          "digest": "sha256:992884c0bc8df0d5cda19a07418e384c1229fc9735262e0a678a44e81ef90db0",
           "expired": false,
-          "expires_at": "2026-11-12T10:33:19Z",
-          "id": 12890820671,
-          "name": "python-native-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-          "node_id": "MDg6QXJ0aWZhY3QxMjg5MDgyMDY3MQ==",
-          "size_in_bytes": 143644,
-          "updated_at": "2026-10-29T10:33:20Z",
-          "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12890820671",
+          "expires_at": "2026-11-12T11:35:08Z",
+          "id": 12894166162,
+          "name": "python-native-0900f3d203cc74102809bb871a1a057ba91a951f",
+          "node_id": "MDg6QXJ0aWZhY3QxMjg5NDE2NjE2Mg==",
+          "size_in_bytes": 143055,
+          "updated_at": "2026-10-29T11:35:09Z",
+          "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12894166162",
           "workflow_run": {
-            "head_branch": "lead/shared-live-slots-integration-20261029",
+            "head_branch": "lead/native-region-partition-reuse-20261029",
             "head_repository_id": 1187468861,
-            "head_sha": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-            "id": 40856653564,
+            "head_sha": "0900f3d203cc74102809bb871a1a057ba91a951f",
+            "id": 40865043984,
             "repository_id": 1187468861
           }
         },
@@ -726,8 +726,8 @@
           "compiled_extension": "/home/runner/work/Chronicler/Chronicler/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
           "executable": "/home/runner/work/Chronicler/Chronicler/.venv/bin/python",
           "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
-          "sha256": "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165",
-          "source_commit": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab"
+          "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c",
+          "source_commit": "0900f3d203cc74102809bb871a1a057ba91a951f"
         }
       },
       "run": {
@@ -752,16 +752,16 @@
           "url": "https://api.github.com/users/YotsuBotfds",
           "user_view_type": "public"
         },
-        "artifacts_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564/artifacts",
-        "cancel_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564/cancel",
-        "check_suite_id": 110745864153,
-        "check_suite_node_id": "CS_kwDORsdWPc8AAAAZyPfH2Q",
-        "check_suite_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/check-suites/110745864153",
+        "artifacts_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984/artifacts",
+        "cancel_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984/cancel",
+        "check_suite_id": 110768961231,
+        "check_suite_node_id": "CS_kwDORsdWPc8AAAAZylg2zw",
+        "check_suite_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/check-suites/110768961231",
         "conclusion": "success",
-        "created_at": "2026-10-29T10:19:32Z",
+        "created_at": "2026-10-29T11:23:39Z",
         "display_title": "Tests",
         "event": "workflow_dispatch",
-        "head_branch": "lead/shared-live-slots-integration-20261029",
+        "head_branch": "lead/native-region-partition-reuse-20261029",
         "head_commit": {
           "author": {
             "email": "tate.bronson@gmail.com",
@@ -771,10 +771,10 @@
             "email": "tate.bronson@gmail.com",
             "name": "Tate Bronson"
           },
-          "id": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-          "message": "Combine shared live-slot native source with qualified test fix",
-          "timestamp": "2026-10-29T10:14:34Z",
-          "tree_id": "bbad173e978535161e2c45ee42847950c6768404"
+          "id": "0900f3d203cc74102809bb871a1a057ba91a951f",
+          "message": "perf(native): reuse satisfaction region partition for decisions\n\nRetain the existing owned region buckets across read-only pre-decision work.\nPreserve phase timing, slot order, satisfaction arithmetic and fresh later partitions.\nNative boundary regression authored; fresh compile/CI and parity/performance pending.",
+          "timestamp": "2026-10-29T11:07:47Z",
+          "tree_id": "6162a4a4e5199917f0823cbfafec0223b463988f"
         },
         "head_repository": {
           "archive_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/{archive_format}{/ref}",
@@ -844,13 +844,13 @@
           "trees_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/git/trees{/sha}",
           "url": "https://api.github.com/repos/YotsuBotfds/Chronicler"
         },
-        "head_sha": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40856653564",
-        "id": 40856653564,
-        "jobs_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564/jobs",
-        "logs_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564/logs",
+        "head_sha": "0900f3d203cc74102809bb871a1a057ba91a951f",
+        "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984",
+        "id": 40865043984,
+        "jobs_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984/jobs",
+        "logs_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984/logs",
         "name": "Tests",
-        "node_id": "WFR_kwLORsdWPc8AAAAJgz8O_A",
+        "node_id": "WFR_kwLORsdWPc8AAAAJg78WEA",
         "path": ".github/workflows/tests.yml",
         "previous_attempt_url": null,
         "pull_requests": [],
@@ -923,10 +923,10 @@
           "trees_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/git/trees{/sha}",
           "url": "https://api.github.com/repos/YotsuBotfds/Chronicler"
         },
-        "rerun_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564/rerun",
+        "rerun_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984/rerun",
         "run_attempt": 1,
-        "run_number": 168,
-        "run_started_at": "2026-10-29T10:19:32Z",
+        "run_number": 169,
+        "run_started_at": "2026-10-29T11:23:39Z",
         "status": "completed",
         "triggering_actor": {
           "avatar_url": "https://avatars.githubusercontent.com/u/1007321?v=4",
@@ -949,29 +949,29 @@
           "url": "https://api.github.com/users/YotsuBotfds",
           "user_view_type": "public"
         },
-        "updated_at": "2026-10-29T10:33:40Z",
-        "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40856653564",
+        "updated_at": "2026-10-29T11:35:26Z",
+        "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/runs/40865043984",
         "workflow_id": 273982781,
         "workflow_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/workflows/273982781"
       },
       "wheel": {
         "artifact": {
-          "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12889933258/zip",
-          "created_at": "2026-10-29T10:33:22Z",
-          "digest": "sha256:995541eb42120db917e59f4c13c3dfb9e14cb105d016a151ab3f63cf0e20a1f0",
+          "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12893517727/zip",
+          "created_at": "2026-10-29T11:35:11Z",
+          "digest": "sha256:a8be042cacdbc049c099738e89b90961492b724561963e30c30e843cb2a52fac",
           "expired": false,
-          "expires_at": "2026-11-12T10:33:21Z",
-          "id": 12889933258,
-          "name": "native-wheel-535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-          "node_id": "MDg6QXJ0aWZhY3QxMjg4OTkzMzI1OA==",
-          "size_in_bytes": 3851094,
-          "updated_at": "2026-10-29T10:33:22Z",
-          "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12889933258",
+          "expires_at": "2026-11-12T11:35:09Z",
+          "id": 12893517727,
+          "name": "native-wheel-0900f3d203cc74102809bb871a1a057ba91a951f",
+          "node_id": "MDg6QXJ0aWZhY3QxMjg5MzUxNzcyNw==",
+          "size_in_bytes": 3850543,
+          "updated_at": "2026-10-29T11:35:11Z",
+          "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12893517727",
           "workflow_run": {
-            "head_branch": "lead/shared-live-slots-integration-20261029",
+            "head_branch": "lead/native-region-partition-reuse-20261029",
             "head_repository_id": 1187468861,
-            "head_sha": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
-            "id": 40856653564,
+            "head_sha": "0900f3d203cc74102809bb871a1a057ba91a951f",
+            "id": 40865043984,
             "repository_id": 1187468861
           }
         },
@@ -982,20 +982,20 @@
             "PoliticsSimulator"
           ],
           "installed_native": {
-            "bytes": 13694480,
+            "bytes": 13693904,
             "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
-            "sha256": "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165",
-            "wheel_member_sha256": "d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165"
+            "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c",
+            "wheel_member_sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"
           },
           "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
           "schema_version": 1,
           "scope": "Completed CI build identity only; no reproducibility, performance or scientific qualification",
-          "source_commit": "535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab",
+          "source_commit": "0900f3d203cc74102809bb871a1a057ba91a951f",
           "wheel": {
-            "bytes": 3915580,
+            "bytes": 3915587,
             "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
             "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
-            "sha256": "a597e17b230575838bee84c538688c9d9d7e4172295e3892e55141552b9f201d"
+            "sha256": "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532"
           }
         }
       }

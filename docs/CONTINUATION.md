@@ -1,11 +1,11 @@
 # Recovered continuation — 2026-10-11
 
-A separate [CBF-to-535 default-export source registration](experiments/cbf-535-default-identity-2026-10-29.md)
-retains the original nine-case/18-World/3,200-tick matrix and authenticated
-helper utilities, with the actual completed CBF and535 CI wheels/preflights.
-Only pure metadata/mocked-lifecycle qualification is permitted locally.
-No setup, native probe, artifact transfer, World or activation is implied;
-source peer/root review and a distinct activation grant remain required.
+A separate [CBF-to-090 default-export source registration](experiments/cbf-090-default-identity-2026-10-29.md)
+replaces only the proposed candidate registration with qualified090 and its own
+retained CI wheels/preflight. The original18-World/3,200-tick matrix and kernels
+remain unchanged. Prior535 source5ab and its54-case qualification remain
+preserved and unexecuted; no535 parity is inferred. Fresh native/schema probes,
+setup, transfer, World or activation still require source/peer/root approval.
 
 A separate [V2 artifact-reader correction](integration/native-default-output-artifact-reader-v2-2026-10-29.md)
 preserves the first failed reader `bc39d593`/run40843215377 and its verified

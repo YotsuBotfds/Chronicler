@@ -1,13 +1,13 @@
-# CBF to 535 default-export qualification: inactive source
+# CBF to 090 default-export qualification: inactive source
 
 This new closed registration compares fresh default exports from
 `cbf6e368ebd218c1f54179bee4accffc1ab2a4c0` with
-`535b3b6c0f5afb5d89925a4b35e8a0e6227f19ab`. It runs the original nine
+`0900f3d203cc74102809bb871a1a057ba91a951f`. It runs the original nine
 cases, all nine baseline cases before all nine candidate cases: 18 fresh Worlds
 and 3,200 ticks. No checkpoint is reused across native binaries. This document
 does not authorize a push, environment setup, probe, download or World run.
 
-`scripts/cbf_535_default_identity.py` authenticates the original 8bbc helper
+`scripts/cbf_090_default_identity.py` authenticates the original 8bbc helper
 and the qualified 74b C76/95 adapter before executing their exact source bytes.
 The original files, registries, tests, driver, matrix and comparator are unchanged.
 The new adapter calls only their parameterized utilities. It neither calls the
@@ -26,16 +26,16 @@ This is the CBF wheel, distinct from the earlier 95 wheel despite equal native
 bytes. Its retained CI paths describe the historical producer; they are never
 treated as paths that must exist on the new runner.
 
-The 535 source has native crate `6503ceebc4efdcd3c4f51b0058c4e562fd94b5a6`.
-It uses completed CI run `40856653564`, native execution job `123389207402`,
-wheel artifact `12889933258` and preflight artifact `12890820671`.
+The 090 source has native crate `803c79c8d5c024cbb8d67c58af7ffa731d79c129`.
+It uses completed CI run `40865043984`, native execution job `123417559998`,
+wheel artifact `12893517727` and preflight artifact `12894166162`.
 Its wheel SHA is
-`a597e17b230575838bee84c538688c9d9d7e4172295e3892e55141552b9f201d`,
+`928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532`,
 with native SHA
-`d8dc61846c0a680d40a8bf332f377d97bd12c5ee1bd9ad9bd0b36e11c49e9165`.
-The root CI qualification `44c63da4b426d7bf34d0b20dc3a5aacc831dee5821dbba7b9686c42d26cb16e0`
-and independent peer `08cd1c07d4ea4e29057db695e6aad9d8dd84deb1d31b07806d334936039a3c32`
-qualify standard CI only. They supply no 535 output identity or speed result.
+`14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c`.
+The root CI qualification `384415aab76a180370173e18918a640ab973c741b578fbe94ad01213e09dec77`
+and independent peer `1bbdea1d6774e0bb38bdafd1a6463a5a959e193e96e94aa85c04f606e993b958`
+qualify standard CI only. They supply no 090 output identity or speed result.
 
 Each input requires exact run/job/source/attempt and completed-success metadata,
 the actual native build/test/publication step numbers and names, original artifact
@@ -92,3 +92,7 @@ This protocol is semantic output qualification only. There is no performance,
 peak-RSS improvement, broad scientific or adoption claim. The proposed separate
 30-World timing discriminator and optional old C76 export bridge remain held.
 The older C76-to-95 refs, first failed audit and qualified proof remain unchanged.
+
+The preserved source-only CBF-to-535 registration `5ab655b4` was never run.
+This separately registered successor qualifies only CBF-to-090 if its future
+producer and artifact reader pass; it grants no retroactive 535 parity.
