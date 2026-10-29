@@ -149,3 +149,26 @@ process setup, Rust linkage and per-sample overhead remain visible. A positive
 screen is not a measured World/whole-planner speedup, a default-output proof,
 native execution qualification for this branch or scientific efficacy. No
 claims or gate standing from CBF/535/090 are extended to this new experiment.
+
+## Source-only admission correction after independent review
+
+Parent `2bba50081e12464835acfe3e26140a068a4034a3` remains preserved. Its Rust
+appendix, all six ordinary contracts, ignored screen, 15 cases, 150 samples,
+acceptance criteria, fixed crossover and caps are byte-identical in this child.
+The only implementation correction is to the dormant workflow's two RAM
+admissions: each reuses the exact existing `wealth_floor_build_resources.py`
+resolver (Git blob `730d2affa4845e948fc0866f65f6e54bb766a6b5`, SHA-256
+`44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2`),
+retained unchanged from `5a6fed7809fa314d5e5ad3878e56c4299f7f5f59`. This is
+reuse of the qualified dependency, not new runtime qualification in this child.
+
+Both call sites hash-check the resolver before loading it and retain its full
+visibility-limited observation or explicit refusal in external admission JSON.
+The resolver binds membership to mountinfo, refuses ambiguous/non-root mount
+roots, checks visible ancestor controller/counter evidence and rereads the
+membership/mapping. Namespace-invisible ancestors remain explicitly outside
+the observed scope; observations reserve no RAM. No partial mapping algorithm
+is left in the workflow. Build admission stays 12 GiB disk/2 GiB visible RAM;
+test admission stays 3 GiB disk/1 GiB visible RAM. No execution, local compile,
+project/native import, World, network, push or activation occurred for this
+source correction. Independent peer and root review still precede activation.

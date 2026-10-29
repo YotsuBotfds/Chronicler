@@ -60,35 +60,36 @@ jobs:
           allowed = {"chronicler-agents/src/formation.rs", "docs/CONTINUATION.md",
               "docs/experiments/exact-marriage-broadphase-screen-2026-10-29.md",
               "docs/experiments/exact-marriage-broadphase-screen-workflow.yml",
-              ".github/workflows/exact-marriage-broadphase-screen.yml"}
+              ".github/workflows/exact-marriage-broadphase-screen.yml",
+              "scripts/wealth_floor_build_resources.py"}
           changed = set(git("diff", "--name-only", base, "HEAD").decode().splitlines())
           assert changed <= allowed and "chronicler-agents/src/formation.rs" in changed
           proposed = pathlib.Path("docs/experiments/exact-marriage-broadphase-screen-workflow.yml").read_bytes()
           assert proposed == pathlib.Path(".github/workflows/exact-marriage-broadphase-screen.yml").read_bytes()
-          # Do not silently treat host RAM as container headroom.
-          mem = dict(line.split(":", 1) for line in pathlib.Path("/proc/meminfo").read_text().splitlines())
-          available = int(mem["MemAvailable"].split()[0]) * 1024
-          cg = pathlib.Path("/sys/fs/cgroup")
-          paths = [line.split(":", 2)[2] for line in pathlib.Path("/proc/self/cgroup").read_text().splitlines() if line.startswith("0::")]
-          assert len(paths) == 1 and paths[0].startswith("/") and ".." not in pathlib.Path(paths[0]).parts
-          leaf = cg / paths[0].lstrip("/")
-          assert leaf.is_dir()
-          observed = []
-          while True:
-              maximum, current_mem = leaf / "memory.max", leaf / "memory.current"
-              if maximum.exists() and current_mem.exists():
-                  limit, used = maximum.read_text().strip(), int(current_mem.read_text())
-                  assert used >= 0
-                  if limit != "max":
-                      assert int(limit) >= 0
-                      available = min(available, max(0, int(limit) - used))
-                  observed.append({"path": str(leaf), "maximum": limit, "current": used})
-              else:
-                  assert leaf == cg and not maximum.exists() and not current_mem.exists()
-              if leaf == cg: break
-              leaf = leaf.parent
+          # Reuse the exact qualified resolver; do not reconstruct its mapping.
+          resource_path = pathlib.Path("scripts/wealth_floor_build_resources.py")
+          resource_raw = resource_path.read_bytes()
+          resolver_sha = hashlib.sha256(resource_raw).hexdigest()
+          assert resolver_sha == "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+          resolver = {"__name__": "frozen_exact_near_memory_admission", "__file__": str(resource_path)}
+          exec(compile(resource_raw, str(resource_path), "exec"), resolver)
           disk = shutil.disk_usage(evidence).free
-          assert disk >= 12 * 1024**3 and available >= 2 * 1024**3
+          try:
+              memory = resolver["memory_admission"]()
+          except Exception as exc:
+              (evidence / "build-memory-admission.json").write_text(json.dumps({
+                  "admitted": False, "resolver_sha256": resolver_sha,
+                  "required_disk_bytes": 12 * 1024**3, "required_memory_bytes": 2 * 1024**3,
+                  "observed_disk_free_bytes": disk, "memory_observation": None,
+                  "error": {"type": type(exc).__name__, "message": str(exc)}}, indent=2) + "\n")
+              raise
+          available = memory["available_bytes"]
+          admitted = disk >= 12 * 1024**3 and available >= 2 * 1024**3
+          (evidence / "build-memory-admission.json").write_text(json.dumps({
+              "admitted": admitted, "resolver_sha256": resolver_sha,
+              "required_disk_bytes": 12 * 1024**3, "required_memory_bytes": 2 * 1024**3,
+              "observed_disk_free_bytes": disk, "memory_observation": memory}, indent=2) + "\n")
+          assert admitted, "registered build disk/RAM admission refused"
           cpu = min(os.sched_getaffinity(0))
           libdir = sysconfig.get_config_var("LIBDIR")
           assert libdir and pathlib.Path(libdir).is_dir()
@@ -102,7 +103,7 @@ jobs:
               "formation_sha256": hashlib.sha256(current).hexdigest(),
               "append_sha256": hashlib.sha256(suffix).hexdigest(), "python": sys.version,
               "executable": sys.executable, "python_libdir": libdir, "screen_cpu": cpu,
-              "disk_free": disk, "visible_memory_available": available, "cgroups": observed,
+              "disk_free": disk, "visible_memory_available": available, "memory_admission": memory,
               "worlds": 0, "same_binary_synthetic_only": True}
           (evidence / "source-admission.json").write_text(json.dumps(identity, indent=2) + "\n")
           PY
@@ -126,28 +127,33 @@ jobs:
           assert len(binaries) == 1
           path = pathlib.Path(binaries[0]).resolve()
           assert path.is_relative_to(pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve())
-          assert shutil.disk_usage(out).free >= 3 * 1024**3
-          mem = dict(line.split(":", 1) for line in pathlib.Path("/proc/meminfo").read_text().splitlines())
-          available = int(mem["MemAvailable"].split()[0]) * 1024
-          cg = pathlib.Path("/sys/fs/cgroup")
-          paths = [line.split(":", 2)[2] for line in pathlib.Path("/proc/self/cgroup").read_text().splitlines() if line.startswith("0::")]
-          assert len(paths) == 1 and paths[0].startswith("/") and ".." not in pathlib.Path(paths[0]).parts
-          leaf = cg / paths[0].lstrip("/")
-          assert leaf.is_dir()
-          while True:
-              maximum, current = leaf / "memory.max", leaf / "memory.current"
-              if maximum.exists() and current.exists():
-                  limit, used = maximum.read_text().strip(), int(current.read_text())
-                  assert used >= 0
-                  if limit != "max": available = min(available, max(0, int(limit) - used))
-              else:
-                  assert leaf == cg and not maximum.exists() and not current.exists()
-              if leaf == cg: break
-              leaf = leaf.parent
-          assert available >= 1024**3
+          resource_path = pathlib.Path("scripts/wealth_floor_build_resources.py")
+          resource_raw = resource_path.read_bytes()
+          resolver_sha = hashlib.sha256(resource_raw).hexdigest()
+          assert resolver_sha == "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+          resolver = {"__name__": "frozen_exact_near_memory_admission", "__file__": str(resource_path)}
+          exec(compile(resource_raw, str(resource_path), "exec"), resolver)
+          disk = shutil.disk_usage(out).free
+          try:
+              memory = resolver["memory_admission"]()
+          except Exception as exc:
+              (out / "test-memory-admission.json").write_text(json.dumps({
+                  "admitted": False, "resolver_sha256": resolver_sha,
+                  "required_disk_bytes": 3 * 1024**3, "required_memory_bytes": 1024**3,
+                  "observed_disk_free_bytes": disk, "memory_observation": None,
+                  "error": {"type": type(exc).__name__, "message": str(exc)}}, indent=2) + "\n")
+              raise
+          available = memory["available_bytes"]
+          admitted = disk >= 3 * 1024**3 and available >= 1024**3
+          (out / "test-memory-admission.json").write_text(json.dumps({
+              "admitted": admitted, "resolver_sha256": resolver_sha,
+              "required_disk_bytes": 3 * 1024**3, "required_memory_bytes": 1024**3,
+              "observed_disk_free_bytes": disk, "memory_observation": memory}, indent=2) + "\n")
+          assert admitted, "registered test disk/RAM admission refused"
           identity = {"path": str(path), "bytes": path.stat().st_size,
               "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
               "visible_memory_available_before_tests": available,
+              "memory_admission": memory,
               "kind": "fresh same-binary Rust test executable, not a Python wheel or World qualification"}
           (out / "test-binary.json").write_text(json.dumps(identity, indent=2) + "\n")
           with open(os.environ["GITHUB_ENV"], "a") as env: env.write(f"SCREEN_BINARY={path}\n")
