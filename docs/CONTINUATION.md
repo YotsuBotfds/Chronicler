@@ -5,8 +5,8 @@ now has independently/root-qualified [all-nine-job standard CI](integration/reta
 at exact `23d4d246`, run `40908555947`, attempt 1. Native Python passes
 8,490 parents/six skips/623 successful subtests; no-Rust passes 8,157/325/623.
 Rust passes 1,130/two ignored, offline 4,286 parents/65 skips/97 subtests across
-36 unchanged 110-second chunks, and Viewer 743 tests with lint/build. The two
-+ two wrapper-preflight passes remain separate. Both native consumers collected
+36 unchanged 110-second chunks, and Viewer 743 tests with lint/build. The 2 + 2
+wrapper-preflight passes remain separate. Both native consumers collected
 the same ordered 8,496 parents across 302 modules; their disjoint ownership,
 25,488 phase reports and subtest order/multiplicity reconcile with JUnit.
 
