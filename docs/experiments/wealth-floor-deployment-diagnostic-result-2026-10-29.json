@@ -1,0 +1,147 @@
+{
+  "activated_source": "cc2fea8042bf8dd4a61cdbe0235aa3831cba6382",
+  "artifact": {
+    "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12872628853/zip",
+    "created_at": "2026-10-29T04:20:18Z",
+    "digest": "sha256:86402cfac5fbd9945a376be0fcc5846dee042142e7dab65b57a8cad2710a9df0",
+    "expired": false,
+    "expires_at": "2026-11-28T04:20:17Z",
+    "id": 12872628853,
+    "name": "wealth-floor-deployment-diagnostic-40817163080-1",
+    "size_in_bytes": 1014,
+    "updated_at": "2026-10-29T04:20:18Z",
+    "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12872628853",
+    "workflow_run": {
+      "head_branch": "lead/wealth-floor-deployment-diagnostic-activation-20261029",
+      "head_repository_id": 1187468861,
+      "head_sha": "cc2fea8042bf8dd4a61cdbe0235aa3831cba6382",
+      "id": 40817163080,
+      "repository_id": 1187468861
+    }
+  },
+  "artifact_crc_size_eof_checked": true,
+  "artifact_zip_independently_rehashed": true,
+  "baseline_audit_qualified": false,
+  "baseline_reuse_qualified": false,
+  "deployment_admission_granted": false,
+  "earlier_9aae_failed_predicate": "UNKNOWN; current fresh-run observations do not retroassign earlier failure",
+  "external_verification_receipt_sha256": "9f853a881dd61a9a7a24f072a33a7d360129a488e27be26c809bfd7946838fc0",
+  "job_completed_at": "2026-10-29T04:20:21Z",
+  "job_elapsed_seconds": 9.0,
+  "job_id": 123260833950,
+  "job_started_at": "2026-10-29T04:20:12Z",
+  "no_historical_archive_transfer": true,
+  "no_local_host_probe": true,
+  "no_native_build_or_world": true,
+  "no_privileged_reads": true,
+  "observation": {
+    "admission_granted": false,
+    "candidate_worlds_enabled": false,
+    "cpu_policy": {
+      "numerical_thread_caps": 1,
+      "process_affinity_count": 1,
+      "selected_cpu": 0
+    },
+    "diagnostic_only": true,
+    "fields": {
+      "pid1": {
+        "initial_error": {
+          "category": null,
+          "errno": null
+        },
+        "reread_error": {
+          "category": null,
+          "errno": null
+        },
+        "stable": true
+      },
+      "pid1_namespace": {
+        "initial_error": {
+          "category": "os_error",
+          "errno": 13
+        },
+        "reread_error": {
+          "category": "os_error",
+          "errno": 13
+        },
+        "stable": false
+      },
+      "self_namespace": {
+        "initial_error": {
+          "category": null,
+          "errno": null
+        },
+        "reread_error": {
+          "category": null,
+          "errno": null
+        },
+        "stable": true
+      }
+    },
+    "first_failed_predicate": "initial_read_unavailable",
+    "flags": {
+      "github_actions": "true",
+      "runner_environment": "github-hosted"
+    },
+    "limits": {
+      "admitted_namespace_bytes": 128,
+      "aggregate_metadata_bytes": 65536,
+      "job_minutes": 5,
+      "output_bytes": 65536,
+      "per_read_bytes": 129,
+      "wall_seconds": 30
+    },
+    "memory": {
+      "available_bytes": 15788949504,
+      "host_available_bytes": 15788949504,
+      "scope": "Host plus visible cgroup-v2 ancestors; namespace-invisible provider limits unobservable; no admission grant.",
+      "status": "observed_only",
+      "visible_ancestor_count": 3,
+      "visible_limits": [
+        {
+          "memory_current_bytes": null,
+          "memory_max_bytes": null,
+          "remaining_bytes": null
+        },
+        {
+          "memory_current_bytes": 1257320448,
+          "memory_max_bytes": null,
+          "remaining_bytes": null
+        },
+        {
+          "memory_current_bytes": 435519488,
+          "memory_max_bytes": null,
+          "remaining_bytes": null
+        }
+      ]
+    },
+    "namespaces": {
+      "equal": null,
+      "pid1_format_valid": false,
+      "self_format_valid": true
+    },
+    "observed_metadata_bytes": 7003,
+    "pid1_class": "systemd",
+    "pid1_shape_valid": true,
+    "schema_version": 1,
+    "scope": "Current diagnostic observations only; original9aae failed predicate remains unknown; no provider attestation.",
+    "shared_helpers": {
+      "resource_sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2",
+      "unchanged_deployment_sha256": "ef872aced881b89d7bde8efbc0687134ae731916a9c2a233c368c1c22b11e085"
+    },
+    "status": "observation_only",
+    "wall_seconds_before_output": 0.0020483569999925066
+  },
+  "prepared_source": "13491af1af0990927597ace596e605a4dc10d880",
+  "prepush_receipt_sha256": "35696e206de43a3c9723d6fb4ea155e66971d71077fcd85d0268c38a3f118317",
+  "run_attempt": 1,
+  "run_id": 40817163080,
+  "same_source_rerun_launched": false,
+  "schema_version": 1,
+  "script_sha256": "ed9bd595088bc72638ac3285c33a4296cef53365107066f2b8fae4144c65c0f8",
+  "status": "DIAGNOSTIC_EXECUTION_AND_ARTIFACT_VERIFIED",
+  "typed_member_bytes": 1915,
+  "typed_member_equals_official_log": true,
+  "typed_member_sha256": "e9f241c95a474a420e3233ba5682c8973858dfd185fe99921157c4563d9bd9c6",
+  "workflow_sha256": "a8370b4626875e37748b309c31acc19a4c011e8851e25612c04691e4e340073f"
+}
