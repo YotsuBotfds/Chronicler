@@ -9,6 +9,12 @@ change is added. Sixty-four guarded surrogate-kernel cases pass; two genuine
 ordinary-World cases are authored for remote full CI and unrun locally. No
 native build, study activation or causal/performance result is claimed.
 
+The separate `lead/agent-scale-benchmark-inputs-20261029` follow-up fixes empty
+workloads reporting success, nonfinite work/timeout inputs and overwritten
+repeat profiles. The affected guarded chunk passes 52 cases with no native,
+factory or blocked-I/O activity. [Scope and compatibility](performance/agent-scale-benchmark-inputs-2026-10-29.md)
+are explicit; no benchmark world or simulation speed claim is included.
+
 The separate [closed-handle follow-up](integration/decision-delivery-closed-handle-lifetime-2026-10-29.md)
 releases an observer's simulator reference after successful cleanup, while
 retaining failed-disable retry ownership. Two regressions fail on qualified

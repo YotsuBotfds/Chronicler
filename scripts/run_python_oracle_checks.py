@@ -221,6 +221,7 @@ CHUNKS = {
         "tests/test_parent_extra_archive.py::test_no_raw_delete_or_unbounded_command_is_exposed",
     ],
     "turn-speed": [
+        "tests/test_agent_scale_benchmark.py",
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
     ],
