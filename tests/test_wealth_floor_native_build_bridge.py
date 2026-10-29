@@ -1,5 +1,6 @@
 """Pure paired-native provenance and bounded-read contracts; no native import."""
 from copy import deepcopy
+import errno
 import hashlib
 import importlib.util
 import io
@@ -86,6 +87,31 @@ def test_changed_old_native_keeps_fresh_pair_but_refuses_historical_reuse(B):
     assert result["historical_reuse_eligible"] is False
     assert result["classification"] == "fresh_baseline_required"
     assert result["candidate_worlds_admitted"] is False
+
+
+@pytest.mark.parametrize("denied", [False, True])
+def test_deployment_observations_survive_pair_classification_and_raw_light_publication(B, C, tmp_path, monkeypatch, denied):
+    import wealth_floor_hosted_deployment as D
+    def namespace(path):
+        if denied and path == "/proc/1/ns/cgroup":
+            raise PermissionError(errno.EACCES, "private text must not enter receipt")
+        return "cgroup:[12]"
+    deployment = D.hosted_vm_precondition(environ={"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"},
+        read_text=lambda _path: "systemd\n", read_link=namespace)
+    report = dict(phases={role: phase(B, role) for role in ("baseline", "candidate")},
+        producer=dict(control_sha="fixture", run_id="fixture"), deployment=deployment,
+        legacy_supervisor_source=C.LEGACY_SOURCE, legacy_supervisor_sha256=C.LEGACY_SHA)
+    result = C.classify_build_report(report, closed_clock())
+    assert result["deployment"] == deployment
+    assert result["candidate_worlds_admitted"] is False
+    monkeypatch.setattr(C, "direct_children", lambda: [])
+    completion = C.publish_complete(tmp_path, result, lambda: None, closed_clock)
+    raw = json.loads((tmp_path / "build-manifest.json").read_text())
+    light = json.loads((tmp_path / "light/build-manifest.json").read_text())
+    assert raw["deployment"] == light["deployment"] == deployment
+    assert raw["deployment"]["namespace_equal"] is (None if denied else True)
+    assert raw["deployment"]["namespace_equality_verified"] is (not denied)
+    assert completion["files"]["build-manifest.json"]["sha256"] == C.sha(tmp_path / "light/build-manifest.json")
 
 
 @pytest.mark.parametrize("fault", ["unknown_flags", "missing_flags", "extra_flags", "wrapper", "wrong_compiler", "wrong_python",

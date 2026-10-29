@@ -33,7 +33,7 @@ SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import wealth_floor_native_build_bridge as B
 from wealth_floor_build_resources import memory_admission
-from wealth_floor_hosted_deployment import hosted_vm_precondition
+from wealth_floor_hosted_deployment import DeploymentRefused, hosted_vm_precondition
 
 LEGACY_SOURCE = "27f0f3d11a1a171e1539353eb2c3a0fb896f0939"
 LEGACY_FILE = "scripts/default_output_identity_qualification.py"
@@ -567,6 +567,14 @@ def publish_complete(root, report, check, clocks):
         raise
 
 
+def classify_build_report(report, final_budget):
+    """Retain accepted deployment observations across the pure pair verdict."""
+    result = B.classify_pair(report["phases"]["baseline"], report["phases"]["candidate"], final_budget)
+    for name in ("phases", "producer", "deployment", "legacy_supervisor_source", "legacy_supervisor_sha256"):
+        result[name] = report[name]
+    return result
+
+
 def build(args):
     start = time.monotonic(); deadline = start + B.Policy().wall_seconds
     B.require(sys.platform == "linux" and platform.python_version() == B.PYTHON_VERSION, "registered Linux/Python runtime required")
@@ -695,16 +703,14 @@ def build(args):
                 cpu_scope="Measured controller self and waited-child usage; no exact aggregate live-tree CPU or CPU admission claim",
                 wall_seconds=time.monotonic() - start, wall_limit_seconds=B.Policy().wall_seconds)
         supervisor.check(final=True)
-        result = B.classify_pair(report["phases"]["baseline"], report["phases"]["candidate"], clocks())
-        result["phases"] = report["phases"]; result["producer"] = report["producer"]
-        result["deployment"] = report["deployment"]
-        result["legacy_supervisor_source"] = LEGACY_SOURCE; result["legacy_supervisor_sha256"] = LEGACY_SHA
-        report = result
+        report = classify_build_report(report, clocks())
         publish_complete(root, report, lambda: supervisor.check(final=True), clocks)
     except BaseException as exc:
         failed = exc
         report["status"] = "incomplete"; report["historical_reuse_eligible"] = False
         report["error"] = type(exc).__name__
+        if isinstance(exc, DeploymentRefused):
+            report["deployment_failure_code"] = exc.code
         try: invalidate_publication(root, report)
         except BaseException: pass
     finally:

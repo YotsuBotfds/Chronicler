@@ -12,6 +12,16 @@ No build, active workflow, candidate world or main change is implied. The
 generic cgroup resource and direct-hosted-VM helpers are shared byte-for-byte
 with the separate retained-baseline audit lane.
 
+The separate deployment diagnostic `40817163080` later observed stable hosted
+flags, PID1 `systemd` and self namespace, but errno 13 on both PID1 namespace
+reads. The D2 prepared follow-up from preserved `5a6fed78` accepts that exact
+observation with namespace equality explicitly unknown. Other errors or changed
+evidence still refuse. All accepted observations survive into raw/light build
+receipts, and refusals carry fixed codes. Its 163 guarded fixture checks pass;
+the exact resource helper, floors, native sources and process controls are
+unchanged. Actual D2 build activation remains pending source review; no candidate
+world or main change is included.
+
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
 NO_REGRESSION comparisons and final publication qualification. The separate

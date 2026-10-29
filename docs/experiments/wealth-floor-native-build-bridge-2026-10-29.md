@@ -139,18 +139,49 @@ Missing/contradictory controller evidence, hidden bind roots, ambiguity or a
 changed hierarchy refuses admission. Namespace-invisible ancestors remain
 explicitly unobservable, and counter observations are not reservations.
 
-The shared `wealth_floor_hosted_deployment.py` precondition additionally requires
-the sealed direct hosted-runner context, PID1 `systemd` and matching self/PID1
-cgroup namespace identities. It refuses unsupported topology before any build
-or large archive transfer. This is recorded VM-context evidence, not proof
-against namespace-invisible provider ancestors. The generic memory helper stays
-unchanged and reusable by the separate baseline-audit controller.
+The shared `wealth_floor_hosted_deployment.py` D2 precondition requires the
+sealed direct hosted-runner flags, stable PID1 `systemd` and a valid, stable
+self cgroup namespace identity. When PID1's namespace is readable, its canonical
+identity must match self and remain unchanged on reread. D2 also accepts the
+specifically observed case where both PID1 namespace reads fail with `EACCES`
+(errno 13). That case records `pid1_cgroup_namespace: null`,
+`namespace_equal: null`, `namespace_equality_verified: false` and
+`namespace_equality_status: unverified_permission_denied`. Both errno observations
+and all accepted identities are retained. Other errors, missing/invalid evidence,
+changed observations and readable mismatches still refuse. There is no privileged
+read or access workaround.
 
-The shared precondition refused the separate baseline-audit activation
+The first shared precondition (`ef872ace`, preserved in source `5a6fed78`)
+refused the separate baseline-audit activation
 `40815630794` before resources, source snapshots, client creation or archive
 transfer. The retained record does not identify which deployment predicate
-failed. Actual runner compatibility therefore remains unqualified; this build
-lane stays inactive pending that diagnosis. No predicate is weakened here.
+failed; the later diagnosis does not retroactively assign its cause.
+
+The separate read-only diagnostic at source
+`cc2fea8042bf8dd4a61cdbe0235aa3831cba6382`, run `40817163080`, job
+`123260833950`, recorded the registered hosted flags, stable PID1 `systemd`,
+a valid/stable self namespace and `EACCES13` on both PID1 namespace reads.
+Namespace equality was unknown. Its independent verification receipt is
+`9f853a881dd61a9a7a24f072a33a7d360129a488e27be26c809bfd7946838fc0`.
+This concrete observation corrects the earlier assumption that this direct
+hosted job can always read PID1's namespace without privilege.
+
+D2 grants deployment-context eligibility only. Its evidence scope explicitly
+excludes proof against namespace-invisible provider ancestors, memory admission
+and world execution. The generic resource helper remains exact `44f1e1d`, with
+unchanged 12 GiB/2 GiB admission and 3 GiB/1 GiB running/final floors. The D2
+helper/test pair is shared byte-for-byte with the separate audit lane:
+
+| File | SHA-256 |
+| --- | --- |
+| `scripts/wealth_floor_hosted_deployment.py` | `d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8` |
+| `tests/test_wealth_floor_hosted_deployment.py` | `9ef3311485f045906160e855096a115986a6d9ac7ad342ed7e1ffd38ae7fa340` |
+
+Deployment refusals now carry a fixed registered code, without arbitrary
+exception text. Accepted deployment observations survive pair classification
+into the final raw and light manifests. This source correction remains dormant;
+it does not constitute an actual build, successful D2 runner admission or a
+candidate-world grant.
 
 ## Publication and qualification boundary
 
@@ -185,3 +216,12 @@ outer-process lane; its original eight missing-PROC_CHILDREN prelaunch failures
 are retained. Final deployment-precondition/workflow changes have pure fixture
 coverage and leave the qualified ownership path unchanged. Exact final source
 hashes, counts and receipts are recorded when that qualification closes.
+
+The subsequent D2 source selection passed 163 guarded pure cases in 0.41 seconds:
+80 bridge contracts, 40 unchanged resource fixtures and 43 deployment fixtures.
+It includes raw/light publication roundtrips for both readable-matching and
+repeated-EACCES observations. The offline guard recorded zero native imports,
+runtime-factory calls and blocked I/O attempts. No actual host precondition,
+native build or ordinary simulation world ran in that selection. The qualified
+process, cleanup and publication implementation is unchanged; the two new
+publication tests use bounded fixture files and stub only live-child observation.
