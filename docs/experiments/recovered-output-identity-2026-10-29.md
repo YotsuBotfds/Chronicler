@@ -151,3 +151,23 @@ The retained unittest log SHA-256 is
 Helper, contract-suite and YAML byte hashes are pinned in that receipt. Subsequent
 result documentation does not change those tested source files. No active
 workflow or raw output comparison is claimed by this local check.
+
+
+## Activation standing
+
+Root and independent source review cleared `8bf8cbee` after all 25 pure
+contracts and actionlint passed. The shared helper's closed registry preserves
+the old arc source pair and selects the recovered pair explicitly; matrix,
+resource, cleanup, native and source checks and the sole generated_at rule are
+unchanged. No third copied qualification implementation was introduced.
+
+The active copy of this registered workflow runs only on
+`lead/cloud-recovered-identity-20261029`, with baseline `2f9d618b` and candidate
+`c76efe85`. Candidate prerequisites are complete: all six CI lanes in
+run 40793639813 and the separately qualified 62-tick native composition proof.
+Neither substitutes for this default-off exported-output study. The Action
+repeats pure contracts, builds one fresh shared native wheel and runs exactly
+the fixed eighteen worlds /3,200 physics ticks. Its actual control identity and
+result are retained by the run. Main, archived studies and held Rust corrections
+are unchanged. No natural efficacy, checkpoint-byte parity or speedup follows
+from a matching export result.
