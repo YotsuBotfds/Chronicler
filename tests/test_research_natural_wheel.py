@@ -1,6 +1,7 @@
 """Pure byte/HTTP contracts: no network, install, native import or study world."""
 from copy import deepcopy
 import importlib.util
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -172,15 +173,97 @@ def test_retained_receipt_rehashes_exact_payload_set(helper, tmp_path, monkeypat
         helper.verify_receipt(tmp_path / "verification.json", "synthetic")
 
 
-def test_workflow_has_no_push_activation_and_uses_exact_source_and_verified_wheel():
-    import yaml
-    workflow = yaml.safe_load((ROOT / ".github/workflows/research-natural-continuation.yml").read_text())
-    assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
+ACTIVATION_BRANCH = "lead/cloud-natural-research-20261029"
+WORKFLOW_PATH = ".github/workflows/research-natural-continuation.yml"
+PREPARATION_SHA = "7dad47540f24c842633cc2762fa6fd7a9c493556"
+# The complete reviewed workflow, excluding only its names, trigger and job
+# guard. Exact command bodies, CPU settings, budgets, sources, policies and
+# artifact retention are sealed; activation cannot introduce other changes.
+REVIEWED_WORKFLOW_INVARIANTS = "5457d30bd36b88adc2766ebedc85a360f72bb8efa17fda7387de3a20aa3b25cf"
+
+
+def assert_registered_workflow(workflow, activation_registration):
+    trigger_keys = [key for key in workflow if key == "on" or key is True]
+    assert len(trigger_keys) == 1, "one closed workflow trigger required"
+    trigger = workflow[trigger_keys[0]]
     job = workflow["jobs"]["registered-continuation"]
-    assert job["if"] == "${{ github.event_name == 'workflow_dispatch' && false }}"
-    source = next(s for s in job["steps"] if s["name"] == "Check out the exact qualified producer separately")
-    assert source["with"]["ref"] == "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
-    assert workflow["env"]["PYTHON_CPU_COUNT"] == "1"
-    text = "\n".join(s.get("run", "") for s in job["steps"])
-    assert "maturin" not in text and "cargo " not in text
-    assert "--wheel-receipt" in text and "--no-deps" in text
+    if trigger == {"workflow_dispatch": None}:
+        assert workflow["name"] == "Inactive natural research continuation", "prepared workflow name differs"
+        assert job["name"] == "Inactive fixed eight-seed research contrast", "prepared job name differs"
+        assert job["if"] == "${{ github.event_name == 'workflow_dispatch' && false }}", "prepared guard must remain false"
+    else:
+        assert trigger == {"push": {"branches": [ACTIVATION_BRANCH], "paths": [WORKFLOW_PATH]}}, "activation trigger differs"
+        assert workflow["name"] == "Registered natural research continuation", "activation workflow name differs"
+        assert job["name"] == "Fixed eight-seed research contrast", "activation job name differs"
+        assert job["if"] == "${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-research-20261029' }}", "activation guard differs"
+        required = ("# Single prospective natural research continuation attempt", ACTIVATION_BRANCH, PREPARATION_SHA,
+            "f60eb23d9d8ef9b6e8afda9eb87f974690686e2a5835c794a6ac3975cfb09a57",
+            "f9a6a1e6bdf963426c63a46ba2c74e7fe310098b58875067d921c4bcd14cc89b")
+        assert all(value in activation_registration for value in required), "activation registration missing or differs"
+    invariant = deepcopy(workflow)
+    for key in ("name", "on", True):
+        invariant.pop(key, None)
+    for key in ("name", "if"):
+        invariant["jobs"]["registered-continuation"].pop(key)
+    digest = hashlib.sha256(json.dumps(invariant, sort_keys=True, allow_nan=False, separators=(",", ":")).encode()).hexdigest()
+    assert digest == REVIEWED_WORKFLOW_INVARIANTS, "reviewed scientific/runtime workflow commands or budgets differ"
+
+
+def workflow_and_registration():
+    import yaml
+    workflow = yaml.safe_load((ROOT / WORKFLOW_PATH).read_text())
+    path = ROOT / "docs/experiments/scientific-research-natural-activation-2026-10-29.md"
+    return workflow, path.read_text() if path.exists() else ""
+
+
+def test_current_workflow_is_one_of_the_two_closed_registered_states():
+    workflow, registration = workflow_and_registration()
+    assert_registered_workflow(workflow, registration)
+
+
+def configured_workflow(state):
+    workflow, registration = workflow_and_registration()
+    for key in ("on", True):
+        workflow.pop(key, None)
+    job = workflow["jobs"]["registered-continuation"]
+    if state == "prepared":
+        workflow.update(name="Inactive natural research continuation", on={"workflow_dispatch": None})
+        job.update(name="Inactive fixed eight-seed research contrast",
+                   **{"if": "${{ github.event_name == 'workflow_dispatch' && false }}"})
+    else:
+        workflow.update(name="Registered natural research continuation",
+                        on={"push": {"branches": [ACTIVATION_BRANCH], "paths": [WORKFLOW_PATH]}})
+        job.update(name="Fixed eight-seed research contrast",
+                   **{"if": "${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-research-20261029' }}"})
+    return workflow, registration
+
+
+@pytest.mark.parametrize("state", ["prepared", "activated"])
+def test_both_closed_workflow_states_preserve_all_reviewed_commands(state):
+    workflow, registration = configured_workflow(state)
+    assert_registered_workflow(workflow, registration)
+
+
+@pytest.mark.parametrize("fault", ["branch", "path", "dispatch", "false_guard", "arbitrary_guard", "policy", "seed", "budget", "cpu", "source", "unverified_install", "registration"])
+def test_active_workflow_refuses_any_unregistered_activation_or_scientific_change(fault):
+    workflow, registration = configured_workflow("activated")
+    trigger = workflow.get("on", workflow.get(True))["push"]
+    job = workflow["jobs"]["registered-continuation"]
+    if fault == "branch": trigger["branches"].append("main")
+    elif fault == "path": trigger["paths"] = ["**"]
+    elif fault == "dispatch": workflow.get("on", workflow.get(True))["workflow_dispatch"] = None
+    elif fault == "false_guard": job["if"] = "${{ false }}"
+    elif fault == "arbitrary_guard": job["if"] = "${{ github.event_name == 'push' }}"
+    elif fault == "budget": job["timeout-minutes"] = 61
+    elif fault == "cpu": workflow["env"]["PYTHON_CPU_COUNT"] = "2"
+    elif fault == "source":
+        next(step for step in job["steps"] if step["name"] == "Check out the exact qualified producer separately")["with"]["ref"] = "main"
+    elif fault == "registration": registration = ""
+    else:
+        name = "Install only the verified wheel without dependency changes" if fault == "unverified_install" else "Run the unchanged fixed cohort under its original resource admission"
+        step = next(step for step in job["steps"] if step["name"] == name)
+        if fault == "policy": step["run"] = step["run"].replace("cloud-fullgate-06db", "local-fb20")
+        elif fault == "seed": step["run"] += " --seed 2008\n"
+        else: step["run"] = step["run"].replace("--no-deps", "")
+    with pytest.raises(AssertionError):
+        assert_registered_workflow(workflow, registration)

@@ -6,10 +6,10 @@ completed C76 saved-output audit. The preparation branch remains at
 `7dad47540f24c842633cc2762fa6fd7a9c493556`; the original local harness remains at
 `7b3ae977ca69ed8ddad7be99830d239b1cbd0d7f` with its unchanged metadata freeze.
 
-This activation changes only the workflow's trigger/branch guard/names and
+The original activation at `7b5f89b2` changed only the workflow's trigger/branch guard/names and
 activation documentation. All scientific scripts, runtime policies, verifier,
 tests, producer, samples, horizons, thresholds, controls and resource limits
-remain byte-identical to reviewed preparation `7dad4754`. The workflow accepts
+were byte-identical to reviewed preparation `7dad4754`. The workflow accepts
 pushes only on this exact branch and only when its workflow file changes;
 there is no manual-dispatch trigger. No automatic retry, same-source rerun,
 seed replacement or budget increase is authorized after failure or censoring.
@@ -59,3 +59,43 @@ The original fb20 composition proof and cloud 06db default-output evidence keep
 their separate boundaries. This newly authorized attempt can still fail its
 actual continuation, resource or publication checks. No result, efficacy,
 default promotion or main merge is claimed by activation.
+
+## Pre-native preflight failure and corrected-source proposal
+
+The single activation at `7b5f89b2c72d4e8a34a8b6589a8278106773bdef`
+produced run **40803627381**, job **123217284911**. Dependency setup completed;
+pre-native contracts returned **104 passed, 1 failed in 2.65 seconds**. The
+failed assertion still required the preparation workflow's manual-dispatch
+trigger and false gate, so it rejected the explicitly reviewed push activation.
+Official wheel download/install, prospective freeze, resource admission, study
+workers and readout were skipped. **Zero study worlds/ticks, native installs
+or builds occurred.** This is an execution-preflight failure, not a scientific
+null or completed cohort.
+
+Original negative JUnit evidence was published as artifact **12866639402**,
+`natural-research-40803627381-1`, 2,993 bytes, SHA-256
+`be9c6fabd47c3ed8c0c07334991cc7829963b31a6162b2aa05a25a5f43c300ec`.
+The exact original ZIP, JUnit, job log and metadata are retained externally at
+`/workspace/chronicler-natural-remote-evidence/activation-7b5f89b2-001`.
+
+The proposed source repair changes only that workflow test and this record.
+It recognizes exactly the known prepared-inactive and registered-active states,
+with strict branch/path/guard/registration checks. A frozen digest seals every
+other reviewed workflow command, source, runtime policy, budget, environment
+and artifact-retention setting. Negative cases reject wrong branches/paths,
+manual dispatch mixed into activation, false or broad guards, changed policy,
+seed, CPU, source, budget or unverified installation. The workflow file and all
+scientific code/protocols remain unchanged. A tests/docs-only push cannot match
+the workflow-path trigger, so it launches no new attempt.
+
+Any corrected-source remote attempt requires a new concrete root review and
+explicit authorization. It must retain this failure, the original fixed seeds,
+samples, windows and budgets. No same-source rerun or retry of an actual study
+failure is authorized by this repair.
+
+Corrected source verification passed **119 guarded pure tests in 1.36 seconds**,
+with zero native import, runtime-factory or blocked-I/O attempts; actionlint
+1.7.12 and diff checks passed. Independent source review confirmed that both
+reviewed workflow states produce the same invariant digest. These are local
+source checks under no-native Python 3.13.5, CPU2, hash seed zero and thread caps
+one. They do not constitute another remote execution or cloud-runtime result.
