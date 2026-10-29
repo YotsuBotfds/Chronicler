@@ -28,6 +28,7 @@ MAX_WHEEL_MEMBERS = 32
 MAX_WHEEL_EXPANDED = 32 * 1024**2
 DOWNLOAD_SECONDS = 120
 API = "https://api.github.com/repos/"
+USER_AGENT = "Chronicler-fixed-research-wheel-verifier"
 
 
 class FetchFailure(C.ContractError):
@@ -179,9 +180,11 @@ class OfficialRedirect(urllib.request.HTTPRedirectHandler):
                   and target.port in (None, 443) and target.username is target.password is None and not target.fragment)
         if not allowed:
             raise FetchFailure("redirect_validation", code, "unregistered")
-        safe = {k: v for k, v in request.header_items() if k.lower() not in ("authorization", "proxy-authorization", "cookie")}
         note(self.trace, "azure_redirect", None, "azure_blob")
-        return urllib.request.Request(newurl, headers=safe, method="GET")
+        # header_items() includes urllib's automatic unredirected Host. No
+        # origin headers belong on this cross-origin request; urllib must
+        # derive the destination Host itself during real header preparation.
+        return urllib.request.Request(newurl, headers={"User-Agent": USER_AGENT}, method="GET")
 
 
 def fetch_bytes(opener, url, token, maximum, deadline, *, trace=None, stage="metadata_get"):
@@ -189,7 +192,7 @@ def fetch_bytes(opener, url, token, maximum, deadline, *, trace=None, stage="met
     C.require(time.monotonic() <= deadline, "registered wheel download wall budget crossed")
     request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token,
         "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "Chronicler-fixed-research-wheel-verifier"})
+        "User-Agent": USER_AGENT})
     try:
         with opener.open(request, timeout=15) as response:
             if trace is not None:

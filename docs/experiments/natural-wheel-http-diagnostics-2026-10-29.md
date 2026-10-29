@@ -1,6 +1,6 @@
 # Fixed-artifact HTTP diagnostics: source preparation
 
-Status: **one read-only diagnostic authorized; no result yet**. Preparation is isolated on
+Status: **first diagnostic retained; one corrected-transport diagnostic authorized**. Preparation is isolated on
 `lead/cloud-natural-wheel-diagnostics-20261029`, based on study control
 `c699d9600ae16f955d523af1a3c303604b331743`. The study branch, both failed
 preflight runs, original local harness and metadata freeze remain unchanged.
@@ -100,3 +100,47 @@ token, scope, credential or retry change is authorized. The diagnostic cannot
 invoke installation, freeze, study execution or native builds. The study branch
 stays at `c699d960`, with both earlier failures retained. There is no automatic
 diagnostic or study rerun, and this activation claims no network outcome yet.
+
+## First diagnostic result and corrected transport
+
+The first read-only diagnostic was control
+`ba9bebff71ccc8070fb6b21998f1de0e12ad5754`, run 40806131240/job 123225405588.
+All 153 guarded contracts passed remotely in 3.76 seconds. Its exact observations
+were metadata GET 200 from GitHub, ZIP GET 302 from GitHub, then Azure redirect
+GET 400. Metadata identity passed; the archive remained unverified. The helper
+stopped, retained sanitized evidence and made no alternate request or retry.
+No installation, freeze, native build or study execution occurred.
+
+Original artifact 12868541609 was 4,457 bytes, SHA-256
+`8864d08b86fc91a803236f3666ad7bd2479c2b285f503bade57ce578aaf45267`.
+The verified result receipt is
+`219dc0f5093062eba145919026b8e179a266a151685ca2a3db0683b9d036da4c`,
+retained with original ZIP/JUnit/guard/JSON/log at
+`/workspace/chronicler-natural-remote-evidence/wheel-diagnostic-ba9bebff-001`.
+No 403 or error body was observed/retained by this diagnostic. Earlier study
+control c699's unlogged HTTP status remains unknown.
+
+Root then reproduced a concrete transport defect without opening a connection:
+urllib's real header preparation adds an unredirected origin Host, and the
+helper's `header_items()` copy forwarded that Host to the destination. The
+second real header-preparation pass preserved the wrong Host. Authorization
+was absent, but origin Accept/API-version/custom headers also crossed origins.
+This proves the header defect; it does not retrospectively establish the full
+cause of the observed 400 response.
+
+The corrected redirect creates a fresh request carrying only the fixed known
+User-Agent. It inherits no original header; urllib derives the destination Host
+itself. The endpoint, provider whitelist, authentication scope, artifact pins,
+redaction, body handling, timeout and denial-stop rules are unchanged. The
+regression uses the real `HTTPHandler.do_request_` before and after redirect,
+failed on the old implementation and passes after correction, with zero network
+calls. Before/after proof and the original failing test log are retained at
+`/workspace/chronicler-natural-remote-evidence/redirect-host-reproduction-001`.
+
+Root authorized exactly one corrected-source **read-only transport diagnostic**.
+Only helper/header regression, workflow comment marker and this record change.
+The actual study branch remains c699; no study, installation, build or freeze
+is authorized. The complete guarded selection, actionlint, diff checks and
+independent source review must pass before one push. The corrected request must
+either verify the exact registered archive or retain its safe failure and stop.
+No automatic retry, broader route or new credential is permitted.

@@ -131,6 +131,27 @@ def test_redirect_never_forwards_authorization_cookie_or_proxy_credentials(helpe
     assert SECRET not in json.dumps(trace)
 
 
+def test_cross_origin_redirect_rebuilds_headers_and_derives_destination_host(helper):
+    from types import SimpleNamespace
+    # Exercise urllib's real header preparation, which adds Host as an
+    # unredirected header. Calling redirect_request on an unprepared Request
+    # would miss the production failure even if authorization was stripped.
+    handler = urllib.request.HTTPHandler()
+    handler.parent = SimpleNamespace(addheaders=[])
+    request = urllib.request.Request(helper.endpoint() + "/zip", headers={
+        "Authorization": "Bearer " + SECRET, "Proxy-Authorization": SECRET, "Cookie": SECRET,
+        "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "X-Origin-Only": SECRET})
+    handler.do_request_(request)
+    assert request.get_header("Host") == "api.github.com"
+    redirected = helper.OfficialRedirect().redirect_request(request, None, 302, SECRET, {},
+        "https://unit.blob.core.windows.net/fixed")
+    assert {key.lower() for key, _ in redirected.header_items()} <= {"user-agent"}
+    handler.do_request_(redirected)
+    assert redirected.get_header("Host") == "unit.blob.core.windows.net"
+    assert {key.lower() for key, _ in redirected.header_items()} <= {"host", "user-agent"}
+    assert SECRET not in str(redirected.header_items())
+
+
 def test_actual_redirect_handler_closes_without_draining_body(helper):
     from types import SimpleNamespace
     trace, followed = [], []

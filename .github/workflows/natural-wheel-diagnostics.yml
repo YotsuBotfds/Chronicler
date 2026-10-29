@@ -1,6 +1,7 @@
 name: Registered wheel HTTP diagnostics
 
 # One read-only diagnostic after concrete review of 438b8457dda827572a0d647f89f5d27b7e9bc822.
+# Corrected transport: rebuild Azure headers after the pure-reproduced Host propagation bug.
 on:
   push:
     branches:
