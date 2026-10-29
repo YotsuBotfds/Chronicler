@@ -838,13 +838,13 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
 
     // -----------------------------------------------------------------------
     // M48: Battle + Victory + Conquest + Secession intents
-    // H-30: Single partition reused for all pre-demographics memory intents.
+    // Share the post-migration partition with demographics: memory-intent
+    // collection below only reads the pool, including region and liveness.
     // -----------------------------------------------------------------------
+    let post_migration_partition = pool.partition_by_region(num_regions as u16);
     {
-        let region_groups_intents = pool.partition_by_region(num_regions as u16);
-
         // Battle + Victory intents (soldiers in contested regions)
-        for (region_id, slots) in region_groups_intents.iter().enumerate() {
+        for (region_id, slots) in post_migration_partition.iter().enumerate() {
             let is_contested = region_id < signals.contested_regions.len()
                 && signals.contested_regions[region_id];
             if !is_contested {
@@ -892,7 +892,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         }
 
         // Conquest + Secession intents (region-wide signals)
-        for (region_id, slots) in region_groups_intents.iter().enumerate() {
+        for (region_id, slots) in post_migration_partition.iter().enumerate() {
             if region_id >= regions.len() {
                 continue;
             }
@@ -934,16 +934,13 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // -----------------------------------------------------------------------
     // 5. Demographics — per-region parallel
     // -----------------------------------------------------------------------
-    // Re-partition after migrations may have moved agents.
-    let region_groups = pool.partition_by_region(num_regions as u16);
-
     // H-29: Build O(1) civ lookup for demographics phase
     let demo_civ_idx = signals.build_index();
     let demo_results: Vec<(DemographicsPending, RegionDemoDebug)> = {
         let pool_ref = &*pool;
         let civ_idx_ref = &demo_civ_idx;
         let wealth_ref: &[f32] = &*wealth_percentiles;
-        region_groups
+        post_migration_partition
             .par_iter()
             .enumerate()
             .map(|(region_id, slots)| {
@@ -2417,6 +2414,77 @@ mod tests {
         assert!(!moved.is_empty(), "nobody left the crowded region");
         assert!(moved.iter().all(|&r| r >= 32), "migrants reached {moved:?}");
         assert_eq!(a, run(), "tick must stay deterministic");
+    }
+
+    /// Memory intents and demographics must both see the post-migration
+    /// census, including migrants that die later in the same tick. Reconstruct
+    /// that census from emitted migration events rather than another partition.
+    #[test]
+    fn test_memory_and_demographics_use_post_migration_census() {
+        let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+        regions[0].adjacency = vec![1];
+        regions[0].carrying_capacity = 5;
+        regions[0].soil = 0.05;
+        regions[0].water = 0.1;
+        regions[0].population = 300;
+        regions[1].adjacency = vec![0];
+        regions[1].carrying_capacity = 1000;
+        regions[1].controller_civ = 0;
+        regions[1].controller_changed_this_turn = true;
+        let signals = make_default_signals(1, 2);
+        let mut pool = AgentPool::new(0);
+        for _ in 0..300 {
+            // No births or slot reuse can obscure the pre-demographic census.
+            pool.spawn(0, 0, Occupation::Farmer, 90, 0.0, 0.0, 0.0,
+                0, 1, 2, crate::agent::BELIEF_NONE);
+        }
+        pool.kill(7); // A dead slot must not enter either consumer's census.
+        let seed = [91u8; 32];
+        let mut percentiles = vec![0.0; pool.capacity()];
+        let mut migrations = 0;
+        for turn in 0..12 {
+            let alive: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+            let ages = pool.ages.clone();
+            let mut locations = pool.regions.clone();
+            let (events, _, _, debug, _, _, _) = tick_agents(
+                &mut pool, &regions, &signals, seed, turn, &mut percentiles,
+                &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(), &[], None,
+            );
+            assert!(!events.iter().any(|event| event.event_type == 5));
+            for event in events.iter().filter(|event| event.event_type == 2) {
+                let slot = pool.ids.iter().position(|&id| id == event.agent_id).unwrap();
+                assert_eq!(locations[slot], event.region);
+                locations[slot] = event.target_region;
+                migrations += 1;
+            }
+
+            let mut expected_deaths = 0.0f32;
+            for (region_id, region) in regions.iter().enumerate() {
+                let slots: Vec<usize> = alive.iter().copied()
+                    .filter(|&slot| locations[slot] as usize == region_id).collect();
+                let pressure = demographics::population_pressure_for(region, slots.len());
+                let stress = demographics::ecological_stress_with_pressure(region, pressure);
+                let mut regional_deaths = 0.0f32;
+                for slot in slots {
+                    regional_deaths += demographics::mortality_rate(
+                        ages[slot], stress, false, region.endemic_severity,
+                    );
+                }
+                expected_deaths += regional_deaths;
+            }
+            assert_eq!(debug.expected_deaths.to_bits(), expected_deaths.to_bits());
+            for &slot in &alive {
+                if pool.is_alive(slot) {
+                    assert_eq!(pool.regions[slot], locations[slot]);
+                    let conquest_this_turn = (0..pool.memory_count[slot] as usize).any(|i| {
+                        pool.memory_event_types[slot][i] == crate::memory::MemoryEventType::Conquest as u8
+                            && pool.memory_turns[slot][i] == turn as u16
+                    });
+                    assert_eq!(conquest_this_turn, locations[slot] == 1);
+                }
+            }
+        }
+        assert!(migrations > 0, "the regression must exercise migration");
     }
 
     #[test]
