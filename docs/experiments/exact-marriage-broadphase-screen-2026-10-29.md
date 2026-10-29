@@ -172,3 +172,71 @@ is left in the workflow. Build admission stays 12 GiB disk/2 GiB visible RAM;
 test admission stays 3 GiB disk/1 GiB visible RAM. No execution, local compile,
 project/native import, World, network, push or activation occurred for this
 source correction. Independent peer and root review still precede activation.
+
+
+## Source-only hosted ownership successor
+
+The preserved `c70fe638290280861735bf13cc01dd2dc7380ef0` admission correction
+remains a separate ref. This successor changes only control source, its tiny
+contracts and documentation. The complete Rust crate, production prefix,
+appended test module, 15 cases, five pairs, arm order, criteria, crossover and
+all Rust clocks/caps remain byte-identical. No Rust test or screen has run.
+
+The dormant workflow is now sealed to one push branch, exact workflow path,
+job and attempt 1, repeated against actual GitHub context in the owner. It uses
+a direct `ubuntu-24.04` hosted VM and exact D2 deployment precondition (SHA-256
+`d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8`).
+The original 45-minute job cap and fixed GNU timeout/taskset/time commands stay:
+2100-second build, 60-second differential contracts, 15-second original-radius
+contract and 70-second ignored screen. Existing build 12 GiB disk/2 GiB RAM and
+test/final 3 GiB disk/1 GiB RAM floors still use exact R44. The owner has a
+2,500-second wall ceiling with the original C60 25-second child cleanup reserve;
+it makes no aggregate live-tree CPU budget or speed claim.
+
+Small dedicated helpers retain only the selected ownership algorithms from
+C60 controller source `3b941645a42c8c159a2f8ce9e383d484066b6355` (SHA-256
+`60bb77212757f632d8d80ed226f94e6ef9864134c4453b5affeb51dc059b9dd1`)
+and authenticated original27f session helper (SHA-256
+`e4ca3f0c3732e4b5536a88a6284ab44b173e2165fafb59586be02fbd1d015932`,
+retained exact blob `05917006880c46a8f8b7ee4345293de61abb3a17`). Selected
+functions/methods remain verbatim with an explicit AST/constant dependency
+closure receipt. The base supplies only init and birth/boot/session/pidfd
+signalling; the C60 override supplies bounded intake, cancellation, subreaping,
+owned-session cleanup and kernel-ECHILD confirmation. The adapter always fixes
+`trace=False`; the omitted optional strace accumulator explicitly refuses.
+There is no historical Git fetch or whole-study controller dependency.
+
+A negative receipt exists before checkout/setup. The owner records reached
+phases and actual exit/cleanup observations and always attempts terminal closure.
+Positive or complete-negative status requires joined/reaped owned descendants,
+final actual Git/source/production-prefix/append/template/helper/executable/
+runtime/linkage identities, thread/affinity/cap observations and final R44 floors.
+An early refusal retains actual available observations and explicit unavailable
+fields, always incomplete. No field is synthesized from an earlier observation.
+The terminal and independent always-closure are authoritative: intermediate
+`screen-result.json` is provisional and cannot qualify a later closure failure.
+The always step also checks the actual owner-step outcome, so a stale positive
+receipt after an owner failure cannot become a positive publication.
+
+The compiler and test streams use the qualified 8 MiB per-command intake and
+256 KiB line bound; progress is capped at 8 MiB. The published light pack is
+prospectively limited to 48 owner files/8 MiB plus one <=64 KiB always-closure.
+It includes metadata and <=256 KiB head/tail log excerpts, explicit omission
+records and full raw-log hashes. Full compiler logs and build outputs remain
+outside the publication. No binary, wheel, vectors or World data is uploaded.
+
+Exit 101 is permitted only for the ignored Rust screen. A complete 15-case,
+150-sample negative result with exact arm order and recomputed fixed median
+criteria becomes `complete-rejected`, `screen_accepted=false`, and an unsuccessful
+owner/job. Timeout, resource, partial, source, cleanup or publication failures
+are `incomplete` and can never be promoted to a complete performance rejection
+or an accepted result. Consumers must require the matching terminal, bounded
+always-closure, exact source and completed producer job; a success additionally
+requires `complete-accepted` and successful owner/job metadata.
+
+The tiny stdlib control contracts run with child/network/simulator/native-import
+guards and synthetic protocol/fault records only. They do not execute this Rust
+experiment or establish native lifecycle/performance qualification. Source peer
+and root review of the new immutable successor, followed by a separate exact
+one-file workflow activation, are still required. No push or activation has
+occurred in this source-only correction.

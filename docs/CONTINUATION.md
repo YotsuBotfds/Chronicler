@@ -446,3 +446,12 @@ byte, including default and Fast planners. Six differential contracts and one
 ignored fixed synthetic screen are unrun; no local build, World or performance
 claim is included. The preregistration and dormant remote workflow are in
 [the experiment record](experiments/exact-marriage-broadphase-screen-2026-10-29.md).
+
+
+The inactive exact-marriage screen has a source-only hosted ownership successor:
+selected C60/27f cleanup, exact one-shot context, negative-first terminal closure,
+final source/runtime/executable checks and bounded light evidence. Its tiny
+control contracts use synthetic records and prohibit child/native/World/network
+execution. The Rust crate and full fixed screen protocol are unchanged and
+unrun. Independent corrected-source review and root authorization still precede
+any push, one-file activation, build or screen.
