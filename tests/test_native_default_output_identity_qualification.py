@@ -179,8 +179,15 @@ class Contracts(unittest.TestCase):
             for name in (A.TEMPLATE_PATH,A.WORKFLOW_PATH):
                 path=root/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(template)
             A.workflow_contract(root)
+            # Reproduce the real future control checkout shape, including its
+            # active workflow, through the same source-level preflight test.
+            with mock.patch.dict(globals(),{"SCRIPT":root/"scripts/native_default_output_identity_qualification.py"}):
+                self.test_workflow_is_a_dormant_closed_template()
             (root/A.WORKFLOW_PATH).write_bytes(template+b"# changed\n")
             with self.assertRaises(A.Refusal): A.workflow_contract(root)
+            with mock.patch.dict(globals(),{"SCRIPT":root/"scripts/native_default_output_identity_qualification.py"}), \
+                 self.assertRaises(A.Refusal):
+                self.test_workflow_is_a_dormant_closed_template()
 
     def test_environment_setup_observes_selected_uv_and_uses_one_supervisor(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -496,7 +503,9 @@ class Contracts(unittest.TestCase):
         self.assertNotIn("workflow_dispatch",text)
         self.assertNotIn("pip install",text)
         self.assertNotIn("uv sync",text)
-        self.assertFalse((root/".github/workflows/native-default-output-identity.yml").exists())
+        active=root/A.WORKFLOW_PATH
+        if active.exists() or active.is_symlink():
+            A.workflow_contract(root)
         for source in A.SOURCES.values(): self.assertIn("ref: "+source,text)
         for flag in ("--faith-ids","--checkpoint","--resume","maturin build","--scientific-claims"):
             self.assertNotIn(flag,text)
