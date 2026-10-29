@@ -18,7 +18,14 @@ bytes and package path for checkpoint replay.
 | Arc/faction history work | Event types are projected once; faction queries reuse the actor index | Frozen-source arc parity and full CI passed; separate arc export study passed 18 worlds/3,200 ticks. No measured simulation-tick speedup is claimed. |
 | Live test lifecycle | Both round trips finish all ten turns; teardown wakes and joins paused workers | 68 selected native-context tests and the complete 18-case live file in both native/no-Rust contexts passed. Original receive deadlines remain; timeout is a failure. |
 | M36 test cohorts | Two exact seeded cohorts are shared as immutable observations | Every seed/horizon matched both original repetitions in both environments. Together/alone/full-module consumers preserve original assertions and skips. Scientific horizons remain 120/150 turns. |
-| Bounded offline coverage | Added pure proof/stat-order contracts and fixture isolation | Consolidated code `1c5728b7` passed 32 chunks: 3,929 passed, 65 skipped, 188.1 seconds; slowest 35.1/110 seconds. Complete integration CI has its own exact-head result. |
+| Bounded offline coverage | Added pure proof/stat-order contracts and fixture isolation | Consolidated code `1c5728b7` passed 32 chunks: 3,929 passed, 65 skipped. Its complete six-job CI also passed; hosted offline chunks totaled 173.4 printed seconds, slowest 29.2/110 seconds. |
+
+The [exact consolidated CI record](recovered-review-ci-2026-10-29.md) reports
+8,027 native Python passes and 7,713 no-Rust passes, with skips and successful
+subtests separate; Rust passed 1,088 tests and the viewer passed 743 tests,
+lint and build. The earlier local offline check separately took 188.1 seconds
+with a 35.1-second slowest chunk. These are distinct observations rather than
+a controlled before/after performance comparison.
 
 The native installed context used locally is Python 3.13.5 and the identified
 `fb20dbc8` binary from the unchanged `a4703ef4` crate. GitHub builds identify

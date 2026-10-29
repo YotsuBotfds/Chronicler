@@ -5,8 +5,13 @@ Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
 code, validation, measured workflow options and held experiments. Production
 files remain those of qualified `c76efe85`; the original producing branch/path
 retain their complete frozen identity. The reviewed test changes passed their
-component checks and all 32 combined offline chunks; exact-head full CI and
-the remaining long full-gate comparisons have separately reported standing.
+component checks and all 32 combined offline chunks. Exact code `1c5728b7`
+then passed [all six CI jobs](integration/recovered-review-ci-2026-10-29.md):
+8,027 native Python and 7,713 no-Rust parent passes, 526 successful subtests
+in each, 1,088 Rust passes, 743 viewer tests/lint/build and 3,929 offline
+passes across 32 unchanged-110-second chunks. Skips/ignored cases and actual
+run clocks remain explicit in that record. The long full-gate comparison
+retains its separate frozen sources and standing.
 
 October 29 current result: frozen `c76efe85` passed the separately registered
 [six-worker native finite-research composition proof](integration/research-native-composition-c76efe85-2026-10-29.md):
@@ -22,7 +27,8 @@ passed exhaustive per-seed repeated-cohort parity and consumer isolation in
 explicit native-installed and absent-native contexts. Its shared summaries
 preserve the full scientific windows and original skips; production physics
 is unchanged, and no speedup is claimed. The later pure offline selector also
-passed the unchanged guard; combined integration qualification stays separate.
+passed the unchanged guard; consolidated `1c5728b7` subsequently passed the
+complete offline/native/no-Rust CI lanes, separately from the exhaustive proof.
 
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on

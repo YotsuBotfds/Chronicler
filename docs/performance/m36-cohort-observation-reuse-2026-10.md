@@ -1,6 +1,6 @@
-# Draft M36 cohort observation reuse — 2026-10-29
+# Validated M36 cohort observation reuse — 2026-10-29
 
-Status: validated test-only review draft, based on
+Status: validated test-only change, integrated into review source `1c5728b7`, based on
 `c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`. The frozen source checks below
 completed after the forkserver timing window. Production source and scientific
 gates are unchanged; this establishes no simulation speedup.
@@ -61,7 +61,7 @@ checked alias isolation and observed repeated-cohort equality in the registered
 order and two explicit contexts. It does not establish arbitrary-order or
 all-environment equivalence.
 
-## Draft change
+## Test change
 
 Two separate class-scoped fixtures collect the original 50-seed/120-turn and
 50-seed/150-turn cohorts. Each calls the untouched `_make_world` and action
@@ -77,7 +77,7 @@ not inferred from a 150-turn final world.
 
 All original test nodes, assertions, statistical bands, error messages and skip
 predicates remain. Each test consumes the same event summaries its original
-loop computed, conditional on the repeated-cohort equivalence still to verify.
+loop computed; repeated-cohort equivalence was verified by the checks below.
 Three pure cases (two parameterized by horizon) cover exact seed/horizon/argument requests,
 retained ordering/duplicates, no world/event alias after copying and immutable
 observations. These contracts were unrun at draft creation and subsequently passed below.
@@ -204,4 +204,7 @@ and remains explicitly recorded. The outer check took 1.18 seconds with its
 original 110-second bound; no allowance was added to obtain the pass.
 Guarded receipt SHA-256:
 `e47dc9b54ca0b7a06a196f6365386039872b432f2035c7081c1ef810d4cfd73b`.
-The complete combined offline lane remains the lead's final integration check.
+Consolidated source `1c5728b7` subsequently passed the complete 32-chunk offline
+lane, both full Python native/no-Rust lanes and all six CI jobs. The exhaustive
+per-seed proof above retains its original source and evidence; see the separate
+[consolidated CI record](../integration/recovered-review-ci-2026-10-29.md).
