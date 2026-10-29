@@ -77,7 +77,7 @@ not inferred from a 150-turn final world.
 All original test nodes, assertions, statistical bands, error messages and skip
 predicates remain. Each test consumes the same event summaries its original
 loop computed, conditional on the repeated-cohort equivalence still to verify.
-Three pure parameterized cases cover exact seed/horizon/argument requests,
+Three pure cases (two parameterized by horizon) cover exact seed/horizon/argument requests,
 retained ordering/duplicates, no world/event alias after copying and immutable
 observations. These contracts are also unrun at draft creation.
 
