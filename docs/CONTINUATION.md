@@ -1,10 +1,12 @@
 # Recovered continuation — 2026-10-11
 
 A separate [completed export-study reader](integration/completed-export-study-reader-2026-10-29.md)
-preregisters bounded reinspection of the finished arc and recovered output
-proofs. It streams complete inventories and compares all nine cases using
-frozen source, without new worlds or normalization. Audit results remain
-unissued at this source freeze.
+records completed independent reinspection of the finished arc and recovered
+output proofs. Frozen reader `2b7a443e` verified 976 payload files per study and
+all nine original comparisons: 399 file pairs and zero differences in each
+source-scoped study. Source/native-wheel/audit links and terminal identities
+passed; no worlds or new normalization were introduced. Independent source and final-receipt
+review both cleared the scoped readout.
 
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).

@@ -1,9 +1,12 @@
 # Completed export-study reinspection — 2026-10-29
 
-Status: preregistered read-only audit; independent verification results remain
-unissued at this source freeze. This changes no simulation source, output rule,
-native build or completed producer evidence. The branch is
-`lead/completed-export-readers-draft-20261029`, separate from main.
+Status: both independent read-only audits completed successfully at frozen
+reader `2b7a443e29e09051525d26f4e1c5b7e4cb75e7f1`. Each study passed all nine
+original comparisons: **399 file pairs, zero differences**. This changes no
+simulation source, output rule, native build or completed producer evidence.
+The branch is `lead/completed-export-readers-draft-20261029`, separate from main.
+This completed readout is a later documentation-only change; the preregistered
+source and limits remain recoverable at the reader commit.
 
 ## Closed studies
 
@@ -123,3 +126,78 @@ views, separate nine-case admission, nonempty exact comparison outcomes and
 the full disk reserve formula. No study comparison, world, native pool or
 Arrow decoding was run by those tests. Independent source review precedes the
 real artifact inspection.
+
+
+## Completed independent results
+
+| Study | Stream-verified payload | Expansion bytes | Actual comparison | Reader result SHA-256 |
+| --- | ---: | ---: | --- | --- |
+| Arc | 976 files | 278,356,162 | 9 cases; 399 file pairs; 0 differences | `6a80ea16f8933ff0a76193a41aac723169d0dda9fb4458fa8aefb257724cb365` |
+| Recovered | 976 files | 278,201,185 | 9 cases; 399 file pairs; 0 differences | `0ad84e3e4130446b284423fff59032af6cb01d22b9b26b5f519fb644d240b21d` |
+
+Every actual case count matches both the fixed case admission and retained
+original aggregate comparison log:
+
+| Case | File pairs, each study | Differences, each study |
+| --- | ---: | ---: |
+| `off_s42` | 9 | 0 |
+| `off_s7` | 9 | 0 |
+| `hybrid_s42` | 111 | 0 |
+| `hybrid_s7` | 111 | 0 |
+| `hybrid_s1234` | 10 | 0 |
+| `proc48_hybrid_s42` | 92 | 0 |
+| `proc48_off_s7` | 15 | 0 |
+| `scaled22k_s42` | 32 | 0 |
+| `scaled52k_s7` | 10 | 0 |
+
+The scaled case names are retained historical labels. Their registered targets
+are 18,800 and 43,700 respectively, not observed agent counts.
+
+These are two source-scoped studies. Each original producer ran 18 worlds and
+3,200 ticks; the independent readers ran **zero new worlds**. The audit does
+not turn repeated comparisons into additional independent simulation samples.
+Both retained native copies have SHA-256
+`06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6`.
+Their exact compiled wheel members match those bytes. Arc wheel SHA-256 is
+`54616417b94036ec91a40b69b94ad2b608d3b66666c93dd2b20e05af176cc58f`;
+recovered wheel SHA-256 is
+`bc17bb2561a4d014202c1f70846b31ace97ae00a98be2247dcfc3c4965b463ca`.
+The common crate tree is `a4703ef4e9a21b5dbb194d318536a46e6ca8b71c`.
+The reader checked every original source snapshot, package digest, audit and
+probe, all nine original case contracts, complete payload inventories and
+original before/after identities, then rechecked source and ZIP bytes.
+
+Both outer commands exited 0, within their unchanged bounds. The readers used
+Python 3.13.5, a genuinely absent native package, CPU affinity `[4]` and the
+registered one-thread caps. The retained candidate source views contain 178
+arc and 181 recovered files. A separate final receipt reconciles all existing
+outcomes and confirms files remain mode 0444, directories 0555, both original
+ZIP hashes unchanged, and marked per-case scratch absent. Its smallest recorded
+case-admission margin beyond the full floor/copy/reserve requirement is
+305,780,018 bytes for arc and 187,409,714 bytes for recovered.
+
+The arc reader took 35.383 s and the recovered reader 31.768 s; these are audit
+runtimes, with no simulation speedup implication. The common comparator Git
+blobs are identical across all four simulation commits. No output fields or
+comparisons were normalized beyond the original rule documented above.
+
+Local immutable archives, official metadata, every comparison command/log and
+terminal receipt are retained under
+`/workspace/evidence/completed-export-studies-20261029/`. The compact
+[machine-readable readout](completed-export-study-results-2026-10-29.json)
+records the exact limits, sources and evidence hashes. The postflight summary
+SHA-256 is `b97e02e69f6caf1fa2489a59f2782c4a9012539f0c119515f751e5d9b711dfd4`;
+the 568-file, 125,044,032-byte local evidence index SHA-256 is
+`0e6eaf700b946f925ab94efb709e37d12072b326f9622326118f1e63ea2dfbe8`.
+The index excludes only itself. Retained official metadata reports artifact
+expiry at **2026-11-28T00:32:11Z** for arc and
+**2026-11-28T01:00:37Z** for recovered; this is the observed retention window,
+not a promise of permanent GitHub availability.
+
+Independent source review cleared the frozen implementation before inspection.
+Independent final receipt review cleared the frozen code/source/artifact pins,
+88 retained summary/input links, all case/count equations, terminal budgets and
+full disk-admission inequalities. That peer did not reopen ZIPs, scan payloads,
+repeat comparators/tests, import native/Arrow code or launch worlds. Its separate
+receipt is `/workspace/chronicler-completed-export-review-evidence/final-review-001.json`,
+SHA-256 `1e979851c885e6fbd474a5a6d917ff08ad418f39587eda2466e5a52b04103d74`.
