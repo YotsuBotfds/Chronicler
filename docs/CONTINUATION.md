@@ -203,3 +203,14 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## Source-scoped CI and arc evidence — 2026-10-29
+
+A separate documentation-only branch records completed exact-source CI at
+49b2a35b, c76efe85, 50307017 and 249a4e18, plus the d028-to-249a arc export
+study controlled by 9e800f81. Parent tests, subtests, skips, ignored tests,
+observed clocks and official archive metadata remain separate. This pack adds
+no c76 default-output or 503 population-outcome result and changes no producer
+source or main. See the [Markdown readout](integration/ci-arc-qualification-2026-10-29.md)
+and its JSON companion.
