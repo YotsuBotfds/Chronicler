@@ -1,3 +1,19 @@
+# Care codec witness rebind after budget composition — 2026-10-29
+
+The first b952 CI run40966535032/1 failed the retained care source-witness
+contract: agent_bridge.py and main.py had reviewed optional output-budget
+changes while the test still pinned their qualified65 bytes. This narrow child
+updates exactly those two full-file literal digests after complete diff and
+default-None AST review. All ten witnesses and assertions remain; no product,
+native, test counts, registration, chunk limits, dependencies or workflow edits.
+
+See [the failure, rebind and preflight proposal](integration/ordinary-artifact-budget-witness-rebind-2026-10-29.md).
+The first failure is preserved and receives no same-source retry. This child
+is source-only: tests/own CI and all live API/care/World/CP/RNG/efficacy/performance
+bindings remain unqualified. The entire b952 continuation follows unchanged.
+
+---
+
 # Optional ordinary-artifact budget source graft — 2026-10-29
 
 This private child of qualified parent `65dd90e1` composes exact final donor

@@ -1012,9 +1012,9 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         "chronicler-agents/src/ffi/mod.rs": "d9a4fe1206e7ced41ab7dba7a1bfa60fe62ab1b8265cd76e490ad6e51e6b301e",
         "src/chronicler/health_care.py": "fc96d7c2f859865fc95023201c4c5c436cde0b8b39f53def02beb6f8557cd8ff",
         "src/chronicler/health_care_state.py": "43ea4162dd65e2a59fde602be5b670b3d4699dfe2bb4580f8402d88760a04ec8",
-        "src/chronicler/agent_bridge.py": "6665e4620a4f9f249c52788d9dd97a92d37d1d32aa47cca3e040d9938cc3039e",
+        "src/chronicler/agent_bridge.py": "0ad61ddadf43e1a52b55559a9708e4a5d7b90350f7a6979c192534a9d3f32e18",
         "src/chronicler/simulation.py": "99745a54e243f817930b8ab53d7b0521a63a9ea90b5be3521fa273668dd83a40",
-        "src/chronicler/main.py": "bb40d2188e28bf1c6d3dfaebaf1e2e0b16483dc67c35ab842711c46c95a41861",
+        "src/chronicler/main.py": "0e62573977eab538606ad3be0025e371206067b347917816fb199318016c05ec",
     }
     for path, digest in pins.items():
         assert _care_codec_hashlib.sha256((root / path).read_bytes()).hexdigest() == digest
