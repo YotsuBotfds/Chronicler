@@ -23,7 +23,7 @@ The unchanged remote execution registration is
 Both remain controlling protocols. The new activation document is additionally
 bound by the complete control source snapshot before the first study world.
 
-| Reviewed scientific/control file | SHA-256 |
+| Original preparation `7dad4754` scientific/control file | SHA-256 |
 | --- | --- |
 | Runner | `a2f5de0e140e7045e736c2252d372983b9cac004f9a9332ef99a56a51c3a0f26` |
 | Reader | `a07ad154ac5605363f3e71a27917ee96595dd251d5b54840022ad3a1554b6e8b` |
@@ -112,7 +112,7 @@ The actual119 pure-contract selection, actionlint and diff check must pass
 against these final workflow bytes before its single push.
 
 All scripts, producer/Rust code, runtime policies, dependency inputs and both
-scientific registrations remain byte-identical to reviewed preparation7dad4754.
+scientific registrations remain byte-identical to reviewed preparation 7dad4754.
 This is a new control-source attempt after a pre-native setup-test correction,
 not a rerun of the old source or replacement of an observed study failure.
 Seeds, science, horizons, thresholds and original resource limits are unchanged.
@@ -132,3 +132,91 @@ and every original floor remain unchanged. Both local preflight records are
 retained. Independent source review and root's concrete review then cleared
 this additional fixture correction and the final workflow-comment bytes before
 the corrected-source push.
+
+## Attempt 2 result and proposed attempt 3
+
+Corrected-source control `c699d9600ae16f955d523af1a3c303604b331743`
+produced run 40804360782/job 123219619591. All 119 pre-native contracts passed in
+2.11 seconds. The official wheel fetch then raised `HTTPError`; its HTTP status
+and metadata-versus-ZIP substage were not logged. Native installation, freeze,
+cohort and readout were skipped, with zero study exposure. Original negative
+artifact 12866934715 was 2,798 bytes, SHA-256
+`7c3ffbb25097bd974b695b4fb69a41adcfbfd67578fbf7e3b1352cd2adfc4833`.
+The retained failure receipt is
+`517f395d98c7c314274243a640bcb7f4c3367833a3da6cd312b2e5432d42019f`.
+No status is retrospectively assigned to that source.
+
+A separately authorized read-only diagnostic observed metadata 200, ZIP 302 and
+Azure 400, with no study execution. Root's pure reproduction then identified
+origin Host propagation by urllib header copying. The corrected transport
+constructs a fresh request with only its fixed User-Agent, leaving urllib to
+derive the destination Host. No authentication scope, artifact pin, provider
+whitelist, source or scientific setting changed.
+
+Corrected diagnostic control `939d739b379f6a03a9d5e77ea68e5ff11c03d887`,
+run 40807004766/job 123228241829, passed 154 guarded contracts and completed
+metadata 200 → ZIP 302 → Azure 200. The exact registered ZIP, manifest, wheel and
+native bytes/schemas verified. Result receipt SHA-256 is
+`40d02d9a49b87b3a625a1f4c71c456fd87202eef69598279c91e864733eaa15e`.
+It performed no native import, installation, build, freeze or study execution;
+this is transport qualification, not research continuation or efficacy evidence.
+
+Proposed actual-study attempt 3 brings only that tested transport helper and
+required pure regression coverage into the study branch. Runner, reader,
+scientific contract, native policy, source, dependency inputs and both original
+scientific registrations remain byte-identical to reviewed preparation 7dad4754.
+All seeds, worlds, controls, clocks, scientific thresholds and original budgets
+remain unchanged. Neither earlier preflight produced study outcomes.
+
+The current transport helper is copied byte-for-byte from tested diagnostic
+source `939d739b379f6a03a9d5e77ea68e5ff11c03d887`; its SHA-256 is
+`fb12717b1f5d3b3a7b32249ce141c6d1ba6b5d0d6aa0c2d19e501727400ac035`.
+The earlier table explicitly records the original preparation's helper, not
+this corrected transport version.
+
+### Bounded metadata publication, with full raw retention
+
+Root separately authorized two publication steps after the original readout and
+before the unchanged full raw upload. A detached staging helper copies only a
+fixed 30-path list of existing JSON/JUnit/guard records, including authoritative
+readout/execution receipts and provenance. It interprets no scientific content,
+changes no verdict and copies no wheel, ZIP, Arrow file or raw simulation stream.
+The output is at most **8 MiB and 32 files including its index**. Lengths, file
+counts and the complete index byte size are admitted before any copy; path/link/
+special-file, source/destination drift and byte/hash checks must all pass.
+The index is published last and records exact copied bytes/hashes and missing
+paths. Its `staging_complete` records copying only; the original readout JSON
+remains authoritative for mechanics and scientific standing.
+
+The small `natural-research-light` artifact uploads only if staging succeeds.
+An over-cap or failed stage fails publication; original raw evidence still
+uploads through the unchanged `always()` step and unchanged file set. No raw
+evidence is deleted, summarized, compressed away or replaced by the light copy.
+The workflow test checks these two exact new step bodies, paths, caps and order,
+then removes only those additions before checking original invariant
+`5457d30bd36b88adc2766ebedc85a360f72bb8efa17fda7387de3a20aa3b25cf`.
+Negative fixtures reject omitted/reordered raw publication, changed paths,
+guards, command bodies, caps and numeric aliases. All original workflow runtime
+commands, environment, source and retention settings stay sealed.
+
+This is source preparation for root's concrete review, with no push or study
+authorized by this record alone. After that review, any authorization permits
+only one corrected-source actual attempt. An actual active no-op mismatch,
+identity, resource, execution or cleanup failure must halt the original fixed
+sequence and remain failed; no same-source rerun or result-conditioned seed,
+threshold, horizon or budget change is permitted.
+
+Final local source qualification passed **182 guarded pure tests in 1.62
+seconds**, with zero native import, runtime-factory or blocked-I/O attempts;
+actionlint 1.7.12 and diff checks passed. Independent source review cleared the
+stager's final post-index destination rehash, closed actual output inventory,
+root identity checks and unchanged raw publication. These tests used no-native
+Python 3.13.5, CPU2, hash seed zero and thread caps one.
+
+The remote pre-native test command still names the original four files, so the
+`5457` workflow seal remains unchanged after removing the two exact publication
+additions. It now includes the new publication contract/negative cases inside
+the already-selected wheel test file. The separate HTTP and stager I/O suites
+are additional local source qualification, not a claim that those new stager
+cases already ran remotely. The transport suite's prior cloud diagnostic
+qualification retains its separate source/runtime boundary.

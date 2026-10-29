@@ -2,6 +2,7 @@ name: Registered natural research continuation
 
 # One prospective attempt from the reviewed activation branch.
 # Prospective attempt 2: preflight-contract repair reviewed at 010ba8e5ae40c980752ee78581e6853e0188adc3.
+# Prospective attempt 3: tested redirect headers and bounded light provenance publication.
 on:
   push:
     branches:
@@ -129,6 +130,22 @@ jobs:
           taskset -c "$NATURAL_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/read_research_natural_continuation.py \
             --runtime-policy cloud-fullgate-06db --source-root "$GITHUB_WORKSPACE/producer" \
             --evidence-root "$NATURAL_EVIDENCE" --output-root "$RUNNER_TEMP/natural-research-readout"
+      - name: Stage bounded readout and provenance metadata
+        id: light_stage
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python control/scripts/stage_research_natural_light.py \
+            --source-root "$RUNNER_TEMP" --output-root "$RUNNER_TEMP/natural-research-light"
+      - name: Publish bounded readout and provenance metadata
+        if: ${{ always() && steps.light_stage.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-research-light-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/natural-research-light/
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain original raw artifacts and negative attempts
         if: always()
         uses: actions/upload-artifact@v4

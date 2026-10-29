@@ -220,3 +220,27 @@ The original C76 research composition proof used fb20. Cloud 06db has saved
 default-output evidence, with research checkpoint/global-RNG qualification still
 separate before any prospective study activation. Science, samples and budgets
 are unchanged.
+
+## Natural research attempt 3: source preparation — 2026-10-29
+
+The two actual-study preflights produced no study exposure. Control `c699d960`
+passed 119 contracts but stopped fetching its wheel. A separate read-only
+diagnostic isolated a header-transport defect; corrected `939d739b` subsequently
+verified the exact registered wheel through metadata 200/ZIP 302/Azure 200, without
+installation, freeze or study execution. The [activation record](experiments/scientific-research-natural-activation-2026-10-29.md)
+preserves each source and failure rather than assigning an unlogged old status.
+
+Attempt 3 preparation copies only that tested transport helper and its pure
+regression coverage. Scientific runner/reader/contract, policy, source, seeds,
+calendar, controls, horizons and budgets remain unchanged. Two new publication
+steps stage a closed existing-metadata allowlist under 8 MiB/32 files including an
+exact byte/hash index, then upload that light copy before the unchanged always-
+raw artifact. The stager parses no science or verdict and excludes wheels,
+archives, Arrow and raw simulation files. Original readout JSON stays authoritative.
+
+The final local source check passed 182 guarded tests, including separate HTTP
+and stager I/O suites; actionlint and independent source review passed. The
+remote four-file test command remains unchanged, with new publication-negative
+cases inside its already-selected wheel test. No claim is made that new stager
+I/O cases have run remotely. Root review is required before any attempt-3 push;
+no actual study has been launched by this source preparation.

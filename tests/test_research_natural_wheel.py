@@ -152,7 +152,7 @@ def test_streaming_reader_rejects_oversized_body_without_retaining_more_than_bou
             assert request.get_header("Authorization") == "Bearer synthetic"
             return Response(b"too large")
     with pytest.raises(helper.C.ContractError, match="exceeds bound"):
-        helper.fetch_bytes(Opener(), "https://api.github.com/fixed", "synthetic", 3, helper.time.monotonic() + 1)
+        helper.fetch_bytes(Opener(), helper.endpoint(), "synthetic", 3, helper.time.monotonic() + 1)
 
 
 def test_retained_receipt_rehashes_exact_payload_set(helper, tmp_path, monkeypatch):
@@ -180,6 +180,36 @@ PREPARATION_SHA = "7dad47540f24c842633cc2762fa6fd7a9c493556"
 # guard. Exact command bodies, CPU settings, budgets, sources, policies and
 # artifact retention are sealed; activation cannot introduce other changes.
 REVIEWED_WORKFLOW_INVARIANTS = "5457d30bd36b88adc2766ebedc85a360f72bb8efa17fda7387de3a20aa3b25cf"
+LIGHT_STAGE = dict(name="Stage bounded readout and provenance metadata", id="light_stage",
+    **{"if": "always()", "shell": "bash", "run": 'set -euo pipefail\npython control/scripts/stage_research_natural_light.py \\\n  --source-root "$RUNNER_TEMP" --output-root "$RUNNER_TEMP/natural-research-light"\n'})
+LIGHT_UPLOAD = dict(name="Publish bounded readout and provenance metadata",
+    **{"if": "${{ always() && steps.light_stage.outcome == 'success' }}", "uses": "actions/upload-artifact@v4",
+       "with": {"name": "natural-research-light-${{ github.run_id }}-${{ github.run_attempt }}",
+           "path": "${{ runner.temp }}/natural-research-light/", "if-no-files-found": "error", "retention-days": 30}})
+
+
+def publication_steps_without_changes(workflow, limits=None):
+    """Remove only the two fully checked publication additions from the seal."""
+    if limits is None:
+        spec = importlib.util.spec_from_file_location("light_staging_workflow_contract", ROOT / "scripts/stage_research_natural_light.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        limits = (module.MAX_BYTES, module.MAX_FILES, module.OUTPUT_NAME)
+    assert tuple(type(value) for value in limits) == (int, int, str) and limits == (8 * 1024**2, 32, "natural-research-light"), "light publication caps differ"
+    invariant = deepcopy(workflow)
+    steps = invariant["jobs"]["registered-continuation"]["steps"]
+    stage = [i for i, step in enumerate(steps) if step.get("name") == LIGHT_STAGE["name"]]
+    upload = [i for i, step in enumerate(steps) if step.get("name") == LIGHT_UPLOAD["name"]]
+    raw = [i for i, step in enumerate(steps) if step.get("name") == "Retain original raw artifacts and negative attempts"]
+    readout = [i for i, step in enumerate(steps) if step.get("name") == "Read all fixed seeds and preserve missing or censored arms"]
+    assert len(stage) == len(upload) == len(raw) == len(readout) == 1, "publication steps missing or duplicated"
+    canonical = lambda value: json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":"))
+    assert canonical(steps[stage[0]]) == canonical(LIGHT_STAGE) and canonical(steps[upload[0]]) == canonical(LIGHT_UPLOAD), "light publication body/path differs"
+    assert readout[0] + 1 == stage[0] and stage[0] + 1 == upload[0] and upload[0] + 1 == raw[0], "publication order differs"
+    assert steps[raw[0]]["if"] == "always()", "raw publication must always run"
+    del steps[upload[0]]
+    del steps[stage[0]]
+    return invariant
 
 
 def assert_registered_workflow(workflow, activation_registration):
@@ -200,7 +230,7 @@ def assert_registered_workflow(workflow, activation_registration):
             "f60eb23d9d8ef9b6e8afda9eb87f974690686e2a5835c794a6ac3975cfb09a57",
             "f9a6a1e6bdf963426c63a46ba2c74e7fe310098b58875067d921c4bcd14cc89b")
         assert all(value in activation_registration for value in required), "activation registration missing or differs"
-    invariant = deepcopy(workflow)
+    invariant = publication_steps_without_changes(workflow)
     for key in ("name", "on", True):
         invariant.pop(key, None)
     for key in ("name", "if"):
@@ -265,5 +295,33 @@ def test_active_workflow_refuses_any_unregistered_activation_or_scientific_chang
         if fault == "policy": step["run"] = step["run"].replace("cloud-fullgate-06db", "local-fb20")
         elif fault == "seed": step["run"] += " --seed 2008\n"
         else: step["run"] = step["run"].replace("--no-deps", "")
+    with pytest.raises(AssertionError):
+        assert_registered_workflow(workflow, registration)
+
+
+@pytest.mark.parametrize("fault", ["missing_raw", "raw_guard", "missing_light", "duplicate", "reorder", "light_path", "raw_path", "body", "light_guard", "retention_alias", "cap_bytes", "cap_files", "cap_alias"])
+def test_publication_additions_cannot_weaken_raw_retention_paths_order_or_caps(fault):
+    workflow, registration = configured_workflow("activated")
+    steps = workflow["jobs"]["registered-continuation"]["steps"]
+    stage = next(step for step in steps if step["name"] == LIGHT_STAGE["name"])
+    light = next(step for step in steps if step["name"] == LIGHT_UPLOAD["name"])
+    raw = next(step for step in steps if step["name"] == "Retain original raw artifacts and negative attempts")
+    if fault == "missing_raw": steps.remove(raw)
+    elif fault == "raw_guard": raw["if"] = "success()"
+    elif fault == "missing_light": steps.remove(light)
+    elif fault == "duplicate": steps.insert(steps.index(stage), deepcopy(stage))
+    elif fault == "reorder":
+        stage_index, light_index = steps.index(stage), steps.index(light)
+        steps[stage_index], steps[light_index] = light, stage
+    elif fault == "light_path": light["with"]["path"] = "${{ runner.temp }}/natural-research-evidence/"
+    elif fault == "raw_path": raw["with"]["path"] = "${{ runner.temp }}/natural-research-light/"
+    elif fault == "body": stage["run"] += 'cp -R raw "$RUNNER_TEMP/natural-research-light"\n'
+    elif fault == "light_guard": light["if"] = "always()"
+    elif fault == "retention_alias": light["with"]["retention-days"] = 30.0
+    else:
+        with pytest.raises(AssertionError, match="caps"):
+            publication_steps_without_changes(workflow, (9 * 1024**2 if fault == "cap_bytes" else 8 * 1024**2,
+                                                        33 if fault == "cap_files" else 32.0 if fault == "cap_alias" else 32, "natural-research-light"))
+        return
     with pytest.raises(AssertionError):
         assert_registered_workflow(workflow, registration)
