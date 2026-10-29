@@ -1,3 +1,21 @@
+# Care observation codec source graft - 2026-10-29
+
+The [care codec composition](integration/care-codec-composition-2026-10-29.md)
+imports exact reviewed source494af08d: 22 new pure parents, with all60 focused
+parents and97 existing subreports passing under the separately frozen narrow
+guard. The first logging-plugin precollection failure is preserved; corrected
+runner002 changed only that unused plugin. No World/native/checkpoint execution
+or global-RNG proof is supplied. All181 old package modules remain exact; the
+new module changes the package identity and needs this composed source's CI.
+
+Native09ec301, workflows/dependencies,303 owners/six skips/623 subtest seal and
+all38 offline chunks/110-second bounds remain exact. The codec's structural
+completion is separate from mechanics, recorder truth, installed API/schema,
+retention and enabled pilot/continuation/science/performance qualification.
+The complete previous qualified-native handoff follows unchanged.
+
+---
+
 # Latest qualified native care code — 2026-10-29
 
 Exact development code `6a2a7b84` now has independently/root-qualified
