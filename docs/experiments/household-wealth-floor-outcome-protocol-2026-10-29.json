@@ -1,0 +1,420 @@
+{
+  "schema_version": 1,
+  "kind": "chronicler-inactive-wealth-floor-outcome-design",
+  "activation_state": "NO-GO pending listed prerequisites",
+  "observed_at_utc": "2026-10-29T02:19:25Z",
+  "historical_source": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+  "historical_control": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+  "historical_run_id": 40791402289,
+  "historical_run_attempt": 1,
+  "candidate_source": "503070175e3e78d9014add158ead8f16ce940843",
+  "candidate_runtime_parent": "9f43bbb7d0ba2ac4aa79cc45af1c5071b789e76c",
+  "candidate_ci_run_id": 40794594072,
+  "candidate_ci_boundary": "All six lanes passed; four targeted Rust tests included in1092 full-suite passes, two ignored; no outcome study qualification.",
+  "python_package_git_tree_both_sources": "802c5969d94d966c40f83e3226fc7ff73cf07d54",
+  "historical_package_digest": "49d78e877f981c4af2440e9dadbde7dd211e2fff0d2f1be68e7a4e5c10310e0a",
+  "historical_crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+  "candidate_crate_tree": "93b32cd9b02eccf4900b33cdaeece08262be2330",
+  "native_source_diff": [
+    "chronicler-agents/src/behavior.rs"
+  ],
+  "historical_native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+  "historical_wheel_sha256": "049f91bbd03582240491e0c487d560deebb31a2ab9754d2c5bac2a7804206f64",
+  "historical_wheel_bytes": 3831429,
+  "historical_build_manifest_sha256": "013a57c5e59993587acd65eb33c6ff1d16984796de11dbec81df686eb33210d3",
+  "historical_schemas": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "candidate_native_sha256": null,
+  "candidate_wheel_sha256": null,
+  "historical_lock_sha256": "986547c01fd1dcd9bf598404124fde4ddc1e3d67db9a1d595a5304f18dacee10",
+  "historical_pyproject_sha256": "d14f5588112927a0d8d889c30f04af90e81bc2cf4096b9ed91d8a51d83a2ac32",
+  "cohorts": {
+    "procedural": {
+      "historical_role": "candidate",
+      "prospective_role": "baseline subject to reviewed admission",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          121,
+          141,
+          161,
+          181,
+          201,
+          221,
+          241,
+          261
+        ],
+        "civs": 10,
+        "cpus": 2,
+        "fork_count": 1800,
+        "fork_turns": [
+          100,
+          120,
+          140,
+          160,
+          180,
+          200,
+          220,
+          240,
+          260
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 32,
+        "require_strict_regression": true,
+        "seed_count": 100,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 300,
+        "window_turns": 20,
+        "worldgen": "procedural"
+      },
+      "actual_physics_ticks": 67800,
+      "total_executions": 1900,
+      "result_sha256": "1201dc87822ab599ff13a00c8d6d72d07c16b006488ccae092124a0a12bfc8fc",
+      "original_report_sha256": "56836617a6a4c18193874cbf3b21960bcb6c430da1fdeec6e1e11152f8b69ffc",
+      "original_decision_sha256": "2e1f26f704b6dfae46ca6542bbb63b1102f268d86ebb428c0eb58ac49a6f2f97",
+      "provenance_sha256": "0cfc4131a69a8a520122f4098334599edbb1087d73cf39fca637a061c755a61d",
+      "raw_inventory_sha256": "0ac61ff8c76b78eacc868a65699efde3cf7cff1134cbf35d9ef3b510904e7bc1",
+      "light_index_sha256": "00c998633c8074cf8f58b49d21d5f5f97c2cf909e78ed9eee9ef0561dd09a030",
+      "light_zip_sha256": "9c6117236e0ab51671c2ded18c1536ca27d129f8976c30dd96f21a34f5f500aa",
+      "original_policy": {
+        "profile": "full",
+        "require_strict_regression": true,
+        "causal_oracles_required": false,
+        "required_oracles": [
+          "community",
+          "needs",
+          "era",
+          "cohort",
+          "artifacts",
+          "arcs",
+          "regression"
+        ],
+        "ok": true
+      },
+      "methods": {
+        "needs": 8,
+        "cohort": 6,
+        "community": 2,
+        "outcome_window_start_offset": 1,
+        "fork_design": 2
+      },
+      "causal_evidence": {
+        "joint_needs_status": "PASS",
+        "kin_status": "FAIL",
+        "kin_failed_criteria": [
+          "upper_bound",
+          "minimum_effect"
+        ],
+        "kin_members_rate_ratio": 0.9956,
+        "kin_one_sided_upper_bound": 1.0035
+      },
+      "runtime_signature": {
+        "python": "3.13.17",
+        "implementation": "CPython",
+        "machine": "x86_64",
+        "packages": {
+          "arro3-core": "0.9.1",
+          "chronicler-agents": "0.1.0",
+          "numpy": "2.5.4",
+          "pyarrow": "26.0.0",
+          "pydantic": "2.12.5",
+          "scipy": "1.18.1"
+        },
+        "thread_env": {
+          "BLIS_NUM_THREADS": "1",
+          "GOTO_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "OPENBLAS_THREAD_TIMEOUT": "16",
+          "PYTHONHASHSEED": "0",
+          "PYTHON_CPU_COUNT": "2",
+          "RAYON_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "affinity_cpu_count": 2
+      },
+      "retained_full_platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39"
+    },
+    "template": {
+      "historical_role": "candidate",
+      "prospective_role": "baseline subject to reviewed admission",
+      "expected": {
+        "arms": [
+          "needs",
+          "kin_roots"
+        ],
+        "causal_oracles_required": false,
+        "checkpoint_turns": [
+          101,
+          201,
+          301,
+          401
+        ],
+        "civs": 4,
+        "cpus": 2,
+        "fork_count": 1600,
+        "fork_turns": [
+          100,
+          200,
+          300,
+          400
+        ],
+        "parallel": 2,
+        "profile": "full",
+        "regions": 8,
+        "require_strict_regression": true,
+        "seed_count": 200,
+        "seed_start": 42,
+        "threads": 1,
+        "turns": 500,
+        "window_turns": 20,
+        "worldgen": "template"
+      },
+      "actual_physics_ticks": 133600,
+      "total_executions": 1800,
+      "result_sha256": "1c11721ae69e278e43968cffcbd5b006b2f6f31ff22cedb4ef46fea746d70565",
+      "original_report_sha256": "99a53deeb5b5228de24450bfd3c296af96a036180f612090dc7d9ca529df6b59",
+      "original_decision_sha256": "c2940ed951f03ab1231e544612e162756fb1d86fe0f9151dd194f461f851b5b3",
+      "provenance_sha256": "7e859e48ec310aabb35f93894bca5c54b752df9da3a4e63f7cdaa6d5d28ee38f",
+      "raw_inventory_sha256": "8e15b5c5813d46aa3adffa9e8f834cff8f2df22501eb7a582a0c70e46a84134d",
+      "light_index_sha256": "d74761755bdbdba080ecae2eb67372ea4de6eb7d662efde98c84fb97982f12b1",
+      "light_zip_sha256": "745443ffe29595cc96a7f1d6b58b13d5f974a2abb43954299e8227b80d95c786",
+      "original_policy": {
+        "profile": "full",
+        "require_strict_regression": true,
+        "causal_oracles_required": false,
+        "required_oracles": [
+          "community",
+          "needs",
+          "era",
+          "cohort",
+          "artifacts",
+          "arcs",
+          "regression"
+        ],
+        "ok": true
+      },
+      "methods": {
+        "needs": 8,
+        "cohort": 6,
+        "community": 2,
+        "outcome_window_start_offset": 1,
+        "fork_design": 2
+      },
+      "causal_evidence": {
+        "joint_needs_status": "PASS",
+        "kin_status": "FAIL",
+        "kin_failed_criteria": [
+          "minimum_effect"
+        ],
+        "kin_members_rate_ratio": 0.9877,
+        "kin_one_sided_upper_bound": 0.9981
+      },
+      "runtime_signature": {
+        "python": "3.13.17",
+        "implementation": "CPython",
+        "machine": "x86_64",
+        "packages": {
+          "arro3-core": "0.9.1",
+          "chronicler-agents": "0.1.0",
+          "numpy": "2.5.4",
+          "pyarrow": "26.0.0",
+          "pydantic": "2.12.5",
+          "scipy": "1.18.1"
+        },
+        "thread_env": {
+          "BLIS_NUM_THREADS": "1",
+          "GOTO_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "OPENBLAS_THREAD_TIMEOUT": "16",
+          "PYTHONHASHSEED": "0",
+          "PYTHON_CPU_COUNT": "2",
+          "RAYON_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "affinity_cpu_count": 2
+      },
+      "retained_full_platform": "Linux-7.0.0-1017-azure-x86_64-with-glibc2.39"
+    }
+  },
+  "published_historical_artifacts": [
+    {
+      "id": 12868305362,
+      "name": "full-gates-light-candidate-procedural-40791402289-1",
+      "size_in_bytes": 1768422,
+      "digest": "sha256:9c6117236e0ab51671c2ded18c1536ca27d129f8976c30dd96f21a34f5f500aa",
+      "expired": false,
+      "created_at": "2026-10-29T02:13:33Z",
+      "expires_at": "2026-11-28T02:13:31Z",
+      "workflow_run": {
+        "head_branch": "lead/cloud-full-gates-20261028",
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "id": 12867956553,
+      "name": "full-gates-raw-candidate-procedural-40791402289-1",
+      "size_in_bytes": 1235585452,
+      "digest": "sha256:1ebd660a76acf26106d9205729f56aadeb59e8c5633a044faa5a5b1c32e928a8",
+      "expired": false,
+      "created_at": "2026-10-29T02:15:26Z",
+      "expires_at": "2026-11-28T02:13:35Z",
+      "workflow_run": {
+        "head_branch": "lead/cloud-full-gates-20261028",
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "id": 12865287568,
+      "name": "full-gates-raw-candidate-template-40791402289-1",
+      "size_in_bytes": 891194242,
+      "digest": "sha256:ac1132176349bee3a82bcfffef9ee29abccf424920711ca635d07d616598e1ae",
+      "expired": false,
+      "created_at": "2026-10-29T01:16:50Z",
+      "expires_at": "2026-11-28T01:15:25Z",
+      "workflow_run": {
+        "head_branch": "lead/cloud-full-gates-20261028",
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "id": 12864154643,
+      "name": "full-gates-light-candidate-template-40791402289-1",
+      "size_in_bytes": 4860197,
+      "digest": "sha256:745443ffe29595cc96a7f1d6b58b13d5f974a2abb43954299e8227b80d95c786",
+      "expired": false,
+      "created_at": "2026-10-29T01:15:21Z",
+      "expires_at": "2026-11-28T01:15:20Z",
+      "workflow_run": {
+        "head_branch": "lead/cloud-full-gates-20261028",
+        "head_repository_id": 1187468861,
+        "head_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+        "id": 40791402289,
+        "repository_id": 1187468861
+      }
+    }
+  ],
+  "avoided_runner_work": {
+    "parents": 300,
+    "forks": 3400,
+    "executions": 3700,
+    "actual_physics_ticks": 201400,
+    "wall_time_saving_claim": null
+  },
+  "required_candidate_production_work": {
+    "parents": 300,
+    "forks": 3400,
+    "executions": 3700,
+    "actual_physics_ticks": 201400,
+    "additional_admission_proofs_separately_registered": true
+  },
+  "optional_fixed_candidate_schema_smoke": {
+    "parents": 4,
+    "forks": 8,
+    "actual_physics_ticks": 668,
+    "scope": "execution/schema only; scientific failures retained"
+  },
+  "resource_controls": {
+    "build_wall_seconds": 4800,
+    "full_cohort_controller_wall_seconds": 19800,
+    "full_cohort_job_minutes": 360,
+    "cohort_admission_disk_GiB": 20,
+    "cohort_admission_RAM_GiB": 6,
+    "runtime_floor_disk_GiB": 3,
+    "runtime_floor_RAM_GiB": 1,
+    "threads": 1,
+    "actual_cpus": 2,
+    "workers": 2
+  },
+  "frozen_comparison_policy": {
+    "profile": "full",
+    "require_strict_regression": true,
+    "fail_on_regression": true,
+    "exploratory": false,
+    "allow_unverified_cohort_fields": false,
+    "allow_method_changes": false,
+    "original_causal_oracles_required": false,
+    "separate_causal_required_adjudication": true
+  },
+  "control_source_review": {
+    "control_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+    "blob_ids": {
+      ".github/workflows/cloud-full-gates.yml": "9325486ba66491c2eacacfaac3b63c55f91cd039",
+      "scripts/cloud_full_gate_qualification.py": "e9116548cae1a820a31794b896c2565670696fa2",
+      "scripts/cloud_full_gate_comparison.py": "41c1c81d242e40698ec155d4cbd4e8ca141aad35",
+      "scripts/fetch_cloud_full_gate_retention.py": "f6b69983b09a20a39271e1e148808b851043bcf5"
+    }
+  },
+  "current_blockers": [
+    "Original whole-run strict comparison and retention readout pending at observation; both D028 source-specific cohorts complete with positive original gates.",
+    "Supported raw-artifact retrieval remains unresolved; raw publication metadata is not raw-content verification or demonstrated retrievability.",
+    "Actual old rustc/cargo/maturin/uv versions and build flags/target/features are retained in logs, not embedded in this build manifest, and have not been recovered by this design.",
+    "Candidate actual wheel/module identities not yet pinned under the required controlled build context.",
+    "Existing same-crate/shared-wheel/same-run/old-role controls correctly reject this pair; separately reviewed dual-native/two-origin controls required."
+  ],
+  "identity_rules": [
+    "Keep historical source/run/control/role/report/native records byte-identical; map prospective role only in an external hashed reference.",
+    "Candidate writes and resumes only its own source/native/runtime checkpoints and IDs; historical checkpoint resume and mismatch override forbidden.",
+    "Do not let different native hashes trigger exploratory mode or wildcard native admission; exact expected old/new identities are the treatment.",
+    "Full seed/horizon/config/method parity remains mandatory; no exposure-selected seeds, outcomes, retries or domestic-credit activation."
+  ],
+  "evidence_basis": {
+    "existing_metadata_index_sha256": "587184486c84abf17e4dca16a3e700e4b0e57d9fb51845e12bfe5b8bba82156e",
+    "existing_shared_wheel_verification_sha256": "bd045cb0af2b9398d69e6ebc0f923a2e9e934708ac638972f0d88347ca1c152e",
+    "official_artifacts_snapshot_sha256": "99a26a7f71aafdacfa9c4e3eb1f58520833e18a04f30dc1d01d2eb508ae81a7f",
+    "official_jobs_snapshot_sha256": "3752d92031d807fa28330601f1352d2c521020ca56de1dd5cf463d71a41d77df",
+    "scope": "Read-only existing light metadata and exact source. No raw archive download, native import, execution, build, oracle rescoring or actual baseline reuse."
+  },
+  "frozen_analysis_file_sha256": {
+    "src/chronicler/validation_compare.py": "cc45f89f9d64cd5dd1714cadf5b598f6c206105998583435f95c3873ea9f4a92",
+    "src/chronicler/validation_gate.py": "d213cf625291998a7fb56fd4ee7ebe08ee4714b02effefc7310e263748d9b4d1",
+    "src/chronicler/artifact_io.py": "885eb95fb93187d11f2210f726df8ba58a9db13c10f305efac2e92a55f93ab4f",
+    "src/chronicler/__init__.py": "9832de075b76097aafbf424ddd6ca6d7fbae24ed8fc9e271e7820b357b49e6fd"
+  },
+  "metadata_only_inventory_review": {
+    "parents": 300,
+    "forks": 3400,
+    "ordered_seeds_match_registration": true,
+    "unique_bundle_paths": true,
+    "recorded_horizons_match": true,
+    "known_parent_validation_input_sets_exact": true,
+    "all_recorded_parent_and_fork_inventory_digest_links_match": true,
+    "scope": "Existing retained light ZIP metadata only; no raw file content, checkpoint load or oracle evaluation."
+  }
+}

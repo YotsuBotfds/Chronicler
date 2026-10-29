@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+An inactive [wealth-floor outcome protocol](experiments/household-wealth-floor-outcome-protocol-2026-10-29.md)
+plans reuse of the complete D028 template/procedural cohorts as an immutable
+historical baseline: 3,700 executions/201,400 ticks of runner work avoided,
+without a wall-time saving claim. It requires separate dual-native/cross-run
+admission, candidate-owned checkpoints and fixed scientific policy. Old-run
+final publication standing, toolchain pins, raw retrieval and the candidate
+binary remain activation blockers. No build, download, world or reuse ran.
+
 Both isolated batch-verification sources now have completed exact-source
 [six-job CI qualification](integration/batch-verification-ci-2026-10-29.md):
 `e984be2a` (run 40801509650) and reviewed reconciliation `ec85795e` (run
