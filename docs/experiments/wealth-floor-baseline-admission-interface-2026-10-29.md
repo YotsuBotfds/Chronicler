@@ -53,6 +53,20 @@ Pure fixture ZIPs use tiny byte strings and fake clocks. They cover complete
 archives and wrong role/native/run/expiry, incomplete/unsafe/aliased members,
 storage/index/stream bounds, mutation, late finalization and unknown build pins.
 
+The resource probe currently combines host `MemAvailable` with memory metadata
+at the mounted cgroup root. It does not resolve tighter descendants or hidden
+ancestor limits. Before any audit job is activated, deployment must establish
+that this is the process's effective memory boundary, or supply a reviewed
+hierarchy-aware probe. The current pure checks do not qualify effective RAM
+admission on a GitHub runner. No active job is supplied by this implementation.
+
+Independent root review additionally found that absent producer IDs could
+compare equal as `None == None`. Audit creation and completion admission now
+require a lowercase 40-hex control and positive integer run/job IDs, excluding
+booleans and numeric lookalikes. Empty directory entries are accepted only as
+zero-size stored streams with zero CRC, and their local headers are read too.
+These corrections change no scientific evidence, comparator or candidate gate.
+
 Initial implementation qualification: **51 guarded pure cases passed**. The
 guard records no native import/attempt, no blocked IO and zero runtime factory
 calls. Coverage includes descriptor-relative no-follow/nonblocking FIFO-swap

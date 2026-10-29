@@ -355,3 +355,61 @@ def test_aggregate_storage_and_expansion_bounds_are_independent(admission,kind):
     pin=admission.ArchivePin(9,"template-candidate",size,"0"*64,"2026-11-28T01:15:25Z")
     rows={"toy":dict(pin=pin,members={"x":admission.FilePin(payload,"1"*64)})}
     with pytest.raises(admission.AdmissionError):admission.validate_aggregate_bounds(rows)
+
+
+@pytest.mark.parametrize("fault", ["missing", "null", "run_bool", "run_string", "run_zero",
+                                  "job_bool", "job_float", "job_negative", "sha_upper", "sha_short"])
+def test_matching_invalid_producer_identities_never_attest_a_completed_job(admission, fault):
+    control = "1" * 40
+    producer = dict(control_sha=control, run_id=2, job_id=3)
+    job = dict(head_sha=control, run_id=2, id=3, status="completed", conclusion="success")
+    if fault == "missing":
+        producer = {}
+        job = dict(status="completed", conclusion="success")
+        control = None
+    elif fault == "null":
+        producer = dict(control_sha=None, run_id=None, job_id=None)
+        job.update(head_sha=None, run_id=None, id=None)
+        control = None
+    elif fault.startswith("sha_"):
+        control = "A" * 40 if fault == "sha_upper" else "1" * 39
+        producer["control_sha"] = job["head_sha"] = control
+    else:
+        value = dict(run_bool=True, run_string="2", run_zero=0,
+                     job_bool=True, job_float=3.0, job_negative=-1)[fault]
+        if fault.startswith("run_"):
+            producer["run_id"] = job["run_id"] = value
+        else:
+            producer["job_id"] = job["id"] = value
+    receipt = dict(status="audit_complete_pending_job", old_run_id=admission.OLD_RUN,
+                   old_control_sha=admission.OLD_CONTROL, old_source_sha=admission.OLD_SOURCE,
+                   original_comparison_sha256=admission.OLD_COMPARISON, producer=producer)
+    digest = sha(admission.json_bytes(receipt))
+    with pytest.raises(admission.AdmissionError, match="producer identity"):
+        admission.validate_completed_job(receipt, job, receipt_sha256=digest,
+                                         expected_receipt_sha256=digest, control_sha=control)
+
+
+@pytest.mark.parametrize("control,run,job", [(None,2,3), ("A"*40,2,3), ("1"*40,None,3),
+    ("1"*40,True,3), ("1"*40,0,3), ("1"*40,2,None), ("1"*40,2,3.0), ("1"*40,2,-1)])
+def test_invalid_producer_is_refused_before_baseline_inputs_are_opened(admission, control, run, job):
+    with pytest.raises(admission.AdmissionError, match="producer identity"):
+        admission.audit_baseline(None, {}, {}, None, control_sha=control, run_id=run, job_id=job)
+
+
+@pytest.mark.parametrize("bad_crc", [False, True])
+def test_empty_directory_requires_valid_zero_content_crc(admission, sample, tmp_path, bad_crc):
+    _, members, expected, _, pin = sample
+    path = write_zip(tmp_path / "directory.zip", members)
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr("raw/", b"")
+    if bad_crc:
+        raw = bytearray(path.read_bytes())
+        directory_header = raw.rfind(b"PK\x01\x02")
+        struct.pack_into("<L", raw, directory_header + 16, 1)
+        path.write_bytes(raw)
+        with pytest.raises(admission.AdmissionError):
+            admission.audit_archive(path, expected, pin(path), Clock().budget(admission))
+    else:
+        result = admission.audit_archive(path, expected, pin(path), Clock().budget(admission))
+        assert result["files"] == len(members)

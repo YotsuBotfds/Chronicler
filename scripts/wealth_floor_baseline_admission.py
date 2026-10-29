@@ -55,6 +55,13 @@ def hash_shape(value):
     return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
 
 
+def validate_producer_identity(control_sha, run_id, job_id):
+    require(isinstance(control_sha, str) and len(control_sha) == 40
+            and all(c in "0123456789abcdef" for c in control_sha), "producer identity requires a 40-hex control SHA")
+    require(type(run_id) is int and run_id > 0 and type(job_id) is int and job_id > 0,
+            "producer identity requires positive integer run and job IDs")
+
+
 @dataclass(frozen=True)
 class FilePin:
     size: int
@@ -105,6 +112,11 @@ class Budget:
 
 
 def _resources(path, *, admission=False):
+    """Host/root-mount probe; deployment must establish effective cgroup scope.
+
+    This inactive reader does not resolve tighter cgroup descendants or hidden
+    ancestors. Its 2/1 GiB checks require the interface's deployment precondition.
+    """
     disk = shutil.disk_usage(path).free
     require(disk >= (12 if admission else 3) * 1024**3, "disk admission/floor unmet")
     with open("/proc/meminfo", encoding="ascii") as stream:
@@ -382,7 +394,13 @@ def audit_archive(path, expected, pin, budget, *, max_payload_bytes=MAX_PAYLOAD_
                     mode = stat.S_IFMT(info.external_attr >> 16)
                     require(info.flag_bits & 1 == 0 and info.compress_type in (0, 8), "encrypted/unsupported ZIP entry")
                     if info.is_dir():
-                        require(mode in (0, stat.S_IFDIR) and base in prefixes and info.file_size == 0, "unexpected ZIP directory")
+                        require(mode in (0, stat.S_IFDIR) and base in prefixes
+                                and info.file_size == info.compress_size == info.CRC == 0
+                                and info.compress_type == zipfile.ZIP_STORED, "unexpected ZIP directory")
+                        with archive.open(info) as directory:
+                            budget.check()
+                            require(directory.read(1) == b"", "ZIP directory contains data")
+                            budget.check()
                         continue
                     require(mode in (0, stat.S_IFREG) and base in expected and base not in seen, "extra/aliased ZIP file")
                     record = expected[base]
@@ -450,6 +468,7 @@ def prepare_baseline_plan(comparison_path, light_roots, budget=None):
 
 def audit_baseline(plan, paths, publication, output, *, control_sha, run_id, job_id, budget=None, now=None):
     """Only an informational audit; no local receipt alone authorizes worlds."""
+    validate_producer_identity(control_sha, run_id, job_id)
     require(type(plan) is BaselinePlan and getattr(plan, "_seal", None) is _PLAN_SEAL, "validated baseline plan required")
     budget = budget or plan._budget
     require(budget is plan._budget, "audit budget cannot reset after plan verification")
@@ -503,13 +522,17 @@ def publish_pending_receipt(receipt, output, budget):
 
 
 def validate_completed_job(receipt, job, *, receipt_sha256, expected_receipt_sha256, control_sha):
+    producer = receipt.get("producer", {})
+    require(isinstance(producer, dict), "producer identity object required")
+    validate_producer_identity(control_sha, producer.get("run_id"), producer.get("job_id"))
+    validate_producer_identity(producer.get("control_sha"), producer.get("run_id"), producer.get("job_id"))
+    validate_producer_identity(job.get("head_sha"), job.get("run_id"), job.get("id"))
     require(hash_shape(receipt_sha256) and receipt_sha256 == expected_receipt_sha256, "audit receipt not externally sealed")
     require(hashlib.sha256(json_bytes(receipt)).hexdigest() == receipt_sha256, "audit receipt bytes differ")
     require(receipt.get("status") == "audit_complete_pending_job", "audit did not complete")
     require(receipt.get("old_run_id") == OLD_RUN and receipt.get("old_control_sha") == OLD_CONTROL
             and receipt.get("old_source_sha") == OLD_SOURCE and receipt.get("original_comparison_sha256") == OLD_COMPARISON,
             "audit historical origin differs")
-    producer = receipt.get("producer", {})
     require(producer.get("control_sha") == control_sha and job.get("head_sha") == control_sha
             and job.get("id") == producer.get("job_id") and job.get("run_id") == producer.get("run_id")
             and job.get("status") == "completed" and job.get("conclusion") == "success", "completed successful producer attestation required")
