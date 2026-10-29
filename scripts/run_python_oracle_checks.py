@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
     "diagnostics": [
+        "tests/test_completed_export_study_reader.py",
+        "tests/test_export_study_git.py",
         "tests/test_community_admissibility.py::test_decomposes_saved_counters_without_changing_report_or_verdict",
         "tests/test_community_admissibility.py::test_capacity_does_not_imply_region_share_pass",
         "tests/test_community_admissibility.py::test_empty_exposure_never_becomes_a_pass",

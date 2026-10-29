@@ -1,5 +1,11 @@
 # Recovered continuation — 2026-10-11
 
+A separate [completed export-study reader](integration/completed-export-study-reader-2026-10-29.md)
+preregisters bounded reinspection of the finished arc and recovered output
+proofs. It streams complete inventories and compares all nine cases using
+frozen source, without new worlds or normalization. Audit results remain
+unissued at this source freeze.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)
