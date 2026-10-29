@@ -1,5 +1,18 @@
 # Recovered continuation — 2026-10-11
 
+October 29 combined native candidate `95f73a74` passes all six unchanged
+test selections: diagnostics, index reuse, explicit transient Python reader
+and verified wheel retention. [The readout](integration/combined-native-decision-delivery-ci-2026-10-29.md)
+records all seven genuine compiled reader cases, 8,206 native parents and the
+actual retained native-byte hash. Separate cleanup child `45e1b939` has 82
+guarded cases and source review; no child native/full-CI result is invented.
+
+The [corrected paired wealth build](integration/wealth-floor-paired-native-build-2026-10-29.md)
+at `3bf976cd` also completes: exact historical native reproduction, distinct
+candidate, equal build context and all four real Rust regressions. All
+artifacts/seals verify. First failure `75cb1771` remains preserved; candidate
+checkpoint/determinism bootstrap and full outcome admission are still pending.
+
 October 29 baseline byte audit: source `7185f69c`, run `40818582726`, completes
 75,764 raw file payloads / 9,152,457,132 bytes against original inventories.
 The [readout](integration/wealth-floor-baseline-audit-2-result-2026-10-29.md)

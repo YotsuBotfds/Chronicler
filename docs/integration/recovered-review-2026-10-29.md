@@ -113,6 +113,25 @@ the extension. No old/new whole-world identity, larger-population timing,
 Python adapter, causal gate or coefficient change is claimed. The source stays
 on `lead/decision-delivery-applied-moves-20261029`, outside this review branch.
 
+The [combined implementation](combined-native-decision-delivery-ci-2026-10-29.md)
+at `95f73a74` now passes all six jobs on its first attempt. It composes those
+native diagnostics with the reviewed index reuse and an explicit Python
+reader. The reader keeps one bounded latest frame, validates actual full-native
+event links after ordinary bridge processing, rejects stale same-turn attempts,
+and excludes its state from checkpoints. It adds no default observer attribute,
+optional import, delivery-native call or I/O. There is no automatic writer or CLI.
+
+All seven genuine reader cases pass across both bridge entry points and all
+three modes; the hybrid cases require actual applied moves. Totals are 8,206
+native Python parents, 7,873 no-Rust parents, 1,118 Rust tests and 4,103 offline
+passes across 34 chunks, with skips/subtests separately recorded. The new
+retained wheel's actual inner native bytes match the installed test preflight.
+This qualifies controlled within-build contracts, not old/new whole-world
+identity, scientific efficacy or measured speed. The subsequent
+`45e1b939` cleanup branch releases closed-handle simulator ownership: two
+weak-reference regressions fail on the parent, then all 82 affected guarded
+cases pass. Its source review is clear; it has no new native or full-CI claim.
+
 ## Native tick index reuse, separate review branch
 
 The [index-reuse source](native-tick-index-reuse-ci-2026-10-29.md) at `e2b7c940`
@@ -246,6 +265,17 @@ supply only the selected Python library directory to that regression child,
 preserving release-build context. The first wheels cannot be retroactively
 treated as a complete successful producer.
 
+The [corrected paired build](wealth-floor-paired-native-build-2026-10-29.md)
+at `3bf976cd`, run `40820753788`, now completes successfully. All four targeted
+Rust regressions actually execute and pass, the old extension reproduces
+exactly, and the candidate is distinct under equal fully recorded build
+contexts. All three artifacts, 105 outer members, both inner native payloads
+and completion seals reconcile. The loader change applies only to the
+regression command. This completes the build prerequisite without granting
+baseline reuse or outcome worlds. A separately registered 926-tick bootstrap
+is being prepared from unchanged checkpoint/determinism kernels; its scope
+does not replace long-window ablations or full population gates.
+
 ## Separate verification corrections
 
 The batch audit reproduced an added-sidecar gap: a file absent from recorded
@@ -277,13 +307,16 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/models-forkserver-metadata-design-20261029` | Tested static inventory and inactive two-child proof design; zero metadata forks |
 | `lead/research-natural-continuation-harness-20261029` | Corrected, tested detached study adapter; metadata freeze only |
 | `lead/cloud-household-wealth-floor-20261029` | All six CI lanes pass; intentional native behavior correction awaits outcome qualification |
-| `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin baseline reader, 71 guarded contracts and independent source review pass; effective cgroup deployment proof and all candidate proof pins remain unresolved |
+| `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin reader; 71 guarded contracts pass. Corrected audit/build branches supply completed evidence; candidate outcome proof pins remain pending |
 | `lead/decision-delivery-native-20261029` | Bounded transient native diagnostics; all six unchanged CI jobs pass at e99c; applied-movement provenance remains a separate next stage |
 | `lead/decision-delivery-applied-moves-20261029` | Actual bounded household and event provenance; all six unchanged CI jobs pass at feb98; Python access and whole-world qualification remain separate |
 | `lead/native-tick-index-reuse-20261029` | Exact-source six-job CI passes at e2b7; structural work reduction, measured performance and whole-world qualification remain separate |
 | `lead/agent-scale-benchmark-inputs-20261029` | Empty/invalid workload refusal and distinct repeat profiles; 52 affected guarded tests and source review pass; no simulation or benchmark workload executed |
 | `lead/wealth-floor-baseline-audit-2-readout-20261029` | Completed retained-byte audit and 29-member authority verification pass; candidate/native/checkpoint grants remain pending |
-| `lead/ci-native-wheel-retention-20261029` | Prepared source links the built wheel to installed bytes and retains it separately; 27 guarded contracts/lint/peer pass; actual publication awaits combined CI |
+| `lead/ci-native-wheel-retention-20261029` | Component has 27 guarded contracts/lint/peer; its exact source executes in combined 95f73 CI, with retained wheel/native-byte linkage verified |
+| `lead/native-decision-delivery-python-adapter-20261029` | Combined diagnostics/index/reader/wheel retention at 95f73; all six CI jobs pass and retained native bytes verify; scientific/whole-world qualification remains separate |
+| `lead/decision-delivery-closed-handle-lifetime-20261029` | Two-line Python cleanup follow-up at 45e1; 82 guarded tests and source review pass; native/full-CI standing remains that of its parent |
+| `lead/wealth-floor-paired-build-readout-20261029` | Completed native bridge at 3bf and its retained first failure; exact old binary, distinct candidate and four executed regressions; checkpoint/determinism/outcome work remains separate |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)
