@@ -1,0 +1,60 @@
+name: Viewer continuation checks
+
+on:
+  push:
+    branches: [lead/cloud-viewer-fixes-20261029]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-continuation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  viewer:
+    name: Viewer full tests, lint and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - name: Check out reviewed viewer source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - name: Record exact source and tools
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          git rev-parse HEAD > ci-evidence/source.txt
+          node --version > ci-evidence/node.txt
+          npm --version > ci-evidence/npm.txt
+          sha256sum package-lock.json > ci-evidence/lock.sha256
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run all viewer tests
+        shell: bash
+        run: npm test -- --maxWorkers=2 2>&1 | tee ci-evidence/tests.txt
+      - name: Lint viewer
+        shell: bash
+        run: npm run lint 2>&1 | tee ci-evidence/lint.txt
+      - name: Build production viewer
+        shell: bash
+        run: npm run build 2>&1 | tee ci-evidence/build.txt
+      - name: Retain exact-head viewer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewer-continuation-${{ github.sha }}
+          path: viewer/ci-evidence/
+          if-no-files-found: error
+          retention-days: 30

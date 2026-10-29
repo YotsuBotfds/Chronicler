@@ -182,3 +182,14 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## Viewer snapshot-detail continuation — 2026-10-29
+
+A separate branch `lead/cloud-viewer-fixes-20261029` ports the independently
+reviewed debt-holder snapshot-detail repair from draft `00585a47`. Current
+labels and table columns follow the selected snapshot's available detail;
+later recorded lenders remain visible in historical charts. This is a viewer
+change only. Exact-head full viewer tests, lint and production build run in
+the dedicated continuation workflow; no scientific qualification is implied.
+See [scope and regression cases](integration/debt-holder-snapshot-detail-2026-10-29.md).
