@@ -101,6 +101,8 @@ def test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask():
         assert header["source_turn"] == turn
         assert header["active_ablation"] == (1 if turn == 43 else 0)
         assert header["decision_capture_complete"] and decisions.num_rows > 0
+        assert candidates.num_rows > 0, "the fixture must exercise actual destination capture"
+        assert candidates.num_rows == header["admissible_candidates_all"]
         assert header["alive_seen_all"] >= decisions.num_rows
         assert decisions.schema.field("utility_migrate_bits").type.bit_width == 32
         rows = decisions.to_pylist()
@@ -159,7 +161,7 @@ def test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame():
     sim.tick(0, _signals())
     assert _frame(sim)[0]["source_turn"] == 0
     bad = pa.record_batch({"unexpected": pa.array([0], type=pa.uint8())})
-    with pytest.raises((ValueError, RuntimeError), match="civ_id"):
+    with pytest.raises(ValueError, match="civ_id"):
         sim.tick(1, bad)
     header, decisions, candidates = _frame(sim)
     assert header["enabled"] and header["source_turn"] is None
