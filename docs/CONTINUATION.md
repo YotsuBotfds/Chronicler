@@ -8,6 +8,16 @@ admissibility reader, arc classifier projection and viewer debt-history repairs.
 See [the recovered integration record](integration/recovered-integration-2026-10-29.md)
 for exact source and pending qualification boundaries. Main is unchanged.
 
+October 29 observer-only repair of the prospective
+[six-worker finite-research composition proof](experiments/scientific-research-native-composition-2026-10-28.md)
+starts from preserved integration `22a48ffa`; its producer package and Rust
+source are unchanged. Twenty focused pure runner tests pass. No native world
+execution or feature qualification is yet claimed. The runner now distinguishes
+execution from qualification, checks all active native checkpoint sections and
+pause/archive lineage, and preserves full raw bundle differences. Python/NumPy
+module globals use common external initialization; their checkpoint restoration
+is not claimed. The original integration and frozen worktrees remain untouched.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)
