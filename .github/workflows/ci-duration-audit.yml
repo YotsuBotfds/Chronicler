@@ -1,0 +1,62 @@
+name: Read fixed historical CI durations
+
+# Deliberately inactive on the draft branch. Root reviews before copying to this name.
+on:
+  push:
+    branches: [lead/cloud-ci-duration-audit-20261029]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: fixed-ci-duration-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  historical-reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONNOUSERSITE: "1"
+      PYTHONUNBUFFERED: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - name: Check out reviewed reader
+        uses: actions/checkout@v4
+        with:
+          path: reader
+          persist-credentials: false
+      - name: Check out exact historical source for file attribution only
+        uses: actions/checkout@v4
+        with:
+          ref: d0281e5f57c508f27cea1676f36e0e6ed1225c9d
+          path: historical-source
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run pure safety and accounting contracts
+        shell: bash
+        run: |
+          python -m unittest discover -s reader/tests -p test_ci_duration_audit.py -v 2>&1 | tee "$RUNNER_TEMP/ci-duration-contracts.txt"
+      - name: Inspect only the two fixed completed artifacts
+        env:
+          GH_ARTIFACT_READ_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python reader/scripts/ci_duration_audit.py \
+            --source-root "$GITHUB_WORKSPACE/historical-source" \
+            --output "$RUNNER_TEMP/ci-duration-audit"
+      - name: Retain original inputs and derived evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-duration-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ci-duration-audit/
+            ${{ runner.temp }}/ci-duration-contracts.txt
+          if-no-files-found: error
+          retention-days: 30

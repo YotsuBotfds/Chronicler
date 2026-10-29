@@ -1,5 +1,10 @@
 # Recovered continuation — 2026-10-11
 
+An inactive, separate [fixed historical CI duration audit](integration/ci-duration-audit-2026-10-29.md)
+reads the two pinned d028 Python artifacts to inform prospective file sharding.
+Its pure contracts do not run tests from the simulator, build native code or
+establish a speedup. Actual artifact inspection awaits lead review and activation.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)
