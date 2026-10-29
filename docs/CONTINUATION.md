@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+The [first wealth-fix bootstrap](experiments/wealth-floor-candidate-bootstrap-result-2026-10-29.md)
+passed at `40db80d3`, run `40824399844`: 162 guarded preflight cases,
+six native checkpoint cases, nine candidate-owned headers, cross-native
+rejection before restoration, and both genuine 200-turn repeat pairs.
+All 698 original archive members and publication seals reconcile. This is
+926 ticks of bounded mechanical evidence, with incidental oracle failures
+preserved. Late production checkpoints and actual two-CPU execution require
+their separate primer; final A pins and outcome admission remain pending.
+
 October 29 combined native candidate `95f73a74` passes all six unchanged
 test selections: diagnostics, index reuse, explicit transient Python reader
 and verified wheel retention. [The readout](integration/combined-native-decision-delivery-ci-2026-10-29.md)
@@ -10,8 +19,8 @@ guarded cases and source review; no child native/full-CI result is invented.
 The [corrected paired wealth build](integration/wealth-floor-paired-native-build-2026-10-29.md)
 at `3bf976cd` also completes: exact historical native reproduction, distinct
 candidate, equal build context and all four real Rust regressions. All
-artifacts/seals verify. First failure `75cb1771` remains preserved; candidate
-checkpoint/determinism bootstrap and full outcome admission are still pending.
+artifacts/seals verify. First failure `75cb1771` remains preserved; the bounded candidate
+bootstrap is now verified; production primer and full outcome admission remain pending.
 
 October 29 baseline byte audit: source `7185f69c`, run `40818582726`, completes
 75,764 raw file payloads / 9,152,457,132 bytes against original inventories.
