@@ -96,3 +96,22 @@ The older C76-to-95 refs, first failed audit and qualified proof remain unchange
 The preserved source-only CBF-to-535 registration `5ab655b4` was never run.
 This separately registered successor qualifies only CBF-to-090 if its future
 producer and artifact reader pass; it grants no retroactive 535 parity.
+
+The first activation6cf/run40873351990 attempt1 failed during Set up job before
+checkout, setup, controller, probe or World steps. The upload action reference
+contained a one-character typo (`...b4888f...`). Official action metadata and the
+qualified74 workflow confirm the original v4.6.2 commit
+`ea165f8d65b6e75b540449e92b4886f43607fa02`. No artifact/controller result was
+produced because actions are resolved before job steps, including always-upload.
+The original22-file negative pack remains immutable. This is a setup-manifest
+failure, with no observed schema, output identity, physics or speed result.
+
+A source-only V2 successor preserves the failed active file and be188 template.
+Its separate closed branch is `lead/cloud-cbf-090-default-identity-v2-20261029`,
+path `.github/workflows/cbf-090-default-identity-v2.yml`, and dormant template
+`docs/experiments/cbf-090-default-identity-v2-workflow.yml`. It restores only the
+verified upload reference and changes authority names/hash binding. The original
+adapter algorithms, all input pins, matrix, resource/cleanup limits and comparator
+remain unchanged. A focused regression binds the new literal to the verified
+v4.6.2 pin while retaining the old erroneous bytes. Source peer/root review and a
+new exact-source activation approval are required; no source-identical retry.

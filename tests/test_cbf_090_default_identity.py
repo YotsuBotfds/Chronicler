@@ -145,6 +145,17 @@ class Contracts(unittest.TestCase):
             active.write_bytes(template.read_bytes()+b"\n# drift\n")
             with self.assertRaises(B.Refusal): B.workflow_contract(root)
 
+    def test_registered_upload_action_uses_the_qualified_v4_6_2_commit(self):
+        # Official v4.6.2 tag and qualified74 use this exact commit. The first
+        # hosted6cf job rejected the retained old template's 4888 typo at setup.
+        expected = "uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2"
+        current = (ROOT/B.TEMPLATE_PATH).read_text()
+        self.assertEqual(current.count(expected),1)
+        self.assertNotIn("ea165f8d65b6e75b540449e92b4888f43607fa02",current)
+        retained = (ROOT/"docs/experiments/cbf-090-default-identity-workflow.yml").read_text()
+        self.assertNotIn(expected,retained)
+        self.assertIn("ea165f8d65b6e75b540449e92b4888f43607fa02",retained)
+
     def test_immutable_utilities_rechecked_even_with_cached_module(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

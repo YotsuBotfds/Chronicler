@@ -55,11 +55,11 @@ SOURCES = MappingProxyType({
 })
 CRATES = MappingProxyType({"baseline": "912a1a2489f8f8c548df19302bb2c0a4365fc32e",
                           "candidate": "803c79c8d5c024cbb8d67c58af7ffa731d79c129"})
-ACTIVE_BRANCH = "lead/cloud-cbf-090-default-identity-20261029"
-WORKFLOW_PATH = ".github/workflows/cbf-090-default-identity.yml"
-TEMPLATE_PATH = "docs/experiments/cbf-090-default-identity-workflow.yml"
-JOB_KEY = "cbf-090-default-identity"
-WORKFLOW_SHA = "be1881e8133f69c0b1f5104ab21d06e3cb1d4023f22536428a0bc3b3d0ee9520"
+ACTIVE_BRANCH = "lead/cloud-cbf-090-default-identity-v2-20261029"
+WORKFLOW_PATH = ".github/workflows/cbf-090-default-identity-v2.yml"
+TEMPLATE_PATH = "docs/experiments/cbf-090-default-identity-v2-workflow.yml"
+JOB_KEY = "cbf-090-default-identity-v2"
+WORKFLOW_SHA = "46beb45f1021a0ba939aa3c886fe85a3b798d7d5a38be284a15b250cac7af295"
 ARTIFACTS = MappingProxyType({
     "baseline-wheel": A.ArtifactPin(12882944002, 40841527996, 123338805674, SOURCES["baseline"],
         "native-wheel-" + SOURCES["baseline"], 3850581,

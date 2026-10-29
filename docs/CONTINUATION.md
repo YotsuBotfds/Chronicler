@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The first CBF-to-090 activation6cf/run40873351990 failed only during Set up job:
+a one-character upload-action pin typo prevented every checkout/controller/probe/
+World step. The negative publication and old active/template/ref remain intact.
+A source-only V2 correction restores the officially verified qualified74 v4.6.2
+pin on a separate closed workflow authority; matrix, inputs and algorithms are
+unchanged. No new execution is authorized before peer/root exact-source review.
+
 A separate [CBF-to-090 default-export source registration](experiments/cbf-090-default-identity-2026-10-29.md)
 replaces only the proposed candidate registration with qualified090 and its own
 retained CI wheels/preflight. The original18-World/3,200-tick matrix and kernels
