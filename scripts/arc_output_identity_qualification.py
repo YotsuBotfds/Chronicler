@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fixed arc-optimization export parity; not a speed or checkpoint gate."""
+"""Fixed registered-source export parity; not a speed or checkpoint gate."""
 from __future__ import annotations
 import argparse
 import ast
@@ -20,6 +20,11 @@ import zipfile
 
 BASE = "d0281e5f57c508f27cea1676f36e0e6ed1225c9d"
 CANDIDATE = "249a4e1879cf5fbbb070de11f478f19825f51419"
+SOURCE_PAIRS = {
+    "arc": (BASE, CANDIDATE),
+    "recovered": ("2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+                  "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"),
+}
 SCRIPT = Path(__file__).resolve()
 GIB = 1024 ** 3
 WALL_SECONDS = 80 * 60
@@ -54,6 +59,11 @@ class Refusal(RuntimeError):
 def require(condition, message):
     if not condition:
         raise Refusal(message)
+
+
+def registered_sources(name):
+    require(type(name) is str and name in SOURCE_PAIRS, "unregistered source pair")
+    return SOURCE_PAIRS[name]
 
 
 def sha(path):
@@ -445,6 +455,8 @@ def inspect_case(args):
 
 
 def execute(args):
+    pair_name = getattr(args, "source_pair", "arc")
+    baseline_sha, candidate_sha = registered_sources(pair_name)
     root = Path(args.evidence).resolve()
     root.mkdir(parents=True, exist_ok=False)
     for folder in ("logs", "probes", "audits", "raw", "wheels", "native"):
@@ -455,7 +467,8 @@ def execute(args):
                        PYTHONNOUSERSITE="1", CHRONICLER_QUIET="1")
     before = {}
     rows = [{"arm": arm, "case": name, "status": "not_attempted"} for arm in ("baseline", "candidate") for name in CASES]
-    report = {"qualified": False, "baseline": BASE, "candidate": CANDIDATE, "cases": rows,
+    report = {"qualified": False, "source_pair": pair_name,
+              "baseline": baseline_sha, "candidate": candidate_sha, "cases": rows,
               "normalization": "metadata.generated_at only; logs/run_manifest.json excluded by existing comparator",
               "limitations": ["exports only; checkpoint/native/RNG state bytes not captured",
                               "no timing/speed or feature-efficacy claim", "one fixed environment and case matrix"]}
@@ -463,7 +476,7 @@ def execute(args):
     wheel_sha = native_expected = None
     roots = {"baseline": Path(args.baseline_root).resolve(), "candidate": Path(args.candidate_root).resolve(),
              "control": SCRIPT.parents[1]}
-    expected = {"baseline": BASE, "candidate": CANDIDATE, "control": os.environ["GITHUB_SHA"]}
+    expected = {"baseline": baseline_sha, "candidate": candidate_sha, "control": os.environ["GITHUB_SHA"]}
     py = str(Path(args.python).absolute())
     venv = Path(py).parent.parent
     try:
@@ -480,7 +493,8 @@ def execute(args):
             require(sha(base / relative) == sha(candidate / relative), "shared input differs: " + relative)
         for source in (base, candidate):
             require_matrix(source / "scripts/turn_speed_identity.py")
-        write(root / "freeze.json", {"sources": before, "script_sha256": sha(SCRIPT),
+        write(root / "freeze.json", {"sources": before, "source_pair": pair_name,
+                                     "script_sha256": sha(SCRIPT),
                                      "matrix": CASES, "thread_caps": CAPS, "affinity": sorted(os.sched_getaffinity(0))})
         target = Path(os.environ["CARGO_TARGET_DIR"]).resolve()
         require(not target.exists() and all(not target.is_relative_to(source) for source in roots.values()),
@@ -585,7 +599,7 @@ def execute(args):
                 row["status"] = "failed"
         finish_evidence(root, report, supervisor.cleanup_complete, deadline)
     summary = {key: report.get(key) for key in (
-        "qualified", "baseline", "candidate", "wheel_sha256", "native_sha256",
+        "qualified", "source_pair", "baseline", "candidate", "wheel_sha256", "native_sha256",
         "inventory_sha256", "elapsed_wall_seconds")}
     for key in ("error", "final_identity_error", "inventory_error"):
         summary[key] = str(report[key])[:2048] if key in report else None
@@ -617,6 +631,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run")
+    run.add_argument("--source-pair", choices=tuple(SOURCE_PAIRS), default="arc")
     for name in ("baseline-root", "candidate-root", "python", "evidence"):
         run.add_argument("--" + name, required=True)
     probe_parser = commands.add_parser("probe")

@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -339,7 +340,7 @@ class ArcSourceContracts(unittest.TestCase):
     def test_arc_source_boundaries_and_exact_helper_bytes(self):
         self.assertEqual(qualification.BASE, "d0281e5f57c508f27cea1676f36e0e6ed1225c9d")
         self.assertEqual(qualification.CANDIDATE, "249a4e1879cf5fbbb070de11f478f19825f51419")
-        self.assertEqual(qualification.sha(SCRIPT), "0f8081e3c6bbc59902733fb798d5a1db03119d897363605490286c553e4cfaff")
+        self.assertEqual(qualification.sha(SCRIPT), "0d3a2c5db023a47a82307d3a9b789eebd979915e52be66e7208f0c93a94540f5")
 
     def test_wrong_frozen_source_is_refused_before_any_world_or_build(self):
         with mock.patch.object(qualification.subprocess, "check_output", return_value=b"wrong-source\n") as child:
@@ -347,6 +348,42 @@ class ArcSourceContracts(unittest.TestCase):
                 qualification.source_snapshot(Path("unused"), qualification.BASE, time.monotonic() + 60)
         self.assertEqual(child.call_count, 1)
         self.assertEqual(child.call_args.args[0][-2:], ["rev-parse", "HEAD"])
+
+
+class RegisteredSourcePairContracts(unittest.TestCase):
+    def test_closed_registry_keeps_arc_default_and_pins_complete_recovered_producer(self):
+        expected = {
+            "arc": ("d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+                    "249a4e1879cf5fbbb070de11f478f19825f51419"),
+            "recovered": ("2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+                          "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"),
+        }
+        self.assertEqual(qualification.SOURCE_PAIRS, expected)
+        for name, sources in expected.items():
+            self.assertEqual(qualification.registered_sources(name), sources)
+        self.assertEqual(qualification.registered_sources("arc"),
+                         (qualification.BASE, qualification.CANDIDATE))
+
+    def test_unregistered_pair_refuses_before_evidence_creation_or_child_execution(self):
+        for name in (None, False, 1, {}, [], "", "latest", "2f9..c76", "Recovered"):
+            with self.subTest(name=name), mock.patch.object(Path, "mkdir") as mkdir, \
+                    mock.patch.object(qualification.subprocess, "Popen") as child:
+                with self.assertRaisesRegex(qualification.Refusal, "unregistered source pair"):
+                    qualification.execute(SimpleNamespace(source_pair=name))
+                mkdir.assert_not_called()
+                child.assert_not_called()
+
+    def test_recovered_proposal_names_exact_pair_and_no_physics_override(self):
+        proposal = SCRIPT.parents[1] / "docs/experiments/recovered-output-identity-workflow.yml"
+        text = proposal.read_text(encoding="utf-8")
+        for source in qualification.SOURCE_PAIRS["recovered"]:
+            self.assertIn("ref: " + source, text)
+        self.assertIn("qualification.py run --source-pair recovered", text)
+        self.assertIn("test_arc_output_identity_qualification.py", text)
+        self.assertNotIn("--source-pair arc", text)
+        for flag in ("--worldgen", "--regions", "--civs", "--turns", "--scientific-claims",
+                     "--scientific-research-agendas", "--exploratory", "--faith"):
+            self.assertNotIn(flag, text)
 
 
 if __name__ == "__main__":

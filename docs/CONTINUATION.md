@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+A separate inactive control draft reuses the vetted export-parity helper through
+a closed source-pair registry for public `2f9d618b` versus complete recovered
+producer `c76efe85`. The fixed nine-case matrix, resource guards and timestamp-only
+normalization stay unchanged. No worlds, native builds or local contract tests
+have run for this draft; see the
+[prospective recovered-output protocol](experiments/recovered-output-identity-2026-10-29.md).
+The earlier arc proof remains scoped to its own d028-to-249a pair.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)
