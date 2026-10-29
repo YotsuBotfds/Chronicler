@@ -28,3 +28,12 @@ Independent read-only snapshot review found persistent keys and principal/rate
 aggregation sound. A separate gap remains: post-collapse write-off events exist
 when the fallen borrower's finance row is absent, so the dedicated loss view
 needs event-backed missingness handling. That is separate work.
+
+
+## Completed first-patch verification
+
+Exact tested source `e59dc728f8998dd3afc8ad5093ae43086f04323a` completed
+[run 40791521618](https://github.com/YotsuBotfds/Chronicler/actions/runs/40791521618):
+705 tests passed across 67 files, lint passed and the production build passed.
+These are GitHub Actions results; no local or browser QA is claimed. Later
+fallen-borrower changes require their own exact-head checks.

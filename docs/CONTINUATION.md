@@ -184,12 +184,16 @@ source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
 
 
-## Viewer snapshot-detail continuation — 2026-10-29
+## Viewer continuation — 2026-10-29
 
-A separate branch `lead/cloud-viewer-fixes-20261029` ports the independently
-reviewed debt-holder snapshot-detail repair from draft `00585a47`. Current
-labels and table columns follow the selected snapshot's available detail;
-later recorded lenders remain visible in historical charts. This is a viewer
-change only. Exact-head full viewer tests, lint and production build run in
-the dedicated continuation workflow; no scientific qualification is implied.
-See [scope and regression cases](integration/debt-holder-snapshot-detail-2026-10-29.md).
+Separate branch `lead/cloud-viewer-fixes-20261029` contains the selected-snapshot
+debt-holder repair. Exact first-patch source `e59dc728` passed all 705 viewer
+tests across 67 files, lint and production build in run 40791521618. Current
+labels/columns follow the snapshot's available detail while historical charts
+retain later observations. See [scope and regression cases](integration/debt-holder-snapshot-detail-2026-10-29.md).
+
+The next independently reviewed slice ports draft `60245b4a`: fallen borrowers'
+loss events remain visible in the dedicated list/strip with unknown amounts
+where typed principal is absent. No synthetic finance row or prose-derived
+amount is created. Its new exact-head checks remain pending; the earlier pass
+does not qualify it. See [event and snapshot boundaries](integration/fallen-borrower-losses-2026-10-29.md).
