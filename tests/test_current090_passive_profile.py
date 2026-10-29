@@ -173,6 +173,7 @@ def test_both_global_streams_replay_actual_shared_checkpoint_and_preserve_caller
 
 def test_profile_output_refuses_missing_files_or_raw_bundle_difference():
     proof = {key: "same" for key in ("logical_output", "initial_rng", "final_rng", "state", "run_result", "identity")}
+    proof.update(initial_rng=valid_rng(), final_rng=valid_rng())
     for count, problems, raw in ((0, [], []), (1, ["missing"], []), (1, [], ["raw differs"])):
         with pytest.raises(P.Refused, match="ordinary"):
             P.profile_equivalent(proof, dict(proof), lambda a, b: (count, list(problems)),
@@ -308,6 +309,7 @@ def test_old_comparator_is_called_without_new_exclusions_or_normalizer():
     def compare(a, b): calls.append((a, b)); return 4, []
     def raw(a, b): calls.append(("raw", a, b)); return []
     proof = {key: "same" for key in ("logical_output", "initial_rng", "final_rng", "state", "run_result", "identity")}
+    proof.update(initial_rng=valid_rng(), final_rng=valid_rng())
     out = P.profile_equivalent(proof, dict(proof), compare, raw, Path("a"), Path("b"))
     assert out == {"checked_files": 4, "differences": 0, "instrumentation_equal": True}
     assert calls == [(Path("a"), Path("b")), ("raw", Path("a"), Path("b"))]
@@ -377,3 +379,194 @@ def test_native_region_count_reader_bounds_and_retains_extinction(fault):
     else:
         with pytest.raises(P.Refused): P.native_region_counts(sim, 12)
     assert calls == ["read"]
+
+
+def test_window_clocks_exclude_costly_boundary_getters_in_both_roles():
+    class AdvancingClock:
+        value = 0.
+        def __call__(self): return self.value
+    results = []
+    for profiled in (False, True):
+        cpu, wall = AdvancingClock(), AdvancingClock()
+        calls = []
+        b = P.Boundary(profiled, clock_cpu=cpu, clock_wall=wall, factory=Profile,
+                        population_reader=lambda world: None)
+        def expensive_reader(world):
+            assert not any(p.enabled for p in b.profiles)
+            calls.append(world.turn)
+            cpu.value += 100.
+            wall.value += 200.
+            return {"synthetic_count": 9}
+        b.population_reader = expensive_reader
+        b.bind(lambda path: path, {})
+        for turn in range(1, 98):
+            # Exact eight 1-CPU/2-wall fake physics increments per window.
+            cpu.value += 1.
+            wall.value += 2.
+            b.turn_end(toy_world(turn))
+        summary = b.finish()
+        assert calls == [8, 16, 88, 96, 97]
+        times = [(row["cpu_seconds"], row["wall_seconds"]) for row in summary["windows"]]
+        assert times == [(8., 16.), (8., 16.)]
+        results.append(times)
+    assert results[0] == results[1]
+
+
+def test_mutable_bytearray_aliases_are_part_of_carried_graph():
+    a, b = state(), state()
+    buf = bytearray(b"shared")
+    a.extra = [buf, buf]
+    b.extra = [bytearray(b"shared"), bytearray(b"shared")]
+    assert fingerprint(a) != fingerprint(b)
+
+
+@pytest.mark.parametrize("stream,index", [("python", 2), ("numpy", 4)])
+def test_signed_zero_gaussian_cache_is_not_equal_or_normalized(stream, index):
+    left, right = valid_rng(), valid_rng()
+    left[stream][index], right[stream][index] = -0., 0.
+    assert not P.same_rng(left, right)
+    proof = {key: "same" for key in ("logical_output", "state", "run_result", "identity")}
+    a = dict(proof, initial_rng=left, final_rng=left)
+    b = dict(proof, initial_rng=right, final_rng=right)
+    with pytest.raises(P.Refused, match="initial_rng"):
+        P.profile_equivalent(a, b, lambda *args: (1, []), lambda *args: [], Path("a"), Path("b"))
+
+
+def test_marker_refuses_an_unadmitted_supported_dataclass_simulator():
+    @dataclasses.dataclass
+    class OtherSimulator:
+        payload: bytes = b"not the selected compiled class"
+    s = state(); s.agent_bridge._sim = OtherSimulator()
+    s.world.__pydantic_private__["_war_roster_sim"] = id(s.agent_bridge._sim)
+    with pytest.raises(P.Refused, match="admitted AgentSimulator"): fingerprint(s)
+
+
+@pytest.mark.parametrize("base", [dict, list, tuple, set, frozenset, P.deque, random.Random, type(Path())])
+def test_stateful_unregistered_container_rng_and_path_subclasses_refuse(base):
+    class Stateful(base):
+        pass
+    if base is random.Random: value = Stateful(1)
+    elif base is type(Path()): value = Stateful("/same/path")
+    else: value = Stateful()
+    value.extra_flag = "would be silently lost by an isinstance-only branch"
+    s = state(); s.extra = value
+    with pytest.raises(P.Refused, match="subclass"): fingerprint(s)
+
+
+def test_explicit_counter_extra_state_is_preserved():
+    a, b = state(), state()
+    a.extra = P.Counter({"x": 1}); b.extra = P.Counter({"x": 1})
+    a.extra.note, b.extra.note = "one", "two"
+    assert fingerprint(a) != fingerprint(b)
+
+
+class ArrayMetadata:
+    __module__ = "numpy.synthetic_metadata_contract"
+    def __init__(self, content=b"abcd", base=None, offset=0):
+        self.dtype = SimpleNamespace(hasobject=False, fields=None, subdtype=None, metadata=None,
+                                     str="|u1", itemsize=1, alignment=1)
+        self.flags = SimpleNamespace(c_contiguous=True, f_contiguous=True, num=1024)
+        self.shape, self.strides = (len(content),), (1,)
+        self.size = self.nbytes = len(content)
+        self.base, self.content = base, content
+        self.__array_interface__ = {"data": (1000 + offset, False)}
+    def tobytes(self, order="C"): return self.content
+
+
+class ScalarMetadata:
+    __module__ = "numpy.synthetic_metadata_contract"
+
+
+def numpy_metadata_api():
+    api = SimpleNamespace(ndarray=ArrayMetadata)
+    for name in ("bool_", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
+                 "float16", "float32", "float64", "complex64", "complex128", "datetime64",
+                 "timedelta64", "bytes_", "str_"):
+        setattr(api, name, ScalarMetadata)
+    def probe(buffer, dtype, count):
+        assert type(buffer) is memoryview and dtype is ScalarMetadata and count == 0
+        return SimpleNamespace(__array_interface__={"data": (1000, False)})
+    api.frombuffer = probe
+    return api
+
+
+def numpy_fingerprint(s): return P.StateFingerprint(s, (NativeBytes,), numpy_metadata_api()).result()
+
+
+@pytest.mark.parametrize("fault", ["stride", "writable", "offset", "base_alias"])
+def test_exact_array_storage_geometry_flags_and_mutable_base_alias_matter(fault):
+    a, b = state(), state()
+    a.extra = ArrayMetadata(b"ab", base=ArrayMetadata(b"abcdefgh"))
+    b.extra = ArrayMetadata(b"ab", base=ArrayMetadata(b"abcdefgh"))
+    assert numpy_fingerprint(a) == numpy_fingerprint(b)
+    if fault == "stride": b.extra.strides = (2,)
+    if fault == "writable": b.extra.flags.num = 0
+    if fault == "offset": b.extra.__array_interface__["data"] = (1002, False)
+    if fault == "base_alias":
+        shared = ArrayMetadata(b"abcdefgh")
+        a.extra = [ArrayMetadata(b"ab", base=shared), ArrayMetadata(b"ab", base=shared)]
+        b.extra = [ArrayMetadata(b"ab", base=ArrayMetadata(b"abcdefgh")),
+                   ArrayMetadata(b"ab", base=ArrayMetadata(b"abcdefgh"))]
+    assert numpy_fingerprint(a) != numpy_fingerprint(b)
+
+
+@pytest.mark.parametrize("fault", ["unadmitted", "subclass", "object", "structured", "metadata",
+                                        "noncontiguous_base", "outside_base"])
+def test_numpy_unregistered_types_dtype_or_unproved_storage_refuse(fault):
+    s = state(); value = ArrayMetadata()
+    if fault == "subclass":
+        class Stateful(ArrayMetadata):
+            __module__ = "numpy.synthetic_metadata_contract"
+        value = Stateful(); value.extra = "not discarded"
+    if fault == "object": value.dtype.hasobject = True
+    if fault == "structured": value.dtype.fields = {"field": 1}
+    if fault == "metadata": value.dtype.metadata = {"extra": 1}
+    if fault == "noncontiguous_base":
+        value.base = ArrayMetadata(b"abcdefgh")
+        value.base.flags.c_contiguous = value.base.flags.f_contiguous = False
+    if fault == "outside_base": value.base = ArrayMetadata(b"a")
+    s.extra = value
+    with pytest.raises(P.Refused):
+        if fault == "unadmitted": fingerprint(s)
+        else: numpy_fingerprint(s)
+
+
+def test_memoryview_preserves_readonly_and_buffer_object_graph_without_real_numpy():
+    a, b = state(), state()
+    a.extra = memoryview(bytearray(b"ab"))
+    b.extra = memoryview(b"ab")
+    assert numpy_fingerprint(a) != numpy_fingerprint(b)
+
+
+def test_dataclass_subclass_extra_slots_are_not_lost():
+    @dataclasses.dataclass
+    class Base:
+        x: int = 1
+    class Slotted(Base):
+        __slots__ = ("flag",)
+    a, b = state(), state()
+    a.extra, b.extra = Slotted(), Slotted()
+    a.extra.flag, b.extra.flag = "one", "two"
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_decoded_project_fields_do_not_invoke_an_omitting_reducer():
+    class AlreadyDecoded:
+        __module__ = "chronicler.synthetic_metadata_contract"
+        def __getstate__(self): return {"x": self.x}
+    a, b = state(), state()
+    a.extra, b.extra = AlreadyDecoded(), AlreadyDecoded()
+    a.extra.x = b.extra.x = 1
+    a.extra.flag, b.extra.flag = "one", "two"
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_model_like_extra_slots_are_not_lost():
+    class WithSlot(ToyModel):
+        __slots__ = ("extra_flag",)
+    a, b = state(), state()
+    for target, flag in ((a, "one"), (b, "two")):
+        target.world = WithSlot()
+        target.world.__pydantic_private__["_war_roster_sim"] = id(target.agent_bridge._sim)
+        target.world.extra_flag = flag
+    assert fingerprint(a) != fingerprint(b)

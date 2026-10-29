@@ -8,13 +8,13 @@ No World, native module or project module is imported at module import time.
 from __future__ import annotations
 
 import cProfile
-from collections import deque
+from collections import Counter, OrderedDict, defaultdict, deque
 import dataclasses
 from enum import Enum
 import hashlib
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PosixPath, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
 import random
 import struct
 import time
@@ -116,7 +116,15 @@ def restore_rng(value, np):
     random.setstate((value["python"][0], tuple(value["python"][1]), value["python"][2]))
     n = value["numpy"]
     np.random.set_state((n[0], np.array(n[1], dtype=np.uint32), n[2], n[3], n[4]))
-    require(capture_rng(np) == value, "RNG replay differs")
+    require(same_rng(capture_rng(np), value), "RNG replay differs")
+
+
+def same_rng(left, right):
+    validate_rng(left)
+    validate_rng(right)
+    # Both Gaussian cache fields are finite floats. JSON keeps their signed
+    # zero, unlike Python dict equality, with no coercion or seed projection.
+    return canonical_bytes(left) == canonical_bytes(right)
 
 
 def native_region_counts(sim, regions):
@@ -169,13 +177,18 @@ class Boundary:
     def turn_end(self, world):
         turn = world.turn
         require(type(turn) is int and turn == self.last + 1 and turn <= HORIZON, "turn sequence")
-        if self.active is not None and turn == WINDOWS[self.active][1]:
-            self.profiles[self.active].disable()
-            start_cpu, start_wall = self.starts[self.active]
-            self.windows.append({"start": WINDOWS[self.active][0], "end": turn,
-                                 "cpu_seconds": self.cpu() - start_cpu,
-                                 "wall_seconds": self.wall() - start_wall})
-            self.active = None
+        for index, (start, end) in enumerate(WINDOWS):
+            if turn == end:
+                require(self.active == index if self.profiled else self.active is None,
+                        "profile window state")
+                if self.profiled:
+                    self.profiles[index].disable()
+                start_cpu, start_wall = self.starts[index]
+                # BOTH roles close before the end-boundary context/getter work.
+                self.windows.append({"start": start, "end": end,
+                                     "cpu_seconds": self.cpu() - start_cpu,
+                                     "wall_seconds": self.wall() - start_wall})
+                self.active = None
         self.last = turn
         if turn in (8, 16, 88, 96, 97):
             # The exact same five reads run with cProfile disabled in BOTH roles.
@@ -192,14 +205,6 @@ class Boundary:
                 if self.profiled:
                     self.active = index
                     self.profiles[index].enable()
-        # Plain roles use the same windows/denominators without profiler hooks.
-        if not self.profiled:
-            for index, (start, end) in enumerate(WINDOWS):
-                if turn == end:
-                    cpu, wall = self.starts[index]
-                    self.windows.append({"start": start, "end": end,
-                                         "cpu_seconds": self.cpu() - cpu,
-                                         "wall_seconds": self.wall() - wall})
         return False
 
     def stop(self):
@@ -230,12 +235,12 @@ class Boundary:
         return rows
 
 
-def marker_view(state):
+def marker_view(state, agent_class):
     """Validate the loader's one documented identity marker, never erase it."""
     require(type(state.markers) is dict and state.markers == {"war_roster_bound": True}
             and type(state.markers["war_roster_bound"]) is bool, "unbound/unknown roster marker")
     sim = state.agent_bridge._sim
-    require(sim is not None, "missing real simulator")
+    require(type(sim) is agent_class, "bridge simulator is not the admitted AgentSimulator")
     public = vars(state.world)
     private = getattr(state.world, "__pydantic_private__", None) or {}
     places = [(name, fields) for name, fields in (("dict", public), ("private", private))
@@ -243,6 +248,61 @@ def marker_view(state):
     require(len(places) == 1 and type(places[0][1]["_war_roster_sim"]) is int
             and places[0][1]["_war_roster_sim"] == id(sim), "roster marker association/storage")
     return places[0][0]
+
+
+def numpy_view(value, np):
+    """Closed exact types and storage graph; no raw address enters the view.
+
+    Zero-element uint8 views obtain relative buffer addresses only. No source
+    buffer is written/reinterpreted into simulation values. Unsupported object,
+    structured/metadata dtype, subclass, indirect or noncontiguous base refuses.
+    """
+    scalar_types = tuple(getattr(np, name) for name in
+                         ("bool_", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
+                          "float16", "float32", "float64", "complex64", "complex128", "datetime64",
+                          "timedelta64", "bytes_", "str_"))
+
+    def address(buffer):
+        if type(buffer) is np.ndarray:
+            require(buffer.flags.c_contiguous or buffer.flags.f_contiguous, "noncontiguous base array")
+            return buffer.__array_interface__["data"][0], buffer.nbytes
+        require(type(buffer) in (bytes, bytearray, memoryview), "unsupported base buffer")
+        view = memoryview(buffer)
+        require(view.c_contiguous and not view.suboffsets, "unsupported base buffer layout")
+        probe = np.frombuffer(view, dtype=np.uint8, count=0)
+        return probe.__array_interface__["data"][0], view.nbytes
+
+    if type(value) is memoryview:
+        require(value.c_contiguous and not value.suboffsets, "unsupported memoryview layout")
+        start, _ = address(value)
+        origin, size = address(value.obj)
+        offset = start - origin
+        require(0 <= offset <= size and offset + value.nbytes <= size, "memoryview base extent")
+        return ({"kind": "memoryview", "format": value.format, "itemsize": value.itemsize,
+                 "shape": value.shape, "strides": value.strides, "suboffsets": value.suboffsets,
+                 "readonly": value.readonly, "nbytes": value.nbytes, "offset": offset,
+                 "content": value.tobytes()}, value.obj)
+    require(type(value) is np.ndarray or type(value) in scalar_types, "unsupported NumPy exact type")
+    dtype = value.dtype
+    require(not dtype.hasobject and dtype.fields is None and dtype.subdtype is None
+            and dtype.metadata is None, "unsupported NumPy dtype")
+    if type(value) is not np.ndarray:
+        require(value.base is None, "unexpected scalar base")
+        return ({"kind": "scalar", "dtype": dtype.str, "content": value.tobytes()}, None)
+    base = value.base
+    offset = 0
+    if base is not None:
+        origin, size = address(base)
+        offset = value.__array_interface__["data"][0] - origin
+        if value.size:
+            low = offset + sum(min(0, (d - 1) * s) for d, s in zip(value.shape, value.strides))
+            high = offset + sum(max(0, (d - 1) * s) for d, s in zip(value.shape, value.strides)) + dtype.itemsize
+            require(0 <= low <= high <= size, "array base extent")
+        else:
+            require(0 <= offset <= size, "empty array base extent")
+    return ({"kind": "ndarray", "dtype": dtype.str, "alignment": dtype.alignment,
+             "shape": value.shape, "strides": value.strides, "flags": value.flags.num,
+             "nbytes": value.nbytes, "offset": offset, "content": value.tobytes(order="C")}, base)
 
 
 class StateFingerprint:
@@ -254,9 +314,11 @@ class StateFingerprint:
     checked explicitly. Only the validated roster marker becomes a bound token.
     """
 
-    def __init__(self, state, native_classes):
+    def __init__(self, state, native_classes, numpy_api=None):
         self.state, self.classes = state, tuple(native_classes)
-        self.marker_place = marker_view(state)
+        self.numpy_api = numpy_api
+        require(bool(self.classes), "missing admitted native classes")
+        self.marker_place = marker_view(state, self.classes[0])
         self.marker_mapping = (vars(state.world) if self.marker_place == "dict"
                                else state.world.__pydantic_private__)
         self.hash, self.memo, self.objects, self.nodes = hashlib.sha256(), {}, [], 0
@@ -269,12 +331,19 @@ class StateFingerprint:
         require(self.nodes <= 5_000_000, "state node cap")
         if value is None: return self.emit("none")
         if isinstance(value, Enum):
+            require(type(value).__module__.startswith("chronicler."), "unqualified Enum type")
             self.emit("enum", (type(value).__module__ + "." + type(value).__qualname__).encode())
             return self.visit(value.value)
         if type(value) in (bool, int, str): return self.emit(type(value).__name__, str(value).encode())
         if type(value) is float: return self.emit("float64", struct.pack("!d", value))
-        if type(value) in (bytes, bytearray): return self.emit(type(value).__name__, bytes(value))
-        if isinstance(value, Path): return self.emit("path", str(value).encode())
+        if type(value) is bytes: return self.emit("bytes", value)
+        require(not isinstance(value, (bool, int, str, float, bytes, bytearray))
+                or type(value) is bytearray or type(value).__module__.startswith("numpy"),
+                "unsupported scalar/bytearray subclass")
+        if isinstance(value, PurePath):
+            require(type(value) in (Path, PosixPath, WindowsPath, PurePath, PurePosixPath, PureWindowsPath),
+                    "unsupported path subclass")
+            return self.emit("path", str(value).encode())
         ident = id(value)
         if ident in self.memo:
             return self.emit("reference", str(self.memo[ident]).encode())
@@ -284,9 +353,12 @@ class StateFingerprint:
         self.objects.append(value)
         try:
             self.emit("type", (type(value).__module__ + "." + type(value).__qualname__).encode())
-            if type(value) in self.classes:
+            if type(value) is bytearray:
+                self.emit("mutable-bytes", bytes(value))
+            elif type(value) in self.classes:
                 self.emit("native", bytes(value.checkpoint_state()))
             elif isinstance(value, dict):
+                require(type(value) in (dict, Counter, OrderedDict, defaultdict), "unsupported dict subclass")
                 for key, item in value.items():
                     self.visit(key)
                     if value is self.marker_mapping and key == "_war_roster_sim":
@@ -295,45 +367,59 @@ class StateFingerprint:
                         self.visit(item)
                 if hasattr(value, "default_factory"):
                     factory = value.default_factory
-                    require(factory is None or factory in (list, dict, set, int, float), "default factory")
+                    require(factory is None or factory in (list, dict, set, int, float, Counter, OrderedDict),
+                            "default factory")
                     self.visit(None if factory is None else factory.__name__)
+                if hasattr(value, "__dict__"): self.visit(vars(value))
             elif isinstance(value, (list, tuple, deque)):
+                require(type(value) in (list, tuple, deque), "unsupported sequence subclass")
                 for item in value: self.visit(item)
                 if isinstance(value, deque): self.visit(value.maxlen)
             elif isinstance(value, (set, frozenset)):
+                require(type(value) in (set, frozenset), "unsupported set subclass")
                 # Deterministic content order before assigning reference ordinals.
                 for item in sorted(value, key=set_key): self.visit(item)
-            elif type(value).__module__.startswith("numpy"):
-                require(not value.dtype.hasobject, "object NumPy dtype")
-                self.visit(value.dtype.str); self.visit(value.dtype.descr); self.visit(tuple(value.shape))
-                self.emit("numpy-content", value.tobytes(order="C"))
+            elif type(value) is memoryview or type(value).__module__.startswith("numpy"):
+                require(self.numpy_api is not None, "NumPy storage reader is not admitted")
+                metadata, base = numpy_view(value, self.numpy_api)
+                self.visit(metadata); self.visit(base)
             elif isinstance(value, random.Random):
+                require(type(value) is random.Random, "unsupported Random subclass")
                 self.visit(value.getstate())
-            elif hasattr(type(value), "model_fields"):
                 self.visit(vars(value))
-                self.visit(getattr(value, "__pydantic_private__", None))
-                self.visit(getattr(value, "__pydantic_extra__", None))
-                self.visit(getattr(value, "__pydantic_fields_set__", None))
+            elif hasattr(type(value), "model_fields"):
+                self.object_fields(value)
             elif dataclasses.is_dataclass(value):
-                for field in dataclasses.fields(value): self.visit(field.name); self.visit(getattr(value, field.name))
-                if hasattr(value, "__dict__"):
-                    self.visit({k: v for k, v in vars(value).items()
-                                if k not in {f.name for f in dataclasses.fields(value)}})
+                self.object_fields(value)
             elif type(value).__module__.startswith("chronicler."):
-                reducer = getattr(type(value), "__getstate__", None)
-                if reducer is not None:
-                    self.visit(reducer(value))
-                elif hasattr(value, "__dict__"):
-                    self.visit(vars(value))
-                else:
-                    names = [name for cls in type(value).__mro__ for name in getattr(cls, "__slots__", ())
-                             if name not in ("__dict__", "__weakref__")]
-                    require(bool(names), "unsupported slots")
-                    for name in names: self.visit(name); self.visit(getattr(value, name))
+                # The strict loader has already reconstructed these objects.
+                # Inspect actual decoded fields, not a reducer that can omit
+                # an extra field or construct fresh alias-losing containers.
+                self.object_fields(value)
             else:
                 raise Refused("unsupported state type: " + type(value).__module__ + "." + type(value).__qualname__)
         finally:
             self.emit("end")
+
+    def object_fields(self, value):
+        has_dict = hasattr(value, "__dict__")
+        if has_dict:
+            self.visit(vars(value))
+        names = []
+        for cls in type(value).__mro__:
+            declared = vars(cls).get("__slots__", ())
+            if type(declared) is str: declared = (declared,)
+            for name in declared:
+                if name in ("__dict__", "__weakref__"): continue
+                # Python's double-underscore slot spelling is name-mangled.
+                if name.startswith("__") and not name.endswith("__"):
+                    name = "_" + cls.__name__.lstrip("_") + name
+                if name not in names: names.append(name)
+        require(has_dict or bool(names), "unsupported object fields")
+        for name in names:
+            self.visit(name)
+            if hasattr(value, name): self.visit(getattr(value, name))
+            else: self.emit("absent-slot")
 
     def result(self):
         self.visit(self.state)
@@ -375,8 +461,10 @@ def profile_equivalent(left, right, compare_dirs, raw_bundle_problems, left_dir,
     problems += raw_bundle_problems(left_dir, right_dir)
     require(checked > 0 and not problems, "ordinary output mismatch")
     # Paths must have been identical at production time, not normalized here.
-    for key in ("logical_output", "initial_rng", "final_rng", "state", "run_result", "identity"):
-        require(left[key] == right[key], "observer mismatch: " + key)
+    for key in ("initial_rng", "final_rng"):
+        require(same_rng(left[key], right[key]), "observer mismatch: " + key)
+    for key in ("logical_output", "state", "run_result", "identity"):
+        require(canonical_bytes(left[key]) == canonical_bytes(right[key]), "observer mismatch: " + key)
     return {"checked_files": checked, "differences": 0, "instrumentation_equal": True}
 
 
@@ -436,7 +524,7 @@ def run_role(request, *, ordinary, checkpoint, shared_rng, admission):
                               "--simulate-only", "--validation-sidecar", "--output",
                               str(ordinary / "chronicle.md"), "--state", str(ordinary / "state.json")])
     restore_rng(shared_rng, np)
-    require(capture_rng(np) == shared_rng, "initial global RNG")
+    require(same_rng(capture_rng(np), shared_rng), "initial global RNG")
     cpu, wall = time.process_time(), time.perf_counter()
     try:
         cm.generate_world = scaled
@@ -461,12 +549,12 @@ def run_role(request, *, ordinary, checkpoint, shared_rng, admission):
     loaded = rc.read_checkpoint(path)
     require(loaded.exact and loaded.state.world.turn == HORIZON, "own final checkpoint")
     require(loaded.header["identity"] == admission["identity"], "checkpoint identity")
-    view = StateFingerprint(loaded.state, classes).result()
+    view = StateFingerprint(loaded.state, classes, np).result()
     sim = loaded.state.agent_bridge._sim
     before = digest(bytes(sim.checkpoint_state()))
     population = native_region_counts(sim, request["regions"])
     require(before == digest(bytes(sim.checkpoint_state())), "population getter changed native state")
-    require(final_rng == capture_rng(np), "proof changed global RNG")
+    require(same_rng(final_rng, capture_rng(np)), "proof changed global RNG")
     require(package_digest() == PACKAGE and native_identity().get("sha256") == NATIVE,
             "final source/native bytes")
     require(rc.runtime_identity() == admission["identity"] and schemas ==

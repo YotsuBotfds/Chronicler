@@ -23,11 +23,16 @@ stdlib cProfile process-CPU windows are (8,16] and (88,96], eight turns each;
 only three profiled roles enable them (48 profiled ticks total). The final
 97th turn, final exports and diagnostic checkpoint work are outside both
 windows. The complete execute_run clock also includes setup and exports.
+Both roles close each end-window CPU/wall measurement before the population
+read/context work; only cProfile.disable differs.
 Profile self/cumulative CPU, boundary CPU/wall, complete-run clocks and proof
 clocks stay distinct; no residual is presented as an independently measured
 phase. Fixed callback/enable/disable overhead is part of the observation.
-Native calls remain opaque. No phase share, benchmark speedup or scaling law
-is claimed.
+Native calls remain opaque. Plain and profiled roles both use this common
+passive boundary/scaling caller; their proof isolates cProfile activation, not
+a separate bare-CLI/no-boundary baseline. Common observer cache conditioning
+and profiling bias remain limitations. No phase share, benchmark speedup or
+scaling law is claimed.
 
 Both roles make the same five population reads at turns 8,16,88,96,97, after
 profiling is disabled and before it is enabled. Exact090
@@ -37,8 +42,9 @@ liveness and region IDs into fresh local counters/Arrow builders. It does not
 write a cache, simulator state or RNG. The bounded table records actual alive
 counts in registered regions, separately from aggregate region populations;
 out-of-domain agents are not included in that native getter's sum. Extinction
-is retained. There are 30 such boundary reads plus six final restored-state
-reads, not extra physics ticks. The final getter additionally checks native
+is retained. There are 30 extra observer boundary reads plus six final restored-state
+reads, not extra physics ticks or a count of all native getter calls in a run.
+The existing simulation already uses this getter. The final getter additionally checks native
 checkpoint bytes before/after. Actual metadata remains unobserved.
 
 The future owner must share one actual import-complete Python/NumPy global
@@ -74,13 +80,29 @@ are not required equal. Decoded content is fingerprinted with deterministic
 reference ordinals, dictionary order, cycles, float bits, private/extras,
 configuration/history/events/memory data and all native checkpoint bytes.
 Memory encoder cache contents and actual entry/field identity links are kept.
+Mutable bytearrays are memoized, including shared-buffer identity. Unknown
+stateful container/Path/Random subclasses refuse; the explicit exact
+Counter/OrderedDict/defaultdict/ordinary containers retain supported extra
+state. Decoded project/dataclass objects are read directly through actual
+dictionaries/slots, not an omitting reducer. RNG equality validates the full
+actual state and preserves signed zero in both Gaussian cache fields.
+
+The NumPy handler accepts only the exact admitted ndarray and a fixed set of
+immutable scalar classes. Subclasses, object/structured/metadata dtypes,
+indirect/noncontiguous base buffers and unknown storage refuse. Supported
+arrays retain dtype, shape, strides, all flag bits, content, base-buffer graph
+and relative data offset; memoryviews retain their format/shape/strides/readonly
+state and actual backing object. Zero-element byte views derive relative
+offsets outside timing; raw addresses never enter records. This handler has
+only synthetic metadata coverage, not a real NumPy execution claim.
 Unknown types refuse, with no repr/object-ID fallback. Unsupported state in a
 genuine run is a failed observer proof, not permission to exclude it.
 
 The sole identity treatment is grounded in `run_checkpoint._markers` and
 `_rebind_markers`: require the exact Boolean marker
 `{'war_roster_bound': True}`, one unambiguous actual world marker storage, and
-its raw integer equal to `id(real_bridge._sim)`. Only that field is fingerprinted
+its raw integer equal to `id(real_bridge._sim)`, with that simulator exactly the admitted
+compiled AgentSimulator class. Only that field is fingerprinted
 as a bound token. RunState.markers itself remains compared. The actual object
 and raw checkpoint are never rewritten or re-saved with the token. Unknown,
 unbound or duplicate marker storage refuses; if a genuine case is unbound,
@@ -96,7 +118,9 @@ records, owned descendant cleanup, one setup-through-finalization deadline,
 input/source/wheel expiry, actual all-three compiled classes/schemas, fresh
 checkpoint paths, descriptor-safe bounded inventory and failure retention.
 Actual schema references remain absent until genuine owned probes before the
-first World. Exact090 package digest is
+first World. The project imports must come from a separate exact090 producer
+checkout: this new control commit has a different Git SHA even though its
+package/native trees are unchanged, and cannot serve as the090 runtime root. Exact090 package digest is
 `1f1c720880e45e0e835e033da216b3deee1f755a497b8e189abaf97c2fe9f656`,
 crate `803c79c8d5c024cbb8d67c58af7ffa731d79c129`, native
 `14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c`.
@@ -111,10 +135,18 @@ all numerical/native caps 1 and hash seed 0 must be recorded and checked. All
 setup/probe/proof/output costs count against owner/child budgets. Limits are
 not predictions or permission to execute.
 
-Final Stage 1 pure qualification is 53 fake/metadata cases passing in a guarded
+The original 9e933ee6 Stage 1 source remains preserved and independently
+rejected before any actual run: its plain clock included the end getter while
+the profiled clock excluded it, and its accepted fingerprint/RNG domain lost
+some alias/layout/signed-zero semantics. A new advancing-clock regression
+first failed on the exact parent source (108/216 fake seconds instead of8/16).
+The corrected successor closes both clocks first and tightens the accepted
+domain without adding any output exclusions.
+
+Final corrected Stage 1 pure qualification is 82 fake/metadata cases passing in a guarded
 Python 3.13.5 process. No project/native/NumPy module, factory, network or child
-process was used. Prior 42- and 44-case source boundaries and receipts remain
-retained. These tests cover boundary ordering, actual-count table bounds,
+process was used. Prior 42-, 44- and53-case source boundaries, independent rejection, the
+new one-case parent reproduction and all receipts remain retained. These tests cover boundary ordering, actual-count table bounds,
 RNG metadata/replay, marker rejection, reference/cycle/private/cache/native
 fingerprinting and unchanged comparator invocation. They do not qualify real
 cProfile timing, serialization of genuine worlds or observer equivalence.
