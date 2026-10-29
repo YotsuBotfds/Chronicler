@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+October 29 baseline byte audit: source `7185f69c`, run `40818582726`, completes
+75,764 raw file payloads / 9,152,457,132 bytes against original inventories.
+The [readout](integration/wealth-floor-baseline-audit-2-result-2026-10-29.md)
+keeps the completed producer/29-member authority pack, original expiry/kin
+failures, unverified namespace equality and all pending candidate proof pins.
+The first separate native paired build `75cb1771` remains failed: releases
+built, but the Rust regression executable lacked its Python shared library.
+No regression assertions or candidate worlds ran; loader correction is separate.
+
 October 29 index reuse: separate `e2b7c940` passes all six unchanged CI jobs.
 The [source-scoped readout](integration/native-tick-index-reuse-ci-2026-10-29.md)
 records dense-lookup and post-migration census reuse, all four evidence ZIPs,

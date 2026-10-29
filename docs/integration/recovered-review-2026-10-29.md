@@ -154,8 +154,9 @@ compares frozen `2f9d618b` and `d0281e5f`. **All four original strict gates pass
 template and procedural comparisons both report NO_REGRESSION, and final
 pipeline/publication qualification passes.** It completed 600 parents and
 6,800 forks: 7,400 executions and 402,800 actual physics ticks. The final
-comparison and retention records were independently checked; raw ZIP contents
-were not independently downloaded or rehashed. This qualifies that exact
+comparison and retention records were independently checked; that original
+readout relied on official metadata for raw ZIP contents. A separate completed
+byte audit, described below, now verifies those retained raw cohorts. This qualifies that exact
 source/native pair, with no qualification of recovered finite research or the
 separate native correction.
 
@@ -227,6 +228,24 @@ and binary provenance, and candidate-owned fresh checkpoints. Unknown build
 context remains a pre-world refusal; a fresh paired build provides a practical
 fallback when old build context cannot be recovered.
 
+The [registered baseline byte audit](wealth-floor-baseline-audit-2-result-2026-10-29.md)
+now passes at source `7185f69c`, run `40818582726`: 75,764 raw file payloads
+and 9,152,457,132 bytes verified remotely. The completed producer, original
+source/roles, all 23 comparison/light authority files and original artifact
+expiry reconcile. Independent local readers streamed the small published
+authority pack and its 29 members; no multi-GB raw archive or world was loaded
+locally. The original kin-root failures remain. Baseline reuse and candidate
+world proofs stay unqualified.
+
+The first paired build at `75cb1771`, run `40818391220`, is retained as failed.
+Both release wheels and real compiled-class/schema probes completed, with the
+historical extension reproduced byte-for-byte. The candidate Rust regression
+executable then failed to load `libpython3.13.so.1.0`; no regression assertions
+ran and final publication did not qualify. A separate source correction will
+supply only the selected Python library directory to that regression child,
+preserving release-build context. The first wheels cannot be retroactively
+treated as a complete successful producer.
+
 ## Separate verification corrections
 
 The batch audit reproduced an added-sidecar gap: a file absent from recorded
@@ -263,6 +282,8 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/decision-delivery-applied-moves-20261029` | Actual bounded household and event provenance; all six unchanged CI jobs pass at feb98; Python access and whole-world qualification remain separate |
 | `lead/native-tick-index-reuse-20261029` | Exact-source six-job CI passes at e2b7; structural work reduction, measured performance and whole-world qualification remain separate |
 | `lead/agent-scale-benchmark-inputs-20261029` | Empty/invalid workload refusal and distinct repeat profiles; 52 affected guarded tests and source review pass; no simulation or benchmark workload executed |
+| `lead/wealth-floor-baseline-audit-2-readout-20261029` | Completed retained-byte audit and 29-member authority verification pass; candidate/native/checkpoint grants remain pending |
+| `lead/ci-native-wheel-retention-20261029` | Prepared source links the built wheel to installed bytes and retains it separately; 27 guarded contracts/lint/peer pass; actual publication awaits combined CI |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)
