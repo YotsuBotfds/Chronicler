@@ -27,7 +27,9 @@ snapshots and positive completion are absent. No reuse or world grant follows.
 The prepared loader correction derives only the regression child's loader path
 from the exact selected Python installation and leaves release contexts intact.
 Its 182 guarded cases and registered activation-2 copy's unfiltered lint pass.
-The first source/artifacts remain frozen; a fresh reviewed build is required.
+The first source/artifacts remain frozen. A fresh build is registered on
+`lead/cloud-wealth-floor-native-build-bridge-2-20261029`; its official outcome
+is pending. No candidate world or main change is included.
 
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
