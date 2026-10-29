@@ -1026,3 +1026,491 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
     assert "CAREOBS1" in _care_codec.__doc__
     # These static bytes bind source witnesses only; no actual native schema,
     # copy truthfulness, World result, physics/RNG replay or efficacy is proved.
+
+
+# INDEPENDENT MECHANICS SOURCE CONTRACTS — invented primitive facts, UNRUN.
+import sys as _care_mech_sys
+from chronicler import health_care_observation_mechanics as _care_mech
+
+
+def _care_mech_context(expected):
+    return _care_mech.MechanicsContext(expected.manifest_sha256,
+        "CPython" if _care_mech_sys.implementation.name == "cpython" else _care_mech_sys.implementation.name,
+        tuple(_care_mech_sys.version_info[:3]), _care_mech_sys.version,
+        (_care_mech_sys.float_info.radix, _care_mech_sys.float_info.mant_dig,
+         _care_mech_sys.float_info.max_exp, _care_mech_sys.float_info.min_exp))
+
+
+def _care_mech_view(*, expected=None, initial=None, post=None, **facts):
+    """Structural fixture only; full-pipeline cases spell source-compatible facts."""
+    expected = expected or _care_codec_expected(regions=1)
+    if initial is None or post is None:
+        episodes = tuple(_care_codec.EpisodeBits(aid, -1, _care_codec_b64(2.), 0)
+                         for aid in facts.get("patients", ()))
+        default_initial, default_post = _care_codec_joins(expected, initial_episodes=episodes)
+        if initial is None:
+            initial = default_initial
+        if post is None:
+            post = _care_codec_replace(default_post, summary=_care_codec_replace(
+                default_post.summary, new_injuries=len(facts.get("injuries", ()))))
+    prefix, _ = _care_codec_prefix(expected=expected, **facts)
+    data = _care_codec.finalize_care_frame(prefix, expected=expected, initial=initial, post=post)
+    return _care_codec.decode_care_frame(data, expected=expected)
+
+
+def _care_mech_prepared(*, patients=(), workers=(), rows=(), health_loss=(), regions=((0, 0, 0, 0),)):
+    return _care_mech._Prepared(patients, workers, rows, health_loss, regions)
+
+
+def _care_mech_scope(slot=0, *, consumed=1, loss=0, current=1, region=0,
+                     occupation=0, flags=7, reason=1, mask=63, numbers=(0,) * 6):
+    return _care_codec.ScopedBits(slot, consumed, loss, current, region,
+                                occupation, flags, reason, mask, numbers)
+
+
+def _care_mech_assert_pipeline(data, expected, *, previous=None):
+    context = _care_mech_context(expected)
+    report = _care_mech.verify_care_mechanics(data, expected=expected,
+                                            previous=previous, context=context)
+    assert type(report) is _care_mech.CareMechanicsReport
+    components = dict(report.components)
+    assert all(components[name] is True for name in _care_mech.COMPONENTS[:-1])
+    if (_care_mech_sys.implementation.name == "cpython"
+            and tuple(_care_mech_sys.version_info[:3]) == (3, 13, 17)
+            and _care_mech_sys.float_info.rounds == 1
+            and context.producer_float_info == (2, 53, 1024, -1021)):
+        assert report.verdict == "DETERMINISTIC_MATCH"
+        assert components["floating_totals"] is True
+    else:
+        assert report.verdict == "PARTIAL"
+        assert components["floating_totals"] is None
+        assert report.unavailable == ("unqualified_CPython_sum",)
+    assert all(value is None for _, value in report.claims)
+    return report
+
+
+def test_care_mechanics_ieee32_add_sub_literal_ties_zeros_and_subnormals():
+    assert _care_mech._add32(0x3f800000, 0x33800000) == 0x3f800000
+    assert _care_mech._add32(0x3f800001, 0x33800000) == 0x3f800002
+    assert _care_mech._add32(0x3f800000, 0xbf800000) == 0
+    assert _care_mech._add32(0x80000000, 0x80000000) == 0x80000000
+    assert _care_mech._sub32(0x80000000, 0) == 0x80000000
+    assert _care_mech._sub32(0x00800000, 1) == 0x007fffff
+    assert _care_mech._add32(1, 1) == 2
+
+
+def test_care_mechanics_ieee32_mul_literal_rounding_and_finite_overflow():
+    assert _care_mech._mul32(0x3fc00000, 0x3f000000) == 0x3f400000
+    assert _care_mech._mul32(1, 0x3f000000) == 0
+    assert _care_mech._mul32(3, 0x3f000000) == 2
+    assert _care_mech._mul32(0x80000000, 0xbf800000) == 0
+    with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="nonfinite_result"):
+        _care_mech._mul32(0x7f7fffff, 0x40000000)
+
+
+def test_care_mechanics_ieee32_division_and_u32_cast_are_single_rounding():
+    assert _care_mech._div32(0x3f800000, 0x40400000) == 0x3eaaaaab
+    assert _care_mech._div32(0x40000000, 0x40400000) == 0x3f2aaaab
+    assert _care_mech._div32(0x00800000, 0x40000000) == 0x00400000
+    assert _care_mech._uint_to32(16777217) == 0x4b800000
+    assert _care_mech._uint_to32(16777219) == 0x4b800002
+    assert _care_mech._uint_to32(4294967295) == 0x4f800000
+    with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="zero_divisor"):
+        _care_mech._div32(0x3f800000, 0x80000000)
+    for invalid in (True, -1, 1 << 32):
+        with _care_codec_pytest.raises(ValueError):
+            _care_mech._uint_to32(invalid)
+
+
+def test_care_mechanics_ieee64_widening_recovery_operations_and_min_ties():
+    assert _care_mech._widen32(0x3e4ccccd) == 0x3fc99999a0000000
+    assert _care_mech._widen32(1) == 0x36a0000000000000
+    assert _care_mech._widen32(0x80000000) == 0x8000000000000000
+    assert _care_mech._mul64(0x4014000000000000, 0x3fc99999a0000000) == 0x3ff0000004000000
+    assert _care_mech._add64(0x3ff0000000000000, 0x3fe0000000000000) == 0x3ff8000000000000
+    assert _care_mech._sub64(0x4004000000000000, 0x3ff8000000000000) == 0x3ff0000000000000
+    assert _care_mech._min64(0x8000000000000000, 0) == 0x8000000000000000
+    assert _care_mech._min64(0, 0x8000000000000000) == 0
+
+
+def test_care_mechanics_typed_constants_and_source_operator_rounding_are_explicit():
+    assert (_care_mech.BASE32, _care_mech.DECAY32, _care_mech.MAX32) == (0x3e99999a, 0x3ca3d70a, 0x42c80000)
+    assert _care_mech._sub32(0x3f800000, 0x3ca3d70a) == 0x3f7ae148
+    assert _care_mech._mul32(0x3e99999a, 0x3f7ae148) == 0x3e96872c
+    tree = _care_codec_ast.parse(_care_codec_Path(_care_mech.__file__).read_text())
+    wealth = next(node for node in tree.body if isinstance(node, _care_codec_ast.FunctionDef) and node.name == "_check_wealth")
+    called = [node.func.id for node in _care_codec_ast.walk(wealth)
+              if isinstance(node, _care_codec_ast.Call) and isinstance(node.func, _care_codec_ast.Name)]
+    assert {"_add32", "_sub32", "_mul32", "_clamp32"} <= set(called)
+    assert not {"sum", "fsum", "fma"}.intersection(called)
+
+
+def test_care_mechanics_nonfinite_copy_only_facts_do_not_authorize_arithmetic():
+    native = _care_mech_view().native
+    nan = 0x7fc01234
+    dead = _care_mech_scope(flags=5, reason=4, mask=33,
+                            numbers=(nan, 0, 0, 0, 0, nan))
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=(dead,)))
+    assert not _care_mech._positive(nan, 32)
+    assert _care_mech._positive(0x7f800000, 32)
+    for operation in (_care_mech._add32, _care_mech._mul32, _care_mech._div32):
+        with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="nonfinite_operand"):
+            operation(nan, 0x3f800000)
+
+
+def test_care_mechanics_distinct_zero_bits_and_ambiguous_rust_ties_are_not_tolerances():
+    assert _care_mech._compare(0, 0x80000000, 32) == 0
+    assert _care_mech._max32_zero(0) == 0
+    assert _care_mech._max32_zero(0x80000001) == 0
+    assert _care_mech._clamp32(0x43160000) == 0x42c80000
+    assert _care_mech._clamp32(0xbf800000) == 0
+    for operation in (_care_mech._max32_zero, _care_mech._clamp32):
+        with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="ambiguous_rust_zero_tie"):
+            operation(0x80000000)
+
+
+def test_care_mechanics_actual_cpython_sum_qualification_is_never_faked_or_skipped():
+    expected = _care_codec_expected(regions=1)
+    context = _care_mech_context(expected)
+    values = (0x4341c37937e08000, 0x3ff0000000000000, 0xc341c37937e08000)
+    assert _care_mech._add64(_care_mech._add64(values[0], values[1]), values[2]) == 0
+    if (_care_mech_sys.implementation.name == "cpython"
+            and tuple(_care_mech_sys.version_info[:3]) == (3, 13, 17)
+            and context.producer_float_info == (2, 53, 1024, -1021)
+            and _care_mech_sys.float_info.rounds == 1):
+        assert _care_mech._builtin_sum64(values, context) == 0x3ff0000000000000
+    else:
+        with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="unqualified_CPython_sum"):
+            _care_mech._builtin_sum64(values, context)
+    unavailable = _care_codec_replace(context, producer_float_info=None)
+    with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="unqualified_CPython_sum"):
+        _care_mech._builtin_sum64(values, unavailable)
+
+
+def test_care_mechanics_global_last_alive_lookup_preserves_zero_dead_duplicates_and_sparse_ids():
+    expected = _care_codec_expected(regions=2)
+    slots = (_care_codec_slot(0), _care_codec_slot(7, alive=False),
+             _care_codec_slot(7, age=19, region=1), _care_codec_slot(0xfffffffe))
+    native = _care_mech_view(expected=expected, slots=slots, patients=(7, 0, 0xfffffffe)).native
+    derived = _care_mech._derive_preparation(native, 0, "release")
+    assert derived.patients == (0, 7, 0xfffffffe)
+    assert derived.rows == ((0, 0, 0, 0), (7, 1, 0, 0), (0xfffffffe, 0, 0, 0))
+    assert tuple(row[:3] for row in derived.workers) == ((0, 0, 0), (3, 0xfffffffe, 0))
+    assert derived.regions == ((0x3f800000, 0x3ff0000000000000, 0, 0), (0, 0, 0, 0))
+
+
+def test_care_mechanics_raw_input_order_differs_from_native_sorted_unique_iteration():
+    native = _care_mech_view(slots=(_care_codec_slot(9), _care_codec_slot(3, settlement=12),
+        _care_codec_slot(17)), patients=(9, 3, 9, 404), excluded=(17, 17), urban=(0, 12, 12)).native
+    derived = _care_mech._derive_preparation(native, 0, "release")
+    assert native.inputs == (9, 3, 9, 404)
+    assert derived.patients == (3, 9)
+    assert derived.rows == ((3, 0, 0, 0), (9, 0, 0, 0))
+    assert derived.workers == ((0, 9, 0, 0x3f000000),)
+    expected = _care_codec_expected(regions=1)
+    view = _care_mech_view(expected=expected, patients=(404, 404))
+    report = _care_mech.verify_care_mechanics(view.data, expected=expected, context=_care_mech_context(expected))
+    assert report.verdict == "MISMATCH" and report.failure_section == "duplicate_incoming_episode"
+
+
+def test_care_mechanics_eligibility_checks_adult_farmer_idle_excluded_urban_and_region_boundaries():
+    slots = (_care_codec_slot(1, age=19), _care_codec_slot(2, age=20),
+        _care_codec_slot(3, occupation=1), _care_codec_slot(4, trip=1),
+        _care_codec_slot(5), _care_codec_slot(6, settlement=12),
+        _care_codec_slot(7, region=65535), _care_codec_slot(8, alive=False),
+        _care_codec_slot(9, trip=2), _care_codec_slot(10, trip=3))
+    native = _care_mech_view(slots=slots, excluded=(5,), urban=(0, 12)).native
+    derived = _care_mech._derive_preparation(native, 0, "release")
+    assert derived.workers == ((1, 2, 0, 0x3f800000),)
+    assert derived.rows == derived.health_loss == ()
+
+
+def test_care_mechanics_complete_spouse_pass_reserves_scarce_donor_before_earlier_kin():
+    slots = (_care_codec_slot(1, rel_count=1, kin=1, targets=(3,)),
+             _care_codec_slot(2, rel_count=1, marriage=1, targets=(3,)),
+             _care_codec_slot(3, rel_count=1, kin=1, targets=(1,)))
+    native = _care_mech_view(slots=slots, patients=(1, 2)).native
+    derived = _care_mech._derive_preparation(native, 1, "release")
+    assert derived.rows == ((1, 0, 0, 0), (2, 0, 3, 0x3e4ccccd))
+    assert derived.health_loss == ((1, 0x3f000000), (2, 0x3f000000), (3, 0x3e4ccccd))
+    assert derived.regions[0][2:] == (0x3fc99999a0000000, 1)
+
+
+def test_care_mechanics_raw_zero_spouse_deduction_and_release_first_marriage_sentinel_are_exact():
+    slots = (_care_codec_slot(0),
+        _care_codec_slot(1, rel_count=2, marriage=1, kin=2, targets=(0, 3)),
+        _care_codec_slot(3, rel_count=1, kin=1, targets=(1,)))
+    native = _care_mech_view(slots=slots, patients=(1,)).native
+    spouse = _care_mech._derive_preparation(native, 0, "release")
+    assert spouse.rows == ((1, 0, 0, 0),)
+    assert spouse.health_loss == ((0, 0x3e4ccccd), (1, 0x3f000000), (0, 0))
+    assert spouse.regions[0][2:] == (0x3fc99999a0000000, 1)
+    kin = _care_mech._derive_preparation(native, 1, "release")
+    assert kin.rows == ((1, 0, 3, 0x3e4ccccd),)
+    assert kin.regions[0][2:] == (0x3fd99999a0000000, 2)
+    native = _care_mech_view(slots=(_care_codec_slot(1, rel_count=2, marriage=3, targets=(0, 3)),
+                                   _care_codec_slot(3)), patients=(1,)).native
+    assert _care_mech._derive_preparation(native, 0, "release").rows == ((1, 0, 0, 0),)
+    with _care_codec_pytest.raises(_care_mech._Mismatch, match="mechanics mismatch"):
+        _care_mech._derive_preparation(native, 0, "debug")
+    with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="unqualified_Marriage_profile"):
+        _care_mech._derive_preparation(native, 0, "unknown")
+
+
+def test_care_mechanics_kin_patient_lookup_uses_last_eligible_worker_and_keeps_original_row_region():
+    slots = (_care_codec_slot(7, rel_count=1, kin=1, targets=(9,)),
+        _care_codec_slot(9, rel_count=1, kin=1, targets=(7,)), _care_codec_slot(7, age=19, region=1))
+    native = _care_mech_view(expected=_care_codec_expected(regions=2), slots=slots, patients=(7,)).native
+    derived = _care_mech._derive_preparation(native, 1, "release")
+    assert derived.rows == ((7, 1, 9, 0x3e4ccccd),)
+    assert derived.regions == ((0, 0, 0, 0), (0x3e4ccccd, 0, 0x3fc99999a0000000, 1))
+    assert derived.health_loss == ((0, 0), (9, 0x3e4ccccd), (0, 0))
+
+
+def test_care_mechanics_reciprocal_kin_is_raw_sorted_unique_with_zero_self_dead_and_absent_targets():
+    slots = (_care_codec_slot(0, rel_count=7, kin=127, targets=(0, 404, 9, 7, 7, 3, 5)),
+        _care_codec_slot(3), _care_codec_slot(5, rel_count=1, kin=1, targets=(0,)),
+        _care_codec_slot(7, rel_count=1, kin=1, targets=(0,)), _care_codec_slot(9, alive=False))
+    native = _care_mech_view(slots=slots, patients=(0,)).native
+    derived = _care_mech._derive_preparation(native, 1, "release")
+    assert derived.rows == ((0, 0, 5, 0x3e4ccccd),)
+    assert derived.health_loss[2] == (5, 0x3e4ccccd)
+    assert derived.health_loss[3] == (0, 0)
+
+
+def test_care_mechanics_physical_loss_sum_then_kin_append_has_source_specific_rounding():
+    slots = (_care_codec_slot(1, rel_count=1, kin=1, targets=(2,)),
+        _care_codec_slot(2, rel_count=1, kin=1, targets=(1,)), _care_codec_slot(3),
+        _care_codec_slot(4, rel_count=1, marriage=1, targets=(3,)))
+    native = _care_mech_view(slots=slots, patients=(1, 4)).native
+    derived = _care_mech._derive_preparation(native, 1, "release")
+    assert derived.rows == ((1, 0, 2, 0x3e4ccccd), (4, 0, 3, 0x3e4ccccd))
+    assert derived.regions[0][0] == 0x3fb33334
+    final_slot_fold = _care_mech._add32(_care_mech._add32(_care_mech._add32(
+        0x3f000000, 0x3e4ccccd), 0x3e4ccccd), 0x3f000000)
+    assert final_slot_fold == 0x3fb33333
+
+
+def test_care_mechanics_kin_assigned_duplicate_workers_update_each_own_loss_slot():
+    slots = (_care_codec_slot(1, rel_count=1, kin=1, targets=(9,)), _care_codec_slot(9),
+             _care_codec_slot(9, rel_count=1, kin=1, targets=(1,)))
+    native = _care_mech_view(slots=slots, patients=(1,)).native
+    derived = _care_mech._derive_preparation(native, 1, "release")
+    assert derived.workers == ((0, 1, 0, 0x3f000000), (1, 9, 0, 0x3f800000), (2, 9, 0, 0x3f4ccccd))
+    assert derived.health_loss == ((1, 0x3f000000), (0, 0), (9, 0x3e4ccccd))
+
+
+def test_care_mechanics_consumed_vector_length_and_nondefaults_survive_missing_or_reused_slots():
+    native = _care_mech_view(slots=(_care_codec_slot(0),), patients=(0,), losses_length=1).native
+    zero = _care_codec_replace(native, impairment_b32=0, care_fraction_b32=0)
+    prepared = _care_mech._derive_preparation(zero, 0, "release")
+    assert prepared.health_loss == ((0, 0),)
+    header = _care_mech_view(losses_length=1).header
+    _care_mech._check_consumed(zero, header, prepared)
+    with _care_codec_pytest.raises(_care_mech._Mismatch):
+        _care_mech._check_consumed(zero, _care_mech_view().header, prepared)
+    prepared = _care_mech_prepared(health_loss=((1, 0x3f000000),))
+    vanished = _care_mech_scope(consumed=1, loss=0x3f000000, current=0, flags=0, reason=6, mask=0)
+    reused = _care_mech_scope(consumed=1, loss=0x3f000000, current=999, reason=2)
+    for row in (vanished, reused):
+        _care_mech._check_consumed(_care_codec_replace(zero, scoped=(row,)), header, prepared)
+
+
+def test_care_mechanics_labor_witnesses_use_u32_cast_and_separate_mul_sub_max_div():
+    native = _care_mech_view().native
+    prepared = _care_mech_prepared(regions=((0x3f000000, 0, 0, 0),))
+    observed = _care_codec_replace(native, economy_inputs=((3, 0x3f800000, 0x3f555555, True),))
+    _care_mech._check_labor(observed, prepared)
+    negative = _care_codec_replace(native, economy_inputs=((1, 0x3e800000, 0, True),))
+    _care_mech._check_labor(negative, prepared)
+    for wrong in (((3, 0x3f800000, 0x3f400000, True),), ((3, 0x3f800000, 0x3f800000, False),)):
+        with _care_codec_pytest.raises(_care_mech._Mismatch):
+            _care_mech._check_labor(_care_codec_replace(native, economy_inputs=wrong), prepared)
+
+
+def test_care_mechanics_worked_predicate_keeps_raw_output_order_and_last_region_update():
+    native = _care_mech_view().native
+    outputs = ((0, (0x7f800000, 0, 0), 0, True),
+               (0, (0x7fc01234, 0x80000000, 0xff800000), 0, False))
+    assert _care_mech._check_worked(_care_codec_replace(native, economy_outputs=outputs)) == (False,)
+    wrong = (outputs[0], (0, outputs[1][1], 0, True))
+    with _care_codec_pytest.raises(_care_mech._Mismatch):
+        _care_mech._check_worked(_care_codec_replace(native, economy_outputs=wrong))
+
+
+def test_care_mechanics_scope_reason_guards_preserve_dead_invalid_stale_and_nonfarmer_values():
+    native = _care_codec_replace(_care_mech_view().native,
+        wealth_regions=((0x3f800000, 0x3f800000, 0x3f800000),))
+    base = (0, 0x3e99999a, 0x3e99999a, 0x3e99999a, 0x3e96872c, 0x3e96872c)
+    charged = (0, 0x3e99999a, 0x3e19999a, 0x3e19999a, 0x3e16872c, 0x3e16872c)
+    soldier = (0, 0x3f000000, 0x3f000000, 0x3f000000, 0x3efae148, 0x3efae148)
+    rows = (_care_mech_scope(loss=0x3f000000, reason=0, numbers=charged),
+        _care_mech_scope(1, loss=0x80000000, numbers=base),
+        _care_mech_scope(2, loss=0x3f000000, current=2, reason=2, numbers=base),
+        _care_mech_scope(3, loss=0x3f000000, occupation=1, reason=3, numbers=soldier),
+        _care_mech_scope(4, flags=5, reason=4, mask=33, numbers=(0x7fc01234, 0, 0, 0, 0, 0x7fc01234)),
+        _care_mech_scope(5, region=99, flags=3, reason=5, mask=33, numbers=(0x80000000, 0, 0, 0, 0, 0x80000000)),
+        _care_mech_scope(6, current=0, flags=0, reason=6, mask=0))
+    assert tuple(row.reason for row in rows) == (0, 1, 2, 3, 4, 5, 6)
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=rows))
+
+
+def test_care_mechanics_farmer_operands_and_productivity_branch_differ_from_nonfarmer_origin():
+    native = _care_mech_view().native
+    row = _care_mech_scope(numbers=(0, 0x3e99999a, 0x3e99999a, 0x3e99999a, 0x3e96872c, 0x3e96872c))
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=(row,),
+        wealth_regions=((0x3f800000, 0x3f800000, 0x3f800000),)))
+    doubled = _care_codec_replace(row, numbers=(0, 0x3f19999a, 0x3f19999a, 0x3f19999a, 0x3f16872c, 0x3f16872c))
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=(doubled,),
+        wealth_regions=((0x3f800000, 0x3f800000, 0x40000000),)))
+    with _care_codec_pytest.raises(_care_mech._Mismatch):
+        _care_mech._check_wealth(_care_codec_replace(native, scoped=(row,),
+            wealth_regions=((0x3f800000, 0x3f800000, 0x40000000),)))
+
+
+def test_care_mechanics_wealth_charge_is_one_actual_operation_chain_and_zero_money_is_valid():
+    native = _care_codec_replace(_care_mech_view().native,
+        wealth_regions=((0x3f800000, 0x3f800000, 0x3f800000),))
+    numbers = (0, 0x3e99999a, 0x3e19999a, 0x3e19999a, 0x3e16872c, 0x3e16872c)
+    row = _care_mech_scope(loss=0x3f000000, reason=0, numbers=numbers)
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=(row,)))
+    for index in (2, 3, 4, 5):
+        changed = list(numbers); changed[index] = 0
+        with _care_codec_pytest.raises(_care_mech._Mismatch):
+            _care_mech._check_wealth(_care_codec_replace(native,
+                scoped=(_care_codec_replace(row, numbers=tuple(changed)),)))
+    zero = _care_codec_replace(row, numbers=(0,) * 6)
+    _care_mech._check_wealth(_care_codec_replace(native, scoped=(zero,),
+        wealth_regions=((0, 0x3f800000, 0x3f800000),)))
+
+
+def test_care_mechanics_finish_last_live_capacity_and_shortcircuit_bounds_are_explicit():
+    expected = _care_codec_expected(regions=2)
+    native = _care_mech_view(expected=expected, slots=(_care_codec_slot(0), _care_codec_slot(7)),
+        patients=(0, 7), finish_slots=(_care_codec_slot(0, alive=False), _care_codec_slot(7, alive=False),
+            _care_codec_slot(7, region=1), _care_codec_slot(0)), alive=((0, 0), (7, 1))).native
+    prepared = _care_mech_prepared(patients=(0, 7), regions=((0, 0, 0, 0), (0, 0, 0, 0)))
+    _care_mech._check_finish(native, prepared)
+    worker = _care_mech_prepared(workers=((9, 77, 0, 0x3f800000),), regions=((0, 0, 0, 0), (0, 0, 0, 0)))
+    _care_mech._check_injuries(native, worker, (False, False))
+    with _care_codec_pytest.raises(_care_mech._Mismatch) as raised:
+        _care_mech._check_injuries(native, worker, (True, False))
+    assert raised.value.section == "finish_slot_out_of_bounds"
+
+
+def test_care_mechanics_injury_rows_require_sorted_possible_worker_multiset_without_draw_completeness():
+    native = _care_mech_view(slots=(_care_codec_slot(9), _care_codec_slot(9)),
+        injuries=((9, 0, 0), (9, 0, 0))).native
+    workers = ((0, 9, 0, 0x3f800000), (1, 9, 0, 0x3f800000))
+    prepared = _care_mech_prepared(workers=workers)
+    _care_mech._check_injuries(native, prepared, (True,))
+    _care_mech._check_injuries(_care_codec_replace(native, injuries=()), prepared, (True,))
+    with _care_codec_pytest.raises(_care_mech._Mismatch):
+        _care_mech._check_injuries(_care_codec_replace(native, injuries=((9, 0, 0),) * 3), prepared, (True,))
+    tiny = _care_codec_replace(native, rate_b32=1, injuries=((9, 0, 0),))
+    half = _care_mech_prepared(workers=((0, 9, 0, 0x3f000000),))
+    with _care_codec_pytest.raises(_care_mech._Mismatch):
+        _care_mech._check_injuries(tiny, half, (True,))
+
+
+def test_care_mechanics_python_transition_reconciles_censor_short_recovery_and_new_onset():
+    expected = _care_codec_expected(regions=2)
+    episodes = (_care_codec.EpisodeBits(7, -1, 0x3fe0000000000000, 0),
+                _care_codec.EpisodeBits(404, -2, 0x4000000000000000, 0))
+    initial, post = _care_codec_joins(expected, initial_episodes=episodes)
+    post = _care_codec_replace(post, summary=_care_codec_replace(post.summary, new_injuries=1))
+    view = _care_mech_view(expected=expected, initial=initial, post=post,
+        slots=(_care_codec_slot(7), _care_codec_slot(9, region=1)), patients=(7, 404),
+        assignments=((7, 0, 0, 0),), alive=((7, 1),), injuries=((9, 0, 1),))
+    kept, regions, censored = _care_mech._derive_python(view)
+    assert kept == (_care_codec.EpisodeBits(9, 20, 0x4004000000000000, 0),)
+    assert censored == 1
+    assert regions == (_care_codec.RegionalSummaryBits(0, 0, 1, 1, 0, 0, 0, 0x3fe0000000000000, 0),
+                       _care_codec.RegionalSummaryBits(1, 1, 0, 0, 0, 0, 0, 0, 0))
+
+
+def test_care_mechanics_python_summary_duplicate_sort_last_current_region_and_full_pipeline():
+    expected = _care_codec_expected(regions=2)
+    view = _care_mech_view(expected=expected, slots=(_care_codec_slot(9),),
+        injuries=((9, 0, 0), (9, 1, 1)))
+    kept, regions, censored = _care_mech._derive_python(view)
+    assert kept == (_care_codec.EpisodeBits(9, 20, 0x4004000000000000, 0),
+                    _care_codec.EpisodeBits(9, 20, 0x4004000000000000, 1))
+    assert regions[0].new_injuries == regions[1].new_injuries == 1
+    assert regions[0].episodes == 0 and regions[1].episodes == 2 and censored == 0
+    expected = _care_codec_expected(regions=1)
+    episode = _care_codec.EpisodeBits(7, -1, 0x3fe0000000000000, 0)
+    initial, post = _care_codec_joins(expected, initial_episodes=(episode,))
+    post = _care_codec_replace(post,
+        summary=_care_codec.NumericSummaryBits(20, 0, 0, 0, 1, 0, 0, 0, 0x3fe0000000000000, 0),
+        regions=(_care_codec.RegionalSummaryBits(0, 0, 0, 1, 0, 0, 0, 0x3fe0000000000000, 0),))
+    recovered = _care_mech_view(expected=expected, initial=initial, post=post,
+        slots=(_care_codec_slot(7, age=19),), patients=(7,), assignments=((7, 0, 0, 0),),
+        alive=((7, 65535),), finish_slots=(_care_codec_slot(7, age=19, region=65535),))
+    _care_mech_assert_pipeline(recovered.data, expected)
+    wrong_post = _care_codec_replace(post, summary=_care_codec_replace(post.summary, recoveries=2))
+    wrong = _care_mech_view(expected=expected, initial=initial, post=wrong_post,
+        slots=(_care_codec_slot(7, age=19),), patients=(7,), assignments=((7, 0, 0, 0),),
+        alive=((7, 65535),), finish_slots=(_care_codec_slot(7, age=19, region=65535),))
+    report = _care_mech.verify_care_mechanics(wrong.data, expected=expected, context=_care_mech_context(expected))
+    assert report.verdict == "MISMATCH" and report.failure_section == "summary_integer_totals"
+
+
+def test_care_mechanics_bound_bytes_context_report_and_purity_refuse_forged_authority(monkeypatch):
+    expected = _care_codec_expected(regions=1)
+    view = _care_mech_view(expected=expected)
+    before = random.getstate()
+    report = _care_mech_assert_pipeline(view.data, expected)
+    assert random.getstate() == before
+    assert report.frame_sha256 == _care_codec_hashlib.sha256(view.data).digest()
+    assert report.source_bindings == _care_mech.SOURCE_BINDINGS
+    assert all(value is None for _, value in report.claims)
+    assert dict(report.claims)["native_injury_draws"] is None
+    assert dict(report.claims)["source_copy_truth"] is None
+    with _care_codec_pytest.raises(AttributeError):
+        report.verdict = "forged"
+    for context in (_care_codec_replace(_care_mech_context(expected), manifest_sha256=b"x" * 32),
+                    _care_codec_replace(_care_mech_context(expected), source_bindings=()),
+                    _care_codec_replace(_care_mech_context(expected), native_profile="unbounded")):
+        refused = _care_mech.verify_care_mechanics(view.data, expected=expected, context=context)
+        assert refused.verdict == "INCOMPLETE" and refused.unavailable == ("invalid_source_context",)
+    malformed = _care_mech.verify_care_mechanics(bytearray(view.data), expected=expected,
+                                               context=_care_mech_context(expected))
+    assert malformed.verdict == "INCOMPLETE"
+    later_expected = _care_codec_expected(regions=1, ordinal=1)
+    later_prefix, _ = _care_codec_prefix(expected=later_expected)
+    _, later_post = _care_codec_joins(later_expected)
+    later_data = _care_codec.finalize_care_frame(later_prefix, expected=later_expected,
+        initial=None, post=later_post, previous=view)
+    later_report = _care_mech_assert_pipeline(later_data, later_expected, previous=view)
+    forged = _care_codec_replace(view,
+        native=_care_codec_replace(view.native, inputs=(404,)),
+        post=_care_codec_replace(view.post, summary=_care_codec_replace(view.post.summary, recoveries=999)),
+        frame_sha256=b"x" * 32)
+    assert _care_mech_assert_pipeline(later_data, later_expected, previous=forged) == later_report
+    bad_previous = bytearray(view.data); bad_previous[256] ^= 1
+    broken = _care_mech.verify_care_mechanics(later_data, expected=later_expected,
+        previous=_care_codec_replace(view, data=bytes(bad_previous)), context=_care_mech_context(later_expected))
+    assert broken.verdict == "INCOMPLETE" and broken.unavailable == ("malformed_frame",)
+    too_large = view.data + bytes(131073 - len(view.data))
+    assert _care_mech.verify_care_mechanics(too_large, expected=expected,
+        context=_care_mech_context(expected)).verdict == "INCOMPLETE"
+    assert _care_mech.INTEGER_BITS == 8192
+    with _care_codec_pytest.raises(_care_mech.UnsupportedArithmetic, match="internal_integer_bound"):
+        _care_mech._bounded(1 << 8192)
+    bindings = dict(_care_mech.SOURCE_BINDINGS)
+    assert bindings["codec"] == _care_codec_hashlib.sha256(
+        _care_codec_Path(_care_codec.__file__).read_bytes()).hexdigest()
+    witness = {"section": report.failure_section, "index": report.failure_index,
+               "frame_sha256": report.frame_sha256.hex()}
+    assert len(json.dumps(witness, separators=(",", ":")).encode()) <= 512
+    source = _care_codec_Path(_care_mech.__file__).read_text()
+    tree = _care_codec_ast.parse(source)
+    names = {node.func.id for node in _care_codec_ast.walk(tree)
+             if isinstance(node, _care_codec_ast.Call) and isinstance(node.func, _care_codec_ast.Name)}
+    assert not names.intersection({"open", "eval", "exec", "__import__", "World", "AgentSimulator", "run_turn_result"})
+    def allocation_failure(*args, **kwargs):
+        raise MemoryError
+    monkeypatch.setattr(_care_mech.codec, "decode_care_frame", allocation_failure)
+    assert _care_mech.verify_care_mechanics(view.data, expected=expected,
+                                          context=_care_mech_context(expected)) is None

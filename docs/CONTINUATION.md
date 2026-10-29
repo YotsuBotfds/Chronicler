@@ -1,3 +1,24 @@
+# Care mechanics source graft — 2026-10-29
+
+The [mechanics composition](integration/care-mechanics-composition-2026-10-29.md)
+adds exact reviewed source9de448e9: an unused conditional integer-IEEE mechanics
+reader and 28 plain test parents. The separately approved donor check passed
+88 parents / 264 phases / 97 existing subreports; full nonauthor source and
+independent saved-byte reviews are clear. Actual local CPython3.13.5 does not
+qualify the reader's exact3.13.17 built-in-sum gate; floating totals stay
+NULL/PARTIAL there. No captured source truth, draw/global-RNG, native API/schema,
+enabled World/checkpoint, scientific or performance claim follows.
+
+Parent25f6c402 now has root/independently qualified first-attempt all-nine-job
+CI40948800815: native8691/6/623, no-Rust8358/325/623 and offline4584/65/97;
+Rust1154/2ignored and Viewer743 pass. The current-source wheel binds804 protected
+files. This new mechanics composition's CI is UNRUN. Native09ec301, codec e18a,
+physics/defaults, dependencies/workflows,303 owners/six skips/623 subreports and
+all38 offline chunks/110-second bounds remain exact. The entire qualified
+parent continuation follows unchanged, including its earlier dated snapshots.
+
+---
+
 # Care observation codec source graft - 2026-10-29
 
 The [care codec composition](integration/care-codec-composition-2026-10-29.md)
