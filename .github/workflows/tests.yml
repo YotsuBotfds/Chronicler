@@ -3,7 +3,7 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [main, lead/cloud-continuation-20261028]
+    branches: [main, lead/cloud-continuation-20261028, lead/cloud-household-wealth-floor-20261029]
   workflow_dispatch:
 
 permissions:
@@ -248,6 +248,13 @@ jobs:
             ~/.cargo/git
           key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
           restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Run household wealth damping regressions first
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --locked --manifest-path chronicler-agents/Cargo.toml household_migration_ -- --nocapture 2>&1 | tee ci-evidence/household-wealth-floor.txt
 
       - name: Run Rust tests
         shell: bash

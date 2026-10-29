@@ -52,3 +52,22 @@ Before promotion, run these regressions and the complete Rust suite, then qualif
 the changed extension and relevant Python/behavior gates at exact source. This
 is an intentional correction, not a trajectory-preserving optimization, causal
 target calibration, scientific gate pass or main-branch change.
+
+
+## Independent review and test activation
+
+Independent source review cleared `9f43bbb7`: the clamp preserves existing
+ratio and multiplication bits whenever the old ratio is at least one, and
+leaves other action/eligibility/RNG paths intact. The credit-transfer regression
+establishes permitted native API reachability; it does not measure the frequency
+under ordinary Python lending policy.
+
+The isolated branch `lead/cloud-household-wealth-floor-20261029` runs the four
+targeted Rust regressions before the complete Rust suite, plus all existing
+native Python, no-Rust, bounded offline and viewer lanes. Native Python builds
+the changed crate and verifies its actual compiled module/classes. No local
+native compilation or scientific worlds preceded activation. Results remain
+pending; tests cannot substitute for a future full outcome gate. This intentional
+behavior correction stays separate from main, the recovered research integration
+and the running frozen full cohorts. No checkpoint is loaded across changed
+native binaries.
