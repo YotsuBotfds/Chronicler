@@ -1,0 +1,164 @@
+{
+  "artifacts": [
+    {
+      "digest": "sha256:6c1843a48dcfcb6adad1acef4c152d526de84d437a4eb8715a804c344bde6ac8",
+      "expired": false,
+      "expires_at": "2026-11-28T11:35:51Z",
+      "id": 12894685237,
+      "name": "wealth-outcome-full-procedural-contracts-40860233409-1",
+      "size_in_bytes": 8913,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:f194e6a32fa683d7b83b9d647f78ebf26bfa5acf16c9e3d8f34eae873bd7d7ba",
+      "expired": false,
+      "expires_at": "2026-11-28T11:34:03Z",
+      "id": 12894151752,
+      "name": "wealth-outcome-full-procedural-raw-40860233409-1",
+      "size_in_bytes": 717601394,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:56f6c612660ebd1b44ff776546d7e9a0580e534b55344b2b175b87713b7df893",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:52Z",
+      "id": 12894081792,
+      "name": "wealth-outcome-full-procedural-failed-checkpoints-40860233409-1",
+      "size_in_bytes": 4192776011,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:c8e516d134e00b70c9fe30c1dc89c5a81bda2f60bf6ab545683333e0be468ad0",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:49Z",
+      "id": 12894016498,
+      "name": "wealth-outcome-full-procedural-failure-metadata-40860233409-1",
+      "size_in_bytes": 18195,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:904a1897a81ece297819edd2f61d7150a3a7208d336fe6812672e44367d5c62d",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:47Z",
+      "id": 12893716890,
+      "name": "wealth-outcome-full-procedural-light-40860233409-1",
+      "size_in_bytes": 1690,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:f60983a022e81e4365372285980868ef390fdceabe79da1a542904f6bb632742",
+      "expired": false,
+      "expires_at": "2026-11-28T11:34:02Z",
+      "id": 12893532490,
+      "name": "wealth-outcome-full-template-contracts-40860233409-1",
+      "size_in_bytes": 8873,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:409a2f6c648ee396aa1956d9a669b85af26a9d4c8120b03f793637f050af938a",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:16Z",
+      "id": 12893382551,
+      "name": "wealth-outcome-full-template-failure-metadata-40860233409-1",
+      "size_in_bytes": 17599,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:a08d9377e4a5c9e2a5082d0dd06786f240fe62fd6f32618006144a271797b7b3",
+      "expired": false,
+      "expires_at": "2026-11-28T11:32:04Z",
+      "id": 12893208388,
+      "name": "wealth-outcome-full-template-raw-40860233409-1",
+      "size_in_bytes": 700580690,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:94cd4f18c5a2a2c0594482ccb3d5ed361ea18a93cb0960a260dcbb0f74412001",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:15Z",
+      "id": 12893063337,
+      "name": "wealth-outcome-full-template-light-40860233409-1",
+      "size_in_bytes": 1664,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    },
+    {
+      "digest": "sha256:e052844c8c94229d9e1be5642c3660733092b24bf831bc732bde98c41f92db45",
+      "expired": false,
+      "expires_at": "2026-11-28T11:31:19Z",
+      "id": 12892774650,
+      "name": "wealth-outcome-full-template-failed-checkpoints-40860233409-1",
+      "size_in_bytes": 1265097885,
+      "workflow_run": {
+        "head_branch": "lead/cloud-wealth-floor-outcome-cohort-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+        "id": 40860233409,
+        "repository_id": 1187468861
+      }
+    }
+  ],
+  "attempt": 1,
+  "download_artifact_ids": [
+    12893208388,
+    12894151752
+  ],
+  "kind": "incomplete-full-cohort-diagnostic-inputs",
+  "producer_source": "33d331a1838d86ba2b47ac222b8f4ede6ff598bc",
+  "run_id": 40860233409,
+  "schema_version": 1,
+  "scope": "All ten official publication records; only the two original raw ZIPs may be downloaded remotely for selected metadata diagnosis. No failed-CP body acquisition, full payload audit, scientific qualification or worlds."
+}

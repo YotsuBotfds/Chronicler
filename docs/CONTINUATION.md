@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A separate [source-only original-run diagnostic](experiments/wealth-floor-failed-cohort-diagnostic-2026-10-29.md)
+preserves the first full cohort at33d331a1/run40860233409 as INCOMPLETE_MECHANICS.
+Both original jobs failed during partial checkpoint capture, before scientific
+assessment; no rerun or candidate/scientific decision follows. The new reader
+registers all ten output metadata records but only the two original raw ZIP
+endpoints, remotely, for bounded exception/progress/manifest CRC/hash checks.
+It retains the original resource/ZIP/phase limits, keeps full completion proofs
+NULL, and its separate activation pin is NULL. All35 final guarded pure cases
+pass with no native/factory/blocked IO; seven qualified primitive ASTs match.
+Source peer/root review and a separate activation remain required. No raw ZIP,
+failed-CP body, native build or World was acquired/run by this preparation.
+
 A separate [pending full-output byte-audit core](experiments/wealth-floor-full-archive-core-2026-10-29.md)
 now has122 pure contracts passing in0.29 seconds with no native/factory/blocked
 IO. It validates whole expected-member closure, bounded closed transport and
