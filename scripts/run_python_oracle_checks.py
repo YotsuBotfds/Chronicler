@@ -222,6 +222,7 @@ CHUNKS = {
     ],
     "validation-tooling": [
         "tests/test_batch_manifest.py",
+        "tests/test_batch_manifest_inputs.py",
         "tests/test_validation_turn_index.py",
         "tests/test_batch.py",
         "tests/test_validation_gate.py",

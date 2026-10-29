@@ -217,6 +217,23 @@ def test_a_changed_validation_input_is_refused(batch_42, tmp_path):
     assert check_batch_manifest(batch_dir)["status"] == "verified"
 
 
+def test_an_added_oracle_sidecar_is_refused_before_loading(batch_42, tmp_path, monkeypatch):
+    from chronicler import validation_io
+    from chronicler.validate import run_oracles
+
+    batch_dir = _copy(batch_42, tmp_path)
+    path = batch_dir / "seed_42" / "validation_relationships.arrow"
+    assert not path.exists()
+    path.write_bytes(b"an unrecorded sidecar must never reach Arrow decoding")
+
+    def unexpected_decode(*args, **kwargs):
+        pytest.fail("unrecorded sidecar reached the oracle input reader")
+
+    monkeypatch.setattr(validation_io, "_read_arrow_columns", unexpected_decode)
+    with pytest.raises(ValidationRequestError, match=r"seed_42/validation_relationships.arrow \(not hashed\)"):
+        run_oracles(batch_dir, ["needs"])
+
+
 def test_a_run_shorter_than_requested_is_refused(batch_42, tmp_path):
     batch_dir = _copy(batch_42, tmp_path)
     _rewrite_manifest(batch_dir, lambda manifest: manifest.update(turns=500))

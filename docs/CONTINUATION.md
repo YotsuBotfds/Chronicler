@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The separate `lead/batch-validation-input-set-20261029` branch closes a
+[batch oracle-input verification gap](integration/batch-validation-input-set-2026-10-29.md):
+new sidecars beside an already recorded bundle now require that run's manifest
+hash. Nine new regressions fail on the original verifier; the correction passes
+35 focused tests and 237 guarded validation-tooling tests with the unchanged
+110-second bound. Independent source review is clear; complete CI is pending.
+No producer output, simulation policy, checkpoint or active gate was changed.
+
 The current consolidated review branch is `lead/recovered-review-20261029`.
 Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
 code, validation, measured workflow options and held experiments. Production

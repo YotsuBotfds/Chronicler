@@ -503,6 +503,15 @@ def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_path
         if not isinstance(files, dict) or bundle not in files:
             changed.append(f"{bundle} (not hashed)")
             continue
+        # Readers select the sidecars that exist beside the bundle, including
+        # legacy per-turn JSON. Checking only recorded hashes misses inputs
+        # added after recording: those would affect an otherwise verified run.
+        seed_dir = (batch_dir / bundle).parent
+        actual_inputs = {
+            path.relative_to(batch_dir).as_posix()
+            for path in _validation_input_paths(seed_dir)
+        }
+        changed.extend(f"{relative} (not hashed)" for relative in sorted(actual_inputs - files.keys()))
         for relative, sha in files.items():
             path = batch_dir / relative
             if not path.is_file():
