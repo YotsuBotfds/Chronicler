@@ -672,6 +672,7 @@ def gate_raw_upload(root, control, *, source, prepare_outcome, metadata_outcome,
         require(clock["monotonic_deadline"] - budget.now() >= 145, "RAW_UPLOAD_RESERVE")
         require(shutil.disk_usage(root).free >= 3 * GIB, "RAW_JOINT_CAP")
         return {"upload_raw": True, "expected_artifact_name": plan["expected_artifact_name"],
+            "monotonic_deadline": clock["monotonic_deadline"],
             "phase": "pre_upload_after_metadata", "raw_original_artifact_qualified": None}
     except Exception as exc:
         return {"upload_raw": False, "refusal_code": exc.code if isinstance(exc, Refused) else "RAW_REFUSED",
@@ -852,6 +853,11 @@ def main(argv=None):
             remaining_cpu_seconds=args.remaining_cpu_seconds, budget=limits)
         if result["upload_raw"]: _workflow_output({"upload_raw": True, "expected_artifact_name": result["expected_artifact_name"]})
         limits.check()
+        # Output append/flush/fsync and the local guard may consume job reserve.
+        # Keep D internal; a final refusal leaves a non-success step even if a
+        # partial true output exists. The action also requires step success.
+        if result["upload_raw"]:
+            require(result["monotonic_deadline"] - limits.now() >= 145, "RAW_UPLOAD_RESERVE")
         return 0 if result["upload_raw"] else 2
     require(args.output is not None, "RAW_OUTPUT")
     report = publish(args.root, args.output, owner_outcome=args.owner_outcome, source=args.source,

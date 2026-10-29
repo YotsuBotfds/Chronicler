@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `2057e2ad6c588345ede4d8265c58d75300ca1f4e25d0126d77531b81bf1f60e0`
+Source manifest SHA-256: `3c39daab2f0c6cf308d2d63db316e7250a73670f637cf7dd1d87a26ae14b8be8`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -373,3 +373,36 @@ The separate literal-output source receipt is
 Both are saved-byte source estimates without reviewed execution. They leave
 actual fixture closure, genuine role outputs, negative/unknown outputs and the
 unchanged aggregate guard to their own later observed receipts.
+
+
+## Final local output deadline guard and original input restoration
+
+The full nonauthor074 review receipt
+`88e3a0ed8843209f5ca20f0f1745bf9a3d54be881ec7ebead564471a8a943007`
+held two concrete issues. This narrow successor preserves all391 prior logical
+fake cases and their fixtures while closing both. The admitted monotonic job
+D is carried internally from the late gate. After the final GITHUB_OUTPUT
+append/flush/fsync and local limits guard, main samples current monotonic time
+again and requires D-now>=145 before success. If output or guard work consumes
+the reserve, the raw_gate step fails; the existing raw action also requires the
+actual raw_gate outcome to be success, so a partial true output cannot enable it.
+Two appended primitive counter/output cases cover advancing-clock refusal and
+a positive control without adding role trees or retained files. The prospective
+whole selection is393:134 study,152 reader and107 publication. All391 old case
+bodies remain unchanged; the THREE-module2793-file/40MiB fixture-body estimate,
+role/global caps and source-estimated515 known scheduled output leaves remain.
+
+This is an as-of admission at the final local clock sample. Provider scheduling,
+subsequent action execution and original artifact bytes are later observations;
+the guard cannot guarantee provider delay or successful upload. Client ZIP source
+bounds remain conditional, and original official archive acceptance/runtime
+activation stay NULL. No new time, CPU, file or byte allowance is introduced.
+
+The registered3a wheel SBOM member count is restored from the accidentally
+changed139391 to its original139390 bytes, retaining SHA
+`a7767eba43b428873a74f1f07adc6a22a87477ef4eadc8bcdfb34e4112988c04`.
+The original qualified builder-byte-verification proof SHA is
+`968da923d22e906f49a4a568460d2c6c8e9b917a4252df20317b3a4b34bbe037`.
+No wheel, source, native or future469 producer is rebound by this restoration.
+All40/074 sources and005/006 runners remain preserved and unrun; this child and
+its own frozen runner also require explicit source/selection review before tests.

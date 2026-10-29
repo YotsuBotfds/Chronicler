@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A narrow SOURCE-ONLY successor of unrun074 closes the final-output job-time
+check and restores the original3a SBOM count139390/SHAa7767 without rebinding
+inputs. After GITHUB_OUTPUT append/flush/fsync and localguard, the admitted
+monotonic D must still leave145seconds; non-success raw_gate outcome suppresses
+the action despite any partial true output. This is final-local-sample admission,
+not a provider scheduling/upload guarantee. Two new primitive cases preserve all
+391oldlogicalbodies and add no fixturefiles:393prospective cases across allTHREE
+modules, with the same2793preflightfile/40MiBfixture-body estimate. All prior
+sources/runners remain immutable and unrun. No tests/import/runtime activation
+is claimed; caps/science/donors/product/native and runtime NULL bindings stay.
+
+
 The unrun40f79 durable-publication source/runner remains HELD: static fixture
 accounting found its repeated full-role fake trees would exceed4096 files.
 A fixture-only successor preserves all production bytes/old215 bodies/all105

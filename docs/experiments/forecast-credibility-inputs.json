@@ -71,7 +71,7 @@
       "sha256": "05810dafed0ec89102fa5fd80f45be4de81e4b6491a82fb9873d72cde4bdb5fb"
     }
   },
-  "preflight_cases": 391,
+  "preflight_cases": 393,
   "preflight_limits": {
     "address_space_bytes": 536870912,
     "children": false,
@@ -107,7 +107,7 @@
       "sha256": "f712df2655d1edb5546286f8271818a37de4533046fa0bf3aad0571a3dbc2f10"
     },
     "chronicler_agents-0.1.0.dist-info/sboms/chronicler-agents.cyclonedx.json": {
-      "bytes": 139391,
+      "bytes": 139390,
       "sha256": "a7767eba43b428873a74f1f07adc6a22a87477ef4eadc8bcdfb34e4112988c04"
     },
     "chronicler_agents/__init__.py": {

@@ -665,3 +665,42 @@ def test_shared_metadata_ledger_job_clock_binding_is_checked_after_real_file_sea
     write(path,publication)
     result=gate(study)
     assert result['upload_raw'] is False and result['refusal_code']=='RAW_CLOCK'
+
+
+
+@pytest.mark.parametrize('after_guard,eligible',[(104.0,True),(106.0,False)])
+def test_raw_output_and_local_guard_are_followed_by_a_fresh_actual_job_reserve_check(monkeypatch,after_guard,eligible):
+    # No role tree or actual output file: retain primitive clock/output witnesses.
+    now=[100.0];outputs=[];events=[]
+    limits=P.Budget(20,10,now=lambda:now[0],cpu_now=lambda:0.0)
+    original_guard=limits.check
+    def local_guard():
+        original_guard()
+        if outputs:
+            events.append('local_guard_complete');now[0]=after_guard
+    limits.check=local_guard
+    def admitted_gate(*args,**kwargs):
+        assert 250.0-now[0]>=145
+        events.append('actual_D_admitted')
+        return {'upload_raw':True,'expected_artifact_name':'invented-exact-name','monotonic_deadline':250.0}
+    def flushed_output(values):
+        assert set(values)=={'upload_raw','expected_artifact_name'}
+        outputs.append(dict(values));events.append('output_append_flush_fsync_complete');now[0]=103.0
+    monkeypatch.setattr(P,'_enforce',lambda *args:(20,10))
+    monkeypatch.setattr(P,'_launcher_budget',lambda *args:100.0)
+    monkeypatch.setattr(P,'Budget',lambda *args,**kwargs:limits)
+    monkeypatch.setattr(P,'gate_raw_upload',admitted_gate)
+    monkeypatch.setattr(P,'_workflow_output',flushed_output)
+    argv=['--mode','upload-gate','--root','/tmp/invented-original','--control','/tmp/invented-control',
+        '--output','/tmp/invented-publication','--source',SOURCE,'--launcher-boot-seconds','100.00',
+        '--prepare-outcome','success','--metadata-outcome','success','--publication-outcome','success',
+        '--serializer-exit','0','--metadata-budget-complete','true',
+        '--remaining-wall-milliseconds','19000','--remaining-cpu-seconds','9']
+    if eligible:assert P.main(argv)==0
+    else:
+        with pytest.raises(P.Refused,match='RAW_UPLOAD_RESERVE'):P.main(argv)
+    assert outputs==[{'upload_raw':True,'expected_artifact_name':'invented-exact-name'}]
+    assert events==['actual_D_admitted','output_append_flush_fsync_complete','local_guard_complete']
+    # A partial true output alone cannot activate the existing action gate.
+    workflow=(ROOT/'docs/experiments/forecast-credibility-study.yml.inactive').read_text()
+    assert "steps.raw_gate.outcome == 'success'" in workflow
