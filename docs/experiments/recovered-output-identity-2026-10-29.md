@@ -2,8 +2,8 @@
 
 Status: **INACTIVE DRAFT**. This protocol has created no world or native build.
 The proposed workflow is under `docs/experiments/`; no active workflow or
-completed proof branch is modified. Local contract tests and YAML validation
-remain unrun while the separate timing study owns the execution lease.
+completed proof branch is modified. Local contract tests and YAML validation passed after the separate timing
+study released its execution lease; the 18-world comparison remains unrun.
 
 ## Question and fixed source pair
 
@@ -123,13 +123,31 @@ older 399-file results.
 The inherited 22 pure contracts remain, with three additional contracts for
 closed registry pins, rejection before any evidence/child creation, and the
 recovered proposal's explicit source selection without physics overrides.
-All 25 contracts and YAML validation must pass before any activation. These
-checks have not been executed for this draft. Independent source review cleared the closed registry, selected-pair binding
-and inactive workflow. Contract execution and YAML validation remain pending;
-the runtime timing lease is respected.
+All 25 contracts and YAML validation passed; the proposal remains inactive. Independent
+source review cleared the closed registry, selected-pair binding and inactive
+workflow. The checks qualify control behavior only; no world or native build
+has run under this recovered-pair protocol.
 
 Acceptance applies only to this exact source pair, fixed matrix and observed
 environment. It does not establish a speed gain, feature efficacy, natural
 research exposure, arbitrary platform identity, exact checkpoints/native/RNG
 state equality or full population-gate qualification. Main, archived proof
 branches and their prior results remain unchanged.
+
+
+## Executed local control checks
+
+At clean control `45f767c0291712b5a6f99f82f192d38e00ed88a9`, Python 3.13.5
+reported **25 unittest contracts passed in 0.028 seconds**. Existing `actionlint`
+1.7.12 passed the proposed YAML with exit zero and no diagnostic output. These
+checks ran only after root released the separate timing study's execution lease.
+No native module/pool, world or build was created by these control checks.
+
+The external receipt is
+`/workspace/chronicler-evidence/recovered-output-controls-20261029/receipt.json`,
+SHA-256 `13737f1abb7935a05d1e83c7ca51c02b2552c3f38aa38245f293385ba91ddabb`.
+The retained unittest log SHA-256 is
+`df77f7a4ece015716387fa34dd4377d617cb6848938511a91f9ec7ac94547f61`.
+Helper, contract-suite and YAML byte hashes are pinned in that receipt. Subsequent
+result documentation does not change those tested source files. No active
+workflow or raw output comparison is claimed by this local check.

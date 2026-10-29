@@ -3,8 +3,8 @@
 A separate inactive control draft reuses the vetted export-parity helper through
 a closed source-pair registry for public `2f9d618b` versus complete recovered
 producer `c76efe85`. The fixed nine-case matrix, resource guards and timestamp-only
-normalization stay unchanged. No worlds, native builds or local contract tests
-have run for this draft; see the
+normalization stay unchanged. No worlds or native builds have run for this draft; 25 pure contracts and
+actionlint passed after the timing lease ended. See the
 [prospective recovered-output protocol](experiments/recovered-output-identity-2026-10-29.md).
 The earlier arc proof remains scoped to its own d028-to-249a pair.
 
