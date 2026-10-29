@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+Independent saved-export reinspection has now passed for both the arc and
+complete recovered producer studies: 976 payload files, nine case comparisons,
+399 exported file pairs and zero differences per study. Frozen reader
+`2b7a443e` and a separate final peer review verify original source/control,
+official artifact, audit/probe and wheel/native links. No new worlds or
+normalization were used. See the [readout](integration/completed-export-study-reader-2026-10-29.md)
+and [current development review](integration/recovered-review-2026-10-29.md)
+for the separate branch inventory, corrected inactive research harness,
+forkserver stages and new batch-verification findings. Main and the exact
+producing C76 checkout remain unchanged.
+
 The current consolidated review branch is `lead/recovered-review-20261029`.
 Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
 code, validation, measured workflow options and held experiments. Production

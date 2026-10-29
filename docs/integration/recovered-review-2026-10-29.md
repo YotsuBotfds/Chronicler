@@ -12,7 +12,7 @@ bytes and package path for checkpoint replay.
 | Work | Result | Evidence boundary |
 | --- | --- | --- |
 | Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | Native composition passed two parent trajectories and four continuations: 62 actual ticks, 40 registered comparisons, archive/pause checks and independent payload verification. Later-topic paid adoption was not exposed. |
-| Default output compatibility | Complete recovered producer matched the earlier public integration in the fixed 18-world matrix | Baseline `2f9d618b`, candidate `c76efe85`, run 40796958774; exported files only, registered timestamp rule, no full checkpoint/RNG or efficacy claim. Independent artifact inspection is separate. |
+| Default output compatibility | Complete recovered producer matched the earlier public integration in the fixed 18-world matrix | Baseline `2f9d618b`, candidate `c76efe85`, run 40796958774. Independent reader verified all 976 payload files and the nine unchanged comparisons: 399 exported file pairs, zero differences. Registered timestamp rule only; no full checkpoint/RNG or efficacy claim. |
 | Relationship telemetry | Opt-in collected keys now have deterministic order across native restoration | The original proof failed on four bundle key-order paths; producer sorting fixed them. Original failure remains unchanged, and no comparator rule was relaxed. |
 | Debt history viewer | Current lender labels use selected-snapshot detail; extinct borrowers' recorded losses remain visible with unknown amounts | Exact viewer slice passed 709 tests/lint/build; recovered producer passed 743 viewer tests across 69 files. Missing rows and amounts are not fabricated. |
 | Arc/faction history work | Event types are projected once; faction queries reuse the actor index | Frozen-source arc parity and full CI passed; separate arc export study passed 18 worlds/3,200 ticks. No measured simulation-tick speedup is claimed. |
@@ -51,6 +51,15 @@ and [bounded opt-in integration plan](../performance/models-forkserver-integrati
 remain explicit. Current science/scholarship lazy model imports require fresh
 preload proofs and source-compatible checkpoints before runtime integration.
 
+The isolated stage-1 implementation at `9848e7da` adds lazy API admission and
+immutable job/outcome contracts. The default launcher is unchanged; selecting
+the experimental backend refuses before source/destination probes. Its 66
+focused tests and 276-test guarded chunk pass. There is no executable server
+backend, public CLI option or gate forwarding in that commit. The separate
+`d80f5c17` metadata design and static source inventory passed 296 guarded
+tests, but ran no forks. Current-source content-codec engineering remains
+separate from qualification of the original timing experiment.
+
 ## Intentional native correction, separate review branch
 
 `lead/cloud-household-wealth-floor-20261029` at `5030701` corrects a valid
@@ -72,10 +81,14 @@ The ongoing full-gate run 40791402289 compares frozen `2f9d618b` and `d0281e5f`.
 It does not qualify recovered finite research or the separate native correction.
 All four schema smokes completed with original subset gate failures retained;
 schema admission did not make those failures passes. The full template
-candidate has completed its original strict gate and raw publication; other
-cohorts and the final strict comparison/publication adjudication remain pending
-at this record's creation. Preserve every original report and causal-required
-adjudication separately.
+baseline and candidate have both completed their original strict gates and raw
+publication. Their original decisions are byte-identical: seven required
+oracles pass, the needs causal component passes, and kin-root causality fails
+as an informational component under that policy. Both procedural cohorts and
+the final strict comparison/publication adjudication remain pending at this
+record's update. Preserve every original report and causal-required
+adjudication separately; passing the original policy does not make the
+informational causal failure a pass.
 
 The causal mechanism review identifies delivery questions before coefficient
 changes: kin roots damp voluntary destination pulls; distress migration can
@@ -87,10 +100,50 @@ capped and marginal-dose telemetry is a prospective follow-up.
 
 The longer natural research continuation study remains inactive. Its fixed
 eight seeds, common checkpoint, active/pause contrast, external global RNG
-sidecar and missingness rules are registered. Source review found checkpoint
-header-order, history-linkage and process/budget/publication issues before any
-study worlds; these must be fixed and independently reviewed. It declares no
-efficacy threshold, default promotion or outcome-dependent seed selection.
+sidecar and missingness rules are registered. Its corrected adapter `7b3ae977`
+passed 61 guarded contracts, nine real Linux process tests and a metadata-only
+freeze against the original producer/runtime. Source review and tests cover
+header order, strict raw-history linkage, transient orphan ownership, pidfd
+cleanup, aggregate CPU accounting and publication expiry. No study world has
+run. A separately registered remote-runtime option is in development; it
+does not substitute a new binary under the original freeze. The study declares
+no efficacy threshold, default promotion or outcome-dependent seed selection.
+
+## Separate verification corrections
+
+The batch audit reproduced an added-sidecar gap: a file absent from recorded
+hashes could still be selected by the oracle reader. Isolated `e984be2a` closes
+that set mismatch. Nine regressions fail on the old verifier; 35 focused tests
+and 237 tests in its complete affected offline chunk pass. Full CI has passed
+viewer, Rust, offline and no-Rust; native execution remains pending here.
+
+Further synthetic cases showed a malformed manifest advertising 200 seeds and
+500 turns with zero bundles, mismatched payload seed/horizon labels, and two
+bundle paths aliasing one file in a determinism check. The separate
+reconciliation branch requires typed, complete, unique run identities and
+matching actual bundle facts, while preserving genuine repeated-seed runs.
+Normal oracle paths reconcile during their existing decode. Its 55 focused
+cases and complete 292-test offline chunk pass. The first whole-chunk review
+found a suppressed historical diagnostic; that failure was retained and the
+original assertion preserved in the correction. Complete CI is pending.
+
+These changes do not alter simulation outcomes or oracle thresholds. They are
+not included in this review branch's unchanged C76 production package yet.
+
+| Separate branch | Review standing |
+| --- | --- |
+| `lead/batch-validation-input-set-20261029` | Added oracle inputs require their own recorded hashes; exact-source CI underway |
+| `lead/batch-manifest-reconciliation-20261029` | Cohort declarations reconcile with actual decoded bundles; exact-source CI underway |
+| `lead/models-forkserver-contracts-20261029` | Tested inert API foundation; executable backend unavailable |
+| `lead/models-forkserver-metadata-design-20261029` | Tested static inventory and inactive two-child proof design; zero metadata forks |
+| `lead/research-natural-continuation-harness-20261029` | Corrected, tested detached study adapter; metadata freeze only |
+| `lead/cloud-household-wealth-floor-20261029` | All six CI lanes pass; intentional native behavior correction awaits outcome qualification |
+
+The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
+and [machine-readable result](completed-export-study-results-2026-10-29.json)
+keep the arc and recovered studies separate: 18 worlds and 3,200 ticks per
+original study, nine case comparisons and 399 file pairs each. Reinspection
+adds no worlds, Arrow decoding, checkpoint restoration or normalization.
 
 See [exact-source CI and arc records](ci-arc-qualification-2026-10-29.md),
 [the passed native composition proof](research-native-composition-c76efe85-2026-10-29.md),
