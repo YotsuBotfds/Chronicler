@@ -32,7 +32,7 @@ WORKFLOW_PATH = ".github/workflows/current090-passive-profile.yml"
 JOB_KEY = "current090-passive-profile"
 PYTHON = "3.13.17"
 UV = "0.13.6"
-EXPECTED_PREFLIGHT_CASES = 164
+EXPECTED_PREFLIGHT_CASES = 176
 WORKFLOW_SHA = '1307757f8b8e409d811e67a23737eadac64794173a02d79b3b3add48f1bb0def'
 GIB = 1024**3
 CAPS = {key: "1" for key in ("BLIS_NUM_THREADS", "CARGO_BUILD_JOBS", "GOTO_NUM_THREADS", "MKL_NUM_THREADS",
@@ -434,6 +434,61 @@ def inventory(root, *, max_bytes=3 * GIB, max_files=5000, authority=(), guard=la
     return {"files": rows, "file_count": len(rows), "bytes": total}
 
 
+def finalize_authorities(root, report, *, eligible, guard, started, cpu_started,
+                         max_bytes=3 * GIB, max_files=5000, publication_bytes=64 * 1024**2,
+                         publication_files=128):
+    """Commit actual authority bytes, then check the full live guard last.
+
+    A failed final write/guard cannot leave an accepted positive authority.
+    Invalidation is best-effort under a broken filesystem; the owner also exits
+    unsuccessfully, which the separate publisher independently requires.
+    """
+    try:
+        guard()
+        report["owner_wall_seconds"] = time.monotonic() - started
+        report["owner_measured_cpu_seconds"] = cpu_seconds() - cpu_started
+        report["timing_observation"] = "before_terminal_commit"
+        report["complete"] = report["instrumentation_equal"] = eligible and not report["errors"]
+        raw = (json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
+        terminal = {"complete": report["complete"], "cleanup_complete": report["cleanup_complete"],
+                    "required_wrapper_exit": 0, "result_sha256": hashlib.sha256(raw).hexdigest(),
+                    "source_publication_qualified": False,
+                    "owner_wall_seconds_at_terminal_start": time.monotonic() - started,
+                    "owner_measured_cpu_seconds_at_terminal_start": cpu_seconds() - cpu_started}
+        terminal_raw = (json.dumps(terminal, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
+        observed = report["retained_inventory"]
+        require(observed["bytes"] + len(raw) + len(terminal_raw) + 65536 + publication_bytes <= max_bytes
+                and observed["file_count"] + 3 + publication_files <= max_files,
+                "actual authority-inclusive retention cap")
+        write(root / "result.json", report)
+        write(root / "terminal.json", terminal, 65536)
+        require(regular(root / "result.json").st_size == len(raw)
+                and sha(root / "result.json") == terminal["result_sha256"]
+                and regular(root / "terminal.json").st_size == len(terminal_raw)
+                and sha(root / "terminal.json") == hashlib.sha256(terminal_raw).hexdigest(),
+                "committed authority identity")
+        # No positive I/O or expensive source work follows this full guard.
+        # Its live CPU/wall reads are last, after resource/source/expiry checks.
+        guard()
+        return report["complete"]
+    except BaseException as exc:
+        report["complete"] = report["instrumentation_equal"] = False
+        report["errors"].append({"stage": "terminal-closure", "type": type(exc).__name__})
+        negative = {"complete": False, "cleanup_complete": report["cleanup_complete"],
+                    "publication_failed": True, "stage": report["stage"], "type": type(exc).__name__}
+        # Sentinel first: even a subsequent invalidation write fault cannot
+        # promote a stale positive pair. The outer step also returns failure.
+        try: write(root / "terminal-failure.json", negative, 65536)
+        except BaseException: pass
+        for name, value, limit in (("result.json", report, 8 * 1024**2),
+                                   ("terminal.json", negative, 65536)):
+            try: write(root / name, value, limit)
+            except BaseException:
+                try: (root / name).unlink(missing_ok=True)
+                except OSError: pass
+        return False
+
+
 def execute(args):
     require(EXECUTION_APPROVAL is not None, "source-only execution approval is null")
     started, cpu_started = time.monotonic(), cpu_seconds()
@@ -517,7 +572,8 @@ def execute(args):
             command("pure-preflight", python_command(py, str(args.control / "scripts/current090_profile_contracts.py"),
                     "--control", str(args.control), "--output", str(pure_output)), wall=110)
             pure = inputs.strict_json((pure_output / "receipt.json").read_bytes())
-            verify_preflight(pure, preflight_sources(args.control))
+            admitted_control_sources = preflight_sources(args.control)
+            verify_preflight(pure, admitted_control_sources)
             report["hosted_pure_preflight"] = pure
             report["stage"] = "inputs"
             pins = inputs.artifact_pins(reference)
@@ -598,51 +654,37 @@ def execute(args):
         report["owner_wall_seconds"] = time.monotonic() - started
         report["owner_measured_cpu_seconds"] = cpu_seconds() - cpu_started
         report["actual_failed_role_ticks"] = None if report["errors"] and report["stage"].startswith("role:") else 0
-        # Inventory covers the retained original tree; never delete a failed
-        # role or invent its unobserved final turn. Publication is a later gate.
+        # Never delete failed payloads or invent an unobserved final turn.
+        def budget_guard():
+            require(time.monotonic() <= deadline and cpu_seconds() - cpu_started <= 1800,
+                    "finalization budget")
         try:
-            def final_guard():
-                require(time.monotonic() <= deadline and cpu_seconds() - cpu_started <= 1800, "finalization budget")
-            report["retained_inventory"] = inventory(root, authority=("result.json", "terminal.json", "terminal-failure.json"),
-                                                       guard=final_guard)
-            final_guard()
-            if supervisor is not None: supervisor.check(final=True)
-            # Recheck actual control/helper/native bytes after all owned children
-            # quiesce; no new subprocess is launched during terminal closure.
-            if eligible:
-                require(sha(args.control / "scripts/current090_passive_profile.py") == CORE_SHA
-                        and sha(args.control / "scripts/current090_profile_inputs.py") == TRANSPORT_SHA,
-                        "final actual core/transport bytes")
-                for name, row in reference["controls"].items():
-                    require(sha(args.controls / "scripts" / name) == row["sha256"], "final selected helper bytes")
-                require(sha(Path(admitted["native_file"]).resolve()) == core.NATIVE, "terminal native bytes")
-            report["complete"] = report["instrumentation_equal"] = eligible and not report["errors"]
-            # Root authority receipts are the only inventory exclusions. Reserve
-            # their complete serialized bytes inside the same total output cap.
-            serialized = (json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
-            require(report["retained_inventory"]["bytes"] + len(serialized) + 65536 + 64 * 1024**2 <= 3 * GIB
-                    and report["retained_inventory"]["file_count"] + 3 + 128 <= 5000, "authority-inclusive retention cap")
+            report["retained_inventory"] = inventory(root,
+                authority=("result.json", "terminal.json", "terminal-failure.json"), guard=budget_guard)
         except BaseException as exc:
             report["errors"].append({"stage": "retention", "type": type(exc).__name__})
-            report["complete"] = report["instrumentation_equal"] = False
-        try:
-            report["owner_wall_seconds"] = time.monotonic() - started
-            report["owner_measured_cpu_seconds"] = cpu_seconds() - cpu_started
-            write(root / "result.json", report)
-            require(time.monotonic() <= deadline and cpu_seconds() - cpu_started <= 1800, "post-write budget")
-            write(root / "terminal.json", {"complete": report["complete"], "cleanup_complete": report["cleanup_complete"],
-                  "required_wrapper_exit": 0, "result_sha256": sha(root / "result.json"),
-                  "source_publication_qualified": False,
-                  "owner_wall_seconds_at_terminal_start": time.monotonic() - started,
-                  "owner_measured_cpu_seconds_at_terminal_start": cpu_seconds() - cpu_started})
-        except BaseException:
-            report["complete"] = report["instrumentation_equal"] = False
-            try:
-                write(root / "result.json", report)
-                write(root / "terminal.json", {"complete": False, "cleanup_complete": report["cleanup_complete"]})
-            except BaseException: pass
-            write(root / "terminal-failure.json", {"complete": False, "stage": report["stage"],
-                                                   "publication_failed": True}, 65536)
+            eligible = False
+        def final_guard():
+            if supervisor is not None: supervisor.check(final=True)
+            if eligible:
+                require(supervisor.cleanup_complete and not own.direct_children(), "terminal owned quiescence")
+                require(preflight_sources(args.control) == admitted_control_sources, "terminal control source bytes")
+                require(package_digest(args.source)[0] == core.PACKAGE
+                        and {name: sha(args.source / name) for name in source_files} == source_files,
+                        "terminal producer source bytes")
+                require(sha(uv) == uv_sha, "terminal installer bytes")
+                for name, row in reference["controls"].items():
+                    require(sha(args.controls / "scripts" / name) == row["sha256"], "terminal helper bytes")
+                require(sha(Path(admitted["native_file"]).resolve()) == core.NATIVE, "terminal native bytes")
+                require({name: runtime_file(row["path"]) for name, row in admitted["runtime_files"].items()}
+                        == admitted["runtime_files"], "terminal Python/profiler runtime bytes")
+                require(datetime.now(timezone.utc) < min(inputs.utc(pin.expiry) for pin in pins),
+                        "terminal input expiry")
+            # Resource/source work above can itself consume time/CPU. These
+            # live reads stay last, including after fsync of terminal.json.
+            budget_guard()
+        finalize_authorities(root, report, eligible=eligible, guard=final_guard,
+                             started=started, cpu_started=cpu_started)
     return 0 if report["complete"] else 2
 
 

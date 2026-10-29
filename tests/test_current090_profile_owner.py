@@ -325,3 +325,90 @@ def test_bounded_metadata_publication_cannot_promote_early_or_failed_owner(tmp_p
     assert "body.ckpt" not in observed and not (out / "body.ckpt").exists()
     assert json.loads((out / "publication.json").read_text()) == report
     assert len(report["files"]) < P.FILE_LIMIT and report["retained_bytes"] + 65536 <= max(P.TOTAL_LIMIT, 65536)
+
+
+def closure_report():
+    return {"complete": False, "instrumentation_equal": False, "cleanup_complete": True,
+            "stage": "final-admission", "errors": [], "producer": {"GITHUB_SHA": "a" * 40},
+            "retained_inventory": {"bytes": 0, "file_count": 0, "files": {}}}
+
+
+@pytest.mark.parametrize("fault", [None, "wall", "cpu", "source", "resource", "expiry", "cancel", "source_runtime"])
+def test_terminal_closure_checks_late_fault_after_actual_write_and_invalidates(tmp_path, monkeypatch, fault):
+    clock = SimpleNamespace(wall=1.0, cpu=1.0, written=False)
+    monkeypatch.setattr(O, "time", SimpleNamespace(monotonic=lambda: clock.wall))
+    monkeypatch.setattr(O, "cpu_seconds", lambda: clock.cpu)
+    original, calls = O.write, []
+    def writer(path, value, limit=8 * 1024**2):
+        original(path, value, limit); calls.append(path.name)
+        if path.name == "terminal.json":
+            clock.written = True
+            if fault == "wall": clock.wall = 2401.0
+            if fault == "cpu": clock.cpu = 1801.0
+    monkeypatch.setattr(O, "write", writer)
+    def guard():
+        if clock.written and fault in ("source", "resource", "expiry", "cancel", "source_runtime"):
+            raise O.Refused("synthetic late " + fault)
+        O.require(clock.wall <= 2400 and clock.cpu <= 1800, "synthetic live budget")
+    report = closure_report()
+    accepted = O.finalize_authorities(tmp_path, report, eligible=True, guard=guard, started=0, cpu_started=0)
+    assert accepted is (fault is None) and report["complete"] is (fault is None)
+    assert "terminal.json" in calls
+    if fault is None:
+        terminal = json.loads((tmp_path / "terminal.json").read_text())
+        assert terminal["complete"] is True and terminal["result_sha256"] == hashlib.sha256((tmp_path / "result.json").read_bytes()).hexdigest()
+        assert not (tmp_path / "terminal-failure.json").exists()
+    else:
+        assert json.loads((tmp_path / "result.json").read_text())["complete"] is False
+        assert json.loads((tmp_path / "terminal.json").read_text())["complete"] is False
+        assert json.loads((tmp_path / "terminal-failure.json").read_text())["complete"] is False
+        assert report["errors"][-1]["stage"] == "terminal-closure"
+
+
+def test_terminal_closure_counts_actual_refreshed_authority_lengths_near_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(O, "time", SimpleNamespace(monotonic=lambda: 1.0))
+    monkeypatch.setattr(O, "cpu_seconds", lambda: 1.0)
+    first = tmp_path / "short"; first.mkdir()
+    assert O.finalize_authorities(first, closure_report(), eligible=True, guard=lambda: None,
+                                  started=0, cpu_started=0, publication_bytes=0, publication_files=0)
+    exact = (first / "result.json").stat().st_size + (first / "terminal.json").stat().st_size + 65536
+    # This is accounting tightening, not proof the parent's conservative64KiB
+    # terminal reserve was actually insufficient for a real timing value.
+    monkeypatch.setattr(O, "time", SimpleNamespace(monotonic=lambda: 1e100))
+    monkeypatch.setattr(O, "cpu_seconds", lambda: 1e100)
+    second = tmp_path / "long"; second.mkdir(); report = closure_report()
+    assert not O.finalize_authorities(second, report, eligible=True, guard=lambda: None,
+        started=0, cpu_started=0, max_bytes=exact, publication_bytes=0, publication_files=0)
+    assert json.loads((second / "terminal-failure.json").read_text())["complete"] is False
+
+
+@pytest.mark.parametrize("fault", ["terminal_write", "negative_rewrite"])
+def test_terminal_closure_partial_or_failed_invalidation_keeps_negative_sentinel(tmp_path, monkeypatch, fault):
+    report, original = closure_report(), O.write
+    state = {"postwrite": False}
+    def writer(path, value, limit=8 * 1024**2):
+        if fault == "terminal_write" and path.name == "terminal.json" and value.get("complete"):
+            raise OSError("synthetic terminal fsync fault")
+        if fault == "negative_rewrite" and path.name != "terminal-failure.json" and not value.get("complete"):
+            raise OSError("synthetic authority invalidation write fault")
+        original(path, value, limit)
+        if path.name == "terminal.json": state["postwrite"] = True
+    def guard():
+        if fault == "negative_rewrite" and state["postwrite"]: raise O.Refused("synthetic late guard")
+    monkeypatch.setattr(O, "write", writer)
+    assert not O.finalize_authorities(tmp_path, report, eligible=True, guard=guard, started=0, cpu_started=0)
+    assert json.loads((tmp_path / "terminal-failure.json").read_text())["complete"] is False
+    for name in ("result.json", "terminal.json"):
+        assert not (tmp_path / name).exists() or json.loads((tmp_path / name).read_text())["complete"] is False
+
+
+def test_terminal_closure_has_no_positive_io_after_final_full_guard(tmp_path, monkeypatch):
+    seen, original_write, original_sha = [], O.write, O.sha
+    def writer(path, value, limit=8 * 1024**2):
+        seen.append("write:" + path.name); original_write(path, value, limit)
+    def hashed(path): seen.append("hash:" + path.name); return original_sha(path)
+    def guard(): seen.append("guard")
+    monkeypatch.setattr(O, "write", writer); monkeypatch.setattr(O, "sha", hashed)
+    assert O.finalize_authorities(tmp_path, closure_report(), eligible=True, guard=guard, started=0, cpu_started=0)
+    assert seen[0] == seen[-1] == "guard" and seen.count("guard") == 2
+    assert seen.index("write:terminal.json") < seen.index("hash:terminal.json") < len(seen) - 1

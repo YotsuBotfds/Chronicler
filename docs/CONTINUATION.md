@@ -1,5 +1,10 @@
 # Recovered continuation — 2026-10-11
 
+## Passive profiler terminal closure correction (2026-10-29)
+
+Preserved fab/164; a source-only child closes the post-terminal-write budget/guard gap and accounts actual serialized authorities. Late failures retain a negative sentinel and invalidate positive authorities; publisher still independently requires owner-step success. Hosted metadata count is now176 (unchanged core86 + owner90), before any input/native/World. Actual execution remains NULL and all genuine profiling stays held.
+
+
 ## Current090 passive profiler: owned-caller source stage (2026-10-29)
 
 A separate tmp-store child adds a NULL-gated caller, authenticated selected 142 ownership/resource helpers, closed090 wheel/schema references, sanitized actual-flag checks and negative-first bounded metadata publication. Both new test modules own the dedicated 110-second current090-profile-metadata oracle chunk; hosted 164-case preflight must pass before input admission/native/World. The c4 core is unchanged. Six fresh 97-turn roles /582 ticks, their six final CP decodes and all profiles remain unexecuted. See [source scope and limits](performance/current090-passive-profile-owner-2026-10-29.md). No active workflow copy, push or execution approval.
