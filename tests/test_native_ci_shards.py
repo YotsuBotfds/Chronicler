@@ -191,8 +191,12 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
     additions = {
         'tests/test_health_care_experiment_policy.py': '1',
         'tests/test_health_care_policy.py': '1',
+        'tests/test_retained_kin_care_native_api_proof.py': '0',
     }
-    assert len(owners) == 302
+    assert len(owners) == 303
+    parent_owners = {name: owner for name, owner in owners.items() if name != 'tests/test_retained_kin_care_native_api_proof.py'}
+    assert len(parent_owners) == 302
+    assert S.digest(parent_owners) == 'f4703f2630af1541a90cda58042fb06b710f7716b3660387a9bb2d9fa61cfe95'
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

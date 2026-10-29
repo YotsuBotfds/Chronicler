@@ -120,6 +120,7 @@
       "tests/test_refugee_routing.py",
       "tests/test_religion.py",
       "tests/test_resources.py",
+      "tests/test_retained_kin_care_native_api_proof.py",
       "tests/test_reviewed_base_submission.py",
       "tests/test_ritual_gatherings.py",
       "tests/test_rivers.py",

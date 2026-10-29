@@ -1,0 +1,36 @@
+{
+  "artifact": {
+    "digest": "sha256:c9ee12a1521555d3a5cf0213ae43e45db5c2f288aa4bf4b474960a475b8b81e8",
+    "expired": false,
+    "expires_at": "2026-11-12T16:11:27Z",
+    "id": 12913615333,
+    "name": "native-shard-build-40908555947-1",
+    "size_in_bytes": 3863158,
+    "workflow_run": {
+      "head_branch": "lead/retained-kin-care-ci-registration-review-20261029",
+      "head_repository_id": 1187468861,
+      "head_sha": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+      "id": 40908555947,
+      "repository_id": 1187468861
+    }
+  },
+  "job": {
+    "conclusion": "success",
+    "head_branch": "lead/retained-kin-care-ci-registration-review-20261029",
+    "head_sha": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+    "id": 123569924790,
+    "name": "Build one current-source native wheel",
+    "run_attempt": 1,
+    "run_id": 40908555947,
+    "status": "completed"
+  },
+  "run": {
+    "conclusion": "success",
+    "head_branch": "lead/retained-kin-care-ci-registration-review-20261029",
+    "head_sha": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+    "id": 40908555947,
+    "path": ".github/workflows/tests.yml",
+    "run_attempt": 1,
+    "status": "completed"
+  }
+}

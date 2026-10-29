@@ -18,6 +18,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "retained-kin-care-native-api-proof": [
+        "tests/test_retained_kin_care_native_api_proof.py",
+    ],
     "build-provenance": [
         "tests/test_native_build_lanes.py",
         "tests/test_native_wheel_receipt.py",

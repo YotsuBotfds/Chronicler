@@ -1,3 +1,14 @@
+## 2026-10-29: empty care native API proof preparation
+
+New dormant source `scripts/retained_kin_care_native_api_proof.py` proposes one
+AgentSimulator(1,42), zero agents/Worlds/ticks/restores. It binds qualified23d
+CI wheel/native bytes and measured191 three-schema digests (root530e).
+The new root activation slot remains NULL; no API runtime observation is claimed.
+See `integration/retained-kin-care-empty-api-proof-2026-10-29.md` for caps,
+public-fixture limits, C60 intake versus publication and negative receipts.
+The new pure test is registered once in its own unchanged110-second offline
+chunk and whole-module native shard0; the623 subtest seal is unchanged.
+
 # Recovered continuation — 2026-10-11
 
 Separate source-only [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)

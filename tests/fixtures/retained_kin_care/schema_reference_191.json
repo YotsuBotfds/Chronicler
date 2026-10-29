@@ -1,0 +1,25 @@
+{
+  "artifact_id": 12904625572,
+  "artifact_sha256": "9030d854bb8fc4f678f6ba821c6f8e8c087903e35f1fa185fb1b6011ebb6cec0",
+  "kind": "historical-measured-schema-digest-reference-v1",
+  "member": "derived-metadata/probes/candidate-hybrid_s42-before.json",
+  "raw_descriptor_text_present": false,
+  "root_sha256": "530e1f31f61f7c59b3b96f5663c5a4d691d8aaabccdd4c858f630fe419f014d7",
+  "schemas": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  }
+}
