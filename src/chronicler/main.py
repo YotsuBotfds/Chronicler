@@ -244,10 +244,13 @@ class _SigintDeferral:
         return False
 
 
-def _run_turn_deferring_sigint(*args, **kwargs):
+def _run_turn_deferring_sigint(*args, practice_observer=None, **kwargs):
     """``run_turn_result(...)`` with Ctrl-C deferred to the end of the turn."""
     with _SigintDeferral() as deferral:
-        turn_result = run_turn_result(*args, **kwargs)
+        if practice_observer is None:
+            turn_result = run_turn_result(*args, **kwargs)
+        else:
+            turn_result = practice_observer.run_turn_result(*args, **kwargs)
     return turn_result, deferral.requested
 
 
@@ -514,6 +517,7 @@ def execute_run(
     resume_info: dict | None = None,
     turn_boundary: Any | None = None,
     expansion_experiment: dict | None = None,
+    *, practice_observer: Any | None = None,
 ) -> RunResult:
     """Shared entry point for single runs, batch, fork, and interactive modes.
 
@@ -813,18 +817,33 @@ def execute_run(
 
         # Run one turn — pending injections drain inside run_turn with accumulator
         source_turn = world.turn
-        turn_result, _interrupt_requested = _run_turn_deferring_sigint(
-            world,
-            action_selector=action_selector,
-            narrator=_noop_narrator or engine.narrator,
-            seed=seed + turn_num,
-            agent_bridge=agent_bridge,
-            economy_tracker=economy_tracker,
-            ecology_runtime=ecology_runtime,
-            politics_runtime=politics_runtime,
-            force_settlement_detection=(turn_num == num_turns - 1),
-            pending_injections=_pending,
-        )
+        if practice_observer is None:
+            turn_result, _interrupt_requested = _run_turn_deferring_sigint(
+                world,
+                action_selector=action_selector,
+                narrator=_noop_narrator or engine.narrator,
+                seed=seed + turn_num,
+                agent_bridge=agent_bridge,
+                economy_tracker=economy_tracker,
+                ecology_runtime=ecology_runtime,
+                politics_runtime=politics_runtime,
+                force_settlement_detection=(turn_num == num_turns - 1),
+                pending_injections=_pending,
+            )
+        else:
+            turn_result, _interrupt_requested = _run_turn_deferring_sigint(
+                world,
+                action_selector=action_selector,
+                narrator=_noop_narrator or engine.narrator,
+                seed=seed + turn_num,
+                agent_bridge=agent_bridge,
+                economy_tracker=economy_tracker,
+                ecology_runtime=ecology_runtime,
+                politics_runtime=politics_runtime,
+                force_settlement_detection=(turn_num == num_turns - 1),
+                pending_injections=_pending,
+                practice_observer=practice_observer,
+            )
 
         assert turn_result.observation.source_turn == source_turn
         assert turn_result.observation.completed_turn == source_turn + 1 == world.turn

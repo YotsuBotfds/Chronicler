@@ -1,0 +1,314 @@
+{
+  "kind": "curated_projection_of_immutable_runner_CI_evidence",
+  "source": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+  "branch": "lead/research-practice-observer-runner-seam-20261029",
+  "qualified_parent": "1205b6e48215c3e5c44d2bcb6376ca65827a7aab",
+  "run": {
+    "id": 40841527996,
+    "attempt": 1,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40841527996",
+    "result": "PASS",
+    "six_jobs": [
+      {
+        "id": 123338805254,
+        "name": "Viewer",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:21:22Z",
+        "completed_at": "2026-10-29T08:23:13Z"
+      },
+      {
+        "id": 123338805560,
+        "name": "Rust",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:21:22Z",
+        "completed_at": "2026-10-29T08:22:38Z"
+      },
+      {
+        "id": 123338805596,
+        "name": "Python bounded offline",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:21:22Z",
+        "completed_at": "2026-10-29T08:24:39Z"
+      },
+      {
+        "id": 123338805674,
+        "name": "Python native execution",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:21:22Z",
+        "completed_at": "2026-10-29T08:33:53Z"
+      },
+      {
+        "id": 123338805719,
+        "name": "Python no-Rust",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:21:22Z",
+        "completed_at": "2026-10-29T08:27:46Z"
+      },
+      {
+        "id": 123343770554,
+        "name": "Python native",
+        "conclusion": "success",
+        "started_at": "2026-10-29T08:33:55Z",
+        "completed_at": "2026-10-29T08:33:58Z"
+      }
+    ],
+    "pushes": 1,
+    "dispatches": 1,
+    "retries": 0
+  },
+  "full_python": {
+    "python_native": {
+      "passed": 8351,
+      "skipped": 6,
+      "successful_subtests": 526,
+      "failures": 0,
+      "errors": 0,
+      "parent_testcase_elements": 8357,
+      "junit_tests_attribute": 8883,
+      "ordinary_execute_run_cases": [
+        {
+          "name": "test_execute_run_observer_preserves_real_outputs_payments_rng_and_checkpoint_state[omitted]",
+          "skipped": false,
+          "failed": false
+        },
+        {
+          "name": "test_execute_run_observer_preserves_real_outputs_payments_rng_and_checkpoint_state[none]",
+          "skipped": false,
+          "failed": false
+        }
+      ]
+    },
+    "python_no_rust": {
+      "passed": 8018,
+      "skipped": 325,
+      "successful_subtests": 526,
+      "failures": 0,
+      "errors": 0,
+      "parent_testcase_elements": 8343,
+      "junit_tests_attribute": 8869,
+      "ordinary_execute_run_cases": [
+        {
+          "name": "test_execute_run_observer_preserves_real_outputs_payments_rng_and_checkpoint_state[omitted]",
+          "skipped": false,
+          "failed": false
+        },
+        {
+          "name": "test_execute_run_observer_preserves_real_outputs_payments_rng_and_checkpoint_state[none]",
+          "skipped": false,
+          "failed": false
+        }
+      ]
+    }
+  },
+  "new_parent_cases_each_full_lane": {
+    "runner_surrogates": 26,
+    "genuine_execute_run": 2,
+    "total": 28
+  },
+  "preflight": {
+    "wrapper-contract-native": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "guard": "PASS",
+      "native_modules_loaded": [],
+      "native_import_attempts_blocked": [],
+      "blocked_io_attempts": [],
+      "factory_calls": {
+        "ecology": 0,
+        "politics": 0
+      },
+      "nodes": [
+        [
+          "tests.test_practice_growth_observer",
+          "test_turn_wrappers_share_signature_and_forward_only_explicit_trace"
+        ],
+        [
+          "tests.test_turn_artifact_lifecycle",
+          "test_result_wrapper_preserves_signature_and_arguments"
+        ]
+      ],
+      "added_to_full_suite_counts": false
+    },
+    "wrapper-contract-no-rust": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "guard": "PASS",
+      "native_modules_loaded": [],
+      "native_import_attempts_blocked": [],
+      "blocked_io_attempts": [],
+      "factory_calls": {
+        "ecology": 0,
+        "politics": 0
+      },
+      "nodes": [
+        [
+          "tests.test_practice_growth_observer",
+          "test_turn_wrappers_share_signature_and_forward_only_explicit_trace"
+        ],
+        [
+          "tests.test_turn_artifact_lifecycle",
+          "test_result_wrapper_preserves_signature_and_arguments"
+        ]
+      ],
+      "added_to_full_suite_counts": false
+    }
+  },
+  "preflight_passes_added_to_full_suite_counts": false,
+  "rust": {
+    "summaries": 37,
+    "passed": 1118,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 0
+  },
+  "offline": {
+    "passed": 4244,
+    "skipped": 65,
+    "chunks": 35,
+    "all_chunks_passed": true,
+    "chunk_limit_seconds": 110,
+    "maximum_chunk_seconds": 28.82145624499998,
+    "source_hashes_verified_against_git": 325,
+    "factory_calls": {
+      "ecology": 168,
+      "politics": 168
+    },
+    "native_modules_loaded": [],
+    "blocked_io_attempt_count": 0
+  },
+  "viewer": {
+    "test_files_passed": 69,
+    "tests_passed": 743,
+    "lint": "success",
+    "build": "success"
+  },
+  "native": {
+    "Python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+    "classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "wheel": {
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "bytes": 3915395,
+      "sha256": "556c6677c4cb998cd6ad4b284d0f67a7e79368f86831b458c3885943de3b95ac",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so"
+    },
+    "installed": {
+      "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "bytes": 13695168,
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+      "wheel_member_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+    },
+    "nested_member_independently_stream_hashed": true,
+    "installed_attestation_from_same_completed_producer": true,
+    "binary_extraction_or_import_for_detached_review": false
+  },
+  "official_artifacts": [
+    {
+      "id": 12883810195,
+      "name": "python-no-rust-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 145136,
+      "ZIP_sha256": "d9a7b1da9578ee84bb44b222b9e1928c15672cea749f22ba007c760a13237c3c",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:27:42Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12883810195"
+    },
+    {
+      "id": 12883297720,
+      "name": "python-native-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 143075,
+      "ZIP_sha256": "3e32164e432c7f666d214ab7df470bf656992a1dde88b56405de0b8f1a745af4",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:33:41Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12883297720"
+    },
+    {
+      "id": 12883061905,
+      "name": "rust-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 723,
+      "ZIP_sha256": "8e2de148efd310e36304ca9a2124d8965be998281ad97e0638b1a3e0dbedbfcf",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:22:32Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12883061905"
+    },
+    {
+      "id": 12883026758,
+      "name": "wrapper-contract-no-rust-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 1002,
+      "ZIP_sha256": "4671d47d92a7572d167496bad748f179ce6dc460dd4e85ff2a4e23690626d06b",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:21:35Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12883026758"
+    },
+    {
+      "id": 12883002369,
+      "name": "python-offline-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 44646,
+      "ZIP_sha256": "a55e8bdaf0dc81c2f44a7e3e8711b4ee53f5d443b73308ad91ad63037aebf730",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:24:31Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12883002369"
+    },
+    {
+      "id": 12882944002,
+      "name": "native-wheel-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 3850581,
+      "ZIP_sha256": "9cc55c9dbf7939056f0b0613e3e54e74798a782463719185d41b1fe129ebe2cf",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:33:42Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12882944002"
+    },
+    {
+      "id": 12882424371,
+      "name": "wrapper-contract-native-cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "ZIP_bytes": 1002,
+      "ZIP_sha256": "d33203cf7ca96fca6a3d7b28e7170183a30cc4594cc9ca1f65b7f7c855f98409",
+      "expired_at_capture": false,
+      "expires_at": "2026-11-12T08:21:36Z",
+      "metadata_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12882424371"
+    }
+  ],
+  "evidence": {
+    "original_pack": "/tmp/chronicler-review-evidence/runner-seam-cbf6e368-ci-20261029",
+    "manifest_sha256": "c6b96f177081ff1cba0e7ab1b9fea06f190d8d214a54bfeef97359f4b90a04c4",
+    "original_result_sha256": "5974594e2902de794ddf3f5c2dec1dcc9d1d1c634ec8b982ec2dc9fa4e6e0350",
+    "original_readout_sha256": "dfd79a53e0fb0d04c6a9f35e02d5194f1c35a85fc98a767ed0be3d7296cff63b",
+    "source_peer_sha256": "7bcf4a81d27cbe1ead5144a3c08267ffa06bfc92fa394980698ecf29559df4ff",
+    "CI_peer_sha256": "69f2ab3699d4e94ad6a99ca9b8e93b4273f00fe6c41f246ab572244d56d73377",
+    "CI_peer_verdict": "CLEAR",
+    "original_ZIPs": 7,
+    "outer_members": 83,
+    "original_ZIP_bytes": 4186165,
+    "device": 34,
+    "files_nlink": 1,
+    "prior_packs_unchanged": true
+  },
+  "scope": {
+    "new_genuine_fixture": "Actual execute_run/public observer, normal ActionEngine, source 12 to completed 14; omitted and explicit None controls",
+    "compares": [
+      "normal completed state/history/events",
+      "actual allowances/group debit bookkeeping",
+      "caller Python/NumPy RNG",
+      "ordinary outputs with validated generated_at only",
+      "RunResult statistics with validated explicit output paths",
+      "trusted checkpoint/native state and observer transience"
+    ],
+    "prior_genuine_practice_cases_pass_each_full_lane": 2,
+    "compiled_decision_cases_pass_native_skip_absent": 7,
+    "default_main_AST": "Whole module equals 1205 after removing only two observer parameters and selecting two identity-None original branches; explicit CPython 3.13 show_empty=True serialization",
+    "initial_local_AST_fixture_failure_preserved": "90 passed/1 formatting-fixture failure, corrected to explicit canonical options; no physics change",
+    "checkpoint_comparison": "Verified headers and decoded World/raw history/run accumulators/config plus actual native state; no Python-pickle/envelope byte equality claim."
+  },
+  "limits": [
+    "This is a projection, not the full original evidence.",
+    "No actual natural cohort, freshCP60 continuation, old/new whole-world parity, causal welfare/growth effect or performance improvement is qualified.",
+    "Standard CI does not pin the study one-CPU/thread/schema runtime freeze.",
+    "No main merge, default promotion or automatic native-binary reuse grant.",
+    "Recorder/driver child is separate and is not this qualified producer."
+  ]
+}

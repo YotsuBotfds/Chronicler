@@ -1,26 +1,23 @@
 # Recovered development review, 2026-10-29
 
 The consolidated branch is `lead/review-integration-20261029`; main remains
-unchanged. Runtime, tests, scripts, viewer and Rust match qualified `9d5cb7e4`.
-The additional executable CI wrapper preflight `77e83c43` is now qualified:
-all six jobs passed at exact integration source `1205b6e4`, run `40835337456`.
-The [integration readout](review-integration-ci-2026-10-29.md) records the
-independently verified seven-artifact result. Each early two-case preflight
-passed before its expensive build or suite; those four executions are counted
-separately. No controlled wall-clock improvement is claimed. The prior docs-only
-review branch
-`lead/recovered-review-20261029` remains preserved at `06d357e4`, as do the exact
-C76 producer branch, checkout, source/path/package identity and every study ref.
+unchanged. Runtime, tests, scripts and workflows match qualified `cbf6e368`.
+The [runner integration readout](practice-observer-runner-ci-2026-10-29.md)
+records all six jobs passing in run `40841527996`, with independently verified
+original evidence. Both new genuine complete-run observer cases pass in both
+full Python lanes. Default and explicit-None dispatch retain the original
+call shape; supplied observation stays caller-owned and cannot replay physics.
 
-The [corrected integration readout](practice-growth-observer-ci-2026-10-29.md)
-records all six source-9d jobs passing: bounded practice observation, native
-movement diagnostics/index reuse, explicit delivery reader, benchmark-input
-repair and shared validation Arrow reads. The first wrapper-signature failure
-remains preserved. The [3,097-tick wealth primer](../experiments/wealth-floor-production-primer-result-2026-10-29.md)
-is separately verified; its intentional native correction is not merged here.
-Full scientific outcomes, old/new native output parity and measured performance
-retain their separate studies and limits. The prior source-scoped records below
-describe the exact commits they originally qualified.
+The [1205 CI qualification](review-integration-ci-2026-10-29.md) and
+[earlier observer integration](practice-growth-observer-ci-2026-10-29.md)
+remain preserved. Their source-specific counts and failures retain their own
+boundaries. The earlier docs-only review branch remains at `06d357e4`, and
+frozen C76 retains its checkout, source/path/package identity and study refs.
+The separately verified [3,097-tick wealth primer](../experiments/wealth-floor-production-primer-result-2026-10-29.md)
+does not merge its intentional native correction here. Full scientific
+outcomes, fresh CP60 observation, old/new native parity and performance each
+retain their own studies. The prior source-scoped records below describe the
+exact commits they originally qualified.
 
 ## Concrete changes and evidence
 

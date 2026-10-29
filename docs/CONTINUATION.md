@@ -1,13 +1,26 @@
 # Recovered continuation — 2026-10-11
 
-The current consolidation is `lead/review-integration-20261029`. Exact source
-`1205b6e4` passed all six CI jobs in run `40835337456`, with independently
-verified artifacts. Its runtime, tests and scripts match qualified `9d5cb7e4`;
-the additional CI preflight `77e83c43` now also has hosted qualification.
-The [integration readout](integration/review-integration-ci-2026-10-29.md)
-records the exact source, counts and evidence. The earlier docs-only
-`lead/recovered-review-20261029` branch and every producing source/ref remain
-preserved. Main is unchanged.
+The current consolidation is `lead/review-integration-20261029`. Its runtime,
+tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.
+All six jobs passed in run `40841527996`, and the saved original artifacts
+have an independent clear review. The [runner CI readout](integration/practice-observer-runner-ci-2026-10-29.md)
+records 8,351 native Python passes, 8,018 no-Rust passes, 4,244 bounded offline
+passes, 1,118 Rust tests and 743 viewer tests with lint/build. Skips, ignored
+cases and 526 successful Python subtests remain separate.
+
+Complete runs can now receive an explicit caller-owned practice observer
+inside the existing SIGINT boundary. Both genuine omitted/None versus observed
+runner cases pass in both full lanes, including ordinary outputs, payments,
+caller RNG and decoded checkpoint/native/transient state. The default main
+AST matches parent `1205b6e4` after the two reviewed optional dispatch seams
+are projected away. No CLI, saved observer field or default feature is added.
+Fresh CP60 natural-study evidence remains a separate pending step.
+
+The prior [1205 integration qualification](integration/review-integration-ci-2026-10-29.md)
+and producing refs remain preserved, alongside the earlier docs-only
+`lead/recovered-review-20261029` branch, frozen C76 and all original studies.
+CI wrapper preflights remain separately counted and the wealth correction
+remains outside this review runtime. No CI is repeated for documentation.
 
 The [corrected observer/validation CI readout](integration/practice-growth-observer-ci-2026-10-29.md)
 records all six jobs passing at `9d5cb7e4`: 8,323 native Python parents,
