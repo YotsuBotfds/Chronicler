@@ -1,5 +1,18 @@
 # Recovered continuation — 2026-10-11
 
+An isolated native-only [decision-delivery Stage 1](integration/decision-delivery-native-2026-10-29.md)
+adds default-off bounded decision/candidate observations from exact review
+`82b3699b`, preserving the old diagnostic `7716ccf6` branch. Raw/capped needs
+values and migration stages are copied at their actual read points as f32
+bits; deterministic quotas, explicit validity and overflow labels preserve
+their limited scope. Configuration/frame remain transient, with the recorded
+`dcf0c34097c88451` schema fingerprint asserted. Applied household-movement
+provenance, counterfactual winners and Python writers/CLI/harness are not in
+this stage. Rust and tiny direct compiled Python API contracts are added but
+have not been executed locally. Frozen-source peer review and fresh remote
+native CI remain required; no physics, active full gate or frozen source was
+changed.
+
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
 NO_REGRESSION comparisons and final publication qualification. The separate

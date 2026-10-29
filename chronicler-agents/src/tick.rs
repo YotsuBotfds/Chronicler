@@ -368,10 +368,60 @@ pub fn try_tick_agents_with_movements(
     attractors: &[crate::spatial::RegionAttractors],
     spatial_diag: &mut crate::spatial::SpatialDiagnostics,
     settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    try_tick_agents_with_movements_observer(
+        pool, regions, signals, master_seed, turn, wealth_percentiles,
+        spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+        targeted_deaths, options, movements, None,
+    )
+}
+
+pub(crate) fn try_tick_agents_with_delivery(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
+    merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
+    targeted_deaths: &[u32],
+    options: crate::scale::TickOptions,
+    movements: &mut crate::movements::MovementRuntime,
+    config: &crate::decision_delivery::DeliveryConfig,
+    frame: &mut crate::decision_delivery::DeliveryFrame,
+) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
+    *frame = crate::decision_delivery::DeliveryFrame::new(turn, options.ablation.active(turn));
+    try_tick_agents_with_movements_observer(
+        pool, regions, signals, master_seed, turn, wealth_percentiles,
+        spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
+        targeted_deaths, options, movements, Some((config, frame)),
+    )
+}
+
+fn try_tick_agents_with_movements_observer(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    master_seed: [u8; 32],
+    turn: u32,
+    wealth_percentiles: &mut [f32],
+    spatial_grids: &mut Vec<crate::spatial::SpatialGrid>,
+    attractors: &[crate::spatial::RegionAttractors],
+    spatial_diag: &mut crate::spatial::SpatialDiagnostics,
+    settlement_grids: &[[u16; 100]],  // M56b
     mut merchant_state: Option<(&crate::merchant::RouteGraph, &mut crate::merchant::ShadowLedger, &mut crate::merchant::DeliveryBuffer)>,  // M58a/M58b
     targeted_deaths: &[u32],
     options: crate::scale::TickOptions,
     movements: &mut crate::movements::MovementRuntime,
+    mut delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let scale_mode = options.scale_mode;
     let num_regions = regions.len();
@@ -554,27 +604,51 @@ pub fn try_tick_agents_with_movements(
         let pool_ref = &*pool;
         let stats_ref = &stats;
         let id_to_slot_ref = &pre_decision_id_to_slot;  // M57b
-        region_groups
-            .par_iter()
-            .enumerate()
-            .map(|(region_id, slots)| {
+        if let Some((config, frame)) = delivery.as_mut() {
+            let config = *config;
+            let observed: Vec<_> = region_groups.par_iter().enumerate().map(|(region_id, slots)| {
                 let mut rng = ChaCha8Rng::from_seed(master_seed);
                 rng.set_stream(
                     ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
                 );
-                evaluate_region_decisions_with(
-                    pool_ref,
-                    slots,
-                    regions,
-                    &regions[region_id],
-                    stats_ref,
-                    region_id,
-                    &mut rng,
-                    id_to_slot_ref,  // M57b
+                let mut observer = crate::decision_delivery::RegionDelivery::new(config, region_id, num_regions);
+                let (pending, changed) = crate::behavior::evaluate_region_decisions_with_delivery(
+                    pool_ref, slots, regions, &regions[region_id], stats_ref, region_id,
+                    &mut rng, id_to_slot_ref,
                     DecisionOptions { ablation, community_anchoring: options.community_anchoring },
-                )
-            })
-            .collect()
+                    &mut observer,
+                );
+                (pending, changed, observer)
+            }).collect();
+            let mut pending = Vec::with_capacity(observed.len());
+            for (decisions, changed, observer) in observed {
+                frame.merge_region(observer);
+                pending.push((decisions, changed));
+            }
+            pending
+        } else {
+            region_groups
+                .par_iter()
+                .enumerate()
+                .map(|(region_id, slots)| {
+                    let mut rng = ChaCha8Rng::from_seed(master_seed);
+                    rng.set_stream(
+                        ((region_id as u64) << 48) | ((turn as u64) << 16) | (decision_stream_offset as u64),
+                    );
+                    evaluate_region_decisions_with(
+                        pool_ref,
+                        slots,
+                        regions,
+                        &regions[region_id],
+                        stats_ref,
+                        region_id,
+                        &mut rng,
+                        id_to_slot_ref,  // M57b
+                        DecisionOptions { ablation, community_anchoring: options.community_anchoring },
+                    )
+                })
+                .collect()
+        }
     };
     let migration_threat_changed: u32 = pending_decisions_with_threat.iter().map(|(_, c)| c).sum();
     let pending_decisions: Vec<_> = pending_decisions_with_threat
@@ -1896,6 +1970,83 @@ mod tests {
     use super::*;
     use crate::agent::Occupation;
     use crate::signals::CivSignals;
+
+    fn decision_delivery_fixture() -> (AgentPool, Vec<RegionState>) {
+        let mut regions: Vec<_> = (0..2).map(RegionState::new).collect();
+        for (i, r) in regions.iter_mut().enumerate() {
+            r.controller_civ = 0; r.carrying_capacity = 40; r.population = 8;
+            r.food_sufficiency = 1.0; r.soil = 1.0; r.water = 1.0;
+            r.adjacency = vec![(1 - i) as u16];
+        }
+        let mut pool = AgentPool::new(32);
+        for region in 0..2 { for _ in 0..8 {
+            let slot = pool.spawn(region, 0, Occupation::Farmer, 25,
+                0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(slot, 0.6); pool.set_loyalty(slot, 0.8);
+        } }
+        (pool, regions)
+    }
+
+    fn decision_delivery_event_values(events: &[AgentEvent]) -> Vec<(u32, u8, u16, u16, u8, u8, u8, u32, u32, u32, u8)> {
+        events.iter().map(|e| (e.agent_id, e.event_type, e.region, e.target_region,
+            e.civ_affinity, e.occupation, e.belief, e.turn, e.target_agent_id,
+            e.formed_turn, e.migration_driver)).collect()
+    }
+
+    #[test]
+    fn decision_delivery_enabled_tick_preserves_events_pool_and_legacy_stats() {
+        let (mut plain, regions) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &plain);
+        let mut observed: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let signals = make_default_signals(1, 2);
+        let mut plain_pct = vec![0.0; plain.capacity()];
+        let mut observed_pct = plain_pct.clone();
+        let config = crate::decision_delivery::DeliveryConfig::new(64, 128, None).unwrap();
+        let mut frame = crate::decision_delivery::DeliveryFrame::new(999, 255);
+        let mut plain_grids = Vec::new(); let mut observed_grids = Vec::new();
+        let mut plain_movements = crate::movements::MovementRuntime::default();
+        let mut observed_movements = crate::movements::MovementRuntime::default();
+        for turn in 0..2 {
+            let a = try_tick_agents_with_movements(&mut plain, &regions, &signals, [7u8; 32], turn,
+                &mut plain_pct, &mut plain_grids, &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                &[], None, &[], crate::scale::TickOptions::default(), &mut plain_movements).unwrap();
+            let b = try_tick_agents_with_delivery(&mut observed, &regions, &signals, [7u8; 32], turn,
+                &mut observed_pct, &mut observed_grids, &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                &[], None, &[], crate::scale::TickOptions::default(), &mut observed_movements, &config, &mut frame).unwrap();
+            assert_eq!(decision_delivery_event_values(&a.0), decision_delivery_event_values(&b.0));
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a.4), crate::persist::encode(crate::persist::KIND_AGENT, &b.4));
+            assert_eq!(plain_pct.iter().map(|x| x.to_bits()).collect::<Vec<_>>(), observed_pct.iter().map(|x| x.to_bits()).collect::<Vec<_>>());
+            assert_eq!(frame.source_turn, turn); assert_eq!(frame.ablation, 0);
+            assert!(frame.stage_complete());
+        }
+    }
+
+    #[test]
+    fn decision_delivery_capped_frames_are_identical_with_one_or_two_workers() {
+        let (pool, regions) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+        let signals = make_default_signals(1, 2);
+        let config = crate::decision_delivery::DeliveryConfig::new(3, 2, None).unwrap();
+        let run = |workers| {
+            let mut pool: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+            let mut pct = vec![0.0; pool.capacity()];
+            let mut frame = crate::decision_delivery::DeliveryFrame::new(99, 0);
+            let events = rayon::ThreadPoolBuilder::new().num_threads(workers).build().unwrap().install(|| {
+                try_tick_agents_with_delivery(&mut pool, &regions, &signals, [7u8; 32], 0,
+                    &mut pct, &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(),
+                    &[], None, &[], crate::scale::TickOptions::default(),
+                    &mut crate::movements::MovementRuntime::default(), &config, &mut frame).unwrap().0
+            });
+            assert!(frame.decisions.len() <= 3 && frame.candidates.len() <= 2);
+            assert!(frame.counts.dropped_agents > 0 && !frame.stage_complete());
+            (crate::persist::encode(crate::persist::KIND_AGENT, &pool), decision_delivery_event_values(&events),
+                crate::decision_delivery::header_batch(Some(&config), Some(&frame)).unwrap(),
+                crate::decision_delivery::decisions_batch(Some(&frame)).unwrap(),
+                crate::decision_delivery::candidates_batch(Some(&frame)).unwrap())
+        };
+        assert_eq!(run(1), run(2));
+    }
 
     fn make_healthy_region(id: u16) -> RegionState {
         let mut r = RegionState::new(id);

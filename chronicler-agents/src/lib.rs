@@ -33,6 +33,7 @@ pub mod economy;
 pub mod politics;
 pub mod merchant;
 pub mod transaction_receipts;
+pub mod decision_delivery;
 pub mod knowledge;
 pub mod movements;
 pub mod scale;

@@ -21,12 +21,84 @@ pub struct NeedUtilityModifiers {
     pub migrate_push: [f32; 4],
 }
 
+/// Decision-time copies of the needs helper's inputs and actual arithmetic.
+/// These local doses precede ablation, action gates and household modifiers.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct NeedUtilityTrace {
+    /// Safety, material, social, spiritual, autonomy, purpose.
+    pub inputs: [f32; 6],
+    /// Rebel, migrate, switch occupation, stay, immediately before the cap.
+    pub raw: [f32; 4],
+    /// The same channels immediately after the cap.
+    pub capped: [f32; 4],
+    /// Uncapped migration pushes: safety, material, social, spiritual.
+    pub migrate_channels: [f32; 4],
+}
+
+// The ordinary path uses the zero-sized sink. Monomorphized no-op methods
+// neither construct a trace nor read any additional pool fields.
+trait NeedUtilityTraceSink {
+    fn capture_raw(&mut self, mods: &NeedUtilityModifiers);
+    fn capture_capped(&mut self, mods: &NeedUtilityModifiers);
+}
+
+impl NeedUtilityTraceSink for () {
+    #[inline(always)]
+    fn capture_raw(&mut self, _mods: &NeedUtilityModifiers) {}
+
+    #[inline(always)]
+    fn capture_capped(&mut self, _mods: &NeedUtilityModifiers) {}
+}
+
+impl NeedUtilityTraceSink for NeedUtilityTrace {
+    #[inline(always)]
+    fn capture_raw(&mut self, mods: &NeedUtilityModifiers) {
+        self.raw = [mods.rebel, mods.migrate, mods.switch_occ, mods.stay];
+        self.migrate_channels = [
+            mods.migrate_push[0], mods.migrate_push[1],
+            mods.migrate_push[3], mods.migrate_push[2],
+        ];
+    }
+
+    #[inline(always)]
+    fn capture_capped(&mut self, mods: &NeedUtilityModifiers) {
+        self.capped = [mods.rebel, mods.migrate, mods.switch_occ, mods.stay];
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Utility modifiers
 // ---------------------------------------------------------------------------
 
 /// Compute threshold-gated utility modifiers from an agent's need state.
+#[inline]
 pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtilityModifiers {
+    compute_need_utility_modifiers_impl(pool, slot, &mut ())
+}
+
+/// Observe the same helper without reconstructing its raw accumulation.
+#[inline]
+pub(crate) fn compute_need_utility_modifiers_with_trace(
+    pool: &AgentPool,
+    slot: usize,
+) -> (NeedUtilityModifiers, NeedUtilityTrace) {
+    let mut trace = NeedUtilityTrace {
+        inputs: [
+            pool.need_safety[slot], pool.need_material[slot], pool.need_social[slot],
+            pool.need_spiritual[slot], pool.need_autonomy[slot], pool.need_purpose[slot],
+        ],
+        ..NeedUtilityTrace::default()
+    };
+    let mods = compute_need_utility_modifiers_impl(pool, slot, &mut trace);
+    (mods, trace)
+}
+
+#[inline]
+fn compute_need_utility_modifiers_impl<T: NeedUtilityTraceSink>(
+    pool: &AgentPool,
+    slot: usize,
+    trace: &mut T,
+) -> NeedUtilityModifiers {
     let mut mods = NeedUtilityModifiers::default();
 
     // Safety → migrate +, stay -
@@ -82,12 +154,17 @@ pub fn compute_need_utility_modifiers(pool: &AgentPool, slot: usize) -> NeedUtil
         mods.switch_occ += purpose_deficit * agent::PURPOSE_WEIGHT;
     }
 
+    // Copy the actual accumulation before the cap; the migration budget's
+    // migrate_push order differs from the arithmetic above.
+    trace.capture_raw(&mods);
+
     // Per-channel cap (needs-only — does not affect M38b/M48 modifiers)
     mods.rebel = mods.rebel.min(agent::NEEDS_MODIFIER_CAP);
     mods.migrate = mods.migrate.max(-agent::NEEDS_MODIFIER_CAP).min(agent::NEEDS_MODIFIER_CAP);
     mods.switch_occ = mods.switch_occ.min(agent::NEEDS_MODIFIER_CAP);
     mods.stay = mods.stay.max(-agent::NEEDS_MODIFIER_CAP).min(agent::NEEDS_MODIFIER_CAP);
 
+    trace.capture_capped(&mods);
     mods
 }
 
@@ -815,6 +892,89 @@ mod tests {
         assert!((mods.migrate_push[3] - expected).abs() < 1e-6);
         assert_eq!(mods.stay, 0.0);
         assert_eq!((mods.rebel, mods.switch_occ), (0.0, 0.0));
+    }
+
+    fn set_need_inputs(pool: &mut AgentPool, slot: usize, inputs: [f32; 6]) {
+        pool.need_safety[slot] = inputs[0];
+        pool.need_material[slot] = inputs[1];
+        pool.need_social[slot] = inputs[2];
+        pool.need_spiritual[slot] = inputs[3];
+        pool.need_autonomy[slot] = inputs[4];
+        pool.need_purpose[slot] = inputs[5];
+    }
+
+    fn utility_channel_bits(mods: &NeedUtilityModifiers) -> [u32; 4] {
+        [mods.rebel, mods.migrate, mods.switch_occ, mods.stay].map(f32::to_bits)
+    }
+
+    #[test]
+    fn test_need_utility_trace_matches_ordinary_channel_bits() {
+        let mut pool = AgentPool::new(8);
+        let cases: [[f32; 6]; 5] = [
+            [0.5; 6],
+            [0.0; 6],
+            [
+                agent::SAFETY_THRESHOLD, agent::MATERIAL_THRESHOLD,
+                agent::SOCIAL_THRESHOLD, agent::SPIRITUAL_THRESHOLD,
+                agent::AUTONOMY_THRESHOLD, agent::PURPOSE_THRESHOLD,
+            ],
+            [0.1, 0.2, 0.25, 0.15, 0.11, 0.22],
+            [-0.0, 0.01, 0.01, 0.01, 0.01, 0.01],
+        ];
+        for occupation in [Occupation::Farmer, Occupation::Merchant, Occupation::Priest] {
+            let slot = pool.spawn(0, 0, occupation, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+            for inputs in cases {
+                set_need_inputs(&mut pool, slot, inputs);
+                let ordinary = compute_need_utility_modifiers(&pool, slot);
+                let (observed, trace) = compute_need_utility_modifiers_with_trace(&pool, slot);
+                assert_eq!(utility_channel_bits(&ordinary), utility_channel_bits(&observed));
+                assert_eq!(ordinary.migrate_push.map(f32::to_bits), observed.migrate_push.map(f32::to_bits));
+                assert_eq!(trace.inputs.map(f32::to_bits), inputs.map(f32::to_bits));
+                assert_eq!(trace.capped.map(f32::to_bits), utility_channel_bits(&ordinary));
+                assert_eq!(
+                    trace.migrate_channels.map(f32::to_bits),
+                    [
+                        ordinary.migrate_push[0], ordinary.migrate_push[1],
+                        ordinary.migrate_push[3], ordinary.migrate_push[2],
+                    ].map(f32::to_bits),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_need_utility_trace_preserves_actual_raw_accumulation_order() {
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        set_need_inputs(&mut pool, slot, [0.01; 6]);
+        let (mods, trace) = compute_need_utility_modifiers_with_trace(&pool, slot);
+
+        // This fixture discriminates the helper's safety/material/social/
+        // spiritual accumulation from the budget's spiritual/social order.
+        let budget_sum: f32 = mods.migrate_push.iter().sum();
+        assert_eq!(trace.raw[1].to_bits(), 0x3f22_4dd3);
+        assert_eq!(budget_sum.to_bits(), 0x3f22_4dd4);
+        assert_ne!(trace.raw[1].to_bits(), budget_sum.to_bits());
+        assert_eq!(trace.capped[1].to_bits(), agent::NEEDS_MODIFIER_CAP.to_bits());
+        assert_eq!(trace.capped.map(f32::to_bits), utility_channel_bits(&mods));
+    }
+
+    #[test]
+    fn test_need_utility_trace_retains_raw_push_shadowed_by_cap() {
+        let mut pool = AgentPool::new(8);
+        let slot = pool.spawn(0, 0, Occupation::Farmer, 30, 0.0, 0.0, 0.0, 0, 0, 0, 0xFF);
+        set_need_inputs(&mut pool, slot, [0.0, 0.0, 0.0, agent::SPIRITUAL_THRESHOLD, 0.5, 0.5]);
+        let (_, before) = compute_need_utility_modifiers_with_trace(&pool, slot);
+        pool.need_spiritual[slot] = 0.0;
+        let (_, after) = compute_need_utility_modifiers_with_trace(&pool, slot);
+
+        assert_eq!(before.migrate_channels[3], 0.0);
+        assert!(after.migrate_channels[3] > 0.0);
+        assert!(before.raw[1] > agent::NEEDS_MODIFIER_CAP);
+        assert!(after.raw[1] > before.raw[1]);
+        assert_eq!(before.capped[1].to_bits(), agent::NEEDS_MODIFIER_CAP.to_bits());
+        // A real raw contribution is present, with zero capped marginal dose.
+        assert_eq!(after.capped[1].to_bits(), before.capped[1].to_bits());
     }
 
     fn run_turns(pool: &mut AgentPool, slots: &[usize], regions: &[RegionState],
