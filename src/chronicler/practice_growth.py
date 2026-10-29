@@ -218,23 +218,23 @@ class PracticeGrowthObserver:
         self._latest, self._pending, self._source, self._scope = None, None, None, scope
         if not self._closed:
             self._attempt += 1
-        try:
-            capture = self._begin(world.turn, scope)
-        except Exception:
-            capture, self._pending, self._source, self._reason = None, None, None, "capture_failed"
         completed = False
         try:
+            try:
+                capture = self._begin(world.turn, scope)
+            except Exception:
+                capture, self._pending, self._source, self._reason = None, None, None, "capture_failed"
             if scope == "phase":
                 from chronicler.techniques import tick_techniques
                 result = tick_techniques(world, *args, _practice_trace=capture, **kwargs)
             else:
                 from chronicler.simulation import run_turn_result
                 result = run_turn_result(world, *args, _practice_trace=capture, **kwargs)
-            completed = True
             try:
                 self._finish(capture)
             except Exception:
                 self._latest, self._pending, self._reason = None, None, "capture_failed"
+            completed = True
             return result
         finally:
             if not completed:

@@ -343,3 +343,19 @@ def test_unselected_pairs_do_not_construct_kernel_records(monkeypatch):
     observer = P.PracticeGrowthObserver([(0, "irrigation")]); observer.run_phase(w)
     assert calls == [(0, K["irrigation"])] and len(w.techniques.rows) == 4
     assert len(observer.read_latest(expected_source_turn=7).rows) == 1
+
+
+@pytest.mark.parametrize("surface", ["begin", "finish"])
+def test_cancellation_after_partial_reporting_clears_pending_and_published_frames(monkeypatch, surface):
+    w, plain = world(), world()
+    observer = P.PracticeGrowthObserver([(0, "irrigation")]); observer.run_phase(w); T.tick_techniques(plain)
+    name = "_" + surface; original = getattr(observer, name)
+    def interrupt(*args, **kwargs):
+        original(*args, **kwargs)
+        raise KeyboardInterrupt("caller cancellation")
+    monkeypatch.setattr(observer, name, interrupt)
+    if surface == "finish": T.tick_techniques(plain)
+    with pytest.raises(KeyboardInterrupt): observer.run_phase(w)
+    assert pickle.dumps(w) == pickle.dumps(plain)
+    record = observer.read_latest(expected_source_turn=7)
+    assert record.reason == "attempt_incomplete" and not record.rows and observer._pending is None

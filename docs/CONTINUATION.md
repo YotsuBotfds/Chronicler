@@ -5,8 +5,9 @@ starts from `45e1b939`, preserving qualified `95f73a74` and frozen C76. Explicit
 caller-owned phase/turn methods expose bounded actual paid RHS, clip/round/drop
 stages and separately committed values. Unobserved, blocked and computed-zero
 paths remain distinct; no World/checkpoint field, default import, I/O or native
-change is added. Sixty-two guarded surrogate-kernel cases pass. No ordinary
-world, native build, study activation or causal/performance result is claimed.
+change is added. Sixty-four guarded surrogate-kernel cases pass; two genuine
+ordinary-World cases are authored for remote full CI and unrun locally. No
+native build, study activation or causal/performance result is claimed.
 
 The separate [closed-handle follow-up](integration/decision-delivery-closed-handle-lifetime-2026-10-29.md)
 releases an observer's simulator reference after successful cleanup, while

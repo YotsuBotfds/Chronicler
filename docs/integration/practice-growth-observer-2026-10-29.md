@@ -76,7 +76,7 @@ separate them. The observer computes no counterfactual and measures no causal
 production or welfare effect. The eight previously retained natural-study
 allowances are not retroactively instrumented, replayed or requalified.
 
-Focused validation passes 62 guarded tests on the actual scalar kernel with
+Focused validation passes 64 guarded tests on the actual scalar kernel with
 tiny SimpleNamespace/TechniqueState/ScholarshipState surrogates. It covers
 bit-exact state/RNG, one allocation call, paid-zero bookkeeping, actual scholar
 carries, blocked/zero/unobserved paths, Python half-even/up/down rounding,
@@ -84,3 +84,9 @@ clipping/drop, reporter faults, stale attempts, bounds and transience. No
 ordinary World, local native runtime, build or study was executed. Full normal
 turn dispatch is checked with a surrogate owner and source equivalence;
 fresh remote integration qualification remains separate.
+
+Two ordinary-World cases are authored for remote full CI only, reusing the
+existing scientific-claims paid-runtime fixture. Phase and fourteen-turn
+comparisons require real allocations/positive paid RHS and identical normal
+state, events, treasury/debits and caller Python/NumPy RNG. They have not been
+run locally and are excluded from the bounded offline chunk.
