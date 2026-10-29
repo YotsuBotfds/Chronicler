@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29 isolated source review found that the household migration wealth
+denominator floor can turn a documented damper into an amplifier at valid tiny
+balances. A separate, unqualified behavior-correction draft clamps the ratio to
+at least one; it does not change active full-gate sources or causal targets.
+See [the defect and pending native checks](integration/household-migration-wealth-floor.md)
+and [the separate treatment-delivery diagnosis](experiments/causal-treatment-delivery-diagnostic-2026-10-29.md).
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)

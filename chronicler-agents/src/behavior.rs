@@ -122,6 +122,20 @@ fn migrate_utility(satisfaction: f32, migration_opportunity: f32) -> f32 {
     raw.min(MIGRATE_CAP)
 }
 
+/// Pooled household wealth can damp a move, never amplify its utility.
+/// The denominator floor must not turn a positive but tiny pooled balance
+/// into a ratio below one. Ordinary balances retain the original arithmetic.
+#[inline]
+fn household_migration_utility(utility: f32, personal_wealth: f32, effective_wealth: f32) -> f32 {
+    if effective_wealth > personal_wealth {
+        let ratio = (effective_wealth / personal_wealth.max(0.01)).max(1.0);
+        utility * (HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+            * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT)))
+    } else {
+        utility
+    }
+}
+
 fn migration_region_score(region: &RegionState, mean_satisfaction: f32, pop_count: usize) -> f32 {
     let cap = region.carrying_capacity.max(1) as f32;
     let pop_ratio = pop_count as f32 / cap;
@@ -1004,13 +1018,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !is_displaced {
             let eff_wealth = crate::household::household_effective_wealth(pool, slot, id_to_slot);
             let personal_wealth = pool.wealth[slot];
-            if eff_wealth > personal_wealth {
-                // Married with pooled wealth: dampen migration utility slightly
-                // Ratio > 1.0 means spouse has wealth; damp migration by inverse power.
-                let ratio = eff_wealth / personal_wealth.max(0.01);
-                migrate_util *= HOUSEHOLD_MIGRATION_MARRIED_FACTOR
-                    * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
-            }
+            migrate_util = household_migration_utility(migrate_util, personal_wealth, eff_wealth);
         }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
@@ -1292,6 +1300,76 @@ mod tests {
             civs: vec![],
             contested_regions: vec![false; num_regions],
         }
+    }
+
+    #[test]
+    fn household_migration_poor_balances_cannot_amplify_positive_utility() {
+        for (personal, effective) in [(0.0, 0.001), (0.001, 0.002), (0.004, 0.009), (0.009, 0.01)] {
+            for utility in [0.0, 0.01, 0.2, 1.0] {
+                let actual = household_migration_utility(utility, personal, effective);
+                assert!(actual.is_finite() && actual >= 0.0 && actual <= utility,
+                    "personal={personal}, effective={effective}, utility={utility}, actual={actual}");
+                assert_eq!(actual.to_bits(), (utility * HOUSEHOLD_MIGRATION_MARRIED_FACTOR).to_bits());
+            }
+        }
+        // This is the old denominator-floor failure, not a marginal rounding case.
+        let old_multiplier = HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+            * (1.0 / (0.002_f32 / 0.01).powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
+        assert!(old_multiplier > 6.0);
+    }
+
+    #[test]
+    fn household_migration_without_additional_wealth_keeps_raw_utility() {
+        for personal in [0.0, 0.001, 0.01, 1.0] {
+            for utility in [-0.2_f32, -0.0, 0.0, 0.1, 1.0] {
+                assert_eq!(household_migration_utility(utility, personal, personal).to_bits(),
+                    utility.to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn household_migration_ordinary_and_threshold_balances_keep_original_bits() {
+        let personal_cases: [f32; 6] = [0.009, 0.01, 0.02, 0.5, 1.0, 100.0];
+        let spouse_cases: [f32; 4] = [0.01, 0.02, 0.5, 2.0];
+        for personal in personal_cases {
+            for spouse in spouse_cases {
+                let effective = personal + spouse;
+                let old_ratio = effective / personal.max(0.01);
+                assert!(old_ratio >= 1.0);
+                for utility in [-0.2_f32, -0.0, 0.0, 0.1, 1.0] {
+                    let old = utility * (HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+                        * (1.0 / old_ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT)));
+                    assert_eq!(household_migration_utility(utility, personal, effective).to_bits(),
+                        old.to_bits(), "personal={personal}, spouse={spouse}, utility={utility}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn household_migration_credit_debit_can_reach_the_low_balance_case() {
+        let mut pool = AgentPool::new(2);
+        let a = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        let b = pool.spawn(0, 0, Occupation::Merchant, 30, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        assert!(crate::relationships::upsert_symmetric(&mut pool, a, b,
+            crate::relationships::BondType::Marriage as u8, 50, 0));
+        // The real loan-transfer API permits lending all but 0.002 of the
+        // merchants' initial combined wealth (0.5 each); no direct wealth edit.
+        crate::credit::apply_merchant_transfers(&mut pool, 1, &[0], &[-0.998]);
+        let mut regions = vec![make_region(0)];
+        regions[0].merchant_trade_income = 0.0;
+        crate::tick::wealth_tick(&mut pool, &regions, &default_signals(1), &mut [0.0; 2]);
+        let ids = pool.build_id_slots();
+        let personal = pool.wealth[a];
+        let effective = crate::household::household_effective_wealth(&pool, a, &ids);
+        assert!(personal > 0.0 && effective > personal && effective < 0.01);
+        let old_ratio = effective / personal.max(0.01);
+        assert!(old_ratio < 1.0);
+        assert_eq!(household_migration_utility(0.2, personal, effective),
+            0.2 * HOUSEHOLD_MIGRATION_MARRIED_FACTOR);
     }
 
     fn make_region(id: u16) -> RegionState {

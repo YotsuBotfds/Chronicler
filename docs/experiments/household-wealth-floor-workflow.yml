@@ -1,0 +1,56 @@
+# Inactive proposal. Root must review and copy to .github/workflows before use.
+name: Household wealth-floor Rust checks
+
+on:
+  push:
+    branches: [lead/household-wealth-floor-fix-20261029]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Record source, compiler and original profile controls
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          git rev-parse HEAD > ci-evidence/source.txt
+          git rev-parse HEAD:chronicler-agents > ci-evidence/crate-tree.txt
+          rustc --version --verbose > ci-evidence/rustc.txt
+          cargo --version > ci-evidence/cargo.txt
+          python --version > ci-evidence/python.txt
+          sha256sum chronicler-agents/Cargo.lock chronicler-agents/Cargo.toml > ci-evidence/build-inputs.sha256
+      - name: Run focused poor-balance and original-bit regressions
+        shell: bash
+        run: |
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --locked --manifest-path chronicler-agents/Cargo.toml household_migration_ -- --nocapture 2>&1 | tee ci-evidence/focused.txt
+      - name: Run complete Rust suite
+        shell: bash
+        run: |
+          export PYO3_PYTHON="$(command -v python)"
+          cargo test --locked --manifest-path chronicler-agents/Cargo.toml --quiet 2>&1 | tee ci-evidence/rust.txt
+      - name: Require unchanged tracked source
+        run: git diff --exit-code
+      - name: Retain actual results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: household-wealth-floor-${{ github.sha }}
+          path: ci-evidence/
+          if-no-files-found: error
+          retention-days: 30
