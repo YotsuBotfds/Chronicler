@@ -1,5 +1,10 @@
 # Recovered continuation — 2026-10-11
 
+## Passive profiler bounded role-refusal metadata (2026-10-29)
+
+A source-only successor preserves ee3/177 and writes <=4KiB negative diagnostic metadata at the existing published role.json path when core.run_role fails, then re-raises the original exception. Closed source-owned reason codes/validated bounded type names only; no raw state/text/traceback. Successful call, publisher paths, core and criteria unchanged. Hosted/focused count194 (core86 + owner108); actual profiling/inputs/native/World and activation remain held.
+
+
 ## Passive profiler activation-safe metadata contract (2026-10-29)
 
 The owner null-refusal test now sets its own NULL scenario explicitly; a synthetic registered-state regression prevents future hosted preflight failure. Source/owner criteria and core remain unchanged. Hosted expected count177 (core86 + owner91), with all actual input/native/World/profile activation held. Preserved05da/176 and fab/164 retain their original scopes.

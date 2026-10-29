@@ -421,3 +421,116 @@ def test_null_scenario_remains_valid_after_owner_registration(monkeypatch):
     # starting state. It must set up NULL explicitly before reaching host I/O.
     test_null_source_approval_precedes_any_host_or_source_access(monkeypatch)
     assert O.EXECUTION_APPROVAL is None
+
+
+def diagnostic_core():
+    class GraphRefused(ValueError):
+        def __str__(self): raise AssertionError("arbitrary exception text must not be formatted")
+    fixed = {"case": "small", "regions": 12, "target": 2000, "role": "plain", "seed": 42, "civs": 4, "turns": 97}
+    return SimpleNamespace(Refused=GraphRefused, schedule=lambda: [dict(fixed) for _ in range(6)])
+
+
+@pytest.mark.parametrize("message,reason,name", [
+    ("unsupported state type: chronicler.example.Extra", "STATE_TYPE", "chronicler.example.Extra"),
+    ("unsupported NumPy dtype", "NUMPY_DTYPE", None),
+    ("ambiguous duplicate slot storage", "DUPLICATE_SLOT_STORAGE", None),
+])
+def test_role_diagnostic_keeps_only_source_owned_graph_reason(message, reason, name):
+    core = diagnostic_core(); record = O.role_failure_record(core.Refused(message), core, 0)
+    assert record["reason_code"] == reason and record["type_name"] == name
+    assert record["exception_code"] == "CORE_REFUSED"
+    assert record["request"] == core.schedule()[0] and record["index"] == 0
+    assert record["complete"] is record["role_success"] is False
+    assert set(record) == {"complete", "role_success", "index", "request", "exception_code", "reason_code", "type_name"}
+
+
+@pytest.mark.parametrize("fault", ["unknown", "newline", "unicode", "long", "empty", "dotted", "args", "subclass"])
+def test_role_diagnostic_never_serializes_unclassified_text_or_invalid_type(fault):
+    core = diagnostic_core(); prefix = "unsupported state type: "
+    messages = {"unknown": "raw arbitrary state secret must not survive", "newline": prefix + "module.Type\nSECRET",
+                "unicode": prefix + "module.Týpe", "long": prefix + "x" * 257,
+                "empty": prefix, "dotted": prefix + "module..Type", "args": {"raw_state": "secret"}}
+    if fault == "subclass":
+        class Foreign(core.Refused): pass
+        exc = Foreign(prefix + "module.Type")
+    else: exc = core.Refused(messages[fault])
+    record = O.role_failure_record(exc, core, 0)
+    assert record["reason_code"] == "UNCLASSIFIED" and record["type_name"] is None
+    assert record["exception_code"] == ("UNCLASSIFIED" if fault == "subclass" else "CORE_REFUSED")
+    assert "secret" not in json.dumps(record).lower() and "SECRET" not in json.dumps(record)
+
+
+def test_role_diagnostic_max_qualified_type_and_fixed_request_fit_4k():
+    core = diagnostic_core(); name = "a." + "B" * 254
+    record = O.role_failure_record(core.Refused("unsupported state type: " + name), core, 0)
+    assert len(record["type_name"]) == 256
+    raw = (json.dumps(record, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
+    assert len(raw) <= 4096 and record["complete"] is record["role_success"] is False
+
+
+def test_role_diagnostic_literal_codes_are_bound_to_exact_core_source():
+    tree = ast.parse((ROOT / "scripts/current090_passive_profile.py").read_bytes())
+    literals = {node.value for node in ast.walk(tree) if isinstance(node, ast.Constant) and type(node.value) is str}
+    assert set(O.GRAPH_REFUSAL_CODES) <= literals
+    assert all(code and all(char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ_" for char in code)
+               for code in O.GRAPH_REFUSAL_CODES.values())
+
+
+def execute_retained_role_diagnostic_try(core, args, admission, writer):
+    # Compile only the exact role call/diagnostic try from the reviewed source,
+    # under fake arguments and function. Never execute child/admission/physics.
+    import copy
+    tree = ast.parse((ROOT / "scripts/current090_profile_owner.py").read_bytes())
+    child = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "child")
+    retained = next(node for node in ast.walk(child) if isinstance(node, ast.Try)
+                    and len(node.body) == 1 and isinstance(node.body[0], ast.Assign)
+                    and isinstance(node.body[0].value, ast.Call)
+                    and isinstance(node.body[0].value.func, ast.Attribute)
+                    and node.body[0].value.func.attr == "run_role")
+    fn = ast.parse("def retained_role():\n pass\n").body[0]
+    fn.body = [copy.deepcopy(retained), ast.parse("return result").body[0]]
+    unit = ast.fix_missing_locations(ast.Module(body=[fn], type_ignores=[]))
+    scope = {"core": core, "args": args, "admission": admission, "write": writer,
+             "role_failure_record": O.role_failure_record}
+    exec(compile(unit, "exact-source-role-diagnostic-try", "exec"), scope)
+    return scope["retained_role"]()
+
+
+def test_role_diagnostic_success_preserves_same_return_and_call_without_write(tmp_path):
+    core, answer, observed = diagnostic_core(), object(), []
+    def run(request, **kwargs): observed.append((request, kwargs)); return answer
+    core.run_role = run
+    args = SimpleNamespace(index=0, ordinary=tmp_path / "ordinary", checkpoint=tmp_path / "cp", result=tmp_path / "role.json")
+    admission = {"rng": object()}
+    result = execute_retained_role_diagnostic_try(core, args, admission, lambda *a: pytest.fail("success diagnostic write"))
+    assert result is answer and len(observed) == 1
+    assert observed[0] == (core.schedule()[0], {"ordinary": args.ordinary, "checkpoint": args.checkpoint,
+                                             "shared_rng": admission["rng"], "admission": admission})
+    assert not args.result.exists()
+
+
+@pytest.mark.parametrize("writer_exception", [OSError, KeyboardInterrupt])
+def test_role_diagnostic_writer_fault_never_replaces_original_exception(tmp_path, writer_exception):
+    core = diagnostic_core(); original = core.Refused("unsupported state type: module.Extra")
+    def run(*args, **kwargs): raise original
+    core.run_role = run; observed = []
+    args = SimpleNamespace(index=0, ordinary=tmp_path / "ordinary", checkpoint=tmp_path / "cp", result=tmp_path / "role.json")
+    def writer(path, value, limit):
+        observed.append((path, value, limit)); raise writer_exception("synthetic writer fault")
+    with pytest.raises(core.Refused) as caught:
+        execute_retained_role_diagnostic_try(core, args, {"rng": None}, writer)
+    assert caught.value is original and len(observed) == 1
+    assert observed[0][0] == args.result and observed[0][2] == 4096 and observed[0][1]["complete"] is False
+
+
+def test_role_diagnostic_failure_uses_existing_published_role_path_only(tmp_path):
+    core = diagnostic_core(); original = core.Refused("unsupported NumPy exact type")
+    def run(*args, **kwargs): raise original
+    core.run_role = run
+    args = SimpleNamespace(index=0, ordinary=tmp_path / "ordinary", checkpoint=tmp_path / "cp", result=tmp_path / "role.json")
+    with pytest.raises(core.Refused) as caught:
+        execute_retained_role_diagnostic_try(core, args, {"rng": None}, O.write)
+    assert caught.value is original and list(tmp_path.iterdir()) == [args.result]
+    record = json.loads(args.result.read_text())
+    assert record["complete"] is record["role_success"] is False and record["reason_code"] == "NUMPY_EXACT_TYPE"
+    assert args.result.stat().st_size <= 4096

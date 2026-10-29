@@ -32,7 +32,7 @@ WORKFLOW_PATH = ".github/workflows/current090-passive-profile.yml"
 JOB_KEY = "current090-passive-profile"
 PYTHON = "3.13.17"
 UV = "0.13.6"
-EXPECTED_PREFLIGHT_CASES = 177
+EXPECTED_PREFLIGHT_CASES = 194
 WORKFLOW_SHA = '1307757f8b8e409d811e67a23737eadac64794173a02d79b3b3add48f1bb0def'
 GIB = 1024**3
 CAPS = {key: "1" for key in ("BLIS_NUM_THREADS", "CARGO_BUILD_JOBS", "GOTO_NUM_THREADS", "MKL_NUM_THREADS",
@@ -289,6 +289,45 @@ def runtime_files():
     return result
 
 
+GRAPH_REFUSAL_CODES = {
+    "unsupported base buffer": "BASE_BUFFER_TYPE", "unsupported base buffer layout": "BASE_BUFFER_LAYOUT",
+    "unsupported memoryview layout": "MEMORYVIEW_LAYOUT", "unsupported NumPy exact type": "NUMPY_EXACT_TYPE",
+    "unsupported NumPy dtype": "NUMPY_DTYPE", "unexpected scalar base": "SCALAR_BASE",
+    "unanchored nonowning array": "ARRAY_UNANCHORED", "array base extent": "ARRAY_BASE_EXTENT",
+    "empty array base extent": "EMPTY_ARRAY_BASE_EXTENT", "state node cap": "STATE_NODE_CAP",
+    "unqualified Enum type": "ENUM_TYPE", "unsupported scalar/bytearray subclass": "SCALAR_SUBCLASS",
+    "unsupported path subclass": "PATH_SUBCLASS", "unsupported dict subclass": "DICT_SUBCLASS",
+    "unsupported sequence subclass": "SEQUENCE_SUBCLASS", "unsupported set subclass": "SET_SUBCLASS",
+    "unsupported Random subclass": "RANDOM_SUBCLASS", "NumPy storage reader is not admitted": "NUMPY_NOT_ADMITTED",
+    "default factory": "DEFAULT_FACTORY", "ambiguous duplicate slot storage": "DUPLICATE_SLOT_STORAGE",
+    "unsupported object fields": "OBJECT_FIELDS", "unsupported set member": "SET_MEMBER",
+}
+
+
+def role_failure_record(exc, core, index):
+    """Closed negative metadata only; never copy arbitrary exception text/state."""
+    require(type(index) is int and 0 <= index < 6, "fixed failure role index")
+    code, reason, name = "UNCLASSIFIED", "UNCLASSIFIED", None
+    if type(exc) is core.Refused:
+        code = "CORE_REFUSED"
+        if type(exc.args) is tuple and len(exc.args) == 1 and type(exc.args[0]) is str:
+            message = exc.args[0]
+            if message in GRAPH_REFUSAL_CODES:
+                reason = GRAPH_REFUSAL_CODES[message]
+            else:
+                prefix = "unsupported state type: "
+                if message.startswith(prefix) and len(prefix) < len(message) <= len(prefix) + 256:
+                    candidate = message[len(prefix):]
+                    first = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
+                    rest = first + "0123456789"
+                    if all(part and part[0] in first and all(char in rest for char in part)
+                           for part in candidate.split(".")):
+                        reason, name = "STATE_TYPE", candidate
+    return {"complete": False, "role_success": False, "index": index,
+            "request": dict(core.schedule()[index]), "exception_code": code,
+            "reason_code": reason, "type_name": name}
+
+
 def child(args, core, inputs, reference, owned=None):
     require(EXECUTION_APPROVAL is not None, "source-only execution approval is null")
     resource.setrlimit(resource.RLIMIT_CPU, (240, 240))
@@ -364,8 +403,15 @@ def child(args, core, inputs, reference, owned=None):
                     and admission["affinity"] == sorted(os.sched_getaffinity(0))
                     and admission["runtime_flags"] == actual_flags,
                     "same admitted runtime")
-            result = core.run_role(core.schedule()[args.index], ordinary=args.ordinary,
-                                   checkpoint=args.checkpoint, shared_rng=admission["rng"], admission=admission)
+            try:
+                result = core.run_role(core.schedule()[args.index], ordinary=args.ordinary,
+                                       checkpoint=args.checkpoint, shared_rng=admission["rng"], admission=admission)
+            except BaseException as exc:
+                try:
+                    write(args.result, role_failure_record(exc, core, args.index), 4096)
+                except BaseException:
+                    pass  # Diagnostic failure must never replace the original exception.
+                raise
         else:
             require(args.child == "compare", "closed child action")
             source_scripts = source / "scripts"
