@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+A separate [closed completed-artifact reader draft](integration/native-default-output-artifact-reader-2026-10-29.md)
+targets the successful hosted C76→95 producer `74b2904d`, run40834257046.
+It preserves the three qualified2b7 reader kernels and their old registries,
+while adding actual per-arm source/result/probe/input validation and owned
+comparison cleanup. Only tiny pure/static source checks have run locally;
+artifact transfer, read-only audit and activation await root/peer review.
+The focused24 tests/49 successful subtests and unfiltered workflow lint pass;
+all12 saved official metadata snapshots and pinned descriptor/source field
+shapes were checked without an archive transfer or project/native imports.
+
 A separate [dormant native default-output adapter](experiments/native-default-output-identity-2026-10-29.md)
 registers fresh C76 versus qualified combined `95f73a74` exports with distinct
 retained wheels. The original 8bbc helper, matrix, comparator and historical
