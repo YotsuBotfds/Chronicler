@@ -673,7 +673,7 @@ def test_unavailable_inventory_writer_faults_and_stale_authorities_never_promote
         assert json.loads((root / "terminal.json").read_bytes())["complete"] is True
         assert not (root / "terminal-failure.json").exists()
     publication = P.publish(root, tmp_path / "publication", owner_outcome="failure", source=source)
-    assert publication["complete"] is False and publication["owner_outcome"] == "failure"
+    assert publication["complete"] is False and publication["owner_step_outcome"] == "failure"
     assert "private" not in json.dumps(report)
 
 
