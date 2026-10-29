@@ -171,6 +171,11 @@ def terminal_summary(raw):
         match = re.fullmatch(r"(.+) in ([0-9]+(?:\.[0-9]+)?)s(?: \([^()]+\))?", line)
         if match is None:
             continue
+        # Whole-job logs also contain uv setup timings. A pytest summary starts
+        # with an outcome counter; failed/error outcomes remain strict refusals.
+        if re.match(r"[0-9]+ (?:passed|failed|errors?|skipped|xfailed|xpassed|subtests (?:passed|failed))(?=, |$)",
+                    match[1]) is None:
+            continue
         counters = {}
         for token in match[1].split(", "):
             count = re.fullmatch(r"([0-9]+) (passed|skipped|subtests passed|warnings?)", token)

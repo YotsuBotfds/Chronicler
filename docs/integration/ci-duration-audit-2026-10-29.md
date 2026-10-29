@@ -108,7 +108,13 @@ stream bounds, credential-free public hops, sanitized errors, source/artifact/jo
 mismatches, failed producers and retained negative receipts. It runs no native
 code, network, simulator subprocesses or scientific jobs.
 
-Local focused verification: all **18 stdlib tests passed** on Python **3.12.14**
+Local focused verification: all **19 stdlib tests passed** on Python **3.12.14**
 with synthetic inputs and mocked transport. The inactive Action specifies Python
 3.13 and reruns those contracts before the real artifact read. No real ZIP/XML
 audit result, native execution result or test speedup is asserted by this draft.
+
+Pre-activation peer review corrected summary recognition for complete job logs:
+uv installation/preparation timing lines are ignored unless they begin with a
+pytest outcome counter. Actual failed/error summaries, duplicate successful
+summaries and missing summaries remain refusals. The original d690 draft is
+retained in history; no real artifact inspection preceded the correction.

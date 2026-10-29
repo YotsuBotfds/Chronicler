@@ -114,6 +114,17 @@ class JUnitContracts(unittest.TestCase):
         raw = b"2026-10-28T23:02:39.3585518Z \x1b[32m7800 passed, 6 skipped, 526 subtests passed in 655.82s (0:10:55)\x1b[0m\n2026-10-28T23:02:47Z cleanup\n"
         self.assertEqual(audit.terminal_summary(raw), dict(passed=7800, skipped=6, subtests=526, seconds=655.82))
 
+    def test_terminal_summary_ignores_installation_timings_in_whole_job_log(self):
+        noise = (b"2026-10-28T22:49:00.1234567Z Prepared 17 packages in 1.23s\n"
+                 b"2026-10-28T22:49:01.1234567Z Installed 20 packages in 1.23s\n"
+                 b"2026-10-28T22:49:02.1234567Z Resolved 20 packages in 2.12s\n")
+        valid = b"2026-10-28T22:55:09.9881077Z 1 passed, 1 skipped, 3 subtests passed in 3.20s\n"
+        self.assertEqual(audit.terminal_summary(noise + valid + noise), fixture_summary())
+        for raw in (noise, noise + b"1 failed in 1.0s\n", noise + b"1 error in 1.0s\n",
+                    noise + b"1 xfailed in 1.0s\n", noise + valid + valid):
+            with self.subTest(raw=raw[-120:]), self.assertRaises(audit.Refusal):
+                audit.terminal_summary(raw)
+
     def test_terminal_failures_duplicates_and_unverified_subtests_refused(self):
         good = b"1 passed, 1 skipped, 3 subtests passed in 3.20s\n"
         for raw in (b"no terminal summary\n", good + good, b"1 failed in 1.0s\n",
