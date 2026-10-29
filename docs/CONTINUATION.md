@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A [dormant local-forecast study owner](experiments/forecast-credibility-registration.md)
+adds fixed seed42/template8/4/H26 jobs, bounded stock-worker/CLI ownership and a
+stdlib original-body mechanical reader. Candidate full-CI/execution bindings
+remain NULL; no genuine execution, native import, build or workflow activation
+is implied. Its two new pure fake-test modules add native shard0 owners and a
+39th110-second offline chunk while preserving all303 old owners/six skips/623
+subtests and38 prior chunks. The exact source-3a wheel remains a separately
+pinned producer. Full private graph/RNG/candidate/efficacy/performance claims
+remain unavailable. Source preparation recovered and preserved earlier partial
+drafts; focused test results must be reported by their later frozen receipt.
+
+
 A separate [expansion policy receipt compatibility fix](integration/expansion-policy-receipt-compatibility-2026-10-29.md)
 accepts the source-owned optional forecast/care policy receipt shapes while
 preserving legacy omission and science's separate research metadata. It also

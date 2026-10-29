@@ -1,0 +1,146 @@
+[
+  {
+    "checkpoint_turns": [],
+    "kind": "plain",
+    "mode": "omitted",
+    "name": "legacy-default",
+    "parent": null,
+    "source_alias": "baseline",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "plain",
+    "mode": "omitted",
+    "name": "candidate-default",
+    "parent": null,
+    "source_alias": "candidate",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "plain",
+    "mode": "off",
+    "name": "candidate-off",
+    "parent": null,
+    "source_alias": "candidate",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "plain",
+    "mode": "fixed",
+    "name": "legacy-fixed",
+    "parent": null,
+    "source_alias": "baseline",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "plain",
+    "mode": "fixed",
+    "name": "candidate-fixed",
+    "parent": null,
+    "source_alias": "candidate",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [
+      4
+    ],
+    "kind": "plain",
+    "mode": "local",
+    "name": "local-parent",
+    "parent": null,
+    "source_alias": "candidate",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "fork",
+    "mode": "local",
+    "name": "local-normal",
+    "parent": "local-parent",
+    "source_alias": "candidate",
+    "start_turn": 4
+  },
+  {
+    "checkpoint_turns": [],
+    "kind": "fork",
+    "mode": "withheld",
+    "name": "local-withheld",
+    "parent": "local-parent",
+    "source_alias": "candidate",
+    "start_turn": 4
+  },
+  {
+    "checkpoint_turns": [
+      26
+    ],
+    "kind": "plain",
+    "mode": "local",
+    "name": "local-reference",
+    "parent": null,
+    "source_alias": "candidate",
+    "start_turn": 0
+  },
+  {
+    "checkpoint_turns": [
+      6,
+      8,
+      10,
+      13,
+      26
+    ],
+    "kind": "exact",
+    "mode": "inherit",
+    "name": "exact-4",
+    "parent": "local-parent",
+    "source_alias": "candidate",
+    "start_turn": 4
+  },
+  {
+    "checkpoint_turns": [
+      26
+    ],
+    "kind": "exact",
+    "mode": "inherit",
+    "name": "exact-6",
+    "parent": "exact-4",
+    "source_alias": "candidate",
+    "start_turn": 6
+  },
+  {
+    "checkpoint_turns": [
+      26
+    ],
+    "kind": "exact",
+    "mode": "inherit",
+    "name": "exact-8",
+    "parent": "exact-4",
+    "source_alias": "candidate",
+    "start_turn": 8
+  },
+  {
+    "checkpoint_turns": [
+      26
+    ],
+    "kind": "exact",
+    "mode": "inherit",
+    "name": "exact-10",
+    "parent": "exact-4",
+    "source_alias": "candidate",
+    "start_turn": 10
+  },
+  {
+    "checkpoint_turns": [
+      26
+    ],
+    "kind": "exact",
+    "mode": "inherit",
+    "name": "exact-13",
+    "parent": "exact-4",
+    "source_alias": "candidate",
+    "start_turn": 13
+  }
+]

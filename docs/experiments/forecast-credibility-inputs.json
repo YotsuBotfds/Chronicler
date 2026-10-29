@@ -1,0 +1,121 @@
+{
+  "binding": {
+    "baseline": {
+      "lock_sha256": "986547c01fd1dcd9bf598404124fde4ddc1e3d67db9a1d595a5304f18dacee10",
+      "package_digest": "1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0",
+      "pyproject_sha256": "d14f5588112927a0d8d889c30f04af90e81bc2cf4096b9ed91d8a51d83a2ac32",
+      "source": "94b308e65bf3c7febc41f09b73004b1db2056a1d"
+    },
+    "candidate": {
+      "lock_sha256": null,
+      "package_digest": null,
+      "pyproject_sha256": null,
+      "runner_sha256": null,
+      "source": null
+    },
+    "candidate_ci": {
+      "attempt": null,
+      "conclusion": null,
+      "independent_receipt_sha256": null,
+      "root_receipt_sha256": null,
+      "run_id": null,
+      "source": null
+    },
+    "native": {
+      "bytes": 13737112,
+      "crate": "04866c3962ec9d5c77477fc727107a553fc1d6df",
+      "producer": {
+        "artifact_id": 12919445395,
+        "expiry": "2026-11-12T17:29:24Z",
+        "job_id": 123615034004,
+        "name": "native-shard-build-40921328325-1",
+        "run_id": 40921328325,
+        "sha256": "7cd1db77f6f8f7006e7dfb2f521c28fa7f564b1ea2c97b764aa6cabb0d38d728",
+        "size": 3868647,
+        "source": "3a2a671477be849dd1b26c000d501304b8c684e9",
+        "workflow": ".github/workflows/tests.yml"
+      },
+      "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5",
+      "wheel_bytes": 3932436,
+      "wheel_sha256": "55a5ac747716b7554b74cd4e761bce2f8b3cdc691a9303b113d07161895cebeb"
+    }
+  },
+  "candidate_proposal_only": "81a3ce321fd6012b5cf2462f333ddc5c28d7449a",
+  "execution_approval": null,
+  "helper_donor_source": "1421621b4393d08cedb0d3505ae26b96dfa6563c",
+  "helper_pins": {
+    "exact_near_screen_process.py": {
+      "bytes": 15495,
+      "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+    },
+    "exact_near_screen_session.py": {
+      "bytes": 2951,
+      "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+    },
+    "wealth_floor_build_resources.py": {
+      "bytes": 7688,
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "wealth_floor_hosted_deployment.py": {
+      "bytes": 4528,
+      "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    }
+  },
+  "outer_wheel_members": {
+    "chronicler-agents/target/wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl": {
+      "bytes": 3932436,
+      "sha256": "55a5ac747716b7554b74cd4e761bce2f8b3cdc691a9303b113d07161895cebeb"
+    },
+    "ci-native-wheel/build.json": {
+      "bytes": 1957,
+      "sha256": "05810dafed0ec89102fa5fd80f45be4de81e4b6491a82fb9873d72cde4bdb5fb"
+    }
+  },
+  "schema_version": 1,
+  "scope": "DORMANT. Actual candidate full-CI source and root/independent receipts are deliberately null. Source/fake evidence only; no actual execution or schema observation.",
+  "transport_donor_sha256": "257910d4139afdf81e5b1b75c2c598d3a652c1c22ed89a6e3783cffafa49e489",
+  "wheel": {
+    "bytes": 3932436,
+    "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+    "sha256": "55a5ac747716b7554b74cd4e761bce2f8b3cdc691a9303b113d07161895cebeb"
+  },
+  "wheel_members": {
+    "chronicler_agents-0.1.0.dist-info/METADATA": {
+      "bytes": 136,
+      "sha256": "c0ea81cfe71247744407d9ec667f6f580e8baead15fe0d3c1945cfad5b98b658"
+    },
+    "chronicler_agents-0.1.0.dist-info/RECORD": {
+      "bytes": 580,
+      "sha256": "d72ab1ffdad1d9c06aac21c1799c0e635d910cd8bb0c2e8b0c2358c2f508de81"
+    },
+    "chronicler_agents-0.1.0.dist-info/WHEEL": {
+      "bytes": 109,
+      "sha256": "f712df2655d1edb5546286f8271818a37de4533046fa0bf3aad0571a3dbc2f10"
+    },
+    "chronicler_agents-0.1.0.dist-info/sboms/chronicler-agents.cyclonedx.json": {
+      "bytes": 139390,
+      "sha256": "a7767eba43b428873a74f1f07adc6a22a87477ef4eadc8bcdfb34e4112988c04"
+    },
+    "chronicler_agents/__init__.py": {
+      "bytes": 151,
+      "sha256": "4f19f670edf2cf71a10ab2511c9033cae822f43ba8c4274833ac64c687907dd7"
+    },
+    "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so": {
+      "bytes": 13737112,
+      "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
+    }
+  },
+  "preflight_cases": 136,
+  "preflight_selection": [
+    "tests/test_forecast_credibility_study.py",
+    "tests/test_forecast_credibility_readout.py"
+  ],
+  "preflight_limits": {
+    "wall_seconds": 110,
+    "cpu_seconds": 30,
+    "address_space_bytes": 536870912,
+    "network": false,
+    "children": false,
+    "product_native_numpy_imports": false
+  }
+}

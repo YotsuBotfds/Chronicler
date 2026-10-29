@@ -1,0 +1,74 @@
+{
+  "docs/experiments/forecast-credibility-controls-local-credibility.json": {
+    "bytes": 48,
+    "sha256": "ac009d87f3572100813fad49af317f14cca9157649bb48ead246732a15b67da0"
+  },
+  "docs/experiments/forecast-credibility-controls-withheld.json": {
+    "bytes": 72,
+    "sha256": "a194039a54374f48e7a3bad8b2dd1bb58efccdd22f3236c841cdce14ca47def6"
+  },
+  "docs/experiments/forecast-credibility-inputs.json": {
+    "bytes": 4592,
+    "sha256": "2435db98fca88ab30a316ed8e59ba53b039a2d46c1b44b25b19c6983c4afd5d4"
+  },
+  "docs/experiments/forecast-credibility-jobs.json": {
+    "bytes": 2714,
+    "sha256": "46a41c307e0ebc2720f7cc063271e8ba2ab67aebd890405f785a2416b807d6ca"
+  },
+  "docs/experiments/forecast-credibility-study.yml.inactive": {
+    "bytes": 4036,
+    "sha256": "8cddd141e20b71564aab501476050dad9cad1174c91ad050848d815194060aea"
+  },
+  "scripts/exact_near_screen_process.py": {
+    "bytes": 15495,
+    "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+  },
+  "scripts/exact_near_screen_session.py": {
+    "bytes": 2951,
+    "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+  },
+  "scripts/forecast_credibility_owner.py": {
+    "bytes": 48905,
+    "sha256": "339496538b1baa93d524ad7c4bacdb9f5b94a7630be4b1c5f925a4289da8412e"
+  },
+  "scripts/forecast_credibility_publish.py": {
+    "bytes": 6465,
+    "sha256": "91f8c2ac23ec34e9b4508e17a4854a06a4f8c2e67b55d9661427dfd582719b8f"
+  },
+  "scripts/forecast_credibility_readout.py": {
+    "bytes": 62228,
+    "sha256": "c814d0d78cf39a2093417c0960557d6e2d76002b43f2f52f3339db01b512e726"
+  },
+  "scripts/forecast_credibility_study.py": {
+    "bytes": 15105,
+    "sha256": "4987cc0e7f8562fd840a6ad608f4d94d65830500afd75757a84afd304710b8b6"
+  },
+  "scripts/forecast_credibility_transport.py": {
+    "bytes": 10990,
+    "sha256": "257910d4139afdf81e5b1b75c2c598d3a652c1c22ed89a6e3783cffafa49e489"
+  },
+  "scripts/run_python_oracle_checks.py": {
+    "bytes": 22185,
+    "sha256": "5145c16c261d81d4b5c8a23a890a2afbbe7bb2e793bf7be6d09982b864e74483"
+  },
+  "scripts/testing/native_shards_manifest.json": {
+    "bytes": 13701,
+    "sha256": "0b7bb44ef18c8c088e110d7224c284cb9e0fe4be88a78780e7606d7e2dc0c0c8"
+  },
+  "scripts/wealth_floor_build_resources.py": {
+    "bytes": 7688,
+    "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+  },
+  "scripts/wealth_floor_hosted_deployment.py": {
+    "bytes": 4528,
+    "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+  },
+  "tests/test_forecast_credibility_readout.py": {
+    "bytes": 32117,
+    "sha256": "806b32f27f711dac8eeb14bef351fabbea96bea1a91abef9f4a3982f05f3f14a"
+  },
+  "tests/test_forecast_credibility_study.py": {
+    "bytes": 12635,
+    "sha256": "83e415b23f3304e5588d6ce51a81a0dfe8415c3722f27068a3394f473189a633"
+  }
+}
