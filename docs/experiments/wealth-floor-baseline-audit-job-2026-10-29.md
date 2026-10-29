@@ -17,6 +17,8 @@ The dormant template names only the separate future activation branch
 `lead/wealth-floor-baseline-audit-activation-20261029`; official event and branch
 must match. This permits activation without adding a new dispatch workflow to
 frozen main. The template itself remains inert outside `.github/workflows`.
+Its push path filter admits only the exact active workflow path; later
+documentation or script-only pushes cannot schedule another multi-GB transfer.
 Only attempt one is admitted; there is no retry, credential fallback or
 automatic rerun.
 
@@ -70,10 +72,18 @@ every expected payload: template 55,432 files/4,256,211,501 bytes and procedural
 20,332 files/4,896,245,631 bytes. Whole-archive stability checks still bracket
 each raw audit; the download digest does not replace them.
 
+Four complete control-script byte snapshots are recorded before any transfer
+and after both raw audits in the existing `sources.json`; any difference
+refuses the job. The same files are checked again after final publication
+rehashing, and stdout binds that last snapshot digest. These are observations
+of disk bytes at named boundaries, not an assertion about loaded bytecode or
+unobserved intervals. No single end-only hash is represented as the executed
+source's history. The finite publication inventory remains 29 files.
+
 | Scope | Registered limit | What is charged |
 | --- | --- | --- |
-| Transport and small authority staging | 1,200 wall / 300 process-CPU seconds | Metadata, all downloads, small index/member reads, source receipts and fsync. |
-| Plan, both raw audits and finalization | 1,800 wall / 900 process-CPU seconds | One continuous audit-budget object from plan preparation through member hashing, publication inventory and final checks. |
+| Transport and small authority staging | 1,200 wall / 300 process-CPU seconds | Initial source snapshot, metadata, all downloads, small index/member reads, producer/input receipts and fsync. |
+| Plan, both raw audits and finalization | 1,800 wall / 900 process-CPU seconds | One continuous audit-budget object from plan preparation through member hashing, post-audit source receipt, publication inventory and final checks. |
 | Overall controller | 3,300 wall seconds | Both phases, including final writes and fsync. |
 | GitHub job | 60 minutes | Checkout/setup, controller and publication; can terminate the controller earlier if setup/publication consumes the margin. |
 
@@ -81,6 +91,10 @@ These are distinct scopes, not a claimed end-to-end CPU total or a speedup.
 Nested one-shot POSIX timers restore the outer timer after subtracting elapsed
 time; clocks cannot reset at phase boundaries. A late read, parse, decompression
 or fsync crossing a bound refuses completion even when a pending file exists.
+`final-charge.json` labels its observation as after controller fsync and before
+the last full publication rehash/source check. The later stdout observation
+follows those heavy checks and explicitly excludes stdout serialization and
+GitHub publication/completion. Neither is called a closed end-to-end CPU total.
 
 The exact shared hierarchy helper is
 `scripts/wealth_floor_build_resources.py`, SHA-256
@@ -93,6 +107,21 @@ budget floor probe use this helper. Admission remains 12 GiB free disk/2 GiB
 available RAM; running floors remain 3 GiB/1 GiB. No actual resource observation
 was made for this qualification, and the constrained local workspace cannot
 admit a production audit.
+
+Before resource observation or transfer, the byte-identical shared
+`wealth_floor_hosted_deployment.py` helper (SHA-256
+`ef872aced881b89d7bde8efbc0687134ae731916a9c2a233c368c1c22b11e085`)
+requires `GITHUB_ACTIONS=true`, `RUNNER_ENVIRONMENT=github-hosted`, PID1
+`systemd` and canonical matching self/PID1 cgroup namespace identities. It
+rereads process/namespace facts to detect changes. The 128-byte admitted text
+bounds, 129-character proc sentinel read, deployment observation and resource
+thresholds are recorded in the controller receipt. This is an explicit sealed
+direct Ubuntu24 VM/no-job-container precondition, with the limitation about
+unobservable provider ancestors retained; it is not a broader platform
+attestation. Eighteen shared pure fixtures accompany the exact helper bytes.
+Unsupported deployment refuses before controller source snapshots, resource
+probes or network activity. No
+actual deployment or resource probe ran locally.
 
 The publication tree has a finite 29-file inventory and a 192 MiB aggregate
 bound: the 23 original authority files plus official input pins, current
@@ -142,3 +171,14 @@ cases in 0.73 seconds** (70 job/40 resource/71 admission), plus actionlint, diff
 checks and an inert direct CLI invocation. The guard again recorded no native
 activity, blocked IO or runtime factory calls. These results grant no remote
 activation; root review of the concrete final source remains required.
+
+Root review cleared `2ca83e3e` in substance and requested the operational
+refinements above. The combined refined source passed **207 guarded cases in
+0.84 seconds**: 78 job contracts, 40 unchanged resource fixtures, 71 admission
+cases and 18 shared deployment fixtures. The guard recorded no native modules,
+blocked IO or runtime-factory calls. Actionlint, diff checks and an inert direct
+CLI invocation passed. Independent read-only source refresh found no concrete
+blocker in the path filter, source snapshots, timing labels or hosted-VM
+precondition. The previous 181-pass source and its original negative-evidence
+finding remain recorded; no real audit or deployment/resource probe ran.
+Separate root review and activation of the final commit remain required.

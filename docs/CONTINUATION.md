@@ -10,6 +10,11 @@ The template is outside active workflows. Synthetic contracts passed locally;
 no real historical plan, download, audit, build, world or workflow ran. Source
 review and separate activation remain required; main and all old roles/policy
 are unchanged.
+The follow-up keeps exactly 29 publication files, snapshots four control scripts
+before/after auditing and again after final verification, restricts future
+pushes to the exact workflow path and requires the shared direct-hosted VM
+precondition. Its combined guarded selection passes 207 cases; original
+resource thresholds, archive IDs/expiry and scientific policy are unchanged.
 
 Inactive [dual-origin baseline admission](experiments/wealth-floor-baseline-admission-interface-2026-10-29.md)
 now has detached stdlib source and synthetic contracts: exact original reader

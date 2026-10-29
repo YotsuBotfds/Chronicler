@@ -1,6 +1,7 @@
 """Dormant job contracts: fake HTTP, tiny ZIPs, no historical audit or probes."""
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
+from fnmatch import fnmatchcase
 import hashlib
 import io
 import json
@@ -68,6 +69,7 @@ def test_default_is_inert_and_never_reads_token_resources_or_network(monkeypatch
     def forbidden(*a, **k): pytest.fail("default must be inert")
     monkeypatch.setattr(J, "run_job", forbidden)
     monkeypatch.setattr(J.A, "_resources", forbidden)
+    monkeypatch.setattr(J.D, "hosted_vm_precondition", forbidden)
     assert J.main([]) == 0
     row = json.loads(capsys.readouterr().out)
     assert row["status"] == "inactive" and row["candidate_worlds_enabled"] is False
@@ -80,6 +82,17 @@ def test_closed_registration_and_original_roles():
     assert len(J.AUTHORITY_NAMES) == 23
     assert all("candidate" in p.name for k,p in J.INPUTS.items() if k != "comparison")
     assert all(v is None for v in J.A.REVIEWED_CANDIDATE_PROOFS.values())
+
+
+@pytest.mark.parametrize("wrong_path", ["docs/CONTINUATION.md", "scripts/wealth_floor_baseline_audit_job.py",
+    "docs/experiments/wealth-floor-baseline-audit-job.yml.inactive", ".github/workflows/other.yml"])
+def test_dormant_push_paths_exclude_unrelated_changes(wrong_path):
+    template=Path(__file__).parents[1]/"docs/experiments/wealth-floor-baseline-audit-job.yml.inactive"
+    line=next(line.strip() for line in template.read_text().splitlines() if line.strip().startswith("paths:"))
+    paths=[value.strip().strip("'\"") for value in line.partition("[")[2].rpartition("]")[0].split(",")]
+    assert paths==[J.WORKFLOW_PATH]
+    assert fnmatchcase(J.WORKFLOW_PATH,paths[0])
+    assert not any(fnmatchcase(wrong_path,pattern) for pattern in paths)
 
 
 @pytest.mark.parametrize("field,value", [("id",True),("name","other"),("size_in_bytes",0),
@@ -386,6 +399,7 @@ def synthetic_job(tmp_path,monkeypatch):
     monkeypatch.setattr(J.A,"OLD_COMPARISON",comparison_sha)
     resources=[]
     monkeypatch.setattr(J.A,"_resources",lambda path,admission=False:resources.append(admission) or dict(fixture=True))
+    monkeypatch.setattr(J.D,"hosted_vm_precondition",lambda:dict(fixture_only=True,scope="injected; no actual probe"))
     monkeypatch.setattr(J,"hard_wall",lambda seconds:nullcontext())
     requests=[]
     class FixtureClient:
@@ -418,10 +432,14 @@ def test_complete_synthetic_job_streams_both_cohorts_and_preserves_same_audit_bu
     assert result["status"]=="audit_complete_pending_job" and result["candidate_worlds_enabled"] is False
     receipt=json.loads((root/"publication/baseline-audit.json").read_text())
     summary=json.loads((root/"publication/controller.json").read_text())
+    sources=json.loads((root/"publication/sources.json").read_text())
     assert set(receipt["archives"])=={"template","procedural"}
     assert all(r["historical_role"].endswith("-candidate") and r["prospective_role"]=="baseline" for r in receipt["roles"].values())
     assert receipt["producer"]==dict(control_sha="1"*40,run_id=7,job_id=8)
     assert summary["receipt_sha256"]==result["receipt_sha256"]
+    assert sources["before"]==sources["after"] and sources["identical"] is True and len(sources["before"])==4
+    assert result["final_observation"]["source_snapshots_match"] is True
+    assert result["final_observation"]["source_snapshot_sha256"]==hashlib.sha256(J.A.json_bytes(sources["before"])).hexdigest()
     assert len([url for url in requests if url.endswith("/zip")])==5
     assert len(list((root/"archives").iterdir()))==5
     assert True in resources and False in resources
@@ -492,3 +510,47 @@ def test_budget_crossing_after_read_still_retains_received_count():
     with pytest.raises(J.A.AdmissionError) as error:c.metadata(c.current_run)
     row=c.progress.refusal(error.value)
     assert row["http_status"]==200 and row["response_bytes_received"]==8 and row["reason"]=="budget_exceeded"
+
+
+@pytest.mark.parametrize("changed_snapshot",[2,3])
+def test_source_drift_during_audit_or_finalization_refuses(synthetic_job,monkeypatch,changed_snapshot):
+    root,resources,requests=synthetic_job;original=J.source_pins;calls=[]
+    def drift(budget):
+        result=original(budget);calls.append(True)
+        if len(calls)==changed_snapshot:
+            result["scripts/wealth_floor_baseline_audit_job.py"]={"bytes":1,"sha256":"0"*64}
+        return result
+    monkeypatch.setattr(J,"source_pins",drift)
+    with pytest.raises(J.A.AdmissionError,match="script bytes changed"):
+        J.run_job(root,token="fake-only",control_sha="1"*40,run_id=7,attempt=1)
+    assert len(calls)==changed_snapshot
+    # Even an existing informational receipt cannot qualify a failed producer.
+    assert (root/"publication/baseline-audit.json").exists()
+    if changed_snapshot==2:assert not (root/"publication/controller.json").exists()
+
+
+def test_final_observation_follows_last_heavy_verification(synthetic_job,monkeypatch):
+    root,resources,requests=synthetic_job;events=[];source=J.source_pins;inventory=J.publication_inventory
+    def sources(budget):events.append("source");return source(budget)
+    def inventoried(*a,**k):events.append("inventory");return inventory(*a,**k)
+    monkeypatch.setattr(J,"source_pins",sources);monkeypatch.setattr(J,"publication_inventory",inventoried)
+    result=J.run_job(root,token="fake-only",control_sha="1"*40,run_id=7,attempt=1)
+    assert events==["source","source","inventory","inventory","source"]
+    snapshot=json.loads((root/"publication/final-charge.json").read_text())
+    assert "before final full publication rehash" in snapshot["snapshot_scope"]
+    assert "After final publication rehash" in result["final_observation"]["scope"]
+    assert all(result["final_observation"]["audit"][field]>=snapshot["audit_after_controller_fsync"][field]
+               for field in ("cpu_seconds","wall_seconds"))
+
+
+def test_unsupported_deployment_refuses_before_resources_source_or_transport(synthetic_job,monkeypatch):
+    root,resources,requests=synthetic_job
+    def unsupported():raise J.D.DeploymentRefused("fixture namespace mismatch")
+    def forbidden(*a,**k):pytest.fail("unsupported deployment reached resource/source/network IO")
+    monkeypatch.setattr(J.D,"hosted_vm_precondition",unsupported)
+    monkeypatch.setattr(J.A,"_resources",forbidden);monkeypatch.setattr(J,"source_pins",forbidden)
+    monkeypatch.setattr(J,"OfficialClient",forbidden)
+    with pytest.raises(J.D.DeploymentRefused) as error:
+        J.run_job(root,token="fake-only",control_sha="1"*40,run_id=7,attempt=1)
+    assert J.Progress().refusal(error.value)["reason"]=="deployment_refused"
+    assert requests==[] and not root.exists()

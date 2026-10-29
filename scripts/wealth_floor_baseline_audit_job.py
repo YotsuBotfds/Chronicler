@@ -25,8 +25,10 @@ import zipfile
 
 try:
     import wealth_floor_baseline_admission as A
+    import wealth_floor_hosted_deployment as D
 except ImportError:
     from scripts import wealth_floor_baseline_admission as A
+    from scripts import wealth_floor_hosted_deployment as D
 
 API = "https://api.github.com/repos/YotsuBotfds/Chronicler"
 REPOSITORY_ID = 1187468861
@@ -38,6 +40,7 @@ MAX_API = 1024 * 1024
 MAX_AUTHORITY = 128 * A.BLOCK_BYTES
 MAX_PUBLICATION = 192 * A.BLOCK_BYTES
 RESOURCE_SOURCE = "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+DEPLOYMENT_SOURCE = "ef872aced881b89d7bde8efbc0687134ae731916a9c2a233c368c1c22b11e085"
 
 
 class JobRefused(A.AdmissionError):
@@ -78,7 +81,7 @@ class Progress:
     """Bounded negative evidence; never stores response text, URLs or headers."""
     STAGES = frozenset(("admission", "old-run", "producer", "input-metadata", "download", "authority", "prepare", "audit", "finalization"))
     REASONS = frozenset(("contract_refused", "http_refused", "transport_failed", "deadline_exceeded",
-                         "budget_exceeded", "resource_refused", "digest_refused", "filesystem_refused", "unexpected_exception"))
+                         "budget_exceeded", "resource_refused", "deployment_refused", "digest_refused", "filesystem_refused", "unexpected_exception"))
     def __init__(self):
         self.select("admission")
     def select(self, stage, key=None):
@@ -93,6 +96,7 @@ class Progress:
     def refusal(self, exc):
         reason = "unexpected_exception"
         if isinstance(exc, JobRefused): reason = exc.reason if exc.reason in self.REASONS else "contract_refused"
+        elif isinstance(exc, D.DeploymentRefused): reason = "deployment_refused"
         elif isinstance(exc, A.AdmissionError):
             reason = {"transport CPU/wall budget exceeded": "budget_exceeded",
                 "overall controller wall budget exceeded": "budget_exceeded", "audit CPU/wall budget exceeded": "budget_exceeded",
@@ -434,10 +438,12 @@ def stage_selected(path, pin, expected, destinations, budget, *, closed):
 def source_pins(budget):
     root = Path(__file__).absolute().parent
     result = {}
-    for name in ("wealth_floor_baseline_audit_job.py", "wealth_floor_baseline_admission.py", "wealth_floor_build_resources.py"):
+    for name in ("wealth_floor_baseline_audit_job.py", "wealth_floor_baseline_admission.py", "wealth_floor_build_resources.py",
+                 "wealth_floor_hosted_deployment.py"):
         raw = A.bounded_read(root / name, A.BLOCK_BYTES, budget)
         result["scripts/" + name] = dict(bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest())
     A.require(result["scripts/wealth_floor_build_resources.py"]["sha256"] == RESOURCE_SOURCE, "shared resource helper differs")
+    A.require(result["scripts/wealth_floor_hosted_deployment.py"]["sha256"] == DEPLOYMENT_SOURCE, "shared deployment helper differs")
     return result
 
 
@@ -492,9 +498,12 @@ def _run_job(root, *, token, control_sha, run_id, attempt, progress):
 
 def _run_stages(root, *, token, control_sha, run_id, attempt, overall, transport, transport_deadline, progress):
     root = Path(root).absolute()
+    deployment = D.hosted_vm_precondition()
+    transport.check()
     initial_resources = A._resources(root.parent, admission=True)
     transport.floor_probe = lambda: A._resources(root.parent)
     transport.check()
+    sources_before = source_pins(transport)
     fresh_directory(root, transport)
     for name in ("archives", "publication", "publication/authority", "publication/authority/template",
                  "publication/authority/template/report", "publication/authority/procedural", "publication/authority/procedural/report"):
@@ -544,9 +553,7 @@ def _run_stages(root, *, token, control_sha, run_id, attempt, overall, transport
         progress.select("input-metadata", key)
         A.require(validate_input_publication(client.metadata(artifact_endpoint(pin)), pin, datetime.now(timezone.utc)) == before[key],
                   "publication changed before audit")
-    sources = source_pins(transport)
     progress.select("finalization")
-    save_bytes(publication / "sources.json", A.json_bytes(sources), transport)
     save_bytes(publication / "producer.json", A.json_bytes(producer), transport)
     save_bytes(publication / "official-inputs.json", A.json_bytes(dict(before=before, after=after, downloads=downloads,
         original_run=dict(before=old_before, after=old_after))), transport)
@@ -555,10 +562,12 @@ def _run_stages(root, *, token, control_sha, run_id, attempt, overall, transport
     with ExitStack() as audit_deadline:
         audit_deadline.enter_context(hard_wall(1800))
         return _audit_staged(publication, authority, archives, producer, before, control_sha, run_id,
-                             transfer_charge, overall, dict(admission=initial_resources, transport_last=transport.resources), progress)
+                             transfer_charge, overall, dict(admission=initial_resources, transport_last=transport.resources), progress,
+                             sources_before, deployment)
 
 
-def _audit_staged(publication, authority, archives, producer, before, control_sha, run_id, transfer_charge, overall, resource_observations, progress):
+def _audit_staged(publication, authority, archives, producer, before, control_sha, run_id, transfer_charge, overall, resource_observations, progress,
+                  sources_before, deployment):
     budget = AuditBudget(overall)
     progress.select("prepare")
     plan = A.prepare_baseline_plan(authority / "comparison.json", {world: authority / world for world in A.ARCHIVES}, budget)
@@ -567,11 +576,20 @@ def _audit_staged(publication, authority, archives, producer, before, control_sh
         {world: before[world + "-raw"] for world in A.ARCHIVES}, publication / "baseline-audit.json",
         control_sha=control_sha, run_id=run_id, job_id=producer["job_id"], budget=budget)
     progress.select("finalization")
+    sources_after = source_pins(budget)
+    A.require(sources_after == sources_before, "script bytes changed during transfer/audit")
+    save_bytes(publication / "sources.json", A.json_bytes(dict(before=sources_before, after=sources_after, identical=True,
+        scope="Disk snapshots before any transfer and after both raw audits; not an in-memory code attestation.")), budget)
     names = {"authority/" + n for n in AUTHORITY_NAMES} | (GENERATED_NAMES - {"controller.json", "final-charge.json"})
     inventory = publication_inventory(publication, names, budget)
     summary = dict(schema_version=1, status="audit_complete_pending_job", producer=producer,
         receipt_sha256=audited["receipt_sha256"], transport=transfer_charge, audit=budget.check(), overall_wall_seconds=overall.check(),
         resources={**resource_observations, "audit_last": budget.resources},
+        deployment=dict(observation=deployment, accepted_proc_text_max_bytes=128, proc_text_read_max_bytes=129,
+          accepted_namespace_text_max_bytes=128,
+          required_github_actions="true", required_runner_environment="github-hosted", required_pid1="systemd", require_matching_cgroup_namespaces=True),
+        resource_limits=dict(admission_disk_free_bytes=12*1024**3, admission_ram_available_bytes=2*1024**3,
+                             running_disk_floor_bytes=3*1024**3, running_ram_floor_bytes=1024**3),
         interpreter=dict(version=sys.version, implementation=sys.implementation.name, platform=sys.platform),
         files=inventory, clocks=dict(transport_wall_limit=1200, transport_process_cpu_limit=300,
           audit_wall_limit=1800, audit_process_cpu_limit=900, overall_wall_limit=3300, github_job_timeout_minutes=60),
@@ -581,10 +599,18 @@ def _audit_staged(publication, authority, archives, producer, before, control_sh
         candidate_worlds_enabled=False, authority="Pending exact receipt digest, successful completed producer and verified audit-artifact publication.")
     save_bytes(publication / "controller.json", A.json_bytes(summary), budget)
     save_bytes(publication / "final-charge.json", A.json_bytes(dict(status="pending_completed_job", receipt_sha256=audited["receipt_sha256"],
+        snapshot_scope="After controller fsync; before final full publication rehash and final source recheck; not an end-to-end CPU total.",
         audit_after_controller_fsync=budget.check(), overall_wall_seconds=overall.check())), budget)
     publication_inventory(publication, {"authority/" + n for n in AUTHORITY_NAMES} | GENERATED_NAMES, budget)
+    final_sources = source_pins(budget)
+    A.require(final_sources == sources_before, "script bytes changed during finalization")
+    source_snapshot_digest = hashlib.sha256(A.json_bytes(final_sources)).hexdigest()
+    final_observation = dict(scope="After final publication rehash and source recheck; before stdout serialization and job publication/completion.",
+                             audit=budget.check(), overall_wall_seconds=overall.check(), source_snapshots_match=True,
+                             source_snapshot_sha256=source_snapshot_digest)
     budget.check(); overall.check()
-    return dict(status="audit_complete_pending_job", receipt_sha256=audited["receipt_sha256"], candidate_worlds_enabled=False)
+    return dict(status="audit_complete_pending_job", receipt_sha256=audited["receipt_sha256"], candidate_worlds_enabled=False,
+                final_observation=final_observation)
 
 
 def main(argv=None):
