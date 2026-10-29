@@ -1,0 +1,173 @@
+name: Fresh natural practice study CBF
+
+on:
+  push:
+    branches:
+      - lead/cloud-fresh-practice-study-cbf-20261029
+    paths:
+      - .github/workflows/research-practice-fresh-study-cbf.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: fresh-practice-study-cbf-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONNOUSERSITE: "1"
+  PYTHONHASHSEED: "0"
+  PYTHON_CPU_COUNT: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_THREAD_TIMEOUT: "16"
+  MKL_NUM_THREADS: "1"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  GOTO_NUM_THREADS: "1"
+  RAYON_NUM_THREADS: "1"
+
+jobs:
+  natural-study:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-fresh-practice-study-cbf-20261029' && github.run_attempt == 1 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out reviewed study controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out exact qualified cbf producer separately
+        uses: actions/checkout@v4
+        with:
+          ref: cbf6e368ebd218c1f54179bee4accffc1ab2a4c0
+          path: producer
+          persist-credentials: false
+      - name: Set up exact Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+      - name: Define external paths and one actual affinity CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/practice-study-env" >> "$GITHUB_ENV"
+          echo "STUDY_EVIDENCE=$RUNNER_TEMP/practice-study-evidence" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          with Path(os.environ["GITHUB_ENV"]).open("a") as stream:
+              stream.write(f"STUDY_CPU={min(os.sched_getaffinity(0))}\n")
+          PY
+      - name: Install only locked Python dependencies without native builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install --only-binary=:all: uv==0.12.23
+          uv lock --project producer --check
+          uv sync --project producer --frozen --no-install-project --no-build --python "$(command -v python)"
+      - name: Guard pure study and control contracts before native installation
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/practice-study-contracts/guard.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/practice-study-contracts"
+          export PYTHONPATH="$GITHUB_WORKSPACE/control/src:$GITHUB_WORKSPACE/control:$GITHUB_WORKSPACE/control/scripts/testing"
+          timeout --signal=KILL 110s taskset -c "$STUDY_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -B -m pytest -q \
+            --noconftest -o pythonpath= -p python_oracle_guard -p no:cacheprovider \
+            --basetemp "$RUNNER_TEMP/practice-study-contracts/pytest" \
+            --junitxml="$RUNNER_TEMP/practice-study-contracts/junit.xml" \
+            control/tests/test_practice_growth_observer.py \
+            control/tests/test_practice_observer_runner.py \
+            control/tests/test_research_practice_recorder.py \
+            control/tests/test_research_practice_adapter.py \
+            control/tests/test_research_practice_controls.py \
+            control/tests/test_research_practice_trace_reader.py \
+            control/tests/test_research_practice_wheel.py \
+            control/tests/test_research_practice_cp60_proof.py \
+            control/tests/test_research_practice_fresh_study.py
+      - name: Verify one official completed cbf wheel without importing it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$STUDY_CPU" python -B control/scripts/fetch_research_practice_wheel.py \
+            --source-root "$GITHUB_WORKSPACE/producer" --output-root "$RUNNER_TEMP/practice-study-wheel"
+      - name: Install only verified wheel without dependency changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" --no-deps \
+            "$RUNNER_TEMP/practice-study-wheel/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl"
+      - name: Observe actual three schemas and freeze exact identity before any World
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$STUDY_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -B control/scripts/run_research_practice_cp60_proof.py freeze \
+            --source-root "$GITHUB_WORKSPACE/producer" --freeze "$RUNNER_TEMP/practice-study-freeze.json" \
+            --wheel-receipt "$RUNNER_TEMP/practice-study-wheel/verification.json"
+      - name: Fixed eight-seed parent180 and CP60 active pause continuations
+        id: study
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$STUDY_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -B control/scripts/run_research_practice_continuation.py run \
+            --source-root "$GITHUB_WORKSPACE/producer" --freeze "$RUNNER_TEMP/practice-study-freeze.json" \
+            --wheel-receipt "$RUNNER_TEMP/practice-study-wheel/verification.json" \
+            --runtime-policy cloud-cbf-3ee --output-root "$STUDY_EVIDENCE"
+      - name: Detached strict readout without checkpoint Python decoding
+        if: ${{ !cancelled() && (steps.study.outcome == 'success' || steps.study.outcome == 'failure') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$STUDY_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -B control/scripts/read_research_practice_continuation.py \
+            --source-root "$GITHUB_WORKSPACE/producer" --evidence-root "$STUDY_EVIDENCE" \
+            --runtime-policy cloud-cbf-3ee --output-root "$RUNNER_TEMP/practice-study-readout"
+      - name: Retain separate readout and provenance before raw publication
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-practice-study-readout-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/practice-study-readout/readout.json
+            ${{ runner.temp }}/practice-study-readout/readout.md
+            ${{ runner.temp }}/practice-study-readout/receipt.json
+            ${{ runner.temp }}/practice-study-readout/completion.json
+            ${{ runner.temp }}/practice-study-evidence/execution.json
+            ${{ runner.temp }}/practice-study-evidence/execution-receipt.json
+            ${{ runner.temp }}/practice-study-evidence/admission.json
+            ${{ runner.temp }}/practice-study-contracts/guard.json
+            ${{ runner.temp }}/practice-study-contracts/junit.xml
+            ${{ runner.temp }}/practice-study-freeze.json
+            ${{ runner.temp }}/proof-metadata-observation.json
+            ${{ runner.temp }}/practice-study-wheel/verification.json
+            ${{ runner.temp }}/practice-study-wheel/failure.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain original study outputs and every negative stage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-practice-study-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/practice-study-evidence/
+            ${{ runner.temp }}/practice-study-readout/
+            ${{ runner.temp }}/practice-study-contracts/guard.json
+            ${{ runner.temp }}/practice-study-contracts/junit.xml
+            ${{ runner.temp }}/practice-study-freeze.json
+            ${{ runner.temp }}/proof-metadata-observation.json
+            ${{ runner.temp }}/practice-study-wheel/verification.json
+            ${{ runner.temp }}/practice-study-wheel/failure.json
+            ${{ runner.temp }}/practice-study-wheel/build-manifest.json
+            ${{ runner.temp }}/practice-study-wheel/producer-metadata.json
+          if-no-files-found: error
+          retention-days: 30
