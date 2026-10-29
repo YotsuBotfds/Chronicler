@@ -421,3 +421,16 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## 2026-10-29: unwired checkpoint metadata successor
+
+New `wealth_floor_outcome_checkpoints_v2.py` preserves original K34 and changes
+only civilization metadata interpretation: exact saved initial count, strict
+current record count and the exact source503 native-supported capacity. Its
+version/scope and actual ffi_constants.py SHA61adb are explicit; the old plan's
+misattributed bridge_contract digest is corrected in a preserved erratum.
+58 tiny dictionary contracts passed; no driver, source binder, workflow, original
+proof slots or scientific code is changed. See the dated experiment note.
+This is metadata eligibility only, with no decoded-state/native coherence, World,
+parent/checkpoint reuse or recovery grant. Original failed33d stays incomplete.
