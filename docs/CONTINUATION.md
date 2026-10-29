@@ -18,6 +18,14 @@ pause/archive lineage, and preserves full raw bundle differences. Python/NumPy
 module globals use common external initialization; their checkpoint restoration
 is not claimed. The original integration and frozen worktrees remain untouched.
 
+October 29 result: the registered proof at `9aa63764` completed all six
+workers and 62 physics ticks but **failed strict bundle equality** on relationship
+statistic key order. The immutable result and independent 170-file verification
+are in [the failed-proof readout](integration/research-native-composition-9aa63764-2026-10-29.md).
+A separate source repair canonicalizes newly collected relationship-stat keys
+only behind the existing explicit collection flag. Eight focused tests pass;
+its native proof is pending. The original failure is neither waived nor rerun.
+
 The later lead branch's source-qualified work is indexed in
 [the October 28 expansion record](integration/expansion-development-2026-10-28.md).
 The separate [parent-extra archive tool](integration/parent-extra-archive.md)

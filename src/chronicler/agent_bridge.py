@@ -1487,7 +1487,9 @@ class AgentBridge:
         if self._collect_rel_stats:
             try:
                 stats = self._sim.get_relationship_stats()
-                self._relationship_stats_history.append(stats)
+                # Rust returns a fresh HashMap; its iteration is not export
+                # order, including after native checkpoint restoration.
+                self._relationship_stats_history.append(dict(sorted(stats.items())))
             except Exception:
                 logger.exception("Failed to collect relationship stats from Rust tick")
 
