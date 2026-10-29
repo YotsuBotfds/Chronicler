@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+A separate [source-only production-runtime primer](experiments/wealth-floor-production-primer-2026-10-29.md)
+starts from frozen40db with P13239/C60bb/Bcb87/R44/D2/A9de unchanged. Its fixed
+seed42 matrix registers13 late candidate-owned checkpoints,15 continuation
+executions/2,297 ticks, plus two genuine200T repeat pairs with explicit parallel2:
+19 executions/3,097 ticks total. The future scientific parent must observe actual
+two-CPU affinity, logical2 and caps1. It reuses root-sealed926's old-wheel negative
+without relabelling926's observed four-CPU runtime. Exact build/bootstrap authority
+and fresh official origin/expiry are prerequisites. The workflow remains dormant
+outside `.github`; no new native/world/download or host probe has run. Separate
+source review/activation is required and final A outcome pins remain null.
+
 Root cleared prepared source3271bb91 and independent peer7273c46e for one
 separate small candidate bootstrap on the registered activation branch. The
 actual workflow is the exact e1506e62 template copy; scripts, inputs, kernels,
