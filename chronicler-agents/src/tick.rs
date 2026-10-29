@@ -2397,7 +2397,8 @@ mod tests {
         for slot in 0..pool.capacity() {
             if pool.is_alive(slot) && slot != 5 {
                 let index = slot * OCCUPATION_COUNT + old_occupations[slot] as usize;
-                expected[index] = (expected[index] + SKILL_GROWTH_PER_TURN).min(SKILL_MAX);
+                expected[index] = (expected[index] + crate::agent::SKILL_GROWTH_PER_TURN)
+                    .min(crate::agent::SKILL_MAX);
                 expected_progress[slot] = if expected[index] > crate::agent::PROMOTION_SKILL_THRESHOLD {
                     expected_progress[slot].saturating_add(1)
                 } else { 0 };
