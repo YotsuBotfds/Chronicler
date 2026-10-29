@@ -9,6 +9,14 @@ Eighty guarded fake/Arrow cases passed; seven compiled bridge cases are
 authored but remain unrun pending one fresh combined remote CI. No Rust source,
 physical decisions, writer, callback, CLI or scientific gate changed.
 
+Separate CI tooling at `lead/ci-native-wheel-retention-20261029` prepares
+retention of the release wheel already built by the native job, linked to
+installed native bytes and a source receipt. [The scope](performance/ci-native-wheel-retention-2026-10-29.md)
+keeps full tests and no-Rust isolation intact, with no automatic reuse grant.
+Twenty-seven guarded contracts pass; actual publication awaits consolidated
+candidate CI. No local native build or world is included.
+
+
 An isolated [native diagnostics/index integration candidate](integration/native-diagnostics-index-integration-2026-10-29.md)
 starts from qualified Stage 2 `feb98c0d`, preserving its ref and Stage 1 `e99`.
 It cherry-picks only reviewed index commits `c60fde97`/`e2b7c940`, retaining

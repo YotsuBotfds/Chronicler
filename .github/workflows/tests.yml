@@ -185,6 +185,7 @@ jobs:
           import json
           import os
           from pathlib import Path
+          import runpy
           import sys
           import chronicler_agents as ca
           import pytest
@@ -209,6 +210,15 @@ jobs:
               "sha256": hashlib.sha256(Path(origin).read_bytes()).hexdigest(),
               "classes": ["AgentSimulator", "EcologySimulator", "PoliticsSimulator"],
           }, indent=2) + "\n", encoding="utf-8")
+          # Retain this exact wheel for later inspection or explicitly qualified reuse.
+          # Its native member must match the compiled module already checked above.
+          record_wheel = runpy.run_path("scripts/native_wheel_receipt.py")["wheel_receipt"]
+          build_receipt = record_wheel(Path("chronicler-agents/target/wheels"), Path(origin), os.environ["GITHUB_SHA"])
+          build_receipt["python"] = sys.version
+          build_receipt["classes"] = ["AgentSimulator", "EcologySimulator", "PoliticsSimulator"]
+          wheel_evidence = Path("ci-native-wheel")
+          wheel_evidence.mkdir(exist_ok=True)
+          (wheel_evidence / "manifest.json").write_text(json.dumps(build_receipt, indent=2) + "\n", encoding="utf-8")
           raise SystemExit(pytest.main(["-q", "--junitxml=ci-evidence/native.xml"]))
           PY
 
@@ -218,6 +228,17 @@ jobs:
         with:
           name: python-native-${{ github.sha }}
           path: ci-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Retain the identified native wheel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-wheel-${{ github.sha }}
+          path: |
+            ci-native-wheel/manifest.json
+            chronicler-agents/target/wheels/*.whl
           if-no-files-found: warn
           retention-days: 14
 
