@@ -437,3 +437,9 @@ See `docs/experiments/wealth-floor-checkpoint-header-diagnostic-2026-10-29.md`
 for exact source/pure scope and `docs/workflows/wealth-floor-checkpoint-header-diagnostic.yml`
 for the dormant future workflow. Original cohort status remains INCOMPLETE_MECHANICS;
 the offending compound-predicate operand is still unobserved.
+
+The pending header source now also checks the immutable all-source/original
+expiry cutoff immediately before and after completion sealing. Six affected
+synthetic contracts passed; the preserved 9de source and its qualification remain
+separate. Own registration and all A/W full authority slots remain NULL. No
+archive acquisition, operand observation or scientific recovery has occurred.

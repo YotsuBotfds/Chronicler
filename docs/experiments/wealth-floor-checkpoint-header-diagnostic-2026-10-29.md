@@ -63,3 +63,22 @@ The initial tiny test draft was authored by a separate agent, which is therefore
 not an independent reviewer of this header implementation. Runtime source,
 subsequent wiring tests and source registration remain owned by the build lane.
 A separate non-author source peer and root must review before registration.
+
+A separate source-only retention correction preserves the original 9de source
+and its 59-case scoped union. Finalization now recomputes the immutable earliest
+cutoff across all ten original source artifacts and the original nested cutoff
+immediately before writing completion and after the final source/deadline checks.
+The before-seal observation is bound into completion; the after-seal observation
+is included in terminal output. Both must remain earlier than the cutoff. An
+expiry after sealing enters the unchanged legacy failure handler, which removes
+the completion seal and writes a negative receipt. Final producer SUCCESS and
+consumer verification remain necessary; the local UTC check grants no new origin
+observation, transfer, physics or recovery authority.
+
+Six affected pure contracts passed in 0.33 seconds on their first execution,
+including synthetic expiry before/after the exact AST-selected terminal block,
+the original cutoff earlier than both CP archives, an earlier non-CP artifact
+expiry and the existing negative cleanup contract. The production setup, host
+probes, credentials, network and archive reads were excluded. The 1,347-byte toy
+fixture tree contained no real checkpoint body. The combined final 64-case suite
+was not rerun. Old source helpers, policies, caps and dormant workflow are exact.

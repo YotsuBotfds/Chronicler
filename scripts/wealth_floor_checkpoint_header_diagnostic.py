@@ -436,6 +436,19 @@ def current_producer(client, run_id, source):
     return dict(run_id=run_id, attempt=1, job_id=job['id'], source=source, branch=BRANCH, workflow=WORKFLOW)
 
 
+def immutable_retention(pins, *, now=None):
+    """Recheck source-owned expiries without extending the original cutoff."""
+    A.require(type(pins) is list and len(pins) == 10
+        and all(type(p) is dict and type(p.get('id')) is int for p in pins)
+        and len({p['id'] for p in pins}) == 10, 'ten immutable expiry inputs')
+    cutoff = min(W.strict_utc(L.ORIGINAL_CUTOFF), *(W.strict_utc(p.get('expires_at')) for p in pins))
+    now = datetime.now(timezone.utc) if now is None else now
+    A.require(isinstance(now, datetime) and now.tzinfo is not None and now < cutoff,
+        'immutable original retention expired at finalization')
+    return dict(checked_at=now.astimezone(timezone.utc).isoformat(), source_artifact_count=10,
+        effective_earliest_expires_at=cutoff.strftime('%Y-%m-%dT%H:%M:%SZ'), original_retention_extended=False)
+
+
 def execute():
     registration()  # First: no credential/path/resource/ZIP work while pending.
     resource.setrlimit(resource.RLIMIT_CPU, (1200,1200)); resource.setrlimit(resource.RLIMIT_AS, (2*1024**3,2*1024**3))
@@ -509,12 +522,16 @@ def execute():
                     native_or_World_executed=False, full_payload_or_physics_qualification=False,
                     original_current_identity_scope='Not independently serialized; last-valid captured header is an explicit comparison reference.')
                 row = output.save('diagnostic.json',report,audit)
+                retention_before_completion = immutable_retention(public['artifacts'])
                 output.save('completion.json',dict(header_observations_complete=True, report=row, files=dict(output.rows),
-                    total_bytes=output.total, completed_producer_required=True, physics_qualification=False),audit)
+                    total_bytes=output.total, completed_producer_required=True, physics_qualification=False,
+                    retention_before_completion=retention_before_completion),audit)
                 A.require(A.json_bytes(source_snapshot(control,audit)) == A.json_bytes(sources_after),'late header source drift')
                 overall.check(); audit.check()
+                retention_after_completion = immutable_retention(public['artifacts'])
                 print(A.json_bytes(dict(status='HEADER_OBSERVATIONS_PENDING_COMPLETED_JOB',report_sha256=row['sha256'],
-                    completion_sha256=output.rows['completion.json']['sha256'],worlds=False)).decode(),end='')
+                    completion_sha256=output.rows['completion.json']['sha256'],
+                    retention_after_completion=retention_after_completion,worlds=False)).decode(),end='')
                 return 0
     except BaseException as exc:
         if root is not None:

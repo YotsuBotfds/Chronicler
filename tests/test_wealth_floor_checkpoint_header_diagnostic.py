@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ast
+import copy
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import io
@@ -485,3 +487,97 @@ def test_dormant_template_and_pending_source_are_separately_bound(reader):
     assert all(v is None for v in reader.A.REVIEWED_CANDIDATE_PROOFS.values())
     assert all(getattr(reader.W, k) is None for k in ("REVIEWED_OUTPUTS", "REVIEWED_CLOSURES", "REVIEWED_OUTCOMES",
         "REVIEWED_RESOURCE_POLICY", "REVIEWED_COMPLETION"))
+
+
+def actual_source_artifacts(reader):
+    return json.loads((SCRIPTS.parent / reader.OLD_PUBLICATIONS).read_bytes())["artifacts"]
+
+
+def test_final_retention_uses_original_cutoff_before_both_cp_expiries(reader):
+    artifacts = actual_source_artifacts(reader)
+    cutoff = reader.W.strict_utc(reader.L.ORIGINAL_CUTOFF)
+    cp_expiries = [reader.W.strict_utc(p["expires_at"]) for p in artifacts if p["id"] in (12892774650, 12894081792)]
+    assert len(cp_expiries) == 2 and cutoff < min(cp_expiries)
+    before = reader.immutable_retention(artifacts, now=cutoff - timedelta(microseconds=1))
+    assert before["effective_earliest_expires_at"] == reader.L.ORIGINAL_CUTOFF
+    assert before["source_artifact_count"] == 10 and before["original_retention_extended"] is False
+    with pytest.raises(reader.A.AdmissionError): reader.immutable_retention(artifacts, now=cutoff)
+
+
+def test_final_retention_includes_non_cp_source_expiry(reader):
+    artifacts = actual_source_artifacts(reader)
+    unrelated = next(p for p in artifacts if p["id"] not in (12892774650, 12894081792))
+    unrelated["expires_at"] = "2026-11-27T23:59:59Z"
+    cutoff = reader.W.strict_utc(unrelated["expires_at"])
+    result = reader.immutable_retention(artifacts, now=cutoff - timedelta(seconds=1))
+    assert result["effective_earliest_expires_at"] == unrelated["expires_at"]
+    with pytest.raises(reader.A.AdmissionError): reader.immutable_retention(artifacts, now=cutoff)
+
+
+@pytest.mark.parametrize("timing", ["before_seal", "after_seal", "unexpired"])
+def test_exact_terminal_block_expiry_preserves_negative_first_failure(reader, tmp_path, monkeypatch, timing):
+    """Execute only the real seal block/outer failure handler, with injected clocks.
+
+    AST selection excludes all setup, credentials, host probes, transport and CP
+    reads. Source/CPU checks are tiny stubs; durable outputs and invalidation use
+    the unchanged real legacy helper. No CLI/controller setup is invoked.
+    """
+    artifacts = actual_source_artifacts(reader)
+    cutoff = reader.W.strict_utc(reader.L.ORIGINAL_CUTOFF)
+    instants = iter({"before_seal": [cutoff], "after_seal": [cutoff - timedelta(seconds=1), cutoff],
+        "unexpired": [cutoff - timedelta(seconds=2), cutoff - timedelta(seconds=1)]}[timing])
+    events = []; immutable = reader.immutable_retention
+    def retention(pins):
+        events.append("retention")
+        return immutable(pins, now=next(instants))
+    monkeypatch.setattr(reader, "immutable_retention", retention)
+    root = tmp_path / "reader"; (root / "diagnostic").mkdir(parents=True)
+    output = reader.L.Outputs(root / "diagnostic")
+    output.save("template-last_valid-header.json", b'{"fixture":"preserve"}\n', Budget(), raw=True)
+    original_save = output.save
+    def save(name, *args, **kwargs):
+        events.append(name)
+        return original_save(name, *args, **kwargs)
+    monkeypatch.setattr(output, "save", save)
+    class Clock:
+        def __init__(self, label): self.label = label
+        def check(self): events.append(self.label)
+    def source_snapshot(*args):
+        events.append("source")
+        return {}
+    tree = ast.parse(Path(reader.__file__).read_bytes())
+    execute = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "execute")
+    outer = next(n for n in execute.body if isinstance(n, ast.Try))
+    audit_with = next(n for n in ast.walk(outer) if isinstance(n, ast.With)
+        and any(isinstance(i.context_expr, ast.Call) and isinstance(i.context_expr.func, ast.Attribute)
+            and i.context_expr.func.attr == "hard_wall" and i.context_expr.args
+            and isinstance(i.context_expr.args[0], ast.Constant) and i.context_expr.args[0].value == 1800 for i in n.items))
+    start = next(i for i, n in enumerate(audit_with.body) if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "row" for t in n.targets))
+    seal = copy.deepcopy(audit_with.body[start:])
+    body = ast.Try(body=seal, handlers=copy.deepcopy(outer.handlers), orelse=[], finalbody=[])
+    function = ast.FunctionDef(name="terminal_only", args=ast.arguments(posonlyargs=[], args=[],
+        vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]), body=[body], decorator_list=[], type_params=[])
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    namespace = dict(vars(reader)); printed = []
+    namespace.update(output=output, report={"header_observations_complete": True}, public={"artifacts": artifacts},
+        root=root, audit=Clock("audit"), overall=Clock("overall"), control=tmp_path,
+        sources_after={}, source_snapshot=source_snapshot, print=lambda *a, **k: printed.append(a))
+    exec(compile(module, "<exact-terminal-block-only>", "exec"), namespace)
+    result = namespace["terminal_only"]()
+    assert (root / "diagnostic/template-last_valid-header.json").read_bytes() == b'{"fixture":"preserve"}\n'
+    if timing == "before_seal":
+        assert result == 1 and "completion.json" not in events
+    else:
+        # The late immutable check follows both the final source and both clocks.
+        assert events.index("source") > events.index("completion.json")
+        assert events[-3:] == ["overall", "audit", "retention"]
+    if timing != "unexpired":
+        assert result == 1 and not (root / "diagnostic/completion.json").exists()
+        assert json.loads((root / "diagnostic/failure.json").read_bytes())["diagnostic_complete"] is False
+    else:
+        assert result == 0 and not (root / "diagnostic/failure.json").exists()
+        completion = json.loads((root / "diagnostic/completion.json").read_bytes())
+        assert completion["retention_before_completion"]["effective_earliest_expires_at"] == reader.L.ORIGINAL_CUTOFF
+        terminal = json.loads(printed[-1][0])
+        assert terminal["retention_after_completion"]["effective_earliest_expires_at"] == reader.L.ORIGINAL_CUTOFF
