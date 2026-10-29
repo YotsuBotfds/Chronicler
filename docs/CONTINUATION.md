@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+Root cleared corrected source `6d3d5164` for one separate read-only byte-audit
+activation on `lead/wealth-floor-baseline-audit-activation-2-20261029`. Its
+reviewed dormant template is installed byte-for-byte; scripts, D2/R44 helpers,
+historical archive pins, policies and budgets are unchanged. Final actual-copy
+checks precede the one push. This activation grants no worlds, leaves the
+original `9aae9ab1` failure and unknown cause frozen, and retains D2's denied
+PID1 namespace equality as explicitly unverified. No remote result is claimed
+by this activation note and no real audit or host probe ran locally.
+The final installed workflow passed all 234 guarded checks in 1.26 seconds,
+unfiltered actionlint, source/helper/template invariants and diff checks before
+the one activation push. The guard recorded no native or blocked IO activity.
+
 An [inactive second baseline-audit source](experiments/wealth-floor-baseline-audit-attempt-2-2026-10-29.md)
 registers shared D2's narrow repeated PID1-namespace EACCES13 observation under
 stable hosted context. Denied equality stays explicitly unverified; readable
