@@ -155,11 +155,26 @@ def live_env(tmp_path):
             time.sleep(0.02)
 
         def stop(self):
-            if self.server:
-                self.server.quit_event.set()
-                self.server.stop()
-            if self.thread:
-                self.thread.join(timeout=10)
+            server = self.server
+            if server is None:
+                return
+            # quit_check runs between turns; a paused simulation instead waits
+            # on the command queue. Wake either state before joining its thread.
+            server.quit_event.set()
+            server.command_queue.put({"type": "quit"})
+            try:
+                if self.thread:
+                    self.thread.join(timeout=10)
+                    assert not self.thread.is_alive(), "live fixture left its simulation thread running"
+            finally:
+                try:
+                    if server.thread:
+                        if server.thread.is_alive():
+                            server.stop()
+                        server.thread.join(timeout=10)
+                        assert not server.thread.is_alive(), "live fixture left its server thread running"
+                finally:
+                    self.server = None
 
     env = Env()
     yield env
@@ -260,70 +275,104 @@ async def test_inject_round_trip(live_env):
 
 @pytest.mark.asyncio
 async def test_set_round_trip(live_env):
-    """Set stat at pause, verify ack includes new value."""
+    """Set stat at pause, verify ack, then finish the requested horizon."""
     env = live_env.start(turns=10, pause_every=3)
 
     async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         messages = []
         set_ack = None
+        completed = None
         try:
             while True:
                 raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
                 msg = json.loads(raw)
                 messages.append(msg)
 
-                if msg["type"] == "paused" and set_ack is None:
-                    civ = msg["civs"][0]
-                    await ws.send(json.dumps({"type": "set", "civ": civ, "stat": "military", "value": 9}))
-                    ack_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-                    set_ack = json.loads(ack_raw)
-                    assert set_ack["type"] == "ack"
-                    assert set_ack["command"] == "set"
-                    assert set_ack["still_paused"] is True
-                    assert set_ack["civ"] == civ
-                    assert set_ack["stat"] == "military"
-                    assert set_ack["value"] == 9
+                if msg["type"] == "paused":
+                    if set_ack is None:
+                        civ = msg["civs"][0]
+                        await ws.send(json.dumps({"type": "set", "civ": civ, "stat": "military", "value": 9}))
+                        ack_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                        set_ack = json.loads(ack_raw)
+                        assert set_ack["type"] == "ack"
+                        assert set_ack["command"] == "set"
+                        assert set_ack["still_paused"] is True
+                        assert set_ack["civ"] == civ
+                        assert set_ack["stat"] == "military"
+                        assert set_ack["value"] == 9
+                    # The operation is sent once; every later pause still needs
+                    # continue or the simulation remains blocked at turn six.
                     await ws.send(json.dumps({"type": "continue"}))
 
                 if msg["type"] == "completed":
+                    completed = msg
                     break
         except asyncio.TimeoutError:
-            pass
+            pytest.fail("live set round trip timed out before completion")
 
     assert set_ack is not None
+    assert completed is not None and completed["total_turns"] == 10
 
 
 @pytest.mark.asyncio
 async def test_fork_round_trip(live_env):
-    """Fork at pause, verify response with save_path and cli_hint."""
+    """Fork at pause, verify saved state, then finish the requested horizon."""
     env = live_env.start(turns=10, pause_every=3)
 
     async with ws_client.connect(env.server.ws_url()) as ws:
         env.launch_sim()
         forked_msg = None
+        completed = None
         try:
             while True:
                 raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
                 msg = json.loads(raw)
 
-                if msg["type"] == "paused" and forked_msg is None:
-                    await ws.send(json.dumps({"type": "fork"}))
-                    fork_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-                    forked_msg = json.loads(fork_raw)
-                    assert forked_msg["type"] == "forked"
-                    assert "save_path" in forked_msg
-                    assert "cli_hint" in forked_msg
-                    assert Path(forked_msg["save_path"]).exists()
-                    assert (Path(forked_msg["save_path"]) / "state.json").exists()
+                if msg["type"] == "paused":
+                    if forked_msg is None:
+                        await ws.send(json.dumps({"type": "fork"}))
+                        fork_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                        forked_msg = json.loads(fork_raw)
+                        assert forked_msg["type"] == "forked"
+                        assert "save_path" in forked_msg
+                        assert "cli_hint" in forked_msg
+                        assert Path(forked_msg["save_path"]).exists()
+                        assert (Path(forked_msg["save_path"]) / "state.json").exists()
                     await ws.send(json.dumps({"type": "continue"}))
 
                 if msg["type"] == "completed":
+                    completed = msg
                     break
         except asyncio.TimeoutError:
-            pass
+            pytest.fail("live fork round trip timed out before completion")
 
     assert forked_msg is not None
+    assert completed is not None and completed["total_turns"] == 10
+
+
+@pytest.mark.asyncio
+async def test_live_fixture_stops_a_simulation_blocked_at_pause(live_env):
+    """Fixture cleanup wakes a paused worker and joins both owned threads."""
+    env = live_env.start(turns=10, pause_every=3)
+    async with ws_client.connect(env.server.ws_url()) as ws:
+        env.launch_sim()
+        while True:
+            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10.0))
+            if msg["type"] == "paused":
+                assert msg["turn"] == 3
+                break
+
+    simulation_thread = env.thread
+    server_thread = env.server.thread
+    # Keep the client event loop responsive while synchronous fixture cleanup
+    # waits for actual worker termination. Its existing join bound stays ten.
+    await asyncio.wait_for(asyncio.to_thread(env.stop), timeout=25.0)
+    assert not simulation_thread.is_alive()
+    assert not server_thread.is_alive()
+    assert env.result is not None and env.result.total_turns == 3
+    # The fixture's own finalizer will call stop again.
+    assert env.server is None
 
 
 @pytest.mark.asyncio
