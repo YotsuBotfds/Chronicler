@@ -1,0 +1,134 @@
+# Dormant proposal only: copy exact bytes to .github/workflows after review.
+name: Exact marriage synthetic enumerator screen
+on:
+  push:
+    branches: [lead/cloud-exact-marriage-screen-20261029]
+    paths: [.github/workflows/exact-marriage-broadphase-screen.yml]
+permissions:
+  contents: read
+concurrency:
+  group: exact-marriage-synthetic-screen
+  cancel-in-progress: false
+jobs:
+  synthetic-screen:
+    if: >-
+      github.event_name == 'push' &&
+      github.repository == 'YotsuBotfds/Chronicler' &&
+      github.ref == 'refs/heads/lead/cloud-exact-marriage-screen-20261029' &&
+      github.workflow_ref == 'YotsuBotfds/Chronicler/.github/workflows/exact-marriage-broadphase-screen.yml@refs/heads/lead/cloud-exact-marriage-screen-20261029' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "1"
+      RUST_TEST_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      GOTO_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+      PYTHON_CPU_COUNT: "1"
+      PYTHONHASHSEED: "0"
+      CHRONICLER_EXACT_NEAR_SCREEN: fixed-synthetic-v1
+    steps:
+      - name: Negative receipt before checkout or tool setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/exact-marriage-screen"
+          mkdir "$RUNNER_TEMP/exact-marriage-screen/light"
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "exact-marriage-screen/light/terminal.json"
+          with out.open("x") as stream:
+              json.dump({"schema_version": 1, "kind": "exact-near-synthetic-owner",
+                  "status": "incomplete", "execution_complete": False, "screen_accepted": False,
+                  "cleanup_complete": False, "worlds": 0, "production_promoted": False,
+                  "reason": "owner_not_reached"}, stream, sort_keys=True)
+              stream.write("\n")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python only for PyO3 linkage and the hosted owner
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: One owned build, ordinary contracts and fixed synthetic screen
+        id: owner
+        shell: bash
+        run: python -B scripts/run_exact_near_screen.py
+      - name: Always close a bounded publication pack
+        id: closure
+        if: always()
+        env:
+          OWNER_OUTCOME: ${{ steps.owner.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil, stat
+          task = pathlib.Path(os.environ["RUNNER_TEMP"]).resolve()
+          original = task / "exact-marriage-screen/light"
+          publication = task / "exact-marriage-publication"
+          publication.mkdir(exist_ok=False)
+          result = {"schema_version": 1, "kind": "exact-near-always-closure",
+              "publication_complete": False, "execution_complete": False, "screen_accepted": False,
+              "worlds": 0, "production_promoted": False, "omissions": [], "files": {}}
+          try:
+              assert original.is_dir() and not original.is_symlink()
+              paths = sorted(original.iterdir())
+              assert len(paths) <= 48 and sum(p.lstat().st_size for p in paths) <= 8 * 1024**2
+              for path in paths:
+                  assert not path.is_symlink() and stat.S_ISREG(path.lstat().st_mode)
+                  assert path.stat().st_size <= 2 * 1024**2
+              terminal = json.loads((original / "terminal.json").read_bytes())
+              assert terminal.get("kind") == "exact-near-synthetic-owner"
+              assert terminal.get("worlds") == 0 and terminal.get("production_promoted") is False
+              status = terminal.get("status")
+              assert status in ("incomplete", "complete-accepted", "complete-rejected")
+              if status == "complete-accepted":
+                  assert os.environ.get("OWNER_OUTCOME") == "success"
+                  assert terminal.get("execution_complete") is True and terminal.get("screen_accepted") is True
+                  assert terminal.get("cleanup_complete") is True
+              elif status == "complete-rejected":
+                  assert os.environ.get("OWNER_OUTCOME") == "failure"
+                  assert terminal.get("execution_complete") is True and terminal.get("screen_accepted") is False
+                  assert terminal.get("cleanup_complete") is True
+              else:
+                  assert terminal.get("execution_complete") is False and terminal.get("screen_accepted") is False
+              copied = 0
+              for path in paths:
+                  raw = path.read_bytes()
+                  copied += len(raw)
+                  assert copied <= 8 * 1024**2
+                  assert len(raw) <= 2 * 1024**2
+                  (publication / path.name).write_bytes(raw)
+                  result["files"][path.name] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+              result.update(publication_complete=True, terminal_status=terminal.get("status"),
+                  execution_complete=terminal.get("execution_complete") is True,
+                  screen_accepted=terminal.get("screen_accepted") is True)
+          except BaseException as exc:
+              result.update(publication_complete=False, execution_complete=False, screen_accepted=False,
+                  error=type(exc).__name__, omissions=["unsafe/missing/oversize owner pack; original external files preserved"])
+          raw = (json.dumps(result, sort_keys=True, allow_nan=False) + "\n").encode()
+          assert len(raw) < 65536
+          (publication / "always-closure.json").write_bytes(raw)
+          assert sum(p.stat().st_size for p in publication.iterdir()) <= 8 * 1024**2 + 65536
+          with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+              stream.write("path=" + str(publication) + "\n")
+          print(json.dumps({key: result[key] for key in
+              ("publication_complete", "execution_complete", "screen_accepted", "worlds")}))
+          PY
+      - name: Retain bounded evidence on success, rejection or partial failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-marriage-synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/exact-marriage-publication/
+          if-no-files-found: error
+          retention-days: 14
