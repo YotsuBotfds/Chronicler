@@ -1,5 +1,18 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: isolated `lead/numpy-preload-assessment-20261029` records a
+[NumPy-only alternative assessment](performance/numpy-preload-assessment-2026-10-29.md),
+without altering the models-only plan or exposing a backend. Seven saved server
+logs and five timed pairs suggest only a modest repeated-import opportunity:
+median 0.06730 CPU/0.07136 wall seconds per combined NumPy import segment;
+illustrative eight-job reuse is 1.686% CPU/1.758% wall of old fresh batches,
+before unmeasured costs. These are not measured gains or upper bounds. Independent
+review rehashed twelve old inputs and reproduced the arithmetic. Recommendation:
+a separately frozen metadata/startup screen before deeper compiled-state work
+or commitment to native/world qualification. The effective OpenBLAS timeout must
+be correct before NumPy import, and detached controls cannot import Chronicler.
+No new runtime import, metadata fork, world, checkpoint or build ran.
+
 2026-10-29: separate `lead/models-forkserver-dependency-adapters-20261029`
 adds [source-pinned lazy metadata storage views](performance/models-forkserver-lazy-adapters-2026-10-29.md).
 Original mock slots and lazy dictionaries are read without rebuilding hooks;

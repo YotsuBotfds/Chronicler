@@ -1,0 +1,430 @@
+{
+  "kind": "numpy-only-preload-existing-data-assessment",
+  "schema_version": 1,
+  "status": "source_design_only_no_new_execution",
+  "old_timing_source": "d051d7c06b1a490841d148b8906bde22f2f5d0f0",
+  "old_timing_native": "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317",
+  "old_timing_control": "811f5153524080229c071e4f300a8dfca2b32525",
+  "old_environment": {
+    "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "numpy": "2.5.4",
+    "pydantic": "2.12.5",
+    "pydantic_core": "2.41.5"
+  },
+  "records": [
+    {
+      "path": "metadata-preflight-001/server.jsonl",
+      "sha256": "9f14a403f47a7161ac1ef02e73015d17724c1ad190e68642b9e7afb256df9b20",
+      "scope": "metadata_or_correctness_only",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.00018481700000000378,
+          "wall_seconds": 0.00018506400010664947
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.053834094,
+          "wall_seconds": 0.053840517000935506
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.008133192999999983,
+          "wall_seconds": 0.008131647999107372
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.018806484999999984,
+          "wall_seconds": 0.018805004998284858
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.26272304,
+          "wall_seconds": 0.2722327449992008
+        }
+      ]
+    },
+    {
+      "path": "archive/default-checks-001/server.jsonl",
+      "sha256": "cdf0ab4f4e06b10693a2a76f0822912d59dc44dcf4b34cc3cda5af58fd04e5cb",
+      "scope": "metadata_or_correctness_only",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.00024000999999999884,
+          "wall_seconds": 0.0002406229978078045
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.083470176,
+          "wall_seconds": 0.08423333899918362
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.015277000000000013,
+          "wall_seconds": 0.01527537400033907
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.02562916300000001,
+          "wall_seconds": 0.02584531499815057
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.36819071,
+          "wall_seconds": 0.3791749929987418
+        }
+      ]
+    },
+    {
+      "path": "archive/pair-00-forkserver/server.jsonl",
+      "sha256": "05702d4d3cf1dfb7f4cb3404baaaf6fbeb6a6b9e44d35ccbac0b8aee1e0708b2",
+      "scope": "timed_server",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.00016193700000000089,
+          "wall_seconds": 0.00016209999739658087
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.05000283800000001,
+          "wall_seconds": 0.05132841299928259
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.01489948599999999,
+          "wall_seconds": 0.020032071999594336
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.04601091600000001,
+          "wall_seconds": 0.04652192299909075
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.366913107,
+          "wall_seconds": 0.3757880480006861
+        }
+      ]
+    },
+    {
+      "path": "archive/pair-01-forkserver/server.jsonl",
+      "sha256": "6ebc1657d945e2fbb321e4e3aa4b2e1c1ccb2f819e65fb7b3b66acd4f4c4d451",
+      "scope": "timed_server",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.0001858420000000055,
+          "wall_seconds": 0.00018597500093164854
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.065440776,
+          "wall_seconds": 0.06642143800127087
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.0076759789999999994,
+          "wall_seconds": 0.007674628999666311
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.019866456000000005,
+          "wall_seconds": 0.02009571300004609
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.311717005,
+          "wall_seconds": 0.31900929200128303
+        }
+      ]
+    },
+    {
+      "path": "archive/pair-02-forkserver/server.jsonl",
+      "sha256": "d346b56cc3a89976b866a476d964311bf1a0bdac685d149379fcb68c46bfcb87",
+      "scope": "timed_server",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.0002633029999999925,
+          "wall_seconds": 0.00026271300157532096
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.05949665100000001,
+          "wall_seconds": 0.060765392998291645
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.007803187000000017,
+          "wall_seconds": 0.007802324002113892
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.021518915,
+          "wall_seconds": 0.021718127998610726
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.357206728,
+          "wall_seconds": 0.364979353002127
+        }
+      ]
+    },
+    {
+      "path": "archive/pair-03-forkserver/server.jsonl",
+      "sha256": "f5e4d575e617ed1c543b496001ee4c70d77fd8480802412a585e18141f7986da",
+      "scope": "timed_server",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.0003580769999999983,
+          "wall_seconds": 0.00017337700046482496
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.072787219,
+          "wall_seconds": 0.07424698099930538
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.007236320000000018,
+          "wall_seconds": 0.007554977000836516
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.023035869000000014,
+          "wall_seconds": 0.023437063999153906
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.39256109800000005,
+          "wall_seconds": 0.40992897099931724
+        }
+      ]
+    },
+    {
+      "path": "archive/pair-04-forkserver/server.jsonl",
+      "sha256": "d667d10074e5c5677295db2dd5d2ed22c333716ec2bdfacbafa33da6ef8fc4ba",
+      "scope": "timed_server",
+      "costs": [
+        {
+          "module": "chronicler",
+          "cpu_seconds": 0.00017361899999999986,
+          "wall_seconds": 0.00017334299991489388
+        },
+        {
+          "module": "numpy",
+          "cpu_seconds": 0.048417408999999995,
+          "wall_seconds": 0.0489454080016003
+        },
+        {
+          "module": "numpy.random",
+          "cpu_seconds": 0.008077754999999992,
+          "wall_seconds": 0.008440860001428518
+        },
+        {
+          "module": "pydantic",
+          "cpu_seconds": 0.069679298,
+          "wall_seconds": 0.09614375099772587
+        },
+        {
+          "module": "chronicler.models",
+          "cpu_seconds": 0.818337517,
+          "wall_seconds": 1.2310560830010218
+        }
+      ]
+    }
+  ],
+  "paired_import_opportunity_arithmetic": [
+    {
+      "pair_index": 0,
+      "combined_numpy_import_seconds": {
+        "cpu_seconds": 0.064902324,
+        "wall_seconds": 0.07136048499887693
+      },
+      "all_explicit_prefix_import_seconds": {
+        "cpu_seconds": 0.47798828400000004,
+        "wall_seconds": 0.49383255599605036
+      },
+      "fresh_batch_cpu_seconds": 26.938925053,
+      "fresh_batch_wall_seconds": 27.04880459999913,
+      "illustrative_eight_job_reuse_only": {
+        "cpu_seconds": 0.45431626799999997,
+        "wall_seconds": 0.4995233949921385,
+        "fraction_fresh_cpu": 0.01686467693518476,
+        "fraction_fresh_wall": 0.018467485065574933
+      }
+    },
+    {
+      "pair_index": 1,
+      "combined_numpy_import_seconds": {
+        "cpu_seconds": 0.073116755,
+        "wall_seconds": 0.07409606700093718
+      },
+      "all_explicit_prefix_import_seconds": {
+        "cpu_seconds": 0.404886058,
+        "wall_seconds": 0.41338704700319795
+      },
+      "fresh_batch_cpu_seconds": 30.353810104,
+      "fresh_batch_wall_seconds": 30.449842424000963,
+      "illustrative_eight_job_reuse_only": {
+        "cpu_seconds": 0.511817285,
+        "wall_seconds": 0.5186724690065603,
+        "fraction_fresh_cpu": 0.016861714666013317,
+        "fraction_fresh_wall": 0.017033666768591745
+      }
+    },
+    {
+      "pair_index": 2,
+      "combined_numpy_import_seconds": {
+        "cpu_seconds": 0.06729983800000003,
+        "wall_seconds": 0.06856771700040554
+      },
+      "all_explicit_prefix_import_seconds": {
+        "cpu_seconds": 0.446288784,
+        "wall_seconds": 0.4555279110027186
+      },
+      "fresh_batch_cpu_seconds": 27.192321165000003,
+      "fresh_batch_wall_seconds": 27.30391344599775,
+      "illustrative_eight_job_reuse_only": {
+        "cpu_seconds": 0.47109886600000017,
+        "wall_seconds": 0.47997401900283876,
+        "fraction_fresh_cpu": 0.017324702188585676,
+        "fraction_fresh_wall": 0.017578945961433015
+      }
+    },
+    {
+      "pair_index": 3,
+      "combined_numpy_import_seconds": {
+        "cpu_seconds": 0.08002353900000002,
+        "wall_seconds": 0.0818019580001419
+      },
+      "all_explicit_prefix_import_seconds": {
+        "cpu_seconds": 0.4959785830000001,
+        "wall_seconds": 0.5153413699990779
+      },
+      "fresh_batch_cpu_seconds": 27.733435138,
+      "fresh_batch_wall_seconds": 27.850415830998827,
+      "illustrative_eight_job_reuse_only": {
+        "cpu_seconds": 0.5601647730000001,
+        "wall_seconds": 0.5726137060009933,
+        "fraction_fresh_cpu": 0.020198174882146838,
+        "fraction_fresh_wall": 0.020560328774827382
+      }
+    },
+    {
+      "pair_index": 4,
+      "combined_numpy_import_seconds": {
+        "cpu_seconds": 0.05649516399999999,
+        "wall_seconds": 0.05738626800302882
+      },
+      "all_explicit_prefix_import_seconds": {
+        "cpu_seconds": 0.944685598,
+        "wall_seconds": 1.3847594450016913
+      },
+      "fresh_batch_cpu_seconds": 25.152402539999997,
+      "fresh_batch_wall_seconds": 25.326328003000526,
+      "illustrative_eight_job_reuse_only": {
+        "cpu_seconds": 0.3954661479999999,
+        "wall_seconds": 0.4017038760212017,
+        "fraction_fresh_cpu": 0.01572279814507135,
+        "fraction_fresh_wall": 0.015861117962841276
+      }
+    }
+  ],
+  "summary": {
+    "cpu_seconds": {
+      "median": 0.06729983800000003,
+      "min": 0.05649516399999999,
+      "max": 0.08002353900000002,
+      "illustrative_seven_reuses_at_median": 0.47109886600000017
+    },
+    "wall_seconds": {
+      "median": 0.07136048499887693,
+      "min": 0.05738626800302882,
+      "max": 0.0818019580001419,
+      "illustrative_seven_reuses_at_median": 0.4995233949921385
+    },
+    "illustrative_fraction_fresh_cpu": {
+      "median": 0.01686467693518476,
+      "min": 0.01572279814507135,
+      "max": 0.020198174882146838
+    },
+    "illustrative_fraction_fresh_wall": {
+      "median": 0.017578945961433015,
+      "min": 0.015861117962841276,
+      "max": 0.020560328774827382
+    }
+  },
+  "formula": "For N=8, illustrative avoided repeated import = (N-1) * one observed cold-server numpy+numpy.random import. Divide each paired illustration by its historical fresh whole-batch cost. This assumes unchanged per-import costs/order and excludes all new backend overhead and bootstrap effects.",
+  "not_a_speedup_or_upper_bound": true,
+  "prefix_never_executed_in_isolation_here": true,
+  "new_runtime_imports": 0,
+  "new_forks": 0,
+  "new_worlds": 0,
+  "new_native_builds": 0,
+  "recommendation": "Worth a bounded prospective metadata/startup screen before deeper compiled-schema machinery; current numbers do not justify an upfront full-world timing/qualification program or promise original5% acceptance.",
+  "external_assessment_sha256": "4c0a06e2a31fb2537a1a7c21301fb558eb03c83f5a03d82de210066348ee7a9d",
+  "input_manifest": {
+    "independent-reader/inventory.json": {
+      "bytes": 970842,
+      "sha256": "e6eda57fb43265e750b958a3de025b1d0c30387f0a1082823aa2ff36d24b9045"
+    },
+    "evidence/timing-result-001.json": {
+      "bytes": 19216,
+      "sha256": "550737afd8f6eace69c9a661eea16a0ea289d331265fc4bf1a90739b2fa8190b"
+    },
+    "controls/protocol.json": {
+      "bytes": 6440,
+      "sha256": "e7eed8bde1c4fdbbe170af0adf6b23ee9839922769a4505e3c5be2d02664af33"
+    },
+    "controls/environment-pins.json": {
+      "bytes": 4270,
+      "sha256": "3eae9211a933d664253bc7a02389569678fbe7c9e26c6bd7cd3fd8f9d909df33"
+    },
+    "independent-reader/verification.json": {
+      "bytes": 4509,
+      "sha256": "4b260c09f59df9064be8f0cdaa936770ae6822a68e9a227c1291c7f43db2620a"
+    },
+    "evidence/metadata-preflight-001/server.jsonl": {
+      "bytes": 7047,
+      "sha256": "9f14a403f47a7161ac1ef02e73015d17724c1ad190e68642b9e7afb256df9b20"
+    },
+    "evidence/archive/default-checks-001/server.jsonl": {
+      "bytes": 7023,
+      "sha256": "cdf0ab4f4e06b10693a2a76f0822912d59dc44dcf4b34cc3cda5af58fd04e5cb"
+    },
+    "evidence/archive/pair-00-forkserver/server.jsonl": {
+      "bytes": 17771,
+      "sha256": "05702d4d3cf1dfb7f4cb3404baaaf6fbeb6a6b9e44d35ccbac0b8aee1e0708b2"
+    },
+    "evidence/archive/pair-01-forkserver/server.jsonl": {
+      "bytes": 17752,
+      "sha256": "6ebc1657d945e2fbb321e4e3aa4b2e1c1ccb2f819e65fb7b3b66acd4f4c4d451"
+    },
+    "evidence/archive/pair-02-forkserver/server.jsonl": {
+      "bytes": 17760,
+      "sha256": "d346b56cc3a89976b866a476d964311bf1a0bdac685d149379fcb68c46bfcb87"
+    },
+    "evidence/archive/pair-03-forkserver/server.jsonl": {
+      "bytes": 17772,
+      "sha256": "f5e4d575e617ed1c543b496001ee4c70d77fd8480802412a585e18141f7986da"
+    },
+    "evidence/archive/pair-04-forkserver/server.jsonl": {
+      "bytes": 17765,
+      "sha256": "d667d10074e5c5677295db2dd5d2ed22c333716ec2bdfacbafa33da6ef8fc4ba"
+    }
+  },
+  "later_descriptive_inspection_only": {
+    "sha256": "0d2cf97eb60a14c1ec12354199e1924b96bbe119490e47c386f74df75c0b14c7",
+    "source": "9848e7daa93d075f05a01201aba85233f5baf540",
+    "numpy": "2.5.4",
+    "pydantic": "2.14.1",
+    "pydantic_core": "2.50.1",
+    "numpy_init_and_primary_core_hashes_match_old": true,
+    "import_segment_timings_available": false,
+    "not_a_second_numpy_only_sample": true
+  }
+}
