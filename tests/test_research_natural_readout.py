@@ -23,18 +23,24 @@ def synthetic(modules, tmp_path, monkeypatch):
     from chronicler.batch_manifest import simulation_config
     root = tmp_path / "synthetic-artifacts"
     root.mkdir()
-    schema = {"AgentSimulator": dict(version=1, fingerprint="synthetic-agent", schema_sha256="synthetic-schema"),
-        "EcologySimulator": dict(version=1, fingerprint="synthetic-ecology", schema_sha256="unused"),
-        "PoliticsSimulator": dict(version=1, fingerprint="synthetic-politics", schema_sha256="unused")}
-    observed_runtime = dict(source=dict(package_digest="synthetic-package", git_sha=c.SOURCE),
-        native=dict(status="found", sha256=c.NATIVE, bytes=3), available_compiled_classes=schema,
-        environment=dict(python="3.13.5", implementation="CPython", machine="synthetic", affinity_cpu_count=1,
-                         thread_env={"PYTHONHASHSEED": "0"}, packages={}))
-    frozen = dict(runtime=observed_runtime, controls={name: c.sha(ROOT / name) for name in c.CONTROL_FILES})
+    selected = c.P.policy()
+    schema = selected["schemas"]
+    threads = {name: "1" for name in (*c.THREADS, "PYTHON_CPU_COUNT")}
+    threads.update(PYTHONHASHSEED="0", OPENBLAS_THREAD_TIMEOUT="16")
+    observed_runtime = dict(source=dict(package_digest=selected["package_digest"], git_sha=c.SOURCE),
+        native=dict(status="found", sha256=c.NATIVE, bytes=selected["native_bytes"], module_file="/synthetic/compiled.so"),
+        compiled_origin="/synthetic/compiled.so", available_compiled_classes=schema,
+        environment=dict(python=selected["python"], implementation="CPython", machine="x86_64", platform="Linux-explicit-synthetic-fixture", affinity_cpu_count=1,
+                         thread_env=threads, packages=selected["packages"]))
+    frozen = dict(runtime=observed_runtime, runtime_policy=selected, runtime_policy_evidence=None,
+                  controls={name: c.sha(ROOT / name) for name in c.CONTROL_FILES})
     registration = dict(path=str((ROOT / c.REGISTRATION).resolve()), sha256=frozen["controls"][c.REGISTRATION])
-    identity = dict(source=observed_runtime["source"], native={**observed_runtime["native"],
-        "state_layouts": {"agent": "v1:synthetic-agent", "ecology": "v1:synthetic-ecology", "politics": "v1:synthetic-politics"}},
-        environment={**observed_runtime["environment"], "hash_seed": "0"})
+    identity = dict(source=observed_runtime["source"], native={
+        **{key: observed_runtime["native"][key] for key in ("status", "sha256", "bytes")},
+        "state_layouts": {kind: "v1:" + schema[name]["fingerprint"] for name, kind in
+            (("AgentSimulator", "agent"), ("EcologySimulator", "ecology"), ("PoliticsSimulator", "politics"))}},
+        environment={**{key: observed_runtime["environment"][key] for key in
+            ("python", "implementation", "machine", "affinity_cpu_count", "thread_env", "packages")}, "hash_seed": "0"})
     python = random.Random(2000).getstate()
     numpy = np.random.RandomState(2000).get_state()
     rng = dict(python=[python[0], list(python[1]), python[2]], numpy=[numpy[0], numpy[1].tolist(), *numpy[2:]])
@@ -124,7 +130,7 @@ def synthetic(modules, tmp_path, monkeypatch):
         c.write(folder / "worker-identity.json", dict(identities_stable=True, before=frozen, after=frozen))
         c.write(folder / "cleanup.json", dict(complete=True, identities={"1": 1}, accounting=dict(returncode=0, tree_cpu_seconds=0.1, accounting="synthetic")))
         c.write(folder / "request.json", runner.request(2000, role, registration, parent_path if role != "parent" else None))
-        summary = dict(schema_version=1, seconds=0.1, parent_checkpoint_sha256=c.sha(parent_path) if role != "parent" else None, seed=2000, role=role, execution_complete=True, final_turn=180,
+        summary = dict(schema_version=1, seconds=0.1, runtime_policy=selected["name"], parent_checkpoint_sha256=c.sha(parent_path) if role != "parent" else None, seed=2000, role=role, execution_complete=True, final_turn=180,
             actual_physics_ticks=180 if role == "parent" else 120, header=h, run_config=config,
             native_sections=native_record, raw_world_sha256=c.digest(world), raw_history_sha256=c.digest(rows),
             final_rng=rng, final_rng_sha256=c.digest(rng), experiment_receipt=receipt,
@@ -267,7 +273,7 @@ def test_execution_accounting_refuses_boolean_negative_nonfinite_and_unknown_row
         qualified=False, scientific_standing="incomplete_or_censored", controller_started_monotonic=1.0,
         boot_id="synthetic", freeze_sha256="synthetic", source_sha=c.SOURCE, control_sha="synthetic",
         expected_executions=24, expected_physics_ticks=3360, actual_physics_ticks=None,
-        aggregate_cpu_seconds=1.0, aggregate_wall_seconds=1.0, runs=[], error=None, files={})
+        aggregate_cpu_seconds=1.0, aggregate_wall_seconds=1.0, runs=[], error=None, files={}, runtime_policy=c.P.DEFAULT_POLICY)
     reader.execution_contract(execution)
     for value in (True, -1, float("inf"), float("nan")):
         broken = deepcopy(execution)
@@ -307,7 +313,7 @@ def execution_fixture(c):
         qualified=False, scientific_standing="incomplete_or_censored", controller_started_monotonic=1.0,
         boot_id="synthetic", freeze_sha256="synthetic", source_sha=c.SOURCE, control_sha="synthetic",
         expected_executions=24, expected_physics_ticks=3360, actual_physics_ticks=None,
-        aggregate_cpu_seconds=1.0, aggregate_wall_seconds=1.0, runs=[], error=None, files={})
+        aggregate_cpu_seconds=1.0, aggregate_wall_seconds=1.0, runs=[], error=None, files={}, runtime_policy=c.P.DEFAULT_POLICY)
 
 
 @pytest.mark.parametrize("field,value", [("tree_cpu_seconds", 100.0), ("elapsed_seconds", 901.0)])
@@ -464,7 +470,7 @@ def test_one_shot_budget_expiry_during_role_is_not_reclassified_and_continued(mo
         finalization_cpu_reserve_seconds=1.0, charged_aggregate_cpu_seconds=3.0, aggregate_wall_seconds=2.0,
         controller_started_monotonic=1.0, boot_id="synthetic"))
     snapshot = dict(git_sha="synthetic")
-    c.write(root / "freeze.json", dict(producer=snapshot, control=snapshot,
+    c.write(root / "freeze.json", dict(producer=snapshot, control=snapshot, runtime_policy_evidence=None,
         controls={name: c.sha(ROOT / name) for name in c.CONTROL_FILES}))
     execution["freeze_sha256"] = c.sha(root / "freeze.json")
     (root / "execution.json").write_bytes(c.encoded(execution))
@@ -473,6 +479,7 @@ def test_one_shot_budget_expiry_during_role_is_not_reclassified_and_continued(mo
     (root / "execution-receipt.json").write_bytes(c.encoded(receipt))
     monkeypatch.setattr(c, "inventory", lambda *a, **k: {})
     monkeypatch.setattr(c, "source_snapshot", lambda *a, **k: snapshot)
+    monkeypatch.setattr(c, "selected_policy", lambda *a: c.P.policy())
     monkeypatch.setattr(reader, "codec", lambda *a: (None, None, None))
     calls = []
     def expire(*args):

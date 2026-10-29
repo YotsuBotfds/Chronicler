@@ -1,0 +1,139 @@
+name: Inactive natural research continuation
+
+# Source-only preparation. Activation requires a separate reviewed commit.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: natural-research-continuation-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONNOUSERSITE: "1"
+  PYTHONHASHSEED: "0"
+  PYTHON_CPU_COUNT: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_THREAD_TIMEOUT: "16"
+  MKL_NUM_THREADS: "1"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  GOTO_NUM_THREADS: "1"
+  RAYON_NUM_THREADS: "1"
+
+jobs:
+  registered-continuation:
+    if: ${{ github.event_name == 'workflow_dispatch' && false }}
+    name: Inactive fixed eight-seed research contrast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out reviewed controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the exact qualified producer separately
+        uses: actions/checkout@v4
+        with:
+          ref: c76efe8552b4c6c288ebb1f813e2c0a58e5957b1
+          path: producer
+          persist-credentials: false
+      - name: Set up the registered Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+      - name: Define external evidence paths and one actual CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/natural-research-env" >> "$GITHUB_ENV"
+          echo "NATURAL_EVIDENCE=$RUNNER_TEMP/natural-research-evidence" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          cpu = min(os.sched_getaffinity(0))
+          with Path(os.environ["GITHUB_ENV"]).open("a") as stream:
+              stream.write(f"NATURAL_CPU={cpu}\n")
+          PY
+      - name: Install only locked Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          # Prospective bootstrap pin; the historical wheel builder used a range.
+          python -m pip install --only-binary=:all: uv==0.12.23
+          uv lock --project producer --check
+          uv sync --project producer --frozen --no-install-project --python "$(command -v python)"
+      - name: Run pure adapter and wheel-verifier contracts before native installation
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$NATURAL_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
+            -o "pythonpath=$GITHUB_WORKSPACE/producer/src" \
+            --junitxml="$RUNNER_TEMP/natural-research-contracts/junit.xml" \
+            control/tests/test_research_natural_wheel.py \
+            control/tests/test_research_natural_runtime_policy.py \
+            control/tests/test_research_natural_continuation.py \
+            control/tests/test_research_natural_readout.py
+      - name: Fetch and verify the one registered official wheel without importing it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$NATURAL_CPU" python control/scripts/fetch_research_natural_wheel.py \
+            --source-root "$GITHUB_WORKSPACE/producer" --output-root "$RUNNER_TEMP/natural-research-wheel"
+      - name: Install only the verified wheel without dependency changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" --no-deps \
+            "$RUNNER_TEMP/natural-research-wheel/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl"
+      - name: Freeze identities before the first registered world
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$NATURAL_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/run_research_natural_continuation.py freeze \
+            --runtime-policy cloud-fullgate-06db --source-root "$GITHUB_WORKSPACE/producer" \
+            --wheel-receipt "$RUNNER_TEMP/natural-research-wheel/verification.json" \
+            --freeze "$RUNNER_TEMP/natural-research-freeze.json"
+      - name: Run the unchanged fixed cohort under its original resource admission
+        id: cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$NATURAL_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/run_research_natural_continuation.py run \
+            --runtime-policy cloud-fullgate-06db --source-root "$GITHUB_WORKSPACE/producer" \
+            --wheel-receipt "$RUNNER_TEMP/natural-research-wheel/verification.json" \
+            --freeze "$RUNNER_TEMP/natural-research-freeze.json" --output-root "$NATURAL_EVIDENCE"
+      - name: Read all fixed seeds and preserve missing or censored arms
+        if: ${{ !cancelled() && (steps.cohort.outcome == 'success' || steps.cohort.outcome == 'failure') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$NATURAL_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/read_research_natural_continuation.py \
+            --runtime-policy cloud-fullgate-06db --source-root "$GITHUB_WORKSPACE/producer" \
+            --evidence-root "$NATURAL_EVIDENCE" --output-root "$RUNNER_TEMP/natural-research-readout"
+      - name: Retain original raw artifacts and negative attempts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-research-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/natural-research-contracts/
+            ${{ runner.temp }}/natural-research-wheel/
+            ${{ runner.temp }}/natural-research-freeze.json
+            ${{ runner.temp }}/natural-research-evidence/
+            ${{ runner.temp }}/natural-research-readout/
+          if-no-files-found: error
+          retention-days: 30

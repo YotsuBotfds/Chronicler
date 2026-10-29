@@ -101,10 +101,11 @@ def receipt_checks(receipt, seed, role, frozen, parent=None):
 
 SUMMARY_FIELDS = {"schema_version", "seed", "role", "execution_complete", "actual_physics_ticks", "final_turn",
     "native_sections", "final_rng", "final_rng_sha256", "parent_checkpoint_sha256", "run_config", "header",
-    "experiment_receipt", "raw_history_sha256", "raw_world_sha256", "pause", "exposure", "seconds"}
+    "experiment_receipt", "raw_history_sha256", "raw_world_sha256", "pause", "exposure", "seconds", "runtime_policy"}
 
 
 def inspect_role(root, seed, role, frozen, decode, prune):
+    selected = C.selected_policy(frozen)
     folder = root / f"seed-{seed}" / role
     C.require(type(seed) is int and seed in C.SEEDS and role in C.ROLES, "unregistered role identity")
     summary = C.read(folder / "worker-summary.json")
@@ -126,6 +127,7 @@ def inspect_role(root, seed, role, frozen, decode, prune):
     C.require(summary["seed"] == seed and summary["role"] == role and summary["execution_complete"] is True
               and summary["final_turn"] == C.END and summary["actual_physics_ticks"] == (C.END if role == "parent" else C.END - C.FORK),
               "worker identity/horizon differs")
+    C.require(summary["runtime_policy"] == selected["name"], "worker runtime policy differs")
     bundle = decode(C.read(folder / "chronicle_bundle.json"))
     state = C.read(folder / "state.json")
     C.require(state["turn"] == bundle["metadata"]["total_turns"] == C.END
@@ -256,7 +258,7 @@ def active_identity(parent, active, strict):
 
 EXECUTION_FIELDS = {"schema_version", "kind", "execution_complete", "qualified", "scientific_standing",
     "controller_started_monotonic", "boot_id", "freeze_sha256", "source_sha", "control_sha", "expected_executions",
-    "expected_physics_ticks", "actual_physics_ticks", "aggregate_cpu_seconds", "aggregate_wall_seconds", "runs", "error", "files"}
+    "expected_physics_ticks", "actual_physics_ticks", "aggregate_cpu_seconds", "aggregate_wall_seconds", "runs", "error", "files", "runtime_policy"}
 
 
 def execution_contract(execution):
@@ -264,6 +266,7 @@ def execution_contract(execution):
     C.require(type(execution["schema_version"]) is int and execution["schema_version"] == 1
               and execution["kind"] == "natural-research-continuation-execution", "execution schema differs")
     C.require(type(execution["execution_complete"]) is bool and execution["qualified"] is False, "execution verdict type differs")
+    C.P.policy(execution["runtime_policy"])
     for name in ("aggregate_cpu_seconds", "aggregate_wall_seconds", "controller_started_monotonic"):
         C.nonnegative(execution[name], name)
     for name, expected in (("expected_executions", 24), ("expected_physics_ticks", 3360)):
@@ -365,7 +368,7 @@ def boundary_facts(world, snapshot):
         capacity_scope="snapshot source59 reservations; boundary World60 owners and seat records are separate observations")
 
 
-def build_readout(root, source, guard=lambda: None):
+def build_readout(root, source, guard=lambda: None, policy_name=C.P.DEFAULT_POLICY):
     root, source = Path(root).resolve(), Path(source).resolve()
     execution = C.read(root / "execution.json")
     execution_contract(execution)
@@ -376,10 +379,16 @@ def build_readout(root, source, guard=lambda: None):
     observed = C.inventory(root, omit=("execution.json", "execution-receipt.json"))
     C.require(recorded == observed, "execution payload set/hash linkage differs")
     frozen = C.read(root / "freeze.json")
+    selected = C.selected_policy(frozen)
+    C.require(selected["name"] == policy_name == execution["runtime_policy"], "readout runtime policy differs")
+    from run_research_natural_continuation import policy_evidence
+    evidence_path = frozen["runtime_policy_evidence"]["path"] if frozen["runtime_policy_evidence"] else None
+    C.require(C.same(frozen["runtime_policy_evidence"], policy_evidence(source, selected, evidence_path)),
+              "official wheel policy evidence differs")
     C.require(C.sha(root / "freeze.json") == execution["freeze_sha256"], "prospective freeze hash differs")
     C.require(C.same(frozen["producer"], C.source_snapshot(source, C.SOURCE)), "producer source snapshot differs")
     C.require(C.same(frozen["control"], C.source_snapshot(CONTROL, frozen["control"]["git_sha"])), "control source snapshot differs")
-    C.require(frozen["controls"] == {name: C.sha(CONTROL / name) for name in C.CONTROL_FILES}, "observer/registration hashes differ")
+    C.require(frozen["controls"] == {name: C.sha(CONTROL / name) for name in C.control_files(policy_name)}, "observer/registration hashes differ")
     C.require(execution["source_sha"] == C.SOURCE and execution["control_sha"] == frozen["control"]["git_sha"], "execution source/control differs")
     C.require(execution["expected_executions"] == 24 and execution["expected_physics_ticks"] == 3360, "registered cohort size differs")
     roles = {(row["seed"], row["role"]): row for row in execution["runs"]}
@@ -454,7 +463,7 @@ def build_readout(root, source, guard=lambda: None):
     return dict(schema_version=1, kind="natural-research-continuation-development-readout",
         execution_complete=execution["execution_complete"], mechanics_verified=complete and within,
         scientific_standing="descriptive_development_exposure" if complete and within else "blocked_or_censored",
-        efficacy_qualified=False, default_promotion=False, source_sha=C.SOURCE, control_sha=frozen["control"]["git_sha"],
+        efficacy_qualified=False, default_promotion=False, source_sha=C.SOURCE, control_sha=frozen["control"]["git_sha"], runtime_policy=selected,
         execution_receipt_sha256=accounting_sha256, execution_sha256=C.sha(root / "execution.json"), freeze_sha256=C.sha(root / "freeze.json"),
         inspected_payloads=len(observed), registered_seed_ids=list(C.SEEDS), paired_seed_rows=sum(s["paired"] for s in seeds),
         seeds=seeds, stage_totals=totals, totals_coverage=total_scope,
@@ -580,6 +589,7 @@ def main(argv=None):
     parser.add_argument("--evidence-root", required=True)
     parser.add_argument("--source-root", required=True)
     parser.add_argument("--output-root", required=True)
+    parser.add_argument("--runtime-policy", choices=C.P.NAMES, default=C.P.DEFAULT_POLICY)
     args = parser.parse_args(argv)
     root, output = Path(args.evidence_root).resolve(), Path(args.output_root).resolve()
     C.require(not output.exists() and not output.is_relative_to(root) and not output.is_relative_to(CONTROL)
@@ -601,6 +611,7 @@ def main(argv=None):
     try:
         execution = C.read(root / "execution.json")
         execution_contract(execution)
+        C.require(execution["runtime_policy"] == args.runtime_policy, "explicit readout runtime policy differs")
         accounting = execution_accounting(root, execution)
         C.require(execution["boot_id"] == Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
                   "original controller clock is not visible on this host; no fresh budget inferred")
@@ -629,7 +640,7 @@ def main(argv=None):
                 raise ReadoutBudgetExceeded("registered controller/readout aggregate wall budget crossed")
         def operation():
             guard()
-            result = build_readout(root, args.source_root, guard)
+            result = build_readout(root, args.source_root, guard, args.runtime_policy)
             C.require(not any(n.startswith("chronicler_agents") for n in set(sys.modules) - before_modules), "reader unexpectedly loaded native code")
             publish_readout(output, result, guard, started=started, budget_observation=budgets)
             return result

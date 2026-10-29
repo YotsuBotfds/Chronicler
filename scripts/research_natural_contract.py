@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 import struct
 import subprocess
 import zlib
+import research_natural_runtime_policy as P
 
 SOURCE = "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
 NATIVE = "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317"
@@ -25,7 +26,7 @@ CONTROLS = dict(withhold_information=False, transmission_enabled=True,
                 uninformative_tests=False, publication_rule="funded-context-v2")
 REGISTRATION = "docs/experiments/scientific-research-natural-continuation-2026-10-29.md"
 CONTROL_FILES = ("scripts/research_natural_contract.py", "scripts/run_research_natural_continuation.py",
-                 "scripts/read_research_natural_continuation.py", REGISTRATION)
+                 "scripts/read_research_natural_continuation.py", "scripts/research_natural_runtime_policy.py", REGISTRATION)
 THREADS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "BLIS_NUM_THREADS",
            "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS", "RAYON_NUM_THREADS")
 MAX_METADATA = 64 * 1024**2
@@ -41,6 +42,24 @@ class ContractError(ValueError):
 def require(condition, message):
     if not condition:
         raise ContractError(message)
+
+
+def selected_policy(frozen):
+    try:
+        selected = frozen["runtime_policy"]
+        require(same(selected, P.policy(selected["name"])), "frozen runtime policy differs from closed registration")
+        P.validate_runtime(selected["name"], frozen["runtime"], same)
+        return selected
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ContractError("invalid frozen runtime policy: " + str(exc)) from exc
+
+
+def control_files(policy_name=P.DEFAULT_POLICY):
+    selected = P.policy(policy_name)
+    extra = (selected["execution_registration"],) if selected["execution_registration"] else ()
+    if selected["artifact"] is not None:
+        extra += ("scripts/fetch_research_natural_wheel.py", ".github/workflows/research-natural-continuation.yml")
+    return CONTROL_FILES + extra
 
 
 def sha(path):

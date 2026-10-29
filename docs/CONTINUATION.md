@@ -194,3 +194,29 @@ pure tests and9 real Linux subprocess cases; their dated adapter record retains
 source hashes, exact evidence boundary and initial test-observer failure.
 The separate remote native-policy note is design only, with no binary admission
 change, native build, study execution or workflow activation.
+
+## Inactive remote runtime preparation — 2026-10-29
+
+The original harness branch and its metadata freeze remain at `7b3ae977`.
+A separate [prospective remote execution registration](experiments/scientific-research-natural-remote-execution-2026-10-29.md)
+prepares two closed runtime policy names, preserving local fb20 as the default
+and explicitly pinning one officially retained cloud 06db wheel. Its bounded
+helper verifies official metadata, ZIP/manifest/wheel/native bytes and source
+inputs before installation. Selected policy and reverified wheel evidence bind
+the freeze, workers, execution and reader. No arbitrary digest or fallback is
+accepted. The dedicated workflow has no push trigger and remains unconditionally
+disabled; no download, wheel install, native probe/build or study world ran.
+
+Independent source review cleared the policy, verifier, propagation, fixed
+registration and inactive workflow. Final focused checks passed 105 guarded
+pure tests with no native/runtime/blocked-I/O attempt, plus 9 real Linux process
+cases; actionlint 1.7.12 passed. These used no-native Python 3.13.5, CPU2 and
+thread caps one; they do not qualify the future Python 3.13.17 cloud runtime.
+The already-retained official wheel was independently reverified read-only.
+External evidence is `/workspace/chronicler-natural-remote-evidence/source-review-20261029-001`;
+validation receipt SHA-256 is
+`b65e45c038dbb32bd50745f5d1177eba67bbda7b1324793ae1428d0b74b87938`.
+The original C76 research composition proof used fb20. Cloud 06db has saved
+default-output evidence, with research checkpoint/global-RNG qualification still
+separate before any prospective study activation. Science, samples and budgets
+are unchanged.

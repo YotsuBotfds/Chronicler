@@ -29,7 +29,7 @@ CONTROL = SCRIPT.parents[1]
 _EXCLUSIVE_OWNER = None
 
 
-def runtime(source):
+def runtime(source, policy_name=C.P.DEFAULT_POLICY):
     source = Path(source).resolve()
     if "chronicler" not in sys.modules:
         sys.path.insert(0, str(source / "src"))
@@ -52,7 +52,8 @@ def runtime(source):
                   compiled_origin=str(origin), available_compiled_classes=classes)
     C.require(actual["source"]["git_sha"] == C.SOURCE and
               Path(actual["source"]["package_dir"]).resolve() == source / "src/chronicler", "actual producer differs")
-    C.require(actual["native"]["sha256"] == C.NATIVE and actual["native"]["module_file"] == str(origin), "native binary differs")
+    C.P.validate_runtime(policy_name, actual, C.same)
+    C.require(actual["native"]["module_file"] == str(origin), "native binary differs")
     env = actual["environment"]
     C.require(env["affinity_cpu_count"] == 1 and all(env["thread_env"].get(k) == "1" for k in C.THREADS)
               and env["thread_env"].get("PYTHON_CPU_COUNT") == "1"
@@ -60,18 +61,33 @@ def runtime(source):
     return actual
 
 
-def identity(source):
+def identity(source, policy_name=C.P.DEFAULT_POLICY, wheel_receipt=None):
     source = Path(source).resolve()
     C.require(source != CONTROL, "producer and control roots must be separate")
+    selected = C.P.policy(policy_name)
+    evidence = policy_evidence(source, selected, wheel_receipt)
     return dict(schema_version=1, kind="natural-research-continuation-freeze", producer=C.source_snapshot(source, C.SOURCE),
-        control=C.source_snapshot(CONTROL), runtime=runtime(source),
-        controls={name: C.sha(CONTROL / name) for name in C.CONTROL_FILES})
+        control=C.source_snapshot(CONTROL), runtime_policy=selected, runtime_policy_evidence=evidence,
+        runtime=runtime(source, policy_name),
+        controls={name: C.sha(CONTROL / name) for name in C.control_files(policy_name)})
 
 
-def verify_freeze(source, path):
+def verify_freeze(source, path, policy_name=C.P.DEFAULT_POLICY, wheel_receipt=None):
     frozen = C.read(path)
-    C.require(C.same(frozen, identity(source)), "producer/control/native/environment changed from prospective freeze")
+    selected = C.selected_policy(frozen)
+    C.require(selected["name"] == policy_name, "explicit runtime policy differs from prospective freeze")
+    C.require(C.same(frozen, identity(source, policy_name, wheel_receipt)), "producer/control/native/environment changed from prospective freeze")
     return frozen
+
+
+def policy_evidence(source, selected, wheel_receipt):
+    if selected["artifact"] is None:
+        C.require(wheel_receipt is None, "local runtime policy does not accept remote wheel evidence")
+        return None
+    C.require(wheel_receipt is not None, "cloud runtime policy requires verified official wheel evidence")
+    from fetch_research_natural_wheel import verify_receipt
+    verified = verify_receipt(wheel_receipt, source)
+    return dict(path=str(Path(wheel_receipt).resolve()), sha256=C.sha(wheel_receipt), receipt=verified)
 
 
 def simulation_args(folder, seed, role):
@@ -176,7 +192,8 @@ def worker(options):
     resource.setrlimit(resource.RLIMIT_CPU, (C.WORKER_CPU, C.WORKER_CPU))
     resource.setrlimit(resource.RLIMIT_FSIZE, (C.MAX_METADATA, C.MAX_METADATA))
     source, root = Path(options.source_root).resolve(), Path(options.output_root).resolve()
-    frozen = verify_freeze(source, options.freeze)
+    policy_name, wheel_receipt = options.runtime_policy, options.wheel_receipt
+    frozen = verify_freeze(source, options.freeze, policy_name, wheel_receipt)
     import numpy as np
     from chronicler import main
     from chronicler.bundle_codec import load_bundle, same
@@ -251,10 +268,10 @@ def worker(options):
             parent_checkpoint_sha256=C.sha(parent_path) if loaded else None,
             run_config=final.state.run_config, header=final.header, experiment_receipt=receipt,
             raw_history_sha256=C.digest(history), raw_world_sha256=C.digest(world),
-            pause=pause, exposure=C.exposure(science, history),
+            pause=pause, exposure=C.exposure(science, history), runtime_policy=policy_name,
             seconds=time.monotonic() - started))
     finally:
-        after = verify_freeze(source, options.freeze)
+        after = verify_freeze(source, options.freeze, policy_name, wheel_receipt)
         C.write(folder / "worker-identity.json", dict(before=frozen, after=after,
             identities_stable=C.same(frozen, after), initial_global_rng_sha256=C.digest(before)))
 
@@ -567,7 +584,9 @@ def _run(options):
     rows, error, child = [], None, None
     frozen = None
     try:
-        frozen = verify_freeze(source, options.freeze)
+        policy_name = getattr(options, "runtime_policy", C.P.DEFAULT_POLICY)
+        wheel_receipt = getattr(options, "wheel_receipt", None)
+        frozen = verify_freeze(source, options.freeze, policy_name, wheel_receipt)
         C.write(root / "freeze.json", frozen)
         C.write(root / "admission.json", resources(root, admission=True))
         halted = False
@@ -586,7 +605,10 @@ def _run(options):
                 folder.mkdir(parents=True)
                 C.write(folder / "launch-resources.json", resources(root))
                 command = [sys.executable, "-B", str(SCRIPT), "worker", "--source-root", str(source),
-                    "--freeze", str(Path(options.freeze).resolve()), "--output-root", str(root), "--seed", str(seed), "--role", role]
+                    "--freeze", str(Path(options.freeze).resolve()), "--output-root", str(root), "--seed", str(seed), "--role", role,
+                    "--runtime-policy", policy_name]
+                if wheel_receipt is not None:
+                    command += ["--wheel-receipt", str(Path(wheel_receipt).resolve())]
                 worker_started = time.monotonic()
                 known = {}
                 try:
@@ -626,7 +648,7 @@ def _run(options):
                 record["elapsed_seconds"] = time.monotonic() - worker_started
                 rows.append(record)
                 C.write(root / f"progress-{len(rows):02d}.json", rows)
-        verify_freeze(source, options.freeze)
+        verify_freeze(source, options.freeze, policy_name, wheel_receipt)
         resources(root)
         C.require(cpu() <= C.AGGREGATE_CPU and time.monotonic() - started <= C.AGGREGATE_WALL, "final aggregate budget crossed")
     except BaseException as exc:
@@ -647,7 +669,7 @@ def _run(options):
         freeze_sha256=C.sha(options.freeze), source_sha=C.SOURCE, control_sha=frozen["control"]["git_sha"] if frozen else None,
         expected_executions=24, expected_physics_ticks=3360, actual_physics_ticks=3360 if complete else None,
         aggregate_cpu_seconds=cpu(), aggregate_wall_seconds=time.monotonic() - started, runs=rows, error=error,
-        files=files)
+        files=files, runtime_policy=getattr(options, "runtime_policy", C.P.DEFAULT_POLICY))
     def final_guard():
         C.require(cpu() <= C.AGGREGATE_CPU and time.monotonic() - started <= C.AGGREGATE_WALL,
                   "final execution serialization/publication exceeded aggregate budget")
@@ -677,9 +699,11 @@ def main(argv=None):
     parser.add_argument("--output-root")
     parser.add_argument("--seed", type=int, choices=C.SEEDS)
     parser.add_argument("--role", choices=C.ROLES)
+    parser.add_argument("--runtime-policy", choices=C.P.NAMES, default=C.P.DEFAULT_POLICY)
+    parser.add_argument("--wheel-receipt")
     options = parser.parse_args(argv)
     if options.mode == "freeze":
-        C.write(options.freeze, identity(options.source_root))
+        C.write(options.freeze, identity(options.source_root, options.runtime_policy, options.wheel_receipt))
         return 0
     C.require(options.output_root is not None, "output root required")
     if options.mode == "worker":
