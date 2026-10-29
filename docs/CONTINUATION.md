@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: isolated `lead/models-forkserver-contracts-20261029`, based on
+`c76efe85`, adds only the inert stage-1
+[models-only launch contracts](performance/models-forkserver-contracts-2026-10-29.md).
+The default fresh body is unchanged; API-only opt-in always refuses before
+source/destination probes. There is no controller, CLI option, gate forwarding,
+fallback or activation. Focused guarded checks passed 66 tests; the complete
+modified validation-tooling selection passed 276 in 8.99 seconds with its
+110-second limit unchanged. No native import/build or prospective study world
+ran. Root independently reviewed this foundation; runtime/current-checkpoint
+qualification remains future work. This package change is separate from main,
+the frozen recovered producer and the consolidated review branch.
+
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on
 `lead/research-continuation-20261029`. A new isolated branch combines it with

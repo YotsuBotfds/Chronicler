@@ -197,15 +197,23 @@ def run_ablation_arms(
     cwd: Path | None = None,
     delete_checkpoints: bool = True,
     lean_output: bool = True,
+    launch_backend: str = "fresh",
     log=print,
 ) -> dict:
     """Run every arm's forks of ``batch_dir``'s seeds into ``out_root``
     (which must be new or empty) and write its ``ablation_manifest.json``.
     ``lean_output=False`` retains the full worker export path for equivalence
     checks; both profiles keep identical files after validated cleanup.
+    Only the existing ``fresh`` backend is available. The prospective opt-in
+    models forkserver refuses before claiming any destination.
 
     Raises ``RuntimeError`` naming the first fork that failed (the manifest
     is then written with status ``failed``)."""
+    if type(launch_backend) is not str or launch_backend != "fresh":
+        from chronicler.ablation_launch import refuse_unqualified_backend
+        refuse_unqualified_backend(launch_backend, arms=arms, parallel=parallel,
+                                   lean_output=lean_output, window=window)
+
     from chronicler.batch_manifest import (
         check_batch_destination, file_sha256, native_identity, source_identity,
     )
