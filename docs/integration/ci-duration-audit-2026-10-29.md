@@ -129,3 +129,30 @@ only on `lead/cloud-ci-duration-audit-20261029` by this new control commit.
 The Action repeats pure contracts before reading the two completed artifacts.
 No historical test, native build, world or sharding experiment is launched.
 The real audit remains pending until its exact run and retained receipts finish.
+
+
+## First real read and collection-skip repair
+
+Control `996acdd5`, run `40793712359`, passed all 19 pure checks but refused
+the real no-Rust XML with "testcase identity is missing". Its original negative
+receipt and all seven downloaded inputs are retained in artifact `12862831607`
+(299,765 bytes; ZIP SHA-256
+`bedfc5a52298494917443656e507749d0f268ebbd3d57951f5d3d6df9601e102`).
+This was an observer failure; no tests, native builds or worlds were rerun.
+
+The two affected rows are legitimate module-collection skips for
+`tests.test_ecology_parity` and `tests.test_m48_promotion_memory`: empty
+classname, exact tracked module name, zero time and a sole skipped child with
+"collection skipped". Reviewed reader `559e53dc` admits precisely that shape,
+retains its raw name/classname/XML ordinal and skipped outcome, and fabricates
+no function node. Missing or malformed other identities still fail. All original
+parent/skip/header/subtest equations remain strict.
+
+All 22 pure contracts passed before the local quiet window. A read-only replay
+of all seven immutable retained inputs completed with unchanged input hashes:
+7,806 native rows and 7,792 no-Rust rows, with all original pass/skip/subtest
+counts reconciled and zero unknown module attribution. That replay is not a
+new test execution or performance measurement. The corrected Action now repeats
+contracts and the two fixed historical reads; the first failure stays failed.
+Safe fixed-field outcome logging makes future refusals visible without printing
+network exception text, tokens or temporary storage URLs.

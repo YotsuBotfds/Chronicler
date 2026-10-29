@@ -1,4 +1,5 @@
 """Pure contracts for the fixed historical audit: no network, native import or worlds."""
+from contextlib import redirect_stdout
 import importlib.util
 import io
 import json
@@ -69,6 +70,48 @@ class JUnitContracts(unittest.TestCase):
         self.assertEqual(row["testcases"][0]["derived_node_id"],
                          "tests/test_alpha.py::TestOne::test_a[x]")
         self.assertEqual((row["passed"], row["skipped"]), (1, 1))
+
+    def test_actual_module_collection_skip_shapes_preserve_original_identity(self):
+        # Actual no-Rust d028 wire shapes, including empty classnames and zero times.
+        skipped = (b'<testcase classname="" name="tests.test_ecology_parity" time="0.000">'
+                   b'<skipped message="collection skipped">Skipped: could not import chronicler_agents</skipped></testcase>'
+                   b'<testcase classname="" name="tests.test_m48_promotion_memory" time="0.000">'
+                   b'<skipped message="collection skipped">Skipped: could not import chronicler_agents</skipped></testcase>')
+        raw = fixture_xml().replace(b'tests="5"', b'tests="7"').replace(b'skipped="1"', b'skipped="3"')
+        raw = raw.replace(b'<testcase ', skipped + b'<testcase ', 1)
+        modules = {"tests.test_alpha": "tests/test_alpha.py", "tests.test_ecology_parity": "tests/test_ecology_parity.py",
+                   "tests.test_m48_promotion_memory": "tests/test_m48_promotion_memory.py"}
+        summary = dict(passed=1, skipped=3, subtests=3, seconds=3.2)
+        row = audit.parse_junit(raw, summary, modules)
+        self.assertEqual((row["serialized_testcases"], row["skipped"], row["collection_skips"],
+                          row["junit_declared_tests"]), (4, 3, 2, 7))
+        self.assertEqual(row["testcase_seconds"], 1.375)
+        self.assertEqual(row["unattributed_testcases"], 0)
+        collected = sorted((r for r in row["testcases"] if r["outcome_kind"] == "collection_skip"),
+                           key=lambda r: r["xml_ordinal"])
+        self.assertEqual([(r["xml_ordinal"], r["classname"], r["name"], r["module"], r["derived_node_id"])
+                          for r in collected],
+                         [(0, "", "tests.test_ecology_parity", "tests/test_ecology_parity.py", None),
+                          (1, "", "tests.test_m48_promotion_memory", "tests/test_m48_promotion_memory.py", None)])
+        for changed, counters in ((raw.replace(b'tests="7"', b'tests="6"'), summary),
+                (raw, {**summary, "skipped":2}), (raw, {**summary, "subtests":2})):
+            with self.assertRaises(audit.Refusal):
+                audit.parse_junit(changed, counters, modules)
+
+    def test_empty_classname_requires_exact_tracked_collection_skip(self):
+        base = (b'<testcase classname="" name="tests.test_ecology_parity" time="0.000">'
+                b'<skipped message="collection skipped">module import skip</skipped></testcase>')
+        modules = {"tests.test_ecology_parity": "tests/test_ecology_parity.py"}
+        bad = [base.replace(b'tests.test_ecology_parity', b'unknown.module'),
+               base.replace(b'classname=""', b''), base.replace(b'name="tests.test_ecology_parity"', b'name=""'),
+               base.replace(b'collection skipped', b'ordinary skip'), base.replace(b'time="0.000"', b'time="0.001"'),
+               base.replace(b'<skipped message="collection skipped">module import skip</skipped>', b''),
+               base.replace(b'</testcase>', b'<skipped message="collection skipped"/></testcase>'),
+               base.replace(b'</testcase>', b'<system-out>unexpected mixed collection record</system-out></testcase>')]
+        for case in bad:
+            raw = (b'<testsuite tests="1" failures="0" errors="0" skipped="1" time="0.0">' + case + b'</testsuite>')
+            with self.subTest(case=case), self.assertRaises(audit.Refusal):
+                audit.parse_junit(raw, dict(passed=0, skipped=1, subtests=0, seconds=0), modules)
 
     def test_duplicate_case_identities_are_retained_with_ordinals(self):
         raw = fixture_xml().replace(b'name="test_b"', b'name="test_a[x]"')
@@ -264,10 +307,12 @@ class MetadataAndOutputContracts(unittest.TestCase):
                     self.assertEqual(token, "sentinel-token")
                     self.assertLessEqual(len(payloads[suffix]), limit)
                     return payloads[suffix]
-                with patch.dict(os.environ, GH_ARTIFACT_READ_TOKEN="sentinel-token"), \
+                stdout = io.StringIO()
+                with redirect_stdout(stdout), patch.dict(os.environ, GH_ARTIFACT_READ_TOKEN="sentinel-token"), \
                      patch.object(audit, "source_modules", return_value={"tests.test_alpha": "tests/test_alpha.py"}), \
                      patch.object(audit, "fetch_fixed", side_effect=fixed):
                     self.assertEqual(audit.main(["--source-root", str(source), "--output", str(output)]), 0)
+                self.assertIs(json.loads(stdout.getvalue())["complete"], True)
                 report = json.loads((output / "duration-report.json").read_text())
                 receipt = json.loads((output / "audit-result.json").read_text())
                 self.assertIs(receipt["complete"], True)
@@ -280,16 +325,38 @@ class MetadataAndOutputContracts(unittest.TestCase):
                     self.assertEqual(record, dict(bytes=len(raw), sha256=audit.sha(raw)))
                 self.assertNotIn("sentinel-token", (output / "audit-result.json").read_text())
 
+    def test_stdout_and_receipt_sanitize_unexpected_exception_details(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            source = base / "source"
+            source.mkdir()
+            output = base / "output"
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch.dict(os.environ, GH_ARTIFACT_READ_TOKEN="sentinel-token"), \
+                 patch.object(audit, "source_modules", return_value={}), \
+                 patch.object(audit, "fetch_fixed", side_effect=RuntimeError("https://signed.example?sentinel-token")):
+                self.assertEqual(audit.main(["--source-root", str(source), "--output", str(output)]), 1)
+            receipt = (output / "audit-result.json").read_text()
+            self.assertNotIn("sentinel", stdout.getvalue() + receipt)
+            self.assertNotIn("signed.example", stdout.getvalue() + receipt)
+            self.assertEqual(json.loads(stdout.getvalue())["error"],
+                             "historical audit failed; no duration result qualified")
+
     def test_main_failure_retains_negative_receipt_and_pops_token(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             source, output = base / "source", base / "output"
             source.mkdir()
-            with patch.dict(os.environ, GH_ARTIFACT_READ_TOKEN="sentinel-token"), \
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch.dict(os.environ, GH_ARTIFACT_READ_TOKEN="sentinel-token"), \
                  patch.object(audit, "source_modules", return_value={}), \
                  patch.object(audit, "fetch_fixed", side_effect=audit.Refusal("fixed API request refused")):
                 self.assertEqual(audit.main(["--source-root", str(source), "--output", str(output)]), 1)
                 self.assertNotIn("GH_ARTIFACT_READ_TOKEN", os.environ)
+            summary = json.loads(stdout.getvalue())
+            self.assertEqual(summary["error"], "fixed API request refused")
+            self.assertEqual(summary["phase"], "metadata-run")
+            self.assertNotIn("sentinel", stdout.getvalue())
             receipt = json.loads((output / "audit-result.json").read_text())
             self.assertIs(receipt["complete"], False)
             self.assertNotIn("sentinel", json.dumps(receipt))

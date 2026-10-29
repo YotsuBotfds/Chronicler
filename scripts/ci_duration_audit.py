@@ -236,22 +236,28 @@ def parse_junit(raw, summary, modules):
     skipped = 0
     for ordinal, case in enumerate(cases):
         name, classname = case.get("name"), case.get("classname")
-        require(type(name) is str and bool(name) and type(classname) is str and bool(classname),
+        require(type(name) is str and bool(name) and type(classname) is str,
                 "testcase identity is missing")
         tags = [child.tag for child in case]
         require(all(tag in ("skipped", "system-out", "system-err", "properties") for tag in tags)
                 and tags.count("skipped") <= 1, "unexpected successful testcase outcome")
         duration = seconds(case.get("time"))
-        total += duration
         is_skipped = "skipped" in tags
+        # Pytest serializes a module importorskip as a skipped collection row:
+        # empty classname, exact module name, zero time, and this explicit marker.
+        collection_skip = (classname == "" and name in modules and duration == 0
+                           and tags == ["skipped"] and case.find("skipped").get("message") == "collection skipped")
+        require(bool(classname) or collection_skip, "testcase identity is missing")
+        total += duration
         skipped += is_skipped
-        module = module_for(classname, modules)
+        module = modules[name] if collection_skip else module_for(classname, modules)
         node = None
-        if module:
+        if module and not collection_skip:
             prefix = module[:-3].replace("/", ".")
             tail = classname[len(prefix):].lstrip(".")
             node = module + "::" + ((tail.replace(".", "::") + "::") if tail else "") + name
         row = dict(xml_ordinal=ordinal, classname=classname, name=name, module=module,
+                   outcome_kind="collection_skip" if collection_skip else "testcase",
                    derived_node_id=node, seconds=float(duration), skipped=is_skipped)
         rows.append(row)
         group = module_rows.setdefault(module or "<unattributed>",
@@ -265,6 +271,7 @@ def parse_junit(raw, summary, modules):
     groups = [{**row, "seconds": float(row["seconds"])} for row in module_rows.values()]
     return dict(serialized_testcases=len(cases), passed=len(cases) - skipped, skipped=skipped,
         successful_subtests_not_serialized=summary["subtests"], junit_declared_tests=counts["tests"],
+        collection_skips=sum(row["outcome_kind"] == "collection_skip" for row in rows),
         suite_seconds=float(seconds(suite.get("time"))), testcase_seconds=float(total),
         terminal_seconds=summary["seconds"], modules=sorted(groups, key=lambda r: (-r["seconds"], r["module"] or "")),
         testcases=sorted(rows, key=lambda r: (-r["seconds"], r["xml_ordinal"])),
@@ -374,7 +381,7 @@ def markdown(result):
             label = label.replace("`", "\\u0060")
             lines.append(f"- {case['seconds']:.3f}s, XML #{case['xml_ordinal']}: `{label}`")
     lines += ["", "## Interpretation and next experiment", "",
-        "Successful subtests are independently reconciled against the original terminal log. They enlarge the JUnit header but are not additional serialized testcase duration rows. Skipped rows remain included in attribution.", "",
+        "Successful subtests are independently reconciled against the original terminal log. They enlarge the JUnit header but are not additional serialized testcase duration rows. Skipped rows remain included in attribution. Explicit module collection skips preserve their empty classname, original module name and XML ordinal; they are typed separately, attributed only to an exact tracked module, and receive no fabricated function node ID.", "",
         "Case times include pytest's recorded setup/call/teardown attribution. Shared fixtures, collection, interpreter startup, wheel build and Actions overhead do not form independent per-file costs. XML rounding can accumulate across thousands of rows; suite, terminal, step and job clocks are kept separate. API timestamps have one-second resolution. Repeated identities are retained, not deduplicated.", "",
         "The JSON includes deterministic two- and three-way file partitions using largest-first historical case totals. Their loads are attribution models only. Actual sharding would repeat environment setup, native installation and some fixtures, and may change contention or coverage. Test selection, count/subtest reconciliation, compiled identity and aggregate job success would need fresh verification before adoption. No workflow sharding is activated by this audit.", ""]
     return "\n".join(lines)
@@ -394,28 +401,32 @@ def main(argv=None):
     output.mkdir(parents=False, exist_ok=False)
     receipt = dict(schema_version=1, kind="chronicler-fixed-ci-duration-audit", complete=False,
                    source_sha=SOURCE, source_run_id=RUN, reader_sha256=sha(Path(__file__).read_bytes()),
-                   safety_helper_sha256=HELPER_SHA, inputs={})
+                   safety_helper_sha256=HELPER_SHA, inputs={}, phase="source-before")
     try:
         modules = source_modules(root)
         metadata = {}
         for key, suffix in (("run", f"/actions/runs/{RUN}"),
                 ("artifacts", f"/actions/runs/{RUN}/artifacts?per_page=100"),
                 ("jobs", f"/actions/runs/{RUN}/jobs?per_page=100")):
+            receipt["phase"] = "metadata-" + key
             raw = fetch_fixed(suffix, token, JSON_LIMIT)
             name = key + ".json"
             with (output / name).open("xb") as stream:
                 stream.write(raw)
             receipt["inputs"][name] = dict(bytes=len(raw), sha256=sha(raw))
             metadata[key] = safe.strict_json(raw)
+        receipt["phase"] = "metadata-validation"
         clocks = validate_metadata(**metadata)
         result = dict(schema_version=1, source_sha=SOURCE, source_run_id=RUN, lanes={})
         for lane, pin in PINS.items():
+            receipt["phase"] = lane + "-archive"
             archive = fetch_fixed(f"/actions/artifacts/{pin['artifact']}/zip", token, pin["archive_bytes"], True)
             name = lane + ".zip"
             with (output / name).open("xb") as stream:
                 stream.write(archive)
             receipt["inputs"][name] = dict(bytes=len(archive), sha256=sha(archive))
             payload = unpack(archive, pin)
+            receipt["phase"] = lane + "-log"
             log = fetch_fixed(f"/actions/jobs/{pin['job']}/logs", token, LOG_LIMIT, True)
             name = lane + ".log"
             with (output / name).open("xb") as stream:
@@ -424,6 +435,7 @@ def main(argv=None):
             summary = terminal_summary(log)
             require(all(summary[key] == pin[key] for key in ("passed", "skipped", "subtests")),
                     "historical terminal counts differ")
+            receipt["phase"] = lane + "-junit"
             row = parse_junit(payload[pin["xml"]], summary, modules)
             row.update(clocks[lane])
             row["artifact_id"], row["job_id"] = pin["artifact"], pin["job"]
@@ -431,8 +443,10 @@ def main(argv=None):
             row["native_identity"] = native_identity(payload["native-identity.json"]) if lane == "native" else None
             row["prospective_file_partitions"] = {str(n): shard_model(row["modules"], n) for n in (2, 3)}
             result["lanes"][lane] = row
+        receipt["phase"] = "source-after"
         require(source_modules(root) == modules and sha(Path(safe.__file__).read_bytes()) == HELPER_SHA,
                 "source or safety helper changed during audit")
+        receipt["phase"] = "derived-reports"
         for name, raw in (("duration-report.json", json.dumps(result, indent=2, allow_nan=False) + "\n"),
                           ("duration-summary.md", markdown(result))):
             data = raw.encode()
@@ -441,6 +455,7 @@ def main(argv=None):
                 stream.write(data)
             receipt.setdefault("outputs", {})[name] = dict(bytes=len(data), sha256=sha(data))
         receipt["complete"] = True
+        receipt["phase"] = "complete"
     except Refusal as error:
         receipt["error"] = str(error)
     except Exception:
@@ -448,6 +463,10 @@ def main(argv=None):
     with (output / "audit-result.json").open("x") as stream:
         json.dump(receipt, stream, indent=2, allow_nan=False)
         stream.write("\n")
+    # Refusal reasons are fixed reader/helper messages; network exception text
+    # already becomes a fixed refusal, and unexpected exceptions stay generic.
+    print(json.dumps({key: receipt.get(key) for key in
+        ("complete", "phase", "source_sha", "source_run_id", "error")}, allow_nan=False), flush=True)
     return 0 if receipt["complete"] else 1
 
 
