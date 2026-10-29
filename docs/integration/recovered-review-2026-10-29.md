@@ -1,16 +1,45 @@
 # Recovered development review, 2026-10-29
 
-Separate native candidate `535b3b6c` now has [qualified full CI](native-live-slot-ci-2026-10-29.md),
-including its fresh extension and both new Rust regressions. It remains outside
-this review runtime pending default-output and performance checks. The fixed
-wealth-floor full cohort's original light receipts report incomplete mechanics;
-actual completed work and source cause remain under review, with no scientific verdict.
-The [corrected isolated CI-sharding workflow](native-module-shards-v2-ci-2026-10-29.md)
-now has all-nine-job independent qualification, preserving the first failed publication.
-Its standard-workflow adoption remains separate. The fixed CP60 observer proof
-passed actual metadata freeze but failed during proof execution in run `40866700701`;
-its original evidence is retained and the larger eight-seed study remains inactive.
-No main merge is included.
+The separate [standard native-shard integration](native-module-shards-standard-ci-2026-10-29.md)
+is now qualified at `ec09134b` / run `40869065907`: nine actual jobs retain the
+six original gates, exact full collection and blocking native/Rust barriers.
+Its 8,458 native parents partition exactly into 8,452 passes/six skips, with
+526 successful subtests separate. No-Rust passes 8,119 with 325 skips; offline
+passes 4,248 with 65 skips over 35 chunks. These results qualify that source graph,
+not adoption into this review branch. The original failed 847 and successful
+isolated 7d producers retain their distinct records and lossy-display limits.
+
+The [fresh CP60 proof V2](practice-observer-cp60-proof-v2-result-2026-10-29.md)
+at `83740291` / run `40869748892` now qualifies 66 actual ticks in three stepped
+executions, with each serialized RunResult retaining 62-turn origin coverage.
+Six trusted decodes/four unstepped uses, one generation, actual schemas and
+own-CP/RNG/output/semantic-native/frame comparisons reconcile. The 217→203 live
+witnesses and four frames have zero payments and zero positive allowances:
+no efficacy or raw checkpoint/pickle identity follows. The failed d0 run remains a 64-tick
+partial negative, and its inferred None result 62 is not relabeled as captured.
+
+Separate native `0900f3d2` has qualified all-six-job CI in
+[run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984),
+including 1,121 Rust passes and independently linked fresh native bytes. Its
+earlier [535 shared-slot source](native-live-slot-ci-2026-10-29.md) remains
+preserved. CBF-to090 default-export producer `c7727863` completed
+[run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
+with independently qualified publication metadata; the original-byte audit is
+pending. Neither CI nor that producer success grants global RNG, checkpoint,
+export parity or performance qualification. Both candidates remain outside
+this review runtime.
+
+The original wealth cohort remains mechanically incomplete. Its read-only
+`5f9413c3` diagnostic recovered a compound checkpoint-shape failure, while the
+specific failed operand remains unknown. Registered cohort cost is not completed
+work and no scientific or historical-reuse result is granted.
+
+The fixed fresh study at `2d3faa8c` / [run 40877451052](https://github.com/YotsuBotfds/Chronicler/actions/runs/40877451052)
+has successful producer/readout completion. Independent original-raw-byte and
+completion-closure verification remain pending. The imported CP60 projection's
+earlier inactive-study status is a qualification-time snapshot, superseded by
+this producer standing. No independently qualified END180 study result or
+paid-growth effect is claimed.
 
 The consolidated branch is `lead/review-integration-20261029`; main remains
 unchanged. Runtime, tests, scripts and workflows match qualified `cbf6e368`.
@@ -32,15 +61,15 @@ now qualifies 12 executions / 668 ticks of mechanics while preserving both
 failed scientific gates. The [C76-to95 native default-export audit](native-default-output-artifact-audit-v2-result-2026-10-29.md)
 also qualifies its exact nine-case matrix: 399 file pairs, zero differences.
 That parity does not extend to the later cbf source or wealth correction.
-Full scientific outcomes, fresh CP60 observation and performance each retain
-their own studies. The prior source-scoped records below describe the
+Full scientific outcomes, the active END180 study and performance retain
+their own studies; the qualified CP60 mechanical proof has its stated smaller scope. The prior source-scoped records below describe the
 exact commits they originally qualified.
 
 ## Concrete changes and evidence
 
 | Work | Result | Evidence boundary |
 | --- | --- | --- |
-| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | The original 62-tick native composition proof passed but exposed no later-topic paid use. A separate natural study now passes eight strict continuation pairs and archive/pause checks over 24 executions/3,360 ticks; four later-topic payment occurrences are observed in two worlds. No efficacy or default promotion. |
+| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | The original 62-tick native composition proof passed but exposed no later-topic paid use. The original C76 natural study passed eight strict continuation pairs and archive/pause checks over 24 executions/3,360 ticks; four later-topic payment occurrences were observed in two worlds. This is distinct from the fresh CBF study pending above. No efficacy or default promotion. |
 | Default output compatibility | Complete recovered producer matched the earlier public integration in the fixed 18-world matrix | Baseline `2f9d618b`, candidate `c76efe85`, run 40796958774. Independent reader verified all 976 payload files and the nine unchanged comparisons: 399 exported file pairs, zero differences. Registered timestamp rule only; no full checkpoint/RNG or efficacy claim. |
 | Relationship telemetry | Opt-in collected keys now have deterministic order across native restoration | The original proof failed on four bundle key-order paths; producer sorting fixed them. Original failure remains unchanged, and no comparator rule was relaxed. |
 | Debt history viewer | Current lender labels use selected-snapshot detail; extinct borrowers' recorded losses remain visible with unknown amounts | Exact viewer slice passed 709 tests/lint/build; recovered producer passed 743 viewer tests across 69 files. Missing rows and amounts are not fabricated. |
@@ -311,11 +340,13 @@ and template regression failure remain visible.
 
 That result covers checkpoint turns 6/12 through 14, roster 30 and decoded
 bundle determinism. Observed CPU affinity was four, with a logical count of
-two and numerical thread caps of one. A separately fixed 19-execution,
-3,097-tick production primer is being implemented to cover late checkpoints
-and actual two-CPU execution. It has no result yet. All six final admission
-pins remain null; long-window ablations and full population outcomes remain
-separate from these mechanical proofs.
+two and numerical thread caps of one. The separately [completed production primer](../experiments/wealth-floor-production-primer-result-2026-10-29.md)
+qualifies 19 executions/3,097 ticks covering late checkpoints and actual two-CPU
+execution. Its incidental oracle failures remain. The later worker smoke and
+incomplete full cohort keep their separate scientific standing. The frozen
+bootstrap's admission file retains its original null pins; later registered
+consumer records do not rewrite it. Full outcome qualification remains separate
+from these mechanical proofs.
 
 ## Separate verification corrections
 

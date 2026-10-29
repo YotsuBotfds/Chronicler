@@ -1,37 +1,57 @@
 # Recovered continuation — 2026-10-11
 
-The separate [shared live-slot candidate](integration/native-live-slot-ci-2026-10-29.md)
-`535b3b6c` now has independently qualified full CI: 1,120 Rust passes,
-8,351 native Python passes, 8,018 no-Rust passes and all original other gates.
-Its fresh native bytes match the retained wheel and pre-suite installed module.
-Both new Rust tests belong to the fully passing, unfiltered 579-test unit target;
-quiet output does not print individual test names. The fixed live test records
-0.049/0.051 seconds in the two full lanes, versus 5.013 seconds previously.
-These are individual test observations, not a whole-suite speed claim. Source535
-remains separate pending its own default-output and performance qualification;
-this review branch's code still matches qualified `cbf6e368`.
+The separate [standard native CI integration](integration/native-module-shards-standard-ci-2026-10-29.md)
+is independently qualified at `ec09134b`, run `40869065907`: all nine actual
+jobs pass while retaining six visible gates. Both consumers collected the same
+8,458 parents; their disjoint ownership yields 8,452 passes, six skips and 526
+successful subtests. No-Rust has 8,119 passes/325 skips, offline 4,248/65 across
+35 chunks, Rust 1,118 passes/two ignored, and Viewer 743 tests with lint/build.
+The 2 + 2 wrapper preflights stay separate. This review's standard workflow
+remains CBF; adoption of the qualified separate graph is not implied. Its
+first 847 publication failure and local 127-pass/1-fail contract are preserved.
 
-The [isolated native sharding workflow](integration/native-module-shards-v2-ci-2026-10-29.md)
-now has independently qualified all-nine-job CI at exact `7dcb2402`:
-8,454 collected parents have disjoint exact-once ownership, with 8,448 passes,
-six registered skips and 526 successful subtests. Its first failed diagnostic
-receipt publication remains preserved. Context labels are bounded display only;
-strict authority JSON and every report's ownership/order/multiplicity reconcile.
-The standard CI workflow on this review branch is unchanged; adoption is separate.
+The [completed CP60 observer proof](integration/practice-observer-cp60-proof-v2-result-2026-10-29.md)
+at `83740291`, run `40869748892`, qualifies three stepped executions/66 ticks:
+62 parent + 2 None resume + 2 observed resume, with serialized run coverage 62
+in each role. Six trusted decodes include four unstepped validations; one fresh
+generation, 297 pure preflight passes and all three actual schema observations
+reconcile. Own-CP/RNG, ordinary outputs, semantic/native/cache and post-CP frames
+match within that scope. Live counts 217→203 retain zero paid occurrences and zero positive allowances:
+no efficacy, raw checkpoint/pickle identity or full study
+is qualified. The first d0 failure remains failed after 64 confirmed partial
+ticks; its None result 62 was source-inferred, not serialized in that failed run.
 
-The fixed wealth candidate cohort reached publication in
-[run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409)
-at `33d331a1`. Both original light receipts report **incomplete mechanics** and
-no scientific gate exit code. The 3,700 executions / 201,400 ticks were registered
-cost, not a completed-work count. Original failure details and actual completed
-work are being reconciled; neither a scientific verdict nor historical reuse is granted.
+Separate native candidate `0900f3d2` has independently qualified all-six-job CI
+in [run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984):
+1,121 Rust passes, 8,351 native Python passes and 8,018 no-Rust passes, with
+skips/subtests separate. It remains outside this review runtime, as does its
+preceding [535 shared-live-slot result](integration/native-live-slot-ci-2026-10-29.md).
+The CBF-to090 default-export producer `c7727863`,
+[run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
+completed successfully and its publication metadata is independently qualified.
+The original-byte audit is still pending; no new export, global-RNG, checkpoint
+parity or performance qualification follows from producer success or CI.
 
-The separate fixed CP60 observer proof was launched once at `d0c98fe6`,
-[run 40866700701](https://github.com/YotsuBotfds/Chronicler/actions/runs/40866700701).
-Setup, guarded contracts, verified-wheel installation and actual three-schema
-freeze passed; the proof/readout steps failed and original failure evidence was
-published. Its three executions / 66 ticks remain a prospective bound until
-actual execution receipts reconcile. The eight-seed study is not activated.
+The fixed wealth candidate cohort's original receipts at `33d331a1`,
+[run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409),
+remain incomplete, without a scientific gate exit code. Registered 3,700
+executions/201,400 ticks are not completed-work counts. The read-only diagnostic
+at `5f9413c3` recovered the original compound checkpoint-shape assertion; the
+specific failed operand remains unknown. No scientific verdict or reuse grant
+is supplied by that diagnostic.
+
+The fixed eight-seed END180 study at `2d3faa8c`,
+[run 40877451052](https://github.com/YotsuBotfds/Chronicler/actions/runs/40877451052),
+now has successful producer/readout completion. Independent original-raw-byte
+and completion-closure verification remain pending; no independently qualified
+study result or paid-growth effect is claimed. The CP60 projection records its
+earlier inactive-study snapshot; this paragraph gives the current producer
+standing without extending the zero-paid proof's scope.
+
+The earlier [isolated V2 sharding qualification](integration/native-module-shards-v2-ci-2026-10-29.md)
+at `7dcb2402` and all first failed publications remain preserved. Context labels
+are bounded display only; native identities/outcomes/ownership/order and report
+multiplicity retain strict checks. No main merge or runtime promotion is included.
 
 The current consolidation is `lead/review-integration-20261029`. Its runtime,
 tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.
@@ -47,16 +67,16 @@ runner cases pass in both full lanes, including ordinary outputs, payments,
 caller RNG and decoded checkpoint/native/transient state. The default main
 AST matches parent `1205b6e4` after the two reviewed optional dispatch seams
 are projected away. No CLI, saved observer field or default feature is added.
-Fresh CP60 natural-study evidence remains a separate pending step.
+The qualified CP60 proof and the active END180 study retain their distinct scopes.
 
 The [wealth-floor worker smoke](experiments/wealth-floor-outcome-worker-smoke-result-2026-10-29.md)
 now has complete publication and independent mechanical qualification:
 12 executions / 668 actual ticks, four captured checkpoint headers, eight
 source-derived fork links and all six original artifacts. Both scientific
 gates remain false, exit 2, needs FAIL, with incidental failures and partial
-reports preserved. The separate full cohort is now running after its own fresh-origin
-admission and registration; outcome qualification remains pending, and the
-correction is not merged into this review runtime.
+reports preserved. Its separately registered full cohort was attempted, but its
+original receipts remain incomplete as summarized above. Outcome qualification
+remains pending, and the correction is outside this review runtime.
 
 The [corrected native default-export audit](integration/native-default-output-artifact-audit-v2-result-2026-10-29.md)
 is independently qualified for the exact C76-to95 matrix: nine original
@@ -99,6 +119,11 @@ four executions are separate from full-suite counts. Each check took two
 observed seconds; this is gate-order evidence, not a controlled speedup.
 It preserves all full selections, original artifact layouts and 110-second
 bounds, adding two separate small artifacts for future producers.
+
+Before future activation, resolve every pinned GitHub Action ref as well as
+linting the workflow. The preserved `6cf54b93` default-export activation failed
+during setup; that setup-only failure supplies no simulation result. The changed
+c772 source completed separately. No workflow is changed for this process note.
 
 Prior source-scoped preparation and qualification records follow. Their exact
 producing commits retain their original claims and failures.

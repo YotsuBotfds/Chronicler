@@ -1,0 +1,319 @@
+{
+  "kind": "curated fresh same-source CP60 observer continuation V2 result",
+  "projection": {
+    "publication_base": "54e37d97ef4a86dd03912a359a71c5352774d080",
+    "intended_paths": [
+      "docs/integration/practice-observer-cp60-proof-v2-result-2026-10-29.md",
+      "docs/integration/practice-observer-cp60-proof-v2-result-2026-10-29.json"
+    ],
+    "not_original_readout": true
+  },
+  "standing": "ROOT_QUALIFIED_FRESH_CP60_OBSERVER_CONTINUATION_V2",
+  "control": "8374029149f3e4034a2a23d2767169f1dd8e3433",
+  "producer": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+  "source_fix": "b020fdf983bf9717c67881887c64c80d76cb8831",
+  "run": {
+    "id": 40869748892,
+    "attempt": 1,
+    "job_id": 123433478821,
+    "status": "completed",
+    "conclusion": "success",
+    "branch": "lead/cloud-practice-cp60-proof-v2-20261029",
+    "workflow": ".github/workflows/research-practice-cp60-proof-v2.yml",
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40869748892"
+  },
+  "proof": {
+    "seed": 1999,
+    "physics_executions": 3,
+    "physics_ticks": 66,
+    "roles": {
+      "parent": {
+        "ticks": 62,
+        "total_turns": 62,
+        "decode_calls": 2,
+        "unstepped": 2,
+        "actual_live_at60": 217,
+        "actual_live_at62": 203
+      },
+      "none": {
+        "ticks": 2,
+        "total_turns": 62,
+        "decode_calls": 2,
+        "unstepped": 1,
+        "actual_live_at60": 217,
+        "actual_live_at62": 203
+      },
+      "observed": {
+        "ticks": 2,
+        "total_turns": 62,
+        "decode_calls": 2,
+        "unstepped": 1,
+        "actual_live_at60": 217,
+        "actual_live_at62": 203
+      }
+    },
+    "serialized_RunResult_origin_span_each": 62,
+    "newly_stepped_ticks": [
+      62,
+      2,
+      2
+    ],
+    "explicit_trusted_decode_calls": 6,
+    "unstepped_validation_uses": 4,
+    "fresh_generation_calls": 1,
+    "total_World_or_native_object_count_claimed": false
+  },
+  "pre_world": {
+    "guarded_pure_passed": 297,
+    "skipped": 0,
+    "guard_forbidden_native_import_factory_IO": 0,
+    "actual_three_compiled_schema_calls": 3,
+    "schemas": {
+      "AgentSimulator": {
+        "version": 1,
+        "fingerprint": "dcf0c34097c88451",
+        "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b"
+      },
+      "EcologySimulator": {
+        "version": 1,
+        "fingerprint": "4ab7f8c199b5e5f8",
+        "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff"
+      },
+      "PoliticsSimulator": {
+        "version": 1,
+        "fingerprint": "b1a710f3450f5015",
+        "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395"
+      }
+    },
+    "active_native_only": "AgentSimulator"
+  },
+  "runtime": {
+    "native": {
+      "status": "found",
+      "source": "imported",
+      "module_file": "/home/runner/work/_temp/practice-cp60-env/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "bytes": 13695168,
+      "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+    },
+    "source": {
+      "git_sha": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "git_ref": null,
+      "package_dir": "/home/runner/work/Chronicler/Chronicler/producer/src/chronicler",
+      "package_digest": "1f1c720880e45e0e835e033da216b3deee1f755a497b8e189abaf97c2fe9f656"
+    },
+    "python": "3.13.17",
+    "actual_affinity_cpu_count": 1,
+    "thread_caps": 1,
+    "qualified_dependency_wheel": {
+      "source": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+      "run_id": 40841527996,
+      "artifact_id": 12882944002,
+      "native_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+      "scope": "Previously qualified exact CBF wheel; no fresh build or retrieval claim from this curation."
+    }
+  },
+  "mechanical_comparisons": {
+    "ordinary_state_history_events_payment_outputs_equal": true,
+    "Python_NumPy_final_RNG_equal": true,
+    "CP60_rng_sidecar_matches_each_resume": true,
+    "semantic_carried_native_cache_projection_equal": true,
+    "opaque_final_native_payload_equal": true,
+    "normalizations": [
+      "Validated aware writer metadata.generated_at only for ordinary bundle",
+      "Validated parent attempts61/62 versus resumed attempts1/2 only for post-CP trace comparison"
+    ],
+    "private_pickle_hashes_excluded_by_source_owned_state_view": true,
+    "raw_checkpoint_or_python_pickle_identity_claimed": false
+  },
+  "actual_live_population": {
+    "CP60": 217,
+    "CP62": 203,
+    "all_three_roles": true,
+    "typed_region_rows_each": 8,
+    "native_payload_caller_RNG_snapshot_cache_unchanged": true
+  },
+  "observed_window": {
+    "source_turns": [
+      60,
+      61
+    ],
+    "observed_roles": [
+      "parent",
+      "observed"
+    ],
+    "frames": 4,
+    "selected_slots": 64,
+    "computed_kernels": 64,
+    "payment_occurrences": 0,
+    "positive_allowances": 0,
+    "None_arm_unobserved": true,
+    "no_positive_payment_or_efficacy_exposure": true
+  },
+  "final_budget": {
+    "controller_charged_upper_bound_cpu_seconds": 19.008901,
+    "controller_to_readout_wall_seconds": 21.375243166999994,
+    "reader_cpu_seconds": 2.5867770000000005,
+    "scope": "conservative controller charge plus measured reader CPU; not a measured total",
+    "total_cpu_upper_bound_seconds": 21.595678000000003
+  },
+  "publication": {
+    "original_artifact": {
+      "id": 12895861133,
+      "name": "practice-cp60-proof-40869748892-1",
+      "size_in_bytes": 7611915,
+      "digest": "sha256:415803fb6f5e22c1ed4281f9c58efba6fcce3251b0bbdab2c13e064a2fa1e896",
+      "created_at": "2026-10-29T12:01:06Z",
+      "expires_at": "2026-11-28T12:01:04Z"
+    },
+    "original_zip_downloads": 1,
+    "members": 162,
+    "expanded_bytes": 33716629,
+    "whole_archive_and_all_member_size_CRC_SHA_verified": true,
+    "seals": {
+      "execution_sha256": "3b3c1a666b9fe544d309fada5bea9e225f7afb3ecf339b9a9779384e0c82d362",
+      "execution_receipt_sha256": "83346871d5bc04b60b2ef172631f8da4db864a90f94779b2ac51ab796be01395",
+      "readout_sha256": "d40e3a4851ad2959a2c666a9b8850cb4deffcd7a02e22466a359329471e2483e",
+      "receipt_sha256": "c5b054fea3fe48e967c71a56f91de62ccf2e07a33adf09410365d3c8513723c8",
+      "completion_sha256": "cc94f500bb4fe38151d14dc3c64dbc74c7f2f1029ca79061e04e87a96dc54baa"
+    },
+    "freeze_sha256": "083063d76ccfdb3e5836e7aa1ce5b8f5e7bb2d81f070d6684973dfdfc85059fa",
+    "source_capsules": {
+      "control": {
+        "source": "8374029149f3e4034a2a23d2767169f1dd8e3433",
+        "files": 1604,
+        "bytes": 34607207,
+        "files_sha256": "84615763ab468632af1ad676efcd54a1d39569693f2f257fae3dbfccb52e1995"
+      },
+      "producer": {
+        "source": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+        "files": 1581,
+        "bytes": 34253577,
+        "files_sha256": "2e4b34fb2f15100437ecd595208c02c36e76ec01173fefc35cc65acfe346540d"
+      }
+    },
+    "strict_checkpoint_envelopes": {
+      "practice-cp60-evidence/none/checkpoint_turn_62.ckpt": {
+        "turn": 62,
+        "whole_checkpoint_sha256": "41bb1e70d6ea299d0cf76c80666846028be7d5767ac4b451c88752f31608cff2",
+        "packed_section_hashes": {
+          "python": "5b45db555dc0847b805c275b6e33752001426c230a430ca94fccf0b5114af009",
+          "native.agent.0": "7847a04b265ac96277b239bcf41dfcb0b8456df83d582551414308841567a983"
+        }
+      },
+      "practice-cp60-evidence/observed/checkpoint_turn_62.ckpt": {
+        "turn": 62,
+        "whole_checkpoint_sha256": "f1cdea2a8b4b9d828616751789694394729d6cd918a8f2b12f8cce9d5ce363e4",
+        "packed_section_hashes": {
+          "python": "6cc8ac4d87dc3da6a9090ef9276ebf7cf4aef9622d578ea3cf37447ed1d3c0be",
+          "native.agent.0": "7847a04b265ac96277b239bcf41dfcb0b8456df83d582551414308841567a983"
+        }
+      },
+      "practice-cp60-evidence/parent/checkpoint_turn_60.ckpt": {
+        "turn": 60,
+        "whole_checkpoint_sha256": "f67da3dae421469ba17f34a5988b1c1fc53d31fe290a7c60f1a0dcd359c61ed0",
+        "packed_section_hashes": {
+          "python": "0f10bdc5ed8bbe4dbac331142336415ac613b05e597c92ecace9881be5543995",
+          "native.agent.0": "f473224627b9b6b26ad3216f46ecdc5a12a58a271ca888601e3e8ef073a633af"
+        }
+      },
+      "practice-cp60-evidence/parent/checkpoint_turn_62.ckpt": {
+        "turn": 62,
+        "whole_checkpoint_sha256": "d6f601c8f086c23656a84171b9683b10f2d91fe1fb1e2678591acfac23c87402",
+        "packed_section_hashes": {
+          "python": "6c1859b0161b7522b4df1bbc00aaf30395be9bb7c8faad940a2cd399cea03531",
+          "native.agent.0": "7847a04b265ac96277b239bcf41dfcb0b8456df83d582551414308841567a983"
+        }
+      }
+    },
+    "independent_peer_CP_section_inflation_or_unpickle_calls": 0
+  },
+  "qualification": {
+    "manifest": {
+      "path": "/tmp/chronicler-review-evidence/practice-cp60-proof-v2-83740291-ci-20261029/evidence-manifest.json",
+      "bytes": 2486,
+      "sha256": "e42628c0bf3f8cc7a97ef98084ffad7c03f0866926bd393727d51a4de740b808"
+    },
+    "result": {
+      "path": "/tmp/chronicler-review-evidence/practice-cp60-proof-v2-83740291-ci-20261029/reconciled-result.json",
+      "bytes": 193650,
+      "sha256": "e05294356fc3520efa41eb847ef7b01fde761b7e7299dda488024e2ee1d09b7a"
+    },
+    "original_readout": {
+      "path": "/tmp/chronicler-review-evidence/practice-cp60-proof-v2-83740291-ci-20261029/READOUT.md",
+      "bytes": 3177,
+      "sha256": "b9603d8544462100ed3030d1a9766dd0c1012aa4192dff9ce88899ac194d48dd"
+    },
+    "member_index": {
+      "path": "/tmp/chronicler-review-evidence/practice-cp60-proof-v2-83740291-ci-20261029/member-index.json",
+      "bytes": 31439,
+      "sha256": "3ef031ee3133712fd32614eb59aeb352ba6b91e6b8ac33d81e8abea240731c81"
+    },
+    "non_author_peer": {
+      "path": "/tmp/chronicler-review-evidence/practice-cp60-v2-final-peer-83740291-20261029/receipt.json",
+      "bytes": 13183,
+      "sha256": "610b472ad4fd6778bfc130a02b9bfd8cc59f28c0d0fec3118d63289b7928541f"
+    },
+    "root_final": {
+      "path": "/tmp/chronicler-cp66-v2-root-qualification-20261029/root-final-qualification.json",
+      "bytes": 2994,
+      "sha256": "f98f500abfa5f01b5810662e26af23b66a6dc9aefb2ab2e2448572f16518e22a"
+    }
+  },
+  "prerequisites": {
+    "source_fix_root_sha256": "6d89b9580aaacb63d40f8304f94134a5275dab4a41bb5ee453f70536f0048b53",
+    "source_fix_non_author_peer_sha256": "b389e80646ee87575233a5faf93e9f14d1aef067b2fba10b149013c4c4bc6075",
+    "activation_root_sha256": "195a15a45a9eded42e14f88836fa1d5452ce4d3b1a0eab889616a0e08c3dd716",
+    "root_fresh_official_origin_sha256": "c21f006a818054d59dbb50252965076e14764373331d67fa46126d75302d7661"
+  },
+  "preserved_negative": {
+    "source": "d0c98fe6e5e1d279a75bc77bba3e3ff820d52bbc",
+    "run_id": 40866700701,
+    "attempt": 1,
+    "status": "FAILED / mechanics unqualified",
+    "confirmed_partial_ticks": 64,
+    "confirmed_stepped_executions": 2,
+    "original_actual_physics_ticks_field": null,
+    "observed_role_attempted": false,
+    "cause": "Parent completed 62; None resume completed 2 and then failed harness expectation total_turns == 2. Source-supported None result span 62 was not serialized in that failed run.",
+    "root_qualification": {
+      "path": "/tmp/chronicler-cp66-first-negative-root-20261029/root-negative-qualification.json",
+      "bytes": 1795,
+      "sha256": "c355d306ab98441094c811822987f41340c27089d55ca9e122f546fbc087c801"
+    },
+    "manifest_sha256": "cfa6a6b66dd48018c608743361933dd954fd197e64dff4ff60ac21bcec2335d1",
+    "original_ZIP_sha256": "2a722146146dfb2a5564c20883ae25ad05364efca53229d21cea532c7f137375",
+    "unchanged_producer_retry": false
+  },
+  "preserved_reader_assumptions": {
+    "primary": {
+      "cause": "Generic 1 MiB JSON cap refused two actual 647 KiB freeze snapshots in worker identity; only that identity input explicitly bounded at 2 MiB.",
+      "note": {
+        "path": "/tmp/chronicler-review-evidence/practice-cp60-proof-v2-83740291-ci-20261029/reader-notes/first-reader-assumption.json",
+        "bytes": 358,
+        "sha256": "0044b8f6d590af27b6d302e1c30b41db23a89e7ac13bfb3a14187db1605fe571"
+      }
+    },
+    "independent_peer": {
+      "cause": "Normalized jobs wrapper omits raw head_sha/run_attempt; binding uses official run and artifact origin plus exact job ID/run ID.",
+      "note": {
+        "path": "/tmp/chronicler-review-evidence/practice-cp60-v2-final-peer-83740291-20261029/first-reader-assumption.json",
+        "bytes": 470,
+        "sha256": "d4bd59df4f635e71cae8b9160e6f6d7f8d56cb8d2facd255bdf6748f1b9f9dc0"
+      }
+    },
+    "earlier_negative_reader_notes_remain_in_original_negative_manifest": true,
+    "no_producer_bytes_or_verdicts_rewritten": true
+  },
+  "limits": [
+    "Fixed seed1999, two post-CP sources per observed role; first60 parent turns observed, not an unobserved fresh-world contrast.",
+    "Source-owned semantic carried/native/cache projection excludes private memory/Python pickle hashes; no raw CP or pickle byte identity.",
+    "Zero paid occurrences/positive allowances: no positive paid-growth exposure, efficacy, welfare, performance or default/main promotion.",
+    "Final CPU 21.595678 is a conservative upper bound, not a measured total; 21.375243167s is controller-to-readout qualification wall, not end-to-end job wall.",
+    "Curation reads only qualified saved metadata. No archive transfer, CP/native/World decode/import, study, test or build execution."
+  ],
+  "other_standings": {
+    "eight_seed_END180_study": "INACTIVE",
+    "native_wealth_full_outcomes": "INCOMPLETE",
+    "native_wealth_unknown_cause_diagnostic_reader": "SOURCE_ONLY_HELD"
+  }
+}
