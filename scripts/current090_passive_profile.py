@@ -291,6 +291,7 @@ def numpy_view(value, np):
         return ({"kind": "scalar", "dtype": dtype.str, "content": value.tobytes()}, None)
     base = value.base
     offset = 0
+    require(base is not None or value.flags.owndata, "unanchored nonowning array")
     if base is not None:
         origin, size = address(base)
         offset = value.__array_interface__["data"][0] - origin
@@ -343,7 +344,7 @@ class StateFingerprint:
         if isinstance(value, PurePath):
             require(type(value) in (Path, PosixPath, WindowsPath, PurePath, PurePosixPath, PureWindowsPath),
                     "unsupported path subclass")
-            return self.emit("path", str(value).encode())
+            return self.emit("path", canonical_bytes([type(value).__module__, type(value).__qualname__, str(value)]))
         ident = id(value)
         if ident in self.memo:
             return self.emit("reference", str(self.memo[ident]).encode())
@@ -414,7 +415,8 @@ class StateFingerprint:
                 # Python's double-underscore slot spelling is name-mangled.
                 if name.startswith("__") and not name.endswith("__"):
                     name = "_" + cls.__name__.lstrip("_") + name
-                if name not in names: names.append(name)
+                require(name not in names, "ambiguous duplicate slot storage")
+                names.append(name)
         require(has_dict or bool(names), "unsupported object fields")
         for name in names:
             self.visit(name)

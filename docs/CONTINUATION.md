@@ -2,7 +2,7 @@
 
 The [current090 passive-profile worker](performance/current090-passive-profile-worker-2026-10-29.md)
 is Stage 1 source only: six fixed 97-turn roles, passive closed windows and a
-strict decoded-state/RNG/output contract. Its original 9e source is preserved/rejected; the corrected 82-case tiny
+strict decoded-state/RNG/output contract. Its original 9e source is preserved/rejected; the corrected 86-case tiny
 guarded selection passes, including clock/getter and graph/RNG domain fixes.
 Actual execution approval is null. Hosted ownership/admission, genuine
 World equivalence and profiling remain unimplemented/unrun. Old held timing

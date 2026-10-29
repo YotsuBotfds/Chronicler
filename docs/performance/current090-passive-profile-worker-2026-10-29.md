@@ -80,7 +80,9 @@ are not required equal. Decoded content is fingerprinted with deterministic
 reference ordinals, dictionary order, cycles, float bits, private/extras,
 configuration/history/events/memory data and all native checkpoint bytes.
 Memory encoder cache contents and actual entry/field identity links are kept.
-Mutable bytearrays are memoized, including shared-buffer identity. Unknown
+Mutable bytearrays are memoized, including shared-buffer identity. Qualified concrete Path types are retained, even when their strings match.
+Own slot declarations are inspected per class; hidden/redeclared storage names
+refuse, while ordinary inherited physical slots remain supported. Unknown
 stateful container/Path/Random subclasses refuse; the explicit exact
 Counter/OrderedDict/defaultdict/ordinary containers retain supported extra
 state. Decoded project/dataclass objects are read directly through actual
@@ -91,7 +93,8 @@ The NumPy handler accepts only the exact admitted ndarray and a fixed set of
 immutable scalar classes. Subclasses, object/structured/metadata dtypes,
 indirect/noncontiguous base buffers and unknown storage refuse. Supported
 arrays retain dtype, shape, strides, all flag bits, content, base-buffer graph
-and relative data offset; memoryviews retain their format/shape/strides/readonly
+and relative data offset. A base-less array must own its storage; external
+unanchored nonowning arrays refuse; memoryviews retain their format/shape/strides/readonly
 state and actual backing object. Zero-element byte views derive relative
 offsets outside timing; raw addresses never enter records. This handler has
 only synthetic metadata coverage, not a real NumPy execution claim.
@@ -143,7 +146,12 @@ first failed on the exact parent source (108/216 fake seconds instead of8/16).
 The corrected successor closes both clocks first and tightens the accepted
 domain without adding any output exclusions.
 
-Final corrected Stage 1 pure qualification is 82 fake/metadata cases passing in a guarded
+The further 691386e6 closed-domain refresh remains preserved: identical text
+for distinct concrete Path types, hidden same-name base slots and unanchored
+base-less ndarray storage now have explicit barriers. Four new cases first
+produced three intended parent failures plus one inherited-slot pass.
+
+Final corrected Stage 1 pure qualification is 86 fake/metadata cases passing in a guarded
 Python 3.13.5 process. No project/native/NumPy module, factory, network or child
 process was used. Prior 42-, 44- and53-case source boundaries, independent rejection, the
 new one-case parent reproduction and all receipts remain retained. These tests cover boundary ordering, actual-count table bounds,

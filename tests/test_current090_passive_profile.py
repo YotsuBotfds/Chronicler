@@ -465,7 +465,8 @@ class ArrayMetadata:
     def __init__(self, content=b"abcd", base=None, offset=0):
         self.dtype = SimpleNamespace(hasobject=False, fields=None, subdtype=None, metadata=None,
                                      str="|u1", itemsize=1, alignment=1)
-        self.flags = SimpleNamespace(c_contiguous=True, f_contiguous=True, num=1024)
+        self.flags = SimpleNamespace(c_contiguous=True, f_contiguous=True,
+                                      num=1028 if base is None else 1024, owndata=base is None)
         self.shape, self.strides = (len(content),), (1,)
         self.size = self.nbytes = len(content)
         self.base, self.content = base, content
@@ -500,7 +501,7 @@ def test_exact_array_storage_geometry_flags_and_mutable_base_alias_matter(fault)
     b.extra = ArrayMetadata(b"ab", base=ArrayMetadata(b"abcdefgh"))
     assert numpy_fingerprint(a) == numpy_fingerprint(b)
     if fault == "stride": b.extra.strides = (2,)
-    if fault == "writable": b.extra.flags.num = 0
+    if fault == "writable": b.extra.flags.num = 4
     if fault == "offset": b.extra.__array_interface__["data"] = (1002, False)
     if fault == "base_alias":
         shared = ArrayMetadata(b"abcdefgh")
@@ -570,3 +571,43 @@ def test_model_like_extra_slots_are_not_lost():
         target.world.__pydantic_private__["_war_roster_sim"] = id(target.agent_bridge._sim)
         target.world.extra_flag = flag
     assert fingerprint(a) != fingerprint(b)
+
+
+def test_qualified_path_type_keeps_capabilities_with_identical_text():
+    a, b = state(), state()
+    a.extra = P.PosixPath("/same")
+    b.extra = P.PurePosixPath("/same")
+    assert str(a.extra) == str(b.extra) and fingerprint(a) != fingerprint(b)
+
+
+def test_hidden_slot_storage_refuses_instead_of_skipping_the_base_value():
+    class Base:
+        __module__ = "chronicler.synthetic_metadata_contract"
+        __slots__ = ("value",)
+    class Hidden(Base):
+        __module__ = "chronicler.synthetic_metadata_contract"
+        __slots__ = ("value",)
+    s = state(); s.extra = Hidden()
+    Base.value.__set__(s.extra, "physical base slot")
+    Hidden.value.__set__(s.extra, "different physical child slot")
+    with pytest.raises(P.Refused, match="duplicate slot"): fingerprint(s)
+
+
+def test_inherited_slot_storage_without_redeclaration_is_retained():
+    class Base:
+        __module__ = "chronicler.synthetic_metadata_contract"
+        __slots__ = ("value",)
+    class Inherited(Base):
+        __module__ = "chronicler.synthetic_metadata_contract"
+        __slots__ = ()
+    a, b = state(), state()
+    a.extra, b.extra = Inherited(), Inherited()
+    a.extra.value, b.extra.value = "one", "two"
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_unanchored_nonowning_array_refuses_even_when_base_is_none():
+    s = state(); s.extra = ArrayMetadata()
+    s.extra.flags.owndata = False
+    s.extra.flags.num &= ~4
+    with pytest.raises(P.Refused, match="unanchored"): numpy_fingerprint(s)
