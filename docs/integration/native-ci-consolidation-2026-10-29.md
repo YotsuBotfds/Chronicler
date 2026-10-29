@@ -26,12 +26,22 @@ Native 090's independent full CI qualified 1,121 Rust passes/two ignored,
 8,452 native passes/six skips and 8,119 no-Rust passes/325 skips, with 526 subtests.
 The c5 combined result records 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline cases/65 skips, 1,121 Rust cases/two ignored and 743 Viewer tests with lint/build. The original component records remain separate; 2 + 2 preflights are not added to full counts.
 
-The CBF-to-090 default-export producer succeeded; its independent original-byte
-audit is pending. Its actual wheel/native identities belong to that original
-producer. The new c5 build independently records native SHA `14a67f28…`, equal to 090, and whole-wheel SHA `507c5b96…`, distinct from the old wheel. No old/new output-parity claim follows from this byte identity or from CI. This candidate
-has no whole-turn speedup, peak-memory, scientific-outcome or promotion result.
+The [CBF-to-090 original default-export audit](cbf-090-default-output-identity-result-2026-10-29.md)
+is now independently/root-qualified: nine original cases, 399 file pairs and
+zero differences. Its read-only audit created no Worlds and retained all 36
+actual schema/native/runtime probes. The new c5 build independently records
+native SHA `14a67f28…`, equal to 090, and whole-wheel SHA `507c5b96…`, distinct
+from the old wheel. The matrix executed exact CBF-to-090; it did not run new
+c5/0654 Worlds or qualify full global RNG, checkpoints, scientific efficacy,
+whole-turn speed, peak RSS, feature activation or main merge.
 
-Wealth-floor physics, the marriage broadphase and the later native fusion source remain separate; this evidence grants no parity or performance result for them.
+The [detached exact-marriage screen](exact-marriage-screen-rejection-2026-10-29.md)
+is **COMPLETE REJECTED**, with root and independent review: all 15 synthetic cases/150
+samples are retained, 12 criteria pass and spread257/1024/4096 fail. There is
+no tuning, retry, production wiring or adoption. Fewer distance evaluations
+and the favorable boundary case do not override its registered all-case gate.
+Wealth-floor physics and the later native fusion source remain separate; this
+default audit grants no parity or performance result for them.
 The current [review](recovered-review-2026-10-29.md) preserves earlier source-scoped
 claims and failed runs. [Standard CI evidence](native-module-shards-standard-ci-2026-10-29.md)
 and [native partition design](../performance/native-region-partition-reuse-2026-10-29.md)

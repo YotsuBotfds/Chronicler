@@ -23,11 +23,24 @@ Separate native `0900f3d2` has qualified all-six-job CI in
 [run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984),
 including 1,121 Rust passes and independently linked fresh native bytes. Its
 earlier [535 shared-slot source](native-live-slot-ci-2026-10-29.md) remains
-preserved. CBF-to 090 default-export producer `c7727863` completed
-[run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
-with independently qualified publication metadata; the original-byte audit is
-pending. Neither CI nor that producer success grants global RNG, checkpoint,
-export parity or performance qualification. The c5 combined head now has its own qualified CI and freshly recorded native `14a67f28…` bytes, equal to 090; its whole-wheel `507c5b96…` identity is separately measured.
+preserved. The [CBF-to-090 original default-export audit](cbf-090-default-output-identity-result-2026-10-29.md)
+is now independently/root-qualified: nine original cases, 399 file pairs, zero
+differences. Reader `191dee2b` / run `40887868224` consumed the completed c772
+producer's original 18 Worlds/3,200 ticks, with no new Worlds. All 985 complete
+archive records (983 original inventory entries plus inventory/result), 36 actual
+three-class probes and original/reader cleanup ledgers reconcile. The c5 combined
+head has its own qualified CI and native `14a67f28…` bytes equal to 090; its
+whole-wheel `507c5b96…` identity remains separately measured. This historical
+matrix executed exact CBF-to-090, not new c5/0654 Worlds; full-global-RNG,
+checkpoint, performance, science and promotion remain outside its scope.
+
+The [exact-marriage first screen](exact-marriage-screen-rejection-2026-10-29.md)
+is independently/root-qualified as **COMPLETE REJECTED**. All 15 synthetic cases,
+150 samples and frozen criteria remain: 12 pass and spread257/1024/4096 fail.
+Spread257 regresses 74.67%; larger spread cases miss their required 10% gain.
+All seven ordinary Rust contracts pass, but no rows, cutoff, source or timing
+criteria were changed. There is no retry, production wiring or adoption; the
+screen supplies no production or whole-World speed claim.
 
 The original wealth cohort remains mechanically incomplete. Its read-only
 `5f9413c3` diagnostic recovered a compound checkpoint-shape failure, while the

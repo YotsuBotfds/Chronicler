@@ -1,0 +1,391 @@
+{
+  "always_closure_and_upload": "SUCCESS",
+  "attempt": 1,
+  "branch": "lead/cloud-exact-marriage-screen-20261029",
+  "classification": "COMPLETE_REJECTED",
+  "command_observations": {
+    "build": {
+      "exit": 0,
+      "peak_RSS_KiB": 1380288,
+      "user_system_CPU_seconds": 321.15,
+      "wall_seconds": 334.4
+    },
+    "scope": "Per-command observations only; not total workflow CPU, full planner or current production/World cost.",
+    "screen": {
+      "exit": 101,
+      "peak_RSS_KiB": 7528,
+      "user_system_CPU_seconds": 0.76,
+      "wall_seconds": 0.79
+    }
+  },
+  "controls": {
+    "Worlds": 0,
+    "favorable_case_filter": false,
+    "main_merge": false,
+    "production_wire": false,
+    "rejection_final": true,
+    "retuning": false,
+    "same_source_retry": false
+  },
+  "curated_projection_not_original_readout": true,
+  "curation_first_draft_preserved": "An unwritten first projection exceeded the self-imposed concise JSON limit; retained its source, removed duplicated sample arrays from the projection and pinned the unchanged full150-sample arithmetic receipt instead. No producer data changed.",
+  "event": "push",
+  "fixed_screen": {
+    "all150_samples_pinned_in_arithmetic_receipt": true,
+    "decision": "All15 criteria must pass;12pass/3fail",
+    "decisions": 15,
+    "failed_cases": [
+      "spread257",
+      "spread1024",
+      "spread4096"
+    ],
+    "geometry_replayed_by_peer": false,
+    "pairs_per_case": 5,
+    "parity_evidence": "Saved parity rows plus frozen source assertions; no independent Rust geometry replay.",
+    "parity_rows": 15,
+    "rows": [
+      {
+        "candidate_change_percent": 18.5483870967742,
+        "candidate_median_ns": 147,
+        "case": "empty0",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 0,
+          "old_distances": 0
+        },
+        "limit_ns": 5130,
+        "old_median_ns": 124,
+        "parity_route": "LinearSmall",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 25.609756097560975,
+        "candidate_median_ns": 515,
+        "case": "singleton1",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 1,
+          "old_distances": 1
+        },
+        "limit_ns": 5430,
+        "old_median_ns": 410,
+        "parity_route": "LinearSmall",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 14.66854724964739,
+        "candidate_median_ns": 813,
+        "case": "small16",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 256,
+          "old_distances": 256
+        },
+        "limit_ns": 5744,
+        "old_median_ns": 709,
+        "parity_route": "LinearSmall",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 3.720763760290069,
+        "candidate_median_ns": 66652,
+        "case": "spread255",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 65025,
+          "old_distances": 65025
+        },
+        "limit_ns": 72474,
+        "old_median_ns": 64261,
+        "parity_route": "LinearSmall",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 2.6665007234088822,
+        "candidate_median_ns": 65993,
+        "case": "spread256",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 65536,
+          "old_distances": 65536
+        },
+        "limit_ns": 72492,
+        "old_median_ns": 64279,
+        "parity_route": "LinearSmall",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 74.67451234768106,
+        "candidate_median_ns": 113100,
+        "case": "spread257",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 40589,
+          "old_distances": 66049
+        },
+        "limit_ns": 67986,
+        "old_median_ns": 64749,
+        "parity_route": "Grid",
+        "passed": false
+      },
+      {
+        "candidate_change_percent": 0.07787860710293248,
+        "candidate_median_ns": 983063,
+        "case": "spread1024",
+        "criterion": "candidate <= floor(0.90 * old)",
+        "distance_counts": {
+          "new_distances": 553536,
+          "old_distances": 1048576
+        },
+        "limit_ns": 884068,
+        "old_median_ns": 982298,
+        "parity_route": "Grid",
+        "passed": false
+      },
+      {
+        "candidate_change_percent": -0.12151562693849538,
+        "candidate_median_ns": 15916035,
+        "case": "spread4096",
+        "criterion": "candidate <= floor(0.90 * old)",
+        "distance_counts": {
+          "new_distances": 8856576,
+          "old_distances": 16777216
+        },
+        "limit_ns": 14341859,
+        "old_median_ns": 15935399,
+        "parity_route": "Grid",
+        "passed": false
+      },
+      {
+        "candidate_change_percent": 1.2583495023716917,
+        "candidate_median_ns": 999910,
+        "case": "dense1024",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 1048576,
+          "old_distances": 1048576
+        },
+        "limit_ns": 1036858,
+        "old_median_ns": 987484,
+        "parity_route": "LinearAll",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 1.993236147381361,
+        "candidate_median_ns": 16451970,
+        "case": "dense4096",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 16777216,
+          "old_distances": 16777216
+        },
+        "limit_ns": 16936974,
+        "old_median_ns": 16130452,
+        "parity_route": "LinearAll",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": -44.76838221324918,
+        "candidate_median_ns": 537835,
+        "case": "boundaries1024",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 310252,
+          "old_distances": 1048576
+        },
+        "limit_ns": 1022470,
+        "old_median_ns": 973781,
+        "parity_route": "Grid",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 2.511267588305488,
+        "candidate_median_ns": 999858,
+        "case": "outside1024",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 1048576,
+          "old_distances": 1048576
+        },
+        "limit_ns": 1024132,
+        "old_median_ns": 975364,
+        "parity_route": "LinearOutOfDomain",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": -0.18044027426922238,
+        "candidate_median_ns": 5532,
+        "case": "nan1024",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 0,
+          "old_distances": 0
+        },
+        "limit_ns": 10819,
+        "old_median_ns": 5542,
+        "parity_route": "ReferenceNonFinite",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 0.7547802750754729,
+        "candidate_median_ns": 6007,
+        "case": "infinity1024",
+        "criterion": "candidate <= floor(1.05 * old) + 5000 ns",
+        "distance_counts": {
+          "new_distances": 0,
+          "old_distances": 0
+        },
+        "limit_ns": 11260,
+        "old_median_ns": 5962,
+        "parity_route": "ReferenceNonFinite",
+        "passed": true
+      },
+      {
+        "candidate_change_percent": 1.6126772716659632,
+        "candidate_median_ns": 1000956,
+        "case": "zeros1024",
+        "criterion": "candidate <= floor(1.05 * old)",
+        "distance_counts": {
+          "new_distances": 1048576,
+          "old_distances": 1048576
+        },
+        "limit_ns": 1034323,
+        "old_median_ns": 985070,
+        "parity_route": "LinearAll",
+        "passed": true
+      }
+    ],
+    "sample_order": "Case order fixed; pair0/2/4 old then candidate, pair1/3 candidate then old. All150 retained.",
+    "spread4096_distance_reduction_percent": 47.210693359375,
+    "timing_column": "total_ns_with_drop",
+    "timing_samples": 150
+  },
+  "independent_all_case_arithmetic_peer": {
+    "bytes": 11914,
+    "path": "/tmp/chronicler-exact-marriage-142-arithmetic-peer-20261029/receipt.json",
+    "sha256": "fc0ccbd48a130d1293fad3b594d90a3e09cf79bf4352bd4bcc72652816ff6f2a"
+  },
+  "independent_non_author_final_peer": {
+    "bytes": 5008,
+    "path": "/tmp/chronicler-exact-marriage-142-final-peer-fzx_27qj/final-peer.json",
+    "sha256": "f9779ee0f386efe5d9750664173c647bcd87f1109600efc75a93186c851cf7ac"
+  },
+  "job_id": 123484441112,
+  "kind": "CURATED_COMPLETE_FIRST_SYNTHETIC_SCREEN_REJECTION",
+  "ordinary_Rust_contracts": {
+    "full_Rust_suite_claim": false,
+    "original_radius_passed": 1,
+    "passed": 6,
+    "screen_ignored_in_ordinary_selection": 1
+  },
+  "original_artifact": {
+    "created_at": "2026-10-29T13:49:03Z",
+    "digest": "sha256:6730533f0069fe443c100c2ee9b29d2eaf9e1e2005923e5335b0e9fb79ec0647",
+    "expires_at": "2026-11-12T13:49:02Z",
+    "id": 12901602976,
+    "name": "exact-marriage-synthetic-40884490492-1",
+    "size_in_bytes": 44119
+  },
+  "owner_CLI_exit": 1,
+  "parent": "3359709253bbdff1765063eda57644a41b5cd055",
+  "primary": {
+    "READOUT_sha256": "9826bc1582f2aecc3eb5d97c803052e0fecc3311ce8cbef611e4b96633f7ffd2",
+    "indexed_payload_bytes": 496617,
+    "indexed_payload_files": 67,
+    "manifest_sha256": "4a9abe896cd80dc08beb375bdcb86c60a6e0187460f08873f43e5b93271b4d04",
+    "path": "/tmp/chronicler-review-evidence/exact-marriage-142-first-screen-20261029",
+    "publication_seal_sha256": "fb6e6bbd0826bc36e385804073487fe2b4f1071539616738dd087fe859fea051",
+    "result_sha256": "cea507627412e6d7ada6c8fe0cd759afd16f0de26e5dee9b32d1f14370c41417"
+  },
+  "projection_at_utc": "2026-10-29T14:47:31.964818+00:00",
+  "provider_job_conclusion": "failure",
+  "publication_closure": {
+    "ZIP_members": 49,
+    "all67_local_payload_files_rehashed_unchanged": true,
+    "always_closure_files": 1,
+    "child_commands": 32,
+    "child_exits": 32,
+    "complete_child_cleanups": 32,
+    "each_original_member_EOF_CRC_SHA_verified": true,
+    "exit_pattern": "All0 except exactly one screen101",
+    "expanded_bytes": 250783,
+    "full_child_logs": 32,
+    "middle_omissions": 0,
+    "owner_files": 48,
+    "raw_progress": {
+      "bytes": 650249,
+      "retained_payload_available": false,
+      "sha256": "b5588b54ad9e80b94ad85c9aae2b7aad47f170f575fd7b72cd3bf7abbb3dabde",
+      "status": "HASH_ATTESTED_ONLY; not uploaded or independently rehashed"
+    }
+  },
+  "reader_assumption_preserved": "Independent reader v1 stopped because a source comment precedes cfg(test); corrected only the observer predicate. Original source/log preserved; no producer rerun.",
+  "remote_runtime_records": {
+    "PID1_namespace_scope": "EACCES13 twice; own namespace stable, equality unverified. No hidden-provider attestation.",
+    "affinity": [
+      0
+    ],
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "dispatched_real_compilers": {
+      "cargo": {
+        "bytes": 36148320,
+        "path": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "resolved": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+      },
+      "rustc": {
+        "bytes": 648536,
+        "path": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "resolved": "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc",
+        "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+      }
+    },
+    "local_binary_download_rehash_execution": false,
+    "python": "3.13.5 (main, Jun 12 2025, 03:51:07) [GCC 13.3.0]",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "source_runtime_binary_linkage_before_after_terminal_match": true,
+    "test_binary": {
+      "bytes": 5375832,
+      "path": "/home/runner/work/_temp/exact-marriage-target/release/deps/chronicler_agents-1aeedce3abcc0636",
+      "sha256": "b17c2240797c608c7cc56cd525e178762158fd98b02c1c784e599cbf47a387b4"
+    },
+    "thread_caps": 1
+  },
+  "root_first_observer_correction_preserved": "Root first observer omitted spread255/256 from the registered +5000ns allowance; source rows3038-3058 were reread and only those two observer names corrected. No producer retry.",
+  "root_terminal_qualification": {
+    "receipt": {
+      "bytes": 1386,
+      "path": "/tmp/chronicler-exact-marriage-root-qualification-20261029/root-final-qualification.json",
+      "sha256": "48fa0f4b4e804a7a81f7ae20d0409e4f6a97b29b2b0c085533987b973fa72b77"
+    },
+    "status": "QUALIFIED_COMPLETE_REJECTED_DO_NOT_ADOPT"
+  },
+  "run_id": 40884490492,
+  "scope_limits": [
+    "One preregistered same-binary synthetic enumerator screen, not full planner/current production/World profiling.",
+    "Distance-count reduction is not a wall-time pass; all15 rows, including favorable boundary results, stay visible.",
+    "Nonfinite fixtures establish reference-route selection, not all nonfinite planner physics.",
+    "Runtime/binary/resources/cleanup are source-owned remote records reconciled against qualified helpers, not independent OS reobservation or local binary rehash.",
+    "No significance, workload-generalization, scientific efficacy, export/RNG/checkpoint parity, performance promotion, default change or main merge."
+  ],
+  "screen_binary_exit": 101,
+  "source": "1421621b4393d08cedb0d3505ae26b96dfa6563c",
+  "source_boundary": {
+    "complete_crate": "51208449f286f63f71d8a41eccef87703b450553",
+    "frozen_cfg_test_append_sha256": "edb8e9b27867b24306f81d2efff4e78faf9151e48721247ea57861f03cb70d1d",
+    "helper_source_pins": {
+      "scripts/exact_near_screen_process.py": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002",
+      "scripts/exact_near_screen_session.py": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3",
+      "scripts/run_exact_near_screen.py": "76652a9c49d683d8b2cece20659304696db473585fd32c6c7e97205a6e4569d6",
+      "scripts/wealth_floor_build_resources.py": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2",
+      "scripts/wealth_floor_hosted_deployment.py": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    },
+    "input_files_verified": 13,
+    "only_crate_delta": "Appended cfg(test) experiment in formation.rs; original090 production prefix and all other crate files unchanged.",
+    "original_crate": "803c79c8d5c024cbb8d67c58af7ffa731d79c129",
+    "original_formation_prefix_bytes": 106534,
+    "original_prefix_sha256": "f5fba731c541c211f3df23558e036a538ad10d8b0ac6be0f9c486d6d3a96a35f",
+    "original_production_source": "0900f3d203cc74102809bb871a1a057ba91a951f",
+    "source_before_after_terminal_equal": true
+  }
+}

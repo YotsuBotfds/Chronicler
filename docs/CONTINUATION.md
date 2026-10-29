@@ -27,11 +27,23 @@ in [run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/4086
 skips/subtests separate. Its exact native crate is included in this candidate, including the preceding
 [535 shared-live-slot work](integration/native-live-slot-ci-2026-10-29.md); component
 qualification remains distinct from the separately completed c5 CI.
-The CBF-to 090 default-export producer `c7727863`,
-[run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
-completed successfully and its publication metadata is independently qualified.
-The original-byte audit is still pending; no new export, global-RNG, checkpoint
-parity or performance qualification follows from producer success or CI.
+The [CBF-to-090 original default-export audit](integration/cbf-090-default-output-identity-result-2026-10-29.md)
+is now independently/root-qualified: all nine original cases, 399 file pairs
+and zero differences. Reader `191dee2b`, run `40887868224`, verified the completed
+c772 producer's original 18 Worlds/3,200 ticks without creating new Worlds.
+The archive has 985 complete file records: 983 original inventory entries plus
+`inventory.json` and `result.json`. All 36 actual schema/native/runtime probes and clean
+80-child original/19-child reader ledgers reconcile. This qualifies exact CBF
+to 090; no new c5/0654 World, full-global-RNG/checkpoint, performance, scientific
+or adoption result follows.
+
+The [detached exact-marriage screen](integration/exact-marriage-screen-rejection-2026-10-29.md)
+is complete and **REJECTED** under its frozen criteria: all 15 synthetic cases and 150
+samples remain, with 12 passing criteria and three failures. Spread257 regresses
+74.67%; spread1024/4096 miss the required 10% improvement. Seven ordinary Rust
+contracts pass, but distance-count reduction does not override the screen.
+Root/independent review qualifies that rejection; there is no tuning, retry,
+production wiring or adoption. The unchanged current native crate remains 090.
 
 The fixed wealth candidate cohort's original receipts at `33d331a1`,
 [run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409),

@@ -1,0 +1,209 @@
+{
+  "actual_schema_observations_by_class": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "audit": {
+    "all_11_steps_success": true,
+    "attempt": 1,
+    "event": "push",
+    "job_id": 123496337713,
+    "light_artifact": {
+      "bytes": 1249716,
+      "expanded_bytes": 5009551,
+      "expires_at": "2026-11-28T14:05:23Z",
+      "id": 12904625572,
+      "members": 121,
+      "sha256": "9030d854bb8fc4f678f6ba821c6f8e8c087903e35f1fa185fb1b6011ebb6cec0"
+    },
+    "run_id": 40887868224,
+    "source": "191dee2b79d7da7fac327a1e5c8fa96d78a893bf"
+  },
+  "baseline": {
+    "crate_tree": "912a1a2489f8f8c548df19302bb2c0a4365fc32e",
+    "files": 1581,
+    "sha": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0"
+  },
+  "candidate": {
+    "crate_tree": "803c79c8d5c024cbb8d67c58af7ffa731d79c129",
+    "files": 1593,
+    "sha": "0900f3d203cc74102809bb871a1a057ba91a951f"
+  },
+  "comparisons": {
+    "case_order": [
+      "off_s42",
+      "off_s7",
+      "hybrid_s42",
+      "hybrid_s7",
+      "hybrid_s1234",
+      "proc48_hybrid_s42",
+      "proc48_off_s7",
+      "scaled22k_s42",
+      "scaled52k_s7"
+    ],
+    "comparator_flags": [],
+    "differences": 0,
+    "files_by_case": {
+      "hybrid_s1234": 10,
+      "hybrid_s42": 111,
+      "hybrid_s7": 111,
+      "off_s42": 9,
+      "off_s7": 9,
+      "proc48_hybrid_s42": 92,
+      "proc48_off_s7": 15,
+      "scaled22k_s42": 32,
+      "scaled52k_s7": 10
+    },
+    "normalization": "metadata.generated_at only; original .log/run_manifest exclusions; original decoded and raw-bundle rules; opaque Arrow bytes",
+    "total_files": 399
+  },
+  "limits": [
+    "Remote qualified source streamed/hashed original70MB ZIP and recomputed comparisons; local saved-byte reconciliation sees only1.25MB light publication, not original output payloads",
+    "Source snapshots attest disk/Git bytes and modes, not independently loaded Python bytecode",
+    "Original installer SHA is observed but original executable not retained",
+    "Same original timestamp-only comparator, opaque Arrow bytes; no checkpoint/RNG/science/performance/adoption or unexecuted535 parity grant",
+    "Original6cf setup-only failure preserved; old producing refs/packs unchanged; effective nested expiry not extended by new publication",
+    "No full global RNG-state, scientific efficacy, welfare, feature activation, main merge, speed or peak RSS grant; the historical matrix ran exact090, not new Worlds at current C5/0654."
+  ],
+  "native_links": {
+    "baseline": {
+      "native": {
+        "bytes": 13695168,
+        "sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0"
+      },
+      "wheel": {
+        "bytes": 3915395,
+        "sha256": "556c6677c4cb998cd6ad4b284d0f67a7e79368f86831b458c3885943de3b95ac"
+      }
+    },
+    "candidate": {
+      "native": {
+        "bytes": 13693904,
+        "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"
+      },
+      "wheel": {
+        "bytes": 3915587,
+        "sha256": "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532"
+      }
+    }
+  },
+  "original": {
+    "archive_file_records": 985,
+    "artifact": {
+      "bytes": 70712129,
+      "expiry": "2026-11-28T12:43:08Z",
+      "id": 12896929475,
+      "sha256": "0b333468326a7383a9ab607557e109c698377506ae8496d0a61c8dbc85692cd4"
+    },
+    "expanded_archive_bytes": 304322351,
+    "inventory_sha256": "c6a5051b71503c1795af0614aec915a9f840719e57aa65b1c4b5807fa160722b",
+    "job_id": 123451508654,
+    "original_inventory_entries": 983,
+    "owned_children": 80,
+    "probes": 36,
+    "resource_rows": 361,
+    "run_id": 40875019978,
+    "source": "c7727863fad70b1a6365f3174a30f04f68a451a4",
+    "ticks": 3200,
+    "worlds": 18
+  },
+  "prior_failure": {
+    "job_id": 123445791244,
+    "pack": "/tmp/chronicler-review-evidence/cbf-090-default-identity-first-6cf-20261029",
+    "pack_index_sha256": "044b16720a2b47eb8eb38361ad311030aa197a3022f3c804017994a34d73165e",
+    "reason": "Upload action SHA typo; only Set up job failed; no checkout/controller/probe/World step executed",
+    "run_id": 40873351990,
+    "source": "6cf54b93d26ad691a04f0c59e5a1fe9c19126f38"
+  },
+  "reader": {
+    "native_import_attempts": [],
+    "owned_children": 19,
+    "qualification_seconds": 51.607593152999996,
+    "qualification_seconds_is_not_a_performance_measurement": true,
+    "resource_rows": 175,
+    "runtime": {
+      "affinity": [
+        0
+      ],
+      "executable": "/home/runner/work/_temp/cbf-090-byte-reader-env/bin/python",
+      "packages": {
+        "arro3-core": "0.9.1",
+        "numpy": "2.5.4",
+        "pyarrow": "26.0.0",
+        "pydantic": "2.12.5",
+        "scipy": "1.18.1"
+      },
+      "prefix": "/home/runner/work/_temp/cbf-090-byte-reader-env",
+      "python": "3.13.17",
+      "thread_env": {
+        "BLIS_NUM_THREADS": "1",
+        "CARGO_BUILD_JOBS": "1",
+        "GOTO_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OPENBLAS_THREAD_TIMEOUT": "16",
+        "PYTHONHASHSEED": "0",
+        "PYTHON_CPU_COUNT": "1",
+        "RAYON_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "version": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]"
+    },
+    "selected_sparse_physical_files": 19,
+    "simulation_native_package_distribution_absent": true,
+    "worlds": 0
+  },
+  "retention": {
+    "effective_nested_expiry": "2026-11-12T08:33:41Z",
+    "new_publication_does_not_extend_original_inputs": true,
+    "original_outer_expiry": "2026-11-28T12:43:08Z"
+  },
+  "schema_version": 1,
+  "scope": "Exact CBF-to-090 original default-export nine-case matrix only",
+  "status": "ROOT_QUALIFIED_ORIGINAL_CBF_TO090_REMOTE_DEFAULT_EXPORT_AUDIT",
+  "verification": {
+    "all_light_crc_sha256_size_verified": true,
+    "local_light_archive": true,
+    "local_original_archive": false,
+    "peer": {
+      "bytes": 7106,
+      "path": "/tmp/cbf-090-artifact-audit-191-terminal-peer-20261029.json",
+      "sha256": "562d0c27fb7a5038d68b2bd789618834105733e00643bcca7ee1c6be89640181"
+    },
+    "root_consumer_qualification": {
+      "bytes": 4848,
+      "path": "/tmp/chronicler-cbf-090-default-audit-root-qualification-20261029/root-final-qualification.json",
+      "scope": "Independently consumed all original light bytes/metadata/Git/probes/logs and authenticated the completed exact-source remote original-byte audit; original70MBCRC/payload/comparator reads occurred on that authorized remote runner. No local replay of raw case payloads.",
+      "sha256": "530e1f31f61f7c59b3b96f5663c5a4d691d8aaabccdd4c858f630fe419f014d7",
+      "verdict": "ROOT_QUALIFIED_ORIGINAL_CBF_TO090_REMOTE_DEFAULT_EXPORT_AUDIT"
+    },
+    "sealed_pack": {
+      "index": {
+        "bytes": 5738,
+        "sha256": "1cf5a6055cf6cfa78b46bd0c3deaa97f3eb6be409566fa7c25ba93d3fa94199d"
+      },
+      "path": "/tmp/chronicler-review-evidence/cbf-090-default-artifact-audit-191-20261029",
+      "reconciled_result": {
+        "bytes": 10282,
+        "sha256": "c7ae9414d6d13d85fa6e985e79312a9b95929a1178973dfda330a9fa68a15386"
+      }
+    },
+    "source_file_references": 6218,
+    "unique_git_blobs_rehashed": 1678
+  }
+}
