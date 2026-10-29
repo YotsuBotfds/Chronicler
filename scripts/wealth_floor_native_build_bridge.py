@@ -79,7 +79,7 @@ CONTEXT_FIELDS = frozenset((
     "cargo_config",
 ))
 WORKFLOW_INVARIANTS = "2ef17e8d86ed16d146beeeb2ffedcaf8308da1e3daad8d9fbc0eddd97f48f487"
-ACTIVE_BRANCH = "lead/cloud-wealth-floor-native-build-bridge-20261029"
+ACTIVE_BRANCH = "lead/cloud-wealth-floor-native-build-bridge-2-20261029"
 WORKFLOW_PATH = ".github/workflows/wealth-floor-native-build-bridge.yml"
 
 

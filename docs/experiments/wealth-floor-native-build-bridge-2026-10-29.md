@@ -39,16 +39,18 @@ linker/full argv and precise Ubuntu image were not recorded. The new context
 does not retroactively invent them. Exact old-native reproduction is the
 decisive bridge to those retained observations.
 
-## One future job, presently disabled
+## Corrected future job, presently disabled
 
 The [workflow template](wealth-floor-native-build-bridge-workflow.yml) lives
 under `docs/experiments`, with a false job guard. It installs no active workflow
 under `.github`. Future activation is recognized only on the specifically
-registered `lead/cloud-wealth-floor-native-build-bridge-20261029` branch and
+registered `lead/cloud-wealth-floor-native-build-bridge-2-20261029` branch and
 workflow-file push path. Pure tests seal every other command, source, version,
 environment setting, budget and artifact-retention rule. They recognize both
 the dormant and exactly activated states, avoiding a preparation-only assertion
 that would reject its own reviewed activation.
+The first activation branch remains frozen at `75cb1771`; it is not the
+corrected producer.
 
 The executable entry is
 `scripts/wealth_floor_native_build_controller.py build`. Its steps are:
@@ -205,6 +207,51 @@ admission, reviewed candidate binary/build pins, candidate-owned checkpoints
 and determinism proofs still gate later worlds. No efficacy, population outcome,
 default activation, main merge or wall-time speedup is established by this work.
 
+## Retained first-build failure and loader correction
+
+The first actual paired build, source
+`75cb17717dedb3e59d5d55e5313d954bd98dda1f`, run `40818391220`, job
+`123264802829`, failed after both release builds and isolated class/schema
+probes. Its remote 163 pure cases and eight confined Linux cases passed. The
+Rust regression executable compiled, then exited 127 because its dynamic loader
+could not find `libpython3.13.so.1.0`. No regression assertion ran. The normalized
+release-build environment had deliberately omitted inherited `LD_LIBRARY_PATH`.
+
+The retained first attempt has these observations:
+
+| Observation | Value |
+| --- | --- |
+| Rebuilt unchanged old native | Exact original `06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6` |
+| Candidate native | `b56c43f16722be2c8fc6fbe5c021ec292f9a6856783d946af56d97e91575e619` |
+| Equal complete release-context digest | `5aa8f0b521fe60666789ebc2ba058b9015df9104d1287a7bfa0e22caf22cc1ab` |
+| Baseline/candidate release command wall intervals, including cleanup | 306.830 / 297.753 seconds |
+| Regression compilation/start interval, including cleanup | 112.361 seconds |
+| Raw artifact | `12873294982`, 8,104,624 bytes, SHA-256 `01157cb749641900a3805bb0609d1fa62dc50dadf57c3cb4c0b0c250bccfa3ae` |
+
+All three original artifacts remain retained and their ZIP hashes match the
+official metadata. All 64 raw members were hashed and CRC checked; both nested
+wheels/native hashes were independently inspected without installation or native
+imports. The independent verification receipt is
+`d9fae4da38009c1022bee51336f5fd838529ac5c9adcce8db8b375004dafbefd`.
+The candidate/control after-source snapshots are absent, the manifest is
+incomplete and the completion is negative. These partial observations grant no
+historical reuse, qualified candidate binary or worlds. Existing wheels cannot
+be rebound into a completed corrected build.
+
+The source correction queries `sysconfig.LIBDIR` and `LDLIBRARY` using only the
+exact selected Python interpreter with `-I -B`. It requires canonical paths
+inside that interpreter's selected installation, verifies the shared-library
+file and retains its path/bytes/hash. Only the `candidate-regressions` child's
+environment receives that directory as `LD_LIBRARY_PATH`; arbitrary inherited
+paths are never forwarded. Both release-build environments, flags, profiles and
+their common context remain unchanged. The loader facts are retained separately
+in raw/light evidence and the final manifest, with their child-only scope.
+
+Rust assertions, D2, the resource helper, process controls and all budgets remain
+unchanged. The corrected activation requires a fresh both-source build and
+successful regressions, after source review. No corrected activation is implied
+by this prepared branch.
+
 ## Source verification
 
 The first pure source selection passed 103 guarded cases with zero native
@@ -225,3 +272,9 @@ runtime-factory calls and blocked I/O attempts. No actual host precondition,
 native build or ordinary simulation world ran in that selection. The qualified
 process, cleanup and publication implementation is unchanged; the two new
 publication tests use bounded fixture files and stub only live-child observation.
+
+The loader correction passed all 182 guarded pure cases in 0.60 seconds, including
+19 focused query/path/environment cases. The exact prospective activation-2 copy
+passed the registered workflow contract and full unfiltered actionlint 1.7.12.
+Those checks used injected interpreter metadata and synthetic library files;
+no actual sysconfig child query, native library import, build or world ran.

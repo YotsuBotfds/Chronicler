@@ -45,6 +45,12 @@ MAX_RAW_FILES = 512
 MAX_SMALL_BYTES = 2 * B.MIB
 MAX_LIGHT_BYTES = 8 * B.MIB
 MAX_LIGHT_FILES = 32
+REGRESSION_PYTHON_CONFIG = (
+    "import json,platform,sys,sysconfig; "
+    "print(json.dumps(dict(executable=sys.executable,base_prefix=sys.base_prefix,"
+    "libdir=sysconfig.get_config_var('LIBDIR'),ldlibrary=sysconfig.get_config_var('LDLIBRARY'),"
+    "python=platform.python_version())))"
+)
 CAPS = {key: "1" for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "BLIS_NUM_THREADS",
     "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS", "RAYON_NUM_THREADS", "CARGO_BUILD_JOBS")}
 CAPS.update(PYTHONHASHSEED="0", PYTHON_CPU_COUNT="2", PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1",
@@ -52,7 +58,8 @@ CAPS.update(PYTHONHASHSEED="0", PYTHON_CPU_COUNT="2", PYTHONDONTWRITEBYTECODE="1
 LIGHT_NAMES = ("build-manifest.json", "source-control-before.json", "source-control-after.json",
     "baseline/source-before.json", "baseline/source-after.json", "baseline/context.json", "baseline/probe.json",
     "baseline/trace-summary.json", "candidate/source-before.json", "candidate/source-after.json",
-    "candidate/context.json", "candidate/probe.json", "candidate/trace-summary.json", "cache-retirement.json")
+    "candidate/context.json", "candidate/probe.json", "candidate/trace-summary.json", "candidate/regression-loader.json",
+    "cache-retirement.json")
 
 
 def sha(path):
@@ -388,6 +395,31 @@ def build_environment(task_root, python):
     return env
 
 
+def regression_environment(env, selected_python, config):
+    """Use only the selected interpreter's library directory for this child."""
+    B.require(type(config) is dict and set(config) == {"executable", "base_prefix", "libdir", "ldlibrary", "python"}
+        and config["python"] == B.PYTHON_VERSION, "regression Python configuration differs")
+    for value in (selected_python, config["executable"], config["base_prefix"], config["libdir"]):
+        B.absolute_path(value)
+    selected = Path(selected_python).resolve(strict=True)
+    prefix = Path(config["base_prefix"]).resolve(strict=True)
+    libdir = Path(config["libdir"]).resolve(strict=True)
+    B.require(selected.is_file() and selected == Path(config["executable"]).resolve(strict=True)
+        and prefix.is_dir() and selected.parent == prefix / "bin"
+        and libdir.is_dir() and libdir == prefix / "lib", "regression library directory outside selected installation")
+    B.require(config["ldlibrary"] in ("libpython3.13.so", "libpython3.13.so.1.0"), "regression Python library name differs")
+    library = (libdir / config["ldlibrary"]).resolve(strict=True)
+    B.require(library.is_file() and library.parent == libdir and 0 < library.stat().st_size <= 64 * B.MIB,
+              "regression Python library is missing, outside its directory or oversized")
+    facts = dict(python=config["python"], interpreter=str(selected), base_prefix=str(prefix),
+        sysconfig_libdir=config["libdir"], resolved_libdir=str(libdir), library_path=str(library),
+        library_sha256=sha(library), library_bytes=library.stat().st_size, LD_LIBRARY_PATH=str(libdir),
+        source="Exact selected Python interpreter sysconfig LIBDIR and LDLIBRARY",
+        scope="candidate-regressions child only; baseline/candidate release-build environments and context unchanged",
+        inherited_ld_library_path_used=False)
+    return dict(env, LD_LIBRARY_PATH=str(libdir)), facts
+
+
 def cargo_config_visibility(source, cwd, env):
     directories = {source, *source.parents, cwd, *cwd.parents}
     home = Path(env.get("CARGO_HOME", str(Path(env["HOME"]) / ".cargo")))
@@ -570,7 +602,7 @@ def publish_complete(root, report, check, clocks):
 def classify_build_report(report, final_budget):
     """Retain accepted deployment observations across the pure pair verdict."""
     result = B.classify_pair(report["phases"]["baseline"], report["phases"]["candidate"], final_budget)
-    for name in ("phases", "producer", "deployment", "legacy_supervisor_source", "legacy_supervisor_sha256"):
+    for name in ("phases", "producer", "deployment", "regression_loader", "legacy_supervisor_source", "legacy_supervisor_sha256"):
         result[name] = report[name]
     return result
 
@@ -666,8 +698,13 @@ def build(args):
                     probe_env["UV_PROJECT_ENVIRONMENT"], "--out", str(phase_root / "probe.json")], probe_env, control)
                 regressions = None
                 if role == "candidate":
+                    config_raw = supervisor.command("candidate-regression-python-config",
+                        [args.python, "-I", "-B", "-c", REGRESSION_PYTHON_CONFIG], env, control)
+                    regression_env, loader = regression_environment(env, args.python, json.loads(config_raw))
+                    report["regression_loader"] = loader
+                    write_json(phase_root / "regression-loader.json", loader)
                     supervisor.command("candidate-regressions", ["cargo", "test", "--locked", "--lib", "--manifest-path",
-                        str(source / "chronicler-agents/Cargo.toml"), "household_migration_"], env, source)
+                        str(source / "chronicler-agents/Cargo.toml"), "household_migration_"], regression_env, source)
                     text = supervisor.last_stdout.decode()
                     B.require("test result: ok. 4 passed; 0 failed;" in text
                         and all("test " + name + " ... ok" in text for name in B.REGRESSIONS), "four targeted native regressions did not pass")

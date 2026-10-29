@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import struct
 import sys
+from types import SimpleNamespace
 import zipfile
 
 import pytest
@@ -100,6 +101,7 @@ def test_deployment_observations_survive_pair_classification_and_raw_light_publi
         read_text=lambda _path: "systemd\n", read_link=namespace)
     report = dict(phases={role: phase(B, role) for role in ("baseline", "candidate")},
         producer=dict(control_sha="fixture", run_id="fixture"), deployment=deployment,
+        regression_loader=dict(scope="candidate-regressions child only", LD_LIBRARY_PATH="/selected/python/lib"),
         legacy_supervisor_source=C.LEGACY_SOURCE, legacy_supervisor_sha256=C.LEGACY_SHA)
     result = C.classify_build_report(report, closed_clock())
     assert result["deployment"] == deployment
@@ -109,6 +111,7 @@ def test_deployment_observations_survive_pair_classification_and_raw_light_publi
     raw = json.loads((tmp_path / "build-manifest.json").read_text())
     light = json.loads((tmp_path / "light/build-manifest.json").read_text())
     assert raw["deployment"] == light["deployment"] == deployment
+    assert raw["regression_loader"] == light["regression_loader"] == report["regression_loader"]
     assert raw["deployment"]["namespace_equal"] is (None if denied else True)
     assert raw["deployment"]["namespace_equality_verified"] is (not denied)
     assert completion["files"]["build-manifest.json"]["sha256"] == C.sha(tmp_path / "light/build-manifest.json")
@@ -256,11 +259,93 @@ def test_build_environment_has_closed_build_inputs_and_preserves_runtime_proxy_a
     monkeypatch.setenv("CODEX_RUNTIME_GUARD", "fixture-auth-guard")
     monkeypatch.setenv("CARGO_PROFILE_RELEASE_PANIC", "abort")
     monkeypatch.setenv("RUSTC_WRAPPER", "/unreviewed/wrapper")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/arbitrary/inherited-loader-path")
     env = C.build_environment(Path("/tmp/task"), "/runtime/python")
     assert env["HTTPS_PROXY"] == "http://proxy:8080" and env["SSL_CERT_FILE"] == "/trusted/ca.pem"
     assert env["CODEX_RUNTIME_GUARD"] == "fixture-auth-guard"
     assert "CARGO_PROFILE_RELEASE_PANIC" not in env and "RUSTC_WRAPPER" not in env
+    assert "LD_LIBRARY_PATH" not in env
     assert env["RUSTFLAGS"] == "" and env["CARGO_INCREMENTAL"] == "0"
+
+
+def python_installation(tmp_path):
+    prefix = tmp_path / "selected-python"
+    (prefix / "bin").mkdir(parents=True); (prefix / "lib").mkdir()
+    interpreter = prefix / "bin/python3.13"; interpreter.write_bytes(b"synthetic interpreter; never executed")
+    library = prefix / "lib/libpython3.13.so.1.0"; library.write_bytes(b"synthetic library; never imported")
+    (prefix / "lib/libpython3.13.so").symlink_to(library.name)
+    return interpreter, dict(executable=str(interpreter), base_prefix=str(prefix), libdir=str(prefix / "lib"),
+        ldlibrary="libpython3.13.so", python="3.13.17")
+
+
+@pytest.mark.parametrize("inherited", [None, "/arbitrary/lib", "/arbitrary/lib:/another/lib"])
+def test_regression_loader_uses_only_selected_python_and_leaves_release_environment_unchanged(C, tmp_path, inherited):
+    interpreter, config = python_installation(tmp_path)
+    release = dict(PYO3_PYTHON="/build-environment/bin/python", RUSTFLAGS="", CARGO_BUILD_JOBS="1")
+    if inherited is not None: release["LD_LIBRARY_PATH"] = inherited
+    before = deepcopy(release)
+    child, facts = C.regression_environment(release, str(interpreter), config)
+    assert release == before and child is not release
+    assert child == dict(release, LD_LIBRARY_PATH=config["libdir"])
+    assert facts["LD_LIBRARY_PATH"] == str(interpreter.parents[1] / "lib")
+    assert facts["library_path"].endswith("/lib/libpython3.13.so.1.0")
+    assert facts["library_sha256"] == hashlib.sha256(b"synthetic library; never imported").hexdigest()
+    assert facts["inherited_ld_library_path_used"] is False
+    assert "candidate-regressions child only" in facts["scope"] and "release-build environments and context unchanged" in facts["scope"]
+
+
+def test_selected_python_config_query_has_only_injected_stdlib_observations(C, tmp_path):
+    interpreter, config = python_installation(tmp_path)
+    calls, output = [], []
+    def get_config_var(name):
+        calls.append(name)
+        return {"LIBDIR": config["libdir"], "LDLIBRARY": config["ldlibrary"]}[name]
+    modules = dict(json=json, platform=SimpleNamespace(python_version=lambda: config["python"]),
+        sys=SimpleNamespace(executable=str(interpreter), base_prefix=config["base_prefix"]),
+        sysconfig=SimpleNamespace(get_config_var=get_config_var))
+    exec(C.REGRESSION_PYTHON_CONFIG, {"__builtins__": {"__import__": lambda name, *args: modules[name],
+        "print": output.append, "dict": dict}})
+    assert calls == ["LIBDIR", "LDLIBRARY"] and len(output) == 1
+    observed = json.loads(output[0]); assert observed == config
+    child, facts = C.regression_environment({}, str(interpreter), observed)
+    assert child == {"LD_LIBRARY_PATH": config["libdir"]} and facts["interpreter"] == str(interpreter)
+
+
+def test_selected_interpreter_symlink_is_recorded_canonically(C, tmp_path):
+    interpreter, config = python_installation(tmp_path)
+    alias = interpreter.parent / "python"; alias.symlink_to(interpreter.name)
+    config["executable"] = str(alias)
+    child, facts = C.regression_environment({}, str(alias), config)
+    assert facts["interpreter"] == str(interpreter) and child["LD_LIBRARY_PATH"] == config["libdir"]
+
+
+@pytest.mark.parametrize("fault", ["missing_key", "wrong_python", "relative_executable", "relative_prefix", "relative_libdir",
+    "other_interpreter", "foreign_libdir", "foreign_libdir_symlink", "library_traversal", "wrong_library_name",
+    "missing_library", "foreign_library_symlink", "empty_library", "oversized_library"])
+def test_unverified_python_loader_paths_cannot_enter_regression_child(C, tmp_path, monkeypatch, fault):
+    interpreter, config = python_installation(tmp_path)
+    library = interpreter.parents[1] / "lib/libpython3.13.so.1.0"
+    foreign = tmp_path / "foreign"; foreign.mkdir()
+    if fault == "missing_key": del config["libdir"]
+    elif fault == "wrong_python": config["python"] = "3.13.5"
+    elif fault == "relative_executable": config["executable"] = "bin/python3.13"
+    elif fault == "relative_prefix": config["base_prefix"] = "relative-prefix"
+    elif fault == "relative_libdir": config["libdir"] = "lib"
+    elif fault == "other_interpreter":
+        other = interpreter.parent / "other-python"; other.write_bytes(b"other"); config["executable"] = str(other)
+    elif fault == "foreign_libdir": config["libdir"] = str(foreign)
+    elif fault == "foreign_libdir_symlink":
+        alias = interpreter.parents[1] / "foreign-lib"; alias.symlink_to(foreign); config["libdir"] = str(alias)
+    elif fault == "library_traversal": config["ldlibrary"] = "../foreign.so"
+    elif fault == "wrong_library_name": config["ldlibrary"] = "libpython3.14.so"
+    elif fault == "missing_library": library.unlink()
+    elif fault == "foreign_library_symlink":
+        outside = foreign / library.name; outside.write_bytes(b"foreign"); library.unlink(); library.symlink_to(outside)
+    elif fault == "empty_library": library.write_bytes(b"")
+    else:
+        monkeypatch.setattr(C.B, "MIB", 1); library.write_bytes(b"x" * 65)
+    with pytest.raises((C.B.BridgeRefused, OSError)):
+        C.regression_environment({"LD_LIBRARY_PATH": "/inherited"}, str(interpreter), config)
 
 
 def test_cargo_configuration_presence_refuses_without_reading_credentials(C, tmp_path, monkeypatch):

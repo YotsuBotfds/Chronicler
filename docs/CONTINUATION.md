@@ -19,8 +19,15 @@ observation with namespace equality explicitly unknown. Other errors or changed
 evidence still refuse. All accepted observations survive into raw/light build
 receipts, and refusals carry fixed codes. Its 163 guarded fixture checks pass;
 the exact resource helper, floors, native sources and process controls are
-unchanged. Actual D2 build activation remains pending source review; no candidate
-world or main change is included.
+unchanged. The first actual paired build `75cb1771` / `40818391220` then failed
+when its compiled Rust regression executable could not load `libpython3.13.so.1.0`;
+no regression assertion ran. Both release wheels and class/schema probes are
+retained, including exact old `06db` reproduction, but candidate/control after
+snapshots and positive completion are absent. No reuse or world grant follows.
+The prepared loader correction derives only the regression child's loader path
+from the exact selected Python installation and leaves release contexts intact.
+Its 182 guarded cases and registered activation-2 copy's unfiltered lint pass.
+The first source/artifacts remain frozen; a fresh reviewed build is required.
 
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
