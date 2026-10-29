@@ -3,7 +3,7 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029]
+    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029]
   workflow_dispatch:
 
 permissions:
