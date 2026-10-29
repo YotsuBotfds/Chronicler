@@ -165,3 +165,11 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+## Natural finite-research continuation design — 2026-10-29
+
+A separate inactive [development preregistration](experiments/scientific-research-natural-continuation-2026-10-29.md)
+specifies a fixed natural cohort and shared-checkpoint contrast of continued
+research against archive-preserving pause of new trials. Existing harness and
+comparison guards need separately reviewed study support before activation.
+No world, test, native build, threshold change or efficacy result is claimed.
