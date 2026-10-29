@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The separate [original-byte practice audit preparation](experiments/research-practice-original-audit-registration-2026-10-29.md)
+keeps frozen2d and its closed small publication unchanged. It composes the
+unchanged detached reader with a fixed two-artifact transport, exclusive
+historical-path copies and a new600s clock; it never installs/imports the wheel,
+unpickles checkpoints or constructs Worlds. The new explicit5,000-entry/512MiB
+archive policy has a prospective2,455-file closure. Hosted activation and all
+actual original-byte facts remain pending separate source/peer/root review.
+
 The separate [fresh eight-seed practice hosted template](experiments/research-practice-fresh-study-cbf-registration-2026-10-29.md)
 is dormant source preparation from preserved837. It reuses exact6b runtime
 controls and the official CBF/3ee wheel, with a fresh all-three-schema freeze

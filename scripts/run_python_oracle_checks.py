@@ -308,6 +308,9 @@ CHUNKS = {
     "decision-delivery-python": [
         "tests/test_decision_delivery_adapter.py",
     ],
+    "practice-original-byte-audit": [
+        "tests/test_research_practice_original_audit.py",
+    ],
     "practice-growth-observer": [
         "tests/test_practice_growth_observer.py",
         "tests/test_practice_observer_runner.py",

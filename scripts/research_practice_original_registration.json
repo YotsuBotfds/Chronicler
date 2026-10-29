@@ -1,0 +1,269 @@
+{
+  "additional_opaque_wheel_input": {
+    "artifact_id": 12882944002,
+    "bytes": 3850581,
+    "install": false,
+    "native_import": false,
+    "native_member_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+    "registered_expiry": "2026-11-12T08:33:42Z",
+    "run_id": 40841527996,
+    "sha256": "9cc55c9dbf7939056f0b0613e3e54e74798a782463719185d41b1fe129ebe2cf",
+    "wheel_bytes": 3915395,
+    "wheel_sha256": "556c6677c4cb998cd6ad4b284d0f67a7e79368f86831b458c3885943de3b95ac"
+  },
+  "cleanup_and_ownership": {
+    "beforeafter_source_and_input_hashes": true,
+    "no_existing_target_reuse": true,
+    "no_generic_extractall": true,
+    "no_raw_archive_or_native_binary_in_small_audit_publication": true,
+    "owned_session_birth_pidfd_quiescence_pattern": "reuse qualified outer600/20 reader supervision boundary; exact helper source selection must be frozen/reviewed before implementation, no new broad process framework",
+    "raw_original_provider_and_prior_packs_untouched": true,
+    "readonly_derived_inputs_before_replay": true,
+    "regular_files_only_no_alias_or_hardlinks": true,
+    "roots_created_exclusively_and_lease_record_outside_original_evidence": true,
+    "terminal_negative_on_any_cleanup_budget_or_guard_failure": true
+  },
+  "current_actions": {
+    "Worlds": 0,
+    "actual_facts": "all null pending activation and original bytes",
+    "implementation": "source_only",
+    "native_imports": 0,
+    "transfers": 0
+  },
+  "effective_latest_registered_input_expiry": "2026-11-12T08:33:42Z",
+  "expected_archive_closure": {
+    "actual_raw_central_not_read": true,
+    "canonical_encoding": "JSON(sort_keys=True,separators=(comma,colon),ensure_ascii=True), UTF-8, no trailing newline",
+    "derivation": "prefix original2442 execution.files entries with practice-study-evidence/; union12 independently authenticated small members; add historical wheel build-manifest.json and producer-metadata.json from original verification.files",
+    "expected_expanded_bytes": 502390864,
+    "expected_file_members": 2455,
+    "expected_member_map_sha256": "8f2a0923119ea08ef6136e0e9175aeb6dc7d1fe382146de0a1d768263b85c47c",
+    "generic_old2048_entry_limit_reused_or_mutated": false,
+    "max_entries_new_explicit_study_contract": 5000,
+    "max_expansion_bytes": 536870912,
+    "max_member_or_JSON_bytes": 67108864,
+    "original_execution_inventory_bytes": 500545147,
+    "original_execution_inventory_files": 2442
+  },
+  "fixed_historical_paths": {
+    "control": "/home/runner/work/Chronicler/Chronicler/control",
+    "derived_evidence": "/home/runner/work/_temp/practice-study-evidence",
+    "derived_readout": "/home/runner/work/_temp/practice-study-readout",
+    "historical_wheel_root": "/home/runner/work/_temp/practice-study-wheel",
+    "path_mismatch_action": "refuse; no relocation/symlink/global path monkeypatch",
+    "producer": "/home/runner/work/Chronicler/Chronicler/producer",
+    "runner_temp": "/home/runner/work/_temp",
+    "third_separate_audit_control_checkout_required": true,
+    "workspace": "/home/runner/work/Chronicler/Chronicler"
+  },
+  "kind": "prospective-closed-original-byte-audit-registration",
+  "original": {
+    "artifact_id": 12898552635,
+    "artifact_name": "fresh-practice-study-raw-40877451052-1",
+    "bytes": 106435368,
+    "control": "2d3faa8c41b4704386b246507b8606d4e3980be7",
+    "job_id": 123459812638,
+    "producer": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+    "registered_expiry": "2026-11-28T13:00:35Z",
+    "run_attempt": 1,
+    "run_id": 40877451052,
+    "sha256": "248960348f7361e7a903f6a5323d3bca503b47cced45e57157631b8d0aba5ac0"
+  },
+  "pending_actual_facts": {
+    "actual_member_crc_sha_pass": null,
+    "actual_raw_central_members": null,
+    "derived_copy_bytes_verified": null,
+    "fresh_metadata_current_expiry_verified": null,
+    "new_audit_budget_or_cleanup_complete": null,
+    "new_audit_control_sha": null,
+    "new_audit_run_id": null,
+    "original_publication_chain_reverified": null,
+    "semantic_replay_equal": null,
+    "whole_raw_received": null
+  },
+  "plan_sha256": "d061db21fa6396cea4434e45bf917e7f6d7586061fff47eda8010c2d9c692a95",
+  "producer_codec_source_pins": {
+    "src/chronicler/bundle_codec.py": {
+      "bytes": 13076,
+      "mode": "100644",
+      "sha256": "3b362f4e3aa17ac4f1a53e29384e9ad3c21fbc06c10fab4e63e0714686e1ff7c"
+    },
+    "src/chronicler/snapshot_pruning.py": {
+      "bytes": 14711,
+      "mode": "100644",
+      "sha256": "9b24a903d35c50a962b9c993acd342dcefbb77e0fa7f188f6d43b4eb4ace414f"
+    }
+  },
+  "prospective_audit_bounds": {
+    "audit_cpu_scope": "record own+waited-child CPU honestly; one actual affinity CPU/caps1; no newly asserted hard descendant aggregate CPU claim",
+    "finalization_wall_reserve_seconds_inside600": 20,
+    "historical_study_budgets_unchanged": true,
+    "initial_available_ram_bytes": 2147483648,
+    "initial_disk_bytes": 12884901888,
+    "newclock_resets_at_stage_or_child": false,
+    "outer_kill_grace_seconds": 5,
+    "outer_timeout_seconds": 610,
+    "publication_max_bytes": 8388608,
+    "publication_max_files": 64,
+    "resolver_sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2",
+    "running_available_ram_bytes": 1073741824,
+    "running_disk_bytes": 3221225472,
+    "stop_heavy_work_seconds": 580,
+    "transfer_wall_seconds_each": 120,
+    "wall_seconds": 600
+  },
+  "reader_boundary": {
+    "all24_roles_and_all8_seeds": true,
+    "checkpoint_processing": "C.checkpoint_sections performs bounded zlib section inflation, including opaque Python pickle bytes and native bytes; hashes only, no unpickle/native constructor/World",
+    "codec_processing": "exact source-owned bundle_codec and qualified snapshot_pruning import removal inside D.codec; no new monkeypatch",
+    "invoke": "D.build_readout(derived_evidence, producer, guard=NEW_AUDIT_GUARD, policy_name=cloud-cbf-3ee)",
+    "normalizations": "only original qualifiedD/T rules, unchanged",
+    "reason": "D.main intentionally binds original boot_id/monotonic start and must refuse another host",
+    "unchanged_D_main_invoked": false
+  },
+  "semantic_comparison": {
+    "claim": "semantic replay plus original publication seals; no new historical CPU measurement",
+    "exact_publish_owned_budget_fields": [
+      "reader_cpu_seconds",
+      "controller_charge_plus_reader_measured_cpu_upper_bound_seconds",
+      "total_cpu_accounting_scope",
+      "controller_to_readout_wall_seconds"
+    ],
+    "historical_annotations_validation": "source-authenticate D.publish_readout assignments; exact keysets/types/scope; controller facts equal closed execution; provisional->receipt->completion CPU/wall observations monotone and within original900/1800; never compare historical boot/monotonic to newhost",
+    "original_base_budget_fields": [
+      "controller_charged_upper_bound_cpu_seconds",
+      "controller_measured_to_seal_cpu_seconds",
+      "controller_finalization_cpu_reserve_seconds",
+      "aggregate_wall_seconds",
+      "within_registered_limits"
+    ],
+    "original_markdown_bytes": "unchanged D.markdown(rebuilt).encode(UTF-8) must match original readout.md; function contains no new clock",
+    "original_publish_status": {
+      "expected_type": "str",
+      "expected_value": "provisional_until_matching_completion_seal",
+      "path": "publication_status"
+    },
+    "strict_complete_semantic_C_same": true,
+    "whole_reconstruction": "add ONLY independently validated original publication_status and4 observer budget annotations to newly rebuilt semantics; then exact whole C.same to original readout.json"
+  },
+  "small_authority": {
+    "local_manifest_sha256": "aeeb608daedff49de53d7d4804f3feaa0dc65bb0c527601a350b1af9f6516147",
+    "member_pins": {
+      "practice-study-contracts/guard.json": {
+        "bytes": 569,
+        "sha256": "a1f1519d1d50c624c480083fc14c59f5f1bf69971587b6d901eae0e18c263ccd"
+      },
+      "practice-study-contracts/junit.xml": {
+        "bytes": 50216,
+        "sha256": "d3810a1d0891195314952d9d05c05ed776f7514c099f2db0654d58a3bd153599"
+      },
+      "practice-study-evidence/admission.json": {
+        "bytes": 2529,
+        "sha256": "db2b15642cccd48a83b8c335fa2d208d1a52dcebe18b2ee32e2e2308ee468f1d"
+      },
+      "practice-study-evidence/execution-receipt.json": {
+        "bytes": 474,
+        "sha256": "55d243ee8ed7e1b102554628144c545cc389e9817523dd2557ac150bf0e8a176"
+      },
+      "practice-study-evidence/execution.json": {
+        "bytes": 433560,
+        "sha256": "23b2961464d60b56b41edb964999158d61101647543eedaa24b7debb11a8f02a"
+      },
+      "practice-study-freeze.json": {
+        "bytes": 648667,
+        "sha256": "7d316471c910d36899f7826e53da20244dbae8348c210f5a8030158f228c7ec2"
+      },
+      "practice-study-readout/completion.json": {
+        "bytes": 698,
+        "sha256": "1c98ccd2567a9fbfa722b3b5f148ee6c2da81ddccb5772dc270a53818b7c0f8b"
+      },
+      "practice-study-readout/readout.json": {
+        "bytes": 687308,
+        "sha256": "43333b2bdb9388fef27f9ab6fce9c0badc5e3496f4774cc427978f9f29b47202"
+      },
+      "practice-study-readout/readout.md": {
+        "bytes": 2375,
+        "sha256": "4a6211eb23ba070cb2b51c12208fe0abcc9a612def2a6976afc395749655a94d"
+      },
+      "practice-study-readout/receipt.json": {
+        "bytes": 1060,
+        "sha256": "21e26e5a6d69f91434583bec49ff5335cc2ea65ca2efe2f103473ccefae20506"
+      },
+      "practice-study-wheel/verification.json": {
+        "bytes": 3432,
+        "sha256": "76837ac42d6f3ee4d8073733daf28d7690cd924c3099ec0666f952b7e39246b2"
+      },
+      "proof-metadata-observation.json": {
+        "bytes": 2606,
+        "sha256": "57a2e09d7511c12c88b510804f2b5eddead03a824e98136a0f8da7137585b35a"
+      }
+    },
+    "peer_sha256": "948c1671706fd43e85839fb740ec927995811c46e9a10c1141205ed3dd0260b5",
+    "root_qualification_sha256": "dc3306ae2cbf0a3dc8d35078807287ecb45cb310e1558e6097cc7daef70d7186",
+    "zip_id": 12898573331,
+    "zip_sha256": "73a5054b1884916b2a5487a018a1435101eaae7793e90fc4d6b6b2ecf03903dc"
+  },
+  "source_pins": {
+    "docs/experiments/natural-practice-observer-registration-2026-10-29.md": {
+      "bytes": 6361,
+      "mode": "100644",
+      "sha256": "cc0199a6be414a9c86cafead857ffb7af51f2973d4aba8f62bc0a3e7a4bc34b2"
+    },
+    "scripts/fetch_research_practice_wheel.py": {
+      "bytes": 21512,
+      "mode": "100644",
+      "sha256": "2c21e6f6697c23b8c9f66626a2cf8ec28966e4d7a159239088c573a40ada2051"
+    },
+    "scripts/read_research_practice_continuation.py": {
+      "bytes": 49940,
+      "mode": "100644",
+      "sha256": "ec483f7a07ef254c4cc99072e95214df9af4eb7a6ce2f048de87e032cbf8e33e"
+    },
+    "scripts/research_practice_adapter.py": {
+      "bytes": 5005,
+      "mode": "100644",
+      "sha256": "5b428eaf71fdbdbfc33ca913d52a39c7f954c9bdb41ae1f281a0b96a3c5d76db"
+    },
+    "scripts/research_practice_contract.py": {
+      "bytes": 19157,
+      "mode": "100644",
+      "sha256": "00138cd4c558b1b1a3fc5b78eb80b80c5c8bfe17b27a30d2c3d4d95840cc6b91"
+    },
+    "scripts/research_practice_recorder.py": {
+      "bytes": 12847,
+      "mode": "100644",
+      "sha256": "c351b11eee75950b4d39ca46954fe2364664a62a529c71ada1b82d9804ba8c1c"
+    },
+    "scripts/research_practice_resources.py": {
+      "bytes": 7688,
+      "mode": "100644",
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "scripts/research_practice_runtime_policy.py": {
+      "bytes": 5077,
+      "mode": "100644",
+      "sha256": "f98495d350086258cd06dddf5644c0bc05eae4c7c35065866ec8a583a531331c"
+    },
+    "scripts/research_practice_trace_reader.py": {
+      "bytes": 11808,
+      "mode": "100644",
+      "sha256": "0f69431256c224e72603de68a8837acd87cea21b1c0ad74a68c0c3576009ebd0"
+    },
+    "scripts/run_research_practice_continuation.py": {
+      "bytes": 39511,
+      "mode": "100644",
+      "sha256": "88134437e33e9287836b3922d7aa2873d9ac1a0658bbe6bd1598682e528cc7e8"
+    }
+  },
+  "stages": [
+    "source-only freeze/peer/root approval and pure hostile-ZIP/path/annotation/resource fixtures before activation",
+    "fresh remote source contexts/owned paths/import guards/oneCPU12GiB2GiB admission; begin one600s outer clock",
+    "fresh official study+wheel producer/artifact metadata-before; exact identities/bytes/digests/registered expiry, refuse denial or drift",
+    "download each fixed official whole ZIP once; bounded SHA/size/EOF before ZipFile, fresh metadata-after; no new route/retry",
+    "authenticate closed central2455-member map; stream every CRC+SHA; restore only explicitly mapped owned derived files, track total archive+wheel+all copies",
+    "restore original wheel metadata exactly; supply additional authenticated opaque wheel ZIP/innerwheel, no install, F.verify_receipt unchanged",
+    "validate original execution/readout/completion seals and historical observer annotations",
+    "unchanged D.build_readout/T.inspect across all24 roles; exact semantic then reconstructed whole comparison",
+    "re-hash inputs/source/derived complete inventory, confirm no simulation native/pickle/World path, cleanup/quiescence; terminal new audit seal within original outer600; bounded8MiB/64file publication only"
+  ]
+}
