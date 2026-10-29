@@ -1,5 +1,37 @@
 # Recovered continuation — 2026-10-11
 
+## Latest qualified code — 2026-10-29, source 469
+
+Code `46967ce6` now has independently/root-qualified
+[all-nine-job standard CI](integration/policy-receipt-compatibility-ci-2026-10-29.md)
+on the persistent review branch, first attempt. Native passes 8,669 parents with
+6 skips and 623 subtests; no-Rust passes 8,336/325/623; offline passes 4,562/65/97
+across 38 chunks. Rust passes 1,140 with 2 ignored, Viewer 743 in 69 files with
+lint/build, and 2 + 2 preflights remain separate. All 71 added receipt-policy
+cases pass both full lanes and the offline whole-module selection as pure/fake
+contracts. The 303 owners, six skips, 623-subtest seal and 110-second chunk limit
+remain unchanged. Fresh source/wheel/native identities are in the linked result.
+
+The builder restored all three prior resident cache keys. Its 120-second job,
+95-second wheel step and the 497-second workflow interval are uncontrolled
+changed-source observations, not a measured simulator speedup. The primary
+reader's one-line module-level address correction and first failure remain
+preserved; no CI producer was retried.
+
+The first 090 profiler outcome is now root-qualified as authenticated incomplete
+(`d44f8ab3…`), with no completed profile/comparison or known failed-role tick count.
+A deliberate-link fixture/whole-root inventory conflict is source-proven, while
+the first offending path remains unknown; no actual retry follows. Separate
+forecast controller `99143193` has 183 pure/fake passes after four reader repairs,
+but successor review, runtime and durable RAW retention remain held and ungrafted.
+The care transient recorder remains source work without a new native build or
+World. Enabled-policy/checkpoint/global-RNG/science/performance gates stay open.
+
+The [current development packet](integration/current-development-cross-examination-2026-10-29.md)
+now leads with this standing. All prior 94/3a and source-only entries below remain
+unchanged historical records; their pending wording describes those snapshots.
+This update changes documentation only. Main is untouched.
+
 A new source-only [optional-policy receipt composition](integration/expansion-policy-receipt-composition-2026-10-29.md)
 adds the exact reviewed `81a3ce32` runner, pure producer descriptor/helper,
 appended test source and dated compatibility note atop documentation `76de9bd2`.

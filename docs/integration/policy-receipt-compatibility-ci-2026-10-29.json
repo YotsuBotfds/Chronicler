@@ -1,0 +1,527 @@
+{
+  "kind": "CURATED_QUALIFIED_POLICY_RECEIPT_STANDARD_CI",
+  "curated_at_utc": "2026-10-29T19:12:15.881206+00:00",
+  "code_source": "46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+  "run": {
+    "id": 40932674679,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40932674679",
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "branch": "lead/dev-next-consolidation-20261029",
+    "all_nine_jobs": "SUCCESS",
+    "first_attempt": true,
+    "created_at": "2026-10-29T18:38:14Z",
+    "last_job_completed_at": "2026-10-29T18:46:31Z"
+  },
+  "qualification": "ROOT_AND_INDEPENDENT_QUALIFIED_SOURCE_SCOPED_STANDARD_CI",
+  "actual_counts": {
+    "native": {
+      "passed": 8669,
+      "skipped": 6,
+      "successful_subtests": 623
+    },
+    "native_parents": 8675,
+    "native_parent_phase_reports": 26025,
+    "catalog_modules": 303,
+    "noRust": {
+      "parents": 8661,
+      "passed": 8336,
+      "skipped": 325,
+      "successful_subtests": 623
+    },
+    "offline": {
+      "parent_passed": 4562,
+      "skipped": 65,
+      "successful_subtests": 97
+    },
+    "offline_chunks": 38,
+    "offline_source_pins": 329,
+    "Rust": {
+      "passed": 1140,
+      "ignored": 2,
+      "unit_passed": 599,
+      "targets": 37,
+      "filtered": 0
+    },
+    "Viewer": {
+      "passed": 743,
+      "files": 69,
+      "lint_build": "PASS"
+    },
+    "wrapper_preflights_separate": {
+      "wrapper-contract-native": {
+        "JUnit_sha256": "01fe32acc7b2a072fc23e30b68c69291e430df92a27362e804f7279f0a5dda03",
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      },
+      "wrapper-contract-no-rust": {
+        "JUnit_sha256": "ddd510a891b7d85d3f1489958cd6f7ab031c246404bae15c2aae7afe4c70271a",
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      }
+    },
+    "new_receipt_policy_parents_each_full_lane": {
+      "native_installed": 71,
+      "no_Rust": 71
+    },
+    "retained_care_model_parents_each_full_lane": 38,
+    "retained_care_successful_subreports": 97,
+    "retained_forecast_model_parents_each_full_lane": 22,
+    "K2_offline_parents": 58,
+    "metadata_offline_parents": 125,
+    "outer_members": 96,
+    "inner_wheel_members": 6,
+    "source_files": 800
+  },
+  "job_outcomes": [
+    {
+      "id": 123654937916,
+      "name": "Viewer",
+      "conclusion": "success",
+      "wall_seconds": 114.0
+    },
+    {
+      "id": 123654938328,
+      "name": "Python bounded offline",
+      "conclusion": "success",
+      "wall_seconds": 174.0
+    },
+    {
+      "id": 123654938399,
+      "name": "Python no-Rust",
+      "conclusion": "success",
+      "wall_seconds": 437.0
+    },
+    {
+      "id": 123654938531,
+      "name": "Build one current-source native wheel",
+      "conclusion": "success",
+      "wall_seconds": 120.0
+    },
+    {
+      "id": 123654938544,
+      "name": "Rust",
+      "conclusion": "success",
+      "wall_seconds": 48.0
+    },
+    {
+      "id": 123656055217,
+      "name": "Python native module shard 0",
+      "conclusion": "success",
+      "wall_seconds": 227.0
+    },
+    {
+      "id": 123656055356,
+      "name": "Python native module shard 1",
+      "conclusion": "success",
+      "wall_seconds": 352.0
+    },
+    {
+      "id": 123659285441,
+      "name": "Python native execution",
+      "conclusion": "success",
+      "wall_seconds": 14.0
+    },
+    {
+      "id": 123659423051,
+      "name": "Python native",
+      "conclusion": "success",
+      "wall_seconds": 2.0
+    }
+  ],
+  "identity": {
+    "source800_digest": "25b5e1c6037ae1926d1e3084892c544e9052c957a9b571a6b5738ba53d3a20b6",
+    "whole181package_digest": "074ac7565820d4d1145cc9efa8d16985e1543b57c4dffbf6db2b3ba9d116006d",
+    "native_crate": "04866c3962ec9d5c77477fc727107a553fc1d6df",
+    "fresh_wheel": {
+      "bytes": 3932438,
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "3a8859827e64303e1d127732ae6ca5655b2da0ce37fee9bfce098a67ae2dfddd"
+    },
+    "installed_native": {
+      "bytes": 13737112,
+      "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5",
+      "wheel_member_sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
+    },
+    "full_collection_digest": "12e820de25b3ba56e92ebcdd1d67ed1d88d51fe926b4aa8f10a6cff501ee7b1c",
+    "source_files": 800,
+    "module_owners": 303,
+    "expected_skips": 6,
+    "successful_subtests": 623,
+    "offline_chunks": 38,
+    "offline_chunk_limit_seconds": 110,
+    "offline_source_pins": 329
+  },
+  "collection_join": {
+    "prior_source": "3a2a671477be849dd1b26c000d501304b8c684e9",
+    "prior_parents": 8604,
+    "metadata_before": 125,
+    "metadata_after": 125,
+    "K2_retained": 58,
+    "receipt_policy_added": 71,
+    "added_parent_nodes": [
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_descriptor_matches_source_getter_literals_without_product_import[harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_descriptor_matches_source_getter_literals_without_product_import[health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[boolean_policy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[boolean_policy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[extra_after-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[extra_after-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[extra_before-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[extra_before-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_after-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_after-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_before-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_before-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_request-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[invalid_request-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_after_policy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_after_policy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_base_after-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_base_after-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_base_before-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_base_before-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_before-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_before-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_before_policy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_before_policy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_both_explicit-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[missing_both_explicit-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[redundant_legacy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[redundant_legacy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[request_mismatch-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[request_mismatch-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[unrequested_change-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_invalid_worker_fails_without_product_import[unrequested_change-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[explicit_legacy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[explicit_legacy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[explicit_optin-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[explicit_optin-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[inherited_active-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[inherited_active-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[legacy_omitted-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_older_source_fallback_remains_exact[legacy_omitted-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[explicit_optin-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[explicit_optin-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[explicit_reversion-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[explicit_reversion-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[inherited_active-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[inherited_active-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[legacy_omitted-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_matching_preserves_resolved_modes[legacy_omitted-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[both_omitted_inherited-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[both_omitted_inherited-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[different_before-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[different_before-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[invalid_parent-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_parent_rejects_inherited_omission_and_mismatch[invalid_parent-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_science_research_metadata_stays_separate[None]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_science_research_metadata_stays_separate[research_in_after]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_science_research_metadata_stays_separate[research_instead_of_base]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_science_research_metadata_stays_separate[unknown_after]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_shared_parent_check_precedes_noop_state_comparison",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_active_noop-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_active_noop-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_legacy-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_legacy-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_optin-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_optin-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_reversion-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[explicit_reversion-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[inherited_active-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[inherited_active-health_care]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[legacy_omitted-harvest_forecasts]",
+      "tests/test_expansion_experiment_runner.py::test_policy_receipt_valid_worker_completes_without_product_import[legacy_omitted-health_care]"
+    ],
+    "unchanged_prior_collection_order": true,
+    "current_parents": 8675
+  },
+  "publication": {
+    "original_ZIPs": 9,
+    "outer_members": 96,
+    "inner_wheel_members": 6,
+    "primary_payload_files": 81,
+    "primary_payload_bytes": 6000923,
+    "artifacts": [
+      {
+        "id": 12924600116,
+        "name": "native-module-shard-0-40932674679-1",
+        "bytes": 405965,
+        "sha256": "ec17f33d9b045c7bd986b2d1ea6e8e949d6144c224daedc4d3c7db84efbf8f67",
+        "created_at": "2026-10-29T18:44:03Z",
+        "expires_at": "2026-11-12T18:44:02Z"
+      },
+      {
+        "id": 12924590341,
+        "name": "python-no-rust-46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+        "bytes": 150130,
+        "sha256": "70fc4e173c7a649313e29f8026e6affcb264ba053876e852f37845ddc602ec85",
+        "created_at": "2026-10-29T18:45:31Z",
+        "expires_at": "2026-11-12T18:45:31Z"
+      },
+      {
+        "id": 12924250419,
+        "name": "python-offline-46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+        "bytes": 47542,
+        "sha256": "20bd688720b4c69c9e5faae202081f4dd211e02baf7e6da02f1408a0fa39fe22",
+        "created_at": "2026-10-29T18:41:08Z",
+        "expires_at": "2026-11-12T18:41:07Z"
+      },
+      {
+        "id": 12923696071,
+        "name": "wrapper-contract-native-46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+        "bytes": 1003,
+        "sha256": "3a38d6872cccfd4b62cb1737024d4e477633f54341012321fa8752e39bed9e65",
+        "created_at": "2026-10-29T18:38:34Z",
+        "expires_at": "2026-11-12T18:38:34Z"
+      },
+      {
+        "id": 12923637272,
+        "name": "native-module-shard-1-40932674679-1",
+        "bytes": 386882,
+        "sha256": "3b9c6b796d12edb627857fa503255105e2170dbd12acfea4581d89df8f66d402",
+        "created_at": "2026-10-29T18:46:07Z",
+        "expires_at": "2026-11-12T18:46:06Z"
+      },
+      {
+        "id": 12923257437,
+        "name": "rust-46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+        "bytes": 722,
+        "sha256": "b718f2f1b392121d2202e31be287853d9ce8fc02768150e2864f89177b1206f7",
+        "created_at": "2026-10-29T18:39:02Z",
+        "expires_at": "2026-11-12T18:39:01Z"
+      },
+      {
+        "id": 12923122092,
+        "name": "wrapper-contract-no-rust-46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+        "bytes": 1003,
+        "sha256": "60629ddcbb5b3910dbf4aaab97df549d44187091a568d50b623955f1f716b2fd",
+        "created_at": "2026-10-29T18:38:30Z",
+        "expires_at": "2026-11-12T18:38:29Z"
+      },
+      {
+        "id": 12923083995,
+        "name": "native-module-aggregate-40932674679-1",
+        "bytes": 1276,
+        "sha256": "9e8c717516f111e2facc5bd8380351f847da78ac9a4ff38f70210ebb9f207ace",
+        "created_at": "2026-10-29T18:46:24Z",
+        "expires_at": "2026-11-12T18:46:23Z"
+      },
+      {
+        "id": 12922499485,
+        "name": "native-shard-build-40932674679-1",
+        "bytes": 3868630,
+        "sha256": "3e4d52bc240b2a055015f3773492291bc67ce974d185dd02d46e2e0eab9b88a8",
+        "created_at": "2026-10-29T18:40:11Z",
+        "expires_at": "2026-11-12T18:40:10Z"
+      }
+    ],
+    "job_logs": "Saved decoded text; not original compressed log bytes. Retention/expiry fields are historical observations, not a fresh availability promise."
+  },
+  "cache_and_wall": {
+    "restored_three_prior_resident_keys": true,
+    "matching_keys": [
+      "uv-Linux-X64-py313-083ae1a27e5187d3168e44385d728adca15a387f1e873ebdce625b44b2911ef7",
+      "cargo-release-Linux-X64-py313-f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369-a108c4acddc3dbfcbd8591c0772b89aab1d2145b33baa528fde1a6d91b469c6a-94b308e65bf3c7febc41f09b73004b1db2056a1d",
+      "cargo-downloads-Linux-X64-1173e18b22c34da4c2bb2ed963cb3256f3697eb765a06a6a138837f0e336f0df"
+    ],
+    "builder_job_seconds": 120,
+    "wheel_build_step_seconds": 95,
+    "Cargo_reported_release_seconds": 93,
+    "run_created_to_last_job_seconds": 497,
+    "interpretation": "Actual naturally changed-source observations on the persistent review branch. Exact uv/download hits and old94 release restore-key hit; workflow saved current469 primary key. Historical cache IDs were joined by key, not directly observed as current restored IDs. No controlled speedup, simulation throughput/capacity or future-hit reservation claim."
+  },
+  "preserved_observer_history": {
+    "kind": "PRESERVED_OBSERVER_HISTORY",
+    "source": "46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9",
+    "run": 40932674679,
+    "metadata_only_attempts": [
+      "Initial GitHub connector job request omitted required repo_full_name and was schema-rejected before API operation; corrected request succeeded. Original note retained in observer-connector-history.json.",
+      "An inspection formatter treated structured file_uri as a string and raised a JavaScript TypeError before body transfer. Corrected inspection selected file_uri.download_url. Every original artifact body was acquired once; no failed or duplicate body transfer."
+    ],
+    "saved_data_attempts": [
+      {
+        "script": "verify-builder.py",
+        "attempt": 1,
+        "result": "PASS",
+        "transcript": "builder-verification-attempt-1.log"
+      },
+      {
+        "script": "reconcile-positive.py",
+        "attempt": 1,
+        "result": "FAIL_READER_MODULE_LEVEL_ADDRESS_SEPARATOR",
+        "transcript": "reconciliation-attempt-1.log",
+        "freeze": "frozen-reader-sources.json"
+      },
+      {
+        "script": "reconcile-positive-module-address.py",
+        "attempt": 2,
+        "result": "PASS",
+        "transcript": "reconciliation-attempt-2-module-address.log",
+        "freeze": "reader-module-address-correction-freeze.json"
+      },
+      {
+        "script": "supplementary-check.py",
+        "attempt": 1,
+        "result": "PASS",
+        "transcript": "supplementary-attempt-1.log"
+      },
+      {
+        "script": "process-cache-check.py",
+        "attempt": 1,
+        "result": "PASS",
+        "transcript": "process-cache-attempt-1.log"
+      }
+    ],
+    "producer_retries_or_source_changes": 0,
+    "scope": "Observer error history only. No failed reader was overwritten, no gate/count/skip/source waiver, no producer/test/build/World/dispatch retry."
+  },
+  "separate_development": {
+    "profiler090": {
+      "control_source": "3fbaa7bdde7d297bb4a51b4d6c6432ab10fee822",
+      "run": 40927885410,
+      "job": 123638169701,
+      "attempt": 1,
+      "status": "FIRST_ACTUAL_FAILURE_AUTHENTICATED_INCOMPLETE",
+      "root_verdict": "AUTHENTICATED_INCOMPLETE_STUDY_NO_PROFILE_QUALIFICATION",
+      "hosted_pure_passes": 194,
+      "completed_roles": 0,
+      "profiled_roles": 0,
+      "comparisons": 0,
+      "failed_role_physics_ticks": null,
+      "failure": "Role0 small/plain CORE_REFUSED/STATE_NODE_CAP at frozen5M traversal-visit bound; later retention Refused lacks an observed path/reason, then missing retained_inventory causes secondary terminal KeyError. Negative authorities preserved.",
+      "source_proven_retention_hazard": "Preflight leaves deliberate symlink/hardlink fixtures beneath whole-root inventory. Its strict nonregular/nlink predicates conflict with that layout. This is not an observed identification of the first offending path.",
+      "observed_first_offending_path": null,
+      "overall_cleanup_certified": false,
+      "observed_process_leak": null,
+      "actual_retry": null,
+      "profile_speed_result": null
+    },
+    "forecast_study_controller": {
+      "source": "9914319370f8d8e94184626b0511c49971e26146",
+      "status": "SOURCE_ONLY_HELD_NOT_GRAFTED",
+      "pure_fake_cases": 183,
+      "new_reader_repair_cases": 47,
+      "four_reader_repairs": [
+        "Complete status/score coherence, including finite resolved arithmetic and null unscored/cancelled score fields.",
+        "Persistent exactly-one active/outcome report membership and source-expiry closure for fixedH26/8R at-most16reports.",
+        "No-purchase coverage only for an actual validated zero-purchase warning action.",
+        "Complete file hashes and stable dev/inode/mode/nlink/size/mtime_ns/ctime_ns checks, excluding read-atime."
+      ],
+      "successor_independent_root_clearance": null,
+      "durable_original_RAW_retention_gate": null,
+      "candidate_full_CI_binding": null,
+      "actual_World_checkpoint_study": null,
+      "scope": "Only pure invented JSON/ZIP/native-prefix fixtures. No actual World, source-owned CP object, native schema/runtime, RNG, scientific or adoption result."
+    },
+    "care_transient_recorder": {
+      "status": "SOURCE_IMPLEMENTATION_IN_PROGRESS_NOT_GRAFTED",
+      "provenance": "Lead status at this curation snapshot; no immutable implementation or qualification asserted.",
+      "fresh_native_build": null,
+      "actual_enabled_World": null,
+      "native_schema_recording_neutrality": null
+    }
+  },
+  "authorities": {
+    "root_final": {
+      "path": "/tmp/chronicler-policy469-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 3673,
+      "sha256": "b6bef07ca8e0541542f69f54894dab0dacf3d57b54b2e5f6aaa70fe335faeb89"
+    },
+    "independent_final": {
+      "path": "/tmp/chronicler-policy469-CI-independent-20261029-1/receipt-final.json",
+      "bytes": 7024,
+      "sha256": "f8eb598ab8899021e72b47312484454250e0cad712882a33f648536549bcaf54"
+    },
+    "independent_core": {
+      "path": "/tmp/chronicler-policy469-CI-independent-20261029-1/receipt.json",
+      "bytes": 8738,
+      "sha256": "1c7e762660c70f02ac4ba4e82f46cbb3adb15fb7f18a8ed3a7097efae0adc53c"
+    },
+    "independent_cache_steps": {
+      "path": "/tmp/chronicler-policy469-CI-independent-20261029-1/step-cache-receipt.json",
+      "bytes": 3528,
+      "sha256": "83fd84b294929a6df0d93531537cec45a3028023e504d9f3c127b560fcc392e5"
+    },
+    "primary_manifest": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/evidence-manifest.json",
+      "bytes": 12678,
+      "sha256": "bc85119510ecf3dbaf48e4621575b573131ed4323e23f3031c613006002d19b0"
+    },
+    "primary_finalization": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/finalization.json",
+      "bytes": 4676,
+      "sha256": "73de93c0c2d6d4058e70b4d5722b468cb5e4a64d374059f9dcfd91631bd4d8a6"
+    },
+    "primary_reconciliation": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/reconciled-result.json",
+      "bytes": 63648,
+      "sha256": "d1b55865c23ec010fc33758c9e75f8515cec45f6893bc8cddccb934438d78394"
+    },
+    "primary_supplementary": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/supplementary-verification.json",
+      "bytes": 55211,
+      "sha256": "4f4b94357e3c26f8b6a97e9fa4b1c56c0469f412919c2a43d12ad29ad6c18bad"
+    },
+    "primary_builder": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/builder-byte-verification.json",
+      "bytes": 96967,
+      "sha256": "d59e576d14c81a99e0298c90bb40cce79431e06765e07bc51fdf5b87917bec17"
+    },
+    "primary_cache": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/process-cache-observation.json",
+      "bytes": 42938,
+      "sha256": "9b868dce03e4844a65c05249a868494725a6af8cbc2c688054c1febba5d0f876"
+    },
+    "primary_postflight": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/postflight.json",
+      "bytes": 1601,
+      "sha256": "97cb8bba531094af2bf877397418f39517b981e390e1350dbc1e76f43b681e50"
+    },
+    "primary_observer_correction": {
+      "path": "/tmp/chronicler-review-evidence/policy-receipt-4696-CI-20261029/reader-module-address-correction-freeze.json",
+      "bytes": 3480,
+      "sha256": "8fcc007b85aad73eb9bafdc8aafccd9d91a383f20884d8692dc2add2921d4388"
+    },
+    "profiler_root_negative": {
+      "path": "/tmp/chronicler-passive090-root-negative-qualification-20261029/root-final-negative-qualification.json",
+      "bytes": 2847,
+      "sha256": "d44f8ab3903af0eda719c10607eefdef9e56030aa74773d3547d3d80e8e599fb"
+    },
+    "forecast_held_source_freeze": {
+      "path": "/tmp/chronicler-forecast-reader-acceptance-child-_7jxea4c/freeze.json",
+      "bytes": 5877,
+      "sha256": "109f9d500f39665bd76c14290729f937fba604f8927c024e380a3b533c4cc384"
+    },
+    "forecast_held_source_handoff": {
+      "path": "/tmp/chronicler-forecast-reader-source-ready-8fsmskkm/source-ready.json",
+      "bytes": 4197,
+      "sha256": "09db24f7243bcb1d40204935807821686ab0d70611bfccf0828aa84ffa0dbcb5"
+    },
+    "forecast_held_pure_result": {
+      "path": "/tmp/chronicler-forecast-study-pure-003-g4flbw8i/evidence/receipt.json",
+      "bytes": 231740,
+      "sha256": "ff0714262e88126b4741c9b47557a35df6d0eebcab6b0a0e207844f5e855ba3d"
+    },
+    "forecast_parent_blockers": {
+      "path": "/tmp/chronicler-forecast-reader-independent-review-20261029-d41UivzC/RECEIPT.json",
+      "bytes": 2641,
+      "sha256": "8175c496ee1830127b4ba9cf51731f6f999833a708ddb8a70f382af55c735b29"
+    }
+  },
+  "limits": [
+    "Only source-scoped standard CI. The71 policy-receipt cases are pure/fake contracts; forecast22 and care38 remain model/fake contracts. No genuine enabled forecast or retained-kin World/checkpoint efficacy is established.",
+    "Nine care plus ten batch Rust tests are linked to the successful unfiltered target. Quiet output supplies no individual-name stdout witness. Embedded PyO3 binary tests do not establish installed-wheel new-method execution.",
+    "Three compiled class exports are source-linked to extension origin, wheel bytes and initializer reexport. Before/after context remains the qualified producer assertion, not an external process attestation.",
+    "Actual per-class schema tuples, installed-wheel new batch/care keyword invocation, default/global-RNG trajectory, K2 decoded-state coherence/reuse, science, performance, adoption and main promotion remain outside qualification.",
+    "Captured cache hits and step durations are uncontrolled observations on different sources. They do not establish a speedup.",
+    "Saved official metadata/log provenance is reviewed from retained originals. No fresh API or live retention assertion is made. Job logs are decoded text rather than original compressed-log bytes.",
+    "Only saved JSON/XML/ZIP/Git/source bytes inspected. No reviewed reader/product execution/import, tests/collection, native/build, World/profile/checkpoint/Arrow/pickle decoding, extraction, network/acquisition, source/ref/index/object mutation, push, dispatch, retry, merge or promotion."
+  ],
+  "curation_operations": "Saved small metadata/Git/JSON/hash/link inspection and four documentation-path changes only. No prior reader/test rerun, new acquisition, product/native import, World/checkpoint/build/profile/cache operation, source/runtime/workflow/test change, push/dispatch/main mutation. All old source/qualification JSON and historical review bodies preserved."
+}

@@ -1,5 +1,28 @@
 # Current development: behavior, evidence and next decisions
 
+## Current standing — 2026-10-29, after the qualified 469 run
+
+Current code is `46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9`.
+The [new all-nine-job CI readout](policy-receipt-compatibility-ci-2026-10-29.md)
+and [curated machine record](policy-receipt-compatibility-ci-2026-10-29.json)
+carry the qualified source, actual counts, fresh wheel/source identities and
+root/independent seals. All 71 receipt-policy additions pass both full Python
+lanes and offline as pure/fake contracts. No enabled-World/checkpoint or scientific
+result is implied. The old 94/3a evidence and original JSON remain source-bound.
+
+The persistent branch now has observed uv/download/release cache restores;
+builder 120 seconds, wheel step 95 seconds and run interval 497 seconds are
+uncontrolled observations. The first 090 profiler failure is finally authenticated
+incomplete (`d44f8ab3…`), with a source-proven fixture/inventory layout hazard and
+no actual retry or accepted profile. Forecast controller `99143193` separately
+has 183 pure/fake passes after four reader fixes; successor clearance, durable
+RAW retention and runtime remain held. Care recorder implementation is source-only,
+without a new native build or World. Neither track is grafted into current code.
+
+The complete earlier review follows unchanged as a historical `3a` snapshot.
+Its references to future descriptor composition, pending profiler interpretation
+and publication describe that recorded point; the dated update above is current.
+
 Code source `3a2a671477be849dd1b26c000d501304b8c684e9` combines optional reciprocal-Kin
 care, bounded local forecast credibility, an unused native context batch API and
 unwired K2 metadata eligibility. All nine standard CI jobs are independently and
