@@ -313,6 +313,9 @@ CHUNKS = {
         "tests/test_practice_observer_runner.py",
         "tests/test_research_practice_recorder.py",
         "tests/test_research_practice_adapter.py",
+        "tests/test_research_practice_controls.py",
+        "tests/test_research_practice_trace_reader.py",
+        "tests/test_research_practice_wheel.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]

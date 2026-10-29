@@ -33,3 +33,25 @@ The adapter tests use scalar namespace objects and an observer surrogate; they
 do not construct ordinary Worlds or execute physics. Actual CP60 RNG binding,
 strict parent/active equality and the new native/runtime policy still require
 separate reviewed source and hosted qualification before study activation.
+
+The prepared controller now uses a separate namespace for the original qualified
+`3caa9a9c` controls. Thirty-one critical process/accounting/reader transaction
+ASTs are pinned to that source with explicit Python 3.13 canonical serialization.
+The reviewed cgroup helper is copied exactly at SHA `44f1e1d…`; thresholds remain
+unchanged. The detached scalar reader validates complete byte-indexed journals,
+actual baseline/final counters, grouped bookkeeping, availability and handle
+clock offsets before comparing the post-CP records. It never imports project or
+native code or unpickles a checkpoint. Only exact validated top-level trace
+paths receive comparator exemptions. Raw and readout inventories share the
+original global evidence limit.
+
+The closed prospective native policy pins the completed cbf standard-CI wheel,
+including whole ZIP/manifest/wheel/native hashes and completed producer metadata.
+Its three expected checkpoint schemas are an admission requirement still to be
+measured by a separately authorized metadata freeze. No new requests, install,
+freeze, native build or cohort execution have run here. The first driver check
+preserves 50 passing cases and one urllib fixture-setup failure; correction adds
+the required stdlib handler parent without changing production transport.
+
+See the [prospective registration](natural-practice-observer-registration-2026-10-29.md)
+for exact source/native pins, budgets, fixed witness cap and scope limitations.

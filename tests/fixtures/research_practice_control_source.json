@@ -1,0 +1,65 @@
+{
+  "original_control": "3caa9a9c2eb07a20bcb83491ca81bca956bf0725",
+  "canonical_ast_options": {
+    "annotate_fields": true,
+    "include_attributes": false,
+    "indent": null,
+    "show_empty": true
+  },
+  "python": "3.13+",
+  "namespace_replacements": {
+    "research_natural_contract": "research_practice_contract",
+    "run_research_natural_continuation": "run_research_practice_continuation",
+    "read_research_natural_continuation": "read_research_practice_continuation",
+    "research_natural_runtime_policy": "research_practice_runtime_policy",
+    "fetch_research_natural_wheel": "fetch_research_practice_wheel"
+  },
+  "original_files": {
+    "run_research_natural_continuation.py": {
+      "bytes": 39155,
+      "sha256": "a2f5de0e140e7045e736c2252d372983b9cac004f9a9332ef99a56a51c3a0f26"
+    },
+    "read_research_natural_continuation.py": {
+      "bytes": 47319,
+      "sha256": "a07ad154ac5605363f3e71a27917ee96595dd251d5b54840022ad3a1554b6e8b"
+    }
+  },
+  "functions": {
+    "run_research_practice_continuation.py": {
+      "runtime": "9f4ceb8d15f3dd9deee451454a82d92a9e7b8ff3309c89bdabc27a7b7ae947c5",
+      "identity": "de506045e3d4cd02e91306fedff2dd07de2988f021093b306682c4ec2ad8a841",
+      "verify_freeze": "550fd634f5503d4a5260a534243e6faf4f849557d7a908f2a1f74d9c2b23ae65",
+      "simulation_args": "9e8f372a171a45e681d11d6f71748d9c26d727a4c025c42514ac722aac35e0ab",
+      "request": "2c979b11c57f6b586899e483c702ab1ab9fd68cb661d62f945e6d23a8cd8090e",
+      "rng_state": "af5e42c63b8e9592a594770cfd3d1b8b45de63b79c92dd91c3b3111fd98dd819",
+      "restore_rng": "810715a8e81134aa4c20bde64c38b43a6b505454ba87f974ca12b61454e9d0b4",
+      "native_records": "7e9beb52d768b63f585d4a6165363e3644e2708cd21df4e55de380f528423d8e",
+      "resources": "7e35b925d796ce1a0450f39771430b2dadf2401f9bd3c94f3c8263660ebc3571",
+      "process_record": "221a5dfac9ccecb843495849357cfa8bf6f95948679e69e88ac0c8375e29d769",
+      "owned_group": "dfa0d02dcdb3df14da19287ca551243d7fffdb61159022c7db7c4e579c68cea6",
+      "owned_tree": "e16f1c0c0814d2891767fe5aa9a47c731066c4404969f20c4531e76947ff9ac4",
+      "direct_children": "095c9075aee4c04b8d48ed6066afc366c8c3ed6479a644178d97ccb915a429bb",
+      "exclusive_subreaper": "ab1519dbaee4208baaf954e1d9514b273e131fcccc2b5fd4ffadfca7dfbc7c53",
+      "cleanup": "f9c0a5d0025608a576827a926189ab3a17ef8cc51834e1be4addf538f7404543",
+      "interruption_guard": "ab73e6c41ba038632d708f1e2cf74bfeb9d59ae5383451224c90b114edb17606",
+      "supervise": "bb0265d960316e64006cf35d63c6b653dbb2d83534e10618960dc40bedc85a21",
+      "publish_execution": "ea73f4338d6803092c56b0397f55e14ae107154e4d91b279a95821405947ea83",
+      "run": "3a00ad6a47eb60e9f99044af9a204ce15cf50efc1d0f0400162a8a98e6291d18",
+      "_run": "6198a8e8efd08b69a3b4831798160f3db5b46821775259478762bcec8e5edd89"
+    },
+    "read_research_practice_continuation.py": {
+      "codec": "ab4498ac9aaef261b3c5603ef5a3740d2edaebbab0d6d80de03c298a385ef55e",
+      "ordinary": "a9c927418eceb4a10b0b02f7d54e7d3e57bc72b47b8a5385ed9ab381ad3f1964",
+      "receipt_checks": "02c5d4215fd2b9e1eb9346be90fc5e17be6639246a22ee422e16523e7f18136b",
+      "execution_contract": "f916614a2f1645e50ab45d244c410640382088908f72b95e6b8d9d5b73677680",
+      "execution_accounting": "85eae46a3c41b75ab2f0af8e1dc819c04e433a453e4233f28f79fd4c7f552366",
+      "reconcile_worker_accounting": "f8bd662064a57e481fef2ce74fb3b0bf28f8b6e90a001055ffa30f97b6c03192",
+      "boundary_facts": "fd18618d1f7143623d7649b58662619ad7a5e907ccde7b094f637f6e6657e242",
+      "publish_readout": "8c2e8171c07b1f43119504dee9f26c4ae08e3ca6ee89a1f6d5b1733a3c4fc1ae",
+      "invalidate_publication": "364012a5d2f229cce9fce4f929e3c405de99fe2dfc7e9b4a45f7c2e9379e0f99",
+      "complete_transaction": "28f2ddd65b1fb40fcbf272b1958f9859302d26a9056ad2641808452187ac8dc7",
+      "validate_completion": "b2ed5de1ba6a9ed4f24228ac2413b72bf43d78ee399e40b792b65921a583bd0a"
+    }
+  },
+  "resource_helper_sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+}

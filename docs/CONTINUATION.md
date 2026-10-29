@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The separate fresh-study controls now have **221 guarded cases passing in 2.23 s**,
+including source-pinned qualified supervision/accounting, exact scalar journal
+verification, bounded payment witnesses, strict post-CP trace comparison and the
+closed prospective cbf/3ee wheel policy. The original HTTP fixture-setup failure
+is retained. No new runtime freeze, native import, request, build or World ran;
+actual schemas, CP60 continuation and cohort activation remain separately gated.
+
 The [fresh practice driver preparation](experiments/natural-practice-driver-preparation-2026-10-29.md)
 adds a caller-owned prephysics counter adapter: 25 guarded scalar cases and the
 combined 156-case observer chunk pass. It requires the actual CP counter for
