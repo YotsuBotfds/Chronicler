@@ -103,6 +103,55 @@ jobs:
               raise SystemExit(f"no-Rust lane unexpectedly sees chronicler_agents at {spec.origin}")
           PY
 
+      - name: Check turn-wrapper contracts before the full suite
+        shell: bash
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: src:.:scripts/testing
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/chronicler-wrapper-preflight"
+          timeout --signal=KILL 110s python -B -m pytest -q --tb=short \
+            tests/test_practice_growth_observer.py::test_turn_wrappers_share_signature_and_forward_only_explicit_trace \
+            tests/test_turn_artifact_lifecycle.py::test_result_wrapper_preserves_signature_and_arguments \
+            -p python_oracle_guard -p no:cacheprovider \
+            --basetemp="$RUNNER_TEMP/chronicler-wrapper-preflight/pytest" \
+            --junitxml="$RUNNER_TEMP/chronicler-wrapper-preflight/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/chronicler-wrapper-preflight/pytest.log"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          guard = json.loads(Path(os.environ["CHRONICLER_OFFLINE_GUARD_REPORT"]).read_text())
+          expected = {
+              "state": "PASS",
+              "guard_active_at_finish": True,
+              "runtime_factories_replaced_before_collection": True,
+              "pytest_exitstatus": 0,
+              "test_reports": {"passed": 2, "failed": 0, "skipped": 0},
+              "native_modules_loaded": [],
+              "native_import_attempts_blocked": [],
+              "blocked_io_attempts": [],
+              "python_oracle_factory_calls": {"ecology": 0, "politics": 0},
+          }
+          if any(guard.get(key) != value for key, value in expected.items()):
+              raise SystemExit("turn-wrapper preflight guard evidence is incomplete or unexpected")
+          PY
+
+      - name: Retain no-Rust turn-wrapper preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrapper-contract-no-rust-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+            ${{ runner.temp }}/chronicler-wrapper-preflight/pytest.log
+            ${{ runner.temp }}/chronicler-wrapper-preflight/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Run Python tests without Rust extension
         run: python -m pytest -q --junitxml=ci-evidence/no-rust.xml
 
@@ -169,6 +218,55 @@ jobs:
           uv sync --frozen --python "$(command -v python)"
           uv pip install --python .venv/bin/python "maturin>=1.5,<2"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Check turn-wrapper contracts before the full suite
+        shell: bash
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: src:.:scripts/testing
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/chronicler-wrapper-preflight"
+          timeout --signal=KILL 110s python -B -m pytest -q --tb=short \
+            tests/test_practice_growth_observer.py::test_turn_wrappers_share_signature_and_forward_only_explicit_trace \
+            tests/test_turn_artifact_lifecycle.py::test_result_wrapper_preserves_signature_and_arguments \
+            -p python_oracle_guard -p no:cacheprovider \
+            --basetemp="$RUNNER_TEMP/chronicler-wrapper-preflight/pytest" \
+            --junitxml="$RUNNER_TEMP/chronicler-wrapper-preflight/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/chronicler-wrapper-preflight/pytest.log"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          guard = json.loads(Path(os.environ["CHRONICLER_OFFLINE_GUARD_REPORT"]).read_text())
+          expected = {
+              "state": "PASS",
+              "guard_active_at_finish": True,
+              "runtime_factories_replaced_before_collection": True,
+              "pytest_exitstatus": 0,
+              "test_reports": {"passed": 2, "failed": 0, "skipped": 0},
+              "native_modules_loaded": [],
+              "native_import_attempts_blocked": [],
+              "blocked_io_attempts": [],
+              "python_oracle_factory_calls": {"ecology": 0, "politics": 0},
+          }
+          if any(guard.get(key) != value for key, value in expected.items()):
+              raise SystemExit("turn-wrapper preflight guard evidence is incomplete or unexpected")
+          PY
+
+      - name: Retain native turn-wrapper preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrapper-contract-native-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/chronicler-wrapper-preflight/guard.json
+            ${{ runner.temp }}/chronicler-wrapper-preflight/pytest.log
+            ${{ runner.temp }}/chronicler-wrapper-preflight/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Build Rust extension wheel
         run: |

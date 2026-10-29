@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+A separate [turn-wrapper CI preflight](performance/ci-wrapper-contract-preflight-2026-10-29.md)
+starts from exact corrected source `9d5cb7e4`. It checks the existing wrapper
+contracts before the release wheel build and before the no-Rust full suite,
+using isolated guarded pytest processes and separate three-file receipts.
+Existing suites, native verification and job dependencies are unchanged.
+The 27 existing guarded workflow/wheel contracts and unfiltered actionlint
+pass; the two-node preflight remains unrun locally. This is an unpushed,
+source-only proposal, with no new CI or scientific qualification claim.
+
 An isolated [practice-growth observer](integration/practice-growth-observer-2026-10-29.md)
 starts from `45e1b939`, preserving qualified `95f73a74` and frozen C76. Explicit
 caller-owned phase/turn methods expose bounded actual paid RHS, clip/round/drop
