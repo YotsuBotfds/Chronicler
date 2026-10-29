@@ -399,6 +399,15 @@ def semantic_replay(C, D, rebuilt, original, annotations, markdown_raw):
                 scope="semantic replay plus original publication seals; no new historical CPU measurement")
 
 
+def unexpired_inputs(now=None):
+    """Both fixed originals remain unexpired through terminal publication."""
+    observed = datetime.now(timezone.utc) if now is None else now
+    for role, value in INPUTS.items():
+        expiry = datetime.fromisoformat(value["expiry"].replace("Z", "+00:00"))
+        require(observed < expiry, "original_" + role + "_expired")
+    return dict(checked_utc=observed.isoformat(), registered_expiries={role: value["expiry"] for role, value in INPUTS.items()})
+
+
 def metadata_contract(role, value, now=None):
     p = INPUTS[role]
     require(type(value) is dict and set(value) == {"run", "job", "artifact"}, "metadata_roles")

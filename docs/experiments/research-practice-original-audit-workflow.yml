@@ -69,6 +69,7 @@ jobs:
               stream.write(f"AUDIT_CPU={min(os.sched_getaffinity(0))}\n")
           PY
       - name: Check pure hostile boundary contracts without native imports
+        id: pure_contracts
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
           CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/practice-original-contracts/guard.json
@@ -86,6 +87,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PRACTICE_AUDIT_PURE_OUTCOME: ${{ steps.pure_contracts.outcome }}
         shell: bash
         run: |
           set -euo pipefail

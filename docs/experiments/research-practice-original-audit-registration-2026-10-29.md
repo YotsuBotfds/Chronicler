@@ -168,7 +168,7 @@ records without a positive seal. No source-identical retry is authorized.
 
 ## Source qualification scope
 
-Eighty authored tiny guarded cases cover hostile ZIP/path/copy/map
+One hundred nine authored tiny guarded cases cover hostile ZIP/path/copy/map
 boundaries, typed annotations and original writer ordering, fake resource
 admissions, real urllib header preparation without a request, denied-response
 redaction, closed workflow copies, guard/JUnit coverage and publication/timer
@@ -201,3 +201,37 @@ transfer. A failed preflight therefore produces metadata only, with no retry,
 new input route, new clock, physics or cap change. Four additional tiny fixtures
 cover cumulative writes, terminal room, oversize copy refusal and the failed
 preflight stopping before any worker/transport call.
+
+## Actual preflight authority and whole-audit expiry correction
+
+The preserved ecf77835 source and80-case fixture receipt were blocked by
+independent peer94f2d135… and root addendumbef0430b…. A guard's native/IO
+`state: PASS`, clean JUnit and completed test counts do not prove successful
+process shutdown. Even a published exitstatus0 can precede a timeout during
+teardown. The fixed `pure_contracts` Actions step now passes its actual
+`steps.pure_contracts.outcome` explicitly as `PRACTICE_AUDIT_PURE_OUTCOME`.
+The owner requires exactly `success`, exact-int `pytest_exitstatus == 0`,
+and the guard's two actual active/factory-replacement booleans to be true.
+
+An exclusively owned bounded `entry-pending.json` remains negative. Bounded
+guard/JUnit copies and failed-step interpretation precede helper/admission
+authority. Any failed, cancelled, skipped or missing outcome, or invalid guard
+facts, stops before a worker, credential read or transfer. Required12GiB/2GiB
+admission still precedes every actual worker/input acquisition. The early
+metadata record grants no positive authority and does not bypass admission.
+
+The raw and earlier wheel expiry are a hard whole-audit window, not an
+acquisition-only deadline. Both fixed cutoffs are checked during heavy/final
+guards, immediately before and after the terminal seal, and again following
+timer restoration before a successful return. A cutoff reached during JSON,
+hashing, seal commit or final teardown invalidates positive result/completion
+paths and preserves bounded negative evidence. No historical accounting or
+input expiration is waived.
+
+The targeted file's109 guarded cases pass, including16 no-launch authority
+faults, failed admission after pending metadata, both input cutoffs, six seal
+expiry faults and two post-restoration expiry faults. Existing timer/publication
+fault cases remain. These are fake clocks/handlers/resources and tiny metadata
+fixtures; no subprocess, request, ordinary World or native runtime was executed.
+No full project suite or old raw replay was rerun. The original raw consumer's
+actual facts remain null until independent/root review and separate activation.

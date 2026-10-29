@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = A.TEMP / "practice-original-audit"
 REGISTRATION = ROOT / "scripts/research_practice_original_registration.json"
 OWNED_WORK = None
-EXPECTED_PURE_CASES = 80
+EXPECTED_PURE_CASES = 109
 CONTRACT_COPIES = {
     "contracts-guard.json": ("practice-original-contracts/guard.json", 64 * 1024),
     "contracts-junit.xml": ("practice-original-contracts/junit.xml", 512 * 1024)}
@@ -165,6 +165,7 @@ def worker(context_sha):
             C, H, R, F, T, D = selected_helpers(A.WORKSPACE / "control", reg)
             def check(next_bytes=0):
                 A.require(time.monotonic() < context["deadline"] - A.RESERVE, "heavy_work_deadline")
+                A.unexpired_inputs()
                 return A.resources(A.TEMP, H.memory_admission, next_bytes=next_bytes)
             # A one-shot timer also interrupts long original-reader work between guards.
             previous = signal.getsignal(signal.SIGALRM)
@@ -289,21 +290,27 @@ def publish(output, report, guard, observation):
         A.require(len(combined) + 1 <= A.PUBLICATION_FILES
                   and sum(r["bytes"] for r in combined) + seal_bytes <= A.PUBLICATION_BYTES,
                   "publication_seal_total_bound")
+        A.unexpired_inputs()
         write(output / "completion.json", seal, publication=True, terminal=True)
         guard()  # Covers result serialization, hashes, final seal write AND rename.
+        A.unexpired_inputs()  # An expiry during the seal commit invalidates it.
     except BaseException:
         invalidate(output)
         raise
 
 
-def preflight_contracts(base):
+def preflight_contracts(base, *, step_outcome=None):
     paths = {"practice-original-contracts/guard.json": 64 * 1024,
              "practice-original-contracts/junit.xml": 512 * 1024}
     raw = {name: A.bounded(base / name, maximum) for name, maximum in paths.items()}
     guard = A.loads(raw["practice-original-contracts/guard.json"])
+    A.require(type(step_outcome) is str and step_outcome == "success", "pure_step_outcome")
     A.require(guard["state"] == "PASS" and guard["test_reports"] ==
         {"passed": EXPECTED_PURE_CASES, "failed": 0, "skipped": 0}
         and all(type(v) is int for v in guard["test_reports"].values())
+        and type(guard.get("pytest_exitstatus")) is int and guard["pytest_exitstatus"] == 0
+        and guard.get("guard_active_at_finish") is True
+        and guard.get("runtime_factories_replaced_before_collection") is True
         and not guard["native_modules_loaded"] and not guard["native_import_attempts_blocked"]
         and not guard["blocked_io_attempts"]
         and set(guard["python_oracle_factory_calls"]) == {"ecology", "politics"}
@@ -328,25 +335,32 @@ def copy_contracts(base, output):
 def audit(parent_imports=None):
     global OWNED_WORK
     registered = registration(os.environ)
-    reg = A.loads(A.bounded(REGISTRATION))
-    # Loading the source-pinned owner does not import simulation code or probe RAM.
-    C, H, R, F, T, D = selected_helpers(ROOT, reg)
     deadline = ENTRY_MONOTONIC + A.SECONDS
-    def guard(final=False):
-        A.require(time.monotonic() < deadline - (0 if final else A.RESERVE), "audit_deadline")
-        return A.resources(A.TEMP, H.memory_admission)
-    # Admission precedes all derived paths; clock already includes imports/auth.
-    A.require(time.monotonic() < deadline - A.RESERVE, "bootstrap_deadline")
-    admission = A.resources(A.TEMP, H.memory_admission, initial=True)
+    pure_outcome = os.environ.get("PRACTICE_AUDIT_PURE_OUTCOME")
     A.no_links(WORK)
     WORK.mkdir(mode=0o700)
     created = WORK.lstat()
     OWNED_WORK = (created.st_dev, created.st_ino)
     (WORK / "publication").mkdir(mode=0o700)
-    write(WORK / "publication/admission.json", admission)
+    # Tiny owned negative metadata precedes authority/admission; it is never a
+    # positive grant. Credentials, workers and transfers remain behind both gates.
+    write(WORK / "publication/entry-pending.json", dict(qualified=False, stage="entry_pending",
+        producer=registered, pure_step_outcome=pure_outcome, started_monotonic=ENTRY_MONOTONIC))
     copied_contracts = copy_contracts(A.TEMP, WORK / "publication")
-    contracts = preflight_contracts(A.TEMP)
+    contracts = preflight_contracts(A.TEMP, step_outcome=pure_outcome)
     A.require(contracts == copied_contracts, "preflight_copy_changed")
+    reg = A.loads(A.bounded(REGISTRATION))
+    # Loading the source-pinned owner does not import simulation code or probe RAM.
+    C, H, R, F, T, D = selected_helpers(ROOT, reg)
+    def guard(final=False):
+        A.require(time.monotonic() < deadline - (0 if final else A.RESERVE), "audit_deadline")
+        A.unexpired_inputs()
+        return A.resources(A.TEMP, H.memory_admission)
+    # Required12/2 admission remains before every worker or opaque transfer.
+    A.require(time.monotonic() < deadline - A.RESERVE, "bootstrap_deadline")
+    A.unexpired_inputs()
+    admission = A.resources(A.TEMP, H.memory_admission, initial=True)
+    write(WORK / "publication/admission.json", admission)
     report, lease, child, known, cleanup_ok = {"qualified": False, "stage": "bootstrap"}, {}, None, {}, False
     try:
         with R.interruption_guard(), R.exclusive_subreaper():
@@ -392,6 +406,7 @@ def audit(parent_imports=None):
                   original_run=A.INPUTS["raw"]["run"], new_audit_clock=True,
                   new_worlds=0, native_imports=0, original_budgets_modified=False,
                   preflight_origin_files=contracts,
+                  preflight_step_outcome=pure_outcome,
                   audit_runtime=dict(python=sys.version, executable=sys.executable,
                       affinity=sorted(os.sched_getaffinity(0)), caps={k: os.environ.get(k) for k in CAPS},
                       pure_dependencies={"pytest": "9.1.1", "PyYAML": "6.0.3"}))
@@ -422,7 +437,7 @@ def audit(parent_imports=None):
                 guard(final=True)
                 A.require(C.source_snapshot(root, expected)["files_sha256"] == report["source_hashes"][role],
                           "source_changed_after_quiescence")
-        A.require(preflight_contracts(A.TEMP) == contracts, "pure_preflight_changed")
+        A.require(preflight_contracts(A.TEMP, step_outcome=pure_outcome) == contracts, "pure_preflight_changed")
         A.require(all(A.file_pin(WORK / "publication" / name) == contracts[source]
                       for name, (source, _) in CONTRACT_COPIES.items()), "preflight_copy_changed")
         publish(WORK / "publication", report, lambda: guard(final=True), observation)
@@ -449,6 +464,8 @@ def audit_with_timer():
             signal.setitimer(signal.ITIMER_REAL, 0)
             signal.signal(signal.SIGALRM, previous)
         A.require(time.monotonic() < ENTRY_MONOTONIC + A.SECONDS, "post_teardown_deadline")
+        if result == 0:
+            A.unexpired_inputs()
         return result
     except BaseException as error:
         # A failed registration/preexisting path never grants ownership.

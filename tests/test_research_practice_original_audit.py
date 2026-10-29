@@ -21,7 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "docs/experiments/research-practice-original-audit-workflow.yml"
-WORKFLOW_BODY_SHA = "3d14ab309edacc3ed5c342f0e7a8551b7208b7791c54f735b4183558ad5c5209"
+WORKFLOW_BODY_SHA = "193f4e5ca5ca27736f5daeeb4a75253086c989091e62fff883b57262414ae753"
 
 
 @pytest.fixture
@@ -282,6 +282,7 @@ def test_denied_response_body_url_token_and_headers_never_escape(modules):
 @pytest.mark.parametrize("fault", ["result_write", "hash", "completion_write", "completion_rename"])
 def test_publication_expiry_preserves_negative_and_no_positive_seal(modules, tmp_path, monkeypatch, fault):
     A, E, _ = modules
+    monkeypatch.setattr(A, "unexpired_inputs", lambda: None)  # Wall faults use no real UTC clock.
     state = {"expired": False}
     original_write, original_pin, original_replace = E.write, A.file_pin, E.os.replace
     def guard():
@@ -345,14 +346,16 @@ def test_dormant_and_only_exact_active_copy_contract(modules):
     if path.exists(): assert parsed_workflow(path.read_bytes()) == active
 
 
-@pytest.mark.parametrize("fault", ["branch", "path", "commands", "raw_upload"])
+@pytest.mark.parametrize("fault", ["branch", "path", "commands", "raw_upload", "step_outcome_binding", "pure_step_id"])
 def test_workflow_offpolicy_changes_fail_closed(modules, fault):
     A, _, _ = modules
     value = parsed_workflow(TEMPLATE.read_bytes())
     if fault == "branch": value["on"]["push"]["branches"] = ["main"]
     elif fault == "path": value["on"]["push"]["paths"] = ["**"]
     elif fault == "commands": value["jobs"]["original-audit"]["steps"][-2]["run"] += "\necho retry"
-    else: value["jobs"]["original-audit"]["steps"][-1]["with"]["path"] += "\n${{ runner.temp }}/practice-study-evidence"
+    elif fault == "raw_upload": value["jobs"]["original-audit"]["steps"][-1]["with"]["path"] += "\n${{ runner.temp }}/practice-study-evidence"
+    elif fault == "step_outcome_binding": value["jobs"]["original-audit"]["steps"][-2]["env"]["PRACTICE_AUDIT_PURE_OUTCOME"] = "success"
+    else: value["jobs"]["original-audit"]["steps"][-3]["id"] = "other_step"
     with pytest.raises(AssertionError): workflow_contract(A, value)
 
 
@@ -360,7 +363,8 @@ def contract_fixture(E, base):
     root = base / "practice-original-contracts"; root.mkdir()
     guard = dict(state="PASS", test_reports=dict(passed=E.EXPECTED_PURE_CASES, failed=0, skipped=0),
         native_modules_loaded=[], native_import_attempts_blocked=[], blocked_io_attempts=[],
-        python_oracle_factory_calls=dict(ecology=0, politics=0))
+        python_oracle_factory_calls=dict(ecology=0, politics=0), pytest_exitstatus=0,
+        guard_active_at_finish=True, runtime_factories_replaced_before_collection=True)
     (root / "guard.json").write_text(json.dumps(guard))
     (root / "junit.xml").write_text("<testsuites><testsuite>" + "<testcase/>" * E.EXPECTED_PURE_CASES + "</testsuite></testsuites>")
     return root, guard
@@ -369,17 +373,17 @@ def contract_fixture(E, base):
 def test_guard_and_junit_are_separate_actual_preflight_publication(modules, tmp_path):
     A, E, _ = modules
     root, guard = contract_fixture(E, tmp_path)
-    assert len(E.preflight_contracts(tmp_path)) == 2
+    assert len(E.preflight_contracts(tmp_path, step_outcome="success")) == 2
     guard["python_oracle_factory_calls"] = {}
     (root / "guard.json").write_text(json.dumps(guard))
-    with pytest.raises(A.Refused): E.preflight_contracts(tmp_path)
+    with pytest.raises(A.Refused): E.preflight_contracts(tmp_path, step_outcome="success")
 
 
 def test_changed_or_skipped_preflight_is_not_full_coverage(modules, tmp_path):
     A, E, _ = modules
     root, guard = contract_fixture(E, tmp_path)
     (root / "junit.xml").write_text("<testsuites><testsuite><testcase><skipped/></testcase></testsuite></testsuites>")
-    with pytest.raises(A.Refused): E.preflight_contracts(tmp_path)
+    with pytest.raises(A.Refused): E.preflight_contracts(tmp_path, step_outcome="success")
 
 
 def test_publication_cap_includes_external_guard_and_junit(modules, tmp_path):
@@ -431,6 +435,7 @@ def test_failed_preflight_keeps_bytes_and_never_reaches_worker_or_transport(modu
     (root / "guard.json").write_text(json.dumps(guard))
     monkeypatch.setattr(E, "WORK", tmp_path / "audit")
     monkeypatch.setattr(E, "OWNED_WORK", None)
+    monkeypatch.setenv("PRACTICE_AUDIT_PURE_OUTCOME", "success")
     monkeypatch.setattr(A, "TEMP", tmp_path)
     monkeypatch.setattr(E, "registration", lambda env: dict(GITHUB_SHA="a" * 40))
     monkeypatch.setattr(E, "selected_helpers", lambda *args: (None, NS(memory_admission=None), None, None, None, None))
@@ -489,3 +494,152 @@ def test_outer_timer_teardown_cannot_leave_positive_seal(modules, tmp_path, monk
     assert (output / "incomplete-result.json").read_bytes() == b"first failure"
     assert (output / "incomplete-1-result.json").read_bytes() == b"new"
     assert json.loads((output / "terminal-negative.json").read_bytes())["qualified"] is False
+
+
+def fake_audit_owner(A, E, tmp_path, monkeypatch, outcome, *, admission_failure=False):
+    """No real handlers, admission, credentials, subprocesses or transport."""
+    monkeypatch.setattr(E, "WORK", tmp_path / "audit")
+    monkeypatch.setattr(E, "OWNED_WORK", None)
+    monkeypatch.setattr(A, "TEMP", tmp_path)
+    monkeypatch.setattr(E, "registration", lambda env: dict(GITHUB_SHA="a" * 40, GITHUB_RUN_ID="123",
+        GITHUB_RUN_ATTEMPT="1", GITHUB_JOB="original-audit"))
+    if outcome is None:
+        monkeypatch.delenv("PRACTICE_AUDIT_PURE_OUTCOME", raising=False)
+    else:
+        monkeypatch.setenv("PRACTICE_AUDIT_PURE_OUTCOME", outcome)
+    fake = NS(SIGALRM=14, ITIMER_REAL=0, getsignal=lambda sig: None,
+        getitimer=lambda timer: (0.0, 0.0), signal=lambda *args: None, setitimer=lambda *args: None)
+    monkeypatch.setattr(E, "signal", fake)
+    monkeypatch.setattr(A, "import_guard", lambda: nullcontext((NS(attempts=[]), [])))
+    calls = dict(Popen=0, Transport=0, helpers=0, resources=0)
+    def forbidden(name):
+        def call(*args, **kwargs):
+            calls[name] += 1
+            raise AssertionError(name + " must not start")
+        return call
+    monkeypatch.setattr(E.subprocess, "Popen", forbidden("Popen"))
+    monkeypatch.setattr(A, "Transport", forbidden("Transport"))
+    if admission_failure:
+        def helpers(*args):
+            calls["helpers"] += 1
+            return None, NS(memory_admission=None), None, None, None, None
+        def resources(*args, **kwargs):
+            calls["resources"] += 1
+            raise A.AdmissionRefused("ram_floor", dict(fixture_admission_refused=True))
+        monkeypatch.setattr(E, "selected_helpers", helpers)
+        monkeypatch.setattr(A, "resources", resources)
+        monkeypatch.setattr(A, "unexpired_inputs", lambda: None)
+    else:
+        monkeypatch.setattr(E, "selected_helpers", forbidden("helpers"))
+        monkeypatch.setattr(A, "resources", forbidden("resources"))
+    return calls
+
+
+@pytest.mark.parametrize("fault", ["exit2", "exit3", "exit_missing", "exit_false", "exit_true",
+    "active_false", "active_missing", "active_int", "factories_false", "factories_missing", "factories_int",
+    "outcome_failed", "outcome_cancelled", "outcome_missing", "outcome_skipped", "timeout_after_clean_reports"])
+def test_actual_preflight_authority_failure_is_bounded_negative_without_launch(modules, tmp_path, monkeypatch, fault):
+    A, E, _ = modules
+    root, guard = contract_fixture(E, tmp_path)
+    outcome = "success"
+    if fault.startswith("exit"):
+        value = {"exit2": 2, "exit3": 3, "exit_false": False, "exit_true": True}.get(fault)
+        if fault == "exit_missing": del guard["pytest_exitstatus"]
+        else: guard["pytest_exitstatus"] = value
+    elif fault.startswith("active"):
+        if fault == "active_missing": del guard["guard_active_at_finish"]
+        else: guard["guard_active_at_finish"] = False if fault == "active_false" else 1
+    elif fault.startswith("factories"):
+        if fault == "factories_missing": del guard["runtime_factories_replaced_before_collection"]
+        else: guard["runtime_factories_replaced_before_collection"] = False if fault == "factories_false" else 1
+    else:
+        outcome = {"outcome_failed": "failure", "outcome_cancelled": "cancelled", "outcome_missing": None,
+                   "outcome_skipped": "skipped", "timeout_after_clean_reports": "failure"}[fault]
+        # Includes the important witness: published int0 and clean JUnit can
+        # precede a process-shutdown timeout; only actual Actions outcome denies it.
+        assert guard["pytest_exitstatus"] == 0
+    (root / "guard.json").write_text(json.dumps(guard))
+    calls = fake_audit_owner(A, E, tmp_path, monkeypatch, outcome)
+    assert E.audit_with_timer() == 1
+    output = tmp_path / "audit/publication"
+    negative = json.loads((output / "terminal-negative.json").read_bytes())
+    assert negative["qualified"] is False
+    assert negative["error_code"] == ("pure_step_outcome" if outcome != "success" else "pure_preflight_guard")
+    assert (output / "contracts-guard.json").read_bytes() == (root / "guard.json").read_bytes()
+    assert (output / "contracts-junit.xml").read_bytes() == (root / "junit.xml").read_bytes()
+    assert json.loads((output / "entry-pending.json").read_bytes())["qualified"] is False
+    assert calls == dict(Popen=0, Transport=0, helpers=0, resources=0)
+    assert not (output / "completion.json").exists() and not (output / "admission.json").exists()
+    assert sum(p.stat().st_size for p in output.iterdir()) <= A.PUBLICATION_BYTES
+
+
+def test_pending_negative_precedes_required_admission_without_granting_authority(modules, tmp_path, monkeypatch):
+    A, E, _ = modules
+    contract_fixture(E, tmp_path)
+    calls = fake_audit_owner(A, E, tmp_path, monkeypatch, "success", admission_failure=True)
+    assert E.audit_with_timer() == 1
+    output = tmp_path / "audit/publication"
+    assert json.loads((output / "entry-pending.json").read_bytes())["qualified"] is False
+    assert json.loads((output / "terminal-negative.json").read_bytes())["error_code"] == "ram_floor"
+    assert calls == dict(Popen=0, Transport=0, helpers=1, resources=1)
+    assert not (output / "admission.json").exists() and not (output / "completion.json").exists()
+
+
+@pytest.mark.parametrize("role", ["raw", "wheel"])
+def test_both_fixed_inputs_must_be_strictly_unexpired(modules, role):
+    A, _, _ = modules
+    fresh = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    assert A.unexpired_inputs(fresh)["registered_expiries"] == {k: v["expiry"] for k, v in A.INPUTS.items()}
+    boundary = datetime.fromisoformat(A.INPUTS[role]["expiry"].replace("Z", "+00:00"))
+    with pytest.raises(A.Refused, match="original_" + role + "_expired"):
+        A.unexpired_inputs(boundary)
+
+
+@pytest.mark.parametrize("role", ["raw", "wheel"])
+@pytest.mark.parametrize("phase", ["before_seal", "seal_commit", "after_guard"])
+def test_input_expiry_during_finalization_invalidates_positive_seal(modules, tmp_path, monkeypatch, role, phase):
+    A, E, _ = modules
+    state = dict(now=datetime(2026, 11, 1, tzinfo=timezone.utc))
+    expired = datetime.fromisoformat(A.INPUTS[role]["expiry"].replace("Z", "+00:00"))
+    real_check, real_write, real_replace = A.unexpired_inputs, E.write, E.os.replace
+    monkeypatch.setattr(A, "unexpired_inputs", lambda: real_check(state["now"]))
+    def write(path, value, **kwargs):
+        real_write(path, value, **kwargs)
+        if phase == "before_seal" and path.name == "result.json": state["now"] = expired
+    def replace(source, target):
+        real_replace(source, target)
+        if phase == "seal_commit" and Path(target).name == "completion.json": state["now"] = expired
+    def guard():
+        if phase == "after_guard" and (tmp_path / "completion.json").exists(): state["now"] = expired
+    monkeypatch.setattr(E, "write", write); monkeypatch.setattr(E.os, "replace", replace)
+    with pytest.raises(A.Refused, match="original_" + role + "_expired"):
+        E.publish(tmp_path, dict(qualified=True), guard, lambda: dict(wall=1.0))
+    assert not (tmp_path / "completion.json").exists() and not (tmp_path / "result.json").exists()
+    assert (tmp_path / "incomplete-result.json").exists()
+    E.write(tmp_path / "negative.json", dict(qualified=False), publication=True, terminal=True)
+    assert sum(p.stat().st_size for p in tmp_path.iterdir()) <= A.PUBLICATION_BYTES
+
+
+@pytest.mark.parametrize("role", ["raw", "wheel"])
+def test_input_expiry_after_timer_restoration_removes_positive_seal(modules, tmp_path, monkeypatch, role):
+    A, E, _ = modules
+    work = tmp_path / "audit"; work.mkdir(); output = work / "publication"; output.mkdir()
+    (output / "result.json").write_bytes(b"positive")
+    (output / "completion.json").write_bytes(b"positive seal")
+    row, previous = work.stat(), object()
+    state = dict(now=datetime(2026, 11, 1, tzinfo=timezone.utc))
+    expired = datetime.fromisoformat(A.INPUTS[role]["expiry"].replace("Z", "+00:00"))
+    real_check = A.unexpired_inputs
+    monkeypatch.setattr(A, "unexpired_inputs", lambda: real_check(state["now"]))
+    def handler(signum, value):
+        if value is previous: state["now"] = expired
+    fake = NS(SIGALRM=14, ITIMER_REAL=0, getsignal=lambda sig: previous,
+        getitimer=lambda timer: (0.0, 0.0), signal=handler, setitimer=lambda *args: None)
+    monkeypatch.setattr(E, "signal", fake); monkeypatch.setattr(E, "ENTRY_MONOTONIC", 0.0)
+    monkeypatch.setattr(E.time, "monotonic", lambda: 1.0)
+    monkeypatch.setattr(E, "WORK", work); monkeypatch.setattr(E, "OWNED_WORK", (row.st_dev, row.st_ino))
+    monkeypatch.setattr(E, "audit", lambda imports: 0)
+    monkeypatch.setattr(A, "import_guard", lambda: nullcontext((NS(attempts=[]), [])))
+    assert E.audit_with_timer() == 1
+    assert not (output / "result.json").exists() and not (output / "completion.json").exists()
+    assert json.loads((output / "terminal-negative.json").read_bytes())["error_code"] == "original_" + role + "_expired"
