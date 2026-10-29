@@ -1,0 +1,168 @@
+{
+  "available_compiled_classes": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "module": "builtins",
+      "name": "AgentSimulator",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "module": "builtins",
+      "name": "EcologySimulator",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "module": "builtins",
+      "name": "PoliticsSimulator",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "comparisons": [
+    {
+      "all_registered_comparisons_pass": true,
+      "file_pairs": 20,
+      "file_set_equal": true,
+      "native_sections_equal": true,
+      "normalized_bundle_differences": [],
+      "pause": {
+        "archive_prefix_preserved": true,
+        "effort_pause_semantics": "pause gates new trials; paid adoption has its existing cadence",
+        "effort_spent_delta": 0,
+        "final_trial_count": 4,
+        "no_new_trial_funding": true,
+        "parent_trial_count": 4,
+        "trial_spent_delta": 0
+      },
+      "raw_bundle_difference_paths": [
+        "$.metadata.generated_at"
+      ],
+      "rng_final_digest_equal": true,
+      "seed": 42,
+      "shared_parent_equal": true
+    },
+    {
+      "all_registered_comparisons_pass": true,
+      "file_pairs": 20,
+      "file_set_equal": true,
+      "native_sections_equal": true,
+      "normalized_bundle_differences": [],
+      "pause": {
+        "archive_prefix_preserved": true,
+        "effort_pause_semantics": "pause gates new trials; paid adoption has its existing cadence",
+        "effort_spent_delta": 0,
+        "final_trial_count": 4,
+        "no_new_trial_funding": true,
+        "parent_trial_count": 4,
+        "trial_spent_delta": 0
+      },
+      "raw_bundle_difference_paths": [
+        "$.metadata.generated_at"
+      ],
+      "rng_final_digest_equal": true,
+      "seed": 7,
+      "shared_parent_equal": true
+    }
+  ],
+  "compiled_origin": "/workspace/chronicler-next-qualified/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+  "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c",
+  "environment": {
+    "affinity_cpu_count": 1,
+    "cpu_count": 1,
+    "executable": "/workspace/chronicler-next-qualified/.venv/bin/python",
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "packages": {
+      "arro3-core": "0.9.1",
+      "chronicler-agents": "0.1.0",
+      "numpy": "2.5.4",
+      "pyarrow": "26.0.0",
+      "pydantic": "2.12.5",
+      "scipy": "1.18.1"
+    },
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "process_cpu_count": 1,
+    "python": "3.13.5",
+    "thread_env": {
+      "BLIS_NUM_THREADS": "1",
+      "GOTO_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "OPENBLAS_THREAD_TIMEOUT": "16",
+      "PYTHONHASHSEED": "0",
+      "PYTHON_CPU_COUNT": "1",
+      "RAYON_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    }
+  },
+  "evidence": {
+    "freeze": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-002-freeze.json",
+      "sha256": "00c4c2ccda277e2f1907839c60a4a8b2d0d1ec1033f9fac43ec1f12c2d865f4e"
+    },
+    "independent_verification": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-002-verification.json",
+      "sha256": "44adee39ae0daea6e8f34a382ac134eac380731c8862b1ffe21555b9914e6d38"
+    },
+    "report": {
+      "path": "/workspace/chronicler-evidence/research-native-composition-20261029-002/report.json",
+      "sha256": "83d7357c5f0066d91724a0637f071eb5d8f47ff38623f860f475ba5059226ab4"
+    }
+  },
+  "execution": {
+    "actual_active_native_sections": [
+      "native.agent.0"
+    ],
+    "actual_physics_ticks": 62,
+    "aggregate_child_cpu_seconds": 12.492426,
+    "available_classes": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "execution_complete": true,
+    "identities_stable": true,
+    "qualified": true,
+    "seeds": [
+      42,
+      7
+    ],
+    "workers": 6
+  },
+  "native": {
+    "bytes": 13446424,
+    "module_file": "/workspace/chronicler-next-qualified/.venv/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317",
+    "source": "imported",
+    "status": "found"
+  },
+  "observer": {
+    "helper_sha256": "e6c5068af859942bd9d2d74eee0e69990f9cdfb2e13d813f9064b6fe6faaf48e",
+    "registration_sha256": "e582a32e8f29058e6e594c9f34ba0ac2bd3dfe44292f68643f85dbbb6b3e5e54",
+    "runner_sha256": "c81fcfc56927b2fa43fdfcc64e19560657d561f3bb13e8e740b34e7455afe82e"
+  },
+  "schema_version": 1,
+  "scope": {
+    "default_activation": false,
+    "full_milestone_qualification": false,
+    "global_rng": "Python/NumPy module globals externally initialized to 314159 per worker, not checkpoint-restored",
+    "mechanics": "supplied controlled World and forced DEVELOP through parsed CLI/shared execute_run",
+    "natural_efficacy_established": false,
+    "new_topic_paid_adoption_exposure": 0,
+    "parent_trajectories": 2,
+    "raw_checkpoint_python_verification": "independent hash/decompression only; no unpickle or native load"
+  },
+  "source": {
+    "git_ref": "refs/heads/lead/recovered-integration-20261029",
+    "git_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+    "package_digest": "cdfc449158d36611c751a0f7b4f6c29d594fb95ec6e341d9a7693f219abd5b5c",
+    "package_dir": "/workspace/chronicler-recovered-integration/src/chronicler"
+  },
+  "standing": "native_mechanical_composition_qualified"
+}

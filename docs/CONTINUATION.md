@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+October 29 current result: frozen `c76efe85` passed the separately registered
+[six-worker native finite-research composition proof](integration/research-native-composition-c76efe85-2026-10-29.md):
+62 physics ticks, both strict 20-output comparisons, pause/archive lineage and
+170-file independent reinspection. The earlier `9aa63764` failure remains failed
+and unchanged. This is controlled mechanical evidence, with no paid adoption
+exposure for the later topics; natural efficacy, full milestone qualification
+and default activation remain separate. The original worktrees and raw evidence
+were not rewritten.
+
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on
 `lead/research-continuation-20261029`. A new isolated branch combines it with
