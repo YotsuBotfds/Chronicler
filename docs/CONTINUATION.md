@@ -182,3 +182,14 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## Arc-classification runtime continuation — 2026-10-29
+
+The independently reviewed draft `2e0bd7f7` projects a character's event types
+once per classification, preserving actor filtering, multiplicity and precedence.
+It adds eight frozen-source parity tests and one offline chunk, with the same
+110-second limit. No persistent cache, RNG, model or serialization field changes.
+Exact-head full Python/native/Rust/viewer and offline checks run on the separate
+branch `lead/cloud-runtime-optimization-20261029`; timing and whole-world output
+qualification remain separate. See [source boundary and tests](performance/arc-event-types-2026-10.md).
