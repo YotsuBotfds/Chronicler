@@ -414,7 +414,10 @@ def worker(options):
         C.write(folder / "native-live-population.json", dict(restored_cp60=restored_live, final_cp62=final_live,
             scope="actual restored/final compiled instances; positive live counts, separate from nonempty payload bytes"))
         stats = asdict(result)
-        C.require(result.output_dir == folder and result.total_turns == END-(0 if role == "parent" else FORK),
+        # RunResult covers the saved run origin0; newly stepped ticks are the
+        # independent owner.completed ledger (62 for parent,2 for each resume).
+        C.require(result.output_dir == folder and type(result.total_turns) is int and result.total_turns == END and
+                  type(owner.completed) is int and owner.completed == END-(0 if role == "parent" else FORK),
                   "proof normal RunResult handoff differs")
         stats["output_dir"] = str(stats["output_dir"])
         C.write(folder / "worker-summary.json", dict(seed=SEED, role=role, execution_complete=True,

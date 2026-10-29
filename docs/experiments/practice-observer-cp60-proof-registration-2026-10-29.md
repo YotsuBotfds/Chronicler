@@ -93,6 +93,18 @@ before the observed resume may launch; the first source, identity, cleanup,
 budget or capture failure halts the remaining sequence. No source-identical
 retry, seed replacement or outcome-conditioned assertion change is allowed.
 
+The first actual source `d0c98fe6`, run `40866700701` attempt1, retained a
+harness-assertion failure after parent62 plus None2 completed physics ticks.
+The observed arm was not attempted. Its original negative pack and source are
+unchanged. `RunResult.total_turns` covers the saved run origin0 through World62;
+it is not the two newly stepped resume ticks. The correction requires exact-int
+reported coverage62 for all roles while independently preserving exact-int
+owner physics counts62/2 and all actual start/finish/CP ledgers. Main's API,
+physics, seeds, horizons, budgets and comparators are unchanged. The failed None
+return value was not serialized; its62 coverage is a source-supported inference,
+not a quoted runtime field. This correction does not turn that partial attempt
+into a completed proof or authorize any source-identical retry.
+
 Qualified `6b` supervision, subreaper ownership, birth/PPID/pidfd cleanup, wait4
 accounting and publication guards are reused. Original numerical bounds remain:
 launch6GiB free disk +2GiB available RAM; running3GiB disk +1GiB RAM;

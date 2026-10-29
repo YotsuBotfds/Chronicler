@@ -379,6 +379,55 @@ def test_actual_live_table_contract_refuses_empty_untyped_or_unbounded_rows(proo
         proof.live_rows(batch)
 
 
+def result_handoff_expression(proof):
+    tree = ast.parse(proof.SCRIPT.read_bytes())
+    worker = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "worker")
+    selected = [node for node in ast.walk(worker) if isinstance(node, ast.Call) and
+                isinstance(node.func, ast.Attribute) and node.func.attr == "require" and node.args and
+                isinstance(node.args[-1], ast.Constant) and node.args[-1].value == "proof normal RunResult handoff differs"]
+    assert len(selected) == 1
+    return compile(ast.Expression(selected[0]), str(proof.SCRIPT), "eval")
+
+
+def run_result(folder, total_turns):
+    from chronicler.types import RunResult
+    return RunResult(seed=1999, output_dir=folder, war_count=0, collapse_count=0,
+        named_event_count=0, distinct_action_count=0, reflection_count=0, tech_advancement_count=0,
+        max_stat_swing=0., action_distribution={}, dominant_faction="", total_turns=total_turns)
+
+
+def check_result_handoff(proof, folder, role, reported, stepped):
+    # Execute only the production scalar require expression; never worker or main.
+    return eval(result_handoff_expression(proof), dict(C=proof.C, END=proof.END, FORK=proof.FORK,
+        folder=folder, role=role, result=run_result(folder, reported), owner=NS(completed=stepped)))
+
+
+@pytest.mark.parametrize("role,stepped", [("parent", 62), ("none", 2), ("observed", 2)])
+def test_exact_resume_result_span_is62_while_new_physics_remains62_or2(proof, tmp_path, role, stepped):
+    assert check_result_handoff(proof, tmp_path, role, 62, stepped) is None
+
+
+@pytest.mark.parametrize("reported,stepped", [(2, 2), (62., 2), (True, 2), (62, 62), (62, 2.), (62, True)])
+def test_resumed_result_guard_refuses_new_ticks_as_span_or_untyped_clocks(proof, tmp_path, reported, stepped):
+    with pytest.raises(ValueError, match="RunResult handoff"):
+        check_result_handoff(proof, tmp_path, "none", reported, stepped)
+
+
+def test_qualified_main_uses_saved_origin_for_result_span_without_calling_main():
+    path = ROOT / "src/chronicler/main.py"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == "bb40d2188e28bf1c6d3dfaebaf1e2e0b16483dc67c35ab842711c46c95a41861"
+    module = ast.parse(path.read_bytes())
+    execute = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "execute_run")
+    origin = [node for node in ast.walk(execute) if isinstance(node, ast.Assign) and
+              ast.unparse(node) == "run_start = _resume_state.start_turn"]
+    span = [node for node in ast.walk(execute) if isinstance(node, ast.Assign) and
+            ast.unparse(node) == "total_turns = world.turn - run_start"]
+    assert len(origin) == len(span) == 1
+    namespace = dict(_resume_state=NS(start_turn=0), world=NS(turn=62))
+    exec(compile(ast.Module(body=[deepcopy(origin[0]), deepcopy(span[0])], type_ignores=[]), str(path), "exec"), namespace)
+    assert namespace["run_start"] == 0 and namespace["total_turns"] == 62
+
+
 @pytest.mark.parametrize("mutation", [None, "native", "python_rng", "numpy_rng", "snapshot_cache"])
 def test_readonly_live_getter_retains_counts_and_refuses_any_payload_or_rng_advance(proof, tmp_path, monkeypatch, mutation):
     initial = proof.R.rng_state()

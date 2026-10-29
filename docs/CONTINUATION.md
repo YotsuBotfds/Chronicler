@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The first actual fresh CP60 proof attempt (`d0c98fe6`, run40866700701) retained
+64 completed ticks before a harness RunResult-coverage assertion stopped the
+sequence; the observed arm was not attempted. Its negative pack is unchanged.
+The separate clock-fix child distinguishes reported origin0→62 coverage from
+newly stepped62/2 ticks; physics, study inputs and comparators remain untouched.
+No new proof execution is authorized by that source correction.
+
 The separate [fresh CP60 proof preparation](experiments/practice-observer-cp60-proof-registration-2026-10-29.md)
 fixes seed1999, three executions/66 physics ticks, two post-CP observer frames
 per observed arm, six explicit checkpoint decodes and actual live-pool witnesses.
