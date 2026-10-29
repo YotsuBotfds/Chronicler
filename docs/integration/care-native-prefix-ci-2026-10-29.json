@@ -1,0 +1,453 @@
+{
+  "kind": "CURATED_QUALIFIED_CARE_NATIVE_PREFIX_STANDARD_CI",
+  "curated_at_utc": "2026-10-29T19:42:49.714909+00:00",
+  "code_source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+  "qualification": "ROOT_AND_INDEPENDENT_QUALIFIED_SOURCE_SCOPED_STANDARD_CI",
+  "native_tree": "09ec301efc5c52a0a75f7a6edd9b99636d2953ff",
+  "native_donor": "e1522f2c21027fae517459bcc5c8cbe2bc2828cc",
+  "run": {
+    "id": 40939929535,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40939929535",
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "branch": "lead/dev-next-consolidation-20261029",
+    "all_nine_jobs": "SUCCESS",
+    "first_attempt": true,
+    "created_at": "2026-10-29T19:25:17Z",
+    "last_job_completed_at": "2026-10-29T19:33:03Z"
+  },
+  "actual_counts": {
+    "native": {
+      "passed": 8669,
+      "skipped": 6,
+      "successful_subtests": 623
+    },
+    "native_parents": 8675,
+    "native_parent_phase_reports": 26025,
+    "catalog_modules": 303,
+    "noRust": {
+      "parents": 8661,
+      "passed": 8336,
+      "skipped": 325,
+      "successful_subtests": 623
+    },
+    "offline": {
+      "parent_passed": 4562,
+      "skipped": 65,
+      "successful_subtests": 97
+    },
+    "offline_chunks": 38,
+    "offline_source_pins": 329,
+    "Rust": {
+      "passed": 1154,
+      "ignored": 2,
+      "unit_passed": 613,
+      "targets": 37,
+      "filtered": 0
+    },
+    "Viewer": {
+      "passed": 743,
+      "files": 69,
+      "lint_build": "PASS"
+    },
+    "wrapper_preflights_separate": {
+      "wrapper-contract-native": {
+        "JUnit_sha256": "1be6f73e3834b4a8d18e19df91d0e32a289e4058a4847cbacc3b88440d29221d",
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      },
+      "wrapper-contract-no-rust": {
+        "JUnit_sha256": "a36da235b770e9d0903fb18210bf71e4b85bcb964eff854443406e73e99fe1a4",
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      }
+    },
+    "original_ZIPs": 9,
+    "outer_members": 96,
+    "inner_wheel_members": 6,
+    "builder_source_files": 803,
+    "retained_policy_receipt_pure_fake_parents_each_full_lane": 71,
+    "retained_care_model_parents_each_full_lane": 38,
+    "retained_care_successful_subreports": 97,
+    "retained_forecast_model_parents_each_full_lane": 22,
+    "K2_dictionary_parents": 58,
+    "metadata_offline_parents": 125
+  },
+  "fresh_wheel": {
+    "bytes": 3947205,
+    "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+    "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "a68aac26f4c5571034f10352db8b44da99acfa66aa378d1a5d90f13fc48082fc"
+  },
+  "fresh_native": {
+    "bytes": 13765672,
+    "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "1ec3282dd43bc1ecfa2459960f19047aec5d8744406b5655aef44202585eaf72",
+    "wheel_member_sha256": "1ec3282dd43bc1ecfa2459960f19047aec5d8744406b5655aef44202585eaf72"
+  },
+  "builder_source_digest": "513b1087cfb977306df70075118b78c082644f2bade337c68934d08b6b318a53",
+  "ordered_native_collection_digest": "12e820de25b3ba56e92ebcdd1d67ed1d88d51fe926b4aa8f10a6cff501ee7b1c",
+  "reports": {
+    "ordered_phase_reports": 26025,
+    "ordered_successful_subreports": 623,
+    "repeated_display_labels_preserved": 31,
+    "display_representation": "bounded pytest saferepr display, not lossless semantic test-input authority"
+  },
+  "job_outcomes": [
+    {
+      "id": 123680300405,
+      "name": "Rust",
+      "conclusion": "success",
+      "wall_seconds": 47.0
+    },
+    {
+      "id": 123680300646,
+      "name": "Build one current-source native wheel",
+      "conclusion": "success",
+      "wall_seconds": 134.0
+    },
+    {
+      "id": 123680300771,
+      "name": "Python no-Rust",
+      "conclusion": "success",
+      "wall_seconds": 438.0
+    },
+    {
+      "id": 123680300820,
+      "name": "Viewer",
+      "conclusion": "success",
+      "wall_seconds": 115.0
+    },
+    {
+      "id": 123680300838,
+      "name": "Python bounded offline",
+      "conclusion": "success",
+      "wall_seconds": 221.0
+    },
+    {
+      "id": 123681487435,
+      "name": "Python native module shard 1",
+      "conclusion": "success",
+      "wall_seconds": 235.0
+    },
+    {
+      "id": 123681487655,
+      "name": "Python native module shard 0",
+      "conclusion": "success",
+      "wall_seconds": 302.0
+    },
+    {
+      "id": 123684146299,
+      "name": "Python native execution",
+      "conclusion": "success",
+      "wall_seconds": 16.0
+    },
+    {
+      "id": 123684309348,
+      "name": "Python native",
+      "conclusion": "success",
+      "wall_seconds": 4.0
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12927571086,
+      "name": "python-no-rust-6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+      "bytes": 150012,
+      "sha256": "9e028c05db5e9d385442eaa3d11bf1f718b8028bab94cba7e8e1215a14594b44",
+      "expires_at": "2026-11-12T19:32:34Z"
+    },
+    {
+      "id": 12927366266,
+      "name": "native-module-shard-0-40939929535-1",
+      "bytes": 406491,
+      "sha256": "4888e714807502e981bccf9dae9cac01a293be3645b3bdffce1b987fab2de4b1",
+      "expires_at": "2026-11-12T19:32:34Z"
+    },
+    {
+      "id": 12927265173,
+      "name": "wrapper-contract-no-rust-6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+      "bytes": 1005,
+      "sha256": "21147365a8e48a8bfa608100940992ba587c3800f71aed195117e0c54411effe",
+      "expires_at": "2026-11-12T19:25:34Z"
+    },
+    {
+      "id": 12927215616,
+      "name": "python-offline-6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+      "bytes": 47535,
+      "sha256": "b0bddc77f1b0d4321cc1f7f1d3ccc72fdfe11a43d29d168c8b0459a185701e46",
+      "expires_at": "2026-11-12T19:28:56Z"
+    },
+    {
+      "id": 12927195603,
+      "name": "wrapper-contract-native-6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+      "bytes": 1002,
+      "sha256": "e549fc8c4b85569b78e7a0898906cb8675b5d33d52650ff34b5e3a9294d478b3",
+      "expires_at": "2026-11-12T19:25:47Z"
+    },
+    {
+      "id": 12926642071,
+      "name": "native-module-shard-1-40939929535-1",
+      "bytes": 386248,
+      "sha256": "a24fd699a3cc84f9de8143bb4fe262dc079d04ab39954a860764dd934318eeac",
+      "expires_at": "2026-11-12T19:31:28Z"
+    },
+    {
+      "id": 12926173502,
+      "name": "native-module-aggregate-40939929535-1",
+      "bytes": 1280,
+      "sha256": "f30095e3a3269baa150c681e29210558a754a230664845565839ef62a8f0a94d",
+      "expires_at": "2026-11-12T19:32:53Z"
+    },
+    {
+      "id": 12925919179,
+      "name": "native-shard-build-40939929535-1",
+      "bytes": 3882533,
+      "sha256": "eb0182b8942cc3132ea62ce63e09c47d80fd9ab68d39e365ec3d41512f4519c9",
+      "expires_at": "2026-11-12T19:27:23Z"
+    },
+    {
+      "id": 12925669841,
+      "name": "rust-6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+      "bytes": 725,
+      "sha256": "41335314bbc3c6ded4160ec1ed4371ad51d6e5cf2904f47fc61ae179d9f5ceab",
+      "expires_at": "2026-11-12T19:26:04Z"
+    }
+  ],
+  "new_care_contracts": {
+    "source_count": 14,
+    "kernel_count": 12,
+    "FFI_count": 2,
+    "successful_unfiltered_library_target_tests": 613,
+    "quiet_stdout_individual_name_witness": false,
+    "source_names": {
+      "chronicler-agents/src/health_care_observation_tests.rs": [
+        "disabled_recording_and_native_restore_preserve_persistence_and_schema",
+        "actual_spouse_first_and_reciprocal_kin_rows_keep_raw_relation_order",
+        "dictionary_restores_raw_zero_and_dead_duplicate_but_care_uses_last_live_slot",
+        "actual_wealth_tick_preserves_scoped_edge_cases_and_every_operation_witness",
+        "row_byte_and_required_equality_faults_retain_only_bounded_incomplete_prefixes",
+        "stage_missing_duplicate_stale_and_saturating_calls_never_claim_complete",
+        "immutable_export_and_the_thirty_two_ordinal_window_are_exact",
+        "missing_stage_completion_and_missing_wealth_witnesses_refuse_evidence",
+        "primitive_copies_keep_signed_zero_and_nan_payloads_in_every_float_width",
+        "actual_slot_reuse_copies_old_consumed_id_without_charging_the_replacement",
+        "duplicate_outputs_finish_and_unbounded_relationship_domain_are_rejected",
+        "successive_actual_wealth_calls_consume_health_once_and_reset_scope_coverage"
+      ],
+      "chronicler-agents/src/ffi/health_care_observation_tests.rs": [
+        "care_prefix_configuration_is_preparation_scoped_and_restore_resets_it",
+        "care_prefix_pyo3_export_is_immutable_non_draining_and_schema_neutral"
+      ]
+    }
+  },
+  "compiled_class_exports": [
+    "AgentSimulator",
+    "EcologySimulator",
+    "PoliticsSimulator"
+  ],
+  "actual_schema_tuples": null,
+  "genuine_installed_wheel_care_API_execution": null,
+  "native_prefix": {
+    "standing": "NATIVE_PREFIX_ONLY",
+    "default_recording": null,
+    "restore_configuration_and_frame": null,
+    "COMPLETE_is_always_clear": true,
+    "Python_stage_bits_are_clear": true,
+    "body_predecessor_hashes_and_Python_fields": "zero placeholders",
+    "maximum_final_joined_bytes": 131072,
+    "Python_codec_in_qualified_source": false,
+    "Python_codec_source_work": "separate unqualified source drafting",
+    "Python_codec_22_case_PASS_claim": false,
+    "complete_retained_CAREOBS1_file": null
+  },
+  "cache_timing_observation": {
+    "cache_classes_restored": [
+      "uv artifacts",
+      "Cargo downloads",
+      "release build"
+    ],
+    "source6a2_release_primary_saved": true,
+    "builder_seconds": 134,
+    "wheel_step_seconds": 95,
+    "Cargo_release_seconds": 92,
+    "workflow_created_to_last_job_seconds": 466,
+    "controlled_speedup": null,
+    "restored_cache_object_ID_attestation": null,
+    "scope": "Uncontrolled different-source observation only; no simulator throughput or performance qualification"
+  },
+  "authorities": {
+    "care_source_freeze": {
+      "receipt_file": "freeze.json",
+      "bytes": 3562,
+      "sha256": "118b0679828d49f7a91a9c75125739197a5bd686e36df51bf0b4549e5c9f8165",
+      "role": "Exact6a2 native graft source freeze",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_full_native_source_review": {
+      "receipt_file": "RECEIPT.json",
+      "bytes": 1629,
+      "sha256": "f430957a0cb079d8edd4b895a573e20c9379680420f2c1dcd201538caf2b9c49",
+      "role": "Full native donor source-only review at e152",
+      "source": "e1522f2c21027fae517459bcc5c8cbe2bc2828cc"
+    },
+    "care_native_graft_review": {
+      "receipt_file": "RECEIPT.json",
+      "bytes": 4960,
+      "sha256": "9f98bb4119dab359c5791957ed9844d7bf3157a60d3694c3de4bc5d1cbf3629f",
+      "role": "Exact6a2 composition source-only review",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_source_one_ci_approval": {
+      "receipt_file": "approval.json",
+      "bytes": 2528,
+      "sha256": "1dda150385e79a500d4d0c6f6f09844ce84b7d7d4112a0dd05b0ddc803e29530",
+      "role": "Root source approval and one standard CI operation",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_ci_primary_manifest": {
+      "receipt_file": "evidence-manifest.json",
+      "bytes": 11736,
+      "sha256": "4fd6359aeb4101efeb004e855b1583938b69c7560c0e4b5a2fc9ff5b8b853aa6",
+      "role": "Closed primary original-artifact pack",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_ci_independent_core": {
+      "receipt_file": "receipt.json",
+      "bytes": 12512,
+      "sha256": "d115dd861e92a4362290c8f850cc57734703ac00d01158a7bad32b622a60ef5f",
+      "role": "Independent complete original-byte/source review",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_ci_independent_steps_cache": {
+      "receipt_file": "step-cache-receipt.json",
+      "bytes": 30078,
+      "sha256": "9105f8ea16cc7a3ee0302714b2dbc0c70708a3851cf3dd899049f3d348f4dc68",
+      "role": "Separate fresh official steps/cache observation",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_ci_independent_final_wrapper": {
+      "receipt_file": "receipt-final.json",
+      "bytes": 5582,
+      "sha256": "9b0e3badf71008bd0707800ff5650b980f47209674ba1b5a2c8ba660842e9a49",
+      "role": "Final independent wrapper joining core and step/cache reviews",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "care_ci_root_final": {
+      "receipt_file": "root-final-qualification.json",
+      "bytes": 3189,
+      "sha256": "6a3cc53bbd9f43623ab3014dc8159c68f141259a55c244afa5cf9029e3703bee",
+      "role": "Root final standard CI qualification; its independent digest field names the core receipt",
+      "source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8"
+    },
+    "forecast_c80_local_pure": {
+      "receipt_file": "receipt.json",
+      "bytes": 231740,
+      "sha256": "770608251ae68cf729b0d22a3078f377daae336efc17d281a21ea952d7824d4d",
+      "role": "Separate local215 pure/fake evidence only",
+      "source": "c80b99f246b8ba00404fe68cdaa9ce342fd6d318"
+    },
+    "forecast_c80_nonauthor": {
+      "receipt_file": "RECEIPT.json",
+      "bytes": 1739,
+      "sha256": "ea927669d87473f80fa203ff4a41aa5d94a61284b1db40ff246616538d02dae0",
+      "role": "Source and saved fake-evidence reader review",
+      "source": "c80b99f246b8ba00404fe68cdaa9ce342fd6d318"
+    },
+    "forecast_c80_root": {
+      "receipt_file": "receipt.json",
+      "bytes": 1691,
+      "sha256": "590ae06a24893d1218d6374edcfa069f783c7d0ac9fbe2f1b90eadb87513bd05",
+      "role": "Source and215 fake-only root qualification",
+      "source": "c80b99f246b8ba00404fe68cdaa9ce342fd6d318"
+    },
+    "profiler_1bc_root": {
+      "receipt_file": "receipt.json",
+      "bytes": 2245,
+      "sha256": "40fb7f9eba091d9a709e114841890c47ecbdb12ee80b69dd3695cd86045fb18f",
+      "role": "Source-only negative-finalization qualification with explicit split227+5",
+      "source": "1bc43d80b88135e2168dc5063b771c77f053f770"
+    },
+    "profiler_1bc_publication": {
+      "receipt_file": "publication.json",
+      "bytes": 464,
+      "sha256": "44ef79d8c60d3400afc628fe2ac42af6e01b0e90270384e1a351147bc97e02d4",
+      "role": "Normal publication of separate source-only review branch",
+      "source": "1bc43d80b88135e2168dc5063b771c77f053f770"
+    },
+    "profiler_1bc_split": {
+      "receipt_file": "split-qualification.json",
+      "bytes": 3311,
+      "sha256": "a402954eb261143283a477be0d33621d07fc72d8ea0cf5438b57fdc4ff571c9f",
+      "role": "227 unchanged atf39 plus5 corrected at tree-identical1a; no clean232 at1bc",
+      "source": "1bc43d80b88135e2168dc5063b771c77f053f770"
+    },
+    "profiler_original_negative_root": {
+      "receipt_file": "root-final-negative-qualification.json",
+      "bytes": 2847,
+      "sha256": "d44f8ab3903af0eda719c10607eefdef9e56030aa74773d3547d3d80e8e599fb",
+      "role": "Original failed090 run remains authenticated incomplete",
+      "source": "3fbaa7bdde7d297bb4a51b4d6c6432ab10fee822"
+    }
+  },
+  "authority_map": {
+    "root_independent_digest_field_points_to": "care_ci_independent_core",
+    "independent_final_wrapper_joins": [
+      "care_ci_independent_core",
+      "care_ci_independent_steps_cache"
+    ],
+    "curated_machine_record_is_new_evidence_authority": false,
+    "raw_evidence_bodies_committed": false
+  },
+  "separate_tracks": {
+    "forecast": {
+      "source": "c80b99f246b8ba00404fe68cdaa9ce342fd6d318",
+      "branch": "lead/dev-forecast-lifecycle-closure-20261029",
+      "local_pure_passes": 215,
+      "reader_cases": 152,
+      "study_cases": 63,
+      "guard_attempts": 0,
+      "scope": "Separate source and local fake evidence only; not a genuine study or full CI/runtime grant",
+      "raw_publication": "source drafting; durable original-artifact acceptance and runtime bindings unqualified",
+      "genuine_World_checkpoint_study": null,
+      "durable_raw_original_artifact_qualification": null
+    },
+    "profiler090": {
+      "source": "1bc43d80b88135e2168dc5063b771c77f053f770",
+      "branch": "lead/current090-passive-profile-inventory-negative-test-correction-20261029",
+      "normal_source_only_publication": true,
+      "qualification_split": {
+        "unchanged_passes": 227,
+        "unchanged_source": "f39fc0ba8e3ff17eac5fe44f31d5b5a634dd7ce9",
+        "corrected_passes": 5,
+        "corrected_executed_source": "1a029656ca16f050b95f6fd7de9b08819ba00b7c",
+        "corrected_tree_equals_final_source": true,
+        "clean_full232_at1bc": false
+      },
+      "original_run": 40927885410,
+      "original_source": "3fbaa7bdde7d297bb4a51b4d6c6432ab10fee822",
+      "original_outcome": "AUTHENTICATED_INCOMPLETE_NO_PROFILE",
+      "actual_retry": false,
+      "production_fixture_layout_fix": false,
+      "first_failed_retention_path": null
+    }
+  },
+  "qualification_limits": [
+    "Exact6a2 standard CI; this docs-only child runs no new tests/CI/runtime.",
+    "Fourteen new native/PyO3 source contracts link to the successful unfiltered library; quiet stdout is not a per-name execution witness.",
+    "New native prefix remains provisional; strict Python codec/finalizer/observer/mechanics reader and final retained file are not implemented or qualified by this source.",
+    "Three compiled class identities are recorded; actual schema tuples and installed-wheel care-observation API calls remain unobserved.",
+    "Natural care pilot, enabled forecast study, own-CP continuation, complete recording-off/on output/global-RNG neutrality, graph/science/efficacy/performance/default/main promotion remain held.",
+    "Old23d empty API and3a/38dd binary observations do not qualify this changed crate; secondary source tracks retain their own scope."
+  ],
+  "documentation_only": {
+    "unchanged_non_docs_parent_entries": 1073,
+    "all_existing_docs_JSON_exact": true,
+    "roadmap_and_backledger_bodies_exact": true,
+    "new_runtime_observation": false
+  }
+}

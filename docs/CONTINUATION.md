@@ -1,3 +1,34 @@
+# Latest qualified native care code — 2026-10-29
+
+Exact development code `6a2a7b84` now has independently/root-qualified
+[first-attempt all-nine-job standard CI](integration/care-native-prefix-ci-2026-10-29.md),
+with [curated source-bound identities and authorities](integration/care-native-prefix-ci-2026-10-29.json).
+Python remains 8,669/6/623 native, 8,336/325/623 no-Rust and 4,562/65/97 offline
+across 303 owners / 38 unchanged bounded chunks / 329 pins. Rust is now 1,154
+passed / 2 ignored, including 613 unfiltered library tests and 14 new source-linked
+recorder/FFI contracts; quiet stdout is not a per-name witness. Viewer 743 plus
+lint/build and separate 2 + 2 preflights pass. The own wheel/native and 803-file
+builder digest replace no historical binary authority.
+
+The recorder remains a dormant **provisional native prefix**. Actual three-schema
+tuples, installed-wheel care API calls, the strict Python codec/final join,
+complete frame retention, natural care pilot, own-CP/default-output/global-RNG
+and scientific/performance gates remain unqualified. Separate Python source work
+does not supply a 22-case codec PASS. Cache restores and 134/95/92/466-second
+builder/wheel/Cargo/workflow observations are uncontrolled only.
+
+Separately, forecast `c80b99f2` has 215 local fake passes with peer `ea927669…`
+and root `590ae06a…`; raw publication is source drafting, without runtime claims.
+Profiler `1bc43d80` is normally published source-only under root `40fb7f9e…`,
+with explicit split 227 + 5 evidence. Its original failed 090 outcome stays
+negative; there is no retry, accepted profile or production fixture-layout fix.
+
+This is a docs-only update. The complete prior continuation follows byte for
+byte, including its dated source-only/unrun snapshots; those describe their
+earlier stages. Main, roadmap and historical ledgers are unchanged.
+
+---
+
 # Recovered continuation — 2026-10-11
 
 A SOURCE-ONLY [care native prefix implementation](integration/care-native-prefix-source-2026-10-29.md)

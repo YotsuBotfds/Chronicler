@@ -1,3 +1,36 @@
+# Current development update — 2026-10-29, exact 6a2
+
+The latest qualified executable code is `6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8`:
+[all nine standard CI jobs passed on attempt 1](care-native-prefix-ci-2026-10-29.md).
+The [new machine record](care-native-prefix-ci-2026-10-29.json) separates source
+freeze/full/graft approvals, primary `4fd6359a…`, independent core `d115dd86…`,
+final wrapper `9b0e3bad…` and root `6a3cc53b…`. It binds its own fresh wheel/native
+and 803 protected source files. Rust adds 14 source-linked contracts to the
+unfiltered 613-test library; workspace 1,154 passed / 2 ignored. Python counts,
+303 owners, 38 chunks and 329 pins remain unchanged from 469. Quiet stdout does
+not name every contract, and actual schemas / installed-wheel care API calls
+remain null.
+
+Native output remains provisional, with COMPLETE/Python bits clear and zero hash
+placeholders. The strict Python codec/final join is not implemented in qualified
+6a2; separate source drafting is not a 22-case PASS or complete frame. Natural
+care/forecast World studies, the care pilot, own-CP/default-output/global-RNG,
+graph/science/efficacy/performance and main promotion remain held. Three cache
+classes restored; 134/95/92/466-second timings are uncontrolled observations.
+
+Separate forecast source `c80b99f2` has 215 local fake passes, peer `ea927669…`
+and root `590ae06a…`; raw publication is drafting without runtime qualification.
+Separate 090 source `1bc43d80` is normally published source-only under root
+`40fb7f9e…`, using split 227 unchanged + 5 corrected passes rather than clean
+full 232 at 1bc. The original failed 090 run remains negative with no profile
+retry or production fixture-layout fix.
+
+The entire previous review follows unchanged, including its historical JSON
+link and earlier pending wording. No existing JSON, roadmap or backledger body
+is rewritten by this update.
+
+---
+
 # Current development: behavior, evidence and next decisions
 
 ## Current standing — 2026-10-29, after the qualified 469 run
