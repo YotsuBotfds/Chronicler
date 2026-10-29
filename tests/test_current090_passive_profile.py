@@ -1,0 +1,379 @@
+"""Tiny metadata/fake contracts only: never construct a real World/runtime."""
+import dataclasses
+import importlib.util
+from pathlib import Path
+import random
+from types import SimpleNamespace
+
+import pytest
+
+
+SPEC = importlib.util.spec_from_file_location(
+    "passive090_test_source", Path(__file__).parents[1] / "scripts/current090_passive_profile.py")
+P = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(P)
+
+
+class Profile:
+    def __init__(self, **kwargs):
+        self.enabled = False
+        self.trace = []
+        self.stats = {("source.py", 7, "phase"): (1, 1, 0.1, 0.2, {})}
+
+    def enable(self):
+        assert not self.enabled
+        self.enabled = True
+        self.trace.append("on")
+
+    def disable(self):
+        self.enabled = False
+        self.trace.append("off")
+
+    def create_stats(self):
+        assert not self.enabled
+
+
+class Clock:
+    def __init__(self): self.value = 0
+    def __call__(self): self.value += 0.25; return self.value
+
+
+def boundary(profiled):
+    result = P.Boundary(profiled, clock_cpu=Clock(), clock_wall=Clock(), factory=Profile,
+                        population_reader=lambda world: {"synthetic_alive": 3})
+    result.bind(lambda path: path, {})
+    return result
+
+
+def toy_world(turn=0):
+    return SimpleNamespace(turn=turn, regions=[SimpleNamespace(population=3)],
+                           civilizations=["civ"], events_timeline=[], named_events=[])
+
+
+def test_closed_schedule_cost_and_orders():
+    rows = P.schedule()
+    assert len(rows) == 6 and sum(row["turns"] for row in rows) == 582
+    assert [(r["case"], r["role"]) for r in rows] == [
+        ("small", "plain"), ("small", "profiled"), ("agents", "profiled"),
+        ("agents", "plain"), ("regions", "plain"), ("regions", "profiled")]
+    assert sum(16 for row in rows if row["role"] == "profiled") == 48
+    for row in rows: P.validate_request(row)
+
+
+@pytest.mark.parametrize("field,value", [("turns", 96), ("seed", 7), ("target", 1000),
+                                        ("civs", True), ("role", "timed"), ("extra", 1)])
+def test_unregistered_role_refuses(field, value):
+    row = dict(P.schedule()[0]); row[field] = value
+    with pytest.raises(P.Refused): P.validate_request(row)
+
+
+@pytest.mark.parametrize("profiled", [False, True])
+def test_exact_full_tail_windows_with_no_replay(profiled):
+    b = boundary(profiled)
+    w = toy_world()
+    for turn in range(1, 98):
+        w.turn = turn
+        assert b.turn_end(w) is False
+        assert [p.enabled for p in b.profiles] == [profiled and 8 <= turn < 16,
+                                                   profiled and 88 <= turn < 96]
+    result = b.finish()
+    assert result["turns_observed"] == 97
+    assert [(r["start"], r["end"]) for r in result["windows"]] == [(8, 16), (88, 96)]
+    assert [r["turn"] for r in result["context"]] == [8, 16, 88, 96, 97]
+    assert all(r["aggregate_region_population"] == 3 for r in result["context"])
+    assert all(r["cpu_seconds"] > 0 and r["wall_seconds"] > 0 for r in result["windows"])
+    assert result["profiled_ticks"] == (16 if profiled else 0)
+    assert len(b.rows()) == (2 if profiled else 0)
+
+
+def test_failed_boundary_stops_without_false_completion():
+    b = boundary(True)
+    for turn in range(1, 10): b.turn_end(toy_world(turn))
+    assert b.profiles[0].enabled
+    b.stop()
+    assert not any(p.enabled for p in b.profiles)
+    with pytest.raises(P.Refused, match="incomplete"): b.finish()
+    assert b.last == 9
+    with pytest.raises(P.Refused, match="sequence"): b.turn_end(toy_world(9))
+
+
+def test_bind_once_and_profile_caps():
+    b = boundary(True)
+    with pytest.raises(P.Refused, match="bind once"): b.bind(lambda p: p, {})
+    b.profiles[0].stats = {("x" * 2049, 1, "f"): (1, 1, 1., 1., {})}
+    with pytest.raises(P.Refused, match="label cap"): b.rows()
+
+
+def test_scaling_is_old_rounding_and_sync_after_all_regions():
+    w = SimpleNamespace(regions=[SimpleNamespace(population=3, carrying_capacity=10),
+                                  SimpleNamespace(population=5, carrying_capacity=20)],
+                        civilizations=["a", "b"])
+    calls = []
+    out = P.scale_world(w, 2000, lambda civ, world: calls.append((civ, [r.population for r in world.regions])))
+    assert out["base_population"] == 8 and out["multiplier"] == 250.
+    assert out["region_population"] == [750, 1250] and out["region_capacity"] == [2500, 5000]
+    assert calls == [("a", [750, 1250]), ("b", [750, 1250])]
+
+
+def test_u16_refusal_precedes_any_civ_sync():
+    w = SimpleNamespace(regions=[SimpleNamespace(population=1, carrying_capacity=100)], civilizations=["a"])
+    with pytest.raises(P.Refused, match="u16"):
+        P.scale_world(w, 2000, lambda *args: pytest.fail("must not reach physics/setup sync"))
+
+
+def valid_rng():
+    p = random.getstate()
+    return {"python": [p[0], list(p[1]), p[2]],
+            "numpy": ["MT19937", list(range(624)), 624, 0, 0.]}
+
+
+@pytest.mark.parametrize("fault", ["kind", "word", "cursor", "gaussian", "boolword", "extra"])
+def test_rng_metadata_refuses_malformed_actual_state(fault):
+    r = valid_rng()
+    if fault == "kind": r["numpy"][0] = "seed42"
+    if fault == "word": r["numpy"][1].pop()
+    if fault == "cursor": r["python"][1][-1] = 625
+    if fault == "gaussian": r["python"][2] = float("nan")
+    if fault == "boolword": r["numpy"][1][0] = True
+    if fault == "extra": r["seed"] = 42
+    with pytest.raises(P.Refused): P.validate_rng(r)
+
+
+def test_rng_accepts_actual_snapshot_not_a_seed():
+    r = valid_rng(); P.validate_rng(r)
+    assert len(r["python"][1]) == 625 and len(r["numpy"][1]) == 624
+
+
+def test_both_global_streams_replay_actual_shared_checkpoint_and_preserve_caller():
+    class Words:
+        def __init__(self, rows): self.rows = list(rows)
+        def tolist(self): return list(self.rows)
+
+    class NumpyMetadata:
+        uint32 = "synthetic uint32"
+        def __init__(self):
+            self.state = ("MT19937", Words(range(624)), 624, 0, 0.)
+            self.random = self
+        def array(self, rows, dtype): assert dtype == self.uint32; return Words(rows)
+        def get_state(self): return self.state
+        def set_state(self, value): self.state = value
+
+    saved = random.getstate()
+    try:
+        np = NumpyMetadata()
+        shared = P.capture_rng(np)
+        first = [random.random() for _ in range(4)]
+        np.state = ("MT19937", Words([1] * 624), 7, 1, 1.)
+        P.restore_rng(shared, np)
+        assert P.capture_rng(np) == shared
+        assert first == [random.random() for _ in range(4)]
+    finally:
+        random.setstate(saved)
+
+
+def test_profile_output_refuses_missing_files_or_raw_bundle_difference():
+    proof = {key: "same" for key in ("logical_output", "initial_rng", "final_rng", "state", "run_result", "identity")}
+    for count, problems, raw in ((0, [], []), (1, ["missing"], []), (1, [], ["raw differs"])):
+        with pytest.raises(P.Refused, match="ordinary"):
+            P.profile_equivalent(proof, dict(proof), lambda a, b: (count, list(problems)),
+                                 lambda a, b: list(raw), Path("a"), Path("b"))
+
+
+class NativeBytes:
+    def __init__(self): self.data = b"native RNG slots queues trips"
+    def checkpoint_state(self): return self.data
+
+
+class ToyModel:
+    model_fields = {"turn": None}
+    def __init__(self):
+        self.turn = 97
+        self.__pydantic_private__ = {}
+        self.__pydantic_extra__ = None
+        self.__pydantic_fields_set__ = {"turn"}
+
+
+class ToyBridge:
+    __module__ = "chronicler.test_passive_metadata"
+    def __init__(self): self._sim = NativeBytes(); self.output = Path("/same/run")
+
+
+@dataclasses.dataclass
+class Entry:
+    turn: int = 97
+    text: str = "retained"
+    importance: int = 5
+    entry_type: str = "event"
+
+
+class ToyMemory:
+    __module__ = "chronicler.test_passive_metadata"
+    def __init__(self):
+        e = Entry()
+        self.entries, self.reflections = [e], []
+        self._encoded = {"entries": [(e, e.turn, e.text, e.importance, e.entry_type, "actual JSON")]}
+
+
+@dataclasses.dataclass
+class ToyState:
+    world: object
+    agent_bridge: object
+    memories: dict
+    markers: dict
+    run_config: dict
+    history: list
+
+
+def state():
+    w, b = ToyModel(), ToyBridge()
+    w.__pydantic_private__["_war_roster_sim"] = id(b._sim)
+    w.__pydantic_private__["_agent_bridge"] = b
+    return ToyState(w, b, {"civ": ToyMemory()}, {"war_roster_bound": True},
+                    {"output": "/same/run", "feature": False}, [{"turn": 97}])
+
+
+def fingerprint(s): return P.StateFingerprint(s, (NativeBytes,)).result()
+
+
+def test_detached_marker_token_preserves_original_and_native_graph():
+    a, b = state(), state()
+    ai, bi = a.world.__pydantic_private__["_war_roster_sim"], b.world.__pydantic_private__["_war_roster_sim"]
+    assert ai != bi and fingerprint(a) == fingerprint(b)
+    assert a.world.__pydantic_private__["_war_roster_sim"] == ai
+    assert b.world.__pydantic_private__["_war_roster_sim"] == bi
+    assert a.markers == b.markers == {"war_roster_bound": True}
+
+
+@pytest.mark.parametrize("fault", ["false", "integer", "unknown", "duplicate", "unrelated"])
+def test_unknown_or_unbound_marker_refuses(fault):
+    s = state()
+    if fault == "false": s.markers["war_roster_bound"] = False
+    if fault == "integer": s.markers["war_roster_bound"] = 1
+    if fault == "unknown": s.markers["another"] = True
+    if fault == "duplicate": s.world._war_roster_sim = id(s.agent_bridge._sim)
+    if fault == "unrelated": s.world.__pydantic_private__["_war_roster_sim"] += 1
+    with pytest.raises(P.Refused): fingerprint(s)
+
+
+@pytest.mark.parametrize("fault", ["native", "private", "extra", "config", "path", "history",
+                                        "cache_text", "signedzero", "alias", "dynamic"])
+def test_every_carried_native_private_cache_and_path_change_matters(fault):
+    a, b = state(), state()
+    if fault == "native": b.agent_bridge._sim.data += b"changed"
+    if fault == "private": b.world.__pydantic_private__["pending"] = [1]
+    if fault == "extra": b.world.__pydantic_extra__ = {"x": 1}
+    if fault == "config": b.run_config["feature"] = True
+    if fault == "path": b.agent_bridge.output = Path("/other/run")
+    if fault == "history": b.history[0]["turn"] = 96
+    if fault == "cache_text":
+        row = b.memories["civ"]._encoded["entries"][0]
+        b.memories["civ"]._encoded["entries"][0] = (*row[:-1], "changed JSON")
+    if fault == "signedzero": a.run_config["zero"] = 0.; b.run_config["zero"] = -0.
+    if fault == "alias":
+        x = []; a.history = [x, x]; b.history = [[], []]
+    if fault == "dynamic": b.extra = ["must be retained"]
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_cycle_is_retained_and_nested_boundaries_are_unambiguous():
+    a, b = state(), state()
+    x = []; x.append(x); a.extra = x
+    y = []; y.append(y); b.extra = y
+    assert fingerprint(a) == fingerprint(b)
+    a.extra = [[], [1], 2]; b.extra = [[], [1, 2]]
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_encoded_entry_identity_is_not_replaced_by_equal_content():
+    s = state(); row = s.memories["civ"]._encoded["entries"][0]
+    s.memories["civ"]._encoded["entries"][0] = (Entry(), *row[1:])
+    with pytest.raises(P.Refused, match="encoder identity"): fingerprint(s)
+
+
+def test_unsupported_state_has_no_repr_or_id_fallback():
+    s = state(); s.extra = object()
+    with pytest.raises(P.Refused, match="unsupported"): fingerprint(s)
+
+
+def test_ordered_dict_content_and_unordered_set_are_distinguished():
+    a, b = state(), state()
+    a.extra = {("b", 2), ("a", 1)}; b.extra = {("a", 1), ("b", 2)}
+    assert fingerprint(a) == fingerprint(b)
+    a.extra = {"a": 1, "b": 2}; b.extra = {"b": 2, "a": 1}
+    assert fingerprint(a) != fingerprint(b)
+
+
+def test_old_comparator_is_called_without_new_exclusions_or_normalizer():
+    calls = []
+    def compare(a, b): calls.append((a, b)); return 4, []
+    def raw(a, b): calls.append(("raw", a, b)); return []
+    proof = {key: "same" for key in ("logical_output", "initial_rng", "final_rng", "state", "run_result", "identity")}
+    out = P.profile_equivalent(proof, dict(proof), compare, raw, Path("a"), Path("b"))
+    assert out == {"checked_files": 4, "differences": 0, "instrumentation_equal": True}
+    assert calls == [(Path("a"), Path("b")), ("raw", Path("a"), Path("b"))]
+    bad = dict(proof); bad["state"] = "changed"
+    with pytest.raises(P.Refused, match="state"):
+        P.profile_equivalent(proof, bad, compare, raw, Path("a"), Path("b"))
+
+
+def test_null_approval_refuses_before_any_project_native_or_path_access():
+    assert P.EXECUTION_APPROVAL is None
+    with pytest.raises(P.Refused, match="not approved"):
+        P.run_role({}, ordinary=None, checkpoint=None, shared_rng=None, admission=None)
+
+
+def test_result_keeps_every_field_and_literal_logical_path_json_safe():
+    @dataclasses.dataclass
+    class ResultMetadata:
+        output_dir: Path
+        total_turns: int
+        actions: dict
+    result = ResultMetadata(Path("/same/absolute/run"), 97, {"develop": 8})
+    assert P.result_record(result) == {"output_dir": "/same/absolute/run", "total_turns": 97,
+                                       "actions": {"develop": 8}}
+    P.canonical_bytes(P.result_record(result))
+    with pytest.raises(P.Refused, match="path type"):
+        P.result_record(ResultMetadata("/same/absolute/run", 97, {}))
+
+
+def test_actual_getter_has_exact_fixed_calls_outside_both_profile_windows():
+    traces = []
+    for profiled in (False, True):
+        b = boundary(profiled)
+        calls = []
+        def reader(world):
+            assert not any(p.enabled for p in b.profiles)
+            calls.append(world.turn)
+            return {"in_domain_alive_count": 7}
+        b.population_reader = reader
+        for turn in range(1, 98): b.turn_end(toy_world(turn))
+        result = b.finish()
+        traces.append(calls)
+        assert [r["actual_native"]["in_domain_alive_count"] for r in result["context"]] == [7] * 5
+        assert [r["aggregate_region_population"] for r in result["context"]] == [3] * 5
+    assert traces == [[8, 16, 88, 96, 97]] * 2
+
+
+@pytest.mark.parametrize("fault", [None, "row_count", "columns", "order", "bool", "null", "negative"])
+def test_native_region_count_reader_bounds_and_retains_extinction(fault):
+    class Column:
+        null_count = 0
+        def __init__(self, values): self.values = values
+        def to_pylist(self): return self.values
+    columns = {"region_id": Column(list(range(12))), "alive_count": Column([0] * 12)}
+    batch = SimpleNamespace(num_rows=12, num_columns=2, schema=SimpleNamespace(names=["region_id", "alive_count"]),
+                            column=lambda name: columns[name])
+    calls = []
+    sim = SimpleNamespace(get_region_populations=lambda: calls.append("read") or batch)
+    if fault == "row_count": batch.num_rows = 1000000
+    if fault == "columns": batch.schema.names.reverse()
+    if fault == "order": columns["region_id"].values.reverse()
+    if fault == "bool": columns["alive_count"].values[0] = True
+    if fault == "null": columns["alive_count"].null_count = 1
+    if fault == "negative": columns["alive_count"].values[0] = -1
+    if fault is None:
+        assert P.native_region_counts(sim, 12) == {"region_ids": list(range(12)), "alive_counts": [0] * 12,
+                                                  "in_domain_alive_count": 0}
+    else:
+        with pytest.raises(P.Refused): P.native_region_counts(sim, 12)
+    assert calls == ["read"]

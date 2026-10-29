@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The [current090 passive-profile worker](performance/current090-passive-profile-worker-2026-10-29.md)
+is Stage 1 source only: six fixed 97-turn roles, passive closed windows and a
+strict decoded-state/RNG/output contract. Its 53 tiny guarded metadata cases
+pass; actual execution approval is null. Hosted ownership/admission, genuine
+World equivalence and profiling remain unimplemented/unrun. Old held timing
+matrices and all existing source-specific qualifications remain unchanged.
+
+
 The pending `lead/shared-live-slots-integration-20261029` candidate combines
 the [native live-slot source candidate](performance/native-alive-slot-reuse-2026-10-29.md)
 at `6dccc625` with the separately qualified
