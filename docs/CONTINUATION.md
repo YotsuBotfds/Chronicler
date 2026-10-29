@@ -1,12 +1,25 @@
 # Recovered continuation — 2026-10-11
 
+A source-only offline registration child adds a dedicated
+`native-ci-metadata-contracts` chunk containing the whole already-owned
+`tests/test_native_ci_shards.py`. This is the 38th chunk; all prior 37 chunks
+and the 110-second bound remain exact. Native ownership stays 303 modules,
+six skips and the 623-subtest seal. No tests execute in this registration work.
+The completed `94b308e6` CI keeps its valid source-scoped results: its 37-chunk
+offline lane omitted this file, while both full Python lanes and the separate
+strict selected guard passed its 125 metadata cases. Those passes do not qualify
+the new offline chunk or this forecast composition. Guarded `--list` establishes
+selection only; new full CI and execution/promotion decisions remain separate.
+
 The next [forecast source composition](integration/next-forecast-source-assembly-2026-10-29.md)
 adds the reviewed, default-fixed [local credibility pilot](integration/harvest-forecast-local-credibility-2026-10-29.md)
 from preserved source `21e2eb2c` atop exact `94b308e6`. The four production files,
 two existing test files, roadmap increment and dated pilot note are exact donor
 imports. The parent native context batch API, metadata/K2 helpers, 303 module
-owners, six skips, 623-subtest seal and 37 offline chunks/110-second limit remain
-byte-identical to `94b308e6`. Its in-flight CI is parent-source evidence only.
+owners, six skips and 623-subtest seal remain byte-identical to `94b308e6`.
+This registration child preserves its 37 offline chunks and 110-second limit,
+adding only the dedicated metadata chunk above. The completed parent CI is
+parent-source evidence only.
 This combined Python behavior has no new full CI, genuine enabled World/exact
 checkpoint/default-output/global-RNG, scientific or performance qualification;
 no push, execution, adoption or main-promotion grant follows from assembly.

@@ -319,6 +319,9 @@ CHUNKS = {
         "tests/test_practice_growth_observer.py",
         "tests/test_practice_observer_runner.py",
     ],
+    "native-ci-metadata-contracts": [
+        "tests/test_native_ci_shards.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

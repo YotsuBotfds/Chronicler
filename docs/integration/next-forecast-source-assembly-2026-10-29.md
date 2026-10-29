@@ -25,10 +25,19 @@ its native context batch API and all other Rust files unchanged. The K2
 metadata helper remains unwired. Metadata/process helpers, workflows,
 dependencies, existing care-control semantics and source-specific historical
 receipts are preserved. Native shard metadata keeps all 303 module owners,
-six expected skips and 623 successful subtests; the existing 37 offline chunks
-retain their 110-second limit. The new forecast cases are appended to an
-already registered test module, so no new module assignment is required.
-These are source comparisons, not a newly observed complete collection.
+six expected skips and 623 successful subtests. A narrow registration child of
+`58782c7d` adds the 38th offline chunk, `native-ci-metadata-contracts`, containing
+only the whole `tests/test_native_ci_shards.py`. All previous 37 chunks and the
+110-second limit remain exact. This file was already owned by native shard 0,
+so module ownership is unchanged. The new forecast cases remain appended to
+an already registered test module. These are source comparisons, not a newly
+observed complete collection.
+
+The valid `94b308e6` CI used 37 offline chunks without this metadata file; its
+125 cases passed in both full Python lanes and the separate strict selected
+guard. They are prior-source results, not a passing standard offline chunk for
+this child or a qualification of the new forecast behavior. Guarded `--list`
+checks selection only. This new chunk and combined full CI remain unrun.
 
 The donor's guarded result is 39 passing parents: 22 source-selected new
 model/fake cases and 17 existing care experiment cases, with 36 successful
