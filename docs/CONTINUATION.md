@@ -11,16 +11,27 @@ These are individual test observations, not a whole-suite speed claim. Source535
 remains separate pending its own default-output and performance qualification;
 this review branch's code still matches qualified `cbf6e368`.
 
-The fixed wealth candidate cohort is running in
+The [isolated native sharding workflow](integration/native-module-shards-v2-ci-2026-10-29.md)
+now has independently qualified all-nine-job CI at exact `7dcb2402`:
+8,454 collected parents have disjoint exact-once ownership, with 8,448 passes,
+six registered skips and 526 successful subtests. Its first failed diagnostic
+receipt publication remains preserved. Context labels are bounded display only;
+strict authority JSON and every report's ownership/order/multiplicity reconcile.
+The standard CI workflow on this review branch is unchanged; adoption is separate.
+
+The fixed wealth candidate cohort reached publication in
 [run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409)
-at `33d331a1`: 3,700 registered executions / 201,400 ticks across two world jobs.
-Staging and admission precede physics; completed outcomes and full-byte/scientific
-qualification remain pending. No running-job success or historical reuse is claimed.
-The separate CI-sharding prototype's first run preserved both passing test sets
-but failed receipt serialization for legitimate bytes/nonfinite diagnostic labels.
-The bounded display-only correction is being qualified in
-[run 40863008464](https://github.com/YotsuBotfds/Chronicler/actions/runs/40863008464);
-the standard CI workflow on this review branch is unchanged.
+at `33d331a1`. Both original light receipts report **incomplete mechanics** and
+no scientific gate exit code. The 3,700 executions / 201,400 ticks were registered
+cost, not a completed-work count. Original failure details and actual completed
+work are being reconciled; neither a scientific verdict nor historical reuse is granted.
+
+The separate fixed CP60 observer proof was launched once at `d0c98fe6`,
+[run 40866700701](https://github.com/YotsuBotfds/Chronicler/actions/runs/40866700701).
+Setup, guarded contracts, verified-wheel installation and actual three-schema
+freeze passed; the proof/readout steps failed and original failure evidence was
+published. Its three executions / 66 ticks remain a prospective bound until
+actual execution receipts reconcile. The eight-seed study is not activated.
 
 The current consolidation is `lead/review-integration-20261029`. Its runtime,
 tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.

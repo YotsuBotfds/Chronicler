@@ -3,9 +3,14 @@
 Separate native candidate `535b3b6c` now has [qualified full CI](native-live-slot-ci-2026-10-29.md),
 including its fresh extension and both new Rust regressions. It remains outside
 this review runtime pending default-output and performance checks. The fixed
-wealth-floor full cohort is running separately; its outcomes are not yet qualified.
-The first CI-sharding run's diagnostic receipt failure is preserved, with a
-separate corrected-source qualification in progress. No main merge is included.
+wealth-floor full cohort's original light receipts report incomplete mechanics;
+actual completed work and source cause remain under review, with no scientific verdict.
+The [corrected isolated CI-sharding workflow](native-module-shards-v2-ci-2026-10-29.md)
+now has all-nine-job independent qualification, preserving the first failed publication.
+Its standard-workflow adoption remains separate. The fixed CP60 observer proof
+passed actual metadata freeze but failed during proof execution in run `40866700701`;
+its original evidence is retained and the larger eight-seed study remains inactive.
+No main merge is included.
 
 The consolidated branch is `lead/review-integration-20261029`; main remains
 unchanged. Runtime, tests, scripts and workflows match qualified `cbf6e368`.
