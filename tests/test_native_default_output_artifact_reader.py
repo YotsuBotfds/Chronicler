@@ -333,6 +333,16 @@ class Contracts(unittest.TestCase):
                  mock.patch.object(self.C.core,"digest",side_effect=digest),self.assertRaises(R.Refusal):
                 R.final_sources(self.C,context,root,expected)
 
+    def test_retained_baseline_driver_is_rechecked_against_verified_git_descriptor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);path=root/"baseline-driver.py";path.write_bytes(b"original")
+            descriptor={**R.pin(b"original"),"blob":"a"*40,"mode":0o644}
+            self.assertEqual(R.verify_baseline_driver(self.C,root,descriptor),R.pin(b"original"))
+            for changed in (b"changed!",b"larger changed source"):
+                path.write_bytes(changed)
+                with self.subTest(size=len(changed)),self.assertRaises((R.Refusal,self.C.core.Refusal)):
+                    R.verify_baseline_driver(self.C,root,descriptor)
+
     def test_saved_producer_source_field_shapes_match_probe_fixture(self):
         tree=ast.parse((R.ROOT/"scripts/arc_output_identity_qualification.py").read_bytes())
         function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="probe")

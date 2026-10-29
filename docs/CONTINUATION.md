@@ -9,6 +9,9 @@ artifact transfer, read-only audit and activation await root/peer review.
 The focused24 tests/49 successful subtests and unfiltered workflow lint pass;
 all12 saved official metadata snapshots and pinned descriptor/source field
 shapes were checked without an archive transfer or project/native imports.
+A narrow source-review child adds final retained-baseline-driver hash/size
+validation and passes25 tests/51 successful subtests; the effective nested-input
+expiry cutoff is November12, earlier than the unchanged outer artifact expiry.
 
 A separate [dormant native default-output adapter](experiments/native-default-output-identity-2026-10-29.md)
 registers fresh C76 versus qualified combined `95f73a74` exports with distinct

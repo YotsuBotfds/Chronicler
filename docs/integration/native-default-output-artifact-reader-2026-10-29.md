@@ -14,6 +14,10 @@ with original expiry `2026-11-28T07:19:53Z`. Baseline source is
 `c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`; candidate is exactly
 `95f73a74f809d7e10f09a1241c98014864350ffb`.
 
+Nested input publication checks remain fail-closed against the current audit
+time. Their earliest expiry, `2026-11-12T05:15:05Z`, is the effective audit
+cutoff; the original outer artifact expiry above remains unchanged.
+
 | Arm | Native crate tree | Retained wheel SHA-256 | Retained native SHA-256 |
 | --- | --- | --- | --- |
 | C76 baseline | `a4703ef4e9a21b5dbb194d318536a46e6ca8b71c` | `2e491456d01c2dd7bb2f7688e6acbc06b614610bbbe5be5ea6f0832ae220759a` | `06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6` |
@@ -143,3 +147,10 @@ tests and49 successful subtests passed in0.161s with the same zero blocked
 attempts/project-native modules and all12 metadata/source-shape checks intact.
 Exact source and test hashes/results are retained externally under
 `native-default-output-artifact-reader-source-qualification-20261029`.
+The first frozen reader `c0b988c8` and its unpushed activation candidate are
+preserved. Its source-review finding led to a narrow child: rehash the retained
+baseline driver against the verified Git blob descriptor before positive
+finalization, with same-size and changed-size mutation contracts.
+The narrow child passes25 tests and51 successful subtests in0.236s under the
+same guard; all12 metadata checks and pinned source-shape checks still match.
+The prior24/49 result and c0 source finding remain retained separately.

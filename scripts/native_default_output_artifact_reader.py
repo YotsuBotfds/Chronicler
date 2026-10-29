@@ -413,6 +413,12 @@ def retire_case(C,scratch,expected,marker):
     shutil.rmtree(scratch)
 
 
+def verify_baseline_driver(C,root,descriptor):
+    observed=C.core.digest(root/"baseline-driver.py",descriptor["bytes"])
+    require(observed=={key:descriptor[key] for key in ("bytes","sha256")},"derived baseline driver changed")
+    return observed
+
+
 def inspect(C,A,context,root,report,supervisors):
     deadline=context["deadline"]
     require(platform.python_version()==A.PYTHON and platform.python_implementation()=="CPython" and platform.machine()=="x86_64"
@@ -469,6 +475,7 @@ def inspect(C,A,context,root,report,supervisors):
         require(len(comparisons)==9 and set(counts)==set(A.H.CASES),"nine comparisons incomplete")
         original=C.core.parse_comparison(C.read_member(archive,files,"logs/compare.log",C.core.COMPARE_LIMIT).decode(),counts)
         for value in verified.values():C.git_source.verify_snapshot(ROOT,value)
+        baseline_driver=verify_baseline_driver(C,root,verified["baseline"]["files"]["scripts/turn_speed_identity.py"])
         require(C.core.payload_inventory(view)==view_map and C.core.payload_inventory(derived)=={n:inventory[n] for n in names},"derived source/metadata changed")
         require(C.core.digest(archive_path,ARCHIVE_BYTES)=={"bytes":ARCHIVE_BYTES,"sha256":ARCHIVE_SHA}
             and (archive_path.stat().st_ino,archive_path.stat().st_size,archive_path.stat().st_mtime_ns)==
@@ -482,6 +489,7 @@ def inspect(C,A,context,root,report,supervisors):
             inspector_native_import_attempts=native_guard.attempts,
             reader_packages={n:importlib.metadata.version(n) for n in ("numpy","scipy","pyarrow","pydantic","arro3-core")},
             reader_native_package_present=False,reader_native_distribution_present=False,
+            derived_baseline_driver=baseline_driver,
             reader_thread_env={k:os.environ.get(k) for k in (*A.H.CAPS,"PYTHONHASHSEED","OPENBLAS_THREAD_TIMEOUT")},
             arrow_scope="Opaque payload bytes hashed/compared; no Arrow decoding.",installer_scope="Original installer checksum is an observation; its executable was not retained for independent rehash.")
 
@@ -612,6 +620,7 @@ def audit(args):
         context={"source":registered["GITHUB_SHA"],"started":started,"deadline":deadline,"prefix":str(prefix),
             "metadata_pins":{name:C.core.digest(root/name) for name in ("metadata-before.json","metadata-after.json")},
             "limits":{"qualification_seconds":SECONDS,"cleanup_reserve":CLEANUP_RESERVE,"outer_seconds":610,"outer_kill_grace":5,
+                "effective_latest_audit_utc":min(p.expiry for p in A.ARTIFACTS.values()),
                 "max_entries":2048,"max_member_json":32*1024**2,"max_expansion":512*1024**2,"disk_floor":3*GIB,"copy_reserve":16*1024**2}}
         write(root/"context.json",context)
         # Replace the bootstrap owner: no nested inspect session or reset clock.
