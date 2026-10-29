@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+October 29 models-only workflow timing passed its registered five-pair criteria:
+median paired costs fell 11.80% CPU and 11.51% wall on frozen `d051d7c0` / native
+`fb20dbc8`. Independent reinspection verified all 5,265 retained files, 84 worlds
+and the accounting. This documentation-only branch starts at `c76efe85` but does
+not claim c76 timing or production backend qualification. The fresh default and
+runtime code are unchanged. See [the result and scope](performance/models-forkserver-timing-results-2026-10-29.md)
+and [the proposed bounded opt-in integration plan](performance/models-forkserver-integration-plan-2026-10-29.md).
+
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on
 `lead/research-continuation-20261029`. A new isolated branch combines it with
