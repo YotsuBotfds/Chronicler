@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `6851762b2f3a2b03cd3902b94b79654e23753f95e3de61733a19c95ef4e37218`
+Source manifest SHA-256: `c2922d24744dfbda43f75b7a74795ec4e332adbced18c8144412a80a463decb8`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -171,3 +171,30 @@ input choice, not a silent substitution for the original3a wheel. This reader
 child changes no input file or runtime candidate/full-CI/execution binding:
 all activation fields remain NULL. Any actual replacement requires a separately
 reviewed input/source registration and fresh original-artifact admission.
+
+
+## Remaining lifecycle closure after successor review
+
+The independent991 successor review receipt
+`05d0d7ffffb1d4f815bb7fce4c68200af06d73c5bab138e39d2531f6eac368e5`
+confirmed the score/status, no-purchase and atime corrections, while retaining
+two lifecycle blockers. This follow-on closes only those source-backed cases.
+The selected producer creates a fresh issue event exactly once per report,
+binds its event ID, then appends both. The reader therefore requires the reverse
+issue-event/catalog ID join as well as its existing forward event, first-view
+and calendar checks. Removing every report view cannot erase a retained issue.
+
+The source's new report defaults are count0/sum0.0. Its loop closes expired or
+cancelled reports before measurement, and increments count at most once per
+source turn only inside target_start..target_end. The reader now preserves
+these dates and evaluation transitions: no-count means unchanged sum, a valid
+zero ratio may increase count with the same sum, missing ratios may leave both
+unchanged, and a permitted increment is finite/nondecreasing and agrees exactly
+with an available dated observation. Cancellation/resolution transfers preserve
+the prior count/sum and dated rows. Raw economic operands remain unobserved;
+no measurement is invented or demanded for an actually missing winter ratio.
+All183 previous test bodies remain intact;32 appended fake cases bring the
+frozen prospective selection to215 (63 study/152 reader). This source has no
+execution result until its own one-attempt guard/fixture receipt is retained.
+Product/native/policy/matrix/caps/ownership registrations and all runtime/input
+bindings remain exact991. Raw-retention implementation remains separate/held.

@@ -622,6 +622,30 @@ def forecast_trace(bundle, state, *, withheld=False):
             require(status in ("pending", "delivered", "withheld", "resolved", "unscored", "cancelled"), "TRACE_STATUS")
             _report_score_contract(report)
             require(type(report.get("expires_turn")) is int, "TRACE_EXPIRY_DATE")
+            prior = catalog.get(key)
+            if prior is None:
+                # A newly published report has no winter measurement yet.
+                require(report["evaluation_count"] == 0 and _same(report["evaluation_sum"], 0.0)
+                        and not observations, "TRACE_INITIAL_EVALUATION")
+            elif status in ("pending", "delivered", "withheld"):
+                require(type(report.get("target_start")) is int and type(report.get("target_end")) is int,
+                        "TRACE_EVALUATION_WINDOW")
+                delta = report["evaluation_count"] - prior["evaluation_count"]
+                in_window = report["target_start"] <= source_turn <= report["target_end"]
+                require(delta in ((0, 1) if in_window else (0,)), "TRACE_EVALUATION_ADVANCEMENT")
+                added = observations[len(prior.get("credibility_observations", [])):]
+                if delta == 0:
+                    require(_same(report["evaluation_sum"], prior["evaluation_sum"]) and not added,
+                            "TRACE_EVALUATION_UNCHANGED")
+                else:
+                    # Missing raw ratios are not reconstructed. A valid zero
+                    # ratio increments count while leaving the sum unchanged.
+                    require(report["evaluation_sum"] >= prior["evaluation_sum"] and len(added) <= 1,
+                            "TRACE_EVALUATION_INCREMENT")
+                    if added:
+                        require(added[0][0] == source_turn
+                                and _same(report["evaluation_sum"], prior["evaluation_sum"] + added[0][1]),
+                                "TRACE_DATED_EVALUATION_INCREMENT")
             if status in ("pending", "delivered", "withheld"):
                 require(source_turn <= report["expires_turn"] and report.get("resolved_turn") is None,
                         "TRACE_EXPIRED_ACTIVE_REPORT")
@@ -633,7 +657,8 @@ def forecast_trace(bundle, state, *, withheld=False):
                         else resolved_turn == report["expires_turn"] + 1, "TRACE_EXPIRY_CLOSURE")
                 if key in catalog and catalog[key]["status"] in ("pending", "delivered", "withheld"):
                     require(resolved_turn == source_turn and report["evaluation_count"] == catalog[key]["evaluation_count"]
-                            and _same(report["evaluation_sum"], catalog[key]["evaluation_sum"]), "TRACE_TERMINAL_TRANSITION")
+                            and _same(report["evaluation_sum"], catalog[key]["evaluation_sum"])
+                            and _same(observations, catalog[key].get("credibility_observations", [])), "TRACE_TERMINAL_TRANSITION")
             chain = status_chains.setdefault(key, [])
             if not chain or chain[-1]["status"] != status:
                 if chain:
@@ -702,14 +727,24 @@ def forecast_trace(bundle, state, *, withheld=False):
             resolved = snapshots.get(row["resolved_turn"])
             require(resolved is not None and resolved.get("region_control", {}).get(regions[rid]["name"]) == row["owner_name"], "TRACE_RESOLUTION_OWNER")
             evidence_count += 1
-    events = {}
+    events, issued_event_ids = {}, set()
     require(type(bundle.get("events_timeline")) is list, "TRACE_EVENT_TIMELINE")
     for event in bundle["events_timeline"]:
         require(type(event) is dict, "TRACE_EVENT_ROW")
         identifier = event.get("event_id")
+        if event.get("event_type") == "harvest_forecast_issued":
+            require(type(identifier) is str and bool(identifier), "TRACE_ISSUE_EVENT_ID")
+            issued_event_ids.add(identifier)
         if identifier:
             require(identifier not in events, "TRACE_EVENT_ID")
             events[identifier] = event
+    # _publish emits a fresh issue Event once per newly appended report and
+    # binds its ID immediately. Close both directions so removing every report
+    # view cannot erase an issue that remains in the original event timeline.
+    report_issue_ids = [report.get("issued_event_id") for report in catalog.values()]
+    require(all(type(identifier) is str and bool(identifier) for identifier in report_issue_ids)
+            and len(set(report_issue_ids)) == len(report_issue_ids)
+            and set(report_issue_ids) == issued_event_ids, "TRACE_ISSUE_EVENT_CATALOG")
     chains = []
     false_alarms = missed_warnings = scored = delivered = 0
     for identifier, report in catalog.items():

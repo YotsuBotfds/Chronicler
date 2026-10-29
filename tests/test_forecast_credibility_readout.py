@@ -851,3 +851,203 @@ def test_file_pin_still_rejects_actual_identity_mtime_or_content_mutation(tmp_pa
     assert mutated == [True]
     assert (tmp_path / "before-retained").read_bytes() == body
     assert path.is_file() and path.stat().st_nlink == 1
+
+
+# Source-only issue-event/catalog acceptance cases appended after all 183
+# previously selected test bodies (120 reader + 63 study cases).
+def _remove_report_everywhere(bundle, state, report_id):
+    for snapshot in bundle["history"]:
+        section = snapshot["harvest_forecasts"]
+        for field in ("reports", "outcomes"):
+            section[field] = [row for row in section[field] if row["id"] != report_id]
+    for field in ("reports", "outcomes"):
+        state["harvest_forecasts"][field] = [row for row in state["harvest_forecasts"][field] if row["id"] != report_id]
+    for observer in state["harvest_forecasts"]["observers"]:
+        observer["credibility_memory"] = [row for row in observer["credibility_memory"] if row["report_id"] != report_id]
+
+
+def test_retained_issue_event_cannot_lose_every_snapshot_and_final_report_view():
+    bundle, state = _trace(second=False, withheld=True)
+    _remove_report_everywhere(bundle, state, "harvest:0:0:0")
+    # Keep only the actual issue event to isolate reverse catalog completeness.
+    bundle["events_timeline"] = [event for event in bundle["events_timeline"] if event["event_id"] == "issue0"]
+    with pytest.raises(R.Refused, match="TRACE_ISSUE_EVENT_CATALOG"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("year", [0, 1])
+@pytest.mark.parametrize("first_status", ["pending", "delivered", "terminal"])
+def test_missing_initial_report_view_cannot_be_replaced_by_a_later_first_view(year, first_status):
+    bundle, state = _trace(action=False)
+    identifier, issue = f"harvest:{year}:0:0", year * 12 + 5
+    first_turn = year * 12 + 12 if first_status == "terminal" else issue + 1
+    initial = copy.deepcopy(next(row for row in bundle["history"][issue]["harvest_forecasts"]["reports"]
+                                 if row["id"] == identifier))
+    for snapshot in bundle["history"][issue:first_turn]:
+        for field in ("reports", "outcomes"):
+            snapshot["harvest_forecasts"][field] = [row for row in snapshot["harvest_forecasts"][field]
+                                                   if row["id"] != identifier]
+    if first_status == "pending":
+        section = bundle["history"][first_turn]["harvest_forecasts"]
+        section["reports"] = [initial if row["id"] == identifier else row for row in section["reports"]]
+    with pytest.raises(R.Refused, match="TRACE_FIRST_REPORT_VIEW"):
+        R.forecast_trace(bundle, state)
+
+
+@pytest.mark.parametrize("defect", ["extra_event", "orphan_second_issue", "missing_issue_event"])
+def test_issue_event_catalog_cardinality_is_closed_in_both_directions(defect):
+    bundle, state = _trace(withheld=True)
+    if defect == "extra_event":
+        extra = copy.deepcopy(next(event for event in bundle["events_timeline"] if event["event_id"] == "issue0"))
+        extra["event_id"] = "extra-unmatched-issue"
+        bundle["events_timeline"].append(extra)
+    elif defect == "orphan_second_issue":
+        _remove_report_everywhere(bundle, state, "harvest:1:0:0")
+        bundle["events_timeline"] = [event for event in bundle["events_timeline"] if event["event_id"] != "closure1"]
+    else:
+        bundle["events_timeline"] = [event for event in bundle["events_timeline"] if event["event_id"] != "issue0"]
+    with pytest.raises(R.Refused, match="TRACE_ISSUE_EVENT_CATALOG"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("bad_id", [None, "", False, 0])
+def test_issue_event_needs_a_nonempty_string_identity(bad_id):
+    bundle, state = _trace(second=False, withheld=True)
+    for event in bundle["events_timeline"]:
+        if event["event_id"] == "issue0":
+            event["event_id"] = bad_id
+    with pytest.raises(R.Refused, match="TRACE_ISSUE_EVENT_ID"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_two_issue_events_cannot_share_one_event_identity():
+    bundle, state = _trace(second=False, withheld=True)
+    bundle["events_timeline"].append(copy.deepcopy(next(event for event in bundle["events_timeline"]
+                                                      if event["event_id"] == "issue0")))
+    with pytest.raises(R.Refused, match="TRACE_EVENT_ID"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_two_catalog_reports_cannot_share_one_issue_event():
+    bundle, state = _trace(withheld=True)
+    for row in _report_views(bundle, state, "harvest:1:0:0"):
+        row["issued_event_id"] = "issue0"
+    with pytest.raises(R.Refused, match="TRACE_ISSUE_EVENT_CATALOG"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_unrelated_timeline_event_is_not_a_forecast_issue_obligation():
+    bundle, state = _trace(second=False, withheld=True)
+    _remove_report_everywhere(bundle, state, "harvest:0:0:0")
+    bundle["events_timeline"] = [{"event_id": "unrelated-event", "event_type": "unrelated_history",
+                                 "turn": 5, "actors": ["C0"], "region": "R0", "causes": []}]
+    result = R.forecast_trace(bundle, state, withheld=True)
+    assert result["denominators"]["unique_reports"] == 0
+    assert result["learning_use_coverage"] == "UNOBSERVED"
+
+
+@pytest.mark.parametrize("field,value", [("evaluation_count", 1), ("evaluation_sum", 0.25)])
+def test_freshly_issued_report_starts_with_zero_evaluation_count_and_sum(field, value):
+    bundle, state = _trace(second=False, withheld=True)
+    bundle["history"][5]["harvest_forecasts"]["reports"][0][field] = value
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_withheld_prewinter_evaluation_jump_cannot_masquerade_as_a_coherent_final_score():
+    bundle, state = _trace(second=False, withheld=True)
+    # All eventual arithmetic remains coherent; only the recorded chronology is
+    # impossible. Source turn8 precedes the target window9/10/11.
+    for snapshot in bundle["history"][8:12]:
+        snapshot["harvest_forecasts"]["reports"][0].update(evaluation_count=3, evaluation_sum=3.0)
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_one_window_turn_cannot_advance_evaluation_count_twice():
+    bundle, state = _trace(second=False, withheld=True)
+    bundle["history"][9]["harvest_forecasts"]["reports"][0].update(evaluation_count=2, evaluation_sum=2.0)
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_prewindow_sum_drift_is_refused_even_when_count_stays_zero():
+    bundle, state = _trace(second=False, withheld=True)
+    bundle["history"][8]["harvest_forecasts"]["reports"][0]["evaluation_sum"] = 0.25
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_missing_ratio_turn_cannot_change_sum_without_count_increment():
+    bundle, state = _trace(second=False, withheld=True, missing_first=True)
+    bundle["history"][10]["harvest_forecasts"]["reports"][0]["evaluation_sum"] = 1.5
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_nonnegative_recorded_measurement_cannot_reduce_evaluation_sum():
+    bundle, state = _trace(second=False, withheld=True)
+    bundle["history"][10]["harvest_forecasts"]["reports"][0]["evaluation_sum"] = 0.5
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_available_dated_observation_must_match_that_turns_ordered_sum():
+    bundle, state = _trace(second=False, first_ratios=(0.1, 0.2, 0.3))
+    # Future observations, complete final memory and score are untouched. The
+    # already retained source-turn9 ratio is 0.1, so 0.0 += 0.1 cannot be 0.125.
+    bundle["history"][9]["harvest_forecasts"]["reports"][0]["evaluation_sum"] = 0.125
+    with pytest.raises(R.Refused):
+        R.forecast_trace(bundle, state)
+
+
+@pytest.mark.parametrize("withheld", [False, True])
+def test_missing_raw_ratio_legitimately_leaves_count_and_sum_unchanged(withheld):
+    bundle, state = _trace(second=False, withheld=withheld, missing_first=True)
+    before = bundle["history"][9]["harvest_forecasts"]["reports"][0]
+    missing = bundle["history"][10]["harvest_forecasts"]["reports"][0]
+    assert (before["evaluation_count"], before["evaluation_sum"]) == (missing["evaluation_count"], missing["evaluation_sum"])
+    result = R.forecast_trace(bundle, state, withheld=withheld)
+    assert result["incomplete_window_reports"] == 1
+    assert result["denominators"]["scored_reports"] == 0
+    assert result["raw_production_demand_recomputation"] is None
+
+
+@pytest.mark.parametrize("withheld", [False, True])
+def test_zero_ratio_legitimately_increments_count_without_increasing_sum(withheld):
+    bundle, state = _trace(second=False, withheld=withheld, first_ratios=(0.0, 1.0, 0.0))
+    initial = bundle["history"][8]["harvest_forecasts"]["reports"][0]
+    zero = bundle["history"][9]["harvest_forecasts"]["reports"][0]
+    assert zero["evaluation_count"] == initial["evaluation_count"] + 1
+    assert zero["evaluation_sum"] == initial["evaluation_sum"]
+    result = R.forecast_trace(bundle, state, withheld=withheld)
+    assert result["denominators"]["scored_reports"] == 1
+    assert result["raw_production_demand_recomputation"] is None
+
+
+def test_cancellation_transfers_two_prior_measurements_without_measuring_its_own_turn():
+    bundle, state = _trace(second=False, withheld=True)
+    terminal = copy.deepcopy(bundle["history"][10]["harvest_forecasts"]["reports"][0])
+    terminal.update(status="cancelled", resolved_turn=11)
+    assert terminal["evaluation_count"] == 2 and terminal["evaluation_sum"] == 2.0
+    for snapshot in bundle["history"][11:]:
+        snapshot["harvest_forecasts"].update(reports=[], outcomes=[copy.deepcopy(terminal)])
+        snapshot["region_control"]["R0"] = "C1"
+    next(event for event in bundle["events_timeline"] if event["event_id"] == "closure0")["turn"] = 11
+    state["civilizations"].append({"name": "C1"})
+    state["regions"][0]["controller"] = "C1"
+    state["harvest_forecasts"].update(reports=[], outcomes=[copy.deepcopy(terminal)], observers=[])
+    result = R.forecast_trace(bundle, state, withheld=True)
+    assert result["cancelled_reports"] == 1 and result["denominators"]["scored_reports"] == 0
+
+
+@pytest.mark.parametrize("withheld", [False, True])
+def test_expiry_resolution_transfers_complete_count_and_sum_unchanged(withheld):
+    bundle, state = _trace(second=False, withheld=withheld)
+    last_measurement = bundle["history"][11]["harvest_forecasts"]["reports"][0]
+    resolved = bundle["history"][12]["harvest_forecasts"]["outcomes"][0]
+    assert (resolved["evaluation_count"], resolved["evaluation_sum"]) == (
+        last_measurement["evaluation_count"], last_measurement["evaluation_sum"])
+    result = R.forecast_trace(bundle, state, withheld=withheld)
+    assert result["denominators"]["scored_reports"] == 1
+    assert result["raw_production_demand_recomputation"] is None
