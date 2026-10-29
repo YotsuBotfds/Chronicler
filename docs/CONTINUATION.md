@@ -1,13 +1,48 @@
 # Recovered continuation — 2026-10-11
 
+The current consolidation is `lead/review-integration-20261029`. Its runtime,
+tests and scripts match qualified `9d5cb7e4`; the only additional executable
+change is source-reviewed CI preflight `77e83c43`, which still needs this
+integration's hosted check. The earlier docs-only `lead/recovered-review-20261029`
+branch and every producing source/ref remain preserved. Main is unchanged.
+
+The [corrected observer/validation CI readout](integration/practice-growth-observer-ci-2026-10-29.md)
+records all six jobs passing at `9d5cb7e4`: 8,323 native Python parents,
+7,990 no-Rust parents, 1,118 Rust tests, 4,218 bounded offline passes and 743
+viewer tests with lint/build. Skips, ignored cases and 526 successful Python
+subtests are separate. Both genuine phase/turn observer cases pass in both
+full Python environments. The original `b35ccd7d` wrapper-signature failure
+is preserved; its assertion was not weakened. The integrated components add
+bounded practice-growth observation, closed-handle cleanup, benchmark-input
+repair and one Arrow event-table read per validation seed, alongside the
+qualified native diagnostics/index reuse. No default feature is promoted.
+
+The [production primer](experiments/wealth-floor-production-primer-result-2026-10-29.md)
+now has completed-job, full-archive and independent metadata qualification:
+19 executions / 3,097 ticks, 13 late checkpoint comparisons, actual two-CPU
+context and serial repeated-seed determinism. Its incidental oracle failures
+remain explicit. Full outcome cohorts and historical reuse remain pending;
+the real two-worker smoke and checkpoint evidence before retirement require
+their separate source/activation review. The original 926-tick proof is unchanged.
+
+The [CI wrapper preflight](performance/ci-wrapper-contract-preflight-2026-10-29.md)
+checks two existing contracts before the native wheel build and before the
+no-Rust full suite, with separate guarded receipts. Existing 27 pure contracts
+and unfiltered workflow lint pass; its new hosted execution is pending.
+It preserves all full selections, original artifact layouts and 110-second
+bounds, adding two separate small artifacts for future producers.
+
+Prior source-scoped preparation and qualification records follow. Their exact
+producing commits retain their original claims and failures.
+
 The [first wealth-fix bootstrap](experiments/wealth-floor-candidate-bootstrap-result-2026-10-29.md)
 passed at `40db80d3`, run `40824399844`: 162 guarded preflight cases,
 six native checkpoint cases, nine candidate-owned headers, cross-native
 rejection before restoration, and both genuine 200-turn repeat pairs.
 All 698 original archive members and publication seals reconcile. This is
 926 ticks of bounded mechanical evidence, with incidental oracle failures
-preserved. Late production checkpoints and actual two-CPU execution require
-their separate primer; final A pins and outcome admission remain pending.
+preserved. The separate late-checkpoint/two-CPU primer is now verified;
+final outcome admission remains pending.
 
 October 29 combined native candidate `95f73a74` passes all six unchanged
 test selections: diagnostics, index reuse, explicit transient Python reader
@@ -20,7 +55,7 @@ The [corrected paired wealth build](integration/wealth-floor-paired-native-build
 at `3bf976cd` also completes: exact historical native reproduction, distinct
 candidate, equal build context and all four real Rust regressions. All
 artifacts/seals verify. First failure `75cb1771` remains preserved; the bounded candidate
-bootstrap is now verified; production primer and full outcome admission remain pending.
+bootstrap and production primer are now verified; full outcome admission remains pending.
 
 October 29 baseline byte audit: source `7185f69c`, run `40818582726`, completes
 75,764 raw file payloads / 9,152,457,132 bytes against original inventories.
@@ -119,7 +154,7 @@ hash. Nine new regressions fail on the original verifier; the correction passes
 110-second bound. Independent source review and all six exact-source CI jobs pass at `e984be2a`.
 No producer output, simulation policy, checkpoint or active gate was changed.
 
-The current consolidated review branch is `lead/recovered-review-20261029`.
+The preserved earlier consolidated review branch is `lead/recovered-review-20261029`.
 Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
 code, validation, measured workflow options and held experiments. World generation, physics, RNG, output writers and Rust remain those of
 qualified `c76efe85`; its original producing branch/path retain their complete

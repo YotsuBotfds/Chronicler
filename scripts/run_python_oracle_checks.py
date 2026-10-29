@@ -18,6 +18,10 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "build-provenance": [
+        "tests/test_native_build_lanes.py",
+        "tests/test_native_wheel_receipt.py",
+    ],
     "arc-event-types": [
         "tests/test_arc_event_types.py",
     ],
@@ -47,6 +51,7 @@ CHUNKS = {
         "tests/test_politics_bridge.py::TestOraclePreservation",
         "tests/test_agents_off_determinism.py",
         "tests/test_validate.py",
+        "tests/test_validation_shared_event_table.py",
         "tests/test_procedural_gates.py",
         "tests/test_validation_split_imports.py",
         "tests/test_utils_civ_helpers.py",
@@ -217,6 +222,7 @@ CHUNKS = {
         "tests/test_parent_extra_archive.py::test_no_raw_delete_or_unbounded_command_is_exposed",
     ],
     "turn-speed": [
+        "tests/test_agent_scale_benchmark.py",
         "tests/test_turn_speed.py",
         "tests/test_serialization_dormant_fields.py",
     ],
@@ -298,6 +304,12 @@ CHUNKS = {
     ],
     "faiths": [
         "tests/test_permanent_faiths.py",
+    ],
+    "decision-delivery-python": [
+        "tests/test_decision_delivery_adapter.py",
+    ],
+    "practice-growth-observer": [
+        "tests/test_practice_growth_observer.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]

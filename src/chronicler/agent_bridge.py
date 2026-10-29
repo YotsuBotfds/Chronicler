@@ -1421,6 +1421,7 @@ class AgentBridge:
         Assumes sync_regions() was already called this turn.
         Does NOT call set_region_state() again.
         """
+        delivery = self._begin_decision_delivery(world)
         # M58a: Sync merchant route graph before tick
         from chronicler.economy import build_merchant_route_graph
         route_batch = build_merchant_route_graph(world)
@@ -1440,7 +1441,9 @@ class AgentBridge:
         prepare_transaction_receipts(world, self)
         agent_events = self._sim.tick(world.turn, signals)
         capture_transaction_receipts(world, self)
-        return self._process_tick_results(agent_events, world, death_output=death_output)
+        result = self._process_tick_results(agent_events, world, death_output=death_output)
+        self._capture_decision_delivery(delivery, agent_events)
+        return result
 
     def tick(
         self, world: WorldState, shocks=None, demands=None, conquered=None, *,
@@ -1450,6 +1453,7 @@ class AgentBridge:
 
         Use sync_regions() + tick_agents() separately when ecology runs between them.
         """
+        delivery = self._begin_decision_delivery(world)
         self.sync_regions(world)
 
         # M58a: Sync merchant route graph before tick
@@ -1471,7 +1475,38 @@ class AgentBridge:
         prepare_transaction_receipts(world, self)
         agent_events = self._sim.tick(world.turn, signals)
         capture_transaction_receipts(world, self)
-        return self._process_tick_results(agent_events, world, death_output=death_output)
+        result = self._process_tick_results(agent_events, world, death_output=death_output)
+        self._capture_decision_delivery(delivery, agent_events)
+        return result
+
+    def _begin_decision_delivery(self, world):
+        observer = self.__dict__.get("_decision_delivery_observer")
+        if observer is None:
+            return None
+        try:
+            token = observer._begin(world.turn)
+            return (observer, token) if token is not None else None
+        except Exception:
+            # An unusable attachment cannot deliver an older successful frame.
+            self.__dict__.pop("_decision_delivery_observer", None)
+            return None
+
+    def _capture_decision_delivery(self, delivery, agent_events):
+        if delivery is None:
+            return
+        observer, token = delivery
+        try:
+            observer._capture(token, agent_events)
+        except Exception:
+            self.__dict__.pop("_decision_delivery_observer", None)
+
+    def _stop_decision_delivery(self, reason):
+        observer = self.__dict__.get("_decision_delivery_observer")
+        if observer is not None:
+            try:
+                observer._stop(reason)
+            except Exception:
+                self.__dict__.pop("_decision_delivery_observer", None)
 
     def _process_tick_results(
         self, agent_events, world: WorldState, *,
@@ -2964,6 +2999,7 @@ class AgentBridge:
 
     def reset(self) -> None:
         """Clear stateful data for batch mode reuse."""
+        self._stop_decision_delivery("reset")
         self._event_window.clear()
         self._demand_manager.reset()
         self.named_agents.clear()
@@ -2983,6 +3019,7 @@ class AgentBridge:
         self._knowledge_stats_history.clear()
 
     def close(self) -> None:
+        self._stop_decision_delivery("closed")
         if self._shadow_logger:
             self._shadow_logger.close()
         if self._sidecar:
@@ -2992,7 +3029,7 @@ class AgentBridge:
     # native simulator replaced by the simulator's own state blob. These are
     # derived caches keyed by object identity or by the turn being processed;
     # each is rebuilt on demand from the state that is kept.
-    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot")
+    _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot", "_decision_delivery_observer")
 
     def __getstate__(self) -> dict:
         state = dict(self.__dict__)
@@ -3002,6 +3039,7 @@ class AgentBridge:
 
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
+        self.__dict__.pop("_decision_delivery_observer", None)
 
     def get_snapshot(self): return self._sim.get_snapshot()
     def get_aggregates(self): return self._sim.get_aggregates()

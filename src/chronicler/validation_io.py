@@ -874,6 +874,10 @@ def _load_agent_deaths(seed_dir: Path) -> dict[int, int]:
     import pyarrow.ipc as ipc
 
     table = ipc.open_file(path).read_all()
+    return _agent_deaths_from_table(table, pc)
+
+
+def _agent_deaths_from_table(table, pc) -> dict[int, int]:
     if "event_type" not in table.column_names:
         return {}
     dead = table.filter(pc.equal(table.column("event_type"), "death"))
@@ -894,6 +898,10 @@ def _load_agent_events(seed_dir: Path) -> list[dict]:
     import pyarrow.ipc as ipc
 
     table = ipc.open_file(path).read_all()
+    return _agent_events_from_table(table)
+
+
+def _agent_events_from_table(table) -> list[dict]:
     data = table.to_pydict()
     events: list[dict] = []
     first_uncounted: dict | None = None
@@ -921,6 +929,20 @@ def _load_agent_events(seed_dir: Path) -> list[dict]:
     if not events and first_uncounted is not None:
         events.append(first_uncounted)
     return events
+
+
+def _load_agent_events_and_deaths(seed_dir: Path) -> tuple[list[dict], dict[int, int]]:
+    """Derive both views from one seed-local table; retain no shared cache."""
+    path = seed_dir / "agent_events.arrow"
+    if not path.exists() or not _has_pyarrow():
+        return [], {}
+    import pyarrow.ipc as ipc
+
+    table = ipc.open_file(path).read_all()
+    events = _agent_events_from_table(table)
+    import pyarrow.compute as pc
+
+    return events, _agent_deaths_from_table(table, pc)
 
 
 def _world_population_series(bundle: dict) -> list[int]:
@@ -1067,14 +1089,17 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None, *,
         if needs_snapshot is None and sidecar_dir.exists():
             needs_turn = _choose_snapshot_turn(_snapshot_turns(sidecar_dir, "needs"), target_turn)
             needs_snapshot = _load_needs_snapshot(sidecar_dir, needs_turn)
-        runs.append({
+        run = {
             "bundle_path": bundle_path,
             "seed_dir": seed_dir,
             "seed": bundle.get("metadata", {}).get("seed"),
             "world": _world_shape(bundle),
             "bundle": _oracle_bundle_view(bundle),
-            "events": _load_agent_events(seed_dir),
-            "deaths": _load_agent_deaths(seed_dir),
+        }
+        events, deaths = _load_agent_events_and_deaths(seed_dir)
+        run.update({
+            "events": events,
+            "deaths": deaths,
             "relationship_columns": relationship_columns,
             "memory_columns": memory_columns,
             "needs_columns": needs_columns,
@@ -1086,6 +1111,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None, *,
             "civ_trajectories": _civ_trajectories(bundle),
             "civ_crisis_event_turns": _civ_crisis_event_turns(bundle),
         })
+        runs.append(run)
     return runs
 
 

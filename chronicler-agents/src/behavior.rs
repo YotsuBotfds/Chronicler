@@ -16,6 +16,7 @@ use crate::agent::{
     W_MIGRATE_OPP, W_MIGRATE_SAT, W_REBEL, W_SWITCH,
 };
 use crate::migration_drivers::*;
+use crate::decision_delivery::{DecisionObserver, NoDelivery, RegionDelivery};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::satisfaction::target_occupation_ratio;
@@ -230,6 +231,18 @@ fn best_migration_target_for_agent(
     slot: usize,
     mobility: Option<&Mobility>,
 ) -> MigrationChoice {
+    best_migration_target_observed(pool, regions, stats, region_id, slot, mobility, &mut NoDelivery)
+}
+
+fn best_migration_target_observed<O: DecisionObserver>(
+    pool: &AgentPool,
+    regions: &[RegionState],
+    stats: &RegionStats,
+    region_id: usize,
+    slot: usize,
+    mobility: Option<&Mobility>,
+    observer: &mut O,
+) -> MigrationChoice {
     let civ = pool.civ_affinity(slot);
     let belief = pool.beliefs[slot];
     let own_pop = region_population_count(stats, region_id);
@@ -277,6 +290,7 @@ fn best_migration_target_for_agent(
         {
             continue;
         }
+        if O::ENABLED { observer.begin_candidate(adj as u16, own_score, own_pop_ratio, adj_pop_ratio); }
 
         // Healthy-world drivers: frontier, wage gap, chain, net of roots.
         let voluntary = match mobility {
@@ -296,11 +310,14 @@ fn best_migration_target_for_agent(
                 gate_open[2] |= gross.chain > 0.0;
                 gate_open[3] |= gross.urban > 0.0;
                 gate_open[4] |= gross.learning > 0.0;
-                gross.net_of_roots(m.roots)
+                let net = gross.net_of_roots(m.roots);
+                if O::ENABLED { observer.candidate_pull(&gross, m.roots, &net); }
+                net
             }
             None => VoluntaryPull::default(),
         };
         let pull = voluntary.total();
+        if O::ENABLED { observer.candidate_before_hysteresis(pull); }
 
         // A region nobody lives in has no satisfaction or stores to judge it
         // by (both read 0). An agent pulled there (frontier settlers) judges
@@ -321,7 +338,9 @@ fn best_migration_target_for_agent(
         // leave again at once: seen from there, home must score less than
         // the hysteresis better (the river bonus counts from both sides).
         // Otherwise the opportunity term would carry the mover back.
-        let (voluntary, pull) = if own_score + river - (adj_score - river) < MIGRATE_HYSTERESIS {
+        let hysteresis_kept = own_score + river - (adj_score - river) < MIGRATE_HYSTERESIS;
+        if O::ENABLED { observer.candidate_hysteresis(hysteresis_kept); }
+        let (voluntary, pull) = if hysteresis_kept {
             (voluntary, pull)
         } else {
             (VoluntaryPull::default(), 0.0)
@@ -363,7 +382,8 @@ fn best_migration_target_for_agent(
             }
         }
 
-        if with_pull(adj_score, pull) > best_adj_score {
+        let became_best = with_pull(adj_score, pull) > best_adj_score;
+        if became_best {
             best_adj_score = with_pull(adj_score, pull);
             best_base_score = adj_score;
             best_adj_id = adj as u16;
@@ -371,6 +391,7 @@ fn best_migration_target_for_agent(
             best_news = adj_score - pre_news_score;
             best_voluntary = voluntary;
         }
+        if O::ENABLED { observer.end_candidate(pull, adj_score, river, pre_news_score, became_best); }
     }
 
     MigrationChoice {
@@ -890,6 +911,28 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
     id_to_slot: &L,  // M57b
     options: DecisionOptions,
 ) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
+        rng, id_to_slot, options, &mut NoDelivery)
+}
+
+/// The opt-in observer has its own monomorphized path; ordinary decisions
+/// instantiate the zero-sized no-op sink above.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn evaluate_region_decisions_with_delivery<L: crate::pool::SlotLookup>(
+    pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
+    stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
+    options: DecisionOptions, observer: &mut RegionDelivery<'_>,
+) -> (PendingDecisions, u32) {
+    evaluate_region_decisions_observer(pool, slots, regions, region_state, stats, region_id,
+        rng, id_to_slot, options, observer)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObserver>(
+    pool: &AgentPool, slots: &[usize], regions: &[RegionState], region_state: &RegionState,
+    stats: &RegionStats, region_id: usize, rng: &mut ChaCha8Rng, id_to_slot: &L,
+    options: DecisionOptions, observer: &mut O,
+) -> (PendingDecisions, u32) {
     let ablation = options.ablation;
     let ablate_needs = ablation & crate::scale::ABLATE_NEEDS != 0;
     let ablate_kin_roots = ablation & crate::scale::ABLATE_KIN_ROOTS != 0;
@@ -903,9 +946,11 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !pool.is_alive(slot) {
             continue;
         }
+        if O::ENABLED { observer.begin_agent(pool, slot, region_id); }
 
         // M58a: Skip non-idle merchants from decisions (on trip)
         if pool.is_on_trip(slot) {
+            if O::ENABLED { observer.trip(); }
             continue;
         }
 
@@ -918,6 +963,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         let ambi = pool.ambition(slot);
         let ltrait = pool.loyalty_trait(slot);
         let is_displaced = pool.displacement_turns(slot) > 0;
+        if O::ENABLED { observer.evaluated(is_displaced); }
         let choice = if is_displaced {
             MigrationChoice::stay(region_id)
         } else {
@@ -931,7 +977,8 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                     m.drop_relationship_roots(pool.ages[slot]);
                 }
             }
-            best_migration_target_for_agent(pool, regions, stats, region_id, slot, mobility.as_ref())
+            if O::ENABLED { observer.mobility(mobility.as_ref()); }
+            best_migration_target_observed(pool, regions, stats, region_id, slot, mobility.as_ref(), observer)
         };
         pending.migration_drivers.count_open_pulls(&choice.voluntary, &choice.gate_open);
         let best_migration_target = choice.target;
@@ -956,6 +1003,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
             migrate_utility(sat, migration_opportunity)
                 * personality_modifier(bold, BOLD_MIGRATE_WEIGHT)
         };
+        if O::ENABLED { observer.stage(0, migrate_util); }
 
         // M38b: Persecution boosts for agents outside the persecuting ruler's faith
         let mut persecution_push = 0.0f32;
@@ -973,10 +1021,15 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !is_displaced {
             migrate_util += mem_mods.migrate;
         }
+        if O::ENABLED { observer.stage(1, migrate_util); }
 
         // M49: Need-driven utility modifiers — additive, applied after memory, before gate
         let need_mods = if ablate_needs {
             crate::needs::NeedUtilityModifiers::default()
+        } else if O::ENABLED {
+            let (mods, trace) = crate::needs::compute_need_utility_modifiers_with_trace(pool, slot);
+            observer.need(&trace, !is_displaced);
+            mods
         } else {
             crate::needs::compute_need_utility_modifiers(pool, slot)
         };
@@ -991,6 +1044,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if !is_displaced {
             migrate_util += need_mods.migrate;
         }
+        if O::ENABLED { observer.stage(2, migrate_util); }
 
         // Healthy-world drivers: the voluntary pull toward the chosen target,
         // net of roots (zero for displaced or ineligible agents).
@@ -998,6 +1052,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         if voluntary_pull > 0.0 {
             migrate_util += voluntary_pull;
         }
+        if O::ENABLED { observer.stage(3, migrate_util); }
 
         // M57b: Household-effective wealth modulates migration threshold for married agents.
         // Wealthier households are less likely to migrate (higher opportunity cost).
@@ -1008,10 +1063,15 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                 // Married with pooled wealth: dampen migration utility slightly
                 // Ratio > 1.0 means spouse has wealth; damp migration by inverse power.
                 let ratio = eff_wealth / personal_wealth.max(0.01);
-                migrate_util *= HOUSEHOLD_MIGRATION_MARRIED_FACTOR
+                let wealth_factor = HOUSEHOLD_MIGRATION_MARRIED_FACTOR
                     * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
+                migrate_util *= wealth_factor;
+                if O::ENABLED { observer.wealth(personal_wealth, eff_wealth, wealth_factor, true); }
+            } else if O::ENABLED {
+                observer.wealth(personal_wealth, eff_wealth, 1.0, false);
             }
         }
+        if O::ENABLED { observer.stage(4, migrate_util); }
 
         let u_rebel = if rebel_util > 0.0 { rebel_util } else { f32::NEG_INFINITY };
         // Gate: if no better destination exists (best target is own region), force
@@ -1026,6 +1086,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                 let ties = crate::community::community_ties(pool, slot, region_id, id_to_slot);
                 pending.migration_drivers.record_community_ties(ties.counted());
                 let anchor = ties.anchor_with(full_anchor);
+                if O::ENABLED { observer.anchor(anchor); }
                 if anchor > 0.0 { migrate_util - anchor } else { migrate_util }
             } else {
                 migrate_util
@@ -1033,6 +1094,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
         } else {
             f32::NEG_INFINITY
         };
+        if O::ENABLED { observer.stage(5, u_migrate); }
 
         let (u_switch_base, switch_target) = switch_utility(
             occ,
@@ -1057,6 +1119,10 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
             rng,
             DECISION_TEMPERATURE,
         );
+        if O::ENABLED {
+            observer.final_decision(best_migration_target, migration_opportunity, voluntary_pull,
+                [u_rebel, u_migrate, u_switch, u_stay], chosen as u8);
+        }
 
         match chosen {
             0 => {
@@ -1133,6 +1199,7 @@ pub fn evaluate_region_decisions_with<L: crate::pool::SlotLookup>(
                     effective_drift *= 1.0 - LOYALTY_RALLY_DRIFT_DAMPING * rally;
                     pending.loyalty_drifts_damped_by_rally += 1;
                 }
+                if O::ENABLED { observer.autonomy(autonomy_deficit, autonomy_factor, effective_drift); }
                 if loy - effective_drift < LOYALTY_FLIP_THRESHOLD {
                     // Would drop below flip threshold — flip civ
                     pending.loyalty_flips.push((slot, other_civ));
@@ -2337,6 +2404,27 @@ mod tests {
     }
 
     #[test]
+    fn decision_delivery_observes_gross_roots_and_net_pull_before_target_selection() {
+        use rand::SeedableRng;
+        for age in [25, rooted_age()] {
+            let (pool, regions, movers) = frontier_world(age, false);
+            let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
+            let config = crate::decision_delivery::DeliveryConfig::new(64, 128, None).unwrap();
+            let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+            let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+            evaluate_region_decisions_with_delivery(&pool, &movers, &regions, &regions[0], &stats,
+                0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut observer);
+            assert_eq!(observer.candidates.len(), movers.len());
+            assert!(observer.candidates.iter().all(|r| r.gross[0] > 0.0));
+            if age == 25 {
+                assert!(observer.candidates.iter().all(|r| r.net[0] > 0.0 && r.roots == 0.0));
+            } else {
+                assert!(observer.candidates.iter().all(|r| r.net[0] == 0.0 && r.roots > 0.0));
+            }
+        }
+    }
+
+    #[test]
     fn test_frontier_settlers_leave_a_full_region_for_an_emptier_one_of_the_realm() {
         let pending = frontier_decisions(25, false);
         assert!(pending.migrations.len() >= 2, "got {}", pending.migrations.len());
@@ -2743,6 +2831,52 @@ mod ablation_tests {
         let (placebo, placebo_next) = decide(&pool, &regions, &slots, Some(crate::scale::ABLATE_PLACEBO));
         assert!(same(&plain, &placebo));
         assert_eq!(plain_next, placebo_next);
+    }
+
+    #[test]
+    fn decision_delivery_preserves_decisions_rng_and_read_only_pool_bytes() {
+        let (pool, regions, slots) = world(60);
+        let stats = compute_region_stats(&pool, &regions, &signals());
+        let ids = pool.build_id_slots();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+        for ablation in [0, crate::scale::ABLATE_NEEDS, crate::scale::ABLATE_KIN_ROOTS] {
+            let options = DecisionOptions { ablation, ..Default::default() };
+            let mut plain_rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+            let mut observed_rng = plain_rng.clone();
+            let (plain, count) = evaluate_region_decisions_with(&pool, &slots, &regions,
+                &regions[0], &stats, 0, &mut plain_rng, &ids, options);
+            let config = crate::decision_delivery::DeliveryConfig::new(128, 128, None).unwrap();
+            let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+            let (observed, observed_count) = evaluate_region_decisions_with_delivery(&pool,
+                &slots, &regions, &regions[0], &stats, 0, &mut observed_rng, &ids, options, &mut observer);
+            assert!(same(&plain, &observed));
+            assert_eq!(count, observed_count);
+            assert_eq!(plain.migration_followers, observed.migration_followers);
+            assert_eq!(plain.migration_drivers.share.map(f64::to_bits), observed.migration_drivers.share.map(f64::to_bits));
+            for _ in 0..16 { assert_eq!(plain_rng.next_u64(), observed_rng.next_u64()); }
+            assert_eq!(observer.decisions.len(), slots.len());
+            assert!(observer.decisions.iter().all(|r| r.final_utilities_valid));
+            assert!(observer.decisions.iter().all(|r| r.needs_computed == (ablation & crate::scale::ABLATE_NEEDS == 0)));
+        }
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &pool), before);
+    }
+
+    #[test]
+    fn decision_delivery_displacement_records_computed_but_unapplied_needs() {
+        let (mut pool, regions, slots) = world(1);
+        pool.displacement_turns[slots[0]] = 3;
+        let stats = compute_region_stats(&pool, &regions, &signals());
+        let config = crate::decision_delivery::DeliveryConfig::new(16, 16, None).unwrap();
+        let mut observer = crate::decision_delivery::RegionDelivery::new(&config, 0, 1);
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        evaluate_region_decisions_with_delivery(&pool, &slots, &regions, &regions[0], &stats,
+            0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut observer);
+        let row = &observer.decisions[0];
+        assert!(row.needs_computed);
+        assert!(!row.needs_migration_applied);
+        assert_eq!(row.utilities[1].to_bits(), f32::NEG_INFINITY.to_bits());
+        assert!(observer.candidates.is_empty());
+        assert_eq!(row.chosen_action == 1, false);
     }
 
     #[test]

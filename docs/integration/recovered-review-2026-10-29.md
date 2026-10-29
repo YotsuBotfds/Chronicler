@@ -1,13 +1,21 @@
 # Recovered development review, 2026-10-29
 
-The review branch is `lead/recovered-review-20261029`. Main remains unchanged.
-World generation, physics, RNG, output writers and Rust remain those of
-qualified producer `c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`. The newer batch
-and validation modules close verified-cohort admission gaps. Source, tests,
-scripts, viewer, Rust and the test workflow exactly match qualified `ec85795e`;
-this review merge adds documentation. The original producer branch and checkout
-retain their exact SHA, branch identity, package bytes and path for checkpoint
-replay; its saved-output proof remains scoped to that original producer.
+The consolidated branch is `lead/review-integration-20261029`; main remains
+unchanged. Runtime, tests, scripts, viewer and Rust match qualified `9d5cb7e4`.
+The only additional executable change is CI wrapper preflight `77e83c43`, with
+its own hosted integration check pending. The prior docs-only review branch
+`lead/recovered-review-20261029` remains preserved at `06d357e4`, as do the exact
+C76 producer branch, checkout, source/path/package identity and every study ref.
+
+The [corrected integration readout](practice-growth-observer-ci-2026-10-29.md)
+records all six source-9d jobs passing: bounded practice observation, native
+movement diagnostics/index reuse, explicit delivery reader, benchmark-input
+repair and shared validation Arrow reads. The first wrapper-signature failure
+remains preserved. The [3,097-tick wealth primer](../experiments/wealth-floor-production-primer-result-2026-10-29.md)
+is separately verified; its intentional native correction is not merged here.
+Full scientific outcomes, old/new native output parity and measured performance
+retain their separate studies and limits. The prior source-scoped records below
+describe the exact commits they originally qualified.
 
 ## Concrete changes and evidence
 

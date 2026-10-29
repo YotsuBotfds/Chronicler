@@ -166,6 +166,9 @@ pub struct AgentSimulator {
     health_work: Option<crate::health_care::HealthWork>,
     /// Optional recorder configuration, restored by Python before each tick.
     transaction_receipts_limit: Option<usize>,
+    /// Detached decision observations; neither configuration nor frame persists.
+    decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
+    decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
 }
 
 #[pymethods]
@@ -220,6 +223,8 @@ impl AgentSimulator {
             snapshot_cache: None,
             health_work: None,
             transaction_receipts_limit: None,
+            decision_delivery_config: None,
+            decision_delivery_frame: None,
         }
     }
 
@@ -1204,6 +1209,8 @@ impl AgentSimulator {
 
     /// Advance simulation by one turn. Returns an events RecordBatch.
     pub fn tick(&mut self, py: Python<'_>, turn: u32, civ_signals: PyRecordBatch) -> PyResult<PyRecordBatch> {
+        // A failed tick must never expose a previous turn's observation.
+        self.decision_delivery_frame = None;
         self.snapshot_cache = None; // pool may change: drop the cached snapshot
         if !self.initialized {
             return Err(PyValueError::new_err(
@@ -1245,24 +1252,37 @@ impl AgentSimulator {
 
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let tick_options = self.tick_options;
+        let delivery_config = self.decision_delivery_config.as_ref();
+        let mut delivery_frame = delivery_config.map(|_| {
+            crate::decision_delivery::DeliveryFrame::new(turn, tick_options.ablation.active(turn))
+        });
         let (events, kin_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats) =
             py.detach(|| {
-                crate::tick::try_tick_agents_with_movements(
-                    &mut self.pool,
-                    &self.regions,
-                    &signals,
-                    self.master_seed,
-                    turn,
-                    &mut self.wealth_percentiles,
-                    &mut self.spatial_grids,
-                    &self.attractors,
-                    &mut spatial_diag,
-                    &self.settlement_grids,  // M56b
-                    merchant_state,
-                    &targeted_deaths,
-                    tick_options,
-                    &mut self.movements,
-                )
+                if let (Some(config), Some(frame)) = (delivery_config, delivery_frame.as_mut()) {
+                    crate::tick::try_tick_agents_with_delivery(
+                        &mut self.pool, &self.regions, &signals, self.master_seed, turn,
+                        &mut self.wealth_percentiles, &mut self.spatial_grids, &self.attractors,
+                        &mut spatial_diag, &self.settlement_grids, merchant_state,
+                        &targeted_deaths, tick_options, &mut self.movements, config, frame,
+                    )
+                } else {
+                    crate::tick::try_tick_agents_with_movements(
+                        &mut self.pool,
+                        &self.regions,
+                        &signals,
+                        self.master_seed,
+                        turn,
+                        &mut self.wealth_percentiles,
+                        &mut self.spatial_grids,
+                        &self.attractors,
+                        &mut spatial_diag,
+                        &self.settlement_grids,  // M56b
+                        merchant_state,
+                        &targeted_deaths,
+                        tick_options,
+                        &mut self.movements,
+                    )
+                }
             }).map_err(PyRuntimeError::new_err)?;
 
         // Restore graph, ledger, and delivery buffer
@@ -1294,6 +1314,8 @@ impl AgentSimulator {
         self.last_tick_alive = self.pool.alive.iter().filter(|&&a| a).count() as u32;
 
         let batch = events_to_batch(&events).map_err(arrow_err)?;
+        // Publish only after successful native execution and event packing.
+        self.decision_delivery_frame = delivery_frame;
         Ok(PyRecordBatch::new(batch))
     }
 
@@ -3358,6 +3380,43 @@ impl AgentSimulator {
             PyRecordBatch::new(batch)))
     }
 
+    /// Enable a bounded pre-household decision observer. Explicit IDs are a
+    /// selection, not a random sample; truncated prefixes never establish rates.
+    #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None, *, max_move_rows = 16384))]
+    pub fn configure_decision_delivery(&mut self, enabled: bool, max_agent_rows: usize,
+        max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>, max_move_rows: usize) -> PyResult<()> {
+        let config = if enabled {
+            Some(crate::decision_delivery::DeliveryConfig::new(max_agent_rows,
+                max_candidate_rows, selected_agent_ids).and_then(|c| c.with_move_limit(max_move_rows)).map_err(PyValueError::new_err)?)
+        } else { None };
+        self.decision_delivery_config = config;
+        self.decision_delivery_frame = None;
+        Ok(())
+    }
+
+    /// (header, decision rows, candidate rows). Reads never drain or change the
+    /// pool. f32 observations are UInt32 bits; validity columns distinguish
+    /// skipped computation from an observed zero. Stage 1 does not trace final
+    /// household follower/cancellation provenance or counterfactual winners.
+    pub fn get_decision_delivery_frame(&self) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
+        let frame = self.decision_delivery_frame.as_ref();
+        let header = crate::decision_delivery::header_batch(self.decision_delivery_config.as_ref(), frame).map_err(arrow_err)?;
+        let decisions = crate::decision_delivery::decisions_batch(frame).map_err(arrow_err)?;
+        let candidates = crate::decision_delivery::candidates_batch(frame).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(header), PyRecordBatch::new(decisions), PyRecordBatch::new(candidates)))
+    }
+
+    /// Separate version-2 move header and operation rows. Native event
+    /// ordinals are zero-based positions in tick()'s full unchanged native
+    /// event batch, not world-event IDs. Reads are non-draining. The bounded
+    /// operation prefix is independent of Stage 1 row caps and is not a sample.
+    pub fn get_decision_delivery_move_frame(&self) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        let frame = self.decision_delivery_frame.as_ref();
+        let header = crate::decision_delivery::move_header_batch(self.decision_delivery_config.as_ref(), frame).map_err(arrow_err)?;
+        let rows = crate::decision_delivery::moves_batch(frame).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(header), PyRecordBatch::new(rows)))
+    }
+
     /// Maritime: the last tick's merchant sea-lane crossings, one row per hop
     /// across a sea lane (in slot order), with `raided` set where raiders
     /// seized the cargo (`LossReason::Raid`). Empty unless the merchant route
@@ -3607,6 +3666,46 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    #[test]
+    fn decision_delivery_configuration_and_frame_are_checkpoint_transient() {
+        let mut sim = AgentSimulator::new(2, 42);
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let schema = AgentSimulator::checkpoint_schema();
+        assert_eq!(schema.1, "dcf0c34097c88451", "a470/06db persisted schema must remain unchanged");
+        assert!(!schema.2.contains("decision_delivery"));
+        sim.configure_decision_delivery(true, 8, 16, Some(vec![0, 1]), 16).unwrap();
+        sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(101, 1));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert_eq!(AgentSimulator::checkpoint_schema(), schema);
+        let restored: AgentSimulator = crate::persist::decode(crate::persist::KIND_AGENT, &before).unwrap();
+        assert!(restored.decision_delivery_config.is_none());
+        assert!(restored.decision_delivery_frame.is_none());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &restored), before);
+    }
+
+    #[test]
+    fn decision_delivery_reads_are_non_draining_and_disabling_clears_the_frame() {
+        let mut sim = AgentSimulator::new(1, 42);
+        sim.configure_decision_delivery(true, 8, 16, None, 16).unwrap();
+        sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(17, 0));
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let (h1, d1, c1) = sim.get_decision_delivery_frame().unwrap();
+        let (h2, d2, c2) = sim.get_decision_delivery_frame().unwrap();
+        assert_eq!(h1.into_inner(), h2.into_inner());
+        assert_eq!(d1.into_inner(), d2.into_inner());
+        assert_eq!(c1.into_inner(), c2.into_inner());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        sim.configure_decision_delivery(false, 0, 0, None, 0).unwrap();
+        assert!(sim.decision_delivery_config.is_none());
+        assert!(sim.decision_delivery_frame.is_none());
+        let (header, decisions, candidates) = sim.get_decision_delivery_frame().unwrap();
+        let header = header.into_inner();
+        let enabled = header.column_by_name("enabled").unwrap().as_any().downcast_ref::<arrow::array::BooleanArray>().unwrap();
+        assert!(!enabled.value(0));
+        assert_eq!(decisions.into_inner().num_rows(), 0);
+        assert_eq!(candidates.into_inner().num_rows(), 0);
+    }
 
     #[test]
     fn test_postpass_recompute_refreshes_yields_without_second_mineral_extraction() {
@@ -4096,4 +4195,6 @@ crate::persist_struct!(AgentSimulator {
     merchant_graph, merchant_cargo, merchant_ledger, merchant_delivery_buf,
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
-} skip { snapshot_cache } transient { health_work, transaction_receipts_limit });
+} skip { snapshot_cache } transient {
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame
+});

@@ -1,0 +1,185 @@
+{
+  "archive_counts": {
+    "all_compressed_bytes": 143372763,
+    "all_expanded_bytes": 639701565,
+    "all_members": 2030,
+    "contracts_expanded_bytes": 38058,
+    "contracts_members": 3,
+    "light_expanded_bytes": 1684884,
+    "light_members": 13,
+    "raw_expanded_bytes": 637978623,
+    "raw_indexed_payloads": 2001,
+    "raw_members": 2014,
+    "raw_sealed_authority_members": 13
+  },
+  "completion_sha256": "22ab852023addacc8007819d111b8f4a73aeae5bb8a0e54023ba9f62345836f6",
+  "curation": {
+    "all_archive_byte_review_attributed_to_primary_reader": true,
+    "independent_metadata_peer_sha256": "d3af5a4af6f9700d73b7fc1a4e58f230444faa9088777f634a6f96e2fec16942",
+    "primary_all_archive_verification_sha256": "1696f6953410acd5d8aa003d67f57113af1f84b3a1b98cd0bc4c6b617988405d",
+    "projection_not_original_producer_file": true,
+    "root_consumer_packet_sha256": "c39522453f8b36b4bed5f34dfda38fbf7997952b909c7ff0270dbffa016c0208"
+  },
+  "fresh_hosted_pure_preflight": {
+    "failed": 0,
+    "native_imports_factories_blocked_IO": 0,
+    "passed": 226,
+    "skipped": 0
+  },
+  "grants": {
+    "V2_slots_filled": false,
+    "actual_batch_worker_smoke_qualified": false,
+    "full_outcome_or_historical_baseline_reuse": false,
+    "local_World_or_available_headroom": false,
+    "original_A_pins_changed": false,
+    "raw_World_global_RNG_or_all_raw_export_identity": false,
+    "simulation_speed_or_peak_RSS_improvement": false
+  },
+  "incidental_oracles": {
+    "procedural": {
+      "arcs": "FAIL",
+      "artifacts": "PARTIAL",
+      "cohort": "PASS",
+      "community": "PASS",
+      "determinism": "PASS",
+      "era": "PASS",
+      "needs": "PASS",
+      "regression": "PASS"
+    },
+    "template": {
+      "arcs": "FAIL",
+      "artifacts": "PARTIAL",
+      "cohort": "PASS",
+      "community": "PASS",
+      "determinism": "PASS",
+      "era": "PASS",
+      "needs": "PASS",
+      "regression": "FAIL"
+    }
+  },
+  "kind": "curated-wealth-floor-production-primer-result",
+  "original_926_bootstrap": "Unchanged separate proof: CP6/12\u219214 across four modes plus roster30 and200T pairs; observed affinity4/logical2/caps1. Its cross-native refusal is content-bound, reused without rerun.",
+  "original_artifacts": [
+    {
+      "digest": "sha256:2507464994956018fabb37fc89c001d08c13882375e1a47e0e5f81d576b5ed74",
+      "expires_at": "2026-11-28T06:32:03Z",
+      "id": 12878510742,
+      "name": "wealth-production-primer-raw-40829185023-1",
+      "size_in_bytes": 142839893
+    },
+    {
+      "digest": "sha256:25937f1c91a84ec0d4a655b52836c7c9b7a1d46ea997153f1ba76e6122e254c1",
+      "expires_at": "2026-11-28T06:31:59Z",
+      "id": 12878017738,
+      "name": "wealth-production-primer-light-40829185023-1",
+      "size_in_bytes": 528545
+    },
+    {
+      "digest": "sha256:8ef110864305aeb844baabcdf9f79126773119e1b57e68c806a25f5777cdfd32",
+      "expires_at": "2026-11-28T06:32:01Z",
+      "id": 12877544954,
+      "name": "wealth-production-primer-contracts-40829185023-1",
+      "size_in_bytes": 4325
+    }
+  ],
+  "post_transfer_origin_verification_sha256": "f9fa6c868031756df22897d23f9cd41acd82dd43c53ab94b6d8ea47692a776e4",
+  "prepared_source": "b24fe427baa765be9baa0a471e430cb7601962f7",
+  "producer": {
+    "attempt": 1,
+    "branch": "lead/cloud-wealth-floor-production-primer-20261029",
+    "job_id": 123299181396,
+    "run_id": 40829185023,
+    "source": "4ed374ce7f0a8efdc99d1e9392a5b41d3fa65a38",
+    "workflow": ".github/workflows/wealth-floor-production-primer.yml"
+  },
+  "proof_sha256": "f7dc1cbdfc26356dd3fef4832ab61b9dd8c865478d259695908de63b9333494e",
+  "remaining_actual_worker_smoke": {
+    "executions": 12,
+    "physics_ticks": 668,
+    "status": "Pending separate source, actual checkpoint retention and activation review."
+  },
+  "report_to_physical_copy_bindings": 17,
+  "resource_policy": {
+    "R44_status": "Original refusal unchanged; not reprobed by this metadata reader.",
+    "RLIMIT_AS_bytes": [
+      536870912,
+      536870912
+    ],
+    "RLIMIT_CPU_seconds": [
+      120,
+      120
+    ],
+    "actual_wall_seconds": 11.44127976299933,
+    "available_headroom_established": false,
+    "compressed_aggregate_cap_bytes": 167772160,
+    "compressed_bytes": 143372763,
+    "expanded_bytes": 639701565,
+    "kind": "separate_capped_read_only_metadata_policy",
+    "local_memory_or_world_grant": false,
+    "peak_self_RSS_bytes": 176545792,
+    "stream_chunk_bytes": 1048576,
+    "wall_limit_seconds": 180
+  },
+  "schema_version": 1,
+  "scope": {
+    "checkpoint_executions": 15,
+    "checkpoint_ticks": 2297,
+    "executions": 19,
+    "mode": "hybrid",
+    "observed_runtime": {
+      "affinity": [
+        0,
+        1
+      ],
+      "caps": {
+        "BLIS_NUM_THREADS": "1",
+        "CARGO_BUILD_JOBS": "1",
+        "GOTO_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "RAYON_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "logical_cpu_count": 2,
+      "python": "3.13.17"
+    },
+    "physics_ticks": 3097,
+    "procedural_checkpoint_turns": [
+      101,
+      121,
+      141,
+      161,
+      181,
+      201,
+      221,
+      241,
+      261
+    ],
+    "procedural_horizon": 282,
+    "registered_checkpoint_headers": 13,
+    "repeat_executions": 4,
+    "repeat_scope": "Serial a/b scientific subprocesses, requested/recorded parallel2; no concurrent-worker coverage.",
+    "repeat_ticks": 800,
+    "seed": 42,
+    "template_checkpoint_turns": [
+      101,
+      201,
+      301,
+      401
+    ],
+    "template_horizon": 422,
+    "whole_global_RNG_raw_World_or_all_raw_export_identity": false
+  },
+  "source_stability_and_input_seals": "Before/after source/Git snapshots, exact completed build/926 bootstrap prerequisites, all original expiry/digest facts and post-transfer official metadata reconcile.",
+  "status": "PASS_BOUNDED_MECHANICAL_PREREQUISITES",
+  "timing": {
+    "controller_post_heavy_checks_stdout_wall_seconds": 327.344983,
+    "controller_self_CPU_seconds": 11.8425,
+    "controller_wall_post_cleanup_and_copy_pre_publication_hashing_seconds": 321.949583,
+    "scope": "Named observations include different boundaries; no closed end-to-end CPU total, live-tree resource admission or speed comparison.",
+    "waited_child_CPU_seconds": 310.287,
+    "whole_job_elapsed_seconds": 374
+  }
+}
