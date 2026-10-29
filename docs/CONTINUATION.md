@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The separate [natural practice recorder](experiments/natural-practice-recorder-preparation-2026-10-29.md)
+has 40 guarded metadata cases passing. It preserves fixed-grid raw observations,
+exact types, grouped debit bookkeeping and explicit unavailable/unattempted
+coverage without importing a World or native runtime. Its prepared child leaves
+qualified producer `cbf6e368` unchanged; fresh driver/native-policy/CP60 study
+qualification and activation remain separate. No new natural worlds ran.
+
 An isolated [practice-observer runner seam](integration/practice-observer-runner-seam-2026-10-29.md)
 starts from `1205b6e4`, now hosted-qualified by all six jobs in run
 `40835337456`. One explicit caller-owned parameter routes observed turns inside
