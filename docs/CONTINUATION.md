@@ -1,3 +1,22 @@
+# Practice/budget default AST composition — source only, 2026-10-29
+
+The [retained whole-main AST contract repair](integration/practice-budget-default-ast-composition-2026-10-29.md)
+composes artifact_budget=None with practice_observer=None after first9ebe CI
+40968762010/1 failed the practice-only projector (practice chunk90P/1F; care+
+budget passed). Failedb952 and9ebe histories stay preserved without retries.
+The original BASE1205/AST8e007835 digest remains unchanged. Four budget and two
+practice keywords,14 budget and2 practice branches, and only the exact new
+parameter documentation suffix are specialized under closed shape/scope/count
+checks. Every unrelated node/docstring remains; two inline literal mutations
+must stay visible without adding pytest cases. All other test-module bytes and
+all185 product/native09ec/305owners/deps/workflows/38chunks335path selections/
+110-second caps remain exact9ebe. This child is source-only and UNRUN; no test,
+product/native/World/CP/probe/build/network/push/CI or runtime qualification.
+A separate source review and the new child's first CI remain held. The entire
+9ebe continuation follows byte-exact, including its historical snapshots.
+
+---
+
 # Care codec witness rebind after budget composition — 2026-10-29
 
 The first b952 CI run40966535032/1 failed the retained care source-witness

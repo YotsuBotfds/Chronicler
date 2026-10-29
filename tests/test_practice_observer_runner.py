@@ -216,35 +216,143 @@ def test_new_parameter_is_only_explicit_keyword_only_default_none():
 
 
 def test_entire_default_main_AST_matches_qualified_parent():
-    target = ast_dump(ast.parse("practice_observer is None", mode="eval").body)
+    # These are only the reviewed optional routing/admission additions. Keep the
+    # original qualified module digest, including every unrelated docstring.
+    parameters = {
+        "_write_state_checkpoint": (("artifact_budget", None),),
+        "_save_memory_streams": (("artifact_budget", None),),
+        "_run_turn_deferring_sigint": (("practice_observer", None),),
+        "execute_run": (("practice_observer", "Any | None"), ("artifact_budget", "Any | None")),
+        "_configure_run": (("artifact_budget", None),),
+    }
+    # Exact canonical AST shapes, in lexical order within each explicit scope.
+    # A changed enabled branch, predicate or retained call requires new review;
+    # it cannot disappear behind a generic None-specialization rule.
+    branches = {
+        "_write_state_checkpoint": (
+            "ce762ed89933e880dee18ae98cca0e954afd3050b3ed6e177c893f35130609d3",
+        ),
+        "_save_memory_streams": (
+            "4b22c62f16ad584271e334020273e7d4e7a1072eee2747116afd6bc88a135faf",
+            "848627863aca39c3e1d46da52ef45915c9aa4dba5148d77a20be56cd20cde074",
+        ),
+        "_run_turn_deferring_sigint": (
+            "68f7ef6aa0ca84067b6c7aa2abb9b38c47d2fc6084de5755865ed2d09d15c506",
+        ),
+        "execute_run": (
+            "971177e690979a664fa2dd2831fc22e1e68980fe4785964fd532b1041faa1113",
+            "b821c7681e4e59a71a8b57082ffa614ef247257fb1df5010ef9ef88af4d2ea7f",
+            "a0a95f8d7143f35a731efeb683e02ab7931ffb0c2223e2926907cc27aeb71221",
+            "821d8f9bc41e3cd8e85a9fbf0b31c9ab3e0543931179fa3a03c458958e973eda",
+            "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
+            "7a1be2cf45d0c3385c86380d7cebd850dcfd21b3736122273c140a9c510ca798",
+            "35a182173c13023b14b1a4d6a34c8b9be73e7a51f7de4836755a5b162b02b58f",
+            "82529f78d5a11db9892f39bbbfad775e5e724472b3c734829aa9417a93b701a5",
+            "81527809f85ab7b73e5a5ef129a0f68bbbaa99250c18e0dd4d16e807ce8a2001",
+            "72896630165a2f42037bc22980bdc68432e355dda9783af4a70e196a93014a5c",
+        ),
+        "execute_run._save_exact": (
+            "1d9cbe5ffb0745f6d0cd8d856a1f4f86c72eaeead7c01a72948073fdafeded94",
+        ),
+        "_configure_run": (
+            "4c16a0633469d152077f65ae7aa3d808e0444c2931ab4f79bee72c33ff8f6749",
+        ),
+    }
+    decisions = {
+        ast_dump(ast.parse("artifact_budget is None", mode="eval").body): ("artifact_budget", True),
+        ast_dump(ast.parse("artifact_budget is not None", mode="eval").body): ("artifact_budget", False),
+        ast_dump(ast.parse("practice_observer is None", mode="eval").body): ("practice_observer", True),
+    }
+    budget_documentation = (
+        "    artifact_budget : object or None\n"
+        "        Explicit caller-owned ordinary-output admission. The optional path is\n"
+        "        limited to fresh hybrid runs without exact checkpoints. It does not\n"
+        "        implement owner/log admission or qualify an enabled study.\n"
+    )
 
     class Defaults(ast.NodeTransformer):
-        active = False
-        functions = branches = 0
+        def __init__(self):
+            self.scope = ()
+            self.functions = set()
+            self.parameters = {"artifact_budget": 0, "practice_observer": 0}
+            self.branches = {scope: 0 for scope in branches}
+            self.predicates = {"artifact_budget": 0, "practice_observer": 0}
+            self.documentation = 0
 
         def visit_FunctionDef(self, node):
-            prior = self.active
-            self.active = node.name in {"execute_run", "_run_turn_deferring_sigint"}
-            if self.active:
-                pairs = list(zip(node.args.kwonlyargs, node.args.kw_defaults))
-                selected = [(arg, value) for arg, value in pairs if arg.arg == "practice_observer"]
-                assert len(selected) == 1 and isinstance(selected[0][1], ast.Constant)
-                assert selected[0][1].value is None
-                pairs = [(arg, value) for arg, value in pairs if arg.arg != "practice_observer"]
-                node.args.kwonlyargs, node.args.kw_defaults = [p[0] for p in pairs], [p[1] for p in pairs]
-                self.functions += 1
+            prior = self.scope
+            self.scope = (*prior, node.name)
+            scope = ".".join(self.scope)
+            if scope in parameters:
+                assert scope not in self.functions, f"duplicate reviewed function: {scope}"
+                expected = parameters[scope]
+                assert len(node.args.kwonlyargs) == len(node.args.kw_defaults) == len(expected)
+                for arg, default, (name, annotation) in zip(
+                        node.args.kwonlyargs, node.args.kw_defaults, expected):
+                    expected_arg = ast.arg(arg=name, annotation=(
+                        ast.parse(annotation, mode="eval").body if annotation else None), type_comment=None)
+                    assert ast_dump(arg) == ast_dump(expected_arg), f"reviewed keyword shape changed: {scope}"
+                    assert ast_dump(default) == ast_dump(ast.Constant(value=None, kind=None))
+                    self.parameters[name] += 1
+                node.args.kwonlyargs, node.args.kw_defaults = [], []
+                self.functions.add(scope)
+            if scope == "execute_run":
+                doc = node.body[0]
+                assert isinstance(doc, ast.Expr) and isinstance(doc.value, ast.Constant)
+                assert type(doc.value.value) is str
+                suffix = budget_documentation + "    "
+                assert doc.value.value.count(budget_documentation) == 1
+                assert doc.value.value.endswith(suffix), "exact reviewed budget documentation suffix changed"
+                doc.value.value = doc.value.value[:-len(suffix)] + "    "
+                self.documentation += 1
             node = self.generic_visit(node)
-            self.active = prior
+            self.scope = prior
+            return node
+
+        def visit_ClassDef(self, node):
+            prior = self.scope
+            self.scope = (*prior, node.name)
+            node = self.generic_visit(node)
+            self.scope = prior
             return node
 
         def visit_If(self, node):
-            if self.active and ast_dump(node.test) == target:
-                self.branches += 1
-                return [self.visit(child) for child in node.body]
-            return self.generic_visit(node)
+            decision = decisions.get(ast_dump(node.test))
+            if decision is None:
+                return self.generic_visit(node)
+            scope = ".".join(self.scope)
+            assert scope in branches, f"unexpected optional predicate scope: {scope}"
+            index = self.branches[scope]
+            assert index < len(branches[scope]), f"extra optional branch: {scope}"
+            shape = hashlib.sha256(ast_dump(node).encode()).hexdigest()
+            assert shape == branches[scope][index], f"reviewed optional branch shape changed: {scope}[{index}]"
+            self.branches[scope] += 1
+            name, keep_body = decision
+            self.predicates[name] += 1
+            retained = []
+            for child in node.body if keep_body else node.orelse:
+                projected = self.visit(child)
+                if isinstance(projected, list):
+                    retained.extend(projected)
+                elif projected is not None:
+                    retained.append(projected)
+            return retained
 
     projector = Defaults()
     projected = projector.visit(module_tree())
-    assert (projector.functions, projector.branches) == (2, 2)
+    assert projector.functions == set(parameters)
+    assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
+    assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
+    assert projector.predicates == {"artifact_budget": 14, "practice_observer": 2}
+    assert projector.documentation == 1
     actual = hashlib.sha256(ast_dump(projected).encode()).hexdigest()
     assert actual == BASE_MAIN_AST_SHA256, f"default main AST differs from {BASE}"
+
+    # Two bounded literal mutations stay visible; no code object is executed.
+    literal = 'def unrelated():\n    """Preserve unrelated documentation."""\n    return physics(41)\n'
+    untouched = ast_dump(ast.parse(literal))
+    assert ast_dump(Defaults().visit(ast.parse(literal))) == untouched
+    for changed in (literal.replace("unrelated documentation", "changed documentation"),
+                    literal.replace("physics(41)", "physics(42)")):
+        assert changed != literal
+        assert ast_dump(Defaults().visit(ast.parse(changed))) != untouched
