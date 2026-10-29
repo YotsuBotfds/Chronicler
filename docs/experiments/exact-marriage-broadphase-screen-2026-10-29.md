@@ -250,7 +250,14 @@ the light pack. It also uses two owned `rustup which` calls at each runtime
 snapshot and hashes the actual dispatched rustc/cargo executables, independently
 of their PATH shims and version output. Those actual paths/bytes participate in
 before/after equality and terminal file rehash after owned cleanup. The four
-additional small logs fit 46 owner files within the existing 48-file bound.
+additional small logs bring the owner pack to exactly 48 files within its
+existing 48-file bound.
+
+The earlier count omitted `build-process.time` and `screen-process.time`.
+The parent d512 has 44 owner files, and this runtime-identity child has 48:
+32 child logs, 13 JSON metadata files, two GNU-time records and one terminal.
+The earlier 42/46 counts were arithmetic errors. No file is omitted and no cap,
+code, test, criterion or timer changes in this documentation-only correction.
 
 All selected ownership helpers, R44/D2, Rust crate bytes, YAML, fixed cases, pair
 order, thresholds, timers and resource/publication caps stay unchanged. Two tiny
