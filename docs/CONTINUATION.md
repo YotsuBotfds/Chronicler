@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+The pending `lead/shared-live-slots-integration-20261029` candidate begins
+with the separately qualified [live narration test fix](performance/ci-live-narration-invocation-2026-10-29.md)
+from `8fea69df`. Its thread-owned event preserves all twelve original assertions,
+the empty spy result and five-second failure bound. One guarded old/new target
+pair passed at 5.095193 / 1.681849 seconds, with forbidden-operation counters
+zero. This is narrow test qualification; the candidate's full CI and forthcoming
+native source change require separate qualification. The published review
+consolidation described below remains preserved at `851c31ab`.
+
 The current consolidation is `lead/review-integration-20261029`. Its runtime,
 tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.
 All six jobs passed in run `40841527996`, and the saved original artifacts

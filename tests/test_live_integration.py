@@ -675,9 +675,11 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
     )
 
     captured_kwargs = {}
+    narrate_invoked = threading.Event()
 
     def spy_narrate_batch(self_engine, moments, history, **kwargs):
         captured_kwargs.update(kwargs)
+        narrate_invoked.set()
         return []
 
     monkeypatch.setattr(NarrativeEngine, "narrate_batch", spy_narrate_batch)
@@ -737,16 +739,8 @@ async def test_narrate_range_passes_great_persons_and_agent_name_map(running_liv
             "type": "narrate_range", "start_turn": 1, "end_turn": 1,
         }))
 
-        # narration_started arrives BEFORE narrate_batch runs — drain until captured_kwargs populated
-        deadline = asyncio.get_event_loop().time() + 5.0
-        while not captured_kwargs:
-            remaining = deadline - asyncio.get_event_loop().time()
-            if remaining <= 0:
-                break
-            try:
-                await asyncio.wait_for(ws.recv(), timeout=remaining)
-            except asyncio.TimeoutError:
-                break
+        # The empty spy result intentionally produces no completion message.
+        assert await asyncio.to_thread(narrate_invoked.wait, 5.0), "narrate_batch was not invoked within 5 seconds"
 
     assert "great_persons" in captured_kwargs
     assert captured_kwargs["great_persons"] is not None
