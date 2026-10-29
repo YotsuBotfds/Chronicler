@@ -1,3 +1,34 @@
+# Dormant cache + inactive intake composition — source only (2026-10-29)
+
+This child starts from exact public18f550754817f865accafd75b92cf184bdcf9ee1.
+Root reports its first CI40973818202/1 reached all nine official jobs SUCCESS
+at2026-10-29T23:40:51Z; raw acquisition, independent reconciliation and root
+qualification remain pending. No parent wheel/native or CI result transfers.
+
+The ten-path source composition adds dormant cache19544 and inactive intake92cc.
+Literal cache flag stays0; all five new builder steps require1. The entire
+old33,762-byte native-CI test prefix stays exact and receives the exact24,414-byte
+cache suffix. All185 product files/native09ec/dependencies/305 owner mappings/
+six skips/623 seal and all38 old offline entries/110-second caps remain exact.
+One39th chunk explicitly selects the unchanged105-case intake module and two
+new helper source pins close its imported code; offline pins335→338.
+
+**All tests on this composed source are UNRUN.** No helper admission, collection,
+probe, native/build/cache/intake-POSIX/network/push/CI operation ran. A different
+full source review and separate root decisions remain required.
+
+Historical source-specific pure results are separate: cache19544 whole210
+qualification0426bc66… preserves its earlier actual002 negative; intake92cc105
+qualification81ccfb99… is a clean first fake selection. Whole original dated
+donor notes remain unchanged, including historical UNRUN text and held gates.
+Allocator, cache-study156 and care-f60 are excluded. Prospective activation and
+measurement gates are recorded in
+`docs/integration/dormant-cache-intake-composition-2026-10-29.md`.
+
+The complete public18f continuation body follows byte-for-byte unchanged.
+
+---
+
 # Practice/budget default AST composition — source only, 2026-10-29
 
 The [retained whole-main AST contract repair](integration/practice-budget-default-ast-composition-2026-10-29.md)

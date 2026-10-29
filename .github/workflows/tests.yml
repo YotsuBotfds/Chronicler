@@ -170,6 +170,9 @@ jobs:
     timeout-minutes: 120
     env:
       PYTHONUNBUFFERED: "1"
+      # NATIVE_RELEASE_CACHE_DEFAULT_BEGIN
+      CHRONICLER_NATIVE_RELEASE_CACHE: "0"
+      # NATIVE_RELEASE_CACHE_DEFAULT_END
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -204,6 +207,9 @@ jobs:
           restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Restore release build cache
+        # NATIVE_RELEASE_CACHE_OLD_RESTORE_BEGIN
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE != '1'
+        # NATIVE_RELEASE_CACHE_OLD_RESTORE_END
         uses: actions/cache@v4
         with:
           path: chronicler-agents/target/release
@@ -218,6 +224,30 @@ jobs:
           uv sync --frozen --python "$(command -v python)"
           uv pip install --python .venv/bin/python "maturin>=1.5,<2"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      # NATIVE_RELEASE_CACHE_PREPARE_BEGIN
+      - name: Prepare dormant exact native cache context
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE == '1'
+        id: native_cache_context
+        run: python scripts/native_release_cache.py prepare --root "$PWD" --prepared "$RUNNER_TEMP/native-cache-prepared.json" --output "$RUNNER_TEMP/native-cache-prepare.json" --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore dormant exact native cache
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE == '1' && steps.native_cache_context.outputs.eligible == 'true'
+        id: native_cache_restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            chronicler-agents/target/release
+            chronicler-agents/target/native-release-cache-v1.json
+          key: ${{ steps.native_cache_context.outputs.key }}
+
+      - name: Admit dormant native cache timestamps
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE == '1' && steps.native_cache_context.outputs.eligible == 'true'
+        env:
+          NATIVE_CACHE_MATCHED_KEY: ${{ steps.native_cache_restore.outputs.cache-matched-key }}
+          NATIVE_CACHE_EXACT_HIT: ${{ steps.native_cache_restore.outputs.cache-hit }}
+        run: python scripts/native_release_cache.py admit --root "$PWD" --prepared "$RUNNER_TEMP/native-cache-prepared.json" --output "$RUNNER_TEMP/native-cache-admit.json" --matched-key "$NATIVE_CACHE_MATCHED_KEY" --exact-hit "$NATIVE_CACHE_EXACT_HIT"
+      # NATIVE_RELEASE_CACHE_PREPARE_END
 
       - name: Admit complete fixed module assignment before build
         run: python scripts/native_ci_shards.py check-manifest --execute --output "$RUNNER_TEMP/native-module-admission.json"
@@ -279,6 +309,22 @@ jobs:
 
       - name: Record the verified current-producer native wheel
         run: python scripts/native_ci_shards.py record-build --execute --wheel-dir chronicler-agents/target/wheels --output ci-native-wheel/build.json
+
+      # NATIVE_RELEASE_CACHE_SEAL_BEGIN
+      - name: Seal dormant native cache after current build receipt
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE == '1' && steps.native_cache_context.outputs.eligible == 'true'
+        id: native_cache_seal
+        run: python scripts/native_release_cache.py seal --root "$PWD" --prepared "$RUNNER_TEMP/native-cache-prepared.json" --output "$RUNNER_TEMP/native-cache-seal.json" --build-record ci-native-wheel/build.json --github-output "$GITHUB_OUTPUT"
+
+      - name: Save dormant sealed native cache
+        if: env.CHRONICLER_NATIVE_RELEASE_CACHE == '1' && steps.native_cache_seal.outputs.eligible == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            chronicler-agents/target/release
+            chronicler-agents/target/native-release-cache-v1.json
+          key: ${{ steps.native_cache_context.outputs.key }}
+      # NATIVE_RELEASE_CACHE_SEAL_END
 
       - name: Retain this run's verified builder wheel and context
         if: always()

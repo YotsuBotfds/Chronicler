@@ -580,3 +580,427 @@ def test_no_ref_check_manifest_preserves_original_current_path_and_output_bytes(
     S.main()
     assert calls == ['physical manifest', 'current index']
     assert destination.read_bytes() == S.canonical({'state': 'PASS', 'manifest_digest': S.digest(manifest), 'modules': 2})
+
+
+# Native release cache pure contracts. The full old module above is unchanged.
+# These new cases are selectable by -k release_cache for a later guarded gate.
+@pytest.fixture
+def release_cache_api():
+    path = SCRIPT.with_name('native_release_cache.py')
+    spec = importlib.util.spec_from_file_location('native_release_cache_under_test', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def release_cache_case(release_cache_api):
+    C = release_cache_api
+    def row(name, stamp=10, payload=b'x'):
+        return {'path': name, 'mode': 0o644, 'bytes': len(payload),
+                'sha256': C.hashlib.sha256(payload).hexdigest(), 'mtime_ns': stamp,
+                'links': 1, 'inode_group': name}
+    source = [row('chronicler-agents/build.rs'), row('chronicler-agents/src/lib.rs')]
+    release = [row(C.RELEASE+'/.fingerprint/chronicler-agents-abc/invoked.timestamp', 100),
+               row(C.RELEASE+'/libchronicler_agents.so', 100)]
+    pin = {'resolved_path': '/synthetic/tool', 'files': C.content_rows([row('tool')])}
+    context = {'schema': C.CONTEXT_VERSION, 'helper_sha256': 'c'*64, 'workspace': '/synthetic/source',
+               'cargo_home': '/synthetic/cargo', 'public_env': {}, 'argv': C.BUILD_ARGV,
+               'features': C.FEATURES, 'tools': {k: deepcopy(pin) for k in ('rustc', 'cargo', 'cc', 'ld', 'ar', 'maturin', 'ldd')},
+               'rustc': 'synthetic-rust', 'cargo': 'synthetic-cargo', 'linker': 'synthetic-linker',
+               'cc': 'synthetic-cc', 'sysroot_path': '/synthetic/sysroot', 'sysroot_files': C.content_rows([row('lib/tool')]),
+               'maturin_version': 'synthetic', 'python': 'synthetic CPython', 'python_implementation': 'CPython',
+               'python_executable': deepcopy(pin), 'python_library': deepcopy(pin), 'python_include': '/synthetic/include',
+               'headers': C.content_rows([row('include/Python.h')]), 'abi': {k: 'synthetic' for k in ('SOABI', 'EXT_SUFFIX', 'MULTIARCH', 'Py_GIL_DISABLED', 'Py_DEBUG', 'ABIFLAGS', 'SIZEOF_VOID_P', 'HOST_GNU_TYPE', 'BUILD_GNU_TYPE', 'CC', 'LDSHARED')},
+               'platform': 'synthetic-platform', 'machine': 'synthetic-machine', 'libc': ['synthetic', '1'],
+               'image_os': 'synthetic-image', 'image_version': 'synthetic-version',
+               'maturin_prefix': '/synthetic/venv', 'maturin_files': C.content_rows([row('package/__init__.py')]),
+               'link_inputs': [deepcopy(pin)], 'runtime_files': [deepcopy(pin)]}
+    context['abi']['SIZEOF_VOID_P'] = 8
+    prepared = {'schema': C.SCHEMA, 'source_commit': 'a'*40, 'source': deepcopy(source),
+                'context': context, 'key': C.cache_key(source, context), 'fresh_wheel_output_checked': True}
+    producer = {'source_commit': 'b'*40, 'run_id': 1, 'attempt': 1,
+                'build_record_sha256': 'd'*64, 'wheel_sha256': 'e'*64}
+    manifest = deepcopy(C.seal_manifest(prepared, source, release, producer))
+    return SimpleNamespace(C=C, source=source, release=release, context=context,
+                           prepared=prepared, manifest=manifest, row=row)
+
+
+def release_cache_plan(case, **changes):
+    options = {'primary_key': case.prepared['key'], 'matched_key': case.prepared['key'], 'exact_hit': True}
+    options.update(changes)
+    return case.C.admission_plan(case.prepared, case.manifest, case.source, case.release, **options)
+
+
+def test_release_cache_import_does_not_probe_or_write(monkeypatch):
+    import os
+    import subprocess
+    import sysconfig
+    def forbidden(*args, **kwargs): raise AssertionError('import performed an operation')
+    monkeypatch.setattr(subprocess, 'Popen', forbidden)
+    monkeypatch.setattr(os, 'utime', forbidden)
+    monkeypatch.setattr(sysconfig, 'get_config_var', forbidden)
+    path = SCRIPT.with_name('native_release_cache.py')
+    spec = importlib.util.spec_from_file_location('cache_import_quiet', path)
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+
+
+def test_release_cache_content_identity_ignores_only_timestamps(release_cache_case):
+    c = release_cache_case
+    later = deepcopy(c.source)
+    for row in later: row['mtime_ns'] += 1000
+    assert c.C.cache_key(later, c.context) == c.prepared['key']
+    # Producer commit differs from current whole source: equal native content is reusable.
+    assert c.manifest['producer']['source_commit'] != c.prepared['source_commit']
+    assert release_cache_plan(c) == [(r['path'], r['mtime_ns']) for r in c.source]
+
+
+@pytest.mark.parametrize('change', ['byte', 'mode', 'added', 'removed', 'path', 'order', 'duplicate'])
+def test_release_cache_source_change_denies_admission(release_cache_case, change):
+    c = release_cache_case
+    if change == 'byte': c.source[0]['sha256'] = 'f'*64
+    elif change == 'mode': c.source[0]['mode'] = 0o755
+    elif change == 'added': c.source.append(c.row('chronicler-agents/z.rs'))
+    elif change == 'removed': c.source.pop()
+    elif change == 'path': c.source[0]['path'] = 'chronicler-agents/changed.rs'
+    elif change == 'order': c.source.reverse()
+    else: c.source.append(deepcopy(c.source[-1]))
+    with pytest.raises(c.C.Unsupported): release_cache_plan(c)
+
+
+@pytest.mark.parametrize('field', ['helper_sha256', 'abi', 'rustc', 'linker', 'platform'])
+def test_release_cache_context_changes_key_and_refuses_old_manifest(release_cache_case, field):
+    c = release_cache_case
+    changed = deepcopy(c.context)
+    if field == 'abi': changed['abi']['SOABI'] = 'changed'
+    else: changed[field] = 'f'*64 if field == 'helper_sha256' else 'changed'
+    assert c.C.cache_key(c.source, changed) != c.prepared['key']
+    c.prepared['context'] = changed; c.prepared['key'] = c.C.cache_key(c.source, changed)
+    with pytest.raises(c.C.Unsupported): release_cache_plan(c)
+
+
+@pytest.mark.parametrize('options', [{'exact_hit': False}, {'exact_hit': 'true'}, {'matched_key': 'prefix-elsewhere'}, {'matched_key': ''}, {'primary_key': 'old-format'}])
+def test_release_cache_miss_prefix_and_old_format_never_restore(release_cache_case, options):
+    c = release_cache_case
+    with pytest.raises(c.C.Unsupported): release_cache_plan(c, **options)
+
+
+@pytest.mark.parametrize('change', ['schema', 'extra', 'missing', 'inventory_byte', 'inventory_mode', 'inventory_added', 'inventory_removed', 'inventory_mtime', 'chronology', 'bool_stamp', 'outside_alias'])
+def test_release_cache_closed_manifest_and_inventory(release_cache_case, change):
+    c = release_cache_case
+    if change == 'schema': c.manifest['schema'] = True
+    elif change == 'extra': c.manifest['unclosed'] = 1
+    elif change == 'missing': del c.manifest['producer']
+    elif change == 'inventory_byte': c.release[-1]['sha256'] = 'f'*64
+    elif change == 'inventory_mode': c.release[-1]['mode'] = 0o755
+    elif change == 'inventory_added': c.release.append(c.row(c.C.RELEASE+'/z', 100))
+    elif change == 'inventory_removed': c.release.pop()
+    elif change == 'inventory_mtime': c.release[-1]['mtime_ns'] += 1
+    elif change == 'chronology': c.manifest['source'][0]['mtime_ns'] = 101
+    elif change == 'bool_stamp': c.manifest['source'][0]['mtime_ns'] = True
+    else: c.release[-1]['links'] = 2
+    with pytest.raises(c.C.Unsupported): release_cache_plan(c)
+
+
+def test_release_cache_complete_internal_hardlinks_are_supported(release_cache_case):
+    c = release_cache_case
+    c.release.append(c.row(c.C.RELEASE+'/z-alias', 100))
+    first, alias = c.release[1], c.release[2]
+    first['links'] = alias['links'] = 2; alias['inode_group'] = first['path']
+    c.manifest = deepcopy(c.C.seal_manifest(c.prepared, c.source, c.release, c.manifest['producer']))
+    assert len(release_cache_plan(c)) == 2
+    alias['links'] = 3
+    with pytest.raises(c.C.Unsupported): release_cache_plan(c)
+
+
+@pytest.mark.parametrize('name', ['RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'PYO3_CONFIG_FILE', 'CC', 'CARGO_TARGET_DIR', 'MATURIN_PEP517_ARGS', 'PYTHONPATH'])
+def test_release_cache_unknown_semantic_inputs_fall_back(release_cache_api, name):
+    with pytest.raises(release_cache_api.Unsupported): release_cache_api.public_environment({name: 'unknown'})
+
+
+def test_release_cache_credential_values_are_never_accessed(release_cache_api):
+    # An actual detached dict is required; use a value that refuses conversion.
+    class Secret:
+        def __str__(self): raise AssertionError('credential converted')
+    result = release_cache_api.public_environment({'CARGO_REGISTRIES_CRATES_IO_TOKEN': Secret(),
+                                                   'PASSWORD': Secret(), 'CARGO_INCREMENTAL': '0'})
+    assert result == {'CARGO_INCREMENTAL': '0'}
+    assert b'TOKEN' not in release_cache_api.canonical(result)
+
+
+@pytest.mark.parametrize('value', [b'{"x":1,"x":2}', b'NaN', b'\xff'])
+def test_release_cache_malformed_or_duplicate_json(release_cache_api, value):
+    with pytest.raises(release_cache_api.Unsupported): release_cache_api.parse_json(value)
+
+
+def test_release_cache_oversized_metadata_refuses_before_parse(release_cache_api, monkeypatch):
+    C = release_cache_api
+    monkeypatch.setattr(C, 'MAX_JSON', 8)
+    with pytest.raises(C.Unsupported): C.parse_json(b' ' * 9)
+    with pytest.raises(C.Unsupported): C.canonical({'field': 'long'})
+
+
+@pytest.mark.parametrize('path', ['../x', '/x', 'a//b', 'a/./b', 'a\\b', 'a/../b', 'a\x00b'])
+def test_release_cache_paths_are_closed(release_cache_api, path):
+    with pytest.raises(release_cache_api.Unsupported): release_cache_api.path_name(path)
+
+
+def test_release_cache_precheck_failure_writes_zero_timestamps(release_cache_case):
+    c = release_cache_case; calls = []
+    fs = SimpleNamespace(set_mtime=lambda *args: calls.append(args))
+    changed = deepcopy(c.source); changed[0]['sha256'] = 'f'*64
+    with pytest.raises(c.C.SourceDrift):
+        c.C.apply_plan(fs, release_cache_plan(c), c.source, lambda: changed)
+    assert calls == []
+
+
+def test_release_cache_restores_exact_producer_timestamps(release_cache_case):
+    c = release_cache_case; current = deepcopy(c.source); calls = []
+    for row in current: row['mtime_ns'] = 500
+    def set_stamp(name, stamp):
+        calls.append((name, stamp))
+        next(r for r in current if r['path'] == name)['mtime_ns'] = stamp
+    c.C.apply_plan(SimpleNamespace(set_mtime=set_stamp), release_cache_plan(c), c.source, lambda: deepcopy(current))
+    assert calls == [(r['path'], r['mtime_ns']) for r in c.source]
+
+
+@pytest.mark.parametrize('failure', ['midwrite', 'precision', 'postwrite_drift'])
+def test_release_cache_partial_write_or_postcheck_is_fatal(release_cache_case, failure):
+    c = release_cache_case; current = deepcopy(c.source); calls = []
+    def write(name, stamp):
+        calls.append(name)
+        if failure == 'midwrite' and len(calls) == 2: raise OSError('synthetic partial write')
+        row = next(r for r in current if r['path'] == name)
+        row['mtime_ns'] = stamp+1 if failure == 'precision' else stamp
+        if failure == 'postwrite_drift': row['sha256'] = 'f'*64
+    with pytest.raises(c.C.TimestampFailure):
+        c.C.apply_plan(SimpleNamespace(set_mtime=write), release_cache_plan(c), c.source, lambda: deepcopy(current))
+    assert calls  # This fatal result must never become ordinary-build fallback.
+
+
+def test_release_cache_prepare_requires_fresh_wheel_output(release_cache_case, monkeypatch):
+    c = release_cache_case; calls = []
+    def wheel_not_empty():
+        calls.append('wheel')
+        raise c.C.Unsupported('fresh empty wheel output required')
+    monkeypatch.setattr(c.C, 'source_snapshot', lambda *args: deepcopy(c.source))
+    fs = SimpleNamespace(wheel_empty=wheel_not_empty)
+    with pytest.raises(c.C.Unsupported, match='fresh empty'):
+        c.C.prepare(fs, None, {}, context_provider=lambda *args: c.context)
+    assert calls == ['wheel']
+
+
+def test_release_cache_drift_during_build_cannot_seal(release_cache_case):
+    c = release_cache_case
+    changed = deepcopy(c.source); changed[0]['sha256'] = 'f'*64
+    with pytest.raises(c.C.Unsupported, match='source drift'):
+        c.C.seal_manifest(c.prepared, changed, c.release, c.manifest['producer'])
+
+
+
+@pytest.mark.parametrize('name', ['Cargo.lock', 'Cargo.toml', 'build.rs', 'pyproject.toml', 'src/lib.rs'])
+def test_release_cache_every_native_input_changes_content_key(release_cache_case, name):
+    c = release_cache_case
+    rows = [c.row('chronicler-agents/'+name)]
+    before = c.C.cache_key(rows, c.context)
+    rows[0]['sha256'] = 'f'*64
+    assert c.C.cache_key(rows, c.context) != before
+
+
+def test_release_cache_source_git_mode_and_path_dependency_closure(release_cache_api, tmp_path):
+    C = release_cache_api
+    crate = tmp_path/'chronicler-agents'; crate.mkdir()
+    (crate/'Cargo.toml').write_text('[package]\nname="fixture"\nversion="0.1.0"\n[dependencies]\nx={path="../external"}\n')
+    (crate/'Cargo.toml').chmod(0o644)
+    raw = (crate/'Cargo.toml').read_bytes()
+    blob = C.hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\x00'+raw).hexdigest()
+    tools = SimpleNamespace(run=lambda argv: '100644 blob '+blob+'\tchronicler-agents/Cargo.toml')
+    with pytest.raises(C.Unsupported, match='nonregistry'):
+        C.source_snapshot(C.LocalFS(tmp_path), tools)
+    tools.run = lambda argv: '100755 blob '+blob+'\tchronicler-agents/Cargo.toml'
+    with pytest.raises(C.Unsupported, match='unsupported tracked'):
+        C.source_snapshot(C.LocalFS(tmp_path), tools)
+
+
+def test_release_cache_prepared_context_has_no_import_time_defaults(release_cache_api):
+    import ast
+    tree = ast.parse(Path(release_cache_api.__file__).read_text())
+    probes = {'Popen', 'utime', 'get_config_var', 'version', 'run'}
+    top_calls = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.If)): continue
+        top_calls.extend(n for n in ast.walk(node) if isinstance(n, ast.Call))
+    assert not any(isinstance(n.func, ast.Attribute) and n.func.attr in probes for n in top_calls)
+
+
+@pytest.mark.parametrize('change', ['extra', 'missing', 'feature', 'schema_bool'])
+def test_release_cache_unknown_context_schema_refuses(release_cache_case, change):
+    c = release_cache_case; context = deepcopy(c.context)
+    if change == 'extra': context['unclosed_input'] = 'ignored?'
+    elif change == 'missing': del context['abi']['SOABI']
+    elif change == 'feature': context['features'] = ['jemalloc']
+    else: context['schema'] = True
+    with pytest.raises(c.C.Unsupported): c.C.cache_key(c.source, context)
+
+
+def test_release_cache_fresh_wheel_precondition_cannot_be_omitted(release_cache_case):
+    c = release_cache_case
+    c.prepared['fresh_wheel_output_checked'] = False
+    with pytest.raises(c.C.Unsupported, match='fresh wheel'):
+        release_cache_plan(c)
+
+
+# Coherent cache repair contracts. All earlier bytes/cases remain unchanged.
+@pytest.mark.parametrize('command', ['admit', 'seal'])
+@pytest.mark.parametrize('failure', ['changed_blob', 'mode', 'missing', 'unreadable'])
+def test_release_cache_main_prepared_snapshot_refusal_is_fatal(release_cache_case, monkeypatch, command, failure):
+    c = release_cache_case; C = c.C; calls = []
+    prepared_raw = C.canonical(c.prepared)
+    def forbidden(operation):
+        calls.append('FORBIDDEN '+operation)
+        raise AssertionError('post-prepare refusal reached '+operation)
+    class NoOutputPath(type(Path())):
+        def open(self, *args, **kwargs): return forbidden('CLI output write')
+    class FakeFS:
+        root = Path('/synthetic/source')
+        def named_rows(self, names, count, size):
+            calls.append('native physical rows')
+            assert names == [r['path'] for r in c.source]
+            assert (count, size) == (C.MAX_SOURCE_FILES, C.MAX_SOURCE_BYTES)
+            if failure == 'missing': raise FileNotFoundError('synthetic tracked file missing')
+            if failure == 'unreadable': raise PermissionError('synthetic tracked file unreadable')
+            rows = deepcopy(c.source)
+            if failure == 'mode': rows[0]['mode'] = 0o755
+            return rows
+        def read(self, name, limit=None):
+            calls.append('native blob bytes')
+            assert name == c.source[0]['path'] and failure == 'changed_blob'
+            return b'changed tracked bytes'
+        def physical(self, *args): return forbidden('layout or build-record access')
+        def rows(self, *args): return forbidden('release inventory')
+        def wheel_empty(self): return forbidden('wheel access')
+        def set_mtime(self, *args): return forbidden('timestamp write')
+        def write_exclusive(self, *args): return forbidden('cache seal write')
+    fs = FakeFS()
+    class FakeTools:
+        def run(self, argv):
+            calls.append('tracked Git listing')
+            assert argv == ['git', '-C', str(fs.root), 'ls-tree', '-r', '--full-tree', 'HEAD', '--', 'chronicler-agents']
+            blob = C.hashlib.sha1(b'blob 1\x00x').hexdigest()
+            return '\n'.join('100644 blob '+blob+'\t'+r['path'] for r in c.source)
+    def metadata(path):
+        calls.append('prepared metadata')
+        assert str(path) == '/synthetic/prepared.json'
+        return prepared_raw
+    monkeypatch.setattr(C, 'Path', NoOutputPath)
+    monkeypatch.setattr(C, 'LocalFS', lambda root: fs)
+    monkeypatch.setattr(C, 'LocalTools', FakeTools)
+    monkeypatch.setattr(C, 'read_metadata', metadata)
+    monkeypatch.setattr(C, 'assert_source', lambda *args: forbidden('row assertion after refused snapshot'))
+    monkeypatch.setattr(C, 'context_record', lambda *args: forbidden('context probe'))
+    monkeypatch.setattr(C, 'admission_plan', lambda *args, **kwargs: forbidden('admission'))
+    monkeypatch.setattr(C, 'seal_manifest', lambda *args: forbidden('manifest seal'))
+    monkeypatch.setattr(C, 'canonical', lambda *args: forbidden('result serialization'))
+    with pytest.raises(C.SourceDrift, match='could not be revalidated') as caught:
+        C.main([command, '--root', '/synthetic/source', '--prepared', '/synthetic/prepared.json',
+                '--output', '/synthetic/result.json', '--github-output', '/synthetic/github-output',
+                '--build-record', '/synthetic/source/ci-native-wheel/build.json'])
+    cause = C.Unsupported if failure in ('changed_blob', 'mode') else OSError
+    assert isinstance(caught.value.__cause__, cause)
+    assert calls == ['prepared metadata', 'tracked Git listing', 'native physical rows'] + (
+        ['native blob bytes'] if failure == 'changed_blob' else [])
+
+
+@pytest.mark.parametrize('failure', ['unsupported', 'oserror'])
+def test_release_cache_main_admit_prewrite_snapshot_refusal_is_fatal(release_cache_case, monkeypatch, failure):
+    c = release_cache_case; C = c.C; calls = []
+    prepared_raw = C.canonical(c.prepared); manifest_raw = C.canonical(c.manifest)
+    def forbidden(operation):
+        calls.append('FORBIDDEN '+operation)
+        raise AssertionError('pre-write refusal reached '+operation)
+    class NoOutputPath(type(Path())):
+        def open(self, *args, **kwargs): return forbidden('CLI output write')
+    class FakeFS:
+        root = Path('/synthetic/source')
+        def wheel_empty(self): calls.append('fresh wheel check')
+        def read(self, name, limit):
+            assert (name, limit) == (C.MANIFEST, C.MAX_JSON)
+            calls.append('manifest read'); return manifest_raw
+        def rows(self, *args):
+            assert args == (C.RELEASE, C.MAX_RELEASE_FILES, C.MAX_RELEASE_BYTES)
+            calls.append('release inventory'); return deepcopy(c.release)
+        def set_mtime(self, *args): return forbidden('timestamp write')
+        def write_exclusive(self, *args): return forbidden('cache seal write')
+    def snapshot(*args):
+        calls.append('source snapshot')
+        if calls.count('source snapshot') == 1: return deepcopy(c.source)
+        error = C.Unsupported if failure == 'unsupported' else OSError
+        raise error('synthetic second physical snapshot refused')
+    def metadata(path):
+        assert str(path) == '/synthetic/prepared.json'
+        calls.append('prepared metadata'); return prepared_raw
+    def context(*args):
+        calls.append('context'); return c.context
+    monkeypatch.setattr(C, 'Path', NoOutputPath)
+    monkeypatch.setattr(C, 'LocalFS', lambda root: FakeFS())
+    monkeypatch.setattr(C, 'LocalTools', lambda: SimpleNamespace(run=lambda *args: forbidden('tool probe')))
+    monkeypatch.setattr(C, 'read_metadata', metadata)
+    monkeypatch.setattr(C, 'source_snapshot', snapshot)
+    monkeypatch.setattr(C, 'public_environment', lambda environment: {})
+    monkeypatch.setattr(C, 'context_record', context)
+    with pytest.raises(C.SourceDrift, match='could not be revalidated'):
+        C.main(['admit', '--root', '/synthetic/source', '--prepared', '/synthetic/prepared.json',
+                '--output', '/synthetic/result.json', '--github-output', '/synthetic/github-output',
+                '--matched-key', c.prepared['key'], '--exact-hit', 'true'])
+    assert calls == ['prepared metadata', 'source snapshot', 'context', 'fresh wheel check',
+                     'manifest read', 'release inventory', 'source snapshot']
+
+
+@pytest.mark.parametrize('failure', ['unsupported', 'oserror'])
+def test_release_cache_main_initial_prepare_refusal_keeps_ordinary_path(release_cache_api, monkeypatch, tmp_path, failure):
+    C = release_cache_api; calls = []
+    def initial(*args):
+        calls.append('initial preparation')
+        error = C.Unsupported if failure == 'unsupported' else OSError
+        raise error('synthetic initially unsupported source')
+    def forbidden(*args): raise AssertionError('initial fallback performed FS/tool operation')
+    monkeypatch.setattr(C, 'LocalFS', lambda root: SimpleNamespace(set_mtime=forbidden, write_exclusive=forbidden))
+    monkeypatch.setattr(C, 'LocalTools', lambda: SimpleNamespace(run=forbidden))
+    monkeypatch.setattr(C, 'prepare', initial)
+    prepared = tmp_path/'uncreated-prepared.json'; output = tmp_path/'ordinary.json'
+    github_output = tmp_path/'github-output'
+    result = C.main(['prepare', '--root', str(tmp_path), '--prepared', str(prepared),
+                     '--output', str(output), '--github-output', str(github_output)])
+    expected = {'state': 'ORDINARY_BUILD', 'reason': 'Unsupported' if failure == 'unsupported' else 'OSError'}
+    assert result == expected and json.loads(output.read_bytes()) == expected
+    assert github_output.read_text() == 'eligible=false\n' and not prepared.exists()
+    assert calls == ['initial preparation']
+
+
+@pytest.mark.parametrize('names', [('COMPILER_PATH',), ('GCC_EXEC_PREFIX',), ('COMPILER_PATH', 'GCC_EXEC_PREFIX')])
+def test_release_cache_backend_selector_names_refuse_before_value_handling(release_cache_api, names):
+    C = release_cache_api
+    class OpaqueValue:
+        def __str__(self): raise AssertionError('unsupported value converted')
+        def __repr__(self): raise AssertionError('unsupported value represented')
+        def encode(self, *args): raise AssertionError('unsupported value encoded')
+        def __reduce_ex__(self, *args): raise AssertionError('unsupported value copied')
+    # Even the admitted public name has an opaque value: all names must pass
+    # before the value-selection/validation comprehension is reached.
+    environment = {'CARGO_INCREMENTAL': OpaqueValue()}
+    environment.update({name: OpaqueValue() for name in names})
+    with pytest.raises(C.Unsupported, match='unsupported semantic environment'):
+        C.public_environment(environment)
+
+
+def test_release_cache_backend_refusal_preserves_supported_context_admission(release_cache_case):
+    c = release_cache_case; C = c.C
+    assert C.public_environment({}) == {} and C.cache_key(c.source, c.context) == c.prepared['key']
+    public = {'CARGO_INCREMENTAL': '0', 'CARGO_TERM_COLOR': 'always', 'PYTHONUNBUFFERED': '1'}
+    context = deepcopy(c.context); context['public_env'] = C.public_environment(public)
+    prepared = deepcopy(c.prepared); prepared['context'] = context; prepared['key'] = C.cache_key(c.source, context)
+    manifest = C.seal_manifest(prepared, c.source, c.release, c.manifest['producer'])
+    assert context['public_env'] == public
+    assert C.admission_plan(prepared, manifest, c.source, c.release,
+                            primary_key=prepared['key'], matched_key=prepared['key'], exact_hit=True) == [
+        (r['path'], r['mtime_ns']) for r in c.source]
