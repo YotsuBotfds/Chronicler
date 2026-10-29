@@ -1406,11 +1406,19 @@ pub fn wealth_tick(
     let health_loss = std::mem::take(&mut pool.health_work_loss);
     // --- Step 1: Accumulation + Decay ---
     let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
+    // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
+    let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =
+        std::collections::BTreeMap::new();
     for slot in 0..pool.capacity() {
         if !pool.is_alive(slot) { continue; }
 
         let region_id = pool.regions[slot] as usize;
-        if region_id >= regions.len() { continue; }
+        if region_id >= regions.len() {
+            // Out-of-range regions still participate in their civilization's rank.
+            let civ = pool.civ_affinities[slot];
+            civ_groups.entry(civ).or_default().push((slot, pool.wealth[slot]));
+            continue;
+        }
         let region = &regions[region_id];
         let occ = pool.occupations[slot];
         let civ = pool.civ_affinities[slot];
@@ -1458,18 +1466,10 @@ pub fn wealth_tick(
         // Multiplicative decay
         pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
         pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
-    }
-
-    // --- Step 2: Per-civ percentile ranking ---
-    // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
-    let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =
-        std::collections::BTreeMap::new();
-    for slot in 0..pool.capacity() {
-        if !pool.is_alive(slot) { continue; }
-        let civ = pool.civ_affinities[slot];
         civ_groups.entry(civ).or_default().push((slot, pool.wealth[slot]));
     }
 
+    // --- Step 2: Per-civ percentile ranking ---
     for (_civ, mut agents) in civ_groups {
         // Sort ascending by wealth — total_cmp: no panic on NaN
         agents.sort_by(|a, b| a.1.total_cmp(&b.1));
@@ -3321,6 +3321,192 @@ mod m41_tests {
         assert!((percentiles[s1] - 0.5).abs() < 0.001, "Middle should be 0.5");
         assert!((percentiles[s2] - 1.0).abs() < 0.001, "Richest should be 1.0");
     }
+    // Frozen exact090 two-pass oracle: only visibility/name and indentation differ.
+    fn wealth_tick_frozen_090(
+        pool: &mut AgentPool,
+        regions: &[RegionState],
+        signals: &TickSignals,
+        wealth_percentiles: &mut [f32],
+    ) {
+        // The Python-authoritative health builder supplies exactly one turn.
+        // Stable-id guards prevent deductions reaching a reused slot.
+        let health_loss = std::mem::take(&mut pool.health_work_loss);
+        // --- Step 1: Accumulation + Decay ---
+        let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) { continue; }
+
+            let region_id = pool.regions[slot] as usize;
+            if region_id >= regions.len() { continue; }
+            let region = &regions[region_id];
+            let occ = pool.occupations[slot];
+            let civ = pool.civ_affinities[slot];
+
+            let civ_sig = civ_idx.get(signals, civ);
+            let at_war = civ_sig.map_or(false, |c| c.is_at_war);
+            let conquered = civ_sig.map_or(false, |c| c.conquered_this_turn);
+
+            let income = match occ {
+                0 => {
+                    // Farmer — M42: market-derived modifier replaces is_extractive() dispatch
+                    let yield_val = region.resource_yields[0];
+                    let income = crate::agent::BASE_FARMER_INCOME * region.farmer_income_modifier * yield_val;
+                    // Diminishing returns: a farmer earns the region's output per
+                    // farmer (the product is skipped at constant returns).
+                    if region.farm_productivity != 1.0 { income * region.farm_productivity } else { income }
+                }
+                1 => {
+                    // Soldier — war bonus + conquest bonus
+                    crate::agent::SOLDIER_INCOME * (1.0 + crate::agent::AT_WAR_BONUS * at_war as i32 as f32)
+                        + crate::agent::CONQUEST_BONUS * conquered as i32 as f32
+                }
+                2 => {
+                    // Merchant — M42: arbitrage-driven income from Python-side goods economy
+                    region.merchant_trade_income
+                }
+                3 => {
+                    // Scholar — flat
+                    crate::agent::SCHOLAR_INCOME
+                }
+                _ => {
+                    // Priest — M42: base income + per-priest tithe share
+                    crate::agent::PRIEST_INCOME
+                        + civ_sig.map_or(0.0, |c| c.priest_tithe_share)
+                }
+            };
+
+            let income = if occ == 0 {
+                match health_loss.get(slot) {
+                    Some(&(id, loss)) if id == pool.ids[slot] && loss != 0.0 => income * (1.0 - loss),
+                    _ => income,
+                }
+            } else { income };
+            pool.wealth[slot] += income;
+            // Multiplicative decay
+            pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
+            pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
+        }
+
+        // --- Step 2: Per-civ percentile ranking ---
+        // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
+        let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =
+            std::collections::BTreeMap::new();
+        for slot in 0..pool.capacity() {
+            if !pool.is_alive(slot) { continue; }
+            let civ = pool.civ_affinities[slot];
+            civ_groups.entry(civ).or_default().push((slot, pool.wealth[slot]));
+        }
+
+        for (_civ, mut agents) in civ_groups {
+            // Sort ascending by wealth — total_cmp: no panic on NaN
+            agents.sort_by(|a, b| a.1.total_cmp(&b.1));
+            let denom = (agents.len() as f32 - 1.0).max(1.0);
+            for (rank, (slot, _)) in agents.iter().enumerate() {
+                wealth_percentiles[*slot] = rank as f32 / denom;
+            }
+        }
+    }
+
+    fn wealth_grouping_edge_pool(populated: bool) -> AgentPool {
+        let mut pool = AgentPool::new(if populated { 24 } else { 0 });
+        if !populated { return pool; }
+        let occupations = [agent::Occupation::Farmer, agent::Occupation::Soldier,
+            agent::Occupation::Merchant, agent::Occupation::Scholar, agent::Occupation::Priest];
+        for slot in 0..16 {
+            pool.spawn(0, [0, 7, 255][slot % 3], occupations[slot % 5], 30,
+                0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        }
+        let stale_id = pool.ids[2];
+        pool.kill(2);
+        let replacement = pool.spawn(0, 255, agent::Occupation::Farmer, 30,
+            0.5, 0.5, 0.5, 0, 1, 2, 0xFF);
+        assert_eq!(replacement, 2);
+        assert_ne!(pool.ids[replacement], stale_id);
+        pool.kill(5);
+        pool.kill(12);
+        for slot in [3, 4, 8, 9, 11, 15] { pool.regions[slot] = u16::MAX; }
+        pool.regions[7] = 1;
+        for slot in [10, 13, 14] { pool.regions[slot] = 2; }
+        pool.occupations[1] = agent::Occupation::Farmer as u8;
+        pool.civ_affinities[1] = pool.civ_affinities[0];
+        pool.civ_affinities[3] = 255;
+        pool.civ_affinities[4] = 255;
+        pool.occupations[13] = agent::Occupation::Scholar as u8;
+        pool.occupations[14] = agent::Occupation::Scholar as u8;
+        pool.civ_affinities[14] = pool.civ_affinities[13];
+        let wealth = [20.0, 20.0, 0.0, -0.0, 0.0, 13.0, -20.0, 90.0,
+            f32::from_bits(0x7fc0_0041), f32::from_bits(0xffc0_0042), 12.0,
+            f32::INFINITY, f32::NEG_INFINITY, MAX_WEALTH + 10.0,
+            MAX_WEALTH + 20.0, -17.0];
+        pool.wealth[..wealth.len()].copy_from_slice(&wealth);
+        // Trip state is intentionally irrelevant to the original wealth tick.
+        pool.trip_phase[7] = crate::agent::TRIP_PHASE_TRANSIT;
+        pool.health_work_loss = vec![(0, 0.0); pool.capacity()];
+        pool.health_work_loss[0] = (pool.ids[0], 0.25);
+        pool.health_work_loss[2] = (stale_id, 0.9);
+        pool.health_work_loss[5] = (pool.ids[5], 0.5);
+        pool.health_work_loss[10] = (pool.ids[10], 0.75);
+        pool.health_work_loss[15] = (pool.ids[15], 0.75);
+        pool
+    }
+
+    #[test]
+    fn test_wealth_single_pass_matches_frozen_two_pass_at_live_slot_edges() {
+        for (populated, region_count) in [(false, 0usize), (true, 0), (true, 1), (true, 3)] {
+            for with_signals in [false, true] {
+                let mut actual = wealth_grouping_edge_pool(populated);
+                let mut expected = wealth_grouping_edge_pool(populated);
+                let before_wealth: Vec<u32> = actual.wealth.iter().map(|v| v.to_bits()).collect();
+                let regions: Vec<_> = (0..region_count).map(|r| {
+                    let mut region = make_region_organic(0.8);
+                    region.region_id = r as u16;
+                    region.farm_productivity = [1.0, 0.6, 1.4][r];
+                    region.merchant_trade_income = 0.35;
+                    region
+                }).collect();
+                let mut signals = make_test_signals(true, true, 0.5);
+                signals.civs[0].priest_tithe_share = 0.2;
+                let mut other = signals.civs[0].clone();
+                other.civ_id = 7;
+                other.priest_tithe_share = 0.3;
+                signals.civs.push(other);
+                if !with_signals { signals.civs.clear(); }
+                let sentinel = f32::from_bits(0x7fc0_a11e);
+                let mut actual_pct = vec![sentinel; actual.capacity()];
+                let mut expected_pct = actual_pct.clone();
+                wealth_tick(&mut actual, &regions, &signals, &mut actual_pct);
+                wealth_tick_frozen_090(&mut expected, &regions, &signals, &mut expected_pct);
+                assert_eq!(actual.wealth.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                    expected.wealth.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+                assert_eq!(actual_pct.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                    expected_pct.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+                assert!(actual.health_work_loss.is_empty());
+                assert!(expected.health_work_loss.is_empty());
+                assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &actual),
+                    crate::persist::encode(crate::persist::KIND_AGENT, &expected));
+                for slot in 0..actual.capacity() {
+                    if !actual.is_alive(slot) {
+                        assert_eq!(actual_pct[slot].to_bits(), sentinel.to_bits());
+                        assert_eq!(actual.wealth[slot].to_bits(), before_wealth[slot]);
+                    } else if actual.regions[slot] as usize >= region_count {
+                        assert_eq!(actual.wealth[slot].to_bits(), before_wealth[slot]);
+                    }
+                }
+                if populated {
+                    assert!(actual_pct[3] < actual_pct[4], "total_cmp distinguishes signed zero");
+                    if region_count == 0 {
+                        assert!(actual_pct[0] < actual_pct[1], "equal wealth keeps ascending slot order");
+                    }
+                    if region_count == 3 {
+                        assert_eq!(actual.wealth[13].to_bits(), MAX_WEALTH.to_bits());
+                        assert_eq!(actual.wealth[14].to_bits(), MAX_WEALTH.to_bits());
+                        assert!(actual_pct[13] < actual_pct[14], "clamped tie keeps ascending slot order");
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 // ---------------------------------------------------------------------------

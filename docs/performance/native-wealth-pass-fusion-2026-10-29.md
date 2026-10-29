@@ -1,0 +1,13 @@
+# Single-pass wealth percentile grouping — source draft
+
+Parent: `0900f3d203cc74102809bb871a1a057ba91a951f`. This isolated child has not been compiled, tested, benchmarked, pushed or run in a World. It is separate from the exact090 default-output audit.
+
+The production change moves the existing civ BTreeMap declaration before the accumulation loop and captures each live slot's resulting wealth there. Invalid-region agents enter their civ group before the original early continue: their wealth is still untouched and unclamped. Valid-region agents enter after the original clamp. Every income, stable-ID health-loss guard, decay, clamp, total_cmp sort and percentile expression stays byte-identical. Public signatures and callers stay unchanged.
+
+The update reads only its current slot plus immutable region/signal inputs. It changes neither identity, liveness, civilization nor region and performs no RNG operation. Consequently the captured groups contain the same final wealth bits in the same ascending slot order. BTreeMap civ order and stable sort ties remain unchanged, including NaNs and signed zeros belonging to invalid regions. No map cache or lookup lifetime is introduced.
+
+Structurally this removes one capacity-length iteration and its liveness tests. The same live entries, per-civ allocations, sorting and rank writes remain. Map growth now interleaves with accumulation, so source inspection establishes neither speedup nor a lower peak RSS. A dense live pool may gain little.
+
+One ordinary Rust differential contract is authored under the existing cfg(test) module. Its reference is exact090's original two-pass wealth_tick with only its name/visibility and indentation changed. Eight tiny combinations cover empty pools, empty/partial/complete region tables, present/missing signals, dead holes, genuine kill/spawn reuse with a stale health-loss ID, civ255, on-trip merchants, health-loss consumption, clamped ties, signed zeros, NaN payloads and untouched dead percentile sentinels. It compares complete wealth/rank bit vectors and encoded native pool state. All existing tests are unchanged. The contract is unrun.
+
+A literal inverse of only the production edits recovers the original function. Removing the new test append and applying that inverse recovers the entire090 tick.rs byte-for-byte. No other native file, serialization/schema definition, dependency, workflow, physics coefficient or current region-partition implementation changes. Root and independent source review precede any fresh hosted qualification. No prior CI, parity, scientific or performance evidence is relabeled as this child's result.
