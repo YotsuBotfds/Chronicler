@@ -6,6 +6,10 @@
 use std::collections::HashMap;
 
 use crate::behavior::PendingDecisions;
+use crate::decision_delivery::{
+    MoveObserver, NoDelivery, MOVE_REASON_CATASTROPHE, MOVE_REASON_REBELLION,
+    MOVE_ROLE_DEPENDENT, MOVE_ROLE_SPOUSE,
+};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 use crate::relationships;
@@ -237,6 +241,25 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
     id_to_slot: &L,
     stats: &mut HouseholdStats,
 ) {
+    consolidate_household_migrations_observed(
+        pool, pending_decisions, regions, contested_regions, id_to_slot, stats, &mut NoDelivery,
+    );
+}
+
+/// The same consolidation with observations of the actual edits. The ordinary
+/// wrapper instantiates a zero-sized sink; disabled hooks read no pool fields.
+pub(crate) fn consolidate_household_migrations_observed<
+    L: crate::pool::SlotLookup,
+    O: MoveObserver,
+>(
+    pool: &AgentPool,
+    pending_decisions: &mut [PendingDecisions],
+    regions: &[RegionState],
+    contested_regions: &[bool],
+    id_to_slot: &L,
+    stats: &mut HouseholdStats,
+    observer: &mut O,
+) {
     // Build dependent index for this phase (pre-demographics, all alive)
     let dep_index = build_dependent_index_for_migration(pool);
 
@@ -303,9 +326,35 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
             if spouse_rebelling {
                 stats.household_migrations_cancelled_rebellion += 1;
                 // CANCEL: remove all household migrations
-                bucket.migrations.retain(|m| m.0 != lead_slot && m.0 != trailing_slot);
+                let mut trailing_removed = false;
+                bucket.migrations.retain(|m| {
+                    let keep = m.0 != lead_slot && m.0 != trailing_slot;
+                    if O::ENABLED && !keep {
+                        trailing_removed |= m.0 == trailing_slot;
+                        observer.cancelled(pool, bucket_idx, *m, lead_slot, trailing_slot,
+                            MOVE_REASON_REBELLION, lead_to);
+                    }
+                    keep
+                });
+                if O::ENABLED && !trailing_removed {
+                    observer.blocked(pool, bucket_idx, trailing_slot, lead_from, lead_to,
+                        lead_slot, trailing_slot, MOVE_ROLE_SPOUSE, MOVE_REASON_REBELLION);
+                }
                 for &dep in &dep_slots {
-                    bucket.migrations.retain(|m| m.0 != dep);
+                    let mut removed = false;
+                    bucket.migrations.retain(|m| {
+                        let keep = m.0 != dep;
+                        if O::ENABLED && !keep {
+                            removed = true;
+                            observer.cancelled(pool, bucket_idx, *m, lead_slot, trailing_slot,
+                                MOVE_REASON_REBELLION, lead_to);
+                        }
+                        keep
+                    });
+                    if O::ENABLED && !removed {
+                        observer.blocked(pool, bucket_idx, dep, lead_from, lead_to,
+                            lead_slot, trailing_slot, MOVE_ROLE_DEPENDENT, MOVE_REASON_REBELLION);
+                    }
                 }
                 continue;
             }
@@ -319,9 +368,35 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
             if is_catastrophic {
                 stats.household_migrations_cancelled_catastrophe += 1;
                 // CANCEL: remove all household migrations
-                bucket.migrations.retain(|m| m.0 != lead_slot && m.0 != trailing_slot);
+                let mut trailing_removed = false;
+                bucket.migrations.retain(|m| {
+                    let keep = m.0 != lead_slot && m.0 != trailing_slot;
+                    if O::ENABLED && !keep {
+                        trailing_removed |= m.0 == trailing_slot;
+                        observer.cancelled(pool, bucket_idx, *m, lead_slot, trailing_slot,
+                            MOVE_REASON_CATASTROPHE, lead_to);
+                    }
+                    keep
+                });
+                if O::ENABLED && !trailing_removed {
+                    observer.blocked(pool, bucket_idx, trailing_slot, lead_from, lead_to,
+                        lead_slot, trailing_slot, MOVE_ROLE_SPOUSE, MOVE_REASON_CATASTROPHE);
+                }
                 for &dep in &dep_slots {
-                    bucket.migrations.retain(|m| m.0 != dep);
+                    let mut removed = false;
+                    bucket.migrations.retain(|m| {
+                        let keep = m.0 != dep;
+                        if O::ENABLED && !keep {
+                            removed = true;
+                            observer.cancelled(pool, bucket_idx, *m, lead_slot, trailing_slot,
+                                MOVE_REASON_CATASTROPHE, lead_to);
+                        }
+                        keep
+                    });
+                    if O::ENABLED && !removed {
+                        observer.blocked(pool, bucket_idx, dep, lead_from, lead_to,
+                            lead_slot, trailing_slot, MOVE_ROLE_DEPENDENT, MOVE_REASON_CATASTROPHE);
+                    }
                 }
                 continue;
             }
@@ -335,8 +410,22 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
 
             // APPROVED: trailing spouse follows
             // Remove trailing's existing migration (if different destination)
-            bucket.migrations.retain(|m| m.0 != trailing_slot);
+            let mut removed_count = 0;
+            let mut last_removed = None;
+            bucket.migrations.retain(|m| {
+                let keep = m.0 != trailing_slot;
+                if O::ENABLED && !keep {
+                    removed_count += 1;
+                    last_removed = Some((m.1, m.2));
+                    observer.replacement_removed(pool, bucket_idx, *m, lead_slot, MOVE_ROLE_SPOUSE);
+                }
+                keep
+            });
             bucket.migrations.push((trailing_slot, lead_from, lead_to));
+            if O::ENABLED {
+                observer.follower_written(pool, bucket_idx, trailing_slot, lead_from, lead_to,
+                    lead_slot, MOVE_ROLE_SPOUSE, removed_count, last_removed);
+            }
             bucket.migration_followers.push((trailing_slot, lead_term));
             // Remove trailing from rebellion/switch (primary action replaced)
             bucket.rebellions.retain(|&(s, _)| s != trailing_slot);
@@ -346,8 +435,22 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
 
             // APPROVED: dependents follow
             for &dep in &dep_slots {
-                bucket.migrations.retain(|m| m.0 != dep);
+                let mut removed_count = 0;
+                let mut last_removed = None;
+                bucket.migrations.retain(|m| {
+                    let keep = m.0 != dep;
+                    if O::ENABLED && !keep {
+                        removed_count += 1;
+                        last_removed = Some((m.1, m.2));
+                        observer.replacement_removed(pool, bucket_idx, *m, lead_slot, MOVE_ROLE_DEPENDENT);
+                    }
+                    keep
+                });
                 bucket.migrations.push((dep, lead_from, lead_to));
+                if O::ENABLED {
+                    observer.follower_written(pool, bucket_idx, dep, lead_from, lead_to,
+                        lead_slot, MOVE_ROLE_DEPENDENT, removed_count, last_removed);
+                }
                 bucket.migration_followers.push((dep, lead_term));
                 bucket.rebellions.retain(|&(s, _)| s != dep);
                 bucket.occupation_switches.retain(|&(s, _)| s != dep);
@@ -364,6 +467,8 @@ pub fn consolidate_household_migrations<L: crate::pool::SlotLookup>(
         for &mig in bucket.migrations.iter().rev() {
             if seen.insert(mig.0) {
                 deduped.push(mig);
+            } else if O::ENABLED {
+                observer.dedup_removed(pool, bucket_idx, mig);
             }
         }
         deduped.reverse();
@@ -423,3 +528,328 @@ crate::persist_struct!(HouseholdStats {
     household_migrations_cancelled_catastrophe, household_dependent_overrides,
     births_married_parent, births_unmarried_parent, migration_drivers,
 });
+
+#[cfg(test)]
+mod delivery_tests {
+    use super::*;
+    use crate::agent::Occupation;
+    use crate::relationships::{upsert_symmetric, BondType};
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum Edit {
+        Replacement {
+            bucket: usize, migration: (u32, u16, u16), lead_id: u32, role: u8,
+        },
+        Follower {
+            bucket: usize, migration: (u32, u16, u16), lead_id: u32, role: u8,
+            removed_count: usize, last_removed: Option<(u16, u16)>,
+        },
+        Cancelled {
+            bucket: usize, migration: (u32, u16, u16), lead_id: u32,
+            trailing_id: u32, reason: u8, rejected_to: u16,
+        },
+        Blocked {
+            bucket: usize, migration: (u32, u16, u16), lead_id: u32,
+            trailing_id: u32, role: u8, reason: u8,
+        },
+        Dedup { bucket: usize, migration: (u32, u16, u16) },
+    }
+
+    fn stable_migration(pool: &AgentPool, migration: (usize, u16, u16)) -> (u32, u16, u16) {
+        (pool.ids[migration.0], migration.1, migration.2)
+    }
+
+    #[derive(Default)]
+    struct Recorder { edits: Vec<Edit> }
+
+    impl MoveObserver for Recorder {
+        const ENABLED: bool = true;
+
+        fn replacement_removed(&mut self, pool: &AgentPool, bucket: usize,
+            migration: (usize, u16, u16), lead_slot: usize, role: u8) {
+            self.edits.push(Edit::Replacement {
+                bucket, migration: stable_migration(pool, migration), lead_id: pool.ids[lead_slot], role,
+            });
+        }
+
+        fn follower_written(&mut self, pool: &AgentPool, bucket: usize, slot: usize,
+            from: u16, to: u16, lead_slot: usize, role: u8, removed_count: usize,
+            last_removed: Option<(u16, u16)>) {
+            self.edits.push(Edit::Follower {
+                bucket, migration: stable_migration(pool, (slot, from, to)),
+                lead_id: pool.ids[lead_slot], role, removed_count, last_removed,
+            });
+        }
+
+        fn cancelled(&mut self, pool: &AgentPool, bucket: usize,
+            migration: (usize, u16, u16), lead_slot: usize, trailing_slot: usize,
+            reason: u8, rejected_to: u16) {
+            self.edits.push(Edit::Cancelled {
+                bucket, migration: stable_migration(pool, migration), lead_id: pool.ids[lead_slot],
+                trailing_id: pool.ids[trailing_slot], reason, rejected_to,
+            });
+        }
+
+        fn blocked(&mut self, pool: &AgentPool, bucket: usize, slot: usize,
+            from: u16, to: u16, lead_slot: usize, trailing_slot: usize, role: u8, reason: u8) {
+            self.edits.push(Edit::Blocked {
+                bucket, migration: stable_migration(pool, (slot, from, to)), lead_id: pool.ids[lead_slot],
+                trailing_id: pool.ids[trailing_slot], role, reason,
+            });
+        }
+
+        fn dedup_removed(&mut self, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16)) {
+            self.edits.push(Edit::Dedup { bucket, migration: stable_migration(pool, migration) });
+        }
+    }
+
+    struct DisabledHooks;
+
+    impl MoveObserver for DisabledHooks {
+        fn replacement_removed(&mut self, _: &AgentPool, _: usize,
+            _: (usize, u16, u16), _: usize, _: u8) { panic!("disabled replacement hook"); }
+        fn follower_written(&mut self, _: &AgentPool, _: usize, _: usize,
+            _: u16, _: u16, _: usize, _: u8, _: usize,
+            _: Option<(u16, u16)>) { panic!("disabled follower hook"); }
+        fn cancelled(&mut self, _: &AgentPool, _: usize,
+            _: (usize, u16, u16), _: usize, _: usize, _: u8, _: u16) { panic!("disabled cancellation hook"); }
+        fn blocked(&mut self, _: &AgentPool, _: usize, _: usize,
+            _: u16, _: u16, _: usize, _: usize, _: u8, _: u8) { panic!("disabled blocked hook"); }
+        fn dedup_removed(&mut self, _: &AgentPool, _: usize,
+            _: (usize, u16, u16)) { panic!("disabled dedup hook"); }
+    }
+
+    fn spawn(pool: &mut AgentPool, age: u16) -> usize {
+        pool.spawn(0, 0, Occupation::Farmer, age, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE)
+    }
+
+    fn marry(pool: &mut AgentPool, a: usize, b: usize) {
+        upsert_symmetric(pool, a, b, BondType::Marriage as u8, 50, 1);
+    }
+
+    fn regions() -> Vec<RegionState> {
+        (0..4).map(|id| {
+            let mut region = RegionState::new(id);
+            region.controller_civ = 0;
+            region.food_sufficiency = 1.0;
+            region
+        }).collect()
+    }
+
+    fn copy_pending(buckets: &[PendingDecisions]) -> Vec<PendingDecisions> {
+        buckets.iter().map(|p| PendingDecisions {
+            rebellions: p.rebellions.clone(), migrations: p.migrations.clone(),
+            occupation_switches: p.occupation_switches.clone(), loyalty_flips: p.loyalty_flips.clone(),
+            loyalty_drifts: p.loyalty_drifts.clone(),
+            migration_changed_by_religion: p.migration_changed_by_religion,
+            loyalty_drifts_damped_by_rally: p.loyalty_drifts_damped_by_rally,
+            migration_drivers: p.migration_drivers.clone(),
+            migration_dominant: p.migration_dominant.clone(), migration_followers: p.migration_followers.clone(),
+        }).collect()
+    }
+
+    fn assert_pending_equal(left: &[PendingDecisions], right: &[PendingDecisions]) {
+        assert_eq!(left.len(), right.len());
+        for (a, b) in left.iter().zip(right) {
+            assert_eq!(a.rebellions, b.rebellions);
+            assert_eq!(a.migrations, b.migrations);
+            assert_eq!(a.occupation_switches, b.occupation_switches);
+            assert_eq!(a.loyalty_flips, b.loyalty_flips);
+            assert_eq!(a.loyalty_drifts, b.loyalty_drifts);
+            assert_eq!(a.migration_changed_by_religion, b.migration_changed_by_religion);
+            assert_eq!(a.loyalty_drifts_damped_by_rally, b.loyalty_drifts_damped_by_rally);
+            assert_eq!(a.migration_dominant, b.migration_dominant);
+            assert_eq!(a.migration_followers, b.migration_followers);
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &a.migration_drivers),
+                crate::persist::encode(crate::persist::KIND_AGENT, &b.migration_drivers));
+        }
+    }
+
+    fn consolidate_and_check(pool: &AgentPool, regions: &[RegionState], contested: &[bool],
+        input: &[PendingDecisions]) -> (Vec<PendingDecisions>, Recorder, HouseholdStats) {
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, pool);
+        let ids = pool.build_id_slots();
+        let mut ordinary = copy_pending(input);
+        let mut observed = copy_pending(input);
+        let mut disabled = copy_pending(input);
+        let mut ordinary_stats = HouseholdStats::default();
+        let mut observed_stats = HouseholdStats::default();
+        let mut disabled_stats = HouseholdStats::default();
+        let mut recorder = Recorder::default();
+        consolidate_household_migrations(pool, &mut ordinary, regions, contested, &ids, &mut ordinary_stats);
+        consolidate_household_migrations_observed(pool, &mut observed, regions, contested,
+            &ids, &mut observed_stats, &mut recorder);
+        consolidate_household_migrations_observed(pool, &mut disabled, regions, contested,
+            &ids, &mut disabled_stats, &mut DisabledHooks);
+        assert_pending_equal(&ordinary, &observed);
+        assert_pending_equal(&ordinary, &disabled);
+        let stats_bytes = crate::persist::encode(crate::persist::KIND_AGENT, &ordinary_stats);
+        assert_eq!(stats_bytes, crate::persist::encode(crate::persist::KIND_AGENT, &observed_stats));
+        assert_eq!(stats_bytes, crate::persist::encode(crate::persist::KIND_AGENT, &disabled_stats));
+        assert_eq!(before, crate::persist::encode(crate::persist::KIND_AGENT, pool));
+        (observed, recorder, observed_stats)
+    }
+
+    #[test]
+    fn household_delivery_lead_uses_reused_lower_slot_and_same_target_is_replaced() {
+        let mut pool = AgentPool::new(4);
+        let old = spawn(&mut pool, 25);
+        let high = spawn(&mut pool, 25);
+        pool.kill(old);
+        let low = spawn(&mut pool, 25);
+        assert_eq!(low, old);
+        assert!(low < high && pool.ids[low] > pool.ids[high]);
+        marry(&mut pool, low, high);
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(high, 0, 1), (low, 0, 1)];
+        pending.migration_dominant = vec![(low, 14), (high, 7)];
+        let (result, recorder, stats) = consolidate_and_check(&pool, &regions(), &[false; 4], &[pending]);
+        assert_eq!(recorder.edits, vec![
+            Edit::Replacement { bucket: 0, migration: (pool.ids[high], 0, 1),
+                lead_id: pool.ids[low], role: MOVE_ROLE_SPOUSE },
+            Edit::Follower { bucket: 0, migration: (pool.ids[high], 0, 1),
+                lead_id: pool.ids[low], role: MOVE_ROLE_SPOUSE,
+                removed_count: 1, last_removed: Some((0, 1)) },
+        ]);
+        assert_eq!(result[0].migrations, vec![(low, 0, 1), (high, 0, 1)]);
+        assert_eq!(result[0].migration_driver_of(high), 14, "the term label remains separate from follower provenance");
+        assert_eq!(stats.household_migrations_follow, 1);
+    }
+
+    #[test]
+    fn household_delivery_records_every_replaced_proposal_and_last_target() {
+        let mut pool = AgentPool::new(2);
+        let lead = spawn(&mut pool, 25);
+        let spouse = spawn(&mut pool, 25);
+        marry(&mut pool, lead, spouse);
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(lead, 0, 1), (spouse, 0, 2), (spouse, 0, 3)];
+        let (_, recorder, _) = consolidate_and_check(&pool, &regions(), &[false; 4], &[pending]);
+        assert_eq!(recorder.edits, vec![
+            Edit::Replacement { bucket: 0, migration: (pool.ids[spouse], 0, 2),
+                lead_id: pool.ids[lead], role: MOVE_ROLE_SPOUSE },
+            Edit::Replacement { bucket: 0, migration: (pool.ids[spouse], 0, 3),
+                lead_id: pool.ids[lead], role: MOVE_ROLE_SPOUSE },
+            Edit::Follower { bucket: 0, migration: (pool.ids[spouse], 0, 1),
+                lead_id: pool.ids[lead], role: MOVE_ROLE_SPOUSE,
+                removed_count: 2, last_removed: Some((0, 3)) },
+        ]);
+    }
+
+    #[test]
+    fn household_delivery_rebellion_precedes_catastrophe_and_distinguishes_blocked_followers() {
+        let mut pool = AgentPool::new(4);
+        let lead = spawn(&mut pool, 25);
+        let spouse = spawn(&mut pool, 25);
+        let proposing_child = spawn(&mut pool, 10);
+        let blocked_child = spawn(&mut pool, 10);
+        marry(&mut pool, lead, spouse);
+        pool.parent_id_0[proposing_child] = pool.ids[lead];
+        pool.parent_id_0[blocked_child] = pool.ids[lead];
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(lead, 0, 1), (proposing_child, 0, 2)];
+        pending.rebellions.push((spouse, 0));
+        let mut regions = regions();
+        regions[1].food_sufficiency = 0.0;
+        let (result, recorder, stats) = consolidate_and_check(&pool, &regions,
+            &[false, true, false, false], &[pending]);
+        assert!(result[0].migrations.is_empty());
+        assert_eq!(result[0].rebellions, vec![(spouse, 0)]);
+        assert_eq!(stats.household_migrations_cancelled_rebellion, 1);
+        assert_eq!(stats.household_migrations_cancelled_catastrophe, 0);
+        assert_eq!(recorder.edits, vec![
+            Edit::Cancelled { bucket: 0, migration: (pool.ids[lead], 0, 1),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                reason: MOVE_REASON_REBELLION, rejected_to: 1 },
+            Edit::Blocked { bucket: 0, migration: (pool.ids[spouse], 0, 1),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                role: MOVE_ROLE_SPOUSE, reason: MOVE_REASON_REBELLION },
+            Edit::Cancelled { bucket: 0, migration: (pool.ids[proposing_child], 0, 2),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                reason: MOVE_REASON_REBELLION, rejected_to: 1 },
+            Edit::Blocked { bucket: 0, migration: (pool.ids[blocked_child], 0, 1),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                role: MOVE_ROLE_DEPENDENT, reason: MOVE_REASON_REBELLION },
+        ]);
+    }
+
+    #[test]
+    fn household_delivery_catastrophe_cancels_actual_proposals_without_inventing_child_proposals() {
+        let mut pool = AgentPool::new(3);
+        let lead = spawn(&mut pool, 25);
+        let spouse = spawn(&mut pool, 25);
+        let child = spawn(&mut pool, 10);
+        marry(&mut pool, lead, spouse);
+        pool.parent_id_0[child] = pool.ids[lead];
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(lead, 0, 1), (spouse, 0, 2)];
+        let mut regions = regions();
+        regions[1].food_sufficiency = 0.0;
+        let (result, recorder, stats) = consolidate_and_check(&pool, &regions,
+            &[false, true, false, false], &[pending]);
+        assert!(result[0].migrations.is_empty());
+        assert_eq!(stats.household_migrations_cancelled_catastrophe, 1);
+        assert_eq!(recorder.edits, vec![
+            Edit::Cancelled { bucket: 0, migration: (pool.ids[lead], 0, 1),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                reason: MOVE_REASON_CATASTROPHE, rejected_to: 1 },
+            Edit::Cancelled { bucket: 0, migration: (pool.ids[spouse], 0, 2),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                reason: MOVE_REASON_CATASTROPHE, rejected_to: 1 },
+            Edit::Blocked { bucket: 0, migration: (pool.ids[child], 0, 1),
+                lead_id: pool.ids[lead], trailing_id: pool.ids[spouse],
+                role: MOVE_ROLE_DEPENDENT, reason: MOVE_REASON_CATASTROPHE },
+        ]);
+    }
+
+    #[test]
+    fn household_delivery_shared_dependent_records_successive_household_last_writes() {
+        let mut pool = AgentPool::new(5);
+        let first = spawn(&mut pool, 25);
+        let first_spouse = spawn(&mut pool, 25);
+        let second = spawn(&mut pool, 25);
+        let second_spouse = spawn(&mut pool, 25);
+        let child = spawn(&mut pool, 10);
+        marry(&mut pool, first, first_spouse);
+        marry(&mut pool, second, second_spouse);
+        pool.parent_id_0[child] = pool.ids[first];
+        pool.parent_id_1[child] = pool.ids[second];
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(first, 0, 1), (second, 0, 2)];
+        pending.migration_dominant = vec![(first, 14), (second, 7)];
+        let (result, recorder, stats) = consolidate_and_check(&pool, &regions(), &[false; 4], &[pending]);
+        let child_edits: Vec<_> = recorder.edits.iter().filter(|edit| match edit {
+            Edit::Replacement { migration, .. } | Edit::Follower { migration, .. } => migration.0 == pool.ids[child],
+            _ => false,
+        }).collect();
+        assert_eq!(child_edits, vec![
+            &Edit::Follower { bucket: 0, migration: (pool.ids[child], 0, 1),
+                lead_id: pool.ids[first], role: MOVE_ROLE_DEPENDENT,
+                removed_count: 0, last_removed: None },
+            &Edit::Replacement { bucket: 0, migration: (pool.ids[child], 0, 1),
+                lead_id: pool.ids[second], role: MOVE_ROLE_DEPENDENT },
+            &Edit::Follower { bucket: 0, migration: (pool.ids[child], 0, 2),
+                lead_id: pool.ids[second], role: MOVE_ROLE_DEPENDENT,
+                removed_count: 1, last_removed: Some((0, 1)) },
+        ]);
+        assert_eq!(result[0].migrations.iter().filter(|m| m.0 == child).copied().collect::<Vec<_>>(), vec![(child, 0, 2)]);
+        assert_eq!(result[0].migration_driver_of(child), 7);
+        assert_eq!(stats.household_migrations_follow, 4, "writes include both proposals for the shared child");
+        assert_eq!(stats.household_dependent_overrides, 2);
+    }
+
+    #[test]
+    fn household_delivery_dedup_reports_only_discarded_earlier_tuple() {
+        let mut pool = AgentPool::new(3);
+        let lead = spawn(&mut pool, 25);
+        let spouse = spawn(&mut pool, 25);
+        let loner = spawn(&mut pool, 25);
+        marry(&mut pool, lead, spouse);
+        let mut pending = PendingDecisions::new();
+        pending.migrations = vec![(lead, 0, 1), (loner, 0, 1), (loner, 0, 2)];
+        let (result, recorder, _) = consolidate_and_check(&pool, &regions(), &[false; 4], &[pending]);
+        let discarded: Vec<_> = recorder.edits.iter().filter(|edit| matches!(edit, Edit::Dedup { .. })).collect();
+        assert_eq!(discarded, vec![&Edit::Dedup { bucket: 0, migration: (pool.ids[loner], 0, 1) }]);
+        assert_eq!(result[0].migrations.iter().filter(|m| m.0 == loner).copied().collect::<Vec<_>>(), vec![(loner, 0, 2)]);
+    }
+}

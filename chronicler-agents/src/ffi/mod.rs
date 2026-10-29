@@ -3382,12 +3382,12 @@ impl AgentSimulator {
 
     /// Enable a bounded pre-household decision observer. Explicit IDs are a
     /// selection, not a random sample; truncated prefixes never establish rates.
-    #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None))]
+    #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None, *, max_move_rows = 16384))]
     pub fn configure_decision_delivery(&mut self, enabled: bool, max_agent_rows: usize,
-        max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>) -> PyResult<()> {
+        max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>, max_move_rows: usize) -> PyResult<()> {
         let config = if enabled {
             Some(crate::decision_delivery::DeliveryConfig::new(max_agent_rows,
-                max_candidate_rows, selected_agent_ids).map_err(PyValueError::new_err)?)
+                max_candidate_rows, selected_agent_ids).and_then(|c| c.with_move_limit(max_move_rows)).map_err(PyValueError::new_err)?)
         } else { None };
         self.decision_delivery_config = config;
         self.decision_delivery_frame = None;
@@ -3404,6 +3404,17 @@ impl AgentSimulator {
         let decisions = crate::decision_delivery::decisions_batch(frame).map_err(arrow_err)?;
         let candidates = crate::decision_delivery::candidates_batch(frame).map_err(arrow_err)?;
         Ok((PyRecordBatch::new(header), PyRecordBatch::new(decisions), PyRecordBatch::new(candidates)))
+    }
+
+    /// Separate version-2 move header and operation rows. Native event
+    /// ordinals are zero-based positions in tick()'s full unchanged native
+    /// event batch, not world-event IDs. Reads are non-draining. The bounded
+    /// operation prefix is independent of Stage 1 row caps and is not a sample.
+    pub fn get_decision_delivery_move_frame(&self) -> PyResult<(PyRecordBatch, PyRecordBatch)> {
+        let frame = self.decision_delivery_frame.as_ref();
+        let header = crate::decision_delivery::move_header_batch(self.decision_delivery_config.as_ref(), frame).map_err(arrow_err)?;
+        let rows = crate::decision_delivery::moves_batch(frame).map_err(arrow_err)?;
+        Ok((PyRecordBatch::new(header), PyRecordBatch::new(rows)))
     }
 
     /// Maritime: the last tick's merchant sea-lane crossings, one row per hop
@@ -3663,7 +3674,7 @@ mod tests {
         let schema = AgentSimulator::checkpoint_schema();
         assert_eq!(schema.1, "dcf0c34097c88451", "a470/06db persisted schema must remain unchanged");
         assert!(!schema.2.contains("decision_delivery"));
-        sim.configure_decision_delivery(true, 8, 16, Some(vec![0, 1])).unwrap();
+        sim.configure_decision_delivery(true, 8, 16, Some(vec![0, 1]), 16).unwrap();
         sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(101, 1));
         assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
         assert_eq!(AgentSimulator::checkpoint_schema(), schema);
@@ -3676,7 +3687,7 @@ mod tests {
     #[test]
     fn decision_delivery_reads_are_non_draining_and_disabling_clears_the_frame() {
         let mut sim = AgentSimulator::new(1, 42);
-        sim.configure_decision_delivery(true, 8, 16, None).unwrap();
+        sim.configure_decision_delivery(true, 8, 16, None, 16).unwrap();
         sim.decision_delivery_frame = Some(crate::decision_delivery::DeliveryFrame::new(17, 0));
         let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
         let (h1, d1, c1) = sim.get_decision_delivery_frame().unwrap();
@@ -3685,7 +3696,7 @@ mod tests {
         assert_eq!(d1.into_inner(), d2.into_inner());
         assert_eq!(c1.into_inner(), c2.into_inner());
         assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
-        sim.configure_decision_delivery(false, 0, 0, None).unwrap();
+        sim.configure_decision_delivery(false, 0, 0, None, 0).unwrap();
         assert!(sim.decision_delivery_config.is_none());
         assert!(sim.decision_delivery_frame.is_none());
         let (header, decisions, candidates) = sim.get_decision_delivery_frame().unwrap();

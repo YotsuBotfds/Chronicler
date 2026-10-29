@@ -376,7 +376,7 @@ pub fn try_tick_agents_with_movements(
     try_tick_agents_with_movements_observer(
         pool, regions, signals, master_seed, turn, wealth_percentiles,
         spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
-        targeted_deaths, options, movements, None,
+        targeted_deaths, options, movements, None, &mut crate::decision_delivery::NoDelivery,
     )
 }
 
@@ -399,14 +399,46 @@ pub(crate) fn try_tick_agents_with_delivery(
     frame: &mut crate::decision_delivery::DeliveryFrame,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     *frame = crate::decision_delivery::DeliveryFrame::new(turn, options.ablation.active(turn));
-    try_tick_agents_with_movements_observer(
+    let mut move_observer = crate::decision_delivery::MoveDelivery::new(config);
+    let result = try_tick_agents_with_movements_observer(
         pool, regions, signals, master_seed, turn, wealth_percentiles,
         spatial_grids, attractors, spatial_diag, settlement_grids, merchant_state,
-        targeted_deaths, options, movements, Some((config, frame)),
-    )
+        targeted_deaths, options, movements, Some((config, &mut *frame)), &mut move_observer,
+    );
+    if result.is_ok() { frame.moves = move_observer.finish(); }
+    result
 }
 
-fn try_tick_agents_with_movements_observer(
+/// The unchanged physical migration application, with an opt-in hook only
+/// after the event is actually appended to the full native event batch.
+#[inline]
+pub(crate) fn apply_migrations_observed<M: crate::decision_delivery::MoveObserver>(
+    pool: &mut AgentPool, pending: &crate::behavior::PendingDecisions,
+    turn: u32, bucket: usize, events: &mut Vec<AgentEvent>, observer: &mut M,
+) {
+    for &(slot, from, to) in &pending.migrations {
+        let driver = pending.migration_driver_of(slot);
+        pool.set_region(slot, to);
+        pool.set_displacement_turns(slot, 5);
+        pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
+        events.push(AgentEvent {
+            agent_id: pool.id(slot),
+            event_type: 2,
+            region: from,
+            target_region: to,
+            civ_affinity: pool.civ_affinity(slot),
+            occupation: pool.occupation(slot),
+            belief: pool.beliefs[slot],
+            turn,
+            target_agent_id: 0,
+            formed_turn: 0,
+            migration_driver: driver,
+        });
+        if M::ENABLED { observer.applied(pool, bucket, (slot, from, to), events.len() - 1, driver); }
+    }
+}
+
+fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObserver>(
     pool: &mut AgentPool,
     regions: &[RegionState],
     signals: &TickSignals,
@@ -422,6 +454,7 @@ fn try_tick_agents_with_movements_observer(
     options: crate::scale::TickOptions,
     movements: &mut crate::movements::MovementRuntime,
     mut delivery: Option<(&crate::decision_delivery::DeliveryConfig, &mut crate::decision_delivery::DeliveryFrame)>,
+    move_observer: &mut M,
 ) -> Result<(Vec<AgentEvent>, u32, crate::formation::FormationStats, DemographicDebug, crate::household::HouseholdStats, crate::merchant::MerchantTripStats, crate::knowledge::KnowledgeStats), &'static str> {
     let scale_mode = options.scale_mode;
     let num_regions = regions.len();
@@ -666,19 +699,21 @@ fn try_tick_agents_with_movements_observer(
     // M57b: Household migration consolidation (post-decision, pre-apply)
     // -----------------------------------------------------------------------
     let mut pending_decisions = pending_decisions; // make mutable for consolidation
-    crate::household::consolidate_household_migrations(
+    if M::ENABLED { move_observer.begin(pool, &pending_decisions); }
+    crate::household::consolidate_household_migrations_observed(
         pool,
         &mut pending_decisions,
         regions,
         &signals.contested_regions,
         &pre_decision_id_to_slot,
         &mut household_stats,
+        move_observer,
     );
 
     // -----------------------------------------------------------------------
     // 4. Apply decisions sequentially
     // -----------------------------------------------------------------------
-    for pd in &pending_decisions {
+    for (bucket_idx, pd) in pending_decisions.iter().enumerate() {
         // Rebellions
         for &(slot, region) in &pd.rebellions {
             // Rebellion should create a temporary state change, not just an
@@ -702,25 +737,7 @@ fn try_tick_agents_with_movements_observer(
         }
 
         // Migrations
-        for &(slot, from, to) in &pd.migrations {
-            let driver = pd.migration_driver_of(slot);
-            pool.set_region(slot, to);
-            pool.set_displacement_turns(slot, 5);
-            pool.life_events[slot] |= LIFE_EVENT_MIGRATION;
-            events.push(AgentEvent {
-                agent_id: pool.id(slot),
-                event_type: 2,
-                region: from,
-                target_region: to,
-                civ_affinity: pool.civ_affinity(slot),
-                occupation: pool.occupation(slot),
-                belief: pool.beliefs[slot],
-                turn,
-                target_agent_id: 0,
-                formed_turn: 0,
-                migration_driver: driver,
-            });
-        }
+        apply_migrations_observed(pool, pd, turn, bucket_idx, &mut events, move_observer);
 
         // Occupation switches
         for &(slot, new_occ) in &pd.occupation_switches {
@@ -2049,6 +2066,96 @@ mod tests {
                 crate::decision_delivery::candidates_batch(Some(&frame)).unwrap())
         };
         assert_eq!(run(1), run(2));
+    }
+
+    #[test]
+    fn decision_delivery_applied_ordinal_uses_the_full_native_event_batch() {
+        use crate::decision_delivery::{MoveObserver, MoveDelivery, DeliveryConfig,
+            DeliveryFrame, MOVE_APPLIED, MOVE_ROLE_OWN, NoDelivery};
+        let (mut observed, _) = decision_delivery_fixture();
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &observed);
+        let mut plain: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let mut pending = crate::behavior::PendingDecisions::new();
+        pending.migrations.push((0, 0, 1));
+        pending.migration_dominant.push((0, 2));
+        let config = DeliveryConfig::new(1, 1, None).unwrap().with_move_limit(16).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.begin(&observed, std::slice::from_ref(&pending));
+        let previous_event = || AgentEvent { agent_id: 999, event_type: 1,
+            region: 0, target_region: 0, civ_affinity: 0, occupation: 0,
+            belief: 0, turn: 17, target_agent_id: 0, formed_turn: 0,
+            migration_driver: NO_MIGRATION_DRIVER };
+        let mut observed_events = vec![previous_event()];
+        let mut plain_events = vec![previous_event()];
+        apply_migrations_observed(&mut plain, &pending, 17, 0, &mut plain_events, &mut NoDelivery);
+        apply_migrations_observed(&mut observed, &pending, 17, 0, &mut observed_events, &mut observer);
+        assert_eq!(decision_delivery_event_values(&plain_events), decision_delivery_event_values(&observed_events));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+        let mut frame = DeliveryFrame::new(17, 0);
+        frame.counts.dropped_agents = 10; // Stage 1 caps do not define this ledger.
+        frame.moves = observer.finish();
+        assert!(!frame.stage_complete() && frame.moves.complete());
+        let row = frame.moves.rows.iter().find(|r| r.operation == MOVE_APPLIED).unwrap();
+        assert_eq!(row.native_event_ordinal, Some(1));
+        let event = &observed_events[row.native_event_ordinal.unwrap() as usize];
+        assert_eq!((row.agent_id, row.from, row.to), (event.agent_id, event.region, event.target_region));
+        assert_eq!(event.event_type, 2);
+        assert_eq!(event.turn, 17);
+        assert_eq!(row.migration_driver, Some(event.migration_driver));
+        assert_eq!(row.role, MOVE_ROLE_OWN);
+        assert!(row.origin_valid);
+        assert_eq!(row.origin_operation_ordinal, Some(0));
+    }
+
+    #[test]
+    fn decision_delivery_same_target_household_origin_reaches_actual_application() {
+        use crate::decision_delivery::{MoveObserver, MoveDelivery, DeliveryConfig,
+            MOVE_APPLIED, MOVE_FOLLOWER_WRITTEN, MOVE_ROLE_SPOUSE, NoDelivery};
+        let mut observed = AgentPool::new(3);
+        let old = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let high = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        observed.kill(old);
+        let low = observed.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        assert_eq!(low, old);
+        assert!(low < high && observed.ids[low] > observed.ids[high]);
+        assert!(crate::relationships::upsert_symmetric(&mut observed, low, high,
+            crate::relationships::BondType::Marriage as u8, 50, 1));
+        let original = crate::persist::encode(crate::persist::KIND_AGENT, &observed);
+        let mut plain: AgentPool = crate::persist::decode(crate::persist::KIND_AGENT, &original).unwrap();
+        let make_pending = || {
+            let mut pending = crate::behavior::PendingDecisions::new();
+            pending.migrations = vec![(high, 0, 1), (low, 0, 1)];
+            pending.migration_dominant = vec![(low, 1), (high, 2)];
+            [pending]
+        };
+        let mut plain_pending = make_pending(); let mut observed_pending = make_pending();
+        let regions = vec![RegionState::new(0), RegionState::new(1)];
+        let config = DeliveryConfig::new(1, 1, None).unwrap().with_move_limit(32).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.begin(&observed, &observed_pending);
+        let mut plain_stats = crate::household::HouseholdStats::default();
+        let mut observed_stats = crate::household::HouseholdStats::default();
+        crate::household::consolidate_household_migrations(&plain, &mut plain_pending,
+            &regions, &[false; 2], &plain.build_id_slots(), &mut plain_stats);
+        crate::household::consolidate_household_migrations_observed(&observed,
+            &mut observed_pending, &regions, &[false; 2], &observed.build_id_slots(), &mut observed_stats, &mut observer);
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &observed), original);
+        let mut plain_events = Vec::new(); let mut observed_events = Vec::new();
+        apply_migrations_observed(&mut plain, &plain_pending[0], 11, 0, &mut plain_events, &mut NoDelivery);
+        apply_migrations_observed(&mut observed, &observed_pending[0], 11, 0, &mut observed_events, &mut observer);
+        assert_eq!(decision_delivery_event_values(&plain_events), decision_delivery_event_values(&observed_events));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain), crate::persist::encode(crate::persist::KIND_AGENT, &observed));
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &plain_stats), crate::persist::encode(crate::persist::KIND_AGENT, &observed_stats));
+        let frame = observer.finish();
+        assert!(frame.complete());
+        let applied = frame.rows.iter().find(|r| r.operation == MOVE_APPLIED && r.agent_id == observed.ids[high]).unwrap();
+        assert_eq!(applied.role, MOVE_ROLE_SPOUSE);
+        assert_eq!(applied.lead_id, Some(observed.ids[low]));
+        assert_eq!(applied.native_event_ordinal, Some(1));
+        let replacement = frame.rows.iter().find(|r| Some(r.operation_ordinal) == applied.origin_operation_ordinal).unwrap();
+        assert_eq!(replacement.operation, MOVE_FOLLOWER_WRITTEN);
+        assert!(replacement.prior_count_valid);
+        assert_eq!((replacement.prior_count, replacement.prior_from, replacement.prior_to), (1, Some(0), Some(1)));
     }
 
     fn make_healthy_region(id: u16) -> RegionState {

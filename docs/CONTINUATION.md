@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+An isolated native-only [applied-move provenance Stage 2](integration/decision-delivery-applied-moves-2026-10-29.md)
+starts from qualified Stage 1 `e99c0fd5` and preserves that branch/ref. It adds
+bounded own-proposal/consolidation/application records with actual stable lead
+IDs and full native-event ordinals, distinguishing removed proposals from
+blocked nonproposers. The old three-batch/header API stays unchanged; a separate
+version-2 move getter and keyword-only limit expose independent, explicitly
+bounded capture. BTreeMap tracking/frame/config remain transient and default-off.
+New Rust and seven compiled Python contracts are source-only and unrun locally;
+fresh independent/root source review and remote CI are still required. No
+physics, main, frozen producer or scientific gate source was changed.
+
 An isolated native-only [decision-delivery Stage 1](integration/decision-delivery-native-2026-10-29.md)
 adds default-off bounded decision/candidate observations from exact review
 `82b3699b`, preserving the old diagnostic `7716ccf6` branch. Raw/capped needs

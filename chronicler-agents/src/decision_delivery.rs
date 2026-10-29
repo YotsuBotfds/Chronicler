@@ -4,7 +4,7 @@
 //! final applied moves or counterfactual winners. Floating-point observations
 //! are exported as their original f32 bits. No simulation reads this module.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use arrow::array::{ArrayRef, BooleanArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -12,6 +12,7 @@ use crate::{migration_drivers::{Mobility, VoluntaryPull}, needs::NeedUtilityTrac
 
 pub const DEFAULT_AGENT_LIMIT: usize = 4096;
 pub const DEFAULT_CANDIDATE_LIMIT: usize = 16384;
+pub const DEFAULT_MOVE_LIMIT: usize = 16384;
 pub const MAX_LIMIT: usize = 65536;
 pub const SCHEMA_VERSION: u16 = 1;
 pub const STATUS_TRIP: u8 = 1;
@@ -21,6 +22,7 @@ pub const STATUS_EVALUATED: u8 = 2;
 pub struct DeliveryConfig {
     pub agent_limit: usize,
     pub candidate_limit: usize,
+    pub move_limit: usize,
     /// None selects all alive agents; explicit IDs must be sorted and unique.
     pub selected_ids: Option<Vec<u32>>,
 }
@@ -35,7 +37,13 @@ impl DeliveryConfig {
                 return Err("decision delivery IDs must be sorted, unique and bounded");
             }
         }
-        Ok(Self { agent_limit, candidate_limit, selected_ids })
+        Ok(Self { agent_limit, candidate_limit, move_limit: DEFAULT_MOVE_LIMIT, selected_ids })
+    }
+
+    pub fn with_move_limit(mut self, move_limit: usize) -> Result<Self, &'static str> {
+        if !(1..=MAX_LIMIT).contains(&move_limit) { return Err("decision delivery move row limit must be 1..65536"); }
+        self.move_limit = move_limit;
+        Ok(self)
     }
 
     #[inline]
@@ -288,16 +296,239 @@ pub struct DeliveryFrame {
     pub counts: DeliveryCounts,
     pub decisions: Vec<DecisionRow>,
     pub candidates: Vec<CandidateRow>,
+    pub moves: MoveFrame,
 }
 impl DeliveryFrame {
     pub fn new(source_turn: u32, ablation: u8) -> Self {
-        Self { source_turn, ablation, counts: DeliveryCounts::default(), decisions: Vec::new(), candidates: Vec::new() }
+        Self { source_turn, ablation, counts: DeliveryCounts::default(), decisions: Vec::new(), candidates: Vec::new(), moves: MoveFrame::default() }
     }
     pub(crate) fn merge_region(&mut self, mut region: RegionDelivery<'_>) {
         self.counts.merge(&region.counts);
         self.decisions.append(&mut region.decisions); self.candidates.append(&mut region.candidates);
     }
     pub fn stage_complete(&self) -> bool { self.counts.dropped_agents == 0 && self.counts.dropped_candidates == 0 }
+}
+
+pub const MOVE_ROLE_OWN: u8 = 0;
+pub const MOVE_ROLE_SPOUSE: u8 = 1;
+pub const MOVE_ROLE_DEPENDENT: u8 = 2;
+pub const MOVE_ROLE_UNKNOWN: u8 = u8::MAX;
+pub const MOVE_REASON_NONE: u8 = 0;
+pub const MOVE_REASON_REBELLION: u8 = 1;
+pub const MOVE_REASON_CATASTROPHE: u8 = 2;
+pub const MOVE_OWN_PROPOSAL: u8 = 1;
+pub const MOVE_REPLACEMENT_REMOVED: u8 = 2;
+pub const MOVE_FOLLOWER_WRITTEN: u8 = 3;
+pub const MOVE_CANCELLED: u8 = 4;
+pub const MOVE_BLOCKED: u8 = 5;
+pub const MOVE_DEDUP_REMOVED: u8 = 6;
+pub const MOVE_APPLIED: u8 = 7;
+
+/// Observation hooks share the physical operation's order. The default path
+/// monomorphizes this zero-sized sink without a proposal scan or tracking map.
+#[allow(clippy::too_many_arguments)]
+pub(crate) trait MoveObserver {
+    const ENABLED: bool = false;
+    #[inline(always)] fn begin(&mut self, _pool: &AgentPool, _pending: &[crate::behavior::PendingDecisions]) {}
+    #[inline(always)] fn replacement_removed(&mut self, _pool: &AgentPool, _bucket: usize, _migration: (usize, u16, u16), _lead_slot: usize, _role: u8) {}
+    #[inline(always)] fn follower_written(&mut self, _pool: &AgentPool, _bucket: usize, _slot: usize, _from: u16, _to: u16, _lead_slot: usize, _role: u8, _removed_count: usize, _last_removed: Option<(u16, u16)>) {}
+    #[inline(always)] fn cancelled(&mut self, _pool: &AgentPool, _bucket: usize, _migration: (usize, u16, u16), _lead_slot: usize, _trailing_slot: usize, _reason: u8, _rejected_to: u16) {}
+    #[inline(always)] fn blocked(&mut self, _pool: &AgentPool, _bucket: usize, _slot: usize, _from: u16, _to: u16, _lead_slot: usize, _trailing_slot: usize, _role: u8, _reason: u8) {}
+    #[inline(always)] fn dedup_removed(&mut self, _pool: &AgentPool, _bucket: usize, _migration: (usize, u16, u16)) {}
+    #[inline(always)] fn applied(&mut self, _pool: &AgentPool, _bucket: usize, _migration: (usize, u16, u16), _event_ordinal: usize, _driver: u8) {}
+}
+impl MoveObserver for NoDelivery {}
+
+#[derive(Clone, Debug, Default)]
+pub struct MoveCounts {
+    pub operations_all: u64,
+    pub operations_selected: u64,
+    pub dropped_rows: u64,
+    pub tracking_dropped: u64,
+    pub tracked_peak: usize,
+    pub own_proposals_all: u64,
+    pub replacement_removals_all: u64,
+    pub follower_writes_all: u64,
+    pub cancelled_existing_all: u64,
+    pub blocked_nonproposers_all: u64,
+    pub dedup_drops_all: u64,
+    pub applied_all: u64,
+    pub applied_selected: u64,
+    pub missing_applied_origins: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct MoveRow {
+    /// Ordinal of this observed native operation, including unselected visits.
+    pub operation_ordinal: u64,
+    pub operation: u8,
+    pub bucket: u16,
+    pub agent_id: u32,
+    pub from: u16,
+    pub to: u16,
+    pub role: u8,
+    pub lead_id: Option<u32>,
+    pub trigger_agent_id: Option<u32>,
+    pub reason: u8,
+    pub rejected_to: Option<u16>,
+    /// Current proposal immediately before this operation, from the actual
+    /// retain scan. This is not a claim about an unobserved initial decision.
+    pub prior_count_valid: bool,
+    pub prior_count: u64,
+    pub prior_from: Option<u16>,
+    pub prior_to: Option<u16>,
+    pub origin_valid: bool,
+    pub origin_operation_ordinal: Option<u64>,
+    /// Index in the unchanged full native event batch, never a world event ID.
+    pub native_event_ordinal: Option<u64>,
+    /// Existing positive-term attribution, separate from household provenance.
+    pub migration_driver: Option<u8>,
+}
+
+impl MoveRow {
+    fn new(operation: u8, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16)) -> Self {
+        Self { operation_ordinal: 0, operation, bucket: bucket as u16,
+            agent_id: pool.ids[migration.0], from: migration.1, to: migration.2,
+            role: MOVE_ROLE_UNKNOWN, lead_id: None, trigger_agent_id: None,
+            reason: MOVE_REASON_NONE, rejected_to: None, prior_count_valid: false,
+            prior_count: 0, prior_from: None, prior_to: None, origin_valid: false,
+            origin_operation_ordinal: None, native_event_ordinal: None, migration_driver: None }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MoveFrame {
+    pub counts: MoveCounts,
+    pub rows: Vec<MoveRow>,
+    pub finished: bool,
+}
+impl MoveFrame {
+    pub fn complete(&self) -> bool {
+        self.finished && self.counts.dropped_rows == 0 && self.counts.tracking_dropped == 0
+            && self.counts.missing_applied_origins == 0
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MoveOrigin {
+    role: u8,
+    lead_id: Option<u32>,
+    from: u16,
+    to: u16,
+    operation_ordinal: u64,
+    valid: bool,
+}
+
+pub(crate) struct MoveDelivery<'a> {
+    config: &'a DeliveryConfig,
+    frame: MoveFrame,
+    // A bounded deterministic map avoids constructing RandomState, which can
+    // change seeds used by later production HashMaps on this same thread.
+    origins: BTreeMap<(usize, u32), MoveOrigin>,
+}
+
+impl<'a> MoveDelivery<'a> {
+    pub fn new(config: &'a DeliveryConfig) -> Self {
+        Self { config, frame: MoveFrame { rows: Vec::with_capacity(config.move_limit.min(128)), ..Default::default() }, origins: BTreeMap::new() }
+    }
+    fn record(&mut self, mut row: MoveRow) -> (u64, bool) {
+        let ordinal = self.frame.counts.operations_all;
+        row.operation_ordinal = ordinal;
+        let c = &mut self.frame.counts;
+        c.operations_all += 1;
+        match row.operation {
+            MOVE_OWN_PROPOSAL => c.own_proposals_all += 1,
+            MOVE_REPLACEMENT_REMOVED => c.replacement_removals_all += 1,
+            MOVE_FOLLOWER_WRITTEN => c.follower_writes_all += 1,
+            MOVE_CANCELLED => c.cancelled_existing_all += 1,
+            MOVE_BLOCKED => c.blocked_nonproposers_all += 1,
+            MOVE_DEDUP_REMOVED => c.dedup_drops_all += 1,
+            MOVE_APPLIED => c.applied_all += 1,
+            _ => unreachable!("native move observation kind"),
+        }
+        let selected = self.config.selected(row.agent_id);
+        if !selected { return (ordinal, false); }
+        c.operations_selected += 1;
+        if row.operation == MOVE_APPLIED { c.applied_selected += 1; }
+        if self.frame.rows.len() == self.config.move_limit { c.dropped_rows += 1; }
+        else { self.frame.rows.push(row); }
+        (ordinal, true)
+    }
+    fn track(&mut self, key: (usize, u32), mut origin: MoveOrigin, initial: bool) {
+        if let Some(previous) = self.origins.get_mut(&key) {
+            // Duplicate initial proposals have no unique operation origin.
+            // A later actual follower write resolves that ambiguity.
+            if initial { origin.valid = false; }
+            *previous = origin;
+        } else if self.origins.len() < self.config.move_limit {
+            self.origins.insert(key, origin);
+            self.frame.counts.tracked_peak = self.frame.counts.tracked_peak.max(self.origins.len());
+        } else { self.frame.counts.tracking_dropped += 1; }
+    }
+    pub fn finish(mut self) -> MoveFrame { self.frame.finished = true; self.frame }
+}
+
+impl MoveObserver for MoveDelivery<'_> {
+    const ENABLED: bool = true;
+    fn begin(&mut self, pool: &AgentPool, pending: &[crate::behavior::PendingDecisions]) {
+        for (bucket, decisions) in pending.iter().enumerate() { for &migration in &decisions.migrations {
+            let mut row = MoveRow::new(MOVE_OWN_PROPOSAL, pool, bucket, migration);
+            row.role = MOVE_ROLE_OWN; row.origin_valid = true;
+            let (ordinal, selected) = self.record(row);
+            if selected { self.track((bucket, pool.ids[migration.0]), MoveOrigin {
+                role: MOVE_ROLE_OWN, lead_id: None, from: migration.1, to: migration.2,
+                operation_ordinal: ordinal, valid: true,
+            }, true); }
+        } }
+    }
+    fn replacement_removed(&mut self, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16), lead_slot: usize, role: u8) {
+        let mut row = MoveRow::new(MOVE_REPLACEMENT_REMOVED, pool, bucket, migration);
+        row.role = role; row.lead_id = Some(pool.ids[lead_slot]);
+        row.prior_count_valid = true; row.prior_count = 1;
+        row.prior_from = Some(migration.1); row.prior_to = Some(migration.2);
+        self.record(row);
+    }
+    fn follower_written(&mut self, pool: &AgentPool, bucket: usize, slot: usize, from: u16, to: u16, lead_slot: usize, role: u8, removed_count: usize, last_removed: Option<(u16, u16)>) {
+        let mut row = MoveRow::new(MOVE_FOLLOWER_WRITTEN, pool, bucket, (slot, from, to));
+        row.role = role; row.lead_id = Some(pool.ids[lead_slot]); row.origin_valid = true;
+        row.prior_count_valid = true; row.prior_count = removed_count as u64;
+        row.prior_from = last_removed.map(|m| m.0); row.prior_to = last_removed.map(|m| m.1);
+        let (ordinal, selected) = self.record(row);
+        if selected { self.track((bucket, pool.ids[slot]), MoveOrigin {
+            role, lead_id: Some(pool.ids[lead_slot]), from, to, operation_ordinal: ordinal, valid: true,
+        }, false); }
+    }
+    fn cancelled(&mut self, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16), lead_slot: usize, trailing_slot: usize, reason: u8, rejected_to: u16) {
+        let mut row = MoveRow::new(MOVE_CANCELLED, pool, bucket, migration);
+        row.role = if migration.0 == lead_slot { MOVE_ROLE_OWN } else if migration.0 == trailing_slot { MOVE_ROLE_SPOUSE } else { MOVE_ROLE_DEPENDENT };
+        row.lead_id = Some(pool.ids[lead_slot]); row.reason = reason; row.rejected_to = Some(rejected_to);
+        if reason == MOVE_REASON_REBELLION { row.trigger_agent_id = Some(pool.ids[trailing_slot]); }
+        row.prior_count_valid = true; row.prior_count = 1;
+        row.prior_from = Some(migration.1); row.prior_to = Some(migration.2);
+        let (_, selected) = self.record(row);
+        if selected { self.origins.remove(&(bucket, pool.ids[migration.0])); }
+    }
+    fn blocked(&mut self, pool: &AgentPool, bucket: usize, slot: usize, from: u16, to: u16, lead_slot: usize, trailing_slot: usize, role: u8, reason: u8) {
+        let mut row = MoveRow::new(MOVE_BLOCKED, pool, bucket, (slot, from, to));
+        row.role = role; row.lead_id = Some(pool.ids[lead_slot]); row.reason = reason;
+        row.rejected_to = Some(to); row.prior_count_valid = true;
+        if reason == MOVE_REASON_REBELLION { row.trigger_agent_id = Some(pool.ids[trailing_slot]); }
+        self.record(row);
+    }
+    fn dedup_removed(&mut self, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16)) {
+        // This is an older tuple discarded by the reverse scan. The surviving
+        // last-write origin must remain untouched.
+        self.record(MoveRow::new(MOVE_DEDUP_REMOVED, pool, bucket, migration));
+    }
+    fn applied(&mut self, pool: &AgentPool, bucket: usize, migration: (usize, u16, u16), event_ordinal: usize, driver: u8) {
+        let mut row = MoveRow::new(MOVE_APPLIED, pool, bucket, migration);
+        row.native_event_ordinal = Some(event_ordinal as u64); row.migration_driver = Some(driver);
+        if let Some(origin) = self.origins.get(&(bucket, row.agent_id)).filter(|o| o.valid && o.from == migration.1 && o.to == migration.2) {
+            row.role = origin.role; row.lead_id = origin.lead_id;
+            row.origin_valid = true; row.origin_operation_ordinal = Some(origin.operation_ordinal);
+        } else if self.config.selected(row.agent_id) { self.frame.counts.missing_applied_origins += 1; }
+        self.record(row);
+    }
 }
 
 fn batch(columns: Vec<(Field, ArrayRef)>) -> Result<RecordBatch, arrow::error::ArrowError> {
@@ -365,6 +596,59 @@ pub fn candidates_batch(frame: Option<&DeliveryFrame>) -> Result<RecordBatch, ar
     batch(columns)
 }
 
+/// Stage 2 has a separate versioned header. Stage 1's three batches and
+/// header schema remain unchanged, including its incomplete provenance flag.
+pub fn move_header_batch(config: Option<&DeliveryConfig>, frame: Option<&DeliveryFrame>) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let empty = MoveFrame::default(); let moves = frame.map_or(&empty, |f| &f.moves); let c = &moves.counts;
+    macro_rules! count { ($name:literal, $value:expr) => { (Field::new($name, DataType::UInt64, false), Arc::new(UInt64Array::from(vec![$value as u64])) as ArrayRef) }; }
+    batch(vec![
+        (Field::new("schema_version", DataType::UInt16, false), Arc::new(UInt16Array::from(vec![2u16]))),
+        (Field::new("enabled", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![config.is_some()]))),
+        (Field::new("source_turn", DataType::UInt32, true), Arc::new(UInt32Array::from(vec![frame.map(|f| f.source_turn)]))),
+        (Field::new("active_ablation", DataType::UInt8, false), Arc::new(UInt8Array::from(vec![frame.map_or(0, |f| f.ablation)]))),
+        (Field::new("selection_is_explicit", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![config.is_some_and(|c| c.selected_ids.is_some())]))),
+        (Field::new("capture_finished", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![moves.finished]))),
+        (Field::new("applied_move_provenance_complete", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![moves.complete()]))),
+        (Field::new("counterfactual_marginals_computed", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![false]))),
+        (Field::new("native_event_ordinals_are_zero_based", DataType::Boolean, false), Arc::new(BooleanArray::from(vec![true]))),
+        count!("move_limit", config.map_or(0, |c| c.move_limit)),
+        count!("selected_ids_requested", config.and_then(|c| c.selected_ids.as_ref()).map_or(0, Vec::len)),
+        count!("operations_seen_all", c.operations_all), count!("operations_selected", c.operations_selected),
+        count!("dropped_move_rows", c.dropped_rows), count!("tracking_admission_dropped", c.tracking_dropped),
+        count!("tracked_origins_peak", c.tracked_peak), count!("missing_applied_origins", c.missing_applied_origins),
+        count!("own_proposals_all", c.own_proposals_all), count!("replacement_removals_all", c.replacement_removals_all),
+        count!("follower_writes_all", c.follower_writes_all), count!("cancelled_existing_all", c.cancelled_existing_all),
+        count!("blocked_nonproposers_all", c.blocked_nonproposers_all), count!("dedup_drops_all", c.dedup_drops_all),
+        count!("applied_all", c.applied_all), count!("applied_selected", c.applied_selected),
+    ])
+}
+
+pub fn moves_batch(frame: Option<&DeliveryFrame>) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let rows = frame.map_or(&[][..], |f| f.moves.rows.as_slice()); let mut columns = Vec::new();
+    macro_rules! col { ($name:expr, $dtype:ident, $array:ident, $nullable:expr, $value:expr) => { columns.push((Field::new($name, DataType::$dtype, $nullable), Arc::new($array::from(rows.iter().map($value).collect::<Vec<_>>())) as ArrayRef)); }; }
+    col!("operation_ordinal", UInt64, UInt64Array, false, |r: &MoveRow| r.operation_ordinal);
+    col!("operation", UInt8, UInt8Array, false, |r: &MoveRow| r.operation);
+    col!("applied", Boolean, BooleanArray, false, |r: &MoveRow| r.operation == MOVE_APPLIED);
+    col!("bucket", UInt16, UInt16Array, false, |r: &MoveRow| r.bucket);
+    col!("agent_id", UInt32, UInt32Array, false, |r: &MoveRow| r.agent_id);
+    col!("from_region", UInt16, UInt16Array, false, |r: &MoveRow| r.from);
+    col!("to_region", UInt16, UInt16Array, false, |r: &MoveRow| r.to);
+    col!("role", UInt8, UInt8Array, false, |r: &MoveRow| r.role);
+    col!("lead_agent_id", UInt32, UInt32Array, true, |r: &MoveRow| r.lead_id);
+    col!("trigger_agent_id", UInt32, UInt32Array, true, |r: &MoveRow| r.trigger_agent_id);
+    col!("reason", UInt8, UInt8Array, false, |r: &MoveRow| r.reason);
+    col!("rejected_to_region", UInt16, UInt16Array, true, |r: &MoveRow| r.rejected_to);
+    col!("prior_count_valid", Boolean, BooleanArray, false, |r: &MoveRow| r.prior_count_valid);
+    col!("prior_proposal_count", UInt64, UInt64Array, false, |r: &MoveRow| r.prior_count);
+    col!("prior_from_region", UInt16, UInt16Array, true, |r: &MoveRow| r.prior_from);
+    col!("prior_to_region", UInt16, UInt16Array, true, |r: &MoveRow| r.prior_to);
+    col!("origin_valid", Boolean, BooleanArray, false, |r: &MoveRow| r.origin_valid);
+    col!("origin_operation_ordinal", UInt64, UInt64Array, true, |r: &MoveRow| r.origin_operation_ordinal);
+    col!("native_event_ordinal", UInt64, UInt64Array, true, |r: &MoveRow| r.native_event_ordinal);
+    col!("migration_driver", UInt8, UInt8Array, true, |r: &MoveRow| r.migration_driver);
+    batch(columns)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +688,73 @@ mod tests {
         observer.anchor(0.0);
         assert!(observer.decisions[0].community_anchor_computed);
         assert_eq!(observer.decisions[0].community_anchor.to_bits(), 0.0f32.to_bits());
+    }
+
+    fn move_pool() -> AgentPool {
+        let mut pool = AgentPool::new(4);
+        for _ in 0..3 { pool.spawn(0, 0, crate::agent::Occupation::Farmer, 25,
+            0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE); }
+        pool
+    }
+
+    #[test]
+    fn decision_delivery_move_tracking_and_rows_are_bounded_independently() {
+        let pool = move_pool();
+        let config = DeliveryConfig::new(1, 1, None).unwrap().with_move_limit(1).unwrap();
+        let mut decisions = crate::behavior::PendingDecisions::new();
+        decisions.migrations = vec![(0, 0, 1), (1, 0, 1), (2, 0, 1)];
+        let mut observer = MoveDelivery::new(&config);
+        observer.begin(&pool, &[decisions]);
+        assert_eq!(observer.origins.len(), 1);
+        observer.applied(&pool, 0, (2, 0, 1), 7, 0);
+        let frame = observer.finish();
+        assert_eq!(frame.rows.len(), 1);
+        assert_eq!(frame.counts.tracked_peak, 1);
+        assert_eq!(frame.counts.tracking_dropped, 2);
+        assert_eq!(frame.counts.dropped_rows, 3);
+        assert_eq!(frame.counts.missing_applied_origins, 1);
+        assert!(!frame.complete());
+    }
+
+    #[test]
+    fn decision_delivery_move_missing_origin_never_invents_an_own_proposal() {
+        let pool = move_pool();
+        let config = DeliveryConfig::new(1, 1, None).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.applied(&pool, 0, (0, 0, 1), 9, 2);
+        let frame = observer.finish();
+        let row = &frame.rows[0];
+        assert_eq!(row.role, MOVE_ROLE_UNKNOWN);
+        assert!(!row.origin_valid);
+        assert_eq!(row.origin_operation_ordinal, None);
+        assert_eq!(row.native_event_ordinal, Some(9));
+        assert!(!frame.complete());
+    }
+
+    #[test]
+    fn decision_delivery_move_empty_selection_and_dedup_keep_last_writer() {
+        let pool = move_pool();
+        let empty = DeliveryConfig::new(1, 1, Some(vec![])).unwrap();
+        let mut observer = MoveDelivery::new(&empty);
+        let mut decisions = crate::behavior::PendingDecisions::new();
+        decisions.migrations.push((0, 0, 1));
+        observer.begin(&pool, &[decisions]);
+        observer.applied(&pool, 0, (0, 0, 1), 0, 0);
+        let empty_frame = observer.finish();
+        assert!(empty_frame.complete()); assert!(empty_frame.rows.is_empty());
+        assert_eq!(empty_frame.counts.applied_all, 1);
+        assert_eq!(empty_frame.counts.applied_selected, 0);
+
+        let config = DeliveryConfig::new(1, 1, None).unwrap();
+        let mut observer = MoveDelivery::new(&config);
+        observer.follower_written(&pool, 0, 2, 0, 1, 0, MOVE_ROLE_DEPENDENT, 0, None);
+        observer.follower_written(&pool, 0, 2, 0, 2, 1, MOVE_ROLE_DEPENDENT, 1, Some((0, 1)));
+        observer.dedup_removed(&pool, 0, (2, 0, 1));
+        observer.applied(&pool, 0, (2, 0, 2), 3, 1);
+        let frame = observer.finish();
+        let applied = frame.rows.last().unwrap();
+        assert!(frame.complete() && applied.origin_valid);
+        assert_eq!(applied.lead_id, Some(pool.ids[1]));
+        assert_eq!(applied.origin_operation_ordinal, Some(1));
     }
 }
