@@ -68,6 +68,15 @@ def _build():
     }
 
 
+def _decision_from_report_bytes(report_raw, *, profile, strict, report_path):
+    # m53b_run_validation parses the subprocess's JSON before adjudication.
+    # Use exactly the saved wire order, not the pre-serialization Python dict.
+    report = json.loads(report_raw)
+    policy = validation_gate.adjudicate_validation_report(
+        profile, report, require_strict_regression=strict, require_causal_oracles=False)
+    return validation_gate.build_gate_decision_payload(policy, report, report_path=report_path)
+
+
 def _cohort(root, role, build_raw, *, fail=False, smoke=False):
     root.mkdir()
     (root / "report").mkdir()
@@ -134,11 +143,10 @@ def _cohort(root, role, build_raw, *, fail=False, smoke=False):
         "forks": expected["fork_count"], "native_sha256": "a" * 64,
         "history_identity": "every fork's agent events equal the plain run's up to the fork turn",
     }
-    decision = validation_gate.build_gate_decision_payload(
-        validation_gate.adjudicate_validation_report(expected["profile"], report,
-                                                     require_strict_regression=expected["require_strict_regression"],
-                                                     require_causal_oracles=False),
-        report, report_path=Path("/synthetic/original/validate_report_full.json"))
+    report_raw = _raw(report)
+    decision = _decision_from_report_bytes(
+        report_raw, profile=expected["profile"], strict=expected["require_strict_regression"],
+        report_path=Path("/synthetic/original/validate_report_full.json"))
     run = {
         "profile": expected["profile"], "worldgen": worldgen, "seed_start": 42,
         "seeds": expected["seed_count"], "turns": expected["turns"], "parallel": 2,
@@ -152,7 +160,7 @@ def _cohort(root, role, build_raw, *, fail=False, smoke=False):
         "build-manifest.json": build_raw,
         "report/batch_manifest.json": batch_raw,
         "report/ablation_manifest.json": ablation_raw,
-        "report/validate_report_full.json": _raw(report),
+        "report/validate_report_full.json": report_raw,
         "report/gate_decision_full.json": _raw(decision),
         "report/gate_summary_full.md": b"synthetic original summary\n",
         "report/run_manifest.json": _raw(run),
@@ -238,12 +246,11 @@ def _reseal_reports(root):
     report = json.loads((root / "report/validate_report_full.json").read_text())
     report["batch_manifest"] = batch_cohort(batch, _sha(batch_raw))
     report["ablation_arms"]["manifest_sha256"] = _sha(_raw(ablation))
-    (root / "report/validate_report_full.json").write_bytes(_raw(report))
+    report_raw = _raw(report)
+    (root / "report/validate_report_full.json").write_bytes(report_raw)
     saved = json.loads((root / "report/gate_decision_full.json").read_text())
-    decision = validation_gate.build_gate_decision_payload(
-        validation_gate.adjudicate_validation_report(
-            "full", report, require_strict_regression=True, require_causal_oracles=False),
-        report, report_path=Path(saved["report_path"]))
+    decision = _decision_from_report_bytes(
+        report_raw, profile="full", strict=True, report_path=Path(saved["report_path"]))
     (root / "report/gate_decision_full.json").write_bytes(_raw(decision))
     run = json.loads((root / "report/run_manifest.json").read_text())
     run.update(gate_status="PASS" if decision["ok"] else "FAIL", gate_exit_code=decision["exit_code"])
@@ -648,5 +655,44 @@ def test_float_fork_seed_cannot_alias_a_registered_integer_after_raw_paths_are_r
     (root / "raw-inventory.json").write_bytes(_raw(inventory))
     _reseal_reports(root)
     with pytest.raises(Q.ComparisonInputError, match="fork seed must be an integer"):
+        _run(matrix, tmp_path)
+    assert not (tmp_path / "comparison").exists()
+
+
+def test_original_decision_uses_the_saved_report_wire_order():
+    # The same statuses can yield a different list order after JSON key sorting.
+    # The real gate adjudicates a parsed report, so the fixture must do so too.
+    report = {
+        "profile": "subset", "causal_oracles_required": False,
+        "results": {"era": {"status": "SKIP"}, "arcs": {"status": "FAIL"},
+                    "community": {"status": "PASS"}, "needs": {"status": "PASS"},
+                    "cohort": {"status": "PASS"}},
+    }
+    path = Path("/synthetic/original/report.json")
+    in_memory = validation_gate.build_gate_decision_payload(
+        validation_gate.adjudicate_validation_report(
+            "subset", report, require_strict_regression=False, require_causal_oracles=False),
+        report, report_path=path)
+    wire = _decision_from_report_bytes(
+        _raw(report), profile="subset", strict=False, report_path=path)
+    assert in_memory["ok"] and wire["ok"]
+    assert [item["oracle"] for item in in_memory["informational_non_pass"]] == ["era", "arcs"]
+    assert [item["oracle"] for item in wire["informational_non_pass"]] == ["arcs", "era"]
+    assert in_memory != wire
+
+
+def test_matching_gate_outcome_cannot_hide_reordered_original_decision(matrix, tmp_path):
+    root = matrix[0]["template-baseline"]
+    path = root / "report/gate_decision_full.json"
+    saved = json.loads(path.read_text())
+    assert saved["ok"] and len(saved["informational_non_pass"]) > 1
+    saved["informational_non_pass"].reverse()
+    path.write_bytes(_raw(saved))
+    inventory = json.loads((root / "raw-inventory.json").read_text())
+    inventory["files"]["raw/full_gate/batch_42/gate_decision_full.json"] = _record(path.read_bytes())
+    inventory["total_bytes"] = sum(value["bytes"] for value in inventory["files"].values())
+    (root / "raw-inventory.json").write_bytes(_raw(inventory))
+    _seal(root)
+    with pytest.raises(Q.ComparisonInputError, match="unaltered original strict decision"):
         _run(matrix, tmp_path)
     assert not (tmp_path / "comparison").exists()
