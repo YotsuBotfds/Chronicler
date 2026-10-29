@@ -5,7 +5,7 @@
 use crate::agent;
 use crate::agent::Occupation;
 use crate::behavior::personality_modifier;
-use crate::pool::AgentPool;
+use crate::pool::{AgentPool, IdSlots};
 use crate::region::RegionState;
 use crate::signals::TickSignals;
 
@@ -298,12 +298,23 @@ fn conquest_grievance(pool: &AgentPool, slot: usize) -> f32 {
 /// Co-resident bond counts (`co_resident_bonds`) of the given slots,
 /// indexed by slot.
 pub fn co_resident_counts(pool: &AgentPool, alive_slots: &[usize]) -> Vec<u32> {
+    co_resident_counts_with_reusable_id_slots(pool, alive_slots, false).0
+}
+
+fn co_resident_counts_with_reusable_id_slots(
+    pool: &AgentPool,
+    alive_slots: &[usize],
+    retain_dense: bool,
+) -> (Vec<u32>, Option<IdSlots>) {
     let id_to_slot = pool.build_id_slots();
     let mut co_resident = vec![0u32; pool.capacity()];
     for &slot in alive_slots {
         co_resident[slot] = co_resident_bonds(pool, slot, &id_to_slot);
     }
-    co_resident
+    // A sparse map must be dropped at this original counting boundary,
+    // before restoration, rather than carried into later tick phases.
+    let reusable = if retain_dense { id_to_slot.into_dense() } else { None };
+    (co_resident, reusable)
 }
 
 /// Apply proportional restoration to all 6 needs for alive agents, and the
@@ -588,6 +599,26 @@ pub fn update_needs(
     decay_needs(pool, &alive_slots);
     restore_needs(pool, &alive_slots, regions, signals, wealth_percentiles);
     clamp_needs(pool, &alive_slots);
+}
+
+/// Tick-only entry point that retains the lookup just built while counting
+/// bonds, if it is dense. Identity/liveness must stay unchanged until its last
+/// use; co-residence and sentiments are always read from the current pool.
+pub(crate) fn update_needs_with_reusable_id_slots(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    signals: &TickSignals,
+    wealth_percentiles: &[f32],
+) -> Option<IdSlots> {
+    let alive_slots: Vec<usize> = (0..pool.capacity())
+        .filter(|&slot| pool.is_alive(slot))
+        .collect();
+    decay_needs(pool, &alive_slots);
+    let (co_resident, reusable) =
+        co_resident_counts_with_reusable_id_slots(pool, &alive_slots, true);
+    restore_needs_with_bonds(pool, &alive_slots, regions, signals, wealth_percentiles, &co_resident);
+    clamp_needs(pool, &alive_slots);
+    reusable
 }
 
 #[cfg(test)]

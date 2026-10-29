@@ -3,9 +3,12 @@
 October 29 source-only native index-reuse draft: the isolated
 `lead/native-tick-index-reuse-20261029` branch shares the post-migration
 region partition between memory-intent collection and demographics. The
-later post-demographic partition remains fresh. A Rust regression checks
-both consumers against migration-event census reconstruction; it has not
-been run, and no build, native parity or performance result is claimed.
+later post-demographic partition remains fresh. A separate change retains
+only the dense ID lookup built during needs for relationship drift,
+knowledge and pre-decision household work, preserving each sparse-map
+constructor. The [source contract](performance/native-tick-index-reuse-2026-10.md)
+records refresh boundaries and new Rust regressions. They have not been run;
+no build, native parity or performance result is claimed.
 
 An isolated native-only [applied-move provenance Stage 2](integration/decision-delivery-applied-moves-2026-10-29.md)
 starts from qualified Stage 1 `e99c0fd5` and preserves that branch/ref. It adds

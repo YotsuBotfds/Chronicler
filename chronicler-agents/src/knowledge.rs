@@ -1125,6 +1125,18 @@ pub fn knowledge_phase(
     master_seed: &[u8; 32],
     turn: u32,
 ) -> KnowledgeStats {
+    knowledge_phase_with_lookup(pool, regions, master_seed, turn, None)
+}
+
+/// Tick-only reuse from the same live identity set. Observation, propagation
+/// and their ordering stay local to this phase; an empty pool builds no lookup.
+pub(crate) fn knowledge_phase_with_lookup(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    master_seed: &[u8; 32],
+    turn: u32,
+    slot_lookup: Option<&crate::pool::IdSlots>,
+) -> KnowledgeStats {
     let mut stats = KnowledgeStats::default();
     let current_turn = turn as u16;
 
@@ -1160,10 +1172,11 @@ pub fn knowledge_phase(
 
     // Step 3: Propagation (buffered, reads post-observation snapshot)
     // Every live slot, the same entries as a map built from `alive_slots`.
-    let slot_lookup = pool.build_id_slots();
+    let fresh_lookup = if slot_lookup.is_none() { Some(pool.build_id_slots()) } else { None };
+    let slot_lookup = slot_lookup.or(fresh_lookup.as_ref()).expect("knowledge slot lookup");
 
     let (buffer, transmitted, tt, ttr, tr) =
-        propagate_packets(pool, &alive_slots, master_seed, turn, &slot_lookup);
+        propagate_packets(pool, &alive_slots, master_seed, turn, slot_lookup);
     stats.packets_transmitted = transmitted;
     stats.transmitted_threat = tt;
     stats.transmitted_trade = ttr;

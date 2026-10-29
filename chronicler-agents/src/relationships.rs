@@ -286,11 +286,22 @@ pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond
 /// Per-tick sentiment drift for all agents.
 /// Phase 0.8: after needs (0.75), before satisfaction (1.0).
 pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
+    drift_relationships_with_lookup(pool, turn, None);
+}
+
+/// Tick-only reuse of a lookup from the same live identity set. Sentiments
+/// and co-location are still evaluated here, in the original bond order.
+pub(crate) fn drift_relationships_with_lookup(
+    pool: &mut AgentPool,
+    turn: u32,
+    id_to_slot: Option<&crate::pool::IdSlots>,
+) {
     let strong_tie_cadence = u32::from(crate::agent::STRONG_TIE_CADENCE);
     let negative_decay_cadence = u32::from(crate::agent::NEGATIVE_DECAY_CADENCE);
 
     // id→slot lookup (alive agents only); lookup-only, never iterated.
-    let id_to_slot = pool.build_id_slots();
+    let fresh_lookup = if id_to_slot.is_none() { Some(pool.build_id_slots()) } else { None };
+    let id_to_slot = id_to_slot.or(fresh_lookup.as_ref()).expect("relationship slot lookup");
 
     for agent_slot in 0..pool.capacity() {
         if !pool.alive[agent_slot] { continue; }
