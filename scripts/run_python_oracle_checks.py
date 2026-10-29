@@ -314,6 +314,7 @@ CHUNKS = {
     "health-care-policy": [
         "tests/test_health_care_policy.py",
         "tests/test_health_care_experiment_policy.py",
+        "tests/test_health_care_capture.py",
     ],
     "practice-growth-observer": [
         "tests/test_practice_growth_observer.py",

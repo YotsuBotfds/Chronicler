@@ -223,6 +223,7 @@
       "tests/test_governance_runtime.py",
       "tests/test_grain_reserves.py",
       "tests/test_health_care.py",
+      "tests/test_health_care_capture.py",
       "tests/test_health_care_experiment_policy.py",
       "tests/test_health_care_policy.py",
       "tests/test_healthy_migration.py",

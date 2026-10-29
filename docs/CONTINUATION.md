@@ -1,3 +1,28 @@
+# Detached care capture source composition - 2026-10-29
+
+The [capture composition](integration/care-capture-composition-2026-10-29.md)
+imports exactdb4 adapter/test42/source note and registers its whole test module
+in native shard1 and the existing health-care-policy offline chunk. All prior303
+owners are preserved (now304); six skips/623 subreports and38chunks/110s remain
+exact. Runtime hooks, native09ec, physics/state/defaults/deps/workflows are exact829.
+
+Parent829 is qualified at firstCI40951995084:8719/6/623 native,8386/325/623
+no-Rust,4612/65/97 offline,1154Rust/two ignored and743Viewer. This child's CI is
+UNRUN. Donordb4 actual first pure130/390/97 and source were independently/root
+verified post-attempt. Its intended extra internal prelaunch root receipt NEVER
+existed: metadata KeyErrorblob/git_blob exited1 and orchestration still launched
+once without checking that exit. Broad user development authorization/full root
+source-runner review do not erase that internal protocol breach. Deviation,
+first metadata failure and actualPASS remain preserved; no retrogrant or rerun.
+
+Prospective newCI8761/6/623 native,8428/325/623 no-Rust and4654/65/97 offline
+are expectations only. API/schemas, actual source-copy/native capture, sink/
+retention/owner/cleanup, positive3.13.17totals, World/CP/defaultRNG/pilot/science/
+performance stayNULL or held. Budget sibling is not composed; main is untouched.
+The entire829 continuation follows byte-exact, including historical snapshots.
+
+---
+
 # Care mechanics source graft — 2026-10-29
 
 The [mechanics composition](integration/care-mechanics-composition-2026-10-29.md)

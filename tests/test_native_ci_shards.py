@@ -189,11 +189,12 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
     files = [name for names in m['shards'].values() for name in names]
     owners = S.validate_assignment(m, files)
     additions = {
+        'tests/test_health_care_capture.py': '1',
         'tests/test_health_care_experiment_policy.py': '1',
         'tests/test_health_care_policy.py': '1',
         'tests/test_wealth_floor_outcome_checkpoints_v2.py': '1',
     }
-    assert len(owners) == 303
+    assert len(owners) == 304
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300
