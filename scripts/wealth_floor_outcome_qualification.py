@@ -44,8 +44,8 @@ TEMPLATE_PATH = "docs/experiments/wealth-floor-outcome-cohort.yml.inactive"
 SMOKE_TEMPLATE_PATH = "docs/experiments/wealth-floor-outcome-worker-smoke.yml.inactive"
 PREREQUISITE_PATH = "docs/integration/wealth-floor-outcome-prerequisites-reviewed.json"
 WORKER_PACKET_PATH = "docs/integration/wealth-floor-outcome-worker-smokes-reviewed.json"
-V_SHA256 = "3e32059d7ea03bea60d6513ed69dba57891695a95d9dd616573518f15f2d02fd"
-WORKFLOW_SHA256 = {'smoke': '0cc71984b30c9c6d5fc219b3f7d3be4dc5052e1c5ec639e44ef45a18ed2248a2', 'full': '2ffb5ab9a10adf900344c8ae961266544d0f3e6ebb4ade7540f10687d9e0bc27'}
+V_SHA256 = "56ae23c56e7abc1ff1d280fe5ae8b4b9d350bab326df2d540d8e421752e9e705"
+WORKFLOW_SHA256 = {'smoke': '0cc71984b30c9c6d5fc219b3f7d3be4dc5052e1c5ec639e44ef45a18ed2248a2', 'full': 'b7f03c299a1fb180a3d01a36e6ce5d9f64d61e1d49796be3243a45f3d8de8fae'}
 MAX_RAW_BYTES = A.MAX_PAYLOAD_BYTES
 MAX_RAW_FILES = A.MAX_ENTRIES
 COHORT_WALL_SECONDS = 330 * 60
@@ -240,7 +240,7 @@ def verify_workflow_paths(control,stage):
     return True
 
 
-def transport_plan(packet):
+def transport_plan(packet,stage='smoke'):
     producer=packet["proofs"]["baseline_audit"]["producer"]
     A.validate_producer_identity(producer["control_sha"],producer["run_id"],producer["job_id"])
     result={"build":dict(run_id=P.REVIEWED_BUILD["run_id"],artifact_id=P.REVIEWED_BUILD["artifact_id"]),
@@ -250,11 +250,65 @@ def transport_plan(packet):
         "historical_procedural":dict(artifact_id=A.ARCHIVES["procedural"].artifact_id),
         "baseline_audit_job":dict(job_id=producer["job_id"])}
     require(all(type(value) is int and value>0 for row in result.values() for value in row.values()),"typed fixed transport IDs required")
+    if stage=='full':
+        publication=V.worker_publication_registration()
+        result['worker_smoke_run']=dict(run_id=publication['run_id'])
+        for world,artifacts in publication['artifacts'].items():
+            for kind,row in artifacts.items():result[f'worker_smoke_{world}_{kind}']=dict(artifact_id=row['id'])
+    else:require(stage=='smoke','fixed publication phase')
     return result
 
 
-def validate_publications(metadata,packet,*,now):
-    require(type(metadata) is dict and set(metadata)==set(transport_plan(packet)),"closed fresh publication set required")
+def assemble_publication_metadata(plan,read):
+    """Finite metadata rows only; run/jobs-only rows do not invent artifacts."""
+    base={'build','bootstrap','primer','historical_template','historical_procedural','baseline_audit_job'}
+    extra={'worker_smoke_run'}|{f'worker_smoke_{w}_{k}' for w in ('template','procedural') for k in ('light','raw','contracts')}
+    require(type(plan) is dict and set(plan) in (base,base|extra),'closed publication transport row set')
+    result={}
+    for key,row in plan.items():
+        require(type(row) is dict and all(type(n) is int and n>0 for n in row.values()),'typed metadata-only transport')
+        if set(row)=={'run_id','artifact_id'}:result[key]={kind:read(key+'-'+kind+'.json') for kind in ('run','jobs','artifact')}
+        elif set(row)=={'run_id'}:result[key]={kind:read(key+'-'+kind+'.json') for kind in ('run','jobs')}
+        elif set(row)=={'artifact_id'}:result[key]=read(key+'-artifact.json')
+        elif set(row)=={'job_id'}:result[key]=read(key+'-job.json')
+        else:require(False,'undeclared publication transport shape')
+    return result
+
+
+def validate_worker_publications(metadata,*,now):
+    source=V.worker_publication_registration();wrapper=metadata['worker_smoke_run']
+    require(type(wrapper) is dict and set(wrapper)=={'run','jobs'},'closed worker run/jobs metadata')
+    run=wrapper['run'];jobs=wrapper['jobs']
+    require(type(run) is dict and type(run.get('id')) is int and run['id']==source['run_id']
+        and run.get('head_sha')==source['control_sha'] and run.get('head_branch')==source['branch'] and run.get('path')==source['workflow_path']
+        and type(run.get('run_attempt')) is int and run['run_attempt']==source['attempt'] and run.get('event')=='push'
+        and run.get('status')=='completed' and run.get('conclusion')=='success'
+        and run.get('repository',{}).get('full_name')==P.REPOSITORY,'fresh completed original worker run')
+    require(type(jobs) is dict and type(jobs.get('total_count')) is int and jobs['total_count']==2
+        and type(jobs.get('jobs')) is list and len(jobs['jobs'])==2
+        and all(type(row) is dict and type(row.get('id')) is int for row in jobs['jobs'])
+        and {row['id'] for row in jobs['jobs']}==set(source['jobs'].values()),'both exact completed world jobs required')
+    for world,ident in source['jobs'].items():
+        job=next(row for row in jobs['jobs'] if row['id']==ident)
+        require(job.get('name')==f'smoke ({world})' and type(job.get('run_id')) is int and job['run_id']==source['run_id']
+            and job.get('head_sha')==source['control_sha'] and type(job.get('run_attempt')) is int and job['run_attempt']==source['attempt']
+            and job.get('status')=='completed' and job.get('conclusion')=='success','fresh exact world-to-job linkage')
+    expiries=[]
+    for world,artifacts in source['artifacts'].items():
+        for kind,pin in artifacts.items():
+            artifact=metadata[f'worker_smoke_{world}_{kind}'];origin=artifact.get('workflow_run',{}) if type(artifact) is dict else {}
+            require(type(artifact) is dict and type(origin) is dict and type(artifact.get('id')) is int and artifact['id']==pin['id']
+                and type(artifact.get('size_in_bytes')) is int and artifact['size_in_bytes']==pin['bytes'] and artifact.get('name')==pin['name']
+                and artifact.get('digest')=='sha256:'+pin['sha256'] and artifact.get('expired') is False and artifact.get('expires_at')==pin['expires_at']
+                and type(origin.get('id')) is int and origin['id']==source['run_id'] and origin.get('head_sha')==source['control_sha']
+                and origin.get('head_branch')==source['branch'],'fresh exact worker artifact origin and unchanged expiry')
+            require(now<V.strict_expiry(pin['expires_at']),'original worker artifact expired')
+            expiries.append(pin['expires_at'])
+    return min(expiries,key=V.strict_expiry)
+
+
+def validate_publications(metadata,packet,*,now,stage='smoke'):
+    require(type(metadata) is dict and set(metadata)==set(transport_plan(packet,stage)),"closed fresh publication set required")
     P.validate_publication(metadata["build"],P.registration(),now=now)
     M.validate_bootstrap_publication(metadata["bootstrap"],now=now)
     for worldgen in ("template","procedural"):
@@ -281,12 +335,25 @@ def validate_publications(metadata,packet,*,now):
         and artifact.get("workflow_run",{}).get("id")==pins["run_id"]
         and artifact.get("workflow_run",{}).get("head_sha")==pins["control_sha"],"exact primer raw publication required")
     require(now<P.expiry(pins["artifact_expires_at"]),"primer raw publication expired")
+    if stage=='full':
+        worker=validate_worker_publications(metadata,now=now)
+        originals=[P.REVIEWED_BUILD['artifact_expires_at'],M.BOOTSTRAP['artifact_expires_at'],V.REVIEWED_PRIMER['artifact_expires_at'],
+            *[pin.expires_at for pin in A.ARCHIVES.values()]]
+        original=min(originals,key=V.strict_expiry);effective=min((original,worker),key=V.strict_expiry)
+        require(now<V.strict_expiry(effective),'earliest nested original publication cutoff exceeded')
+        return dict(original_input_earliest_expires_at=original,worker_smoke_earliest_expires_at=worker,
+            effective_earliest_expires_at=effective,original_retention_extended=False)
     return True
 
 
-def load_plan(control,stage):
+def load_plan(control,stage,*,metadata=None,now=None):
     registration(stage)
     packet=P.read_json(control,PREREQUISITE_PATH)
+    if stage=='full':
+        require(metadata is not None and now is not None,'full worker metadata must be freshly validated before worker proof interpretation')
+        validate_publications(metadata,packet,now=now,stage='full')
+        # No worker packet read/admission until every fresh source/job/artifact
+        # and original nested expiry has passed above.
     return V.admit_plan(packet,stage,P.read_json(control,WORKER_PACKET_PATH) if stage=="full" else None)
 
 
@@ -407,9 +474,15 @@ def execute(args):
             available=sorted(os.sched_getaffinity(0));require(len(available)>=2,"two actual CPUs required")
             os.sched_setaffinity(0,set(available[:2]))
             stage="source_and_prerequisite_content"
-            admitted=load_plan(control,args.stage);packet=P.parse(admitted.prerequisite_packet)
-            metadata=P.read_json(temporary,"wealth-outcome-publication.json",supervisor.check)
-            validate_publications(metadata,packet,now=datetime.now(timezone.utc))
+            if args.stage=='full':
+                metadata=P.read_json(temporary,"wealth-outcome-publication.json",supervisor.check)
+                admitted=load_plan(control,args.stage,metadata=metadata,now=datetime.now(timezone.utc))
+            else:
+                admitted=load_plan(control,args.stage)
+                metadata=P.read_json(temporary,"wealth-outcome-publication.json",supervisor.check)
+            packet=P.parse(admitted.prerequisite_packet)
+            retention=validate_publications(metadata,packet,now=datetime.now(timezone.utc),stage=args.stage)
+            if args.stage=='full':report['publication_retention']=retention
             build=P.admit_build(temporary/"wealth-build-input",metadata["build"],now=datetime.now(timezone.utc),check=supervisor.check)
             manifest=P.parse(build.manifest_bytes);shutil.copyfile(build.root/"build-manifest.json",root/"build-manifest.json")
             original_probe=manifest["phases"]["candidate"]["probe"]
@@ -480,7 +553,7 @@ def execute(args):
             require(exact(initial,final),"source bytes/modes/standing changed")
             C.write_json(root/"source-snapshot-after.json",final)
             P.recheck_build(build,supervisor.check);V.recheck_plan(admitted)
-            validate_publications(metadata,packet,now=datetime.now(timezone.utc))
+            validate_publications(metadata,packet,now=datetime.now(timezone.utc),stage=args.stage)
             report["identities_stable"]=True
             report["publication_check_scope"]="Fresh official inputs checked at staging; cached facts/expiry rechecked after work. Completed producer/output artifacts require separate final consumer origin/byte verification."
             supervisor.check(final=True)
@@ -556,11 +629,14 @@ def preflight(args):
     require(os.environ.get("GITHUB_REF")=="refs/heads/"+branch and os.environ.get("GITHUB_RUN_ATTEMPT")=="1","registered first-attempt phase branch")
     require(sys.platform=="linux" and platform.python_version()==B.PYTHON_VERSION,"registered pre-transfer interpreter")
     start=time.monotonic();temporary=Path(os.environ["RUNNER_TEMP"])
-    control=SCRIPT.parents[1];plan=load_plan(control,args.stage);packet=P.parse(plan.prerequisite_packet)
+    control=SCRIPT.parents[1]
+    # Full metadata transport reads only the unchanged base prerequisite packet;
+    # full worker proof admission is deferred until after the fresh GET step.
+    plan=load_plan(control,'smoke');packet=P.parse(plan.prerequisite_packet)
     P.hosted_vm_precondition()
     from wealth_floor_build_resources import memory_admission
     require(shutil.disk_usage(temporary).free>=12*1024**3 and memory_admission()["available_bytes"]>=2*1024**3,"pre-transfer12GiB/2GiB admission")
-    transport=transport_plan(packet);C.write_json(temporary/"wealth-outcome-transport-plan.json",transport)
+    transport=transport_plan(packet,args.stage);C.write_json(temporary/"wealth-outcome-transport-plan.json",transport)
     C.write_json(temporary/"wealth-outcome-preflight.json",dict(started_monotonic=start,stage=args.stage,worldgen=args.worldgen,
         control_sha=os.environ["GITHUB_SHA"],run_id=os.environ["GITHUB_RUN_ID"],attempt="1"))
     with open(os.environ["GITHUB_OUTPUT"],"a",encoding="ascii") as stream:
@@ -585,8 +661,12 @@ def main(argv=None):
     if args.validate_publication:
         registration(args.stage)
         temporary=Path(os.environ["RUNNER_TEMP"]);staging_observation(temporary,args.stage,args.worldgen)
-        plan=load_plan(SCRIPT.parents[1],args.stage)
-        validate_publications(P.read_json(temporary,"wealth-outcome-publication.json"),P.parse(plan.prerequisite_packet),now=datetime.now(timezone.utc))
+        if args.stage=='full':
+            metadata=P.read_json(temporary,"wealth-outcome-publication.json")
+            load_plan(SCRIPT.parents[1],args.stage,metadata=metadata,now=datetime.now(timezone.utc))
+        else:
+            plan=load_plan(SCRIPT.parents[1],args.stage)
+            validate_publications(P.read_json(temporary,"wealth-outcome-publication.json"),P.parse(plan.prerequisite_packet),now=datetime.now(timezone.utc))
         return 0
     if args.execute:
         return execute(args)

@@ -18,6 +18,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "wealth-floor-worker-publications": [
+        "tests/test_wealth_floor_worker_publications.py",
+    ],
     "wealth-floor-outcome-admission": [
         "tests/test_wealth_floor_outcome_admission_v2.py",
     ],

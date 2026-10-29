@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import re
 from pathlib import Path
 import sys
 from types import MappingProxyType
@@ -31,6 +32,8 @@ ROOT_WORKER_SMOKE_PACKET_SHA256 = None
 REVIEWED_PRIMER = MappingProxyType({'artifact_bytes': 142839893, 'artifact_expires_at': '2026-11-28T06:32:03Z', 'artifact_id': 12878510742, 'artifact_sha256': '2507464994956018fabb37fc89c001d08c13882375e1a47e0e5f81d576b5ed74', 'attempt': 1, 'completion_sha256': '22ab852023addacc8007819d111b8f4a73aeae5bb8a0e54023ba9f62345836f6', 'control_sha': '4ed374ce7f0a8efdc99d1e9392a5b41d3fa65a38', 'job_id': 123299181396, 'proof_sha256': 'f7dc1cbdfc26356dd3fef4832ab61b9dd8c865478d259695908de63b9333494e', 'run_id': 40829185023})
 REVIEWED_WORKER_SMOKES = MappingProxyType(dict(template=None, procedural=None))
 _SEAL = object()
+# Qualified metadata facts only; both actual worker/full authority slots remain NULL.
+WORKER_PUBLICATION_PINS = MappingProxyType({'control_sha': '9674d1d012929e2088cf69cf42cc99e461e4f878', 'run_id': 40847120432, 'attempt': 1, 'branch': 'lead/cloud-wealth-floor-outcome-worker-smoke-20261029', 'workflow_path': '.github/workflows/wealth-floor-outcome-worker-smoke.yml', 'jobs': {'procedural': 123357232260, 'template': 123357232574}, 'artifacts': {'template': {'light': {'id': 12885098197, 'name': 'wealth-outcome-smoke-template-light-40847120432-1', 'bytes': 524578, 'sha256': '77a9318c5cd36abf13cd93a068581a5c146147e60fe4cea5c41fe191c1277c6e', 'expires_at': '2026-11-28T09:07:58Z'}, 'raw': {'id': 12884719653, 'name': 'wealth-outcome-smoke-template-raw-40847120432-1', 'bytes': 3384526, 'sha256': 'f5618ea0327961d87e5ef5626accf7d3ebd667d0387cbdb26861c79bd886aec4', 'expires_at': '2026-11-28T09:08:00Z'}, 'contracts': {'id': 12884584245, 'name': 'wealth-outcome-smoke-template-contracts-40847120432-1', 'bytes': 8254, 'sha256': 'd3189bf434e1e6859763d9018ef26d0cfe99b6a46fdefa1ca9e11d5af0f2797f', 'expires_at': '2026-11-28T09:08:02Z'}}, 'procedural': {'light': {'id': 12885572061, 'name': 'wealth-outcome-smoke-procedural-light-40847120432-1', 'bytes': 526025, 'sha256': 'e8903cbe949e646137a30083a2301771005360637e3b86f821231cf96a21fa2a', 'expires_at': '2026-11-28T09:08:01Z'}, 'raw': {'id': 12885048365, 'name': 'wealth-outcome-smoke-procedural-raw-40847120432-1', 'bytes': 8572809, 'sha256': 'b809f89277dfb57ae1031cba52c7420ec63fe77cecc6048c314fbcf36098fbc6', 'expires_at': '2026-11-28T09:08:03Z'}, 'contracts': {'id': 12885925076, 'name': 'wealth-outcome-smoke-procedural-contracts-40847120432-1', 'bytes': 8179, 'sha256': '013b894ed405b9b5295eba8e22c72804735a191feccd008a64ff87a4befcba47', 'expires_at': '2026-11-28T09:08:05Z'}}}, 'terminal': {'primary_sha256': '9d74506281318cc3372d702470c8d9dc1dee76869dff91e8723b525320e0c236', 'execution_sha256': 'fa4dbf82eeb6febb3917dbb3a45eb14f2ba99e733807221fde9b659d3632b3d3', 'after_origin_sha256': '7cef5ec9fa6f8b4ad2cc6f9ad0d63c0ef71f29187269f431891ad599e36bad94', 'metadata_peer_sha256': 'b12edb52d6277359d5ac9527ef1736b3f3e45f200ae34703bddc6bb2a47839c0', 'root_consumer_sha256': '5f3c14a82a4ac534238e81d6fdff45579b3fd5bc6d430ff188b6297c04509715', 'reader_source_sha256': '6878aca01124768aad847d32c2c4e5654e2033e403af89bbdd44d892b016617c', 'reader_policy_sha256': 'c6ad71ae12221cf57dda00cd663aee7502f31a585a3ce7efc877c9b53ee0c16b', 'exit_code': 0, 'failure_receipt_present': False}})
 ROOT_REVIEWS = MappingProxyType(dict(build="72e545308da0cf24d23113e350adf388f75de230ba296453a87eb7b6ba8920a6",
     bootstrap="208b35e77f662d182984cc772ab6281fbe906d950e9a6a6858246716c2d37196",
     primer="c39522453f8b36b4bed5f34dfda38fbf7997952b909c7ff0270dbffa016c0208",
@@ -63,10 +66,53 @@ def registration(stage):
     if stage == "full":
         require(B.hash_shape(ROOT_WORKER_SMOKE_PACKET_SHA256) and all(B.hash_shape(v) for v in REVIEWED_WORKER_SMOKES.values()),
             "two real batch-worker smoke producers/coverage remain unreviewed; full cohort refused")
-    return dict(schema_version=2, stage=stage, prerequisite_sha256=dict(REVIEWED_PREREQUISITES),
+    result=dict(schema_version=2, stage=stage, prerequisite_sha256=dict(REVIEWED_PREREQUISITES),
         prerequisite_packet_sha256=ROOT_PREREQUISITE_PACKET_SHA256, primer=dict(REVIEWED_PRIMER),
         worker_smoke_packet_sha256=ROOT_WORKER_SMOKE_PACKET_SHA256 if stage == "full" else None,
         worker_smoke_sha256=dict(REVIEWED_WORKER_SMOKES) if stage == "full" else None)
+    if stage=='full':result['worker_publication_sha256']=B.digest(worker_publication_registration())
+    return result
+
+
+def strict_expiry(value):
+    require(type(value) is str and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z',value),'strict original publication expiry required')
+    return P.expiry(value)
+
+
+def worker_publication_registration():
+    """Source-bound metadata only. This does not admit a worker proof/world."""
+    value=P.parse(B.canonical_bytes(dict(WORKER_PUBLICATION_PINS)))
+    require(set(value)=={'control_sha','run_id','attempt','branch','workflow_path','jobs','artifacts','terminal'},'closed worker publication source facts')
+    require(type(value['control_sha']) is str and re.fullmatch('[0-9a-f]{40}',value['control_sha'])
+        and type(value['run_id']) is int and value['run_id']>0 and type(value['attempt']) is int and value['attempt']==1
+        and value['branch']=='lead/cloud-wealth-floor-outcome-worker-smoke-20261029'
+        and value['workflow_path']=='.github/workflows/wealth-floor-outcome-worker-smoke.yml','fixed worker producer metadata')
+    require(type(value['jobs']) is dict and set(value['jobs'])==WORKER_KEYS
+        and all(type(n) is int and n>0 for n in value['jobs'].values()) and len(set(value['jobs'].values()))==2,'both exact world job identities')
+    require(type(value['artifacts']) is dict and set(value['artifacts'])==WORKER_KEYS,'both worker artifact worlds required')
+    ids=[]
+    for world,rows in value['artifacts'].items():
+        require(type(rows) is dict and set(rows)=={'light','raw','contracts'},'closed three artifact kinds per world')
+        for kind,row in rows.items():
+            require(type(row) is dict and set(row)=={'id','name','bytes','sha256','expires_at'}
+                and type(row['id']) is int and row['id']>0 and type(row['bytes']) is int and row['bytes']>0
+                and B.hash_shape(row['sha256']) and row['name']==f"wealth-outcome-smoke-{world}-{kind}-{value['run_id']}-1",'typed original artifact publication')
+            strict_expiry(row['expires_at']);ids.append(row['id'])
+    require(len(ids)==len(set(ids))==6,'six distinct worker artifacts required')
+    terminal=value['terminal'];hashes={'primary_sha256','execution_sha256','after_origin_sha256','metadata_peer_sha256','root_consumer_sha256','reader_source_sha256','reader_policy_sha256'}
+    require(type(terminal) is dict and set(terminal)==hashes|{'exit_code','failure_receipt_present'}
+        and all(B.hash_shape(terminal[k]) for k in hashes) and type(terminal['exit_code']) is int and terminal['exit_code']==0
+        and terminal['failure_receipt_present'] is False,'actual named terminal receipt chain required')
+    return value
+
+
+def worker_publication_for_world(world):
+    require(world in WORKER_KEYS,'fixed worker publication world')
+    source=worker_publication_registration()
+    result={k:source[k] for k in ('control_sha','run_id','attempt','branch','workflow_path','terminal')}
+    result.update(job_id=source['jobs'][world],artifacts=source['artifacts'][world],
+        earliest_expires_at=min((r['expires_at'] for r in source['artifacts'][world].values()),key=strict_expiry))
+    return result
 
 
 def validate_prerequisite_packet(packet):
@@ -138,6 +184,7 @@ def validate_worker_smoke_packet(packet):
     require(type(worlds) is dict and set(worlds) == {"template","procedural"}, "both original worker schema smokes required")
     for worldgen,row in worlds.items():
         require(type(row) is dict and B.digest(row) == REVIEWED_WORKER_SMOKES[worldgen], "root-sealed worker-smoke proof differs")
+        require(exact(row.get('publication'),worker_publication_for_world(worldgen)),'source-bound worker publication/terminal proof differs')
         require(row.get("worldgen") == worldgen and row.get("status") == "schema_complete"
             and row.get("publication_complete") is True and row.get("producer_conclusion") == "success"
             and row.get("source_sha") == B.CANDIDATE_SOURCE and row.get("native_sha256") == packet["candidate_native_sha256"]
@@ -148,6 +195,9 @@ def validate_worker_smoke_packet(packet):
             and all(c in "0123456789abcdef" for c in producer["control_sha"])
             and all(type(producer[k]) is int and producer[k]>0 for k in ("run_id","job_id","attempt"))
             and producer["attempt"]==1 and producer["job_key"]=="smoke","root-sealed worker-smoke producer identity required")
+        publication=row['publication']
+        require(producer==dict(control_sha=publication['control_sha'],run_id=publication['run_id'],job_id=publication['job_id'],
+            attempt=publication['attempt'],job_key='smoke'),'exact world-to-job publication linkage required')
         require(exact(row.get("caps"),{key:"1" for key in M.THREAD_KEYS}),"worker-smoke numerical caps1 required")
         for key,value in dict(parents=2,forks=4,executions=6,physics_ticks=334,turns=125,parallel=2,actual_affinity_cpu_count=2,logical_cpu_count=2).items():
             require(type(row.get(key)) is int and row[key] == value, "original worker-smoke coverage differs")

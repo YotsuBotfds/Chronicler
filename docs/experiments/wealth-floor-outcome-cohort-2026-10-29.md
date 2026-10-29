@@ -1,6 +1,9 @@
 # Prospective source503 outcome cohort
 
-This is source preparation. No worker smoke or outcome cohort has run. Both
+The original1900/2b preparation below preceded smoke9674, now qualified as
+mechanics only with both scientific gates FALSE/exit2. No full outcome cohort
+has run. The [full-only metadata successor](wealth-floor-full-origin-metadata-2026-10-29.md)
+adds fresh worker-publication checks while full authority remains NULL. Both
 workflows remain outside `.github`. This smoke-only registration successor binds
 the six reviewed proof objects, exact prerequisite packet and actual primer.
 Worker proof slots and the full worker-packet hash remain NULL. Original

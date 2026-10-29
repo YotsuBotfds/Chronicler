@@ -68,7 +68,7 @@ jobs:
           path: candidate
           persist-credentials: false
 
-      - name: Read only the six closed official input publications
+      - name: Read closed base and worker publications
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,11 +105,10 @@ jobs:
               with (folder/name).open('rb') as stream: raw=stream.read(2*1024**2+1)
               if len(raw)>2*1024**2: raise SystemExit('bounded API metadata exceeded')
               return json.loads(raw)
-          for key,row in plan.items():
-              if 'run_id' in row:
-                  result[key]={kind:read(key+'-'+kind+'.json') for kind in ('run','jobs','artifact')}
-              else:
-                  result[key]=read(key+('-artifact.json' if 'artifact_id' in row else '-job.json'))
+          import sys
+          sys.path.insert(0,str(Path(os.environ['GITHUB_WORKSPACE'])/'control/scripts'))
+          import wealth_floor_outcome_qualification as O
+          result=O.assemble_publication_metadata(plan,read)
           raw=json.dumps(result,sort_keys=True).encode()
           if len(raw)>2*1024**2: raise SystemExit('aggregate API metadata exceeded')
           (root/'wealth-outcome-publication.json').write_bytes(raw)
@@ -154,6 +153,7 @@ jobs:
             "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_outcome_checkpoints.py" \
             "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_retained_outcome_driver.py" \
             "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_outcome_qualification.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_worker_publications.py" \
             -p python_oracle_guard -p no:cacheprovider \
             --basetemp="$RUNNER_TEMP/wealth-outcome-contract-fixtures" \
             --junitxml="$RUNNER_TEMP/wealth-outcome-contracts/junit.xml" \

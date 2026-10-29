@@ -1,0 +1,11 @@
+def transport_plan(packet):
+    producer=packet["proofs"]["baseline_audit"]["producer"]
+    A.validate_producer_identity(producer["control_sha"],producer["run_id"],producer["job_id"])
+    result={"build":dict(run_id=P.REVIEWED_BUILD["run_id"],artifact_id=P.REVIEWED_BUILD["artifact_id"]),
+        "bootstrap":dict(run_id=M.BOOTSTRAP["run_id"],artifact_id=M.BOOTSTRAP["artifact_id"]),
+        "primer":dict(run_id=V.REVIEWED_PRIMER["run_id"],artifact_id=V.REVIEWED_PRIMER["artifact_id"]),
+        "historical_template":dict(artifact_id=A.ARCHIVES["template"].artifact_id),
+        "historical_procedural":dict(artifact_id=A.ARCHIVES["procedural"].artifact_id),
+        "baseline_audit_job":dict(job_id=producer["job_id"])}
+    require(all(type(value) is int and value>0 for row in result.values() for value in row.values()),"typed fixed transport IDs required")
+    return result

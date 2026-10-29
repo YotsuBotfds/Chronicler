@@ -123,7 +123,9 @@ def registered(monkeypatch,closed_registry):
             parents=2, forks=4, executions=6, physics_ticks=334, turns=125, parallel=2,
             actual_affinity_cpu_count=2, logical_cpu_count=2, caps={key: "1" for key in M.THREAD_KEYS},
             scientific_gate_pass=False, scientific_exit_code=2,
-            producer=dict(control_sha="a" * 40, run_id=801, job_id=802 + index, attempt=1, job_key="smoke"),
+            producer=dict(control_sha=V.WORKER_PUBLICATION_PINS['control_sha'],run_id=V.WORKER_PUBLICATION_PINS['run_id'],
+                job_id=V.WORKER_PUBLICATION_PINS['jobs'][worldgen],attempt=1,job_key='smoke'),
+            publication=V.worker_publication_for_world(worldgen),
             worker_observation_scope="source_launched_pool2_and_real_worker_written_checkpoint_contexts_no_pid_or_overlap_sampling",
             checkpoint_index_sha256="2"*64,checkpoint_retirement_sha256="3"*64,checkpoint_retirement_complete=True,
             candidate_checkpoints=[_worker_checkpoint(worldgen,seed) for seed in (42,43)])
@@ -147,6 +149,25 @@ def test_null_source_registration_refuses_before_packet_processing(monkeypatch, 
     monkeypatch.setattr(V, "validate_prerequisite_packet", forbidden)
     with pytest.raises(V.P.ProofRefused, match="remain NULL"):
         V.admit_plan(object(), stage, object())
+
+
+@pytest.mark.parametrize('fault',['terminal','missing_publication','wrong_world_job','artifact_id'])
+def test_worker_proof_binds_source_publications_and_actual_terminal_chain(registered,monkeypatch,fault):
+    workers=deepcopy(registered.workers);row=workers['worlds']['template']
+    if fault=='terminal':row['publication']['terminal']['root_consumer_sha256']=True
+    elif fault=='missing_publication':row.pop('publication')
+    elif fault=='wrong_world_job':row['producer']['job_id']=V.WORKER_PUBLICATION_PINS['jobs']['procedural']
+    else:row['publication']['artifacts']['raw']['id']+=1
+    _pin_workers(monkeypatch,workers)
+    with pytest.raises(V.P.ProofRefused):V.admit_plan(registered.packet,'full',workers)
+
+
+def test_full_factory_recheck_refuses_publication_source_drift(registered,monkeypatch):
+    _pin_workers(monkeypatch,registered.workers)
+    plan=V.admit_plan(registered.packet,'full',registered.workers)
+    changed=V.worker_publication_registration();changed['terminal']['root_consumer_sha256']='0'*64
+    monkeypatch.setattr(V,'WORKER_PUBLICATION_PINS',MappingProxyType(changed))
+    with pytest.raises(V.P.ProofRefused):V.recheck_plan(plan)
 
 
 def test_smoke_gate_needs_prerequisites_but_no_worker_claim(registered):

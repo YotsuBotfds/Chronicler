@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+A [full-only publication admission source child](experiments/wealth-floor-full-origin-metadata-2026-10-29.md)
+adds exact source-bound9674 smoke origins and9d/fa4/7cef/b12/5f3c terminal receipt
+identities. Full preflight derives13 metadata rows without reading the worker
+packet; fresh completed2-job/6-artifact validation and earliest original expiry
+precede worker-proof admission, build inspection, install and worlds. Smoke's
+six-row transport and0cc workflow stay unchanged. Both actual full-worker hash
+slots and root worker-packet hash remain NULL; no active workflow/full run/push
+is granted by this source. The original12-execution/668-tick smoke is qualified
+mechanics only and preserves both scientificFALSE/exit2/needsFAIL results.
+
 A smoke-only registration successor now binds the root-content-reviewed exact
 2e80 prerequisite packet, six typed OBJECT digests and real primer identity.
 Only the new V2 smoke prerequisite registry is filled; all worker/full slots and

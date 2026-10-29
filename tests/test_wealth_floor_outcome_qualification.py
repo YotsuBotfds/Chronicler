@@ -273,7 +273,10 @@ def test_current_source_dependencies_and_original_null_A_are_preserved():
     else:
         O.V.recheck_plan(O.load_plan(ROOT,"smoke"))
         if O.V.ROOT_WORKER_SMOKE_PACKET_SHA256 is not None or any(v is not None for v in O.V.REVIEWED_WORKER_SMOKES.values()):
-            O.V.recheck_plan(O.load_plan(ROOT,"full"))
+            # Pure real-content/source validation stays offline. Actual full O
+            # admission additionally requires fresh official metadata; its
+            # before-worker-read ordering has separate fault coverage.
+            O.V.recheck_plan(O.V.admit_plan(O.P.read_json(ROOT,O.PREREQUISITE_PATH),'full',O.P.read_json(ROOT,O.WORKER_PACKET_PATH)))
         else:
             with pytest.raises(O.P.ProofRefused,match="full cohort refused"):O.V.registration("full")
 
