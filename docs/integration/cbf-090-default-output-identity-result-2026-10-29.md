@@ -34,8 +34,10 @@ for all three compiled classes in both arms, all 18 case audits and the original
 80 clean child completions with 361 resource rows. The reader's 19 owned children
 completed cleanly, with 175 resource rows, no retained-native installation and
 no simulation-native package, distribution or import attempts. Both original
-arms used CPython 3.13.17, one actual CPU and caps 1/hash 0. The fresh reader used
-that Python policy and uv 0.13.6. Its 51.6076-second qualification duration is
+arms used CPython 3.13.17, one actual CPU and recorded thread/hash environment
+caps of 1/0. The matrix did not directly record `sys.flags.hash_randomization`.
+The fresh reader used that Python policy and uv 0.13.6. Its 51.6076-second
+qualification duration is
 not an old/new performance result.
 
 Light artifact 12904625572 is 1,249,716 bytes, SHA-256

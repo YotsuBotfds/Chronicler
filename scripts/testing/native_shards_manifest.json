@@ -308,6 +308,7 @@
       "tests/test_war_logistics.py",
       "tests/test_wave3_combined.py",
       "tests/test_wave3_techniques_combined.py",
+      "tests/test_wealth_floor_outcome_checkpoints_v2.py",
       "tests/test_world_gen.py",
       "tests/test_writer_cadence_diagnostic.py"
     ]

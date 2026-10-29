@@ -1,5 +1,12 @@
 # Fresh practice study: verified small publication — 2026-10-29
 
+Later 2026-10-29 result: the [registered original-byte audit](original-practice-byte-audit-2026-10-29.md)
+is now complete and root/independently qualified for original RAW authentication
+and exact semantic replay. Its source-qualified remote consumer and local small
+publication have separate scopes. The paragraphs below preserve the earlier
+SMALL-only publication; their pending RAW status is historical. The original
+JSON, producer facts, failed attempts and scientific limits remain unchanged.
+
 The small original artifact from [run 40877451052](https://github.com/YotsuBotfds/Chronicler/actions/runs/40877451052), attempt 1, control `2d3faa8c` / CBF physics, now has root and independent byte/arithmetic qualification. **This covers 12 small members, not the 106 MB raw archive.** It is a curated snapshot, distinct from the producer's full readout.
 
 The saved rows show why trials, recipe occurrences and grouped charges need separate counters:

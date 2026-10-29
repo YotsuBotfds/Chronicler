@@ -191,8 +191,9 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
     additions = {
         'tests/test_health_care_experiment_policy.py': '1',
         'tests/test_health_care_policy.py': '1',
+        'tests/test_wealth_floor_outcome_checkpoints_v2.py': '1',
     }
-    assert len(owners) == 302
+    assert len(owners) == 303
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300
@@ -210,7 +211,7 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_mutual_aid_adversarial.py::test_multiturn_disabled_matches_untouched_public_source_with_same_repaired_native',
         'tests/test_turn_artifact_lifecycle.py::test_str_wrapper_does_not_retain_view_after_return',
     ]
-    # Prospective full-native seal: historical 526 plus policy source's 97.
+    # Preserve the qualified care seal: historical 526 plus policy source's 97.
     assert m['expected_successful_subtests'] == 623
 
 

@@ -1,0 +1,172 @@
+{
+  "all_old_A_and_W_full_authority_slots_remain_NULL": true,
+  "checkpoint_inner_sections_decoded": false,
+  "checkpoint_restored": false,
+  "complete_payload_or_physics_qualification": false,
+  "effective_original_expiry": "2026-11-28T01:15:25Z",
+  "failed_operand": "Current-record count compared with initial requested count; only this old compound bit is false in the two first-unvalidated headers.",
+  "independent_peer": {
+    "bytes": 7353,
+    "path": "/tmp/chronicler-wealth-header-a64-final-peer-e70aqw13/receipt.json",
+    "sha256": "e627a771e1973d22abb996cca27937ec00d225b87c92bb55abbf872e32eb2902"
+  },
+  "kind": "CURATED_READOUT_NOT_FULL_VERIFICATION",
+  "large_original_archives_local": false,
+  "legitimate_or_invalid_evolution_not_judged": true,
+  "light_artifact": {
+    "compressed_bytes": 18855,
+    "expanded_bytes": 46839,
+    "id": 12907301856,
+    "members": 13,
+    "sha256": "2c4c0703fdb6d7a45da8708fea3bf85a1c91a8c31e6eca9f629ee6c89af68bff"
+  },
+  "native_or_World_executed": false,
+  "observations": [
+    {
+      "initial_requested_civilizations": 4,
+      "label": "last_valid",
+      "observed_current_civilizations": 4,
+      "old_K_predicate_bits": {
+        "agent_mode_hybrid": true,
+        "current_civilizations_equals_initial_requested": true,
+        "regions_equals_requested": true,
+        "sections_exact_python_agent0": true,
+        "validation_sidecar_true": true
+      },
+      "old_compound_result": true,
+      "previous_whole_SHA_pin": "ef3c7c0e031f38def422dfee1ee8ab0bce81216e5268e53917460bafcb08b7d1",
+      "raw_header": {
+        "bytes": 3361,
+        "sha256": "3eccb62fbe8ae31224c556cfe5b6fe0dda564e58366286deef034ca43e85d71d"
+      },
+      "raw_header_file": "template-last_valid-header.json",
+      "remote_measured_whole_CP": {
+        "bytes": 626137,
+        "crc32": 329236629,
+        "sha256": "ef3c7c0e031f38def422dfee1ee8ab0bce81216e5268e53917460bafcb08b7d1"
+      },
+      "seed": 48,
+      "sha_origin": "original_partial_capture_journal_verified",
+      "turn": 101,
+      "world": "template"
+    },
+    {
+      "initial_requested_civilizations": 4,
+      "label": "first_unvalidated",
+      "observed_current_civilizations": 5,
+      "old_K_predicate_bits": {
+        "agent_mode_hybrid": true,
+        "current_civilizations_equals_initial_requested": false,
+        "regions_equals_requested": true,
+        "sections_exact_python_agent0": true,
+        "validation_sidecar_true": true
+      },
+      "old_compound_result": false,
+      "previous_whole_SHA_pin": null,
+      "raw_header": {
+        "bytes": 3363,
+        "sha256": "3f9946af0e5c99b21c8ef495c9cfeddf090e25300d0b549c705233a7253a0af5"
+      },
+      "raw_header_file": "template-first_unvalidated-header.json",
+      "remote_measured_whole_CP": {
+        "bytes": 1129460,
+        "crc32": 2936355613,
+        "sha256": "a1c24ef185d36187cd3cffe4f7d62677a21e1a6c254618396f20dba1d85e6099"
+      },
+      "seed": 48,
+      "sha_origin": "newly_observed_under_authenticated_zip",
+      "turn": 201,
+      "world": "template"
+    },
+    {
+      "initial_requested_civilizations": 10,
+      "label": "last_valid",
+      "observed_current_civilizations": 10,
+      "old_K_predicate_bits": {
+        "agent_mode_hybrid": true,
+        "current_civilizations_equals_initial_requested": true,
+        "regions_equals_requested": true,
+        "sections_exact_python_agent0": true,
+        "validation_sidecar_true": true
+      },
+      "old_compound_result": true,
+      "previous_whole_SHA_pin": "8d706890164ef1c56591ea38511f851f302f3af88e852868e7723fad401f54c2",
+      "raw_header": {
+        "bytes": 3377,
+        "sha256": "23d4fe85f8f95605aa34e9c12b3b9bff777899715c09391f0b6e1327b681c168"
+      },
+      "raw_header_file": "procedural-last_valid-header.json",
+      "remote_measured_whole_CP": {
+        "bytes": 3655716,
+        "crc32": 506168909,
+        "sha256": "8d706890164ef1c56591ea38511f851f302f3af88e852868e7723fad401f54c2"
+      },
+      "seed": 44,
+      "sha_origin": "original_partial_capture_journal_verified",
+      "turn": 141,
+      "world": "procedural"
+    },
+    {
+      "initial_requested_civilizations": 10,
+      "label": "first_unvalidated",
+      "observed_current_civilizations": 11,
+      "old_K_predicate_bits": {
+        "agent_mode_hybrid": true,
+        "current_civilizations_equals_initial_requested": false,
+        "regions_equals_requested": true,
+        "sections_exact_python_agent0": true,
+        "validation_sidecar_true": true
+      },
+      "old_compound_result": false,
+      "previous_whole_SHA_pin": null,
+      "raw_header": {
+        "bytes": 3377,
+        "sha256": "8b023727fb8c14be8511f7d80d3a5acded14cf91910254dfd4772637803df891"
+      },
+      "raw_header_file": "procedural-first_unvalidated-header.json",
+      "remote_measured_whole_CP": {
+        "bytes": 4228945,
+        "crc32": 3430341575,
+        "sha256": "d34125b82c05405ef10fc6435bac0224fad6f824d2bd020ad7f733512b753363"
+      },
+      "seed": 44,
+      "sha_origin": "newly_observed_under_authenticated_zip",
+      "turn": 161,
+      "world": "procedural"
+    }
+  ],
+  "original_cohort_status": "INCOMPLETE_MECHANICS",
+  "parent_output_or_checkpoint_reuse_qualified": false,
+  "primary": {
+    "bytes": 11320,
+    "path": "/tmp/wf-checkpoint-header-activation-001-py6n7ddr/verification.json",
+    "sha256": "505524330680b5889979d9ba5c68aaaea0022e1c4bed77bbcd7a5bc5b12e9a55"
+  },
+  "producer": {
+    "attempt": 1,
+    "job_id": 123526039976,
+    "run_id": 40896252427,
+    "source": "a64e390eb839b74e3af2e5c785ed87ec1dd97d42",
+    "workflow": ".github/workflows/wealth-floor-checkpoint-header-diagnostic.yml"
+  },
+  "record_growth_event_cause_unobserved": true,
+  "remote_measured_clocks": {
+    "controller_wall_before_final_serialization": 62.400396868,
+    "scope": "Single process clocks; final serialization/upload excluded, hard deadlines cover final writes.",
+    "selected_read_and_metadata": {
+      "cpu_seconds": 7.875181452,
+      "wall_seconds": 7.880561806000003
+    },
+    "transfer": {
+      "cpu_seconds": 20.815225437,
+      "wall_seconds": 54.476748524
+    }
+  },
+  "root_qualification": {
+    "bytes": 2830,
+    "path": "/tmp/chronicler-header-a64-root-final-qualification-20261029/root-final-qualification.json",
+    "sha256": "1d3484ecbcdbe92215cbf4a4303548db56cb4538fa165d9e591eb36dc7a7d00c"
+  },
+  "scope": "Whole large-ZIP identity and selected CP EOF/CRC/SHA are attributed to the source-bound remote observer. Local consumer/peer/root reconcile original small LIGHT CRC/SHA, raw JSON headers, source/origin and terminal closure only. This readout is not the complete primary verification or a new proof-object registration.",
+  "status": "ROOT_QUALIFIED_HEADER_OBSERVATIONS_ONLY"
+}

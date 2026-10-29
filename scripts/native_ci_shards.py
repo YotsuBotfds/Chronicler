@@ -1,8 +1,10 @@
-"""Dormant whole-module native CI experiment. No production imports at import time.
+"""Whole-module native CI ownership and publication contracts.
 
-The ordinary Tests workflow is unchanged. Command execution belongs only in a
-separately reviewed future workflow, after one current-source fresh wheel build.
-"""
+The ordinary Tests workflow uses the reviewed current-source build, two native
+module shards and their aggregate barrier. No product imports occur at module
+initialization. The optional check-manifest --source-ref path reads only an
+immutable Git manifest/default-module layout; it grants no collection, build or
+runtime authority. Producer commands retain their existing admission checks."""
 from __future__ import annotations
 
 import argparse

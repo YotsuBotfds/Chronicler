@@ -1,5 +1,42 @@
 # Recovered continuation — 2026-10-11
 
+Next consolidation is **source assembly only**: qualified care/runtime and
+review documentation, immutable Git layout tooling, and the unwired K2 metadata
+helper closure. [Exact composition and limits](integration/next-care-k2-source-assembly-2026-10-29.md)
+keep prior evidence source-bound. No new full CI, enabled simulation/checkpoint,
+default-output, performance, science or promotion result is supplied here.
+The separately authored native batch API is not included in this freeze.
+
+Separate default-off [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
+now has independently/root-qualified [all-nine-job standard CI](integration/retained-kin-care-ci-2026-10-29.md)
+at exact `23d4d246`, run `40908555947`, attempt 1. Native Python passes
+8,490 parents/six skips/623 successful subtests; no-Rust passes 8,157/325/623.
+Rust passes 1,130/two ignored, offline 4,286 parents/65 skips/97 subtests across
+36 unchanged 110-second chunks, and Viewer 743 tests with lint/build. The 2 + 2
+wrapper-preflight passes remain separate. Both native consumers collected
+the same ordered 8,496 parents across 302 modules; their disjoint ownership,
+25,488 phase reports and subtest order/multiplicity reconcile with JUnit.
+
+The first `2572d5b9` run `40904414478` remains failed at native manifest admission:
+302 actual test modules versus 300 assigned. Its passing Rust/no-Rust/offline/
+Viewer components remain preserved; native builder preflight/build/execution
+were skipped. The changed-source repair assigns exactly the two missing policy
+modules to shard 1, preserving all 300 old owners, six skip IDs and runtime/
+crate/controller/workflow bytes. No same-source retry is relabelled successful.
+
+Health stays default-off. Spouse-only calls retain five native arguments and the
+exact old preparer; explicit reciprocal stored Kin fills only after all spouse
+allocations, without genealogy inference or native persistent fields. All 38
+new Python policy parents use models/fake bridges, including in the native lane;
+nine new Rust contracts are source-included in its successful unfiltered target.
+Actual per-class checkpoint-schema tuples and genuine Python execution of the
+new keyword remain unobserved. Enabled retained-Kin World/checkpoint, fresh
+default-output/global-RNG, science and performance gates remain separate; no
+activation, adoption or current-candidate/main promotion is supplied by CI.
+Enabled Python pickle metadata may include the new declared default: old missing-
+field model behavior is tested, not old/new World checkpoint-byte identity.
+The prior qualified records below retain their original code/runtime scope.
+
 Source-only [immutable Git native-layout admission](workflows/native-manifest-git-ref.md)
 adds optional `check-manifest --source-ref <full lowercase 40-hex commit>`.
 Manifest and default test-module paths come from that same Git tree, with
@@ -10,39 +47,7 @@ or collecting pytest. Existing command behavior, two-shard ownership, skip/
 subtest seals, workflows and producer authority remain unchanged. Its small
 metadata-only qualification does not grant native execution or full CI.
 
-
-Separate source-only [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
-starts from `2f164203`. Health stays default-off and spouse-only calls retain
-five native arguments and the exact old preparer. Explicit retained Kin fills
-uncared patients only after every spouse allocation, using reciprocal stored
-edges and bounded sorted candidates; no parent/genealogy inference or native
-persistent field is added. A strict persisted Python policy/setter and typed
-experiment receipts preserve legacy omission and explicit reversion. Enabled
-Python pickle metadata can intentionally include the new declared default;
-old missing-field behavior is tested, not old/new checkpoint-byte identity.
-Native compilation/tests, full CI, fresh default-output parity and enabled
-World/checkpoint/scientific/performance gates remain unrun for this source.
-The prior qualified records below retain their original code/runtime scope.
-The two new Python policy modules now share a new 110-second offline chunk.
-Their prior custom-guard result is 38 parents plus 97 successful subtests on
-Python 3.12.14. The first hosted integration at `2572d5b9`, run `40904414478`,
-failed native manifest admission: the exact source has 302 test modules while
-the manifest owned 300, omitting these two policy modules. That failure remains
-preserved; it supplies no native build or full-native execution result.
-The completed offline lane reports both modules together under the unchanged
-110-second guard on Python 3.13.17: 38 parents and 97 successful subtests, zero
-skips/native/factory/blocked-I/O attempts. Its complete 36 chunks report 4,286
-parent passes, 65 skips and 97 subtests; 4,383 includes subtest reports, not parents.
-The narrow source-only registration successor assigns exactly those two modules
-to smaller shard 1, preserving every old module owner and all six skip IDs.
-Its expected full-native subtest seal is prospectively 623 = historical 526 +
-policy 97. The same first run's completed no-Rust job `123555152959` reports
-8,157 parent passes, 325 skips and 623 successful subtests, including all 38 new
-policy parents passing. Full-native corroboration, new full CI and independent/
-root review remain pending. Runtime/controller/workflow caps and physics are unchanged.
-
-
-Current cross-examination branch: [`lead/native-ci-consolidation-20261029`](integration/native-ci-consolidation-2026-10-29.md). Its exact code `c5c6b6d9` now has independently/root-qualified [all-nine-job CI](integration/native-ci-consolidation-ci-2026-10-29.md), run `40880410392`: 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline passes/65 skips, 1,121 Rust passes/two ignored and 743 Viewer tests with lint/build. The 2 + 2 preflights stay separate. The complete native crate is exact 090 and standard CI exact EC; Python/dependencies remain CBF. Main and the separate CBF documentation-review branch are unchanged.
+Qualified baseline cross-examination branch: [`lead/native-ci-consolidation-20261029`](integration/native-ci-consolidation-2026-10-29.md). Its exact code `c5c6b6d9` now has independently/root-qualified [all-nine-job CI](integration/native-ci-consolidation-ci-2026-10-29.md), run `40880410392`: 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline passes/65 skips, 1,121 Rust passes/two ignored and 743 Viewer tests with lint/build. The 2 + 2 preflights stay separate. The complete native crate is exact 090 and standard CI exact EC; Python/dependencies remain CBF. Main and the separate CBF documentation-review branch are unchanged.
 
 The separate [standard native CI integration](integration/native-module-shards-standard-ci-2026-10-29.md)
 is independently qualified at `ec09134b`, run `40869065907`: all nine actual
@@ -85,17 +90,49 @@ samples remain, with 12 passing criteria and three failures. Spread257 regresses
 74.67%; spread1024/4096 miss the required 10% improvement. Seven ordinary Rust
 contracts pass, but distance-count reduction does not override the screen.
 Root/independent review qualifies that rejection; there is no tuning, retry,
-production wiring or adoption. The unchanged current native crate remains 090.
+production wiring or adoption. That rejected experiment leaves its compared 090 native crate unchanged.
 
 The fixed wealth candidate cohort's original receipts at `33d331a1`,
 [run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409),
-remain incomplete, without a scientific gate exit code. Registered 3,700
-executions/201,400 ticks are not completed-work counts. The read-only diagnostic
-at `5f9413c3` recovered the original compound checkpoint-shape assertion; the
-specific failed operand remains unknown. No scientific verdict or reuse grant
-is supplied by that diagnostic.
+remain **INCOMPLETE_MECHANICS**, without a scientific gate exit code. Registered
+3,700 executions/201,400 ticks are not completed-work counts. The later qualified
+[header diagnostic](integration/wealth-floor-checkpoint-header-result-2026-10-29.md)
+at `a64e390e` / run `40896252427` isolates the only false operand of the old
+five-part checkpoint world/runtime shape conjunction: current civilization records
+versus initial requested count. Template seed 48 at turn 201 has 5/4; procedural
+seed 44 at turn 161 has 11/10. The other four observed operands match. These are
+authenticated header observations; the cause of record growth and decoded physical
+consistency remain unassessed. No physics fix, checkpoint/parent reuse, recovery
+or scientific verdict follows.
 
-The [fresh eight-seed study's small publication](integration/practice-fresh-study-small-publication-2026-10-29.md) at `2d3faa8c` / run `40877451052` now has independently/root-verified original 12-member bytes, completion seals and saved arithmetic. All eight rows remain: five have zero new trials; seed 2005 has six trials without payment. Active/paused recipe occurrences 18/10 map to grouped debits 9/5. Positive paid terms can coexist with falling practice. The original 106 MB raw archive, its 2,442 payload files and full state/history/native/RNG/continuation identity remain independently unaudited. No paid-growth efficacy is qualified; the earlier CP66 zero-payment proof keeps its separate scope.
+The [registered original practice-byte audit](integration/original-practice-byte-audit-2026-10-29.md)
+is complete and independently/root-qualified at `72704385` / run `40901409086`.
+Its actual hosted guarded preflight passed 118/118. The source-qualified remote
+consumer authenticated the original RAW and opaque CBF wheel, closed all 2,455
+members / 502,390,864 expanded bytes and 2,442 execution payloads, and passed strict
+semantic replay, whole original readout reconstruction and original Markdown
+equality for all eight seeds / 24 executions. Local consumers verified the small
+15-member publication and all completion/source joins; the large original inputs
+remain remote. Derived rehash, full source-after equality and owned quiescence
+retain their stated remote-attestation scope. This adds no new World,
+full-global-RNG/uninterrupted-physics proof, historical CPU measurement, efficacy
+or performance result.
+
+The [earlier SMALL publication](integration/practice-fresh-study-small-publication-2026-10-29.md)
+keeps its historical 12-member scope and unchanged JSON. All eight descriptive
+rows remain, including five seeds with zero new trials; recipe payments 18/10 remain grouped
+debits 9/5, and positive paid RHS can coexist with falling total practice. The
+first `e625f6ce` audit remains a precollection dependency failure with zero cases,
+exit 3 and negative publication only. The successful changed-source operation
+does not relabel that failure or the earlier CP66 zero-payment proof.
+
+The care source `23d4d246` now has the separately qualified standard-CI result
+linked at the top. This next source assembly retains its runtime unchanged,
+but has no fresh combined CI or enabled-policy qualification. K2 source `c5785e35`
+is included only as the unwired metadata helper/dependency closure and registered
+dictionary test; its eligibility rule supplies no decoded physical validity,
+historical reuse or scientific-pass qualification. The earlier c5 baseline above
+retains its exact 090/CBF source and original qualified CI scope.
 
 The earlier [isolated V2 sharding qualification](integration/native-module-shards-v2-ci-2026-10-29.md)
 at `7dcb2402` and all first failed publications remain preserved. Context labels

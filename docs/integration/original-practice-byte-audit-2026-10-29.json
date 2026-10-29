@@ -1,0 +1,419 @@
+{
+  "kind": "CURATED_QUALIFIED_ORIGINAL_PRACTICE_AUDIT_PROJECTION",
+  "projection_not_original_producer_output": true,
+  "qualification_status": {
+    "registered_original_RAW_authentication_complete": true,
+    "registered_original_semantic_replay_complete": true,
+    "verification_still_pending": false,
+    "authority": "Authorized completed source-qualified remote consumer, independently checked saved small publication, root-qualified."
+  },
+  "audit": {
+    "source": "7270438502e6349b5fa3487728bbe054f4a5d4ec",
+    "parent": "fd24af3db5364447ca22871f277e3ee5eae1d216",
+    "run_id": 40901409086,
+    "attempt": 1,
+    "job_id": 123544381431,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40901409086",
+    "actual_hosted_preflight": {
+      "passed": 118,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 0.38,
+      "Actions_outcome": "success",
+      "exitstatus": 0,
+      "active_guard": true,
+      "factory_calls": 0,
+      "native_extension_attempts": 0,
+      "blocked_IO": 0
+    },
+    "replay": {
+      "original_markdown_equal": true,
+      "scope": "semantic replay plus original publication seals; no new historical CPU measurement",
+      "semantic_equal": true,
+      "whole_original_reconstructed": true
+    },
+    "original_members": 2455,
+    "original_expanded_bytes": 502390864,
+    "original_execution_payloads": 2442,
+    "registered_map_sha256": "8f2a0923119ea08ef6136e0e9175aeb6dc7d1fe382146de0a1d768263b85c47c",
+    "original_completion": {
+      "bytes": 698,
+      "sha256": "1c98ccd2567a9fbfa722b3b5f148ee6c2da81ddccb5772dc270a53818b7c0f8b"
+    },
+    "cleanup_complete": true,
+    "observation": {
+      "cpu_scope": "measured process-lifetime self plus waited children through seal; includes startup CPU; no hard aggregate descendant CPU cap",
+      "finalization_reserve_inside_wall_seconds": 20,
+      "self_cpu_seconds": 6.718176,
+      "waited_child_cpu_seconds": 34.647789,
+      "wall_limit_seconds": 600,
+      "wall_measured_to_seal_seconds": 47.11739968199999,
+      "workflow_prerequisites": "checkout/runtime setup excluded from script clock; separate job wall"
+    }
+  },
+  "original_study": {
+    "source": "2d3faa8c41b4704386b246507b8606d4e3980be7",
+    "producer": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+    "run_id": 40877451052,
+    "attempt": 1,
+    "seeds": [
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007
+    ],
+    "executions": 24,
+    "physics_ticks": 3360,
+    "design": "Fresh parent180; own CP60 active and pause-new-trials forks through180. No old C76 checkpoints.",
+    "source_package_digest": "1f1c720880e45e0e835e033da216b3deee1f755a497b8e189abaf97c2fe9f656",
+    "native_sha256": "3ee06a53b3c16dcba01bc53c8fe1dd97e530754a61d65fe2c1396b158b48e6d0",
+    "wheel_sha256": "556c6677c4cb998cd6ad4b284d0f67a7e79368f86831b458c3885943de3b95ac",
+    "descriptive_rows": [
+      {
+        "seed": 2000,
+        "paired": true,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "received_outcome_receipts": 0,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2001,
+        "paired": true,
+        "new_agendas": 4,
+        "new_trials": 8,
+        "new_trial_cost": 16,
+        "received_outcome_receipts": 22,
+        "active_paid_group_cost": 7,
+        "pause_paid_group_cost": 5,
+        "active_recipe_payment_rows": 14,
+        "pause_recipe_payment_rows": 10,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2002,
+        "paired": true,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "received_outcome_receipts": 0,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2003,
+        "paired": true,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "received_outcome_receipts": 0,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2004,
+        "paired": true,
+        "new_agendas": 3,
+        "new_trials": 6,
+        "new_trial_cost": 12,
+        "received_outcome_receipts": 8,
+        "active_paid_group_cost": 2,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 4,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2005,
+        "paired": true,
+        "new_agendas": 3,
+        "new_trials": 6,
+        "new_trial_cost": 12,
+        "received_outcome_receipts": 6,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2006,
+        "paired": true,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "received_outcome_receipts": 0,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      },
+      {
+        "seed": 2007,
+        "paired": true,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "received_outcome_receipts": 0,
+        "active_paid_group_cost": 0,
+        "pause_paid_group_cost": 0,
+        "active_recipe_payment_rows": 0,
+        "pause_recipe_payment_rows": 0,
+        "active_unavailable_frames": 0,
+        "pause_unavailable_frames": 0,
+        "active_witness_omissions": 0,
+        "pause_witness_omissions": 0
+      }
+    ],
+    "post_boundary_parent_counts_equal_active_counts": true,
+    "post_boundary_stage_totals": {
+      "parent": {
+        "new_agendas": 10,
+        "new_trials": 20,
+        "new_trial_cost": 40,
+        "outcome_receipts_received": 36,
+        "outcome_receipts_from_new_trials": 36,
+        "paid_adoption_cost": 9
+      },
+      "active": {
+        "new_agendas": 10,
+        "new_trials": 20,
+        "new_trial_cost": 40,
+        "outcome_receipts_received": 36,
+        "outcome_receipts_from_new_trials": 36,
+        "paid_adoption_cost": 9
+      },
+      "pause_new_trials": {
+        "new_agendas": 0,
+        "new_trials": 0,
+        "new_trial_cost": 0,
+        "outcome_receipts_received": 0,
+        "outcome_receipts_from_new_trials": 0,
+        "paid_adoption_cost": 5
+      }
+    },
+    "zero_new_trial_seed_ids": [
+      2000,
+      2002,
+      2003,
+      2006,
+      2007
+    ],
+    "selected_grid_slots": 53760,
+    "unavailable_frames": 0,
+    "active_recipe_payment_rows": 18,
+    "active_deduplicated_payment_groups": 9,
+    "pause_recipe_payment_rows": 10,
+    "pause_deduplicated_payment_groups": 5,
+    "later_topic_group_payment_occurrences": 4,
+    "later_topic_recipe_payment_rows": 8,
+    "nonempty_later_topic_allocation_change_event_ids": 3,
+    "saved_witness_examples": [
+      {
+        "seed": 2004,
+        "source_turn": 167,
+        "region": 4,
+        "recipe": "irrigation",
+        "allowance": 0.003333333333333333,
+        "bookkeeping_paid": 1,
+        "group_paid": 1,
+        "before": 0.982584,
+        "cap": 1.0,
+        "paid_growth_rhs": 4.753523039999996e-05,
+        "pre_clip": 0.9822280031439846,
+        "clipped": 0.9822280031439846,
+        "kernel_rounded": 0.982228,
+        "final_value": 0.982228,
+        "provenance": "Previously published saved witness, reauthenticated by exact original semantic replay; no new discovery."
+      },
+      {
+        "seed": 2004,
+        "source_turn": 167,
+        "region": 4,
+        "recipe": "masonry",
+        "allowance": 0.006666666666666666,
+        "bookkeeping_paid": 0,
+        "group_paid": 1,
+        "before": 0.984521,
+        "cap": 1.0,
+        "paid_growth_rhs": 8.4663336438889e-05,
+        "pre_clip": 0.9843140179585711,
+        "clipped": 0.9843140179585711,
+        "kernel_rounded": 0.984314,
+        "final_value": 0.984314,
+        "provenance": "Previously published saved witness, reauthenticated by exact original semantic replay; no new discovery."
+      }
+    ],
+    "interpretation": "Descriptive registered rows, not certified independent statistical units; fixed six-turn cadence visits two seasons. Positive paid RHS is a computed contribution, not causal net benefit."
+  },
+  "publications": {
+    "audit_small": {
+      "id": 12908957622,
+      "name": "fresh-practice-original-audit-40901409086-1",
+      "bytes": 276076,
+      "sha256": "ca0e068b6eb59b7777144a9b899ae8b5a66d54e705257414818caf28b4468baf",
+      "expires_at": "2026-11-28T15:26:35Z",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40901409086/artifacts/12908957622",
+      "files": 15,
+      "expanded_bytes": 1105643,
+      "all_CRC_SHA_and14_completion_links_verified": true
+    },
+    "original_small": {
+      "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12898573331/zip",
+      "created_at": "2026-10-29T13:00:34Z",
+      "digest": "sha256:73a5054b1884916b2a5487a018a1435101eaae7793e90fc4d6b6b2ecf03903dc",
+      "expired": false,
+      "expires_at": "2026-11-28T13:00:33Z",
+      "id": 12898573331,
+      "name": "fresh-practice-study-readout-40877451052-1",
+      "size_in_bytes": 316886,
+      "updated_at": "2026-10-29T13:00:34Z",
+      "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12898573331",
+      "workflow_run": {
+        "head_branch": "lead/cloud-fresh-practice-study-cbf-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "2d3faa8c41b4704386b246507b8606d4e3980be7",
+        "id": 40877451052,
+        "repository_id": 1187468861
+      }
+    },
+    "original_RAW": {
+      "archive_download_url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12898552635/zip",
+      "created_at": "2026-10-29T13:00:45Z",
+      "digest": "sha256:248960348f7361e7a903f6a5323d3bca503b47cced45e57157631b8d0aba5ac0",
+      "expired": false,
+      "expires_at": "2026-11-28T13:00:35Z",
+      "id": 12898552635,
+      "name": "fresh-practice-study-raw-40877451052-1",
+      "size_in_bytes": 106435368,
+      "updated_at": "2026-10-29T13:00:45Z",
+      "url": "https://api.github.com/repos/YotsuBotfds/Chronicler/actions/artifacts/12898552635",
+      "workflow_run": {
+        "head_branch": "lead/cloud-fresh-practice-study-cbf-20261029",
+        "head_repository_id": 1187468861,
+        "head_sha": "2d3faa8c41b4704386b246507b8606d4e3980be7",
+        "id": 40877451052,
+        "repository_id": 1187468861
+      }
+    },
+    "additional_opaque_wheel": {
+      "id": 12882944002,
+      "run_id": 40841527996,
+      "bytes": 3850581,
+      "sha256": "9cc55c9dbf7939056f0b0613e3e54e74798a782463719185d41b1fe129ebe2cf",
+      "expires_at": "2026-11-12T08:33:42Z",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40841527996/artifacts/12882944002"
+    }
+  },
+  "provenance": {
+    "root_final_qualification": {
+      "path": "/tmp/chronicler-practice-727-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 2617,
+      "sha256": "3497ee7e9a425bb8b7615b8ae0d48225f6a864273d3130461bf3ee6efeaf0a99"
+    },
+    "independent_non_author_terminal_peer": {
+      "path": "/tmp/chronicler-practice-727-terminal-small-peer-20261029/receipt.json",
+      "bytes": 5704,
+      "sha256": "ab8a056eeb414ad9d66034881bd84a4de43fd523ae5e946d7edc11e50b7611fe"
+    },
+    "primary_pack_manifest": {
+      "path": "/tmp/chronicler-review-evidence/fresh-practice-original-audit-72704385-20261029/evidence-manifest.json",
+      "bytes": 2964,
+      "sha256": "8238dccf3ea7b17c6086221b55adba7e12761d490fc8a00f681b96724af7b1b6"
+    },
+    "primary_result": {
+      "path": "/tmp/chronicler-review-evidence/fresh-practice-original-audit-72704385-20261029/reconciled-result.json",
+      "bytes": 12405,
+      "sha256": "c15df9cdc843cc0f6fb1ab2687f98caa955458d2ac88d0edcc1580eb392964b9"
+    },
+    "old_small_result": {
+      "path": "/tmp/chronicler-review-evidence/fresh-practice-study-2d3faa8c-20261029/reconciled-small-result.json",
+      "bytes": 57898,
+      "sha256": "2dc9ff3bba9b96f29518b5a6fd417f407d731ee490f86772a84189ddad285fca"
+    },
+    "original_small_root_qualification_sha256": "dc3306ae2cbf0a3dc8d35078807287ecb45cb310e1558e6097cc7daef70d7186",
+    "original_small_independent_peer_sha256": "948c1671706fd43e85839fb740ec927995811c46e9a10c1141205ed3dd0260b5",
+    "source_references": 4804,
+    "source_bytes_rehashed": 103680999,
+    "unique_Git_blobs": 1602,
+    "immutable_evidence_packs_unchanged": true
+  },
+  "preserved_first_failure": {
+    "source": "e625f6cefb0bd9aef45f503a7fe7ab623690465a",
+    "run_id": 40898023015,
+    "attempt": 1,
+    "actual_precollection_cases": 0,
+    "process_exit_code": 3,
+    "cause": "Missing pydantic during unchanged guard import of main",
+    "artifact": {
+      "id": 12908465636,
+      "bytes": 646,
+      "sha256": "1bcb5e436a2455c59b74e7027e739b54c477a4cee4341148bdff6e729c550b1a",
+      "expires_at": "2026-11-28T15:05:50Z",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40898023015/artifacts/12908465636"
+    },
+    "negative_manifest": {
+      "path": "/tmp/chronicler-review-evidence/fresh-practice-original-audit-e625f6ce-20261029/evidence-manifest.json",
+      "bytes": 2317,
+      "sha256": "99ab36e740f3e184fd6b1fc907504671c8dc9be4329598d64f4c173cbce41412"
+    },
+    "no_original_input_acquisition_or_positive_replay": true,
+    "no_same_source_retry": true
+  },
+  "boundaries": {
+    "large_original_inputs_transferred_only_on_authorized_remote_runner": true,
+    "local_original_RAW_or_wheel_body_acquisition": false,
+    "local_small_ZIP_CRC_SHA_and_source_Git_identity_verified": true,
+    "complete_source_after_map_retained": false,
+    "per_PID_lease_log_retained": false,
+    "remote_derived_rehash_source_after_and_owned_quiescence_are_source_bound_attestations": true,
+    "checkpoint_zlib_inflation_remote": true,
+    "pickle_loading_or_runtime_restore": false,
+    "new_Worlds": 0,
+    "new_simulation_native_imports": 0,
+    "new_historical_CPU_measurement": false,
+    "new_full_global_RNG_or_uninterrupted_physics_proof": false,
+    "causal_efficacy_or_welfare_claim": false,
+    "performance_or_default_promotion_claim": false,
+    "original_small_pack_historical_scope_unchanged": true,
+    "curation_new_acquisition_tests_imports_or_repository_changes": false
+  },
+  "review_notes": "Primary observer helper-role correction and root manifest-list schema correction remain retained in their separate immutable review evidence; neither changed a producer or retried its run."
+}
