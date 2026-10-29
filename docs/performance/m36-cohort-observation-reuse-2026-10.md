@@ -1,8 +1,9 @@
 # Draft M36 cohort observation reuse — 2026-10-29
 
-Status: source-only inactive draft. Base source is `c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`.
-No test, world, benchmark or native build has run for this draft during the
-forkserver timing window. Production source and scientific gates are unchanged.
+Status: validated test-only review draft, based on
+`c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`. The frozen source checks below
+completed after the forkserver timing window. Production source and scientific
+gates are unchanged; this establishes no simulation speedup.
 
 ## Historical reason to investigate
 
@@ -55,10 +56,10 @@ for reusing immutable observations within each exact pair:
 - Climate and harvest caches appear to derive values from explicit inputs and
   fixed tables, affecting warming rather than identified outcome semantics.
 
-Those are source findings, not observed repeated-cohort parity. Dynamic alias,
-repeat-order and environment behavior still require validation before adoption.
-The draft makes no claim that original repetitions have already been observed
-to produce the same per-seed outcomes.
+Those were preregistration source findings. The validation below subsequently
+checked alias isolation and observed repeated-cohort equality in the registered
+order and two explicit contexts. It does not establish arbitrary-order or
+all-environment equivalence.
 
 ## Draft change
 
@@ -79,13 +80,13 @@ predicates remain. Each test consumes the same event summaries its original
 loop computed, conditional on the repeated-cohort equivalence still to verify.
 Three pure cases (two parameterized by horizon) cover exact seed/horizon/argument requests,
 retained ordering/duplicates, no world/event alias after copying and immutable
-observations. These contracts are also unrun at draft creation.
+observations. These contracts were unrun at draft creation and subsequently passed below.
 
 This changes test setup reuse, not the scientific population gate's samples,
 windows or policy. It is not an optimization of production simulation physics
 and establishes no wall-time improvement.
 
-## Required validation after timing release
+## Preregistered validation after timing release
 
 Independent source review precedes all execution. Then:
 
@@ -108,3 +109,99 @@ The original four cohort executions total 27,000 requested physics turns.
 The proposed two fixture computations total 13,500 requested turns, while all
 assertion consumers retain their full seed/horizon observations. That is a
 structural workload count conditional on safe reuse, not an observed speedup.
+
+## Completed validation and source boundaries
+
+The exhaustive and consumer checks tested frozen source
+`57bb2bf09154b0f56fe52a9c2bccf1de8ce45f6e`. Its production package tree is
+`47381a4e5181515babc978227792deb2b55618d2`, identical to base c76; its Rust
+crate remains `a4703ef4e9a21b5dbb194d318536a46e6ca8b71c`.
+The original test file was verified byte for byte against c76/Git blob
+`a04b15cfb0e02c07dbe69be2caf7cbcb1ef9bf1b`. The tested candidate test SHA-256 is
+`9f6c34872d41a3335294c6b9cd056b312a02503ef6cbd3d51de1d72e1fc1f880`.
+All 13 original method nodes remain; AST checks preserve every original
+assertion and skip call, with unchanged bodies for the nine other methods.
+
+Every numerical/test process used CPU 4 and one-thread OMP/OpenBLAS/MKL/BLIS/
+vecLib/NumExpr/Goto/Rayon/Python/Cargo caps, with hash seed 0. There was one
+sequential validation stream, no native build, no shortened horizon and no
+outcome-conditioned fast skip. Tiny per-seed observations, commands, logs,
+identity/schema records and receipts are retained externally under
+`m36-reuse-validation-20261029`; no raw world outputs were deleted.
+
+| Explicit context | Python | pytest | Pydantic | Native availability |
+| --- | --- | --- | --- | --- |
+| No native | 3.13.5 | 9.1.1 | 2.14.1 | package spec absent |
+| Installed native | 3.13.5 | 9.0.2 | 2.12.5 | real three classes and compiled module verified |
+
+Both have NumPy 2.5.4, PyArrow 26.0.0 and SciPy 1.18.1. These are distinct
+installed environments. The reused compiled submodule SHA-256 is
+`fb20dbc81828420fedc9a0b25fb8791a694a158d2c502ec915b8132a52875317`, from the
+same qualified crate tree. Compiled origins, class identity, checkpoint schemas
+and before/after hashes were verified. This is not a fresh native build or a
+claim that the two dependency environments are identical.
+
+For every seed 0–49 at each exact 120- and 150-turn horizon, original
+repetition 1, original repetition 2 and the actual fixture function produced
+identical ordered primitive observations in each context. Those 600 complete
+world executions advanced 81,000 aggregate test turns. Observations also
+matched across the two contexts. No World/Event object was shared.
+
+Fresh generated worlds passed template/list alias-isolation checks. Cohort
+snapshots preserved Python's default RNG, NumPy's legacy RNG, the three checked
+generation tables and action/reaction handler names. Separate fresh startup
+probes preserved both RNG states across source/native-class probes, test and
+simulation imports and two unadvanced world constructions. Their boundary
+starts after the standard RNG APIs initialize; this is not an exhaustive
+snapshot of all module state. Actual supervisor launch metadata excludes
+`PYTHONOPTIMIZE`/`-O`, and the startup probes explicitly recorded optimize=0.
+
+| Test selection, in each context | No-native outcome | Installed-native outcome |
+| --- | --- | --- |
+| Four original consumers together | 3 passed, 1 skipped | 3 passed, 1 skipped |
+| Each consumer alone | same per-node outcome and skip reason | same per-node outcome and skip reason |
+| Complete M36 module, including three pure cases | 14 passed, 2 skipped | 15 passed, 1 skipped |
+
+The directional skip remains **39 assimilating invest-culture seeds, zero
+no-invest controls**. The no-native module additionally retains the original
+hybrid-availability skip. The four consumers together advance exactly 13,500
+turns in each context; each standalone consumer still advances its complete
+6,000- or 7,500-turn cohort. Every consumer selection, including the full module,
+passed zero non-None bridge/ecology/politics runtime arguments for those four
+nodes. Counters observe `run_turn` arguments, not direct Rust internal ticks.
+The complete installed-native module separately exercised its existing hybrid
+comparison: 250 turns with a bridge and 250 with each off-mode native runtime.
+No-native full-module execution passed no such runtime objects.
+
+A postflight observer initially counted call-phase skips only and omitted the
+no-native setup-phase availability skip. Its source and receipt remain
+unchanged. V2 reconciles one final result for every collected node, reporting
+the correct 14/2 versus 15/1 counts. This correction reran no test or cohort and
+changed no project source, observation, predicate or original result.
+
+The exhaustive stream receipt SHA-256 is
+`5cbfcc66478f6926525c5df15d91f0944cb2a2743dc6869e8cf18d5ae2a72213`;
+the corrected postflight receipt is
+`a8b26889f6e7021823a6b03f8c05bde89373f9523f38175113b7e5355220bb49`.
+Command durations are retained for provenance, not promoted into a speedup
+comparison. Equality covers the registered original-1 → original-2 → fixture
+order, not arbitrary future ordering or configuration.
+
+## Later offline selector only
+
+After the frozen validation completed, commit
+`6662a55b1ef69d8eeac5714b439d1dcaf02dd700` added only the new pure
+`TestCultureObservationIsolation` class to the existing `diagnostics` chunk.
+M36 test, production and guard bytes remained identical to the frozen proof.
+All slow cohort consumers stay outside the bounded selection; the 110-second
+limit and import/IO allowances are unchanged.
+
+That exact class passed under the existing guard in the real native-installed
+environment: **3 passed**, guard **PASS**, no native modules loaded, no blocked
+IO and zero ecology/politics factory calls. The expected collection-time
+`chronicler_agents` availability import was denied before package code loaded
+and remains explicitly recorded. The outer check took 1.18 seconds with its
+original 110-second bound; no allowance was added to obtain the pass.
+Guarded receipt SHA-256:
+`e47dc9b54ca0b7a06a196f6365386039872b432f2035c7081c1ef810d4cfd73b`.
+The complete combined offline lane remains the lead's final integration check.

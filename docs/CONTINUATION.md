@@ -1,9 +1,11 @@
 # Recovered continuation — 2026-10-11
 
-A separate, source-only [M36 cohort-observation reuse draft](performance/m36-cohort-observation-reuse-2026-10.md)
-shares primitive observations only within two exact seeded test pairs. Its
-repeated-cohort parity, tests and timing remain unrun; production physics,
-scientific windows and skip rules are unchanged.
+A separate [M36 cohort-observation reuse draft](performance/m36-cohort-observation-reuse-2026-10.md)
+passed exhaustive per-seed repeated-cohort parity and consumer isolation in
+explicit native-installed and absent-native contexts. Its shared summaries
+preserve the full scientific windows and original skips; production physics
+is unchanged, and no speedup is claimed. The later pure offline selector also
+passed the unchanged guard; combined integration qualification stays separate.
 
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on
