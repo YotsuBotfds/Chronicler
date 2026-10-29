@@ -1,11 +1,14 @@
 """Pure paired-native provenance and bounded-read contracts; no native import."""
 from copy import deepcopy
+from contextlib import nullcontext
 import errno
 import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import shutil
 import struct
 import sys
 from types import SimpleNamespace
@@ -103,6 +106,8 @@ def test_deployment_observations_survive_pair_classification_and_raw_light_publi
         producer=dict(control_sha="fixture", run_id="fixture"), deployment=deployment,
         regression_loader=dict(scope="candidate-regressions child only", LD_LIBRARY_PATH="/selected/python/lib"),
         legacy_supervisor_source=C.LEGACY_SOURCE, legacy_supervisor_sha256=C.LEGACY_SHA)
+    report["regression_loader_preflight"] = dict(stage="before_release_compilation", status="passed", loader=report["regression_loader"])
+    C.write_json(tmp_path / "regression-loader-preflight.json", report["regression_loader_preflight"])
     result = C.classify_build_report(report, closed_clock())
     assert result["deployment"] == deployment
     assert result["candidate_worlds_admitted"] is False
@@ -112,6 +117,8 @@ def test_deployment_observations_survive_pair_classification_and_raw_light_publi
     light = json.loads((tmp_path / "light/build-manifest.json").read_text())
     assert raw["deployment"] == light["deployment"] == deployment
     assert raw["regression_loader"] == light["regression_loader"] == report["regression_loader"]
+    assert raw["regression_loader_preflight"] == light["regression_loader_preflight"] == report["regression_loader_preflight"]
+    assert json.loads((tmp_path / "light/regression-loader-preflight.json").read_text()) == report["regression_loader_preflight"]
     assert raw["deployment"]["namespace_equal"] is (None if denied else True)
     assert raw["deployment"]["namespace_equality_verified"] is (not denied)
     assert completion["files"]["build-manifest.json"]["sha256"] == C.sha(tmp_path / "light/build-manifest.json")
@@ -346,6 +353,123 @@ def test_unverified_python_loader_paths_cannot_enter_regression_child(C, tmp_pat
         monkeypatch.setattr(C.B, "MIB", 1); library.write_bytes(b"x" * 65)
     with pytest.raises((C.B.BridgeRefused, OSError)):
         C.regression_environment({"LD_LIBRARY_PATH": "/inherited"}, str(interpreter), config)
+
+
+def drive_loader_ordering_fixture(C, tmp_path, monkeypatch, *, fault=None, mutate_late=False):
+    """Exercise real build ordering; all execution/resource/native edges are inert."""
+    interpreter, config = python_installation(tmp_path)
+    workspace = tmp_path / "workspace"; control = workspace / "control"; source = workspace / "candidate"
+    (control / "scripts").mkdir(parents=True); source.mkdir()
+    task = tmp_path / "task"; task.mkdir(); evidence = task / "wealth-native-bridge"
+    environment = dict(GITHUB_WORKSPACE=str(workspace), RUNNER_TEMP=str(task), GITHUB_SHA="f" * 40,
+        GITHUB_RUN_ID="fixture", GITHUB_RUN_ATTEMPT="1", GITHUB_JOB="paired-native-build",
+        PATH="/fixture/bin", HOME=str(tmp_path / "home"), LD_LIBRARY_PATH="/untrusted/inherited")
+    class FixtureOS:
+        environ = environment
+        def __getattr__(self, name): return getattr(os, name)
+        def sched_getaffinity(self, _pid): return {1, 2}
+        def sched_setaffinity(self, _pid, _cpus): pass
+    class FixtureCancellation:
+        cancelled = False
+        def __enter__(self): return self
+        def __exit__(self, *_args): pass
+    class ReachedRegressionFixture(Exception): pass
+    calls = []
+    class RecordingSupervisor:
+        deadline = float("inf")
+        cleanup_complete = True
+        last_stdout = b""
+        last_trace = None
+        def check(self, **_kwargs): pass
+        def admission(self, *_args): pass
+        def command(self, label, argv, env, cwd, **_kwargs):
+            calls.append(dict(label=label, argv=list(argv), env=dict(env)))
+            output = b""
+            if label == "initial-source": output = (C.B.CANDIDATE_SOURCE + "\n").encode()
+            elif label.startswith("prebuild-"): output = context(C.B)[label.removeprefix("prebuild-")].encode()
+            elif label.endswith("regression-python-config"):
+                if fault == "command_failure": raise OSError("private command detail")
+                if fault == "malformed_json": return b"private invalid JSON config text"
+                if label == "candidate-regression-python-config" and mutate_late:
+                    library = Path(config["libdir"]) / "libpython3.13.so.1.0"
+                    raw = library.read_bytes(); library.write_bytes(b"X" + raw[1:])
+                output = json.dumps(config).encode()
+            elif label.endswith("-release-build"):
+                (Path(env["CARGO_TARGET_DIR"])).mkdir(exist_ok=True)
+                wheel = task / "full-gates-build/wheels" / C.B.WHEEL_NAME
+                wheel.write_bytes(b"synthetic wheel; never installed or imported")
+                self.last_trace = dict(records=[], unknown=[])
+            elif label.endswith("-native-api-probe"):
+                Path(argv[argv.index("--out") + 1]).write_text('{"synthetic":true}\n')
+            elif label == "retire-baseline-cargo-cache": shutil.rmtree(env["CARGO_TARGET_DIR"])
+            elif label == "candidate-regressions": raise ReachedRegressionFixture
+            self.last_stdout = output
+            return output
+    if fault == "wrong_python": config["python"] = "3.13.5"
+    if fault == "missing_library": (Path(config["libdir"]) / "libpython3.13.so.1.0").unlink()
+    monkeypatch.setattr(C, "os", FixtureOS())
+    monkeypatch.setattr(C, "sys", SimpleNamespace(platform="linux", executable=str(interpreter), stderr=sys.stderr))
+    monkeypatch.setattr(C, "platform", SimpleNamespace(python_version=lambda: C.B.PYTHON_VERSION))
+    monkeypatch.setattr(C, "resource", SimpleNamespace(RUSAGE_CHILDREN=0, getrusage=lambda _kind: SimpleNamespace(ru_utime=0, ru_stime=0)))
+    monkeypatch.setattr(C, "SCRIPT", control / "scripts/wealth_floor_native_build_controller.py")
+    monkeypatch.setattr(C, "Cancellation", FixtureCancellation)
+    monkeypatch.setattr(C, "SubreaperLease", lambda: nullcontext())
+    monkeypatch.setattr(C, "legacy_helpers", lambda _root: None)
+    monkeypatch.setattr(C, "make_supervisor", lambda *_args: RecordingSupervisor())
+    monkeypatch.setattr(C, "direct_children", lambda: [])
+    monkeypatch.setattr(C, "shutil", SimpleNamespace(which=lambda _name: "/fixture/strace"))
+    monkeypatch.setattr(C, "hosted_vm_precondition", lambda: {"synthetic": True})
+    monkeypatch.setattr(C, "source_snapshot", lambda _legacy, _root, expected, _deadline:
+        dict(sha=expected, crate_tree=C.B.CANDIDATE_CRATE if expected == C.B.CANDIDATE_SOURCE else C.B.BASELINE_CRATE))
+    monkeypatch.setattr(C, "cargo_config_visibility", lambda *_args: None)
+    monkeypatch.setattr(C, "common_context", lambda *_args: {"synthetic": True})
+    real_sha = C.sha
+    monkeypatch.setattr(C, "sha", lambda path: C.B.LOCK_SHA256 if Path(path) == source / "uv.lock" else
+        C.B.PYPROJECT_SHA256 if Path(path) == source / "pyproject.toml" else real_sha(path))
+    monkeypatch.setattr(C.B, "inspect_wheel", lambda raw, name: dict(filename=name, sha256=hashlib.sha256(raw).hexdigest()))
+    monkeypatch.setattr(C.B, "validate_phase", lambda *_args: None)
+    args = SimpleNamespace(python=str(interpreter), producer_root=str(source), evidence=str(evidence), legacy_root="fixture")
+    assert C.build(args) == 1  # Every fixture stops before any real regression execution/publication.
+    return calls, evidence, config
+
+
+@pytest.mark.parametrize("fault", ["wrong_python", "missing_library", "malformed_json", "command_failure"])
+def test_unsupported_loader_refuses_before_either_release_and_retains_bounded_evidence(C, tmp_path, monkeypatch, fault):
+    calls, evidence, _config = drive_loader_ordering_fixture(C, tmp_path, monkeypatch, fault=fault)
+    labels = [row["label"] for row in calls]
+    assert labels[-1] == "preflight-regression-python-config"
+    assert not any(label.endswith("-release-build") for label in labels)
+    assert not list((evidence / "wheels").rglob("*.whl"))
+    receipt = (evidence / "regression-loader-preflight.json").read_text()
+    assert len(receipt.encode()) < 256 and "private" not in receipt
+    assert json.loads(receipt)["status"] == "refused" and json.loads(receipt)["stage"] == "before_release_compilation"
+    assert json.loads((evidence / "build-manifest.json").read_text())["phases"] == {}
+    assert json.loads((evidence / "completion.json").read_text())["publication_complete"] is False
+
+
+def test_loader_checks_precede_both_releases_and_only_regressions_receive_its_environment(C, tmp_path, monkeypatch):
+    calls, evidence, config = drive_loader_ordering_fixture(C, tmp_path, monkeypatch)
+    labels = [row["label"] for row in calls]
+    assert labels.index("prebuild-maturin") < labels.index("preflight-regression-python-config") < labels.index("baseline-release-build")
+    assert labels.index("baseline-release-build") < labels.index("candidate-release-build") < labels.index("candidate-regression-python-config") < labels.index("candidate-regressions")
+    envs = {row["label"]: row["env"] for row in calls}
+    baseline, candidate = envs["baseline-release-build"], envs["candidate-release-build"]
+    assert baseline == candidate and "LD_LIBRARY_PATH" not in baseline
+    assert envs["preflight-regression-python-config"] == envs["candidate-regression-python-config"] == baseline
+    assert envs["candidate-regressions"] == dict(baseline, LD_LIBRARY_PATH=config["libdir"])
+    assert labels.index("retire-baseline-cargo-cache") < labels.index("candidate-release-build")
+    assert json.loads((evidence / "regression-loader-preflight.json").read_text())["status"] == "passed"
+
+
+def test_same_size_library_mutation_after_preflight_refuses_before_regression_child(C, tmp_path, monkeypatch):
+    calls, evidence, _config = drive_loader_ordering_fixture(C, tmp_path, monkeypatch, mutate_late=True)
+    labels = [row["label"] for row in calls]
+    assert "baseline-release-build" in labels and "candidate-release-build" in labels and "candidate-regressions" not in labels
+    early = json.loads((evidence / "regression-loader-preflight.json").read_text())["loader"]
+    late = json.loads((evidence / "candidate/regression-loader.json").read_text())
+    assert early["library_path"] == late["library_path"] and early["library_bytes"] == late["library_bytes"]
+    assert early["library_sha256"] != late["library_sha256"]
+    assert json.loads((evidence / "completion.json").read_text())["publication_complete"] is False
 
 
 def test_cargo_configuration_presence_refuses_without_reading_credentials(C, tmp_path, monkeypatch):

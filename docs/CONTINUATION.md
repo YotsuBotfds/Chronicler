@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+October 29 source-only follow-up: the prepared
+[early loader preflight](experiments/wealth-floor-early-loader-preflight-2026-10-29.md)
+checks selected-Python setup before both release compilations and revalidates
+the library hash before the regression child. Its 188 guarded cases pass; six
+new ordering/mutation cases fail on the old qualified controller. Release
+environments, cache cleanup and current proof inputs stay unchanged. No actual
+query, build, world, activation or measured speedup is included.
+
 October 29 native wealth follow-up: an executable
 [paired-build controller](experiments/wealth-floor-native-build-bridge-2026-10-29.md)
 and disabled workflow template are prepared on their own branch. They build

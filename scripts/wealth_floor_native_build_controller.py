@@ -55,7 +55,7 @@ CAPS = {key: "1" for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM
     "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS", "RAYON_NUM_THREADS", "CARGO_BUILD_JOBS")}
 CAPS.update(PYTHONHASHSEED="0", PYTHON_CPU_COUNT="2", PYTHONDONTWRITEBYTECODE="1", PYTHONNOUSERSITE="1",
     OPENBLAS_THREAD_TIMEOUT="16", CARGO_INCREMENTAL="0")
-LIGHT_NAMES = ("build-manifest.json", "source-control-before.json", "source-control-after.json",
+LIGHT_NAMES = ("build-manifest.json", "source-control-before.json", "source-control-after.json", "regression-loader-preflight.json",
     "baseline/source-before.json", "baseline/source-after.json", "baseline/context.json", "baseline/probe.json",
     "baseline/trace-summary.json", "candidate/source-before.json", "candidate/source-after.json",
     "candidate/context.json", "candidate/probe.json", "candidate/trace-summary.json", "candidate/regression-loader.json",
@@ -420,6 +420,22 @@ def regression_environment(env, selected_python, config):
     return dict(env, LD_LIBRARY_PATH=str(libdir)), facts
 
 
+def regression_loader_preflight(supervisor, env, selected_python, root, control):
+    """Validate the selected loader before release work; never apply its env."""
+    receipt = dict(stage="before_release_compilation", status="incomplete")
+    try:
+        raw = supervisor.command("preflight-regression-python-config",
+            [selected_python, "-I", "-B", "-c", REGRESSION_PYTHON_CONFIG], env, control)
+        _unused_child_env, facts = regression_environment(env, selected_python, json.loads(raw))
+        receipt.update(status="passed", loader=facts)
+    except BaseException as exc:
+        receipt.update(status="refused", error=type(exc).__name__)
+        write_json(root / "regression-loader-preflight.json", receipt)
+        raise
+    write_json(root / "regression-loader-preflight.json", receipt)
+    return receipt
+
+
 def cargo_config_visibility(source, cwd, env):
     directories = {source, *source.parents, cwd, *cwd.parents}
     home = Path(env.get("CARGO_HOME", str(Path(env["HOME"]) / ".cargo")))
@@ -602,7 +618,8 @@ def publish_complete(root, report, check, clocks):
 def classify_build_report(report, final_budget):
     """Retain accepted deployment observations across the pure pair verdict."""
     result = B.classify_pair(report["phases"]["baseline"], report["phases"]["candidate"], final_budget)
-    for name in ("phases", "producer", "deployment", "regression_loader", "legacy_supervisor_source", "legacy_supervisor_sha256"):
+    for name in ("phases", "producer", "deployment", "regression_loader_preflight", "regression_loader",
+                 "legacy_supervisor_source", "legacy_supervisor_sha256"):
         result[name] = report[name]
     return result
 
@@ -663,6 +680,7 @@ def build(args):
                 and versions["cargo"] == "cargo 1.99.1 (5f94df478 2026-08-27)"
                 and versions["uv"] == "uv 0.13.6 (x86_64-unknown-linux-gnu)" and versions["maturin"] == "maturin 1.15.0",
                 "pinned toolchain preflight refused before compilation")
+            report["regression_loader_preflight"] = regression_loader_preflight(supervisor, env, args.python, root, control)
             wheel_stage = task_root / "full-gates-build/wheels"; wheel_stage.mkdir(parents=True)
             for role, (source_sha, crate) in B.SOURCES.items():
                 phase_root = root / role; phase_root.mkdir()
@@ -701,8 +719,9 @@ def build(args):
                     config_raw = supervisor.command("candidate-regression-python-config",
                         [args.python, "-I", "-B", "-c", REGRESSION_PYTHON_CONFIG], env, control)
                     regression_env, loader = regression_environment(env, args.python, json.loads(config_raw))
-                    report["regression_loader"] = loader
                     write_json(phase_root / "regression-loader.json", loader)
+                    B.require(loader == report["regression_loader_preflight"]["loader"], "selected regression loader changed since preflight")
+                    report["regression_loader"] = loader
                     supervisor.command("candidate-regressions", ["cargo", "test", "--locked", "--lib", "--manifest-path",
                         str(source / "chronicler-agents/Cargo.toml"), "household_migration_"], regression_env, source)
                     text = supervisor.last_stdout.decode()
