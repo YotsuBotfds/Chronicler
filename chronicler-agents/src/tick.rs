@@ -575,7 +575,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // 1. Update satisfaction
     // -----------------------------------------------------------------------
     let sat_inputs = compute_satisfaction_region_inputs(pool, regions, signals);
-    update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs, &movement_effects.relief);
+    let region_groups = update_satisfaction(pool, regions, signals, wealth_percentiles, &sat_inputs, &movement_effects.relief);
 
     // -----------------------------------------------------------------------
     // M48: Famine + Prosperity intents (post-satisfaction, post-wealth)
@@ -630,7 +630,8 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
     // -----------------------------------------------------------------------
-    let region_groups = pool.partition_by_region(num_regions as u16);
+    // The satisfaction partition still has the current regions and live slots:
+    // only read-only pool access occurs between that update and these decisions.
 
     // Decision ablations (validation experiments, `scale::DecisionAblation`):
     // 0 unless an ablation was requested and its start turn reached. The
@@ -1569,7 +1570,7 @@ fn update_satisfaction(
     wealth_percentiles: &[f32],
     sat_inputs: &SatisfactionRegionInputs,
     movement_relief: &[f32],
-) {
+) -> Vec<Vec<usize>> {
 
     // Partition agents by region
     let num_regions = regions.len();
@@ -1718,6 +1719,7 @@ fn update_satisfaction(
             }
         }
     }
+    region_groups
 }
 
 // ---------------------------------------------------------------------------
@@ -2905,6 +2907,78 @@ mod tests {
             }
         }
         assert!(any_changed, "satisfaction should be updated from default 0.5");
+    }
+
+    /// The satisfaction-owned partition reaches the real decision consumer
+    /// after read-only stats/lookup work, including trip and recycled slots.
+    #[test]
+    fn test_satisfaction_partition_reaches_decisions_at_current_regions() {
+        use crate::decision_delivery::{DeliveryConfig, DeliveryFrame, RegionDelivery};
+        for populated in [false, true] {
+            let mut regions: Vec<_> = (0..4).map(make_healthy_region).collect();
+            for region in &mut regions {
+                region.controller_civ = 0;
+                region.adjacency = vec![];
+            }
+            let signals = make_default_signals(1, regions.len());
+            let mut pool = AgentPool::new(8);
+            if populated {
+                for _ in 0..6 {
+                    pool.spawn(0, 0, Occupation::Farmer, 30,
+                        0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                }
+                pool.kill(1); // Leave a dead hole with its old region value.
+                pool.kill(4);
+                let merchant = pool.spawn(0, 0, Occupation::Merchant, 30,
+                    0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                assert_eq!(merchant, 4); // New ID in a recycled slot.
+                // Membership is captured after mobility, never from an older
+                // home-region partition. Regions 1 and 3 remain empty.
+                for slot in [0, 3, merchant] { pool.regions[slot] = 2; }
+                pool.trip_origin_region[merchant] = 0;
+                pool.trip_phase[merchant] = crate::agent::TRIP_PHASE_TRANSIT;
+                for slot in 0..pool.capacity() { pool.set_satisfaction(slot, 0.125); }
+                pool.set_satisfaction(merchant, 0.3125);
+            }
+            let percentiles = vec![0.5; pool.capacity()];
+            let inputs = compute_satisfaction_region_inputs(&pool, &regions, &signals);
+            let relief = vec![1.0; pool.capacity()];
+            let groups = update_satisfaction(
+                &mut pool, &regions, &signals, &percentiles, &inputs, &relief,
+            );
+            let stats = compute_region_stats(&pool, &regions, &signals);
+            let lookup = pool.build_id_slots();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &pool);
+            let config = DeliveryConfig::new(64, 128, None).unwrap();
+            let mut frame = DeliveryFrame::new(7, 0);
+            for (region, slots) in groups.iter().enumerate() {
+                let mut rng = ChaCha8Rng::from_seed([19; 32]);
+                rng.set_stream(((region as u64) << 48) | (7 << 16) | DECISION_STREAM_OFFSET as u64);
+                let mut observer = RegionDelivery::new(&config, region, regions.len());
+                crate::behavior::evaluate_region_decisions_with_delivery(
+                    &pool, slots, &regions, &regions[region], &stats, region,
+                    &mut rng, &lookup, DecisionOptions::default(), &mut observer,
+                );
+                frame.merge_region(observer);
+            }
+            assert!(frame.stage_complete());
+            let expected = if populated {
+                vec![(pool.ids[2], 0), (pool.ids[5], 0),
+                    (pool.ids[0], 2), (pool.ids[3], 2), (pool.ids[4], 2)]
+            } else { vec![] };
+            assert_eq!(frame.decisions.iter().map(|r| (r.agent_id, r.region))
+                .collect::<Vec<_>>(), expected);
+            assert_eq!(groups.len(), regions.len());
+            assert!(groups[1].is_empty() && groups[3].is_empty());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &pool), before);
+            if populated {
+                assert_eq!(pool.satisfaction(4).to_bits(), 0.3125f32.to_bits());
+                let trip = frame.decisions.iter().find(|r| r.agent_id == pool.ids[4]).unwrap();
+                assert!(!trip.final_utilities_valid); // Captured, then skipped as on-trip.
+                assert!(frame.decisions.iter().filter(|r| r.agent_id != pool.ids[4])
+                    .all(|r| r.final_utilities_valid));
+            }
+        }
     }
 
     #[test]
