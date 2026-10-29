@@ -1,0 +1,115 @@
+{
+  "kind": "chronicler-models-forkserver-metadata-design",
+  "schema_version": 1,
+  "status": "inactive_design_not_executable",
+  "producer": {
+    "git_sha": "9848e7daa93d075f05a01201aba85233f5baf540",
+    "package_digest": "0eab6d514c5fc7fda0c0180d52c48bbad126598c3288477f86ab2eeb742a72d3",
+    "static_inventory_file": "models-forkserver-metadata-inventory-9848e7da.json",
+    "static_inventory_sha256": "7307818a2b98ee07585308cff716789613f08c47f5f2e673be7894e627bb92f8",
+    "static_chronicler_modules": 25,
+    "declared_classes": 159,
+    "actual_import_graph_qualified": false
+  },
+  "activation": {
+    "controller_implemented": false,
+    "preload_implemented": false,
+    "fingerprint_codec_implemented": false,
+    "root_runtime_source_review": null,
+    "frozen_control_sha": null,
+    "frozen_environment_sha256": null,
+    "frozen_registration_sha256": null,
+    "allow_metadata_forks": false
+  },
+  "prefix": [
+    "chronicler",
+    "numpy",
+    "numpy.random",
+    "pydantic",
+    "chronicler.models"
+  ],
+  "forkserver_preload_list": [
+    "metadata_preload"
+  ],
+  "forbidden_server_modules": [
+    "chronicler.main",
+    "pyarrow",
+    "chronicler_agents"
+  ],
+  "exposure": {
+    "actual_server_forks": 2,
+    "sequential_children": 2,
+    "max_concurrent_children": 1,
+    "future_server_lifetime_hard_ceiling": 8,
+    "worlds": 0,
+    "ticks": 0,
+    "checkpoint_reads_or_restores": 0,
+    "native_builds": 0,
+    "native_runtime_imports": 0,
+    "retry_or_fallback": false
+  },
+  "roles": [
+    {
+      "role": "private_mutation",
+      "initial_template_must_match": true,
+      "private_mutations": [
+        "preload_marker",
+        "python_singleton_rng",
+        "numpy_singleton_rng",
+        "scientific_research_state.MAX_CYCLES",
+        "scientific_research_state.LazyResearchModel.private_attribute",
+        "scholarship_state.ScholarshipState.model_config",
+        "scholarship_state.COUNTER_KEYS",
+        "scientific_claims_state.ScientificClaimsState.lazy_name",
+        "scientific_claims_state.ScientificClaimsState.model_fields",
+        "epidemiology.PATHOGEN_INDEX"
+      ]
+    },
+    {
+      "role": "pristine_inheritance",
+      "initial_template_must_match": true,
+      "private_mutations": []
+    }
+  ],
+  "ownership": {
+    "child_session_and_handshake": "inside actual fork wrapper child branch, before returning to multiprocessing bootstrap",
+    "pidfd_birth_session_peer_credentials_required": true,
+    "handshake_bytes_limit": 4096,
+    "handshake_wall_seconds": 2,
+    "caller_main_preload": false,
+    "unexpected_descendants": "refuse",
+    "exact_child_wait4_pid_set": true,
+    "all_owned_writers_absent_before_qualification": true
+  },
+  "proposed_limits": {
+    "cpu_affinity_count": 1,
+    "aggregate_cpu_seconds": 30,
+    "aggregate_wall_seconds": 45,
+    "child_tree_cpu_seconds": 5,
+    "child_wall_seconds": 8,
+    "reserve_all_child_allowances_before_start": true,
+    "evidence_bytes": 33554432,
+    "disk_floor_bytes": 3221225472,
+    "disk_admission_extra_bytes": 67108864,
+    "memory_admission_bytes": 1073741824,
+    "memory_floor_bytes": 536870912
+  },
+  "required_before_freeze": [
+    "implementation and independent source review of controller/preload/fingerprint codecs",
+    "pure contracts and real tiny POSIX handshake/cancellation/accounting tests",
+    "finalization serialization/hash/publication expiry injection",
+    "actual interpreter executable/version/flags and dependency file hashes",
+    "exact source checkout path/Git identity/clean status and package bytes",
+    "explicit preserved thread environment and root-assigned CPU lease",
+    "fixed role source hashes, module set and closed receipt schemas",
+    "external supervisor/independent reader authority and separate readout budget",
+    "root review of final frozen registration"
+  ],
+  "qualification_claims": {
+    "metadata_forks_run": false,
+    "world_or_checkpoint_qualification": false,
+    "scientific_gate_or_outcome_qualification": false,
+    "performance_qualification": false,
+    "backend_activation": false
+  }
+}

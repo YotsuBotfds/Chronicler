@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: separate `lead/models-forkserver-metadata-design-20261029` records
+an inactive [two-child metadata qualification design](performance/models-forkserver-metadata-design-2026-10-29.md)
+for the new package. The stdlib-only static helper inventories 25 Chronicler
+modules/159 declared classes without importing them; actual runtime closure
+and mutable metadata fingerprints remain proof obligations. Root source/design
+review cleared this inactive scope. The modified guarded validation-tooling
+selection passed 296 tests in 6.27 seconds, with a real 110-second timeout and
+unchanged lane limit. No controller/preload runtime or metadata fork ran;
+the JSON explicitly disables execution pending implementation/freeze review.
+Stage 1, frozen producer, main and active qualification sources remain separate.
+
 2026-10-29: isolated `lead/models-forkserver-contracts-20261029`, based on
 `c76efe85`, adds only the inert stage-1
 [models-only launch contracts](performance/models-forkserver-contracts-2026-10-29.md).

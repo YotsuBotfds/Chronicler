@@ -1,0 +1,372 @@
+{
+  "kind": "chronicler-static-model-preload-inventory",
+  "schema_version": 1,
+  "qualification": "none; static source only",
+  "package_digest": "0eab6d514c5fc7fda0c0180d52c48bbad126598c3288477f86ab2eeb742a72d3",
+  "package_files": 180,
+  "package_bytes": 4760442,
+  "modules": {
+    "chronicler": {
+      "path": "src/chronicler/__init__.py",
+      "sha256": "9832de075b76097aafbf424ddd6ca6d7fbae24ed8fc9e271e7820b357b49e6fd",
+      "direct_source_imports": [],
+      "declared_classes": []
+    },
+    "chronicler.agent_movements_state": {
+      "path": "src/chronicler/agent_movements_state.py",
+      "sha256": "201e074e3165738deca5cd304ef746ff60a045eb2c921f54e23f8456ab704aad",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "Movement",
+        "Reform",
+        "MovementState"
+      ]
+    },
+    "chronicler.cities_state": {
+      "path": "src/chronicler/cities_state.py",
+      "sha256": "97e7c39508b2a8f9c11d97c4533537d5f8248387f42573e40b734cb60560ea4b",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "City",
+        "CityState"
+      ]
+    },
+    "chronicler.contact_ledger": {
+      "path": "src/chronicler/contact_ledger.py",
+      "sha256": "d32d2160447548a4764d427a36711efbb881c24a666617c075348392714ff354",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "_LedgerCache",
+        "ContactLedgerState"
+      ]
+    },
+    "chronicler.diplomacy_state": {
+      "path": "src/chronicler/diplomacy_state.py",
+      "sha256": "b1b8fbdaa21ec286d9df9f1923b2d42cea5913559ec189a595a1ef5301ed1287",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "DiplomaticMemory",
+        "Treaty",
+        "DiplomacyState"
+      ]
+    },
+    "chronicler.domestic_credit_state": {
+      "path": "src/chronicler/domestic_credit_state.py",
+      "sha256": "16ea3e46234185ffa178e3b3f36f24c553375472870ac0590909ef43908f7a8b",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "Funder",
+        "CreditLine",
+        "DomesticCreditState"
+      ]
+    },
+    "chronicler.epidemiology": {
+      "path": "src/chronicler/epidemiology.py",
+      "sha256": "d1ba6c7f89fe02c54b78176a708dd0ee2b109cd5535299d9cb9d9b0292a6c30f",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "Pathogen",
+        "RegionInfection",
+        "EpidemicState"
+      ]
+    },
+    "chronicler.experimental": {
+      "path": "src/chronicler/experimental/__init__.py",
+      "sha256": "120bea2303165838c10f31524fd4d25b03295477f25b93287686c1ac98ea8933",
+      "direct_source_imports": [],
+      "declared_classes": []
+    },
+    "chronicler.experimental.fisheries": {
+      "path": "src/chronicler/experimental/fisheries.py",
+      "sha256": "de531ab12db19d78f6de87b5903fc4461070d20df37c510c7405068f594e3a00",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "FisheryConfig",
+        "FisheryStep"
+      ]
+    },
+    "chronicler.finance": {
+      "path": "src/chronicler/finance.py",
+      "sha256": "5cf25938cb7989df61ca9bfc9725067aa1155ebc79293f8d6024d5a235f1471b",
+      "direct_source_imports": [
+        "chronicler.techniques_state"
+      ],
+      "declared_classes": [
+        "Loan",
+        "CivFinance",
+        "FinanceState",
+        "_Book",
+        "_Plan",
+        "_Lenders"
+      ]
+    },
+    "chronicler.governance_state": {
+      "path": "src/chronicler/governance_state.py",
+      "sha256": "cddbd12ea6ee56410273a1c300d756d72477def428ec389a18e1a0f4fc984391",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "GovernanceSettings",
+        "GovernanceInstitution",
+        "GovernanceAmbition",
+        "GovernanceReignRecord",
+        "CivGovernance"
+      ]
+    },
+    "chronicler.gp_agendas_state": {
+      "path": "src/chronicler/gp_agendas_state.py",
+      "sha256": "6e6ca2a241d307871936a99d99d2b91bba7f32eee7cb9309f80f80cc80d0008f",
+      "direct_source_imports": [
+        "chronicler.governance_state"
+      ],
+      "declared_classes": [
+        "AgendaRecord",
+        "AgendaBond",
+        "AgendaLogEntry",
+        "GPAgendaState"
+      ]
+    },
+    "chronicler.grain_reserves_state": {
+      "path": "src/chronicler/grain_reserves_state.py",
+      "sha256": "79f6ea2b5c2cfbb9db1927a1f6b47305cdeb2aa9007526538d9a64bab091554c",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "Granary",
+        "ReserveFlow",
+        "GrainReserveState"
+      ]
+    },
+    "chronicler.guilds_state": {
+      "path": "src/chronicler/guilds_state.py",
+      "sha256": "c64cdd2cc4d2f5f7c83788786f785f80e20c8fbfdec7156b554112b272aa2998",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "Guild",
+        "GuildState"
+      ]
+    },
+    "chronicler.harvest_forecasts_state": {
+      "path": "src/chronicler/harvest_forecasts_state.py",
+      "sha256": "414568f3471c5da9d29551f5ddacf377ff6cd8fdaeb33e90aa1d338875acc2e0",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "HarvestObserver",
+        "HarvestReport",
+        "HarvestForecastState"
+      ]
+    },
+    "chronicler.health_care_state": {
+      "path": "src/chronicler/health_care_state.py",
+      "sha256": "522cf329528be08bed20955fec33b84eeea4ea0e2b64fc45b6e67e76acf708a9",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "InjuryEpisode",
+        "HealthCareState"
+      ]
+    },
+    "chronicler.maritime_state": {
+      "path": "src/chronicler/maritime_state.py",
+      "sha256": "fa7434054463fb9b49ae3666886b8d92aa542d781175287b85189da2cd77f3b8",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "_CacheSlot",
+        "SeaZoneState",
+        "Fleet",
+        "NavalBattle",
+        "Blockade",
+        "Colony",
+        "EscortRequest",
+        "MaritimeState"
+      ]
+    },
+    "chronicler.models": {
+      "path": "src/chronicler/models.py",
+      "sha256": "d96d251679bac33b2e2c5b5c230ee890637d8cce494d2f344c920a6bc8ce36f4",
+      "direct_source_imports": [
+        "chronicler.agent_movements_state",
+        "chronicler.cities_state",
+        "chronicler.contact_ledger",
+        "chronicler.diplomacy_state",
+        "chronicler.domestic_credit_state",
+        "chronicler.epidemiology",
+        "chronicler.experimental.fisheries",
+        "chronicler.finance",
+        "chronicler.governance_state",
+        "chronicler.gp_agendas_state",
+        "chronicler.grain_reserves_state",
+        "chronicler.guilds_state",
+        "chronicler.harvest_forecasts_state",
+        "chronicler.health_care_state",
+        "chronicler.maritime_state",
+        "chronicler.nomads_state",
+        "chronicler.ritual_gatherings_state",
+        "chronicler.scholarship_state",
+        "chronicler.scientific_claims_state",
+        "chronicler.techniques_state",
+        "chronicler.transaction_receipts_state"
+      ],
+      "declared_classes": [
+        "TechEra",
+        "Resource",
+        "ResourceType",
+        "Disposition",
+        "FactionType",
+        "Belief",
+        "FaithRecord",
+        "FactionState",
+        "ActionType",
+        "InfrastructureType",
+        "ArtifactType",
+        "ArtifactStatus",
+        "ClimatePhase",
+        "ActionCategory",
+        "SettlementStatus",
+        "Infrastructure",
+        "Artifact",
+        "PendingBuild",
+        "ClimateConfig",
+        "RegionEcology",
+        "RegionStockpile",
+        "MutualAidState",
+        "MutualAidTransfer",
+        "RegionAsabiya",
+        "Settlement",
+        "SettlementSummary",
+        "River",
+        "RegionGeography",
+        "SeaZone",
+        "WorldGeography",
+        "Region",
+        "Leader",
+        "Civilization",
+        "Relationship",
+        "GreatPersonDeed",
+        "GreatPerson",
+        "ShockContext",
+        "Event",
+        "NamedEvent",
+        "ActiveCondition",
+        "ChronicEpisode",
+        "OpenCondition",
+        "Exciter",
+        "ProvenanceState",
+        "VassalRelation",
+        "Federation",
+        "ProxyWar",
+        "Army",
+        "Occupation",
+        "WarRecord",
+        "BattleRecord",
+        "TreatyRecord",
+        "WarState",
+        "ExileModifier",
+        "Movement",
+        "PandemicRegion",
+        "TerrainTransitionRule",
+        "StatChange",
+        "CivShock",
+        "DemandSignal",
+        "AgentEventRecord",
+        "ArtifactIntent",
+        "ArtifactLifecycleIntent",
+        "WorldState",
+        "CivSnapshot",
+        "RelationshipSnapshot",
+        "TurnSnapshot",
+        "NarrativeRole",
+        "CausalLink",
+        "ChainStep",
+        "CausalChain",
+        "GapSummary",
+        "NarrativeMoment",
+        "AgentContext",
+        "PassageProvenance",
+        "ChronicleEntry"
+      ]
+    },
+    "chronicler.nomads_state": {
+      "path": "src/chronicler/nomads_state.py",
+      "sha256": "ec86fbcf983151876089224d7e1c71b43cae66651cada338f56c1e7b6e5f52e1",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "_CacheSlot",
+        "Raid",
+        "TributePact",
+        "Horde",
+        "Conquest",
+        "NomadState"
+      ]
+    },
+    "chronicler.ritual_gatherings_state": {
+      "path": "src/chronicler/ritual_gatherings_state.py",
+      "sha256": "cdfb472fe3e9f208cb4745d7c13e3812c44b17b79f7723cb5dd7c645667f74f1",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "GatheringSchedule",
+        "GatheringOutcome",
+        "RitualGatheringState"
+      ]
+    },
+    "chronicler.scholarship_state": {
+      "path": "src/chronicler/scholarship_state.py",
+      "sha256": "15578b28c2c3b2bd32848d08e92450a515978f70d24eef3b0b9e078397bb17a4",
+      "direct_source_imports": [
+        "chronicler.scientific_research_state"
+      ],
+      "declared_classes": [
+        "Seat",
+        "ScholarshipState"
+      ]
+    },
+    "chronicler.scientific_claims_state": {
+      "path": "src/chronicler/scientific_claims_state.py",
+      "sha256": "4fd9bbc18f620122364b48d074a772bc944e6403a8839a1fc67373d7cecb8dae",
+      "direct_source_imports": [
+        "chronicler.scientific_research_state"
+      ],
+      "declared_classes": [
+        "ClaimContext",
+        "ScientificClaim",
+        "ScientificTrial",
+        "ProposalReceipt",
+        "EvidenceReceipt",
+        "ScienceMessage",
+        "AdoptionEffort",
+        "ScientificClaimsState"
+      ]
+    },
+    "chronicler.scientific_research_state": {
+      "path": "src/chronicler/scientific_research_state.py",
+      "sha256": "aa2ac2880d20f8b421db6fb11a2830e18f2516d1162fc963262a7283fb64f206",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "ResearchSeatBirth",
+        "ResearchHostIdentity",
+        "ResearchCycle",
+        "ResearchAgendas",
+        "LazyResearchModel"
+      ]
+    },
+    "chronicler.techniques_state": {
+      "path": "src/chronicler/techniques_state.py",
+      "sha256": "fca174c4af26b83add8706e68d320f3beb27b36f7a365feb1f68282bb63a9852",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "TechniqueSpec",
+        "_StateCache",
+        "TechniqueState"
+      ]
+    },
+    "chronicler.transaction_receipts_state": {
+      "path": "src/chronicler/transaction_receipts_state.py",
+      "sha256": "3c14364adc7546e9813d09e74cbddec093691613bb38e9a838dc28d52a316d68",
+      "direct_source_imports": [],
+      "declared_classes": [
+        "ActiveVoyage",
+        "TransactionObservation",
+        "PublicPurchaseObservation",
+        "PublicPurchaseFrame",
+        "TransactionReceiptState"
+      ]
+    }
+  }
+}
