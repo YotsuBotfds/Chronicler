@@ -173,3 +173,9 @@ specifies a fixed natural cohort and shared-checkpoint contrast of continued
 research against archive-preserving pause of new trials. Existing harness and
 comparison guards need separately reviewed study support before activation.
 No world, test, native build, threshold change or efficacy result is claimed.
+
+An isolated [inactive adapter/readout draft](experiments/scientific-research-natural-adapter-2026-10-29.md)
+now implements those fixed controls and clocks, with separate producer/control
+identities and explicit post-checkpoint global RNG sidecars. Guarded pure
+contracts pass; independent review and exact implementation qualification remain
+pending. The natural study and all workflows remain unlaunched.
