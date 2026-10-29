@@ -7,6 +7,8 @@ module is imported until its exact registered root has been selected.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import ctypes
 from copy import deepcopy
 import importlib
 import importlib.machinery
@@ -24,6 +26,7 @@ import research_natural_contract as C
 
 SCRIPT = Path(__file__).resolve()
 CONTROL = SCRIPT.parents[1]
+_EXCLUSIVE_OWNER = None
 
 
 def runtime(source):
@@ -225,6 +228,7 @@ def worker(options):
         C.require(final.header["exact"] is (options.role == "parent"), "declared fork exact label differs")
         native = native_records(final, final_path, folder)
         history = [h.model_dump(mode="json") for h in final.state.history]
+        C.write(folder / "raw-history.json", history)
         world = final.state.world.model_dump(mode="json")
         science = world["scientific_claims"]
         bundle = load_bundle(folder / "chronicle_bundle.json")
@@ -303,10 +307,10 @@ def resources(root, admission=False):
 def process_record(pid):
     try:
         raw = (Path("/proc") / str(pid) / "stat").read_text()
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
     values = raw[raw.rfind(")") + 2:].split()
-    return dict(pid=pid, state=values[0], pgrp=int(values[2]), session=int(values[3]),
+    return dict(pid=pid, state=values[0], ppid=int(values[1]), pgrp=int(values[2]), session=int(values[3]),
                 cpu_ticks=sum(int(values[i]) for i in (11, 12, 13, 14)), start_ticks=int(values[19]))
 
 
@@ -315,25 +319,241 @@ def owned_group(pid):
             and (row := process_record(int(path.name))) and row["pgrp"] == row["session"] == pid and row["state"] != "Z"]
 
 
+def owned_tree(pid, known):
+    """Retain birth identities, including descendants which create another session.
+
+    Linux /proc is sampled, so CPU limits have bounded polling granularity; no
+    per-process RLIMIT is presented as an aggregate descendant limit.
+    """
+    C.require(_EXCLUSIVE_OWNER == os.getpid(), "exclusive child ownership lease is not active")
+    rows = {int(path.name): row for path in Path("/proc").iterdir() if path.name.isdecimal()
+            and (row := process_record(int(path.name)))}
+    selected = {number: row for number, row in rows.items()
+                if known.get(number) == row["start_ticks"]}
+    for number in known.keys() & rows.keys():
+        C.require(known[number] == rows[number]["start_ticks"],
+                  "process group identity cannot be established; refusing numeric-PID reuse")
+    # The still-live leased leader anchors descendants before their first sample.
+    # A leader can exit before its first /proc observation. The exclusive
+    # subreaper ownership lease still anchors every remaining direct orphan.
+    if pid in rows and pid not in known and rows[pid]["ppid"] == os.getpid():
+        leader = rows[pid]
+        C.require(leader["pgrp"] == leader["session"] == pid,
+                  "unobserved worker leader is outside its fresh session")
+        known[pid] = leader["start_ticks"]
+        selected[pid] = leader
+    # The controller is an exclusive child subreaper. Descendants which orphan
+    # before any sample, even after setsid(), become our direct children.
+    selected.update({number: row for number, row in rows.items() if row["ppid"] == os.getpid()})
+    while True:
+        added = {number: row for number, row in rows.items()
+                 if number not in selected and row["ppid"] in selected}
+        if not added:
+            break
+        selected.update(added)
+    known.update({number: row["start_ticks"] for number, row in selected.items()})
+    return list(selected.values())
+
+
+def direct_children():
+    return [row for path in Path("/proc").iterdir() if path.name.isdecimal()
+            and (row := process_record(int(path.name))) and row["ppid"] == os.getpid()]
+
+
+@contextmanager
+def exclusive_subreaper():
+    """Own transient orphan descendants before the first worker can fork."""
+    global _EXCLUSIVE_OWNER
+    C.require(_EXCLUSIVE_OWNER is None and sys.platform == "linux" and not direct_children(),
+              "exclusive Linux child ownership required before worker launch")
+    libc = ctypes.CDLL(None, use_errno=True)
+    prior = ctypes.c_int()
+    C.require(libc.prctl(37, ctypes.byref(prior), 0, 0, 0) == 0 and
+              libc.prctl(36, 1, 0, 0, 0) == 0, "Linux child subreaper setup failed")
+    _EXCLUSIVE_OWNER = os.getpid()
+    try:
+        yield
+    finally:
+        # Refuse to silently release an ownership lease with unreaped children.
+        C.require(not direct_children(), "subreaper still owns descendants after cleanup")
+        C.require(libc.prctl(36, prior.value, 0, 0, 0) == 0, "child subreaper restoration failed")
+        _EXCLUSIVE_OWNER = None
+
+
 def cleanup(child, known):
     for sig in (signal.SIGTERM, signal.SIGKILL):
         members = owned_group(child.pid)
-        if members:
-            C.require(any(known.get(row["pid"]) == row["start_ticks"] for row in members),
+        for row in members:
+            if row["pid"] in known:
+                C.require(known[row["pid"]] == row["start_ticks"],
                       "process group identity cannot be established; refusing numeric-PID reuse")
-            known.update({row["pid"]: row["start_ticks"] for row in members})
+        deadline = time.monotonic() + 5
+        while True:
+            members = [row for row in owned_tree(child.pid, known) if row["state"] != "Z"]
+            if not members:
+                break
+            for row in reversed(members):
+                try:
+                    pinned = os.pidfd_open(row["pid"], 0)
+                except ProcessLookupError:
+                    continue
+                try:
+                    current = process_record(row["pid"])
+                    C.require(current is None or current["start_ticks"] == known[row["pid"]],
+                              "owned process birth changed during cleanup")
+                    try:
+                        signal.pidfd_send_signal(pinned, sig)
+                    except ProcessLookupError:
+                        pass
+                finally:
+                    os.close(pinned)
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(.025)
+        while True:
             try:
-                os.killpg(child.pid, sig)
-            except ProcessLookupError:
-                pass
-            deadline = time.monotonic() + 5
-            while owned_group(child.pid) and time.monotonic() < deadline:
-                time.sleep(.05)
-        child.poll()
-    C.require(not owned_group(child.pid), "owned process group cleanup incomplete")
+                waited, status, usage = os.wait4(-1, os.WNOHANG)
+            except ChildProcessError:
+                break
+            if not waited:
+                break
+            if waited == child.pid:
+                child.returncode = os.waitstatus_to_exitcode(status)
+    C.require(not owned_tree(child.pid, known), "owned process tree cleanup incomplete")
+    child.wait(timeout=5)
+
+
+@contextmanager
+def interruption_guard():
+    """Turn termination into stack unwinding so the controller owns cleanup."""
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    def interrupted(signum, frame):
+        # One interruption stops the fixed sequence. Repeated terminal signals
+        # must not cut through owned-child cleanup or its negative receipt.
+        for sig in previous:
+            signal.signal(sig, signal.SIG_IGN)
+        raise InterruptedError("controller interrupted by signal " + str(signum))
+    for sig in previous:
+        signal.signal(sig, interrupted)
+    try:
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+def supervise(child, known, aggregate_cpu, resource_guard, controller_started, worker_started,
+              *, worker_cpu=C.WORKER_CPU, aggregate_limit=C.AGGREGATE_CPU,
+              worker_wall=C.WORKER_WALL, aggregate_wall=C.AGGREGATE_WALL):
+    """Observe the whole leased tree, and reap with exact leader/waited usage."""
+    peak_cpu, reaped_cpu = 0.0, 0.0
+    leader_done = child.returncode is not None
+    while True:
+        resource_guard()
+        members = owned_tree(child.pid, known)
+        live_cpu = sum(row["cpu_ticks"] for row in members) / os.sysconf("SC_CLK_TCK")
+        peak_cpu = max(peak_cpu, reaped_cpu + live_cpu)
+        C.require(peak_cpu <= worker_cpu, "worker process-tree CPU budget crossed")
+        C.require(aggregate_cpu() + live_cpu <= aggregate_limit, "aggregate CPU budget crossed")
+        now = time.monotonic()
+        C.require(now - controller_started <= aggregate_wall and now - worker_started <= worker_wall,
+                  "wall budget crossed")
+        while True:
+            try:
+                waited, status, usage = os.wait4(-1, os.WNOHANG)
+            except ChildProcessError:
+                break
+            if not waited:
+                break
+            reaped_cpu += usage.ru_utime + usage.ru_stime
+            if waited == child.pid:
+                child.returncode = os.waitstatus_to_exitcode(status)
+                leader_done = True
+        remaining = owned_tree(child.pid, known)
+        remaining_cpu = sum(row["cpu_ticks"] for row in remaining) / os.sysconf("SC_CLK_TCK")
+        peak_cpu = max(peak_cpu, reaped_cpu + remaining_cpu)
+        C.require(peak_cpu <= worker_cpu, "worker process-tree CPU budget crossed at exit")
+        C.require(aggregate_cpu() + remaining_cpu <= aggregate_limit, "aggregate CPU budget crossed at exit")
+        C.require(not leader_done or not remaining, "worker exited leaving owned descendants")
+        if leader_done:
+            return dict(returncode=child.returncode, tree_cpu_seconds=peak_cpu,
+                        accounting="exclusive Linux subreaper; proc own+waited CPU; all wait4 exits; 50ms polling")
+        time.sleep(.05)
+
+
+def verify_active_before_further_launches(root, source, seed, frozen):
+    """Run the same detached strict check before pause or the next seed."""
+    import read_research_natural_continuation as reader
+    decode, strict, prune = reader.codec(source, frozen)
+    parent = reader.inspect_role(root, seed, "parent", frozen, decode, prune)
+    active = reader.inspect_role(root, seed, "active", frozen, decode, prune)
+    compared = reader.active_identity(parent, active, strict)
+    C.write(root / f"seed-{seed}/active-noop.json", compared)
+    C.require(compared["file_set_equal"] and all(compared["files"].values()) and
+              all(compared[key] for key in ("raw_world_equal", "raw_history_equal", "actual_native_sections_equal",
+                                            "final_external_global_rng_equal")),
+              "active no-op continuation identity failed; further launches refused")
+
+
+def publish_execution(root, value, cpu, started, guard):
+    """Serialize/hash the large provisional payload before final accounting."""
+    root = Path(root)
+    try:
+        C.write(root / "execution.json", value)
+        guard()
+        payload_hash = C.sha(root / "execution.json")
+        guard()
+        measured = cpu()
+        charged = measured + 1.0
+        C.require(charged <= C.AGGREGATE_CPU, "final accounting reserve exceeds unchanged aggregate CPU budget")
+        receipt = dict(schema_version=1, kind="natural-research-execution-receipt",
+            publication_complete=True, execution_sha256=payload_hash,
+            measured_to_seal_cpu_seconds=measured, finalization_cpu_reserve_seconds=1.0,
+            charged_aggregate_cpu_seconds=charged, aggregate_wall_seconds=time.monotonic() - started,
+            controller_started_monotonic=started, boot_id=value["boot_id"])
+        def final_guard():
+            guard()
+            C.require(cpu() <= charged, "final accounting publication exceeded charged CPU reserve")
+        C.write(root / "pending-execution-receipt.json", receipt)
+        final_guard()
+        os.replace(root / "pending-execution-receipt.json", root / "execution-receipt.json")
+        final_guard()
+        return True
+    except BaseException:
+        for name in ("execution-receipt.json", "pending-execution-receipt.json", "execution.json"):
+            path = root / name
+            if path.exists():
+                os.replace(path, root / ("incomplete-" + name))
+        raise
 
 
 def run(options):
+    own0, children0 = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    initial_cpu = own0.ru_utime + own0.ru_stime + children0.ru_utime + children0.ru_stime
+    root = Path(options.output_root).resolve()
+    try:
+        with exclusive_subreaper(), interruption_guard():
+            code = _run(options)
+        if code == 0:
+            receipt = C.read(root / "execution-receipt.json")
+            own, children = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+            final_cpu = own.ru_utime + own.ru_stime + children.ru_utime + children.ru_stime - initial_cpu
+            C.require(final_cpu <= receipt["charged_aggregate_cpu_seconds"] <= C.AGGREGATE_CPU and
+                      time.monotonic() - receipt["controller_started_monotonic"] <= C.AGGREGATE_WALL,
+                      "controller finalization exceeded charged aggregate budget")
+        return code
+    except BaseException:
+        # Handler/subreaper restoration is part of the successful transaction.
+        # An exception there must not leave a valid positive accounting seal.
+        path = root / "execution-receipt.json"
+        if path.exists():
+            target = root / "incomplete-finalization-execution-receipt.json"
+            C.require(not target.exists(), "refusing to overwrite retained incomplete execution receipt")
+            os.replace(path, target)
+        raise
+
+
+def _run(options):
     started = time.monotonic()
     cpu0 = resource.getrusage(resource.RUSAGE_SELF)
     child0 = resource.getrusage(resource.RUSAGE_CHILDREN)
@@ -374,36 +594,31 @@ def run(options):
                         child = subprocess.Popen(command, cwd=CONTROL, stdin=subprocess.DEVNULL, stdout=log,
                             stderr=subprocess.STDOUT, start_new_session=True, close_fds=True)
                         lease = process_record(child.pid)
-                        C.require(lease is not None and lease["pgrp"] == lease["session"] == child.pid, "worker session lease unavailable")
-                        known[child.pid] = lease["start_ticks"]
-                        C.write(folder / "process-lease.json", lease)
-                        while child.poll() is None:
-                            resources(root)
-                            live = process_record(child.pid)
-                            C.require(live is None or (live["start_ticks"] == lease["start_ticks"]
-                                      and live["pgrp"] == live["session"] == child.pid), "worker process identity drift")
-                            members = owned_group(child.pid)
-                            known.update({row["pid"]: row["start_ticks"] for row in members})
-                            # cutime/cstime cover waited descendants; add each
-                            # still-live member's own/waited usage separately.
-                            live_cpu = sum(row["cpu_ticks"] for row in members) / os.sysconf("SC_CLK_TCK")
-                            C.require(cpu() + live_cpu <= C.AGGREGATE_CPU, "aggregate CPU budget crossed")
-                            C.require(time.monotonic() - started <= C.AGGREGATE_WALL and
-                                      time.monotonic() - worker_started <= C.WORKER_WALL, "wall budget crossed")
-                            time.sleep(.25)
-                    code = child.wait()
+                        if lease is not None:
+                            C.require(lease["pgrp"] == lease["session"] == child.pid, "worker session lease unavailable")
+                            known[child.pid] = lease["start_ticks"]
+                        C.write(folder / "process-lease.json", dict(leader=lease,
+                            ownership="exclusive Linux child subreaper established before launch",
+                            leader_pid=child.pid, initial_birth_observed=lease is not None))
+                        accounting = supervise(child, known, cpu, lambda: resources(root), started, worker_started)
+                    code = accounting["returncode"]
                     cleanup(child, known)
-                    C.write(folder / "cleanup.json", dict(complete=True, identities=known))
+                    C.write(folder / "cleanup.json", dict(complete=True, identities=known, accounting=accounting))
                     C.require(code == 0, "worker exited unsuccessfully")
                     summary = C.read(folder / "worker-summary.json")
                     C.require(summary["execution_complete"] is True and summary["final_turn"] == C.END, "worker completion not verified")
-                    record.update(status="complete", returncode=code)
-                except Exception as exc:
+                    if role == "active":
+                        verify_active_before_further_launches(root, source, seed, frozen)
+                        resources(root)
+                        C.require(cpu() <= C.AGGREGATE_CPU and time.monotonic() - started <= C.AGGREGATE_WALL,
+                                  "active no-op readout exceeded aggregate budget")
+                    record.update(status="complete", returncode=code, tree_cpu_seconds=accounting["tree_cpu_seconds"])
+                except BaseException as exc:
                     record.update(status="failed", error=dict(type=type(exc).__name__, message=str(exc)))
                     if child is not None:
                         try:
                             cleanup(child, known)
-                        except Exception as cleanup_error:
+                        except BaseException as cleanup_error:
                             record["cleanup_error"] = str(cleanup_error)
                     halted = True
                 finally:
@@ -414,7 +629,7 @@ def run(options):
         verify_freeze(source, options.freeze)
         resources(root)
         C.require(cpu() <= C.AGGREGATE_CPU and time.monotonic() - started <= C.AGGREGATE_WALL, "final aggregate budget crossed")
-    except Exception as exc:
+    except BaseException as exc:
         error = dict(type=type(exc).__name__, message=str(exc))
     complete = error is None and len(rows) == 24 and all(row["status"] == "complete" for row in rows)
     try:
@@ -426,13 +641,31 @@ def run(options):
     if cpu() > C.AGGREGATE_CPU or time.monotonic() - started > C.AGGREGATE_WALL:
         complete = False
         error = dict(type="ResourceCensoring", message="Final inventory/identity exceeded aggregate budget")
-    C.write(root / "execution.json", dict(schema_version=1, kind="natural-research-continuation-execution",
+    execution = dict(schema_version=1, kind="natural-research-continuation-execution",
         execution_complete=complete, qualified=False, scientific_standing="readout_required" if complete else "incomplete_or_censored",
         controller_started_monotonic=started, boot_id=Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
         freeze_sha256=C.sha(options.freeze), source_sha=C.SOURCE, control_sha=frozen["control"]["git_sha"] if frozen else None,
         expected_executions=24, expected_physics_ticks=3360, actual_physics_ticks=3360 if complete else None,
         aggregate_cpu_seconds=cpu(), aggregate_wall_seconds=time.monotonic() - started, runs=rows, error=error,
-        files=files))
+        files=files)
+    def final_guard():
+        C.require(cpu() <= C.AGGREGATE_CPU and time.monotonic() - started <= C.AGGREGATE_WALL,
+                  "final execution serialization/publication exceeded aggregate budget")
+    try:
+        publish_execution(root, execution, cpu, started, final_guard)
+    except BaseException as exc:
+        complete = False
+        execution.update(execution_complete=False, scientific_standing="incomplete_or_censored",
+            actual_physics_ticks=None, error=dict(type=type(exc).__name__, message=str(exc)))
+        C.write(root / "execution.json", execution)
+        negative_hash = C.sha(root / "execution.json")
+        negative_cpu = cpu()
+        C.write(root / "execution-receipt.json", dict(schema_version=1,
+            kind="natural-research-execution-receipt", publication_complete=False,
+            execution_sha256=negative_hash, measured_to_seal_cpu_seconds=negative_cpu,
+            finalization_cpu_reserve_seconds=0.0, charged_aggregate_cpu_seconds=negative_cpu,
+            aggregate_wall_seconds=time.monotonic() - started, controller_started_monotonic=started,
+            boot_id=execution["boot_id"]))
     return 0 if complete else 1
 
 

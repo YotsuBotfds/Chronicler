@@ -59,6 +59,21 @@ def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
 
 
+def checkpoint_projection(value):
+    """The checkpoint writer sorts every JSON mapping; no data comparator waiver."""
+    return loads(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False))
+
+
+def nonnegative(value, name, *, integer=False):
+    require(type(value) is int if integer else type(value) in (int, float), name + " is not a typed number")
+    require(math.isfinite(value) and value >= 0, name + " is negative or nonfinite")
+    return value
+
+
+def closed(value, fields, name):
+    require(type(value) is dict and set(value) == set(fields), name + " fields differ")
+
+
 def write(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -216,7 +231,7 @@ def checkpoint_build_identity(header, frozen):
     env = {key: runtime["environment"][key] for key in
            ("python", "implementation", "machine", "affinity_cpu_count", "thread_env", "packages")}
     env["hash_seed"] = runtime["environment"]["thread_env"]["PYTHONHASHSEED"]
-    require(same(header["identity"], dict(source=source, native=native, environment=env)),
+    require(same(header["identity"], checkpoint_projection(dict(source=source, native=native, environment=env))),
             "checkpoint source/native/environment projection differs from frozen runtime")
 
 
@@ -268,20 +283,32 @@ def pause_archive(before, after):
 
 def exposure(science, history):
     """Source-dated stages; no end-turn belief substituted for paid-row confidence."""
+    for name in ("trial_spent", "effort_spent"):
+        nonnegative(science[name], name)
+    for trial in science["trials"]:
+        nonnegative(trial["cost"], "trial cost")
+        nonnegative(trial["funded_turn"], "funded turn", integer=True)
+    require(science["trial_spent"] == sum(t["cost"] for t in science["trials"]), "trial expense accounting differs")
     new = [t for t in science["trials"] if t["funded_turn"] >= FORK]
     old = [t for t in science["trials"] if t["funded_turn"] < FORK]
     trials = {t["id"]: t for t in science["trials"]}
     proposals = [p for p in science["proposals"] if p["received_turn"] >= FORK]
     receipts = [r for r in science["receipts"] if r["received_turn"] >= FORK]
-    allocations = []
+    allocations, observed_sources, paid_sources = [], [], []
     for snapshot in history:
         section = snapshot.get("scientific_claims")
         source = snapshot["turn"] - 1
         if source < FORK:
             continue
         require(type(section) is dict, "post-boundary science observation unavailable")
-        require(section["source_turn"] == source, "science snapshot clock differs")
+        require(type(section["source_turn"]) is int and section["source_turn"] == source, "science snapshot clock differs")
+        observed_sources.append(source)
         for row in section.get("allocations", []):
+            nonnegative(row["paid"], "paid adoption cost")
+            nonnegative(row["confidence"], "paid adoption confidence")
+            nonnegative(row["share"], "paid adoption share")
+            require(row["confidence"] <= 1 and row["share"] <= 1, "paid confidence/share exceeds one")
+            paid_sources.append(source)
             prior = [r for r in science["receipts"] if r["seat"] == row["seat"] and r["received_turn"] < source
                      and trials[r["trial"]]["claim"] == row["claim_id"]]
             allocations.append(dict(source_turn=source, **row,
@@ -304,5 +331,8 @@ def exposure(science, history):
         topics_total=len(science["claims"]), cycles_total=len(plan["cycles"]),
         canonical_topics=science["claims"], retained_agendas=plan["cycles"],
         final_capacity_block=dict(reason=plan["blocked_reason"], source_turn=plan["blocked_turn"]),
+        payment_phase_coverage=dict(observed_source_turns=observed_sources,
+            paid_source_turns=sorted(set(paid_sources)), paid_seasons=sorted({(s % 12) // 3 for s in paid_sources}),
+            calendar="source turn modulo12 /3, source-owned get_season_id", phase="phase4 before same-source phase10 receipts"),
         paid_use_season_scope="fixed six-turn cadence samples two of four seasons; missing use is not efficacy null",
         interpretation="descriptive stages; seeds/turns/institutions are not certified independent units")

@@ -179,3 +179,18 @@ now implements those fixed controls and clocks, with separate producer/control
 identities and explicit post-checkpoint global RNG sidecars. Guarded pure
 contracts pass; independent review and exact implementation qualification remain
 pending. The natural study and all workflows remain unlaunched.
+
+Pre-activation review subsequently corrected sorted checkpoint projections,
+raw-to-pruned history linkage, transient orphan ownership, pidfd cleanup,
+per-worker CPU/wall reconciliation and final publication accounting. The Linux
+controller now uses an exclusive child subreaper and all-child wait4 accounting;
+real tiny subprocess probes cover early exits, separate sessions, short CPU
+bursts, timeouts and interruption without running simulation physics. The
+unchanged 900 CPU-second cap includes an explicit conservative 1.0-second final
+accounting charge. Reader payloads require final hash-linked completion seals;
+budget/finalizer failures retain incomplete outputs. Readout source review and
+root process/accounting review are clear. The corrected source passed61 guarded
+pure tests and9 real Linux subprocess cases; their dated adapter record retains
+source hashes, exact evidence boundary and initial test-observer failure.
+The separate remote native-policy note is design only, with no binary admission
+change, native build, study execution or workflow activation.

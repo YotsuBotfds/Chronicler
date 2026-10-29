@@ -4,6 +4,7 @@ The real main-entry ordering case stops at bind, before its first turn. Natural
 cohort outcomes must not be sampled by a setup test.
 """
 from copy import deepcopy
+from contextlib import contextmanager
 import importlib.util
 import json
 from pathlib import Path
@@ -223,3 +224,123 @@ def test_cleanup_refuses_a_reused_numeric_process_identity(modules, monkeypatch)
     monkeypatch.setattr(r.os, "killpg", lambda *a: pytest.fail("reused process group must not be signaled"))
     with pytest.raises(c.ContractError, match="identity cannot be established"):
         r.cleanup(child, {1234: 98})
+
+
+def test_cleanup_pins_pidfd_before_revalidating_birth(modules, monkeypatch):
+    c, r, _ = modules
+    child = SimpleNamespace(pid=1234, poll=lambda: None)
+    row = dict(pid=1234, start_ticks=99, state="S")
+    monkeypatch.setattr(r, "owned_group", lambda pid: [row])
+    monkeypatch.setattr(r, "owned_tree", lambda *a: [row])
+    monkeypatch.setattr(r.os, "pidfd_open", lambda pid, flags: 77)
+    monkeypatch.setattr(r, "process_record", lambda pid: dict(row, start_ticks=100))
+    closed = []
+    monkeypatch.setattr(r.os, "close", closed.append)
+    monkeypatch.setattr(r.signal, "pidfd_send_signal", lambda *a: pytest.fail("birth mismatch must not signal pinned process"))
+    with pytest.raises(c.ContractError, match="birth changed"):
+        r.cleanup(child, {1234: 99})
+    assert closed == [77]
+
+
+def test_missing_birth_does_not_adopt_an_unrelated_reused_session_leader(modules, monkeypatch):
+    _, r, _ = modules
+    rows = {
+        1234: dict(pid=1234, ppid=9999, pgrp=1234, session=1234, start_ticks=90, state="S"),
+        5678: dict(pid=5678, ppid=r.os.getpid(), pgrp=1234, session=1234, start_ticks=91, state="S"),
+    }
+    monkeypatch.setattr(r, "_EXCLUSIVE_OWNER", r.os.getpid())
+    monkeypatch.setattr(r, "Path", lambda value: SimpleNamespace(iterdir=lambda: [SimpleNamespace(name=str(pid)) for pid in rows]))
+    monkeypatch.setattr(r, "process_record", rows.get)
+    known = {}
+    owned = r.owned_tree(1234, known)
+    assert [row["pid"] for row in owned] == [5678]
+    assert known == {5678: 91}
+
+
+@pytest.mark.parametrize("stage", ["serialize", "hash", "rename"])
+def test_execution_publication_expiry_leaves_no_positive_receipt(modules, tmp_path, monkeypatch, stage):
+    c, r, _ = modules
+    expired = False
+    ordinary_write, ordinary_sha, ordinary_replace = c.write, c.sha, r.os.replace
+    def write(path, value):
+        nonlocal expired
+        ordinary_write(path, value)
+        if stage == "serialize" and Path(path).name == "execution.json":
+            expired = True
+    def sha(path):
+        nonlocal expired
+        value = ordinary_sha(path)
+        if stage == "hash":
+            expired = True
+        return value
+    def replace(source, target):
+        nonlocal expired
+        ordinary_replace(source, target)
+        if stage == "rename" and Path(target).name == "execution-receipt.json":
+            expired = True
+    def guard():
+        if expired:
+            raise c.ContractError("registered finalization budget expired")
+    monkeypatch.setattr(c, "write", write)
+    monkeypatch.setattr(c, "sha", sha)
+    monkeypatch.setattr(r.os, "replace", replace)
+    with pytest.raises(c.ContractError, match="budget expired"):
+        r.publish_execution(tmp_path, {"boot_id": "fixture"}, lambda: .1, 0.0, guard)
+    assert not (tmp_path / "execution-receipt.json").exists()
+    assert not (tmp_path / "execution.json").exists()
+    assert (tmp_path / "incomplete-execution.json").exists()
+
+
+def test_execution_accounting_charges_finalization_reserve_after_heavy_work(modules, tmp_path, monkeypatch):
+    c, r, _ = modules
+    used = .1
+    ordinary_write, ordinary_sha = c.write, c.sha
+    def write(path, value):
+        nonlocal used
+        ordinary_write(path, value)
+        used += .1
+    def sha(path):
+        nonlocal used
+        value = ordinary_sha(path)
+        used += .2
+        return value
+    monkeypatch.setattr(c, "write", write)
+    monkeypatch.setattr(c, "sha", sha)
+    assert r.publish_execution(tmp_path, {"boot_id": "fixture"}, lambda: used, 0.0, lambda: None)
+    receipt = c.read(tmp_path / "execution-receipt.json")
+    assert receipt["measured_to_seal_cpu_seconds"] == .4
+    assert receipt["charged_aggregate_cpu_seconds"] == 1.4
+    assert used <= receipt["charged_aggregate_cpu_seconds"] <= c.AGGREGATE_CPU
+
+
+def test_execution_final_receipt_cost_cannot_exceed_its_charged_reserve(modules, tmp_path, monkeypatch):
+    c, r, _ = modules
+    used = .1
+    ordinary_write = c.write
+    def write(path, value):
+        nonlocal used
+        ordinary_write(path, value)
+        if Path(path).name == "pending-execution-receipt.json":
+            used += 1.1
+    monkeypatch.setattr(c, "write", write)
+    with pytest.raises(c.ContractError, match="charged CPU reserve"):
+        r.publish_execution(tmp_path, {"boot_id": "fixture"}, lambda: used, 0.0, lambda: None)
+    assert not (tmp_path / "execution-receipt.json").exists()
+    assert (tmp_path / "incomplete-pending-execution-receipt.json").exists()
+
+
+def test_controller_finalizer_failure_invalidates_positive_seal(modules, tmp_path, monkeypatch):
+    c, r, _ = modules
+    @contextmanager
+    def failing_finalizer():
+        yield
+        raise RuntimeError("injected subreaper restoration failure")
+    def completed(options):
+        c.write(tmp_path / "execution-receipt.json", {"publication_complete": True})
+        return 0
+    monkeypatch.setattr(r, "exclusive_subreaper", failing_finalizer)
+    monkeypatch.setattr(r, "_run", completed)
+    with pytest.raises(RuntimeError, match="restoration failure"):
+        r.run(SimpleNamespace(output_root=str(tmp_path)))
+    assert not (tmp_path / "execution-receipt.json").exists()
+    assert (tmp_path / "incomplete-finalization-execution-receipt.json").exists()
