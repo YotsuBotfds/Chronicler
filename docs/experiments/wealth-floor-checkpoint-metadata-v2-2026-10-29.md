@@ -45,3 +45,9 @@ regions also have a source-owned fallback affinity, so this module adds no
 unexplained universal native-ID/list-length rule. No section decode, restore,
 World, simulator change, full outcome verdict, historical reuse or recovery is
 qualified. Original fresh-process fork and external-global-RNG limits persist.
+
+A separate registration child adds the unchanged new test file to the existing
+`wealth-floor-outcome-checkpoint-retention` offline chunk beside original K34.
+The 110-second chunk deadline is unchanged. The actual runner's guarded `--list`
+selection is checked without test imports, child processes or network; the 58
+contracts are not rerun, and no combined 132-case chunk pass is claimed.

@@ -26,6 +26,7 @@ CHUNKS = {
     ],
     "wealth-floor-outcome-checkpoint-retention": [
         "tests/test_wealth_floor_outcome_checkpoints.py",
+        "tests/test_wealth_floor_outcome_checkpoints_v2.py",
     ],
     "wealth-floor-outcome-controller": [
         "tests/test_wealth_floor_retained_outcome_driver.py",
