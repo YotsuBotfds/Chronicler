@@ -33,8 +33,8 @@
       "sha256": "e3a9921b605d3a7293512b2fae5c74a89dc58ff17f77a1921d1761d7f512612f"
     },
     "scripts/current6a2_timing_owner.py": {
-      "bytes": 27884,
-      "sha256": "883f18ec83871252690fb20d5e2a7643ffc529d7471ce3ade204b95dc4ddb212"
+      "bytes": 36709,
+      "sha256": "f4a0ba072a76658c48f7c11274b1b59aea4906635981308deb48a141891b4dde"
     },
     "scripts/current6a2_timing_records.py": {
       "bytes": 33179,
@@ -71,6 +71,18 @@
     "scripts/current6a2_timing_controls/wealth_floor_hosted_deployment.py": {
       "bytes": 4528,
       "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    },
+    "scripts/current6a2_timing_binding.py": {
+      "bytes": 17581,
+      "sha256": "b2147da23bb5303a22dfcccdd35c2b66389db963cc235c18e4b1e6f8d794b614"
+    },
+    "tests/current6a2_timing_binding_cases.py": {
+      "bytes": 16023,
+      "sha256": "950e8ad76628f3174f9f2c2d39971811ac4cf713a7eaf102f6af9fcb83b32f63"
+    },
+    "docs/experiments/current6a2-timing-binding-policy.json": {
+      "bytes": 3015,
+      "sha256": "c36dcd17af23ffbc310d592f480e81833ad86571ed6f6576cf4e5d78793f5528"
     }
   },
   "producer_pins_file": "docs/experiments/current6a2-timing-producer-pins.json",
@@ -300,5 +312,10 @@
     "controlled_speedup": null,
     "efficacy": null,
     "adoption_or_main_promotion": null
+  },
+  "runtime_binding_policy": {
+    "path": "docs/experiments/current6a2-timing-binding-policy.json",
+    "bytes": 3015,
+    "sha256": "c36dcd17af23ffbc310d592f480e81833ad86571ed6f6576cf4e5d78793f5528"
   }
 }

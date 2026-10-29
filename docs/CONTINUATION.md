@@ -1,3 +1,16 @@
+## 2026-10-29 — held timing external runtime binding source
+
+Static policy pins and future runtime receipt hashes are now separate: the clean
+registration keeps all five activation values NULL, while a closed external
+envelope can join one authenticated grant, exact receipts, job, nonce and owned
+roots. The actual authenticator unconditionally refuses in this source child;
+CLI labels/digests cannot self-grant. Owner and every child forward/recheck the
+same immutable envelope and physical identities. Original165 fake-test bytes,
+core/settings/caps/quotas/selected leaves and inactive workflow are unchanged.
+New pure metadata seam cases are NONDEFAULT and UNRUN; no runner or campaign.
+See performance/current6a2-external-binding-source-2026-10-29.md for the trust
+boundary, acyclic hashes and still-held environment/quota/rawbody dependencies.
+
 # Separate current6a2 timing diagnostic — source only, 2026-10-29
 
 A distinct inactive [timing-only diagnostic](performance/current6a2-timing-diagnostic-source-2026-10-29.md)

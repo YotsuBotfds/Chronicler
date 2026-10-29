@@ -14,11 +14,13 @@ import math
 import os
 from pathlib import Path
 import resource
+import stat
 import re
 import sys
 import time
 
 import current6a2_timing_diagnostic as core
+import current6a2_timing_binding as binding
 import current6a2_timing_records as records
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +56,8 @@ def control_snapshot(registration):
     expected = registration.get("control_file_pins")
     require(type(expected) is dict and set(expected) >= {
         "scripts/current6a2_timing_owner.py", "scripts/current6a2_timing_diagnostic.py",
-        "scripts/current6a2_timing_records.py", "docs/experiments/current6a2-timing-producer-pins.json"},
+        "scripts/current6a2_timing_records.py", "docs/experiments/current6a2-timing-producer-pins.json",
+        "scripts/current6a2_timing_binding.py", "docs/experiments/current6a2-timing-binding-policy.json"},
         "closed control source pins")
     result = {"registration": records.hash_regular(REGISTRATION, 1024**2), "files": {}}
     for name, pin in expected.items():
@@ -120,9 +123,127 @@ def load_controls(registration):
     return modules
 
 
-def input_admission(path, registration, source_root, prefix):
+def _binding_bytes(path, limit):
+    """Bounded descriptor read; callers also close full before/after identities."""
+    descriptor = os.open(records.absolute(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    raw = bytearray()
+    try:
+        info = os.fstat(descriptor)
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and 0 <= info.st_size <= limit,
+                "bounded unique regular binding descriptor")
+        while len(raw) <= limit:
+            chunk = os.read(descriptor, min(1024**2, limit + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+    finally:
+        os.close(descriptor)
+    require(len(raw) <= limit, "external/static binding byte limit")
+    return bytes(raw)
+
+
+def authenticate_root_grant(_args, _static_identity):
+    """HELD source seam. CLI digests/labels can never implement authentication.
+
+    A future separately reviewed trusted launcher must authenticate the exact
+    root grant, official job/source/attempt, owned roots and one-use nonce, then
+    return canonical AUTHENTICATED_CURRENT6A2_LAUNCHER_REFERENCE_V1 bytes. This
+    child supplies no authenticator, callback/plugin loader or CLI bypass.
+    """
+    raise records.Refused("root-authenticated trusted launcher admission remains HELD")
+
+
+def runtime_binding(args, registration):
+    """Consume one immutable external envelope under the registered static policy.
+
+    Hash/identity checks are consumers, not host/environment/origin attestations.
+    The authenticator above always refuses in this source-only child.
+    """
+    descriptor = registration.get("runtime_binding_policy")
+    binding.fields(descriptor, ("path", "bytes", "sha256"), "closed static policy descriptor")
+    binding.validate_pin({key: descriptor[key] for key in ("bytes", "sha256")}, 65536)
+    require(descriptor["path"] == "docs/experiments/current6a2-timing-binding-policy.json",
+            "fixed registered static policy path")
+    policy_path = ROOT / descriptor["path"]
+    static = {"control_source": args.control_source,
+              "registration": records.hash_regular(REGISTRATION, 1024**2),
+              "policy": records.hash_regular(policy_path, 65536)}
+    binding.validate_static(static)
+    require(static["policy"] == {key: descriptor[key] for key in ("bytes", "sha256")},
+            "pinned static policy bytes")
+    # This call is mandatory before any external grant, envelope or receipt read.
+    # It is not selected or populated by args, environment variables or JSON.
+    authority_raw = authenticate_root_grant(args, static)
+    authority = binding.authority_reference(authority_raw)
+    roots = authority["roots"]
+    require(roots["control_root"] == str(ROOT)
+            and roots["producer_root"] == str(records.absolute(args.source))
+            and roots["native_prefix"] == str(records.absolute(args.prefix))
+            and roots["output_root"] == str(records.absolute(args.output)),
+            "trusted launcher/current physical roots")
+    require(authority["static"] == static, "trusted launcher/current static source identity")
+    run, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    require(run.isascii() and run.isdecimal() and int(run) > 0 and attempt == "1"
+            and authority["run"]["run_id"] == int(run) and authority["run"]["attempt"] == 1
+            and os.environ.get("GITHUB_SHA") == args.control_source,
+            "trusted actual run/attempt/event source join")
+    directory = records.absolute(roots["admission_root"])
+    directory_info = directory.lstat()
+    require(stat.S_ISDIR(directory_info.st_mode) and directory_info.st_uid == os.geteuid()
+            and not directory_info.st_mode & 0o222, "owned readonly external admission directory")
+    directory_identity = [directory_info.st_dev, directory_info.st_ino, directory_info.st_mode,
+                          directory_info.st_uid, directory_info.st_mtime_ns, directory_info.st_ctime_ns]
+    requested = {"grant": args.root_grant, "envelope": args.runtime_binding,
+                 "input": args.admission, "environment": args.environment_admission,
+                 "job_clock": args.job_clock}
+    names = set()
+    for member in directory.iterdir():
+        require(len(names) < 5 and member.name in binding.STATIC_POLICY["external_leaf_names"].values(),
+                "closed five-file external admission namespace")
+        names.add(member.name)
+    require(names == set(binding.STATIC_POLICY["external_leaf_names"].values()),
+            "complete five-file external admission namespace")
+    documents, snapshot = {}, {}
+    for name, leaf in binding.STATIC_POLICY["external_leaf_names"].items():
+        require(records.absolute(requested[name]) == directory / leaf,
+                "fixed owned external leaf path")
+        path = directory / leaf
+        info = path.lstat()
+        require(info.st_uid == os.geteuid() and not info.st_mode & 0o222,
+                "owned readonly external receipt")
+        limit = binding.STATIC_POLICY["document_limits"][name]
+        observed = records.hash_regular(path, limit, include_identity=True)
+        raw = _binding_bytes(path, limit)
+        require(binding.pin(raw) == {key: observed[key] for key in ("bytes", "sha256")}
+                and records.hash_regular(path, limit, include_identity=True) == observed,
+                "external bytes/identity changed during admission")
+        documents[name] = raw
+        snapshot[name] = {**observed, "uid": info.st_uid}
+    binding.digest(args.root_grant_sha256); binding.digest(args.runtime_binding_sha256)
+    require(snapshot["grant"]["sha256"] == args.root_grant_sha256
+            and {key: snapshot["grant"][key] for key in ("bytes", "sha256")} == authority["grant"],
+            "one authenticated grant, no caller self-grant")
+    require(snapshot["envelope"]["sha256"] == args.runtime_binding_sha256,
+            "one frozen external envelope")
+    documents["registration"] = _binding_bytes(REGISTRATION, 1024**2)
+    documents["policy"] = _binding_bytes(policy_path, 65536)
+    observed = {"static": static, "roots": roots, "run": authority["run"],
+                "execution_approval": core.EXECUTION_APPROVAL,
+                "job_clock_admission_approval": core.JOB_CLOCK_ADMISSION_APPROVAL,
+                "envelope": {key: snapshot["envelope"][key] for key in ("bytes", "sha256")},
+                "now_monotonic": time.monotonic()}
+    reference = binding.validate_bundle(documents, authority_raw, binding.canonical(observed))
+    after = directory.lstat()
+    require([after.st_dev, after.st_ino, after.st_mode, after.st_uid,
+             after.st_mtime_ns, after.st_ctime_ns] == directory_identity,
+            "external admission directory identity changed")
+    return {"reference": reference, "snapshot": {"directory": directory_identity, "files": snapshot}}
+
+
+def input_admission(path, registration, source_root, prefix, runtime=None):
     """Consume an exact separately approved receipt; never authenticate transport here."""
-    expected = registration.get("runtime_input_admission_sha256")
+    require(type(runtime) is dict and type(runtime.get("reference")) is dict, "external runtime binding required")
+    expected = runtime["reference"]["receipts"]["input"]["sha256"]
     require(type(expected) is str and len(expected) == 64, "runtime input admission remains NULL")
     require(records.hash_regular(path, 1024**2)["sha256"] == expected, "approved runtime receipt digest")
     value = records.read_json(path, 1024**2)
@@ -149,14 +270,15 @@ def input_admission(path, registration, source_root, prefix):
     return value
 
 
-def job_deadline(path, registration, control_source, *, now=time.monotonic):
+def job_deadline(path, registration, control_source, runtime=None, *, now=time.monotonic):
     """Only consume a pinned authenticated same-VM receipt. No first-shell fallback.
 
     Its producer/HTTP-Date/official job join and upload reserve require a future
     source review; both approval and receipt hash are NULL in this child.
     """
     require(core.JOB_CLOCK_ADMISSION_APPROVAL is not None, "actual job-clock source review is NULL")
-    expected = registration.get("job_clock_admission_sha256")
+    require(type(runtime) is dict and type(runtime.get("reference")) is dict, "external runtime binding required")
+    expected = runtime["reference"]["receipts"]["job_clock"]["sha256"]
     require(type(expected) is str and len(expected) == 64, "job-clock receipt pin remains NULL")
     require(records.hash_regular(path, 64 * 1024)["sha256"] == expected, "approved job-clock digest")
     value = records.read_json(path, 64 * 1024)
@@ -208,7 +330,9 @@ def child(args):
     core.require_approval()
     registration = load_registration()
     source, prefix = records.absolute(args.source), records.absolute(args.prefix)
-    input_admission(args.admission, registration, source, prefix)
+    runtime = runtime_binding(args, registration)
+    job_deadline(args.job_clock, registration, args.control_source, runtime)
+    input_admission(args.admission, registration, source, prefix, runtime)
     child_limits(40 if args.child in ("hash", "compare") else 240)
     hashes = producer_pins()
     if args.child == "bootstrap":
@@ -235,6 +359,7 @@ def child(args):
         records.write_new(args.result, records.compare_inventories(left, right))
     else:
         raise records.Refused("unknown child operation")
+    require(runtime_binding(args, registration) == runtime, "child external binding changed at closure")
     require(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024 <= 2 * 1024**3,
             "whole child lifetime RSS cap")
 
@@ -277,9 +402,10 @@ def run_owner(args):
             "separate immutable producer/control roots")
     require(not root.exists() and not root.is_symlink(), "fresh diagnostic root")
     started, cpu_started = time.monotonic(), cpu_seconds()
-    deadline = min(started + OWNER_WALL, job_deadline(args.job_clock, registration, args.control_source) - JOB_PUBLICATION_RESERVE)
+    runtime = runtime_binding(args, registration)
+    deadline = min(started + OWNER_WALL, job_deadline(args.job_clock, registration, args.control_source, runtime) - JOB_PUBLICATION_RESERVE)
     require(deadline - started > FINAL_WALL_RESERVE, "job room before any World")
-    admitted = input_admission(args.admission, registration, source, prefix)
+    admitted = input_admission(args.admission, registration, source, prefix, runtime)
     controls = load_controls(registration)
     own, legacy = controls["exact_near_screen_process"], controls["exact_near_screen_session"]
     deployment = controls["wealth_floor_hosted_deployment"].hosted_vm_precondition()
@@ -294,6 +420,7 @@ def run_owner(args):
               "completed_roles": [], "errors": [], "matrix_complete": False,
               "actual_native_ticks": None, "actual_native_population": None,
               "unknown": dict(records.UNKNOWN), "deployment": deployment,
+              "runtime_binding": runtime["reference"],
               "input_admission_digest": records.hash_regular(args.admission, 1024**2),
               "job_clock_digest": records.hash_regular(args.job_clock, records.SUMMARY_BYTES),
               "publication_room_is_reserved_not_guaranteed_delivery": True,
@@ -308,7 +435,8 @@ def run_owner(args):
         core.verify_producer(source, producer_pins())
         require(git_before is not None and git_metadata(ROOT, args.control_source) == git_before["control"]
                 and git_metadata(source, core.SOURCE) == git_before["producer"], "late Git HEAD/ref mutation")
-        input_admission(args.admission, registration, source, prefix)
+        require(runtime_binding(args, registration) == runtime, "parent external binding changed at closure")
+        input_admission(args.admission, registration, source, prefix, runtime)
         require(records.hash_regular(args.job_clock, records.SUMMARY_BYTES) == report["job_clock_digest"],
                 "late actual-job-clock receipt mutation")
         require(time.monotonic() <= deadline and cpu_seconds() - cpu_started <= OWNER_CPU,
@@ -341,7 +469,13 @@ def run_owner(args):
             py = prefix / "bin/python"
             require(py.exists(), "separately admitted runtime Python")
             base = [str(py), "-P", "-s", "-B", "-X", "cpu_count=1", str(Path(__file__).resolve()),
-                    "--source", str(source), "--prefix", str(prefix), "--admission", str(args.admission)]
+                    "--source", str(source), "--prefix", str(prefix),
+                    *binding.forwarded_arguments(
+                        {"grant": str(args.root_grant), "envelope": str(args.runtime_binding),
+                         "input": str(args.admission), "environment": str(args.environment_admission),
+                         "job_clock": str(args.job_clock), "output": str(root)},
+                        {"grant": runtime["reference"]["grant"], "envelope": runtime["reference"]["envelope"]},
+                        args.control_source)]
             shared = root / "initial-rng.json"
             command("bootstrap", [*base, "--child", "bootstrap", "--result", str(shared)])
             ordinary_bytes = 0
@@ -458,6 +592,11 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--control-source")
     parser.add_argument("--job-clock", type=Path)
+    parser.add_argument("--root-grant", type=Path)
+    parser.add_argument("--root-grant-sha256")
+    parser.add_argument("--runtime-binding", type=Path)
+    parser.add_argument("--runtime-binding-sha256")
+    parser.add_argument("--environment-admission", type=Path)
     parser.add_argument("--child", choices=("bootstrap", "role", "hash", "compare"))
     parser.add_argument("--index", type=int)
     parser.add_argument("--ordinary", type=Path)
@@ -469,6 +608,9 @@ def main():
     parser.add_argument("--remaining-hash-bytes", type=int, default=records.ROLE_BYTES)
     args = parser.parse_args()
     core.require_approval()
+    require(all(value is not None for value in (args.root_grant, args.root_grant_sha256,
+            args.runtime_binding, args.runtime_binding_sha256, args.environment_admission,
+            args.job_clock, args.output, args.control_source)), "explicit held external-binding arguments")
     if args.child:
         child(args)
     else:
