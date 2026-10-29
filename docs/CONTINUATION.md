@@ -9,7 +9,13 @@ is implied. Its two new pure fake-test modules add native shard0 owners and a
 subtests and38 prior chunks. The exact source-3a wheel remains a separately
 pinned producer. Full private graph/RNG/candidate/efficacy/performance claims
 remain unavailable. Source preparation recovered and preserved earlier partial
-drafts; focused test results must be reported by their later frozen receipt.
+drafts. The first frozen b5b pure136 selection passed136 JUnit cases but failed
+regular-file closure on21 pytest current symlinks; its postguard receipt was
+unavailable, so this is not an overall guard/closure PASS. All original source,
+links and data remain preserved. A source-only child prospectively uses full
+exact node-ID digest directories and numbered=False module-local fixtures, with
+no deletion, inventory exclusion, test-body/node/cap/physics change. New tests
+remain separately unrun until their new frozen source is authorized.
 
 
 A separate [expansion policy receipt compatibility fix](integration/expansion-policy-receipt-compatibility-2026-10-29.md)

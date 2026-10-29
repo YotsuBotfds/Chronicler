@@ -11,6 +11,13 @@ import zipfile
 
 import pytest
 
+@pytest.fixture
+def tmp_path(tmp_path_factory, request):
+    """Retained regular-only fixture namespace; avoid pytest current symlinks."""
+    name = "forecast-" + hashlib.sha256(request.node.nodeid.encode()).hexdigest()
+    return tmp_path_factory.mktemp(name, numbered=False)
+
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

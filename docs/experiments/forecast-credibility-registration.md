@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `425f0cf0c1f31c48dc28ac90efbacdbc514c083d3812641f22ea0c19476f0044`
+Source manifest SHA-256: `6170685d0148838a3e6c011e295706db20b763240ee708597fce9f0d4a042d0f`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -124,7 +124,14 @@ Pure tests use only synthetic regular files, bounded fake ZIP/CP bytes and
 fake guards, never real symlink/hardlink fixtures or product/native/NumPy import.
 Hosted preflight uses --noconftest to avoid the production test conftest imports;
 its complete fixture namespace is explicit, retained and included in aggregate
-inventory. New test modules belong to native shard0 and a new39th offline chunk.
+inventory. Both new modules override tmp_path with full exact node-ID SHA-256
+directories and tmp_path_factory.mktemp(numbered=False), prospectively avoiding
+pytest automatic current symlinks. The prior b5b pure136 attempt had136 passing
+JUnit cases but failed required regular-file closure on21 pytest-created links.
+Its postguard receipt was unavailable, so the original case passes are not an
+overall guard/closure PASS. The entire negative attempt and every fixture remain
+preserved separately. No deletion, move, inventory exclusion or cap change is
+made; all136 test bodies and expected nodes remain exact. New test modules belong to native shard0 and a new39th offline chunk.
 All303 former native owners, six skips,623 subtests, prior38 chunks and110-second
 limits are preserved. Test execution itself requires a separately reported
 frozen source/test selection and bounds; this registration claims no pass.

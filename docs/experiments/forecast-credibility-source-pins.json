@@ -64,11 +64,11 @@
     "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
   },
   "tests/test_forecast_credibility_readout.py": {
-    "bytes": 32117,
-    "sha256": "806b32f27f711dac8eeb14bef351fabbea96bea1a91abef9f4a3982f05f3f14a"
+    "bytes": 32397,
+    "sha256": "d2a766b2eebe719dcfe0596a4f28232d47c32693f0b45e91752cbe6797932d28"
   },
   "tests/test_forecast_credibility_study.py": {
-    "bytes": 12635,
-    "sha256": "83e415b23f3304e5588d6ce51a81a0dfe8415c3722f27068a3394f473189a633"
+    "bytes": 12915,
+    "sha256": "8cfc2e1a977ddf8316faa14156105e667f7c58f82abfa3fb52bcf4d53a3f6523"
   }
 }

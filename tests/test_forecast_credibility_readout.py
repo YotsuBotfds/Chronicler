@@ -18,6 +18,13 @@ import zlib
 import pytest
 
 
+@pytest.fixture
+def tmp_path(tmp_path_factory, request):
+    """Retained regular-only fixture namespace; avoid pytest current symlinks."""
+    name = "forecast-" + hashlib.sha256(request.node.nodeid.encode()).hexdigest()
+    return tmp_path_factory.mktemp(name, numbered=False)
+
+
 _PATH = Path(__file__).resolve().parents[1] / "scripts/forecast_credibility_readout.py"
 _SPEC = importlib.util.spec_from_file_location("_forecast_readout_test_subject", _PATH)
 R = importlib.util.module_from_spec(_SPEC)
