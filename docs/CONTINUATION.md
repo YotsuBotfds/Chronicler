@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+A separate [live narration test candidate](performance/ci-live-narration-invocation-2026-10-29.md)
+starts from qualified `cbf6e368`. A thread-safe signal after spy kwargs capture
+replaces a receive waiting for a completion message that an empty spy result
+does not produce. All twelve original assertions and the five-second wait
+value remain. Root-reviewed loopback-only qualification ran the exact old and
+new target once each: both passed, with test-body times 5.095193 / 1.681849 s.
+All native/generation/runtime/factory/LLM/API/process sentinels remained zero;
+source pins matched before/after. This is a narrow test observation, not a CI
+or simulation speed claim. No production/workflow change or push was made.
+
 An isolated [practice-observer runner seam](integration/practice-observer-runner-seam-2026-10-29.md)
 starts from `1205b6e4`, now hosted-qualified by all six jobs in run
 `40835337456`. One explicit caller-owned parameter routes observed turns inside
