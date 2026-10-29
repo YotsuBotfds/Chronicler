@@ -240,3 +240,28 @@ experiment or establish native lifecycle/performance qualification. Source peer
 and root review of the new immutable successor, followed by a separate exact
 one-file workflow activation, are still required. No push or activation has
 occurred in this source-only correction.
+
+
+## Source-only identity/copy follow-up
+
+The preserved owned-screen draft d512 remains unrun. This child rejects metadata
+symlinks, broken links and nonregular entries before copying any metadata into
+the light pack. It also uses two owned `rustup which` calls at each runtime
+snapshot and hashes the actual dispatched rustc/cargo executables, independently
+of their PATH shims and version output. Those actual paths/bytes participate in
+before/after equality and terminal file rehash after owned cleanup. The four
+additional small logs fit 46 owner files within the existing 48-file bound.
+
+All selected ownership helpers, R44/D2, Rust crate bytes, YAML, fixed cases, pair
+order, thresholds, timers and resource/publication caps stay unchanged. Two tiny
+synthetic contracts are authored for metadata types and dispatched-compiler
+mutation behind unchanged shims/versions. No Rust, native or World execution,
+network, push or activation is implied. Independent root review remains required.
+
+The first guarded Python correction selection retained 11 passes and one error
+in the new dispatch fixture: this environment lacks `/usr/bin/time`, and the
+fixture had not yet redirected that fixed path. Only the fixture was corrected
+to use synthetic paths. The affected dispatch contract then passed alone;
+production bytes were identical across both observations, and the other eleven
+test bodies were unchanged. The final combined twelve-case file was not rerun.
+Both logs/guards and the original failed fixture source remain retained.

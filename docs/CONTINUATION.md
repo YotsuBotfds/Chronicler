@@ -1,5 +1,7 @@
 # Recovered continuation — 2026-10-11
 
+A separate source-only follow-up to preserved d512 closes metadata-copy symlinks and binds actual rustup-dispatched compiler/Cargo bytes; Rust/screen/workflow criteria stay unchanged and unrun.
+
 The pending `lead/shared-live-slots-integration-20261029` candidate combines
 the [native live-slot source candidate](performance/native-alive-slot-reuse-2026-10-29.md)
 at `6dccc625` with the separately qualified

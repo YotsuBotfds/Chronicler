@@ -150,7 +150,7 @@ def source_snapshot(source, command, phase):
 
 def runtime_snapshot(source, env, command, phase):
     tools = {}
-    for name in ("rustc", "cargo", "git", "ldd", "timeout", "taskset"):
+    for name in ("rustc", "cargo", "rustup", "git", "ldd", "timeout", "taskset"):
         located = shutil.which(name, path=env["PATH"])
         require(located is not None, "required tool unavailable")
         real = Path(located).resolve(strict=True)
@@ -161,6 +161,15 @@ def runtime_snapshot(source, env, command, phase):
     for name, argv in (("rustc", ["rustc", "--version", "--verbose"]), ("cargo", ["cargo", "--version"]),
         ("timeout", ["timeout", "--version"]), ("taskset", ["taskset", "--version"]), ("time", ["/usr/bin/time", "--version"])):
         versions[name] = command(phase + "-" + name, argv).decode()
+    # PATH entries are often rustup shims. Bind the actual same-cwd/env dispatch.
+    dispatched_compilers = {}
+    for name in ("rustc", "cargo"):
+        lines = command(phase + "-which-" + name, ["rustup", "which", name]).decode().splitlines()
+        require(len(lines) == 1 and bool(lines[0]), "one dispatched compiler path required")
+        actual = Path(lines[0])
+        require(actual.is_absolute() and not actual.is_symlink(), "unsafe dispatched compiler path")
+        real = actual.resolve(strict=True)
+        dispatched_compilers[name] = {"path": str(actual), "resolved": str(real), **file_identity(real)}
     require(platform.python_version() == "3.13.5", "registered Python runtime differs")
     libdir, library = sysconfig.get_config_var("LIBDIR"), sysconfig.get_config_var("LDLIBRARY")
     require(libdir and library, "Python linkage configuration unavailable")
@@ -175,7 +184,8 @@ def runtime_snapshot(source, env, command, phase):
         "python_executable_identity": file_identity(Path(sys.executable).resolve()),
         "python_library": str((Path(libdir) / library).resolve(strict=True)),
         "python_library_identity": file_identity((Path(libdir) / library).resolve(strict=True)),
-        "tools": tools, "versions": versions, "caps": {key: env.get(key) for key in CAPS},
+        "tools": tools, "dispatched_compilers": dispatched_compilers,
+        "versions": versions, "caps": {key: env.get(key) for key in CAPS},
         "affinity": sorted(os.sched_getaffinity(0)), "clk_tck": os.sysconf("SC_CLK_TCK"),
         "loader_paths": {key: env.get(key) for key in ("PYO3_PYTHON", "LIBRARY_PATH", "LD_LIBRARY_PATH", "CARGO_TARGET_DIR")},
         "cargo_config_paths_absent": sorted(str(path) for path in config_paths), "compiler_override_names_absent": list(flags)}
@@ -298,7 +308,8 @@ def stage_light(root, report):
     omissions = []
     # Named metadata + bounded child log excerpts only, never the binary/target.
     for path in sorted(root.iterdir()):
-        if path.is_file() and path.name.endswith((".json", ".time")):
+        if path.name.endswith((".json", ".time")):
+            require(not path.is_symlink() and stat.S_ISREG(path.stat().st_mode), "unsafe metadata publication input")
             require(path.stat().st_size <= MAX_FILE, "metadata input exceeds publication cap")
             shutil.copyfile(path, light / path.name)
     for path in sorted((root / "logs").glob("*.log")):
@@ -342,6 +353,7 @@ def final_files(source, binary, runtime):
             result["errors"]["binary"] = type(exc).__name__
     if runtime is not None:
         paths = {row["resolved"] for row in runtime["tools"].values()}
+        paths.update(row["resolved"] for row in runtime["dispatched_compilers"].values())
         paths.update((runtime["python_executable"], runtime["python_library"]))
         for name in sorted(paths):
             try:
@@ -452,6 +464,8 @@ def run():
                         require(report["final_files"]["source"] == before["files"], "terminal actual source bytes changed")
                         require(report["final_files"]["binary"] == binary_before, "terminal executable bytes changed")
                         expected_runtime = {row["resolved"]: {key: row[key] for key in ("bytes", "sha256")} for row in runtime["tools"].values()}
+                        expected_runtime.update({row["resolved"]: {key: row[key] for key in ("bytes", "sha256")}
+                            for row in runtime["dispatched_compilers"].values()})
                         expected_runtime.update({runtime["python_executable"]: runtime["python_executable_identity"],
                             runtime["python_library"]: runtime["python_library_identity"]})
                         require(report["final_files"]["runtime_files"] == expected_runtime, "terminal runtime bytes changed")

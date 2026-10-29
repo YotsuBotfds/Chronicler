@@ -246,7 +246,7 @@ class ControlContracts(unittest.TestCase):
                 original_identity = O.file_identity
                 runtime_path = str(Path(sys.executable).resolve())
                 runtime_identity = original_identity(Path(runtime_path))
-                runtime = {"tools": {}, "python_executable": runtime_path, "python_library": runtime_path,
+                runtime = {"tools": {}, "dispatched_compilers": {}, "python_executable": runtime_path, "python_library": runtime_path,
                     "python_executable_identity": runtime_identity, "python_library_identity": runtime_identity}
                 def compile_result(*args):
                     target.mkdir(); binary.write_bytes(b"synthetic bytes; never executable")
@@ -280,6 +280,79 @@ class ControlContracts(unittest.TestCase):
                 self.assertEqual(terminal["execution_complete"], mode in ("accepted", "rejected"))
                 self.assertEqual(terminal["screen_accepted"], mode == "accepted")
                 self.assertEqual(exit_code, 0 if mode == "accepted" else 1)
+
+
+    def test_metadata_publication_rejects_links_and_nonregular_before_copy(self):
+        for kind in ("regular", "symlink", "broken", "directory"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw); (root / "light").mkdir(); (root / "logs").mkdir()
+                candidate = root / "metadata.json"
+                if kind == "regular":
+                    candidate.write_bytes(b'{"synthetic":true}\n')
+                elif kind == "directory":
+                    candidate.mkdir()
+                else:
+                    target = root / "external-fixture"
+                    if kind == "symlink": target.write_bytes(b"fixture must never be copied through a link")
+                    candidate.symlink_to(target)
+                report = {"status": "incomplete", "execution_complete": False, "screen_accepted": False}
+                if kind == "regular":
+                    O.stage_light(root, report)
+                    self.assertEqual((root / "light/metadata.json").read_bytes(), candidate.read_bytes())
+                else:
+                    with self.assertRaises(ValueError): O.stage_light(root, report)
+                    self.assertFalse((root / "light/metadata.json").exists())
+
+    def test_actual_rustup_dispatch_and_final_bytes_detect_hidden_toolchain_drift(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw); source = root / "source"; source.mkdir()
+            shim = root / "rustup-shim"; shim.write_bytes(b"unchanged synthetic rustup shim")
+            compiler = root / "rustc"; compiler.write_bytes(b"actual compiler version one")
+            cargo = root / "cargo"; cargo.write_bytes(b"actual cargo bytes")
+            python = root / "python"; python.write_bytes(b"synthetic interpreter identity")
+            library = root / "libpython.so"; library.write_bytes(b"synthetic Python library")
+            calls = []
+            def command(label, argv):
+                calls.append((label, argv))
+                if argv[:2] == ["rustup", "which"]:
+                    return (str(compiler if argv[2] == "rustc" else cargo) + "\n").encode()
+                return b"unchanged synthetic version output\n"
+            env = dict(O.CAPS, PATH=str(root), CARGO_HOME=str(root / "cargo-home"))
+            def config(name):
+                return str(root) if name == "LIBDIR" else "libpython.so" if name == "LDLIBRARY" else None
+            original_resolve = Path.resolve
+            def resolve(path, *args, **kwargs):
+                if str(path) == "/usr/bin/time": return shim
+                return original_resolve(path, *args, **kwargs)
+            original_identity = O.file_identity
+            def identity(path, *args):
+                # runtime_snapshot's fixed GNU-time path is metadata only here;
+                # all bytes hashed by this contract belong to synthetic fixtures.
+                if str(path) == "/usr/bin/time": return original_identity(shim, *args)
+                return original_identity(path, *args)
+            with patch.object(O.shutil, "which", return_value=str(shim)), \
+                    patch.object(O.platform, "python_version", return_value="3.13.5"), \
+                    patch.object(O.sys, "executable", str(python)), patch.object(O.sysconfig, "get_config_var", side_effect=config), \
+                    patch.object(O.os, "sched_getaffinity", return_value={2}), patch.object(O.os, "sysconf", return_value=100), \
+                    patch.object(O, "file_identity", side_effect=identity), patch.object(Path, "resolve", resolve):
+                before = O.runtime_snapshot(source, env, command, "before")
+                self.assertEqual(before["dispatched_compilers"]["rustc"]["resolved"], str(compiler))
+                compiler.write_bytes(b"actual compiler version two")
+                after = O.runtime_snapshot(source, env, command, "after")
+                self.assertEqual(before["tools"], after["tools"])
+                self.assertEqual(before["versions"], after["versions"])
+                self.assertNotEqual(before["dispatched_compilers"], after["dispatched_compilers"])
+                with patch.object(O, "INPUTS", ()):
+                    observed = O.final_files(source, None, before)
+                self.assertNotEqual(observed["runtime_files"][str(compiler)],
+                    {key: before["dispatched_compilers"]["rustc"][key] for key in ("bytes", "sha256")})
+                self.assertEqual(observed["runtime_files"][str(compiler)],
+                    {key: after["dispatched_compilers"]["rustc"][key] for key in ("bytes", "sha256")})
+                for output in (b"relative/rustc\n", (str(compiler) + "\nextra\n").encode()):
+                    with self.subTest(output=output), self.assertRaises(ValueError):
+                        O.runtime_snapshot(source, env, lambda *_: output, "bad")
+            self.assertEqual([argv for _, argv in calls if argv[:2] == ["rustup", "which"]],
+                [["rustup", "which", "rustc"], ["rustup", "which", "cargo"]] * 2)
 
 
 if __name__ == "__main__":
