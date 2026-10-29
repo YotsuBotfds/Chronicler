@@ -227,6 +227,7 @@ CHUNKS = {
         "tests/test_ablation_launch.py",
         "tests/test_forkserver_metadata_inventory.py",
         "tests/test_forkserver_template_codec.py",
+        "tests/test_forkserver_lazy_metadata.py",
         "tests/test_spec_communities.py",
     ],
     "learning": [

@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: separate `lead/models-forkserver-dependency-adapters-20261029`
+adds [source-pinned lazy metadata storage views](performance/models-forkserver-lazy-adapters-2026-10-29.md).
+Original mock slots and lazy dictionaries are read without rebuilding hooks;
+dependency class roots accompany instance storage so method rebinding remains
+visible. Views retain live references and are not historical witnesses. Only
+the exact direct-object lazy descriptor rule is supplied; inherited mocks and
+compiled core instances remain unadmitted. Independent source review cleared
+this narrow scope. Fourteen synthetic cases and the complete modified guarded
+selection passed (340 tests, 8.29 seconds, unchanged 110-second limit). No new
+dependency runtime inspection, metadata fork, native build or study world ran.
+
 2026-10-29: isolated `lead/models-forkserver-metadata-codec-20261029` adds a
 [strict generic metadata codec foundation](performance/models-forkserver-codec-foundation-2026-10-29.md),
 with no runtime wiring or activation. A descriptive, bounded zero-fork prefix
