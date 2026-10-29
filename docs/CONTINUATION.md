@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+A separate [expansion policy receipt compatibility fix](integration/expansion-policy-receipt-compatibility-2026-10-29.md)
+accepts the source-owned optional forecast/care policy receipt shapes while
+preserving legacy omission and science's separate research metadata. It also
+binds fork before-policy to its common parent, including detection of inherited
+enabled policy omitted from both receipt sides. Its 71 new selected pure
+fake-worker cases pass under the import/process/network guard; two exact-parent
+fake workers preserve the original consumer rejection. No genuine trial or
+World failure was observed. All simulation/native/default/receipt-generation
+and comparator bytes, registries and 110-second limits remain unchanged;
+combined CI, source review/integration and actual trials remain separate.
+
 A source-only offline registration child adds a dedicated
 `native-ci-metadata-contracts` chunk containing the whole already-owned
 `tests/test_native_ci_shards.py`. This is the 38th chunk; all prior 37 chunks

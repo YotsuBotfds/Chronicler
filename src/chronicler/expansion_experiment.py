@@ -20,6 +20,10 @@ CONTROL_FIELDS = {
     "health_care": ("care_enabled", "injury_rate", "impairment", "care_fraction", "recovery_work"),
     "scientific_claims": ("withhold_information", "transmission_enabled", "uninformative_tests", "publication_rule"),
 }
+_RECEIPT_CONTROL_POLICIES = {
+    "harvest_forecasts": ("preparation_policy", ("fixed", "local_credibility")),
+    "health_care": ("care_policy", ("spouse", "retained_kin")),
+}
 _BOOLEAN_CONTROLS = {"care_enabled", "contact_enabled", "bonds_enabled", "withhold_information",
                      "transmission_enabled", "uninformative_tests", "research_enabled"}
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\Z")
@@ -59,6 +63,15 @@ def allowed_control_fields(feature: str) -> set[str]:
             | ({"research_enabled"} if feature == "scientific_claims" else set())
             | ({"care_policy"} if feature == "health_care" else set())
             | ({"preparation_policy"} if feature == "harvest_forecasts" else set()))
+
+
+def receipt_control_policy(feature: str):
+    """Optional receipt key and closed values, with the omitted legacy first.
+
+    This describes controls_before/after, not all mutable request fields:
+    science research_enabled is recorded separately in research_policy.
+    """
+    return _RECEIPT_CONTROL_POLICIES.get(feature)
 
 
 def _research_identity(state):

@@ -29,6 +29,7 @@ def _load_source(root):
     global _SOURCE_ROOT, _LOADED_SOURCE, atomic_write_json, strict_json_loads, THREAD_ENV_VARS
     global check_batch_destination, environment_identity, file_sha256, native_identity, source_identity
     global CONTROL_FIELDS, SCHEMA_VERSION, allowed_control_fields, RESEARCH_CONFIGURATION_SUPPORTED
+    global receipt_control_policy
     root = Path(root).resolve()
     if _LOADED_SOURCE and root == _SOURCE_ROOT:
         return
@@ -49,6 +50,7 @@ def _load_source(root):
     RESEARCH_CONFIGURATION_SUPPORTED = hasattr(source_experiment, "allowed_control_fields")
     allowed_control_fields = getattr(source_experiment, "allowed_control_fields",
                                     lambda feature: set(CONTROL_FIELDS[feature]))
+    receipt_control_policy = getattr(source_experiment, "receipt_control_policy", lambda feature: None)
     _SOURCE_ROOT = root
     _LOADED_SOURCE = True
 
@@ -231,6 +233,51 @@ def _inventory(path):
     return files
 
 
+def _validate_receipt_controls(receipt, request, *, parent_controls=None):
+    """Accept only the selected source's exact base/optional receipt contract."""
+    feature = request["feature"]
+    required = set(CONTROL_FIELDS[feature])
+    before, after = receipt.get("controls_before"), receipt.get("controls_after")
+    controls = request.get("controls", {})
+    if not isinstance(controls, dict) or not isinstance(after, dict):
+        raise RuntimeError("experiment controls receipt is malformed")
+    policy = receipt_control_policy(feature)
+    if policy is None:
+        # Older producers retain their exact receipt shape. Science request
+        # research_enabled is separate metadata, never an optional receipt key.
+        separate = {"research_enabled"} if feature == "scientific_claims" else set()
+        if set(after) != required or set(controls) - required - separate:
+            raise RuntimeError("experiment controls receipt differs from the selected source")
+        return
+    field, values = policy
+    default = values[0]
+    present = field in after or (isinstance(before, dict) and field in before)
+    explicit = field in controls
+    expected = required | ({field} if present or explicit else set())
+    if (set(after) != expected or (before is not None and (
+            not isinstance(before, dict) or set(before) != expected))
+            or ((present or explicit) and not isinstance(before, dict))):
+        raise RuntimeError("experiment policy receipt fields differ")
+    if present or explicit:
+        prior, current = before[field], after[field]
+        if any(type(value) is not str or value not in values for value in (prior, current)):
+            raise RuntimeError("experiment policy receipt has an invalid value")
+        if explicit:
+            requested = controls[field]
+            if type(requested) is not str or requested not in values or current != requested:
+                raise RuntimeError("experiment policy receipt differs from the requested policy")
+        elif prior == default or current != prior:
+            raise RuntimeError("experiment policy changed without a request or has redundant legacy fields")
+    if parent_controls is not None:
+        if not isinstance(parent_controls, dict):
+            raise RuntimeError("experiment parent controls receipt is malformed")
+        parent_policy = parent_controls.get(field, default)
+        prior = before.get(field, default) if isinstance(before, dict) else default
+        if (type(parent_policy) is not str or parent_policy not in values
+                or prior != parent_policy):
+            raise RuntimeError("experiment fork policy differs from its shared parent")
+
+
 def _execute(path, seed, horizon, args, request, env):
     path.mkdir(parents=True, exist_ok=False)
     job_path = path / "job.json"
@@ -254,10 +301,9 @@ def _execute(path, seed, horizon, args, request, env):
             raise RuntimeError("simulation ended before the registered horizon or with a different seed")
         receipt = bundle.get("metadata", {}).get("expansion_experiment")
         if (not isinstance(receipt, dict) or receipt.get("arm") != request["arm"]
-                or receipt.get("feature") != request["feature"]
-                or not isinstance(receipt.get("controls_after"), dict)
-                or set(receipt["controls_after"]) != set(CONTROL_FIELDS[request["feature"]])):
+                or receipt.get("feature") != request["feature"]):
             raise RuntimeError("simulation bundle has no matching experiment receipt")
+        _validate_receipt_controls(receipt, request)
         _verify_worker_identity(path / "worker_identity.json", receipt)
         record["receipt"] = receipt
         record["worker_identity_verified"] = True
@@ -299,6 +345,11 @@ def _seed_runs(seed, root, config, env):
         row = _execute(directory, seed, config["turns"], _simulation_args(
             seed, config["turns"], directory, config, resume=checkpoint), request, env)
         parent_controls = parent.get("receipt", {}).get("controls_after")
+        if row["status"] == "complete" and isinstance(parent_controls, dict):
+            try:
+                _validate_receipt_controls(row["receipt"], request, parent_controls=parent_controls)
+            except RuntimeError as exc:
+                row.update(status="failed", error={"type": type(exc).__name__, "message": str(exc)})
         research_policy = row.get("receipt", {}).get("research_policy")
         research_unchanged = research_policy is None or research_policy["before"] == research_policy["after"]
         if (row["status"] == "complete" and research_unchanged and isinstance(parent_controls, dict)

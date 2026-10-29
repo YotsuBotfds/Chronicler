@@ -355,3 +355,207 @@ def test_worker_import_source_labels_do_not_confuse_identical_native_bytes():
     right = {"source": left["source"],
              "native": {"status": "found", "source": "imported", "sha256": "c"}}
     assert runner._identity_key(left) == runner._identity_key(right)
+
+
+# This selection loads only the stdlib runner and source AST literals. It never
+# calls _load_source, imports a product module or starts a simulation worker.
+def _receipt_only_runner(script=None, *, legacy=False):
+    import ast
+    script = ROOT / "scripts/run_expansion_experiment.py" if script is None else script
+    spec = importlib.util.spec_from_file_location("receipt_only_expansion_runner", script)
+    runner = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(runner)
+    source = ast.parse((ROOT / "src/chronicler/expansion_experiment.py").read_text())
+    literals = {target.id: ast.literal_eval(node.value)
+                for node in source.body if isinstance(node, ast.Assign)
+                for target in node.targets if isinstance(target, ast.Name)
+                and target.id in ("CONTROL_FIELDS", "_RECEIPT_CONTROL_POLICIES")}
+    runner.CONTROL_FIELDS = literals["CONTROL_FIELDS"]
+    policies = {} if legacy else literals["_RECEIPT_CONTROL_POLICIES"]
+    runner.receipt_control_policy = policies.get
+    assert runner._LOADED_SOURCE is False
+    return runner
+
+
+def _receipt_policy_values(feature):
+    return ({"policy": "normal"} if feature == "harvest_forecasts" else
+            {"care_enabled": True, "injury_rate": 0.05, "impairment": 0.5,
+             "care_fraction": 0.1, "recovery_work": 2.0})
+
+
+def _receipt_policy_case(runner, feature, case):
+    field, (legacy, active) = runner.receipt_control_policy(feature)
+    controls, before, after = {}, _receipt_policy_values(feature), _receipt_policy_values(feature)
+    if case == "explicit_optin":
+        controls[field], before[field], after[field] = active, legacy, active
+    elif case == "explicit_legacy":
+        controls[field] = before[field] = after[field] = legacy
+    elif case == "inherited_active":
+        before[field] = after[field] = active
+    elif case == "explicit_reversion":
+        controls[field], before[field], after[field] = legacy, active, legacy
+    elif case == "explicit_active_noop":
+        controls[field] = before[field] = after[field] = active
+    elif case != "legacy_omitted":
+        raise AssertionError(case)
+    request = {"feature": feature, "arm": "normal", "controls": controls}
+    return request, {"feature": feature, "arm": "normal", "controls_before": before, "controls_after": after}
+
+
+def _receipt_fake_execute(runner, monkeypatch, directory, request, receipt):
+    import hashlib
+    runner.atomic_write_json = lambda path, value: path.write_text(json.dumps(value))
+    runner.strict_json_loads = lambda text, **kwargs: json.loads(text)
+    runner.file_sha256 = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    identity = {"source": {"git_sha": "fake-source", "package_digest": "fake-package"},
+                "native": {"status": "found", "sha256": "fake-native"},
+                "environment": {"python": "fake-worker"}}
+    receipt = {**receipt, "source": identity["source"], "native": identity["native"]}
+    worker = {"schema_version": 2, "before": deepcopy(identity), "after": deepcopy(identity),
+              "environment_stable": True, "identities_stable": True,
+              "runner_sha256": runner.file_sha256(Path(runner.__file__)),
+              "runner_sha256_after": runner.file_sha256(Path(runner.__file__))}
+    calls = []
+    def child(command, **kwargs):
+        calls.append(command)
+        folder = Path(command[-1]).parent
+        (folder / "chronicle_bundle.json").write_text(json.dumps({
+            "world_state": {"turn": 12}, "metadata": {"seed": 42, "expansion_experiment": receipt}}))
+        (folder / "worker_identity.json").write_text(json.dumps(worker))
+        return SimpleNamespace(returncode=0)
+    # Replace the script's module binding, not the process-wide subprocess API.
+    monkeypatch.setattr(runner, "subprocess", SimpleNamespace(run=child, STDOUT=-2))
+    row = runner._execute(directory, 42, 12, [], request, {})
+    assert len(calls) == 1 and runner._LOADED_SOURCE is False
+    return row
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+def test_policy_receipt_descriptor_matches_source_getter_literals_without_product_import(feature):
+    import ast
+    runner = _receipt_only_runner()
+    field, values = runner.receipt_control_policy(feature)
+    path = ROOT / "src/chronicler" / ("harvest_forecasts.py" if feature == "harvest_forecasts" else "health_care.py")
+    tree = ast.parse(path.read_text())
+    name = "get_preparation_policy" if feature == "harvest_forecasts" else "get_health_care_policy"
+    getter = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
+    get = next(node for node in ast.walk(getter) if isinstance(node, ast.Call)
+               and isinstance(node.func, ast.Name) and node.func.id == "getattr")
+    assert ast.literal_eval(get.args[1]) == field and ast.literal_eval(get.args[2]) == values[0]
+    allowed = next(node for node in ast.walk(getter) if isinstance(node, ast.Compare)
+                   and any(isinstance(op, ast.NotIn) for op in node.ops))
+    assert ast.literal_eval(allowed.comparators[0]) == values
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+@pytest.mark.parametrize("case", ["legacy_omitted", "explicit_optin", "explicit_legacy", "inherited_active",
+                                 "explicit_reversion", "explicit_active_noop"])
+def test_policy_receipt_valid_worker_completes_without_product_import(tmp_path, monkeypatch, feature, case):
+    runner = _receipt_only_runner()
+    request, receipt = _receipt_policy_case(runner, feature, case)
+    original = deepcopy(receipt)
+    row = _receipt_fake_execute(runner, monkeypatch, tmp_path / "worker", request, receipt)
+    assert row["status"] == "complete" and row["worker_identity_verified"] is True
+    assert row["receipt"]["controls_before"] == original["controls_before"]
+    assert row["receipt"]["controls_after"] == original["controls_after"]
+    assert receipt == original and "worker_identity.json" in row["files"]
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+@pytest.mark.parametrize("defect", ["extra_after", "missing_base_after", "extra_before", "missing_base_before",
+    "missing_before_policy", "missing_after_policy", "missing_both_explicit", "missing_before", "invalid_before",
+    "invalid_after", "boolean_policy", "invalid_request", "request_mismatch", "unrequested_change", "redundant_legacy"])
+def test_policy_receipt_invalid_worker_fails_without_product_import(tmp_path, monkeypatch, feature, defect):
+    runner = _receipt_only_runner()
+    request, receipt = _receipt_policy_case(runner, feature, "explicit_optin")
+    field, (legacy, active) = runner.receipt_control_policy(feature)
+    before, after = receipt["controls_before"], receipt["controls_after"]
+    if defect == "extra_after": after["unknown"] = True
+    elif defect == "missing_base_after": after.pop(next(iter(_receipt_policy_values(feature))))
+    elif defect == "extra_before": before["unknown"] = True
+    elif defect == "missing_base_before": before.pop(next(iter(_receipt_policy_values(feature))))
+    elif defect == "missing_before_policy": before.pop(field)
+    elif defect == "missing_after_policy": after.pop(field)
+    elif defect == "missing_both_explicit": before.pop(field); after.pop(field)
+    elif defect == "missing_before": receipt.pop("controls_before")
+    elif defect == "invalid_before": before[field] = "unknown"
+    elif defect == "invalid_after": after[field] = "unknown"
+    elif defect == "boolean_policy": after[field] = True
+    elif defect == "invalid_request": request["controls"][field] = False
+    elif defect == "request_mismatch": after[field] = legacy
+    elif defect == "unrequested_change": request["controls"] = {}; before[field], after[field] = active, legacy
+    elif defect == "redundant_legacy": request["controls"] = {}; before[field] = after[field] = legacy
+    row = _receipt_fake_execute(runner, monkeypatch, tmp_path / "worker", request, receipt)
+    assert row["status"] == "failed" and row["error"]["type"] == "RuntimeError"
+    assert "receipt" not in row and "worker_identity_verified" not in row
+    assert "chronicle_bundle.json" in row["files"] and "worker.log" in row["files"]
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+@pytest.mark.parametrize("case", ["inherited_active", "legacy_omitted", "explicit_reversion", "explicit_optin"])
+def test_policy_receipt_parent_matching_preserves_resolved_modes(feature, case):
+    runner = _receipt_only_runner()
+    request, receipt = _receipt_policy_case(runner, feature, case)
+    parent = deepcopy(receipt["controls_before"])
+    original = deepcopy((receipt, request, parent))
+    runner._validate_receipt_controls(receipt, request, parent_controls=parent)
+    assert (receipt, request, parent) == original
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+@pytest.mark.parametrize("defect", ["both_omitted_inherited", "different_before", "invalid_parent"])
+def test_policy_receipt_parent_rejects_inherited_omission_and_mismatch(feature, defect):
+    runner = _receipt_only_runner()
+    request, receipt = _receipt_policy_case(runner, feature, "inherited_active")
+    field, (legacy, active) = runner.receipt_control_policy(feature)
+    parent = deepcopy(receipt["controls_before"])
+    if defect == "both_omitted_inherited":
+        receipt["controls_before"].pop(field); receipt["controls_after"].pop(field)
+        # Individually it has the valid legacy omitted shape; parent binding
+        # supplies the independent evidence that this fork lost its policy.
+        runner._validate_receipt_controls(receipt, request)
+    elif defect == "different_before":
+        parent.pop(field)
+    elif defect == "invalid_parent": parent[field] = "unknown"
+    with pytest.raises(RuntimeError, match="shared parent"):
+        runner._validate_receipt_controls(receipt, request, parent_controls=parent)
+
+
+def test_policy_receipt_shared_parent_check_precedes_noop_state_comparison():
+    import ast
+    runner = _receipt_only_runner()
+    tree = ast.parse(Path(runner.__file__).read_text())
+    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_seed_runs")
+    checks = [node for node in ast.walk(function) if isinstance(node, ast.Call)
+              and isinstance(node.func, ast.Name) and node.func.id == "_validate_receipt_controls"]
+    assert len(checks) == 1
+    assert any(key.arg == "parent_controls" and isinstance(key.value, ast.Name)
+               and key.value.id == "parent_controls" for key in checks[0].keywords)
+    noop = next(node for node in ast.walk(function) if isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "research_policy" for target in node.targets))
+    assert checks[0].lineno < noop.lineno
+
+
+@pytest.mark.parametrize("feature", ["harvest_forecasts", "health_care"])
+@pytest.mark.parametrize("case", ["legacy_omitted", "explicit_optin", "explicit_legacy", "inherited_active"])
+def test_policy_receipt_older_source_fallback_remains_exact(tmp_path, monkeypatch, feature, case):
+    current = _receipt_only_runner()
+    request, receipt = _receipt_policy_case(current, feature, case)
+    runner = _receipt_only_runner(legacy=True)
+    row = _receipt_fake_execute(runner, monkeypatch, tmp_path / "worker", request, receipt)
+    assert row["status"] == ("complete" if case == "legacy_omitted" else "failed")
+
+
+@pytest.mark.parametrize("defect", [None, "research_in_after", "research_instead_of_base", "unknown_after"])
+def test_policy_receipt_science_research_metadata_stays_separate(tmp_path, monkeypatch, defect):
+    runner = _receipt_only_runner()
+    request = {"feature": "scientific_claims", "arm": "normal", "controls": {"research_enabled": True}}
+    controls = {"publication_rule": "current-context-v1", **runner.ARMS["scientific_claims"]["normal"]}
+    receipt = {"feature": "scientific_claims", "arm": "normal", "controls_after": controls,
+               "research_policy": {"before": {"mode": "legacy"}, "after": {"mode": "finite-v1"}}}
+    if defect == "research_in_after": controls["research_enabled"] = True
+    elif defect == "research_instead_of_base": controls.pop("publication_rule"); controls["research_enabled"] = True
+    elif defect == "unknown_after": controls["unknown"] = True
+    row = _receipt_fake_execute(runner, monkeypatch, tmp_path / "worker", request, receipt)
+    assert row["status"] == ("complete" if defect is None else "failed")
