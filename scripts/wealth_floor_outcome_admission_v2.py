@@ -1,7 +1,8 @@
 """Prospective explicit outcome authority, separate from frozen inactive A9de.
 
-All new registry slots are NULL. Only a separately reviewed source registration
-and root-sealed packets can open the two distinct smoke/full phase gates. This
+Six prerequisite objects and the actual primer are registered for smoke only.
+Worker/full packet slots remain NULL. A separate reviewed activation is still
+required; source registration alone launches nothing. This
 module performs pure content admission; it probes no host and launches nothing.
 """
 from __future__ import annotations
@@ -20,17 +21,14 @@ import wealth_floor_outcome_checkpoints as K
 
 B = P.B
 require, exact = P.require, P.exact
-REVIEWED_PREREQUISITES = MappingProxyType(dict(baseline_audit=None, native=None,
-    wheel=None, build_context=None, checkpoint=None, determinism=None))
+REVIEWED_PREREQUISITES = MappingProxyType({'baseline_audit': '0520cfae02607dcf3153ab721b274e16a5e8d7fd94a5d0da09c3ffd3610791ca', 'build_context': '80eee397c86daf6452abf495db9f8414e45b6fcfc6f376ab13b5dfe694ac7000', 'checkpoint': 'f7dc1cbdfc26356dd3fef4832ab61b9dd8c865478d259695908de63b9333494e', 'determinism': 'f7dc1cbdfc26356dd3fef4832ab61b9dd8c865478d259695908de63b9333494e', 'native': 'b7318023fe7856ca8ef29cf3969e2e5db3ad6c856053fc5263796710620519e1', 'wheel': 'e0fe8cc107fdf501261c02763884ec047b3624be98ac60dab19cd83c5cc44e8e'})
 PREREQUISITE_KEYS = frozenset(("baseline_audit","native","wheel","build_context","checkpoint","determinism"))
 WORKER_KEYS = frozenset(("template","procedural"))
 PRIMER_KEYS = frozenset(("control_sha","run_id","job_id","attempt","artifact_id","artifact_bytes",
     "artifact_sha256","artifact_expires_at","completion_sha256","proof_sha256"))
-ROOT_PREREQUISITE_PACKET_SHA256 = None
+ROOT_PREREQUISITE_PACKET_SHA256 = '2e80a6cef44b166c27053954ea078668b9ce5fb4a4e1472e3e88f0e77c275999'
 ROOT_WORKER_SMOKE_PACKET_SHA256 = None
-REVIEWED_PRIMER = MappingProxyType(dict(control_sha=None, run_id=None, job_id=None,
-    attempt=None, artifact_id=None, artifact_bytes=None, artifact_sha256=None, artifact_expires_at=None,
-    completion_sha256=None, proof_sha256=None))
+REVIEWED_PRIMER = MappingProxyType({'artifact_bytes': 142839893, 'artifact_expires_at': '2026-11-28T06:32:03Z', 'artifact_id': 12878510742, 'artifact_sha256': '2507464994956018fabb37fc89c001d08c13882375e1a47e0e5f81d576b5ed74', 'attempt': 1, 'completion_sha256': '22ab852023addacc8007819d111b8f4a73aeae5bb8a0e54023ba9f62345836f6', 'control_sha': '4ed374ce7f0a8efdc99d1e9392a5b41d3fa65a38', 'job_id': 123299181396, 'proof_sha256': 'f7dc1cbdfc26356dd3fef4832ab61b9dd8c865478d259695908de63b9333494e', 'run_id': 40829185023})
 REVIEWED_WORKER_SMOKES = MappingProxyType(dict(template=None, procedural=None))
 _SEAL = object()
 ROOT_REVIEWS = MappingProxyType(dict(build="72e545308da0cf24d23113e350adf388f75de230ba296453a87eb7b6ba8920a6",

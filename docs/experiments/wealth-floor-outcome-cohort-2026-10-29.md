@@ -1,8 +1,10 @@
 # Prospective source503 outcome cohort
 
 This is source preparation. No worker smoke or outcome cohort has run. Both
-workflows remain outside `.github`; all new V2 proof registry slots and both
-packet hashes remain NULL. Original A9de/P13239/C60bb/Bcb87/R44/D2 and primer
+workflows remain outside `.github`. This smoke-only registration successor binds
+the six reviewed proof objects, exact prerequisite packet and actual primer.
+Worker proof slots and the full worker-packet hash remain NULL. Original
+A9de/P13239/C60bb/Bcb87/R44/D2 and primer
 M0a6 remain byte-identical. Root review of concrete source, typed packets and a
 separately registered activation is required before scientific installation.
 
@@ -122,10 +124,15 @@ The externally prepared128,013-byte packet proposal hashes to
 Its native/wheel/context OBJECT hashes begin `b7318023`/`e0fe8cc1`/`80eee397`;
 their embedded evidence fingerprints remain b56c/4ebf/5aa8. It links root reviews
 72e5/208b/c395/8aef and unchanged producer/member identities. This proposal is
-external, unadmitted and uninstalled; source registries remain NULL. Future
-activation must recheck fresh official source/run/job/artifact origin and expiry.
+installed byte-for-byte at the reviewed prerequisite path after root content
+review `e893bb80fe60a763ddab54a8c91393428ee31a90d4c75b52a24430273b62914d`.
+The six proof OBJECT digests and actual primer identity are now source-registered
+for smoke only. This changes no original A pins, worker/full barrier or science.
+No actual packet-admission test has yet run against this successor: root must
+review its exact source diff first. Future activation must recheck fresh official
+source/run/job/artifact origin and expiry.
 
-Final affected V/O/driver contracts passed230 in1.73s under the offline guard,
+On preserved all-NULL source1900, affected V/O/driver contracts passed230 in1.73s under the offline guard,
 with no native loads/import attempts, runtime factory calls or blocked IO.
 Checkpoint helper34aa and its separately authored74 contracts passed0.66s at
 their unchanged boundary. The combined304 new cases were not run together;

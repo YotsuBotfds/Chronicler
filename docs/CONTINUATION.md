@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+A smoke-only registration successor now binds the root-content-reviewed exact
+2e80 prerequisite packet, six typed OBJECT digests and real primer identity.
+Only the new V2 smoke prerequisite registry is filled; all worker/full slots and
+original A remain NULL. The scientific/controller/resource/process sources stay
+unchanged, apart from O's checksum for the registered V2 source. No active
+workflow is installed, no packet-admission test or scientific work has run on
+this successor, and source review/one separate activation remain required.
+The preserved1900 source, its230 pure result and all earlier evidence stay fixed.
+
 A [source-only unchanged503 outcome controller](experiments/wealth-floor-outcome-cohort-2026-10-29.md)
 now separates the prospective12-execution/668-tick real-worker schema smoke
 from the original3,700-execution/201,400-tick full cohort. New V2 typed proof
