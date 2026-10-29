@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A source-only successor to the dormant forecast reader addresses the independent
+nonauthor four-gap review: score/status completeness, persistent per-snapshot
+report lifecycle/expiry, actual zero-purchase warning coverage and file identity
+checks excluding read-atime. Production/native/policy/matrix/caps and existing
+305 native owners/39 chunks remain unchanged. New fake cases are separately
+frozen and unrun until their exact bounded selection is authorized. The prior
+37b136PASS stays source-scoped. Durable raw-role retention remains a separate
+unimplemented proposal/NULL gate; the current workflow uploads metadata only.
+Qualified469 and its fresh wheel are documented as prospective inputs; runtime
+candidate/full-CI/execution bindings remain NULL in this reader-only child.
+
+
 A [dormant local-forecast study owner](experiments/forecast-credibility-registration.md)
 adds fixed seed42/template8/4/H26 jobs, bounded stock-worker/CLI ownership and a
 stdlib original-body mechanical reader. Candidate full-CI/execution bindings

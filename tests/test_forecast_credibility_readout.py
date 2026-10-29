@@ -588,3 +588,266 @@ def test_full_fake_study_refuses_missing_or_misbound_evidence(tmp_path, defect):
         records["exact-13"]["inventory"] = R.inventory(path.parent)
     with pytest.raises(R.Refused):
         R.read_study(tmp_path, registration, records)
+
+
+# Acceptance corrections below are appended to the preserved 73 reader cases.
+# All reports/containers remain invented fixtures; no product code is invoked.
+def _report_views(bundle, state, report_id="harvest:0:0:0"):
+    sections = [snapshot["harvest_forecasts"] for snapshot in bundle["history"]]
+    sections.append(state["harvest_forecasts"])
+    return [row for section in sections for field in ("reports", "outcomes")
+            for row in section[field] if row["id"] == report_id]
+
+
+@pytest.mark.parametrize("field", ["brier", "observed_ratio", "outcome_shortfall"])
+@pytest.mark.parametrize("omitted", [False, True])
+def test_resolved_withheld_score_field_cannot_be_null_or_omitted(field, omitted):
+    bundle, state = _trace(second=False, withheld=True)
+    for row in _report_views(bundle, state):
+        if row["status"] == "resolved":
+            if omitted:
+                row.pop(field)
+            else:
+                row[field] = None
+    with pytest.raises(R.Refused, match="TRACE_SCORE_FIELDS|TRACE_GLOBAL_SCORE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def test_resolved_withheld_cannot_drop_all_score_fields_to_avoid_denominator():
+    bundle, state = _trace(second=False, withheld=True)
+    for row in _report_views(bundle, state):
+        if row["status"] == "resolved":
+            row.update(brier=None, observed_ratio=None, outcome_shortfall=None)
+    with pytest.raises(R.Refused, match="TRACE_GLOBAL_SCORE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("evaluation_count", 2), ("brier", float("nan")), ("brier", float("inf")),
+    ("brier", -0.1), ("brier", 0.123), ("observed_ratio", float("inf")),
+    ("observed_ratio", 0.25), ("outcome_shortfall", None), ("outcome_shortfall", 0),
+])
+def test_resolved_score_requires_complete_finite_source_arithmetic(field, value):
+    bundle, state = _trace(second=False, withheld=True)
+    for row in _report_views(bundle, state):
+        if row["status"] == "resolved":
+            row[field] = value
+    with pytest.raises(R.Refused, match="TRACE_GLOBAL_SCORE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("evaluation_count", 3), ("brier", 0.0), ("observed_ratio", 0.0), ("outcome_shortfall", False),
+])
+def test_unscored_requires_incomplete_count_and_null_score_fields(field, value):
+    bundle, state = _trace(second=False, withheld=True, missing_first=True)
+    for row in _report_views(bundle, state):
+        if row["status"] == "unscored":
+            row[field] = value
+    with pytest.raises(R.Refused, match="TRACE_UNSCORED_COMPLETE_WINDOW|TRACE_NONRESOLVED_SCORE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+def _cancelled_trace():
+    bundle, state = _trace(second=False, withheld=True)
+    # A declared copied fixture owner change at source turn9 precedes expiry.
+    # Cancellation runs before this turn's observation, preserving count/sum.
+    terminal = copy.deepcopy(bundle["history"][8]["harvest_forecasts"]["reports"][0])
+    terminal.update(status="cancelled", resolved_turn=9)
+    for snapshot in bundle["history"][9:]:
+        snapshot["harvest_forecasts"].update(reports=[], outcomes=[copy.deepcopy(terminal)])
+        snapshot["region_control"]["R0"] = "C1"
+    for event in bundle["events_timeline"]:
+        if event["event_id"] == "closure0":
+            event["turn"] = 9
+    state["civilizations"].append({"name": "C1"})
+    state["regions"][0]["controller"] = "C1"
+    state["harvest_forecasts"].update(reports=[], outcomes=[copy.deepcopy(terminal)], observers=[])
+    return bundle, state
+
+
+def test_cancelled_report_keeps_null_scores_and_original_evaluation_record():
+    bundle, state = _cancelled_trace()
+    result = R.forecast_trace(bundle, state, withheld=True)
+    assert result["cancelled_reports"] == 1
+    assert result["denominators"]["scored_reports"] == 0
+    assert result["report_chains"][0]["brier"] is None
+
+
+@pytest.mark.parametrize("field,value", [
+    ("brier", 0.0), ("observed_ratio", 0.0), ("outcome_shortfall", False), ("resolved_turn", 12),
+    ("evaluation_count", 1), ("evaluation_sum", 0.5),
+])
+def test_cancelled_score_and_pre_observation_closure_contract_is_required(field, value):
+    bundle, state = _cancelled_trace()
+    for row in _report_views(bundle, state):
+        if row["status"] == "cancelled":
+            row[field] = value
+    with pytest.raises(R.Refused, match="TRACE_NONRESOLVED_SCORE|TRACE_TERMINAL_VIEW_DATE|TRACE_EXPIRY_CLOSURE|TRACE_TERMINAL_TRANSITION"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("gap", ["active_once", "active_forever", "terminal_once", "terminal_forever"])
+def test_every_issued_id_persists_through_each_later_snapshot(gap):
+    bundle, state = _trace(second=False, withheld=True)
+    if gap == "active_once":
+        affected = [bundle["history"][7]]  # returns in the next snapshot
+    elif gap == "active_forever":
+        affected = bundle["history"][6:]
+    elif gap == "terminal_once":
+        affected = [bundle["history"][14]]  # returns as an outcome next turn
+    else:
+        affected = bundle["history"][13:]
+    for snapshot in affected:
+        snapshot["harvest_forecasts"].update(reports=[], outcomes=[])
+    if gap.endswith("forever"):
+        state["harvest_forecasts"].update(reports=[], outcomes=[], observers=[])
+    with pytest.raises(R.Refused, match="TRACE_REPORT_LIFECYCLE_COVERAGE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("defect", ["active_twice", "outcome_twice", "both_collections", "terminal_in_active", "active_in_outcomes"])
+def test_each_id_has_exactly_one_correct_active_or_terminal_collection(defect):
+    bundle, state = _trace(second=False, withheld=True)
+    if defect == "active_twice":
+        section = bundle["history"][6]["harvest_forecasts"]
+        section["reports"].append(copy.deepcopy(section["reports"][0]))
+    elif defect == "outcome_twice":
+        section = bundle["history"][12]["harvest_forecasts"]
+        section["outcomes"].append(copy.deepcopy(section["outcomes"][0]))
+    elif defect == "both_collections":
+        section = bundle["history"][6]["harvest_forecasts"]
+        section["outcomes"].append(copy.deepcopy(section["reports"][0]))
+    elif defect == "terminal_in_active":
+        section = bundle["history"][12]["harvest_forecasts"]
+        section["reports"], section["outcomes"] = section["outcomes"], []
+    else:
+        section = bundle["history"][6]["harvest_forecasts"]
+        section["outcomes"], section["reports"] = section["reports"], []
+    with pytest.raises(R.Refused, match="TRACE_REPORT_ID|TRACE_REPORT_COLLECTION"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("defect", ["expired_active", "early_closure", "late_declared_closure"])
+def test_expiry_closes_on_first_source_turn_after_window(defect):
+    bundle, state = _trace(second=False, withheld=True)
+    if defect == "expired_active":
+        for snapshot in bundle["history"][12:]:
+            section = snapshot["harvest_forecasts"]
+            row = section["outcomes"].pop()
+            row.update(status="withheld", resolved_turn=None, brier=None, observed_ratio=None, outcome_shortfall=None)
+            section["reports"] = [row]
+        state["harvest_forecasts"].update(reports=copy.deepcopy(bundle["history"][-1]["harvest_forecasts"]["reports"]), outcomes=[])
+    elif defect == "early_closure":
+        terminal = copy.deepcopy(bundle["history"][12]["harvest_forecasts"]["outcomes"][0])
+        terminal["resolved_turn"] = 11
+        bundle["history"][11]["harvest_forecasts"].update(reports=[], outcomes=[terminal])
+    else:
+        for row in _report_views(bundle, state):
+            if row["status"] == "resolved":
+                row["resolved_turn"] = 13
+    with pytest.raises(R.Refused, match="TRACE_EXPIRED_ACTIVE_REPORT|TRACE_EXPIRY_CLOSURE|TRACE_TERMINAL_VIEW_DATE"):
+        R.forecast_trace(bundle, state, withheld=True)
+
+
+@pytest.mark.parametrize("exposure,expected", [
+    ("zero", "OBSERVED_RECORDED_JOIN"), ("all_positive", "UNOBSERVED"), ("no_actions", "UNOBSERVED"),
+])
+def test_no_purchase_coverage_needs_an_actual_validated_zero_purchase_warning(exposure, expected):
+    bundle, state = _trace(action=exposure != "no_actions")
+    if exposure == "zero":
+        row = bundle["history"][18]["harvest_forecasts"]["preparedness"][0]
+        row.update(bought_during_warning=0.0, paid_during_warning=0)
+        bundle["history"][18]["grain_reserves"]["flows"] = []
+        bundle["events_timeline"] = [event for event in bundle["events_timeline"] if event["event_id"] != "payment"]
+    result = R.forecast_trace(bundle, state)
+    assert result["no_purchase_coverage"] == expected
+    assert result["denominators"]["actions"] == (0 if exposure == "no_actions" else 1)
+
+
+def test_zero_purchase_warning_is_observed_alongside_positive_warning_action():
+    bundle, state = _trace()
+    action = copy.deepcopy(bundle["history"][18]["harvest_forecasts"]["preparedness"][0])
+    action.update(bought_during_warning=0.0, paid_during_warning=0)
+    bundle["history"][19]["harvest_forecasts"]["preparedness"] = [action]
+    bundle["history"][19]["grain_reserves"].update(granaries=[{"region": 0, "owner": 0, "target": 3.5}], flows=[])
+    result = R.forecast_trace(bundle, state)
+    assert result["no_purchase_coverage"] == "OBSERVED_RECORDED_JOIN"
+    assert result["denominators"]["actions"] == 2
+    assert result["recorded_warning_purchases"] == 0.25
+
+
+def test_file_pin_accepts_only_atime_metadata_advancing_during_full_read(tmp_path, monkeypatch):
+    path = tmp_path / "stable-body"
+    body = b"complete-stable-body" * 37
+    path.write_bytes(body)
+    actual_stat, actual_fstat = Path.stat, R.os.fstat
+    calls = []
+    def atime_view(info):
+        # Same complete stable fields/type at each observation. Only synthetic
+        # atime advances; the old whole-stat comparison would reject this.
+        calls.append(len(calls) + 1)
+        values = {field: getattr(info, field) for field in ("st_dev", "st_ino", "st_mode", "st_nlink",
+            "st_size", "st_mtime_ns", "st_ctime_ns")}
+        values.update(st_atime=100.0 + len(calls), st_atime_ns=100_000_000_000 + len(calls))
+        return SimpleNamespace(**values)
+    def fake_stat(selected, *args, **kwargs):
+        value = actual_stat(selected, *args, **kwargs)
+        return atime_view(value) if selected == path else value
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "stat", fake_stat)
+        patch.setattr(R.os, "fstat", lambda descriptor: atime_view(actual_fstat(descriptor)))
+        result = R._file_pin(path, 4096)
+    assert len(calls) == 4
+    assert result == {"bytes": len(body), "sha256": hashlib.sha256(body).hexdigest()}
+    assert path.read_bytes() == body and path.stat().st_nlink == 1
+
+
+@pytest.mark.parametrize("defect", ["identity", "mtime", "content"])
+def test_file_pin_still_rejects_actual_identity_mtime_or_content_mutation(tmp_path, monkeypatch, defect):
+    path = tmp_path / "changing-body"
+    body = b"original-retained-content"
+    path.write_bytes(body)
+    (tmp_path / "before-retained").write_bytes(body)
+    actual_open = Path.open
+    before = path.stat()
+    mutated = []
+    def change():
+        mutated.append(True)
+        if defect == "identity":
+            replacement = tmp_path / "replacement"
+            replacement.write_bytes(body)
+            path.rename(tmp_path / "original-inode-retained")
+            replacement.rename(path)
+        elif defect == "mtime":
+            R.os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+        else:
+            with actual_open(path, "r+b") as changed:
+                changed.write(b"X")
+            # Even restoring the original mtime cannot hide content/ctime drift.
+            R.os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    class MutatingRead:
+        def __init__(self, stream):
+            self.stream = stream
+        def __enter__(self):
+            self.stream.__enter__()
+            return self
+        def __exit__(self, *args):
+            return self.stream.__exit__(*args)
+        def fileno(self):
+            return self.stream.fileno()
+        def read(self, size):
+            block = self.stream.read(size)
+            if block and not mutated:
+                change()
+            return block
+    def fake_open(selected, mode="r", *args, **kwargs):
+        stream = actual_open(selected, mode, *args, **kwargs)
+        return MutatingRead(stream) if selected == path and mode == "rb" else stream
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", fake_open)
+        with pytest.raises(R.Refused, match="FILE_CHANGED"):
+            R._file_pin(path, 4096)
+    assert mutated == [True]
+    assert (tmp_path / "before-retained").read_bytes() == body
+    assert path.is_file() and path.stat().st_nlink == 1

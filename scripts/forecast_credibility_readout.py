@@ -102,15 +102,22 @@ def _path(root, name):
 def _file_pin(path, limit):
     before = path.stat(follow_symlinks=False)
     require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and 0 <= before.st_size <= limit, "FILE_BOUND")
+    # Reads may advance atime. Preserve every identity/mutation field that a
+    # read does not legitimately change, including nanosecond mtime and ctime.
+    def stable_identity(info):
+        return tuple(getattr(info, field) for field in ("st_dev", "st_ino", "st_mode", "st_nlink",
+            "st_size", "st_mtime_ns", "st_ctime_ns"))
+    original_identity = stable_identity(before)
     digest, count = hashlib.sha256(), 0
     with path.open("rb") as stream:
-        require(os.fstat(stream.fileno()) == before, "FILE_OPEN_IDENTITY")
+        require(stable_identity(os.fstat(stream.fileno())) == original_identity, "FILE_OPEN_IDENTITY")
         while block := stream.read(min(1024**2, limit - count + 1)):
             count += len(block)
             require(count <= limit and count <= before.st_size, "FILE_GROWTH")
             digest.update(block)
         after = os.fstat(stream.fileno())
-    require(before == after == path.stat(follow_symlinks=False) and count == before.st_size, "FILE_CHANGED")
+    require(original_identity == stable_identity(after) == stable_identity(path.stat(follow_symlinks=False))
+            and count == before.st_size, "FILE_CHANGED")
     return {"bytes": count, "sha256": digest.hexdigest()}
 
 
@@ -528,6 +535,30 @@ def _finite(value, *, upper=None):
     return type(value) in (int, float) and math.isfinite(value) and value >= 0 and (upper is None or value <= upper)
 
 
+def _report_score_contract(report):
+    """Every snapshot follows _finish_report's complete status/score shape.
+
+    The producer assigns all three score fields exactly when a report resolves.
+    Pending/delivered/withheld, incomplete and cancelled reports retain nulls.
+    This validates recorded arithmetic, not unavailable production operands.
+    """
+    fields = ("observed_ratio", "outcome_shortfall", "brier")
+    require(all(field in report for field in fields), "TRACE_SCORE_FIELDS")
+    status = report["status"]
+    if status == "resolved":
+        require(report["evaluation_count"] == 3 and _finite(report.get("probability"), upper=1)
+                and _finite(report["observed_ratio"]) and _finite(report["brier"], upper=1)
+                and _same(report["observed_ratio"], report["evaluation_sum"] / 3)
+                and type(report["outcome_shortfall"]) is bool
+                and report["outcome_shortfall"] is (report["observed_ratio"] < 0.6)
+                and _same(report["brier"], (report["probability"] - float(report["outcome_shortfall"])) ** 2),
+                "TRACE_GLOBAL_SCORE")
+    else:
+        require(all(report[field] is None for field in fields), "TRACE_NONRESOLVED_SCORE")
+        if status == "unscored":
+            require(report["evaluation_count"] < 3, "TRACE_UNSCORED_COMPLETE_WINDOW")
+
+
 def forecast_trace(bundle, state, *, withheld=False):
     """Audit recorded local facts, with no reconstruction of hidden inputs.
 
@@ -551,7 +582,13 @@ def forecast_trace(bundle, state, *, withheld=False):
                 and section["source_turn"] == source_turn, "TRACE_SOURCE_TURN")
         require(type(section.get("reports")) is list and type(section.get("outcomes")) is list, "TRACE_REPORT_ARRAYS")
         rows = section["reports"] + section["outcomes"]
-        require(len(rows) <= 128, "TRACE_REPORT_BOUND")
+        # H26 contains two issue opportunities and eight recipients: <=16
+        # report IDs, so the producer's 128-outcome eviction cannot occur.
+        require(len(rows) <= 16, "TRACE_REPORT_BOUND")
+        require(all(type(report) is dict and report.get("status") in ("pending", "delivered", "withheld")
+                    for report in section["reports"])
+                and all(type(report) is dict and report.get("status") in ("resolved", "unscored", "cancelled")
+                    for report in section["outcomes"]), "TRACE_REPORT_COLLECTION")
         seen = set()
         for report in rows:
             require(type(report) is dict and type(report.get("id")) is str and report["id"] not in seen, "TRACE_REPORT_ID")
@@ -583,6 +620,20 @@ def forecast_trace(bundle, state, *, withheld=False):
                     and len(observations) <= report["evaluation_count"] and _finite(report.get("evaluation_sum")), "TRACE_EVALUATION_RECORD")
             status = report.get("status")
             require(status in ("pending", "delivered", "withheld", "resolved", "unscored", "cancelled"), "TRACE_STATUS")
+            _report_score_contract(report)
+            require(type(report.get("expires_turn")) is int, "TRACE_EXPIRY_DATE")
+            if status in ("pending", "delivered", "withheld"):
+                require(source_turn <= report["expires_turn"] and report.get("resolved_turn") is None,
+                        "TRACE_EXPIRED_ACTIVE_REPORT")
+            else:
+                resolved_turn = report.get("resolved_turn")
+                require(type(resolved_turn) is int and report["issued_turn"] < resolved_turn <= source_turn,
+                        "TRACE_TERMINAL_VIEW_DATE")
+                require(resolved_turn <= report["expires_turn"] if status == "cancelled"
+                        else resolved_turn == report["expires_turn"] + 1, "TRACE_EXPIRY_CLOSURE")
+                if key in catalog and catalog[key]["status"] in ("pending", "delivered", "withheld"):
+                    require(resolved_turn == source_turn and report["evaluation_count"] == catalog[key]["evaluation_count"]
+                            and _same(report["evaluation_sum"], catalog[key]["evaluation_sum"]), "TRACE_TERMINAL_TRANSITION")
             chain = status_chains.setdefault(key, [])
             if not chain or chain[-1]["status"] != status:
                 if chain:
@@ -592,6 +643,9 @@ def forecast_trace(bundle, state, *, withheld=False):
                     require(status in allowed.get(chain[-1]["status"], set()), "TRACE_STATUS_TRANSITION")
                 chain.append({"source_turn": source_turn, "status": status})
             catalog[key] = report
+        # Every previously issued ID survives exactly once, active or outcome,
+        # in every following snapshot; duplicates were rejected above.
+        require(set(catalog) == seen, "TRACE_REPORT_LIFECYCLE_COVERAGE")
         require(type(section.get("preparedness")) is list and len(section["preparedness"]) <= 8, "TRACE_PREPARATION_BOUND")
         require(len({row.get("region") for row in section["preparedness"] if type(row) is dict})
                 == len(section["preparedness"]), "TRACE_PREPARATION_REGION_UNIQUE")
@@ -697,13 +751,8 @@ def forecast_trace(bundle, state, *, withheld=False):
                     and (delivery is None or report["delivered_event_id"] in closure[0].get("causes", [])), "TRACE_RESOLUTION_EVENT")
         else:
             require(resolved is None, "TRACE_PREMATURE_RESOLVED_DATE")
-        if report.get("brier") is not None:
-            require(report.get("status") == "resolved" and report.get("evaluation_count") == 3
-                    and _finite(report.get("evaluation_sum")) and _finite(report.get("observed_ratio"))
-                    and _same(report["observed_ratio"], report["evaluation_sum"] / 3)
-                    and type(report.get("outcome_shortfall")) is bool
-                    and report["outcome_shortfall"] is (report["observed_ratio"] < 0.6)
-                    and _same(report["brier"], (report["probability"] - float(report["outcome_shortfall"])) ** 2), "TRACE_GLOBAL_SCORE")
+        if report["status"] == "resolved":
+            # The complete score contract was required in every retained view.
             scored += 1
             false_alarms += int(delivery is not None and report["probability"] >= 0.6 and report["outcome_shortfall"] is False)
             missed_warnings += int(delivery is not None and report["probability"] < 0.6 and report["outcome_shortfall"] is True)
@@ -778,7 +827,7 @@ def forecast_trace(bundle, state, *, withheld=False):
         "cancelled_reports": sum(report["status"] == "cancelled" for report in catalog.values()),
         "owner_change_boundary_coverage": None,
         "owner_change_boundary_reason": "A source cancellation status alone does not independently establish its within-turn ownership timing.",
-        "no_purchase_coverage": "UNOBSERVED" if not any(action["bought_during_warning"] > 0 for action in actions) else "OBSERVED_RECORDED_JOIN",
+        "no_purchase_coverage": "OBSERVED_RECORDED_JOIN" if any(action["bought_during_warning"] == 0 for action in actions) else "UNOBSERVED",
         "raw_production_demand_recomputation": None, "historical_recipient_population_revalidation": None,
         "treasury_balance_or_excess_purchase_causal_attribution": None,
         "interpretation": "Dates, local evidence arithmetic and available recorded flow/target joins only. Empty exposure is preserved; no efficacy, forecast-skill or favorable-seed claim."}

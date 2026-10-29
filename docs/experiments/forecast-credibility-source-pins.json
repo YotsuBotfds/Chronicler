@@ -9,7 +9,7 @@
   },
   "docs/experiments/forecast-credibility-inputs.json": {
     "bytes": 4592,
-    "sha256": "2435db98fca88ab30a316ed8e59ba53b039a2d46c1b44b25b19c6983c4afd5d4"
+    "sha256": "1ad071aadcfa80ed693a29f0bc482c43e2b914a22750ca777f2a76d95bf52c6b"
   },
   "docs/experiments/forecast-credibility-jobs.json": {
     "bytes": 2714,
@@ -36,8 +36,8 @@
     "sha256": "91f8c2ac23ec34e9b4508e17a4854a06a4f8c2e67b55d9661427dfd582719b8f"
   },
   "scripts/forecast_credibility_readout.py": {
-    "bytes": 62228,
-    "sha256": "c814d0d78cf39a2093417c0960557d6e2d76002b43f2f52f3339db01b512e726"
+    "bytes": 65386,
+    "sha256": "3821d162509fd9a6aff39323135bc00f65263754155561ff39014454587032ca"
   },
   "scripts/forecast_credibility_study.py": {
     "bytes": 15105,
@@ -64,8 +64,8 @@
     "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
   },
   "tests/test_forecast_credibility_readout.py": {
-    "bytes": 32397,
-    "sha256": "d2a766b2eebe719dcfe0596a4f28232d47c32693f0b45e91752cbe6797932d28"
+    "bytes": 45402,
+    "sha256": "08de8a3b927019c6a2f9879990c8b48c80365c522c42bb76ef447695ed9f1582"
   },
   "tests/test_forecast_credibility_study.py": {
     "bytes": 12915,

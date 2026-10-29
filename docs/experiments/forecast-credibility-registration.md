@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `6170685d0148838a3e6c011e295706db20b763240ee708597fce9f0d4a042d0f`
+Source manifest SHA-256: `6851762b2f3a2b03cd3902b94b79654e23753f95e3de61733a19c95ef4e37218`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -135,3 +135,39 @@ made; all136 test bodies and expected nodes remain exact. New test modules belon
 All303 former native owners, six skips,623 subtests, prior38 chunks and110-second
 limits are preserved. Test execution itself requires a separately reported
 frozen source/test selection and bounds; this registration claims no pass.
+
+
+## Source-only reader acceptance corrections after independent review
+
+Independent nonauthor review receipt
+`8175c496ee1830127b4ba9cf51731f6f999833a708ddb8a70f382af55c735b29`
+found four acceptance gaps in the otherwise unchanged37b reader. This child
+repairs only its saved-artifact checks and fake counterexamples: complete
+status/score coherence, report retention in exactly one active/outcome collection
+through every later snapshot and expiry, correct actual zero-purchase warning
+coverage, and stable file identity/hash checks that exclude read-atime while
+retaining dev/inode/mode/link/size/mtime/ctime mutation checks. The fixed26-turn,
+8-region trace can issue at most16 reports, below its128-outcome retention cap;
+missing report views cannot be explained as ring eviction in this study.
+Source generation, policy arithmetic, simulation scheduling, native data,
+checkpoint object restoration, matrix and all caps remain unchanged. New47 fake
+cases (120 reader plus63 study =183 total) and this child's source freeze require their own bounded execution receipt
+and independent successor review. Prior37b136PASS remains its original source's
+fake-only evidence and is not assigned to the repaired source.
+
+The raw-retention proposal `48fe14f9c51f1bdf82cac6b770b9b5c169e56da7e1e733698393eced310d9c8b`
+remains separate and unimplemented. The current workflow publishes metadata;
+original role bodies are VM-local, and durable original-artifact qualification
+remains NULL. Metadata or an on-VM file inventory cannot stand in for that gate.
+
+A prospective runtime-input erratum may select separately qualified source
+`46967ce6c70561e0bb7baa8dec1f1bd895ff0cd9`, whose181-file package is exact81a
+and whose native subtree remains04866. Its full standard-CI root receipt is
+`b6bef07ca8e0541542f69f54894dab0dacf3d57b54b2e5f6aaa70fe335faeb89`;
+run40932674679/job123654938531/artifact12922499485 retained a newly identified
+wheel3932438B SHA `3a8859827e64303e1d127732ae6ca5655b2da0ce37fee9bfce098a67ae2dfddd`
+with the same13737112B compiled native bytes38dd. This is an explicit future
+input choice, not a silent substitution for the original3a wheel. This reader
+child changes no input file or runtime candidate/full-CI/execution binding:
+all activation fields remain NULL. Any actual replacement requires a separately
+reviewed input/source registration and fresh original-artifact admission.

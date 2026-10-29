@@ -105,7 +105,7 @@
       "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
     }
   },
-  "preflight_cases": 136,
+  "preflight_cases": 183,
   "preflight_selection": [
     "tests/test_forecast_credibility_study.py",
     "tests/test_forecast_credibility_readout.py"
