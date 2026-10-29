@@ -1,4 +1,4 @@
-name: Prepared fresh CP60 practice observer proof
+name: Fresh CP60 practice observer proof
 
 on:
   push:
@@ -33,7 +33,7 @@ env:
 
 jobs:
   cp60-proof:
-    if: ${{ false && github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-practice-cp60-proof-20261029' && github.run_attempt == 1 }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-practice-cp60-proof-20261029' && github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
