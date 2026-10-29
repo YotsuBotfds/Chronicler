@@ -81,6 +81,14 @@ events do not enumerate all recurring payments. This is a source finding;
 it changes neither cadence nor the registered natural continuation study.
 Any later calendar change needs its own explicit experiment and outcome checks.
 
+The separately [completed natural continuation study](../../integration/natural-research-continuation-results-2026-10-29.md)
+now observes earlier informative evidence reaching four later-topic payment
+occurrences in two worlds. It retains all eight fixed seed rows, including five
+with no new trials. Its 24 executions/3,360 ticks verify continuation and
+archive/pause mechanics, rather than physical-growth benefit. One repeat payment
+has no new allocation-change event, so future studies must count saved allocation
+state rather than event IDs. Only one native agent pool was active.
+
 1. **Work is separate from population.** Preserve integer living people and
    occupation counts. Define fractional productive time after impairment,
    care, military service and employment. Food demand still follows people.

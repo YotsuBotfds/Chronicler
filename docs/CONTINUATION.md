@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+October 29 natural finite-research result: all eight fixed parent/active/pause
+triples completed, 24 executions/3,360 ticks, with strict active-parent equality
+and archive-preserving pauses. The [curated record](integration/natural-research-continuation-results-2026-10-29.md)
+retains all eight rows, including five with no new trials, and independently
+verified raw evidence. Four later-topic payment occurrences in two worlds use
+earlier informative receipts, while only three allocation-change event IDs
+exist. Paid allocation is now exposed naturally within this registered cohort;
+exact physical growth, benefit and default promotion remain unqualified.
+Producer C76 and cloud native06db retain their exact source/runtime identity;
+the earlier fb20 controlled proof is separate. Main is unchanged.
+
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
 NO_REGRESSION comparisons and final publication qualification. The separate

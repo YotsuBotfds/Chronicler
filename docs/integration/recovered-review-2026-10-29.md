@@ -13,7 +13,7 @@ replay; its saved-output proof remains scoped to that original producer.
 
 | Work | Result | Evidence boundary |
 | --- | --- | --- |
-| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | Native composition passed two parent trajectories and four continuations: 62 actual ticks, 40 registered comparisons, archive/pause checks and independent payload verification. Later-topic paid adoption was not exposed. |
+| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | The original 62-tick native composition proof passed but exposed no later-topic paid use. A separate natural study now passes eight strict continuation pairs and archive/pause checks over 24 executions/3,360 ticks; four later-topic payment occurrences are observed in two worlds. No efficacy or default promotion. |
 | Default output compatibility | Complete recovered producer matched the earlier public integration in the fixed 18-world matrix | Baseline `2f9d618b`, candidate `c76efe85`, run 40796958774. Independent reader verified all 976 payload files and the nine unchanged comparisons: 399 exported file pairs, zero differences. Registered timestamp rule only; no full checkpoint/RNG or efficacy claim. |
 | Relationship telemetry | Opt-in collected keys now have deterministic order across native restoration | The original proof failed on four bundle key-order paths; producer sorting fixed them. Original failure remains unchanged, and no comparator rule was relaxed. |
 | Debt history viewer | Current lender labels use selected-snapshot detail; extinct borrowers' recorded losses remain visible with unknown amounts | Exact viewer slice passed 709 tests/lint/build; recovered producer passed 743 viewer tests across 69 files. Missing rows and amounts are not fabricated. |
@@ -110,28 +110,43 @@ effect when the summed modifier is capped. None of these observations changes
 the registered joint-needs intervention or its thresholds. Decision-time raw,
 capped and marginal-dose telemetry is a prospective follow-up.
 
-The longer natural research continuation study is running separately at
-[40809314373](https://github.com/YotsuBotfds/Chronicler/actions/runs/40809314373),
-exact control `3caa9a9c`, attempt 1. Its fixed
-eight seeds, common checkpoint, active/pause contrast, external global RNG
-sidecar and missingness rules are registered. Its corrected adapter `7b3ae977`
-passed 61 guarded contracts, nine real Linux process tests and a metadata-only
-freeze against the original producer/runtime. Source review and tests cover
-header order, strict raw-history linkage, transient orphan ownership, pidfd
-cleanup, aggregate CPU accounting and publication expiry. Two earlier remote
-attempts failed before installation/freeze/world execution:
-an obsolete preparation-state assertion, then an HTTP error with no recorded
-status. A separate corrected diagnostic verified the exact registered remote
-wheel after fixing propagation of the origin Host header across the official
-redirect. Root reviewed the corrected-source launch and bounded metadata
-publication; 182 local guarded tests and actionlint passed. At 02:57 UTC the
-actual remote contracts, wheel verification, installation and identity freeze
-passed, and the fixed cohort was running. No completed continuation, readout
-or scientific result is claimed at this checkpoint. The separately registered
-remote-runtime option preserves
-its own native identity; it does not substitute a new binary under the
-original freeze. The study declares
-no efficacy threshold, default promotion or outcome-dependent seed selection.
+The [natural research continuation study](natural-research-continuation-results-2026-10-29.md)
+completed successfully at control `3caa9a9c`, run 40809314373, attempt 1.
+All eight fixed seeds retain their uninterrupted parent, active continuation
+and pause arm: **24 executions and 3,360 actual ticks**. Each active continuation
+matches its parent across registered outputs, raw World/history, active native
+sections and externally restored global RNG. Each pause preserves its archive
+and funds no new trials. This uses C76 with registered cloud native `06db`;
+the earlier `fb20` composition proof retains its own identity. Only
+`native.agent.0` was active. All optional research switches were explicit.
+
+The active arm in three seeds admits ten post-checkpoint agendas and twenty completed trials,
+costing forty; the five zero-new-trial rows remain included. Thirty-six received
+outcome copies are not independent discoveries. Academy presence, eligibility
+and actual admission differ: two worlds have living checkpoint academies but
+no later trials, while others acquire academies later. The per-seed table
+keeps these facts separate without filtering by eligibility.
+
+Four payment occurrences in two worlds use earlier informative evidence from
+new topics. Seed 2004's later topics open/fund at source 165, resolve and reach
+their academy at 166, then receive allocation at 167 and 179. Seed 2001's
+topics funded at 74 reach paid allocation at 144. These four payments have only
+three nonempty allocation-event IDs: unchanged repeat payments need not emit
+a new change event. A zero `paid` field on the second recipe records the
+single debit elsewhere, rather than a free programme. Saved allocation state
+establishes the exposure; sparse event counts cannot enumerate every payment.
+Exact marginal growth and production/welfare benefit remain unqualified.
+
+Independent stdlib review rehashed both archives and all 2,382 raw files,
+strictly parsed 2,164 JSON files, and reconciled source inventories, all eight
+rows and the complete 2,370-file execution inventory covering all 24 runs.
+No checkpoint unpickling, Arrow/native decoding or simulation rerun occurred.
+The final seal records a conservative controller charge plus measured reader
+CPU of 249.249983/900 seconds, and 251.912641966/1,800 wall seconds. These
+qualification clocks are not a speed benchmark. The 281,082-byte light ZIP
+provides quick review metadata alongside the retained 111,643,059-byte raw ZIP.
+Both earlier pre-native failures and the transport diagnostic remain retained;
+no scientific trajectory, seed, horizon or budget was replaced.
 
 The [22-file research source audit](research-source-audit-2026-10-29/README.md)
 found no ordinary host/birth/canonical-topic invariant failure. It did identify
@@ -181,6 +196,7 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/models-forkserver-metadata-design-20261029` | Tested static inventory and inactive two-child proof design; zero metadata forks |
 | `lead/research-natural-continuation-harness-20261029` | Corrected, tested detached study adapter; metadata freeze only |
 | `lead/cloud-household-wealth-floor-20261029` | All six CI lanes pass; intentional native behavior correction awaits outcome qualification |
+| `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin baseline reader, 71 guarded contracts and independent source review pass; effective cgroup deployment proof and all candidate proof pins remain unresolved |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)
