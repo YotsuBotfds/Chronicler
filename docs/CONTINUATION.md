@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+A separate [Python decision-delivery adapter](integration/decision-delivery-python-adapter-2026-10-29.md)
+starts from combined native integration `e40108ed`. Explicit attachment captures
+the existing bounded frames only after normal bridge processing, with same-turn
+freshness, full-native-event joins and checkpoint-transient state. The default
+bridge gains no observer attribute, native calls, optional imports or I/O.
+Seventy-six guarded fake/Arrow cases passed; seven compiled bridge cases are
+authored but remain unrun pending one fresh combined remote CI. No Rust source,
+physical decisions, writer, callback, CLI or scientific gate changed.
+
 An isolated [native diagnostics/index integration candidate](integration/native-diagnostics-index-integration-2026-10-29.md)
 starts from qualified Stage 2 `feb98c0d`, preserving its ref and Stage 1 `e99`.
 It cherry-picks only reviewed index commits `c60fde97`/`e2b7c940`, retaining

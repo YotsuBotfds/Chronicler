@@ -299,6 +299,9 @@ CHUNKS = {
     "faiths": [
         "tests/test_permanent_faiths.py",
     ],
+    "decision-delivery-python": [
+        "tests/test_decision_delivery_adapter.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
