@@ -22,7 +22,7 @@ import zlib
 import wealth_floor_failed_cohort_diagnostic as L
 
 A, W, R, D = L.A, L.W, L.R, L.D
-REVIEWED_HEADER_ACTIVATION = None
+REVIEWED_HEADER_ACTIVATION = "7ba1b637090221d5ac5ec530f07b4f8343548c5397787c58236d7e14b49c948e"
 INPUT_FILE = "docs/integration/wealth-floor-checkpoint-header-only-inputs.json"
 INPUT_SHA256 = "3869d66afaa00e567f7a9219c0edd57e413ee75d29f7df1024d0522aafb045be"
 OLD_PUBLICATIONS = L.PUBLICATION_FILE
