@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The [standard native shard integration proposal](workflows/native-two-shards-standard-integration-2026-10-29.md)
+starts from root-qualified isolated V2 `7dcb2402` / run `40863008464`. It keeps
+the six visible Tests gates and four independent job bodies, routes native
+execution through one verified builder/two module consumers/blocking aggregate,
+and preserves the closed historical workflows. Current workflow contracts read
+the actual standard graph; the historical fixture is explicitly separate.
+This branch is source-only and unpushed, with no new CI or default adoption.
+
 The [inactive native shard context V2 correction](workflows/native-two-shards-context-v2-2026-10-29.md)
 preserves failed first prototype `847f164c` / run `40858749837`. Both shard test
 selections passed their cases, but raw diagnostic bytes/inf prevented receipt

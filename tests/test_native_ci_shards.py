@@ -244,9 +244,11 @@ def test_dormant_workflow_preserves_other_full_gates_and_blocks_partial_native()
     import hashlib
     import yaml
     root = SCRIPT.parents[1]
-    active = root/'.github/workflows/tests.yml'
-    assert hashlib.sha256(active.read_bytes()).hexdigest() == '2dc117396d676801153d4458a12d9fdd0021b80268099b85e35f00b7b6b423b1'
-    old = yaml.load(active.read_text(), Loader=yaml.BaseLoader)
+    # Historical prototype contract; direct current Tests graph/delegation
+    # checks live in test_native_build_lanes and test_native_wheel_receipt.
+    historical = root/'tests/fixtures/ci/standard-tests-cbf6e368.yml'
+    assert hashlib.sha256(historical.read_bytes()).hexdigest() == '2dc117396d676801153d4458a12d9fdd0021b80268099b85e35f00b7b6b423b1'
+    old = yaml.load(historical.read_text(), Loader=yaml.BaseLoader)
     new = yaml.load((root/'docs/workflows/native-two-shards.yml.in').read_text(), Loader=yaml.BaseLoader)
     assert new['on']['push'] == {'branches': ['lead/native-two-shard-qualification-20261029'], 'paths': ['.github/workflows/native-two-shards.yml']}
     branch = "github.ref == 'refs/heads/lead/native-two-shard-qualification-20261029'"
