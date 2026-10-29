@@ -25,21 +25,46 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = A.TEMP / "practice-original-audit"
 REGISTRATION = ROOT / "scripts/research_practice_original_registration.json"
 OWNED_WORK = None
-EXPECTED_PURE_CASES = 76
+EXPECTED_PURE_CASES = 80
+CONTRACT_COPIES = {
+    "contracts-guard.json": ("practice-original-contracts/guard.json", 64 * 1024),
+    "contracts-junit.xml": ("practice-original-contracts/junit.xml", 512 * 1024)}
+TERMINAL_BYTES, TERMINAL_FILES = 128 * 1024, 2
 CAPS = {name: "1" for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
     "BLIS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS",
     "RAYON_NUM_THREADS", "PYTHON_CPU_COUNT")}
 
 
-def write(path, value):
-    raw = json.dumps(value, indent=2, sort_keys=True, allow_nan=False).encode() + b"\n"
+def write_raw(path, raw, *, publication=False, terminal=False):
     A.require(len(raw) <= A.PUBLICATION_BYTES, "metadata_write_bound")
+    if publication or path.parent == WORK / "publication":
+        A.no_links(path.parent)
+        paths = list(path.parent.iterdir())
+        for entry in paths:
+            A.regular(entry)
+        names = {entry.name for entry in paths}
+        A.require(not path.exists() and not path.is_symlink(), "publication_overwrite")
+        A.require(not terminal or path.name in {"completion.json", "negative.json", "terminal-negative.json"},
+                  "terminal_name")
+        A.require(not terminal or len(raw) <= TERMINAL_BYTES // TERMINAL_FILES, "terminal_record_bound")
+        missing = {name: maximum for name, (_, maximum) in CONTRACT_COPIES.items()
+                   if name not in names and name != path.name}
+        reserve_bytes, reserve_files = (0, 0) if terminal else (TERMINAL_BYTES, TERMINAL_FILES)
+        A.require(sum(p.stat().st_size for p in paths) + len(raw) + sum(missing.values()) + reserve_bytes
+                  <= A.PUBLICATION_BYTES
+                  and len(paths) + 1 + len(missing) + reserve_files <= A.PUBLICATION_FILES,
+                  "cumulative_publication_bound")
     temporary = path.with_name("pending-" + path.name)
     with temporary.open("xb") as stream:
         stream.write(raw)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+
+
+def write(path, value, *, publication=False, terminal=False):
+    raw = json.dumps(value, indent=2, sort_keys=True, allow_nan=False).encode() + b"\n"
+    write_raw(path, raw, publication=publication, terminal=terminal)
 
 
 def error_facts(error):
@@ -247,25 +272,24 @@ def invalidate(output):
             os.replace(path, destination)
 
 
-def publish(output, report, guard, observation, external_contracts=None):
+def publish(output, report, guard, observation):
     try:
         guard()
-        write(output / "result.json", report)
+        write(output / "result.json", report, publication=True)
         guard()
         paths = list(output.iterdir())
         A.require(all(p.is_file() and not p.is_symlink() for p in paths), "unexpected_publication_entry")
         files = {p.name: A.file_pin(p, guard) for p in paths}
-        external_contracts = {} if external_contracts is None else external_contracts
-        combined = list(files.values()) + list(external_contracts.values())
+        combined = list(files.values())
         A.require(len(combined) < A.PUBLICATION_FILES and sum(r["bytes"] for r in combined) < A.PUBLICATION_BYTES - 4096,
                   "publication_total_bound")
         seal = dict(schema_version=1, kind="fresh-practice-original-byte-audit-completion",
-                    qualified=report["qualified"], files=files, external_contracts=external_contracts, audit_observation=observation())
+                    qualified=report["qualified"], files=files, audit_observation=observation())
         seal_bytes = len(json.dumps(seal, indent=2, sort_keys=True, allow_nan=False).encode()) + 1
         A.require(len(combined) + 1 <= A.PUBLICATION_FILES
                   and sum(r["bytes"] for r in combined) + seal_bytes <= A.PUBLICATION_BYTES,
                   "publication_seal_total_bound")
-        write(output / "completion.json", seal)
+        write(output / "completion.json", seal, publication=True, terminal=True)
         guard()  # Covers result serialization, hashes, final seal write AND rename.
     except BaseException:
         invalidate(output)
@@ -290,6 +314,17 @@ def preflight_contracts(base):
     return {name: A.pin(value) for name, value in raw.items()}
 
 
+def copy_contracts(base, output):
+    # Copy bounded original preflight bytes BEFORE interpreting PASS/FAIL, so a
+    # failed test can be retained without admitting a worker or opaque input.
+    result = {}
+    for name, (source, maximum) in CONTRACT_COPIES.items():
+        raw = A.bounded(base / source, maximum)
+        write_raw(output / name, raw, publication=True)
+        result[source] = A.pin(raw)
+    return result
+
+
 def audit(parent_imports=None):
     global OWNED_WORK
     registered = registration(os.environ)
@@ -309,7 +344,9 @@ def audit(parent_imports=None):
     OWNED_WORK = (created.st_dev, created.st_ino)
     (WORK / "publication").mkdir(mode=0o700)
     write(WORK / "publication/admission.json", admission)
+    copied_contracts = copy_contracts(A.TEMP, WORK / "publication")
     contracts = preflight_contracts(A.TEMP)
+    A.require(contracts == copied_contracts, "preflight_copy_changed")
     report, lease, child, known, cleanup_ok = {"qualified": False, "stage": "bootstrap"}, {}, None, {}, False
     try:
         with R.interruption_guard(), R.exclusive_subreaper():
@@ -354,6 +391,7 @@ def audit(parent_imports=None):
     report.update(producer=registered, cleanup_complete=cleanup_ok, original_control=A.ORIGINAL,
                   original_run=A.INPUTS["raw"]["run"], new_audit_clock=True,
                   new_worlds=0, native_imports=0, original_budgets_modified=False,
+                  preflight_origin_files=contracts,
                   audit_runtime=dict(python=sys.version, executable=sys.executable,
                       affinity=sorted(os.sched_getaffinity(0)), caps={k: os.environ.get(k) for k in CAPS},
                       pure_dependencies={"pytest": "9.1.1", "PyYAML": "6.0.3"}))
@@ -367,8 +405,7 @@ def audit(parent_imports=None):
         path = WORK / name
         if path.exists():
             raw = A.bounded(path, limit)
-            with (WORK / "publication" / name).open("xb") as stream:
-                stream.write(raw)
+            write_raw(WORK / "publication" / name, raw, publication=True)
     def observation():
         own, waited = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
         return dict(wall_measured_to_seal_seconds=time.monotonic() - ENTRY_MONOTONIC,
@@ -386,10 +423,12 @@ def audit(parent_imports=None):
                 A.require(C.source_snapshot(root, expected)["files_sha256"] == report["source_hashes"][role],
                           "source_changed_after_quiescence")
         A.require(preflight_contracts(A.TEMP) == contracts, "pure_preflight_changed")
-        publish(WORK / "publication", report, lambda: guard(final=True), observation, contracts)
+        A.require(all(A.file_pin(WORK / "publication" / name) == contracts[source]
+                      for name, (source, _) in CONTRACT_COPIES.items()), "preflight_copy_changed")
+        publish(WORK / "publication", report, lambda: guard(final=True), observation)
     except BaseException as error:
         invalidate(WORK / "publication")
-        write(WORK / "publication/negative.json", dict(qualified=False, **error_facts(error), report=report))
+        write(WORK / "publication/negative.json", dict(qualified=False, **error_facts(error), report=report), terminal=True)
         return 1
     return 0 if report["qualified"] else 1
 
@@ -420,7 +459,7 @@ def audit_with_timer():
             if output.is_dir() and not output.is_symlink():
                 invalidate(output)
                 write(output / "terminal-negative.json", dict(qualified=False, **error_facts(error),
-                      scope="Terminal failure; no positive original-byte qualification."))
+                      scope="Terminal failure; no positive original-byte qualification."), terminal=True)
         print(json.dumps(dict(qualified=False, **error_facts(error))), flush=True)
         return 1
 

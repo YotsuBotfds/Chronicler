@@ -160,15 +160,15 @@ One actual affinity CPU, fixed thread caps, hash seed0 and Python3.13.17 apply.
 The stdlib audit needs no scientific dependencies. Hosted pure prerequisites
 are fixed pytest9.1.1/PyYAML6.0.3; they never install the retained wheel.
 
-New metadata, including the external guard/JUnit files and the completion seal,
-is capped at8MiB/64 files. It excludes original ZIPs, wheels and derived raw
+New metadata, including bounded copies of the guard/JUnit files and the completion
+seal, is capped at8MiB/64 files. It excludes original ZIPs, wheels and derived raw
 copies. The completion seal links exact new payload bytes. Any budget, import,
 ownership, input, source or teardown failure preserves negative/incomplete
 records without a positive seal. No source-identical retry is authorized.
 
 ## Source qualification scope
 
-Seventy-six authored tiny guarded cases cover hostile ZIP/path/copy/map
+Eighty authored tiny guarded cases cover hostile ZIP/path/copy/map
 boundaries, typed annotations and original writer ordering, fake resource
 admissions, real urllib header preparation without a request, denied-response
 redaction, closed workflow copies, guard/JUnit coverage and publication/timer
@@ -179,3 +179,25 @@ passed before the final two teardown cases were added.
 
 None of those fixtures qualifies actual raw archive bytes, admission, a new
 scientific observation, efficacy, welfare, default promotion or performance.
+
+## Pre-activation publication-bound correction
+
+The first source freeze77c96a48 and its76-pass qualification remain preserved.
+Self-review found that its final positive check bounded publication, while
+intermediate/negative metadata and directly uploaded external guard/JUnit files
+could bypass that combined cap. No activation or transfer had occurred.
+
+This child checks the complete publication volume **before every write/copy**.
+It reserves64KiB/512KiB for not-yet-copied guard/JUnit records and128KiB/two
+slots for terminal records, all inside the unchanged8MiB/64-file limit. New
+targets cannot overwrite earlier metadata. Partial pending files count too;
+oversized preflight bytes remain outside publication with a negative refusal.
+Only the bounded publication directory is uploaded. Its sealed inventory now
+includes exact bounded guard/JUnit copies; original preflight files are retained.
+
+The audit step is always-run to retain a failed pure preflight, but copies and
+validates those fixed preflight records before any worker or opaque-input
+transfer. A failed preflight therefore produces metadata only, with no retry,
+new input route, new clock, physics or cap change. Four additional tiny fixtures
+cover cumulative writes, terminal room, oversize copy refusal and the failed
+preflight stopping before any worker/transport call.

@@ -21,7 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "docs/experiments/research-practice-original-audit-workflow.yml"
-WORKFLOW_BODY_SHA = "88f493371353f658487743669d95ee84740d768631cc7853fe08ca6112215422"
+WORKFLOW_BODY_SHA = "3d14ab309edacc3ed5c342f0e7a8551b7208b7791c54f735b4183558ad5c5209"
 
 
 @pytest.fixture
@@ -286,8 +286,8 @@ def test_publication_expiry_preserves_negative_and_no_positive_seal(modules, tmp
     original_write, original_pin, original_replace = E.write, A.file_pin, E.os.replace
     def guard():
         if state["expired"]: raise A.Refused("expired")
-    def write(path, value):
-        original_write(path, value)
+    def write(path, value, **kwargs):
+        original_write(path, value, **kwargs)
         if (fault == "result_write" and path.name == "result.json") or (fault == "completion_write" and path.name == "completion.json"):
             state["expired"] = True
     def file_pin(path, check):
@@ -384,10 +384,64 @@ def test_changed_or_skipped_preflight_is_not_full_coverage(modules, tmp_path):
 
 def test_publication_cap_includes_external_guard_and_junit(modules, tmp_path):
     A, E, _ = modules
+    contract_fixture(E, tmp_path)
+    output = tmp_path / "publication"; output.mkdir()
+    with (output / "near-cap.json").open("wb") as stream:
+        stream.truncate(A.PUBLICATION_BYTES - E.TERMINAL_BYTES)
     with pytest.raises(A.Refused):
-        E.publish(tmp_path, dict(qualified=True), lambda: None, lambda: {},
-                  {"contracts": dict(bytes=A.PUBLICATION_BYTES, sha256="0" * 64)})
-    assert not (tmp_path / "completion.json").exists()
+        E.copy_contracts(tmp_path, output)
+    assert not (output / "contracts-guard.json").exists()
+    assert not (output / "completion.json").exists()
+
+
+def test_cumulative_write_refuses_before_allocation_but_keeps_terminal_room(modules, tmp_path):
+    A, E, _ = modules
+    missing = sum(maximum for _, maximum in E.CONTRACT_COPIES.values())
+    with (tmp_path / "previous.json").open("wb") as stream:
+        stream.truncate(A.PUBLICATION_BYTES - E.TERMINAL_BYTES - missing - 2)
+    with pytest.raises(A.Refused, match="cumulative_publication_bound"):
+        E.write_raw(tmp_path / "next.json", b"xxx", publication=True)
+    assert not (tmp_path / "next.json").exists() and not (tmp_path / "pending-next.json").exists()
+    E.write(tmp_path / "terminal-negative.json", dict(qualified=False), publication=True, terminal=True)
+    assert sum(p.stat().st_size for p in tmp_path.iterdir()) <= A.PUBLICATION_BYTES
+
+
+def test_oversized_preflight_is_not_copied_or_uploaded(modules, tmp_path):
+    A, E, _ = modules
+    root, _ = contract_fixture(E, tmp_path)
+    with (root / "junit.xml").open("wb") as stream: stream.truncate(512 * 1024 + 1)
+    output = tmp_path / "publication"; output.mkdir()
+    with pytest.raises(A.Refused): E.copy_contracts(tmp_path, output)
+    assert (output / "contracts-guard.json").read_bytes() == (root / "guard.json").read_bytes()
+    assert not (output / "contracts-junit.xml").exists() and (root / "junit.xml").exists()
+
+
+def test_terminal_records_cannot_spend_more_than_reserved_space(modules, tmp_path):
+    A, E, _ = modules
+    with pytest.raises(A.Refused, match="terminal_record_bound"):
+        E.write_raw(tmp_path / "negative.json", b"x" * (E.TERMINAL_BYTES // E.TERMINAL_FILES + 1),
+                    publication=True, terminal=True)
+    assert not list(tmp_path.iterdir())
+
+
+def test_failed_preflight_keeps_bytes_and_never_reaches_worker_or_transport(modules, tmp_path, monkeypatch):
+    A, E, _ = modules
+    root, guard = contract_fixture(E, tmp_path)
+    guard["test_reports"].update(passed=E.EXPECTED_PURE_CASES - 1, failed=1)
+    (root / "guard.json").write_text(json.dumps(guard))
+    monkeypatch.setattr(E, "WORK", tmp_path / "audit")
+    monkeypatch.setattr(E, "OWNED_WORK", None)
+    monkeypatch.setattr(A, "TEMP", tmp_path)
+    monkeypatch.setattr(E, "registration", lambda env: dict(GITHUB_SHA="a" * 40))
+    monkeypatch.setattr(E, "selected_helpers", lambda *args: (None, NS(memory_admission=None), None, None, None, None))
+    monkeypatch.setattr(A, "resources", lambda *args, **kwargs: dict(fixture_admission=True))
+    def forbidden(*args, **kwargs): raise AssertionError("worker/transport must not start")
+    monkeypatch.setattr(E.subprocess, "Popen", forbidden); monkeypatch.setattr(A, "Transport", forbidden)
+    with pytest.raises(A.Refused, match="pure_preflight_guard"): E.audit()
+    output = tmp_path / "audit/publication"
+    assert (output / "contracts-guard.json").read_bytes() == (root / "guard.json").read_bytes()
+    assert (output / "contracts-junit.xml").read_bytes() == (root / "junit.xml").read_bytes()
+    assert not (tmp_path / "audit/raw.zip").exists()
 
 
 def test_registration_uses_closed_workflow_identity_and_actual_runtime_facts(modules, monkeypatch):

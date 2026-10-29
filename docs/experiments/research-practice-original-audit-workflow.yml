@@ -83,6 +83,7 @@ jobs:
             --junitxml="$RUNNER_TEMP/practice-original-contracts/junit.xml" \
             audit-control/tests/test_research_practice_original_audit.py
       - name: Audit only the fixed original bytes under a separate new clock
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -97,7 +98,5 @@ jobs:
           name: fresh-practice-original-audit-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/practice-original-audit/publication
-            ${{ runner.temp }}/practice-original-contracts/guard.json
-            ${{ runner.temp }}/practice-original-contracts/junit.xml
           if-no-files-found: error
           retention-days: 30
