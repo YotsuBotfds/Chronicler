@@ -1,5 +1,12 @@
 # Recovered development review, 2026-10-29
 
+Separate native candidate `535b3b6c` now has [qualified full CI](native-live-slot-ci-2026-10-29.md),
+including its fresh extension and both new Rust regressions. It remains outside
+this review runtime pending default-output and performance checks. The fixed
+wealth-floor full cohort is running separately; its outcomes are not yet qualified.
+The first CI-sharding run's diagnostic receipt failure is preserved, with a
+separate corrected-source qualification in progress. No main merge is included.
+
 The consolidated branch is `lead/review-integration-20261029`; main remains
 unchanged. Runtime, tests, scripts and workflows match qualified `cbf6e368`.
 The [runner integration readout](practice-observer-runner-ci-2026-10-29.md)

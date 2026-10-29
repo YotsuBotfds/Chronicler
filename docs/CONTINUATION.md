@@ -1,5 +1,27 @@
 # Recovered continuation — 2026-10-11
 
+The separate [shared live-slot candidate](integration/native-live-slot-ci-2026-10-29.md)
+`535b3b6c` now has independently qualified full CI: 1,120 Rust passes,
+8,351 native Python passes, 8,018 no-Rust passes and all original other gates.
+Its fresh native bytes match the retained wheel and pre-suite installed module.
+Both new Rust tests belong to the fully passing, unfiltered 579-test unit target;
+quiet output does not print individual test names. The fixed live test records
+0.049/0.051 seconds in the two full lanes, versus 5.013 seconds previously.
+These are individual test observations, not a whole-suite speed claim. Source535
+remains separate pending its own default-output and performance qualification;
+this review branch's code still matches qualified `cbf6e368`.
+
+The fixed wealth candidate cohort is running in
+[run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409)
+at `33d331a1`: 3,700 registered executions / 201,400 ticks across two world jobs.
+Staging and admission precede physics; completed outcomes and full-byte/scientific
+qualification remain pending. No running-job success or historical reuse is claimed.
+The separate CI-sharding prototype's first run preserved both passing test sets
+but failed receipt serialization for legitimate bytes/nonfinite diagnostic labels.
+The bounded display-only correction is being qualified in
+[run 40863008464](https://github.com/YotsuBotfds/Chronicler/actions/runs/40863008464);
+the standard CI workflow on this review branch is unchanged.
+
 The current consolidation is `lead/review-integration-20261029`. Its runtime,
 tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.
 All six jobs passed in run `40841527996`, and the saved original artifacts
@@ -21,9 +43,9 @@ now has complete publication and independent mechanical qualification:
 12 executions / 668 actual ticks, four captured checkpoint headers, eight
 source-derived fork links and all six original artifacts. Both scientific
 gates remain false, exit 2, needs FAIL, with incidental failures and partial
-reports preserved. The full cohort remains pending a separate fresh-origin
-admission change, registration and activation; the correction is not merged
-into this review runtime.
+reports preserved. The separate full cohort is now running after its own fresh-origin
+admission and registration; outcome qualification remains pending, and the
+correction is not merged into this review runtime.
 
 The [corrected native default-export audit](integration/native-default-output-artifact-audit-v2-result-2026-10-29.md)
 is independently qualified for the exact C76-to95 matrix: nine original
