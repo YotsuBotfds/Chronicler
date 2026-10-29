@@ -147,22 +147,15 @@ def native_region_counts(sim, regions):
     return {"region_ids": ids, "alive_counts": counts, "in_domain_alive_count": sum(counts)}
 
 
-def native_population_context(world):
-    bridge = world._agent_bridge
-    require(bridge is not None and bridge._sim is not None, "missing actual native bridge")
-    return native_region_counts(bridge._sim, len(world.regions))
-
-
 class Boundary:
     """Only the existing bind/live_record/turn_end protocol; no simulator proxy."""
 
     def __init__(self, profiled, *, clock_cpu=time.process_time, clock_wall=time.perf_counter,
-                 factory=cProfile.Profile, population_reader=native_population_context):
+                 factory=cProfile.Profile):
         require(type(profiled) is bool, "profile flag")
         self.profiled, self.cpu, self.wall = profiled, clock_cpu, clock_wall
         # Both roles construct the same two disabled stdlib profiler objects.
         self.profiles = [factory(timer=clock_cpu) for _ in WINDOWS]
-        self.population_reader = population_reader
         self.last, self.active, self.save, self.config = 0, None, None, None
         self.windows, self.context = [], []
         self.starts = {}
@@ -184,19 +177,18 @@ class Boundary:
                 if self.profiled:
                     self.profiles[index].disable()
                 start_cpu, start_wall = self.starts[index]
-                # BOTH roles close before the end-boundary context/getter work.
+                # BOTH roles close before the end-boundary Python context work.
                 self.windows.append({"start": start, "end": end,
                                      "cpu_seconds": self.cpu() - start_cpu,
                                      "wall_seconds": self.wall() - start_wall})
                 self.active = None
         self.last = turn
         if turn in (8, 16, 88, 96, 97):
-            # The exact same five reads run with cProfile disabled in BOTH roles.
-            # Native in-domain counts and aggregate population stay distinct.
+            # Only Python-owned context is read between physics turns. Even a
+            # native &self Arrow getter could create external RandomState keys.
             self.context.append({"turn": turn, "regions": len(world.regions),
                                  "civilizations": len(world.civilizations),
                                  "aggregate_region_population": sum(r.population for r in world.regions),
-                                 "actual_native": self.population_reader(world),
                                  "timeline_events": len(world.events_timeline),
                                  "named_events": len(world.named_events)})
         for index, (start, _) in enumerate(WINDOWS):

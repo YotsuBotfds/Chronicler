@@ -23,8 +23,8 @@ stdlib cProfile process-CPU windows are (8,16] and (88,96], eight turns each;
 only three profiled roles enable them (48 profiled ticks total). The final
 97th turn, final exports and diagnostic checkpoint work are outside both
 windows. The complete execute_run clock also includes setup and exports.
-Both roles close each end-window CPU/wall measurement before the population
-read/context work; only cProfile.disable differs.
+Both roles close each end-window CPU/wall measurement before the Python
+context work; only cProfile.disable differs.
 Profile self/cumulative CPU, boundary CPU/wall, complete-run clocks and proof
 clocks stay distinct; no residual is presented as an independently measured
 phase. Fixed callback/enable/disable overhead is part of the observation.
@@ -34,18 +34,26 @@ a separate bare-CLI/no-boundary baseline. Common observer cache conditioning
 and profiling bias remain limitations. No phase share, benchmark speedup or
 scaling law is claimed.
 
-Both roles make the same five population reads at turns 8,16,88,96,97, after
-profiling is disabled and before it is enabled. Exact090
-`AgentSimulator.get_region_populations(&self)` delegates to
-`AgentPool.region_populations(&self, num_regions)`, which only reads capacity,
-liveness and region IDs into fresh local counters/Arrow builders. It does not
-write a cache, simulator state or RNG. The bounded table records actual alive
-counts in registered regions, separately from aggregate region populations;
-out-of-domain agents are not included in that native getter's sum. Extinction
-is retained. There are 30 extra observer boundary reads plus six final restored-state
-reads, not extra physics ticks or a count of all native getter calls in a run.
-The existing simulation already uses this getter. The final getter additionally checks native
-checkpoint bytes before/after. Actual metadata remains unobserved.
+Boundary context at turns 8,16,88,96,97 reads only Python-owned fields:
+aggregate region population, current regions/civilizations and timeline/named
+event counts. It is not labelled actual native population. There are **zero
+extra observer native calls between physics turns**. The former 30 extra
+boundary population reads are removed in a preserved source successor.
+
+The getter's explicit pool/ChaCha/cache state is read-only, but its Arrow58
+Schema/Field constructors' possible thread-local RandomState-key effects are
+not closed by that local &self proof. No actual effect has been observed, and
+no claim of global Rust/TLS RNG identity is made. The conservative caller
+avoids that transitive uncertainty during physics instead of changing native
+code or widening an equivalence projection.
+
+Only after all 97 physics turns, exports and strict final checkpoint decode
+is one actual native region-population table read per role. Thus the complete
+matrix has six EXTRA post-physics observer reads (not a total of every getter
+call already used by the simulation). These record true final alive counts in
+registered regions; out-of-domain agents are not included. Extinction is
+retained. The getter's before/after native checkpoint bytes and caller
+Python/NumPy globals remain checked. Actual counts/metadata are unobserved.
 
 The future owner must share one actual import-complete Python/NumPy global
 RNG checkpoint with each paired fresh child, restoring it after identical tool,
@@ -159,3 +167,9 @@ RNG metadata/replay, marker rejection, reference/cycle/private/cache/native
 fingerprinting and unchanged comparator invocation. They do not qualify real
 cProfile timing, serialization of genuine worlds or observer equivalence.
 Independent source review and a separate root decision precede any hosted run.
+
+The aggregate-only successor preserves the prior86-case boundary/domain source
+points. Its new poison-native-method regression first fails against exactf826,
+then all86 metadata/fake cases pass with no native call between turns in either
+role. A costly Python population-property fixture verifies context timing
+exclusion without calling a native getter. These are source contracts only.

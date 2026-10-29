@@ -39,8 +39,7 @@ class Clock:
 
 
 def boundary(profiled):
-    result = P.Boundary(profiled, clock_cpu=Clock(), clock_wall=Clock(), factory=Profile,
-                        population_reader=lambda world: {"synthetic_alive": 3})
+    result = P.Boundary(profiled, clock_cpu=Clock(), clock_wall=Clock(), factory=Profile)
     result.bind(lambda path: path, {})
     return result
 
@@ -338,22 +337,26 @@ def test_result_keeps_every_field_and_literal_logical_path_json_safe():
         P.result_record(ResultMetadata("/same/absolute/run", 97, {}))
 
 
-def test_actual_getter_has_exact_fixed_calls_outside_both_profile_windows():
-    traces = []
+def test_no_native_observer_calls_between_physics_turns_in_either_role():
+    calls = []
+    def forbidden():
+        calls.append("unexpected native read")
+        pytest.fail("no observer native call between physics turns")
     for profiled in (False, True):
         b = boundary(profiled)
-        calls = []
-        def reader(world):
-            assert not any(p.enabled for p in b.profiles)
-            calls.append(world.turn)
-            return {"in_domain_alive_count": 7}
-        b.population_reader = reader
-        for turn in range(1, 98): b.turn_end(toy_world(turn))
-        result = b.finish()
-        traces.append(calls)
-        assert [r["actual_native"]["in_domain_alive_count"] for r in result["context"]] == [7] * 5
-        assert [r["aggregate_region_population"] for r in result["context"]] == [3] * 5
-    assert traces == [[8, 16, 88, 96, 97]] * 2
+        world = toy_world()
+        world.regions = [SimpleNamespace(population=3) for _ in range(12)]
+        world._agent_bridge = SimpleNamespace(_sim=SimpleNamespace(get_region_populations=forbidden))
+        # A leftover callable must not be consulted either.
+        b.population_reader = lambda value: forbidden()
+        for turn in range(1, 98):
+            world.turn = turn
+            b.turn_end(world)
+        summary = b.finish()
+        assert [row["turn"] for row in summary["context"]] == [8, 16, 88, 96, 97]
+        assert all(row["aggregate_region_population"] == 36 for row in summary["context"])
+        assert all("actual_native" not in row for row in summary["context"])
+    assert calls == []
 
 
 @pytest.mark.parametrize("fault", [None, "row_count", "columns", "order", "bool", "null", "negative"])
@@ -381,29 +384,30 @@ def test_native_region_count_reader_bounds_and_retains_extinction(fault):
     assert calls == ["read"]
 
 
-def test_window_clocks_exclude_costly_boundary_getters_in_both_roles():
+def test_window_clocks_exclude_costly_python_context_in_both_roles():
     class AdvancingClock:
         value = 0.
         def __call__(self): return self.value
     results = []
     for profiled in (False, True):
         cpu, wall = AdvancingClock(), AdvancingClock()
-        calls = []
-        b = P.Boundary(profiled, clock_cpu=cpu, clock_wall=wall, factory=Profile,
-                        population_reader=lambda world: None)
-        def expensive_reader(world):
-            assert not any(p.enabled for p in b.profiles)
-            calls.append(world.turn)
-            cpu.value += 100.
-            wall.value += 200.
-            return {"synthetic_count": 9}
-        b.population_reader = expensive_reader
+        b = P.Boundary(profiled, clock_cpu=cpu, clock_wall=wall, factory=Profile)
+        calls, world = [], toy_world()
+        class CostlyRegion:
+            @property
+            def population(self):
+                assert not any(p.enabled for p in b.profiles)
+                calls.append(world.turn)
+                cpu.value += 100.
+                wall.value += 200.
+                return 9
+        world.regions = [CostlyRegion()]
         b.bind(lambda path: path, {})
         for turn in range(1, 98):
-            # Exact eight 1-CPU/2-wall fake physics increments per window.
             cpu.value += 1.
             wall.value += 2.
-            b.turn_end(toy_world(turn))
+            world.turn = turn
+            b.turn_end(world)
         summary = b.finish()
         assert calls == [8, 16, 88, 96, 97]
         times = [(row["cpu_seconds"], row["wall_seconds"]) for row in summary["windows"]]
