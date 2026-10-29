@@ -65,6 +65,13 @@ and FFI rejection before mutation. These Rust regressions are written but unrun.
 The bounded Python tests use real state models and fake bridges/metadata only;
 they create no World, native runtime, checkpoint decode or live artifact access.
 Local guard results and exact source pins are retained externally after the run.
+The first local custom guard passed 38 Python parent tests and 97 successful
+subtests on Python 3.12.14. These counts do not claim a standard offline guard
+or hosted Python 3.13 result. The two new policy modules are registered together
+in the offline runner's `health-care-policy` chunk with its unchanged 110-second
+limit. A separate source-selection check exercises the runner's actual `--list`
+path without running any pytest chunk; native and hosted qualification remain
+unrun. The original local test result is retained without an unrelated rerun.
 The frozen design is `/tmp/chronicler-retained-kin-care-design-20261029/PLAN.md`,
 SHA-256 `a50dc1e033654f138760ad5b1c1d66da69e41fcf64f03f9cfb8202d2b00828b1`.
 

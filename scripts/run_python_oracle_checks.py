@@ -308,6 +308,10 @@ CHUNKS = {
     "decision-delivery-python": [
         "tests/test_decision_delivery_adapter.py",
     ],
+    "health-care-policy": [
+        "tests/test_health_care_policy.py",
+        "tests/test_health_care_experiment_policy.py",
+    ],
     "practice-growth-observer": [
         "tests/test_practice_growth_observer.py",
         "tests/test_practice_observer_runner.py",
