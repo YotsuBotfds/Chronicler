@@ -64,7 +64,7 @@ HELPERS = {
     "wealth_floor_native_build_controller.py": "60bb77212757f632d8d80ed226f94e6ef9864134c4453b5affeb51dc059b9dd1",
     "default_output_identity_qualification.py": "e4ca3f0c3732e4b5536a88a6284ab44b173e2165fafb59586be02fbd1d015932",
 }
-REVIEWED_ACTIVATION = None
+REVIEWED_ACTIVATION = "fe738734721a536a1beacd3d50d509c7a6cc1d7b2836e3fb2ff5b9096c7af052"
 ACTIVE_BRANCH = "lead/cloud-retained-kin-care-native-api-proof-20261029"
 ACTIVE_PATH = ".github/workflows/retained-kin-care-native-api-proof.yml"
 TEMPLATE = "docs/workflows/retained-kin-care-native-api-proof.yml"
