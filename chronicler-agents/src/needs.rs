@@ -604,20 +604,20 @@ pub fn update_needs(
 /// Tick-only entry point that retains the lookup just built while counting
 /// bonds, if it is dense. Identity/liveness must stay unchanged until its last
 /// use; co-residence and sentiments are always read from the current pool.
+/// `alive_slots` is the tick's ascending live set after catastrophe deaths;
+/// no birth, death or slot reuse may intervene before this phase.
 pub(crate) fn update_needs_with_reusable_id_slots(
     pool: &mut AgentPool,
     regions: &[RegionState],
     signals: &TickSignals,
     wealth_percentiles: &[f32],
+    alive_slots: &[usize],
 ) -> Option<IdSlots> {
-    let alive_slots: Vec<usize> = (0..pool.capacity())
-        .filter(|&slot| pool.is_alive(slot))
-        .collect();
-    decay_needs(pool, &alive_slots);
+    decay_needs(pool, alive_slots);
     let (co_resident, reusable) =
-        co_resident_counts_with_reusable_id_slots(pool, &alive_slots, true);
-    restore_needs_with_bonds(pool, &alive_slots, regions, signals, wealth_percentiles, &co_resident);
-    clamp_needs(pool, &alive_slots);
+        co_resident_counts_with_reusable_id_slots(pool, alive_slots, true);
+    restore_needs_with_bonds(pool, alive_slots, regions, signals, wealth_percentiles, &co_resident);
+    clamp_needs(pool, alive_slots);
     reusable
 }
 
