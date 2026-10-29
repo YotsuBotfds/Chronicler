@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+A separate [dormant baseline byte-audit job](experiments/wealth-floor-baseline-audit-job-2026-10-29.md)
+now streams five exact official artifacts, stages bounded sealed comparison/
+light inputs and calls the existing immutable-plan/two-archive auditor. Shared
+cgroup hierarchy observation replaces the original root-only probe at every
+budget floor check. Transport, audit and overall hard wall scopes remain
+separate; receipts stay pending until completed producer/publication proof.
+The template is outside active workflows. Synthetic contracts passed locally;
+no real historical plan, download, audit, build, world or workflow ran. Source
+review and separate activation remain required; main and all old roles/policy
+are unchanged.
+
 Inactive [dual-origin baseline admission](experiments/wealth-floor-baseline-admission-interface-2026-10-29.md)
 now has detached stdlib source and synthetic contracts: exact original reader
 seal, bounded EOCD/ZIP64 before ZipFile, complete streamed member hashing,

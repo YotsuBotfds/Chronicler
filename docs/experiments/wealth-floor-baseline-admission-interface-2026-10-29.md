@@ -53,12 +53,14 @@ Pure fixture ZIPs use tiny byte strings and fake clocks. They cover complete
 archives and wrong role/native/run/expiry, incomplete/unsafe/aliased members,
 storage/index/stream bounds, mutation, late finalization and unknown build pins.
 
-The resource probe currently combines host `MemAvailable` with memory metadata
-at the mounted cgroup root. It does not resolve tighter descendants or hidden
-ancestor limits. Before any audit job is activated, deployment must establish
-that this is the process's effective memory boundary, or supply a reviewed
-hierarchy-aware probe. The current pure checks do not qualify effective RAM
-admission on a GitHub runner. No active job is supplied by this implementation.
+The original root-only resource probe is superseded on the separate
+[dormant executable job branch](wealth-floor-baseline-audit-job-2026-10-29.md)
+by the byte-identical shared hierarchy helper. Every existing audit budget
+floor check now uses its minimum over host availability and visible cgroup-v2
+ancestor limits. Hidden namespace ancestors remain explicitly unobservable.
+Admission stays 12 GiB disk/2 GiB RAM and running floors stay 3 GiB/1 GiB.
+Pure fixtures do not qualify actual GitHub-runner resource observations; the
+workflow template remains outside `.github/workflows` and inactive.
 
 Independent root review additionally found that absent producer IDs could
 compare equal as `None == None`. Audit creation and completion admission now

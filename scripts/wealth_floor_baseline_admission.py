@@ -112,25 +112,20 @@ class Budget:
 
 
 def _resources(path, *, admission=False):
-    """Host/root-mount probe; deployment must establish effective cgroup scope.
-
-    This inactive reader does not resolve tighter cgroup descendants or hidden
-    ancestors. Its 2/1 GiB checks require the interface's deployment precondition.
-    """
+    """Use the shared, bounded visible-cgroup hierarchy observation."""
+    try:
+        from wealth_floor_build_resources import memory_admission, ResourceRefused
+    except ImportError:
+        from scripts.wealth_floor_build_resources import memory_admission, ResourceRefused
     disk = shutil.disk_usage(path).free
     require(disk >= (12 if admission else 3) * 1024**3, "disk admission/floor unmet")
-    with open("/proc/meminfo", encoding="ascii") as stream:
-        rows = stream.read(65537)
-    require(len(rows) <= 65536, "memory metadata exceeds bound")
-    memory = next((int(line.split()[1]) * 1024 for line in rows.splitlines() if line.startswith("MemAvailable:")), 0)
-    cap, current = Path("/sys/fs/cgroup/memory.max"), Path("/sys/fs/cgroup/memory.current")
-    if cap.exists() and current.exists():
-        with cap.open("rb") as f: limit = f.read(129)
-        with current.open("rb") as f: used = f.read(129)
-        require(len(limit) <= 128 and len(used) <= 128, "cgroup metadata exceeds bound")
-        if limit.strip() != b"max": memory = min(memory, max(0, int(limit) - int(used)))
+    try:
+        observation = memory_admission()
+    except ResourceRefused as exc:
+        raise AdmissionError("effective memory observation refused") from exc
+    memory = observation["available_bytes"]
     require(memory >= (2 if admission else 1) * 1024**3, "RAM admission/floor unmet")
-    return dict(disk_free_bytes=disk, ram_available_bytes=memory)
+    return dict(disk_free_bytes=disk, ram_available_bytes=memory, memory_observation=observation)
 
 
 def canonical_name(name, *, directory=False):
