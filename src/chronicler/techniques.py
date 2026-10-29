@@ -344,7 +344,7 @@ def _civ_practice(pm: dict, suit, regions, members: list[int], k: int) -> float:
 # ---------------------------------------------------------------------------
 
 def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
-                     learning=None, claims_effort=None) -> tuple[dict, dict]:
+                     learning=None, claims_effort=None, *, _practice_trace=None) -> tuple[dict, dict]:
     """One turn of growth, diffusion and decay. Returns (practice, meta).
 
     ``learning`` (``--scholarship``): per region index, the adoption hazard
@@ -425,14 +425,19 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
                 weight = food_crisis_weight(region)
                 disruption = FAMINE_GROWTH if weight >= 1.0 else 1.0 - (1.0 - FAMINE_GROWTH) * weight
             growth = 0.0
+            ordinary_growth = 0.0
+            allowance_used = paid_growth_rhs = None
             inflow = 0.0
             if prereq_ok:
                 growth = ADOPT_RATE * p * (1.0 - p / cap) * (1.0 - shortfall) * disruption
+                ordinary_growth = growth
                 if claims_effort is not None and 0.0 < p < cap:
                     # Paid academy effort changes adoption within this same
                     # physical kernel; no belief appears in any yield formula.
-                    growth += (claims_effort.get((t, k), 0.0) * p * (1.0 - p / cap)
-                               * (1.0 - shortfall) * disruption)
+                    allowance_used = claims_effort.get((t, k), 0.0)
+                    paid_growth_rhs = (allowance_used * p * (1.0 - p / cap)
+                                       * (1.0 - shortfall) * disruption)
+                    growth += paid_growth_rhs
                 if p < cap and hazard > 0.0:
                     inflow = (cap - p) * -math.expm1(-DIFFUSION_SCALE * rate * hazard)
             forget = (BASE_FORGET + SHORTFALL_FORGET * shortfall) * p
@@ -445,7 +450,23 @@ def _update_practice(world, st: TechniqueState, ctrl: list[int], links, suit,
                 f = learning[1].get(t)
                 if f is not None:
                     forget *= f
-            value = _q(min(1.0, max(0.0, p + growth - forget + inflow)))
+            pre_clip = p + growth - forget + inflow
+            clipped = min(1.0, max(0.0, pre_clip))
+            value = _q(clipped)
+            if _practice_trace is not None:
+                try:
+                    if _practice_trace.selected(t, k):
+                        _practice_trace.kernel(t, k, before=p, cap=cap, prerequisites_met=prereq_ok,
+                            population=pops[t], shortfall=shortfall, disruption=disruption,
+                            effort_supplied=claims_effort is not None, allowance_used=allowance_used,
+                            ordinary_growth=ordinary_growth, paid_growth_rhs=paid_growth_rhs,
+                            total_growth=growth, forgetting=forget, inflow=inflow, pre_clip=pre_clip,
+                            clipped=clipped, rounded=value, kept=value >= DROP_LEVEL)
+                except Exception:
+                    try:
+                        _practice_trace.refuse()
+                    except Exception:
+                        pass
             if value < DROP_LEVEL:
                 continue
             new[(t, k)] = value
@@ -908,7 +929,7 @@ def _initialize(world, st: TechniqueState, ctrl: list[int], suit) -> None:
 # The tick (Phase 4)
 # ---------------------------------------------------------------------------
 
-def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
+def tick_techniques(world: "WorldState", acc=None, *, _practice_trace=None) -> list["Event"]:
     """Phase 4 with techniques on: practice, inventions, gains/losses, eras."""
     st = world.techniques
     if not isinstance(st, TechniqueState):
@@ -931,7 +952,11 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
     if getattr(world, "scientific_claims", None) is not None:
         from chronicler.scientific_claims import prepare_adoption_effort
         claims_effort = prepare_adoption_effort(world, acc, events=events)
-    practice, meta = _update_practice(world, st, ctrl, links, suit, learning, claims_effort)
+    if _practice_trace is None:
+        practice, meta = _update_practice(world, st, ctrl, links, suit, learning, claims_effort)
+    else:
+        practice, meta = _update_practice(world, st, ctrl, links, suit, learning, claims_effort,
+                                        _practice_trace=_practice_trace)
     if learning is not None:
         # Scholars fleeing a fallen seat (last Phase 10) carry techniques to
         # their refuge; the region where it fell loses part of its practice.
@@ -973,6 +998,14 @@ def tick_techniques(world: "WorldState", acc=None) -> list["Event"]:
         levels.append(raw)
     _derive_eras(world, st, ctrl, known_now, levels, practice, suit, acc, events)
     st.rows = [(r, k, practice[(r, k)], *meta[(r, k)]) for (r, k) in sorted(practice)]
+    if _practice_trace is not None:
+        try:
+            _practice_trace.commit(world, practice, claims_effort)
+        except Exception:
+            try:
+                _practice_trace.refuse()
+            except Exception:
+                pass
     st.known = [sorted(s) for s in known_now]
     st.controllers = list(ctrl)
     st.civ_levels = [

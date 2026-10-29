@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+An isolated [practice-growth observer](integration/practice-growth-observer-2026-10-29.md)
+starts from `45e1b939`, preserving qualified `95f73a74` and frozen C76. Explicit
+caller-owned phase/turn methods expose bounded actual paid RHS, clip/round/drop
+stages and separately committed values. Unobserved, blocked and computed-zero
+paths remain distinct; no World/checkpoint field, default import, I/O or native
+change is added. Sixty-two guarded surrogate-kernel cases pass. No ordinary
+world, native build, study activation or causal/performance result is claimed.
+
 The separate [closed-handle follow-up](integration/decision-delivery-closed-handle-lifetime-2026-10-29.md)
 releases an observer's simulator reference after successful cleanup, while
 retaining failed-disable retry ownership. Two regressions fail on qualified

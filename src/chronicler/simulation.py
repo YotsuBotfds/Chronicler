@@ -1890,6 +1890,7 @@ def run_turn_result(
     politics_runtime: object | None = None,
     force_settlement_detection: bool = False,
     pending_injections: list | None = None,
+    *, _practice_trace=None,
 ) -> TurnResult:
     """Execute a turn and hand historical Phase 10 rows to the synchronous runner.
 
@@ -2124,7 +2125,10 @@ def run_turn_result(
     # along the contact ledger, inventions and the era derived from them.
     if _techniques_on(world):
         from chronicler.techniques import tick_techniques
-        _emit(tick_techniques(world, acc=acc))
+        if _practice_trace is None:
+            _emit(tick_techniques(world, acc=acc))
+        else:
+            _emit(tick_techniques(world, acc=acc, _practice_trace=_practice_trace))
     else:
         _emit(phase_technology(world, acc=acc))
 
