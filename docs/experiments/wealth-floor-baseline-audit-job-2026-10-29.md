@@ -1,5 +1,11 @@
 # Dormant retained-baseline byte-audit job
 
+This original registration records prepared source `0cd03109`. Its first
+activation `9aae9ab1` later refused deployment before archive/resource work.
+The separate [inactive second source](wealth-floor-baseline-audit-attempt-2-2026-10-29.md)
+registers the reviewed D2 scope and a new activation branch; the old source and
+failed result retain their original standing.
+
 This executable control is **inactive**. Its workflow template lives outside
 `.github/workflows`; no job was activated, no historical plan was prepared and
 no original raw ZIP was downloaded or audited locally. Root must review the
@@ -108,7 +114,7 @@ available RAM; running floors remain 3 GiB/1 GiB. No actual resource observation
 was made for this qualification, and the constrained local workspace cannot
 admit a production audit.
 
-Before resource observation or transfer, the byte-identical shared
+At original source `0cd03109`, before resource observation or transfer, the shared
 `wealth_floor_hosted_deployment.py` helper (SHA-256
 `ef872aced881b89d7bde8efbc0687134ae731916a9c2a233c368c1c22b11e085`)
 requires `GITHUB_ACTIONS=true`, `RUNNER_ENVIRONMENT=github-hosted`, PID1

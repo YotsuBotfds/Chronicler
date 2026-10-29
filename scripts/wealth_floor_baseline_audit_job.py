@@ -34,13 +34,13 @@ API = "https://api.github.com/repos/YotsuBotfds/Chronicler"
 REPOSITORY_ID = 1187468861
 JOB_NAME = "Retained baseline byte audit"
 WORKFLOW_PATH = ".github/workflows/wealth-floor-baseline-audit.yml"
-PRODUCER_BRANCH = "lead/wealth-floor-baseline-audit-activation-20261029"
+PRODUCER_BRANCH = "lead/wealth-floor-baseline-audit-activation-2-20261029"
 USER_AGENT = "Chronicler-closed-baseline-byte-audit"
 MAX_API = 1024 * 1024
 MAX_AUTHORITY = 128 * A.BLOCK_BYTES
 MAX_PUBLICATION = 192 * A.BLOCK_BYTES
 RESOURCE_SOURCE = "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
-DEPLOYMENT_SOURCE = "ef872aced881b89d7bde8efbc0687134ae731916a9c2a233c368c1c22b11e085"
+DEPLOYMENT_SOURCE = "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
 
 
 class JobRefused(A.AdmissionError):
@@ -95,8 +95,12 @@ class Progress:
         self.response_bytes = count
     def refusal(self, exc):
         reason = "unexpected_exception"
+        deployment_code = None
         if isinstance(exc, JobRefused): reason = exc.reason if exc.reason in self.REASONS else "contract_refused"
-        elif isinstance(exc, D.DeploymentRefused): reason = "deployment_refused"
+        elif isinstance(exc, D.DeploymentRefused):
+            reason = "deployment_refused"
+            code = getattr(exc, "code", None)
+            if type(code) is str and code in getattr(D, "REFUSAL_CODES", frozenset()): deployment_code = code
         elif isinstance(exc, A.AdmissionError):
             reason = {"transport CPU/wall budget exceeded": "budget_exceeded",
                 "overall controller wall budget exceeded": "budget_exceeded", "audit CPU/wall budget exceeded": "budget_exceeded",
@@ -106,7 +110,8 @@ class Progress:
         elif isinstance(exc, OSError): reason = "filesystem_refused"
         return dict(kind="wealth-floor-baseline-audit-refusal", schema_version=1, status="refused", stage=self.stage,
             artifact_id=INPUTS[self.key].artifact_id if self.key is not None else None, reason=reason,
-            http_status=self.http_status, response_bytes_received=self.response_bytes, candidate_worlds_enabled=False)
+            deployment_predicate_code=deployment_code, http_status=self.http_status,
+            response_bytes_received=self.response_bytes, candidate_worlds_enabled=False)
 
 
 class OverallClock:
@@ -587,7 +592,10 @@ def _audit_staged(publication, authority, archives, producer, before, control_sh
         resources={**resource_observations, "audit_last": budget.resources},
         deployment=dict(observation=deployment, accepted_proc_text_max_bytes=128, proc_text_read_max_bytes=129,
           accepted_namespace_text_max_bytes=128,
-          required_github_actions="true", required_runner_environment="github-hosted", required_pid1="systemd", require_matching_cgroup_namespaces=True),
+          required_github_actions="true", required_runner_environment="github-hosted", required_pid1="systemd",
+          readable_pid1_namespace_must_match=True,
+          unverified_pid1_namespace_policy="Only initial and repeated EACCES13 under stable hosted flags, PID1 systemd and own namespace; equality remains UNVERIFIED.",
+          namespace_equality_scope="Use the shared helper's explicit observed equality and verification status; no hidden-provider proof."),
         resource_limits=dict(admission_disk_free_bytes=12*1024**3, admission_ram_available_bytes=2*1024**3,
                              running_disk_floor_bytes=3*1024**3, running_ram_floor_bytes=1024**3),
         interpreter=dict(version=sys.version, implementation=sys.implementation.name, platform=sys.platform),

@@ -15,6 +15,8 @@ import zipfile
 import pytest
 from scripts import wealth_floor_baseline_audit_job as J
 
+_REAL_HOSTED_PRECONDITION = J.D.hosted_vm_precondition
+
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="dormant audit requires safe POSIX IO")
 
 
@@ -545,7 +547,7 @@ def test_final_observation_follows_last_heavy_verification(synthetic_job,monkeyp
 
 def test_unsupported_deployment_refuses_before_resources_source_or_transport(synthetic_job,monkeypatch):
     root,resources,requests=synthetic_job
-    def unsupported():raise J.D.DeploymentRefused("fixture namespace mismatch")
+    def unsupported():raise J.D.DeploymentRefused("namespace_mismatch")
     def forbidden(*a,**k):pytest.fail("unsupported deployment reached resource/source/network IO")
     monkeypatch.setattr(J.D,"hosted_vm_precondition",unsupported)
     monkeypatch.setattr(J.A,"_resources",forbidden);monkeypatch.setattr(J,"source_pins",forbidden)
@@ -554,3 +556,31 @@ def test_unsupported_deployment_refuses_before_resources_source_or_transport(syn
         J.run_job(root,token="fake-only",control_sha="1"*40,run_id=7,attempt=1)
     assert J.Progress().refusal(error.value)["reason"]=="deployment_refused"
     assert requests==[] and not root.exists()
+
+
+def test_deployment_refusal_retains_only_registered_predicate_code():
+    result=J.Progress().refusal(J.D.DeploymentRefused("pid1_namespace_unavailable"))
+    assert result["reason"]=="deployment_refused"
+    assert result["deployment_predicate_code"]=="pid1_namespace_unavailable"
+    assert len(J.A.json_bytes(result))<=1024
+
+
+def test_unverified_pid1_namespace_is_not_promoted_by_controller(synthetic_job,monkeypatch):
+    root,resources,requests=synthetic_job
+    def denied(path):
+        if path=="/proc/1/ns/cgroup":raise PermissionError(13,"private message must not be retained")
+        return "cgroup:[1]"
+    # Real shared D2 policy over injected metadata; no actual host probe.
+    observation=_REAL_HOSTED_PRECONDITION(environ={"GITHUB_ACTIONS":"true","RUNNER_ENVIRONMENT":"github-hosted"},
+        read_text=lambda path:"systemd\n",read_link=denied)
+    monkeypatch.setattr(J.D,"hosted_vm_precondition",lambda:observation)
+    J.run_job(root,token="fake-only",control_sha="1"*40,run_id=7,attempt=1)
+    result=json.loads((root/"publication/controller.json").read_text())["deployment"]
+    assert result["observation"]["namespace_equal"] is None
+    assert result["observation"]["namespace_equality_verified"] is False
+    assert result["observation"]["namespace_equality_status"]=="unverified_permission_denied"
+    assert result["observation"]["observations"]["pid1_cgroup_namespace_errno"]==[13,13]
+    assert "require_matching_cgroup_namespaces" not in result
+    assert result["readable_pid1_namespace_must_match"] is True
+    assert "UNVERIFIED" in result["unverified_pid1_namespace_policy"]
+    assert "private message" not in json.dumps(result)

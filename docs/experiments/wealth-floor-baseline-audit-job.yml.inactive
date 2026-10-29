@@ -4,7 +4,7 @@ name: Retained wealth-floor baseline byte audit
 
 on:
   push:
-    branches: [lead/wealth-floor-baseline-audit-activation-20261029]
+    branches: [lead/wealth-floor-baseline-audit-activation-2-20261029]
     paths: [.github/workflows/wealth-floor-baseline-audit.yml]
 
 permissions:

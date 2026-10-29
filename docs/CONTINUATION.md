@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+An [inactive second baseline-audit source](experiments/wealth-floor-baseline-audit-attempt-2-2026-10-29.md)
+registers shared D2's narrow repeated PID1-namespace EACCES13 observation under
+stable hosted context. Denied equality stays explicitly unverified; readable
+namespaces must match and all other errors/changes refuse. Historical artifact
+pins, science policy, R44 resource logic and thresholds/budgets are unchanged.
+The new activation-2 branch is separate from frozen failed9aae and diagnosticcc2.
+All 234 guarded pure checks pass; no new activation, local probe or raw audit ran.
+
 A separate [dormant baseline byte-audit job](experiments/wealth-floor-baseline-audit-job-2026-10-29.md)
 now streams five exact official artifacts, stages bounded sealed comparison/
 light inputs and calls the existing immutable-plan/two-archive auditor. Shared
