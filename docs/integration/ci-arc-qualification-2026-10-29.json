@@ -1,0 +1,1197 @@
+{
+  "schema_version": 1,
+  "kind": "chronicler-source-scoped-ci-and-arc-qualification",
+  "repository": "YotsuBotfds/Chronicler",
+  "recorded_at_utc": "2026-10-29 01:09:01 UTC",
+  "documentation_base_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+  "evidence_basis": {
+    "job_conclusions_and_timestamps": "GitHub Actions REST run/jobs metadata",
+    "counts": "completed job-log summaries; parent tests, successful subtests, skips and ignored tests kept separate",
+    "artifact_metadata": "official GitHub run artifacts API",
+    "archive_digest_scope": "GitHub-reported ZIP digests; CI/arc ZIPs were not downloaded or independently rehashed for this pack",
+    "timing_scope": "single-run wall timestamps and reported test clocks; no CPU or speed comparison",
+    "aggregation": "no cross-source or cross-lane unique-test total"
+  },
+  "ci_runs": [
+    {
+      "key": "recovered_49b",
+      "label": "Recovered integration 49b",
+      "source_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+      "workflow_control_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+      "branch": "lead/recovered-integration-20261029",
+      "scope": "Recovered finite research, reviewed cloud fixes, arc projection and viewer repairs.",
+      "run_id": 40792298299,
+      "run_attempt": 1,
+      "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40792298299",
+      "workflow_path": ".github/workflows/tests.yml",
+      "conclusion": "success",
+      "created_at": "2026-10-29T00:10:29Z",
+      "run_started_at": "2026-10-29T00:10:29Z",
+      "last_job_completed_at": "2026-10-29T00:25:39Z",
+      "created_to_last_job_complete_seconds": 910,
+      "created_to_first_job_start_seconds": 3,
+      "counts": {
+        "native_python": {
+          "parent_passed": 8006,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 666.92
+        },
+        "no_rust_python": {
+          "parent_passed": 7692,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 406.12
+        },
+        "bounded_offline": {
+          "chunks": 31,
+          "passed": 3898,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 222.5,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 37.4,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "full": {
+            "summary_groups": 37,
+            "passed": 1088,
+            "failed": 0,
+            "ignored": 2
+          }
+        },
+        "viewer": {
+          "passed": 743,
+          "files": 69,
+          "lint_passed": true,
+          "production_build_passed": true
+        },
+        "combined_native_requirement": "success"
+      },
+      "jobs": [
+        {
+          "id": 123180201613,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:10:32Z",
+          "completed_at": "2026-10-29T00:25:33Z",
+          "job_elapsed_seconds": 901,
+          "steps": [
+            {
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:10:56Z",
+              "completed_at": "2026-10-29T00:14:13Z",
+              "elapsed_seconds": 197
+            },
+            {
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:14:13Z",
+              "completed_at": "2026-10-29T00:25:24Z",
+              "elapsed_seconds": 671
+            }
+          ]
+        },
+        {
+          "id": 123180201835,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:10:32Z",
+          "completed_at": "2026-10-29T00:17:35Z",
+          "job_elapsed_seconds": 423,
+          "steps": [
+            {
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:10:40Z",
+              "completed_at": "2026-10-29T00:17:30Z",
+              "elapsed_seconds": 410
+            }
+          ]
+        },
+        {
+          "id": 123180201865,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:10:32Z",
+          "completed_at": "2026-10-29T00:14:31Z",
+          "job_elapsed_seconds": 239,
+          "steps": [
+            {
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:10:42Z",
+              "completed_at": "2026-10-29T00:14:24Z",
+              "elapsed_seconds": 222
+            }
+          ]
+        },
+        {
+          "id": 123180201872,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:10:32Z",
+          "completed_at": "2026-10-29T00:11:42Z",
+          "job_elapsed_seconds": 70,
+          "steps": [
+            {
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:10:41Z",
+              "completed_at": "2026-10-29T00:11:21Z",
+              "elapsed_seconds": 40
+            },
+            {
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:11:21Z",
+              "completed_at": "2026-10-29T00:11:29Z",
+              "elapsed_seconds": 8
+            },
+            {
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:11:29Z",
+              "completed_at": "2026-10-29T00:11:38Z",
+              "elapsed_seconds": 9
+            }
+          ]
+        },
+        {
+          "id": 123180201921,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:10:32Z",
+          "completed_at": "2026-10-29T00:11:17Z",
+          "job_elapsed_seconds": 45,
+          "steps": [
+            {
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:10:36Z",
+              "completed_at": "2026-10-29T00:11:12Z",
+              "elapsed_seconds": 36
+            }
+          ]
+        },
+        {
+          "id": 123185766200,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:25:35Z",
+          "completed_at": "2026-10-29T00:25:39Z",
+          "job_elapsed_seconds": 4,
+          "steps": [
+            {
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:25:36Z",
+              "completed_at": "2026-10-29T00:25:36Z",
+              "elapsed_seconds": 0
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12862592362,
+          "name": "python-native-49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "size_in_bytes": 137879,
+          "github_reported_zip_digest": "sha256:ef2ffa9f5183a85c03972129cae74aea4da4d6c08c8bbf2436e32efc010400a9",
+          "expired": false,
+          "created_at": "2026-10-29T00:25:25Z",
+          "updated_at": "2026-10-29T00:25:25Z",
+          "expires_at": "2026-11-12T00:25:25Z",
+          "workflow_run_id": 40792298299,
+          "workflow_head_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40792298299/artifacts/12862592362"
+        },
+        {
+          "id": 12862517051,
+          "name": "python-no-rust-49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "size_in_bytes": 139521,
+          "github_reported_zip_digest": "sha256:1540bb82e127a53d671f0e5f80e418e8354ca75e4c4e6f239daacb307e95aa55",
+          "expired": false,
+          "created_at": "2026-10-29T00:17:31Z",
+          "updated_at": "2026-10-29T00:17:31Z",
+          "expires_at": "2026-11-12T00:17:30Z",
+          "workflow_run_id": 40792298299,
+          "workflow_head_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40792298299/artifacts/12862517051"
+        },
+        {
+          "id": 12861673725,
+          "name": "python-offline-49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "size_in_bytes": 40812,
+          "github_reported_zip_digest": "sha256:c84413bb54df618dcf79abd7981d25813d389d7bdc08ea69407fe93fcd454e43",
+          "expired": false,
+          "created_at": "2026-10-29T00:14:25Z",
+          "updated_at": "2026-10-29T00:14:25Z",
+          "expires_at": "2026-11-12T00:14:25Z",
+          "workflow_run_id": 40792298299,
+          "workflow_head_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40792298299/artifacts/12861673725"
+        },
+        {
+          "id": 12861349842,
+          "name": "rust-49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "size_in_bytes": 516,
+          "github_reported_zip_digest": "sha256:c16a29a77b758227588200953388c13b4378f38a6e9cd277055de81a6dc50d50",
+          "expired": false,
+          "created_at": "2026-10-29T00:11:13Z",
+          "updated_at": "2026-10-29T00:11:13Z",
+          "expires_at": "2026-11-12T00:11:12Z",
+          "workflow_run_id": 40792298299,
+          "workflow_head_sha": "49b2a35b0a1f4aae4d965d517df604880ea7546b",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40792298299/artifacts/12861349842"
+        }
+      ]
+    },
+    {
+      "key": "recovered_c76",
+      "label": "Recovered integration c76",
+      "source_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+      "workflow_control_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+      "branch": "lead/recovered-integration-20261029",
+      "scope": "49b plus strict composition-proof observer/tests and deterministic opt-in relationship-statistics key ordering.",
+      "run_id": 40793639813,
+      "run_attempt": 1,
+      "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793639813",
+      "workflow_path": ".github/workflows/tests.yml",
+      "conclusion": "success",
+      "created_at": "2026-10-29T00:22:33Z",
+      "run_started_at": "2026-10-29T00:22:33Z",
+      "last_job_completed_at": "2026-10-29T00:37:23Z",
+      "created_to_last_job_complete_seconds": 890,
+      "created_to_first_job_start_seconds": 3,
+      "counts": {
+        "native_python": {
+          "parent_passed": 8023,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 687.12
+        },
+        "no_rust_python": {
+          "parent_passed": 7709,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 333.53
+        },
+        "bounded_offline": {
+          "chunks": 31,
+          "passed": 3898,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 212.4,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 35.9,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "full": {
+            "summary_groups": 37,
+            "passed": 1088,
+            "failed": 0,
+            "ignored": 2
+          }
+        },
+        "viewer": {
+          "passed": 743,
+          "files": 69,
+          "lint_passed": true,
+          "production_build_passed": true
+        },
+        "combined_native_requirement": "success"
+      },
+      "jobs": [
+        {
+          "id": 123184664379,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:22:36Z",
+          "completed_at": "2026-10-29T00:23:33Z",
+          "job_elapsed_seconds": 57,
+          "steps": [
+            {
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:22:42Z",
+              "completed_at": "2026-10-29T00:23:30Z",
+              "elapsed_seconds": 48
+            }
+          ]
+        },
+        {
+          "id": 123184664707,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:22:36Z",
+          "completed_at": "2026-10-29T00:28:27Z",
+          "job_elapsed_seconds": 351,
+          "steps": [
+            {
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:22:45Z",
+              "completed_at": "2026-10-29T00:28:23Z",
+              "elapsed_seconds": 338
+            }
+          ]
+        },
+        {
+          "id": 123184664734,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:22:36Z",
+          "completed_at": "2026-10-29T00:23:43Z",
+          "job_elapsed_seconds": 67,
+          "steps": [
+            {
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:22:44Z",
+              "completed_at": "2026-10-29T00:23:24Z",
+              "elapsed_seconds": 40
+            },
+            {
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:23:24Z",
+              "completed_at": "2026-10-29T00:23:32Z",
+              "elapsed_seconds": 8
+            },
+            {
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:23:32Z",
+              "completed_at": "2026-10-29T00:23:41Z",
+              "elapsed_seconds": 9
+            }
+          ]
+        },
+        {
+          "id": 123184664748,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:22:36Z",
+          "completed_at": "2026-10-29T00:37:19Z",
+          "job_elapsed_seconds": 883,
+          "steps": [
+            {
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:22:51Z",
+              "completed_at": "2026-10-29T00:25:38Z",
+              "elapsed_seconds": 167
+            },
+            {
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:25:38Z",
+              "completed_at": "2026-10-29T00:37:09Z",
+              "elapsed_seconds": 691
+            }
+          ]
+        },
+        {
+          "id": 123184664804,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:22:36Z",
+          "completed_at": "2026-10-29T00:26:26Z",
+          "job_elapsed_seconds": 230,
+          "steps": [
+            {
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:22:48Z",
+              "completed_at": "2026-10-29T00:26:21Z",
+              "elapsed_seconds": 213
+            }
+          ]
+        },
+        {
+          "id": 123190034236,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:37:20Z",
+          "completed_at": "2026-10-29T00:37:23Z",
+          "job_elapsed_seconds": 3,
+          "steps": [
+            {
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:37:21Z",
+              "completed_at": "2026-10-29T00:37:21Z",
+              "elapsed_seconds": 0
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12863811132,
+          "name": "python-native-c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "size_in_bytes": 138303,
+          "github_reported_zip_digest": "sha256:a78effb9fd321a29c24df0cd4f83c30ebe2658726284164042d4165955610a13",
+          "expired": false,
+          "created_at": "2026-10-29T00:37:10Z",
+          "updated_at": "2026-10-29T00:37:10Z",
+          "expires_at": "2026-11-12T00:37:09Z",
+          "workflow_run_id": 40793639813,
+          "workflow_head_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793639813/artifacts/12863811132"
+        },
+        {
+          "id": 12863400679,
+          "name": "python-offline-c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "size_in_bytes": 40824,
+          "github_reported_zip_digest": "sha256:a1fdb97a0905a5cceb75ff89303d4b01a7524951bccfd83009ca14dd28764af7",
+          "expired": false,
+          "created_at": "2026-10-29T00:26:22Z",
+          "updated_at": "2026-10-29T00:26:22Z",
+          "expires_at": "2026-11-12T00:26:21Z",
+          "workflow_run_id": 40793639813,
+          "workflow_head_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793639813/artifacts/12863400679"
+        },
+        {
+          "id": 12862703241,
+          "name": "python-no-rust-c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "size_in_bytes": 139092,
+          "github_reported_zip_digest": "sha256:343735d74cb8e26461199432083bd4b521f01cb6d7b3e1554736182d55648b03",
+          "expired": false,
+          "created_at": "2026-10-29T00:28:24Z",
+          "updated_at": "2026-10-29T00:28:24Z",
+          "expires_at": "2026-11-12T00:28:23Z",
+          "workflow_run_id": 40793639813,
+          "workflow_head_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793639813/artifacts/12862703241"
+        },
+        {
+          "id": 12862259474,
+          "name": "rust-c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "size_in_bytes": 517,
+          "github_reported_zip_digest": "sha256:18e4afbbfc8a3d218221da213f381f73878442ed3c4275caa56d714c74757248",
+          "expired": false,
+          "created_at": "2026-10-29T00:23:31Z",
+          "updated_at": "2026-10-29T00:23:31Z",
+          "expires_at": "2026-11-12T00:23:30Z",
+          "workflow_run_id": 40793639813,
+          "workflow_head_sha": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793639813/artifacts/12862259474"
+        }
+      ]
+    },
+    {
+      "key": "wealth_503",
+      "label": "Household wealth-floor correction 503",
+      "source_sha": "503070175e3e78d9014add158ead8f16ce940843",
+      "workflow_control_sha": "503070175e3e78d9014add158ead8f16ce940843",
+      "branch": "lead/cloud-household-wealth-floor-20261029",
+      "scope": "d028-based isolated intentional Rust behavior correction; no recovered research integration.",
+      "run_id": 40794594072,
+      "run_attempt": 1,
+      "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40794594072",
+      "workflow_path": ".github/workflows/tests.yml",
+      "conclusion": "success",
+      "created_at": "2026-10-29T00:31:17Z",
+      "run_started_at": "2026-10-29T00:31:17Z",
+      "last_job_completed_at": "2026-10-29T00:41:09Z",
+      "created_to_last_job_complete_seconds": 592,
+      "created_to_first_job_start_seconds": 2,
+      "counts": {
+        "native_python": {
+          "parent_passed": 7800,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 454.18
+        },
+        "no_rust_python": {
+          "parent_passed": 7486,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 485.63
+        },
+        "bounded_offline": {
+          "chunks": 29,
+          "passed": 3697,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 184.8,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 32.2,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "focused_first": {
+            "summary_groups": 36,
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0
+          },
+          "full": {
+            "summary_groups": 37,
+            "passed": 1092,
+            "failed": 0,
+            "ignored": 2
+          },
+          "focused_tests_also_in_full_suite": true
+        },
+        "viewer": {
+          "passed": 703,
+          "files": 67,
+          "lint_passed": true,
+          "production_build_passed": true
+        },
+        "combined_native_requirement": "success"
+      },
+      "jobs": [
+        {
+          "id": 123187844044,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:31:19Z",
+          "completed_at": "2026-10-29T00:32:29Z",
+          "job_elapsed_seconds": 70,
+          "steps": [
+            {
+              "name": "Run household wealth damping regressions first",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:31:25Z",
+              "completed_at": "2026-10-29T00:32:14Z",
+              "elapsed_seconds": 49
+            },
+            {
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:32:14Z",
+              "completed_at": "2026-10-29T00:32:23Z",
+              "elapsed_seconds": 9
+            }
+          ]
+        },
+        {
+          "id": 123187844223,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:31:19Z",
+          "completed_at": "2026-10-29T00:34:41Z",
+          "job_elapsed_seconds": 202,
+          "steps": [
+            {
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:31:27Z",
+              "completed_at": "2026-10-29T00:34:32Z",
+              "elapsed_seconds": 185
+            }
+          ]
+        },
+        {
+          "id": 123187844251,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:31:19Z",
+          "completed_at": "2026-10-29T00:41:04Z",
+          "job_elapsed_seconds": 585,
+          "steps": [
+            {
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:31:27Z",
+              "completed_at": "2026-10-29T00:33:17Z",
+              "elapsed_seconds": 110
+            },
+            {
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:33:17Z",
+              "completed_at": "2026-10-29T00:40:55Z",
+              "elapsed_seconds": 458
+            }
+          ]
+        },
+        {
+          "id": 123187844297,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:31:19Z",
+          "completed_at": "2026-10-29T00:39:41Z",
+          "job_elapsed_seconds": 502,
+          "steps": [
+            {
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:31:28Z",
+              "completed_at": "2026-10-29T00:39:37Z",
+              "elapsed_seconds": 489
+            }
+          ]
+        },
+        {
+          "id": 123187844524,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:31:19Z",
+          "completed_at": "2026-10-29T00:33:03Z",
+          "job_elapsed_seconds": 104,
+          "steps": [
+            {
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:31:29Z",
+              "completed_at": "2026-10-29T00:32:33Z",
+              "elapsed_seconds": 64
+            },
+            {
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:32:33Z",
+              "completed_at": "2026-10-29T00:32:46Z",
+              "elapsed_seconds": 13
+            },
+            {
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:32:46Z",
+              "completed_at": "2026-10-29T00:33:00Z",
+              "elapsed_seconds": 14
+            }
+          ]
+        },
+        {
+          "id": 123191377544,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:41:06Z",
+          "completed_at": "2026-10-29T00:41:09Z",
+          "job_elapsed_seconds": 3,
+          "steps": [
+            {
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:41:07Z",
+              "completed_at": "2026-10-29T00:41:07Z",
+              "elapsed_seconds": 0
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12863930445,
+          "name": "python-offline-503070175e3e78d9014add158ead8f16ce940843",
+          "size_in_bytes": 38849,
+          "github_reported_zip_digest": "sha256:c82d06d03236435d584f45c73c33acee9fc960e09ad08dedc1724d104cdc4611",
+          "expired": false,
+          "created_at": "2026-10-29T00:34:33Z",
+          "updated_at": "2026-10-29T00:34:33Z",
+          "expires_at": "2026-11-12T00:34:32Z",
+          "workflow_run_id": 40794594072,
+          "workflow_head_sha": "503070175e3e78d9014add158ead8f16ce940843",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40794594072/artifacts/12863930445"
+        },
+        {
+          "id": 12863846594,
+          "name": "python-no-rust-503070175e3e78d9014add158ead8f16ce940843",
+          "size_in_bytes": 135908,
+          "github_reported_zip_digest": "sha256:0808db17e8d5482b13da6d65b2654a6632c6ca4cf066b0d7d715775cc2804f1d",
+          "expired": false,
+          "created_at": "2026-10-29T00:39:38Z",
+          "updated_at": "2026-10-29T00:39:38Z",
+          "expires_at": "2026-11-12T00:39:37Z",
+          "workflow_run_id": 40794594072,
+          "workflow_head_sha": "503070175e3e78d9014add158ead8f16ce940843",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40794594072/artifacts/12863846594"
+        },
+        {
+          "id": 12863556247,
+          "name": "rust-503070175e3e78d9014add158ead8f16ce940843",
+          "size_in_bytes": 3714,
+          "github_reported_zip_digest": "sha256:6769be9da66ae979055782a5a1c6af91d7477edcf272b5c584cd2a0660a97036",
+          "expired": false,
+          "created_at": "2026-10-29T00:32:24Z",
+          "updated_at": "2026-10-29T00:32:24Z",
+          "expires_at": "2026-11-12T00:32:23Z",
+          "workflow_run_id": 40794594072,
+          "workflow_head_sha": "503070175e3e78d9014add158ead8f16ce940843",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40794594072/artifacts/12863556247"
+        },
+        {
+          "id": 12863004197,
+          "name": "python-native-503070175e3e78d9014add158ead8f16ce940843",
+          "size_in_bytes": 132807,
+          "github_reported_zip_digest": "sha256:bc502444e929671c58b881265f3420668ee3003fa6c20062e776e43443c85ac2",
+          "expired": false,
+          "created_at": "2026-10-29T00:40:56Z",
+          "updated_at": "2026-10-29T00:40:56Z",
+          "expires_at": "2026-11-12T00:40:55Z",
+          "workflow_run_id": 40794594072,
+          "workflow_head_sha": "503070175e3e78d9014add158ead8f16ce940843",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40794594072/artifacts/12863004197"
+        }
+      ]
+    },
+    {
+      "key": "arc_249a",
+      "label": "Arc projection 249a",
+      "source_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+      "workflow_control_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+      "branch": "lead/cloud-runtime-optimization-20261029",
+      "scope": "d028-based arc event-type projection and frozen-source classifier parity tests.",
+      "run_id": 40791763886,
+      "run_attempt": 1,
+      "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886",
+      "workflow_path": ".github/workflows/tests.yml",
+      "conclusion": "success",
+      "created_at": "2026-10-29T00:05:45Z",
+      "run_started_at": "2026-10-29T00:05:45Z",
+      "last_job_completed_at": "2026-10-29T00:17:02Z",
+      "created_to_last_job_complete_seconds": 677,
+      "created_to_first_job_start_seconds": 2,
+      "counts": {
+        "native_python": {
+          "parent_passed": 7808,
+          "skipped": 6,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 505.97
+        },
+        "no_rust_python": {
+          "parent_passed": 7494,
+          "skipped": 306,
+          "successful_subtests": 526,
+          "pytest_reported_seconds": 423.98
+        },
+        "bounded_offline": {
+          "chunks": 30,
+          "passed": 3705,
+          "skipped": 65,
+          "per_chunk_limit_seconds": 110,
+          "sum_of_rounded_chunk_seconds": 206.7,
+          "slowest_printed_chunk": {
+            "name": "systems-2",
+            "printed_seconds": 36.1,
+            "limit_seconds": 110,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          }
+        },
+        "rust": {
+          "full": {
+            "summary_groups": 37,
+            "passed": 1088,
+            "failed": 0,
+            "ignored": 2
+          }
+        },
+        "viewer": {
+          "passed": 703,
+          "files": 67,
+          "lint_passed": true,
+          "production_build_passed": true
+        },
+        "combined_native_requirement": "success"
+      },
+      "jobs": [
+        {
+          "id": 123178446080,
+          "name": "Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:05:47Z",
+          "completed_at": "2026-10-29T00:07:14Z",
+          "job_elapsed_seconds": 87,
+          "steps": [
+            {
+              "name": "Run Rust tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:05:54Z",
+              "completed_at": "2026-10-29T00:07:10Z",
+              "elapsed_seconds": 76
+            }
+          ]
+        },
+        {
+          "id": 123178446343,
+          "name": "Python bounded offline",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:05:47Z",
+          "completed_at": "2026-10-29T00:09:28Z",
+          "job_elapsed_seconds": 221,
+          "steps": [
+            {
+              "name": "Run guarded offline chunks",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:05:55Z",
+              "completed_at": "2026-10-29T00:09:21Z",
+              "elapsed_seconds": 206
+            }
+          ]
+        },
+        {
+          "id": 123178446353,
+          "name": "Python native execution",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:05:47Z",
+          "completed_at": "2026-10-29T00:16:57Z",
+          "job_elapsed_seconds": 670,
+          "steps": [
+            {
+              "name": "Build Rust extension wheel",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:05:59Z",
+              "completed_at": "2026-10-29T00:08:19Z",
+              "elapsed_seconds": 140
+            },
+            {
+              "name": "Run Python tests with real native extension preloaded",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:08:19Z",
+              "completed_at": "2026-10-29T00:16:49Z",
+              "elapsed_seconds": 510
+            }
+          ]
+        },
+        {
+          "id": 123178446365,
+          "name": "Viewer",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:05:47Z",
+          "completed_at": "2026-10-29T00:07:36Z",
+          "job_elapsed_seconds": 109,
+          "steps": [
+            {
+              "name": "Run viewer tests",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:05:58Z",
+              "completed_at": "2026-10-29T00:07:06Z",
+              "elapsed_seconds": 68
+            },
+            {
+              "name": "Lint viewer",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:07:06Z",
+              "completed_at": "2026-10-29T00:07:19Z",
+              "elapsed_seconds": 13
+            },
+            {
+              "name": "Build viewer for production",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:07:19Z",
+              "completed_at": "2026-10-29T00:07:34Z",
+              "elapsed_seconds": 15
+            }
+          ]
+        },
+        {
+          "id": 123178446411,
+          "name": "Python no-Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:05:47Z",
+          "completed_at": "2026-10-29T00:13:11Z",
+          "job_elapsed_seconds": 444,
+          "steps": [
+            {
+              "name": "Run Python tests without Rust extension",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:05:58Z",
+              "completed_at": "2026-10-29T00:13:07Z",
+              "elapsed_seconds": 429
+            }
+          ]
+        },
+        {
+          "id": 123182608848,
+          "name": "Python native",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-29T00:16:59Z",
+          "completed_at": "2026-10-29T00:17:02Z",
+          "job_elapsed_seconds": 3,
+          "steps": [
+            {
+              "name": "Require complete native Python and Rust success",
+              "conclusion": "success",
+              "started_at": "2026-10-29T00:17:00Z",
+              "completed_at": "2026-10-29T00:17:00Z",
+              "elapsed_seconds": 0
+            }
+          ]
+        }
+      ],
+      "artifacts": [
+        {
+          "id": 12862600651,
+          "name": "python-no-rust-249a4e1879cf5fbbb070de11f478f19825f51419",
+          "size_in_bytes": 135830,
+          "github_reported_zip_digest": "sha256:66e1d78755ec6db4bbea915011528ac976270c9eaeadd4054be2bc19b122e5ed",
+          "expired": false,
+          "created_at": "2026-10-29T00:13:08Z",
+          "updated_at": "2026-10-29T00:13:08Z",
+          "expires_at": "2026-11-12T00:13:07Z",
+          "workflow_run_id": 40791763886,
+          "workflow_head_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886/artifacts/12862600651"
+        },
+        {
+          "id": 12862276355,
+          "name": "rust-249a4e1879cf5fbbb070de11f478f19825f51419",
+          "size_in_bytes": 522,
+          "github_reported_zip_digest": "sha256:779329ac50d889909eade426872e103f4050bd05fd733572fb4a3c5b47c1f79a",
+          "expired": false,
+          "created_at": "2026-10-29T00:07:10Z",
+          "updated_at": "2026-10-29T00:07:10Z",
+          "expires_at": "2026-11-12T00:07:10Z",
+          "workflow_run_id": 40791763886,
+          "workflow_head_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886/artifacts/12862276355"
+        },
+        {
+          "id": 12861993770,
+          "name": "python-native-249a4e1879cf5fbbb070de11f478f19825f51419",
+          "size_in_bytes": 133483,
+          "github_reported_zip_digest": "sha256:6d62891f91236eff3f3ad77d882b32bb253440aae1dcde753dbbf7e6f3f364ce",
+          "expired": false,
+          "created_at": "2026-10-29T00:16:50Z",
+          "updated_at": "2026-10-29T00:16:50Z",
+          "expires_at": "2026-11-12T00:16:49Z",
+          "workflow_run_id": 40791763886,
+          "workflow_head_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886/artifacts/12861993770"
+        },
+        {
+          "id": 12861473849,
+          "name": "python-offline-249a4e1879cf5fbbb070de11f478f19825f51419",
+          "size_in_bytes": 39584,
+          "github_reported_zip_digest": "sha256:2b4b8a84349ff63bb639cd906652ae8ff468aaf9ee953728eb4ce766182eb0e7",
+          "expired": false,
+          "created_at": "2026-10-29T00:09:22Z",
+          "updated_at": "2026-10-29T00:09:22Z",
+          "expires_at": "2026-11-12T00:09:22Z",
+          "workflow_run_id": 40791763886,
+          "workflow_head_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+          "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886/artifacts/12861473849"
+        }
+      ]
+    }
+  ],
+  "arc_export_identity": {
+    "run_id": 40793636869,
+    "run_attempt": 1,
+    "run_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793636869",
+    "workflow_control_sha": "9e800f812dc884d70e16f49103e1542f6aface91",
+    "workflow_path": ".github/workflows/arc-output-identity.yml",
+    "branch": "lead/cloud-arc-identity-20261029",
+    "conclusion": "success",
+    "baseline_source_sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+    "candidate_source_sha": "249a4e1879cf5fbbb070de11f478f19825f51419",
+    "contracts_passed": 22,
+    "contracts_framework": "unittest; standard-library contract checks",
+    "producer_qualified": true,
+    "cases_per_source": 9,
+    "completed_simulations": 18,
+    "actual_physics_ticks": 3200,
+    "cases": [
+      {
+        "name": "off_s42",
+        "seed": 42,
+        "turns": 300,
+        "agents": "off"
+      },
+      {
+        "name": "off_s7",
+        "seed": 7,
+        "turns": 300,
+        "agents": "off"
+      },
+      {
+        "name": "hybrid_s42",
+        "seed": 42,
+        "turns": 200,
+        "agents": "hybrid",
+        "validation_sidecars": true
+      },
+      {
+        "name": "hybrid_s7",
+        "seed": 7,
+        "turns": 200,
+        "agents": "hybrid",
+        "validation_sidecars": true
+      },
+      {
+        "name": "hybrid_s1234",
+        "seed": 1234,
+        "turns": 200,
+        "agents": "hybrid"
+      },
+      {
+        "name": "proc48_hybrid_s42",
+        "seed": 42,
+        "turns": 150,
+        "regions": 48,
+        "civs": 10,
+        "agents": "hybrid",
+        "validation_sidecars": true
+      },
+      {
+        "name": "proc48_off_s7",
+        "seed": 7,
+        "turns": 200,
+        "regions": 48,
+        "civs": 10,
+        "agents": "off"
+      },
+      {
+        "name": "scaled22k_s42",
+        "seed": 42,
+        "turns": 30,
+        "regions": 12,
+        "civs": 4,
+        "agents": "hybrid",
+        "validation_sidecars": true,
+        "registered_scale_target": 18800
+      },
+      {
+        "name": "scaled52k_s7",
+        "seed": 7,
+        "turns": 20,
+        "regions": 12,
+        "civs": 4,
+        "agents": "hybrid",
+        "registered_scale_target": 43700
+      }
+    ],
+    "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6",
+    "wheel_sha256": "54616417b94036ec91a40b69b94ad2b608d3b66666c93dd2b20e05af176cc58f",
+    "payload_inventory_sha256": "a64b3f4b3d208c6adcb78500e508eb1058cdc2fa5c261e50c3ab53bc89cfcb31",
+    "helper_elapsed_wall_seconds": 548.1398560699998,
+    "normalization": "only the sole metadata.generated_at field; raw files audited and retained",
+    "comparator_exclusions": "logs and run_manifest.json, according to the frozen existing turn_speed_identity comparator; exclusions retained in raw evidence",
+    "checked_by_producer": [
+      "exact source checkout bytes/modes and clean standing before/after",
+      "one fresh shared compiled wheel; actual compiled classes and checkpoint schemas",
+      "expected outputs, mode/size/horizon and complete case set",
+      "frozen comparator success and raw/audit/native/wheel final identity checks"
+    ],
+    "scope_limits": [
+      "exported-file identity in the fixed matrix and one controlled environment",
+      "no complete checkpoint/RNG/internal-state identity across sources",
+      "no arc whole-workload timing or speedup claim",
+      "scale-target labels are not actual or independent agent counts",
+      "no full population-gate or optional-system efficacy qualification"
+    ],
+    "jobs": [
+      {
+        "id": 123184654671,
+        "name": "arc-output-identity",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-29T00:22:34Z",
+        "completed_at": "2026-10-29T00:32:22Z",
+        "job_elapsed_seconds": 588,
+        "steps": [
+          {
+            "name": "Run pure qualification contract checks",
+            "conclusion": "success",
+            "started_at": "2026-10-29T00:22:43Z",
+            "completed_at": "2026-10-29T00:22:45Z",
+            "elapsed_seconds": 2
+          },
+          {
+            "name": "Run registered fixed export parity",
+            "conclusion": "success",
+            "started_at": "2026-10-29T00:23:02Z",
+            "completed_at": "2026-10-29T00:32:11Z",
+            "elapsed_seconds": 549
+          }
+        ]
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12863585862,
+        "name": "arc-output-identity-40793636869-1",
+        "size_in_bytes": 54791602,
+        "github_reported_zip_digest": "sha256:bfaa8fc0b7ae44fd9074c6ebad446706c8d0d95e62afdb09a1c8fb5654542d4c",
+        "expired": false,
+        "created_at": "2026-10-29T00:32:19Z",
+        "updated_at": "2026-10-29T00:32:19Z",
+        "expires_at": "2026-11-28T00:32:11Z",
+        "workflow_run_id": 40793636869,
+        "workflow_head_sha": "9e800f812dc884d70e16f49103e1542f6aface91",
+        "github_artifact_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40793636869/artifacts/12863585862"
+      }
+    ],
+    "contracts_reported_seconds": 0.029,
+    "created_at": "2026-10-29T00:22:32Z",
+    "last_job_completed_at": "2026-10-29T00:32:22Z"
+  },
+  "excluded_outcomes": {
+    "c76_default_output_identity": {
+      "run_id": 40796958774,
+      "result_included": false
+    },
+    "wealth_503_full_population_outcome": {
+      "result_included": false
+    },
+    "registered_full_gate": {
+      "run_id": 40791402289,
+      "workflow_control_sha": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
+      "baseline_source_sha": "2f9d618b70f3304c02dcaeef12996b4a99e074c0",
+      "candidate_source_sha": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "result_included": false
+    },
+    "independent_forkserver_timing": {
+      "result_included": false,
+      "reason": "separate experiment, owner and readout"
+    }
+  },
+  "limitations": [
+    "CI completion covers the exact named source and lane only; it is not merge approval or default-feature promotion",
+    "successful subtests are not added to parent-test counts; skips and ignored cases are not passes",
+    "source differences and host variability prevent treating these CI timings as controlled speed measurements",
+    "official artifact publication metadata does not substitute for independent archive-content reinspection",
+    "main and all producer source branches remain unchanged by this documentation pack"
+  ]
+}

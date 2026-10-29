@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+The current consolidated review branch is `lead/recovered-review-20261029`.
+Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
+code, validation, measured workflow options and held experiments. Production
+files remain those of qualified `c76efe85`; the original producing branch/path
+retain their complete frozen identity. The reviewed test changes passed their
+component checks and all 32 combined offline chunks; exact-head full CI and
+the remaining long full-gate comparisons have separately reported standing.
+
 October 29 current result: frozen `c76efe85` passed the separately registered
 [six-worker native finite-research composition proof](integration/research-native-composition-c76efe85-2026-10-29.md):
 62 physics ticks, both strict 20-output comparisons, pause/archive lineage and
