@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+An isolated [practice-observer runner seam](integration/practice-observer-runner-seam-2026-10-29.md)
+starts from `1205b6e4`, now hosted-qualified by all six jobs in run
+`40835337456`. One explicit caller-owned parameter routes observed turns inside
+the unchanged SIGINT boundary; omitted/None calls retain the original path.
+The complete default main AST matches the parent with explicit canonical
+serialization. Ninety-one guarded surrogate cases pass; two genuine runner
+cases are authored for remote CI and unrun locally. Initial AST-fixture
+failure is preserved. This new child, its future recorder and any fresh study
+remain separately reviewed; no source push, new CI or study is activated here.
+
 The current consolidation is `lead/review-integration-20261029`. Its runtime,
 tests and scripts match qualified `9d5cb7e4`; the only additional executable
 change is source-reviewed CI preflight `77e83c43`, which still needs this
