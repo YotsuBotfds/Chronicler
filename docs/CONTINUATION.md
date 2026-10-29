@@ -438,3 +438,11 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+The isolated exact-marriage broad-phase experiment remains test-only and
+inactive. Its appended cfg(test) module preserves every original formation
+byte, including default and Fast planners. Six differential contracts and one
+ignored fixed synthetic screen are unrun; no local build, World or performance
+claim is included. The preregistration and dormant remote workflow are in
+[the experiment record](experiments/exact-marriage-broadphase-screen-2026-10-29.md).

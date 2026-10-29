@@ -1,0 +1,151 @@
+# Inactive exact-marriage enumerator experiment — 2026-10-29
+
+Status: source draft only. No Rust compilation, test execution, native import,
+World, input capture, benchmark, push or workflow activation has occurred.
+Root and independent peer review must precede any remote run. Main, the
+qualified runtime, pending native candidates and prior rejected optimizations
+remain separate. Negative performance is a valid terminal result.
+
+## Frozen source and scope
+
+Base: `0900f3d203cc74102809bb871a1a057ba91a951f`, native crate tree
+`803c79c8d5c024cbb8d67c58af7ffa731d79c129`. Its `formation.rs` Git blob is
+`d94edb40f41fcb0cdcdd20866f1ee8d50a191b5b`, also present at qualified CBF and
+the separate 535 candidate. This draft appends one `#[cfg(test)]` module;
+every original byte of the file, including the default planner, Fast path,
+reference helper and persistence declaration, stays unchanged. No production
+call site, native API, CLI, global, RandomState, dependency or checkpoint field
+is added. The appended module's hash is pinned by the dormant workflow.
+
+The experiment compares only near-neighbor enumeration. It neither runs nor
+qualifies the full marriage planner, a native simulator or a World. Existing
+planner/reference tests remain untouched. A positive result permits proposing
+a later isolated child with planner differential tests and ordinary exported-
+output parity; it does not wire the experiment into production.
+
+## Fixed helper and inclusion argument
+
+The crossover is exactly 256 eligible agents. Non-finite coordinates retain
+the existing reference-planner route; the screen does not invent an enumerator
+result for it. Finite out-of-domain coordinates use the existing linear
+enumerator, including arithmetic overflow. Dense queries whose conservative
+neighborhood includes everyone use that same linear helper. If all occupied
+cells have this property, no bitset index is allocated.
+
+Other eligible lists use fixed boundaries 5/16, 10/16 and 15/16 on each axis.
+Two nonadjacent cells imply an exact axis separation at least 5/16. Monotone
+correctly rounded f32 subtraction, squaring and addition cannot yield a radius
+at most the original 1/4. Same/adjacent cells therefore include every old
+accepted pair. The original f32 expression and marriage_radius_sq filter remain
+authoritative. The tight-grid counterexample `(0.25 - 2^-26, 0.5)` is retained:
+its rounded delta is 0.25 despite a naive width-0.25 cell gap of two.
+
+Fixed Vec-backed cell memberships and neighboring unions contain eligible
+indices. Word/bit iteration is ascending, so near indices, distance bits and
+the later planner's candidate order remain unchanged. The index is local to
+one immutable Eligible copy and is discarded before the next plan. Scratch
+resizes only when its length changes. No mutable cache survives movement,
+death, birth or slot reuse. No physics RNG operation is introduced.
+
+## Ordinary contracts, unrun
+
+Six unit tests compare complete ordered near lists and every retained d2 bit,
+not only checksums. Available logical counters retain Far, incest, hostility
+and valid classifications with the existing precedence. The original reference
+helper remains the comparison implementation.
+
+Cases include empty/singleton lists, 255/256/257, dense and spread populations,
+all cells, exact cell/radius boundaries and adjacent f32 values, the tight-grid
+rounding example, both zero signs, subnormal deltas, NaN and both infinities,
+finite out-of-domain extremes, identity-array irrelevance, current eligible
+slots with dead holes and a reused slot. Non-finite routing also checks the
+actual production planner still returns None before its reference fallback.
+The original radius-threshold unit test is selected separately in the proposed
+remote workflow. These tests use synthetic Rust arrays/pools, not Worlds.
+
+## One fixed synthetic screen
+
+Only the ignored `exact_near_broadphase_fixed_screen` can time this experiment.
+It requires GitHub Actions, one actual affinity CPU, all numerical/native thread
+caps one, Python hash seed zero and the fixed activation string. It has no
+public CLI or input path. No admitted real eligible vectors were identified;
+all inputs are prospectively fixed synthetic arrays. No new capture is allowed
+by this draft.
+
+Exactly 15 cases run, in order:
+
+1. empty0
+2. singleton1
+3. small16 (spread)
+4. spread255
+5. spread256
+6. spread257
+7. spread1024
+8. spread4096
+9. dense1024 at (0.125, 0.125)
+10. dense4096 at (0.96875, 0.96875)
+11. boundaries1024 using the fixed seven-coordinate sequence
+12. outside1024 with one (-1, f32::MAX) coordinate
+13. nan1024
+14. infinity1024
+15. zeros1024 alternating signed zero and the smallest positive subnormal
+
+For each, an untimed complete differential precedes exactly five timed old/new
+pairs. Order is old/new, new/old, old/new, new/old, old/new. There are exactly
+150 timed samples. No warm-up, timing retry, case omission, cutoff sweep, tuned
+fixture or favorable subset is allowed. Non-finite cases time only setup and
+the original reference-route decision, not reference-planner performance.
+
+Each sample freshly constructs the same Eligible arrays. Candidate setup also
+includes cell counting, membership allocation and union construction when used.
+Total nanoseconds include all setup, query work and owned drops. Separate setup
+and query times are retained. Query work includes word traversal, exact distance
+arithmetic, gathers and actual scratch growth. black_box retains outputs without
+timing a full parity-hash pass. Complete ordered parity is established separately
+for the same frozen inputs. Retain distance, word and gather counts, live/peak
+index capacities, scratch capacity, process CPU ticks and cumulative process
+VmHWM. VmHWM does not identify an independent per-arm RSS delta. Original
+marriage_pairs_evaluated counters are neither changed nor reinterpreted.
+
+The screen has hard observed caps of 60 wall seconds, 60 process CPU seconds
+and 512 MiB process peak RSS. An external 70-second TERM / five-second KILL
+deadline bounds a stalled sample; exceeding any cap fails the experiment and
+retains partial logs. These caps include parity, sample setup and telemetry.
+They are separate from remote compilation: that step gets 35 minutes, one
+affinity CPU/build job, a 12 GiB disk/2 GiB visible RAM admission, and its own
+GNU-time CPU/wall/RSS record. Require 3 GiB disk/1 GiB visible RAM before the
+test binary. Build output is fresh and no cache/old experiment is deleted.
+
+## Acceptance and negative publication
+
+All complete differential checks must pass. Using the median total sample time
+of each arm, both spread1024 and spread4096 must have candidate <= 90% of old.
+Every other case with n > 256 and finite coordinates must have candidate <=
+105% of old. Small and non-finite route-only cases allow 105% plus a fixed
+5,000-nanosecond timer/setup allowance. The allowance and all thresholds are
+fixed before any data. All 15 decisions must pass; there is no pooled average
+that can hide a case's regression.
+
+After every case completes, print one final record. Performance rejection is a
+nonzero ignored-test exit with its complete negative decision records preserved.
+A parity/resource failure also exits nonzero and cannot produce a positive
+final record. The workflow retains logs, timing, source/binary identities and
+its independently parsed fixed-row summary on every outcome. It never promotes
+production. No tuning, retry or larger input acquisition follows a rejection
+without a new prospective source record and separate root authorization.
+
+## Activation and measurement limits
+
+The YAML beside this document is under docs/experiments and is inactive.
+After independent peer and root review, root may copy those exact bytes to
+`.github/workflows/exact-marriage-broadphase-screen.yml` on the one separate
+`lead/cloud-exact-marriage-screen-20261029` branch. Its source preflight requires
+the original 090 formation prefix, exact appended-module hash and a narrow file
+allowlist. Python is provided only for PyO3 linkage and metadata parsing, as in
+the existing Rust CI lane; no wheel or simulator pool is built/instantiated.
+
+This is a same-binary synthetic enumerator screen. Release compilation costs,
+process setup, Rust linkage and per-sample overhead remain visible. A positive
+screen is not a measured World/whole-planner speedup, a default-output proof,
+native execution qualification for this branch or scientific efficacy. No
+claims or gate standing from CBF/535/090 are extended to this new experiment.

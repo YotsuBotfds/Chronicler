@@ -2621,3 +2621,441 @@ crate::persist_struct!(FormationStats {
     marriage_pairs_rejected_distance, cross_civ_marriages, same_civ_marriages,
     cross_faith_marriages, same_faith_marriages,
 });
+
+// Inactive enumerator experiment: production planners and Fast mode never call it.
+#[cfg(test)]
+mod exact_near_broadphase_experiment {
+    use super::*;
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const CROSSOVER: usize = 256;
+    const CELLS: usize = 16;
+    const SCREEN_SECONDS: u64 = 60;
+    const SCREEN_RSS_KIB: u64 = 512 * 1024;
+    const PAIRS: usize = 5;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Route { ReferenceNonFinite, LinearSmall, LinearOutOfDomain, LinearAll, Grid }
+
+    struct BroadPhase {
+        route: Route,
+        words: usize,
+        unions: Vec<u64>,
+        neighbor_counts: [usize; CELLS],
+        peak_index_bytes: usize,
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct Work {
+        queries: u64,
+        words: u64,
+        distances: u64,
+        gathered: u64,
+        later_far: u64,
+        incest: u64,
+        hostile: u64,
+        valid: u64,
+    }
+
+    // Exactly representable binary boundaries, deliberately wider than 0.25.
+    // A two-cell separation is >= 5/16 even before f32 rounding; it cannot
+    // satisfy the original correctly rounded distance test at radius 1/4.
+    fn axis_cell(value: f32) -> usize {
+        if value < 5.0 / 16.0 { 0 }
+        else if value < 10.0 / 16.0 { 1 }
+        else if value < 15.0 / 16.0 { 2 }
+        else { 3 }
+    }
+
+    fn cell(e: &Eligible, a: usize) -> usize { 4 * axis_cell(e.y[a]) + axis_cell(e.x[a]) }
+
+    fn baseline_route(e: &Eligible) -> Route {
+        if e.x.iter().chain(&e.y).all(|v| v.is_finite()) { Route::LinearAll }
+        else { Route::ReferenceNonFinite }
+    }
+
+    impl BroadPhase {
+        fn new(e: &Eligible) -> Self {
+            let mut result = Self { route: Route::LinearSmall, words: 0, unions: Vec::new(),
+                neighbor_counts: [0; CELLS], peak_index_bytes: 0 };
+            if baseline_route(e) == Route::ReferenceNonFinite {
+                result.route = Route::ReferenceNonFinite;
+                return result;
+            }
+            if e.len() <= CROSSOVER { return result; }
+            if e.x.iter().chain(&e.y).any(|&v| !(0.0..=1.0).contains(&v)) {
+                result.route = Route::LinearOutOfDomain;
+                return result;
+            }
+            let mut counts = [0usize; CELLS];
+            for a in 0..e.len() { counts[cell(e, a)] += 1; }
+            for c in 0..CELLS {
+                let (x, y) = (c % 4, c / 4);
+                for yy in y.saturating_sub(1)..=(y + 1).min(3) {
+                    for xx in x.saturating_sub(1)..=(x + 1).min(3) {
+                        result.neighbor_counts[c] += counts[yy * 4 + xx];
+                    }
+                }
+            }
+            // No query can exclude anything: preserve the original SIMD scan.
+            if (0..CELLS).all(|c| counts[c] == 0 || result.neighbor_counts[c] == e.len()) {
+                result.route = Route::LinearAll;
+                return result;
+            }
+            result.words = e.len().checked_add(63).expect("eligible count overflow") / 64;
+            let length = CELLS.checked_mul(result.words).expect("index size overflow");
+            let mut membership = vec![0u64; length];
+            result.unions = vec![0u64; length];
+            for a in 0..e.len() {
+                membership[cell(e, a) * result.words + a / 64] |= 1u64 << (a % 64);
+            }
+            for c in 0..CELLS {
+                let (x, y) = (c % 4, c / 4);
+                for yy in y.saturating_sub(1)..=(y + 1).min(3) {
+                    for xx in x.saturating_sub(1)..=(x + 1).min(3) {
+                        let other = yy * 4 + xx;
+                        for w in 0..result.words {
+                            result.unions[c * result.words + w] |= membership[other * result.words + w];
+                        }
+                    }
+                }
+            }
+            result.peak_index_bytes = (membership.capacity() + result.unions.capacity()) * std::mem::size_of::<u64>();
+            result.route = Route::Grid;
+            result
+        }
+
+        fn query(&self, e: &Eligible, a: usize, max_sq: f32, buf: &mut MarriageScratch, work: &mut Work) {
+            assert_ne!(self.route, Route::ReferenceNonFinite, "keep the existing reference-planner fallback");
+            work.queries += 1;
+            let c = if self.route == Route::Grid { cell(e, a) } else { 0 };
+            if self.route != Route::Grid || self.neighbor_counts[c] == e.len() {
+                near_eligible(e, a, max_sq, buf);
+                work.distances += e.len() as u64;
+            } else {
+                // Reuse initialized scratch; do not zero n values per query.
+                buf.d2.resize(e.len(), 0.0);
+                buf.near.clear();
+                work.words += self.words as u64;
+                work.distances += self.neighbor_counts[c] as u64;
+                let (xa, ya) = (e.x[a], e.y[a]);
+                for w in 0..self.words {
+                    let mut bits = self.unions[c * self.words + w];
+                    while bits != 0 {
+                        let bit = bits.trailing_zeros() as usize;
+                        bits &= bits - 1;
+                        let b = w * 64 + bit;
+                        debug_assert!(b < e.len());
+                        // Preserve the reference direction and f32 expression.
+                        let dx = xa - e.x[b];
+                        let dy = ya - e.y[b];
+                        let d2 = dx * dx + dy * dy;
+                        buf.d2[b] = d2;
+                        if d2 <= max_sq { buf.near.push(b as u32); }
+                    }
+                }
+            }
+            work.gathered += buf.near.len() as u64;
+        }
+    }
+
+    fn eligible(points: &[(f32, f32)]) -> Eligible {
+        let n = points.len();
+        Eligible { slot: (0..n).map(|a| 2 * a + 1).collect(),
+            x: points.iter().map(|p| p.0).collect(), y: points.iter().map(|p| p.1).collect(),
+            id: (0..n).map(|a| (a / 2) as u32).collect(), // include duplicate IDs and zero
+            civ: (0..n).map(|a| (a % 4) as u8).collect(),
+            belief: (0..n).map(|a| (a % 7) as u8).collect(),
+            cv: (0..n).map(|a| [(a % 6) as u8, ((a + 1) % 6) as u8, 255]).collect(),
+            parents: (0..n).map(|a| if a % 9 == 0 { [11, agent::PARENT_NONE] }
+                else { [agent::PARENT_NONE; 2] }).collect(),
+            can_wed: (0..n).map(|a| a % 11 != 0).collect() }
+    }
+
+    fn spread(n: usize) -> Vec<(f32, f32)> {
+        let mut side = 1usize;
+        while side * side < n { side += 1; }
+        (0..n).map(|a| (((a % side) as f32 + 0.5) / side as f32,
+                       ((a / side) as f32 + 0.5) / side as f32)).collect()
+    }
+
+    fn classify_counts(e: &Eligible, a: usize, buf: &MarriageScratch, work: &mut Work) {
+        let mut war = [false; 256]; war[1] = true;
+        let mut near_later = 0usize;
+        for &b in &buf.near {
+            let b = b as usize;
+            if b <= a { continue; }
+            near_later += 1;
+            match classify_with_dist(e, a, b, buf.d2[b].sqrt(), &war) {
+                PairClass::Far => panic!("radius prefilter admitted a far pair"),
+                PairClass::Incest => work.incest += 1,
+                PairClass::Hostile => work.hostile += 1,
+                PairClass::Valid => work.valid += 1,
+            }
+        }
+        work.later_far += (e.len() - 1 - a - near_later) as u64;
+    }
+
+    fn hash_word(hash: &mut u64, value: u64) {
+        for byte in value.to_le_bytes() { *hash ^= byte as u64; *hash = hash.wrapping_mul(0x100000001b3); }
+    }
+
+    fn differential(points: &[(f32, f32)]) -> (Route, u64, Work, Work) {
+        differential_eligible(&eligible(points))
+    }
+
+    fn differential_eligible(e: &Eligible) -> (Route, u64, Work, Work) {
+        let broad = BroadPhase::new(e);
+        if baseline_route(e) == Route::ReferenceNonFinite {
+            assert_eq!(broad.route, Route::ReferenceNonFinite);
+            return (broad.route, 0, Work::default(), Work::default());
+        }
+        let (mut old, mut new) = (MarriageScratch::default(), MarriageScratch::default());
+        let (mut old_work, mut new_work) = (Work::default(), Work::default());
+        let mut hash = 0xcbf29ce484222325u64;
+        let max_sq = marriage_radius_sq();
+        for a in 0..e.len() {
+            near_eligible(e, a, max_sq, &mut old);
+            old_work.queries += 1; old_work.distances += e.len() as u64;
+            old_work.gathered += old.near.len() as u64;
+            broad.query(e, a, max_sq, &mut new, &mut new_work);
+            assert_eq!(old.near, new.near, "ordered near indices, query {a}");
+            hash_word(&mut hash, a as u64); hash_word(&mut hash, old.near.len() as u64);
+            for &b in &old.near {
+                assert_eq!(old.d2[b as usize].to_bits(), new.d2[b as usize].to_bits(), "d2 bits, query {a}, partner {b}");
+                hash_word(&mut hash, b as u64); hash_word(&mut hash, old.d2[b as usize].to_bits() as u64);
+            }
+            classify_counts(e, a, &old, &mut old_work);
+            classify_counts(e, a, &new, &mut new_work);
+        }
+        assert_eq!((old_work.queries, old_work.gathered, old_work.later_far, old_work.incest, old_work.hostile, old_work.valid),
+                   (new_work.queries, new_work.gathered, new_work.later_far, new_work.incest, new_work.hostile, new_work.valid));
+        assert!(new_work.distances <= old_work.distances);
+        (broad.route, hash, old_work, new_work)
+    }
+
+    #[test]
+    fn exact_near_fixed_crossover_and_density_fallbacks() {
+        for n in [0, 1, 16, 255, 256, 257, 1024] {
+            let (route, _, old, new) = differential(&spread(n));
+            assert_eq!(route, if n <= CROSSOVER { Route::LinearSmall } else { Route::Grid });
+            if n > CROSSOVER { assert!(new.distances < old.distances); }
+        }
+        assert_eq!(differential(&vec![(0.125, 0.125); 257]).0, Route::LinearAll);
+    }
+
+    #[test]
+    fn exact_near_all_cells_boundaries_zero_and_subnormals() {
+        let mut axis = vec![0.0, -0.0, f32::from_bits(1), f32::from_bits(0x8000_0001), 1.0];
+        for boundary in [0.25f32, 5.0 / 16.0, 0.5, 10.0 / 16.0, 15.0 / 16.0] {
+            for offset in -2i32..=2 { axis.push(f32::from_bits((boundary.to_bits() as i32 + offset) as u32)); }
+        }
+        let points: Vec<_> = axis.iter().flat_map(|&x| axis.iter().map(move |&y| (x, y))).collect();
+        // The negative subnormal is finite and outside the domain: keep linear.
+        assert_eq!(differential(&points).0, Route::LinearOutOfDomain);
+        let bounded: Vec<_> = points.into_iter().filter(|&(x, y)| x >= 0.0 && y >= 0.0).collect();
+        assert_eq!(differential(&bounded).0, Route::Grid);
+        assert_eq!(axis_cell(0.0), axis_cell(-0.0));
+        for x in 0..4 { for y in 0..4 {
+            let p = if x == 3 { 0.96875 } else { (x as f32 + 0.5) * 0.3125 };
+            let q = if y == 3 { 0.96875 } else { (y as f32 + 0.5) * 0.3125 };
+            assert_eq!(axis_cell(p), x); assert_eq!(axis_cell(q), y);
+        }}
+    }
+
+    #[test]
+    fn exact_near_tight_grid_radius_rounding_counterexample() {
+        let a = f32::from_bits(0.25f32.to_bits() - 1);
+        let b = 0.5f32;
+        assert_eq!((b - a).to_bits(), 0.25f32.to_bits());
+        assert_eq!((a * 4.0) as usize, 0); assert_eq!((b * 4.0) as usize, 2);
+        let mut points = spread(257); points[0] = (a, 0.0); points[1] = (b, -0.0);
+        let e = eligible(&points); let mut old = MarriageScratch::default();
+        near_eligible(&e, 0, marriage_radius_sq(), &mut old);
+        assert!(old.near.contains(&1));
+        assert_eq!(differential(&points).0, Route::Grid);
+    }
+
+    #[test]
+    fn exact_near_preserves_nonfinite_and_out_of_domain_routes() {
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let mut points = spread(257); points[3].0 = value;
+            assert_eq!(differential(&points).0, Route::ReferenceNonFinite);
+        }
+        for value in [-1.0, f32::MAX, -f32::MAX, f32::from_bits(1.0f32.to_bits() + 1)] {
+            let mut points = spread(257); points[3] = (value, -value);
+            assert_eq!(differential(&points).0, Route::LinearOutOfDomain);
+        }
+    }
+
+    #[test]
+    fn exact_near_does_not_read_identity_or_mutate_eligible_inputs() {
+        let points = spread(257); let mut e = eligible(&points);
+        let original_x: Vec<_> = e.x.iter().map(|x| x.to_bits()).collect();
+        let original_y: Vec<_> = e.y.iter().map(|x| x.to_bits()).collect();
+        e.slot.reverse(); e.id.fill(0); e.can_wed.fill(false); e.parents.fill([99, 99]);
+        let broad = BroadPhase::new(&e);
+        let (mut old, mut new) = (MarriageScratch::default(), MarriageScratch::default());
+        for a in 0..e.len() {
+            near_eligible(&e, a, marriage_radius_sq(), &mut old);
+            broad.query(&e, a, marriage_radius_sq(), &mut new, &mut Work::default());
+            assert_eq!(old.near, new.near);
+        }
+        assert_eq!(original_x, e.x.iter().map(|x| x.to_bits()).collect::<Vec<_>>());
+        assert_eq!(original_y, e.y.iter().map(|x| x.to_bits()).collect::<Vec<_>>());
+        // The same owned scratch can cross region sizes and fallback routes.
+        for points in [spread(512), vec![(0.125, 0.125); 257], spread(0), spread(16), spread(257)] {
+            let next = eligible(&points); let index = BroadPhase::new(&next);
+            for a in 0..next.len() {
+                near_eligible(&next, a, marriage_radius_sq(), &mut old);
+                index.query(&next, a, marriage_radius_sq(), &mut new, &mut Work::default());
+                assert_eq!(old.near, new.near);
+                for &b in &old.near { assert_eq!(old.d2[b as usize].to_bits(), new.d2[b as usize].to_bits()); }
+            }
+        }
+    }
+
+    #[test]
+    fn exact_near_uses_current_eligible_slots_with_dead_holes() {
+        let mut pool = AgentPool::new(280);
+        let points = spread(280);
+        let mut spawned = Vec::new();
+        for (a, &(x, y)) in points.iter().enumerate() {
+            let slot = pool.spawn(0, (a % 4) as u8, agent::Occupation::Farmer,
+                30, 0.5, 0.0, 0.5, 0, 1, 2, agent::BELIEF_NONE);
+            pool.x[slot] = x; pool.y[slot] = y;
+            spawned.push(slot);
+        }
+        for (a, &slot) in spawned.iter().enumerate() { if a % 19 == 0 { pool.kill(slot); } }
+        let replacement = pool.spawn(0, 0, agent::Occupation::Farmer,
+            30, 0.5, 0.0, 0.5, 0, 1, 2, agent::BELIEF_NONE);
+        pool.x[replacement] = 0.5; pool.y[replacement] = 0.5;
+        let live: Vec<_> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+        assert!(live.windows(2).any(|w| w[1] != w[0] + 1), "required dead holes");
+        let e = Eligible::new(&pool, &live);
+        assert_eq!(differential_eligible(&e).0, Route::Grid);
+        let mut nonfinite = pool.x.clone(); nonfinite[live[0]] = f32::NAN;
+        pool.x = nonfinite;
+        assert!(plan_region_marriages(&pool, &live, 0, 0, &[false; 256], crate::scale::AgentScaleMode::Exact).is_none());
+        assert_eq!(BroadPhase::new(&Eligible::new(&pool, &live)).route, Route::ReferenceNonFinite);
+    }
+
+    fn process_cpu_ticks() -> u64 {
+        let stat = std::fs::read_to_string("/proc/self/stat").expect("Linux process CPU accounting required");
+        let fields: Vec<_> = stat[stat.rfind(')').expect("process stat name") + 2..].split_whitespace().collect();
+        fields[11].parse::<u64>().unwrap() + fields[12].parse::<u64>().unwrap()
+    }
+
+    fn peak_rss_kib() -> u64 {
+        let status = std::fs::read_to_string("/proc/self/status").expect("Linux RSS accounting required");
+        status.lines().find(|line| line.starts_with("VmHWM:"))
+            .and_then(|line| line.split_whitespace().nth(1)).unwrap().parse().unwrap()
+    }
+
+    fn screen_guard(start: Instant, cpu0: u64) {
+        assert!(start.elapsed().as_secs() < SCREEN_SECONDS, "fixed screen wall budget exhausted");
+        // Linux hosted runner convention is independently recorded by getconf.
+        let hz: u64 = std::env::var("CHRONICLER_SCREEN_CLK_TCK").expect("explicit CLK_TCK required").parse().unwrap();
+        assert!(hz > 0 && process_cpu_ticks() - cpu0 <= SCREEN_SECONDS * hz, "fixed screen CPU budget exhausted");
+        assert!(peak_rss_kib() <= SCREEN_RSS_KIB, "fixed screen RSS budget exhausted");
+    }
+
+    struct Sample { total_ns: u128, setup_ns: u128, query_ns: u128, work: Work, index_live_bytes: usize,
+        index_peak_bytes: usize, scratch_bytes: usize, route: Route }
+
+    fn sample(points: &[(f32, f32)], candidate: bool) -> Sample {
+        let total = Instant::now();
+        let e = eligible(black_box(points));
+        let broad = candidate.then(|| BroadPhase::new(&e));
+        let selected = broad.as_ref().map_or_else(|| baseline_route(&e), |b| b.route);
+        let setup_ns = total.elapsed().as_nanos();
+        let mut buf = MarriageScratch::default(); let mut work = Work::default();
+        let query = Instant::now(); let max_sq = marriage_radius_sq();
+        if selected != Route::ReferenceNonFinite {
+            for a in 0..e.len() {
+                if let Some(b) = &broad { b.query(&e, a, max_sq, &mut buf, &mut work); }
+                else {
+                    near_eligible(&e, a, max_sq, &mut buf);
+                    work.queries += 1; work.distances += e.len() as u64; work.gathered += buf.near.len() as u64;
+                }
+                black_box(&buf.near); black_box(&buf.d2);
+            }
+        }
+        let query_ns = query.elapsed().as_nanos();
+        let index_live_bytes = broad.as_ref().map_or(0, |b| b.unions.capacity() * 8);
+        let index_peak_bytes = broad.as_ref().map_or(0, |b| b.peak_index_bytes);
+        let scratch_bytes = buf.d2.capacity() * 4 + buf.near.capacity() * 4;
+        // Total includes fixture/index setup, query work and all owned drops.
+        drop(buf); drop(broad); drop(e);
+        Sample { total_ns: total.elapsed().as_nanos(), setup_ns, query_ns, work, index_live_bytes,
+            index_peak_bytes, scratch_bytes, route: selected }
+    }
+
+    #[test]
+    #[ignore = "remote-only fixed synthetic enumerator screen; separate root activation required"]
+    fn exact_near_broadphase_fixed_screen() {
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"), "remote-only experiment");
+        assert_eq!(std::env::var("CHRONICLER_EXACT_NEAR_SCREEN").as_deref(), Ok("fixed-synthetic-v1"));
+        for name in ["OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "BLIS_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS", "GOTO_NUM_THREADS", "RAYON_NUM_THREADS", "PYTHON_CPU_COUNT"] {
+            assert_eq!(std::env::var(name).as_deref(), Ok("1"), "thread cap {name}");
+        }
+        assert_eq!(std::env::var("PYTHONHASHSEED").as_deref(), Ok("0"));
+        let status = std::fs::read_to_string("/proc/self/status").unwrap();
+        let affinity = status.lines().find(|s| s.starts_with("Cpus_allowed_list:"))
+            .and_then(|s| s.split_whitespace().nth(1)).unwrap();
+        assert!(affinity.parse::<usize>().is_ok(), "one actual affinity CPU required");
+        let start = Instant::now(); let cpu0 = process_cpu_ticks();
+        let mut boundary = spread(1024);
+        for (a, point) in boundary.iter_mut().enumerate() {
+            let v = [0.0f32, 0.25, 0.3125, 0.5, 0.625, 0.9375, 1.0][a % 7];
+            *point = (v, if a % 2 == 0 { 0.3125 } else { 0.9375 });
+        }
+        let mut outside = spread(1024); outside[0] = (-1.0, f32::MAX);
+        let mut nan = spread(1024); nan[0].0 = f32::NAN;
+        let mut inf = spread(1024); inf[0].1 = f32::INFINITY;
+        let cases = vec![
+            ("empty0", spread(0)), ("singleton1", spread(1)), ("small16", spread(16)),
+            ("spread255", spread(255)), ("spread256", spread(256)), ("spread257", spread(257)),
+            ("spread1024", spread(1024)), ("spread4096", spread(4096)),
+            ("dense1024", vec![(0.125, 0.125); 1024]), ("dense4096", vec![(0.96875, 0.96875); 4096]),
+            ("boundaries1024", boundary), ("outside1024", outside), ("nan1024", nan), ("infinity1024", inf),
+            ("zeros1024", (0..1024).map(|a| if a % 2 == 0 { (-0.0, 0.0) } else { (f32::from_bits(1), -0.0) }).collect()),
+        ];
+        println!("EXACT_NEAR {{\"kind\":\"header\",\"version\":1,\"synthetic_only\":true,\"cases\":15,\"pairs\":5,\"crossover\":256,\"wall_seconds_cap\":60,\"cpu_seconds_cap\":60,\"rss_kib_cap\":524288}}");
+        let mut accepted = true;
+        for (name, points) in &cases {
+            screen_guard(start, cpu0);
+            let (route, hash, old_work, new_work) = differential(points);
+            println!("EXACT_NEAR {{\"kind\":\"parity\",\"case\":\"{}\",\"route\":\"{:?}\",\"ordered_near_d2_fnv\":\"{:016x}\",\"old_distances\":{},\"new_distances\":{},\"new_words\":{},\"near_results\":{},\"later_far\":{},\"incest\":{},\"hostile\":{},\"valid\":{}}}",
+                name, route, hash, old_work.distances, new_work.distances, new_work.words, old_work.gathered,
+                old_work.later_far, old_work.incest, old_work.hostile, old_work.valid);
+            let (mut old_times, mut new_times) = (Vec::new(), Vec::new());
+            for pair in 0..PAIRS {
+                for candidate in if pair % 2 == 0 { [false, true] } else { [true, false] } {
+                    screen_guard(start, cpu0);
+                    let before_cpu = process_cpu_ticks(); let row = sample(points, candidate);
+                    screen_guard(start, cpu0);
+                    let ticks = process_cpu_ticks() - before_cpu;
+                    if candidate { new_times.push(row.total_ns); } else { old_times.push(row.total_ns); }
+                    println!("EXACT_NEAR {{\"kind\":\"sample\",\"case\":\"{}\",\"pair\":{},\"arm\":\"{}\",\"route\":\"{:?}\",\"setup_ns\":{},\"query_ns\":{},\"total_ns_with_drop\":{},\"cpu_ticks\":{},\"peak_process_rss_kib\":{},\"index_live_bytes\":{},\"index_peak_bytes\":{},\"scratch_capacity_bytes\":{},\"words\":{},\"distances\":{},\"gathered\":{}}}",
+                        name, pair, if candidate { "candidate" } else { "old" }, row.route, row.setup_ns, row.query_ns,
+                        row.total_ns, ticks, peak_rss_kib(), row.index_live_bytes, row.index_peak_bytes, row.scratch_bytes,
+                        row.work.words, row.work.distances, row.work.gathered);
+                }
+            }
+            old_times.sort_unstable(); new_times.sort_unstable();
+            let (old, new) = (old_times[PAIRS / 2], new_times[PAIRS / 2]);
+            let limit = if *name == "spread1024" || *name == "spread4096" { old * 90 / 100 }
+                else if points.len() <= CROSSOVER || route == Route::ReferenceNonFinite { old * 105 / 100 + 5_000 }
+                else { old * 105 / 100 };
+            let pass = new <= limit;
+            accepted &= pass;
+            println!("EXACT_NEAR {{\"kind\":\"decision\",\"case\":\"{}\",\"old_median_ns\":{},\"candidate_median_ns\":{},\"limit_ns\":{},\"pass\":{}}}", name, old, new, limit, pass);
+        }
+        screen_guard(start, cpu0);
+        println!("EXACT_NEAR {{\"kind\":\"final\",\"complete_cases\":15,\"samples\":150,\"accepted_for_later_planner_work\":{},\"production_promoted\":false,\"worlds\":0}}", accepted);
+        assert!(accepted, "fixed synthetic screen rejected; preserve result and do not tune/retry");
+    }
+}

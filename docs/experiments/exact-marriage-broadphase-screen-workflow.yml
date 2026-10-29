@@ -1,0 +1,224 @@
+# Dormant proposal only: copy exact bytes to .github/workflows only after review.
+name: Exact marriage synthetic enumerator screen
+on:
+  push:
+    branches: [lead/cloud-exact-marriage-screen-20261029]
+permissions:
+  contents: read
+concurrency:
+  group: exact-marriage-synthetic-screen
+  cancel-in-progress: false
+jobs:
+  synthetic-screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "1"
+      RUST_TEST_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      GOTO_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+      PYTHON_CPU_COUNT: "1"
+      PYTHONHASHSEED: "0"
+      CHRONICLER_EXACT_NEAR_SCREEN: fixed-synthetic-v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python only for the existing PyO3 Rust-test linkage pattern
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Freeze source, resources and linkage without importing the simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/exact-marriage-screen"
+          echo "SCREEN_EVIDENCE=$RUNNER_TEMP/exact-marriage-screen" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/exact-marriage-target" >> "$GITHUB_ENV"
+          echo "CHRONICLER_SCREEN_CLK_TCK=$(getconf CLK_TCK)" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, subprocess, sys, sysconfig
+          base = "0900f3d203cc74102809bb871a1a057ba91a951f"
+          evidence = pathlib.Path(os.environ["RUNNER_TEMP"]) / "exact-marriage-screen"
+          def git(*args): return subprocess.check_output(["git", *args])
+          assert sys.version_info[:3] == (3, 13, 5)
+          assert git("status", "--porcelain") == b""
+          assert git("rev-parse", "HEAD").decode().strip() == os.environ["GITHUB_SHA"]
+          assert not (pathlib.Path(os.environ["RUNNER_TEMP"]) / "exact-marriage-target").exists()
+          original = git("show", base + ":chronicler-agents/src/formation.rs")
+          current = pathlib.Path("chronicler-agents/src/formation.rs").read_bytes()
+          assert current.startswith(original)
+          suffix = current[len(original):]
+          assert hashlib.sha256(suffix).hexdigest() == "edb8e9b27867b24306f81d2efff4e78faf9151e48721247ea57861f03cb70d1d"
+          allowed = {"chronicler-agents/src/formation.rs", "docs/CONTINUATION.md",
+              "docs/experiments/exact-marriage-broadphase-screen-2026-10-29.md",
+              "docs/experiments/exact-marriage-broadphase-screen-workflow.yml",
+              ".github/workflows/exact-marriage-broadphase-screen.yml"}
+          changed = set(git("diff", "--name-only", base, "HEAD").decode().splitlines())
+          assert changed <= allowed and "chronicler-agents/src/formation.rs" in changed
+          proposed = pathlib.Path("docs/experiments/exact-marriage-broadphase-screen-workflow.yml").read_bytes()
+          assert proposed == pathlib.Path(".github/workflows/exact-marriage-broadphase-screen.yml").read_bytes()
+          # Do not silently treat host RAM as container headroom.
+          mem = dict(line.split(":", 1) for line in pathlib.Path("/proc/meminfo").read_text().splitlines())
+          available = int(mem["MemAvailable"].split()[0]) * 1024
+          cg = pathlib.Path("/sys/fs/cgroup")
+          paths = [line.split(":", 2)[2] for line in pathlib.Path("/proc/self/cgroup").read_text().splitlines() if line.startswith("0::")]
+          assert len(paths) == 1 and paths[0].startswith("/") and ".." not in pathlib.Path(paths[0]).parts
+          leaf = cg / paths[0].lstrip("/")
+          assert leaf.is_dir()
+          observed = []
+          while True:
+              maximum, current_mem = leaf / "memory.max", leaf / "memory.current"
+              if maximum.exists() and current_mem.exists():
+                  limit, used = maximum.read_text().strip(), int(current_mem.read_text())
+                  assert used >= 0
+                  if limit != "max":
+                      assert int(limit) >= 0
+                      available = min(available, max(0, int(limit) - used))
+                  observed.append({"path": str(leaf), "maximum": limit, "current": used})
+              else:
+                  assert leaf == cg and not maximum.exists() and not current_mem.exists()
+              if leaf == cg: break
+              leaf = leaf.parent
+          disk = shutil.disk_usage(evidence).free
+          assert disk >= 12 * 1024**3 and available >= 2 * 1024**3
+          cpu = min(os.sched_getaffinity(0))
+          libdir = sysconfig.get_config_var("LIBDIR")
+          assert libdir and pathlib.Path(libdir).is_dir()
+          with open(os.environ["GITHUB_ENV"], "a") as out:
+              out.write(f"SCREEN_CPU={cpu}\nPYO3_PYTHON={sys.executable}\n")
+              for key in ("LIBRARY_PATH", "LD_LIBRARY_PATH"):
+                  out.write(f"{key}={libdir}" + (":" + os.environ[key] if os.environ.get(key) else "") + "\n")
+          identity = {"source": os.environ["GITHUB_SHA"], "base": base,
+              "base_crate": "803c79c8d5c024cbb8d67c58af7ffa731d79c129",
+              "actual_crate": git("rev-parse", "HEAD:chronicler-agents").decode().strip(),
+              "formation_sha256": hashlib.sha256(current).hexdigest(),
+              "append_sha256": hashlib.sha256(suffix).hexdigest(), "python": sys.version,
+              "executable": sys.executable, "python_libdir": libdir, "screen_cpu": cpu,
+              "disk_free": disk, "visible_memory_available": available, "cgroups": observed,
+              "worlds": 0, "same_binary_synthetic_only": True}
+          (evidence / "source-admission.json").write_text(json.dumps(identity, indent=2) + "\n")
+          PY
+          rustc --version --verbose > "$RUNNER_TEMP/exact-marriage-screen/rustc.txt"
+          cargo --version > "$RUNNER_TEMP/exact-marriage-screen/cargo.txt"
+      - name: Build one fresh release test binary, with separate build telemetry
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v -o "$SCREEN_EVIDENCE/build-process.time" \
+            timeout --signal=TERM --kill-after=10s 2100s taskset -c "$SCREEN_CPU" \
+            cargo test --release --locked --manifest-path chronicler-agents/Cargo.toml \
+              --lib --no-run --message-format=json > "$SCREEN_EVIDENCE/build.jsonl" 2> "$SCREEN_EVIDENCE/build.log"
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil
+          out = pathlib.Path(os.environ["SCREEN_EVIDENCE"])
+          rows = [json.loads(line) for line in (out / "build.jsonl").read_text().splitlines()]
+          binaries = [r["executable"] for r in rows if r.get("reason") == "compiler-artifact"
+              and r.get("profile", {}).get("test") is True and r.get("executable")
+              and r.get("target", {}).get("name") == "chronicler_agents"]
+          assert len(binaries) == 1
+          path = pathlib.Path(binaries[0]).resolve()
+          assert path.is_relative_to(pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve())
+          assert shutil.disk_usage(out).free >= 3 * 1024**3
+          mem = dict(line.split(":", 1) for line in pathlib.Path("/proc/meminfo").read_text().splitlines())
+          available = int(mem["MemAvailable"].split()[0]) * 1024
+          cg = pathlib.Path("/sys/fs/cgroup")
+          paths = [line.split(":", 2)[2] for line in pathlib.Path("/proc/self/cgroup").read_text().splitlines() if line.startswith("0::")]
+          assert len(paths) == 1 and paths[0].startswith("/") and ".." not in pathlib.Path(paths[0]).parts
+          leaf = cg / paths[0].lstrip("/")
+          assert leaf.is_dir()
+          while True:
+              maximum, current = leaf / "memory.max", leaf / "memory.current"
+              if maximum.exists() and current.exists():
+                  limit, used = maximum.read_text().strip(), int(current.read_text())
+                  assert used >= 0
+                  if limit != "max": available = min(available, max(0, int(limit) - used))
+              else:
+                  assert leaf == cg and not maximum.exists() and not current.exists()
+              if leaf == cg: break
+              leaf = leaf.parent
+          assert available >= 1024**3
+          identity = {"path": str(path), "bytes": path.stat().st_size,
+              "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              "visible_memory_available_before_tests": available,
+              "kind": "fresh same-binary Rust test executable, not a Python wheel or World qualification"}
+          (out / "test-binary.json").write_text(json.dumps(identity, indent=2) + "\n")
+          with open(os.environ["GITHUB_ENV"], "a") as env: env.write(f"SCREEN_BINARY={path}\n")
+          PY
+          ldd "$SCREEN_BINARY" > "$SCREEN_EVIDENCE/linkage.txt"
+      - name: Ordinary differential contracts and original radius contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 60s taskset -c "$SCREEN_CPU" "$SCREEN_BINARY" \
+            formation::exact_near_broadphase_experiment:: --test-threads=1 --nocapture \
+            2>&1 | tee "$SCREEN_EVIDENCE/contracts.log"
+          timeout --signal=TERM --kill-after=5s 15s taskset -c "$SCREEN_CPU" "$SCREEN_BINARY" \
+            formation::tests::marriage_radius_threshold_is_exact --exact --test-threads=1 \
+            2>&1 | tee "$SCREEN_EVIDENCE/original-radius.log"
+          python - <<'PY'
+          import os, pathlib, re
+          root = pathlib.Path(os.environ["SCREEN_EVIDENCE"])
+          assert re.search(r"test result: ok\. 6 passed; 0 failed; 1 ignored;", (root / "contracts.log").read_text())
+          assert re.search(r"test result: ok\. 1 passed; 0 failed; 0 ignored;", (root / "original-radius.log").read_text())
+          PY
+      - name: Exactly one fixed synthetic screen; preserve negative decisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          /usr/bin/time -v -o "$SCREEN_EVIDENCE/screen-process.time" \
+            timeout --signal=TERM --kill-after=5s 70s taskset -c "$SCREEN_CPU" "$SCREEN_BINARY" \
+              formation::exact_near_broadphase_experiment::exact_near_broadphase_fixed_screen \
+              --exact --ignored --nocapture --test-threads=1 > "$SCREEN_EVIDENCE/screen.log" 2>&1
+          status=$?
+          set -e
+          echo "$status" > "$SCREEN_EVIDENCE/screen-exit.txt"
+          python - <<'PY'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path(os.environ["SCREEN_EVIDENCE"])
+          expected = ["empty0", "singleton1", "small16", "spread255", "spread256", "spread257",
+              "spread1024", "spread4096", "dense1024", "dense4096", "boundaries1024",
+              "outside1024", "nan1024", "infinity1024", "zeros1024"]
+          rows = []
+          for line in (root / "screen.log").read_text().splitlines():
+              at = line.find("EXACT_NEAR ")
+              if at >= 0: rows.append(json.loads(line[at + len("EXACT_NEAR "):]))
+          decisions = [r for r in rows if r["kind"] == "decision"]
+          parity = [r for r in rows if r["kind"] == "parity"]
+          samples = [r for r in rows if r["kind"] == "sample"]
+          final = [r for r in rows if r["kind"] == "final"]
+          headers = [r for r in rows if r["kind"] == "header"]
+          complete = (len(headers) == 1 and [r["case"] for r in parity] == expected
+              and [r["case"] for r in decisions] == expected and len(samples) == 150
+              and len({(r["case"], r["pair"], r["arm"]) for r in samples}) == 150
+              and {(r["case"], r["pair"], r["arm"]) for r in samples}
+                 == {(case, pair, arm) for case in expected for pair in range(5) for arm in ("old", "candidate")}
+              and len(final) == 1 and final[0]["complete_cases"] == 15 and final[0]["samples"] == 150)
+          status = int((root / "screen-exit.txt").read_text())
+          accepted = complete and status == 0 and all(r["pass"] is True for r in decisions)
+          assert not accepted or final[0]["accepted_for_later_planner_work"] is True
+          result = {"execution_complete": complete, "screen_accepted": accepted,
+              "screen_exit": status, "cases": expected, "decisions": decisions,
+              "worlds": 0, "production_promoted": False, "whole_planner_speedup_claim": False,
+              "payloads": {p.name: {"bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+                  for p in root.iterdir() if p.is_file()}}
+          (root / "screen-result.json").write_text(json.dumps(result, indent=2) + "\n")
+          print(json.dumps({k: result[k] for k in ("execution_complete", "screen_accepted", "screen_exit", "worlds", "production_promoted")}))
+          raise SystemExit(0 if accepted else 1)
+          PY
+      - name: Retain light evidence on success, rejection or partial failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-marriage-synthetic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/exact-marriage-screen/
+          if-no-files-found: warn
+          retention-days: 14
