@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+The first original-byte audit operation (`e625f6ce`, run40898023015) stopped
+before collection because its unchanged guard's `chronicler.main` import lacked
+core dependencies. Its exact negative artifact is retained; no original input
+was acquired or replayed. The separate
+[dependency correction](experiments/research-practice-original-audit-registration-2026-10-29.md)
+authors an exclusive locked core environment for guarded tests while preserving
+the base audit interpreter, guard/readers, inputs and all limits. No new hosted
+operation or dependency installation follows from this source preparation.
+
 The separate [original-byte practice audit preparation](experiments/research-practice-original-audit-registration-2026-10-29.md)
 keeps frozen2d and its closed small publication unchanged. It composes the
 unchanged detached reader with a fixed two-artifact transport, exclusive

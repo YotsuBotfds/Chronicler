@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = A.TEMP / "practice-original-audit"
 REGISTRATION = ROOT / "scripts/research_practice_original_registration.json"
 OWNED_WORK = None
-EXPECTED_PURE_CASES = 109
+EXPECTED_PURE_CASES = 118
 CONTRACT_COPIES = {
     "contracts-guard.json": ("practice-original-contracts/guard.json", 64 * 1024),
     "contracts-junit.xml": ("practice-original-contracts/junit.xml", 512 * 1024)}

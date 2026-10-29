@@ -4,7 +4,7 @@ This separate source derives from the frozen study control
 `2d3faa8c41b4704386b246507b8606d4e3980be7`. It does not alter that source,
 the original study, its small publication, or any historical producing ref.
 The [hosted template](research-practice-original-audit-workflow.yml) is dormant.
-Its unique future branch is `lead/cloud-fresh-practice-original-audit-20261029`
+Its unique future branch is `lead/cloud-fresh-practice-original-audit-deps-20261029`
 and its sole future trigger path is
 `.github/workflows/research-practice-original-audit.yml`. There is no dispatch,
 retry, artifact/endpoint/source/digest selector, native install or World mode.
@@ -157,8 +157,9 @@ are3GiB/1GiB using the exact44f cgroup-v2 resolver. Both ZIPs, inner wheel,
 all derived copies, source roots, buffers and8MiB publication reserve count
 simultaneously. The per-input120s deadline never resets the audit clock.
 One actual affinity CPU, fixed thread caps, hash seed0 and Python3.13.17 apply.
-The stdlib audit needs no scientific dependencies. Hosted pure prerequisites
-are fixed pytest9.1.1/PyYAML6.0.3; they never install the retained wheel.
+The stdlib audit uses the selected base Python with fixed pytest9.1.1/PyYAML6.0.3.
+Guarded tests use a separate exclusive dependency environment from unchanged
+`uv.lock`, as corrected below. Neither environment installs the retained wheel.
 
 New metadata, including bounded copies of the guard/JUnit files and the completion
 seal, is capped at8MiB/64 files. It excludes original ZIPs, wheels and derived raw
@@ -233,5 +234,44 @@ faults, failed admission after pending metadata, both input cutoffs, six seal
 expiry faults and two post-restoration expiry faults. Existing timer/publication
 fault cases remain. These are fake clocks/handlers/resources and tiny metadata
 fixtures; no subprocess, request, ordinary World or native runtime was executed.
+
+## First hosted precollection failure and separate pure dependency correction
+
+The preserved first operation at `e625f6cefb0bd9aef45f503a7fe7ab623690465a`,
+[run40898023015](https://github.com/YotsuBotfds/Chronicler/actions/runs/40898023015)
+attempt1, stopped before collecting tests. The unchanged guard imports
+`chronicler.main`; only pytest/PyYAML were installed, so `pydantic` was missing.
+Its process exited3. The always-run owner received actual step outcome `failure`
+and retained only negative pending/terminal metadata: no guard/JUnit, worker,
+admission, opaque input or semantic replay. Original artifact12908465636 is646B,
+SHA256 `1bcb5e436a2455c59b74e7027e739b54c477a4cee4341148bdff6e729c550b1a`.
+The closed negative pack and the original producing branch/source remain intact;
+the earlier109 local fixture passes were not hosted results.
+
+This new prepared child starts from `b9afaea934151bd97714d065cc936913fb718c12`
+on a distinct closed future branch. The base interpreter retains fixed
+pytest9.1.1/PyYAML6.0.3 for the audit and installs pinned `uv==0.13.6` as its
+dependency installer. The setup step explicitly uses `audit-control` as its
+working directory, refuses an existing or symlink `.venv`, and uses the actual
+selected Python3.13.17 with Python downloads disabled. `uv sync --frozen
+--no-dev --no-install-project --no-build` installs only the unchanged locked
+core dependency graph. The lock contains pytest9.0.2 in the excluded dev group;
+the separate environment deliberately adds pytest9.1.1/PyYAML6.0.3 with
+`uv pip --no-build`. There is no project installation, source build, native
+simulation wheel installation or retained-wheel reuse.
+
+Only the guarded pytest command names the separate `.venv/bin/python`. No
+activation, `GITHUB_PATH` modification or interpreter-path substitution reaches
+the audit step, which still names the base `python`. Its import guard and
+stdlib-only reader boundary are unchanged. The original guard and its actual
+factory-replacement/native/IO assertions are preserved byte-for-byte. All
+scientific sources, retained inputs, cutoffs, archive/clock/resource/publication
+limits, transport, reader comparisons and terminal gates remain fixed.
+
+Nine new tiny source contracts check the pinned lock/core graph and unchanged
+guard, separate interpreter routing, and seven hostile dependency configurations.
+The required pure count is118 (109 prior plus9). These fixtures do not install
+dependencies or qualify the actual hosted dependency setup. New source/peer/root
+review and a separate changed-source operation approval remain required.
 No full project suite or old raw replay was rerun. The original raw consumer's
 actual facts remain null until independent/root review and separate activation.

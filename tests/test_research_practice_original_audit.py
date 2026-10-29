@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import tomllib
 from types import SimpleNamespace as NS
 import urllib.error
 import urllib.request
@@ -21,7 +22,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "docs/experiments/research-practice-original-audit-workflow.yml"
-WORKFLOW_BODY_SHA = "193f4e5ca5ca27736f5daeeb4a75253086c989091e62fff883b57262414ae753"
+WORKFLOW_BODY_SHA = "565f11e8e113faeb70999ec713cdc8a287b4149daa376b871940415408b132cf"
 
 
 @pytest.fixture
@@ -357,6 +358,68 @@ def test_workflow_offpolicy_changes_fail_closed(modules, fault):
     elif fault == "step_outcome_binding": value["jobs"]["original-audit"]["steps"][-2]["env"]["PRACTICE_AUDIT_PURE_OUTCOME"] = "success"
     else: value["jobs"]["original-audit"]["steps"][-3]["id"] = "other_step"
     with pytest.raises(AssertionError): workflow_contract(A, value)
+
+
+def dependency_workflow_contract(value):
+    steps = value["jobs"]["original-audit"]["steps"]
+    base = next(s for s in steps if s.get("name") == "Install fixed base audit prerequisites and pinned lock installer")
+    prepare = next(s for s in steps if s.get("name") == "Prepare exclusive locked dependency environment only for guarded tests")
+    pure = next(s for s in steps if s.get("id") == "pure_contracts")
+    audit = next(s for s in steps if s.get("name") == "Audit only the fixed original bytes under a separate new clock")
+    assert steps.index(base) < steps.index(prepare) < steps.index(pure) < steps.index(audit)
+    assert "python -m pip install --only-binary=:all: pytest==9.1.1 PyYAML==6.0.3 uv==0.13.6" in base["run"]
+    assert prepare["working-directory"] == "audit-control" and prepare["env"] == {"UV_PYTHON_DOWNLOADS": "never"}
+    run = prepare["run"]
+    assert 'AUDIT_BASE_PYTHON="$(command -v python)"' in run
+    assert 'test "$AUDIT_BASE_PYTHON" = "$pythonLocation/bin/python"' in run
+    assert 'test ! -e .venv' in run and 'test ! -L .venv' in run
+    assert 'UV_PROJECT_ENVIRONMENT="$PWD/.venv" "$AUDIT_BASE_PYTHON" -m uv sync' in run
+    assert '--frozen --no-dev --no-install-project --no-build --python "$AUDIT_BASE_PYTHON"' in run
+    assert '"$AUDIT_BASE_PYTHON" -m uv pip install --python "$PWD/.venv/bin/python"' in run
+    assert '--no-build pytest==9.1.1 PyYAML==6.0.3' in run
+    assert '"$GITHUB_WORKSPACE/audit-control/.venv/bin/python" -B -m pytest' in pure["run"]
+    assert '-p python_oracle_guard' in pure["run"]
+    assert 'python -B audit-control/scripts/audit_research_practice_original.py audit' in audit["run"]
+    assert '.venv' not in audit["run"] and audit.get("working-directory") is None
+    commands = "\n".join(s.get("run", "") for s in steps)
+    assert not any(v in commands for v in ('GITHUB_PATH', 'source .venv', 'activate', 'uv run', 'maturin', 'chronicler_agents', '--system'))
+
+
+def test_locked_core_graph_and_original_guard_are_not_replaced():
+    for name, sha in {
+        "uv.lock": "986547c01fd1dcd9bf598404124fde4ddc1e3d67db9a1d595a5304f18dacee10",
+        "pyproject.toml": "d14f5588112927a0d8d889c30f04af90e81bc2cf4096b9ed91d8a51d83a2ac32",
+        "scripts/testing/python_oracle_guard.py": "7e066c7474d3254dde8f0e6c2cba3f90785728a5895d723e8952e7be91d439e1",
+    }.items():
+        assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == sha
+    packages = {p["name"]: p for p in tomllib.loads((ROOT / "uv.lock").read_text())["package"]}
+    assert {p["name"] for p in packages["chronicler"]["dependencies"]} == {
+        "arro3-core", "numpy", "openai", "pyarrow", "pydantic", "pyyaml", "scipy", "websockets"}
+    assert packages["chronicler"]["source"] == {"editable": "."}
+    assert packages["pytest"]["version"] == "9.0.2"  # Deliberately excluded; selected pure version is9.1.1.
+    assert packages["pyyaml"]["version"] == "6.0.3"
+    assert all("chronicler-agents" not in name and "chronicler_agents" not in name for name in packages)
+
+
+def test_pure_dependency_environment_is_separate_from_base_audit():
+    dependency_workflow_contract(parsed_workflow(TEMPLATE.read_bytes()))
+
+
+@pytest.mark.parametrize("fault", ["unfrozen", "project_install", "source_build", "reuse", "cwd", "base_switched", "guard"])
+def test_dependency_environment_misrouting_is_refused(fault):
+    value = parsed_workflow(TEMPLATE.read_bytes())
+    steps = value["jobs"]["original-audit"]["steps"]
+    prepare = next(s for s in steps if s.get("working-directory") == "audit-control")
+    pure = next(s for s in steps if s.get("id") == "pure_contracts")
+    audit = steps[-2]
+    if fault == "unfrozen": prepare["run"] = prepare["run"].replace("--frozen", "")
+    elif fault == "project_install": prepare["run"] = prepare["run"].replace("--no-install-project", "")
+    elif fault == "source_build": prepare["run"] = prepare["run"].replace("--no-build", "")
+    elif fault == "reuse": prepare["run"] = prepare["run"].replace("test ! -e .venv", "test -d .venv")
+    elif fault == "cwd": prepare["working-directory"] = "control"
+    elif fault == "base_switched": audit["run"] = audit["run"].replace("python -B", '.venv/bin/python -B')
+    else: pure["run"] = pure["run"].replace("-p python_oracle_guard", "-p weaker_guard")
+    with pytest.raises(AssertionError): dependency_workflow_contract(value)
 
 
 def contract_fixture(E, base):
