@@ -18,13 +18,15 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
-from .artifact_io import ArtifactIOError, strict_json_dumps
+from .artifact_io import ArtifactIOError, strict_json_dumps, strict_json_loads
 from .batch_manifest import (
     MANIFEST_FILENAME,
     BatchManifestError,
     batch_cohort,
     file_sha256,
     load_batch_manifest,
+    _run_fact_problems,
+    _verify_batch_manifest_inputs,
     verify_batch_manifest,
 )
 from .validation_gate import (
@@ -432,7 +434,7 @@ def _bundle_paths(batch_dir: Path) -> list[Path]:
     return sorted(batch_dir.rglob(BUNDLE_FILENAME))
 
 
-def _load_bundle(bundle_path: Path) -> dict:
+def _load_bundle(bundle_path: Path, *, _strict: bool = False) -> dict:
     """Load a bundle with every civ row in its history.
 
     Version-6 files are decoded (``bundle_codec``). Version-5 bundles leave
@@ -441,19 +443,29 @@ def _load_bundle(bundle_path: Path) -> dict:
     restored exactly (``snapshot_pruning.restore_bundle`` does both).
     """
     try:
-        return restore_bundle(json.loads(bundle_path.read_text(encoding="utf-8")))
+        text = bundle_path.read_text(encoding="utf-8")
+        return restore_bundle(strict_json_loads(text) if _strict else json.loads(text))
     except Exception as exc:
         raise RuntimeError(f"Failed to load bundle: {bundle_path}") from exc
 
 
-def iter_bundles(batch_dir: Path):
+def iter_bundles(batch_dir: Path, *, _admission=None):
     """Yield ``(path, bundle)`` one at a time, in ``load_bundles`` order.
 
     A full-profile batch (200 living 500-turn worlds, ~18 MB of JSON each)
     does not fit in memory when every bundle is parsed at once.
     """
-    for bundle_path in _bundle_paths(batch_dir):
-        yield bundle_path, _load_bundle(bundle_path)
+    paths = _admission.paths if _admission is not None else _bundle_paths(batch_dir)
+    for bundle_path in paths:
+        try:
+            bundle = _load_bundle(bundle_path, _strict=_admission is not None and _admission.has_manifest)
+        except RuntimeError as exc:
+            if _admission is not None and _admission.has_manifest:
+                raise ValidationRequestError(str(exc)) from exc
+            raise
+        if _admission is not None:
+            _admission.observe(bundle_path, bundle)
+        yield bundle_path, bundle
 
 
 def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
@@ -462,6 +474,71 @@ def load_bundles(batch_dir: Path) -> list[tuple[Path, dict]]:
 
 
 LEGACY_BATCH_FLAG = "--legacy-batch"
+
+
+class _BatchAdmission:
+    """Frozen expectations plus observations; preflight alone verifies nothing."""
+
+    def __init__(self, batch_dir: Path, paths: list[Path], manifest: dict | None):
+        self.batch_dir = batch_dir
+        self.paths = tuple(paths)
+        self._manifest = manifest
+        self._manifest_sha256 = file_sha256(batch_dir / MANIFEST_FILENAME) if manifest is not None else None
+        self._expected = MappingProxyType({
+            run["bundle"]: MappingProxyType({key: run[key] for key in ("seed", "dir", "total_turns")})
+            for run in manifest["runs"]
+        } if manifest is not None else {})
+        self._observed: set[str] = set()
+
+    @property
+    def has_manifest(self) -> bool:
+        return self._manifest is not None
+
+    def observe(self, path: Path, bundle: dict) -> None:
+        if self._manifest is None:
+            return
+        relative = path.relative_to(self.batch_dir).as_posix()
+        expected = self._expected.get(relative)
+        if expected is None:
+            raise ValidationRequestError(f"bundle is not in the manifest: {relative}")
+        problems = _run_fact_problems(expected, bundle)
+        if problems:
+            raise ValidationRequestError("batch bundle does not match its manifest: " + "; ".join(problems))
+        self._observed.add(relative)
+
+    def finish(self) -> dict:
+        if self._manifest is None:
+            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
+        if self._expected.keys() - self._observed:
+            # Empty selections or a substituted oracle runner still cannot
+            # publish verified facts without observing every payload.
+            for _path, _bundle in iter_bundles(self.batch_dir, _admission=self):
+                pass
+        return batch_cohort(self._manifest, self._manifest_sha256)
+
+
+def _prepare_batch_admission(batch_dir: Path, *, legacy_batch: bool = False) -> _BatchAdmission:
+    """Check inventory/hashes before readers; defer facts to their decode."""
+    batch_dir = Path(batch_dir)
+    if not batch_dir.exists():
+        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
+    try:
+        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
+    except BatchManifestError as exc:
+        raise ValidationRequestError(str(exc)) from exc
+    if manifest is None:
+        if legacy_batch:
+            return _BatchAdmission(batch_dir, _bundle_paths(batch_dir), None)
+        raise ValidationRequestError(
+            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
+            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
+            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
+        )
+    paths = _bundle_paths(batch_dir)
+    problems = _verify_batch_manifest_inputs(batch_dir, manifest, paths)
+    if problems:
+        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
+    return _BatchAdmission(batch_dir, paths, manifest)
 
 
 def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict:
@@ -476,25 +553,7 @@ def check_batch_manifest(batch_dir: Path, *, legacy_batch: bool = False) -> dict
     ``legacy_batch``; its entry is then ``unchecked``. A manifest that is
     present is always checked.
     """
-    batch_dir = Path(batch_dir)
-    if not batch_dir.exists():
-        raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
-    try:
-        manifest = load_batch_manifest(batch_dir) if batch_dir.is_dir() else None
-    except BatchManifestError as exc:
-        raise ValidationRequestError(str(exc)) from exc
-    if manifest is None:
-        if legacy_batch:
-            return {"status": "unchecked", "reason": f"no {MANIFEST_FILENAME} ({LEGACY_BATCH_FLAG})"}
-        raise ValidationRequestError(
-            f"no {MANIFEST_FILENAME} in {batch_dir}: a batch written by chronicler.batch records its "
-            f"expected runs there. To validate a directory written before manifests (or a single bundle) "
-            f"without checking which runs it holds, pass {LEGACY_BATCH_FLAG}."
-        )
-    problems = verify_batch_manifest(batch_dir, manifest, _bundle_paths(batch_dir))
-    if problems:
-        raise ValidationRequestError(f"batch directory {batch_dir} does not match its manifest: " + "; ".join(problems))
-    return batch_cohort(manifest, file_sha256(batch_dir / MANIFEST_FILENAME))
+    return _prepare_batch_admission(Path(batch_dir), legacy_batch=legacy_batch).finish()
 
 
 # Bundle fields the seed-run oracles read: metadata, these per-snapshot
@@ -965,7 +1024,7 @@ def summarize_world_shapes(seed_runs: list[dict]) -> list[dict] | None:
     ]
 
 
-def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) -> list[dict]:
+def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None, *, _admission=None) -> list[dict]:
     """Load exported bundle + sidecar data for each seed in a batch."""
     if not batch_dir.exists():
         raise ValidationRequestError(f"batch path does not exist: {batch_dir}")
@@ -973,7 +1032,7 @@ def load_seed_runs(batch_dir: Path, selected_oracles: set[str] | None = None) ->
     if dependency_reason is not None:
         raise ValidationDependencyError(dependency_reason)
     runs: list[dict] = []
-    for bundle_path, bundle in iter_bundles(batch_dir):
+    for bundle_path, bundle in iter_bundles(batch_dir, _admission=_admission):
         seed_dir = bundle_path.parent
         sidecar_dir = seed_dir / "validation_summary"
         total_turns = int(bundle.get("metadata", {}).get("total_turns", 0) or 0)
@@ -2308,12 +2367,12 @@ def classify_civ_arc(trajectory: dict) -> str:
     return "stable"
 
 
-def run_determinism_gate(batch_dir: Path) -> dict:
+def run_determinism_gate(batch_dir: Path, *, _admission=None) -> dict:
     """Run determinism smoke gate: 2 identical seeds must produce scrubbed-equal output."""
     # Index seeds one bundle at a time, then re-read only duplicate groups, so
     # a large batch never holds every parsed bundle at once.
     paths_by_seed: dict[int, list[Path]] = defaultdict(list)
-    for bundle_path, bundle in iter_bundles(batch_dir):
+    for bundle_path, bundle in iter_bundles(batch_dir, _admission=_admission):
         seed = bundle.get("metadata", {}).get("seed")
         if seed is None:
             continue
@@ -4401,7 +4460,7 @@ def run_oracles(
     recorded as ``causal_oracles_required``)."""
     require_causal = causal_oracles_required(None, require_causal)
     selected = _normalize_requested_oracles(oracles)
-    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
+    admission = _prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
     arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
@@ -4409,13 +4468,13 @@ def run_oracles(
     def ensure_seed_runs() -> list[dict]:
         nonlocal seed_runs
         if seed_runs is None:
-            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLE_NAMES)
+            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLE_NAMES, _admission=admission)
         return seed_runs
 
     for oracle_name in sorted(selected):
         try:
             if oracle_name == "determinism":
-                results[oracle_name] = run_determinism_gate(batch_dir)
+                results[oracle_name] = run_determinism_gate(batch_dir, _admission=admission)
             elif oracle_name == "community":
                 results[oracle_name] = run_community_oracle(ensure_seed_runs())
             elif oracle_name == "needs":
@@ -4453,7 +4512,7 @@ def run_oracles(
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
-    report["batch_manifest"] = batch_manifest
+    report["batch_manifest"] = admission.finish()
     if ablation_summary is not None:
         report["ablation_arms"] = ablation_summary
     if profile is not None:

@@ -11,11 +11,38 @@ for the separate branch inventory, corrected inactive research harness,
 forkserver stages and new batch-verification findings. Main and the exact
 producing C76 checkout remain unchanged.
 
+The separate `lead/batch-manifest-reconciliation-20261029` follow-up closes
+[cohort identity admission gaps](integration/batch-manifest-reconciliation-2026-10-29.md)
+from frozen sidecar repair `e984be2a`: typed complete run records, exact ordered
+seed facts, canonical run/file scope, physical bundle identities and actual
+payload metadata must agree before verification. Repeated-seed determinism
+remains supported in distinct genuine files. The normal oracle reader checks
+metadata at its existing decode. Forty initial new regressions fail on e984;
+231 initial pure guarded checks passed. Lead review then found an established
+short-run diagnostic suppressed by an earlier config contradiction (288 pass,
+one fail in the complete chunk); the follow-up preserves both diagnostics and
+rejects NUL paths explicitly. All 55 focused cases and the complete 292-test
+modified chunk now pass with the unchanged 110-second bound. The original
+failure remains recorded. That complete chunk includes existing aggregate
+tests; no native build/module ran. Methods/thresholds are unchanged, and frozen `ec85795e` subsequently passed all six CI jobs; its complete
+offline lane passed 3,996 tests across 32 chunks with 65 skips.
+
+The separate `lead/batch-validation-input-set-20261029` branch closes a
+[batch oracle-input verification gap](integration/batch-validation-input-set-2026-10-29.md):
+new sidecars beside an already recorded bundle now require that run's manifest
+hash. Nine new regressions fail on the original verifier; the correction passes
+35 focused tests and 237 guarded validation-tooling tests with the unchanged
+110-second bound. Independent source review and all six exact-source CI jobs pass at `e984be2a`.
+No producer output, simulation policy, checkpoint or active gate was changed.
+
 The current consolidated review branch is `lead/recovered-review-20261029`.
 Its [October 29 review](integration/recovered-review-2026-10-29.md) maps actual
-code, validation, measured workflow options and held experiments. Production
-files remain those of qualified `c76efe85`; the original producing branch/path
-retain their complete frozen identity. The reviewed test changes passed their
+code, validation, measured workflow options and held experiments. World generation, physics, RNG, output writers and Rust remain those of
+qualified `c76efe85`; its original producing branch/path retain their complete
+frozen identity. New batch/validation modules now match qualified `ec85795e`,
+whose source, tests, scripts, viewer, Rust and test workflow are unchanged by
+this merge. The exact CI sources and results are in the
+[batch verification record](integration/batch-verification-ci-2026-10-29.md). The reviewed test changes passed their
 component checks and all 32 combined offline chunks. Exact code `1c5728b7`
 then passed [all six CI jobs](integration/recovered-review-ci-2026-10-29.md):
 8,027 native Python and 7,713 no-Rust parent passes, 526 successful subtests

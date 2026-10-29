@@ -1,11 +1,13 @@
 # Recovered development review, 2026-10-29
 
 The review branch is `lead/recovered-review-20261029`. Main remains unchanged.
-Its production Python and Rust files are byte-identical to qualified producer
-`c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`; subsequent changes consolidate
-validated test lifecycle/cohort reuse and source-scoped records. The original
-producer branch and checkout retain their exact SHA, branch identity, package
-bytes and package path for checkpoint replay.
+World generation, physics, RNG, output writers and Rust remain those of
+qualified producer `c76efe8552b4c6c288ebb1f813e2c0a58e5957b1`. The newer batch
+and validation modules close verified-cohort admission gaps. Source, tests,
+scripts, viewer, Rust and the test workflow exactly match qualified `ec85795e`;
+this review merge adds documentation. The original producer branch and checkout
+retain their exact SHA, branch identity, package bytes and path for checkpoint
+replay; its saved-output proof remains scoped to that original producer.
 
 ## Concrete changes and evidence
 
@@ -20,12 +22,20 @@ bytes and package path for checkpoint replay.
 | M36 test cohorts | Two exact seeded cohorts are shared as immutable observations | Every seed/horizon matched both original repetitions in both environments. Together/alone/full-module consumers preserve original assertions and skips. Scientific horizons remain 120/150 turns. |
 | Bounded offline coverage | Added pure proof/stat-order contracts and fixture isolation | Consolidated code `1c5728b7` passed 32 chunks: 3,929 passed, 65 skipped. Its complete six-job CI also passed; hosted offline chunks totaled 173.4 printed seconds, slowest 29.2/110 seconds. |
 
-The [exact consolidated CI record](recovered-review-ci-2026-10-29.md) reports
+The [earlier consolidated CI record](recovered-review-ci-2026-10-29.md) reports
 8,027 native Python passes and 7,713 no-Rust passes, with skips and successful
 subtests separate; Rust passed 1,088 tests and the viewer passed 743 tests,
 lint and build. The earlier local offline check separately took 188.1 seconds
 with a 35.1-second slowest chunk. These are distinct observations rather than
 a controlled before/after performance comparison.
+
+The [current verification CI record](batch-verification-ci-2026-10-29.md)
+qualifies exact code `ec85795e`: **8,094 native Python passes, 7,780 no-Rust
+passes and 3,996 offline passes**. Native has six skips, no-Rust has 306, each
+full Python lane has 526 successful subtests separately, and the offline lane
+has 65 skips across 32 chunks. Rust retains 1,088 passes/two ignored cases;
+viewer retains 743 tests across 69 files, lint and build. No CI lane was
+repeated for this documentation merge.
 
 The native installed context used locally is Python 3.13.5 and the identified
 `fb20dbc8` binary from the unchanged `a4703ef4` crate. GitHub builds identify
@@ -114,8 +124,8 @@ no efficacy threshold, default promotion or outcome-dependent seed selection.
 The batch audit reproduced an added-sidecar gap: a file absent from recorded
 hashes could still be selected by the oracle reader. Isolated `e984be2a` closes
 that set mismatch. Nine regressions fail on the old verifier; 35 focused tests
-and 237 tests in its complete affected offline chunk pass. Full CI has passed
-viewer, Rust, offline and no-Rust; native execution remains pending here.
+and 237 tests in its complete affected offline chunk pass. All six CI jobs pass
+at exact source `e984be2a`.
 
 Further synthetic cases showed a malformed manifest advertising 200 seeds and
 500 turns with zero bundles, mismatched payload seed/horizon labels, and two
@@ -125,15 +135,17 @@ matching actual bundle facts, while preserving genuine repeated-seed runs.
 Normal oracle paths reconcile during their existing decode. Its 55 focused
 cases and complete 292-test offline chunk pass. The first whole-chunk review
 found a suppressed historical diagnostic; that failure was retained and the
-original assertion preserved in the correction. Complete CI is pending.
+original assertion preserved in the correction. All six CI jobs pass at exact
+source `ec85795e`; both corrections are integrated into this review branch.
 
-These changes do not alter simulation outcomes or oracle thresholds. They are
-not included in this review branch's unchanged C76 production package yet.
+These changes alter verification and preserve simulation outcomes and oracle
+thresholds. They change the package digest; the original C76 checkpoint proof
+continues to use its preserved producer instead of relabeling old checkpoints.
 
 | Separate branch | Review standing |
 | --- | --- |
-| `lead/batch-validation-input-set-20261029` | Added oracle inputs require their own recorded hashes; exact-source CI underway |
-| `lead/batch-manifest-reconciliation-20261029` | Cohort declarations reconcile with actual decoded bundles; exact-source CI underway |
+| `lead/batch-validation-input-set-20261029` | Added oracle inputs require their own recorded hashes; all six CI jobs pass; integrated |
+| `lead/batch-manifest-reconciliation-20261029` | Cohort declarations reconcile with actual decoded bundles; all six CI jobs pass; integrated |
 | `lead/models-forkserver-contracts-20261029` | Tested inert API foundation; executable backend unavailable |
 | `lead/models-forkserver-metadata-design-20261029` | Tested static inventory and inactive two-child proof design; zero metadata forks |
 | `lead/research-natural-continuation-harness-20261029` | Corrected, tested detached study adapter; metadata freeze only |
