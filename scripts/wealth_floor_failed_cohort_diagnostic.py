@@ -27,7 +27,7 @@ import wealth_floor_baseline_admission as A
 import wealth_floor_build_resources as R
 import wealth_floor_hosted_deployment as D
 
-REVIEWED_DIAGNOSTIC_ACTIVATION = None
+REVIEWED_DIAGNOSTIC_ACTIVATION = "9a8ba11ec4d97b82ad9517d61a87c1eec4071542c14a5373be2157c2ac499a62"
 BRANCH = "lead/cloud-wealth-floor-failed-cohort-diagnostic-20261029"
 WORKFLOW = ".github/workflows/wealth-floor-failed-cohort-diagnostic.yml"
 TEMPLATE_FILE = "docs/workflows/wealth-floor-failed-cohort-diagnostic.yml"
