@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+Root cleared prepared source3271bb91 and independent peer7273c46e for one
+separate small candidate bootstrap on the registered activation branch. The
+actual workflow is the exact e1506e62 template copy; scripts, inputs, kernels,
+budgets and final A barrier are unchanged. Its first fresh runner must pass the
+complete162-case physically no-native110s preflight before scientific wheel
+installation or the fixed926-tick matrix. This note claims no remote result;
+no native/world or actual host admission probe ran locally. Preserve any first
+failure without same-source retry. No outcome-cohort or historical-reuse grant.
+
 A [dormant candidate mechanical bootstrap](experiments/wealth-floor-candidate-proof-2026-10-29.md)
 now registers the exact source503 six-case checkpoint kernel, genuine independent
 seed42 repeats for both world types and same-source cross-native refusal. The
