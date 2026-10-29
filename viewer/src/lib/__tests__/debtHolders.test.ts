@@ -134,7 +134,7 @@ describe("series and lists", () => {
       delete finance.civs[CIV];
       return { ...snapshot, finance };
     };
-    const history = [at(fixture, 54), withoutBorrower(at(fixture, 55)), withoutBorrower(at(fixture, 60))];
+    const history = [at(fixture, 54), withoutBorrower(at(fixture, 55)), withoutBorrower(at(fixture, 61))];
     const loss: Event = {
       turn: 54, event_type: "debt_written_off", actors: [CIV, "Sylenen Kingdom"],
       description: "With the borrower gone, its debt is lost.", consequences: [], importance: 3,
@@ -143,16 +143,16 @@ describe("series and lists", () => {
     const secondLoan = { ...loss, event_id: "synthetic:fallen-loan:2" };
     const later = { ...loss, turn: 56, event_id: "synthetic:fallen-loan:3" };
     const lenderOnly = { ...loss, actors: ["Another borrower", CIV], event_id: "synthetic:other-borrower" };
-    const pending = { ...loss, turn: 60, event_id: "synthetic:pending" };
+    const pending = { ...loss, turn: 61, event_id: "synthetic:pending" };
     const events = [loss, secondLoan, later, lenderOnly, pending];
     const losses = writeOffs(history, CIV, events, "lenders");
     expect(losses).toEqual([
       { turn: 55, amount: null, defaulted: false, events: [loss, secondLoan] },
-      { turn: 60, amount: null, defaulted: false, events: [later] },
+      { turn: 61, amount: null, defaulted: false, events: [later] },
     ]);
     expect(civDebtHolders(history[1], CIV, "lenders")).toBeNull();
     const strip = troubleRows(history, CIV, "totals", events).find((row) => row.id === "written_off")!;
-    expect(strip.segments.map((segment) => segment.start)).toEqual([55, 60]);
+    expect(strip.segments.map((segment) => segment.start)).toEqual([55, 61]);
     expect(strip.segments.every((segment) => segment.label.includes("amount not recorded"))).toBe(true);
     expect(troubleRows(history, CIV, "totals").some((row) => row.id === "written_off")).toBe(false);
   });
@@ -172,15 +172,15 @@ describe("series and lists", () => {
 
   it("does not repeat an event when a later finance row already accounts for it", () => {
     const absent = { ...at(fixture, 55), finance: { ...at(fixture, 55).finance!, civs: {} } };
-    const history = [at(fixture, 54), absent, at(fixture, 60)];
+    const history = [at(fixture, 54), absent, at(fixture, 61)];
     const event = fixture.events_timeline.find((entry) => entry.event_type === "state_default"
       && entry.turn === 54 && entry.actors[0] === CIV)!;
     const losses = writeOffs(history, CIV, [event], "lenders");
     expect(losses).toHaveLength(1);
-    expect(losses[0]).toMatchObject({ turn: 60, amount: 124, defaulted: true, events: [event] });
+    expect(losses[0]).toMatchObject({ turn: 61, amount: 124, defaulted: true, events: [event] });
     const strips = troubleRows(history, CIV, "lenders", [event]);
-    expect(strips.find((row) => row.id === "defaults")!.segments.map((segment) => segment.start)).toEqual([60]);
-    expect(strips.find((row) => row.id === "written_off")!.segments.map((segment) => segment.start)).toEqual([60]);
+    expect(strips.find((row) => row.id === "defaults")!.segments.map((segment) => segment.start)).toEqual([61]);
+    expect(strips.find((row) => row.id === "written_off")!.segments.map((segment) => segment.start)).toEqual([61]);
   });
 
   it("lists the indebted realms in world order and the borrowers by peak debt", () => {
