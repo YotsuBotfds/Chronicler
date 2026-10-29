@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+A separate [dormant native two-shard prototype](workflows/native-two-shards-2026-10-29.md)
+starts from qualified `cbf6e368`. It preserves whole-module order, exact-once
+parent/subtest ownership and one current-source verified wheel, with private
+per-shard outputs and a blocking aggregate. Current standard CI, runtime and
+native source stay unchanged. Only synthetic offline contracts have run; no
+real full collection, native execution, activation or speed claim is granted.
+
 An isolated [practice-observer runner seam](integration/practice-observer-runner-seam-2026-10-29.md)
 starts from `1205b6e4`, now hosted-qualified by all six jobs in run
 `40835337456`. One explicit caller-owned parameter routes observed turns inside
