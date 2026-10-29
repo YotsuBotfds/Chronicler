@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The separate [fresh CP60 proof preparation](experiments/practice-observer-cp60-proof-registration-2026-10-29.md)
+fixes seed1999, three executions/66 physics ticks, two post-CP observer frames
+per observed arm, six explicit checkpoint decodes and actual live-pool witnesses.
+Sixty-six guarded scalar/source/fake-process cases pass; the hosted template is
+inactive. Actual schemas, native/live counts and continuation remain unmeasured
+by this source qualification. No World, native pool, proof or study was run.
+
 The separate fresh-study controls now have **221 guarded cases passing in 2.23 s**,
 including source-pinned qualified supervision/accounting, exact scalar journal
 verification, bounded payment witnesses, strict post-CP trace comparison and the
