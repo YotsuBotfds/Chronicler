@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+A source-only full registration successor now binds the root-content-qualified
+f04e worker packet and templatef9ee/proceduralf218 object hashes after3520.
+Root source/content review9e3050cb qualifies these exact inputs; original2e80
+and A/dependencies/science/workflows remain unchanged. The producing3520/2b05/
+9674 refs remain immutable. Full worker authority is filled only in this new
+registration child; no active full workflow, push, metadata GET, native build or
+World is performed by registration. Pure actual-packet checks and peer/root
+activation review remain separate; original scientific smoke FALSE/exit2 is
+preserved. Earlier NULL wording below records the producing source snapshots.
+
 A [full-only publication admission source child](experiments/wealth-floor-full-origin-metadata-2026-10-29.md)
 adds exact source-bound9674 smoke origins and9d/fa4/7cef/b12/5f3c terminal receipt
 identities. Full preflight derives13 metadata rows without reading the worker

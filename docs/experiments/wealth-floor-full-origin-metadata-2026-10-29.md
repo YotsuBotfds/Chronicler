@@ -1,8 +1,10 @@
 # Full-only worker publication admission
 
-This source child extends prepared2b05. It installs no active outcome workflow,
-registers no full worker proof and runs no full cohort. The two worker-object
-hashes and root worker-packet hash remain NULL. Original A9de remains NULL;
+The source-only registration successor extends frozen3520 after root source/
+content review9e3050cb. It installs no active workflow and runs no full cohort.
+Only this new child fills templatef9ee/proceduralf218 worker-object hashes and
+root worker packetf04e; producing3520/2b05/9674 remain immutable. Pure actual-
+packet qualification and separate activation review remain pending. Original A9de remains NULL;
 P13239/M0a6/C60/Bcb87/R44/D2/F/K/D are unchanged.
 
 The first smoke9674/run40847120432 is qualified as a mechanical prerequisite by
@@ -23,7 +25,9 @@ receipt must be the booleanFalse; booleans cannot replace receipt hashes.
 Each prospective worker proof must bind an exact per-world projection of those
 facts and its producer must match the exact world job. Six distinct artifacts,
 both successful original jobs and the common terminal chain are required. These
-metadata facts alone do not fill the still-NULL full authority registry.
+metadata facts alone did not fill3520's full authority. This separately reviewed
+registration now binds the exact worker objects; full execution still requires
+fresh publication validation before worker-proof interpretation and worlds.
 
 ## Order before any full science
 
