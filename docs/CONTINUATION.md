@@ -1,35 +1,34 @@
 # Recovered continuation — 2026-10-11
 
-Separate source-only [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
-starts from `2f164203`. Health stays default-off and spouse-only calls retain
-five native arguments and the exact old preparer. Explicit retained Kin fills
-uncared patients only after every spouse allocation, using reciprocal stored
-edges and bounded sorted candidates; no parent/genealogy inference or native
-persistent field is added. A strict persisted Python policy/setter and typed
-experiment receipts preserve legacy omission and explicit reversion. Enabled
-Python pickle metadata can intentionally include the new declared default;
-old missing-field behavior is tested, not old/new checkpoint-byte identity.
-Native compilation/tests, full CI, fresh default-output parity and enabled
-World/checkpoint/scientific/performance gates remain unrun for this source.
-The prior qualified records below retain their original code/runtime scope.
-The two new Python policy modules now share a new 110-second offline chunk.
-Their prior custom-guard result is 38 parents plus 97 successful subtests on
-Python 3.12.14. The first hosted integration at `2572d5b9`, run `40904414478`,
-failed native manifest admission: the exact source has 302 test modules while
-the manifest owned 300, omitting these two policy modules. That failure remains
-preserved; it supplies no native build or full-native execution result.
-The completed offline lane reports both modules together under the unchanged
-110-second guard on Python 3.13.17: 38 parents and 97 successful subtests, zero
-skips/native/factory/blocked-I/O attempts. Its complete 36 chunks report 4,286
-parent passes, 65 skips and 97 subtests; 4,383 includes subtest reports, not parents.
-The narrow source-only registration successor assigns exactly those two modules
-to smaller shard 1, preserving every old module owner and all six skip IDs.
-Its expected full-native subtest seal is prospectively 623 = historical 526 +
-policy 97. The same first run's completed no-Rust job `123555152959` reports
-8,157 parent passes, 325 skips and 623 successful subtests, including all 38 new
-policy parents passing. Full-native corroboration, new full CI and independent/
-root review remain pending. Runtime/controller/workflow caps and physics are unchanged.
+Separate default-off [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
+now has independently/root-qualified [all-nine-job standard CI](integration/retained-kin-care-ci-2026-10-29.md)
+at exact `23d4d246`, run `40908555947`, attempt 1. Native Python passes
+8,490 parents/six skips/623 successful subtests; no-Rust passes 8,157/325/623.
+Rust passes 1,130/two ignored, offline 4,286 parents/65 skips/97 subtests across
+36 unchanged 110-second chunks, and Viewer 743 tests with lint/build. The two
++ two wrapper-preflight passes remain separate. Both native consumers collected
+the same ordered 8,496 parents across 302 modules; their disjoint ownership,
+25,488 phase reports and subtest order/multiplicity reconcile with JUnit.
 
+The first `2572d5b9` run `40904414478` remains failed at native manifest admission:
+302 actual test modules versus 300 assigned. Its passing Rust/no-Rust/offline/
+Viewer components remain preserved; native builder preflight/build/execution
+were skipped. The changed-source repair assigns exactly the two missing policy
+modules to shard 1, preserving all 300 old owners, six skip IDs and runtime/
+crate/controller/workflow bytes. No same-source retry is relabelled successful.
+
+Health stays default-off. Spouse-only calls retain five native arguments and the
+exact old preparer; explicit reciprocal stored Kin fills only after all spouse
+allocations, without genealogy inference or native persistent fields. All 38
+new Python policy parents use models/fake bridges, including in the native lane;
+nine new Rust contracts are source-included in its successful unfiltered target.
+Actual per-class checkpoint-schema tuples and genuine Python execution of the
+new keyword remain unobserved. Enabled retained-Kin World/checkpoint, fresh
+default-output/global-RNG, science and performance gates remain separate; no
+activation, adoption or current-candidate/main promotion is supplied by CI.
+Enabled Python pickle metadata may include the new declared default: old missing-
+field model behavior is tested, not old/new World checkpoint-byte identity.
+The prior qualified records below retain their original code/runtime scope.
 
 Current cross-examination branch: [`lead/native-ci-consolidation-20261029`](integration/native-ci-consolidation-2026-10-29.md). Its exact code `c5c6b6d9` now has independently/root-qualified [all-nine-job CI](integration/native-ci-consolidation-ci-2026-10-29.md), run `40880410392`: 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline passes/65 skips, 1,121 Rust passes/two ignored and 743 Viewer tests with lint/build. The 2 + 2 preflights stay separate. The complete native crate is exact 090 and standard CI exact EC; Python/dependencies remain CBF. Main and the separate CBF documentation-review branch are unchanged.
 

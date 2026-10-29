@@ -1,0 +1,303 @@
+{
+  "kind": "CURATED_RETAINED_KIN_SOURCE_SCOPED_STANDARD_CI_RESULT",
+  "date": "2026-10-29",
+  "verdict": "QUALIFIED_SOURCE_SCOPED_STANDARD_CI",
+  "source": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+  "sole_parent": "2572d5b914c14934addf6254be1cc15c7067e52f",
+  "run": {
+    "id": 40908555947,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "branch": "lead/retained-kin-care-ci-registration-review-20261029",
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40908555947",
+    "all_nine_jobs_success": true,
+    "jobs": [
+      {
+        "id": 123569924382,
+        "name": "Viewer",
+        "conclusion": "success"
+      },
+      {
+        "id": 123569924772,
+        "name": "Rust",
+        "conclusion": "success"
+      },
+      {
+        "id": 123569924790,
+        "name": "Build one current-source native wheel",
+        "conclusion": "success"
+      },
+      {
+        "id": 123569924939,
+        "name": "Python no-Rust",
+        "conclusion": "success"
+      },
+      {
+        "id": 123569925273,
+        "name": "Python bounded offline",
+        "conclusion": "success"
+      },
+      {
+        "id": 123572003958,
+        "name": "Python native module shard 0",
+        "conclusion": "success"
+      },
+      {
+        "id": 123572003974,
+        "name": "Python native module shard 1",
+        "conclusion": "success"
+      },
+      {
+        "id": 123575308391,
+        "name": "Python native execution",
+        "conclusion": "success"
+      },
+      {
+        "id": 123575511873,
+        "name": "Python native",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "root_final": {
+    "path": "/tmp/chronicler-care23-root-final-qualification-20261029/root-final-qualification.json",
+    "bytes": 3041,
+    "sha256": "d22bc652060dba7f5b29e511ce813f1948f2880c4f02ad1917f69eab997b86fa"
+  },
+  "independent_final": {
+    "path": "/tmp/care23-independent-complete-peer-20261029/final-receipt.json",
+    "bytes": 5128,
+    "sha256": "40e35b4f42ccce887bb101661a79f568a9058faf315f3462af3ff4fcca7bf062"
+  },
+  "primary_evidence": {
+    "manifest": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-23d4-CI-20261029/evidence-manifest.json",
+      "bytes": 8264,
+      "sha256": "0894395608ba02497d7272301e557a774135166248da1c4d6d9a4953cb63350c"
+    },
+    "corrected_result": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-23d4-CI-20261029/reconciled-result-v2.json",
+      "bytes": 48014,
+      "sha256": "31ef7b937b74c417820355a124b17b7bf84f886a855b8eef23f7a127d462aa10"
+    },
+    "supplementary": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-23d4-CI-20261029/supplementary-verification.json",
+      "bytes": 24613,
+      "sha256": "633a38f1bd9660680a60aea44f6690f0829c037bfde8a794591198e6580679c6"
+    },
+    "historical_primary_readout": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-23d4-CI-20261029/READOUT.md",
+      "bytes": 5620,
+      "sha256": "d55f5344ced851e9aefabab708b641a0c63c83941303608204a642693cc30981"
+    },
+    "payload_files": 53,
+    "payload_bytes": 5633081,
+    "original_ZIPs": 9,
+    "outer_members": 92,
+    "inner_wheel_members": 6
+  },
+  "source_provenance": {
+    "registration_freeze": {
+      "path": "/tmp/chronicler-care-native-ci-registration-20261029-yf2KI8Mz/evidence/source-freeze.json",
+      "bytes": 4586,
+      "sha256": "a358d9a8eeb0dd79796c756fab218f00b18b58749657eecf8428786454f680a8"
+    },
+    "registration_peer": {
+      "path": "/tmp/chronicler-care-native-ci-registration-23d4-independent-peer-20261029.json",
+      "bytes": 4091,
+      "sha256": "f224567da51c7150e0c6822153b7406b6b8b76ebf8e267ce7df12f22c7db671b"
+    },
+    "actual_CI_approval": {
+      "path": "/tmp/chronicler-care-23d4-root-qualification-20261029/root-actual-CI-approval.json",
+      "bytes": 1958,
+      "sha256": "9251ffc1e9e8a55551fe29a36de4258c26be53b06fcdf0037eec6f6156f48382"
+    },
+    "repair_scope": "Two added native shard-1 owners plus registration tests and continuation documentation; runtime, native crate, dependencies, controllers and workflows exact parent2572. All300 old module owners and6 skip IDs retained.",
+    "source_files": 790,
+    "source_tree_digest": "e1511d3685c2819f69abdbb4b44c46f0e2a0ac6cc5fa23dbb74e01eefdab6fc7",
+    "native_crate_tree": "a73bd533b4c8f413e00efb72a8c6090a73037abb"
+  },
+  "results": {
+    "native": {
+      "parents": 8496,
+      "passed": 8490,
+      "skipped": 6,
+      "successful_subtests": 623,
+      "modules": 302,
+      "parent_phase_reports": 25488,
+      "identical_ordered_full_collection": true,
+      "disjoint_exact_once_ownership": true,
+      "shards": [
+        {
+          "shard": "0",
+          "parents": 4366,
+          "passed": 4362,
+          "skipped": 4,
+          "successful_subtests": 407,
+          "parent_phase_reports": 13098
+        },
+        {
+          "shard": "1",
+          "parents": 4130,
+          "passed": 4128,
+          "skipped": 2,
+          "successful_subtests": 216,
+          "parent_phase_reports": 12390
+        }
+      ]
+    },
+    "no_rust": {
+      "parents": 8482,
+      "passed": 8157,
+      "skipped": 325,
+      "successful_subtests": 623
+    },
+    "Rust": {
+      "passed": 1130,
+      "ignored": 2,
+      "filtered": 0,
+      "targets": 37,
+      "library_unit_passed": 589,
+      "nine_added_tests_source_included_in_unfiltered_command": true,
+      "individual_new_test_names_witnessed_in_quiet_stdout": false
+    },
+    "offline": {
+      "chunks": 36,
+      "per_chunk_bound_seconds": 110,
+      "parent_passed": 4286,
+      "skipped": 65,
+      "successful_subtests": 97,
+      "guard_pass_reports_including_subtests": 4383,
+      "source_pins": 327,
+      "all_source_pins_exact": true,
+      "changed_from_first2572_source": [],
+      "expected_blocked_native_availability_attempts": {
+        "chronicler_agents": 313
+      },
+      "replaced_Python_oracle_calls": {
+        "ecology": 168,
+        "politics": 168
+      }
+    },
+    "Viewer": {
+      "passed": 743,
+      "files": 69,
+      "lint_build": "PASS"
+    },
+    "wrapper_preflights_separate": {
+      "wrapper-contract-native": {
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      },
+      "wrapper-contract-no-rust": {
+        "parents": 2,
+        "passed": 2,
+        "skipped": 0,
+        "successful_subtests": 0
+      }
+    },
+    "new_policy_contracts": {
+      "Python_parents_each_full_lane": 38,
+      "native_parent_phase_reports": 114,
+      "native_successful_subtest_reports": 97,
+      "scope": "Real models and fake bridges/metadata, including when native is installed; not genuine execution of the new Python keyword.",
+      "offline_chunk": {
+        "parent_passed": 38,
+        "successful_subtests": 97,
+        "skipped": 0,
+        "native_loads": 0,
+        "factory_calls": 0,
+        "blocked_IO": 0,
+        "native_availability_attempts": 0
+      }
+    }
+  },
+  "fresh_build_identity": {
+    "python": "CPython3.13.17",
+    "pytest": "9.0.2",
+    "compiled_classes_recorded": [
+      "AgentSimulator",
+      "EcologySimulator",
+      "PoliticsSimulator"
+    ],
+    "wheel": {
+      "bytes": 3927909,
+      "sha256": "823cf2c55eefd2d7142b3e6985b39b8fc40e06c50a3dedb46d7d75594a20c96c"
+    },
+    "native": {
+      "bytes": 13723592,
+      "sha256": "4028687923e9996fe4c52540ca7d2421fa1a175bd7167be19f2b005b12c9f54f"
+    },
+    "before_after_runtime_context": "Source-pinned producer assertion; not independent external process attestation.",
+    "actual_per_class_checkpoint_schema_tuples": null,
+    "genuine_Python_new_keyword_execution": null
+  },
+  "first_run_preserved": {
+    "source": "2572d5b914c14934addf6254be1cc15c7067e52f",
+    "run": 40904414478,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "outcome": "FAILURE_NATIVE_MODULE_ADMISSION",
+    "manifest": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-2572-first-CI-20261029/evidence-manifest.json",
+      "bytes": 4722,
+      "sha256": "1d33315f6bba5b144e041676998c99dbd700e21ac29c76a904bad017a0ea6887"
+    },
+    "result": {
+      "path": "/tmp/chronicler-review-evidence/retained-kin-care-2572-first-CI-20261029/reconciled-negative.json",
+      "bytes": 110923,
+      "sha256": "ec1f2779daa35fb8920ae5832a715e5555907ec0b02df8105a8a6264e89a3d6a"
+    },
+    "cause": "Actual302 test modules versus manifest300; missing exactly the two new care policy modules.",
+    "native_builder_preflight_build_and_execution": "Skipped; no wheel or compiled Python class identity outcome.",
+    "positive_components": {
+      "Rust": {
+        "passed": 1130,
+        "ignored": 2
+      },
+      "no_rust": {
+        "passed": 8157,
+        "skipped": 325,
+        "successful_subtests": 623
+      },
+      "offline": {
+        "parent_passed": 4286,
+        "skipped": 65,
+        "successful_subtests": 97
+      },
+      "Viewer": {
+        "passed": 743,
+        "files": 69,
+        "lint_build": "PASS"
+      },
+      "no_rust_wrapper_preflight_separate": {
+        "passed": 2
+      }
+    },
+    "same_source_retry": false
+  },
+  "observer_history_preserved": [
+    "First primary metadata reader refused the expected one-warning pytest terminal; a separate reader admits the optional warning field with all outcome counters unchanged. Its dependent supplementary attempt lacked the main result. Both negative observations remain.",
+    "Corrected result changes only a hardcoded90 outer-member summary to92 and renames an old CBF-labelled comparison key to the actual unchanged parent2572 comparison. Original full result, arrays and observations remain.",
+    "Root metadata intake attempt001 expected source fields omitted by an abridged connector job wrapper; corrected intake used fresh unabridged official jobs metadata. No producer, test or CI retry."
+  ],
+  "scope_limits": [
+    "Default-off optional feature; source-scoped standard CI qualification, not adoption or current-candidate/main promotion.",
+    "No enabled retained-Kin World/cohort or same-source World checkpoint continuation qualification.",
+    "No default-output/full-global-RNG parity, cross-source checkpoint identity, scientific efficacy/survival/welfare or performance claim.",
+    "Actual per-class checkpoint_schema tuples and genuine Python execution of the new keyword remain unobserved; prior schemas are not relabelled.",
+    "Existing standard suites may execute normal Worlds/checkpoints. This readout does not claim that CI executed zero Worlds.",
+    "Archive/source/runtime reconciliation is attributed to the pinned primary, independent and root observers. This curation reads only selected retained metadata, source text and their seals; it reruns no reader, test, native code, World or checkpoint decode and acquires no remote data."
+  ],
+  "curation": {
+    "activity": "Selected saved JSON/MD/hash provenance projection only; original evidence packs and source freezes unchanged.",
+    "freshly_hashed_metadata_references": 11,
+    "source_or_test_execution": false,
+    "network_or_acquisition": false,
+    "timing_claim": null,
+    "feature_activation": false,
+    "candidate_main_promotion": false
+  }
+}

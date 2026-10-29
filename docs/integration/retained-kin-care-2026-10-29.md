@@ -4,8 +4,11 @@ This is an inactive source extension from `2f164203`. Health care remains off
 for new Worlds. Its legacy `spouse` policy keeps the old five-argument Python
 call and exact original Rust preparer. Only an explicit `retained_kin` policy
 supplies the new keyword. There is no new CLI, automatic activation or native
-persistent field. Native build, Rust tests, full CI, output/RNG parity and
-World/checkpoint continuation qualification remain unrun for this candidate.
+persistent field. Exact `23d4d246` now has independently/root-qualified
+[all-nine-job standard CI](retained-kin-care-ci-2026-10-29.md), including a fresh
+native build and the full Rust/native/no-Rust/offline/Viewer lanes. Output/global-
+RNG parity, enabled World/checkpoint continuation, science and performance remain
+separate; this CI result supplies no activation, adoption or main promotion.
 
 `HealthCareState.care_policy` accepts `spouse` or `retained_kin`. Ordinary JSON
 omits `spouse` through the existing exclusion pattern. A strict getter treats
@@ -61,8 +64,10 @@ when no Kin is available; global spouse competition; sorted/deduplicated donor
 competition; missing/asymmetric/dead/reused/travelling/enlisted/urban/underage/
 injured/wrong-region donors; no parent-only inference; one-time work/income cost,
 actual economy production and food demand; pool persistence and next-turn reset;
-and FFI rejection before mutation. These Rust regressions are written but unrun.
-The bounded Python tests use real state models and fake bridges/metadata only;
+and FFI rejection before mutation. All nine added Rust contracts are source-
+included in the successful unfiltered library target at `23d4d246`; quiet stdout
+does not individually name them. The bounded Python tests use real state models
+and fake bridges/metadata only;
 they create no World, native runtime, checkpoint decode or live artifact access.
 Local guard results and exact source pins are retained externally after the run.
 The first local custom guard passed 38 Python parent tests and 97 successful
@@ -70,8 +75,13 @@ subtests on Python 3.12.14. These counts do not claim a standard offline guard
 or hosted Python 3.13 result. The two new policy modules are registered together
 in the offline runner's `health-care-policy` chunk with its unchanged 110-second
 limit. A separate source-selection check exercises the runner's actual `--list`
-path without running any pytest chunk; native and hosted qualification remain
-unrun. The original local test result is retained without an unrelated rerun.
+path without running any pytest chunk. Subsequent hosted `23d4d246` CI passes
+all 38 policy parents in each full Python lane and 38 parents/97 successful
+subtests in the standard guarded offline chunk. These remain model/fake-bridge
+contracts: genuine Python execution of the new keyword and actual per-class
+checkpoint-schema tuples are unobserved. The original local result and the
+first `2572d5b9` native-admission failure remain preserved separately; see the
+[qualified CI readout](retained-kin-care-ci-2026-10-29.md).
 The frozen design is `/tmp/chronicler-retained-kin-care-design-20261029/PLAN.md`,
 SHA-256 `a50dc1e033654f138760ad5b1c1d66da69e41fcf64f03f9cfb8202d2b00828b1`.
 
