@@ -1,12 +1,14 @@
 # Recovered development review, 2026-10-29
 
+Current candidate: [`lead/native-ci-consolidation-20261029`](native-ci-consolidation-2026-10-29.md) composes exact native090 and standardCI ec. Its own combined CI is pending. The source-scoped review below originated at c900; the separate documentation-only `lead/review-integration-20261029` branch retains CBF code.
+
 The separate [standard native-shard integration](native-module-shards-standard-ci-2026-10-29.md)
 is now qualified at `ec09134b` / run `40869065907`: nine actual jobs retain the
 six original gates, exact full collection and blocking native/Rust barriers.
 Its 8,458 native parents partition exactly into 8,452 passes/six skips, with
 526 successful subtests separate. No-Rust passes 8,119 with 325 skips; offline
-passes 4,248 with 65 skips over 35 chunks. These results qualify that source graph,
-not adoption into this review branch. The original failed 847 and successful
+passes 4,248 with 65 skips over 35 chunks. These results qualify that source graph; this candidate takes its exact files
+and still needs combined-head CI. The original failed 847 and successful
 isolated 7d producers retain their distinct records and lossy-display limits.
 
 The [fresh CP60 proof V2](practice-observer-cp60-proof-v2-result-2026-10-29.md)
@@ -26,8 +28,8 @@ preserved. CBF-to090 default-export producer `c7727863` completed
 [run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
 with independently qualified publication metadata; the original-byte audit is
 pending. Neither CI nor that producer success grants global RNG, checkpoint,
-export parity or performance qualification. Both candidates remain outside
-this review runtime.
+export parity or performance qualification. The exact090 native crate is now included in this candidate; its new combined
+head still needs its own CI and actual binary records.
 
 The original wealth cohort remains mechanically incomplete. Its read-only
 `5f9413c3` diagnostic recovered a compound checkpoint-shape failure, while the
@@ -41,8 +43,9 @@ earlier inactive-study status is a qualification-time snapshot, superseded by
 this producer standing. No independently qualified END180 study result or
 paid-growth effect is claimed.
 
-The consolidated branch is `lead/review-integration-20261029`; main remains
-unchanged. Runtime, tests, scripts and workflows match qualified `cbf6e368`.
+The separate documentation review remains `lead/review-integration-20261029`
+with CBF non-document entries. This candidate combines exact090/ec as listed
+above; main remains unchanged.
 The [runner integration readout](practice-observer-runner-ci-2026-10-29.md)
 records all six jobs passing in run `40841527996`, with independently verified
 original evidence. Both new genuine complete-run observer cases pass in both

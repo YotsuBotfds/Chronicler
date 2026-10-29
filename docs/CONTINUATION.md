@@ -1,13 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+Current candidate: [`lead/native-ci-consolidation-20261029`](integration/native-ci-consolidation-2026-10-29.md) composes exact native090 and standardCI ec. Its own combined CI is pending. The source-scoped review below originated at c900; the separate documentation-only `lead/review-integration-20261029` branch retains CBF code.
+
 The separate [standard native CI integration](integration/native-module-shards-standard-ci-2026-10-29.md)
 is independently qualified at `ec09134b`, run `40869065907`: all nine actual
 jobs pass while retaining six visible gates. Both consumers collected the same
 8,458 parents; their disjoint ownership yields 8,452 passes, six skips and 526
 successful subtests. No-Rust has 8,119 passes/325 skips, offline 4,248/65 across
 35 chunks, Rust 1,118 passes/two ignored, and Viewer 743 tests with lint/build.
-The 2 + 2 wrapper preflights stay separate. This review's standard workflow
-remains CBF; adoption of the qualified separate graph is not implied. Its
+The 2 + 2 wrapper preflights stay separate. This candidate takes the exact qualified standard graph; its own combined-head
+CI qualification is pending. Its
 first 847 publication failure and local 127-pass/1-fail contract are preserved.
 
 The [completed CP60 observer proof](integration/practice-observer-cp60-proof-v2-result-2026-10-29.md)
@@ -24,8 +26,9 @@ ticks; its None result 62 was source-inferred, not serialized in that failed run
 Separate native candidate `0900f3d2` has independently qualified all-six-job CI
 in [run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984):
 1,121 Rust passes, 8,351 native Python passes and 8,018 no-Rust passes, with
-skips/subtests separate. It remains outside this review runtime, as does its
-preceding [535 shared-live-slot result](integration/native-live-slot-ci-2026-10-29.md).
+skips/subtests separate. Its exact native crate is included in this candidate, including the preceding
+[535 shared-live-slot work](integration/native-live-slot-ci-2026-10-29.md); component
+qualification does not replace combined-head CI.
 The CBF-to090 default-export producer `c7727863`,
 [run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
 completed successfully and its publication metadata is independently qualified.
@@ -53,8 +56,9 @@ at `7dcb2402` and all first failed publications remain preserved. Context labels
 are bounded display only; native identities/outcomes/ownership/order and report
 multiplicity retain strict checks. No main merge or runtime promotion is included.
 
-The current consolidation is `lead/review-integration-20261029`. Its runtime,
-tests, scripts and workflows match qualified `cbf6e368`; main is unchanged.
+The documentation-only review remains `lead/review-integration-20261029`, whose
+non-document entries match CBF. This separate candidate combines the sources
+listed above; main is unchanged.
 All six jobs passed in run `40841527996`, and the saved original artifacts
 have an independent clear review. The [runner CI readout](integration/practice-observer-runner-ci-2026-10-29.md)
 records 8,351 native Python passes, 8,018 no-Rust passes, 4,244 bounded offline
