@@ -64,8 +64,8 @@
     "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
   },
   "tests/test_forecast_credibility_publication.py": {
-    "bytes": 33166,
-    "sha256": "38db2eb654c20d2e230e51ca9b2d185e50db3738e05283d40401adcfa94d9426"
+    "bytes": 36527,
+    "sha256": "211c28733fb1b55743fae82a71acec38fb929553e6e917975c5af6637eb5a08c"
   },
   "tests/test_forecast_credibility_readout.py": {
     "bytes": 56306,

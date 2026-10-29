@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `aa68b9300548b13266ff8bc97b568f22b3705c44e7a42f9098463fc4dcc4f335`
+Source manifest SHA-256: `2057e2ad6c588345ede4d8265c58d75300ca1f4e25d0126d77531b81bf1f60e0`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -315,3 +315,61 @@ first38chunks and110-second bounds remaining exact. New code/case counts/source
 pins and runner must freeze before any separately authorized bounded fake run.
 Actual runtime/native-schema/report exposure, full Python graph/RNG, science,
 efficacy, performance, adoption, and main promotion remain unavailable.
+
+
+## Fixture-only successor after prospective aggregate refusal
+
+The unrun40f79 source and prepared pure005 runner remain preserved and HELD:
+its68 repeated full publication fixtures alone required3400 regular files,
+which with c80's929 exceeded the unchanged4096-file global limit before role
+outputs. No test attempt occurred. This successor changes only the new
+publication test-fixture strategy, source pins and this documentation. Every
+production publisher/owner/clock/reader/donor byte remains exact40f79; all215
+old test bodies and all105 logical publication cases remain. The full selection
+is still391 cases:134 study,152 reader and105 publication.
+
+The entire THREE-module preflight retains one explicit regular-file namespace
+under pure-preflight/fixtures, with no removal, exclusion, aliases or separate
+retention authority. The conservative source estimate is2790 fixture files:
+929 from all old215 cases; zero from71 new primitive-only study clock cases;
+23 complete publication fixtures at at most66 files each;12 early-metadata
+fixtures at24 each plus one metadata-copy fixture at40;8 tiny descriptor/path
+fixtures at one file each; and one shared immutable seven-file control fixture.
+The remaining61 publication cases use primitive in-memory records/counters and
+retain no regular files. All source/clock refusal fixtures assert their exact
+early refusal code, avoiding acceptance of an unrelated missing-role failure.
+Complete descriptor/hash/late-gate positives and actual regular-file identity,
+mtime/content/member mutations remain represented. Deliberate symlink/hardlink/
+nonregular observations are finite descriptor injections into retained regular
+files, never real unsafe paths.
+
+Allowing3 preflight receipt/JUnit/log leaves gives2793 files. A conservative
+40MiB byte estimate covers the retained fake-fixture bodies of ALL three
+modules, including old fixtures and new metadata copies; the fixed fixture rows, small invented bodies, source files,
+canonical path limits and bounded JSON/stat records supply this estimate. This
+is a prospective static bound, not an observed fixture closure or new producer
+quota. Preflight/JUnit/failure diagnostics are separate bounded leaves jointly
+counted under existing output/member/global limits;40MiB is not a theorem about
+arbitrary failure diagnostics. The one authorized attempt, if later granted, must retain every actual
+fixture and independently close all regular files/bytes. The unchanged4096/
+2GiB global guard remains authoritative.
+
+The file estimate leaves1303 slots under4096. Accounting prospectively for128
+metadata-copy/authority files and128 other original owner files leaves1047
+role/log slots. Separate literal successful-path source analysis estimates at
+most515 scheduled role-tree/log leaves (441 ordinary,56 role authorities,4
+stock-job files and14 owned logs), leaving532 slots beyond those known paths.
+Failed atomic temporaries and unregistered native output cardinality remain
+unknown and must be counted/refused by actual inventory. This is not a promise
+of full matrix completion, and128MiB/256 per-role maxima are not simultaneously
+available global allocations. Science, seed/horizon/roles, caps, runtime bindings
+and the original-archive acceptance NULL gate remain unchanged.
+
+
+The fixture-only static review receipt is
+`432fe399e600d42251bb90879bbb9231e43368a521d5e249ed3b57082026b2d7`.
+The separate literal-output source receipt is
+`5da44242f6b8e9b640a6961c22efcbfc0097d80dcdc9790517b142283c34d1cc`.
+Both are saved-byte source estimates without reviewed execution. They leave
+actual fixture closure, genuine role outputs, negative/unknown outputs and the
+unchanged aggregate guard to their own later observed receipts.

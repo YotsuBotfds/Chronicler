@@ -122,10 +122,9 @@ def reseal(root, clock, *, complete=True, cleanup=True):
     return result
 
 
-@pytest.fixture
-def study(tmp_path, monkeypatch):
-    control, root = tmp_path/'control', tmp_path/'original'
-    config = control_fixture(control)
+def make_study(tmp_path, monkeypatch, *, bodies, shared_control=None):
+    control, root = (tmp_path/'control' if shared_control is None else shared_control), tmp_path/'original'
+    config = control_fixture(control) if shared_control is None else json.loads((control/'docs/experiments/forecast-credibility-inputs.json').read_bytes())
     root.mkdir()
     for name in P.selected_paths():
         if name not in P.AUTHORITIES:
@@ -135,7 +134,7 @@ def study(tmp_path, monkeypatch):
     write(root/'mechanics.json', {'complete':True,'scope':'invented upstream metadata, not an actual readout'})
     write(root/'packages-before.json', [{'name':'invented-package','version':'1'}])
     write(root/'packages-after.json', [{'name':'invented-package','version':'1'}])
-    for index,name in enumerate(P.ROLE_NAMES):
+    for index,name in enumerate(P.ROLE_NAMES) if bodies else ():
         body = root/'roles'/name/'ordinary'/'opaque.fixture'
         body.parent.mkdir(parents=True)
         body.write_bytes(b'invented opaque role body; never decoded')
@@ -143,6 +142,42 @@ def study(tmp_path, monkeypatch):
     result = reseal(root, clock)
     monkeypatch.setattr(P.shutil,'disk_usage',lambda _path:SimpleNamespace(free=20*P.GIB))
     return SimpleNamespace(root=root,control=control,clock=clock,result=result,base=tmp_path)
+
+
+@pytest.fixture(scope='module')
+def publication_control(tmp_path_factory,request):
+    """One immutable seven-file source fixture; never changed by body tests."""
+    name='publication-control-'+hashlib.sha256(request.node.nodeid.encode()).hexdigest()
+    control=tmp_path_factory.mktemp(name,numbered=False)/'control'
+    control_fixture(control)
+    return control
+
+
+@pytest.fixture
+def study(tmp_path, monkeypatch,publication_control):
+    """Complete regular-file tree for descriptor/hash/integration and mutations."""
+    return make_study(tmp_path,monkeypatch,bodies=True,shared_control=publication_control)
+
+
+@pytest.fixture
+def early_study(tmp_path, monkeypatch):
+    """Only early metadata gates; no admitted role-body/inventory claim."""
+    return make_study(tmp_path,monkeypatch,bodies=False)
+
+
+def early_gate(**changes):
+    args=dict(source=SOURCE,prepare_outcome='success',metadata_outcome='success',
+        publication_outcome='success',serializer_exit='0',metadata_budget_complete='true',
+        remaining_wall_milliseconds='19000',remaining_cpu_seconds='9',
+        metadata_output=Path('/tmp/invented-publication'),budget=budget(),boot_id=BOOT)
+    args.update(changes)
+    return P.gate_raw_upload(Path('/tmp/invented-original'),Path('/tmp/invented-control'),**args)
+
+
+def pure_work():
+    root,output=Path('/tmp/invented-original'),Path('/tmp/invented-publication')
+    work=P._metadata_work_budget(budget(),root,output,SOURCE,{})
+    return {'source':SOURCE,'metadata_only':True,'metadata_work_budget':work},root,output
 
 
 def prepare(study, **changes):
@@ -186,7 +221,8 @@ def test_late_negative_uses_only_actual_cleanup_inventory_and_no_complete_claim(
     assert manifest['raw_original_artifact_qualified'] is None
 
 
-def test_child_cleanup_rows_do_not_upgrade_uncertified_whole_owner(study):
+def test_child_cleanup_rows_do_not_upgrade_uncertified_whole_owner(early_study):
+    study=early_study
     reseal(study.root,study.clock,complete=False,cleanup=False)
     plan=P.prepare_raw(study.root,study.control,source=SOURCE,owner_outcome='failure',budget=budget(),boot_id=BOOT)
     assert plan['raw_eligible'] is False and plan['refusal_code']=='RAW_CLEANUP'
@@ -195,7 +231,8 @@ def test_child_cleanup_rows_do_not_upgrade_uncertified_whole_owner(study):
 
 
 @pytest.mark.parametrize('defect',['clock_hash','clock_deadline','clock_boot','clock_job','clock_source','owner_run','source_pins','approval','registration'])
-def test_raw_binding_or_actual_clock_substitution_is_ineligible(study,defect):
+def test_raw_binding_or_actual_clock_substitution_is_ineligible(early_study,defect):
+    study=early_study
     if defect.startswith('clock_'):
         value=json.loads((study.root/'job-clock.json').read_bytes())
         if defect=='clock_hash': value['observed']['run']['extra']='changed raw response'
@@ -215,6 +252,8 @@ def test_raw_binding_or_actual_clock_substitution_is_ineligible(study,defect):
         reseal(study.root,study.clock)
     plan=prepare(study)
     assert plan['raw_eligible'] is False and plan['raw_original_artifact_qualified'] is None
+    expected='RAW_CLOCK' if defect.startswith('clock_') else 'RAW_BINDING' if defect=='registration' else 'RAW_SOURCE'
+    assert plan['refusal_code']==expected
 
 
 def test_current_original_hash_must_match_actual_retained_owner_inventory(study):
@@ -244,7 +283,8 @@ def test_actual_casefold_collisions_are_refused_without_deleting_regular_files(s
 
 
 @pytest.mark.parametrize('kind',['symlink','hardlink','special'])
-def test_raw_walk_rejects_fake_alias_or_special_metadata_without_real_links(study,monkeypatch,kind):
+def test_raw_walk_rejects_fake_alias_or_special_metadata_without_real_links(tmp_path,monkeypatch,kind):
+    path=tmp_path/'opaque.fixture';path.write_bytes(b'invented regular body')
     actual=P.os.scandir
     class Entry:
         def __init__(self,entry):self.entry=entry;self.name=entry.name
@@ -263,9 +303,9 @@ def test_raw_walk_rejects_fake_alias_or_special_metadata_without_real_links(stud
         def __exit__(self,*args):self.entries.close()
     with monkeypatch.context() as patch:
         patch.setattr(P.os,'scandir',lambda folder:Scan(folder))
-        result=prepare(study)
-    assert result['raw_eligible'] is False and result['refusal_code'] in ('RAW_SYMLINK','RAW_ALIAS')
-    assert (study.root/'roles/local-parent/ordinary/opaque.fixture').stat().st_nlink==1
+        with pytest.raises(P.Refused,match='RAW_SYMLINK|RAW_ALIAS'):
+            P.scan_original(tmp_path,budget(),hash_files=True)
+    assert path.stat().st_nlink==1 and path.read_bytes()==b'invented regular body'
 
 
 @pytest.mark.parametrize('extra_bytes,extra_files,expected',[(0,0,True),(1,0,False),(0,1,False)])
@@ -284,15 +324,15 @@ def test_joint_accounting_never_treats_unknown_or_boolean_counts_as_zero(bad):
     with pytest.raises(P.Refused,match='RAW_JOINT_CAP'):P.joint_reserve(0,bad)
 
 
-def test_manifest_and_plan_occupied_paths_refuse_without_overwrite(study):
-    occupied=b'preserved previous attempt'
-    (study.root/P.PLAN).write_bytes(occupied)
-    plan=prepare(study)
+def test_manifest_and_plan_occupied_paths_refuse_without_overwrite(tmp_path):
+    root,control=tmp_path/'original',tmp_path/'control';root.mkdir();control.mkdir()
+    occupied=b'preserved previous attempt';(root/P.PLAN).write_bytes(occupied)
+    plan=P.prepare_raw(root,control,source=SOURCE,owner_outcome='success',budget=budget(),boot_id=BOOT)
     assert plan['raw_eligible'] is False and plan['refusal_code']=='RAW_OCCUPIED'
-    assert (study.root/P.PLAN).read_bytes()==occupied
+    assert (root/P.PLAN).read_bytes()==occupied
 
-
-def test_prepare_reserves_metadata_and_raw_job_time_before_hashing(study):
+def test_prepare_reserves_metadata_and_raw_job_time_before_hashing(early_study):
+    study=early_study
     value=P.prepare_raw(study.root,study.control,source=SOURCE,owner_outcome='success',
         budget=budget(study.clock['monotonic_deadline']-224),boot_id=BOOT)
     assert value['raw_eligible'] is False and value['refusal_code']=='RAW_DEADLINE'
@@ -315,10 +355,10 @@ def test_missing_plan_after_bounded_prepare_interruption_is_closed_negative(stud
 
 
 @pytest.mark.parametrize('prepare_outcome,metadata_outcome',[('failure','success'),('success','failure'),(None,'success'),('success',None)])
-def test_upload_gate_requires_actual_prepare_and_metadata_action_success(study,prepare_outcome,metadata_outcome):
-    assert prepare(study)['raw_eligible'] is True
-    assert gate(study,prepare_outcome=prepare_outcome,metadata_outcome=metadata_outcome)['upload_raw'] is False
-
+def test_upload_gate_requires_actual_prepare_and_metadata_action_success(monkeypatch,prepare_outcome,metadata_outcome):
+    monkeypatch.setattr(P,'read_regular',lambda *args:(_ for _ in ()).throw(AssertionError('early gate must not read files')))
+    result=early_gate(prepare_outcome=prepare_outcome,metadata_outcome=metadata_outcome)
+    assert result['upload_raw'] is False and result['refusal_code']=='RAW_PLAN'
 
 def test_upload_gate_rechecks_remaining_time_after_metadata_upload(study):
     assert prepare(study)['raw_eligible'] is True
@@ -368,7 +408,8 @@ def test_late_manifest_plan_or_clock_tamper_is_ineligible(study,defect):
     assert gate(study)['upload_raw'] is False
 
 
-def test_metadata_proofs_remain_complete_when_raw_preparation_absent(study):
+def test_metadata_proofs_remain_complete_when_raw_preparation_absent(early_study):
+    study=early_study
     report=P.publish(study.root,study.base/'metadata',owner_outcome='success',source=SOURCE,budget=budget())
     assert report['complete'] is True and report['metadata_only'] is True
     assert report['raw_retention']['local_manifest_eligible'] is False
@@ -419,23 +460,25 @@ def test_hidden_regular_role_members_are_included_in_the_closed_manifest(study):
     assert gate(study)['upload_raw'] is True
 
 
-def test_current_publication_cannot_precede_its_saved_clock_sample(study):
+def test_current_publication_cannot_precede_its_saved_clock_sample(early_study):
+    study=early_study
     plan=P.prepare_raw(study.root,study.control,source=SOURCE,owner_outcome='success',budget=budget(1000.0),boot_id=BOOT)
     assert plan['raw_eligible'] is False and plan['refusal_code']=='RAW_CLOCK'
 
 
 @pytest.mark.parametrize('kind',['walk','depth','hash','metadata'])
-def test_prepare_finite_walk_hash_and_metadata_counters_fail_closed(study,monkeypatch,kind):
-    limits=budget()
-    if kind=='walk':monkeypatch.setattr(P,'MAX_ENTRIES',1)
+def test_prepare_finite_walk_hash_and_metadata_counters_fail_closed(tmp_path,monkeypatch,kind):
+    limits=budget();path=tmp_path/'opaque.fixture'
+    if kind=='depth':path=tmp_path/'nested/opaque.fixture';path.parent.mkdir()
+    path.write_bytes(b'invented bounded body')
+    if kind=='walk':monkeypatch.setattr(P,'MAX_ENTRIES',0)
     elif kind=='depth':monkeypatch.setattr(P,'MAX_DEPTH',0)
     elif kind=='hash':limits.hashed=P.ROOT_BYTES
     else:limits.metadata_bytes=P.TOTAL_LIMIT
-    result=P.prepare_raw(study.root,study.control,source=SOURCE,owner_outcome='success',budget=limits,boot_id=BOOT)
-    assert result['raw_eligible'] is False
-    assert result['refusal_code'] in ('RAW_SCAN','RAW_HASH_CAP','RAW_METADATA_CAP')
-    assert result['observed_selected_bytes'] is result['observed_selected_files'] is None
-
+    with pytest.raises(P.Refused,match='RAW_SCAN|RAW_HASH_CAP|RAW_METADATA_CAP'):
+        if kind=='metadata':limits.read(path)
+        else:P.scan_original(tmp_path,limits,hash_files=True)
+    assert path.read_bytes()==b'invented bounded body' and path.stat().st_nlink==1
 
 @pytest.mark.parametrize('name',['../escape','/absolute','a//b','a/./b','a\\b','x'*513])
 def test_raw_archive_names_cannot_escape_or_exceed_the_registered_UTF8_bound(name):
@@ -466,25 +509,23 @@ def test_post_metadata_plan_rewrite_cannot_change_the_uploaded_pair(study):
     {'publication_outcome':'failure'}, {'publication_outcome':None},
     {'metadata_budget_complete':'false'}, {'metadata_budget_complete':None},
 ])
-def test_actual_serializer_failure_or_missing_postguard_flag_refuses_even_with_valid_plan(study, changes):
-    assert prepare(study)['raw_eligible'] is True
-    result=gate(study,**changes)
+def test_actual_serializer_failure_or_missing_postguard_flag_refuses_even_with_valid_plan(monkeypatch,changes):
+    # The complete-plan positive is retained separately; these gates must refuse
+    # before touching it, even if a stale successful flag or plan would exist.
+    monkeypatch.setattr(P,'read_regular',lambda *args:(_ for _ in ()).throw(AssertionError('early gate must not read files')))
+    result=early_gate(**changes)
     assert result['upload_raw'] is False and result['refusal_code']=='RAW_PLAN'
-
 
 @pytest.mark.parametrize('field,value', [
     ('source','b'*40), ('root','/tmp/different-original'), ('output','/tmp/different-metadata'),
     ('scope','second_metadata_allowance'), ('max_wall_seconds',21), ('max_cpu_seconds',11),
-    ('clock_binding',{'boot_id':'different','monotonic_deadline':3635.0,'sha256':'0'*64}),
 ])
-def test_shared_metadata_ledger_is_bound_to_exact_source_paths_and_job_clock(study, field, value):
-    assert prepare(study)['raw_eligible'] is True
-    assert gate(study)['upload_raw'] is True
-    path=study.base/'metadata/publication.json'
-    publication=json.loads(path.read_bytes());publication['metadata_work_budget'][field]=value;write(path,publication)
-    result=gate(study)
-    assert result['upload_raw'] is False and result['refusal_code'] in ('RAW_PLAN','RAW_CLOCK')
-
+def test_shared_metadata_ledger_is_bound_to_exact_source_paths_and_job_clock(field,value):
+    publication,root,output=pure_work();remaining=P._remaining_metadata(publication['metadata_work_budget'])
+    publication['metadata_work_budget'][field]=value
+    with pytest.raises(P.Refused,match='RAW_PLAN'):
+        P._share_metadata_budget(publication,budget(),source=SOURCE,root=root,output=output,
+            **{name:str(value) for name,value in remaining.items()})
 
 @pytest.mark.parametrize('wall,cpu', [
     (float('nan'),1.0), (float('inf'),1.0), (True,1.0), (-1.0,1.0),
@@ -514,14 +555,14 @@ def test_late_gate_subtracts_serialization_ACTIVE_work_without_charging_upload_w
     {'remaining_wall_milliseconds':'20000'}, {'remaining_cpu_seconds':'10'},
     {'remaining_wall_milliseconds':'019000'}, {'remaining_cpu_seconds':'0'},
 ])
-def test_launcher_remaining_arguments_must_equal_the_sealed_floored_allowance(study,changes):
-    assert prepare(study)['raw_eligible'] is True
-    result=gate(study,**changes)
-    assert result['upload_raw'] is False and result['refusal_code']=='RAW_PLAN'
-
+def test_launcher_remaining_arguments_must_equal_the_sealed_floored_allowance(changes):
+    publication,root,output=pure_work();remaining=P._remaining_metadata(publication['metadata_work_budget'])
+    args={name:str(value) for name,value in remaining.items()};args.update(changes)
+    with pytest.raises(P.Refused,match='RAW_PLAN'):
+        P._share_metadata_budget(publication,budget(),source=SOURCE,root=root,output=output,**args)
 
 @pytest.mark.parametrize('which',['wall','cpu'])
-def test_final_metadata_write_or_guard_overrun_prevents_completion_flag(study,monkeypatch,which):
+def test_final_metadata_write_or_guard_overrun_prevents_completion_flag(monkeypatch,which):
     now=[100.0];cpu=[0.0];outputs=[]
     limits=P.Budget(20,10,now=lambda:now[0],cpu_now=lambda:cpu[0])
     report={'complete':True,'metadata_work_budget':{
@@ -536,7 +577,7 @@ def test_final_metadata_write_or_guard_overrun_prevents_completion_flag(study,mo
     monkeypatch.setattr(P,'publish',delayed_publish)
     monkeypatch.setattr(P,'_workflow_output',outputs.append)
     with pytest.raises(P.Refused):
-        P.main(['--root',str(study.root),'--output',str(study.base/'metadata'),
+        P.main(['--root','/tmp/invented-original','--output','/tmp/invented-publication',
             '--source',SOURCE,'--launcher-boot-seconds','100.00'])
     assert outputs==[]
 
@@ -614,3 +655,13 @@ def test_malformed_optional_raw_clock_does_not_erase_honest_original_metadata_pr
     assert report['raw_payload_retained'] is False
     assert report['raw_retention']['raw_original_artifact_qualified'] is None
     assert gate(study)['upload_raw'] is False
+
+
+
+def test_shared_metadata_ledger_job_clock_binding_is_checked_after_real_file_seal(study):
+    assert prepare(study)['raw_eligible'] is True and gate(study)['upload_raw'] is True
+    path=study.base/'metadata/publication.json';publication=json.loads(path.read_bytes())
+    publication['metadata_work_budget']['clock_binding']={'boot_id':'different','monotonic_deadline':3635.0,'sha256':'0'*64}
+    write(path,publication)
+    result=gate(study)
+    assert result['upload_raw'] is False and result['refusal_code']=='RAW_CLOCK'

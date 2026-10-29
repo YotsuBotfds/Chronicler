@@ -1,5 +1,18 @@
 # Recovered continuation — 2026-10-11
 
+The unrun40f79 durable-publication source/runner remains HELD: static fixture
+accounting found its repeated full-role fake trees would exceed4096 files.
+A fixture-only successor preserves all production bytes/old215 bodies/all105
+publication contracts. AllTHREE modules remain391 cases; the conservative
+retention estimate is2790 fixture files plus3 preflight leaves and40MiB,
+including all929 old fixtures. Pure early gates use in-memory data; complete
+regular-file positives/mutations remain. The unchanged global guard counts all
+fixtures, copies, actual role outputs and authorities; nothing is excluded or
+deleted. Successful-path source estimates515 literal role/log leaves, with
+failed/unregistered outputs still unknown. All tests remain unrun until the new
+source/runner freeze and explicit root selection grant; no runtime activation.
+
+
 A source-only durable-role publication descendant adds actual current-job clock
 admission before Worlds, tightens all owner deadlines to reserve255seconds, and
 keeps bounded metadata upload first before a separately gated direct raw role/log
