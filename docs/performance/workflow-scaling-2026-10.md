@@ -1,5 +1,55 @@
 # Workflow and wall-clock scaling, 2026-10-28
 
+## Remote continuation measurements, 2026-10-29
+
+The original audit below is historical. Subsequent implementation and actual
+GitHub Actions evidence supersede its descriptions of missing caches, serialized
+native/Rust lanes and the offline chunk count. Exact tested code is
+`d0281e5f57c508f27cea1676f36e0e6ed1225c9d`; all six jobs in
+[run 40782783254](https://github.com/YotsuBotfds/Chronicler/actions/runs/40782783254)
+passed. Documentation-only commits after that source do not extend test scope.
+
+| Lane | GitHub job elapsed | Principal step elapsed | Completed scope |
+| --- | ---: | ---: | --- |
+| Native Python | 844 s | wheel build 159 s; preloaded-native pytest 662 s | 7,800 parent tests passed, 6 skipped, 526 successful subtests |
+| No-Rust Python | 391 s | pytest 379 s | 7,486 parent tests passed, 306 skipped, 526 successful subtests |
+| Bounded offline | 139 s | guarded runner 128 s | 29 chunks; 3,697 passed, 65 skipped; longest chunk 21.4 s against unchanged 110 s limit |
+| Rust | 49 s | locked Cargo test 41 s | 1,088 passed, 2 ignored |
+| Viewer | 66 s | tests 39 s; lint 8 s; build 9 s | 703 tests across 67 files, plus lint/build |
+| Combined native requirement | 4 s | explicit upstream-success checks | both native Python and Rust required |
+
+These are one run's GitHub step/job timestamps, not process CPU, a controlled
+before/after experiment or a speedup claim. Pytest's own durations differ slightly
+from enclosing steps: native 655.82 s, no-Rust 374.80 s, offline summed chunks
+127.5 s. Successful subtests are listed separately from parent test counts.
+Queue delay and setup can matter; job durations need not equal summed steps.
+
+The native Python lane dominates this observed run. Another Rust scheduling
+split is already implemented and cannot remove that 662-second test step.
+The next workflow experiment should measure test-duration distribution before
+choosing shards. A shared wheel could feed native test shards, provided each
+preloads and verifies the same compiled module and all three real native classes,
+uses the exact interpreter patch, and proves exhaustive, disjoint collected test
+coverage. Each shard must retain complete JUnit; missing, failed, cancelled or
+unverified shards must fail the combined requirement. Collection and import
+order can affect native/stub-sensitive tests, so matching counts alone is not
+sufficient. This remains a proposal, not an activated or measured improvement.
+
+A separate completed default-output study built one fresh wheel and used it in
+both frozen source checkouts. Its independent reader verified 974 payload files
+and 399 compared exported-file pairs with zero differences. That demonstrates
+this particular artifact-reuse/identity path, not general native-cache validity,
+checkpoint-byte equivalence, or wall-clock benefit. See
+[the exact study and its limits](../integration/default-output-parity-d028-2026-10-28.md)
+and [independent artifact verification](../integration/default-output-artifact-verification-2026-10-28.md).
+
+Fork accounting has also been checked against the actual frozen clock: a fork
+label T loads checkpoint World T+1 and executes to T+22, so it performs **21
+actual physics ticks**, with a 20-tick measured window. Older illustrative
+22-tick estimates below are retained as historical planning estimates; new
+registrations use the actual 21-tick count.
+
+
 The first priority is to stop spending the same scarce CPU budget on repeated
 builds and competing qualification jobs. Then profile the simulation by the
 size dimension that is actually growing. A faster dense-agent tick does not
