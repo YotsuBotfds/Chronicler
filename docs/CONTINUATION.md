@@ -1,5 +1,21 @@
 # Recovered continuation — 2026-10-11
 
+October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
+completed all four original strict gates, both template/procedural
+NO_REGRESSION comparisons and final publication qualification. The separate
+causal-required adjudication still fails on kin roots in all four cohorts;
+joint-needs causality passes. The [completed record](integration/full-population-gates-2026-10-29.md)
+keeps the exact 7,400 executions/402,800 ticks, source/native identities,
+retention checks and independent verification limits. It does not qualify C76
+finite research or the intentional native wealth correction. Main remains
+unchanged.
+
+A [C76 source audit](integration/research-source-audit-2026-10-29/README.md)
+traces host/birth lifecycle, canonical topic reuse and actual payment/growth
+boundaries. Six-turn payments visit only two of the four seasons under an
+unchanged anchor. This is a prospective design finding; the fixed natural
+study's cadence, eligibility, seeds and thresholds remain unchanged.
+
 Independent saved-export reinspection has now passed for both the arc and
 complete recovered producer studies: 976 payload files, nine case comparisons,
 399 exported file pairs and zero differences per study. Frozen reader

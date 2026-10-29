@@ -1,0 +1,642 @@
+{
+  "calendar_arithmetic": {
+    "assumptions": {
+      "first_open_and_effort_anchor": 0,
+      "period": 75,
+      "phase_offset": 0,
+      "unchanged_required_soil_water_bands_and_access": true,
+      "undelayed_later_open": 25
+    },
+    "conditional_points": [
+      {
+        "climate_phase": "temperate",
+        "paid_cadence_from_anchor0": true,
+        "role": "hypothetical first opening and cadence anchor",
+        "season": 0,
+        "turn": 0
+      },
+      {
+        "climate_phase": "temperate",
+        "paid_cadence_from_anchor0": false,
+        "role": "hypothetical undelayed later opening and funding",
+        "season": 0,
+        "turn": 25
+      },
+      {
+        "climate_phase": "temperate",
+        "paid_cadence_from_anchor0": false,
+        "role": "earliest publication/receipt at Phase 10 if access and measurement gates pass",
+        "season": 0,
+        "turn": 26
+      },
+      {
+        "climate_phase": "temperate",
+        "paid_cadence_from_anchor0": true,
+        "role": "later paid-cadence turn",
+        "season": 0,
+        "turn": 84
+      }
+    ],
+    "paid_residues_by_anchor": [
+      {
+        "anchor_mod12": 0,
+        "paid_turn_residues_mod12": [
+          0,
+          6
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 1,
+        "paid_turn_residues_mod12": [
+          1,
+          7
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 2,
+        "paid_turn_residues_mod12": [
+          2,
+          8
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 3,
+        "paid_turn_residues_mod12": [
+          3,
+          9
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      },
+      {
+        "anchor_mod12": 4,
+        "paid_turn_residues_mod12": [
+          4,
+          10
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      },
+      {
+        "anchor_mod12": 5,
+        "paid_turn_residues_mod12": [
+          5,
+          11
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      },
+      {
+        "anchor_mod12": 6,
+        "paid_turn_residues_mod12": [
+          6,
+          0
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 7,
+        "paid_turn_residues_mod12": [
+          7,
+          1
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 8,
+        "paid_turn_residues_mod12": [
+          8,
+          2
+        ],
+        "seasons": [
+          0,
+          2
+        ]
+      },
+      {
+        "anchor_mod12": 9,
+        "paid_turn_residues_mod12": [
+          9,
+          3
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      },
+      {
+        "anchor_mod12": 10,
+        "paid_turn_residues_mod12": [
+          10,
+          4
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      },
+      {
+        "anchor_mod12": 11,
+        "paid_turn_residues_mod12": [
+          11,
+          5
+        ],
+        "seasons": [
+          1,
+          3
+        ]
+      }
+    ],
+    "scope": "Pure arithmetic; not a simulation/test run, eligibility sample, seed search or natural outcome",
+    "sources": [
+      {
+        "line": 340,
+        "path": "src/chronicler/resources.py",
+        "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+      },
+      {
+        "line": 295,
+        "path": "src/chronicler/models.py",
+        "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+      },
+      {
+        "line": 28,
+        "path": "src/chronicler/climate.py",
+        "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+      },
+      {
+        "line": 523,
+        "path": "src/chronicler/scientific_claims.py",
+        "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+      }
+    ],
+    "use_conditions": [
+      "known canonical topic",
+      "same current soil/water bands and protocol context",
+      "live eligible academy and populated grain region",
+      "positive local recipe practice",
+      "informative completed evidence actually received and visible",
+      "treasury floor and payment succeed",
+      "no assumed climate phase-offset intervention"
+    ]
+  },
+  "conclusion": "No concrete legitimate-state host/birth/canonicalization failure found in traced C76 lifecycle. Later-cycle paid use is source-permitted; natural occurrence and benefit within180 turns remain unknown.",
+  "created_at": "2026-10-29T02:48:36.388877+00:00",
+  "execution": {
+    "downloads": 0,
+    "eligibility_or_seed_changes": 0,
+    "gate_or_cadence_changes": 0,
+    "native_builds_or_pools": 0,
+    "new_refs": 0,
+    "new_worktrees": 0,
+    "physics_ticks_run": 0,
+    "sampled_outcomes": 0,
+    "source_edits": 0,
+    "tests_run": 0,
+    "worlds_instantiated": 0
+  },
+  "findings": [
+    {
+      "detail": "Founding writes region/kind/founded_turn/founder/name once and appends; falls retain the seat, changes of patron/level/refugees/carries preserve founding fields. Rebuilding appends a distinct index. Current production code does not rename Seat.name or reorder the seat registry. These models are not frozen Python objects; this is an ordinary-writer convention validated against retained births.",
+      "id": "birth_lifecycle",
+      "sources": [
+        {
+          "line": 346,
+          "path": "src/chronicler/scholarship.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 643,
+          "path": "src/chronicler/scholarship.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 737,
+          "path": "src/chronicler/scholarship.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 764,
+          "path": "src/chronicler/scholarship.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 51,
+          "path": "src/chronicler/scholarship_state.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 15,
+          "path": "src/chronicler/scientific_research_state.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "no legitimate ordinary-writer violation found"
+    },
+    {
+      "detail": "Research enrollment appends the seat ID and matching birth together. Host seal is bound at activation and compared to the stored scholarship identity, not recomputed from its subsequently growing seat list. Explicit scholarship disable/reset drops the host; replacement rejection is intended fail-closed behavior.",
+      "id": "enrollment_host",
+      "sources": [
+        {
+          "line": 38,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 47,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 349,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 590,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 142,
+          "path": "src/chronicler/scholarship.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "no legitimate ordinary-writer violation found"
+    },
+    {
+      "detail": "Payer reads the current region controller by name, not founder or cached lord. Conquest changes controller; secession appends civilizations; restoration reuses an existing indexed record or appends. Traced runtime paths do not remove/reorder world.regions or world.civilizations. Scenario renaming is initialization and preserves indexed birth fields; faith-reference migration changes seat.faith only.",
+      "id": "owner_indexes",
+      "sources": [
+        {
+          "line": 59,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 614,
+          "path": "src/chronicler/action_engine.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 398,
+          "path": "src/chronicler/politics.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 1200,
+          "path": "src/chronicler/politics.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 781,
+          "path": "src/chronicler/politics_bridge.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 812,
+          "path": "src/chronicler/politics_bridge.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 285,
+          "path": "src/chronicler/scenario.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 680,
+          "path": "src/chronicler/scenario.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 685,
+          "path": "src/chronicler/main.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 1197,
+          "path": "src/chronicler/live.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 514,
+          "path": "src/chronicler/faiths.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "no legitimate ordinary-writer violation found"
+    },
+    {
+      "detail": "Opening reuses exact recipe/context/protocol topics; policy selects known currently applicable topics without a cycle-age/closed/enabled restriction. Retained informative evidence has no use-age expiry; six turns limits message delivery only. Canonical reuse plus exact current context avoids duplicate ordinary recipe votes. Context recurrence and other gates determine actual later use.",
+      "id": "canonical_later_use",
+      "sources": [
+        {
+          "line": 20,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 361,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 447,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 83,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 455,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 551,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "no universal structural later-use block"
+    },
+    {
+      "detail": "Paid turns are started_turn+6k and seasons are floor((turn mod12)/3), so exactly two opposite seasons are reachable under an unchanged anchor. Claims in the other two seasons cannot receive paid allocation under that cadence. The conditional default-calendar example shows that this does not universally prevent later-cycle evidence use within180 turns. No eligibility, cadence or gate change is proposed by this audit.",
+      "id": "cadence_alias",
+      "sources": [
+        {
+          "line": 523,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 340,
+          "path": "src/chronicler/resources.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 295,
+          "path": "src/chronicler/models.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 28,
+          "path": "src/chronicler/climate.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "prospective design coupling for interpreting the study; not an observed natural bug"
+    },
+    {
+      "detail": "A valid paid allocation/debit need not add physical practice growth. Growth additionally uses prerequisites,0<p<cap, practitioner shortfall and disruption, then quantization; p==cap gives zero paid-growth term. Allocation events cover first/material split changes, not all recurring payments; saved allocation rows are distinct from sparse events.",
+      "id": "paid_vs_growth_and_events",
+      "sources": [
+        {
+          "line": 523,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 541,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 547,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 564,
+          "path": "src/chronicler/scientific_claims.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 398,
+          "path": "src/chronicler/techniques.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 431,
+          "path": "src/chronicler/techniques.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 448,
+          "path": "src/chronicler/techniques.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "interpretation boundary"
+    },
+    {
+      "detail": "Techniques request adoption effort at Phase4; scholarship finishes/receives/funds research at Phase10. A receipt published in Phase10 becomes eligible only for a later qualifying Phase4 payment.",
+      "id": "phase_order",
+      "sources": [
+        {
+          "line": 2126,
+          "path": "src/chronicler/simulation.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 933,
+          "path": "src/chronicler/techniques.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 2361,
+          "path": "src/chronicler/simulation.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        },
+        {
+          "line": 604,
+          "path": "src/chronicler/scientific_research.py",
+          "ref": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1"
+        }
+      ],
+      "verdict": "same-source future evidence cannot alter earlier paid allocation"
+    }
+  ],
+  "kind": "chronicler-finite-research-source-audit",
+  "method": "Source reading and writer/caller searches; exact Git-blob/file SHA verification; pure arithmetic of transcribed fixed calendar formulas only. No simulation-module imports or World instantiation.",
+  "review_scope": {
+    "additional_source_reader": "m36_rng_source_review: paid-use policy, evidence lifetime, calendar, phase order and physical-growth boundary",
+    "owner": "artifact_finiteness source trace"
+  },
+  "schema_version": 1,
+  "source": {
+    "checkout": "/workspace/chronicler-recovered-integration",
+    "git_blob_identity_verified_for_all_listed_files": true,
+    "head_after": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+    "head_before": "c76efe8552b4c6c288ebb1f813e2c0a58e5957b1",
+    "source_files": {
+      "src/chronicler/action_engine.py": {
+        "bytes": 71138,
+        "git_blob_sha1": "e05bfc270ad5ee3f03afed21c69d7b55ec8ceb95",
+        "git_mode": "100644",
+        "sha256": "6f10f2a5cb4d46628a26573a9f2e162576cd3eb442e51a36301529d23434a8df"
+      },
+      "src/chronicler/climate.py": {
+        "bytes": 21043,
+        "git_blob_sha1": "b1e07faf5430b064a563caba44741186548d8ac6",
+        "git_mode": "100644",
+        "sha256": "30029d1f09e688561709e19131a897575d3364c6d20721ea91820228ecb021b9"
+      },
+      "src/chronicler/expansion_experiment.py": {
+        "bytes": 8769,
+        "git_blob_sha1": "e89389a4d933e4184b1be8f85163b5a4384910ca",
+        "git_mode": "100644",
+        "sha256": "8da9530ae5d817b8801613b74af5dacfad3157475d80d3f3e4e39287a43f2328"
+      },
+      "src/chronicler/faiths.py": {
+        "bytes": 30534,
+        "git_blob_sha1": "795cf13aaaa9856117cd1b0e3fcb1114eacd4ef4",
+        "git_mode": "100644",
+        "sha256": "5705ebb2c02b3bc5b3825b7b4d2ab88bcca09b1cc182ff615213b145f4fd8e44"
+      },
+      "src/chronicler/live.py": {
+        "bytes": 71549,
+        "git_blob_sha1": "100e449ef432f28071735a184dd266828420531b",
+        "git_mode": "100644",
+        "sha256": "0fda99e05e18c99ed6e7cf55d279602bbe84812ee010bf57c5fc458949662a0e"
+      },
+      "src/chronicler/main.py": {
+        "bytes": 132935,
+        "git_blob_sha1": "08406e8ae519826915de8614dcac210b1e73f61b",
+        "git_mode": "100644",
+        "sha256": "8b1c5768fb173185c584c40970ee9a3d8821ddc9bad0bcdc4c2024faaf367d6e"
+      },
+      "src/chronicler/models.py": {
+        "bytes": 67168,
+        "git_blob_sha1": "f1a32d755bcea94e4b877b0460837d49cb44b3e3",
+        "git_mode": "100644",
+        "sha256": "d96d251679bac33b2e2c5b5c230ee890637d8cce494d2f344c920a6bc8ce36f4"
+      },
+      "src/chronicler/politics.py": {
+        "bytes": 76986,
+        "git_blob_sha1": "273c426f6a7f98092fa9034faee0158e2bd17021",
+        "git_mode": "100644",
+        "sha256": "5b7299ddb34cf6a46aa61a2121302af0a28ce59c5a01f28cf29ec5149a2524ef"
+      },
+      "src/chronicler/politics_bridge.py": {
+        "bytes": 69174,
+        "git_blob_sha1": "95b8747f8be22e04587877e7ee6d33b1baa01722",
+        "git_mode": "100644",
+        "sha256": "570efd2e1578bdc7ec83e3d3e8bfc9442d45b1009adb013fdd905cfd9db12549"
+      },
+      "src/chronicler/resources.py": {
+        "bytes": 16841,
+        "git_blob_sha1": "4d862f28f4149124aeae51e3cedf657ccef6ebc7",
+        "git_mode": "100644",
+        "sha256": "b4be1cd3b5cea0727aaaa5e5f4f025e1d54be3487aa3b91d9c4e3f6aa788cae2"
+      },
+      "src/chronicler/scenario.py": {
+        "bytes": 33019,
+        "git_blob_sha1": "064ef38655b4961b7140f53e736049a22a67cd29",
+        "git_mode": "100644",
+        "sha256": "1380b64c08be1e2539c723c261b5e3fac02623a627a515bd550d92d10e3cf8e9"
+      },
+      "src/chronicler/scholarship.py": {
+        "bytes": 46320,
+        "git_blob_sha1": "8890d2508f515769e9c18173db64d3d31ae153cd",
+        "git_mode": "100644",
+        "sha256": "a4638dd65a02eefe0e75367d15557f9069c36eccf4dda85a76ea7f9b3ed9fb8b"
+      },
+      "src/chronicler/scholarship_state.py": {
+        "bytes": 4804,
+        "git_blob_sha1": "d9a4e62bb25b766bcdc9a0049c86a2fb628f4861",
+        "git_mode": "100644",
+        "sha256": "15578b28c2c3b2bd32848d08e92450a515978f70d24eef3b0b9e078397bb17a4"
+      },
+      "src/chronicler/scientific_claims.py": {
+        "bytes": 33536,
+        "git_blob_sha1": "0a37e1345caab88145296561e93600821084f517",
+        "git_mode": "100644",
+        "sha256": "e44f9f561a01b900ca35e2bb65eeeae0be2cd8817fe2fab6d6c9397aaf76d7a5"
+      },
+      "src/chronicler/scientific_claims_state.py": {
+        "bytes": 5221,
+        "git_blob_sha1": "8c91395885cbf1e6638cf43f52646067d257bcc3",
+        "git_mode": "100644",
+        "sha256": "4fd9bbc18f620122364b48d074a772bc944e6403a8839a1fc67373d7cecb8dae"
+      },
+      "src/chronicler/scientific_research.py": {
+        "bytes": 41269,
+        "git_blob_sha1": "8c0c7735d2d0d70a1833fec61ba53255f8989563",
+        "git_mode": "100644",
+        "sha256": "9c92e456ceba23376c76f11be34fafd884a5a36ca9a7f968597b11964d11cc30"
+      },
+      "src/chronicler/scientific_research_state.py": {
+        "bytes": 8594,
+        "git_blob_sha1": "3f2653a3680aa829dc25a71a01940382c47ed2ba",
+        "git_mode": "100644",
+        "sha256": "aa2ac2880d20f8b421db6fb11a2830e18f2516d1162fc963262a7283fb64f206"
+      },
+      "src/chronicler/simulation.py": {
+        "bytes": 120533,
+        "git_blob_sha1": "58725f29bc5d275df0eb956a92ef663d25ab28a3",
+        "git_mode": "100644",
+        "sha256": "bbfefdf507ba8650af758f63844be3f5b327fb15aea21fa65d65a8a07e342757"
+      },
+      "src/chronicler/techniques.py": {
+        "bytes": 56750,
+        "git_blob_sha1": "7fc6f0b63747dafdf28ee11ff3ad00b373d2182d",
+        "git_mode": "100644",
+        "sha256": "22d6cb301dbc59b2d52c0463cd79019a36b436c1975f6875f037a968947a25e2"
+      },
+      "src/chronicler/war/occupation.py": {
+        "bytes": 12902,
+        "git_blob_sha1": "d9e595043c6b6e2f761c5b3cd5257e5bf6f3ddb1",
+        "git_mode": "100644",
+        "sha256": "ff6aaab7b86f828ba09c79b29f3ed9c982ccf869116f981bb5699438bef3c8ce"
+      },
+      "tests/test_scholarship.py": {
+        "bytes": 51858,
+        "git_blob_sha1": "ffe808fec6c0508d0c669a0583d1dbba1ea99660",
+        "git_mode": "100644",
+        "sha256": "1817cedfdbfe60dd6c20d69b771cab58b7c7bac47e251bba25914ea95c82c3bc"
+      },
+      "tests/test_scientific_research.py": {
+        "bytes": 24420,
+        "git_blob_sha1": "a2e87f5289fbb5e563f5df468c7a2ad0258fc9bc",
+        "git_mode": "100644",
+        "sha256": "8d20a8d7352da422d0fad6a2f48119e46d03660aecf4592ab2188588632d7370"
+      }
+    },
+    "tracked_clean_after": true,
+    "tracked_clean_before": true
+  },
+  "unknowns": [
+    "Natural academy/context/funding/evidence occurrence in the forthcoming180-turn study",
+    "Whether later evidence changes relative shares or physical growth in those registered worlds",
+    "Any extension of the existing controlled proof to natural180-turn qualification"
+  ]
+}

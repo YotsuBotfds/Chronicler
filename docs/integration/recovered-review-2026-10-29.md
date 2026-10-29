@@ -87,18 +87,20 @@ outcome gate. It still needs its own outcome qualification.
 
 ## Scientific interpretation and remaining work
 
-The ongoing full-gate run 40791402289 compares frozen `2f9d618b` and `d0281e5f`.
-It does not qualify recovered finite research or the separate native correction.
-All four schema smokes completed with original subset gate failures retained;
-schema admission did not make those failures passes. The full template
-baseline and candidate have both completed their original strict gates and raw
-publication. Their original decisions are byte-identical: seven required
-oracles pass, the needs causal component passes, and kin-root causality fails
-as an informational component under that policy. Both procedural cohorts and
-the final strict comparison/publication adjudication remain pending at this
-record's update. Preserve every original report and causal-required
-adjudication separately; passing the original policy does not make the
-informational causal failure a pass.
+The [completed full-gate run 40791402289](full-population-gates-2026-10-29.md)
+compares frozen `2f9d618b` and `d0281e5f`. **All four original strict gates pass;
+template and procedural comparisons both report NO_REGRESSION, and final
+pipeline/publication qualification passes.** It completed 600 parents and
+6,800 forks: 7,400 executions and 402,800 actual physics ticks. The final
+comparison and retention records were independently checked; raw ZIP contents
+were not independently downloaded or rehashed. This qualifies that exact
+source/native pair, with no qualification of recovered finite research or the
+separate native correction.
+
+The separate causal-required adjudication **fails in all four cohorts on kin
+roots**; joint-needs causality passes. Original-policy success preserves that
+distinction. All four earlier schema smokes retain their original subset gate
+failures. Neither admission nor successful publication changes those results.
 
 The causal mechanism review identifies delivery questions before coefficient
 changes: kin roots damp voluntary destination pulls; distress migration can
@@ -108,16 +110,45 @@ effect when the summed modifier is capped. None of these observations changes
 the registered joint-needs intervention or its thresholds. Decision-time raw,
 capped and marginal-dose telemetry is a prospective follow-up.
 
-The longer natural research continuation study remains inactive. Its fixed
+The longer natural research continuation study is running separately at
+[40809314373](https://github.com/YotsuBotfds/Chronicler/actions/runs/40809314373),
+exact control `3caa9a9c`, attempt 1. Its fixed
 eight seeds, common checkpoint, active/pause contrast, external global RNG
 sidecar and missingness rules are registered. Its corrected adapter `7b3ae977`
 passed 61 guarded contracts, nine real Linux process tests and a metadata-only
 freeze against the original producer/runtime. Source review and tests cover
 header order, strict raw-history linkage, transient orphan ownership, pidfd
-cleanup, aggregate CPU accounting and publication expiry. No study world has
-run. A separately registered remote-runtime option is in development; it
-does not substitute a new binary under the original freeze. The study declares
+cleanup, aggregate CPU accounting and publication expiry. Two earlier remote
+attempts failed before installation/freeze/world execution:
+an obsolete preparation-state assertion, then an HTTP error with no recorded
+status. A separate corrected diagnostic verified the exact registered remote
+wheel after fixing propagation of the origin Host header across the official
+redirect. Root reviewed the corrected-source launch and bounded metadata
+publication; 182 local guarded tests and actionlint passed. At 02:57 UTC the
+actual remote contracts, wheel verification, installation and identity freeze
+passed, and the fixed cohort was running. No completed continuation, readout
+or scientific result is claimed at this checkpoint. The separately registered
+remote-runtime option preserves
+its own native identity; it does not substitute a new binary under the
+original freeze. The study declares
 no efficacy threshold, default promotion or outcome-dependent seed selection.
+
+The [22-file research source audit](research-source-audit-2026-10-29/README.md)
+found no ordinary host/birth/canonical-topic invariant failure. It did identify
+a design coupling: six-turn paid effort visits only two seasons of the
+twelve-turn calendar. Later evidence can still reach paid use within 180 turns
+under explicitly conditional context/access/treasury assumptions. This source
+finding neither supplies sampled efficacy nor changes the registered cadence.
+Readout must distinguish receipt, actual payment and marginal physical growth;
+allocation-change events do not enumerate every recurring payment.
+
+The native wealth correction can potentially reuse the completed D028 cohorts
+as its historical baseline, avoiding 3,700 executions and 201,400 ticks. This
+is a prospective work reduction, not a measured wall-time saving. Its inactive
+admission control must verify original roles, all retained raw bytes, runtime
+and binary provenance, and candidate-owned fresh checkpoints. Unknown build
+context remains a pre-world refusal; a fresh paired build provides a practical
+fallback when old build context cannot be recovered.
 
 ## Separate verification corrections
 

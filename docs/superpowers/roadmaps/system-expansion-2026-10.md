@@ -70,6 +70,17 @@ for exact offline/full-suite/default-identity source boundaries.
 
 ## Decisions before adding state
 
+The [October 29 research source audit](../../integration/research-source-audit-2026-10-29/README.md)
+adds a concrete timing dependency to the evidence track. Paid effort repeats
+every six turns, while four seasons occupy a twelve-turn cycle. An unchanged
+payment anchor therefore visits only two seasons. Future research designs
+should report the opportunity to use evidence in its actual context, dated
+receipt, paid allocation and physical growth separately. A payment can produce
+zero marginal growth at the existing practice cap, and allocation-change
+events do not enumerate all recurring payments. This is a source finding;
+it changes neither cadence nor the registered natural continuation study.
+Any later calendar change needs its own explicit experiment and outcome checks.
+
 1. **Work is separate from population.** Preserve integer living people and
    occupation counts. Define fractional productive time after impairment,
    care, military service and employment. Food demand still follows people.
