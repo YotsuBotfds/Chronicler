@@ -1,14 +1,13 @@
 # Recovered development review, 2026-10-29
 
-Current candidate: [`lead/native-ci-consolidation-20261029`](native-ci-consolidation-2026-10-29.md) composes exact native090 and standardCI ec. Its own combined CI is pending. The source-scoped review below originated at c900; the separate documentation-only `lead/review-integration-20261029` branch retains CBF code.
+Current cross-examination branch: [`lead/native-ci-consolidation-20261029`](native-ci-consolidation-2026-10-29.md). Its exact code `c5c6b6d9` now has independently/root-qualified [all-nine-job CI](native-ci-consolidation-ci-2026-10-29.md), run `40880410392`: 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline passes/65 skips, 1,121 Rust passes/two ignored and 743 Viewer tests with lint/build. The 2 + 2 preflights stay separate. The complete native crate is exact 090 and standard CI exact EC; Python/dependencies remain CBF. Main and the separate CBF documentation-review branch are unchanged.
 
 The separate [standard native-shard integration](native-module-shards-standard-ci-2026-10-29.md)
 is now qualified at `ec09134b` / run `40869065907`: nine actual jobs retain the
 six original gates, exact full collection and blocking native/Rust barriers.
 Its 8,458 native parents partition exactly into 8,452 passes/six skips, with
 526 successful subtests separate. No-Rust passes 8,119 with 325 skips; offline
-passes 4,248 with 65 skips over 35 chunks. These results qualify that source graph; this candidate takes its exact files
-and still needs combined-head CI. The original failed 847 and successful
+passes 4,248 with 65 skips over 35 chunks. These results qualify that original source graph; the current c5 combined CI has its separate result linked above. The original failed 847 and successful
 isolated 7d producers retain their distinct records and lossy-display limits.
 
 The [fresh CP60 proof V2](practice-observer-cp60-proof-v2-result-2026-10-29.md)
@@ -24,27 +23,21 @@ Separate native `0900f3d2` has qualified all-six-job CI in
 [run 40865043984](https://github.com/YotsuBotfds/Chronicler/actions/runs/40865043984),
 including 1,121 Rust passes and independently linked fresh native bytes. Its
 earlier [535 shared-slot source](native-live-slot-ci-2026-10-29.md) remains
-preserved. CBF-to090 default-export producer `c7727863` completed
+preserved. CBF-to 090 default-export producer `c7727863` completed
 [run 40875019978](https://github.com/YotsuBotfds/Chronicler/actions/runs/40875019978),
 with independently qualified publication metadata; the original-byte audit is
 pending. Neither CI nor that producer success grants global RNG, checkpoint,
-export parity or performance qualification. The exact090 native crate is now included in this candidate; its new combined
-head still needs its own CI and actual binary records.
+export parity or performance qualification. The c5 combined head now has its own qualified CI and freshly recorded native `14a67f28…` bytes, equal to 090; its whole-wheel `507c5b96…` identity is separately measured.
 
 The original wealth cohort remains mechanically incomplete. Its read-only
 `5f9413c3` diagnostic recovered a compound checkpoint-shape failure, while the
 specific failed operand remains unknown. Registered cohort cost is not completed
 work and no scientific or historical-reuse result is granted.
 
-The fixed fresh study at `2d3faa8c` / [run 40877451052](https://github.com/YotsuBotfds/Chronicler/actions/runs/40877451052)
-has successful producer/readout completion. Independent original-raw-byte and
-completion-closure verification remain pending. The imported CP60 projection's
-earlier inactive-study status is a qualification-time snapshot, superseded by
-this producer standing. No independently qualified END180 study result or
-paid-growth effect is claimed.
+The [fresh eight-seed study's small publication](practice-fresh-study-small-publication-2026-10-29.md) at `2d3faa8c` / run `40877451052` now has independently/root-verified original 12-member bytes, completion seals and saved arithmetic. All eight rows remain: five have zero new trials; seed 2005 has six trials without payment. Active/paused recipe occurrences 18/10 map to grouped debits 9/5. Positive paid terms can coexist with falling practice. The original 106 MB raw archive, its 2,442 payload files and full state/history/native/RNG/continuation identity remain independently unaudited. No paid-growth efficacy is qualified; the earlier CP66 zero-payment proof keeps its separate scope.
 
 The separate documentation review remains `lead/review-integration-20261029`
-with CBF non-document entries. This candidate combines exact090/ec as listed
+with CBF non-document entries. This candidate combines exact 090/ec as listed
 above; main remains unchanged.
 The [runner integration readout](practice-observer-runner-ci-2026-10-29.md)
 records all six jobs passing in run `40841527996`, with independently verified
@@ -64,7 +57,7 @@ now qualifies 12 executions / 668 ticks of mechanics while preserving both
 failed scientific gates. The [C76-to95 native default-export audit](native-default-output-artifact-audit-v2-result-2026-10-29.md)
 also qualifies its exact nine-case matrix: 399 file pairs, zero differences.
 That parity does not extend to the later cbf source or wealth correction.
-Full scientific outcomes, the active END180 study and performance retain
+Full scientific outcomes, the fresh END180 study and performance retain
 their own studies; the qualified CP60 mechanical proof has its stated smaller scope. The prior source-scoped records below describe the
 exact commits they originally qualified.
 

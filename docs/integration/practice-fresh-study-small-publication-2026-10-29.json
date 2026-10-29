@@ -1,0 +1,404 @@
+{
+  "all_eight_saved_rows": [
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 0,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2000
+    },
+    {
+      "active_group_debits": 7,
+      "active_new_trials": 8,
+      "active_recipe_payment_occurrences": 14,
+      "parent_saved_facts": {
+        "group_debits": 7,
+        "new_agendas": 4,
+        "new_trials": 8,
+        "paid_sum": 7,
+        "payment_recipe_rows": 14
+      },
+      "pause_group_debits": 5,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 10,
+      "seed": 2001
+    },
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 0,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2002
+    },
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 0,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2003
+    },
+    {
+      "active_group_debits": 2,
+      "active_new_trials": 6,
+      "active_recipe_payment_occurrences": 4,
+      "parent_saved_facts": {
+        "group_debits": 2,
+        "new_agendas": 3,
+        "new_trials": 6,
+        "paid_sum": 2,
+        "payment_recipe_rows": 4
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2004
+    },
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 6,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 3,
+        "new_trials": 6,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2005
+    },
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 0,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2006
+    },
+    {
+      "active_group_debits": 0,
+      "active_new_trials": 0,
+      "active_recipe_payment_occurrences": 0,
+      "parent_saved_facts": {
+        "group_debits": 0,
+        "new_agendas": 0,
+        "new_trials": 0,
+        "paid_sum": 0,
+        "payment_recipe_rows": 0
+      },
+      "pause_group_debits": 0,
+      "pause_new_trials": 0,
+      "pause_recipe_payment_occurrences": 0,
+      "seed": 2007
+    }
+  ],
+  "attempt": 1,
+  "budget_observations": {
+    "controller_charge_plus_reader_measured_cpu_upper_bound_seconds": 234.322193,
+    "controller_charged_upper_bound_cpu_seconds": 208.25347,
+    "controller_finalization_cpu_reserve_seconds": 1.0,
+    "controller_measured_to_seal_cpu_seconds": 207.25347,
+    "controller_to_readout_wall_seconds": 235.28731035499993,
+    "reader_cpu_seconds": 26.068723,
+    "total_cpu_accounting_scope": "conservative controller charge plus measured reader CPU; not measured total CPU"
+  },
+  "example_saved_witnesses": [
+    {
+      "bookkeeping_paid": 1,
+      "event_ids": [
+        "167:scientific_adoption_allocated:0"
+      ],
+      "net_final_delta": -0.00035600000000002296,
+      "positive_paid_rhs": 4.753523039999996e-05,
+      "recipe": "irrigation",
+      "region": 4,
+      "seed": 2004,
+      "source_turn": 167
+    },
+    {
+      "bookkeeping_paid": 0,
+      "event_ids": [
+        "167:scientific_adoption_allocated:0"
+      ],
+      "net_final_delta": -0.00020699999999995722,
+      "positive_paid_rhs": 8.4663336438889e-05,
+      "recipe": "masonry",
+      "region": 4,
+      "seed": 2004,
+      "source_turn": 167
+    }
+  ],
+  "fresh_compiled_schemas": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "independent_peer": {
+    "bytes": 16125,
+    "path": "/tmp/chronicler-fresh-practice-small-independent-peer-20261029/receipt.json",
+    "sha256": "948c1671706fd43e85839fb740ec927995811c46e9a10c1141205ed3dd0260b5"
+  },
+  "independently_verified_scope": [
+    "Original316886B small ZIP:12 members /1833494 expanded bytes, whole SHA and every member CRC/SHA",
+    "Saved completion/readout seals, source capsules and arithmetic for all46 payment recipe witness rows",
+    "Grouped debit accounting, positive paid terms, clipping/rounding and captured final values"
+  ],
+  "job_id": 123459812638,
+  "kind": "CURATED_SMALL_PUBLICATION_ONLY_FRESH_STUDY_SNAPSHOT",
+  "missingness_preserved": {
+    "computed_paid_RHS_unobserved_not_zero": 296,
+    "kernel_uncomputed_not_zero": 28119,
+    "scope": "Saved readout totals; original raw-trace census remains independently unverified.",
+    "unavailable_frames": 0
+  },
+  "official_artifact_pins": [
+    {
+      "digest": "sha256:73a5054b1884916b2a5487a018a1435101eaae7793e90fc4d6b6b2ecf03903dc",
+      "expires_at": "2026-11-28T13:00:33Z",
+      "id": 12898573331,
+      "name": "fresh-practice-study-readout-40877451052-1",
+      "size_in_bytes": 316886
+    },
+    {
+      "digest": "sha256:248960348f7361e7a903f6a5323d3bca503b47cced45e57157631b8d0aba5ac0",
+      "expires_at": "2026-11-28T13:00:35Z",
+      "id": 12898552635,
+      "name": "fresh-practice-study-raw-40877451052-1",
+      "size_in_bytes": 106435368
+    }
+  ],
+  "original_readout_is_not_this_projection": true,
+  "package_digest": "1f1c720880e45e0e835e033da216b3deee1f755a497b8e189abaf97c2fe9f656",
+  "primary_manifest_sha256": "aeeb608daedff49de53d7d4804f3feaa0dc65bb0c527601a350b1af9f6516147",
+  "producer_reader_attestations_pending_original_raw_audit": {
+    "executions": 24,
+    "ordinary_state_history_native_RNG_traces_and_pairwise_identity": "NOT independently audited from original raw archive",
+    "paired_seeds": 8,
+    "physics_ticks": 3360,
+    "raw_payload_bytes": 500545147,
+    "raw_payload_files": 2442,
+    "slots": 53760
+  },
+  "projection_at_utc": "2026-10-29T13:42:30.220094+00:00",
+  "raw_archive_acquired_or_rehashed_for_this_scope": false,
+  "result": "ROOT_QUALIFIED_SMALL_ORIGINAL_AND_SAVED_ARITHMETIC_RAW_PENDING",
+  "root_qualification": {
+    "bytes": 3268,
+    "path": "/tmp/chronicler-fresh-study-small-root-20261029/root-small-publication-qualification.json",
+    "sha256": "dc3306ae2cbf0a3dc8d35078807287ecb45cb310e1558e6097cc7daef70d7186"
+  },
+  "run_id": 40877451052,
+  "saved_guarded_contracts_passed": 325,
+  "saved_readout_role_trace_totals": {
+    "active": {
+      "accounting_mismatches": 0,
+      "bookkeeping_paid_sum": 9,
+      "captured_frames": 960,
+      "final_differs_from_kernel_rounded": 3,
+      "final_present": 9213,
+      "kernel_computed": 8062,
+      "kernel_dropped": 25,
+      "kernel_uncomputed": 7298,
+      "matched_debit_frames": 960,
+      "matched_group_debit_sum": 9,
+      "paid_rhs_unobserved": 48,
+      "paid_rhs_zero": 7996,
+      "payment_rows": 18,
+      "positive_allowance": 18,
+      "positive_paid_rhs": 18,
+      "recipe_payment_occurrences": 18,
+      "unavailable_frames": 0
+    },
+    "parent": {
+      "accounting_mismatches": 0,
+      "bookkeeping_paid_sum": 9,
+      "captured_frames": 1440,
+      "final_differs_from_kernel_rounded": 6,
+      "final_present": 10646,
+      "kernel_computed": 9517,
+      "kernel_dropped": 123,
+      "kernel_uncomputed": 13523,
+      "matched_debit_frames": 1440,
+      "matched_group_debit_sum": 9,
+      "paid_rhs_unobserved": 200,
+      "paid_rhs_zero": 9299,
+      "payment_rows": 18,
+      "positive_allowance": 18,
+      "positive_paid_rhs": 18,
+      "recipe_payment_occurrences": 18,
+      "unavailable_frames": 0
+    },
+    "pause_new_trials": {
+      "accounting_mismatches": 0,
+      "bookkeeping_paid_sum": 5,
+      "captured_frames": 960,
+      "final_differs_from_kernel_rounded": 3,
+      "final_present": 9213,
+      "kernel_computed": 8062,
+      "kernel_dropped": 25,
+      "kernel_uncomputed": 7298,
+      "matched_debit_frames": 960,
+      "matched_group_debit_sum": 5,
+      "paid_rhs_unobserved": 48,
+      "paid_rhs_zero": 8004,
+      "payment_rows": 10,
+      "positive_allowance": 10,
+      "positive_paid_rhs": 10,
+      "recipe_payment_occurrences": 10,
+      "unavailable_frames": 0
+    }
+  },
+  "saved_readout_stage_totals": {
+    "active": {
+      "new_agendas": 10,
+      "new_trial_cost": 40,
+      "new_trials": 20,
+      "outcome_receipts_from_new_trials": 36,
+      "outcome_receipts_received": 36,
+      "paid_adoption_cost": 9
+    },
+    "parent": {
+      "new_agendas": 10,
+      "new_trial_cost": 40,
+      "new_trials": 20,
+      "outcome_receipts_from_new_trials": 36,
+      "outcome_receipts_received": 36,
+      "paid_adoption_cost": 9
+    },
+    "pause_new_trials": {
+      "new_agendas": 0,
+      "new_trial_cost": 0,
+      "new_trials": 0,
+      "outcome_receipts_from_new_trials": 0,
+      "outcome_receipts_received": 0,
+      "paid_adoption_cost": 5
+    }
+  },
+  "scientific_producer": "cbf6e368ebd218c1f54179bee4accffc1ab2a4c0",
+  "scope_limits": [
+    "Small ZIP CRC/SHA/seals, saved sourcecapsules, arithmetic and official saved metadata are independently verified.",
+    "24 executions/3360ticks/53760slots/raw state-history-native-RNG-journal equality and full2442rawinventory remain exact qualified producer/reader attestations; original106MBrawZIP was not acquired here.",
+    "Positive paid RHS is an actual computed addend; falling netpractice can coexist with it, and a zero recipe bookkeeping debit can coexist with positive allowance/RHS. No counterfactual marginalgain was calculated.",
+    "No efficacy, causal, welfare, performance, default promotion, broader simulation qualification or main merge."
+  ],
+  "small_members": {
+    "practice-study-contracts/guard.json": {
+      "bytes": 569,
+      "crc32": "c736390e",
+      "sha256": "a1f1519d1d50c624c480083fc14c59f5f1bf69971587b6d901eae0e18c263ccd"
+    },
+    "practice-study-contracts/junit.xml": {
+      "bytes": 50216,
+      "crc32": "22e47f7c",
+      "sha256": "d3810a1d0891195314952d9d05c05ed776f7514c099f2db0654d58a3bd153599"
+    },
+    "practice-study-evidence/admission.json": {
+      "bytes": 2529,
+      "crc32": "49e52c5d",
+      "sha256": "db2b15642cccd48a83b8c335fa2d208d1a52dcebe18b2ee32e2e2308ee468f1d"
+    },
+    "practice-study-evidence/execution-receipt.json": {
+      "bytes": 474,
+      "crc32": "1689256d",
+      "sha256": "55d243ee8ed7e1b102554628144c545cc389e9817523dd2557ac150bf0e8a176"
+    },
+    "practice-study-evidence/execution.json": {
+      "bytes": 433560,
+      "crc32": "d614f177",
+      "sha256": "23b2961464d60b56b41edb964999158d61101647543eedaa24b7debb11a8f02a"
+    },
+    "practice-study-freeze.json": {
+      "bytes": 648667,
+      "crc32": "fd4c41bc",
+      "sha256": "7d316471c910d36899f7826e53da20244dbae8348c210f5a8030158f228c7ec2"
+    },
+    "practice-study-readout/completion.json": {
+      "bytes": 698,
+      "crc32": "a8aa2a0c",
+      "sha256": "1c98ccd2567a9fbfa722b3b5f148ee6c2da81ddccb5772dc270a53818b7c0f8b"
+    },
+    "practice-study-readout/readout.json": {
+      "bytes": 687308,
+      "crc32": "ea07fb9f",
+      "sha256": "43333b2bdb9388fef27f9ab6fce9c0badc5e3496f4774cc427978f9f29b47202"
+    },
+    "practice-study-readout/readout.md": {
+      "bytes": 2375,
+      "crc32": "fdc5df0c",
+      "sha256": "4a6211eb23ba070cb2b51c12208fe0abcc9a612def2a6976afc395749655a94d"
+    },
+    "practice-study-readout/receipt.json": {
+      "bytes": 1060,
+      "crc32": "5dac8850",
+      "sha256": "21e26e5a6d69f91434583bec49ff5335cc2ea65ca2efe2f103473ccefae20506"
+    },
+    "practice-study-wheel/verification.json": {
+      "bytes": 3432,
+      "crc32": "d0f0e4e4",
+      "sha256": "76837ac42d6f3ee4d8073733daf28d7690cd924c3099ec0666f952b7e39246b2"
+    },
+    "proof-metadata-observation.json": {
+      "bytes": 2606,
+      "crc32": "49a1984e",
+      "sha256": "57a2e09d7511c12c88b510804f2b5eddead03a824e98136a0f8da7137585b35a"
+    }
+  },
+  "small_original": {
+    "bytes": 316886,
+    "expanded_bytes": 1833494,
+    "id": 12898573331,
+    "members": 12,
+    "sha256": "73a5054b1884916b2a5487a018a1435101eaae7793e90fc4d6b6b2ecf03903dc"
+  },
+  "source": "2d3faa8c41b4704386b246507b8606d4e3980be7",
+  "source_entries_verified": 3189
+}
