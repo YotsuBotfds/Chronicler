@@ -1871,8 +1871,15 @@ def run_turn(
     politics_runtime: object | None = None,
     force_settlement_detection: bool = False,
     pending_injections: list | None = None,
+    *, _practice_trace=None,
 ) -> str:
     """Execute one complete turn of the simulation. Returns chronicle text."""
+    if _practice_trace is not None:
+        return run_turn_result(
+            world, action_selector, narrator, seed, agent_bridge, economy_tracker,
+            ecology_runtime, politics_runtime, force_settlement_detection, pending_injections,
+            _practice_trace=_practice_trace,
+        ).chronicle_text
     return run_turn_result(
         world, action_selector, narrator, seed, agent_bridge, economy_tracker,
         ecology_runtime, politics_runtime, force_settlement_detection, pending_injections,

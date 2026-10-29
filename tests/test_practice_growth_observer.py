@@ -2,6 +2,7 @@
 import builtins
 from dataclasses import FrozenInstanceError
 import gc
+import inspect
 import math
 import pickle
 import random
@@ -359,3 +360,21 @@ def test_cancellation_after_partial_reporting_clears_pending_and_published_frame
     assert pickle.dumps(w) == pickle.dumps(plain)
     record = observer.read_latest(expected_source_turn=7)
     assert record.reason == "attempt_incomplete" and not record.rows and observer._pending is None
+
+
+def test_turn_wrappers_share_signature_and_forward_only_explicit_trace(monkeypatch):
+    from chronicler import simulation as sim
+    left, right = inspect.signature(sim.run_turn), inspect.signature(sim.run_turn_result)
+    assert list(left.parameters) == list(right.parameters)
+    assert [(p.kind, p.default) for p in left.parameters.values()] == [
+        (p.kind, p.default) for p in right.parameters.values()]
+    calls = []
+    def result(*args, **kwargs):
+        calls.append((args, kwargs)); return NS(chronicle_text="normal text")
+    monkeypatch.setattr(sim, "run_turn_result", result)
+    args = (object(), object(), object(), 43, object(), object(), object(), object(), True, [])
+    assert sim.run_turn(*args) == "normal text"
+    assert sim.run_turn(*args, _practice_trace=None) == "normal text"
+    token = object()
+    assert sim.run_turn(*args, _practice_trace=token) == "normal text"
+    assert calls == [(args, {}), (args, {}), (args, {"_practice_trace": token})]

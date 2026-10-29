@@ -76,17 +76,23 @@ separate them. The observer computes no counterfactual and measures no causal
 production or welfare effect. The eight previously retained natural-study
 allowances are not retroactively instrumented, replayed or requalified.
 
-Focused validation passes 64 guarded tests on the actual scalar kernel with
+Focused validation passes 65 guarded tests on the actual scalar kernel with
 tiny SimpleNamespace/TechniqueState/ScholarshipState surrogates. It covers
 bit-exact state/RNG, one allocation call, paid-zero bookkeeping, actual scholar
 carries, blocked/zero/unobserved paths, Python half-even/up/down rounding,
 clipping/drop, reporter faults, stale attempts, bounds and transience. No
-ordinary World, local native runtime, build or study was executed. Full normal
+ordinary World, native runtime, build or study was executed locally. Full normal
 turn dispatch is checked with a surrogate owner and source equivalence;
-fresh remote integration qualification remains separate.
+fresh corrected-source full CI remains separate.
 
-Two ordinary-World cases are authored for remote full CI only, reusing the
+Two ordinary-World cases run in remote full CI only, reusing the
 existing scientific-claims paid-runtime fixture. Phase and fourteen-turn
 comparisons require real allocations/positive paid RHS and identical normal
-state, events, treasury/debits and caller Python/NumPy RNG. They have not been
-run locally and are excluded from the bounded offline chunk.
+state, events, treasury/debits and caller Python/NumPy RNG. Both passed in each
+full Python lane of source `b35ccd7d`, whose overall CI failed the existing
+turn-wrapper signature contract. They have not run locally and remain excluded
+from the bounded offline chunk. The corrected wrappers share the same private
+keyword-only trace parameter; default calls still forward the original ten
+positional arguments without added keywords. A new surrogate regression fails
+on retained `b35ccd7d` and passes after this production correction. The original
+lifecycle assertion and both World cases remain unchanged.

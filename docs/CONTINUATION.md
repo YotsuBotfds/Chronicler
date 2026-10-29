@@ -5,9 +5,12 @@ starts from `45e1b939`, preserving qualified `95f73a74` and frozen C76. Explicit
 caller-owned phase/turn methods expose bounded actual paid RHS, clip/round/drop
 stages and separately committed values. Unobserved, blocked and computed-zero
 paths remain distinct; no World/checkpoint field, default import, I/O or native
-change is added. Sixty-four guarded surrogate-kernel cases pass; two genuine
-ordinary-World cases are authored for remote full CI and unrun locally. No
-native build, study activation or causal/performance result is claimed.
+change is added. Sixty-five guarded surrogate-kernel cases pass. Both genuine
+World cases passed in each full Python lane of `b35ccd7d`; that run failed the
+existing turn-wrapper signature contract. The wrappers now share their private
+trace keyword while default calls retain the original ten positional arguments.
+Corrected-source full CI remains pending; no local normal World, native build,
+study activation or causal/performance result is claimed.
 
 The separate `lead/agent-scale-benchmark-inputs-20261029` follow-up fixes empty
 workloads reporting success, nonfinite work/timeout inputs and overwritten
