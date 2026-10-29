@@ -1,0 +1,141 @@
+name: Registered wealth-floor paired native build
+
+# Registered activation; commands and sources match the reviewed dormant template.
+on:
+  push:
+    branches: [lead/cloud-wealth-floor-native-build-bridge-20261029]
+    paths: [.github/workflows/wealth-floor-native-build-bridge.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wealth-floor-native-bridge-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONNOUSERSITE: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTHONHASHSEED: "0"
+  PYTHON_CPU_COUNT: "2"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_THREAD_TIMEOUT: "16"
+  MKL_NUM_THREADS: "1"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  GOTO_NUM_THREADS: "1"
+  RAYON_NUM_THREADS: "1"
+  CARGO_BUILD_JOBS: "1"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  paired-native-build:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-wealth-floor-native-build-bridge-20261029' }}
+    name: Two exact sources in one recorded build context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out reviewed controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the exact candidate and its two ancestors
+        uses: actions/checkout@v4
+        with:
+          ref: 503070175e3e78d9014add158ead8f16ce940843
+          fetch-depth: 3
+          path: candidate
+          persist-credentials: false
+      - name: Check out the exact qualified supervisor source
+        uses: actions/checkout@v4
+        with:
+          ref: 27f0f3d11a1a171e1539353eb2c3a0fb896f0939
+          path: legacy-controls
+          persist-credentials: false
+          sparse-checkout: scripts/default_output_identity_qualification.py
+          sparse-checkout-cone-mode: false
+      - name: Set up the registered Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+      - name: Set up the registered Rust release
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+      - name: Install only the pinned bootstrap tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.13.6"
+          command -v strace
+          test ! -e "$RUNNER_TEMP/wealth-native-contract-env"
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/wealth-native-contract-env" \
+            uv sync --project "$GITHUB_WORKSPACE/control" --frozen --no-install-project --python "$(command -v python)"
+      - name: Guarded pure contracts before any native build or import
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: ${{ github.workspace }}/control/src:${{ github.workspace }}/control:${{ github.workspace }}/control/scripts/testing
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/wealth-native-contracts/guard.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/wealth-native-contracts"
+          "$RUNNER_TEMP/wealth-native-contract-env/bin/python" -B -m pytest -q -p python_oracle_guard \
+            --basetemp "$RUNNER_TEMP/wealth-native-contracts/pytest" \
+            --junitxml "$RUNNER_TEMP/wealth-native-contracts/pure.xml" \
+            -o "pythonpath=$GITHUB_WORKSPACE/control/src" \
+            control/tests/test_wealth_floor_native_build_bridge.py \
+            control/tests/test_wealth_floor_build_resources.py \
+            control/tests/test_wealth_floor_hosted_deployment.py
+      - name: Tiny isolated Linux lifecycle contracts before any build
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          CHRONICLER_WEALTH_TEST_LEGACY_ROOT: ${{ github.workspace }}/legacy-controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wealth-native-contract-env/bin/python" -B -m pytest -q --noconftest -o pythonpath= \
+            --basetemp "$RUNNER_TEMP/wealth-native-contracts/process-pytest" \
+            --junitxml "$RUNNER_TEMP/wealth-native-contracts/process.xml" \
+            control/tests/test_wealth_floor_native_build_process.py
+      - name: Build and inspect the two exact native sources without worlds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B control/scripts/wealth_floor_native_build_controller.py build \
+            --producer-root "$GITHUB_WORKSPACE/candidate" \
+            --legacy-root "$GITHUB_WORKSPACE/legacy-controls" \
+            --python "$(command -v python)" \
+            --evidence "$RUNNER_TEMP/wealth-native-bridge"
+      - name: Publish bounded provenance before full build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealth-native-light-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-native-bridge/light/
+            ${{ runner.temp }}/wealth-native-bridge/completion.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Preserve contract outcomes separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealth-native-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-native-contracts/*.xml
+            ${{ runner.temp }}/wealth-native-contracts/guard.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Preserve both wheels and complete original build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealth-native-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wealth-native-bridge/
+          if-no-files-found: warn
+          retention-days: 30

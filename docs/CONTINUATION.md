@@ -19,8 +19,11 @@ observation with namespace equality explicitly unknown. Other errors or changed
 evidence still refuse. All accepted observations survive into raw/light build
 receipts, and refusals carry fixed codes. Its 163 guarded fixture checks pass;
 the exact resource helper, floors, native sources and process controls are
-unchanged. Actual D2 build activation remains pending source review; no candidate
-world or main change is included.
+unchanged. The first paired build is registered on the separate
+`lead/cloud-wealth-floor-native-build-bridge-20261029` activation branch after
+source review. It uses exact D028/503 producers and the unchanged build/context
+gates. Its official result is pending; no candidate world or main change is
+included.
 
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
