@@ -164,3 +164,15 @@ seed-900 default-versus-three-explicit-off-switches check matches all 10 files.
 The nine focused health tests were also repeated against frozen integrated
 source `d86b8cc6` with the new binary and pass. Flag-on world, balance and
 performance qualification remain pending; no promotion is claimed.
+
+
+## Optional retained-Kin source extension
+
+A separate [source-only extension](retained-kin-care-2026-10-29.md) adds explicit
+`care_policy="retained_kin"`, retaining `spouse` as the omitted legacy value.
+It protects all existing spouse assignments before bounded reciprocal stored-Kin
+fallback and charges the same manual-work budget once. Health remains default-off.
+Native schema declarations are unchanged; an enabled Python model's default
+field may appear in pickle metadata even while legacy JSON omits it. Compilation,
+full CI and genuine old/new or enabled World/checkpoint qualification are pending
+for that new source; earlier evidence in this document keeps its original scope.

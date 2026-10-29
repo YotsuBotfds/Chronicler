@@ -228,14 +228,22 @@ impl AgentSimulator {
         }
     }
 
+    #[pyo3(signature = (ids, excluded, urban, impairment, care_fraction, *, care_policy = "spouse"))]
     pub fn prepare_health_work(&mut self, ids: Vec<u32>, excluded: Vec<u32>, urban: Vec<u16>,
-        impairment: f32, care_fraction: f32) -> PyResult<Vec<(u32, u16, u32, f32)>> {
+        impairment: f32, care_fraction: f32, care_policy: &str) -> PyResult<Vec<(u32, u16, u32, f32)>> {
+        let policy = crate::health_care::CarePolicy::from_name(care_policy)
+            .ok_or_else(|| PyValueError::new_err("health care policy must be spouse or retained_kin"))?;
         if !impairment.is_finite() || !(0.0..=1.0).contains(&impairment)
             || !care_fraction.is_finite() || !(0.0..=1.0).contains(&care_fraction) {
             return Err(PyValueError::new_err("health work fractions must be finite in 0..1"));
         }
-        let work = crate::health_care::prepare(&mut self.pool, &ids, &excluded, &urban,
-            self.num_regions, impairment, care_fraction);
+        let work = if policy == crate::health_care::CarePolicy::Spouse {
+            crate::health_care::prepare(&mut self.pool, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction)
+        } else {
+            crate::health_care::prepare_with_policy(&mut self.pool, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction, crate::health_care::CarePolicy::RetainedKin)
+        };
         let rows = work.rows.clone();
         self.health_work = Some(work);
         Ok(rows)
@@ -4198,3 +4206,35 @@ crate::persist_struct!(AgentSimulator {
 } skip { snapshot_cache } transient {
     health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame
 });
+
+#[cfg(test)]
+mod health_care_policy_tests {
+    use super::*;
+
+    #[test]
+    fn health_policy_ffi_validates_before_mutation_and_preserves_native_payload() {
+        let mut sim = AgentSimulator::new(1, 42);
+        let patient = sim.pool.spawn(0, 0, crate::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        let donor = sim.pool.spawn(0, 0, crate::Occupation::Farmer, 30,
+            0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+        for (a, b) in [(patient, donor), (donor, patient)] {
+            sim.pool.rel_count[a] = 1;
+            sim.pool.rel_target_ids[a][0] = sim.pool.ids[b];
+            sim.pool.rel_bond_types[a][0] = crate::relationships::BondType::Kin as u8;
+        }
+        let id = sim.pool.ids[patient];
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        assert_eq!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "spouse").unwrap(),
+            vec![(id, 0, 0, 0.0)]);
+        let rows = sim.health_work.as_ref().unwrap().rows.clone();
+        let losses = sim.pool.health_work_loss.clone();
+        assert!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "kin").is_err());
+        assert_eq!(sim.health_work.as_ref().unwrap().rows, rows);
+        assert_eq!(sim.pool.health_work_loss, losses);
+        assert_eq!(sim.prepare_health_work(vec![id], vec![], vec![], 0.5, 0.2, "retained_kin").unwrap(),
+            vec![(id, 0, sim.pool.ids[donor], 0.2)]);
+        assert_eq!(before, crate::persist::encode(crate::persist::KIND_AGENT, &sim));
+        assert!(!crate::persist::schema_of::<AgentSimulator>().contains("health_work"));
+    }
+}

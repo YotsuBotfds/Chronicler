@@ -1,9 +1,10 @@
-"""Default-off rural occupational injury and spouse care, hybrid only.
+"""Default-off rural occupational injury and spouse-first care, hybrid only.
 
 Episodes persist in WorldState. Before goods production the native builder
 resolves stable IDs, co-resident spouses and manual-work budgets. After the
 agent tick, living patients recover and surviving actual workers may acquire
 an episode for the following turn. Disease, combat and mortality are untouched.
+Optional retained-Kin care uses recorded reciprocal bonds, not inferred ancestry.
 """
 from __future__ import annotations
 from copy import deepcopy
@@ -25,6 +26,14 @@ def health_care_active(world) -> bool:
     return health_care_on(world) and getattr(world, "agent_mode", None) == "hybrid"
 
 
+def get_health_care_policy(state: HealthCareState) -> str:
+    """Missing fields on old unpickled states retain the spouse-only policy."""
+    policy = getattr(state, "care_policy", "spouse")
+    if type(policy) is not str or policy not in ("spouse", "retained_kin"):
+        raise ValueError("invalid health care care_policy: expected spouse or retained_kin")
+    return policy
+
+
 def set_health_care_enabled(world, enabled: bool) -> None:
     if enabled:
         if not health_care_on(world):
@@ -33,9 +42,29 @@ def set_health_care_enabled(world, enabled: bool) -> None:
         world.health_care = None
 
 
+def set_health_care_policy(world, policy: str) -> None:
+    """Change an enabled state's next preparation without enabling or allocating."""
+    if not health_care_on(world):
+        raise ValueError("health care policy requires already-enabled health care")
+    if type(policy) is not str:
+        raise ValueError("invalid health care care_policy: expected spouse or retained_kin")
+    validate_health_care(world)
+    state = world.health_care
+    # Rebuild serialized episode fields through the schema; model_copy(update=...)
+    # would bypass validation. Keep this candidate detached.
+    candidate = HealthCareState.model_validate(
+        {**state.model_dump(), "care_policy": policy}, strict=True)
+    selected = get_health_care_policy(candidate)
+    if selected != get_health_care_policy(state):
+        if state._prepared is not None:
+            raise ValueError("cannot change health care policy while work is prepared")
+        state.care_policy = selected
+
+
 def validate_health_care(world) -> None:
     if health_care_on(world):
         state = world.health_care
+        get_health_care_policy(state)
         for name, low, high in (("injury_rate", 0., .25), ("impairment", 0., 1.),
                                 ("care_fraction", 0., 1.), ("recovery_work", 1., 10.)):
             value = getattr(state, name)
@@ -73,10 +102,17 @@ def prepare_health_care(world, bridge) -> None:
     enlisted = sorted({int(aid) for army in armies for aid, _ in army.roster})
     cities = getattr(getattr(world, "cities", None), "cities", [])
     urban = sorted({int(city.settlement_id) for city in cities})
-    state._prepared = sim.prepare_health_work(
-        [e.agent_id for e in state.episodes], enlisted, urban,
-        state.impairment, state.care_fraction if state.care_enabled else 0.0,
-    )
+    if get_health_care_policy(state) == "retained_kin":
+        state._prepared = sim.prepare_health_work(
+            [e.agent_id for e in state.episodes], enlisted, urban,
+            state.impairment, state.care_fraction if state.care_enabled else 0.0,
+            care_policy="retained_kin",
+        )
+    else:
+        state._prepared = sim.prepare_health_work(
+            [e.agent_id for e in state.episodes], enlisted, urban,
+            state.impairment, state.care_fraction if state.care_enabled else 0.0,
+        )
 
 
 def finish_health_care(world, bridge) -> list:
