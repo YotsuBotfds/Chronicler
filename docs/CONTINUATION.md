@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+Inactive [dual-origin baseline admission](experiments/wealth-floor-baseline-admission-interface-2026-10-29.md)
+now has detached stdlib source and synthetic contracts: exact original reader
+seal, bounded EOCD/ZIP64 before ZipFile, complete streamed member hashing,
+descriptor-safe file opens, finite light inventory, immutable prepared plans
+and pending-job receipts. It launches no transport/build/world and grants no
+candidate admission while reviewed proof pins remain null. Original gate and
+transport prerequisites have resolved; effective build context/candidate
+binary/checkpoint proofs and actual raw auditing remain separate.
+
 An inactive [wealth-floor outcome protocol](experiments/household-wealth-floor-outcome-protocol-2026-10-29.md)
 plans reuse of the complete D028 template/procedural cohorts as an immutable
 historical baseline: 3,700 executions/201,400 ticks of runner work avoided,

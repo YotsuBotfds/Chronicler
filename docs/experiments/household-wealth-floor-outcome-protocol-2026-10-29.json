@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "chronicler-inactive-wealth-floor-outcome-design",
-  "activation_state": "NO-GO pending listed prerequisites",
+  "activation_state": "NO-GO pending effective build-context/native/checkpoint proof and reviewed inactive controls",
   "observed_at_utc": "2026-10-29T02:19:25Z",
   "historical_source": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
   "historical_control": "27f0f3d11a1a171e1539353eb2c3a0fb896f0939",
@@ -382,11 +382,10 @@
     }
   },
   "current_blockers": [
-    "Original whole-run strict comparison and retention readout pending at observation; both D028 source-specific cohorts complete with positive original gates.",
-    "Supported raw-artifact retrieval remains unresolved; raw publication metadata is not raw-content verification or demonstrated retrievability.",
-    "Actual old rustc/cargo/maturin/uv versions and build flags/target/features are retained in logs, not embedded in this build manifest, and have not been recovered by this design.",
-    "Candidate actual wheel/module identities not yet pinned under the required controlled build context.",
-    "Existing same-crate/shared-wheel/same-run/old-role controls correctly reject this pair; separately reviewed dual-native/two-origin controls required."
+    "Full historical raw archives have not been streamed/verified by the new admission reader.",
+    "Effective historical Rust flags, target overrides and linker identity remain unknown despite recorded compiler/tool versions.",
+    "Candidate actual wheel/module identities and compatible own-checkpoint/determinism proofs remain unpinned.",
+    "New dual-native/two-origin controls remain inactive pending source review and qualification."
   ],
   "identity_rules": [
     "Keep historical source/run/control/role/report/native records byte-identical; map prospective role only in an external hashed reference.",
@@ -416,5 +415,34 @@
     "known_parent_validation_input_sets_exact": true,
     "all_recorded_parent_and_fork_inventory_digest_links_match": true,
     "scope": "Existing retained light ZIP metadata only; no raw file content, checkpoint load or oracle evaluation."
-  }
+  },
+  "resolved_prerequisites": {
+    "original_full_run": {
+      "run_id": 40791402289,
+      "conclusion": "success",
+      "four_original_strict_gates": "PASS",
+      "strict_comparisons": "both NO_REGRESSION/comparable/no unverified or method changes",
+      "pipeline_publication_retention": "PASS",
+      "causal_required": "FAIL all four on kin roots; needs causal PASS",
+      "comparison_sha256": "6343e81b4332786353c4bf83ed0c50e30db84ca10c8a428112efa5da7ba61889",
+      "independent_verification_sha256": "77ba85fec25c88325c283d31042d5645282c093669131bce9c6ef8613d73165e"
+    },
+    "transport": {
+      "control": "939d739b",
+      "run_id": 40807004766,
+      "observed_route": "metadata200 ->302 ->Azure200",
+      "fix": "do not forward automatic Host/header_items",
+      "scope": "expected original ZIP/wheel/native hashes matched; not full old raw-content auditing"
+    },
+    "recorded_builder_versions": {
+      "rustc": "1.99.1",
+      "rustc_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+      "LLVM": "23.1.1",
+      "cargo": "1.99.1 (5f94df478 2026-08-27)",
+      "maturin": "1.15.0",
+      "uv": "0.13.6",
+      "effective_flags_linker_proven": false
+    }
+  },
+  "practical_build_fallback": "One future fully recorded common-context build of unchanged D028 and candidate503; rebuilt baseline native must equal06db exactly. Different bytes refuse reuse and require fresh baseline worlds."
 }

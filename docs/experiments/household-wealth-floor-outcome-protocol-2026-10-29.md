@@ -2,10 +2,11 @@
 
 **Inactive prospective design.** Reusing the complete D028 cohorts is
 scientifically defensible if the identity, build, runtime and evidence checks
-below close. Activation is currently **NO-GO**: the old whole-run comparison/
-retention readout is pending, supported raw-artifact retrieval is unresolved,
-the new candidate binary is unpinned, and the required dual-native controls
-have not been implemented or reviewed. No study, build or download ran here.
+below close. Activation is currently **NO-GO**: effective historical build
+overrides/linker remain unproven, the candidate binary is unpinned, and the
+new dual-native controls have not completed review. The old whole-run gate
+and transport prerequisites have since resolved as recorded below. No study,
+build or raw-artifact download ran as part of this design.
 
 The candidate comparison will be registered before any new candidate world.
 Its baseline has already been observed; this is not an unseen-baseline study.
@@ -107,10 +108,26 @@ wealth-floor evidence does not retroactively explain or repair them. Keep
 causal-required verdict without changing a threshold.
 
 Retained light bytes and official raw publication metadata are available;
-raw contents and present supported retrieval are not verified here. As of
-the retained 02:19 UTC observation, the old 2f9 procedural job and final
-comparison were still pending. This design authorizes no actual reuse or
-runtime/default promotion. It creates no new checkpoint, world or native build.
+raw contents are not verified here. The original full run subsequently
+completed successfully: four strict gates passed, both comparisons reported
+strict NO_REGRESSION and pipeline publication/retention passed. Its exact
+comparison result is `6343e81b…`; separate causal-required decisions still
+fail on kin roots. Supported transport was subsequently proven by control
+`939d739b`/run 40807004766 using fixed metadata → 302 → Azure 200 and matching
+original ZIP/wheel/native hashes. This resolves capability, not the unperformed
+full raw audit or candidate qualification.
+
+Compiler provenance now records rustc/cargo 1.99.1, LLVM 23.1.1, maturin
+1.15.0 and uv 0.13.6. Effective flags/target overrides/linker identity remain
+unknown. A practical inactive bridge builds both D028 and 503 in one fully
+recorded current context: rebuilt D028 native equal to `06db…` permits the
+stronger baseline identity check; different bytes refuse historical reuse and
+require fresh baseline worlds. There is no endless same-version retry rule.
+
+The [inactive admission interface](wealth-floor-baseline-admission-interface-2026-10-29.md)
+binds the completed reader output and streams all old ZIP members before any
+candidate work. This design grants no actual reuse or runtime/default promotion
+and creates no new checkpoint, world or native build.
 
 A metadata-only read of the already retained light ZIPs confirms all 300
 ordered parent seeds, 3,400 fork rows/horizons and recorded inventory digest
