@@ -1,4 +1,4 @@
-# Fixed historical CI duration audit — inactive draft
+# Fixed historical CI duration audit
 
 The reader inspects two already completed Python jobs from source
 `d0281e5f57c508f27cea1676f36e0e6ed1225c9d`, Tests run `40782783254`.
@@ -118,3 +118,14 @@ uv installation/preparation timing lines are ignored unless they begin with a
 pytest outcome counter. Actual failed/error summaries, duplicate successful
 summaries and missing summaries remain refusals. The original d690 draft is
 retained in history; no real artifact inspection preceded the correction.
+
+
+## Activation standing
+
+Independent review cleared corrected reader `78282f8b`; both owners passed all
+19 synthetic contracts, and actionlint passed. Root inspected the fixed input,
+transport, XML, attribution and final receipt paths. The reader is activated
+only on `lead/cloud-ci-duration-audit-20261029` by this new control commit.
+The Action repeats pure contracts before reading the two completed artifacts.
+No historical test, native build, world or sharding experiment is launched.
+The real audit remains pending until its exact run and retained receipts finish.
