@@ -1,14 +1,50 @@
 """Persisted, bounded public harvest assessments; no simulation imports."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field
+
+
+def _empty(value) -> bool:
+    return not value
+
+
+def _fixed(value) -> bool:
+    return value == "fixed"
+
+
+ForecastObservation = tuple[
+    Annotated[int, Field(ge=0, strict=True)],
+    Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)],
+]
+
+
+class ForecastCredibilityEvidence(BaseModel):
+    """One locally received, three-observation assessment result."""
+    report_id: str
+    issued_event_id: str = Field(min_length=1, strict=True)
+    delivered_event_id: str = Field(min_length=1, strict=True)
+    source_region: int = Field(ge=0, strict=True)
+    recipient_region: int = Field(ge=0, strict=True)
+    owner: int = Field(ge=0, strict=True)
+    owner_name: str = Field(strict=True)
+    issued_turn: int = Field(ge=0, strict=True)
+    delivered_turn: int = Field(ge=0, strict=True)
+    resolved_turn: int = Field(ge=0, strict=True)
+    probability: float = Field(ge=0, le=1, allow_inf_nan=False, strict=True)
+    observations: list[ForecastObservation] = Field(min_length=3, max_length=3)
+    observed_ratio: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    outcome_shortfall: bool = Field(strict=True)
+    brier: float = Field(ge=0, le=1, allow_inf_nan=False, strict=True)
 
 
 class HarvestObserver(BaseModel):
     region: int
     # Present/past normalized production per food demand: (turn, ratio).
     observations: list[tuple[int, float]] = Field(default_factory=list)
+    # Last four local results across sources/owners, never a global score ring.
+    credibility_memory: list[ForecastCredibilityEvidence] = Field(
+        default_factory=list, max_length=4, exclude_if=_empty)
 
 
 class HarvestReport(BaseModel):
@@ -38,11 +74,16 @@ class HarvestReport(BaseModel):
     evaluation_count: int = 0
     issued_event_id: str = ""
     delivered_event_id: str = ""
+    # Only explicit credibility mode records these present production ratios.
+    credibility_observations: list[ForecastObservation] = Field(
+        default_factory=list, max_length=3, exclude_if=_empty)
 
 
 class HarvestForecastState(BaseModel):
     # Experimental delivery controls; never alter climate or existing RNGs.
     policy: Literal["normal", "withhold", "shuffle"] = "normal"
+    preparation_policy: Literal["fixed", "local_credibility"] = Field(
+        default="fixed", exclude_if=_fixed)
     observers: list[HarvestObserver] = Field(default_factory=list)
     reports: list[HarvestReport] = Field(default_factory=list)
     outcomes: list[HarvestReport] = Field(default_factory=list)

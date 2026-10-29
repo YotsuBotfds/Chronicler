@@ -106,6 +106,11 @@ def _environment(raw):
 
 
 def _controls(raw, feature, blockers):
+    if feature == "harvest_forecasts" and isinstance(raw, Mapping) and "preparation_policy" in raw:
+        # This reader predates recipient-local memory and cannot establish
+        # matched pre-intervention knowledge. Refuse a misleading old-arm score.
+        blockers.append("local_forecast_credibility_comparison_unsupported")
+        return None
     fields = FEATURES.get(feature, ())
     if (feature == "scientific_claims" and isinstance(raw, Mapping)
             and set(raw) == set(fields) - {"publication_rule"}):

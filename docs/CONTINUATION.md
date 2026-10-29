@@ -1,5 +1,20 @@
 # Recovered continuation — 2026-10-11
 
+The next [forecast source composition](integration/next-forecast-source-assembly-2026-10-29.md)
+adds the reviewed, default-fixed [local credibility pilot](integration/harvest-forecast-local-credibility-2026-10-29.md)
+from preserved source `21e2eb2c` atop exact `94b308e6`. The four production files,
+two existing test files, roadmap increment and dated pilot note are exact donor
+imports. The parent native context batch API, metadata/K2 helpers, 303 module
+owners, six skips, 623-subtest seal and 37 offline chunks/110-second limit remain
+byte-identical to `94b308e6`. Its in-flight CI is parent-source evidence only.
+This combined Python behavior has no new full CI, genuine enabled World/exact
+checkpoint/default-output/global-RNG, scientific or performance qualification;
+no push, execution, adoption or main-promotion grant follows from assembly.
+The 39 guarded parent passes and 36 separate subreports retain their original
+`5e72e1bf` source; the donor's later changes were prose/docstring precision only.
+The preserved parent record below describes `94b308e6` and earlier sources,
+not a qualification of this new composition.
+
 Next consolidation is **source assembly only**: qualified care/runtime and
 review documentation, immutable Git layout tooling, and the unwired K2 metadata
 helper closure. [Exact composition and limits](integration/next-care-k2-source-assembly-2026-10-29.md)

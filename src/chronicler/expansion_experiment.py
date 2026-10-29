@@ -45,6 +45,11 @@ def controls_for_state(feature: str, state) -> dict:
         policy = get_health_care_policy(state)
         if policy != "spouse":
             result["care_policy"] = policy
+    if feature == "harvest_forecasts":
+        from chronicler.harvest_forecasts import get_preparation_policy
+        policy = get_preparation_policy(state)
+        if policy != "fixed":
+            result["preparation_policy"] = policy
     return result
 
 
@@ -52,7 +57,8 @@ def allowed_control_fields(feature: str) -> set[str]:
     """Actual request controls; research metadata is never a mutable field."""
     return (set(CONTROL_FIELDS[feature])
             | ({"research_enabled"} if feature == "scientific_claims" else set())
-            | ({"care_policy"} if feature == "health_care" else set()))
+            | ({"care_policy"} if feature == "health_care" else set())
+            | ({"preparation_policy"} if feature == "harvest_forecasts" else set()))
 
 
 def _research_identity(state):
@@ -112,7 +118,7 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     for name, value in controls.items():
         if name in _BOOLEAN_CONTROLS and type(value) is not bool:
             raise ValueError(f"experiment control {name} must be a boolean")
-        if name not in _BOOLEAN_CONTROLS and name not in ("policy", "publication_rule", "care_policy") and type(value) not in (int, float):
+        if name not in _BOOLEAN_CONTROLS and name not in ("policy", "publication_rule", "care_policy", "preparation_policy") and type(value) not in (int, float):
             raise ValueError(f"experiment control {name} must be a finite number")
     state = getattr(world, feature, None)
     before = controls_for_state(feature, state)
@@ -121,6 +127,11 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     if health_policy_receipt:
         from chronicler.health_care import get_health_care_policy, set_health_care_policy
         before["care_policy"] = get_health_care_policy(state)
+    forecast_policy_receipt = feature == "harvest_forecasts" and (
+        "preparation_policy" in controls or "preparation_policy" in before)
+    if forecast_policy_receipt:
+        from chronicler.harvest_forecasts import get_preparation_policy, set_preparation_policy
+        before["preparation_policy"] = get_preparation_policy(state)
     # Pydantic's source-owned schema validates enum choices, finite bounds and
     # existing state. Only control fields are copied back after all validation.
     candidate = type(state).model_validate({**state.model_dump(), **{
@@ -130,6 +141,8 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
         # An explicitly requested return to the omitted legacy value must
         # remain an applied control and appear in both sides of the receipt.
         after["care_policy"] = get_health_care_policy(candidate)
+    if forecast_policy_receipt:
+        after["preparation_policy"] = get_preparation_policy(candidate)
     research_policy = None
     if feature == "scientific_claims" and ("research_enabled" in controls or state.research_agendas is not None):
         from chronicler.scientific_research import set_research_agendas_enabled, validate_state
@@ -172,11 +185,15 @@ def apply_expansion_experiment(world, run_config: dict, request: dict, *, resume
     strict_json_dumps(receipt)
     if feature == "health_care" and "care_policy" in controls:
         set_health_care_policy(world, after["care_policy"])
+    if feature == "harvest_forecasts" and "preparation_policy" in controls:
+        set_preparation_policy(world, after["preparation_policy"])
     if "research_enabled" in controls:
         # Invoke the validated API; never setattr a derived mode or lineage.
         set_research_agendas_enabled(world, controls["research_enabled"])
     for name, value in after.items():
         if feature == "health_care" and name == "care_policy":
+            continue
+        if feature == "harvest_forecasts" and name == "preparation_policy":
             continue
         setattr(state, name, value)
     return receipt

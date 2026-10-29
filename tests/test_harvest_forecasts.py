@@ -433,3 +433,449 @@ def test_unobserved_next_turn_restores_known_extra_before_losing_its_record(miss
             H.apply_preparedness(current, result)
         assert current.harvest_forecasts.preparedness == []
     assert resumed.model_dump_json() == world.model_dump_json()
+
+
+class TestLocalForecastCredibility:
+    """Model/fake boundaries: no World, native pool, checkpoint or market."""
+
+    @staticmethod
+    def local_world(policy="local_credibility"):
+        from types import SimpleNamespace
+        from chronicler.harvest_forecasts_state import HarvestForecastState, HarvestObserver
+        state = HarvestForecastState(preparation_policy=policy,
+                                     observers=[HarvestObserver(region=0)])
+        return SimpleNamespace(
+            seed=42, turn=12, harvest_forecasts=state,
+            regions=[SimpleNamespace(name=name, controller="Realm", population=100)
+                     for name in ("Home", "Source1", "Source2")],
+            civilizations=[SimpleNamespace(name="Realm"), SimpleNamespace(name="Other")],
+            grain_reserves=SimpleNamespace(granaries=[SimpleNamespace(target=10., owner=0)
+                                                     for _ in range(3)]))
+
+    @staticmethod
+    def local_report(year=0, source=1, ratio=1., probability=.9):
+        start = 12 * year
+        total = 0.0
+        for _ in range(3):
+            total += ratio
+        mean = total / 3
+        return HarvestReport(
+            id=f"harvest:{year}:{source}:0", source_region=source, source_region_name=f"Source{source}",
+            recipient_region=0, recipient_region_name="Home", owner=0, owner_name="Realm",
+            issued_turn=start + 5, delivery_turn=start + (6 if source == 0 else 7),
+            delivered_turn=start + (6 if source == 0 else 7), expires_turn=start + 11,
+            target_start=start + 9, target_end=start + 11, probability=probability,
+            confidence=1., predicted_ratio=.2, status="resolved", resolved_turn=start + 12,
+            evaluation_sum=total, evaluation_count=3, observed_ratio=mean,
+            outcome_shortfall=mean < H.SHORTFALL_RATIO,
+            brier=(probability - float(mean < H.SHORTFALL_RATIO)) ** 2,
+            issued_event_id=f"{start + 5}:harvest_forecast_issued:0",
+            delivered_event_id=f"{start + 7}:harvest_forecast_delivered:0",
+            credibility_observations=[(start + t, ratio) for t in (9, 10, 11)])
+
+    def remember(self, w, report):
+        w.turn = report.resolved_turn
+        H._remember_local_result(w, w.harvest_forecasts, report)
+
+    def test_legacy_json_and_genuinely_missing_pickle_fields_stay_legacy(self):
+        import pickle
+        from chronicler.harvest_forecasts_state import HarvestForecastState, HarvestObserver
+        state = HarvestForecastState()
+        assert "preparation_policy" not in state.model_dump()
+        observer = HarvestObserver(region=0)
+        assert observer.model_dump() == {"region": 0, "observations": []}
+        report = self.local_report()
+        report.credibility_observations = []
+        assert "credibility_observations" not in report.model_dump()
+        del state.__dict__["preparation_policy"]
+        del observer.__dict__["credibility_memory"]
+        state.observers = [observer]
+        restored = pickle.loads(pickle.dumps(state))
+        assert H.get_preparation_policy(restored) == "fixed"
+        assert H._local_memory(restored.observers[0]) == []
+        w = self.local_world("fixed")
+        w.harvest_forecasts = restored
+        H.set_preparation_policy(w, "fixed")
+        assert "preparation_policy" not in restored.__dict__
+
+    def test_zero_history_and_fixed_policy_keep_exact_legacy_discount(self):
+        w = self.local_world()
+        report = self.local_report(year=1)
+        assert H.local_preparation_discount(w.harvest_forecasts, report, 18) == (1., [])
+        self.remember(w, self.local_report())
+        w.harvest_forecasts.preparation_policy = "fixed"
+        assert H.local_preparation_discount(w.harvest_forecasts, report, 18) == (1., [])
+
+    def test_false_alarm_discount_and_accurate_result_recovery_follow_frozen_rule(self):
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        discount, ids = H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)
+        assert discount == (2 + (1 - .9 ** 2)) / 3
+        assert ids == ["harvest:0:1:0"]
+        self.remember(w, self.local_report(1, ratio=.2))
+        recovered, ids = H.local_preparation_discount(w.harvest_forecasts, self.local_report(2), 30)
+        assert recovered == (2 + (1 - .9 ** 2) + (1 - (.9 - 1) ** 2)) / 4
+        assert recovered > discount and len(ids) == 2
+
+    def test_local_memory_is_four_results_across_sources_and_rejects_old_replay(self):
+        w = self.local_world()
+        for year, source in enumerate((1, 2, 1, 2, 2)):
+            self.remember(w, self.local_report(year, source=source))
+        memory = w.harvest_forecasts.observers[0].credibility_memory
+        assert [r.issued_turn for r in memory] == [17, 29, 41, 53]
+        assert len(memory) == 4
+        _, ids = H.local_preparation_discount(w.harvest_forecasts, self.local_report(5), 66)
+        assert ids == ["harvest:2:1:0"]
+        before = w.harvest_forecasts.model_dump_json()
+        old = self.local_report()
+        w.turn = old.resolved_turn
+        H._remember_local_result(w, w.harvest_forecasts, old)
+        assert w.harvest_forecasts.model_dump_json() == before
+
+    def test_unrelated_region_scores_and_global_history_never_supply_evidence(self):
+        from chronicler.harvest_forecasts_state import HarvestObserver
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        expected = H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)
+        w.harvest_forecasts.outcomes = [self.local_report()] * 128
+        w.harvest_forecasts.calibration = [[999., 999., 999.] for _ in range(5)]
+        w.harvest_forecasts.observers.append(HarvestObserver(region=99))
+        assert H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18) == expected
+        w.harvest_forecasts.outcomes = []
+        assert H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18) == expected
+
+    def test_withheld_incomplete_cancelled_late_or_other_owner_results_never_learn(self):
+        from copy import deepcopy
+        cases = [
+            {"delivered_turn": None}, {"status": "cancelled"}, {"status": "unscored"},
+            {"evaluation_count": 2}, {"credibility_observations": []},
+            {"delivered_event_id": ""}, {"issued_event_id": ""},
+        ]
+        for changes in cases:
+            w = self.local_world()
+            report = self.local_report()
+            for key, value in changes.items():
+                setattr(report, key, value)
+            self.remember(w, report)
+            assert w.harvest_forecasts.observers[0].credibility_memory == []
+        for change in ("owner", "extinction"):
+            w = self.local_world()
+            if change == "owner":
+                w.regions[0].controller = "Other"
+            else:
+                w.regions[0].population = 0
+            self.remember(w, self.local_report())
+            assert w.harvest_forecasts.observers[0].credibility_memory == []
+        w = self.local_world()
+        report = self.local_report()
+        report.delivered_turn = 9
+        before = deepcopy(w.harvest_forecasts.model_dump())
+        with pytest.raises(ValueError):
+            self.remember(w, report)
+        assert w.harvest_forecasts.model_dump() == before
+
+    def test_exact_dates_three_real_values_and_score_arithmetic_are_required(self):
+        changes = [
+            ("credibility_observations", [(9, 1.), (9, 1.), (11, 1.)]),
+            ("credibility_observations", [(9, 1.), (10, 1.), (11, float("nan"))]),
+            ("evaluation_sum", 1.), ("observed_ratio", .2), ("brier", .01),
+            ("outcome_shortfall", True), ("target_start", 8),
+            ("id", "another-report"), ("resolved_turn", 11),
+        ]
+        for key, value in changes:
+            w = self.local_world()
+            report = self.local_report()
+            setattr(report, key, value)
+            with pytest.raises(ValueError):
+                self.remember(w, report)
+            assert w.harvest_forecasts.observers[0].credibility_memory == []
+
+    def test_a_repeated_result_is_inert_and_conflicting_repetition_refuses(self):
+        w = self.local_world()
+        report = self.local_report()
+        self.remember(w, report)
+        before = w.harvest_forecasts.model_dump_json()
+        self.remember(w, report)
+        assert w.harvest_forecasts.model_dump_json() == before
+        report.probability = .8
+        report.brier = .8 ** 2
+        with pytest.raises(ValueError, match="conflicting"):
+            self.remember(w, report)
+        assert w.harvest_forecasts.model_dump_json() == before
+
+    def test_other_source_owner_and_not_yet_known_results_are_excluded(self):
+        from copy import deepcopy
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        for changes in ({"source_region": 2}, {"owner": 1}, {"owner_name": "Other"},
+                        {"issued_turn": 5}):
+            report = self.local_report(1)
+            for key, value in changes.items():
+                setattr(report, key, value)
+            assert H.local_preparation_discount(w.harvest_forecasts, report, 18) == (1., [])
+        row = w.harvest_forecasts.observers[0].credibility_memory[0]
+        row.resolved_turn = 30
+        assert H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18) == (1., [])
+
+    def test_loaded_local_memory_is_bounded_ordered_and_revalidated(self):
+        from copy import deepcopy
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        observer = w.harvest_forecasts.observers[0]
+        valid = deepcopy(observer.credibility_memory)
+        for rows in ([valid[0]] * 5, [valid[0]] * 2, [object()],
+                     [valid[0].model_copy(update={"probability": float("nan")})],
+                     [valid[0].model_copy(update={"observations": [(True, 1.), (10, 1.), (11, 1.)]})]):
+            observer.credibility_memory = rows
+            with pytest.raises(ValueError):
+                H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)
+        observer.credibility_memory = valid
+        assert H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)[1]
+
+    def test_preparedness_changes_only_existing_bounded_target_and_records_evidence(self, monkeypatch):
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        report = self.local_report(1)
+        report.status = "delivered"
+        w.turn = 19
+        w.harvest_forecasts.reports = [report]
+        monkeypatch.setattr(H, "harvest_forecasts_active", lambda world: True)
+        monkeypatch.setattr(G, "_demand", lambda result, name: 10.)
+        H.apply_preparedness(w, object())
+        discount = (2 + (1 - .9 ** 2)) / 3
+        expected = 10. + 2 * .9 * 10. * discount
+        assert w.grain_reserves.granaries[0].target == expected
+        row, = w.harvest_forecasts.preparedness
+        assert row["credibility_discount"] == discount
+        assert row["credibility_evidence_ids"] == ["harvest:0:1:0"]
+        assert row["bought_during_warning"] == row["paid_during_warning"] == 0
+        H.apply_preparedness(w, object())
+        assert w.grain_reserves.granaries[0].target == expected
+        H.set_preparation_policy(w, "fixed")
+        assert w.grain_reserves.granaries[0].target == 10. and w.harvest_forecasts.preparedness == []
+        H.apply_preparedness(w, object())
+        assert w.grain_reserves.granaries[0].target == 28.
+        assert "credibility_discount" not in w.harvest_forecasts.preparedness[0]
+
+    def test_switch_restores_only_known_increment_and_retains_memory(self):
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        memory = w.harvest_forecasts.observers[0].credibility_memory
+        w.harvest_forecasts.preparedness = [{"region": 0, "base_target": 10., "extra_target": 5.}]
+        w.grain_reserves.granaries[0].target = 123.
+        H.set_preparation_policy(w, "fixed")
+        assert w.grain_reserves.granaries[0].target == 123.
+        assert w.harvest_forecasts.observers[0].credibility_memory is memory
+        assert w.harvest_forecasts.preparedness == []
+        H.set_preparation_policy(w, "local_credibility")
+        assert H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)[1]
+
+    def test_invalid_switch_or_late_restoration_record_is_transactional(self):
+        import pickle
+        w = self.local_world("fixed")
+        w.grain_reserves.granaries[0].target = 15.
+        w.harvest_forecasts.preparedness = [
+            {"region": 0, "base_target": 10., "extra_target": 5.},
+            {"region": 1, "base_target": float("nan"), "extra_target": 1.}]
+        before = pickle.dumps(w)
+        with pytest.raises(ValueError):
+            H.set_preparation_policy(w, "local_credibility")
+        assert pickle.dumps(w) == before
+        for invalid in (None, True, 1, "future_truth"):
+            with pytest.raises(ValueError):
+                H.set_preparation_policy(w, invalid)
+            assert pickle.dumps(w) == before
+
+    def test_same_source_model_roundtrip_retains_future_decisions_without_world_or_checkpoint(self):
+        from chronicler.harvest_forecasts_state import HarvestForecastState
+        w = self.local_world()
+        self.remember(w, self.local_report())
+        state = w.harvest_forecasts
+        restored = HarvestForecastState.model_validate_json(state.model_dump_json())
+        report = self.local_report(1)
+        assert H.local_preparation_discount(state, report, 18) == H.local_preparation_discount(restored, report, 18)
+        assert restored.model_dump() == state.model_dump()
+
+    def test_dated_observations_resolve_once_and_pause_does_not_learn(self, monkeypatch):
+        from types import SimpleNamespace
+        w = self.local_world()
+        report = self.local_report()
+        report.status, report.resolved_turn = "delivered", None
+        report.evaluation_sum, report.evaluation_count = 0., 0
+        report.observed_ratio = report.outcome_shortfall = report.brier = None
+        report.credibility_observations = []
+        w.harvest_forecasts.reports = [report]
+        monkeypatch.setattr(H, "harvest_forecasts_active", lambda world: True)
+        monkeypatch.setattr(H, "_ratios", lambda world, result: {0: 1.})
+        monkeypatch.setattr(H, "_emit", lambda *args, **kwargs: SimpleNamespace(event_id="fake-event"))
+        monkeypatch.setattr(G, "_demand", lambda result, name: 10.)
+        for turn in (9, 10, 11, 12):
+            w.turn = turn
+            H.tick_harvest_forecasts(w, object())
+            before = w.harvest_forecasts.model_dump_json()
+            assert H.tick_harvest_forecasts(w, object()) == []
+            assert w.harvest_forecasts.model_dump_json() == before
+        assert report.credibility_observations == [(9, 1.), (10, 1.), (11, 1.)]
+        assert len(w.harvest_forecasts.observers[0].credibility_memory) == 1
+        assert report.observed_ratio == 1. and report.brier == .9 ** 2
+        w.turn = 13  # Policy changes occur before the next turn's forecast work.
+        H.set_preparation_policy(w, "fixed")
+        self.remember(w, self.local_report(1))
+        assert len(w.harvest_forecasts.observers[0].credibility_memory) == 1
+
+    def test_scored_withheld_report_cannot_become_local_knowledge(self, monkeypatch):
+        from types import SimpleNamespace
+        w = self.local_world()
+        w.harvest_forecasts.policy = "withhold"
+        report = self.local_report()
+        report.status, report.delivered_turn, report.resolved_turn = "pending", None, None
+        report.evaluation_sum, report.evaluation_count = 0., 0
+        report.observed_ratio = report.outcome_shortfall = report.brier = None
+        report.credibility_observations = []
+        w.harvest_forecasts.reports = [report]
+        monkeypatch.setattr(H, "harvest_forecasts_active", lambda world: True)
+        monkeypatch.setattr(H, "_ratios", lambda world, result: {0: 1.})
+        monkeypatch.setattr(H, "_emit", lambda *args, **kwargs: SimpleNamespace(event_id="fake-event"))
+        monkeypatch.setattr(G, "_demand", lambda result, name: 10.)
+        for turn in (9, 10, 11, 12):
+            w.turn = turn
+            H.tick_harvest_forecasts(w, object())
+        assert report.status == "resolved" and report.brier == .9 ** 2
+        assert w.harvest_forecasts.counters["resolved"] == 1
+        assert w.harvest_forecasts.observers[0].credibility_memory == []
+
+    def test_policy_and_discounts_do_not_draw_rng_or_change_probabilities(self):
+        w = self.local_world("fixed")
+        report = self.local_report()
+        before = random.getstate(), report.model_dump()
+        H.set_preparation_policy(w, "local_credibility")
+        self.remember(w, report)
+        H.local_preparation_discount(w.harvest_forecasts, self.local_report(1), 18)
+        assert (random.getstate(), report.model_dump()) == before
+
+    @staticmethod
+    def experiment_metadata():
+        from contextlib import contextmanager
+        from types import ModuleType
+        from unittest import mock
+        import sys
+        @contextmanager
+        def context():
+            batch = ModuleType("chronicler.batch_manifest")
+            batch.source_identity = mock.Mock(return_value={"git_sha": "a" * 40, "package_digest": "b" * 64})
+            batch.native_identity = mock.Mock(return_value={"status": "absent"})
+            hashes = {"/metadata-parent.ckpt": "c" * 64, "/metadata-registration.md": "d" * 64}
+            batch.file_sha256 = mock.Mock(side_effect=lambda path: hashes[str(path)])
+            checkpoint = ModuleType("chronicler.run_checkpoint")
+            checkpoint.read_header = mock.Mock(return_value=({"turn": 12, "seed": 42,
+                "exact": True, "identity": {"source": "fake-only"}, "flags": {}}, b"unread-body"))
+            with mock.patch.dict(sys.modules, {batch.__name__: batch, checkpoint.__name__: checkpoint}), \
+                    mock.patch.object(sys.modules["chronicler"], "batch_manifest", batch, create=True), \
+                    mock.patch.object(sys.modules["chronicler"], "run_checkpoint", checkpoint, create=True):
+                yield batch, checkpoint
+        return context()
+
+    @staticmethod
+    def experiment_request(controls=None, **extra):
+        value = dict(schema_version=1, experiment="local-forecast-policy", cohort="development",
+                     feature="harvest_forecasts", arm="control", controls={} if controls is None else controls,
+                     fork=False)
+        value.update(extra)
+        return value
+
+    def test_experiment_legacy_tuple_omission_and_explicit_reversion_are_truthful(self):
+        from chronicler.expansion_experiment import CONTROL_FIELDS, apply_expansion_experiment, controls_for_state
+        w = self.local_world("fixed")
+        assert CONTROL_FIELDS["harvest_forecasts"] == ("policy",)
+        with self.experiment_metadata():
+            legacy = apply_expansion_experiment(w, {}, self.experiment_request(), resumed=False)
+            assert legacy["controls_before"] == legacy["controls_after"] == {"policy": "normal"}
+            opted = apply_expansion_experiment(w, {}, self.experiment_request(
+                {"preparation_policy": "local_credibility"}), resumed=False)
+            assert list(opted["controls_before"]) == ["policy", "preparation_policy"]
+            assert opted["controls_before"] == {"policy": "normal", "preparation_policy": "fixed"}
+            assert opted["controls_after"] == {"policy": "normal", "preparation_policy": "local_credibility"}
+            inherited = apply_expansion_experiment(w, {}, self.experiment_request(), resumed=False)
+            assert inherited["controls_before"] == inherited["controls_after"] == opted["controls_after"]
+            reverted = apply_expansion_experiment(w, {}, self.experiment_request(
+                {"preparation_policy": "fixed"}), resumed=False)
+            assert reverted["controls_before"] == opted["controls_after"]
+            assert reverted["controls_after"] == {"policy": "normal", "preparation_policy": "fixed"}
+        assert controls_for_state("harvest_forecasts", w.harvest_forecasts) == {"policy": "normal"}
+
+    def test_experiment_invalid_registration_and_late_metadata_are_transactional(self):
+        import pickle
+        from unittest import mock
+        from chronicler.expansion_experiment import apply_expansion_experiment
+        cases = [
+            self.experiment_request({"preparation_policy": "unknown"}),
+            self.experiment_request({"preparation_policy": True}),
+            self.experiment_request({"preparation_policy": "local_credibility", "policy": "future_truth"}),
+            self.experiment_request({"preparation_policy": "local_credibility"}, cohort="confirmatory"),
+            self.experiment_request({"preparation_policy": "local_credibility"},
+                registration={"path": "/metadata-registration.md", "sha256": "f" * 64}),
+            self.experiment_request({"preparation_policy": "local_credibility"}, fork=True),
+        ]
+        for request in cases:
+            w = self.local_world("fixed")
+            before = pickle.dumps(w)
+            with self.experiment_metadata(), pytest.raises(ValueError):
+                apply_expansion_experiment(w, {}, request, resumed=False)
+            assert pickle.dumps(w) == before
+        w = self.local_world("fixed")
+        before = pickle.dumps(w)
+        with self.experiment_metadata() as (batch, checkpoint):
+            batch.source_identity.return_value = {"invalid": float("nan")}
+            with pytest.raises(ValueError):
+                apply_expansion_experiment(w, {}, self.experiment_request(
+                    {"preparation_policy": "local_credibility"}), resumed=False)
+        assert pickle.dumps(w) == before
+
+    def test_experiment_resumed_policy_change_preserves_receipts_and_model_progress(self):
+        from chronicler.expansion_experiment import apply_expansion_experiment
+        w = self.local_world("fixed")
+        observer = w.harvest_forecasts.observers[0]
+        request = self.experiment_request({"preparation_policy": "local_credibility"}, fork=True,
+            parent_checkpoint={"path": "/metadata-parent.ckpt", "sha256": "c" * 64})
+        with self.experiment_metadata():
+            receipt = apply_expansion_experiment(w, {"expansion_experiment": {"arm": "parent"}},
+                                                request, resumed=True)
+        assert receipt["intervention_fork"] is True
+        assert receipt["controls_after"]["preparation_policy"] == "local_credibility"
+        assert receipt["previous_experiment"] == {"arm": "parent"}
+        assert w.harvest_forecasts.observers[0] is observer
+        assert (w.turn, w.seed) == (12, 42)
+
+    def test_old_comparison_reader_explicitly_refuses_the_new_memory_arm(self):
+        import ast
+        from collections.abc import Mapping
+        from pathlib import Path
+        path = Path(H.__file__).with_name("expansion_compare.py")
+        tree = ast.parse(path.read_text())
+        node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_controls")
+        namespace = {"Mapping": Mapping}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), "exec"), namespace)
+        blockers = []
+        assert namespace["_controls"]({"policy": "normal", "preparation_policy": "local_credibility"},
+                                      "harvest_forecasts", blockers) is None
+        assert blockers == ["local_forecast_credibility_comparison_unsupported"]
+
+    def test_boolean_observations_and_midturn_policy_changes_refuse_before_mutation(self):
+        import pickle
+        from chronicler.harvest_forecasts_state import ForecastCredibilityEvidence
+        report = self.local_report()
+        data = dict(report_id=report.id, source_region=report.source_region, recipient_region=0,
+                    issued_event_id=report.issued_event_id, delivered_event_id=report.delivered_event_id,
+                    owner=0, owner_name="Realm", issued_turn=5, delivered_turn=7, resolved_turn=12,
+                    probability=.9, observations=[(9, True), (10, 1.), (11, 1.)],
+                    observed_ratio=1., outcome_shortfall=False, brier=.81)
+        with pytest.raises(ValueError):
+            ForecastCredibilityEvidence.model_validate(data)
+        w = self.local_world("fixed")
+        w.harvest_forecasts.last_tick_turn = w.turn
+        before = pickle.dumps(w)
+        with pytest.raises(ValueError, match="pre-tick"):
+            H.set_preparation_policy(w, "local_credibility")
+        assert pickle.dumps(w) == before
+        H.set_preparation_policy(w, "fixed")  # Same-policy call remains inert.
+        assert pickle.dumps(w) == before

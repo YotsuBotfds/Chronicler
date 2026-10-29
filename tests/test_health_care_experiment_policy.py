@@ -108,7 +108,8 @@ class HealthCareExperimentPolicyTests(unittest.TestCase):
         for feature in expected:
             with self.subTest(feature=feature):
                 extra = {"care_policy"} if feature == "health_care" else (
-                    {"research_enabled"} if feature == "scientific_claims" else set())
+                    {"research_enabled"} if feature == "scientific_claims" else (
+                        {"preparation_policy"} if feature == "harvest_forecasts" else set()))
                 self.assertEqual(allowed_control_fields(feature), set(expected[feature]) | extra)
 
     def test_omitted_policy_keeps_exact_legacy_control_and_receipt_order(self):

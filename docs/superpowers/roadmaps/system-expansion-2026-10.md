@@ -45,6 +45,13 @@ the [expansion development record](../../integration/expansion-development-2026-
 | Domesticates | Source-audited draft-animal proposal. | No new cohort implementation; reconcile ownership, creation, fodder and pastoral accounting first. |
 
 The first four slices have development runs and historical inspectors.
+The separately source-only [local forecast credibility pilot](../../integration/harvest-forecast-local-credibility-2026-10-29.md)
+now proposes an explicit optional feedback from delivered, locally evaluated
+reports to later paid preparation. Four results per regional observer preserve
+bounded local memory across global outcome-ring eviction. Fixed/default
+behavior, current forecast probabilities and native state remain unchanged;
+the model/fake checks do not qualify a new World, exact checkpoint, scientific
+benefit or performance result. Wider policy/skill comparisons remain pending.
 The study harness forks one exact checkpoint per seed and records controls,
 source and native identities. Its unchanged continuations matched six of six
 parent final states in the initial 24-run development set. This checks fork
