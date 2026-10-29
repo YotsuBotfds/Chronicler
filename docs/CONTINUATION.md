@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+2026-10-29: isolated `lead/models-forkserver-metadata-codec-20261029` adds a
+[strict generic metadata codec foundation](performance/models-forkserver-codec-foundation-2026-10-29.md),
+with no runtime wiring or activation. A descriptive, bounded zero-fork prefix
+inspection at clean `9848e7da` found 67 descriptor types, including lazy Pydantic
+schema objects that must never be accessed through rebuilding hooks. Unknown
+dependency/compiled storage remains unsupported. Independent source review
+cleared the generic layer; final guarded validation-tooling checks passed
+326 tests, including 30 codec cases, in 7.23 seconds under the unchanged
+110-second limit. No metadata server fork, world/checkpoint or native build ran.
+
 2026-10-29: separate `lead/models-forkserver-metadata-design-20261029` records
 an inactive [two-child metadata qualification design](performance/models-forkserver-metadata-design-2026-10-29.md)
 for the new package. The stdlib-only static helper inventories 25 Chronicler
