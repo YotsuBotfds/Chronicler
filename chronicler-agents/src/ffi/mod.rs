@@ -242,6 +242,36 @@ impl AgentSimulator {
         }
     }
 
+    // CAREOBS_SOURCE_BEGIN: configure and immutable export
+    /// Configure before the first observed whole turn. Allocation failure means
+    /// unavailable evidence and returns false; physics never allocates buffers.
+    #[pyo3(signature = (start_turn, manifest_sha256, *, turns = 32))]
+    pub fn configure_health_care_observation(&mut self, start_turn: u32,
+        manifest_sha256: &[u8], turns: u32) -> PyResult<bool> {
+        if manifest_sha256.len() != 32 || turns == 0 || turns > 32
+            || start_turn.checked_add(turns - 1).is_none() || self.num_regions > 4096 {
+            return Err(PyValueError::new_err("invalid bounded care observation configuration"));
+        }
+        if self.health_work.is_some() || self.pool.health_care_observation.is_some() {
+            return Err(PyValueError::new_err("care observation must be configured before preparation"));
+        }
+        let mut manifest = [0u8; 32];
+        manifest.copy_from_slice(manifest_sha256);
+        self.pool.health_care_observation = crate::health_care_observation::CareObservation::configure(
+            start_turn, turns, self.num_regions, manifest);
+        Ok(self.pool.health_care_observation.is_some())
+    }
+
+    /// Saved provisional prefix only: no drain, reset, hash, native read or cache.
+    pub fn get_health_care_observation<'py>(&self, py: Python<'py>)
+        -> Option<Bound<'py, pyo3::types::PyBytes>> {
+        self.pool.health_care_observation.as_ref().and_then(|frame| frame.saved_bytes())
+            .and_then(|bytes| pyo3::types::PyBytes::new_with(py, bytes.len(), |output| {
+                output.copy_from_slice(bytes);
+                Ok(())
+            }).ok())
+    }
+    // CAREOBS_SOURCE_END: configure and immutable export
     #[pyo3(signature = (ids, excluded, urban, impairment, care_fraction, *, care_policy = "spouse"))]
     pub fn prepare_health_work(&mut self, ids: Vec<u32>, excluded: Vec<u32>, urban: Vec<u16>,
         impairment: f32, care_fraction: f32, care_policy: &str) -> PyResult<Vec<(u32, u16, u32, f32)>> {
@@ -258,6 +288,13 @@ impl AgentSimulator {
             crate::health_care::prepare_with_policy(&mut self.pool, &ids, &excluded, &urban,
                 self.num_regions, impairment, care_fraction, crate::health_care::CarePolicy::RetainedKin)
         };
+        // CAREOBS_SOURCE_BEGIN: actual preparation copies
+        if let Some(mut observation) = self.pool.health_care_observation.take() {
+            observation.prepare(&self.pool, &work, &ids, &excluded, &urban,
+                self.num_regions, impairment, care_fraction, policy);
+            self.pool.health_care_observation = Some(observation);
+        }
+        // CAREOBS_SOURCE_END: actual preparation copies
         let rows = work.rows.clone();
         self.health_work = Some(work);
         Ok(rows)
@@ -269,8 +306,22 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("health injury rate must be finite in 0..1"));
         }
         self.pool.health_work_loss.clear();
+        // CAREOBS_SOURCE_BEGIN: missing preparation finish
+        if self.health_work.is_none() {
+            if let Some(observation) = &mut self.pool.health_care_observation {
+                observation.missing_finish(turn);
+            }
+        }
+        // CAREOBS_SOURCE_END: missing preparation finish
         let Some(work) = self.health_work.take() else { return Ok((Vec::new(), Vec::new(), Vec::new())) };
-        Ok(crate::health_care::finish(work, &self.pool, self.master_seed, turn, rate))
+        // CAREOBS_FINISH_BEGIN
+        let result = crate::health_care::finish(work, &self.pool, self.master_seed, turn, rate);
+        if let Some(mut observation) = self.pool.health_care_observation.take() {
+            observation.finish(&self.pool, turn, rate, &result);
+            self.pool.health_care_observation = Some(observation);
+        }
+        Ok(result)
+        // CAREOBS_FINISH_END
     }
 
     /// Exact checkpoint: every field this simulator carries between ticks,
@@ -2975,11 +3026,27 @@ impl AgentSimulator {
         // Rural impairment/care removes productive work, not people or demand.
         // City craft allocation is already reflected in farm_labor_factor;
         // only non-city workers can contribute these additive deductions.
+        // CAREOBS_SOURCE_BEGIN: economy stage
+        if let Some(observation) = &mut self.pool.health_care_observation {
+            observation.economy_begin(region_inputs.len());
+        }
+        // CAREOBS_SOURCE_END: economy stage
         if let Some(work) = &self.health_work {
             for (r, inp) in region_inputs.iter_mut().enumerate() {
                 let farmers = agent_counts[r].farmer_count as f32;
+                // CAREOBS_SOURCE_BEGIN: actual economy operands
+                if let Some(observation) = &mut self.pool.health_care_observation {
+                    observation.economy_before(r, agent_counts[r].farmer_count,
+                        inp.farm_labor_factor, work.losses.get(r).copied());
+                }
+                // CAREOBS_SOURCE_END: actual economy operands
                 if farmers > 0.0 && work.losses[r] > 0.0 {
                     inp.farm_labor_factor = (farmers * inp.farm_labor_factor - work.losses[r]).max(0.0) / farmers;
+                    // CAREOBS_SOURCE_BEGIN: actual adjusted factor
+                    if let Some(observation) = &mut self.pool.health_care_observation {
+                        observation.economy_adjusted(inp.farm_labor_factor);
+                    }
+                    // CAREOBS_SOURCE_END: actual adjusted factor
                 }
             }
         }
@@ -3056,6 +3123,11 @@ impl AgentSimulator {
         // --- Pack results into Arrow batches ---
         // 1. Region result batch
         let n_out = output.region_results.len();
+        // CAREOBS_SOURCE_BEGIN: actual output count
+        if let Some(observation) = &mut self.pool.health_care_observation {
+            observation.economy_outputs_begin(n_out);
+        }
+        // CAREOBS_SOURCE_END: actual output count
         let mut rr_region_id = UInt16Builder::with_capacity(n_out);
         let mut rr_fim = Float32Builder::with_capacity(n_out);
         let mut rr_fs = Float32Builder::with_capacity(n_out);
@@ -3078,6 +3150,12 @@ impl AgentSimulator {
                 let r = rr.region_id as usize;
                 if r < work.worked.len() { work.worked[r] = rr.slot_output.iter().any(|&x| x > 0.0) || rr.forage_output > 0.0; }
             }
+            // CAREOBS_SOURCE_BEGIN: actual economy work result
+            if let Some(observation) = &mut self.pool.health_care_observation {
+                observation.economy_output(rr.region_id, rr.slot_output, rr.forage_output,
+                    self.health_work.as_ref().and_then(|work| work.worked.get(rr.region_id as usize).copied()));
+            }
+            // CAREOBS_SOURCE_END: actual economy work result
             for (slot, builder) in rr_slot_out.iter_mut().enumerate() {
                 builder.append_value(rr.slot_output[slot]);
             }
@@ -3742,6 +3820,10 @@ impl AgentSimulator {
 // ---------------------------------------------------------------------------
 #[cfg(test)]
 mod agent_context_tests;
+// CAREOBS_SOURCE_BEGIN: PyO3 contracts
+#[cfg(test)]
+mod health_care_observation_tests;
+// CAREOBS_SOURCE_END: PyO3 contracts
 
 #[cfg(test)]
 mod tests {

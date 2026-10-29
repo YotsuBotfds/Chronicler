@@ -1404,9 +1404,18 @@ pub fn wealth_tick(
     // The Python-authoritative health builder supplies exactly one turn.
     // Stable-id guards prevent deductions reaching a reused slot.
     let health_loss = std::mem::take(&mut pool.health_work_loss);
+    // CAREOBS_SOURCE_BEGIN: actual consumed loss vector
+    let mut health_care_observation = pool.health_care_observation.take();
+    if let Some(observation) = &mut health_care_observation {
+        observation.wealth_begin(pool, regions, &health_loss);
+    }
+    // CAREOBS_SOURCE_END: actual consumed loss vector
     // --- Step 1: Accumulation + Decay ---
     let civ_idx = signals.build_index();  // H-29: O(1) civ lookup
     for slot in 0..pool.capacity() {
+        // CAREOBS_SOURCE_BEGIN: actual loop coverage
+        if let Some(observation) = &mut health_care_observation { observation.wealth_visit(slot); }
+        // CAREOBS_SOURCE_END: actual loop coverage
         if !pool.is_alive(slot) { continue; }
 
         let region_id = pool.regions[slot] as usize;
@@ -1448,18 +1457,37 @@ pub fn wealth_tick(
             }
         };
 
+        // CAREOBS_SOURCE_BEGIN: actual pre-health base income
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
+        // CAREOBS_SOURCE_END: actual pre-health base income
         let income = if occ == 0 {
             match health_loss.get(slot) {
                 Some(&(id, loss)) if id == pool.ids[slot] && loss != 0.0 => income * (1.0 - loss),
                 _ => income,
             }
         } else { income };
+        // CAREOBS_SOURCE_BEGIN: actual charged income
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 2, income); }
+        // CAREOBS_SOURCE_END: actual charged income
         pool.wealth[slot] += income;
+        // CAREOBS_SOURCE_BEGIN: actual wealth after addition
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 3, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after addition
         // Multiplicative decay
         pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
+        // CAREOBS_SOURCE_BEGIN: actual wealth after decay
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 4, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after decay
         pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
+        // CAREOBS_SOURCE_BEGIN: actual wealth after clamp
+        if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 5, pool.wealth[slot]); }
+        // CAREOBS_SOURCE_END: actual wealth after clamp
     }
 
+    // CAREOBS_SOURCE_BEGIN: finish wealth copies
+    if let Some(observation) = &mut health_care_observation { observation.wealth_end(); }
+    pool.health_care_observation = health_care_observation;
+    // CAREOBS_SOURCE_END: finish wealth copies
     // --- Step 2: Per-civ percentile ranking ---
     // BTreeMap ensures deterministic iteration order by civ_id (H-31 audit).
     let mut civ_groups: std::collections::BTreeMap<u8, Vec<(usize, f32)>> =

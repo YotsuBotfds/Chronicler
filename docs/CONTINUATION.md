@@ -1,5 +1,21 @@
 # Recovered continuation — 2026-10-11
 
+A SOURCE-ONLY [care native prefix implementation](integration/care-native-prefix-source-2026-10-29.md)
+adds one default-None transient primitive recorder and immutable post-turn bytes
+export atop qualified `46967ce6`. Actual prepare/economy/wealth/finish copies keep
+the care algorithm, HealthWork, all Python/phase/state/default source, dependencies,
+workflows, 303 owners/six skips/623 subtests and 38 unchanged-110-second chunks
+exact. The provisional native header never sets COMPLETE; its digest/Python
+placeholders require the later strict final join, including for fault tombstones.
+
+All new Rust/kernel/PyO3 test contracts are written and unrun. This source work
+ran no build, native/product import, tests, World, checkpoint decode, acquisition,
+push or main merge. Independent source review and this child's own fresh build,
+actual three schemas, applicable CI/default-output/global-RNG and separately
+reviewed enabled care/pilot gates remain unrun. The qualified parent's results
+and old empty API/native bytes do not qualify this changed crate. The existing
+handoff follows unchanged.
+
 ## Latest qualified code — 2026-10-29, source 469
 
 Code `46967ce6` now has independently/root-qualified

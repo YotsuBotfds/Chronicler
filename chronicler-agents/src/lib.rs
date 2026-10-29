@@ -23,6 +23,9 @@ pub mod relationships;
 pub mod formation;
 pub mod household;
 pub mod health_care;
+// CAREOBS_SOURCE_BEGIN: module
+mod health_care_observation;
+// CAREOBS_SOURCE_END: module
 pub mod migration_drivers;
 pub mod community;
 pub mod credit;
