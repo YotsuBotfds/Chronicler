@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "kind": "curated-wealth-floor-paired-native-build-readout",
+  "as_of": "2026-10-29",
+  "curation_notice": "Curated identities, outcomes and clocks. Full per-member/native/seal verification is separately retained under the listed receipt digests; this file is not that full verification.",
+  "standing": {
+    "build_prerequisite_qualified": true,
+    "builder_classification": "historical_reuse_eligible",
+    "historical_reuse_eligible": true,
+    "baseline_reuse_qualified": false,
+    "candidate_proof_registration_may_bind_build_pins": true,
+    "world_execution_authorized": false,
+    "candidate_worlds_admitted": false,
+    "population_or_efficacy_qualified": false,
+    "simulation_speedup_claimed": false,
+    "main_changed": false
+  },
+  "producer": {
+    "control_source": "3bf976cde1f0b4809945162395714e5aacccebdd",
+    "branch": "lead/cloud-wealth-floor-native-build-bridge-2-20261029",
+    "workflow_path": ".github/workflows/wealth-floor-native-build-bridge.yml",
+    "event": "push",
+    "run_id": 40820753788,
+    "run_attempt": 1,
+    "job_id": 123272420780,
+    "job_key": "paired-native-build",
+    "job_name": "Two exact sources in one recorded build context",
+    "official_status": "completed",
+    "official_conclusion": "success",
+    "run_started_at": "2026-10-29T04:59:05Z",
+    "run_metadata_updated_at": "2026-10-29T05:11:31Z",
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40820753788"
+  },
+  "sources": {
+    "baseline": {
+      "commit": "d0281e5f57c508f27cea1676f36e0e6ed1225c9d",
+      "crate_tree": "a4703ef4e9a21b5dbb194d318536a46e6ca8b71c"
+    },
+    "candidate": {
+      "commit": "503070175e3e78d9014add158ead8f16ce940843",
+      "crate_tree": "93b32cd9b02eccf4900b33cdaeece08262be2330"
+    },
+    "source_and_control_before_after_equal": true
+  },
+  "native_wheels": {
+    "baseline": {
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "bytes": 3831429,
+      "sha256": "2e491456d01c2dd7bb2f7688e6acbc06b614610bbbe5be5ea6f0832ae220759a",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "native_bytes": 13443872,
+      "native_sha256": "06db5e19bdda13d7a536b236d677348f5ea7cb5adad2929962f0485192f9b4d6"
+    },
+    "candidate": {
+      "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "bytes": 3831189,
+      "sha256": "4ebf720dfb1f39d4e19069cbadb44cfd60d1476874c41ec97dd19c69ae354d9a",
+      "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+      "native_bytes": 13443888,
+      "native_sha256": "b56c43f16722be2c8fc6fbe5c021ec292f9a6856783d946af56d97e91575e619"
+    }
+  },
+  "context": {
+    "common_sha256": "5aa8f0b521fe60666789ebc2ba058b9015df9104d1287a7bfa0e22caf22cc1ab",
+    "baseline_and_candidate_equal": true,
+    "current_unknown": [],
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "maturin": "maturin 1.15.0",
+    "uv": "uv 0.13.6 (x86_64-unknown-linux-gnu)",
+    "python": "3.13.17",
+    "target": "x86_64-unknown-linux-gnu",
+    "release_profile": {
+      "codegen-units": 1,
+      "lto": true,
+      "opt-level": 3
+    },
+    "release_ld_library_path": null,
+    "original_historical_context_unknown": [
+      "inherited effective flags",
+      "target overrides",
+      "linker/full argv",
+      "Ubuntu image"
+    ],
+    "complete_context_location": "baseline/context.json and candidate/context.json in raw; copies under light/ in light artifact"
+  },
+  "seal": {
+    "manifest": {
+      "raw_member": "build-manifest.json",
+      "light_member": "light/build-manifest.json",
+      "bytes": 25454,
+      "sha256": "dffb6aa2f07d89a23aad89a9988dd37f39f876cbff29c573838010cdbbb09169"
+    },
+    "completion": {
+      "member": "completion.json",
+      "bytes": 1047,
+      "sha256": "442f58798e655f241290baa0020456e26107193f7d2ec5696549f6599460ce59",
+      "publication_complete": true
+    },
+    "raw_inventory": {
+      "member": "raw-inventory.json",
+      "sha256": "f9cdd8fddc3dcd8ae87815ff54d721e5dc7fa04fc3b7e15cba7b4e09842faf61"
+    },
+    "light_index": {
+      "member": "light/index.json",
+      "sha256": "221b28e582a3ad366f36c3f9b430a8eb52ea2c46f9503f3f0346d1793c1e4e81"
+    },
+    "raw_inventory_and_all_three_seal_hashes_verified": true
+  },
+  "artifacts": [
+    {
+      "role": "contracts",
+      "id": 12874783356,
+      "name": "wealth-native-contracts-40820753788-1",
+      "zip_bytes": 4043,
+      "zip_sha256": "1182088bffbf25cfa2f9ab825fb97a3f92cfde9be97d89deed728c6a9906bb45",
+      "expires_at": "2026-11-28T05:11:22Z",
+      "member_count": 3,
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40820753788/artifacts/12874783356"
+    },
+    {
+      "role": "light",
+      "id": 12874574280,
+      "name": "wealth-native-light-40820753788-1",
+      "zip_bytes": 702101,
+      "zip_sha256": "a623ed545c8aabc1f19325a0884210c357d8d30ed903d703d79f21d30a29b759",
+      "expires_at": "2026-11-28T05:11:20Z",
+      "member_count": 17,
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40820753788/artifacts/12874574280"
+    },
+    {
+      "role": "raw",
+      "id": 12874494535,
+      "name": "wealth-native-raw-40820753788-1",
+      "zip_bytes": 9041361,
+      "zip_sha256": "fe23a7da31d04d7dd751937ba5050e953fa6a6597b865148bc11b559270b2ff9",
+      "expires_at": "2026-11-28T05:11:23Z",
+      "member_count": 85,
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40820753788/artifacts/12874494535"
+    }
+  ],
+  "artifact_layout": {
+    "raw_member_prefix": "",
+    "light_payload_prefix": "light/",
+    "completion_member": "completion.json",
+    "raw_wheel_members": {
+      "baseline": "wheels/baseline/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+      "candidate": "wheels/candidate/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl"
+    }
+  },
+  "checks": {
+    "remote_guarded_pure": {
+      "passed": 182,
+      "skipped": 0,
+      "pytest_seconds": 0.92
+    },
+    "remote_confined_POSIX": {
+      "passed": 8,
+      "pytest_seconds": 2.52
+    },
+    "native_api": {
+      "real_compiled_classes": [
+        "AgentSimulator",
+        "EcologySimulator",
+        "PoliticsSimulator"
+      ],
+      "registered_schema_matches": true,
+      "ordinary_physics_worlds": 0
+    },
+    "Rust_regressions": {
+      "behavior::tests::household_migration_poor_balances_cannot_amplify_positive_utility": "PASS",
+      "behavior::tests::household_migration_without_additional_wealth_keeps_raw_utility": "PASS",
+      "behavior::tests::household_migration_ordinary_and_threshold_balances_keep_original_bits": "PASS",
+      "behavior::tests::household_migration_credit_debit_can_reach_the_low_balance_case": "PASS"
+    },
+    "all_source_snapshots_equal": true,
+    "exact_old_native_reproduction": true,
+    "distinct_candidate_native": true
+  },
+  "regression_loader": {
+    "LD_LIBRARY_PATH": "/opt/hostedtoolcache/Python/3.13.17/x64/lib",
+    "base_prefix": "/opt/hostedtoolcache/Python/3.13.17/x64",
+    "inherited_ld_library_path_used": false,
+    "interpreter": "/opt/hostedtoolcache/Python/3.13.17/x64/bin/python3.13",
+    "library_bytes": 30692912,
+    "library_path": "/opt/hostedtoolcache/Python/3.13.17/x64/lib/libpython3.13.so.1.0",
+    "library_sha256": "5d82130178b6867f33842ba6c493f229d1d9ad3c8f302558298833c48b45c229",
+    "python": "3.13.17",
+    "resolved_libdir": "/opt/hostedtoolcache/Python/3.13.17/x64/lib",
+    "scope": "candidate-regressions child only; baseline/candidate release-build environments and context unchanged",
+    "source": "Exact selected Python interpreter sysconfig LIBDIR and LDLIBRARY",
+    "sysconfig_libdir": "/opt/hostedtoolcache/Python/3.13.17/x64/lib"
+  },
+  "deployment_scope": {
+    "namespace_equal": null,
+    "namespace_equality_verified": false,
+    "namespace_equality_status": "unverified_permission_denied",
+    "pid1_namespace_errno_observations": [
+      13,
+      13
+    ],
+    "evidence_scope": "VM-context evidence with PID1 cgroup namespace unreadable: EACCES13 twice; namespace equality unverified",
+    "visibility_limit": "VM-context evidence; not proof against namespace-invisible provider ancestors"
+  },
+  "resources": {
+    "admission_GiB": {
+      "disk": 12,
+      "available_RAM": 2
+    },
+    "running_final_floor_GiB": {
+      "disk": 3,
+      "available_RAM": 1
+    },
+    "observed_min_disk_free_bytes": 89056305152,
+    "observed_min_available_RAM_bytes": 14515216384,
+    "scope": "Visible hierarchy counters; no provider-hidden ancestor attestation or reservation."
+  },
+  "clocks": {
+    "command_wall_seconds_including_cleanup": {
+      "baseline-release-build": 301.390195369,
+      "candidate-release-build": 281.55499369999995,
+      "candidate-regression-python-config": 0.15750682700002017,
+      "candidate-regressions": 107.99317149000001
+    },
+    "completion_observation": {
+      "cleanup_complete": true,
+      "controller_measured_cpu_seconds": 7.588880605,
+      "cpu_scope": "Measured controller self and waited-child usage; no exact aggregate live-tree CPU or CPU admission claim",
+      "final_observation": true,
+      "live_processes": 0,
+      "waited_children_cpu_seconds": 692.682828,
+      "wall_limit_seconds": 1800.0,
+      "wall_seconds": 700.366544797
+    },
+    "completion_clock_scope": "After heavy inventory, manifest and light hashing; before this completion commit. Post-commit deadline check required.",
+    "limits_seconds": {
+      "controller": 1800,
+      "job": 2700
+    },
+    "interpretation": "Command wall intervals, controller wall, measured self CPU and waited-child CPU are distinct scopes. No exact aggregate live-tree CPU admission or performance comparison is claimed."
+  },
+  "first_failed_attempt": {
+    "control_source": "75cb17717dedb3e59d5d55e5313d954bd98dda1f",
+    "run_id": 40818391220,
+    "job_id": 123264802829,
+    "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40818391220",
+    "official_result": "failure",
+    "failure": {
+      "child_returncode": 127,
+      "test_profile_compiled": true,
+      "rust_assertions_executed": 0,
+      "missing_library": "libpython3.13.so.1.0",
+      "stage": "test executable dynamic loader",
+      "log_sha256": "3f5054932edcc132303b4a5255401443202a11450e8d6f03f3d70204f8b8b854",
+      "cause": "Normalized build environment omitted selected Python shared-library directory; no automatic retry."
+    },
+    "candidate_and_control_after_snapshots_present": false,
+    "positive_completion": false,
+    "baseline_reuse_qualified": false,
+    "wheels_rebound_into_corrected_producer": false,
+    "artifacts": [
+      {
+        "role": "contracts",
+        "id": 12873439397,
+        "name": "wealth-native-contracts-40818391220-1",
+        "zip_bytes": 3834,
+        "zip_sha256": "495f21070f36129e28771195619e1dc84b3acff06a8aa554efa47b66598767a1",
+        "expires_at": "2026-11-28T04:45:48Z",
+        "member_count": 3,
+        "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40818391220/artifacts/12873439397"
+      },
+      {
+        "role": "light",
+        "id": 12873374687,
+        "name": "wealth-native-light-40818391220-1",
+        "zip_bytes": 201,
+        "zip_sha256": "cd0d6c771917a1bedfd6a8dbbe6d7406f1f776ef673ce1076fb2e85d76f061fe",
+        "expires_at": "2026-11-28T04:45:47Z",
+        "member_count": 1,
+        "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40818391220/artifacts/12873374687"
+      },
+      {
+        "role": "raw",
+        "id": 12873294982,
+        "name": "wealth-native-raw-40818391220-1",
+        "zip_bytes": 8104624,
+        "zip_sha256": "01157cb749641900a3805bb0609d1fa62dc50dadf57c3cb4c0b0c250bccfa3ae",
+        "expires_at": "2026-11-28T04:45:49Z",
+        "member_count": 64,
+        "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40818391220/artifacts/12873294982"
+      }
+    ],
+    "verification_sha256": "d9fae4da38009c1022bee51336f5fd838529ac5c9adcce8db8b375004dafbefd",
+    "preserved": true
+  },
+  "verification_receipts": {
+    "full_lane_verification": {
+      "sha256": "2eb25378086c3708dfbc8bf8754db4f3544f340831e347bda8d343589adab8c3",
+      "scope": "All 85 raw,17 light,3 contract members hashed and CRC checked; native wheel bytes, snapshots, XML and seal relationships checked."
+    },
+    "root_consumer_pin_verification": {
+      "sha256": "66fe4093ff1db5f5c63368a52655c2ea002644876a05f6bdf9ed75cd97bbf99d",
+      "original_members_streamed": 105,
+      "original_member_bytes": 15764010,
+      "both_inner_native_payloads_streamed": true,
+      "scope": "Metadata/ZIP/member/XML/seal/native-byte checks only; no imports, install, native pools, worlds, old CP rewriting or final outcome-cohort grant."
+    },
+    "independent_metadata_seal_peer": {
+      "sha256": "095cf3abd380889978995d1bba41b3a6c04b9a2de93f168e39dfd3fcb8637620",
+      "scope": "Rehashed all three ZIPs and reconciled central entries, seal and receipt links; no repeated full payload-member verification."
+    }
+  },
+  "prospective_wall_clock_options": [
+    {
+      "id": "earlier_loader_preflight",
+      "status": "prospective_not_implemented",
+      "proposal": "Move the existing read-only selected-Python loader check before both release compilations; continue applying its loader path only to the regression child.",
+      "measured_benefit": null
+    },
+    {
+      "id": "verified_dependency_cache_study",
+      "status": "prospective_not_implemented",
+      "proposal": "Study retaining verified unchanged Cargo dependencies while forcing a fresh candidate crate/link; require the native bytes to match this cold-reference candidate and retain full context/source checks before accepting a speed claim.",
+      "measured_benefit": null
+    }
+  ],
+  "scope": "Build prerequisite only. Final baseline reuse, candidate checkpoint/determinism proofs, outcome cohorts and world execution remain separate review gates. No signed URLs, private logs or binary payloads are embedded."
+}
