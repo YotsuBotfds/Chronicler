@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A separate [pending full-output byte-audit core](experiments/wealth-floor-full-archive-core-2026-10-29.md)
+now has122 pure contracts passing in0.29 seconds with no native/factory/blocked
+IO. It validates whole expected-member closure, bounded closed transport and
+total staging/output budgets using unchangedA9de directly. All actual output,
+closure, outcome, resource and completion registrations remain literal NULL;
+the actual entry point always refuses before credentials/paths/clients and the
+dormant template is false-gated. No archive transfer, decoder, audit activation,
+native build or World ran in this source work. The original full cohort's first
+remote attempt33d331a1/run40860233409 remains independently active; this core
+claims no cohort result or historical reuse and requires observed publications
+plus separately reviewed terminal/controller policy before any acquisition.
+
 A source-only full registration successor now binds the root-content-qualified
 f04e worker packet and templatef9ee/proceduralf218 object hashes after3520.
 Root source/content review9e3050cb qualifies these exact inputs; original2e80
