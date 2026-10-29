@@ -52,7 +52,7 @@ consumer origin check are required after one explicitly reviewed activation.
 An expired/refused diagnostic preserves partial metadata and invalidates its
 completion marker; positive files alone grant nothing.
 
-The final source passes 35 guarded pure contracts in 0.29 seconds, covering
+The corrected source passes 36 guarded pure contracts in 0.16 seconds, covering
 fake ZIP/API inputs, selected CRC and whole-ZIP refusal, exact active workflow
 bytes, fixed early refusal codes and failure retention. The guard records no
 native, factory or blocked I/O calls. Seven clock/deadline/file definitions are
@@ -60,3 +60,9 @@ AST-identical to qualified source7185. Earlier test outcomes remain separate:
 30 passes and one incorrect expected exception type, its corrected singleton,
 and a 34-case boundary before the final fixed-code observability check. None of
 these tests executes the remote controller or qualifies actual input archives.
+
+The original source846 and its 35-case result remain preserved. Independent
+review found that non-event JSONL rows were undercounted; the successor changes
+only the parsed-line counter and adds that exact regression. Generic kernel
+AdmissionError failures remain type-only. A refusal therefore cannot establish
+which particular cap failed; no cap-specific cause may be inferred or relaxed.

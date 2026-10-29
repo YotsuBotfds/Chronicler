@@ -213,3 +213,11 @@ def test_fixed_refusal_codes_survive_early_failure_without_arbitrary_text():
     assert S.safe_failure(Unknown('private response body')) == dict(error_type='Unknown')
     class Deployment(ValueError): code = next(iter(S.D.REFUSAL_CODES))
     assert S.safe_failure(Deployment()) == dict(error_type='Deployment', deployment_refusal_code=Deployment.code)
+
+
+def test_non_event_jsonl_row_count_tracks_every_parsed_line():
+    raw = b'{"seed":42,"turn":101}\n'
+    value, tail = S.summarize('checkpoint-retirement.jsonl', raw, S.A.Budget())
+    assert value['row_count'] == 1 and value['event_counts'] == {} and value['captured'] == []
+    assert value['first_event'] == value['last_event'] == dict(seed=42, turn=101)
+    assert tail is None

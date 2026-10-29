@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The source-only diagnostic's preserved846 preparation now has a narrow
+successor: parsed-line counts include non-event JSONL rows. Its exact regression
+and all36 affected pure contracts pass; the original35-case boundary remains
+recorded. Controller limits, source policy and scientific/activation authority
+are unchanged. Generic kernel failures stay type-only and cannot identify a
+particular cap. No transport, failed-CP acquisition or World has run.
+
 A separate [source-only original-run diagnostic](experiments/wealth-floor-failed-cohort-diagnostic-2026-10-29.md)
 preserves the first full cohort at33d331a1/run40860233409 as INCOMPLETE_MECHANICS.
 Both original jobs failed during partial checkpoint capture, before scientific
@@ -7,7 +14,7 @@ assessment; no rerun or candidate/scientific decision follows. The new reader
 registers all ten output metadata records but only the two original raw ZIP
 endpoints, remotely, for bounded exception/progress/manifest CRC/hash checks.
 It retains the original resource/ZIP/phase limits, keeps full completion proofs
-NULL, and its separate activation pin is NULL. All35 final guarded pure cases
+NULL, and its separate activation pin is NULL. All36 corrected guarded pure cases
 pass with no native/factory/blocked IO; seven qualified primitive ASTs match.
 Source peer/root review and a separate activation remain required. No raw ZIP,
 failed-CP body, native build or World was acquired/run by this preparation.

@@ -196,10 +196,10 @@ def summarize(name, raw, budget):
         A.require(all(len(line.encode()) <= 4096 for line in errors), "exception line cap")
         return dict(exception_lines=errors[:8], tail_bytes=min(len(raw), MAX_TAIL), original_log_bytes=len(raw)), raw[-MAX_TAIL:]
     if name.endswith(".jsonl"):
-        rows = []; events = {}; first = last = None
+        rows = []; events = {}; first = last = None; parsed_lines = 0
         for line in raw.splitlines(keepends=True):
             budget.check(); A.require(len(line) <= MAX_JOURNAL_LINE and line.endswith(b'\n'), "metadata journal framing")
-            row = A.parse_json(line, budget); first = first or row; last = row
+            row = A.parse_json(line, budget); parsed_lines += 1; first = first or row; last = row
             event = row.get("event")
             if type(event) is str: events[event] = events.get(event, 0) + 1
             if name == "candidate-checkpoint-capture.jsonl":
@@ -209,7 +209,7 @@ def summarize(name, raw, budget):
                     header_source=header.get("identity", {}).get("source"),
                     header_native_sha256=header.get("identity", {}).get("native", {}).get("sha256"))
                 rows.append(captured)
-        return dict(row_count=sum(events.values()) if events else len(rows), event_counts=events,
+        return dict(row_count=parsed_lines, event_counts=events,
             first_event=first if name != "candidate-checkpoint-capture.jsonl" else None,
             last_event=last if name != "candidate-checkpoint-capture.jsonl" else None, captured=rows), None
     value = A.parse_json(raw, budget)
