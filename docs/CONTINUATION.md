@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+Source-only [immutable Git native-layout admission](workflows/native-manifest-git-ref.md)
+adds optional `check-manifest --source-ref <full lowercase 40-hex commit>`.
+Manifest and default test-module paths come from that same Git tree, with
+replacement objects and automatic lazy fetch disabled per read; sparse control
+views need no full checkout.
+This catches missing/duplicate ownership before a push without importing source
+or collecting pytest. Existing command behavior, two-shard ownership, skip/
+subtest seals, workflows and producer authority remain unchanged. Its small
+metadata-only qualification does not grant native execution or full CI.
+
+
 Separate source-only [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
 starts from `2f164203`. Health stays default-off and spouse-only calls retain
 five native arguments and the exact old preparer. Explicit retained Kin fills

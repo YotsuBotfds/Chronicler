@@ -454,3 +454,126 @@ def test_v2_template_changes_only_closed_registration_and_preserves_failed_v1():
     assert prepared == expected
     installed = root/'.github/workflows/native-two-shards-v2.yml'
     if installed.exists(): assert installed.read_bytes() == prepared
+
+
+@pytest.fixture
+def ref_git(monkeypatch, manifest):
+    """Finite Git protocol double: no process, source import or real collection."""
+    reference, tree, blob = 'a'*40, 'b'*40, 'c'*40
+    raw = json.dumps(manifest, indent=2).encode() + b'\n'
+    manifest_path = 'scripts/testing/native_shards_manifest.json'
+    rows = [(b'100644', b'blob', blob.encode(), manifest_path.encode()),
+            (b'100644', b'blob', b'd'*40, b'tests/test_a.py'),
+            (b'100755', b'blob', b'e'*40, b'tests/test_b.py'),
+            (b'100644', b'blob', b'f'*40, b'tests/helper.py')]
+    state = {'reference': reference, 'tree': tree, 'blob': blob, 'raw': raw,
+             'rows': rows, 'calls': [], 'kind': b'commit\n'}
+
+    monkeypatch.setenv('GIT_NO_LAZY_FETCH', '0')
+
+    def fake_git(command, *, cwd, env):
+        assert command[0] == 'git' and cwd == S.ROOT
+        assert env['GIT_NO_LAZY_FETCH'] == '1' and S.os.environ['GIT_NO_LAZY_FETCH'] == '0'
+        args = tuple(command[1:])
+        state['calls'].append(args)
+        assert args[0] == '--no-replace-objects'
+        if args[1:] == ('cat-file', '-t', reference): return state['kind']
+        if args[1:] == ('rev-parse', '--verify', reference+'^{tree}'): return (tree+'\n').encode()
+        if args[1:] == ('ls-tree', '-r', '-z', '--full-tree', tree, '--', manifest_path, 'tests'):
+            return b''.join(b' '.join(row[:3])+b'\t'+row[3]+b'\0' for row in state['rows'])
+        if args[1:] == ('cat-file', '-s', blob): return (str(len(state['raw']))+'\n').encode()
+        if args[1:] == ('cat-file', 'blob', blob): return state['raw']
+        raise AssertionError(('unregistered Git request', args))
+
+    monkeypatch.setattr(S.subprocess, 'check_output', fake_git)
+    # A sparse view's index, physical manifest and current source must not leak in.
+    def no_current(*args): raise AssertionError('current checkout is not the requested Git commit')
+    monkeypatch.setattr(S, 'read_json', no_current)
+    monkeypatch.setattr(S, 'source_modules', no_current)
+    return state
+
+
+def test_source_ref_cli_reads_manifest_and_default_modules_from_same_immutable_tree(ref_git, monkeypatch, tmp_path, manifest):
+    destination = tmp_path/'ref.json'
+    monkeypatch.setattr(sys, 'argv', ['native_ci_shards.py', 'check-manifest', '--execute',
+        '--source-ref', ref_git['reference'], '--output', str(destination)])
+    S.main()
+    record = json.loads(destination.read_bytes())
+    assert record == {'state': 'PASS', 'source_ref': ref_git['reference'],
+        'source_commit': ref_git['reference'], 'source_tree': ref_git['tree'],
+        'scope': 'Git manifest/default test-module layout only; no pytest collection, execution or producer/wheel admission',
+        'manifest_path': 'scripts/testing/native_shards_manifest.json', 'manifest_blob': ref_git['blob'],
+        'manifest_sha256': S.hashlib.sha256(ref_git['raw']).hexdigest(),
+        'manifest_digest': S.digest(manifest), 'modules': 2}
+    assert len(ref_git['calls']) == 5
+
+
+@pytest.mark.parametrize('change', ['new', 'missing', 'duplicate_owner', 'wrong_ref_manifest', 'duplicate_source',
+                                    'missing_manifest', 'symlink_manifest', 'symlink_module'])
+def test_source_ref_layout_mismatch_refuses_before_output(ref_git, monkeypatch, tmp_path, manifest, change):
+    rows = ref_git['rows']
+    if change == 'new': rows.append((b'100644', b'blob', b'f'*40, b'tests/test_new.py'))
+    elif change == 'missing': rows.pop(2)
+    elif change == 'duplicate_owner':
+        manifest['shards']['1'] = ['tests/test_a.py', 'tests/test_b.py']
+        ref_git['raw'] = S.canonical(manifest)
+    elif change == 'wrong_ref_manifest':
+        manifest['shards']['1'] = ['tests/test_old.py']
+        ref_git['raw'] = S.canonical(manifest)
+    elif change == 'duplicate_source': rows.append(rows[1])
+    elif change == 'missing_manifest': rows.pop(0)
+    elif change == 'symlink_manifest': rows[0] = (b'120000', *rows[0][1:])
+    else: rows[1] = (b'120000', *rows[1][1:])
+    destination = tmp_path/'uncreated.json'
+    monkeypatch.setattr(sys, 'argv', ['native_ci_shards.py', 'check-manifest', '--execute',
+        '--source-ref', ref_git['reference'], '--output', str(destination)])
+    with pytest.raises(S.Refused): S.main()
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize('reference', ['HEAD', 'main', 'a'*39, 'a'*41, 'A'*40, '-'+ 'a'*39, 'a'*40+'^{tree}', '', None, True])
+def test_source_ref_requires_literal_full_lowercase_commit_before_git(ref_git, reference):
+    with pytest.raises(S.Refused, match='full lowercase 40-hex'): S.check_ref_manifest(reference)
+    assert ref_git['calls'] == []
+
+
+@pytest.mark.parametrize('kind', [b'tree\n', b'tag\n', b'blob\n'])
+def test_source_ref_must_name_a_commit_not_another_object(ref_git, kind):
+    ref_git['kind'] = kind
+    with pytest.raises(S.Refused, match='not a commit'): S.check_ref_manifest(ref_git['reference'])
+    assert len(ref_git['calls']) == 1
+
+
+def test_unavailable_source_ref_refuses_without_physical_fallback(ref_git, monkeypatch):
+    def missing(*args, **kwargs): raise S.subprocess.CalledProcessError(128, args[0])
+    monkeypatch.setattr(S.subprocess, 'check_output', missing)
+    with pytest.raises(S.Refused, match='Git metadata unavailable'): S.check_ref_manifest(ref_git['reference'])
+
+
+@pytest.mark.parametrize('command', ['record-build', 'verify-transfer', 'run', 'aggregate'])
+def test_source_ref_is_illegal_for_every_producer_and_runtime_command(ref_git, monkeypatch, tmp_path, command):
+    destination = tmp_path/'uncreated.json'
+    monkeypatch.setattr(sys, 'argv', ['native_ci_shards.py', command, '--execute',
+        '--source-ref', ref_git['reference'], '--output', str(destination)])
+    with pytest.raises(S.Refused, match='only valid with check-manifest'): S.main()
+    assert ref_git['calls'] == [] and not destination.exists()
+
+
+def test_no_ref_check_manifest_preserves_original_current_path_and_output_bytes(monkeypatch, tmp_path, manifest):
+    calls = []
+    def read_current(path):
+        assert path == S.MANIFEST
+        calls.append('physical manifest')
+        return manifest
+    def current_modules():
+        calls.append('current index')
+        return ['tests/test_b.py', 'tests/test_a.py']
+    def no_ref(*args): raise AssertionError('optional Git-ref path was invoked')
+    monkeypatch.setattr(S, 'read_json', read_current)
+    monkeypatch.setattr(S, 'source_modules', current_modules)
+    monkeypatch.setattr(S, 'check_ref_manifest', no_ref)
+    destination = tmp_path/'current.json'
+    monkeypatch.setattr(sys, 'argv', ['native_ci_shards.py', 'check-manifest', '--execute', '--output', str(destination)])
+    S.main()
+    assert calls == ['physical manifest', 'current index']
+    assert destination.read_bytes() == S.canonical({'state': 'PASS', 'manifest_digest': S.digest(manifest), 'modules': 2})

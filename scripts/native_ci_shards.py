@@ -271,6 +271,52 @@ def source_modules():
     return sorted(name for name in paths if name and (fnmatch.fnmatchcase(Path(name).name, 'test_*.py') or fnmatch.fnmatchcase(Path(name).name, '*_test.py')))
 
 
+def check_ref_manifest(reference):
+    """Read one immutable Git layout; never collect/import tests or admit a build."""
+    require(type(reference) is str and re.fullmatch('[0-9a-f]{40}', reference) is not None,
+            'source ref must be a full lowercase 40-hex commit')
+    # Replacement refs must not silently change the contents named by the SHA.
+    def pinned_git(*args):
+        try:
+            return subprocess.check_output(['git', '--no-replace-objects', *args], cwd=ROOT,
+                                           env={**os.environ, 'GIT_NO_LAZY_FETCH': '1'})
+        except subprocess.CalledProcessError as exc:
+            raise Refused('source ref Git metadata unavailable') from exc
+
+    require(pinned_git('cat-file', '-t', reference).strip() == b'commit', 'source ref is not a commit')
+    tree = pinned_git('rev-parse', '--verify', reference + '^{tree}').decode().strip()
+    require(re.fullmatch('[0-9a-f]{40}', tree) is not None, 'invalid source tree')
+    manifest_path = 'scripts/testing/native_shards_manifest.json'
+    listing = pinned_git('ls-tree', '-r', '-z', '--full-tree', tree, '--', manifest_path, 'tests')
+    require(len(listing) <= MAX_JSON, 'source layout exceeds fixed metadata cap')
+    manifest_blob, modules = None, []
+    for entry in listing.split(b'\0'):
+        if not entry:
+            continue
+        header, name = entry.decode().split('\t', 1)
+        mode, kind, oid = header.split(' ')
+        if name == manifest_path:
+            require(manifest_blob is None and mode in ('100644', '100755') and kind == 'blob',
+                    'source manifest must be one regular Git blob')
+            manifest_blob = oid
+        elif fnmatch.fnmatchcase(Path(name).name, 'test_*.py') or fnmatch.fnmatchcase(Path(name).name, '*_test.py'):
+            require(mode in ('100644', '100755') and kind == 'blob', 'source module must be a regular Git blob')
+            modules.append(name)
+    require(manifest_blob is not None, 'source ref has no module manifest')
+    require(re.fullmatch('[0-9a-f]{40}', manifest_blob) is not None, 'invalid source manifest blob')
+    size = int(pinned_git('cat-file', '-s', manifest_blob))
+    require(0 < size <= MAX_JSON, 'source manifest exceeds fixed metadata cap')
+    raw = pinned_git('cat-file', 'blob', manifest_blob)
+    require(len(raw) == size, 'source manifest Git size mismatch')
+    manifest = json.loads(raw)
+    owners = validate_assignment(manifest, sorted(modules))
+    return {'state': 'PASS', 'source_ref': reference, 'source_commit': reference, 'source_tree': tree,
+            'scope': 'Git manifest/default test-module layout only; no pytest collection, execution or producer/wheel admission',
+            'manifest_path': manifest_path, 'manifest_blob': manifest_blob,
+            'manifest_sha256': hashlib.sha256(raw).hexdigest(), 'manifest_digest': digest(manifest),
+            'modules': len(owners)}
+
+
 def source_tree_digest():
     tracked = git('ls-files', '-z', '--', 'src', 'scripts', 'tests', 'chronicler-agents', 'pyproject.toml', 'uv.lock').decode().split('\0')
     return digest({name: file_hash(ROOT/name) for name in tracked if name})
@@ -330,6 +376,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('check-manifest', 'record-build', 'verify-transfer', 'run', 'aggregate'))
     parser.add_argument('--execute', action='store_true', help='explicit dormant workflow opt-in')
+    parser.add_argument('--source-ref', help='check-manifest only: immutable full 40-hex Git commit layout')
     parser.add_argument('--wheel-dir', type=Path)
     parser.add_argument('--build', type=Path)
     parser.add_argument('--output', type=Path, required=True)
@@ -338,6 +385,10 @@ def main():
     parser.add_argument('--junits', nargs=2, type=Path)
     args = parser.parse_args()
     require(args.execute, 'dormant prototype requires explicit execution registration')
+    require(args.source_ref is None or args.command == 'check-manifest', 'source ref is only valid with check-manifest')
+    if args.source_ref is not None:
+        write_json(args.output, check_ref_manifest(args.source_ref))
+        return
     manifest = read_json(MANIFEST)
     owners = validate_assignment(manifest, source_modules())
     if args.command == 'check-manifest':
