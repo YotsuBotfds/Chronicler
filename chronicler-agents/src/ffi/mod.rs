@@ -88,6 +88,20 @@ pub(crate) fn read_region_id_lists(
 // AgentSimulator
 // ---------------------------------------------------------------------------
 
+/// One memory entry in a batched agent context, in the scalar getter's order.
+pub type AgentContextMemory = (u8, u8, u16, i8, u8, bool);
+/// Safety, material, social, spiritual, autonomy and purpose, without arithmetic.
+pub type AgentContextNeeds = (f32, f32, f32, f32, f32, f32);
+/// Target id, sentiment, bond type and formation turn, in native store order.
+pub type AgentContextRelationship = (u32, i8, u8, u16);
+/// Requested id and the complete results of the three scalar context getters.
+pub type AgentContextRow = (
+    u32,
+    Vec<AgentContextMemory>,
+    Option<AgentContextNeeds>,
+    Option<Vec<AgentContextRelationship>>,
+);
+
 /// Python-facing AgentSimulator. Manages an `AgentPool` and a list of
 /// `RegionState`s; exchanges data with Python via Arrow PyCapsules.
 #[pyclass]
@@ -1598,6 +1612,64 @@ impl AgentSimulator {
             }
         }
         None
+    }
+
+    /// Read memories, needs and relationships for each requested agent id.
+    ///
+    /// Rows keep input order and duplicates. A missing/dead id returns
+    /// `(id, [], None, None)`; a live id with empty stores has `[]` memories
+    /// and `Some([])` relationships. As in the scalar methods, first live
+    /// duplicate pool ids win, and id zero can supply memories/needs but
+    /// never relationships. The sorted query vector is local to this call:
+    /// no id-sized table, randomized map, Arrow object or lasting cache.
+    /// Existing scalar getters and production Python callers are unchanged.
+    pub fn get_agent_context_batch(&self, agent_ids: Vec<u32>) -> Vec<AgentContextRow> {
+        if agent_ids.is_empty() {
+            return Vec::new();
+        }
+        let mut requested = agent_ids.clone();
+        requested.sort_unstable();
+        requested.dedup();
+        let mut slots = vec![None; requested.len()];
+        let pool = &self.pool;
+        for slot in 0..pool.capacity() {
+            if !pool.alive[slot] {
+                continue;
+            }
+            if let Ok(index) = requested.binary_search(&pool.ids[slot]) {
+                if slots[index].is_none() {
+                    slots[index] = Some(slot);
+                }
+            }
+        }
+        agent_ids.into_iter().map(|agent_id| {
+            let index = requested.binary_search(&agent_id).expect("requested id retained");
+            let Some(slot) = slots[index] else {
+                return (agent_id, Vec::new(), None, None);
+            };
+            let memories = (0..pool.memory_count[slot] as usize).map(|i| (
+                pool.memory_event_types[slot][i],
+                pool.memory_source_civs[slot][i],
+                pool.memory_turns[slot][i],
+                pool.memory_intensities[slot][i],
+                pool.memory_decay_factors[slot][i],
+                (pool.memory_is_legacy[slot] >> i) & 1 == 1,
+            )).collect();
+            let needs = Some((
+                pool.need_safety[slot],
+                pool.need_material[slot],
+                pool.need_social[slot],
+                pool.need_spiritual[slot],
+                pool.need_autonomy[slot],
+                pool.need_purpose[slot],
+            ));
+            let relationships = (agent_id != 0).then(|| {
+                (0..pool.rel_count[slot] as usize)
+                    .map(|i| crate::relationships::read_rel(pool, slot, i))
+                    .collect()
+            });
+            (agent_id, memories, needs, relationships)
+        }).collect()
     }
 
     /// M50a: Apply batched relationship operations from an Arrow RecordBatch.
@@ -3668,6 +3740,9 @@ impl AgentSimulator {
 }
 
 // ---------------------------------------------------------------------------
+#[cfg(test)]
+mod agent_context_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

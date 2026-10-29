@@ -5,7 +5,10 @@ review documentation, immutable Git layout tooling, and the unwired K2 metadata
 helper closure. [Exact composition and limits](integration/next-care-k2-source-assembly-2026-10-29.md)
 keep prior evidence source-bound. No new full CI, enabled simulation/checkpoint,
 default-output, performance, science or promotion result is supplied here.
-The separately authored native batch API is not included in this freeze.
+The source-reviewed [native context batch API](performance/named-context-batch-source-2026-10-29.md)
+is now included additively from `09cb7de9`; all existing Python callers/defaults
+remain unchanged. Its ten written native tests and this combined source's CI
+are unrun. This is a source graft, without Python wiring or an execution grant.
 
 Separate default-off [retained-Kin care extension](integration/retained-kin-care-2026-10-29.md)
 now has independently/root-qualified [all-nine-job standard CI](integration/retained-kin-care-ci-2026-10-29.md)
@@ -127,8 +130,9 @@ exit 3 and negative publication only. The successful changed-source operation
 does not relabel that failure or the earlier CP66 zero-payment proof.
 
 The care source `23d4d246` now has the separately qualified standard-CI result
-linked at the top. This next source assembly retains its runtime unchanged,
-but has no fresh combined CI or enabled-policy qualification. K2 source `c5785e35`
+linked at the top. This next source assembly retains those old callers and adds
+only the unused native batch API; it has no fresh combined CI or enabled-policy
+qualification. K2 source `c5785e35`
 is included only as the unwired metadata helper/dependency closure and registered
 dictionary test; its eligibility rule supplies no decoded physical validity,
 historical reuse or scientific-pass qualification. The earlier c5 baseline above

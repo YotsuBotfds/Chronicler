@@ -10,12 +10,26 @@ The [care CI result](retained-kin-care-ci-2026-10-29.md),
 retain their exact historical sources and limits. No new combined CI or execution
 qualification, default activation, adoption or main promotion is supplied.
 
-The simulation Python, native crate, Viewer, dependencies, active workflows and
-existing controller authority slots remain byte-exact to care source
-`23d4d24659cfda848d5bda034760ab9d1e8b57fe`. The separately authored native batch API
-is excluded. The source-only additions are the unwired K2 metadata module, its
-unchanged test/FFI text fixture, six exact historical helper dependencies, and
-bounded test-registration metadata. These helpers are not runtime wiring.
+The simulation Python, Viewer, dependencies, active workflows and existing
+controller authority slots remain byte-exact to care source
+`23d4d24659cfda848d5bda034760ab9d1e8b57fe`. A new source-only child of frozen
+`50fab367` also grafts the reviewed additive native context API from exact
+`09cb7de929fabc105007d048e9c33e55cc680785`: only `ffi/mod.rs`, its new
+`ffi/agent_context_tests.rs` and the
+[dated API note](../performance/named-context-batch-source-2026-10-29.md) are
+copied byte for byte. Every other native file stays exact care23. Existing scalar
+getters, Python callers/defaults and native persistence declarations are unchanged;
+no Python caller uses the new method. Ten native differential/PyO3 tests are
+written but uncompiled and unrun, as is this combined source's full CI. Parent
+care CI remains qualified only for its original source. Root source qualification
+`7814697e38204352af1a2d3ad3da3ff3b04da0c8f13f7a942c8e1a105f9bc48e`
+and independent source peer
+`8418180d1e2fef4029e686acf7a9896608ba00c3bb3c4c715d521184391efe7e`
+permit this source graft; they grant no execution, speed, activation or promotion.
+
+Other source-only additions remain the unwired K2 metadata module, its unchanged
+test/FFI text fixture, six exact historical helper dependencies, and bounded
+test-registration metadata. These helpers are not runtime wiring.
 
 K2 is copied from `c5785e35cc42407c6a793a7c18fb1b5daf5d64be`. Its historical
 [design/qualification](../experiments/wealth-floor-checkpoint-metadata-v2-2026-10-29.md)
