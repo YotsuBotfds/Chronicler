@@ -79,7 +79,9 @@ export function DebtHolders({
   const foreign = useMemo(
     () => (civ && level === "lenders" ? foreignLenderSeries(history, civ, civs) : { lenders: [], data: [] }),
     [history, civ, civs, level]);
-  const trouble = useMemo(() => (civ ? troubleRows(history, civ, level) : []), [history, civ, level]);
+  const trouble = useMemo(
+    () => (civ ? troubleRows(history, civ, level, bundle.events_timeline) : []),
+    [history, civ, level, bundle.events_timeline]);
   const losses = useMemo(
     () => (civ ? writeOffs(history, civ, bundle.events_timeline, level) : []), [history, civ, bundle.events_timeline, level]);
 
@@ -248,7 +250,9 @@ export function DebtHolders({
                   </table>
                 </div>
               ) : (
-                <div className="phase75-empty-state">{civ} owes nothing at turn {at}.</div>
+                <div className="phase75-empty-state">{current
+                  ? `${civ} owes nothing at turn ${at}.`
+                  : `${civ} has no holder record at turn ${at}.`}</div>
               )}
               <p className="systems-note">
                 {lenders

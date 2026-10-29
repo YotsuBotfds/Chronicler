@@ -181,3 +181,10 @@ A separate viewer draft makes current lender labels and columns depend on the
 scrubbed snapshot, while retaining later observations in charts. This closes the
 remaining UI seam after the existing mixed-history data fixes. Source and pending
 verification: [debt-holder snapshot detail](integration/debt-holder-snapshot-detail-2026-10-29.md).
+
+
+## Fallen-borrower loss visibility draft — 2026-10-29
+
+A separate viewer draft retains explicit default/write-off events when the
+living-only finance snapshot omits their borrower. Amounts stay unknown; no debt
+row is inferred. Source and pending checks: [fallen-borrower loss visibility](integration/fallen-borrower-losses-2026-10-29.md).

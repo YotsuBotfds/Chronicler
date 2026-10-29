@@ -205,6 +205,31 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     expect(within(newerSection).getAllByText("Written off").some((label) => label.closest(".systems-tile"))).toBe(true);
   });
 
+  it("shows a fallen borrower's write-off event with an unknown amount", () => {
+    const next = debt.history.find((snapshot) => snapshot.turn === 55)!;
+    const finance = { ...next.finance!, civs: { ...next.finance!.civs } };
+    delete finance.civs["Khidutain Clans"];
+    const fallen = { ...next, finance };
+    const event = {
+      turn: 54, event_type: "debt_written_off", actors: ["Khidutain Clans", "Sylenen Kingdom"],
+      description: "With Khidutain Clans gone, its debt to Sylenen Kingdom is lost.",
+      consequences: [], importance: 3, event_id: "synthetic:fallen-borrower",
+    };
+    const projected: Bundle = { ...debt, history: [turn54, fallen], events_timeline: [event] };
+    const p = { ...props(projected, fallen), selectedCivilization: "Khidutain Clans" };
+    render(<FinancePanel {...p} />);
+    const section = screen.getByRole("region", { name: "Creditors of Khidutain Clans" });
+    expect(within(section).getByText("Khidutain Clans has no holder record at turn 55.")).toBeInTheDocument();
+    expect(within(section).queryByText("Khidutain Clans owes nothing at turn 55.")).toBeNull();
+    const losses = within(section).getByRole("table", { name: "Defaults and write-offs of Khidutain Clans" });
+    const row = within(losses).getAllByRole("row")[1];
+    expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["54", "-", event.description]);
+    expect(within(section).getByTitle("Khidutain Clans: write-off event recorded by turn 55 (amount not recorded)"))
+      .toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: event.description }));
+    expect(p.onSelectEvent).toHaveBeenCalledWith(event);
+  });
+
   it("lists a borrower's defaults and write-offs with their events, and follows the shell's selection", () => {
     const last = debt.history[debt.history.length - 1];
     const p = { ...props(debt, last), selectedCivilization: "Khidutain Clans" };

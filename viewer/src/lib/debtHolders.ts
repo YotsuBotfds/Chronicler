@@ -308,6 +308,34 @@ export interface WriteOff {
 const WRITE_OFF_EVENTS = new Set(["state_default", "debt_written_off"]);
 
 /**
+ * Finance snapshots omit fallen borrowers. Their loss events still record
+ * what happened, but have no typed principal field: retain the event with an
+ * unknown amount rather than parsing prose or inventing a finance row.
+ */
+function eventOnlyWriteOffs(history: TurnSnapshot[], civ: string, events: Event[]): WriteOff[] {
+  const byTurn = new Map<number, WriteOff>();
+  for (const event of events) {
+    if (!WRITE_OFF_EVENTS.has(event.event_type) || event.actors[0] !== civ) {
+      continue;
+    }
+    // Events describe the tick before its snapshot; a later sparse snapshot
+    // can cover it. Events after the last completed snapshot remain pending.
+    const snapshot = history.find((entry) => entry.turn > event.turn);
+    if (!snapshot?.finance || snapshot.finance.civs[civ]) {
+      continue;
+    }
+    let loss = byTurn.get(snapshot.turn);
+    if (!loss) {
+      loss = { turn: snapshot.turn, amount: null, defaulted: false, events: [] };
+      byTurn.set(snapshot.turn, loss);
+    }
+    loss.defaulted ||= event.event_type === "state_default";
+    loss.events.push(event);
+  }
+  return [...byTurn.values()];
+}
+
+/**
  * Defaults and write-offs on a civ's debt, snapshot by snapshot: a rise of
  * its default count or of the debt written off on it. A snapshot records the
  * fiscal tick of the turn before it, so the events counted are those after
@@ -339,13 +367,19 @@ export function writeOffs(history: TurnSnapshot[], civ: string, events: Event[],
     defaults = entry.defaults;
     written = entry.writtenOff;
   }
-  return out;
+  const represented = new Set(out.flatMap((loss) => loss.events));
+  const eventOnly = eventOnlyWriteOffs(history, civ, events.filter((event) => !represented.has(event)));
+  return [...out, ...eventOnly].sort((left, right) => left.turn - right.turn);
 }
 
 /** Strip rows for a civ: turns in arrears, defaults, and (lenders detail) write-offs. */
-export function troubleRows(history: TurnSnapshot[], civ: string, detail: HolderDetail): StripRow[] {
+export function troubleRows(history: TurnSnapshot[], civ: string, detail: HolderDetail, events: Event[] = []): StripRow[] {
   const turns = history.map((snapshot) => snapshot.turn);
   const entries = history.map((snapshot) => civDebtHolders(snapshot, civ, detail));
+  const missingTurns = new Set(history.filter((snapshot) => snapshot.finance && !snapshot.finance.civs[civ])
+    .map((snapshot) => snapshot.turn));
+  const eventOnly = new Map(writeOffs(history, civ, events, detail)
+    .filter((loss) => missingTurns.has(loss.turn)).map((loss) => [loss.turn, loss]));
   const arrearsKeys = entries.map((entry) => (entry && entry.arrears > 0 ? "arrears" : null));
   const arrears = buildSegments(turns, arrearsKeys).map((segment) => {
     const longest = Math.max(...entries.slice(segment.from, segment.to + 1).map((entry) => entry?.arrears ?? 0));
@@ -372,7 +406,9 @@ export function troubleRows(history: TurnSnapshot[], civ: string, detail: Holder
       return key;
     });
   };
-  const defaults = buildSegments(turns, rises((entry) => entry.defaults)).map((segment) => ({
+  const defaultKeys = rises((entry) => entry.defaults).map((key, index) =>
+    key ?? (eventOnly.get(turns[index])?.defaulted ? `${index}:event` : null));
+  const defaults = buildSegments(turns, defaultKeys).map((segment) => ({
     start: segment.start,
     end: segment.end,
     color: DEFAULT_COLOR,
@@ -382,12 +418,17 @@ export function troubleRows(history: TurnSnapshot[], civ: string, detail: Holder
     { id: "arrears", label: "In arrears", swatch: ARREARS_COLOR, segments: arrears },
     { id: "defaults", label: "Defaults", swatch: DEFAULT_COLOR, segments: defaults },
   ];
-  if (detail === "lenders") {
-    const written = buildSegments(turns, rises((entry) => entry.writtenOff)).map((segment) => ({
+  const hasWriteOffEvent = (turn: number) => eventOnly.get(turn)?.events.some((event) => event.event_type === "debt_written_off");
+  if (detail === "lenders" || [...eventOnly.keys()].some(hasWriteOffEvent)) {
+    const writtenKeys = rises((entry) => entry.writtenOff).map((key, index) =>
+      key ?? (hasWriteOffEvent(turns[index]) ? `${index}:event` : null));
+    const written = buildSegments(turns, writtenKeys).map((segment) => ({
       start: segment.start,
       end: segment.end,
       color: WRITE_OFF_COLOR,
-      label: `${civ}: ${segment.key.split(":")[1]} written off by turn ${segment.start}`,
+      label: segment.key.endsWith(":event")
+        ? `${civ}: write-off event recorded by turn ${segment.start} (amount not recorded)`
+        : `${civ}: ${segment.key.split(":")[1]} written off by turn ${segment.start}`,
     }));
     rows.push({ id: "written_off", label: "Written off", swatch: WRITE_OFF_COLOR, segments: written });
   }
