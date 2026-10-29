@@ -103,6 +103,11 @@ also retained separately.
 
 External records are under `batch-structural-audit-20261029` and
 `batch-reconciliation-validation-20261029`; the complete-chunk correction is in
-`batch-reconciliation-correction-20261029`. Full combined offline/CI and source
-review remain separate qualification steps. Main and the recovered producer
-branch are unchanged; this record claims no simulation performance gain.
+`batch-reconciliation-correction-20261029`. Lead source review is clear after
+the diagnostic/NUL correction. Exact source
+`ec85795e3d22f1419fe11f8cc40ff71c0541d3a5` (a workflow-only activation after
+reviewed `4a1d3f08`) subsequently passed all six CI jobs in run 40802848510,
+including the complete offline/native/no-Rust lanes. The separate
+[CI record](batch-verification-ci-2026-10-29.md) retains exact counts, clocks and
+official artifact metadata. Main and the recovered producer remain unchanged;
+this record claims no simulation performance gain or scientific gate result.

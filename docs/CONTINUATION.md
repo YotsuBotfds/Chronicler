@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+Both isolated batch-verification sources now have completed exact-source
+[six-job CI qualification](integration/batch-verification-ci-2026-10-29.md):
+`e984be2a` (run 40801509650) and reviewed reconciliation `ec85795e` (run
+40802848510). The latter reports 8,094 native/7,780 no-Rust parent passes,
+526 successful subtests each, 1,088 Rust passes/two ignored, 743 viewer
+tests/lint/build and 3,996 offline passes/65 skips across 32 unchanged
+110-second chunks. Earlier local failures, focused proofs and native builds
+in CI retain their distinct source and environment boundaries.
+
 The separate `lead/batch-manifest-reconciliation-20261029` follow-up closes
 [cohort identity admission gaps](integration/batch-manifest-reconciliation-2026-10-29.md)
 from frozen sidecar repair `e984be2a`: typed complete run records, exact ordered
@@ -13,15 +22,17 @@ one fail in the complete chunk); the follow-up preserves both diagnostics and
 rejects NUL paths explicitly. All 55 focused cases and the complete 292-test
 modified chunk now pass with the unchanged 110-second bound. The original
 failure remains recorded. That complete chunk includes existing aggregate
-tests; no native build/module ran. Methods/thresholds are unchanged, and full
-offline/CI qualification remains separate.
+tests; no native build/module ran in that local check. Methods/thresholds are
+unchanged; the later exact `ec85795e` CI passed the complete offline/native/
+no-Rust lanes as recorded above.
 
 The separate `lead/batch-validation-input-set-20261029` branch closes a
 [batch oracle-input verification gap](integration/batch-validation-input-set-2026-10-29.md):
 new sidecars beside an already recorded bundle now require that run's manifest
 hash. Nine new regressions fail on the original verifier; the correction passes
 35 focused tests and 237 guarded validation-tooling tests with the unchanged
-110-second bound. Independent source review is clear; complete CI is pending.
+110-second bound. Independent source review is clear; exact `e984be2a`
+subsequently passed all six CI jobs as recorded above.
 No producer output, simulation policy, checkpoint or active gate was changed.
 
 The current consolidated review branch is `lead/recovered-review-20261029`.

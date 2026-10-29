@@ -40,6 +40,9 @@ native build or scientific gate was rerun to reproduce this defect.
 
 An independent source review checked the actual reader's bundle-parent path,
 per-run set difference, compatibility and test coverage and found no blocker.
-Complete six-lane CI is requested for this isolated source. Earlier CI at
-`1c5728b7` qualifies the preceding review code, not this correction. The frozen
-producer and active full-gate controls remain unchanged.
+Exact source `e984be2adc2e6fdf27b4442b852a9e6789b6617b` subsequently passed
+all six CI jobs in run 40801509650. The
+[source-scoped CI record](batch-verification-ci-2026-10-29.md) preserves its
+counts, clocks and official publication metadata separately from the later
+cohort reconciliation. Earlier CI at `1c5728b7` qualifies the preceding review
+code. The frozen producer and active full-gate controls remain unchanged.
