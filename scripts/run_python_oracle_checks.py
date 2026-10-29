@@ -18,6 +18,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "wealth-floor-candidate-proof": [
+        "tests/test_wealth_floor_candidate_proof.py",
+    ],
     "arc-event-types": [
         "tests/test_arc_event_types.py",
     ],

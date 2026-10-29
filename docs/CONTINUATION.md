@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+A [dormant candidate mechanical bootstrap](experiments/wealth-floor-candidate-proof-2026-10-29.md)
+now registers the exact source503 six-case checkpoint kernel, genuine independent
+seed42 repeats for both world types and same-source cross-native refusal. The
+fixed matrix is926 physics ticks; source preparation has run none of them. Its
+content-bound input pins reference independently qualified corrected build3bf /
+run40820753788, with both whole wheels and completed publication seals. The
+controller reuses byte-identical qualified B/C ownership helpers, R44/D2 and
+27f supervisor source. Its workflow stays outside `.github`; separate source
+review and activation are required. Final A outcome proof pins remain null,
+historical reuse and outcome worlds remain ungranted, and all first failure
+records and prior refs stay frozen. The new pure contract chunk retains110s.
+
 Root cleared corrected source `6d3d5164` for one separate read-only byte-audit
 activation on `lead/wealth-floor-baseline-audit-activation-2-20261029`. Its
 reviewed dormant template is installed byte-for-byte; scripts, D2/R44 helpers,
