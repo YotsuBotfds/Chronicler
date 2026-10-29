@@ -1,6 +1,9 @@
 # Held wealth-floor candidate mechanical bootstrap
 
-Status: **dormant source preparation; no proof worlds run or authorized by this record**.
+Prepared-source record. A separately reviewed activation40db/run40824399844
+subsequently completed the [first verified bootstrap](wealth-floor-candidate-bootstrap-result-2026-10-29.md).
+The preparation design and its historical local qualification below remain
+source-scoped; they did not themselves authorize or run proof worlds.
 The template remains outside `.github/workflows`. Its only future registered
 branch is `lead/wealth-floor-candidate-proof-activation-20261029`, triggered only
 by the exact workflow path. Its body must equal the reviewed template bytes.

@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+The [first candidate bootstrap](experiments/wealth-floor-candidate-bootstrap-result-2026-10-29.md)
+completed successfully at exact40db80d3/run40824399844/job123283990102: full162
+guarded preflight, six native checkpoint parents/zero skips, nine own-build CP
+headers, native-only pre-restore refusal and both genuine seed42 repeat pairs.
+All698 original archive members and completion/raw-index bindings reconcile.
+The926-tick proof step took86s; whole job113s. Original raw archives remain
+remote; only bounded metadata/headers were retained locally under a separate
+capped reader policy after local R44 refused its hierarchy. All final A proof
+pins remain null; no historical reuse or outcome cohort is admitted. Original
+first failures, refs, roles, expiries and kin-root policy remain unchanged.
+
 Root cleared prepared source3271bb91 and independent peer7273c46e for one
 separate small candidate bootstrap on the registered activation branch. The
 actual workflow is the exact e1506e62 template copy; scripts, inputs, kernels,
