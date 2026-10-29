@@ -7,6 +7,10 @@ schema/probe/input/cleanup validators and casewise comparator orchestration
 remain source-only. The70MB original archive stays remote. Independent source
 review and a separate audit activation grant are required; producer success
 alone is not an independent byte result or performance/science promotion.
+The narrow reader child preserves its first source boundary and retains a
+negative publication even when helper authentication or initial admission fails.
+Its physical source contract uses an explicit selected sparse view, alongside
+complete committed Git-object snapshots; no full physical checkout is claimed.
 
 The first CBF-to-090 activation6cf/run40873351990 failed only during Set up job:
 a one-character upload-action pin typo prevented every checkout/controller/probe/

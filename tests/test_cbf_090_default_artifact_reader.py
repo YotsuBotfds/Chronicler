@@ -290,6 +290,47 @@ class Contracts(unittest.TestCase):
         with self.assertRaises(RuntimeError):Q.audit(SimpleNamespace(execute=False))
         with self.assertRaises(RuntimeError):Q.reader_registration({'GITHUB_EVENT_NAME':'workflow_dispatch'})
 
+    def test_bootstrap_refusals_publish_negative_before_any_setup(self):
+        for fault in ('authentication','initial_resources'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as t:
+                root=Path(t)/'evidence';calls=[]
+                class Supervisor:
+                    cleanup_complete=True
+                    def __init__(self,*args):calls.append('supervisor')
+                    def admission(self,*args):
+                        calls.append(('admission',args))
+                        raise RuntimeError('injected admission refusal')
+                boot=SimpleNamespace(Supervisor=Supervisor,CAPS={})
+                auth=mock.Mock(side_effect=RuntimeError('injected authentication refusal')) if fault=='authentication' else mock.Mock(return_value={'arc_output_identity_qualification.py':b'synthetic'})
+                with mock.patch.object(Q,'reader_registration',return_value='a'*40),mock.patch.dict(Q.os.environ,{'GITHUB_RUN_ID':'1','GITHUB_WORKFLOW_REF':'synthetic'},clear=True), \
+                     mock.patch.object(Q,'authenticate',auth),mock.patch.object(Q,'compile_source',return_value=boot), \
+                     mock.patch.object(Q.os,'sched_getaffinity',return_value={4}),mock.patch.object(Q.os,'sched_setaffinity'), \
+                     mock.patch.object(Q,'load_modules',side_effect=AssertionError('no setup before admission')) as load:
+                    self.assertEqual(Q.audit(SimpleNamespace(execute=True,evidence=str(root),python=str(Path(t)/'prefix/bin/python'))),1)
+                load.assert_not_called();saved=json.loads((root/'publication/reader-result.json').read_bytes())
+                self.assertIs(saved['qualified'],False);self.assertEqual(saved['error_stage'],'authenticate' if fault=='authentication' else 'initial')
+                self.assertEqual(saved['error'],'RuntimeError');self.assertGreaterEqual(saved['reader_seconds'],0)
+                self.assertEqual(calls,[] if fault=='authentication' else ['supervisor',('admission',('initial',12,2))])
+
+    def test_own_source_keeps_full_git_snapshot_and_checks_only_selected_sparse_bytes(self):
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);path=root/'selected.py';path.write_bytes(b'selected');path.chmod(0o644)
+            row={**Q.pin(path.read_bytes()),'mode':0o644};snapshot={'files':{'selected.py':row,'unselected.py':dict(row)}}
+            U=SimpleNamespace(C=SimpleNamespace(git_source=SimpleNamespace(snapshot=lambda *a:deepcopy(snapshot)),core=self.U.C.core))
+            with mock.patch.object(Q,'ROOT',root),mock.patch.object(Q,'selected_source_names',return_value=('selected.py',)), \
+                 mock.patch.object(Q.subprocess,'check_output',side_effect=['a'*40,b'','a'*40,b'']):
+                observed=Q.own_source(U,'a'*40)
+                self.assertEqual(observed['committed_snapshot'],snapshot);self.assertEqual(observed['selected_files'],{'selected.py':row})
+                self.assertFalse((root/'unselected.py').exists());path.write_bytes(b'mutation')
+                with self.assertRaises(RuntimeError):Q.own_source(U,'a'*40)
+
+    def test_sparse_workflow_selects_exact_physical_source_contract(self):
+        text=(ROOT/Q.TEMPLATE).read_text();block=text.split('          sparse-checkout: |\n',1)[1].split('      - name:',1)[0]
+        names=tuple(line.strip().removeprefix('/') for line in block.splitlines() if line.strip())
+        self.assertEqual(len(names),len(set(names)))
+        self.assertEqual(set(line.strip().removeprefix('/') for line in block.splitlines() if line.strip()),set(Q.selected_source_names()))
+        self.assertIn('          sparse-checkout-cone-mode: false',text)
+
     def test_dormant_template_pins_verified_actions_and_original_bounds(self):
         text=(ROOT/Q.TEMPLATE).read_text();self.assertEqual(Q.pin(text.encode())['sha256'],Q.TEMPLATE_SHA)
         self.assertIn('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',text)

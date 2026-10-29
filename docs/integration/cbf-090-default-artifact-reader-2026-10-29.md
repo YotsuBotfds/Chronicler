@@ -11,6 +11,14 @@ The bounded23-file publication pack was independently root-qualified at
 Publication success alone does not qualify original output bytes. This source
 preparation authorizes no transfer, setup, audit or workflow activation.
 
+A narrow child preserves the first `c168d1b7` source and its qualification. It
+creates the upload directory and a negative result before helper authentication
+or resource admission, so either refusal retains negative authority without
+dependency setup or transfer. The selected sparse checkout is explicit: its
+physical files and modes are checked against the complete committed Git-object
+snapshot before and after inspection. This does not claim a complete physical
+checkout of the reader's repository.
+
 The producer compares baseline CBF `cbf6e368ebd218c1f54179bee4accffc1ab2a4c0`
 (crate912a, wheel556c, native3ee) with candidate
 `0900f3d203cc74102809bb871a1a057ba91a951f` (crate803c, wheel928d, native14a).

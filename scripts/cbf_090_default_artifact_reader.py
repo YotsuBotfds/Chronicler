@@ -39,7 +39,7 @@ BRANCH = "lead/cloud-cbf-090-default-artifact-audit-20261029"
 WORKFLOW = ".github/workflows/cbf-090-default-artifact-audit.yml"
 TEMPLATE = "docs/experiments/cbf-090-default-artifact-reader-workflow.yml"
 JOB_KEY = "cbf-090-default-artifact-audit"
-TEMPLATE_SHA = "3061923fdec45e753ccd564df19853a8ab8371f1d8611441d4f9f6c958f535af"
+TEMPLATE_SHA = "db4a5e7af53ca793fa229a148a4a73f2f2dda0dd020f86cb3de1be9332fd872c"
 SECONDS, CLEANUP_RESERVE = 600, 20
 PINS = MappingProxyType({
     "native_default_output_artifact_reader.py": (45345,"e1bb40b6306984de70cafd3e66174480ab2870bb979a613756220c69ba855577"),
@@ -476,11 +476,22 @@ def own_source(U,expected):
     status=subprocess.check_output(["git","-c","core.fsmonitor=false","-C",str(ROOT),"status","--porcelain=v1","--untracked-files=all"],timeout=10)
     require(current==expected and not status,"actual reader source is not clean/exact")
     snapshot=C.git_source.snapshot(ROOT,expected)
-    for name,row in snapshot["files"].items():
+    selected={}
+    for name in selected_source_names():
+        row=snapshot["files"][name]
         path=ROOT/name
         require(not path.is_symlink() and path.is_file() and stat.S_IMODE(path.stat().st_mode)==row["mode"]
             and C.core.digest(path,row["bytes"])=={k:row[k] for k in ("bytes","sha256")},"reader source bytes/modes differ")
-    return snapshot
+        selected[name]=row
+    return {"sha":expected,"committed_snapshot":snapshot,"selected_files":selected,
+        "scope":"Complete committed Git objects; only selected sparse physical source bytes/modes verified, no full reconstructed worktree claim"}
+
+
+def selected_source_names():
+    return tuple("scripts/"+n for n in PINS)+("scripts/cbf_090_default_artifact_reader.py",
+        "tests/test_cbf_090_default_artifact_reader.py","tests/fixtures/cbf_090_default_artifact_publication.json",
+        "tests/fixtures/cbf_090_default_identity_inputs.json","AGENTS.md","pyproject.toml","uv.lock",
+        "docs/CONTINUATION.md","docs/DEVELOPMENT.md","docs/integration/cbf-090-default-artifact-reader-2026-10-29.md",TEMPLATE,WORKFLOW)
 
 
 def fetch_metadata(U,transport):
@@ -504,6 +515,17 @@ def finalize(U,root,report,started,deadline,quiescent):
     return code
 
 
+def negative_publication(root,report,started):
+    """Available before authenticated helpers, resource admission or children."""
+    report.update(qualified=False,reader_seconds=time.monotonic()-started)
+    publication=root/"publication";publication.mkdir(exist_ok=True)
+    temporary=publication/"reader-result.json.tmp"
+    with temporary.open("w",encoding="utf-8") as stream:
+        json.dump(report,stream,indent=2,sort_keys=True,allow_nan=False);stream.write("\n")
+        stream.flush();os.fsync(stream.fileno())
+    os.replace(temporary,publication/"reader-result.json")
+
+
 def audit(args):
     require(args.execute is True,"inactive: explicit --execute required")
     source=reader_registration(os.environ);started=time.monotonic();deadline=started+SECONDS
@@ -511,19 +533,21 @@ def audit(args):
     require(not root.exists() and not root.is_relative_to(ROOT) and not prefix.is_relative_to(ROOT),"fresh external paths required")
     require(not [k for k in os.environ if k.startswith("GIT_") and k!="GIT_PAGER"],"ambient Git override refused")
     root.mkdir(parents=True);(root/"logs").mkdir();(root/"inputs").mkdir()
-    raw=authenticate();boot=compile_source(raw["arc_output_identity_qualification.py"],SCRIPT.with_name("arc_output_identity_qualification.py"),"_cbf_audit_boot_H")
-    supervisor=boot.Supervisor(root,deadline);allowed=os.sched_getaffinity(0);os.sched_setaffinity(0,{min(allowed)})
     report={"qualified":False,"producer":PRODUCER,"run":RUN,"job":JOB,"artifact":ARTIFACT,"reader_source":source,
         "original_archive":{"id":ARTIFACT,"bytes":ARCHIVE_BYTES,"sha256":ARCHIVE_SHA,"expiry":EXPIRY},
         "reader_producer":{"control_sha":source,"run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":"1","job_key":JOB_KEY,
             "event":"push","branch":BRANCH,"workflow_ref":os.environ["GITHUB_WORKFLOW_REF"]},
         "scope":"CBF-to-090 original default exports only; no World/checkpoint/RNG/science/performance/adoption grant"}
-    env=dict(os.environ,**boot.CAPS,PYTHONHASHSEED="0",PYTHONDONTWRITEBYTECODE="1",PYTHONNOUSERSITE="1",PYTHONOPTIMIZE="0",OPENBLAS_THREAD_TIMEOUT="16")
-    for k in tuple(env):
-        if k in ("GITHUB_TOKEN","GH_TOKEN","PYTHONPATH","PYTHONHOME","VIRTUAL_ENV") or k.startswith(("PIP_","UV_")):env.pop(k)
-    env["PIP_CONFIG_FILE"]=os.devnull
-    U=None;before=None;stage="initial"
+    negative_publication(root,report,started)
+    U=None;supervisor=None;before=None;stage="authenticate"
     try:
+        raw=authenticate();boot=compile_source(raw["arc_output_identity_qualification.py"],SCRIPT.with_name("arc_output_identity_qualification.py"),"_cbf_audit_boot_H")
+        supervisor=boot.Supervisor(root,deadline);allowed=os.sched_getaffinity(0);os.sched_setaffinity(0,{min(allowed)})
+        env=dict(os.environ,**boot.CAPS,PYTHONHASHSEED="0",PYTHONDONTWRITEBYTECODE="1",PYTHONNOUSERSITE="1",PYTHONOPTIMIZE="0",OPENBLAS_THREAD_TIMEOUT="16")
+        for k in tuple(env):
+            if k in ("GITHUB_TOKEN","GH_TOKEN","PYTHONPATH","PYTHONHOME","VIRTUAL_ENV") or k.startswith(("PIP_","UV_")):env.pop(k)
+        env["PIP_CONFIG_FILE"]=os.devnull
+        stage="initial"
         supervisor.admission("initial",12,2);U=load_modules(root,raw);B,C,R=U.B,U.C,U.R
         require(platform.python_version()==B.A.PYTHON and platform.python_implementation()=="CPython"
             and sys.flags.optimize==0 and sys.flags.no_user_site==1 and sys.dont_write_bytecode,"bootstrap reader runtime differs")
@@ -566,7 +590,7 @@ def audit(args):
     finally:
         if U is not None:
             return finalize(U,root,report,started,deadline,supervisor.cleanup_complete)
-        boot.write(root/"reader-result.json",report)
+        negative_publication(root,report,started)
     return 1
 
 
