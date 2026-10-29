@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import statistics
 from collections import Counter
+from typing import NamedTuple
 
 import pytest
 import pyarrow as pa
@@ -116,6 +117,51 @@ def _make_hybrid_world(seed: int, turns: int = 50):
         raise
 
 
+
+class _CultureObservation(NamedTuple):
+    seed: int
+    turns: int
+    assimilation_turns: tuple[int, ...]
+    has_invest_culture: bool
+
+
+def _observe_culture_world(world) -> _CultureObservation:
+    """Copy only immutable observations; never retain a world or event object."""
+    return _CultureObservation(
+        seed=world.seed,
+        turns=world.turn,
+        assimilation_turns=tuple(
+            event.turn for event in world.named_events
+            if event.event_type == "cultural_assimilation"
+        ),
+        has_invest_culture=any(
+            event.event_type == "invest_culture" for event in world.events_timeline
+        ),
+    )
+
+
+def _collect_culture_observations(turns: int) -> tuple[_CultureObservation, ...]:
+    observations = []
+    for seed in range(50):
+        world, _ = _make_world(seed=seed, turns=turns, agent_mode=None)
+        observation = _observe_culture_world(world)
+        assert observation.seed == seed and observation.turns == turns
+        observations.append(observation)
+    return tuple(observations)
+
+
+@pytest.fixture(scope="class")
+def assimilation_observations():
+    """The exact 50-seed, 120-turn cohort shared by its two assertion consumers."""
+    return _collect_culture_observations(120)
+
+
+@pytest.fixture(scope="class")
+def invest_culture_observations():
+    """A separate exact 50-seed, 150-turn cohort for its two assertion consumers."""
+    return _collect_culture_observations(150)
+
+
 def _make_snapshot(agents: list[dict]) -> pa.RecordBatch:
     """Build a minimal Arrow RecordBatch snapshot from agent dicts."""
     return pa.record_batch({
@@ -187,14 +233,11 @@ class TestAssimilationTiming:
     """
 
     @pytest.mark.slow
-    def test_assimilation_timing_distribution(self):
+    def test_assimilation_timing_distribution(self, assimilation_observations):
         """Collect assimilation events over 50 seeds; median turn in [20, 100]."""
         event_turns: list[int] = []
-        for seed in range(50):
-            world, _ = _make_world(seed=seed, turns=120, agent_mode=None)
-            for ev in world.named_events:
-                if ev.event_type == "cultural_assimilation":
-                    event_turns.append(ev.turn)
+        for observation in assimilation_observations:
+            event_turns.extend(observation.assimilation_turns)
 
         if len(event_turns) < 5:
             pytest.skip(
@@ -210,15 +253,11 @@ class TestAssimilationTiming:
         )
 
     @pytest.mark.slow
-    def test_assimilation_events_occur(self):
+    def test_assimilation_events_occur(self, assimilation_observations):
         """At least some assimilation events occur across 50 seeds × 120 turns."""
         total = 0
-        for seed in range(50):
-            world, _ = _make_world(seed=seed, turns=120, agent_mode=None)
-            total += sum(
-                1 for ev in world.named_events
-                if ev.event_type == "cultural_assimilation"
-            )
+        for observation in assimilation_observations:
+            total += len(observation.assimilation_turns)
         assert total > 0
 
 
@@ -308,23 +347,14 @@ class TestInvestCultureAcceleration:
     """
 
     @pytest.mark.slow
-    def test_invest_culture_directional(self):
+    def test_invest_culture_directional(self, invest_culture_observations):
         """invest_culture seeds' mean first-assimilation turn <= baseline + 20."""
         invest_first_turns: list[int] = []
         no_invest_first_turns: list[int] = []
 
-        for seed in range(50):
-            world, _ = _make_world(seed=seed, turns=150, agent_mode=None)
-
-            has_invest = any(
-                ev.event_type == "invest_culture"
-                for ev in world.events_timeline
-            )
-
-            assimilation_turns = [
-                ev.turn for ev in world.named_events
-                if ev.event_type == "cultural_assimilation"
-            ]
+        for observation in invest_culture_observations:
+            has_invest = observation.has_invest_culture
+            assimilation_turns = observation.assimilation_turns
 
             if not assimilation_turns:
                 continue
@@ -353,12 +383,11 @@ class TestInvestCultureAcceleration:
         )
 
     @pytest.mark.slow
-    def test_invest_culture_events_reachable(self):
+    def test_invest_culture_events_reachable(self, invest_culture_observations):
         """invest_culture events actually occur across seeds (eligibility works)."""
         found = 0
-        for seed in range(50):
-            world, _ = _make_world(seed=seed, turns=150, agent_mode=None)
-            if any(ev.event_type == "invest_culture" for ev in world.events_timeline):
+        for observation in invest_culture_observations:
+            if observation.has_invest_culture:
                 found += 1
 
         # invest_culture requires culture >= 60 and valid targets; may be rare.
@@ -461,3 +490,50 @@ class TestCivCulturalProfileConsistency:
         assert profiles[0][1] == 1
         assert profiles[0][2] == 1
         assert sum(profiles[0].values()) == 3
+
+
+class TestCultureObservationIsolation:
+    """Pure collector contracts; no simulation is advanced in these tests."""
+
+    def test_observations_keep_order_duplicates_and_detach_from_world(self):
+        from types import SimpleNamespace
+        first = SimpleNamespace(event_type="cultural_assimilation", turn=7)
+        second = SimpleNamespace(event_type="cultural_assimilation", turn=7)
+        third = SimpleNamespace(event_type="cultural_assimilation", turn=3)
+        late_invest = SimpleNamespace(event_type="invest_culture", turn=149)
+        world = SimpleNamespace(
+            seed=4, turn=150,
+            named_events=[first, SimpleNamespace(event_type="other", turn=2), second, third],
+            events_timeline=[late_invest],
+        )
+        observation = _observe_culture_world(world)
+        assert observation == _CultureObservation(4, 150, (7, 7, 3), True)
+        first.turn = 99
+        late_invest.event_type = "other"
+        world.named_events.clear()
+        world.seed = 10
+        assert observation == _CultureObservation(4, 150, (7, 7, 3), True)
+        with pytest.raises(AttributeError):
+            observation.seed = 9
+        with pytest.raises(TypeError):
+            observation.assimilation_turns[0] = 9
+
+    @pytest.mark.parametrize("turns", [120, 150])
+    def test_collector_keeps_exact_seed_order_horizon_and_arguments(self, monkeypatch, turns):
+        from types import SimpleNamespace
+        calls = []
+
+        def make_world(*, seed, turns, agent_mode):
+            calls.append((seed, turns, agent_mode))
+            return SimpleNamespace(
+                seed=seed, turn=turns, named_events=[],
+                events_timeline=[SimpleNamespace(event_type="invest_culture")],
+            ), None
+
+        monkeypatch.setitem(_collect_culture_observations.__globals__, "_make_world", make_world)
+        observations = _collect_culture_observations(turns)
+        assert calls == [(seed, turns, None) for seed in range(50)]
+        assert type(observations) is tuple
+        assert observations == tuple(
+            _CultureObservation(seed, turns, (), True) for seed in range(50)
+        )

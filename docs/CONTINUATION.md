@@ -9,6 +9,11 @@ exposure for the later topics; natural efficacy, full milestone qualification
 and default activation remain separate. The original worktrees and raw evidence
 were not rewritten.
 
+A separate, source-only [M36 cohort-observation reuse draft](performance/m36-cohort-observation-reuse-2026-10.md)
+shares primitive observations only within two exact seeded test pairs. Its
+repeated-cohort parity, tests and timing remain unrun; production physics,
+scientific windows and skip rules are unchanged.
+
 2026-10-29: the managed workspace recovered with the unpublished finite-research
 integration intact at `22a48ffa`. That history is preserved separately on
 `lead/research-continuation-20261029`. A new isolated branch combines it with
