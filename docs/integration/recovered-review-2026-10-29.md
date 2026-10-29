@@ -113,6 +113,25 @@ the extension. No old/new whole-world identity, larger-population timing,
 Python adapter, causal gate or coefficient change is claimed. The source stays
 on `lead/decision-delivery-applied-moves-20261029`, outside this review branch.
 
+## Native tick index reuse, separate review branch
+
+The [index-reuse source](native-tick-index-reuse-ci-2026-10-29.md) at `e2b7c940`
+passes all six unchanged CI jobs on its first run: 1,092 Rust tests, 8,094
+native Python parent tests, 7,780 no-Rust parents, 3,996 bounded offline cases
+and 743 viewer tests plus lint/build. Subtests and skips stay separate. A
+second reader reconciled all four small evidence ZIPs and their 69 members.
+
+The code reuses the unchanged post-migration region census for demographics
+and carries one dense ID lookup through phases that cannot change IDs or
+liveness. Sparse lookup creation and phase-specific values keep their old
+timing. On ticks using all four dense constructors, this removes six passes
+over slot capacity and three allocations/zero fills. Early returns can reduce
+that work saving; the sparse path gains none. A longer-lived table can change
+peak memory, so fewer allocations do not establish lower peak RSS. No measured
+speed, whole-world old/new identity or scientific gate is inferred from CI.
+This source stays outside the review runtime on
+`lead/native-tick-index-reuse-20261029`.
+
 ## Intentional native correction, separate review branch
 
 `lead/cloud-household-wealth-floor-20261029` at `5030701` corrects a valid
@@ -242,6 +261,8 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin baseline reader, 71 guarded contracts and independent source review pass; effective cgroup deployment proof and all candidate proof pins remain unresolved |
 | `lead/decision-delivery-native-20261029` | Bounded transient native diagnostics; all six unchanged CI jobs pass at e99c; applied-movement provenance remains a separate next stage |
 | `lead/decision-delivery-applied-moves-20261029` | Actual bounded household and event provenance; all six unchanged CI jobs pass at feb98; Python access and whole-world qualification remain separate |
+| `lead/native-tick-index-reuse-20261029` | Exact-source six-job CI passes at e2b7; structural work reduction, measured performance and whole-world qualification remain separate |
+| `lead/agent-scale-benchmark-inputs-20261029` | Empty/invalid workload refusal and distinct repeat profiles; 52 affected guarded tests and source review pass; no simulation or benchmark workload executed |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)

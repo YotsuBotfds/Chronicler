@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+October 29 index reuse: separate `e2b7c940` passes all six unchanged CI jobs.
+The [source-scoped readout](integration/native-tick-index-reuse-ci-2026-10-29.md)
+records dense-lookup and post-migration census reuse, all four evidence ZIPs,
+their 69 verified members, and unchanged guard/CI limits. Fewer scans and
+allocations remain a structural result; wall time, CPU, peak RSS and complete
+old/new world identity require their own proof. No runtime merge is included.
+
 October 29 applied-movement diagnostics: separate `feb98c0d` passes all six
 unchanged CI jobs on its first run. Bounded household proposal/cancellation
 provenance links to actual full native-event ordinals while preserving the
