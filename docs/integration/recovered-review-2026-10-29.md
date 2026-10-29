@@ -14,9 +14,14 @@ remain preserved. Their source-specific counts and failures retain their own
 boundaries. The earlier docs-only review branch remains at `06d357e4`, and
 frozen C76 retains its checkout, source/path/package identity and study refs.
 The separately verified [3,097-tick wealth primer](../experiments/wealth-floor-production-primer-result-2026-10-29.md)
-does not merge its intentional native correction here. Full scientific
-outcomes, fresh CP60 observation, old/new native parity and performance each
-retain their own studies. The prior source-scoped records below describe the
+does not merge its intentional native correction here. Its separate
+[worker smoke](../experiments/wealth-floor-outcome-worker-smoke-result-2026-10-29.md)
+now qualifies 12 executions / 668 ticks of mechanics while preserving both
+failed scientific gates. The [C76-to95 native default-export audit](native-default-output-artifact-audit-v2-result-2026-10-29.md)
+also qualifies its exact nine-case matrix: 399 file pairs, zero differences.
+That parity does not extend to the later cbf source or wealth correction.
+Full scientific outcomes, fresh CP60 observation and performance each retain
+their own studies. The prior source-scoped records below describe the
 exact commits they originally qualified.
 
 ## Concrete changes and evidence

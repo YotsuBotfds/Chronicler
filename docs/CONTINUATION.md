@@ -16,6 +16,23 @@ AST matches parent `1205b6e4` after the two reviewed optional dispatch seams
 are projected away. No CLI, saved observer field or default feature is added.
 Fresh CP60 natural-study evidence remains a separate pending step.
 
+The [wealth-floor worker smoke](experiments/wealth-floor-outcome-worker-smoke-result-2026-10-29.md)
+now has complete publication and independent mechanical qualification:
+12 executions / 668 actual ticks, four captured checkpoint headers, eight
+source-derived fork links and all six original artifacts. Both scientific
+gates remain false, exit 2, needs FAIL, with incidental failures and partial
+reports preserved. The full cohort remains pending a separate fresh-origin
+admission change, registration and activation; the correction is not merged
+into this review runtime.
+
+The [corrected native default-export audit](integration/native-default-output-artifact-audit-v2-result-2026-10-29.md)
+is independently qualified for the exact C76-to95 matrix: nine original
+comparison commands, 399 exported file pairs and zero differences. The
+read-only remote audit created no Worlds; its completed light publication
+and original source/input/native links reconcile. The first bootstrap failure
+is preserved. This does not extend parity to cbf, the wealth correction,
+checkpoint/RNG state or scientific outcomes, and supplies no speed claim.
+
 The prior [1205 integration qualification](integration/review-integration-ci-2026-10-29.md)
 and producing refs remain preserved, alongside the earlier docs-only
 `lead/recovered-review-20261029` branch, frozen C76 and all original studies.

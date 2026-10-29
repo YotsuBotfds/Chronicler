@@ -33,7 +33,9 @@ CPython 3.13.17 and all nine recorded numerical/build caps at 1. Checkpoint
 headers carry the matched source, native, runtime and hybrid agent section.
 The special determinism profile executes its a/b runs serially: `--parallel 2`
 is requested and recorded, and is **not concurrent-worker evidence**. The
-separate 12-execution / 668-tick production batch-worker smoke is still pending.
+separate 12-execution / 668-tick production batch-worker smoke now has
+[completed mechanical qualification](wealth-floor-outcome-worker-smoke-result-2026-10-29.md),
+with its scientific failures preserved.
 
 Fresh physically no-native preflight passed **226 tests, zero skips**, with no
 native imports, runtime-factory calls or blocked I/O. This actual hosted result
@@ -78,6 +80,7 @@ publication hashing, then 327.34 seconds after heavy checks; the whole job took
 workload observations, not a speed comparison or a large-cohort estimate.
 
 All original A pins remain null; this result fills no V2 authority slots.
-The next admission step must review the actual batch-worker smoke and retain
-candidate checkpoint headers/hashes before successful retirement. The original
-kin-root failures and full outcome thresholds remain unchanged.
+The separate smoke has now supplied candidate checkpoint headers/hashes before
+successful retirement. Full outcome admission remains pending a fresh smoke
+publication check, its separate source qualification and registration. The
+original kin-root failures and full outcome thresholds remain unchanged.
