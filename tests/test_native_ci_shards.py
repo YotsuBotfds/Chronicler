@@ -188,9 +188,30 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
     m = json.loads(S.MANIFEST.read_bytes())
     files = [name for names in m['shards'].values() for name in names]
     owners = S.validate_assignment(m, files)
-    assert [len(m['shards'][k]) for k in ('0', '1')] == [160, 140]
+    additions = {
+        'tests/test_health_care_experiment_policy.py': '1',
+        'tests/test_health_care_policy.py': '1',
+    }
+    assert len(owners) == 302
+    assert {name: owners[name] for name in additions} == additions
+    old_owners = {name: shard for name, shard in owners.items() if name not in additions}
+    assert len(old_owners) == 300
+    # Canonical complete owner map from immutable parent 2572d5b9, including
+    # the original shard-0 controller test. Equal counts alone allow moves.
+    assert S.digest(old_owners) == 'fbde72231a68a0d4df1ca7f261501223df0fff6c3b6c14a99f337face13b26bb'
     assert owners['tests/test_native_ci_shards.py'] == '0'
     assert m['historical_module_counts'] == [159, 140]
+    assert m['historical_partition_sha256'] == '0d4f05d3b53f5290f2cba3e6f6f4888a29de098cd0de6060f71a9f38a70d59cb'
+    assert m['expected_skips'] == [
+        'tests/test_m36_regression.py::TestInvestCultureAcceleration::test_invest_culture_directional',
+        'tests/test_m38b_regression.py::TestFullCascade::test_full_cascade_end_to_end',
+        'tests/test_m38b_regression.py::TestPilgrimageFrequency::test_pilgrimage_frequency_calibration',
+        'tests/test_m51_legacy_integration.py::test_legacy_determinism',
+        'tests/test_mutual_aid_adversarial.py::test_multiturn_disabled_matches_untouched_public_source_with_same_repaired_native',
+        'tests/test_turn_artifact_lifecycle.py::test_str_wrapper_does_not_retain_view_after_return',
+    ]
+    # Prospective full-native seal: historical 526 plus policy source's 97.
+    assert m['expected_successful_subtests'] == 623
 
 
 @pytest.mark.parametrize('change', ['source', 'run_bool', 'attempt_missing', 'tree', 'producer', 'manifest', 'native', 'classes', 'packages', 'wheel_size', 'wheel_name'])

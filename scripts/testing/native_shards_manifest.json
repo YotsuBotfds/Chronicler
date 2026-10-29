@@ -223,6 +223,8 @@
       "tests/test_governance_runtime.py",
       "tests/test_grain_reserves.py",
       "tests/test_health_care.py",
+      "tests/test_health_care_experiment_policy.py",
+      "tests/test_health_care_policy.py",
       "tests/test_healthy_migration.py",
       "tests/test_historical_parity_processes.py",
       "tests/test_historiography.py",
@@ -330,5 +332,5 @@
     "tests/test_mutual_aid_adversarial.py::test_multiturn_disabled_matches_untouched_public_source_with_same_repaired_native",
     "tests/test_turn_artifact_lifecycle.py::test_str_wrapper_does_not_retain_view_after_return"
   ],
-  "expected_successful_subtests": 526
+  "expected_successful_subtests": 623
 }

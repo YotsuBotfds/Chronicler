@@ -14,8 +14,21 @@ World/checkpoint/scientific/performance gates remain unrun for this source.
 The prior qualified records below retain their original code/runtime scope.
 The two new Python policy modules now share a new 110-second offline chunk.
 Their prior custom-guard result is 38 parents plus 97 successful subtests on
-Python 3.12.14; this source-only registration check does not claim the standard
-offline guard or hosted Python 3.13/native qualification.
+Python 3.12.14. The first hosted integration at `2572d5b9`, run `40904414478`,
+failed native manifest admission: the exact source has 302 test modules while
+the manifest owned 300, omitting these two policy modules. That failure remains
+preserved; it supplies no native build or full-native execution result.
+The completed offline lane reports both modules together under the unchanged
+110-second guard on Python 3.13.17: 38 parents and 97 successful subtests, zero
+skips/native/factory/blocked-I/O attempts. Its complete 36 chunks report 4,286
+parent passes, 65 skips and 97 subtests; 4,383 includes subtest reports, not parents.
+The narrow source-only registration successor assigns exactly those two modules
+to smaller shard 1, preserving every old module owner and all six skip IDs.
+Its expected full-native subtest seal is prospectively 623 = historical 526 +
+policy 97. The same first run's completed no-Rust job `123555152959` reports
+8,157 parent passes, 325 skips and 623 successful subtests, including all 38 new
+policy parents passing. Full-native corroboration, new full CI and independent/
+root review remain pending. Runtime/controller/workflow caps and physics are unchanged.
 
 
 Current cross-examination branch: [`lead/native-ci-consolidation-20261029`](integration/native-ci-consolidation-2026-10-29.md). Its exact code `c5c6b6d9` now has independently/root-qualified [all-nine-job CI](integration/native-ci-consolidation-ci-2026-10-29.md), run `40880410392`: 8,452 native passes/six skips/526 subtests, 8,119 no-Rust passes/325 skips/526 subtests, 4,248 offline passes/65 skips, 1,121 Rust passes/two ignored and 743 Viewer tests with lint/build. The 2 + 2 preflights stay separate. The complete native crate is exact 090 and standard CI exact EC; Python/dependencies remain CBF. Main and the separate CBF documentation-review branch are unchanged.
