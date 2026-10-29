@@ -108,7 +108,7 @@ stream bounds, credential-free public hops, sanitized errors, source/artifact/jo
 mismatches, failed producers and retained negative receipts. It runs no native
 code, network, simulator subprocesses or scientific jobs.
 
-Local focused verification: all **19 stdlib tests passed** on Python **3.12.14**
+Local focused verification: all **22 stdlib tests passed** on Python **3.12.14**
 with synthetic inputs and mocked transport. The inactive Action specifies Python
 3.13 and reruns those contracts before the real artifact read. No real ZIP/XML
 audit result, native execution result or test speedup is asserted by this draft.
@@ -118,3 +118,50 @@ uv installation/preparation timing lines are ignored unless they begin with a
 pytest outcome counter. Actual failed/error summaries, duplicate successful
 summaries and missing summaries remain refusals. The original d690 draft is
 retained in history; no real artifact inspection preceded the correction.
+
+## First real read and schema correction
+
+The first activated reader at `996acdd5a16a7a26ebf71e4535733aaa75d5e03a`
+ran in Action `40793712359`, job `123184905411`. All 19 then-current pure
+contracts passed; its real read retained a negative receipt: **testcase identity
+is missing**. The failure is preserved in artifact `12862831607`, 299,765 bytes,
+SHA-256 `bedfc5a52298494917443656e507749d0f268ebbd3d57951f5d3d6df9601e102`.
+This was a reader schema gap, not a failed historical simulation test.
+
+The no-Rust XML contains two legitimate module collection skips at ordinals
+0 and 1: `tests.test_ecology_parity` and `tests.test_m48_promotion_memory`.
+Pytest emits an empty `classname`, the exact module name in `name`, zero time
+and one `skipped` child with message `collection skipped`. The repaired parser
+admits precisely that typed shape when the module matches a tracked Python
+path. It preserves the empty classname, name and XML ordinal, attributes the
+row to that module, and leaves its derived function node ID null. It does not
+invent a case, convert a skip to a pass or relax header/subtest reconciliation.
+Other missing/unknown identities, nonzero collection times and mixed outcomes
+remain refused. Collection-skip counts are explicit in the derived report.
+
+A fixed-field stdout outcome now records completion, controlled phase, frozen
+source/run and the existing fixed refusal reason. Unexpected exceptions still
+receive the generic failure message; network exception text, tokens and signed
+URLs remain excluded. Pure regressions cover the two actual wire shapes and
+counter/identity failures, plus safe stdout and exception redaction.
+
+After all **22 pure contracts passed** locally on Python 3.12.14, the corrected
+reader was replayed using only the seven immutable inputs retained by the
+first failed run, with its transport mocked. Source Git checks used an exact,
+clean detached d028 checkout; there was no network, test-suite rerun, native
+install or world. Every retained input hash matched the original negative
+receipt and the outer archive remained unchanged. The replay completed with
+zero unattributed rows and reconciled:
+
+| Lane | Serialized rows | Passed | Skipped | Collection skips | Successful subtests | JUnit header |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Native | 7806 | 7800 | 6 | 0 | 526 | 8332 |
+| No Rust | 7792 | 7486 | 306 | 2 | 526 | 8318 |
+
+The local replay receipt SHA-256 is
+`7394b5bf15802b7d5e5a512f3293cbb3e3a823b0e91b26a3d07f1316fb786293`.
+Its native case attribution totals 633.797 seconds against 655.736 suite,
+655.82 terminal, 662 test-step and 844 job seconds; no-Rust totals 358.395
+against 374.747, 374.80, 379 and 391 seconds respectively. Those clocks describe
+the original d028 CI execution. A new official artifact read and any sharding
+experiment remain separate, pending review and lead activation.
