@@ -116,7 +116,7 @@ describe("FinancePanel", () => {
 
   it("shows a finance-only run's debt as the abstract domestic class and one foreign total", () => {
     render(<FinancePanel {...props()} />);
-    expect(screen.getByText(/This run had no --domestic-credit/)).toBeInTheDocument();
+    expect(screen.getByText(/This snapshot records finance totals only/)).toBeInTheDocument();
     const bars = screen.getByRole("list", { name: "Debt by holder at turn 120" });
     const owing = Object.entries(LAST.finance!.civs).filter(([, row]) => row.debt > 0);
     expect(within(bars).getAllByRole("listitem")).toHaveLength(owing.length);
@@ -189,8 +189,8 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     expect(within(table).queryByRole("columnheader", { name: "Interest" })).toBeNull();
     expect(within(section).queryAllByText("Written off").some((label) => label.closest(".systems-tile"))).toBe(false);
     expect(screen.getByText(level === "kinds"
-      ? /This bundle records domestic claims by kind of lender only/
-      : /This run had no --domestic-credit/)).toBeInTheDocument();
+      ? /This snapshot records domestic claims by kind of lender only/
+      : /This snapshot records finance totals only/)).toBeInTheDocument();
     // Later observations still belong on the timeline; they do not supply
     // lender detail to an earlier snapshot.
     expect(within(section).getByLabelText("Foreign debt of Khidutain Clans by lender")).toBeInTheDocument();

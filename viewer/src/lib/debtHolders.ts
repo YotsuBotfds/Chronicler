@@ -403,8 +403,8 @@ export function creditEventsOf(events: Event[], civ: string): Event[] {
 export const DETAIL_NOTES: Record<HolderDetail, string> = {
   lenders: "Foreign lenders by name, merchants by region, cities and guilds by name, as recorded at each turn. "
     + "Interest due is principal times the line's rate; a domestic line's interest is shared pro rata to the claims.",
-  kinds: "This bundle records domestic claims by kind of lender only (written before the per-lender record): "
+  kinds: "This snapshot records domestic claims by kind of lender only: "
     + "foreign debt is one total and interest by lender is not recorded.",
-  totals: "This run had no --domestic-credit: domestic loans come from finance's abstract creditor class, "
-    + "and foreign debt is one total. Lenders by name need a bundle written with --domestic-credit.",
+  totals: "This snapshot records finance totals only: domestic loans come from finance's abstract creditor class, "
+    + "and foreign debt is one total. It does not record lenders by name.",
 };
