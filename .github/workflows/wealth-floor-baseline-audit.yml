@@ -1,0 +1,99 @@
+# DORMANT: outside .github/workflows. Root source review and a separate reviewed
+# activation are required before copying this to the exact registered path.
+name: Retained wealth-floor baseline byte audit
+
+on:
+  push:
+    branches: [lead/wealth-floor-baseline-audit-activation-20261029]
+    paths: [.github/workflows/wealth-floor-baseline-audit.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wealth-floor-baseline-byte-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Retained baseline byte audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: ""
+    steps:
+      - name: Check out exact reviewed control
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up stdlib-only interpreter
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Verify checkout and inert default
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          python scripts/wealth_floor_baseline_audit_job.py
+
+      - name: Stream and audit registered historical bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python scripts/wealth_floor_baseline_audit_job.py --execute \
+            --output "$RUNNER_TEMP/wealth-floor-baseline-byte-audit" \
+            --control-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT"
+
+      - name: Publish bounded authority and pending receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-floor-baseline-byte-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/official-inputs.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/producer.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/sources.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/baseline-audit.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/controller.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/final-charge.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/comparison.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/artifact-index.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/build-manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/provenance.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/raw-inventory.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/result.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/ablation_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/batch_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/gate_decision_full.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/gate_summary_full.md
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/run_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/template/report/validate_report_full.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/artifact-index.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/build-manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/provenance.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/raw-inventory.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/result.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/ablation_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/batch_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/gate_decision_full.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/gate_summary_full.md
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/run_manifest.json
+            ${{ runner.temp }}/wealth-floor-baseline-byte-audit/publication/authority/procedural/report/validate_report_full.json
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
+
+# No raw ZIP upload or cleanup step. Downloaded copies survive controller
+# finalization and disappear only when the runner is torn down. Original
+# official artifacts retain their original IDs/expiry. A failed/timed-out job
+# cannot be admitted from any pending receipt uploaded by if:always().
