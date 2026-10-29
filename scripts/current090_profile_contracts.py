@@ -18,7 +18,7 @@ import time
 import xml.etree.ElementTree as ET
 
 MODULES = ("tests/test_current090_passive_profile.py", "tests/test_current090_profile_owner.py")
-EXPECTED_CASES = 176
+EXPECTED_CASES = 177
 
 
 def main(argv=None):

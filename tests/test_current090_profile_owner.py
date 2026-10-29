@@ -31,6 +31,7 @@ REFERENCE = json.loads((ROOT / "docs/experiments/current090-passive-profile-inpu
 
 
 def test_null_source_approval_precedes_any_host_or_source_access(monkeypatch):
+    monkeypatch.setattr(O, "EXECUTION_APPROVAL", None)
     assert O.EXECUTION_APPROVAL is None
     monkeypatch.setattr(O, "modules", lambda *a: pytest.fail("source access before approval"))
     monkeypatch.setattr(O, "context", lambda *a: pytest.fail("host access before approval"))
@@ -412,3 +413,11 @@ def test_terminal_closure_has_no_positive_io_after_final_full_guard(tmp_path, mo
     assert O.finalize_authorities(tmp_path, closure_report(), eligible=True, guard=guard, started=0, cpu_started=0)
     assert seen[0] == seen[-1] == "guard" and seen.count("guard") == 2
     assert seen.index("write:terminal.json") < seen.index("hash:terminal.json") < len(seen) - 1
+
+
+def test_null_scenario_remains_valid_after_owner_registration(monkeypatch):
+    monkeypatch.setattr(O, "EXECUTION_APPROVAL", "a" * 64)
+    # Exercise the actual high-level refusal test against a registered owner's
+    # starting state. It must set up NULL explicitly before reaching host I/O.
+    test_null_source_approval_precedes_any_host_or_source_access(monkeypatch)
+    assert O.EXECUTION_APPROVAL is None

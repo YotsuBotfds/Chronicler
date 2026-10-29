@@ -1,5 +1,10 @@
 # Recovered continuation — 2026-10-11
 
+## Passive profiler activation-safe metadata contract (2026-10-29)
+
+The owner null-refusal test now sets its own NULL scenario explicitly; a synthetic registered-state regression prevents future hosted preflight failure. Source/owner criteria and core remain unchanged. Hosted expected count177 (core86 + owner91), with all actual input/native/World/profile activation held. Preserved05da/176 and fab/164 retain their original scopes.
+
+
 ## Passive profiler terminal closure correction (2026-10-29)
 
 Preserved fab/164; a source-only child closes the post-terminal-write budget/guard gap and accounts actual serialized authorities. Late failures retain a negative sentinel and invalidate positive authorities; publisher still independently requires owner-step success. Hosted metadata count is now176 (unchanged core86 + owner90), before any input/native/World. Actual execution remains NULL and all genuine profiling stays held.
