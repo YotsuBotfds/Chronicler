@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+October 29 source-only native index-reuse draft: the isolated
+`lead/native-tick-index-reuse-20261029` branch shares the post-migration
+region partition between memory-intent collection and demographics. The
+later post-demographic partition remains fresh. A Rust regression checks
+both consumers against migration-event census reconstruction; it has not
+been run, and no build, native parity or performance result is claimed.
+
 October 29 natural finite-research result: all eight fixed parent/active/pause
 triples completed, 24 executions/3,360 ticks, with strict active-parent equality
 and archive-preserving pauses. The [curated record](integration/natural-research-continuation-results-2026-10-29.md)
