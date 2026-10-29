@@ -173,3 +173,11 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## Debt-holder snapshot-detail draft — 2026-10-29
+
+A separate viewer draft makes current lender labels and columns depend on the
+scrubbed snapshot, while retaining later observations in charts. This closes the
+remaining UI seam after the existing mixed-history data fixes. Source and pending
+verification: [debt-holder snapshot detail](integration/debt-holder-snapshot-detail-2026-10-29.md).

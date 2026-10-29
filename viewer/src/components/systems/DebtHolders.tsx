@@ -96,13 +96,16 @@ export function DebtHolders({
   const events = civ
     ? creditEventsOf(eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.finance, currentTurn), civ)
     : [];
-  const lenders = detail === "lenders";
+  // Timelines retain the bundle's richest detail, but the scrubbed snapshot
+  // may predate lender records (for example, after resuming an older save).
+  const currentDetail = snapshot ? holderDetail([snapshot]) : null;
+  const lenders = currentDetail === "lenders";
 
   return (
     <>
       <section className="systems-section" aria-label="Who holds the debt">
         <h3>Who holds the debt at turn {at}</h3>
-        <p className="systems-note">{DETAIL_NOTES[detail]}</p>
+        <p className="systems-note">{DETAIL_NOTES[currentDetail ?? detail]}</p>
         {realms.length === 0 ? (
           <div className="phase75-empty-state">{snapshot?.finance
             ? `No civilization owes anything at turn ${at}.`
