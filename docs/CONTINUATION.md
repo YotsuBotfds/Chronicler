@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+A separate [V2 artifact-reader correction](integration/native-default-output-artifact-reader-v2-2026-10-29.md)
+preserves the first failed reader `bc39d593`/run40843215377 and its verified
+negative publication. It explicitly hydrates current/frozen Git objects before
+the immutable no-lazy backend and retains safe bounded stage/error details.
+The source-only30-test/51-subtest qualification used a byte-reconciled selected
+text view on `/tmp` under the unchanged fixture budgets; no actual V2 audit,
+archive transfer, native runtime or world was run. Root/peer review precedes
+the new closed V2 activation.
+
 A separate [closed completed-artifact reader draft](integration/native-default-output-artifact-reader-2026-10-29.md)
 targets the successful hosted C76→95 producer `74b2904d`, run40834257046.
 It preserves the three qualified2b7 reader kernels and their old registries,

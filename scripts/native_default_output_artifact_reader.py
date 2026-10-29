@@ -27,11 +27,11 @@ SCRIPT = Path(__file__).resolve()
 ROOT = SCRIPT.parents[1]
 GIB = 1024**3
 SECONDS, CLEANUP_RESERVE = 600, 20
-ACTIVE_BRANCH = "lead/cloud-native-default-output-artifact-audit-20261029"
-WORKFLOW_PATH = ".github/workflows/native-default-output-artifact-audit.yml"
-TEMPLATE_PATH = "docs/experiments/native-default-output-artifact-reader-workflow.yml"
-WORKFLOW_SHA = "9a6005bebae81e9e36b4b7a8e9c5480771d6b74c615924b9335563a6f9a3cad4"
-JOB_KEY = "native-default-output-artifact-audit"
+ACTIVE_BRANCH = "lead/cloud-native-default-output-artifact-audit-v2-20261029"
+WORKFLOW_PATH = ".github/workflows/native-default-output-artifact-audit-v2.yml"
+TEMPLATE_PATH = "docs/experiments/native-default-output-artifact-reader-v2-workflow.yml"
+WORKFLOW_SHA = "8593cb38b3d990b70057b54c59afa4c9fc950d0c36d319d67112ab4bb2320826"
+JOB_KEY = "native-default-output-artifact-audit-v2"
 REPO = "YotsuBotfds/Chronicler"
 CONTROL = "74b2904dfc4acceb6c5c03a57aa8c2b6406ce4a6"
 RUN, JOB, ARTIFACT, ARCHIVE_BYTES = 40834257046, 123315234223, 12880510564, 75556121
@@ -67,6 +67,15 @@ def require(value, message):
 
 def exact(value, expected):
     return type(value) is type(expected) and value == expected
+
+
+def error_record(error,A,C,stage):
+    known=(Refusal,A.Refusal)
+    if C is not None:known+=(C.core.Refusal,C.git_source.SnapshotError)
+    detail=str(error) if isinstance(error,known) else type(error).__name__
+    detail=re.sub(r"https?://\S+","[URL]",detail)
+    detail=detail.encode("utf-8")[:2048].decode("utf-8","ignore")
+    return {"error":type(error).__name__,"error_stage":stage,"error_message":detail}
 
 
 def pin(raw):
@@ -554,6 +563,20 @@ def own_source(C,expected):
     return {"sha":expected,"selected_files":observed,"active_workflow":pin(active),"scope":"Actual selected sparse source bytes linked to committed blobs; no full reconstructed worktree claim."}
 
 
+def hydrate_and_verify_source(C,A,expected,supervisor,env,stage):
+    # Sparse checkout uses a partial clone. The immutable backend deliberately
+    # forbids lazy fetch, so prime every complete object set explicitly first.
+    stage["name"]="source-head"
+    current=subprocess.check_output(["git","-c","core.fsmonitor=false","-C",str(ROOT),"rev-parse","HEAD"],timeout=10,text=True).strip()
+    require(current==expected,"actual current control revision differs")
+    stage["name"]="source-object-hydration"
+    for role,sha in {"reader":current,**A.SOURCES,"producer":CONTROL}.items():
+        supervisor.command("hydrate-"+role,["git","-c","core.fsmonitor=false","-c","gc.auto=0","-c","maintenance.auto=false",
+            "fetch","--no-tags","--refetch","--no-filter","--depth=1","origin",sha],env,ROOT)
+    stage["name"]="source-authentication"
+    return own_source(C,current)
+
+
 def final_sources(C,context,root,before):
     require(own_source(C,context["source"])==before,"reader source changed during inspection")
     for name,(_,sha) in KERNELS.items():
@@ -582,7 +605,7 @@ def entry_inspect(args):
         inspect(C,A,context,root,report,supervisors)
         final_sources(C,context,root,before)
     except BaseException as error:
-        report.update(qualified=False,error=str(error) if isinstance(error,(Refusal,C.core.Refusal,C.git_source.SnapshotError)) else type(error).__name__)
+        report.update(qualified=False,**error_record(error,A,C,report["phase"]))
     return finalize(C,root,report,context["started"],context["deadline"],all(s.cleanup_complete for s in supervisors))
 
 
@@ -597,23 +620,27 @@ def audit(args):
     root.mkdir();(root/"logs").mkdir();(root/"inputs").mkdir();(root/"publication").mkdir()
     started=time.monotonic();deadline=started+SECONDS
     write(root/"publication/reader-result.json",{"qualified":False,"phase":"bootstrap","original_run":RUN})
-    supervisor=A.H.Supervisor(root,deadline-CLEANUP_RESERVE);C=None
+    supervisor=A.H.Supervisor(root,deadline-CLEANUP_RESERVE);C=None;stage={"name":"initial-resource-admission"}
     try:
         os.sched_setaffinity(0,{min(os.sched_getaffinity(0))});supervisor.admission("audit-initial",12,2)
+        stage["name"]="kernel-authentication"
         C=load_kernels(root/"derived-kernels",create=True)
-        source=own_source(C,registered["GITHUB_SHA"]);write(root/"reader-source.json",source)
         env={k:v for k,v in os.environ.items() if k not in {"GITHUB_TOKEN","GH_TOKEN","PYTHONPATH","PYTHONHOME","VIRTUAL_ENV"}
              and not k.startswith(("UV_","PIP_"))}
         env.update(A.H.CAPS,PYTHONDONTWRITEBYTECODE="1",PYTHONNOUSERSITE="1",PYTHONOPTIMIZE="0",PYTHONHASHSEED="0",OPENBLAS_THREAD_TIMEOUT="16",PIP_CONFIG_FILE=os.devnull)
-        for role,sha in {**A.SOURCES,"producer":CONTROL}.items():
-            supervisor.command("fetch-"+role,["git","-c","core.fsmonitor=false","fetch","--no-tags","--depth=1","origin",sha],env,ROOT)
+        source=hydrate_and_verify_source(C,A,registered["GITHUB_SHA"],supervisor,env,stage)
+        write(root/"reader-source.json",source)
+        stage["name"]="dependency-preparation"
         preparation=A.prepare_environment(root,{"candidate":ROOT,"control":ROOT},str(prefix/"bin/python"),prefix,env,supervisor)
         write(root/"reader-preparation.json",preparation)
         transport=A.Transport(os.environ.get("GITHUB_TOKEN"),supervisor,deadline-CLEANUP_RESERVE)
+        stage["name"]="producer-metadata-before"
         before=api_metadata(A,transport);write(root/"metadata-before.json",before)
         artifact_pin=A.ArtifactPin(ARTIFACT,RUN,JOB,CONTROL,f"native-default-output-identity-{RUN}-1",ARCHIVE_BYTES,ARCHIVE_SHA,EXPIRY,
             ".github/workflows/native-default-output-identity.yml")
+        stage["name"]="artifact-transfer"
         transport.download(artifact_pin,root/"inputs/original.zip")
+        stage["name"]="producer-metadata-after"
         after=api_metadata(A,transport);write(root/"metadata-after.json",after)
         require(validate_metadata(before)==validate_metadata(after),"producer publication changed during transfer")
         require(supervisor.cleanup_complete and not supervisor.children,"bootstrap writers remain before prefix exec")
@@ -623,11 +650,12 @@ def audit(args):
                 "effective_latest_audit_utc":min(p.expiry for p in A.ARTIFACTS.values()),
                 "max_entries":2048,"max_member_json":32*1024**2,"max_expansion":512*1024**2,"disk_floor":3*GIB,"copy_reserve":16*1024**2}}
         write(root/"context.json",context)
+        stage["name"]="prefix-entry"
         # Replace the bootstrap owner: no nested inspect session or reset clock.
         os.execve(str(prefix/"bin/python"),[str(prefix/"bin/python"),"-B",str(SCRIPT),"inspect","--context",str(root/"context.json"),
             "--context-sha",pin(bounded(root/"context.json"))["sha256"]],env)
     except BaseException as error:
-        report={"qualified":False,"phase":"bootstrap","error":type(error).__name__,"reader_source":registered["GITHUB_SHA"]}
+        report={"qualified":False,"phase":"bootstrap","reader_source":registered["GITHUB_SHA"],**error_record(error,A,C,stage["name"])}
         if C is not None:return finalize(C,root,report,started,deadline,supervisor.cleanup_complete)
         report["reader_seconds"]=time.monotonic()-started;write(root/"publication/reader-result.json",report);return 1
 

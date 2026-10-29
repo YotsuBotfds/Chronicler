@@ -26,6 +26,12 @@ R=importlib.util.module_from_spec(spec);sys.modules[spec.name]=R;spec.loader.exe
 def encoded(value):return json.dumps(value,sort_keys=True).encode()
 
 
+def audit_env():
+    return dict(GITHUB_ACTIONS="true",GITHUB_REPOSITORY=R.REPO,GITHUB_EVENT_NAME="push",GITHUB_REF="refs/heads/"+R.ACTIVE_BRANCH,
+        GITHUB_WORKFLOW_REF=R.REPO+"/"+R.WORKFLOW_PATH+"@refs/heads/"+R.ACTIVE_BRANCH,GITHUB_JOB=R.JOB_KEY,
+        GITHUB_RUN_ATTEMPT="1",GITHUB_RUN_ID="42",GITHUB_SHA="a"*40)
+
+
 def zip_bytes(rows):
     stream=io.BytesIO()
     with zipfile.ZipFile(stream,"w",compression=zipfile.ZIP_STORED) as archive:
@@ -107,6 +113,66 @@ class Contracts(unittest.TestCase):
         for field,value in (("GITHUB_EVENT_NAME","workflow_dispatch"),("GITHUB_REF","refs/heads/main"),("GITHUB_RUN_ATTEMPT","2"),
             ("GITHUB_JOB","other"),("GITHUB_RUN_ID",True),("GITHUB_WORKFLOW_REF","other")):
             with self.subTest(field=field),self.assertRaises(R.Refusal):R.registration(dict(good,**{field:value}))
+
+    def test_partial_object_precondition_is_satisfied_before_immutable_backend_use(self):
+        current="a"*40;required=[current,self.A.SOURCES["baseline"],self.A.SOURCES["candidate"],R.CONTROL]
+        hydrated=[];commands=[];stage={}
+        def backend(C,expected):
+            if hydrated!=required:raise self.C.git_source.SnapshotError("synthetic incomplete object set")
+            self.assertEqual(stage["name"],"source-authentication")
+            return {"sha":expected}
+        def command(label,args,env,cwd):
+            self.assertEqual(stage["name"],"source-object-hydration")
+            self.assertIn("--refetch",args);self.assertIn("--no-filter",args)
+            self.assertIn("--depth=1",args);self.assertNotIn("--filter=blob:none",args)
+            self.assertEqual(cwd,R.ROOT);hydrated.append(args[-1]);commands.append(label)
+        with self.assertRaises(self.C.git_source.SnapshotError):backend(self.C,current)
+        with mock.patch.object(R.subprocess,"check_output",return_value=current+"\n"),mock.patch.object(R,"own_source",side_effect=backend):
+            actual=R.hydrate_and_verify_source(self.C,self.A,current,SimpleNamespace(command=command),{},stage)
+        self.assertEqual(actual,{"sha":current});self.assertEqual(commands,["hydrate-reader","hydrate-baseline","hydrate-candidate","hydrate-producer"])
+        self.assertEqual(hydrated,required)
+
+    def test_wrong_actual_control_head_refuses_before_fetch_or_backend(self):
+        supervisor=SimpleNamespace(command=mock.Mock(side_effect=AssertionError("fetch")))
+        with mock.patch.object(R.subprocess,"check_output",return_value="b"*40+"\n"), \
+             mock.patch.object(R,"own_source",side_effect=AssertionError("backend")),self.assertRaisesRegex(R.Refusal,"actual current"):
+            R.hydrate_and_verify_source(self.C,self.A,"a"*40,supervisor,{}, {})
+        supervisor.command.assert_not_called()
+
+    def test_immutable_backend_still_refuses_lazy_network_hydration(self):
+        self.assertEqual(self.C.git_source._git_environment()["GIT_NO_LAZY_FETCH"],"1")
+        self.assertIn("protocol.allow=never",self.C.git_source._git_args(R.ROOT,["cat-file","-t","a"*40]))
+
+    def test_bootstrap_source_fault_has_safe_stage_and_precedes_setup_transfer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp).resolve();control=base/"control";control.mkdir();stage_calls=[]
+            env=audit_env();env.update(GITHUB_WORKSPACE=str(base),RUNNER_TEMP=str(base))
+            class Supervisor:
+                cleanup_complete=True
+                def __init__(self,*args):pass
+                def admission(self,phase,disk,ram):stage_calls.append((phase,disk,ram))
+                def command(self,label,args,env,cwd):stage_calls.append(label)
+            args=SimpleNamespace(execute=True,evidence=base/"native-default-artifact-audit",prefix=base/"native-default-artifact-reader-env")
+            with mock.patch.dict(R.os.environ,env,clear=True),mock.patch.object(R,"ROOT",control), \
+                 mock.patch.object(R,"producer",return_value=self.A),mock.patch.object(R,"load_kernels",return_value=self.C), \
+                 mock.patch.object(self.A.H,"Supervisor",Supervisor),mock.patch.object(R.os,"sched_getaffinity",return_value={0}), \
+                 mock.patch.object(R.os,"sched_setaffinity"),mock.patch.object(R.subprocess,"check_output",return_value="a"*40+"\n"), \
+                 mock.patch.object(R,"own_source",side_effect=self.C.git_source.SnapshotError("synthetic incomplete objects")), \
+                 mock.patch.object(self.A,"prepare_environment",side_effect=AssertionError("setup")), \
+                 mock.patch.object(R,"api_metadata",side_effect=AssertionError("transfer")),mock.patch.object(R,"finalize",return_value=1) as final:
+                self.assertEqual(R.audit(args),1)
+            report=final.call_args.args[2]
+            self.assertFalse(report["qualified"]);self.assertEqual(report["error"],"SnapshotError")
+            self.assertEqual(report["error_stage"],"source-authentication");self.assertEqual(report["error_message"],"synthetic incomplete objects")
+            self.assertEqual(stage_calls,[('audit-initial',12,2),'hydrate-reader','hydrate-baseline','hydrate-candidate','hydrate-producer'])
+
+    def test_exception_details_are_bounded_stage_specific_and_do_not_echo_unknown_errors(self):
+        value=R.error_record(self.C.git_source.SnapshotError("missing object"),self.A,self.C,"source-authentication")
+        self.assertEqual(value,{"error":"SnapshotError","error_stage":"source-authentication","error_message":"missing object"})
+        value=R.error_record(RuntimeError("untrusted-secret-value"),self.A,self.C,"transport")
+        self.assertEqual(value["error_message"],"RuntimeError")
+        value=R.error_record(R.Refusal("https://example.invalid/data?sig=secret "+"☁"*3000),self.A,self.C,"transport")
+        self.assertNotIn("sig=",value["error_message"]);self.assertLessEqual(len(value["error_message"].encode()),2048)
 
     def test_all_kernel_bytes_authenticate_before_import_or_destination_creation(self):
         with tempfile.TemporaryDirectory() as tmp:
