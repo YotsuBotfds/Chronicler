@@ -43,8 +43,9 @@ def classify_arc(
     Returns:
         (arc_phase, arc_type) — either or both may be None.
     """
-    # Filter events to this character
-    char_events = [e for e in events if gp.name in e.actors]
+    # Every event-based check needs only its type. Project once while keeping
+    # character filtering and duplicate migration events exactly as before.
+    char_event_types = [e.event_type for e in events if gp.name in e.actors]
 
     # Collect matches: list of (arc_phase, arc_type, condition_count)
     matches: list[tuple[str | None, str | None, int]] = []
@@ -52,14 +53,14 @@ def classify_arc(
     # --- Check each archetype ---
     # Order matters for tie-breaking: later entries win when condition counts are equal.
     # Most general (Rise-and-Fall) first, most specific (Martyr) last.
-    _check_rise_and_fall(gp, char_events, current_turn, matches)
-    _check_exile_and_return(gp, char_events, matches)
+    _check_rise_and_fall(gp, char_event_types, current_turn, matches)
+    _check_exile_and_return(gp, char_event_types, matches)
     _check_dynasty_founder(gp, dynasty_registry, matches)
     _check_tragic_hero(gp, matches)
-    _check_wanderer(gp, char_events, matches)
-    _check_defector(gp, char_events, matches)
-    _check_prophet(gp, char_events, matches)
-    _check_martyr(gp, char_events, matches)
+    _check_wanderer(gp, char_event_types, matches)
+    _check_defector(gp, char_event_types, matches)
+    _check_prophet(gp, char_event_types, matches)
+    _check_martyr(gp, char_event_types, matches)
 
     if not matches:
         return None, None
@@ -80,7 +81,7 @@ def classify_arc(
 
 def _check_rise_and_fall(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     current_turn: int,
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
@@ -92,11 +93,11 @@ def _check_rise_and_fall(
     if career_length < RISING_CAREER_THRESHOLD:
         return
 
-    has_death = any(e.event_type == "character_death" for e in char_events)
+    has_death = "character_death" in event_types
     # Exile only counts as "fallen" for Rise-and-Fall when the character is no longer
     # active — an active exiled character may still return (Exile-and-Return arc).
     has_exile_fallen = (
-        any(e.event_type == "conquest_exile" for e in char_events) and not gp.active
+        "conquest_exile" in event_types and not gp.active
     )
 
     if has_death or has_exile_fallen:
@@ -107,11 +108,11 @@ def _check_rise_and_fall(
 
 def _check_exile_and_return(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
-    has_exile = any(e.event_type == "conquest_exile" for e in char_events)
-    has_return = any(e.event_type == "exile_return" for e in char_events)
+    has_exile = "conquest_exile" in event_types
+    has_return = "exile_return" in event_types
 
     if not has_exile:
         return
@@ -166,12 +167,10 @@ def _check_tragic_hero(
 
 def _check_wanderer(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
-    migration_count = sum(
-        1 for e in char_events if e.event_type == "notable_migration"
-    )
+    migration_count = event_types.count("notable_migration")
 
     if migration_count >= 3:
         matches.append(("wandering", ARC_WANDERER, 2))
@@ -181,14 +180,14 @@ def _check_wanderer(
 
 def _check_defector(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
     if gp.civilization == gp.origin_civilization:
         return
 
-    has_secession = any(e.event_type == "secession_defection" for e in char_events)
-    has_exile = any(e.event_type == "conquest_exile" for e in char_events)
+    has_secession = "secession_defection" in event_types
+    has_exile = "conquest_exile" in event_types
 
     if has_secession or has_exile:
         matches.append(("defecting", ARC_DEFECTOR, 2))
@@ -198,10 +197,10 @@ def _check_defector(
 
 def _check_prophet(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
-    has_return = any(e.event_type == "pilgrimage_return" for e in char_events)
+    has_return = "pilgrimage_return" in event_types
 
     if has_return:
         matches.append(("converting", ARC_PROPHET, 2))
@@ -212,7 +211,7 @@ def _check_prophet(
 
 def _check_martyr(
     gp: GreatPerson,
-    char_events: list[Event],
+    event_types: list[str],
     matches: list[tuple[str | None, str | None, int]],
 ) -> None:
     if gp.role != "prophet":
@@ -225,6 +224,6 @@ def _check_martyr(
             return
 
     # Partial: prophet displaced by conquest
-    has_exile = any(e.event_type == "conquest_exile" for e in char_events)
+    has_exile = "conquest_exile" in event_types
     if has_exile:
         matches.append(("persecuted", None, 1))
