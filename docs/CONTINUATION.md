@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+A separate [CBF-to-535 default-export source registration](experiments/cbf-535-default-identity-2026-10-29.md)
+retains the original nine-case/18-World/3,200-tick matrix and authenticated
+helper utilities, with the actual completed CBF and535 CI wheels/preflights.
+Only pure metadata/mocked-lifecycle qualification is permitted locally.
+No setup, native probe, artifact transfer, World or activation is implied;
+source peer/root review and a distinct activation grant remain required.
+
 A separate [V2 artifact-reader correction](integration/native-default-output-artifact-reader-v2-2026-10-29.md)
 preserves the first failed reader `bc39d593`/run40843215377 and its verified
 negative publication. It explicitly hydrates current/frozen Git objects before
