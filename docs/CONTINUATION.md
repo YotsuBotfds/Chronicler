@@ -1,5 +1,17 @@
 # Recovered continuation — 2026-10-11
 
+October 29 native wealth follow-up: an executable
+[paired-build controller](experiments/wealth-floor-native-build-bridge-2026-10-29.md)
+and disabled workflow template are prepared on their own branch. They build
+only exact D028/503 sources, verify actual compiled classes/schemas in isolated
+environments and require exact old `06db` native reproduction for historical
+baseline reuse. A different baseline binary requires fresh baseline worlds.
+The source has guarded pure contracts and separately confined Linux lifecycle
+probes; its initial missing-PROC_CHILDREN prelaunch failure remains recorded.
+No build, active workflow, candidate world or main change is implied. The
+generic cgroup resource and direct-hosted-VM helpers are shared byte-for-byte
+with the separate retained-baseline audit lane.
+
 October 29 full population result: frozen `2f9d618b` versus `d0281e5f`
 completed all four original strict gates, both template/procedural
 NO_REGRESSION comparisons and final publication qualification. The separate
