@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+October 29 applied-movement diagnostics: separate `feb98c0d` passes all six
+unchanged CI jobs on its first run. Bounded household proposal/cancellation
+provenance links to actual full native-event ordinals while preserving the
+original Stage 1 getter and checkpoint schema. All twelve compiled API cases
+pass; [the source-scoped readout](integration/native-applied-move-provenance-ci-2026-10-29.md)
+keeps parent tests, subtests, absent-extension skips and unqualified whole-world
+or performance work separate. No runtime merge or default activation is implied.
+
 October 29 separate native diagnostics source `e99c0fd5` passed all six
 unchanged standard CI jobs, including 1,102 Rust tests and 8,099 native Python
 parent tests. All five new real compiled API cases pass and skip explicitly

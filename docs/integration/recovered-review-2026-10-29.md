@@ -88,7 +88,7 @@ Configuration and frames are transient: the recorded native schema and
 within-new-build on/off checkpoints match. The default path uses a
 monomorphized no-op observer. There is no Python writer, CLI activation,
 applied-household provenance or counterfactual-winner calculation in this
-qualified stage. Whole-world old/new output identity and larger-world timing
+qualified Stage 1. Whole-world old/new output identity and larger-world timing
 still need separate evidence.
 
 The first run failed a new two-tick fixture after births enlarged its pool.
@@ -97,6 +97,21 @@ production. Births and both-tick assertions remain; the original failure and
 its correctly failed combined requirement are preserved. The two native jobs
 report the same compiled binary hash; that identity is producer-reported
 inside independently rehashed evidence ZIPs.
+
+The separate [applied-movement Stage 2](native-applied-move-provenance-ci-2026-10-29.md)
+at `feb98c0d` now passes all six unchanged jobs on its first run. It records
+the actual household proposal replacement, cancellation and follower rewrites,
+then links applied moves to zero-based ordinals in the full native event batch.
+Unknown origins or dropped tracking prevent a completeness claim. Its bounded
+version-2 move getter preserves the original three-batch Stage 1 API and native
+checkpoint schema; both remain transient and default-off.
+
+That source passes 1,113 Rust tests and 8,106 native Python parent tests,
+with 526 successful subtests and six skips separately. All seven new compiled
+API cases and the five preserved ones pass; all twelve explicitly skip without
+the extension. No old/new whole-world identity, larger-population timing,
+Python adapter, causal gate or coefficient change is claimed. The source stays
+on `lead/decision-delivery-applied-moves-20261029`, outside this review branch.
 
 ## Intentional native correction, separate review branch
 
@@ -226,6 +241,7 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/cloud-household-wealth-floor-20261029` | All six CI lanes pass; intentional native behavior correction awaits outcome qualification |
 | `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin baseline reader, 71 guarded contracts and independent source review pass; effective cgroup deployment proof and all candidate proof pins remain unresolved |
 | `lead/decision-delivery-native-20261029` | Bounded transient native diagnostics; all six unchanged CI jobs pass at e99c; applied-movement provenance remains a separate next stage |
+| `lead/decision-delivery-applied-moves-20261029` | Actual bounded household and event provenance; all six unchanged CI jobs pass at feb98; Python access and whole-world qualification remain separate |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)
