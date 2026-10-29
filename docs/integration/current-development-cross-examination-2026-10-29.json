@@ -1,0 +1,726 @@
+{
+  "schema_version": 1,
+  "kind": "CURATED_CURRENT_DEVELOPMENT_CROSS_EXAMINATION",
+  "date": "2026-10-29",
+  "runtime_code_source": "3a2a671477be849dd1b26c000d501304b8c684e9",
+  "prepared_review_target": "lead/dev-next-consolidation-20261029",
+  "publication_or_main_promotion": null,
+  "curation_scope": "Selected retained qualified metadata, source text and static link/Git checks only. This is a curated handoff, not a fresh raw-artifact replay or new simulation qualification.",
+  "standard_CI": [
+    {
+      "key": "94",
+      "source": "94b308e65bf3c7febc41f09b73004b1db2056a1d",
+      "run": 40917014818,
+      "attempt": 1,
+      "event": "workflow_dispatch",
+      "branch": "lead/dev-next-consolidation-20261029",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40917014818",
+      "verdict": "QUALIFIED_SOURCE_SCOPED_STANDARD_CI",
+      "root": {
+        "path": "/tmp/chronicler-next94-root-final-qualification-20261029/root-final-qualification.json",
+        "bytes": 2930,
+        "sha256": "abf502d7cadbad6cc26b6cae576bf36aab1989c49283a6ec1df6a600be481969"
+      },
+      "independent": {
+        "path": "/tmp/chronicler-next94-complete-independent-peer-_htfddz8/receipt.json",
+        "bytes": 5730,
+        "sha256": "c186377c3d2ac4ce6dba987d4843208b8bdb4079a70e5a534fb8f969e6a22036"
+      },
+      "primary": {
+        "manifest": {
+          "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/evidence-manifest.json",
+          "bytes": 9235,
+          "sha256": "1fa1b35b0a0004fad9c6a672062bbd91bf29dac9ef9103515520920468efda84"
+        },
+        "main": {
+          "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/reconciled-result.json",
+          "bytes": 62656,
+          "sha256": "9320fbfb90f1afa18dd29c2a65727631da26f03a39ada5580c9120180ca7d630"
+        },
+        "supplement": {
+          "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/supplementary-verification.json",
+          "bytes": 36038,
+          "sha256": "a588815a3150af3096856b935bed9b70e183c85e63b37ebd57477d976ccd4f4e"
+        },
+        "builder": {
+          "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/builder-byte-verification.json",
+          "bytes": 96967,
+          "sha256": "e86ed4732df83e08313d3cf08124423437be1c5b3291df425f485be06bcd1e92"
+        }
+      },
+      "results": {
+        "native": {
+          "parents": 8582,
+          "passed": 8576,
+          "skipped": 6,
+          "successful_subtests": 623,
+          "modules": 303,
+          "parent_phase_reports": 25746,
+          "same_ordered_full_collection_and_exact_once_ownership": true
+        },
+        "no_rust": {
+          "parents": 8568,
+          "passed": 8243,
+          "skipped": 325,
+          "successful_subtests": 623
+        },
+        "offline": {
+          "parent_passed": 4344,
+          "skipped": 65,
+          "successful_subtests": 97,
+          "chunks": 37,
+          "source_pins": 328,
+          "guard_pass_reports_including_subtests": 4441
+        },
+        "Rust": {
+          "passed": 1140,
+          "ignored": 2,
+          "library_unit_passed": 599,
+          "targets": 37,
+          "filtered": 0
+        },
+        "Viewer": {
+          "passed": 743,
+          "files": 69,
+          "lint_build": "PASS"
+        },
+        "wrapper_preflights_separate": {
+          "wrapper-contract-native": {
+            "parents": 2,
+            "passed": 2,
+            "skipped": 0,
+            "successful_subtests": 0
+          },
+          "wrapper-contract-no-rust": {
+            "parents": 2,
+            "passed": 2,
+            "skipped": 0,
+            "successful_subtests": 0
+          }
+        }
+      },
+      "coverage": {
+        "metadata125_full_lanes": true,
+        "metadata125_standard_offline": false,
+        "forecast22_full_lanes": false,
+        "K2_dictionary58_full_and_offline": true,
+        "retained_care38_model_fake_and97subtests": true
+      },
+      "build": {
+        "native_crate_tree": "04866c3962ec9d5c77477fc727107a553fc1d6df",
+        "wheel": {
+          "bytes": 3932437,
+          "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+          "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "327528860557a53d429df24335cf717f1d7795c1998b3a3ef1c86d2675994399"
+        },
+        "installed_native": {
+          "bytes": 13737112,
+          "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5",
+          "wheel_member_sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
+        },
+        "source_files": 800,
+        "original_ZIPs": 9,
+        "outer_members": 94,
+        "inner_wheel_members": 6,
+        "compiled_class_exports": [
+          "AgentSimulator",
+          "EcologySimulator",
+          "PoliticsSimulator"
+        ],
+        "actual_per_class_schema_tuples": null,
+        "installed_new_batch_API_or_care_keyword_call": null,
+        "before_after_context": "Source-owned producer assertion, not external process attestation."
+      },
+      "scope_limits": [
+        "Source-scoped standard CI only; ordinary CI can execute normal Worlds, so no zero-World claim is made for CI itself.",
+        "38care policy Python parents use model/fake bridges;19Rust care/batch contracts are source-linked to unfiltered unit execution, not individual-name stdout witnesses.",
+        "No actual per-class checkpoint schema tuples, genuine installed-wheel retained-Kin keyword or new batch API call is recorded.",
+        "No enabled retained-Kin World/checkpoint cohort, decodedK2physical coherence/reuse, default-output/globalRNG/science/efficacy/performance/activation/adoption/currentcandidate/main qualification.",
+        "Saved official API/log metadata only; no fresh network lookup or remote-state assertion by this peer.",
+        "Local review imports no product/native code and executes no tests, readers, Worlds, checkpoints, builds or networking; ZIP/JSON/XML/Git bytes only, no extraction."
+      ]
+    },
+    {
+      "key": "3a",
+      "source": "3a2a671477be849dd1b26c000d501304b8c684e9",
+      "run": 40921328325,
+      "attempt": 1,
+      "event": "workflow_dispatch",
+      "branch": "lead/dev-forecast-credibility-20261029",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40921328325",
+      "verdict": "QUALIFIED_SOURCE_SCOPED_STANDARD_CI",
+      "root": {
+        "path": "/tmp/chronicler-forecast3a-root-final-qualification-20261029/root-final-qualification.json",
+        "bytes": 3202,
+        "sha256": "853857bb7a4f9363de05b694f8bb96ab34744feef70f6a09409fae4872b9913d"
+      },
+      "independent": {
+        "path": "/tmp/chronicler-forecast3a-complete-independent-peer-20261029-3uc253uf/receipt.json",
+        "bytes": 5184,
+        "sha256": "676b5d941e922011b43175b29a272e7079dd16866ffca4cab1e1262934ce43d2"
+      },
+      "primary": {
+        "manifest": {
+          "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/evidence-manifest.json",
+          "bytes": 8748,
+          "sha256": "db044490134e041f32c715021b7af605897dba991588e539be46afcdcdd03c3b"
+        },
+        "main": {
+          "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/reconciled-result.json",
+          "bytes": 56465,
+          "sha256": "6b63362949664740e2c90023f97cb58b7af3fc8ccc595bae04ae4a52a8fb8550"
+        },
+        "supplement": {
+          "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/supplementary-verification.json",
+          "bytes": 40169,
+          "sha256": "d2df8e4b2676a5546e19ee4d219417a4f9a2a4e7dda02f24d61e332034dc780e"
+        },
+        "builder": {
+          "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/builder-byte-verification.json",
+          "bytes": 96967,
+          "sha256": "968da923d22e906f49a4a568460d2c6c8e9b917a4252df20317b3a4b34bbe037"
+        }
+      },
+      "results": {
+        "native": {
+          "parents": 8604,
+          "passed": 8598,
+          "skipped": 6,
+          "successful_subtests": 623,
+          "modules": 303,
+          "parent_phase_reports": 25812,
+          "same_ordered_full_collection_and_exact_once_ownership": true
+        },
+        "no_rust": {
+          "parents": 8590,
+          "passed": 8265,
+          "skipped": 325,
+          "successful_subtests": 623
+        },
+        "offline": {
+          "parent_passed": 4491,
+          "skipped": 65,
+          "successful_subtests": 97,
+          "chunks": 38,
+          "source_pins": 329,
+          "guard_pass_reports_including_subtests": 4588
+        },
+        "Rust": {
+          "passed": 1140,
+          "ignored": 2,
+          "library_unit_passed": 599,
+          "targets": 37,
+          "filtered": 0
+        },
+        "Viewer": {
+          "passed": 743,
+          "files": 69,
+          "lint_build": "PASS"
+        },
+        "wrapper_preflights_separate": {
+          "wrapper-contract-native": {
+            "parents": 2,
+            "passed": 2,
+            "skipped": 0,
+            "successful_subtests": 0
+          },
+          "wrapper-contract-no-rust": {
+            "parents": 2,
+            "passed": 2,
+            "skipped": 0,
+            "successful_subtests": 0
+          }
+        }
+      },
+      "coverage": {
+        "metadata125_full_lanes": true,
+        "metadata125_standard_offline": true,
+        "forecast22_full_lanes": true,
+        "K2_dictionary58_full_and_offline": true,
+        "retained_care38_model_fake_and97subtests": true
+      },
+      "build": {
+        "native_crate_tree": "04866c3962ec9d5c77477fc727107a553fc1d6df",
+        "wheel": {
+          "bytes": 3932436,
+          "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+          "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "55a5ac747716b7554b74cd4e761bce2f8b3cdc691a9303b113d07161895cebeb"
+        },
+        "installed_native": {
+          "bytes": 13737112,
+          "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5",
+          "wheel_member_sha256": "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
+        },
+        "source_files": 800,
+        "original_ZIPs": 9,
+        "outer_members": 96,
+        "inner_wheel_members": 6,
+        "compiled_class_exports": [
+          "AgentSimulator",
+          "EcologySimulator",
+          "PoliticsSimulator"
+        ],
+        "actual_per_class_schema_tuples": null,
+        "installed_new_batch_API_or_care_keyword_call": null,
+        "before_after_context": "Source-owned producer assertion, not external process attestation."
+      },
+      "scope_limits": [
+        "Only source-scoped standard CI. Forecast22 and care38 are model/fake contracts; no genuine enabled forecast or retained-Kin World/checkpoint efficacy is established.",
+        "Nine care plus ten batch Rust tests are linked to the successful unfiltered target; quiet output supplies no individual-name stdout witness. Embedded PyO3 binary tests are not installed-wheel new-method observations.",
+        "All three compiled class exports are source-linked to extension origin, wheel bytes and the wheel initializer reexport; before/after context is the qualified producer assertion, not an external process attestation.",
+        "Actual per-class schema tuples, installed-wheel new batch/care keyword invocation, default/global-RNG trajectory, K2 decoded-state coherence/reuse, performance and adoption/main promotion remain outside qualification.",
+        "Saved official metadata/log provenance is reviewed from retained originals; this peer makes no fresh API or live retention assertion. Job logs are decoded text, not original compressed-log bytes.",
+        "Only saved JSON/XML/ZIP/Git/source bytes inspected; no reviewed reader/product import or execution, tests/collection, native/build, World/profile/checkpoint/Arrow/pickle decoding, extraction, network/acquisition, source/ref/index/object mutation, push or dispatch."
+      ]
+    }
+  ],
+  "care_empty_API": {
+    "doc_source": "de211742ba77857d6c4c8fb68a67cbb636336434",
+    "root": {
+      "path": "/tmp/chronicler-empty-care-api-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 2352,
+      "sha256": "e217a1f0dcf2c871149a759f65a923be84aaa5692cfb7ff41f8ca919d18660ce"
+    },
+    "control_source": "55817a50afa89183d7fac62fa4e3dddb0fba8552",
+    "run": 40917339306,
+    "producer_source": "23d4d24659cfda848d5bda034760ab9d1e8b57fe",
+    "wheel_sha256": "823cf2c55eefd2d7142b3e6985b39b8fc40e06c50a3dedb46d7d75594a20c96c",
+    "native_sha256": "4028687923e9996fe4c52540ca7d2421fa1a175bd7167be19f2b005b12c9f54f",
+    "observed_scope": {
+      "Worlds": 0,
+      "agents": 0,
+      "care_policy_retained_kin_keyword": true,
+      "constructor": "AgentSimulator(num_regions=1,seed=42)",
+      "empty_prepared_marker_retained": true,
+      "finish_zero_cost_region_row": [
+        0,
+        0.0,
+        0.0,
+        0
+      ],
+      "invalid_policy_rejected_while_prepared": true,
+      "legacy_five_positional_call": true,
+      "native_persistent_comparison_rows": [
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "legacy_prepared",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        },
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "invalid_policy_rejected",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        },
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "legacy_finished",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        },
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "retained_prepared",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        },
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "retained_finished",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        },
+        {
+          "bytes": 1959,
+          "equals_baseline": true,
+          "label": "retained_finished_again",
+          "sha256": "614860e40d4c4640ee77810bd4e945e9ae501b2aa9ddd85151a31a972a39ea1e"
+        }
+      ],
+      "native_simulator_instances": 1,
+      "nonempty_care_qualified": false,
+      "physics_ticks": 0,
+      "registered_invalid_policy": "kin",
+      "repeated_finish_empty": true,
+      "restores": 0,
+      "source_package_imports": 0
+    },
+    "schema_summaries": {
+      "AgentSimulator": {
+        "fingerprint": "dcf0c34097c88451",
+        "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+        "version": 1
+      },
+      "EcologySimulator": {
+        "fingerprint": "4ab7f8c199b5e5f8",
+        "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+        "version": 1
+      },
+      "PoliticsSimulator": {
+        "fingerprint": "b1a710f3450f5015",
+        "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+        "version": 1
+      }
+    },
+    "applies_to_current3a_behavior": false,
+    "scope": "Only the qualified23d empty boundary. It is not a3a keyword/schema/nonempty care observation. See imported full source-specific readout and retention limits.",
+    "readout": "retained-kin-care-empty-api-2026-10-29.md"
+  },
+  "features": {
+    "care": {
+      "health_default_enabled": false,
+      "care_policy_default": "spouse",
+      "optional_policy": "retained_kin",
+      "selection": "All legacy spouses first; fill uncared patients through reciprocal stored Kin in stable-ID order. Recorded Kin is not genealogical proof.",
+      "cost": "Care consumes caregiver work and corresponding income once.",
+      "enabled_World_CP_or_efficacy_qualified": false
+    },
+    "native_context_batch": {
+      "method": "AgentSimulator.get_agent_context_batch",
+      "production_Python_caller": false,
+      "native_tests_source_linked": 10,
+      "new_default_or_persisted_native_field": false,
+      "measured_speedup": null,
+      "gate": "Profile the owning caller; only then consider wiring with scalar fallback/order/partial-write compatibility and trajectory/performance qualification."
+    },
+    "K2": {
+      "module": "scripts/wealth_floor_outcome_checkpoints_v2.py",
+      "policy": "METADATA_ELIGIBILITY_ONLY",
+      "source_basis": "503070175e3e78d9014add158ead8f16ce940843",
+      "current_count_meaning": "Total civilization records, including dead records; not living polity count.",
+      "rule": "Strict integers, saved initial exactly registered; initial<=current<=254.",
+      "driver_binder_workflow_wired": false,
+      "decoded_state_coherence_or_reuse_qualified": false,
+      "old_cohort_status": "INCOMPLETE_MECHANICS"
+    },
+    "forecast_credibility": {
+      "control": "preparation_policy=local_credibility",
+      "default": "fixed",
+      "memory_cap_per_observer": 4,
+      "history_scope": "Last four accepted local results across sources and owners; only eligible source/recipient-owner results resolved before issue affect a new report.",
+      "measurement": "Three dated actual production/demand ratios; reserve relief excluded; Phase10 observation after Phase2.",
+      "effect": "A false alarm can discount later paid preparation and can worsen food security; benefit is not assumed.",
+      "new_model_fake_parents": 22,
+      "enabled_World_CP_globalRNG_or_efficacy_qualified": false
+    }
+  },
+  "workflow_options": {
+    "persistent_review_ref": "lead/dev-next-consolidation-20261029",
+    "status": "Proposal for successive frozen sources after each prior outcome is terminal/preserved; no workflow or cache mutation here.",
+    "mechanism": "Existing release-cache restore prefix omits SHA; stable branch scope makes an otherwise matching key/version eligible. Residency/hit/speedup are unpromised.",
+    "observations23d94": {
+      "builder_step_including_install_seconds": [
+        176,
+        161
+      ],
+      "Cargo_printed_release_seconds": [
+        172,
+        159
+      ],
+      "all_uv_Cargo_download_release_restore_keys_missed": true,
+      "source_comparability": "Two uncontrolled different-source observations; no causal speed estimate."
+    },
+    "fresh_native_build_and_receipt_required": true,
+    "old_wheel_relabeling_allowed": false,
+    "owner_changes_recommended_now": false,
+    "latest3a_JUnit_attribution_seconds": {
+      "shard0": "307.227",
+      "shard1": "297.388",
+      "institutions_in_shard1": "11.272",
+      "modeled_after_move_1_to_0": [
+        "318.499",
+        "286.116"
+      ]
+    },
+    "attribution_limit": "Saved testcase sums exclude setup/overlap/order/critical-path costs; no actual rebalance or wall prediction.",
+    "lower_priority_options": "Native-consumer uv restoration (observed install4-6s) and a locked dev-only aggregate environment (observed install5/3s) need separate source/measurement and preserve exact pytest JUnit mapping."
+  },
+  "scale_dimensions": {
+    "A": "Alive agents",
+    "K": "Allocated native arena slots, including dead slots",
+    "P": "Living named characters",
+    "G": "All retained named-character history",
+    "R": "Regions",
+    "C": "Living and total civilization records separately",
+    "H": "Historical turns/snapshots",
+    "additional": "Regional density, contact/trade edges, active episodes/reports/claims and retained bytes.",
+    "claim": "A smaller surviving population can retain a large K/G/C/H. Current capacity and storage/identity limits require prospective workloads, not a larger-world promise."
+  },
+  "profiler_chronology": {
+    "historical_source_snapshot": {
+      "source": "4164fcb837efccc3248660ade3c2dbf18ca0eef6",
+      "status": "Unpushed source at the earlier recorded snapshot; execution approval NULL then.",
+      "execution_approval_at_that_snapshot": null
+    },
+    "actual_launch": {
+      "registration": "aad1f96b686fd2970ea55345f5f2251c49bca57c",
+      "control_source": "3fbaa7bdde7d297bb4a51b4d6c6432ab10fee822",
+      "runtime_source": "0900f3d203cc74102809bb871a1a057ba91a951f",
+      "run": 40927885410,
+      "job": 123638169701,
+      "attempt": 1,
+      "event": "push",
+      "normal_push_at_utc": "2026-10-29T18:07:52Z",
+      "terminal_job_at_utc": "2026-10-29T18:08:38Z",
+      "first_outcome": "FAILURE",
+      "owned_step": "failure",
+      "always_metadata_publisher": "negative failure",
+      "metadata_upload": "success",
+      "failure_stage": null,
+      "actual_Worlds": null,
+      "actual_ticks": null,
+      "terminal_primary_peer_root_interpretation": "Pending; only saved official status is used here.",
+      "retry_source_retune_cap_increase_authorized": false
+    },
+    "actual_profile_or_speed_result": null,
+    "current3a_attribution": null,
+    "provisional_negative_decode": {
+      "source": "Causal findings relayed by root during preparation; primary/peer/root terminal interpretation pending.",
+      "hosted_synthetic_contract_passes_reported": 194,
+      "guard_violations_reported": 0,
+      "schema_admission_summaries_reported": 3,
+      "schema_runtime_source": "0900f3d203cc74102809bb871a1a057ba91a951f",
+      "failed_role": "0 small/plain",
+      "classification": "CORE_REFUSED/STATE_NODE_CAP",
+      "frozen_state_fingerprint_traversal_visit_limit": 5000000,
+      "completed_roles": 0,
+      "completed_comparisons": 0,
+      "remaining5role_records": "Absent",
+      "actual_failed_role_physics_ticks": null,
+      "later_terminal_errors": [
+        "retention Refused",
+        "terminal KeyError"
+      ],
+      "cleanup": {
+        "role_specific_reported": true,
+        "overall_closure_reported": false,
+        "observed_leak": null
+      },
+      "qualification": "Provisional negative only; no profile results. No retry, horizon/cap retune or source change authorized."
+    }
+  },
+  "next_gates": [
+    {
+      "gate": "Strict optional-policy experiment descriptors",
+      "status": "Separate source reviewed with71 saved pure/fake passes and zero guard violations; no fullCI or genuine World/CP/runtime grant. It has not been grafted into this docs-only3a source. Exact review composition and freshCI are separate next steps.",
+      "execution_grant": null,
+      "source": "81a3ce321fd6012b5cf2462f333ddc5c28d7449a"
+    },
+    {
+      "gate": "Care observability before enabled Worlds",
+      "status": "Source plan only. Current context batch omits trip eligibility, prepared assignments and actual care wealth charges. Proposed bounded transient receipts must capture actual preparation/economy/wealth/finish facts and export after physics; fresh source/native/schema/recording-neutrality proof precedes the held natural pilot.",
+      "held_pilot": "6Worlds/192ticks are a held proposal, not completed observations; own-CP continuation is a separate fixed gate.",
+      "execution_grant": null
+    },
+    {
+      "gate": "Forecast saved-state and trajectory",
+      "status": "Source plan only. Proposed seed42/template8regions/4civs/horizon26 spans issue5, delivery6/7, winter9/10/11, resolution12 and later report/action17-19. Keep all production-selected reports and zero-exposure classes.",
+      "acceptance": "Legacy/off output identity; exact same-source CP through pending/delivered/partial-winter/resolved-memory boundaries; audit knowledge/discount separately from actual paid buys and efficacy. Fixed prior2/cap4/thresholds/noise stay unchanged; later74-turn eviction coverage is separately registered.",
+      "execution_grant": null,
+      "study_plan": {
+        "path": "/tmp/chronicler-forecast-genuine-study-design-20261029-pc83t824/plan.md",
+        "bytes": 28800,
+        "sha256": "84835d23e0959cc84b01011be9c14309e017a9653b09e9cabe6aafb2cb6e00e6"
+      },
+      "planned_roles": 14,
+      "planned_physics_turns": 315,
+      "planned_fresh_generations": 7,
+      "planned_restored_roles": 7,
+      "planned_checkpoint_turns": [
+        4,
+        6,
+        8,
+        10,
+        13
+      ],
+      "required_future_source": "Reviewed descriptor successor81a and its new package identity; old3a CI cannot qualify it.",
+      "actual_study_execution": null,
+      "scope": "Developmental causal/continuation proof; full RNG/private graph/raw economy/contact-selection diagnostics are separately reviewed options; no efficacy promise."
+    },
+    {
+      "gate": "Profile-driven optimization",
+      "status": "Diagnose and qualify the preserved first090 control failure before any new source/run decision; keep its fixed workload. Then select one measured seam, gate context wiring on equivalence/fallback/trajectory, and separately register high-water/history workloads.",
+      "execution_grant": null
+    }
+  ],
+  "integration_feasibility": {
+    "source": "3a2a671477be849dd1b26c000d501304b8c684e9",
+    "main_as_of_saved_comparison": "cb9fe70c81658fb65c6f511b821447f1d7b55b54",
+    "merge_base": "cb9fe70c81658fb65c6f511b821447f1d7b55b54",
+    "ahead": 256,
+    "behind": 0,
+    "private_merge_tree_equals3a": true,
+    "conflict_paths": [],
+    "changed_files": 421,
+    "added": 339,
+    "modified": 82,
+    "deleted": 0,
+    "GitHub_compare_rows": 300,
+    "six_dependency_manifests_locks_equal": true,
+    "PR68_head_already_included": {
+      "already_staging_ancestor": true,
+      "head": "62522d4b2a0afe2f0bb9fca00460a9bf74b54c42",
+      "incorporating_merge": "d4491453667fc58203807928cd13d90f226975cd",
+      "meaning": "A main fast-forward to staging includes this still-open PR ancestry; a second code import is not needed. No PR state was changed.",
+      "source_commit_count": 5
+    },
+    "desktop_line": "a2086e27f41a87d39ae1008175f1d17abccb7406",
+    "desktop_available_reviewed": false,
+    "meaning": "Mechanical source3a feasibility only, no main integration or semantic compatibility grant; docs child adds review documents."
+  },
+  "Kimi": {
+    "roadmap": "../superpowers/roadmaps/system-expansion-2026-10.md",
+    "input_sha256": "90c5ea7e1d2d107af3d9d96edf7106305d659635a526d7766b212e5b5b53e5d5",
+    "decision": "Retain existing ownership/work/information dependencies; no wholesale feature promises or scientific-threshold exceptions."
+  },
+  "historical_boundaries": [
+    "First2572 native manifest admission failure stays failed.",
+    "Old wealth cohort remains INCOMPLETE_MECHANICS; K2 does not grant physical validity/reuse.",
+    "Prior raw practice replay and default-export identity retain their own sources.",
+    "Prior rejected optimization experiments and exact-marriage rejection remain rejected; no retune or borrowed pass."
+  ],
+  "sources": {
+    "root94": {
+      "path": "/tmp/chronicler-next94-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 2930,
+      "sha256": "abf502d7cadbad6cc26b6cae576bf36aab1989c49283a6ec1df6a600be481969"
+    },
+    "root3a": {
+      "path": "/tmp/chronicler-forecast3a-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 3202,
+      "sha256": "853857bb7a4f9363de05b694f8bb96ab34744feef70f6a09409fae4872b9913d"
+    },
+    "empty_care_root": {
+      "path": "/tmp/chronicler-empty-care-api-root-final-qualification-20261029/root-final-qualification.json",
+      "bytes": 2352,
+      "sha256": "e217a1f0dcf2c871149a759f65a923be84aaa5692cfb7ff41f8ca919d18660ce"
+    },
+    "peer94": {
+      "path": "/tmp/chronicler-next94-complete-independent-peer-_htfddz8/receipt.json",
+      "bytes": 5730,
+      "sha256": "c186377c3d2ac4ce6dba987d4843208b8bdb4079a70e5a534fb8f969e6a22036"
+    },
+    "peer3a": {
+      "path": "/tmp/chronicler-forecast3a-complete-independent-peer-20261029-3uc253uf/receipt.json",
+      "bytes": 5184,
+      "sha256": "676b5d941e922011b43175b29a272e7079dd16866ffca4cab1e1262934ce43d2"
+    },
+    "manifest94": {
+      "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/evidence-manifest.json",
+      "bytes": 9235,
+      "sha256": "1fa1b35b0a0004fad9c6a672062bbd91bf29dac9ef9103515520920468efda84"
+    },
+    "main94": {
+      "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/reconciled-result.json",
+      "bytes": 62656,
+      "sha256": "9320fbfb90f1afa18dd29c2a65727631da26f03a39ada5580c9120180ca7d630"
+    },
+    "supplement94": {
+      "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/supplementary-verification.json",
+      "bytes": 36038,
+      "sha256": "a588815a3150af3096856b935bed9b70e183c85e63b37ebd57477d976ccd4f4e"
+    },
+    "builder94": {
+      "path": "/tmp/chronicler-review-evidence/next-consolidation-94b3-CI-20261029/builder-byte-verification.json",
+      "bytes": 96967,
+      "sha256": "e86ed4732df83e08313d3cf08124423437be1c5b3291df425f485be06bcd1e92"
+    },
+    "manifest3a": {
+      "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/evidence-manifest.json",
+      "bytes": 8748,
+      "sha256": "db044490134e041f32c715021b7af605897dba991588e539be46afcdcdd03c3b"
+    },
+    "main3a": {
+      "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/reconciled-result.json",
+      "bytes": 56465,
+      "sha256": "6b63362949664740e2c90023f97cb58b7af3fc8ccc595bae04ae4a52a8fb8550"
+    },
+    "supplement3a": {
+      "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/supplementary-verification.json",
+      "bytes": 40169,
+      "sha256": "d2df8e4b2676a5546e19ee4d219417a4f9a2a4e7dda02f24d61e332034dc780e"
+    },
+    "builder3a": {
+      "path": "/tmp/chronicler-review-evidence/forecast-credibility-3a2a-CI-20261029/builder-byte-verification.json",
+      "bytes": 96967,
+      "sha256": "968da923d22e906f49a4a568460d2c6c8e9b917a4252df20317b3a4b34bbe037"
+    },
+    "wall_clock_recommendation": {
+      "path": "/tmp/chronicler-wall-clock-cache-review-20261029/RECOMMENDATION.md",
+      "bytes": 9172,
+      "sha256": "d3061d842717ef0c799a21ac5fa33241b241c7cf5b7d4c8ce4cd0286a13938eb"
+    },
+    "wall_clock_analysis": {
+      "path": "/tmp/chronicler-wall-clock-cache-review-20261029/analysis.json",
+      "bytes": 128957,
+      "sha256": "6edeb32b3d0d1281dfc6784bf24452fcbb56c0f55102891ae0f601e411b70d32"
+    },
+    "scale_plan": {
+      "path": "/tmp/chronicler-scalability-roadmap-3a-20261029/ROADMAP.md",
+      "bytes": 13608,
+      "sha256": "1201f9972c507f00e02cabb2d8222f7c74c29d43c3bbb177452b7f83da84b8f8"
+    },
+    "latest_balance_supplement": {
+      "path": "/tmp/chronicler-scalability-roadmap-3a-20261029/WALL_CLOCK_SUPPLEMENT.md",
+      "bytes": 2889,
+      "sha256": "f208fe0cceed05a26726bb932df99fa63f77a37f0d9f0bc57a1aca4ca689bd6f"
+    },
+    "scale_plan_receipt": {
+      "path": "/tmp/chronicler-scalability-roadmap-3a-20261029/receipt.json",
+      "bytes": 14201,
+      "sha256": "298933a91470a9a7d0b165304585179226d1221dd55a05195a11331b842da8bc"
+    },
+    "main_staging_feasibility": {
+      "path": "/tmp/wf-main-staging-feasibility-getg193c/RESULT.json",
+      "bytes": 9773,
+      "sha256": "bd213bd4315967897dda0907a9b488777fdc883c0ee7070830091dbfff2d3b7c"
+    },
+    "feasibility_index": {
+      "path": "/tmp/wf-main-staging-feasibility-getg193c/INDEX.json",
+      "bytes": 1811,
+      "sha256": "f1e568d07304dd854f4ae78b36ccde5f96f8256f949095412940178a8c85e9af"
+    },
+    "profiler_first_official_run": {
+      "path": "/tmp/chronicler-passive090-root-activation-20261029/official-first-run.json",
+      "bytes": 27213,
+      "sha256": "86e424a63f5ca62be1e15e6e035e00ff6acfda33c5b039ad7468ae222c7cbfbf"
+    },
+    "profiler_terminal_official_jobs": {
+      "path": "/tmp/chronicler-passive090-root-activation-20261029/official-terminal-jobs.json",
+      "bytes": 8435,
+      "sha256": "5a5970fa4ad08901944ebb74f4221614ef762b3607d065c891e0db3b3e285ac1"
+    },
+    "profiler_actual_operation": {
+      "path": "/tmp/chronicler-passive090-root-activation-20261029/root-actual-operation-approval.json",
+      "bytes": 2042,
+      "sha256": "ae426524761cc88c54e6c9fd82d7b3b485615a9d963c5d94f08edfab059e669d"
+    },
+    "runner_descriptor_root": {
+      "path": "/tmp/chronicler-expansion-policy-81a-root-qualification-20261029/root-source-qualification.json",
+      "bytes": 1781,
+      "sha256": "3c0a9138ea40a7cd05bbd56da3b8d20ab9b853e72d2099ea07b3b06813831fe3"
+    },
+    "runner_descriptor_peer": {
+      "path": "/tmp/chronicler-expansion-policy-81a-independent-peer-20261029-6_n08jlt/receipt.json",
+      "bytes": 5894,
+      "sha256": "ebf8b01c44a55aca849c0711035880413a863a4f4cc56f8f4574ad5a01389c68"
+    },
+    "forecast_study_plan": {
+      "path": "/tmp/chronicler-forecast-genuine-study-design-20261029-pc83t824/plan.md",
+      "bytes": 28800,
+      "sha256": "84835d23e0959cc84b01011be9c14309e017a9653b09e9cabe6aafb2cb6e00e6"
+    }
+  },
+  "review_actions": {
+    "product_native_import_tests_collection_build_World_CP_decode_network": 0,
+    "source_workflow_test_changes": 0,
+    "push_PR_main_mutation": 0,
+    "new_files_and_Git_metadata": "Private/tmp only"
+  },
+  "recorded_at_utc": "2026-10-29T18:18:32.589728+00:00"
+}

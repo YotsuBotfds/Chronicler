@@ -1,5 +1,41 @@
 # Recovered continuation — 2026-10-11
 
+Current code `3a2a6714` now has independently/root-qualified all-nine-job
+standard CI, alongside its `94b308e6` parent. The readable
+[current development cross-examination](integration/current-development-cross-examination-2026-10-29.md)
+and its pinned JSON collect behavior, source-specific results, remaining gates,
+wall-clock options and the main/staging boundary. Native passes 8,598 parents
+with six skips and 623 subtests; no-Rust passes 8,265/325/623; offline passes
+4,491 parents/65 skips/97 subtests across 38 unchanged 110-second chunks. The
+125-case metadata module now has its dedicated standard offline chunk. All
+303 native owners remain fixed. Rust passes 1,140/two ignored, Viewer 743 with
+lint/build, and the two + two wrapper preflights remain separate.
+
+Optional care and local forecast credibility retain their feature/default and
+World/checkpoint/science limits. The later empty API proof is source 23d only;
+its three schema summaries do not become 3a observations. The unused context
+batch API and unwired K2 remain bounded source additions. A strict optional-
+policy runner descriptor fix and enabled-system observability/continuation
+qualification are next, rather than automatic feature activation.
+
+The separate 090 profiler was first source-only at 4164. Its later separately
+approved control 3fbaa first push / run 40927885410 failed; official job completion
+is 18:08:38 UTC. The owned step and negative publisher failed, metadata uploaded,
+and terminal interpretation remains pending. A provisional negative decode
+reports hosted 194-contract/schema admission success, then role 0 small/plain
+refusing the strict 5,000,000 checkpoint-state traversal-visit cap. No role or
+comparison completed; failed-role physics ticks remain unknown. Later retention/
+terminal closure needs diagnosis; incomplete overall closure does not establish
+a leak. No profile/speed result, retry or horizon/cap retune is supplied. The
+packet keeps that chronology separate from qualified 3a CI. Descriptor successor
+`81a3ce32` is source/fake-clear only and is not grafted into this docs-only child.
+
+This is documentation-only preparation for the persistent review ref
+`lead/dev-next-consolidation-20261029`; main is untouched. All non-document
+entries remain exact 3a. Earlier source-assembly paragraphs below retain their
+original historical/pending wording; the qualified current standing is linked
+above, and their forecast/source text remains preserved.
+
 A source-only offline registration child adds a dedicated
 `native-ci-metadata-contracts` chunk containing the whole already-owned
 `tests/test_native_ci_shards.py`. This is the 38th chunk; all prior 37 chunks
@@ -61,7 +97,12 @@ allocations, without genealogy inference or native persistent fields. All 38
 new Python policy parents use models/fake bridges, including in the native lane;
 nine new Rust contracts are source-included in its successful unfiltered target.
 Actual per-class checkpoint-schema tuples and genuine Python execution of the
-new keyword remain unobserved. Enabled retained-Kin World/checkpoint, fresh
+new keyword remained unobserved in that CI. A separate later
+[empty API proof](integration/retained-kin-care-empty-api-2026-10-29.md), control
+`55817a50`/run40917339306, is independently/root-qualified using the exact23d
+wheel:three measured schema summaries, both call signatures, invalid-policy empty
+marker retention and six equal native-byte rows. It constructed one empty
+AgentSimulator, zero agents/Worlds/ticks/restores. Enabled retained-Kin World/checkpoint, fresh
 default-output/global-RNG, science and performance gates remain separate; no
 activation, adoption or current-candidate/main promotion is supplied by CI.
 Enabled Python pickle metadata may include the new declared default: old missing-

@@ -1,5 +1,14 @@
 # Systems expansion after the October integration
 
+**Dated review update — 2026-10-29:** exact code `3a2a6714` has qualified
+all-nine-job standard CI, including the new offline metadata chunk. See the
+[current development packet](../../integration/current-development-cross-examination-2026-10-29.md)
+for bounded care/forecast behavior, source 23d empty API limits, the failed first
+separate 090 profiler control, cache/ownership evidence and next gates. Enabled
+World/checkpoint/trajectory and efficacy qualifications remain open. The Kimi
+candidates and dependencies below are retained; this update promises no new
+system, larger supported world or speedup. The earlier dated standing follows.
+
 **Status:** experimental implementation in progress, 2026-10-28. The standing
 below separates implemented slices from proposals and qualification debt.
 Experiments remain default off; no default promotion follows from this roadmap.
