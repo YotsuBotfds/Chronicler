@@ -22,6 +22,14 @@ parent `95f73a74`; all 82 affected guarded cases pass after the two-line fix.
 Native code and active tick/capture paths are unchanged. This child has no
 new native execution or full-CI claim.
 
+A separate [validation reader candidate](performance/validation-shared-event-table-2026-10-29.md)
+derives event and death views from one seed-local Arrow table while preserving
+both standalone loader APIs, ordered values/errors and validation admission.
+All 161 affected guarded cases pass with zero skips/native/factory/blocked I/O;
+the exact old reader fails nine new read-count assertions after matching their
+golden outputs. No World or benchmark ran. Whole saved-report equality, remote
+CI and measured wall/CPU/RSS benefit remain pending; no Rust source changes.
+
 A separate [Python decision-delivery adapter](integration/decision-delivery-python-adapter-2026-10-29.md)
 starts from combined native integration `e40108ed`. Explicit attachment captures
 the existing bounded frames only after normal bridge processing, with same-turn

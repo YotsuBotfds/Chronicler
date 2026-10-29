@@ -51,6 +51,7 @@ CHUNKS = {
         "tests/test_politics_bridge.py::TestOraclePreservation",
         "tests/test_agents_off_determinism.py",
         "tests/test_validate.py",
+        "tests/test_validation_shared_event_table.py",
         "tests/test_procedural_gates.py",
         "tests/test_validation_split_imports.py",
         "tests/test_utils_civ_helpers.py",
