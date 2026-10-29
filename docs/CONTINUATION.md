@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+A separate [CBF-to-090 original-byte reader source](integration/cbf-090-default-artifact-reader-2026-10-29.md)
+registers completedc772/run40875019978/artifact12896929475 without rerunning
+its18 Worlds. Seven original utility/kernel sources remain byte-exact; new
+schema/probe/input/cleanup validators and casewise comparator orchestration
+remain source-only. The70MB original archive stays remote. Independent source
+review and a separate audit activation grant are required; producer success
+alone is not an independent byte result or performance/science promotion.
+
 The first CBF-to-090 activation6cf/run40873351990 failed only during Set up job:
 a one-character upload-action pin typo prevented every checkout/controller/probe/
 World step. The negative publication and old active/template/ref remain intact.
