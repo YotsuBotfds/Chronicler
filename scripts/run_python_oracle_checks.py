@@ -37,6 +37,7 @@ CHUNKS = {
         "tests/test_factions.py::test_faction_history_queries_preserve_counts_and_resync",
         "tests/test_factions.py::test_faction_history_ties_preserve_contender_order",
         "tests/test_m53b_run_validation.py::test_main_rejects_unreadable_baseline_before_simulation",
+        "tests/test_m36_regression.py::TestCultureObservationIsolation",
     ],
     "core": [
         "tests/test_adjacency.py",
