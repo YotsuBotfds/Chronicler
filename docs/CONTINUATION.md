@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+An isolated [native diagnostics/index integration candidate](integration/native-diagnostics-index-integration-2026-10-29.md)
+starts from qualified Stage 2 `feb98c0d`, preserving its ref and Stage 1 `e99`.
+It cherry-picks only reviewed index commits `c60fde97`/`e2b7c940`, retaining
+observer phases, dense-only identity reuse and original sparse-map lifetimes.
+One real Rust parent/child determinism regression replaces no old result: the
+historical Python test remains skipped because it imports unavailable internals,
+despite the compiled module being present. No public API was added for it.
+The combined source and new regression remain unbuilt/unrun locally; Python
+adapter work, final source review and one fresh combined CI are still ahead.
+No source composition, benchmark or outcome qualification is inherited.
+
 October 29 source-only native index-reuse draft: the isolated
 `lead/native-tick-index-reuse-20261029` branch shares the post-migration
 region partition between memory-intent collection and demographics. The

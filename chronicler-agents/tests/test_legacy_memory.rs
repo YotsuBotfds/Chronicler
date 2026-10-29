@@ -344,6 +344,57 @@ fn test_legacy_satisfaction_preservation() {
 
 // ── M51 Task 13: Multi-generational integration tests ─────────────────────────
 
+/// The historical Python test imports Rust-only pool/intent symbols and skips
+/// even with a genuine compiled module. Exercise that same sequence in its
+/// real Rust API, with nonempty expected results and complete memory state.
+#[test]
+fn test_independent_parent_child_legacy_sequences_are_identical() {
+    fn run_sequence() -> (AgentPool, Vec<(u8, u8, i8)>, Vec<(u8, u8, i8)>) {
+        let mut pool = AgentPool::new(32);
+        let legacy_factor = factor_from_half_life(LEGACY_HALF_LIFE);
+        let parent = spawn_test_agent(&mut pool);
+        let parent_id = pool.ids[parent];
+        write_single_memory(&mut pool, &MemoryIntent {
+            agent_slot: parent, expected_agent_id: parent_id,
+            event_type: 3, source_civ: 1, intensity: -90,
+            is_legacy: false, decay_factor_override: None,
+        }, 10);
+        let child = spawn_test_agent(&mut pool);
+        let child_id = pool.ids[child];
+        let parent_legacies = extract_legacy_memories(&pool, parent);
+        assert_eq!(parent_legacies, vec![(3, 1, -45)]);
+        for &(event_type, source_civ, intensity) in &parent_legacies {
+            write_single_memory(&mut pool, &MemoryIntent {
+                agent_slot: child, expected_agent_id: child_id,
+                event_type, source_civ, intensity, is_legacy: true,
+                decay_factor_override: Some(legacy_factor),
+            }, 50);
+        }
+        let child_legacies = extract_legacy_memories(&pool, child);
+        assert_eq!(child_legacies, vec![(3, 1, -22)]);
+        assert_eq!((pool.memory_count[parent], pool.memory_count[child]), (1, 1));
+        assert_eq!((pool.memory_intensities[parent][0], pool.memory_intensities[child][0]), (-90, -45));
+        assert_eq!((pool.memory_turns[parent][0], pool.memory_turns[child][0]), (10, 50));
+        assert_eq!(pool.memory_decay_factors[child][0], legacy_factor);
+        assert_eq!(pool.memory_is_legacy[parent] & 1, 0);
+        assert_eq!(pool.memory_is_legacy[child] & 1, 1);
+        (pool, parent_legacies, child_legacies)
+    }
+    let (first, first_parent, first_child) = run_sequence();
+    let (second, second_parent, second_child) = run_sequence();
+    assert_eq!(first_parent, second_parent);
+    assert_eq!(first_child, second_child);
+    assert_eq!(first.ids, second.ids);
+    assert_eq!(first.memory_event_types, second.memory_event_types);
+    assert_eq!(first.memory_source_civs, second.memory_source_civs);
+    assert_eq!(first.memory_turns, second.memory_turns);
+    assert_eq!(first.memory_intensities, second.memory_intensities);
+    assert_eq!(first.memory_decay_factors, second.memory_decay_factors);
+    assert_eq!(first.memory_gates, second.memory_gates);
+    assert_eq!(first.memory_count, second.memory_count);
+    assert_eq!(first.memory_is_legacy, second.memory_is_legacy);
+}
+
 #[test]
 fn test_multi_generational_legacy_decay() {
     let mut pool = AgentPool::new(32);
