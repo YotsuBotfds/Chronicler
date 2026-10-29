@@ -1,8 +1,12 @@
-name: Inactive natural research continuation
+name: Registered natural research continuation
 
-# Source-only preparation. Activation requires a separate reviewed commit.
+# One prospective attempt from the reviewed activation branch.
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - lead/cloud-natural-research-20261029
+    paths:
+      - .github/workflows/research-natural-continuation.yml
 
 permissions:
   contents: read
@@ -30,8 +34,8 @@ env:
 
 jobs:
   registered-continuation:
-    if: ${{ github.event_name == 'workflow_dispatch' && false }}
-    name: Inactive fixed eight-seed research contrast
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-research-20261029' }}
+    name: Fixed eight-seed research contrast
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
