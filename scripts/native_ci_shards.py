@@ -23,6 +23,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'scripts/testing/native_shards_manifest.json'
 PRIVATE_ENV = ('TMPDIR', 'PD_EVIDENCE_DIR', 'R007_EVIDENCE_DIR', 'Q009_EVIDENCE_DIR')
 MAX_JSON = 16 * 1024**2
+CONTEXT_MSG_CHARS = 256
+CONTEXT_KWARGS_CHARS = 1024
+CONTEXT_JSON_BYTES = 16 * 1024
+CONTEXT_FORMAT = "pytest-saferepr-display-v1"
 
 
 class Refused(ValueError):
@@ -96,6 +100,30 @@ def selected_nodes(full, owners, shard):
     return [node for node in full if owners[node.split('::', 1)[0]] == shard]
 
 
+def validate_context_display(value):
+    require(type(value) is dict and set(value) == {'representation', 'msg', 'kwargs'}, 'invalid diagnostic context display')
+    require(value['representation'] == CONTEXT_FORMAT, 'unknown diagnostic context representation')
+    require(type(value['msg']) is str and len(value['msg']) <= CONTEXT_MSG_CHARS, 'diagnostic message display exceeds bound')
+    require(type(value['kwargs']) is str and len(value['kwargs']) <= CONTEXT_KWARGS_CHARS, 'diagnostic kwargs display exceeds bound')
+    require(len(canonical(value)) <= CONTEXT_JSON_BYTES, 'diagnostic context JSON exceeds bound')
+    return value
+
+
+def context_display(context):
+    """Bounded display labels only; never lossless inputs or authority values.
+
+    Pytest 9.0.2 retains raw objects in SubtestContext. Its _to_json invokes
+    dataclasses.asdict/deepcopy and is not a JSON-safety contract. Capture each
+    label now with pytest's own safe display formatter; repeated reports remain
+    separate even when their labels display identically or are truncated.
+    """
+    from _pytest._io.saferepr import saferepr
+    value = {'representation': CONTEXT_FORMAT,
+             'msg': saferepr(context.msg, maxsize=CONTEXT_MSG_CHARS),
+             'kwargs': saferepr(context.kwargs, maxsize=CONTEXT_KWARGS_CHARS)}
+    return validate_context_display(value)
+
+
 def validate_execution(selected, parents, subtests):
     require(type(parents) is list and type(subtests) is list, 'missing execution reports')
     phases = {node: {} for node in selected}
@@ -120,6 +148,7 @@ def validate_execution(selected, parents, subtests):
     # validate ownership by the real parent, never by a unique label heuristic.
     for ordinal, report in enumerate(subtests):
         require(report['ordinal'] == ordinal and report['nodeid'] in phases, 'unowned or reordered subtest')
+        validate_context_display(report['context'])
         require(report['when'] == 'call' and report['outcome'] == 'passed', 'unsuccessful subtest')
         require(phases[report['nodeid']].get('call') == 'passed', 'subtest has no successful parent')
     return {'passed': result['passed'], 'skipped': result['skipped'], 'successful_subtests': len(subtests)}
@@ -150,7 +179,7 @@ class ShardPlugin:
     def pytest_runtest_logreport(self, report):
         value = {'nodeid': report.nodeid, 'when': report.when, 'outcome': report.outcome}
         if hasattr(report, 'context'):
-            value.update(ordinal=len(self.subtests), context=report.context._to_json())
+            value.update(ordinal=len(self.subtests), context=context_display(report.context))
             self.subtests.append(value)
         else:
             self.parents.append(value)

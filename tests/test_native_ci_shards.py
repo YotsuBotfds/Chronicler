@@ -49,7 +49,7 @@ def build_record(manifest):
 def subtests(node, n=2):
     # Identical labels are legitimate, and must retain multiplicity/order.
     return [{'nodeid': node, 'when': 'call', 'outcome': 'passed', 'ordinal': i,
-             'context': {'msg': 'same', 'kwargs': {'x': '1'}}} for i in range(n)]
+             'context': {'representation': S.CONTEXT_FORMAT, 'msg': "'same'", 'kwargs': "{'x': 1}"}} for i in range(n)]
 
 
 def test_manifest_assigns_all_modules_once_and_preserves_collection_order(manifest, full):
@@ -118,7 +118,7 @@ def test_plugin_keeps_modules_order_and_notifies_deselection(manifest, full):
     assert [i.nodeid for i in items] == full[:2]
     assert [i.nodeid for i in dropped] == full[2:]
     p.pytest_runtest_logreport(SimpleNamespace(**parents(full[:1])[0]))
-    context = SimpleNamespace(_to_json=lambda: {'msg': 'same', 'kwargs': {}})
+    context = SimpleNamespace(msg='same', kwargs={}, _to_json=lambda: (_ for _ in ()).throw(AssertionError('raw context serialization forbidden')))
     for unused in range(2):
         p.pytest_runtest_logreport(SimpleNamespace(nodeid=full[0], when='call', outcome='passed', context=context))
     assert len(p.parents) == 1 and [r['ordinal'] for r in p.subtests] == [0, 1]
@@ -305,3 +305,129 @@ def test_private_evidence_paths_are_distinct_and_owned(tmp_path, monkeypatch, ch
         assert all(Path(S.os.environ[name]).is_dir() for name in S.PRIVATE_ENV)
     else:
         with pytest.raises(S.Refused): S.private_paths(output)
+
+
+class ContextPolicy:
+    def __init__(self, scale):
+        self.scale = scale
+
+    def __repr__(self):
+        return f'ContextPolicy(scale={self.scale!r})'
+
+    def __deepcopy__(self, memo):
+        raise AssertionError('diagnostic display must not deepcopy labels')
+
+
+class ContextReprError:
+    def __repr__(self):
+        raise RuntimeError('fixture repr failure')
+
+
+@pytest.mark.parametrize('kind', ['inf', 'negative_inf', 'nan', 'bytes', 'policy', 'repr_error', 'cycle', 'unicode', 'long'])
+def test_raw_pytest_9_0_context_values_become_bounded_display_only(kind):
+    import math
+    cycle = []; cycle.append(cycle)
+    values = {'inf': math.inf, 'negative_inf': -math.inf, 'nan': math.nan,
+              'bytes': b'\x00raw\xff', 'policy': ContextPolicy(math.inf),
+              'repr_error': ContextReprError(), 'cycle': cycle, 'unicode': '\U0001f30d'*4000, 'long': 'x'*8000}
+    raw = values[kind]
+    context = SimpleNamespace(msg=raw, kwargs={'value': raw},
+        _to_json=lambda: (_ for _ in ()).throw(AssertionError('9.0 asdict path forbidden')))
+    display = S.context_display(context)
+    assert display['representation'] == S.CONTEXT_FORMAT
+    assert type(display['msg']) is type(display['kwargs']) is str
+    assert len(display['msg']) <= S.CONTEXT_MSG_CHARS and len(display['kwargs']) <= S.CONTEXT_KWARGS_CHARS
+    assert len(S.canonical(display)) <= S.CONTEXT_JSON_BYTES
+    assert json.loads(S.canonical(display)) == display
+    if kind == 'repr_error': assert 'raised in repr()' in display['kwargs']
+    if kind in ('inf', 'negative_inf', 'nan'): assert repr(raw) in display['kwargs']
+    if kind == 'bytes': assert 'raw' in display['kwargs']
+    if kind in ('long', 'unicode'): assert '...' in display['kwargs']
+
+
+def test_context_capture_freezes_mutable_labels_and_preserves_repeated_reports(manifest, full):
+    owners = S.validate_assignment(manifest, ['tests/test_a.py', 'tests/test_b.py'])
+    plugin = S.ShardPlugin(owners, '0')
+    labels = {'values': [1]}
+    context = SimpleNamespace(msg='same', kwargs=labels)
+    report = SimpleNamespace(nodeid=full[0], when='call', outcome='passed', context=context)
+    plugin.pytest_runtest_logreport(report)
+    first = deepcopy(plugin.subtests[0]['context'])
+    labels['values'].append(2)
+    plugin.pytest_runtest_logreport(report)
+    plugin.pytest_runtest_logreport(report)
+    assert plugin.subtests[0]['context'] == first
+    assert plugin.subtests[1]['context'] == plugin.subtests[2]['context'] != first
+    assert [r['ordinal'] for r in plugin.subtests] == [0, 1, 2]
+    assert all(r['nodeid'] == full[0] and r['outcome'] == 'passed' for r in plugin.subtests)
+
+
+@pytest.mark.parametrize('change', ['format', 'missing', 'extra', 'msg_type', 'kwargs_type', 'msg_bound', 'kwargs_bound'])
+def test_context_display_contract_cannot_carry_raw_authority_values(change):
+    context = {'representation': S.CONTEXT_FORMAT, 'msg': 'None', 'kwargs': '{}'}
+    if change == 'format': context['representation'] = 'lossless-input'
+    elif change == 'missing': context.pop('msg')
+    elif change == 'extra': context['raw'] = b'raw'
+    elif change == 'msg_type': context['msg'] = float('inf')
+    elif change == 'kwargs_type': context['kwargs'] = {'value': 1}
+    elif change == 'msg_bound': context['msg'] = 'x'*(S.CONTEXT_MSG_CHARS+1)
+    else: context['kwargs'] = 'x'*(S.CONTEXT_KWARGS_CHARS+1)
+    with pytest.raises(S.Refused): S.validate_context_display(context)
+
+
+@pytest.mark.parametrize('value', [float('inf'), -float('inf'), float('nan')])
+def test_authority_json_nonfinite_refusal_is_not_relaxed(value):
+    with pytest.raises(ValueError): S.canonical({'identity': {'value': value}})
+    assert 'value' in S.context_display(SimpleNamespace(msg=None, kwargs={'value': value}))['kwargs']
+
+
+def test_actual_installed_pytest_context_uses_display_without_to_json(monkeypatch, tmp_path):
+    from dataclasses import dataclass
+    import hashlib
+    from importlib import metadata
+    import os
+    import _pytest.subtests as native_pytest_context
+    import _pytest._io.saferepr as native_pytest_display
+
+    @dataclass
+    class RawPolicy:
+        scale: float
+        payload: object
+        def __deepcopy__(self, memo):
+            raise AssertionError('raw label must not be deepcopied')
+
+    cycle = []; cycle.append(cycle)
+    policy = RawPolicy(float('inf'), b'raw-context')
+    context = native_pytest_context.SubtestContext(msg=float('inf'), kwargs={
+        'bytes': b'raw-context', 'policy': policy, 'nan': float('nan'), 'cycle': cycle, 'repr_error': ContextReprError()})
+    monkeypatch.setattr(native_pytest_context.SubtestContext, '_to_json',
+                        lambda self: (_ for _ in ()).throw(AssertionError('raw asdict path forbidden')))
+    display = S.context_display(context)
+    assert json.loads(S.canonical(display)) == display and 'raw-context' in display['kwargs']
+    assert type(display['msg']) is type(display['kwargs']) is str
+    # Real parent/ordinal/status metadata still passes strict JSON and ownership.
+    node = 'tests/test_a.py::test_x'
+    plugin = S.ShardPlugin({'tests/test_a.py': '0'}, '0')
+    plugin.pytest_runtest_logreport(SimpleNamespace(nodeid=node, when='call', outcome='passed', context=context))
+    assert S.validate_execution([node], parents([node]), plugin.subtests) == {'passed': 1, 'skipped': 0, 'successful_subtests': 1}
+    assert json.loads(S.canonical(plugin.subtests))[0]['ordinal'] == 0
+    destination = os.environ.get('SHARD_CONTEXT_METADATA_REPORT')
+    if destination:
+        result = {'pytest_version': metadata.version('pytest'), 'representation': display,
+                  'subtests_source_sha256': hashlib.sha256(Path(native_pytest_context.__file__).read_bytes()).hexdigest(),
+                  'saferepr_source_sha256': hashlib.sha256(Path(native_pytest_display.__file__).read_bytes()).hexdigest(),
+                  'scope': 'Actual installed context class, scalar/report surrogates only; no suite collection/World/native runtime'}
+        Path(destination).write_text(json.dumps(result, indent=2)+'\n')
+
+
+def test_v2_template_changes_only_closed_registration_and_preserves_failed_v1():
+    import hashlib
+    root = SCRIPT.parents[1]
+    old = (root/'docs/workflows/native-two-shards.yml.in').read_bytes()
+    active_old = (root/'.github/workflows/native-two-shards.yml').read_bytes()
+    assert old == active_old and hashlib.sha256(old).hexdigest() == '3941604d9bc3f357360f77beb3b93efca4d90faebca8a3469dbcde1b6263dfce'
+    expected = old.replace(b'lead/native-two-shard-qualification-20261029', b'lead/native-two-shard-qualification-v2-20261029').replace(b'.github/workflows/native-two-shards.yml', b'.github/workflows/native-two-shards-v2.yml').replace(b'name: Dormant native module shard qualification', b'name: Dormant native module shard qualification V2')
+    prepared = (root/'docs/workflows/native-two-shards-v2.yml.in').read_bytes()
+    assert prepared == expected
+    installed = root/'.github/workflows/native-two-shards-v2.yml'
+    if installed.exists(): assert installed.read_bytes() == prepared

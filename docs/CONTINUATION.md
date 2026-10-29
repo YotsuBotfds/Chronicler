@@ -1,5 +1,14 @@
 # Recovered continuation — 2026-10-11
 
+The [inactive native shard context V2 correction](workflows/native-two-shards-context-v2-2026-10-29.md)
+preserves failed first prototype `847f164c` / run `40858749837`. Both shard test
+selections passed their cases, but raw diagnostic bytes/inf prevented receipt
+publication; the aggregate correctly failed. Only bounded display labels change
+in V2; authority JSON, ownership, skips, resources and all gates stay strict.
+97 pure cases and one actual pytest 9.0.2 metadata case passed under the unchanged
+offline guard. No new native/full-suite/World/hosted run or push is authorized by
+those local results; the old branch and workflow remain unchanged.
+
 A separate [dormant native two-shard prototype](workflows/native-two-shards-2026-10-29.md)
 starts from qualified `cbf6e368`. It preserves whole-module order, exact-once
 parent/subtest ownership and one current-source verified wheel, with private
