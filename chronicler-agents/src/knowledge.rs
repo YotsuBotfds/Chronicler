@@ -1137,24 +1137,36 @@ pub(crate) fn knowledge_phase_with_lookup(
     turn: u32,
     slot_lookup: Option<&crate::pool::IdSlots>,
 ) -> KnowledgeStats {
-    let mut stats = KnowledgeStats::default();
-    let current_turn = turn as u16;
-
     // Collect alive slots
     let alive_slots: Vec<usize> = (0..pool.capacity())
         .filter(|&s| pool.is_alive(s))
         .collect();
+    knowledge_phase_for_slots(pool, regions, master_seed, turn, slot_lookup, &alive_slots)
+}
 
+/// Tick-only reuse of the all-live ascending set. No births, deaths, ID changes
+/// or slot reuse may intervene since collection. Packet, location and
+/// relationship values are read here at their original phases.
+pub(crate) fn knowledge_phase_for_slots(
+    pool: &mut AgentPool,
+    regions: &[RegionState],
+    master_seed: &[u8; 32],
+    turn: u32,
+    slot_lookup: Option<&crate::pool::IdSlots>,
+    alive_slots: &[usize],
+) -> KnowledgeStats {
+    let mut stats = KnowledgeStats::default();
+    let current_turn = turn as u16;
     if alive_slots.is_empty() {
         return stats;
     }
 
     // Step 1: Decay + expire
-    stats.packets_expired = decay_packets(pool, &alive_slots);
+    stats.packets_expired = decay_packets(pool, alive_slots);
 
     // Step 2: Direct observation
     let (created, refreshed_obs, evicted_obs, dropped_obs, ct, ctr, cr) =
-        observe_packets(pool, regions, &alive_slots, current_turn);
+        observe_packets(pool, regions, alive_slots, current_turn);
     stats.packets_created = created;
     stats.packets_refreshed = refreshed_obs;
     stats.packets_evicted = evicted_obs;
@@ -1163,7 +1175,7 @@ pub(crate) fn knowledge_phase_with_lookup(
     stats.created_trade = ctr;
     stats.created_religious = cr;
     let (news_created, news_refreshed, news_evicted, news_dropped) =
-        observe_news(pool, regions, &alive_slots, current_turn);
+        observe_news(pool, regions, alive_slots, current_turn);
     stats.packets_created += news_created;
     stats.packets_refreshed += news_refreshed;
     stats.packets_evicted += news_evicted;
@@ -1176,7 +1188,7 @@ pub(crate) fn knowledge_phase_with_lookup(
     let slot_lookup = slot_lookup.or(fresh_lookup.as_ref()).expect("knowledge slot lookup");
 
     let (buffer, transmitted, tt, ttr, tr) =
-        propagate_packets(pool, &alive_slots, master_seed, turn, slot_lookup);
+        propagate_packets(pool, alive_slots, master_seed, turn, slot_lookup);
     stats.packets_transmitted = transmitted;
     stats.transmitted_threat = tt;
     stats.transmitted_trade = ttr;
@@ -1200,7 +1212,7 @@ pub(crate) fn knowledge_phase_with_lookup(
     let mut live_count: u32 = 0;
     let mut agents_with: u32 = 0;
 
-    for &slot in &alive_slots {
+    for &slot in alive_slots {
         let mut has_packet = false;
         for i in 0..agent::PACKET_SLOTS {
             if !is_empty_slot(pool.pkt_type_and_hops[slot][i]) {
@@ -1229,7 +1241,7 @@ pub(crate) fn knowledge_phase_with_lookup(
     }
 
     // Clear arrival flags
-    for &slot in &alive_slots {
+    for &slot in alive_slots {
         pool.arrived_this_turn[slot] = false;
     }
 

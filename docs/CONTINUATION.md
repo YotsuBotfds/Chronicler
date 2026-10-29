@@ -1,12 +1,16 @@
 # Recovered continuation — 2026-10-11
 
-The pending `lead/shared-live-slots-integration-20261029` candidate begins
-with the separately qualified [live narration test fix](performance/ci-live-narration-invocation-2026-10-29.md)
-from `8fea69df`. Its thread-owned event preserves all twelve original assertions,
+The pending `lead/shared-live-slots-integration-20261029` candidate combines
+the [native live-slot source candidate](performance/native-alive-slot-reuse-2026-10-29.md)
+at `6dccc625` with the separately qualified
+[live narration test fix](performance/ci-live-narration-invocation-2026-10-29.md)
+from `8fea69df`. The native change reuses ascending membership before deaths
+or births; its two Rust regressions, compiled build and full CI remain unrun.
+The test's thread-owned event preserves all twelve original assertions,
 the empty spy result and five-second failure bound. One guarded old/new target
 pair passed at 5.095193 / 1.681849 seconds, with forbidden-operation counters
-zero. This is narrow test qualification; the candidate's full CI and forthcoming
-native source change require separate qualification. The published review
+zero. This is narrow test qualification; the combined native candidate requires
+separate qualification. The published review
 consolidation described below remains preserved at `851c31ab`.
 
 The current consolidation is `lead/review-integration-20261029`. Its runtime,

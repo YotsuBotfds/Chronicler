@@ -491,24 +491,24 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // M48: Collect alive slots and decay memories as FIRST operation
     // -----------------------------------------------------------------------
     let alive_slots: Vec<usize> = (0..pool.capacity()).filter(|&s| pool.is_alive(s)).collect();
+    // This all-live ascending set stays valid through knowledge: the intervening
+    // phases change neither IDs nor liveness. Consumers still read current fields.
     crate::memory::decay_memories(pool, &alive_slots);
     memory_intents.reserve(alive_slots.len());
 
     // -----------------------------------------------------------------------
     // 0. Skill growth — iterate all alive agents
     // -----------------------------------------------------------------------
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            pool.grow_skill(slot);
-            // Update promotion progress for named character promotion
-            let occ = pool.occupations[slot] as usize;
-            let skill = pool.skills[slot * 5 + occ];
-            if skill > crate::agent::PROMOTION_SKILL_THRESHOLD {
-                pool.promotion_progress[slot] =
-                    pool.promotion_progress[slot].saturating_add(1);
-            } else {
-                pool.promotion_progress[slot] = 0;
-            }
+    for &slot in &alive_slots {
+        pool.grow_skill(slot);
+        // Update promotion progress for named character promotion
+        let occ = pool.occupations[slot] as usize;
+        let skill = pool.skills[slot * 5 + occ];
+        if skill > crate::agent::PROMOTION_SKILL_THRESHOLD {
+            pool.promotion_progress[slot] =
+                pool.promotion_progress[slot].saturating_add(1);
+        } else {
+            pool.promotion_progress[slot] = 0;
         }
     }
 
@@ -526,7 +526,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // 0.75 Needs decay + restoration (M49)
     // -----------------------------------------------------------------------
     let reusable_id_slots = crate::needs::update_needs_with_reusable_id_slots(
-        pool, regions, signals, wealth_percentiles,
+        pool, regions, signals, wealth_percentiles, &alive_slots,
     );
 
     // -----------------------------------------------------------------------
@@ -561,8 +561,8 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     // -----------------------------------------------------------------------
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
-    let mut knowledge_stats = crate::knowledge::knowledge_phase_with_lookup(
-        pool, regions, &master_seed, turn, reusable_id_slots.as_ref(),
+    let mut knowledge_stats = crate::knowledge::knowledge_phase_for_slots(
+        pool, regions, &master_seed, turn, reusable_id_slots.as_ref(), &alive_slots,
     );
     // Agent movements: membership and spread, while merchants that delivered
     // are still in the market they reached (no-op unless a table was set).
@@ -2238,10 +2238,12 @@ mod tests {
             regions[0].controller_changed_this_turn = true;
             let signals = make_default_signals(1, 2);
             let percentiles = vec![0.5; reference.capacity()];
+            let alive_slots: Vec<_> = (0..reused.capacity())
+                .filter(|&slot| reused.is_alive(slot)).collect();
 
             crate::needs::update_needs(&mut reference, &regions, &signals, &percentiles);
             let reusable = crate::needs::update_needs_with_reusable_id_slots(
-                &mut reused, &regions, &signals, &percentiles,
+                &mut reused, &regions, &signals, &percentiles, &alive_slots,
             );
             assert_eq!(reusable.is_some(), !sparse);
             assert_eq!(bytes(&reference), bytes(&reused));
@@ -2270,6 +2272,155 @@ mod tests {
             assert_eq!(pre_decision.get(0), Some(lead));
             assert_eq!(pre_decision.get(reused.ids[target]), Some(target));
             assert_eq!(reused.regions[pre_decision.get(reused.ids[target]).unwrap()], 1);
+        }
+    }
+
+    /// The tick-owned live set equals fresh standalone collection through
+    /// needs/drift/knowledge, including holes, empty pools and a later reused
+    /// slot. Locations and arrival flags must still be read at knowledge time.
+    #[test]
+    fn test_shared_alive_slots_match_fresh_phase_collection() {
+        use crate::persist::{Persist, Reader, Writer};
+        fn bytes<T: Persist>(value: &T) -> Vec<u8> {
+            let mut writer = Writer::new();
+            value.put(&mut writer);
+            writer.buf
+        }
+        for layout in 0..4 {
+            let mut initial = AgentPool::new(8);
+            if layout != 3 {
+                for _ in 0..8 {
+                    initial.spawn(0, 0, Occupation::Farmer, 30,
+                        0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                }
+                initial.ids[0] = 0;
+                for slot in [1, 4] { initial.kill(slot); }
+                if layout == 1 { initial.ids[7] = 3_000_000_000; }
+                if layout == 2 {
+                    for slot in 0..initial.capacity() { initial.kill(slot); }
+                } else {
+                    for (source, target, sentiment) in [(0, 7, 0), (7, 0, 127)] {
+                        initial.rel_count[source] = 1;
+                        initial.rel_target_ids[source][0] = initial.ids[target];
+                        initial.rel_bond_types[source][0] = crate::relationships::BondType::Friend as u8;
+                        initial.rel_sentiments[source][0] = sentiment;
+                    }
+                }
+            }
+            let original = bytes(&initial);
+            let mut reference = AgentPool::get(&mut Reader::new(&original)).unwrap();
+            let mut reused = AgentPool::get(&mut Reader::new(&original)).unwrap();
+            assert_eq!(bytes(&reference), original);
+            assert_eq!(bytes(&reused), original);
+            let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+            regions[0].controller_changed_this_turn = true;
+            let signals = make_default_signals(1, 2);
+
+            for turn in 3..5 {
+                // A fresh tick boundary follows any death/birth/slot reuse.
+                let alive_slots: Vec<_> = (0..reused.capacity())
+                    .filter(|&slot| reused.is_alive(slot)).collect();
+                let reference_slots: Vec<_> = (0..reference.capacity())
+                    .filter(|&slot| reference.is_alive(slot)).collect();
+                assert_eq!(alive_slots, reference_slots);
+                let percentiles = vec![0.5; reference.capacity()];
+                crate::needs::update_needs(&mut reference, &regions, &signals, &percentiles);
+                let lookup = crate::needs::update_needs_with_reusable_id_slots(
+                    &mut reused, &regions, &signals, &percentiles, &alive_slots,
+                );
+                assert_eq!(lookup.is_some(), layout != 1);
+                assert_eq!(bytes(&reference), bytes(&reused));
+                crate::relationships::drift_relationships(&mut reference, turn);
+                crate::relationships::drift_relationships_with_lookup(&mut reused, turn, lookup.as_ref());
+                assert_eq!(bytes(&reference), bytes(&reused));
+
+                if let Some(&target) = alive_slots.last() {
+                    for pool in [&mut reference, &mut reused] {
+                        pool.regions[target] = 1;
+                        pool.arrived_this_turn[target] = true;
+                    }
+                }
+                let expected = crate::knowledge::knowledge_phase(&mut reference, &regions, &[17; 32], turn);
+                let actual = crate::knowledge::knowledge_phase_for_slots(
+                    &mut reused, &regions, &[17; 32], turn, lookup.as_ref(), &alive_slots,
+                );
+                assert_eq!(bytes(&expected), bytes(&actual));
+                assert_eq!(bytes(&reference), bytes(&reused));
+                if let Some(&target) = alive_slots.last() {
+                    assert!(!reused.arrived_this_turn[target]);
+                }
+                drop(lookup);
+                if turn == 3 {
+                    if let Some(&slot) = alive_slots.first() {
+                        // Recycle only at the next tick boundary, then collect
+                        // a new slice rather than reusing a stale identity set.
+                        for pool in [&mut reference, &mut reused] {
+                            pool.kill(slot);
+                            let replacement = pool.spawn(1, 0, Occupation::Scholar,
+                                0, 0.1, 0.2, 0.3, 2, 1, 0, crate::agent::BELIEF_NONE);
+                            assert_eq!(replacement, slot);
+                            let born = pool.spawn(0, 0, Occupation::Farmer,
+                                0, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+                            assert_eq!(born, 4); // Reuse an older free hole too.
+                            pool.kill(alive_slots[1]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Exercise the production skill loop after targeted catastrophe removal:
+    /// every original skill bit changes only for its old live occupation.
+    #[test]
+    fn test_shared_alive_skills_use_post_catastrophe_set() {
+        let mut pool = AgentPool::new(12);
+        let occupations = [Occupation::Farmer, Occupation::Soldier, Occupation::Merchant,
+            Occupation::Scholar, Occupation::Priest];
+        for slot in 0..12 {
+            pool.spawn(0, 0, occupations[slot % occupations.len()], 13,
+                0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE);
+            // Above the switch reset floor, so later decisions cannot alter
+            // another skill. Include threshold crossing and max clamping.
+            for occ in 0..OCCUPATION_COUNT {
+                pool.skills[slot * OCCUPATION_COUNT + occ] = 0.6 + occ as f32 * 0.01;
+            }
+            pool.skills[slot * OCCUPATION_COUNT + pool.occupations[slot] as usize] =
+                if slot % 2 == 0 { 0.89 } else { 0.99 };
+            pool.promotion_progress[slot] = if slot % 3 == 0 { 255 } else { 7 };
+        }
+        pool.kill(2); // A pre-existing hole.
+        let victim = pool.ids[5];
+        let old_occupations = pool.occupations.clone();
+        let mut expected_progress = pool.promotion_progress.clone();
+        let mut expected = pool.skills.clone();
+        for slot in 0..pool.capacity() {
+            if pool.is_alive(slot) && slot != 5 {
+                let index = slot * OCCUPATION_COUNT + old_occupations[slot] as usize;
+                expected[index] = (expected[index] + crate::agent::SKILL_GROWTH_PER_TURN)
+                    .min(crate::agent::SKILL_MAX);
+                expected_progress[slot] = if expected[index] > crate::agent::PROMOTION_SKILL_THRESHOLD {
+                    expected_progress[slot].saturating_add(1)
+                } else { 0 };
+            }
+        }
+        let regions = vec![make_healthy_region(0)];
+        let signals = make_default_signals(1, 1);
+        let mut percentiles = vec![0.0; pool.capacity()];
+        let (events, _, _, _, _, _, _) = try_tick_agents_with_targeted_deaths(
+            &mut pool, &regions, &signals, [12; 32], 0, &mut percentiles,
+            &mut Vec::new(), &[], &mut crate::spatial::SpatialDiagnostics::default(),
+            &[], None, &[victim],
+        ).unwrap();
+        assert!(events.iter().any(|event| event.event_type == 0 && event.agent_id == victim));
+        assert!(!events.iter().any(|event| event.event_type == 5)); // Age13 cannot reproduce.
+        assert!(!pool.is_alive(2) && !pool.is_alive(5));
+        assert_eq!(pool.skills.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+        for slot in 0..pool.capacity() {
+            let switched = events.iter().any(|event| event.event_type == 3 && event.agent_id == pool.ids[slot]);
+            let progress = if !pool.is_alive(slot) || switched { 0 } else { expected_progress[slot] };
+            assert_eq!(pool.promotion_progress[slot], progress);
         }
     }
 
