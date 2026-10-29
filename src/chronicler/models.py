@@ -1315,8 +1315,16 @@ class WorldState(BaseModel):
         self._active_trade_route_pairs_cache = None
         self._self_trade_civs_cache = None
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, *, artifact_budget=None) -> None:
         """Persist world state to a JSON file."""
+        if artifact_budget is not None:
+            artifact_budget.ensure_directory(path.parent)
+            artifact_budget.write_text(path, self.model_dump_json(indent=2), encoding="utf-8")
+            from chronicler.historiography import save_sidecar
+            save_sidecar(self, path, artifact_budget=artifact_budget)
+            from chronicler.languages import save_sidecar as save_languages
+            save_languages(self, path, artifact_budget=artifact_budget)
+            return
         parent = path.parent
         try:
             parent_is_dir = parent.is_dir()

@@ -110,13 +110,19 @@ def assemble_bundle(
 
 
 def write_bundle(bundle: dict[str, Any], path: Path,
-                  world: WorldState | None = None) -> None:
+                  world: WorldState | None = None, *, artifact_budget=None) -> None:
     """Write an assembled bundle to a JSON file, in the version-6 layout.
 
     Read it back with ``chronicler.bundle_codec.load_bundle``. If *world* is
     provided and contains agent_events_raw, an Arrow IPC sidecar file
     ``agent_events.arrow`` is written next to the JSON bundle.
     """
+    if artifact_budget is not None:
+        artifact_budget.ensure_directory(path.parent)
+        artifact_budget.write_text(path, dumps_bundle(bundle), encoding="utf-8")
+        if world is not None:
+            write_agent_events_arrow(world, path.parent, artifact_budget=artifact_budget)
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     # Bundles are machine-consumed and timeline-heavy; compact encoding and
     # the snapshot deltas keep the single-file artifact within its size budget.
@@ -126,7 +132,8 @@ def write_bundle(bundle: dict[str, Any], path: Path,
         write_agent_events_arrow(world, path.parent)
 
 
-def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None:
+def write_agent_events_arrow(world: WorldState, bundle_dir: Path, *,
+                             artifact_budget=None) -> Path | None:
     """Serialize ``world.agent_events_raw`` as Arrow IPC.
 
     Returns the path written, or *None* when skipped (no events or no pyarrow).
@@ -155,6 +162,14 @@ def write_agent_events_arrow(world: WorldState, bundle_dir: Path) -> Path | None
     })
 
     out_path = bundle_dir / "agent_events.arrow"
+    if artifact_budget is not None:
+        with pa.BufferOutputStream() as f:
+            writer = ipc.new_file(f, batch.schema)
+            writer.write_batch(batch)
+            writer.close()
+            content = f.getvalue().to_pybytes()
+        artifact_budget.write_bytes(out_path, content)
+        return out_path
     with pa.OSFile(str(out_path), "wb") as f:
         writer = ipc.new_file(f, batch.schema)
         writer.write_batch(batch)

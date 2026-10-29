@@ -1138,7 +1138,13 @@ class AgentBridge:
                  output_dir: Path | None = None,
                  relationship_stats: bool = False,
                  agent_scale_mode: str = "exact",
-                 decision_ablation: tuple[str, int] | None = None):
+                 decision_ablation: tuple[str, int] | None = None, *,
+                 artifact_budget=None):
+        if artifact_budget is not None:
+            if mode != "hybrid":
+                raise ValueError("Budgeted bridge output requires fresh hybrid mode")
+            artifact_budget.require_healthy()
+            self._artifact_budget = artifact_budget
         if agent_scale_mode not in AGENT_SCALE_MODES:
             raise ValueError(
                 f"agent_scale_mode must be one of {AGENT_SCALE_MODES}, got {agent_scale_mode!r}"
@@ -1206,7 +1212,10 @@ class AgentBridge:
         self._sidecar = None
         if validation_sidecar and output_dir is not None:
             from chronicler.sidecar import SidecarWriter
-            self._sidecar = SidecarWriter(output_dir)
+            if artifact_budget is None:
+                self._sidecar = SidecarWriter(output_dir)
+            else:
+                self._sidecar = SidecarWriter(output_dir, artifact_budget=artifact_budget)
         # M53: Relationship stats collection
         self._collect_rel_stats = relationship_stats
         self._relationship_stats_history: list = []
@@ -1727,6 +1736,8 @@ class AgentBridge:
 
     def _write_sidecar_snapshot(self, world: "WorldState") -> None:
         """M53: Write validation sidecar data at sample points (every 10 turns)."""
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         turn = world.turn
         agg: dict = {}
         snap = None
@@ -1744,6 +1755,8 @@ class AgentBridge:
                 for i in range(len(agent_ids)):
                     edges.append((agent_ids[i], target_ids[i], bond_types[i], sentiments[i]))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             edges = []
             logger.exception("Sidecar graph snapshot: failed to read relationships")
 
@@ -1762,6 +1775,8 @@ class AgentBridge:
                     valence = -1 if m_intensities[i] < 0 else 1
                     mem_sigs[aid].append((m_event_types[i], m_turns[i], valence))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             mem_sigs = {}
             logger.exception("Sidecar graph snapshot: failed to read memories")
 
@@ -1779,6 +1794,8 @@ class AgentBridge:
                     for name in needs_batch.column_names
                 }
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             needs_data = None
             logger.exception("Sidecar needs snapshot: failed to read/write needs")
 
@@ -1876,6 +1893,8 @@ class AgentBridge:
                     }
             self._sidecar.write_agent_aggregate(turn=turn, aggregates=agg)
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             logger.exception("Sidecar agent aggregate: failed to build/write aggregate snapshot")
 
         # Condensed community summary for full-gate structural checks
@@ -1932,6 +1951,8 @@ class AgentBridge:
 
                 self._sidecar.write_community_summary(turn=turn, summary=dict(region_summary))
         except Exception:
+            if "_artifact_budget" in self.__dict__:
+                self._artifact_budget.fail("io")
             logger.exception("Sidecar community summary: failed to build/write summary")
 
     def _write_economy_sidecar(self, world, economy_result) -> None:
@@ -1941,6 +1962,8 @@ class AgentBridge:
         if world.turn < 100 or world.turn % 10 != 0:
             return
 
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         region_names = [r.name for r in world.regions]
         self._sidecar.write_economy_snapshot(world.turn, {
             "turn": world.turn,
@@ -3019,6 +3042,8 @@ class AgentBridge:
         self._knowledge_stats_history.clear()
 
     def close(self) -> None:
+        if "_artifact_budget" in self.__dict__:
+            self._artifact_budget.require_healthy()
         self._stop_decision_delivery("closed")
         if self._shadow_logger:
             self._shadow_logger.close()
@@ -3032,6 +3057,8 @@ class AgentBridge:
     _CHECKPOINT_DERIVED = ("_window_stats_cache", "_named_actor_memo", "_post_tick_snapshot", "_decision_delivery_observer")
 
     def __getstate__(self) -> dict:
+        if "_artifact_budget" in self.__dict__:
+            raise ValueError("Budgeted bridge checkpoint support is unqualified")
         state = dict(self.__dict__)
         for name in self._CHECKPOINT_DERIVED:
             state.pop(name, None)

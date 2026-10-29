@@ -857,7 +857,7 @@ class ReserveLedger:
             )
 
 
-def write_reserve_ledger(path, columns: dict[str, list]) -> None:
+def write_reserve_ledger(path, columns: dict[str, list], *, artifact_budget=None) -> None:
     """Write the granary ledger's column lists as an Arrow IPC file."""
     import pyarrow as pa
     import pyarrow.ipc as ipc
@@ -865,10 +865,19 @@ def write_reserve_ledger(path, columns: dict[str, list]) -> None:
               for name, kind in RESERVE_LEDGER_COLUMNS.items()]
     batch = pa.record_batch(arrays, names=list(RESERVE_LEDGER_COLUMNS))
     options = ipc.IpcWriteOptions(compression="zstd") if pa.Codec.is_available("zstd") else None
-    with pa.OSFile(str(path), "wb") as handle:
-        writer = ipc.new_file(handle, batch.schema, options=options)
-        writer.write_batch(batch)
-        writer.close()
+    if artifact_budget is None:
+        with pa.OSFile(str(path), "wb") as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+    else:
+        artifact_budget.require_healthy()
+        with pa.BufferOutputStream() as handle:
+            writer = ipc.new_file(handle, batch.schema, options=options)
+            writer.write_batch(batch)
+            writer.close()
+            content = handle.getvalue().to_pybytes()
+        artifact_budget.write_bytes(path, content)
 
 
 def read_reserve_ledger(path) -> dict[str, list]:

@@ -153,13 +153,21 @@ def _fsync_directory(path: Path) -> None:
         os.close(directory_fd)
 
 
-def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> None:
+def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8",
+                      artifact_budget=None) -> None:
     """Atomically replace ``path`` with ``content`` using a same-directory temp file."""
+    if artifact_budget is not None:
+        artifact_budget.write_text(path, content, encoding=encoding, atomic=True)
+        return
     _atomic_write(path, content, "w", encoding)
 
 
-def atomic_write_bytes(path: Path, content: bytes | bytearray | memoryview) -> None:
+def atomic_write_bytes(path: Path, content: bytes | bytearray | memoryview, *,
+                       artifact_budget=None) -> None:
     """Atomically replace ``path`` with ``content`` (binary ``atomic_write_text``)."""
+    if artifact_budget is not None:
+        artifact_budget.write_bytes(path, content, atomic=True)
+        return
     _atomic_write(path, content, "wb", None)
 
 
@@ -197,6 +205,7 @@ def atomic_write_json(
     indent: int | None = 2,
     ensure_ascii: bool = True,
     trailing_newline: bool = True,
+    artifact_budget=None,
 ) -> None:
     """Serialize JSON strictly, then atomically replace ``path``."""
     text = strict_json_dumps(
@@ -205,7 +214,10 @@ def atomic_write_json(
         ensure_ascii=ensure_ascii,
         trailing_newline=trailing_newline,
     )
-    atomic_write_text(path, text)
+    if artifact_budget is None:
+        atomic_write_text(path, text)
+    else:
+        atomic_write_text(path, text, artifact_budget=artifact_budget)
 
 
 __all__ = [

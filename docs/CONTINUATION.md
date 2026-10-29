@@ -1,3 +1,27 @@
+# Optional ordinary-artifact budget source graft — 2026-10-29
+
+This private child of qualified parent `65dd90e1` composes exact final donor
+`9db5dc43` module/tests, 11 optional writer integrations and the whole dated
+design/repair note. Static Git proof confirms the donor's original829 writer
+blobs equal65 before graft. Default-None AST projections remain equal.
+Whole115 fake cases are registered add-only on native shard0 (305 owners,
+all old304 assignments/six skips/623 seal unchanged) and appended to existing
+health-care-policy offline chunk (38 chunks, 110 seconds, old selections exact).
+The ownership test changes only the literal addition and 304→305 count.
+
+See [composition scope and provenance](integration/ordinary-artifact-budget-composition-2026-10-29.md)
+and [complete original design and repairs](integration/ordinary-artifact-budget-source-2026-10-29.md).
+Parent65 standardCI root qualification e62347ec retains its explicit collector
+recovery/deviation; it does not qualify this new child. The separate donor
+pure115 is still UNRUN at this freeze. Composition review, actual fake results,
+own CI/wheel/publication and all enabled study/API/World/CP bindings stay NULL.
+No owner/log/IPC/whole-pilot enforcement or checkpoint/resume budget claim.
+No reviewed imports, compile, collection, tests, build, acquisition, push or CI.
+All source/evidence stays under the new private /tmp authority; earlier freezes
+and the entire65 continuation below are preserved unchanged.
+
+---
+
 # Detached care capture source composition - 2026-10-29
 
 The [capture composition](integration/care-capture-composition-2026-10-29.md)

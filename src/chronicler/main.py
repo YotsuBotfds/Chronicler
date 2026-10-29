@@ -113,13 +113,20 @@ def _positive_int(text: str) -> int:
     return value
 
 
-def _write_state_checkpoint(world: WorldState, path: Path) -> None:
+def _write_state_checkpoint(world: WorldState, path: Path, *, artifact_budget=None) -> None:
     """Write an intermediate resumable checkpoint: compact JSON, atomic replace.
 
     The final save keeps ``WorldState.save``'s indented format; both load with
     ``WorldState.load`` into the same world. The in-world chronicles and
     languages (when those layers are on) are checkpointed beside it.
     """
+    if artifact_budget is not None:
+        atomic_write_text(path, world.model_dump_json(), artifact_budget=artifact_budget)
+        from chronicler.historiography import save_sidecar
+        save_sidecar(world, path, atomic=True, artifact_budget=artifact_budget)
+        from chronicler.languages import save_sidecar as save_languages
+        save_languages(world, path, atomic=True, artifact_budget=artifact_budget)
+        return
     atomic_write_text(path, world.model_dump_json())
     from chronicler.historiography import save_sidecar
     save_sidecar(world, path, atomic=True)
@@ -199,10 +206,14 @@ def _save_memory_streams(
     memories: dict[str, MemoryStream],
     output_dir: Path,
     reflection_counts: dict[str, int] | None = None,
+    *, artifact_budget=None,
 ) -> None:
     """Write every memory stream; ``reflection_counts`` writes only each
     stream's first N reflections (its content before this turn's reflection)."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if artifact_budget is None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        artifact_budget.ensure_directory(output_dir)
     for civ_name, stream in memories.items():
         count = reflection_counts.get(civ_name) if reflection_counts is not None else None
         if count is not None and count != len(stream.reflections):
@@ -210,7 +221,11 @@ def _save_memory_streams(
             view.entries = stream.entries
             view.reflections = stream.reflections[:count]
             stream = view
-        stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
+        if artifact_budget is None:
+            stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json")
+        else:
+            stream.save(output_dir / f"memories_{sanitize_civ_name(civ_name)}.json",
+                        artifact_budget=artifact_budget)
 
 
 class _SigintDeferral:
@@ -518,6 +533,7 @@ def execute_run(
     turn_boundary: Any | None = None,
     expansion_experiment: dict | None = None,
     *, practice_observer: Any | None = None,
+    artifact_budget: Any | None = None,
 ) -> RunResult:
     """Shared entry point for single runs, batch, fork, and interactive modes.
 
@@ -565,7 +581,25 @@ def execute_run(
         Explicit source-owned experimental controls, recorded with resolved
         state and provenance. Applying them to a supplied/resumed world requires
         an intervention fork; omitting them preserves ordinary run behavior.
+    artifact_budget : object or None
+        Explicit caller-owned ordinary-output admission. The optional path is
+        limited to fresh hybrid runs without exact checkpoints. It does not
+        implement owner/log admission or qualify an enabled study.
     """
+    if artifact_budget is not None:
+        artifact_budget.require_healthy()
+        if (world is not None or checkpoint_resume is not None
+                or getattr(args, "resume", None)):
+            raise ValueError("artifact_budget supports only fresh unsupplied Worlds")
+        if (getattr(args, "checkpoint_every", None) is not None
+                or getattr(args, "checkpoint_turns", None)):
+            raise ValueError("artifact_budget exact checkpoints are unqualified")
+        if (getattr(args, "agents", "off") != "hybrid"
+                or getattr(args, "live", False)
+                or getattr(args, "interactive", False)
+                or getattr(args, "ablation_output", False)):
+            raise ValueError("artifact_budget requires an ordinary noninteractive hybrid run")
+
     # Fallback clients
     _sim = sim_client or _DummyClient()
     _narr = narrative_client or _DummyClient()
@@ -703,8 +737,13 @@ def execute_run(
                 pass  # Goals remain empty on failure — non-fatal
 
     if checkpoint_resume is None:
-        agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config = (
-            _configure_run(args, world, fresh_world, output_path))
+        if artifact_budget is None:
+            agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config = (
+                _configure_run(args, world, fresh_world, output_path))
+        else:
+            agent_bridge, ecology_runtime, politics_runtime, economy_tracker, run_config = (
+                _configure_run(args, world, fresh_world, output_path,
+                               artifact_budget=artifact_budget))
     else:
         # Exact resume: the world keeps every switch, override and runtime
         # setting it was saved with; the bridge, runtimes and tracker are the
@@ -796,6 +835,8 @@ def execute_run(
 
     def _save_exact(template) -> Path:
         """An exact checkpoint of the run as it stands at this turn boundary."""
+        if artifact_budget is not None:
+            raise ValueError("artifact_budget exact checkpoints are unqualified")
         return _write_exact_checkpoint(
             template, world, memories, history, chronicle_entries, era_reflections, _pending,
             run_start, seed, num_turns, agent_bridge, ecology_runtime, politics_runtime,
@@ -1129,7 +1170,10 @@ def execute_run(
         output_dir = output_path.parent
         _memories_saved = _checkpoint_due or _is_final_turn or _may_stop
         if _memories_saved:
-            _save_memory_streams(memories, output_dir)
+            if artifact_budget is None:
+                _save_memory_streams(memories, output_dir)
+            else:
+                _save_memory_streams(memories, output_dir, artifact_budget=artifact_budget)
         # Reflections only append; an interrupt checkpoint written after this
         # turn's reflection uses these counts to write the save-point content.
         _reflection_counts = {name: len(stream.reflections) for name, stream in memories.items()}
@@ -1156,7 +1200,10 @@ def execute_run(
         # Resumable checkpoint every _state_every turns and before a pause; the
         # final state is written after the loop on every exit path.
         if state_path and ((_checkpoint_due and not _is_final_turn) or _pause_turn):
-            _write_state_checkpoint(world, state_path)
+            if artifact_budget is None:
+                _write_state_checkpoint(world, state_path)
+            else:
+                _write_state_checkpoint(world, state_path, artifact_budget=artifact_budget)
             _state_saved = True
         else:
             _state_saved = False
@@ -1172,9 +1219,16 @@ def execute_run(
         # Ctrl-C during the turn: save this completed turn, then stop.
         if _interrupt_requested:
             if not _memories_saved:
-                _save_memory_streams(memories, output_dir, _reflection_counts)
+                if artifact_budget is None:
+                    _save_memory_streams(memories, output_dir, _reflection_counts)
+                else:
+                    _save_memory_streams(memories, output_dir, _reflection_counts,
+                                         artifact_budget=artifact_budget)
             if state_path and not _state_saved:
-                _write_state_checkpoint(world, state_path)
+                if artifact_budget is None:
+                    _write_state_checkpoint(world, state_path)
+                else:
+                    _write_state_checkpoint(world, state_path, artifact_budget=artifact_budget)
             if _exact_path is not None:
                 print(f"Interrupted after turn {world.turn}; resume exactly with --resume {_exact_path}",
                       file=sys.stderr)
@@ -1309,13 +1363,20 @@ def execute_run(
             output_text = provenance_header + "\n\n" + output_text
 
         # Write output
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(output_text, encoding="utf-8")
+        if artifact_budget is None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(output_text, encoding="utf-8")
+        else:
+            artifact_budget.ensure_directory(output_path.parent)
+            artifact_budget.write_text(output_path, output_text, encoding="utf-8")
         print(f"\nChronicle written to {output_path} ({len(output_text)} characters)")
 
         # Save final state
         if state_path:
-            world.save(state_path)
+            if artifact_budget is None:
+                world.save(state_path)
+            else:
+                world.save(state_path, artifact_budget=artifact_budget)
             print(f"Final world state saved to {state_path}")
 
     # --- Compute RunResult ---
@@ -1468,14 +1529,18 @@ def execute_run(
         bundle["metadata"]["knowledge_stats"] = k_stats
 
     bundle_path = output_path.parent / "chronicle_bundle.json"
-    write_bundle(bundle, bundle_path, world=world)
+    if artifact_budget is None:
+        write_bundle(bundle, bundle_path, world=world)
+    else:
+        write_bundle(bundle, bundle_path, world=world, artifact_budget=artifact_budget)
+        artifact_budget.require_healthy()
     print(f"Viewer bundle written to {bundle_path}")
 
     return result
 
 
 def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: bool,
-                   output_path: Path) -> tuple[Any, Any, Any, Any, dict]:
+                   output_path: Path, *, artifact_budget=None) -> tuple[Any, Any, Any, Any, dict]:
     """Apply the run's switches and overrides to ``world`` and build its
     runtimes: (agent bridge, ecology runtime, politics runtime, economy
     tracker, run configuration recorded in exact checkpoints)."""
@@ -1748,16 +1813,29 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
                 _shadow_output = _default_shadow_output_path(output_path)
             else:
                 _shadow_output = Path(_shadow_output)
-        agent_bridge = AgentBridge(
-            world,
-            mode=agent_mode,
-            shadow_output=_shadow_output,
-            validation_sidecar=_use_sidecar,
-            output_dir=output_path.parent if _use_sidecar else None,
-            relationship_stats=getattr(args, "relationship_stats", False),
-            agent_scale_mode=agent_scale_mode,
-            decision_ablation=decision_ablation,
-        )
+        if artifact_budget is None:
+            agent_bridge = AgentBridge(
+                world,
+                mode=agent_mode,
+                shadow_output=_shadow_output,
+                validation_sidecar=_use_sidecar,
+                output_dir=output_path.parent if _use_sidecar else None,
+                relationship_stats=getattr(args, "relationship_stats", False),
+                agent_scale_mode=agent_scale_mode,
+                decision_ablation=decision_ablation,
+            )
+        else:
+            agent_bridge = AgentBridge(
+                world,
+                mode=agent_mode,
+                shadow_output=_shadow_output,
+                validation_sidecar=_use_sidecar,
+                output_dir=output_path.parent if _use_sidecar else None,
+                relationship_stats=getattr(args, "relationship_stats", False),
+                agent_scale_mode=agent_scale_mode,
+                decision_ablation=decision_ablation,
+                artifact_budget=artifact_budget,
+            )
 
     # M54a: Off-mode ecology runtime (Rust ecology without agent pool)
     ecology_runtime = None

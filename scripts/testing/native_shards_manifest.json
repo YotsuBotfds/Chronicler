@@ -12,6 +12,7 @@
       "tests/test_agent_bridge.py",
       "tests/test_agent_bridge_stat_order.py",
       "tests/test_arcs.py",
+      "tests/test_artifact_budget.py",
       "tests/test_artifact_io.py",
       "tests/test_artifacts.py",
       "tests/test_audit_batch_d.py",
