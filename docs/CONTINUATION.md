@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+The separate [closed-handle follow-up](integration/decision-delivery-closed-handle-lifetime-2026-10-29.md)
+releases an observer's simulator reference after successful cleanup, while
+retaining failed-disable retry ownership. Two regressions fail on qualified
+parent `95f73a74`; all 82 affected guarded cases pass after the two-line fix.
+Native code and active tick/capture paths are unchanged. This child has no
+new native execution or full-CI claim.
+
 A separate [Python decision-delivery adapter](integration/decision-delivery-python-adapter-2026-10-29.md)
 starts from combined native integration `e40108ed`. Explicit attachment captures
 the existing bounded frames only after normal bridge processing, with same-turn

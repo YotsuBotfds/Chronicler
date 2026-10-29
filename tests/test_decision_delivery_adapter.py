@@ -1,8 +1,10 @@
 """Pure Arrow/fake-bridge contracts; no native runtime or world construction."""
 from collections import deque
 import builtins
+import gc
 import pickle
 from types import SimpleNamespace
+import weakref
 
 import pyarrow as pa
 import pytest
@@ -389,6 +391,33 @@ def test_byte_limit_retains_only_validated_header_metadata_that_fits_and_no_rows
         assert result.move_header.to_pylist()[0]["applied_selected"] == 1
         assert sum(b.get_total_buffer_size() for b in (result.move_header, result.decision_header)) <= limit
     assert result.native_event_count is None
+
+
+def test_successfully_closed_handle_does_not_retain_replaced_pool(bridge):
+    observer = delivery.DecisionDeliveryObserver.attach(bridge)
+    old_pool = weakref.ref(bridge._sim)
+    bridge._sim = FakeSim()
+    assert old_pool() is not None
+    assert observer.close().reason == "closed"
+    gc.collect()
+    assert old_pool() is None
+    assert observer.read_latest(expected_source_turn=11).reason == "closed"
+    assert observer.close().reason == "closed"
+
+
+def test_failed_disable_retains_old_pool_for_retry_then_releases_it(bridge):
+    observer = delivery.DecisionDeliveryObserver.attach(bridge)
+    bridge._sim.fail_disable = True
+    old_pool = weakref.ref(bridge._sim)
+    bridge._sim = FakeSim()
+    assert observer.close().reason == "disable_failed"
+    gc.collect()
+    assert old_pool() is not None
+    old_pool().fail_disable = False
+    assert observer.close().reason == "closed"
+    gc.collect()
+    assert old_pool() is None
+    assert not bridge._sim.enabled
 
 
 def test_native_pool_replacement_and_close_failure_are_explicit(bridge):

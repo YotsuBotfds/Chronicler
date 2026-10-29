@@ -232,6 +232,7 @@ class DecisionDeliveryObserver:
         owner = None if bridge is None else bridge.__dict__.get(_ATTRIBUTE)
         if owner is not None and owner is not self and getattr(owner, "_sim", None) is self._sim:
             self._reason = "detached"
+            self._sim = None
             return self._unavailable(self._reason)
         try:
             self._sim.configure_decision_delivery(False)
@@ -240,6 +241,7 @@ class DecisionDeliveryObserver:
             return self._unavailable(self._reason)
         if bridge is not None and bridge.__dict__.get(_ATTRIBUTE) is self:
             bridge.__dict__.pop(_ATTRIBUTE)
+        self._sim = None
         return self._unavailable(reason)
 
     def close(self):
