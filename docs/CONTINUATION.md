@@ -1,3 +1,27 @@
+# Separate current6a2 timing diagnostic — source only, 2026-10-29
+
+A distinct inactive [timing-only diagnostic](performance/current6a2-timing-diagnostic-source-2026-10-29.md)
+adds a normal-run caller, bounded records/metadata receiver, owned orchestration,
+byte-exact selected session/resource controls and explicit fake-test source.
+The executable producer stays immutable qualified6a2 with its own803-file,
+wheel/native identities. No production/native code, default or batch wiring changes.
+
+The literal six-role/seed42/97-turn matrix and(8,16]/(88,96] windows are preserved.
+Custom process-CPU cProfile, caller edges, separate complete CPU/wall clocks and
+lifetime RSS are diagnostic observations only. Scalar timings are retained before
+later profile/hash refusal. Ordinary files get exact streaming hashes with no
+timestamp normalization. Native ticks/population, full graph/global-RNG/CP/default
+parity, efficacy, controlled speedup and durable original-body qualification stay NULL.
+The failed090 result and its5M traversal/accepted-profile contract remain unchanged.
+
+Runtime/job-clock approval, pinned input/clock admissions and actual upload review
+are NULL; the dormant template is outside active workflows and if:false. All fake
+tests, imports, collection, profiling, native/World/CP and runtime operations remain
+UNRUN. Source review and a separately frozen guarded selection precede any test.
+The entire earlier continuation follows byte for byte. Main is untouched.
+
+---
+
 # Latest qualified native care code — 2026-10-29
 
 Exact development code `6a2a7b84` now has independently/root-qualified

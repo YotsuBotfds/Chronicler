@@ -1,0 +1,74 @@
+# SOURCE ONLY. This file is not under .github/workflows and must remain inactive.
+# A concrete authenticated job-clock/input admission and upload review are NULL.
+name: Current6a2 timing diagnostic INACTIVE
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  timing-only:
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: '0'
+      PYTHON_CPU_COUNT: '1'
+      RAYON_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      OPENBLAS_THREAD_TIMEOUT: '16'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      GOTO_NUM_THREADS: '1'
+      CARGO_BUILD_JOBS: '1'
+      ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: 6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8
+          path: producer
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13.17'
+      # No setup/download/clock producer exists here. These paths are deliberately
+      # unpopulated, all runtime approval is NULL, and the entire job is if:false.
+      - name: Inactive owned diagnostic
+        id: owner
+        run: >-
+          python -P -s -B -X cpu_count=1 control/scripts/current6a2_timing_owner.py
+          --source "$GITHUB_WORKSPACE/producer"
+          --prefix "$RUNNER_TEMP/current6a2-admitted-prefix"
+          --admission "$RUNNER_TEMP/current6a2-root-admitted-input.json"
+          --job-clock "$RUNNER_TEMP/current6a2-root-admitted-job-clock.json"
+          --control-source "$GITHUB_SHA"
+          --output "$RUNNER_TEMP/current6a2-timing-body"
+        env:
+          PYTHONPATH: ${{ github.workspace }}/control/scripts
+      - name: Bounded metadata publication
+        if: always()
+        timeout-minutes: 1
+        run: >-
+          python -P -s -B control/scripts/current6a2_timing_records.py
+          --source "$RUNNER_TEMP/current6a2-timing-body"
+          --output "$RUNNER_TEMP/current6a2-timing-metadata"
+          --owner-step-outcome "${{ steps.owner.outcome }}"
+        env:
+          PYTHONPATH: ${{ github.workspace }}/control/scripts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        timeout-minutes: 1
+        with:
+          name: current6a2-timing-metadata-${{ github.sha }}-${{ github.run_id }}-1
+          path: ${{ runner.temp }}/current6a2-timing-metadata
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 14

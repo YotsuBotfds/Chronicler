@@ -1,0 +1,23 @@
+{
+  "kind": "EXACT_SELECTED_REVIEWED_CONTROL_BYTES",
+  "controls_source": "1421621b4393d08cedb0d3505ae26b96dfa6563c",
+  "files": {
+    "exact_near_screen_process.py": {
+      "bytes": 15495,
+      "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+    },
+    "exact_near_screen_session.py": {
+      "bytes": 2951,
+      "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+    },
+    "wealth_floor_build_resources.py": {
+      "bytes": 7688,
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "wealth_floor_hosted_deployment.py": {
+      "bytes": 4528,
+      "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    }
+  },
+  "scope": "Byte-exact selected ownership/cancellation/session/resource/deployment primitives; not an execution grant."
+}

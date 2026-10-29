@@ -1,0 +1,304 @@
+{
+  "kind": "INACTIVE_SOURCE_ONLY_CURRENT6A2_TIMING_DIAGNOSTIC_REGISTRATION",
+  "protocol": "current6a2-timing-only-v1",
+  "control_parent": "37855435dcb0a679a20d3f67ff5df78fb14f5b96",
+  "producer_source": "6a2a7b84b7d6ea10bfa4f6574e1f5dc793c092e8",
+  "native_tree": "09ec301efc5c52a0a75f7a6edd9b99636d2953ff",
+  "execution_approval": null,
+  "job_clock_admission_approval": null,
+  "runtime_input_admission_sha256": null,
+  "job_clock_admission_sha256": null,
+  "approved_fake_test_receipt_sha256": null,
+  "selected_control_files": {
+    "exact_near_screen_process.py": {
+      "bytes": 15495,
+      "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+    },
+    "exact_near_screen_session.py": {
+      "bytes": 2951,
+      "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+    },
+    "wealth_floor_build_resources.py": {
+      "bytes": 7688,
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "wealth_floor_hosted_deployment.py": {
+      "bytes": 4528,
+      "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    }
+  },
+  "control_file_pins": {
+    "scripts/current6a2_timing_diagnostic.py": {
+      "bytes": 22465,
+      "sha256": "e3a9921b605d3a7293512b2fae5c74a89dc58ff17f77a1921d1761d7f512612f"
+    },
+    "scripts/current6a2_timing_owner.py": {
+      "bytes": 27884,
+      "sha256": "883f18ec83871252690fb20d5e2a7643ffc529d7471ce3ade204b95dc4ddb212"
+    },
+    "scripts/current6a2_timing_records.py": {
+      "bytes": 33179,
+      "sha256": "c346710f3b514c3de126815885c21bff6c05e5fefda9d90b2669c0691d149c52"
+    },
+    "scripts/current6a2_timing_controls/source-pins.json": {
+      "bytes": 862,
+      "sha256": "494fc8bd793aee70e728cceddca8d1bacf30b85158c1929d57514dffd8e62ef9"
+    },
+    "docs/experiments/current6a2-timing-producer-pins.json": {
+      "bytes": 92952,
+      "sha256": "f8da485be36da7556bffcccefa8d3d2507d390631fea29e1a01d16ef0ca11a91"
+    },
+    "docs/experiments/current6a2-timing-diagnostic.yml.inactive": {
+      "bytes": 2874,
+      "sha256": "02924f40e94bf2865d39f392047fb9df08dc669909d42ede617ee9ccab6e399f"
+    },
+    "tests/current6a2_timing_fake_cases.py": {
+      "bytes": 65854,
+      "sha256": "2b63986b2b48c6e3bc9659008432687490f0dd8c22ed34d8ec058dafc7bde532"
+    },
+    "scripts/current6a2_timing_controls/exact_near_screen_process.py": {
+      "bytes": 15495,
+      "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+    },
+    "scripts/current6a2_timing_controls/exact_near_screen_session.py": {
+      "bytes": 2951,
+      "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+    },
+    "scripts/current6a2_timing_controls/wealth_floor_build_resources.py": {
+      "bytes": 7688,
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "scripts/current6a2_timing_controls/wealth_floor_hosted_deployment.py": {
+      "bytes": 4528,
+      "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    }
+  },
+  "producer_pins_file": "docs/experiments/current6a2-timing-producer-pins.json",
+  "producer_protected_files": 803,
+  "producer_source_digest": "513b1087cfb977306df70075118b78c082644f2bade337c68934d08b6b318a53",
+  "own_wheel": {
+    "bytes": 3947205,
+    "sha256": "a68aac26f4c5571034f10352db8b44da99acfa66aa378d1a5d90f13fc48082fc"
+  },
+  "own_native": {
+    "bytes": 13765672,
+    "sha256": "1ec3282dd43bc1ecfa2459960f19047aec5d8744406b5655aef44202585eaf72"
+  },
+  "schedule": [
+    {
+      "index": 0,
+      "case": "small",
+      "regions": 12,
+      "aggregate_target_request": 2000,
+      "role": "plain",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    },
+    {
+      "index": 1,
+      "case": "small",
+      "regions": 12,
+      "aggregate_target_request": 2000,
+      "role": "profiled",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    },
+    {
+      "index": 2,
+      "case": "agents",
+      "regions": 12,
+      "aggregate_target_request": 20000,
+      "role": "profiled",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    },
+    {
+      "index": 3,
+      "case": "agents",
+      "regions": 12,
+      "aggregate_target_request": 20000,
+      "role": "plain",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    },
+    {
+      "index": 4,
+      "case": "regions",
+      "regions": 48,
+      "aggregate_target_request": 20000,
+      "role": "plain",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    },
+    {
+      "index": 5,
+      "case": "regions",
+      "regions": 48,
+      "aggregate_target_request": 20000,
+      "role": "profiled",
+      "seed": 42,
+      "civilizations": 4,
+      "requested_turns": 97
+    }
+  ],
+  "windows": [
+    [
+      8,
+      16
+    ],
+    [
+      88,
+      96
+    ]
+  ],
+  "scaling": "Existing capacity/populationrounding+civsync;targetrequests2000/20000;60000perregionrefusalunchanged.",
+  "custom_profile_timer": "cProfile.Profile(timer=time.process_time,subcalls=True,builtins=True)",
+  "timer_event_overhead_measured": false,
+  "ordinary_comparison": "Closedexactpath/size/SHAbyteobservationsonly;no normalization/bodydecode/semanticparity.",
+  "budgets": {
+    "owner_wall_seconds": 2400,
+    "owner_self_plus_waited_CPU_seconds": 1800,
+    "role_wall_seconds": 300,
+    "role_CPU_seconds": 240,
+    "role_AS_bytes": 4294967296,
+    "role_lifetime_RSS_refusal_bytes": 2147483648,
+    "entry_disk_bytes": 12884901888,
+    "entry_available_RAM_bytes": 4294967296,
+    "running_disk_floor_bytes": 3221225472,
+    "running_available_RAM_floor_bytes": 1073741824,
+    "role_output_bytes": 536870912,
+    "aggregate_generated_output_bytes": 3221225472,
+    "aggregate_regular_files": 5000,
+    "metadata_reserve_INSIDE_aggregate_bytes": 67108864,
+    "metadata_reserved_files": 128,
+    "final_wall_reserve_seconds": 150,
+    "final_CPU_reserve_seconds": 100,
+    "proposed_actual_job_publication_reserve_seconds": 105,
+    "summary_status_index_member_bytes": 65536,
+    "profile_or_inventory_member_bytes": 8388608,
+    "profile_function_rows_perwindow": 20000,
+    "selected_caller_edges_perwindow": 40000,
+    "profile_UTF8_label_bytes": 2048,
+    "ordinary_hash_chunk_bytes": 1048576,
+    "joint_allroles_ordinary_body_bytes_hashed_max": 3221225472,
+    "comparison_child_wall_seconds": 60,
+    "comparison_child_CPU_seconds": 40,
+    "inventory_depth": 64,
+    "inventory_visited_entries": 10000
+  },
+  "metadata": {
+    "selected_leaves": [
+      "owner-summary.json",
+      "terminal.json",
+      "terminal-failure.json",
+      "initial-rng.json",
+      "roles/0/summary.json",
+      "roles/1/summary.json",
+      "roles/2/summary.json",
+      "roles/3/summary.json",
+      "roles/4/summary.json",
+      "roles/5/summary.json",
+      "roles/0/detail.json",
+      "roles/1/detail.json",
+      "roles/2/detail.json",
+      "roles/3/detail.json",
+      "roles/4/detail.json",
+      "roles/5/detail.json",
+      "roles/0/detail-status.json",
+      "roles/1/detail-status.json",
+      "roles/2/detail-status.json",
+      "roles/3/detail-status.json",
+      "roles/4/detail-status.json",
+      "roles/5/detail-status.json",
+      "roles/0/ordinary-inventory.json",
+      "roles/1/ordinary-inventory.json",
+      "roles/2/ordinary-inventory.json",
+      "roles/3/ordinary-inventory.json",
+      "roles/4/ordinary-inventory.json",
+      "roles/5/ordinary-inventory.json",
+      "comparisons/small.json",
+      "comparisons/small-status.json",
+      "comparisons/agents.json",
+      "comparisons/agents-status.json",
+      "comparisons/regions.json",
+      "comparisons/regions-status.json"
+    ],
+    "publication_index": "publication.json",
+    "closed_selected_leaf_count": 34,
+    "maximum_files_with_index": 35,
+    "publisher_CLI": {
+      "wall_seconds": 20,
+      "CPU_seconds": 10,
+      "AS_bytes": 268435456
+    },
+    "receiver_CLI": {
+      "wall_seconds": 60,
+      "CPU_seconds": 30,
+      "AS_bytes": 268435456
+    },
+    "official_origin_or_original_archive_qualification": null,
+    "durable_original_body_qualification": null
+  },
+  "fake_test_source": {
+    "path": "tests/current6a2_timing_fake_cases.py",
+    "default_test_catalog_inclusion": false,
+    "static_expected_parameter_parents": 165,
+    "actual_collection": null,
+    "actual_passes": null,
+    "state": "UNRUN_SOURCE_ONLY",
+    "prospective_runner_required_flags": [
+      "--noconftest",
+      "-c",
+      "/dev/null",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "caps": {
+      "wall_seconds": 110,
+      "CPU_seconds": 30,
+      "AS_bytes": 536870912,
+      "fixture_regular_files": 2048,
+      "fixture_regular_bytes": 16777216,
+      "generated_leaf_bytes": 8388608,
+      "affinity_CPUs": 1,
+      "logical_CPUs": 1,
+      "owned_process_peak_RSS_bytes": 268435456,
+      "owned_output_bytes": 268435456,
+      "joint_log_bytes": 2097152
+    },
+    "guard": "Before pytest: deny product/native/NumPy/Arrow/profiler imports and process/network creation;disable inheritedconfig/conftest/pluginautoload;externalfixtures.",
+    "source_coverage": "60 testfunctions:123core/recordparents plus42owned-orchestrationparents;staticonly,allUNRUN.",
+    "prospective_fixture_source_bound": {
+      "regular_pathnames": 1922,
+      "regular_body_bytes": 8906752,
+      "pytest_bookkeeping_allowance_conditional": true,
+      "actual_test_counts": null
+    }
+  },
+  "activation_blockers": [
+    "RuntimeexecutionapprovalNULL.",
+    "ActualsamejobHTTPDate/started_at/source/attemptclockadmissionproducer+105secondpublicationreservationneedsseparatesourceproposal/review;consumeronly,nofirstshellfallback.",
+    "Externalcurrent6a2input-origin/expiry/fresh-prefixreceiptproduceranditsroot-approveddigestareNULL;no installer or acquisition provided.",
+    "Allfake/test/collector/profiler/runtimeoperationsUNRUN;sourceandpreparedrunnerreviewrequired."
+  ],
+  "old090": {
+    "failed_run": 40927885410,
+    "status": "AUTHENTICATED_INCOMPLETE_UNCHANGED",
+    "state_visit_cap": 5000000,
+    "oldaccepted_profile_gate_changed": false,
+    "retry": null
+  },
+  "qualification": {
+    "actual_native_ticks": null,
+    "actual_native_population": null,
+    "fullgraph_globalRNG_checkpoint_default_parity": null,
+    "controlled_speedup": null,
+    "efficacy": null,
+    "adoption_or_main_promotion": null
+  }
+}
