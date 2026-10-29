@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+The separate `lead/batch-manifest-reconciliation-20261029` follow-up closes
+[cohort identity admission gaps](integration/batch-manifest-reconciliation-2026-10-29.md)
+from frozen sidecar repair `e984be2a`: typed complete run records, exact ordered
+seed facts, canonical run/file scope, physical bundle identities and actual
+payload metadata must agree before verification. Repeated-seed determinism
+remains supported in distinct genuine files. The normal oracle reader checks
+metadata at its existing decode. Forty new regressions fail on e984; 231 pure
+guarded checks pass on the correction. No worlds/native builds ran, methods and
+thresholds are unchanged, and complete integration qualification is separate.
+
 The separate `lead/batch-validation-input-set-20261029` branch closes a
 [batch oracle-input verification gap](integration/batch-validation-input-set-2026-10-29.md):
 new sidecars beside an already recorded bundle now require that run's manifest

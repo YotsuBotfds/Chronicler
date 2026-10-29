@@ -11,7 +11,7 @@ from .validation_io import *  # noqa: F401,F403
 from .validation_io import __all__ as _validation_io_all
 from .validation_io import (
     ABLATION_DIR_FLAG, LEGACY_BATCH_FLAG, MANIFEST_FILENAME, _load_arms, ablation_methods, check_batch_manifest,
-    summarize_world_shapes,
+    summarize_world_shapes, _prepare_batch_admission,
 )
 from .validation_oracles import *  # noqa: F401,F403
 from .validation_oracles import __all__ as _validation_oracle_all
@@ -61,7 +61,7 @@ def run_oracles(
     ``CAUSAL_ORACLES_REQUIRED``; recorded as ``causal_oracles_required``)."""
     require_causal = causal_oracles_required(None, require_causal)
     selected = _normalize_requested_oracles(oracles)
-    batch_manifest = check_batch_manifest(batch_dir, legacy_batch=legacy_batch)
+    admission = _prepare_batch_admission(batch_dir, legacy_batch=legacy_batch)
     arms, ablation_summary = _load_arms(ablation_dir, batch_dir)
     results: dict[str, dict] = {}
     seed_runs: list[dict] | None = None
@@ -69,14 +69,19 @@ def run_oracles(
     def ensure_seed_runs() -> list[dict]:
         nonlocal seed_runs
         if seed_runs is None:
-            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLES)
+            seed_runs = load_seed_runs(batch_dir, selected_oracles=selected & SEED_RUN_ORACLES, _admission=admission)
         return seed_runs
 
     for oracle_name in sorted(selected):
         runner = ORACLE_RUNNERS[oracle_name]
         try:
             if oracle_name == "determinism":
-                results[oracle_name] = runner(batch_dir)
+                if runner is run_determinism_gate:
+                    results[oracle_name] = runner(batch_dir, _admission=admission)
+                else:
+                    # Preserve the registry's standalone runner signature.
+                    admission.finish()
+                    results[oracle_name] = runner(batch_dir)
             elif oracle_name == "needs":
                 results[oracle_name] = runner(
                     ensure_seed_runs(), profile=profile, ablation=arms.get("needs"), placebo=arms.get("placebo"),
@@ -106,7 +111,7 @@ def run_oracles(
     worlds = summarize_world_shapes(seed_runs) if seed_runs is not None else None
     if worlds is not None:
         report["worlds"] = worlds
-    report["batch_manifest"] = batch_manifest
+    report["batch_manifest"] = admission.finish()
     if ablation_summary is not None:
         report["ablation_arms"] = ablation_summary
     if profile is not None:

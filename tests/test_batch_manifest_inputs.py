@@ -15,10 +15,10 @@ def recorded(tmp_path):
     seed = tmp_path / "seed_7"
     seed.mkdir()
     bundle = seed / "chronicle_bundle.json"
-    bundle.write_text("{}", encoding="utf-8")
+    bundle.write_text('{"metadata":{"seed":7,"total_turns":20},"world_state":{"turn":20}}', encoding="utf-8")
     relative = bundle.relative_to(tmp_path).as_posix()
     manifest = {
-        "status": "complete", "turns": 20,
+        "status": "complete", "seeds": [7], "turns": 20,
         "runs": [{"seed": 7, "dir": "seed_7", "bundle": relative,
                   "total_turns": 20, "files": {relative: file_sha256(bundle)}}],
     }

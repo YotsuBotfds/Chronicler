@@ -22,7 +22,7 @@ import os
 import platform
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
 from chronicler.artifact_io import ArtifactIOError, atomic_write_json, strict_json_loads
@@ -464,12 +464,43 @@ def _seed_label(run: dict[str, Any]) -> str:
     return f"seed {run.get('seed')} ({run.get('dir')})"
 
 
-def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_paths: Iterable[Path]) -> list[str]:
-    """Problems that make ``batch_dir`` differ from its manifest (empty when
-    it matches): an incomplete batch, bundles the manifest does not list,
-    missing runs, runs shorter than the requested turns, and validation
-    inputs whose bytes changed since the batch wrote them."""
+def _relative_run_path(value: Any) -> str | None:
+    """A canonical portable relative name, never a drive or parent escape."""
+    if not isinstance(value, str) or not value or "\\" in value:
+        return None
+    path = PurePosixPath(value)
+    if path.is_absolute() or PureWindowsPath(value).drive or path.as_posix() != value:
+        return None
+    if any(part in (".", "..") for part in path.parts) or value == ".":
+        return None
+    return value
+
+
+def _run_fact_problems(run: dict[str, Any], bundle: Any) -> list[str]:
+    """Reconcile recorded facts with one existing decoded or raw bundle."""
+    label = _seed_label(run)
+    metadata = bundle.get("metadata") if isinstance(bundle, dict) else None
+    if not isinstance(metadata, dict):
+        return [f"{label} bundle has no metadata object"]
+    problems = []
+    for field, expected in (("seed", run["seed"]), ("total_turns", run["total_turns"])):
+        actual = metadata.get(field)
+        if type(actual) is not int or actual != expected:
+            problems.append(f"{label} bundle metadata {field} {actual!r} differs from recorded {expected!r}")
+    world = bundle.get("world_state")
+    if "world_state" in bundle and not isinstance(world, dict):
+        problems.append(f"{label} bundle world_state is not an object")
+    elif isinstance(world, dict) and "turn" in world:
+        turn = world["turn"]
+        if type(turn) is not int or turn != run["total_turns"]:
+            problems.append(f"{label} bundle world_state turn {turn!r} differs from recorded {run['total_turns']!r}")
+    return problems
+
+
+def _verify_batch_manifest_inputs(batch_dir: Path, manifest: dict[str, Any], bundle_paths: Iterable[Path]) -> list[str]:
+    """Structural/hash preflight only; never emits a verified cohort."""
     batch_dir = Path(batch_dir)
+    resolved_root = batch_dir.resolve()
     problems: list[str] = []
     status = manifest.get("status")
     if status != "complete":
@@ -477,8 +508,67 @@ def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_path
     runs = manifest.get("runs")
     if not isinstance(runs, list) or not runs:
         return problems + ["manifest lists no runs"]
-    expected = {str(run.get("bundle")): run for run in runs if isinstance(run, dict)}
-    found = {Path(path).relative_to(batch_dir).as_posix() for path in bundle_paths}
+    if any(not isinstance(run, dict) for run in runs):
+        return problems + ["every manifest run must be an object"]
+    seeds = manifest.get("seeds")
+    if not isinstance(seeds, list) or not seeds or any(type(seed) is not int for seed in seeds):
+        problems.append("manifest seeds must be a nonempty list of integers")
+    elif seeds != [run.get("seed") for run in runs] or any(type(run.get("seed")) is not int for run in runs):
+        problems.append("manifest seeds do not match the ordered run seeds")
+    turns = manifest.get("turns")
+    if type(turns) is not int or turns < 0:
+        problems.append("manifest turns must be a nonnegative integer")
+    simulation = manifest.get("simulation")
+    if isinstance(simulation, dict) and "turns" in simulation:
+        if type(simulation["turns"]) is not int or simulation["turns"] != turns:
+            problems.append("simulation turns do not match manifest turns")
+    directories: set[str] = set()
+    expected: dict[str, dict] = {}
+    physical: dict[tuple[int, int], str] = {}
+    resolved_directories: set[Path] = set()
+    for run in runs:
+        directory = _relative_run_path(run.get("dir"))
+        bundle = _relative_run_path(run.get("bundle"))
+        if directory is None or bundle != f"{directory}/{BUNDLE_FILENAME}":
+            problems.append(f"{_seed_label(run)} has an invalid directory/bundle path")
+            continue
+        if directory in directories or bundle in expected:
+            problems.append(f"duplicate manifest run directory or bundle: {directory}")
+        directories.add(directory)
+        expected[bundle] = run
+        seed_dir = batch_dir / directory
+        bundle_path = batch_dir / bundle
+        resolved_dir = seed_dir.resolve()
+        if not resolved_dir.is_relative_to(resolved_root) or resolved_dir == resolved_root:
+            problems.append(f"{directory} escapes the batch directory")
+        elif resolved_dir in resolved_directories:
+            problems.append(f"{directory} aliases another run directory")
+        resolved_directories.add(resolved_dir)
+        if not bundle_path.resolve().is_relative_to(resolved_root):
+            problems.append(f"{bundle} escapes the batch directory")
+        if seed_dir.is_symlink() or bundle_path.is_symlink():
+            problems.append(f"{bundle} is a symlinked run/bundle")
+        if bundle_path.is_file():
+            stat = bundle_path.stat()
+            identity = (stat.st_dev, stat.st_ino)
+            if stat.st_ino and identity in physical:
+                problems.append(f"{bundle} aliases another bundle: {physical[identity]}")
+            physical[identity] = bundle
+        total = run.get("total_turns")
+        if type(total) is not int or total < 0:
+            problems.append(f"{_seed_label(run)} total_turns must be a nonnegative integer")
+    if problems:
+        return problems
+    found: set[str] = set()
+    for path in bundle_paths:
+        try:
+            relative = Path(path).relative_to(batch_dir).as_posix()
+        except ValueError:
+            problems.append(f"bundle path is outside batch directory: {path}")
+            continue
+        if relative in found:
+            problems.append(f"duplicate discovered bundle path: {relative}")
+        found.add(relative)
     unlisted = sorted(found - set(expected))
     if unlisted:
         shown = ", ".join(unlisted[:5]) + (", ..." if len(unlisted) > 5 else "")
@@ -487,11 +577,7 @@ def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_path
     if missing:
         shown = ", ".join(_seed_label(run) for run in missing[:5]) + (", ..." if len(missing) > 5 else "")
         problems.append(f"{len(missing)} run(s) of the manifest have no bundle: {shown}")
-    turns = manifest.get("turns")
-    short = [
-        run for run in expected.values()
-        if isinstance(turns, int) and isinstance(run.get("total_turns"), int) and run["total_turns"] < turns
-    ]
+    short = [run for run in runs if run["total_turns"] < turns]
     if short:
         shown = ", ".join(f"{_seed_label(run)} ran {run['total_turns']}" for run in short[:5])
         problems.append(f"{len(short)} run(s) shorter than the requested {turns} turns: {shown}")
@@ -503,9 +589,6 @@ def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_path
         if not isinstance(files, dict) or bundle not in files:
             changed.append(f"{bundle} (not hashed)")
             continue
-        # Readers select the sidecars that exist beside the bundle, including
-        # legacy per-turn JSON. Checking only recorded hashes misses inputs
-        # added after recording: those would affect an otherwise verified run.
         seed_dir = (batch_dir / bundle).parent
         actual_inputs = {
             path.relative_to(batch_dir).as_posix()
@@ -513,14 +596,39 @@ def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_path
         }
         changed.extend(f"{relative} (not hashed)" for relative in sorted(actual_inputs - files.keys()))
         for relative, sha in files.items():
+            if _relative_run_path(relative) is None or relative not in actual_inputs:
+                changed.append(f"{relative} (outside this run's validation inputs)")
+                continue
             path = batch_dir / relative
-            if not path.is_file():
+            if path.is_symlink() or not path.resolve().is_relative_to(seed_dir.resolve()):
+                changed.append(f"{relative} (symlinked or outside run directory)")
+            elif not path.is_file():
                 changed.append(f"{relative} (missing)")
             elif file_sha256(path) != sha:
                 changed.append(f"{relative} (changed)")
     if changed:
         shown = ", ".join(changed[:5]) + (", ..." if len(changed) > 5 else "")
         problems.append(f"{len(changed)} validation input(s) differ from the manifest: {shown}")
+    return problems
+
+
+def verify_batch_manifest(batch_dir: Path, manifest: dict[str, Any], bundle_paths: Iterable[Path]) -> list[str]:
+    """Problems that make ``batch_dir`` differ from its manifest (empty when
+    it matches): an incomplete batch, bundles the manifest does not list,
+    missing runs, runs shorter than the requested turns, and validation
+    inputs whose bytes changed since the batch wrote them."""
+    batch_dir = Path(batch_dir)
+    problems = _verify_batch_manifest_inputs(batch_dir, manifest, bundle_paths)
+    if problems:
+        return problems
+    for run in manifest["runs"]:
+        path = batch_dir / run["bundle"]
+        try:
+            bundle = strict_json_loads(path.read_text(encoding="utf-8"), label="batch bundle JSON")
+        except (OSError, UnicodeDecodeError, ArtifactIOError) as exc:
+            problems.append(f"could not read batch bundle {run['bundle']}: {exc}")
+            continue
+        problems.extend(_run_fact_problems(run, bundle))
     return problems
 
 
