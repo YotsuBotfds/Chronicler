@@ -84,11 +84,20 @@ jobs:
         shell: bash
         run: |
           "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
+            --junitxml="$RUNNER_TEMP/full-gates-contracts/junit.xml" --durations=20 \
             -o "pythonpath=$GITHUB_WORKSPACE/candidate/src" \
             "$GITHUB_WORKSPACE/control/tests/test_default_output_identity_qualification.py" \
             "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_qualification.py" \
             "$GITHUB_WORKSPACE/control/tests/test_fetch_cloud_full_gate_retention.py" \
             "$GITHUB_WORKSPACE/control/tests/test_cloud_full_gate_comparison.py"
+      - name: Preserve pure contract results before any build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-gates-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/full-gates-contracts/
+          if-no-files-found: error
+          retention-days: 30
       - name: Build and verify one fresh shared wheel
         shell: bash
         run: |

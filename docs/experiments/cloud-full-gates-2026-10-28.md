@@ -1,9 +1,10 @@
 # Prospective frozen full-gate qualification — 2026-10-28
 
-Status: DRAFT. No active workflow and no gate worlds have been launched by this
-draft. The proposed workflow is stored under docs/experiments/, outside the
-active GitHub workflow directory. Activation requires internal lead review of
-the combined controller, comparison reader, tests and workflow.
+Status: registered and activated on the separate branch
+`lead/cloud-full-gates-20261028`. First activation failed its pure contract
+tests before native compilation or worlds. The corrected observer fixture and
+second activation are recorded below. Simulation sources, samples, budgets,
+thresholds and original gate/comparison policies remain frozen.
 
 ## Question and immutable sources
 
@@ -242,7 +243,7 @@ accounting and exported evidence retain their actual limits.
 
 ## Activation standing
 
-At activation, the combined controller/workflow draft `46270605` includes the
+At first activation, the combined controller/workflow draft `46270605` includes the
 independently reviewed comparison reader from `c37a8c45`. No smoke or full cohort
 has run yet. The active workflow first executes all contract tests; only success
 permits the fresh build, then all four smoke jobs and required artifact uploads.
@@ -252,3 +253,33 @@ and pipeline publication remain separately reported.
 The earlier default-output study and independent artifact reader completed in
 runs 40786065030 and 40788984730. Their success does not substitute for these
 new full gates. Baseline/candidate simulation source pins remain unchanged.
+
+
+## First failure and corrected second activation — 2026-10-29
+
+[Run 40790686772](https://github.com/YotsuBotfds/Chronicler/actions/runs/40790686772)
+at control `d2331dd172bedf0b639ee401a13aaee14c0509c6` failed pure checks:
+13 failed, 92 passed and 36 successful subtests in 23.60 seconds. Builder job
+[123174862291](https://github.com/YotsuBotfds/Chronicler/actions/runs/40790686772/job/123174862291)
+retains the original failure log. The build and all smoke/full worlds were
+unattempted; this is not a failed scientific cohort or native test result.
+
+All thirteen failures arose from the synthetic comparison fixture computing its
+original decision before serializing the report with sorted keys. The frozen
+gate preserves report-result order in decision lists. Rebuilding from saved
+bytes correctly rejected the mismatched original decision. The real runner
+loads the report JSON before original adjudication.
+
+Independent source review cleared fixture correction `ffdc13ef`: it derives
+synthetic original decisions from the exact saved report bytes, and adds both
+an ordering demonstration and a resealed reordered-decision rejection case.
+The production reader and frozen simulation/gate/comparator code are unchanged.
+The exact decision equality check is retained. First failure stays failed.
+
+The second activation additionally retains pure-test JUnit and the twenty
+slowest test durations before any build, on success or failure, without changing
+the test selection. It otherwise executes the same preregistered pipeline.
+No simulation output has been observed to select sources, seeds, settings,
+thresholds or budgets. New workflow/control identities are recorded by the
+actual run and downstream receipts; passing pure checks alone does not qualify
+the smoke or full cohorts.

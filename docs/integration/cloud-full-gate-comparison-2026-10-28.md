@@ -203,3 +203,26 @@ The managed workspace was unavailable during authoring. No local test result,
 actual smoke execution or full-cohort qualification is claimed here. The
 workflow must run these checks before any worlds, retain failures, then complete
 the registered smoke prerequisite before full sampling.
+
+
+## First pure-test attempt and fixture correction
+
+Control `d2331dd172bedf0b639ee401a13aaee14c0509c6`, GitHub run
+[40790686772](https://github.com/YotsuBotfds/Chronicler/actions/runs/40790686772),
+failed its first pure selection: 13 failed, 92 passed and 36 successful subtests.
+The failure occurred before any native build or simulation worlds.
+
+All thirteen failures encountered the unchanged original-decision rebuild
+invariant. The synthetic fixture adjudicated its in-memory report first, then
+serialized that report with sorted object keys. The frozen gate preserves the
+report results' insertion order in failure/informational lists, so adjudicating
+the later parsed wire report produced a different ordered decision. The real
+runner parses its report JSON before original adjudication and preserves that
+wire order.
+
+Fixtures now adjudicate their exact saved report bytes. A targeted test exposes
+the pre-serialization versus saved-wire ordering difference; another proves
+that equal gate outcomes cannot hide a reordered historical decision after
+hashes are resealed. The production reader, frozen gate/comparator, decision
+equality requirement, experimental configuration and thresholds are unchanged.
+The failed attempt remains failed. The corrected tests still need a new run.
