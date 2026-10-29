@@ -42,12 +42,43 @@ All seven ordinary Rust contracts pass, but no rows, cutoff, source or timing
 criteria were changed. There is no retry, production wiring or adoption; the
 screen supplies no production or whole-World speed claim.
 
-The original wealth cohort remains mechanically incomplete. Its read-only
-`5f9413c3` diagnostic recovered a compound checkpoint-shape failure, while the
-specific failed operand remains unknown. Registered cohort cost is not completed
-work and no scientific or historical-reuse result is granted.
+The original wealth cohort remains **INCOMPLETE_MECHANICS**. The qualified
+[header diagnostic](wealth-floor-checkpoint-header-result-2026-10-29.md) at
+`a64e390e` / run `40896252427` now identifies current civilization records versus
+initial requested count as the only false operand of the old five-part candidate
+checkpoint world/runtime shape conjunction: template seed 48 / turn 201 is 5/4;
+procedural seed 44 / turn 161 is 11/10. The other four observed operands match.
+This resolves the old unknown-operand diagnostic, not the cause or physical
+validity of record growth. Registered cohort cost is not completed work; no
+checkpoint/parent reuse, recovery, physics fix or scientific result is granted.
 
-The [fresh eight-seed study's small publication](practice-fresh-study-small-publication-2026-10-29.md) at `2d3faa8c` / run `40877451052` now has independently/root-verified original 12-member bytes, completion seals and saved arithmetic. All eight rows remain: five have zero new trials; seed 2005 has six trials without payment. Active/paused recipe occurrences 18/10 map to grouped debits 9/5. Positive paid terms can coexist with falling practice. The original 106 MB raw archive, its 2,442 payload files and full state/history/native/RNG/continuation identity remain independently unaudited. No paid-growth efficacy is qualified; the earlier CP66 zero-payment proof keeps its separate scope.
+The [registered original practice-byte audit](original-practice-byte-audit-2026-10-29.md)
+is complete and independently/root-qualified at `72704385` / run `40901409086`.
+Its actual hosted guarded preflight passed 118/118. The source-qualified remote
+consumer authenticated the original RAW and opaque CBF wheel, closed all 2,455
+members / 502,390,864 expanded bytes and 2,442 execution payloads, and passed strict
+semantic replay, whole original readout reconstruction and original Markdown
+equality for all eight seeds / 24 executions. Local consumers verified the small
+15-member publication and all completion/source joins; the large original inputs
+remain remote. Derived rehash, full source-after equality and owned quiescence
+retain their stated remote-attestation scope. This adds no new World,
+full-global-RNG/uninterrupted-physics proof, historical CPU measurement, efficacy
+or performance result.
+
+The [earlier SMALL publication](practice-fresh-study-small-publication-2026-10-29.md)
+keeps its historical 12-member scope and unchanged JSON. All eight descriptive
+rows remain, including five zero-trial seeds; recipe payments 18/10 remain grouped
+debits 9/5, and positive paid RHS can coexist with falling total practice. The
+first `e625f6ce` audit remains a precollection dependency failure with zero cases,
+exit 3 and negative publication only. The successful changed-source operation
+does not relabel that failure or the earlier CP66 zero-payment proof.
+
+The optional retained-Kin care source `23d4d246` is separate from this candidate;
+its new-source CI/result qualification is pending in this review. It is not
+adopted here. The unwired K2 checkpoint metadata-eligibility source `78a5998c`
+also stays separate: its versioned metadata eligibility rule supplies no
+physical validity, historical reuse or scientific-pass qualification. The current runtime
+remains exact 090/CBF with the qualified CI source above.
 
 The separate documentation review remains `lead/review-integration-20261029`
 with CBF non-document entries. This candidate combines exact 090/ec as listed
@@ -78,7 +109,7 @@ exact commits they originally qualified.
 
 | Work | Result | Evidence boundary |
 | --- | --- | --- |
-| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | The original 62-tick native composition proof passed but exposed no later-topic paid use. The original C76 natural study passed eight strict continuation pairs and archive/pause checks over 24 executions/3,360 ticks; four later-topic payment occurrences were observed in two worlds. This is distinct from the fresh CBF study pending above. No efficacy or default promotion. |
+| Finite retained research agendas | Default-off paid renewal, bounded topics/trials/obligations, immutable host births, explicit pause/fork controls and Learning history | The original 62-tick native composition proof passed but exposed no later-topic paid use. The original C76 natural study passed eight strict continuation pairs and archive/pause checks over 24 executions/3,360 ticks; four later-topic payment occurrences were observed in two worlds. This is distinct from the separately authenticated fresh CBF study above. No efficacy or default promotion. |
 | Default output compatibility | Complete recovered producer matched the earlier public integration in the fixed 18-world matrix | Baseline `2f9d618b`, candidate `c76efe85`, run 40796958774. Independent reader verified all 976 payload files and the nine unchanged comparisons: 399 exported file pairs, zero differences. Registered timestamp rule only; no full checkpoint/RNG or efficacy claim. |
 | Relationship telemetry | Opt-in collected keys now have deterministic order across native restoration | The original proof failed on four bundle key-order paths; producer sorting fixed them. Original failure remains unchanged, and no comparator rule was relaxed. |
 | Debt history viewer | Current lender labels use selected-snapshot detail; extinct borrowers' recorded losses remain visible with unknown amounts | Exact viewer slice passed 709 tests/lint/build; recovered producer passed 743 viewer tests across 69 files. Missing rows and amounts are not fabricated. |

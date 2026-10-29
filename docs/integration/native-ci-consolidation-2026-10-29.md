@@ -47,3 +47,27 @@ claims and failed runs. [Standard CI evidence](native-module-shards-standard-ci-
 and [native partition design](../performance/native-region-partition-reuse-2026-10-29.md)
 provide the component boundaries. No source-identical retry or main merge is
 part of this candidate.
+
+The [registered original practice-byte audit](original-practice-byte-audit-2026-10-29.md)
+now closes original RAW authentication and strict semantic/readout/Markdown replay
+for source `2d3faa8c`, eight seeds and 24 executions. Remote reader `72704385` /
+run `40901409086` passed 118 hosted guarded contracts; local consumers verified
+its 15-member small publication, completion links and source snapshots. The large
+RAW/wheel, derived rehash, full source-after comparison and owned quiescence keep
+their source-qualified remote scope. No new World, full-global-RNG/uninterrupted
+physics, efficacy or performance result is implied. The first `e625f6ce`
+precollection failure remains preserved.
+
+The [qualified checkpoint-header observations](wealth-floor-checkpoint-header-result-2026-10-29.md)
+identify only the false current-civilization/initial-request equality in the
+failed wealth cohort: template 5/4 and procedural 11/10. The other four old
+shape operands match, while record-growth cause and decoded physical consistency
+remain unassessed. The original cohort stays **INCOMPLETE_MECHANICS**; no physics
+fix, parent/checkpoint reuse or scientific verdict follows. Unwired K2 metadata
+source `78a5998c` does not supply those grants.
+
+Optional retained-Kin care `23d4d246` remains a separate source whose new-source
+CI/result qualification is pending in this review; no care code or default is
+adopted here. This documentation update retains all 1,058 non-document entries
+of `2f164203`, including exact 090 native code and qualified CI wiring. Earlier
+CI, default-output and rejected-experiment records keep their original sources.

@@ -47,13 +47,44 @@ production wiring or adoption. The unchanged current native crate remains 090.
 
 The fixed wealth candidate cohort's original receipts at `33d331a1`,
 [run 40860233409](https://github.com/YotsuBotfds/Chronicler/actions/runs/40860233409),
-remain incomplete, without a scientific gate exit code. Registered 3,700
-executions/201,400 ticks are not completed-work counts. The read-only diagnostic
-at `5f9413c3` recovered the original compound checkpoint-shape assertion; the
-specific failed operand remains unknown. No scientific verdict or reuse grant
-is supplied by that diagnostic.
+remain **INCOMPLETE_MECHANICS**, without a scientific gate exit code. Registered
+3,700 executions/201,400 ticks are not completed-work counts. The later qualified
+[header diagnostic](integration/wealth-floor-checkpoint-header-result-2026-10-29.md)
+at `a64e390e` / run `40896252427` isolates the only false operand of the old
+five-part checkpoint world/runtime shape conjunction: current civilization records
+versus initial requested count. Template seed 48 at turn 201 has 5/4; procedural
+seed 44 at turn 161 has 11/10. The other four observed operands match. These are
+authenticated header observations; the cause of record growth and decoded physical
+consistency remain unassessed. No physics fix, checkpoint/parent reuse, recovery
+or scientific verdict follows.
 
-The [fresh eight-seed study's small publication](integration/practice-fresh-study-small-publication-2026-10-29.md) at `2d3faa8c` / run `40877451052` now has independently/root-verified original 12-member bytes, completion seals and saved arithmetic. All eight rows remain: five have zero new trials; seed 2005 has six trials without payment. Active/paused recipe occurrences 18/10 map to grouped debits 9/5. Positive paid terms can coexist with falling practice. The original 106 MB raw archive, its 2,442 payload files and full state/history/native/RNG/continuation identity remain independently unaudited. No paid-growth efficacy is qualified; the earlier CP66 zero-payment proof keeps its separate scope.
+The [registered original practice-byte audit](integration/original-practice-byte-audit-2026-10-29.md)
+is complete and independently/root-qualified at `72704385` / run `40901409086`.
+Its actual hosted guarded preflight passed 118/118. The source-qualified remote
+consumer authenticated the original RAW and opaque CBF wheel, closed all 2,455
+members / 502,390,864 expanded bytes and 2,442 execution payloads, and passed strict
+semantic replay, whole original readout reconstruction and original Markdown
+equality for all eight seeds / 24 executions. Local consumers verified the small
+15-member publication and all completion/source joins; the large original inputs
+remain remote. Derived rehash, full source-after equality and owned quiescence
+retain their stated remote-attestation scope. This adds no new World,
+full-global-RNG/uninterrupted-physics proof, historical CPU measurement, efficacy
+or performance result.
+
+The [earlier SMALL publication](integration/practice-fresh-study-small-publication-2026-10-29.md)
+keeps its historical 12-member scope and unchanged JSON. All eight descriptive
+rows remain, including five zero-trial seeds; recipe payments 18/10 remain grouped
+debits 9/5, and positive paid RHS can coexist with falling total practice. The
+first `e625f6ce` audit remains a precollection dependency failure with zero cases,
+exit 3 and negative publication only. The successful changed-source operation
+does not relabel that failure or the earlier CP66 zero-payment proof.
+
+The optional retained-Kin care source `23d4d246` is separate from this candidate;
+its new-source CI/result qualification is pending in this review. It is not
+adopted here. The unwired K2 checkpoint metadata-eligibility source `78a5998c`
+also stays separate: its versioned metadata eligibility rule supplies no
+physical validity, historical reuse or scientific-pass qualification. The current runtime
+remains exact 090/CBF with the qualified CI source above.
 
 The earlier [isolated V2 sharding qualification](integration/native-module-shards-v2-ci-2026-10-29.md)
 at `7dcb2402` and all first failed publications remain preserved. Context labels
