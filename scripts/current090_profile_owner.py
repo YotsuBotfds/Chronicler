@@ -32,7 +32,7 @@ WORKFLOW_PATH = ".github/workflows/current090-passive-profile.yml"
 JOB_KEY = "current090-passive-profile"
 PYTHON = "3.13.17"
 UV = "0.13.6"
-EXPECTED_PREFLIGHT_CASES = 194
+EXPECTED_PREFLIGHT_CASES = 232
 WORKFLOW_SHA = '1307757f8b8e409d811e67a23737eadac64794173a02d79b3b3add48f1bb0def'
 GIB = 1024**3
 CAPS = {key: "1" for key in ("BLIS_NUM_THREADS", "CARGO_BUILD_JOBS", "GOTO_NUM_THREADS", "MKL_NUM_THREADS",
@@ -480,6 +480,29 @@ def inventory(root, *, max_bytes=3 * GIB, max_files=5000, authority=(), guard=la
     return {"files": rows, "file_count": len(rows), "bytes": total}
 
 
+INVENTORY_REFUSAL_CODES = {
+    "authority exclusion set": "AUTHORITY_EXCLUSION_SET",
+    "inventory directory depth": "INVENTORY_DEPTH",
+    "inventory entry cap": "INVENTORY_ENTRY_CAP",
+    "inventory component": "INVENTORY_COMPONENT",
+    "authority bound": "AUTHORITY_BOUND",
+    "directory changed": "DIRECTORY_CHANGED",
+    "inventory nonregular/alias": "INVENTORY_NONREGULAR_ALIAS",
+    "inventory cap": "INVENTORY_CAP",
+    "inventory identity": "INVENTORY_IDENTITY",
+    "inventory changed": "INVENTORY_CHANGED",
+    "finalization budget": "FINALIZATION_BUDGET",
+}
+
+
+def retention_failure_record(exc):
+    """Closed owner literals only; never format unknown exception arguments."""
+    exact = type(exc) is Refused
+    args = exc.args if exact else ()
+    reason = INVENTORY_REFUSAL_CODES.get(args[0], "UNKNOWN") if len(args) == 1 and type(args[0]) is str else "UNKNOWN"
+    return {"exception_code": "OWNER_REFUSED" if exact else "UNKNOWN", "reason_code": reason}
+
+
 def finalize_authorities(root, report, *, eligible, guard, started, cpu_started,
                          max_bytes=3 * GIB, max_files=5000, publication_bytes=64 * 1024**2,
                          publication_files=128):
@@ -490,6 +513,9 @@ def finalize_authorities(root, report, *, eligible, guard, started, cpu_started,
     unsuccessfully, which the separate publisher independently requires.
     """
     try:
+        if report.get("retained_inventory") is None:
+            report["retention_status"] = "INVENTORY_UNAVAILABLE"
+            raise Refused("inventory unavailable")
         guard()
         report["owner_wall_seconds"] = time.monotonic() - started
         report["owner_measured_cpu_seconds"] = cpu_seconds() - cpu_started
@@ -522,6 +548,8 @@ def finalize_authorities(root, report, *, eligible, guard, started, cpu_started,
         report["errors"].append({"stage": "terminal-closure", "type": type(exc).__name__})
         negative = {"complete": False, "cleanup_complete": report["cleanup_complete"],
                     "publication_failed": True, "stage": report["stage"], "type": type(exc).__name__}
+        if report.get("retained_inventory") is None:
+            negative["retention_status"] = "INVENTORY_UNAVAILABLE"
         # Sentinel first: even a subsequent invalidation write fault cannot
         # promote a stale positive pair. The outer step also returns failure.
         try: write(root / "terminal-failure.json", negative, 65536)
@@ -710,6 +738,7 @@ def execute(args):
         except BaseException as exc:
             report["errors"].append({"stage": "retention", "type": type(exc).__name__})
             eligible = False
+            report["retention_diagnostic"] = retention_failure_record(exc)
         def final_guard():
             if supervisor is not None: supervisor.check(final=True)
             if eligible:

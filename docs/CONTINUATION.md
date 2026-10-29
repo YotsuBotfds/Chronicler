@@ -470,3 +470,9 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+# Prospective negative inventory finalization; original study remains failed
+
+A source-only child of4164 keeps owner execution approval NULL and adds no active workflow. Exact owner Refused with exactly one exact-string argument maps only source-owned inventory/budget literals to closed codes; all other reasons remain UNKNOWN without formatting arbitrary text, paths or state. Missing or explicit-null retained_inventory dispatches through existing negative sentinel/invalidation publication with INVENTORY_UNAVAILABLE and outer failure. Original role/retention errors, actual cleanup and unknown actual counts survive; no empty inventory or aggregate-count qualification is fabricated. The positive full post-fsync source/runtime/resource/expiry checks and CPU/wall-last guard remain unchanged. Thirty-eight added pure cases synchronize the focused/hosted count to232 (core86 + owner146).
+
+Original run40927885410/source3fbaa remains an authenticated incomplete failure: first small/plain role refused STATE_NODE_CAP at the frozen5M traversal bound; later retention Refused has no observed exact predicate/path. No profile/equality qualification or retry is granted. The source-proven fixture-layout incompatibility remains KNOWN HELD: hosted pure-preflight/fixtures sits beneath whole-root inventory, while deliberate symlink/hardlink fixtures conflict with unchanged regular-file/nlink rules. This child does not move/delete fixtures, change publisher selection, relax inventory or make the study runnable. See [scope and limits](performance/current090-passive-profile-owner-2026-10-29.md).
+

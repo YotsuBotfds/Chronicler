@@ -534,3 +534,184 @@ def test_role_diagnostic_failure_uses_existing_published_role_path_only(tmp_path
     record = json.loads(args.result.read_text())
     assert record["complete"] is record["role_success"] is False and record["reason_code"] == "NUMPY_EXACT_TYPE"
     assert args.result.stat().st_size <= 4096
+
+
+@pytest.mark.parametrize("literal,code", [
+    ("authority exclusion set", "AUTHORITY_EXCLUSION_SET"),
+    ("inventory directory depth", "INVENTORY_DEPTH"),
+    ("inventory entry cap", "INVENTORY_ENTRY_CAP"),
+    ("inventory component", "INVENTORY_COMPONENT"),
+    ("authority bound", "AUTHORITY_BOUND"),
+    ("directory changed", "DIRECTORY_CHANGED"),
+    ("inventory nonregular/alias", "INVENTORY_NONREGULAR_ALIAS"),
+    ("inventory cap", "INVENTORY_CAP"),
+    ("inventory identity", "INVENTORY_IDENTITY"),
+    ("inventory changed", "INVENTORY_CHANGED"),
+    ("finalization budget", "FINALIZATION_BUDGET"),
+])
+def test_retention_diagnostic_uses_exact_closed_owner_literals(monkeypatch, literal, code):
+    def forbidden(_self): pytest.fail("exception text formatting")
+    monkeypatch.setattr(O.Refused, "__str__", forbidden)
+    assert O.retention_failure_record(O.Refused(literal)) == {
+        "exception_code": "OWNER_REFUSED", "reason_code": code}
+
+
+@pytest.mark.parametrize("fault", ["unknown", "foreign", "subclass", "string_subclass", "zero_args",
+                                  "multiple_args", "nonstring", "long", "newline"])
+def test_retention_diagnostic_never_formats_unclassified_arguments(fault):
+    class Dangerous:
+        def __str__(self): pytest.fail("arbitrary argument str")
+        def __repr__(self): pytest.fail("arbitrary argument repr")
+        def __hash__(self): pytest.fail("arbitrary argument hash")
+    class String(str):
+        def __hash__(self): pytest.fail("string subclass hash")
+        def __eq__(self, _other): pytest.fail("string subclass comparison")
+    class Foreign(O.Refused):
+        def __str__(self): pytest.fail("foreign exception str")
+    variants = {"unknown": O.Refused("private/state/path secret"), "foreign": OSError("inventory cap"),
+                "subclass": Foreign("inventory cap"), "string_subclass": O.Refused(String("inventory cap")),
+                "zero_args": O.Refused(), "multiple_args": O.Refused("inventory cap", Dangerous()),
+                "nonstring": O.Refused(Dangerous()), "long": O.Refused("private" * 10000),
+                "newline": O.Refused("inventory cap\nprivate/path secret")}
+    record = O.retention_failure_record(variants[fault])
+    assert record == {"exception_code": "UNKNOWN" if fault in ("foreign", "subclass") else "OWNER_REFUSED",
+                      "reason_code": "UNKNOWN"}
+    assert len(json.dumps(record)) < 128 and "private" not in json.dumps(record)
+
+
+def test_retention_diagnostic_map_is_bound_to_inventory_and_budget_source_literals():
+    tree = ast.parse((ROOT / "scripts/current090_profile_owner.py").read_bytes())
+    inventory_node = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "inventory")
+    execute_node = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "execute")
+    budget = next(node for node in ast.walk(execute_node) if isinstance(node, ast.FunctionDef) and node.name == "budget_guard")
+    literals = {node.value for root in (inventory_node, budget) for node in ast.walk(root)
+                if isinstance(node, ast.Constant) and type(node.value) is str}
+    assert set(O.INVENTORY_REFUSAL_CODES) <= literals
+    assert len(O.INVENTORY_REFUSAL_CODES) == 11
+    assert all(code and all(char in "ABCDEFGHIJKLMNOPQRSTUVWXYZ_" for char in code)
+               for code in O.INVENTORY_REFUSAL_CODES.values())
+
+
+@pytest.mark.parametrize("fault", ["symlink", "hardlink", "bytes", "files", "budget"])
+def test_real_tiny_inventory_refusals_emit_no_paths_or_body_text(tmp_path, fault):
+    body = tmp_path / "private-state-name"; body.write_bytes(b"private-state-body")
+    options = {}
+    if fault == "symlink": (tmp_path / "private-link-name").symlink_to(body)
+    if fault == "hardlink": os.link(body, tmp_path / "private-alias-name")
+    if fault == "bytes": options["max_bytes"] = 0
+    if fault == "files": options["max_files"] = 0
+    if fault == "budget":
+        def guard(): raise O.Refused("finalization budget")
+        options["guard"] = guard
+    with pytest.raises(O.Refused) as caught: O.inventory(tmp_path, **options)
+    record = O.retention_failure_record(caught.value)
+    expected = ("INVENTORY_NONREGULAR_ALIAS" if fault in ("symlink", "hardlink") else
+                "FINALIZATION_BUDGET" if fault == "budget" else "INVENTORY_CAP")
+    assert record == {"exception_code": "OWNER_REFUSED", "reason_code": expected}
+    assert "private" not in json.dumps(record)
+
+
+def unavailable_report(null=False, cleanup=False):
+    report = closure_report(); report.pop("retained_inventory")
+    report.update(stage="role:0", cleanup_complete=cleanup, completed_roles=[], actual_failed_role_ticks=None,
+                  errors=[{"stage": "role:0", "type": "BridgeRefused"}, {"stage": "retention", "type": "Refused"}],
+                  retention_diagnostic={"exception_code": "OWNER_REFUSED", "reason_code": "INVENTORY_CAP"})
+    if null: report["retained_inventory"] = None
+    return report
+
+
+@pytest.mark.parametrize("null,cleanup", [(False, False), (False, True), (True, False), (True, True)])
+def test_missing_or_null_inventory_stays_negative_and_preserves_unknown_counts(tmp_path, null, cleanup):
+    report = unavailable_report(null, cleanup); prior_errors = list(report["errors"])
+    assert not O.finalize_authorities(tmp_path, report, eligible=True, guard=lambda: None, started=0, cpu_started=0)
+    assert report["complete"] is report["instrumentation_equal"] is False
+    assert report["cleanup_complete"] is cleanup and report["errors"][:2] == prior_errors
+    assert report["errors"][-1] == {"stage": "terminal-closure", "type": "Refused"}
+    assert report["retention_status"] == "INVENTORY_UNAVAILABLE"
+    assert ("retained_inventory" in report) is null
+    if null: assert report["retained_inventory"] is None
+    assert report["completed_roles"] == [] and report["actual_failed_role_ticks"] is None
+    assert not {"actual_generated_stepped_runs", "actual_physics_ticks", "unstepped_final_cp_decodes",
+                "bytes", "file_count", "files"} & set(report)
+    for name in ("terminal-failure.json", "terminal.json"):
+        terminal = json.loads((tmp_path / name).read_bytes())
+        assert terminal["complete"] is False and terminal["cleanup_complete"] is cleanup
+        assert terminal["retention_status"] == "INVENTORY_UNAVAILABLE" and terminal["publication_failed"] is True
+    assert json.loads((tmp_path / "result.json").read_bytes()) == report
+
+
+@pytest.mark.parametrize("fault", ["sentinel", "result", "terminal", "all", "interrupt"])
+def test_unavailable_inventory_writer_faults_and_stale_authorities_never_promote(tmp_path, monkeypatch, fault):
+    P = load("passive090_publish_inventory_fault_metadata", ROOT / "scripts/current090_profile_publish.py")
+    root = tmp_path / "study"; root.mkdir(); source = "a" * 40
+    for name in P.selected_paths():
+        if name == "terminal-failure.json": continue
+        path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text("{}\n")
+    stale = closure_report(); stale.update(complete=True, instrumentation_equal=True)
+    O.write(root / "result.json", stale)
+    O.write(root / "terminal.json", {"complete": True, "cleanup_complete": True, "required_wrapper_exit": 0,
+            "result_sha256": hashlib.sha256((root / "result.json").read_bytes()).hexdigest()})
+    original = O.write; calls = []
+    def writer(path, value, limit=8 * 1024**2):
+        calls.append((path.name, value["complete"]))
+        selected = {"sentinel": "terminal-failure.json", "result": "result.json", "terminal": "terminal.json"}
+        if fault in ("all", "interrupt") or path.name == selected[fault]:
+            raise (KeyboardInterrupt if fault == "interrupt" else OSError)("private writer detail")
+        return original(path, value, limit)
+    report = unavailable_report()
+    with monkeypatch.context() as patch:
+        patch.setattr(O, "write", writer)
+        if fault == "all":
+            def cannot_unlink(*_args, **_kwargs): raise OSError("private invalidation detail")
+            patch.setattr(Path, "unlink", cannot_unlink)
+        accepted = O.finalize_authorities(root, report, eligible=True, guard=lambda: None, started=0, cpu_started=0)
+    assert accepted is False and report["complete"] is report["instrumentation_equal"] is False
+    assert calls[0] == ("terminal-failure.json", False) and all(not complete for _, complete in calls)
+    assert report["errors"][:2] == unavailable_report()["errors"]
+    if fault == "all":
+        assert json.loads((root / "result.json").read_bytes())["complete"] is True
+        assert json.loads((root / "terminal.json").read_bytes())["complete"] is True
+        assert not (root / "terminal-failure.json").exists()
+    publication = P.publish(root, tmp_path / "publication", owner_outcome="failure", source=source)
+    assert publication["complete"] is False and publication["owner_outcome"] == "failure"
+    assert "private" not in json.dumps(report)
+
+
+def test_unavailable_inventory_dispatch_precedes_positive_guard_and_authority_inspection(tmp_path, monkeypatch):
+    def forbidden(*_args, **_kwargs): pytest.fail("positive finalization work with unavailable inventory")
+    monkeypatch.setattr(O, "regular", forbidden); monkeypatch.setattr(O, "sha", forbidden)
+    assert not O.finalize_authorities(tmp_path, unavailable_report(), eligible=True, guard=forbidden,
+                                     started=0, cpu_started=0)
+
+
+def execute_retained_finally_with_fake_inventory(root, report, inventory):
+    # Compile only the owner's exact finally and outer return. The unavailable
+    # inventory dispatch must prevent any positive source/runtime/host access.
+    import copy
+    tree = ast.parse((ROOT / "scripts/current090_profile_owner.py").read_bytes())
+    execute = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "execute")
+    retained = next(node for node in execute.body if isinstance(node, ast.Try) and node.finalbody)
+    fn = ast.parse("def retained_finally(root, report):\n eligible = True\n").body[0]
+    fn.body += copy.deepcopy(retained.finalbody) + [copy.deepcopy(execute.body[-1])]
+    unit = ast.fix_missing_locations(ast.Module(body=[fn], type_ignores=[]))
+    scope = {"time": SimpleNamespace(monotonic=lambda: 1), "started": 0, "cpu_started": 0,
+             "cpu_seconds": lambda: 1, "deadline": 2400, "supervisor": None, "require": O.require,
+             "inventory": inventory, "retention_failure_record": O.retention_failure_record,
+             "finalize_authorities": O.finalize_authorities}
+    exec(compile(unit, "exact-source-retention-finally", "exec"), scope)
+    return scope["retained_finally"](root, report)
+
+
+@pytest.mark.parametrize("literal,code", [("inventory nonregular/alias", "INVENTORY_NONREGULAR_ALIAS"),
+                                         ("private unclassified reason", "UNKNOWN")])
+def test_retention_failure_retains_first_role_and_returns_outer_failure(tmp_path, literal, code):
+    report = unavailable_report(); report["errors"] = report["errors"][:1]; report.pop("retention_diagnostic")
+    def failed_inventory(*_args, **_kwargs): raise O.Refused(literal)
+    assert execute_retained_finally_with_fake_inventory(tmp_path, report, failed_inventory) == 2
+    assert report["errors"] == [{"stage": "role:0", "type": "BridgeRefused"},
+                                {"stage": "retention", "type": "Refused"},
+                                {"stage": "terminal-closure", "type": "Refused"}]
+    assert report["retention_diagnostic"] == {"exception_code": "OWNER_REFUSED", "reason_code": code}
+    assert report["retention_status"] == "INVENTORY_UNAVAILABLE" and report["cleanup_complete"] is False
+    assert report["actual_failed_role_ticks"] is None and "retained_inventory" not in report
+    assert "private" not in json.dumps(report)
