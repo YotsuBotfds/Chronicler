@@ -254,7 +254,7 @@ export function DebtHolders({
                 {lenders
                   ? "Interest is due per turn at the line's rate. Merchants are named by the region they live in; "
                     + "foreign lenders and regions open in the inspector."
-                  : "The bundle does not name individual lenders."}
+                  : "This snapshot does not name individual lenders."}
               </p>
             </div>
 

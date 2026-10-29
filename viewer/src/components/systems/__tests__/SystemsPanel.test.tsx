@@ -184,6 +184,7 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     const table = within(section).getByRole("table", { name: "Holders of the debt of Khidutain Clans at turn 54" });
     expect(older.finance!.civs["Khidutain Clans"].foreign_debt).toBeGreaterThan(0);
     expect(within(section).getByText("one total")).toBeInTheDocument();
+    expect(within(section).getByText("This snapshot does not name individual lenders.")).toBeInTheDocument();
     expect(within(section).queryByText("no foreign lender")).toBeNull();
     expect(within(table).queryByRole("columnheader", { name: "Rate" })).toBeNull();
     expect(within(table).queryByRole("columnheader", { name: "Interest" })).toBeNull();
