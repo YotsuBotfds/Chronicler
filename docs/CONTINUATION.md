@@ -1,5 +1,15 @@
 # Recovered continuation — 2026-10-11
 
+The separate [fresh eight-seed practice hosted template](experiments/research-practice-fresh-study-cbf-registration-2026-10-29.md)
+is dormant source preparation from preserved837. It reuses exact6b runtime
+controls and the official CBF/3ee wheel, with a fresh all-three-schema freeze
+before any World. Original2000–2007 seeds,24 executions/3,360 ticks, budgets,
+strict identity and raw traces remain fixed. Twenty-eight guarded metadata
+contracts and both unfiltered prepared/active-copy workflow lint checks pass;
+no new study or probe ran. The
+completed66-tick CP60 proof is mechanical evidence with zero payments, not
+a paid-growth or efficacy result. Activation remains separately reviewed.
+
 The first actual fresh CP60 proof attempt (`d0c98fe6`, run40866700701) retained
 64 completed ticks before a harness RunResult-coverage assertion stopped the
 sequence; the observed arm was not attempted. Its negative pack is unchanged.
