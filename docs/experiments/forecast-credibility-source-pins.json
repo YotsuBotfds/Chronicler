@@ -8,16 +8,16 @@
     "sha256": "a194039a54374f48e7a3bad8b2dd1bb58efccdd22f3236c841cdce14ca47def6"
   },
   "docs/experiments/forecast-credibility-inputs.json": {
-    "bytes": 4592,
-    "sha256": "07cdfaf50050cf1fb473cf438ddc2525ffaf933f71e09a634d55b3300f0b412b"
+    "bytes": 4646,
+    "sha256": "d8af0170db408d54e4dffa5c91895ad64319549b33b8a66e46943d1f4d219f39"
   },
   "docs/experiments/forecast-credibility-jobs.json": {
     "bytes": 2714,
     "sha256": "46a41c307e0ebc2720f7cc063271e8ba2ab67aebd890405f785a2416b807d6ca"
   },
   "docs/experiments/forecast-credibility-study.yml.inactive": {
-    "bytes": 4036,
-    "sha256": "8cddd141e20b71564aab501476050dad9cad1174c91ad050848d815194060aea"
+    "bytes": 10155,
+    "sha256": "34faf7d8181e432455b3dff90a2d5aeed3c4cf39223ede516174ef6ff68ec86a"
   },
   "scripts/exact_near_screen_process.py": {
     "bytes": 15495,
@@ -28,32 +28,32 @@
     "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
   },
   "scripts/forecast_credibility_owner.py": {
-    "bytes": 48905,
-    "sha256": "339496538b1baa93d524ad7c4bacdb9f5b94a7630be4b1c5f925a4289da8412e"
+    "bytes": 54672,
+    "sha256": "9a44b87b6815d1004b4a934ade9ac158ab23bd30f6ad67cb10b457f8060fe9f0"
   },
   "scripts/forecast_credibility_publish.py": {
-    "bytes": 6465,
-    "sha256": "91f8c2ac23ec34e9b4508e17a4854a06a4f8c2e67b55d9661427dfd582719b8f"
+    "bytes": 53410,
+    "sha256": "49a1430e392be71a852855368698f9526d6a448c6c5a79df01afd2c09a0d9f9f"
   },
   "scripts/forecast_credibility_readout.py": {
     "bytes": 67963,
     "sha256": "f3701dfd324683932aabf483dac2fff90dca4136b7aef479a6d38d91b84e0049"
   },
   "scripts/forecast_credibility_study.py": {
-    "bytes": 15105,
-    "sha256": "4987cc0e7f8562fd840a6ad608f4d94d65830500afd75757a84afd304710b8b6"
+    "bytes": 21191,
+    "sha256": "33bc179a70d71db3099b1063b700ca8d71658caed4a886354ff0d13f38b2760a"
   },
   "scripts/forecast_credibility_transport.py": {
     "bytes": 10990,
     "sha256": "257910d4139afdf81e5b1b75c2c598d3a652c1c22ed89a6e3783cffafa49e489"
   },
   "scripts/run_python_oracle_checks.py": {
-    "bytes": 22185,
-    "sha256": "5145c16c261d81d4b5c8a23a890a2afbbe7bb2e793bf7be6d09982b864e74483"
+    "bytes": 22243,
+    "sha256": "3580f2d0c4a4aa0042f879f0a95e7034ab3630236acd4ed8c76503851f6914f8"
   },
   "scripts/testing/native_shards_manifest.json": {
-    "bytes": 13701,
-    "sha256": "0b7bb44ef18c8c088e110d7224c284cb9e0fe4be88a78780e7606d7e2dc0c0c8"
+    "bytes": 13757,
+    "sha256": "fb70705358eb90b46e67eebfc896bc9afe3d1f31a44b14d913c7a2f0d74a9b4b"
   },
   "scripts/wealth_floor_build_resources.py": {
     "bytes": 7688,
@@ -63,12 +63,16 @@
     "bytes": 4528,
     "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
   },
+  "tests/test_forecast_credibility_publication.py": {
+    "bytes": 33166,
+    "sha256": "38db2eb654c20d2e230e51ca9b2d185e50db3738e05283d40401adcfa94d9426"
+  },
   "tests/test_forecast_credibility_readout.py": {
     "bytes": 56306,
     "sha256": "90520948a48b117ecd79ae85d54c459bdb1006c88a46c8526d5651d83a86bb9f"
   },
   "tests/test_forecast_credibility_study.py": {
-    "bytes": 12915,
-    "sha256": "8cfc2e1a977ddf8316faa14156105e667f7c58f82abfa3fb52bcf4d53a3f6523"
+    "bytes": 22544,
+    "sha256": "21584b791459514414e7a1d4a9661e2d235ea9d96cc013678b99d7dbd527095d"
   }
 }

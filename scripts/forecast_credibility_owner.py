@@ -243,6 +243,7 @@ CONTROL_FILES = (
     "scripts/wealth_floor_build_resources.py", "scripts/wealth_floor_hosted_deployment.py",
     "scripts/forecast_credibility_publish.py", "tests/test_forecast_credibility_study.py",
     "tests/test_forecast_credibility_readout.py",
+    "tests/test_forecast_credibility_publication.py",
     "scripts/run_python_oracle_checks.py", "scripts/testing/native_shards_manifest.json",
     "docs/experiments/forecast-credibility-inputs.json", "docs/experiments/forecast-credibility-jobs.json",
     "docs/experiments/forecast-credibility-controls-local-credibility.json",
@@ -278,7 +279,9 @@ def modules(control):
             and ("Source manifest SHA-256: `" + sha(pin_path) + "`") in protocol.read_text(), "protocol binds exact source manifest")
     binding = core.validate_binding(config["binding"])
     jobs = core.validate_jobs(core.strict_json((control / "docs/experiments/forecast-credibility-jobs.json").read_bytes()))
-    require(jobs == core.JOBS and CAPS == core.CAPS, "literal jobs/thread policy")
+    require(jobs == core.JOBS and CAPS == core.CAPS and REPOSITORY == core.REPOSITORY
+            and WORKFLOW_PATH == core.STUDY_WORKFLOW and JOB_KEY == core.STUDY_JOB and ACTIVE_BRANCH == core.STUDY_BRANCH,
+            "literal jobs/thread/current job policy")
     for suffix, expected in (("local-credibility", {"preparation_policy": "local_credibility"}),
                              ("withheld", {"policy": "withhold", "preparation_policy": "local_credibility"})):
         require(core.strict_json((control / ("docs/experiments/forecast-credibility-controls-" + suffix + ".json")).read_bytes()) == expected,
@@ -305,6 +308,48 @@ def context(environment):
     run = environment.get("GITHUB_RUN_ID", "")
     require(run.isascii() and run.isdecimal() and int(run) > 0, "control run identity")
     return {key: environment[key] for key in ("GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_WORKFLOW_REF", "GITHUB_JOB")}
+
+
+def clock_producer(observed_context):
+    return {"repository": REPOSITORY, "source": observed_context["GITHUB_SHA"],
+            "run_id": int(observed_context["GITHUB_RUN_ID"]), "attempt": 1,
+            "workflow": WORKFLOW_PATH, "job": JOB_KEY, "event": "push"}
+
+
+def observe_job_clock(core, connection, producer, boot_id, *, monotonic=time.monotonic, utcnow=None):
+    """Two closed current-run metadata reads; no artifact or product access."""
+    require(type(producer) is dict and type(producer.get("run_id")) is int and producer["run_id"] > 0,
+            "closed current run clock endpoint")
+    utcnow = (lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")) if utcnow is None else utcnow
+    remaining = 2 * 1024**2
+    def read(suffix):
+        nonlocal remaining
+        with connection.api(suffix) as response:
+            raw = response.read(remaining + 1)
+            require(len(raw) <= remaining, "current job clock metadata byte cap")
+            remaining -= len(raw)
+            dated = response.headers.get("Date")
+            aged = response.headers.get("Age")
+        connection.check()
+        return core.strict_json(raw), dated, aged
+    run, _run_date, run_age = read("/actions/runs/" + str(producer["run_id"]))
+    before = monotonic()
+    utc_before = utcnow()
+    jobs, http_date, http_age = read("/actions/runs/" + str(producer["run_id"]) + "/jobs?filter=latest&per_page=100")
+    utc_after = utcnow()
+    after = monotonic()
+    return core.admit_job_clock(producer, run, jobs, http_date=http_date,
+            http_age=http_age, run_http_age=run_age, utc_before=utc_before, utc_after=utc_after,
+            monotonic_before=before, monotonic_after=after, boot_id=boot_id)
+
+
+def tighten_deadlines(supervisor, selected):
+    """Tighten every donor deadline consumer without mutating donor code."""
+    require(type(selected) in (int, float) and selected > 0
+            and selected <= supervisor.overall_deadline, "owner clock only tightens deadline")
+    supervisor.overall_deadline = selected
+    supervisor.deadline = min(supervisor.deadline, selected - 25)
+    require(supervisor.deadline < supervisor.overall_deadline, "supervisor cleanup reserve")
 
 
 def paths(args):
@@ -372,7 +417,8 @@ def pure_preflight(control, result):
     status = pytest.main(["-q", "-p", "no:cacheprovider", "--noconftest", "--rootdir=" + str(control), "--confcutdir=" + str(control),
                          "--basetemp=" + str(result.parent / "fixtures"), "--junitxml=" + str(junit),
                          str(control / "tests/test_forecast_credibility_study.py"),
-                         str(control / "tests/test_forecast_credibility_readout.py")])
+                         str(control / "tests/test_forecast_credibility_readout.py"),
+                         str(control / "tests/test_forecast_credibility_publication.py")])
     cases = ET.parse(junit).findall(".//testcase")
     after = control_pins(control)
     loaded = [name for name in sys.modules if name.split(".")[0] in {"chronicler", "chronicler_agents", "numpy", "pyarrow"}]
@@ -389,13 +435,26 @@ def pure_preflight(control, result):
 def child(args):
     require(EXECUTION_APPROVAL is not None, "source-only execution approval is null")
     core, reader, transport, owned, config, binding, jobs = modules(args.control)
-    cpu_cap = 30 if args.child == "preflight" else 60 if args.child == "bootstrap" else 100
+    cpu_cap = 5 if args.child == "job-clock" else 30 if args.child == "preflight" else 60 if args.child == "bootstrap" else 100
     resource.setrlimit(resource.RLIMIT_CPU, (cpu_cap, cpu_cap))
     resource.setrlimit(resource.RLIMIT_AS, (4 * GIB, 4 * GIB))
     resource.setrlimit(resource.RLIMIT_FSIZE, (128 * 1024**2, 128 * 1024**2))
     runtime_flags()
     if args.child == "preflight":
         pure_preflight(args.control, args.result); return
+    if args.child == "job-clock":
+        resource.setrlimit(resource.RLIMIT_AS, (128 * 1024**2, 128 * 1024**2))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (2 * 1024**2, 2 * 1024**2))
+        observed_context = context(os.environ)
+        def admission(_phase, disk, ram):
+            observed = owned["wealth_floor_build_resources"].memory_admission()
+            require(shutil.disk_usage(args.root).free >= disk * GIB and observed["available_bytes"] >= ram * GIB,
+                    "job clock resource floor")
+        connection = transport.Transport(os.environ.get("GH_TOKEN", ""), types.SimpleNamespace(admission=admission),
+                                         time.monotonic() + 15)
+        result = observe_job_clock(core, connection, clock_producer(observed_context),
+                owned["exact_near_screen_session"].boot_id().strip())
+        write(args.result, result, 2 * 1024**2); return
     if args.child in ("input-before", "input-after"):
         def admission(_phase, disk, ram):
             observed = owned["wealth_floor_build_resources"].memory_admission()
@@ -589,6 +648,27 @@ def execute(args):
                         and sha(folder / "pyproject.toml") == expected["pyproject_sha256"]
                         and sha(folder / "uv.lock") == expected["lock_sha256"], "source package/dependency inputs")
             require(binding["candidate"]["lock_sha256"] == binding["baseline"]["lock_sha256"], "matched dependency lock")
+            clock_base = python_command(sys.executable, str(args.control / "scripts/forecast_credibility_owner.py"),
+                    "--control", str(args.control), "--baseline", str(args.baseline), "--candidate", str(args.candidate),
+                    "--prefix", str(args.prefix), "--root", str(args.root))
+            report["stage"] = "job-clock"
+            command("job-clock", [*clock_base, "--child", "job-clock", "--result", str(args.root / "job-clock.json")],
+                    15, input_token=True)
+            clock = core.strict_json((args.root / "job-clock.json").read_bytes())
+            expected_clock = core.admit_job_clock(clock_producer(producer), clock["observed"]["run"],
+                    clock["observed"]["jobs"], http_date=clock["observed"]["http_date"],
+                    http_age=clock["observed"]["http_age"], run_http_age=clock["observed"]["run_http_age"],
+                    utc_before=clock["observed"]["utc_before"], utc_after=clock["observed"]["utc_after"],
+                    monotonic_before=clock["observed"]["monotonic_before"], monotonic_after=clock["observed"]["monotonic_after"],
+                    boot_id=legacy.boot_id().strip())
+            require(clock == expected_clock and supervisor.cleanup_complete, "original actual current job clock")
+            deadline = core.effective_owner_deadline(started, clock["monotonic_deadline"], time.monotonic())
+            tighten_deadlines(supervisor, deadline)
+            report["job_clock"] = {"path": "job-clock.json", "sha256": sha(args.root / "job-clock.json"),
+                    "monotonic_deadline": clock["monotonic_deadline"], "effective_owner_deadline": deadline,
+                    "publication_reserve_seconds": core.PUBLICATION_RESERVE,
+                    "scope": "Official current-job clock admission before any World; tighter available job deadline, unchanged2400/1800 owner maxima."}
+            check()
             command("install-uv", python_command(sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir", "--only-binary=:all:", "uv==" + UV), 120)
             uv = Path(sys.executable).parent / "uv"; uv_hash = sha(uv)
             command("uv-version", [str(uv), "--version"], 30)
@@ -680,6 +760,10 @@ def execute(args):
             if supervisor is not None: supervisor.check(final=True)
             if eligible:
                 require(supervisor.cleanup_complete and not owned["exact_near_screen_process"].direct_children(), "postterminal quiescence")
+                require(sha(args.root / "job-clock.json") == report["job_clock"]["sha256"]
+                        and legacy.boot_id().strip() == clock["boot_id"]
+                        and deadline <= clock["monotonic_deadline"] - core.PUBLICATION_RESERVE,
+                        "postterminal original job clock and publication reserve")
                 require(control_pins(args.control) == before_control and sha(uv) == uv_hash, "postterminal control/installer")
                 for alias, folder in sources.items():
                     require(package_digest(folder)[0] == binding[alias]["package_digest"]
@@ -701,7 +785,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("control", "baseline", "candidate", "prefix", "root", "result"):
         parser.add_argument("--" + name, type=Path, required=name != "result")
-    parser.add_argument("--child", choices=("preflight", "input-before", "input-after", "bootstrap", "role", "readout"))
+    parser.add_argument("--child", choices=("job-clock", "preflight", "input-before", "input-after", "bootstrap", "role", "readout"))
     parser.add_argument("--index", type=int)
     args = parser.parse_args(argv)
     if args.child:

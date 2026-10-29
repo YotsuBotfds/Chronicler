@@ -242,3 +242,186 @@ def test_four_helper_and_transport_bytes_remain_exact_donors():
         raw=(ROOT/'scripts'/name).read_bytes()
         assert len(raw)==pin['bytes'] and hashlib.sha256(raw).hexdigest()==pin['sha256']
     assert hashlib.sha256((ROOT/'scripts/forecast_credibility_transport.py').read_bytes()).hexdigest()==config['transport_donor_sha256']
+
+
+# Authenticated-current-job clock admission: invented metadata only.
+def current_job_clock_inputs():
+    producer = {'repository':S.REPOSITORY,'source':'a'*40,'run_id':7,'attempt':1,
+                'workflow':S.STUDY_WORKFLOW,'job':S.STUDY_JOB,'event':'push'}
+    run = {'id':7,'head_sha':'a'*40,'run_attempt':1,'path':S.STUDY_WORKFLOW,'event':'push',
+           'head_branch':S.STUDY_BRANCH,
+           'status':'in_progress','conclusion':None,'repository':{'id':S.REPOSITORY_ID,'full_name':S.REPOSITORY}}
+    job = {'id':9,'run_id':7,'run_attempt':1,'head_sha':'a'*40,'name':S.STUDY_JOB,
+           'status':'in_progress','conclusion':None,'completed_at':None,'started_at':'2026-10-29T18:59:00Z'}
+    return producer, run, {'total_count':1,'jobs':[job]}
+
+
+def admit_clock(producer=None, run=None, jobs=None, **kw):
+    inputs = current_job_clock_inputs()
+    return S.admit_job_clock(inputs[0] if producer is None else producer,
+           inputs[1] if run is None else run, inputs[2] if jobs is None else jobs,
+           http_date=kw.pop('http_date','Thu, 29 Oct 2026 19:00:00 GMT'),
+           http_age=kw.pop('http_age',None),run_http_age=kw.pop('run_http_age',None),
+           utc_before=kw.pop('utc_before','2026-10-29T18:59:59.500000Z'),
+           utc_after=kw.pop('utc_after','2026-10-29T19:00:00.500000Z'),
+           monotonic_before=kw.pop('monotonic_before',100.0),monotonic_after=kw.pop('monotonic_after',101.0),
+           boot_id=kw.pop('boot_id','01234567-89ab-cdef-0123-456789abcdef'),**kw)
+
+
+def test_current_job_clock_uses_actual_server_date_and_conservative_start_sample():
+    producer,run,jobs=current_job_clock_inputs()
+    result=admit_clock(producer,run,jobs)
+    assert result['monotonic_deadline']==2735.0
+    assert result['observed']['monotonic_before']==100.0
+    assert result['observed']['monotonic_after']==101.0
+    assert result['control_producer']==producer and result['complete'] is True
+    run['head_sha']='b'*40
+    assert result['observed']['run']['head_sha']=='a'*40
+
+
+@pytest.mark.parametrize('field,value',[
+    ('repository','other/repo'),('source','bad'),('run_id',True),('run_id',0),('attempt',True),
+    ('attempt',2),('workflow','.github/workflows/other.yml'),('job','other'),('event','workflow_dispatch'),
+])
+def test_current_job_clock_rejects_wrong_control_producer(field,value):
+    producer,run,jobs=current_job_clock_inputs();producer[field]=value
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+
+
+@pytest.mark.parametrize('field,value',[
+    ('id',8),('id',True),('head_sha','b'*40),('run_attempt',2),('run_attempt',True),
+    ('path','.github/workflows/other.yml'),('event','workflow_dispatch'),('head_branch','other'),('status','completed'),
+    ('conclusion','success'),('repository',{'id':S.REPOSITORY_ID,'full_name':'other/repo'}),
+    ('repository',{'id':True,'full_name':S.REPOSITORY}),
+])
+def test_current_job_clock_rejects_wrong_or_completed_run(field,value):
+    producer,run,jobs=current_job_clock_inputs();run[field]=value
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+
+
+@pytest.mark.parametrize('defect',['missing','duplicate','count_bool','count_wrong'])
+def test_current_job_clock_requires_the_single_exact_current_job(defect):
+    producer,run,jobs=current_job_clock_inputs()
+    if defect=='missing':jobs['jobs']=[]
+    elif defect=='duplicate':jobs['jobs'].append(deepcopy(jobs['jobs'][0]))
+    elif defect=='count_bool':jobs['total_count']=True
+    else:jobs['total_count']=2
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+
+
+@pytest.mark.parametrize('field,value',[
+    ('id',False),('run_id',8),('run_attempt',True),('head_sha','b'*40),('name','other'),
+    ('status','queued'),('status','completed'),('conclusion','failure'),('completed_at','2026-10-29T19:00:00Z'),
+])
+def test_current_job_clock_requires_actual_in_progress_job_source_and_attempt(field,value):
+    producer,run,jobs=current_job_clock_inputs();jobs['jobs'][0][field]=value
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+
+
+@pytest.mark.parametrize('started',[
+    None,'2026-10-29Z','2026-10-29T19:00:01Z','2026-10-29T18:10:00Z','2026-10-29T18:59:00+00:00',
+])
+def test_current_job_clock_refuses_missing_future_expired_or_noncanonical_start(started):
+    producer,run,jobs=current_job_clock_inputs();jobs['jobs'][0]['started_at']=started
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+
+
+@pytest.mark.parametrize('dated',[None,'bad','Thu, 29 Oct 2026 19:00:00 +0000','Thu, 29 Oct 2026 19:00:00 PST'])
+def test_current_job_clock_requires_authenticated_canonical_http_date(dated):
+    with pytest.raises(S.Refused):admit_clock(http_date=dated)
+
+
+@pytest.mark.parametrize('before,after',[(True,101.0),(100.0,99.0),(100.0,116.0),(float('nan'),101.0),(100.0,float('inf'))])
+def test_current_job_clock_rejects_unbounded_or_inconsistent_monotonic_samples(before,after):
+    with pytest.raises(S.Refused):admit_clock(monotonic_before=before,monotonic_after=after)
+
+
+def test_clock_refuses_insufficient_publication_reserve_and_wrong_boot_shape():
+    producer,run,jobs=current_job_clock_inputs();jobs['jobs'][0]['started_at']='2026-10-29T18:19:00Z'
+    with pytest.raises(S.Refused):admit_clock(producer,run,jobs)
+    with pytest.raises(S.Refused):admit_clock(boot_id='not-a-boot-identity')
+
+
+def test_effective_owner_deadline_reserves_publication_without_increasing_owner_cap():
+    assert S.effective_owner_deadline(100.0,3000.0,110.0)==2500.0
+    assert S.effective_owner_deadline(100.0,2735.0,110.0)==2480.0
+    assert S.effective_owner_deadline(100.0,1000.0,110.0)==745.0
+    assert S.LIMITS['owner_wall_seconds']==2400 and S.LIMITS['owner_cpu_seconds']==1800
+    assert S.LIMITS['final_wall_reserve']==150 and S.LIMITS['final_cpu_reserve']==100
+
+
+@pytest.mark.parametrize('started,deadline,now',[(100.0,400.0,110.0),(100.0,3000.0,99.0),(100.0,float('inf'),110.0)])
+def test_effective_owner_deadline_refuses_missing_final_reserve_or_bad_clock(started,deadline,now):
+    with pytest.raises(S.Refused):S.effective_owner_deadline(started,deadline,now)
+
+
+def test_supervisor_soft_and_final_deadlines_tighten_together_without_extension():
+    supervisor=SimpleNamespace(overall_deadline=2500.0,deadline=2475.0)
+    O.tighten_deadlines(supervisor,2400.0)
+    assert supervisor.overall_deadline==2400.0 and supervisor.deadline==2375.0
+    with pytest.raises(O.Refused):O.tighten_deadlines(supervisor,2450.0)
+    assert supervisor.overall_deadline==2400.0 and supervisor.deadline==2375.0
+
+
+class FakeClockConnection:
+    def __init__(self,run,jobs,*,oversize=False):
+        self.rows=[run,jobs];self.paths=[];self.checks=0;self.oversize=oversize
+    def api(self,path):
+        self.paths.append(path)
+        data=json.dumps(self.rows[len(self.paths)-1]).encode()
+        if self.oversize:data=b'x'*(2*1024**2+1)
+        stream=io.BytesIO(data);stream.headers={'Date':'Thu, 29 Oct 2026 19:00:00 GMT'}
+        return stream
+    def check(self):self.checks+=1
+
+
+def test_clock_intake_uses_only_two_closed_metadata_endpoints_and_server_header():
+    producer,run,jobs=current_job_clock_inputs();connection=FakeClockConnection(run,jobs)
+    observed=iter([100.0,101.0])
+    utc=iter(['2026-10-29T18:59:59.500000Z','2026-10-29T19:00:00.500000Z'])
+    result=O.observe_job_clock(S,connection,producer,'01234567-89ab-cdef-0123-456789abcdef',
+            monotonic=lambda:next(observed),utcnow=lambda:next(utc))
+    assert result==admit_clock(producer,run,jobs)
+    assert connection.paths==['/actions/runs/7','/actions/runs/7/jobs?filter=latest&per_page=100']
+    assert connection.checks==2
+
+
+def test_clock_intake_does_not_clip_metadata_overflow_or_accept_injected_endpoint():
+    producer,run,jobs=current_job_clock_inputs();connection=FakeClockConnection(run,jobs,oversize=True)
+    with pytest.raises(O.Refused):O.observe_job_clock(S,connection,producer,'01234567-89ab-cdef-0123-456789abcdef')
+    assert len(connection.paths)==1
+    producer['run_id']='7/../../private';connection=FakeClockConnection(run,jobs)
+    with pytest.raises(O.Refused):O.observe_job_clock(S,connection,producer,'01234567-89ab-cdef-0123-456789abcdef')
+    assert connection.paths==[]
+
+
+@pytest.mark.parametrize('age',['1','60','00','bad',' 0',0,True])
+def test_current_job_clock_rejects_nonzero_or_malformed_cache_age(age):
+    with pytest.raises(S.Refused):admit_clock(http_age=age)
+
+
+def test_current_job_clock_rejects_aged_run_response_even_with_fresh_jobs():
+    with pytest.raises(S.Refused):admit_clock(run_http_age='60')
+
+
+def test_current_job_clock_admits_exact_zero_age_only_with_fresh_request_witnesses():
+    result=admit_clock(http_age='0',run_http_age='0')
+    assert result['monotonic_deadline']==2735.0
+    assert result['observed']['http_age']==result['observed']['run_http_age']=='0'
+
+
+@pytest.mark.parametrize('date,before,after',[
+    ('Thu, 29 Oct 2026 19:00:00 GMT','2026-10-29T19:00:20Z','2026-10-29T19:00:21Z'),
+    ('Thu, 29 Oct 2026 19:00:10 GMT','2026-10-29T18:59:59.500000Z','2026-10-29T19:00:00.500000Z'),
+])
+def test_authenticated_but_stale_or_future_server_date_is_not_fresh_enough(date,before,after):
+    with pytest.raises(S.Refused):admit_clock(http_date=date,http_age='0',utc_before=before,utc_after=after)
+
+
+@pytest.mark.parametrize('before,after',[
+    ('2026-10-29T19:00:00Z','2026-10-29T18:59:59Z'),
+    ('2026-10-29T19:00:00Z','2026-10-29T19:00:10Z'),
+    ('2026-10-29T19:00:00+00:00','2026-10-29T19:00:01Z'),
+])
+def test_clock_step_or_noncanonical_request_utc_refuses_instead_of_retiming_job(before,after):
+    with pytest.raises(S.Refused):admit_clock(utc_before=before,utc_after=after)

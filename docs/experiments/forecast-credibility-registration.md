@@ -16,7 +16,7 @@ that fact does not supply candidate full CI. Default/legacy comparator is
 `94b308e65bf3c7febc41f09b73004b1db2056a1d`, package
 `1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0`.
 
-Source manifest SHA-256: `c2922d24744dfbda43f75b7a74795ec4e332adbced18c8144412a80a463decb8`
+Source manifest SHA-256: `aa68b9300548b13266ff8bc97b568f22b3705c44e7a42f9098463fc4dcc4f335`
 
 The source manifest binds controller, reader, fake tests, literal jobs,
 controls, dependency/producer inputs, helper bytes and dormant workflow. The
@@ -198,3 +198,120 @@ frozen prospective selection to215 (63 study/152 reader). This source has no
 execution result until its own one-attempt guard/fixture receipt is retained.
 Product/native/policy/matrix/caps/ownership registrations and all runtime/input
 bindings remain exact991. Raw-retention implementation remains separate/held.
+
+
+## Source-only durable original-role publication
+
+This isolated descendant implements the bounded proposal
+`48fe14f9c51f1bdf82cac6b770b9b5c169e56da7e1e733698393eced310d9c8b`
+and appendenda
+`d53c6cace33e7409827ae19d0a6ea4ee837b4bb91e6c99c2de69582f0d6e2087` /
+`a8d460ddbd63c0fd5bc9fcc3c5f0b6063c9912395ab18f6a2f86ba2e446f7412`.
+It is source work only: no acquisition, native import, World, original-checkpoint
+execution, workflow activation or durable archive observation has occurred.
+Runtime candidate/full-CI/execution bindings stay NULL; qualified469 is still a
+prospective documented input, and the historical3a wheel is not relabelled.
+
+Before the first World or network installation, an existing owned metadata child
+admits the actual in-progress control run and its unique in-progress job: exact
+repository/control SHA/run/attempt1/push/workflow/job joins, authenticated HTTP
+Date, absent or canonical zero Age headers, paired request UTC/monotonic samples
+and a same-VM boot ID. UTC samples only refuse stale/future Date or clock steps;
+they never supply or extend the official deadline. Date must fall within the
+request UTC interval with1second precision slack, and UTC/monotonic elapsed
+spans must agree within1second. The conservative official
+job deadline D uses the start-of-request monotonic sample plus remaining time
+from job.started_at+2700 seconds and server Date, minus5seconds precision slack.
+The owner and donor supervisor soft/final deadlines all tighten to
+min(owner_start+2400,D-255). Its150wall/100CPU final reserve and2400wall/1800CPU
+maximum remain unchanged. Unknown/inconsistent clock or inadequate final reserve
+refuses before a World. Original clock bytes are rechecked after terminal commit.
+
+The separate publication stages are explicitly outside the measured owner:
+prepare at most30wall/20CPU/256MiB AS; metadata serialization and its late raw
+gate share at most20 ACTIVE wall/10CPU seconds and256MiB AS per process;
+metadata upload60seconds; raw upload120seconds; safety reserve25seconds.
+The total255seconds is reserved inside the unchanged45-minute workflow job.
+Missing, malformed, killed or timed-out preparation always refuses raw upload;
+a hard kill cannot promise to write its own negative plan. The independent
+always metadata fallback still attempts bounded honest metadata retention first.
+No source claim combines publication CPU with the measured1800CPU owner ceiling.
+The sealed metadata ledger binds exact source, original/publication paths and
+saved job-clock hash/boot/deadline. A kernel boot-time sample read by the launcher
+before Python includes interpreter startup in ACTIVE wall accounting. The
+serializer charges a conservative1wall/0.25CPU tail for final write/output/guards;
+REAL/PROF timers tighten to the sealed charge through actual process exit,
+and all final guards must fit that charge. After the separate metadata-upload wait,
+the late gate receives only floored remaining milliseconds/whole CPU seconds.
+Both launcher timeout/CPU limits and code timers enforce that remaining envelope;
+zero whole remaining CPU seconds refuse. Only actual serializer exit0/2, successful
+publication step and the postguard completion flag can enable the late gate.
+Signals, timeout, exception, missing flag or mismatched ledger/arguments refuse.
+This is one shared20/10 allowance, with no second metadata allowance.
+
+Preparation descriptor-hashes the original closed tree under finite walk/hash/
+metadata bounds, then rescans names/stat identities. It rejects aliases, links,
+nonregular bodies, casefold collisions, absent individual action paths and
+unregistered role directories. Every selected hidden leaf is included. The
+fixed action inputs are roles/, raw-retention-manifest.json, and the14 exact
+logs/role-0.log through role-13.log, with the study root as their common ancestor.
+The manifest closes every uploaded role/log member by canonical path, byte count
+and hash; its own digest is named by a separate bounded metadata plan. No full
+ZIP/tar or second role-body tree is written, and no original body is moved,
+rewritten, cropped or deleted. Hash/stat drift or unavailable closure stays
+negative. Later original-ZIP/member validation must still catch any upload race.
+
+The local aggregate counts all original regular files including original
+result/terminal authorities, new raw manifest/plan, and every metadata copy and
+publication authority jointly within2GiB/4096. A copied manifest counts twice.
+The4MiB manifest+64KiB plan and complete16MiB/128-file metadata reserve are not
+double-spent. Each role remains128MiB/256files including its2MiB acceptance log;
+14roles can total at most1.75GiB/3584selected files, but retained pure fixtures
+and all other owner files consume the same aggregate. These are refusal maxima,
+not simultaneously allocated quotas. Preparation is bounded to10000visited
+entries/depth64/512UTF8 bytes per archive path and at most2GiB original bytes
+hashed plus16MiB bounded metadata input. Overflow never creates an empty or
+clipped positive body manifest.
+
+Raw eligibility uses the actual original owner inventory and whole-owner cleanup,
+not child-only cleanup. Early/partial failures with whole-owner cleanup=false
+remain raw-ineligible even when individual child rows say cleanup succeeded.
+Their VM-local files remain preserved, but no post-VM original retention is
+promised. A late-negative archive requires actual cleanup=true, the original
+complete selected inventory/hashes and all caps; its matrix remains negative,
+failed ticks remain unknown and no315-turn completion is invented. Missing
+fixed input paths also refuse; action success cannot silently select a subset.
+
+The pinned [upload client source](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/dist/upload/index.js)
+was independently inspected in source receipt
+`074c5f325232d4e0756b22579ce15172684bbbd044ab90bfd11e27a7e3e1912e`.
+Its conditional regular-input compression0 path is ZIP_STORED and streams bytes
+without a full producer ZIP file. At3585members/512-byte names and at most
+1,883,242,496payload bytes, clientZIP<=1,887,243,378B and central directory
+<=2,000,430B. The workflow pins ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY='1', limiting
+that Azure scheduler's8MiB buffer pool; whole-process RSS and upload throughput
+remain unproved. One explicit workflow/action attempt does not mean zero HTTP
+retries: the packaged SDK/transport has internal metadata/Azure retry policies.
+The source-bound client proof does not prove provider backend/download equivalence.
+
+Metadata is uploaded first. A separately gated raw upload then needs a valid
+complete plan/manifest, successful metadata upload and remaining job reserve.
+On-VM body closure, action upload reporting and independent original-artifact
+acceptance are distinct facts. raw_original_artifact_qualified remains NULL
+until a later independently admitted official completed run/job/artifact/expiry/
+size/digest and original ZIP's complete members/CRC/EOF/hashes agree. Missing or
+unsafe raw evidence blocks original-body replay qualification while retaining the
+scope of honest metadata proofs. No generic raw download, receiver activation or
+increase to the separate closed wheel transport caps is authorized here.
+
+The c80 reader's nonauthor source clearance is
+`ea927669d87473f80fa203ff4a41aa5d94a61284b1db40ff246616538d02dae0`;
+its215fake passes remain source-scoped. This publication child preserves all215
+old test bodies, adds clock/publication counterexamples and a third owned pure
+module. Its prospective391 cases are134 study,152 unchanged reader and105
+publication cases; these counts come from static AST only and claim no execution. Native ownership becomes306modules with all305previous owners/six
+skips/623subtests unchanged; the39th offline chunk adds only the new module,
+first38chunks and110-second bounds remaining exact. New code/case counts/source
+pins and runner must freeze before any separately authorized bounded fake run.
+Actual runtime/native-schema/report exposure, full Python graph/RNG, science,
+efficacy, performance, adoption, and main promotion remain unavailable.

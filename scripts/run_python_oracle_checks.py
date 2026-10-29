@@ -325,6 +325,7 @@ CHUNKS = {
     "forecast-credibility-study": [
         "tests/test_forecast_credibility_study.py",
         "tests/test_forecast_credibility_readout.py",
+        "tests/test_forecast_credibility_publication.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]

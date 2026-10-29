@@ -32,6 +32,8 @@ jobs:
       PYTHONHASHSEED: '0'
       PYTHONDONTWRITEBYTECODE: '1'
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      # Pinned client pool<=8MiB only; total RSS/backend ZIP remain unobserved.
+      ACTIONS_ARTIFACT_UPLOAD_CONCURRENCY: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -61,23 +63,52 @@ jobs:
             --control "$GITHUB_WORKSPACE/control" --baseline "$GITHUB_WORKSPACE/baseline" \
             --candidate "$GITHUB_WORKSPACE/candidate" --prefix "$RUNNER_TEMP/forecast-credibility-prefix" \
             --root "$RUNNER_TEMP/forecast-credibility-study"
-      - name: Always retain bounded metadata, including setup or collection failure
-        id: publication
+      - name: Prepare bounded original role manifest after owned quiescence
+        id: raw_prepare
         if: always()
+        continue-on-error: true
+        timeout-minutes: 1
         env:
           OWNER_OUTCOME: ${{ steps.owner.outcome }}
         shell: bash
         run: |
           set -euo pipefail
-          if test -f "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py"; then
-            /usr/bin/python3 -I -B "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py" \
-              --root "$RUNNER_TEMP/forecast-credibility-study" --output "$RUNNER_TEMP/forecast-credibility-publication" \
-              --owner-outcome "$OWNER_OUTCOME" --source "$GITHUB_SHA"
-          else
-            /usr/bin/python3 -I -B -c 'import json,os,pathlib; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"forecast-credibility-publication"; p.mkdir(exist_ok=False); (p/"publication.json").write_text(json.dumps({"complete":False,"metadata_only":True,"source_publication_qualified":False,"owner_step_outcome":os.environ["OWNER_OUTCOME"],"source":os.environ["GITHUB_SHA"],"missing_control_publisher":True})+"\n"); raise SystemExit(2)'
-          fi
-      - name: Publish metadata only
+          read -r launch_boot _ < /proc/uptime
+          ulimit -t 20
+          ulimit -v 262144
+          exec /usr/bin/timeout --signal=KILL 30s /usr/bin/python3 -I -B "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py" \
+            --launcher-boot-seconds "$launch_boot" --mode prepare --control "$GITHUB_WORKSPACE/control" \
+            --root "$RUNNER_TEMP/forecast-credibility-study" \
+            --owner-outcome "$OWNER_OUTCOME" --source "$GITHUB_SHA"
+      - name: Always retain bounded metadata, including missing or killed raw preparation
+        id: publication
         if: always()
+        timeout-minutes: 1
+        env:
+          OWNER_OUTCOME: ${{ steps.owner.outcome }}
+          PREPARE_OUTCOME: ${{ steps.raw_prepare.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r launch_boot _ < /proc/uptime
+          set +e
+          if test -f "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py"; then
+            (ulimit -t 10; ulimit -v 262144; exec /usr/bin/timeout --signal=KILL 20s /usr/bin/python3 -I -B "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py" \
+              --root "$RUNNER_TEMP/forecast-credibility-study" --output "$RUNNER_TEMP/forecast-credibility-publication" \
+              --owner-outcome "$OWNER_OUTCOME" --prepare-outcome "$PREPARE_OUTCOME" --source "$GITHUB_SHA" \
+              --launcher-boot-seconds "$launch_boot")
+          else
+            (ulimit -t 10; ulimit -v 262144; exec /usr/bin/timeout --signal=KILL 20s /usr/bin/python3 -I -B -c 'import json,os,pathlib,resource,signal; resource.setrlimit(resource.RLIMIT_AS,(268435456,268435456)); resource.setrlimit(resource.RLIMIT_CPU,(10,10)); resource.setrlimit(resource.RLIMIT_FSIZE,(65536,65536)); signal.alarm(20); p=pathlib.Path(os.environ["RUNNER_TEMP"])/"forecast-credibility-publication"; p.mkdir(exist_ok=False); (p/"publication.json").write_text(json.dumps({"complete":False,"metadata_only":True,"source_publication_qualified":False,"owner_step_outcome":os.environ["OWNER_OUTCOME"],"source":os.environ["GITHUB_SHA"],"missing_control_publisher":True,"raw_original_artifact_qualified":None,"raw_reason":"missing_control_publisher"})+"\n"); raise SystemExit(2)')
+          fi
+          serializer_exit=$?
+          set -e
+          printf 'serializer_exit=%s\n' "$serializer_exit" >> "$GITHUB_OUTPUT"
+          # Only these actual child exits can accompany the source's final budget flag.
+          if test "$serializer_exit" -ne 0 && test "$serializer_exit" -ne 2; then exit "$serializer_exit"; fi
+      - name: Publish metadata first
+        id: metadata_upload
+        if: always()
+        timeout-minutes: 1
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: forecast-credibility-study-metadata-${{ github.sha }}
@@ -85,3 +116,69 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 6
+      - name: Recheck original-member identities and actual remaining job time
+        id: raw_gate
+        if: >-
+          always() && steps.raw_prepare.outcome == 'success' &&
+          steps.metadata_upload.outcome == 'success' && steps.publication.outcome == 'success' &&
+          steps.publication.outputs.metadata_budget_complete == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          PREPARE_OUTCOME: ${{ steps.raw_prepare.outcome }}
+          METADATA_OUTCOME: ${{ steps.metadata_upload.outcome }}
+          PUBLICATION_OUTCOME: ${{ steps.publication.outcome }}
+          SERIALIZER_EXIT: ${{ steps.publication.outputs.serializer_exit }}
+          METADATA_BUDGET_COMPLETE: ${{ steps.publication.outputs.metadata_budget_complete }}
+          REMAINING_WALL_MILLISECONDS: ${{ steps.publication.outputs.remaining_wall_milliseconds }}
+          REMAINING_CPU_SECONDS: ${{ steps.publication.outputs.remaining_cpu_seconds }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REMAINING_WALL_MILLISECONDS" =~ ^[1-9][0-9]{0,4}$ ]]
+          [[ "$REMAINING_CPU_SECONDS" =~ ^[1-9][0-9]?$ ]]
+          test "$REMAINING_WALL_MILLISECONDS" -le 20000
+          test "$REMAINING_CPU_SECONDS" -le 10
+          printf -v gate_wall '%d.%03d' "$((REMAINING_WALL_MILLISECONDS / 1000))" "$((REMAINING_WALL_MILLISECONDS % 1000))"
+          read -r launch_boot _ < /proc/uptime
+          ulimit -t "$REMAINING_CPU_SECONDS"
+          ulimit -v 262144
+          exec /usr/bin/timeout --signal=KILL "${gate_wall}s" /usr/bin/python3 -I -B "$GITHUB_WORKSPACE/control/scripts/forecast_credibility_publish.py" \
+            --launcher-boot-seconds "$launch_boot" --mode upload-gate --control "$GITHUB_WORKSPACE/control" \
+            --output "$RUNNER_TEMP/forecast-credibility-publication" \
+            --root "$RUNNER_TEMP/forecast-credibility-study" --source "$GITHUB_SHA" \
+            --prepare-outcome "$PREPARE_OUTCOME" --metadata-outcome "$METADATA_OUTCOME" \
+            --publication-outcome "$PUBLICATION_OUTCOME" --serializer-exit "$SERIALIZER_EXIT" \
+            --metadata-budget-complete "$METADATA_BUDGET_COMPLETE" \
+            --remaining-wall-milliseconds "$REMAINING_WALL_MILLISECONDS" --remaining-cpu-seconds "$REMAINING_CPU_SECONDS"
+      - name: Retain exact existing original role bodies separately
+        id: raw_upload
+        if: >-
+          always() && steps.raw_prepare.outcome == 'success' &&
+          steps.metadata_upload.outcome == 'success' && steps.raw_gate.outcome == 'success' &&
+          steps.raw_gate.outputs.upload_raw == 'true'
+        timeout-minutes: 2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.raw_gate.outputs.expected_artifact_name }}
+          path: |
+            ${{ runner.temp }}/forecast-credibility-study/roles
+            ${{ runner.temp }}/forecast-credibility-study/raw-retention-manifest.json
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-0.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-1.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-2.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-3.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-4.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-5.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-6.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-7.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-8.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-9.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-10.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-11.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-12.log
+            ${{ runner.temp }}/forecast-credibility-study/logs/role-13.log
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

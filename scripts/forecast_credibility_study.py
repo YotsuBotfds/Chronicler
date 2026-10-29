@@ -6,8 +6,11 @@ World construction and exact restoration belong solely to stock runner/CLI.
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime, parsedate_to_datetime
 import hashlib
 import json
+import math
 from pathlib import PurePosixPath
 import re
 
@@ -18,6 +21,12 @@ CIVS = 4
 BASELINE = "94b308e65bf3c7febc41f09b73004b1db2056a1d"
 BASELINE_PACKAGE = "1235282cff8707015ffa90e94018fe4e2dafdb4eaf818db28420e09fbed5a9c0"
 NATIVE_TREE = "04866c3962ec9d5c77477fc727107a553fc1d6df"
+REPOSITORY = "YotsuBotfds/Chronicler"
+REPOSITORY_ID = 1187468861
+STUDY_WORKFLOW = ".github/workflows/forecast-credibility-study.yml"
+STUDY_JOB = "forecast-credibility-study"
+STUDY_BRANCH = "lead/cloud-forecast-local-credibility-h26-20261029"
+PUBLICATION_RESERVE = 255
 NATIVE_SHA256 = "38dddb970b7e832ccaacced1a51df860cb7d7bbd73c137a3936ecd91a65d56a5"
 WHEEL_SHA256 = "55a5ac747716b7554b74cd4e761bce2f8b3cdc691a9303b113d07161895cebeb"
 KINDS = ("AgentSimulator", "EcologySimulator", "PoliticsSimulator")
@@ -139,6 +148,86 @@ def validate_jobs(jobs):
         require(type(row["start_turn"]) is int and all(type(t) is int for t in row["checkpoint_turns"]), "strict job turn types")
     require(sum(HORIZON - row["start_turn"] for row in jobs) == 315, "fixed executed turn accounting")
     return deepcopy(jobs)
+
+
+def admit_job_clock(producer, run, jobs, *, http_date, http_age, utc_before, utc_after,
+                    monotonic_before, monotonic_after, boot_id, run_http_age=None):
+    """Admit the actual in-progress control job's authenticated saved clock.
+
+    This pure metadata contract performs no request or runtime observation.
+    Use the start-of-request monotonic sample and server Date conservatively;
+    no first-shell timestamp or local UTC guess supplies job remaining time.
+    """
+    require(type(producer) is dict and set(producer) == {"repository", "source", "run_id", "attempt", "workflow", "job", "event"}
+            and producer["repository"] == REPOSITORY and _sha(producer["source"], 40)
+            and type(producer["run_id"]) is int and producer["run_id"] > 0
+            and type(producer["attempt"]) is int and producer["attempt"] == 1
+            and producer["workflow"] == STUDY_WORKFLOW and producer["job"] == STUDY_JOB
+            and producer["event"] == "push", "current control producer binding")
+    require(type(run) is dict and type(run.get("id")) is int and run["id"] == producer["run_id"]
+            and run.get("head_sha") == producer["source"] and type(run.get("run_attempt")) is int
+            and run["run_attempt"] == 1 and run.get("path") == STUDY_WORKFLOW and run.get("event") == "push"
+            and run.get("head_branch") == STUDY_BRANCH
+            and run.get("status") == "in_progress" and run.get("conclusion") is None
+            and type(run.get("repository")) is dict and type(run["repository"].get("id")) is int
+            and run["repository"]["id"] == REPOSITORY_ID
+            and run["repository"].get("full_name") == REPOSITORY, "actual current in-progress run")
+    require(type(jobs) is dict and type(jobs.get("total_count")) is int and jobs["total_count"] == 1
+            and type(jobs.get("jobs")) is list and len(jobs["jobs"]) == 1, "unique actual current job")
+    job = jobs["jobs"][0]
+    require(type(job) is dict and type(job.get("id")) is int and job["id"] > 0
+            and type(job.get("run_id")) is int and job["run_id"] == producer["run_id"]
+            and type(job.get("run_attempt")) is int and job["run_attempt"] == 1
+            and job.get("head_sha") == producer["source"] and job.get("name") == STUDY_JOB
+            and job.get("status") == "in_progress" and job.get("conclusion") is None
+            and job.get("completed_at") is None, "actual current in-progress job")
+    require(type(http_date) is str and http_date.isascii() and 0 < len(http_date) <= 128,
+            "authenticated HTTP Date shape")
+    require(all(age is None or type(age) is str and age == "0" for age in (http_age, run_http_age)),
+            "nonzero or malformed cached metadata Age")
+    def utc_sample(value):
+        require(type(value) is str and re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z", value),
+                "canonical request UTC sample")
+        return datetime.fromisoformat(value[:-1] + "+00:00")
+    try:
+        dated = parsedate_to_datetime(http_date)
+        require(dated.tzinfo is not None and dated.utcoffset() == timedelta(0)
+                and format_datetime(dated, usegmt=True) == http_date, "canonical authenticated HTTP Date")
+        started = job.get("started_at")
+        started_at = utc_sample(started)
+        requested_before, requested_after = utc_sample(utc_before), utc_sample(utc_after)
+        require(started_at <= dated, "job start after authenticated Date")
+        seconds_left = (started_at + timedelta(seconds=2700) - dated).total_seconds()
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise Refused("actual job clock timestamp") from exc
+    require(all(type(value) in (int, float) and math.isfinite(value) and value >= 0
+                for value in (monotonic_before, monotonic_after))
+            and 0 <= monotonic_after - monotonic_before <= 15, "bounded monotonic clock sample")
+    utc_elapsed = (requested_after - requested_before).total_seconds()
+    require(utc_elapsed >= 0 and abs(utc_elapsed - (monotonic_after - monotonic_before)) <= 1,
+            "request UTC/monotonic clock step")
+    require(requested_before - timedelta(seconds=1) <= dated <= requested_after + timedelta(seconds=1),
+            "stale or future authenticated HTTP Date")
+    require(type(boot_id) is str and re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", boot_id),
+            "same-VM boot identity")
+    require(0 < seconds_left <= 2700, "official job remaining time")
+    deadline = float(monotonic_before) + seconds_left - 5.0
+    require(math.isfinite(deadline) and deadline > monotonic_after + PUBLICATION_RESERVE,
+            "actual job publication reserve")
+    return {"schema_version": 1, "complete": True, "control_producer": deepcopy(producer),
+            "boot_id": boot_id, "monotonic_deadline": deadline,
+            "observed": {"run": deepcopy(run), "jobs": deepcopy(jobs), "http_date": http_date,
+                "http_age": http_age, "run_http_age": run_http_age, "utc_before": utc_before, "utc_after": utc_after,
+                "monotonic_before": monotonic_before, "monotonic_after": monotonic_after}}
+
+
+def effective_owner_deadline(started, deadline, now):
+    require(all(type(value) in (int, float) and math.isfinite(value) and value >= 0
+                for value in (started, deadline, now)) and started <= now, "owner clock values")
+    selected = min(started + LIMITS["owner_wall_seconds"], deadline - PUBLICATION_RESERVE)
+    require(selected - now > LIMITS["final_wall_reserve"], "available owner finalization reserve")
+    return selected
 
 
 def registration(binding, jobs):

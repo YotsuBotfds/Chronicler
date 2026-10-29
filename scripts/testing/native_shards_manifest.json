@@ -59,6 +59,7 @@
       "tests/test_food_balance.py",
       "tests/test_food_first_labor.py",
       "tests/test_food_logistics.py",
+      "tests/test_forecast_credibility_publication.py",
       "tests/test_forecast_credibility_readout.py",
       "tests/test_forecast_credibility_study.py",
       "tests/test_fork.py",

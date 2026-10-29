@@ -194,8 +194,9 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_wealth_floor_outcome_checkpoints_v2.py': '1',
         'tests/test_forecast_credibility_study.py': '0',
         'tests/test_forecast_credibility_readout.py': '0',
+        'tests/test_forecast_credibility_publication.py': '0',
     }
-    assert len(owners) == 305
+    assert len(owners) == 306
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300
