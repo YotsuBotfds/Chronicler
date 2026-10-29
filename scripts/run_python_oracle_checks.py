@@ -158,6 +158,10 @@ CHUNKS = {
     "expansion-comparison": [
         "tests/test_expansion_compare.py",
     ],
+    "proof-contracts": [
+        "tests/test_scientific_research_native_proof.py",
+        "tests/test_agent_bridge_stat_order.py",
+    ],
     "qualification-tools": [
         "tests/test_writer_cadence_diagnostic.py",
         "tests/test_scientific_native_proof_reader.py::test_success_creates_only_new_external_output_and_keeps_inputs",
