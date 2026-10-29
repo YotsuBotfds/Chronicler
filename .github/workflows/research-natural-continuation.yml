@@ -1,6 +1,7 @@
 name: Registered natural research continuation
 
 # One prospective attempt from the reviewed activation branch.
+# Prospective attempt 2: preflight-contract repair reviewed at 010ba8e5ae40c980752ee78581e6853e0188adc3.
 on:
   push:
     branches:

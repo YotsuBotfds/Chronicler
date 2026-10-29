@@ -415,6 +415,7 @@ def test_normalized_provenance_has_closed_typed_receipt_schema(synthetic, fault)
 
 
 def test_reader_cpu_admission_uses_closed_controller_charge_not_earlier_sample(modules, tmp_path, monkeypatch):
+    import importlib
     from types import SimpleNamespace
     c, runner, reader = modules
     root = tmp_path / "evidence"
@@ -432,7 +433,11 @@ def test_reader_cpu_admission_uses_closed_controller_charge_not_earlier_sample(m
         calls["count"] += 1
         return SimpleNamespace(ru_utime=0.0 if calls["count"] <= 2 else .2, ru_stime=0.0)
     monkeypatch.setattr(reader.resource, "getrusage", usage)
-    monkeypatch.setattr(runner, "resources", lambda root: {})
+    # reader.main imports this canonical module, distinct from the fixture's
+    # observer alias. Keep a CPU-contract test independent of real RAM/disk.
+    canonical_runner = importlib.import_module("run_research_natural_continuation")
+    monkeypatch.setattr(canonical_runner, "resources", lambda root: {})
+    monkeypatch.setattr(canonical_runner, "memory_available", lambda: pytest.fail("CPU fixture must not inspect real RAM"))
     monkeypatch.setattr(reader, "build_readout", lambda *a: pytest.fail("closed charge already exhausts admission"))
     output = tmp_path / "readout"
     assert reader.main(["--evidence-root", str(root), "--source-root", str(tmp_path / "source"), "--output-root", str(output)]) == 1

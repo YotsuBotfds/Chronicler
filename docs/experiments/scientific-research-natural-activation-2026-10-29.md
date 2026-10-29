@@ -99,3 +99,36 @@ with zero native import, runtime-factory or blocked-I/O attempts; actionlint
 reviewed workflow states produce the same invariant digest. These are local
 source checks under no-native Python 3.13.5, CPU2, hash seed zero and thread caps
 one. They do not constitute another remote execution or cloud-runtime result.
+
+## Corrected-source attempt 2
+
+Root's concrete review cleared repair source
+`010ba8e5ae40c980752ee78581e6853e0188adc3` and authorized exactly one new
+corrected-source attempt. The original failed preflight remains unchanged at
+run40803627381/attempt1 with zero study exposure. This second control changes
+only a workflow comment marker and this activation record; the parsed workflow
+invariant remains `5457d30bd36b88adc2766ebedc85a360f72bb8efa17fda7387de3a20aa3b25cf`.
+The actual119 pure-contract selection, actionlint and diff check must pass
+against these final workflow bytes before its single push.
+
+All scripts, producer/Rust code, runtime policies, dependency inputs and both
+scientific registrations remain byte-identical to reviewed preparation7dad4754.
+This is a new control-source attempt after a pre-native setup-test correction,
+not a rerun of the old source or replacement of an observed study failure.
+Seeds, science, horizons, thresholds and original resource limits are unchanged.
+An actual active no-op, identity, execution or cleanup failure must still halt
+the remaining sequence and stay failed. No automatic or same-source retry is
+authorized after this second attempt.
+
+Before pushing attempt 2, the required local final source check exposed an
+independent test-fixture isolation error: 118 passed and one CPU-admission
+fixture inspected real RAM because it patched an observer-module alias while
+the reader imported the canonical runner module. The local RAM floor refusal
+occurred before the intended mocked CPU refusal; no new remote run or study
+execution occurred. The narrow test-only correction patches the actual imported
+module and explicitly forbids any real RAM query by this CPU fixture. The full
+119 guarded selection then passed in 1.35 seconds. Production resource checks
+and every original floor remain unchanged. Both local preflight records are
+retained. Independent source review and root's concrete review then cleared
+this additional fixture correction and the final workflow-comment bytes before
+the corrected-source push.
