@@ -1,5 +1,22 @@
 # Recovered continuation — 2026-10-11
 
+A new source-only [optional-policy receipt composition](integration/expansion-policy-receipt-composition-2026-10-29.md)
+adds the exact reviewed `81a3ce32` runner, pure producer descriptor/helper,
+appended test source and dated compatibility note atop documentation `76de9bd2`.
+The stock runner can validate source-owned optional care/forecast policy receipt
+shapes while retaining legacy receipts, old-source fallback and the separate
+science policy boundary. Feature policies, defaults and receipt generation are
+unchanged. The complete 181-file Python package equals donor `81a`; the package
+digest changes, so the qualified `3a` CI below is historical source evidence.
+
+The donor's 71 saved pure/fake cases retain their exact source and scope. No
+full CI, genuine worker/World/checkpoint, default-output/global-RNG or runtime
+qualification is supplied for this composed child. Native crate, workflows,
+dependencies, all 303 owners/six skips/623 subtests and all 38 offline chunks
+remain exact `76de`. Independent/root source review precedes a separate decision
+on one Tests run on the persistent review branch. No execution or main-promotion
+grant follows from this graft. The entire prior handoff body follows unchanged.
+
 Current code `3a2a6714` now has independently/root-qualified all-nine-job
 standard CI, alongside its `94b308e6` parent. The readable
 [current development cross-examination](integration/current-development-cross-examination-2026-10-29.md)
