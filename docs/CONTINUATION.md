@@ -1,5 +1,11 @@
 # Recovered continuation — 2026-10-11
 
+The [fresh practice driver preparation](experiments/natural-practice-driver-preparation-2026-10-29.md)
+adds a caller-owned prephysics counter adapter: 25 guarded scalar cases and the
+combined 156-case observer chunk pass. It requires the actual CP counter for
+forks and never replays a physics call after failure. Controller/continuation
+qualification and fresh-study activation remain pending; no new worlds ran.
+
 The separate [natural practice recorder](experiments/natural-practice-recorder-preparation-2026-10-29.md)
 has 40 guarded metadata cases passing. It preserves fixed-grid raw observations,
 exact types, grouped debit bookkeeping and explicit unavailable/unattempted
