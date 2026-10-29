@@ -26,7 +26,8 @@ Structural preflight requires nonempty record rows, exact ordered seed facts,
 nonnegative integer horizons with booleans excluded, unique canonical run and
 bundle paths, and run-scoped validation-input inventories. Directory/bundle
 paths must agree and remain inside the batch. Symlinked or physically aliased
-bundles are refused. Hashes still bind every actual validation input, including
+bundles are refused. Embedded NUL is rejected before target/file/hash reads.
+Hashes still bind every actual validation input, including
 the sidecars covered by the preceding e984 repair.
 
 Actual bundle metadata seed/total-turn facts must match each recorded run.
@@ -51,8 +52,9 @@ rules. The facade's custom determinism-runner signature is preserved.
 
 ## Validation
 
-All tests use synthetic files and pure reader paths; no worlds, native builds
-or optional native imports ran. The 52 new cases run against frozen e984 give
+Initial focused tests used synthetic files and pure reader paths; no worlds,
+native builds or optional native imports ran in that selection. The 52 initial
+new cases run against frozen e984 give
 **40 failures and 12 passes**. Those expected baseline failures remain saved.
 The correction passes **231 guarded tests**, comprising the new cases, the
 original sidecar-inventory regressions, validation CLI/oracles, turn-index and
@@ -74,7 +76,33 @@ evidence files were rehashed before/after unchanged. The audit's first external
 driver formatting error, corrected separate attempt, original accepted results
 and raw fixtures remain retained. No original failure was overwritten.
 
+## Complete-chunk review correction
+
+The lead's first complete modified validation-tooling chunk at `eace086a`
+reported **288 passed and one failed**. The unchanged historical short-run
+test expected its established diagnostic; the new earlier simulation-config
+contradiction returned before that safe integer short-run fact was collected.
+Verification still refused the invalid cohort, but this was a real diagnostic
+compatibility regression. The original failed receipt/log remain retained.
+
+The follow-up collects typed, nonnegative short-run facts before returning
+structural problems, so both contradictions are reported. It preserves the
+original test/assertion and adds a pure dual-diagnostic regression. Two more
+pure cases verify embedded NUL directory/bundle paths are rejected before
+filesystem target or hash reads.
+
+The resulting **55 focused cases pass**. The complete modified chunk then
+passes **292 tests**, using its unchanged **110-second limit** and existing
+guard. Its final pytest clock was 7.11 seconds. This complete chunk includes
+the existing aggregate batch/simulation tests; their guarded ecology/politics
+factories remain Python stubs. The guard reports no loaded/attempted optional
+native module and no blocked IO. This is complete chunk qualification, not
+the complete offline matrix, a native build or a scientific gate. The first
+corrected 291-pass result before adding the explicit dual-diagnostic case is
+also retained separately.
+
 External records are under `batch-structural-audit-20261029` and
-`batch-reconciliation-validation-20261029`. Full combined offline/CI and source
+`batch-reconciliation-validation-20261029`; the complete-chunk correction is in
+`batch-reconciliation-correction-20261029`. Full combined offline/CI and source
 review remain separate qualification steps. Main and the recovered producer
 branch are unchanged; this record claims no simulation performance gain.

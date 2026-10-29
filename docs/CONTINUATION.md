@@ -6,9 +6,15 @@ from frozen sidecar repair `e984be2a`: typed complete run records, exact ordered
 seed facts, canonical run/file scope, physical bundle identities and actual
 payload metadata must agree before verification. Repeated-seed determinism
 remains supported in distinct genuine files. The normal oracle reader checks
-metadata at its existing decode. Forty new regressions fail on e984; 231 pure
-guarded checks pass on the correction. No worlds/native builds ran, methods and
-thresholds are unchanged, and complete integration qualification is separate.
+metadata at its existing decode. Forty initial new regressions fail on e984;
+231 initial pure guarded checks passed. Lead review then found an established
+short-run diagnostic suppressed by an earlier config contradiction (288 pass,
+one fail in the complete chunk); the follow-up preserves both diagnostics and
+rejects NUL paths explicitly. All 55 focused cases and the complete 292-test
+modified chunk now pass with the unchanged 110-second bound. The original
+failure remains recorded. That complete chunk includes existing aggregate
+tests; no native build/module ran. Methods/thresholds are unchanged, and full
+offline/CI qualification remains separate.
 
 The separate `lead/batch-validation-input-set-20261029` branch closes a
 [batch oracle-input verification gap](integration/batch-validation-input-set-2026-10-29.md):

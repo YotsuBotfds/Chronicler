@@ -3,6 +3,7 @@ from copy import deepcopy
 import importlib
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -247,3 +248,30 @@ def test_custom_determinism_runner_keeps_standalone_signature(tmp_path, monkeypa
     monkeypatch.setitem(module.ORACLE_RUNNERS, "determinism", custom)
     assert module.run_oracles(root, ["determinism"])["batch_manifest"]["status"] == "verified"
     assert calls == [root]
+
+
+@pytest.mark.parametrize("field", ["dir", "bundle"])
+def test_embedded_nul_path_is_rejected_before_target_or_hash_reads(tmp_path, monkeypatch, field):
+    root, manifest = _write_batch(tmp_path / "batch", seeds=(7,))
+    manifest["runs"][0][field] += "\0suffix"
+    paths = sorted(root.rglob("chronicle_bundle.json"))
+    module = importlib.import_module("chronicler.batch_manifest")
+    original_resolve = Path.resolve
+    def resolve(path, *args, **kwargs):
+        assert "\0" not in str(path), "invalid path reached filesystem resolution"
+        return original_resolve(path, *args, **kwargs)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("invalid run path reached file/hash reads")
+    monkeypatch.setattr(Path, "resolve", resolve)
+    monkeypatch.setattr(Path, "is_file", forbidden)
+    monkeypatch.setattr(module, "file_sha256", forbidden)
+    problems = verify_batch_manifest(root, manifest, paths)
+    assert any("invalid directory/bundle path" in problem for problem in problems)
+
+
+def test_simulation_contradiction_preserves_original_short_run_diagnostic(tmp_path):
+    root, manifest = _write_batch(tmp_path / "batch", seeds=(7,), turns=20)
+    manifest["turns"] = 500
+    problems = verify_batch_manifest(root, manifest, sorted(root.rglob("chronicle_bundle.json")))
+    assert "simulation turns do not match manifest turns" in problems
+    assert "1 run(s) shorter than the requested 500 turns: seed 7 (run_0) ran 20" in problems

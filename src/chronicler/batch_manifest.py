@@ -466,7 +466,7 @@ def _seed_label(run: dict[str, Any]) -> str:
 
 def _relative_run_path(value: Any) -> str | None:
     """A canonical portable relative name, never a drive or parent escape."""
-    if not isinstance(value, str) or not value or "\\" in value:
+    if not isinstance(value, str) or not value or "\\" in value or "\0" in value:
         return None
     path = PurePosixPath(value)
     if path.is_absolute() or PureWindowsPath(value).drive or path.as_posix() != value:
@@ -557,6 +557,14 @@ def _verify_batch_manifest_inputs(batch_dir: Path, manifest: dict[str, Any], bun
         total = run.get("total_turns")
         if type(total) is not int or total < 0:
             problems.append(f"{_seed_label(run)} total_turns must be a nonnegative integer")
+    short = [
+        run for run in runs
+        if type(turns) is int and turns >= 0
+        and type(run.get("total_turns")) is int and 0 <= run["total_turns"] < turns
+    ]
+    if short:
+        shown = ", ".join(f"{_seed_label(run)} ran {run['total_turns']}" for run in short[:5])
+        problems.append(f"{len(short)} run(s) shorter than the requested {turns} turns: {shown}")
     if problems:
         return problems
     found: set[str] = set()
@@ -577,10 +585,6 @@ def _verify_batch_manifest_inputs(batch_dir: Path, manifest: dict[str, Any], bun
     if missing:
         shown = ", ".join(_seed_label(run) for run in missing[:5]) + (", ..." if len(missing) > 5 else "")
         problems.append(f"{len(missing)} run(s) of the manifest have no bundle: {shown}")
-    short = [run for run in runs if run["total_turns"] < turns]
-    if short:
-        shown = ", ".join(f"{_seed_label(run)} ran {run['total_turns']}" for run in short[:5])
-        problems.append(f"{len(short)} run(s) shorter than the requested {turns} turns: {shown}")
     changed: list[str] = []
     for bundle, run in expected.items():
         if bundle not in found:
