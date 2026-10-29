@@ -5,7 +5,7 @@ starts from combined native integration `e40108ed`. Explicit attachment captures
 the existing bounded frames only after normal bridge processing, with same-turn
 freshness, full-native-event joins and checkpoint-transient state. The default
 bridge gains no observer attribute, native calls, optional imports or I/O.
-Seventy-six guarded fake/Arrow cases passed; seven compiled bridge cases are
+Eighty guarded fake/Arrow cases passed; seven compiled bridge cases are
 authored but remain unrun pending one fresh combined remote CI. No Rust source,
 physical decisions, writer, callback, CLI or scientific gate changed.
 

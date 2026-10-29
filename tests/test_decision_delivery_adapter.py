@@ -19,14 +19,16 @@ def batch(fields, rows):
 
 
 def event_batch(turn=11):
-    return pa.record_batch({
+    columns = {
         "agent_id": pa.array([99, 7], type=pa.uint32()),
         "event_type": pa.array([0, 2], type=pa.uint8()),
         "region": pa.array([0, 0], type=pa.uint16()),
         "target_region": pa.array([0, 1], type=pa.uint16()),
         "turn": pa.array([turn, turn], type=pa.uint32()),
         "migration_driver": pa.array([0, 3], type=pa.uint8()),
-    })
+    }
+    schema = pa.schema([pa.field(name, value.type, nullable=False) for name, value in columns.items()])
+    return pa.record_batch(list(columns.values()), schema=schema)
 
 
 class FakeSim:
@@ -294,6 +296,22 @@ def test_schema_shape_and_metadata_must_match_versioned_native_contract(bridge, 
     assert observer.read_latest(expected_source_turn=11).reason == "frame_contract"
 
 
+def test_actual_null_under_nonnullable_uint32_bits_is_rejected(bridge):
+    observer = delivery.DecisionDeliveryObserver.attach(bridge)
+    def null_bits(first):
+        decisions = first[1]
+        index = decisions.schema.get_field_index("utility_migrate_bits")
+        field = decisions.schema.field(index)
+        assert not field.nullable
+        decisions = decisions.set_column(index, field, pa.array([None], type=pa.uint32()))
+        assert decisions.column(index).null_count == 1 and not decisions.schema.field(index).nullable
+        return first[0], decisions, first[2]
+    bridge._sim.first_transform = null_bits
+    run(bridge)
+    result = observer.read_latest(expected_source_turn=11)
+    assert result.reason == "frame_contract" and result.decisions is None
+
+
 @pytest.mark.parametrize("field, bad", [("native_event_ordinal", 0), ("native_event_ordinal", 2),
                                        ("native_event_ordinal", None), ("agent_id", 8), ("to_region", 0),
                                        ("migration_driver", 4), ("applied", False)])
@@ -303,6 +321,37 @@ def test_applied_join_uses_actual_full_native_batch_not_filtered_migrations(brid
         rows = second[1].to_pylist(); rows[1][field] = bad
         return second[0], batch(delivery._MOVES, rows)
     bridge._sim.second_transform = corrupt
+    run(bridge)
+    assert observer.read_latest(expected_source_turn=11).reason == "event_link"
+
+
+def test_paired_null_applied_driver_cannot_match_a_malformed_native_event(bridge, monkeypatch):
+    observer = delivery.DecisionDeliveryObserver.attach(bridge)
+    original_tick = bridge._sim.tick
+    def malformed_events(turn, signals):
+        events = original_tick(turn, signals)
+        index = events.schema.get_field_index("migration_driver")
+        events = events.set_column(index, events.schema.field(index), pa.array([0, None], type=pa.uint8()))
+        assert not events.schema.field(index).nullable and events.column(index)[1].as_py() is None
+        return events
+    def null_applied_driver(second):
+        rows = second[1].to_pylist(); rows[1]["migration_driver"] = None
+        return second[0], batch(delivery._MOVES, rows)
+    monkeypatch.setattr(bridge._sim, "tick", malformed_events)
+    bridge._sim.second_transform = null_applied_driver
+    run(bridge)
+    result = observer.read_latest(expected_source_turn=11)
+    assert result.reason == "event_link" and result.moves is None
+
+
+def test_original_native_join_fields_require_the_native_nonnullable_schema(bridge, monkeypatch):
+    observer = delivery.DecisionDeliveryObserver.attach(bridge)
+    original_tick = bridge._sim.tick
+    def nullable_schema(turn, signals):
+        events = original_tick(turn, signals)
+        index = events.schema.get_field_index("turn")
+        return events.set_column(index, pa.field("turn", pa.uint32(), nullable=True), events.column(index))
+    monkeypatch.setattr(bridge._sim, "tick", nullable_schema)
     run(bridge)
     assert observer.read_latest(expected_source_turn=11).reason == "event_link"
 
@@ -357,6 +406,23 @@ def test_native_pool_replacement_and_close_failure_are_explicit(bridge):
     bridge._sim.fail_disable = False
     assert observer.close().reason == "closed"
     assert "_decision_delivery_observer" not in bridge.__dict__
+
+
+def test_detached_old_close_cannot_disable_new_attachment_on_same_simulator(bridge, monkeypatch):
+    old = delivery.DecisionDeliveryObserver.attach(bridge)
+    run(bridge)
+    monkeypatch.setattr(old, "_capture", lambda *args: (_ for _ in ()).throw(RuntimeError("unexpected hook failure")))
+    run(bridge)
+    assert old.read_latest(expected_source_turn=11).reason == "detached"
+    newer = delivery.DecisionDeliveryObserver.attach(bridge)
+    calls = list(bridge._sim.config_calls)
+    assert old.close().reason == "detached"
+    assert bridge._sim.config_calls == calls and bridge._sim.enabled
+    assert bridge.__dict__["_decision_delivery_observer"] is newer
+    run(bridge)
+    assert newer.read_latest(expected_source_turn=11).status == "captured"
+    assert old.read_latest(expected_source_turn=11).reason == "detached"
+    assert newer.close().reason == "closed" and not bridge._sim.enabled
 
 
 def test_pickle_omits_all_attachment_state_and_restore_does_not_recreate_it():

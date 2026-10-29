@@ -41,6 +41,10 @@ this attachment's ownership contract. Replacing its simulator invalidates it.
 For captured applied rows, the adapter validates zero-based ordinals against
 the full native event batch, including preceding nonmigration events. It
 compares the copied ID, source/destination, source turn and migration driver.
+The five bounded observer batches reject actual nulls in nonnullable columns.
+For the original event batch, validation reads field schema metadata and only
+the captured applied rows' scalar values; it does not scan every event's
+validity bitmap. An applied migration driver must be an integer.
 It does not retain that full batch, consult final alive slots, reconstruct an
 origin, or join to filtered Python migrations. A valid observation can refer
 to an agent that later died or whose slot was reused.
@@ -64,17 +68,19 @@ downstream studies still need their own completed-turn receipts.
 Reset/close invalidate availability and request native disabling only for an
 explicit attachment. A failed disable stays unavailable with `disable_failed`
 across later ordinary ticks until close is retried; it never claims native
-capture is off. Python attachment/configuration/cache/errors are excluded by
+capture is off. An old detached handle cannot disable a newer attachment on the
+same simulator. Python attachment/configuration/cache/errors are excluded by
 the bridge's checkpoint-derived state filter. Native configuration/frame were
 already transient. A restore starts unattached and native-disabled; reattach
 explicitly. The unchanged native schema fingerprint is not a binary-reuse grant.
 
-The focused pure selection passed **76 cases in 0.44 seconds** under the
+The focused pure selection passed **80 cases in 0.33 seconds** under the
 unchanged offline guard: zero native import attempts, factory calls or blocked
 I/O. It covers both entry points/all three modes, same-turn failure/retry,
 selection, schema/turn mismatches, full-event joins, limits, reporting faults,
-close failure/retry and Python pickle exclusion. It is added as its own
-110-second offline chunk. These are fake-bridge/Arrow checks, with no local
+close failure/retry, malformed actual nulls, detached-handle ownership and Python
+pickle exclusion. It is added as its own 110-second offline chunk. These are
+fake-bridge/Arrow checks, with no local
 native import, pool or world execution.
 
 Seven compiled bridge cases are authored for the next fresh combined remote CI:

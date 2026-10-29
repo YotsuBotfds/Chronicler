@@ -81,6 +81,7 @@ def _batch(value, schema, limit):
     _require(result.num_rows <= limit)
     _require(tuple((f.name, str(f.type), f.nullable) for f in result.schema) == schema)
     _require(not result.schema.metadata)
+    _require(all(field.nullable or column.null_count == 0 for field, column in zip(result.schema, result.columns)))
     return result
 
 
@@ -91,7 +92,8 @@ def _event_links(events, moves, source_turn):
     kinds = {"agent_id": "uint32", "event_type": "uint8", "region": "uint16",
              "target_region": "uint16", "turn": "uint32", "migration_driver": "uint8"}
     for name, kind in kinds.items():
-        _require(name in events.schema.names and str(events.schema.field(name).type) == kind, "event_link")
+        _require(name in events.schema.names and str(events.schema.field(name).type) == kind
+                 and not events.schema.field(name).nullable, "event_link")
     columns = {name: events.column(name) for name in kinds}
     checked = 0
     for index in range(moves.num_rows):
@@ -101,10 +103,12 @@ def _event_links(events, moves, source_turn):
         _require(applied == (value("operation") == 7), "event_link")
         if not applied:
             continue
+        driver = value("migration_driver")
+        _require(type(driver) is int, "event_link")
         ordinal = value("native_event_ordinal")
         _require(type(ordinal) is int and 0 <= ordinal < events.num_rows, "event_link")
         actual = tuple(columns[name][ordinal].as_py() for name in kinds)
-        expected = (value("agent_id"), 2, value("from_region"), value("to_region"), source_turn, value("migration_driver"))
+        expected = (value("agent_id"), 2, value("from_region"), value("to_region"), source_turn, driver)
         _require(actual == expected, "event_link")
         checked += 1
     return events.num_rows, checked
@@ -224,12 +228,16 @@ class DecisionDeliveryObserver:
 
     def _stop(self, reason):
         self._latest, self._pending, self._closed, self._reason = None, None, True, reason
+        bridge = self._bridge()
+        owner = None if bridge is None else bridge.__dict__.get(_ATTRIBUTE)
+        if owner is not None and owner is not self and getattr(owner, "_sim", None) is self._sim:
+            self._reason = "detached"
+            return self._unavailable(self._reason)
         try:
             self._sim.configure_decision_delivery(False)
         except Exception:
             self._reason = "disable_failed"
             return self._unavailable(self._reason)
-        bridge = self._bridge()
         if bridge is not None and bridge.__dict__.get(_ATTRIBUTE) is self:
             bridge.__dict__.pop(_ATTRIBUTE)
         return self._unavailable(reason)
