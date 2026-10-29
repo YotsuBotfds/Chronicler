@@ -1,5 +1,13 @@
 # Recovered continuation — 2026-10-11
 
+A separate [dormant native default-output adapter](experiments/native-default-output-identity-2026-10-29.md)
+registers fresh C76 versus qualified combined `95f73a74` exports with distinct
+retained wheels. The original 8bbc helper, matrix, comparator and historical
+registry remain unchanged. This source-only draft has no world, native,
+performance, full-CI or activation claim; root review precedes publication.
+The unchanged 25 original and 23 new contracts passed together under a strict
+no-subprocess/network/project-import guard (48 tests, 75 successful subtests).
+
 A separate inactive control draft reuses the vetted export-parity helper through
 a closed source-pair registry for public `2f9d618b` versus complete recovered
 producer `c76efe85`. The fixed nine-case matrix, resource guards and timestamp-only
