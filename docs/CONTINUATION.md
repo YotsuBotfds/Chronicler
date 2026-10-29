@@ -1,5 +1,12 @@
 # Recovered continuation — 2026-10-11
 
+Separate CI tooling at `lead/ci-native-wheel-retention-20261029` prepares
+retention of the release wheel already built by the native job, linked to
+installed native bytes and a source receipt. [The scope](performance/ci-native-wheel-retention-2026-10-29.md)
+keeps full tests and no-Rust isolation intact, with no automatic reuse grant.
+Twenty-seven guarded contracts pass; actual publication awaits consolidated
+candidate CI. No local native build or world is included.
+
 October 29 index reuse: separate `e2b7c940` passes all six unchanged CI jobs.
 The [source-scoped readout](integration/native-tick-index-reuse-ci-2026-10-29.md)
 records dense-lookup and post-migration census reuse, all four evidence ZIPs,
