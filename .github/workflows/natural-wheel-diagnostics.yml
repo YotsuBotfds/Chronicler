@@ -1,6 +1,6 @@
-name: Inactive registered wheel HTTP diagnostics
+name: Registered wheel HTTP diagnostics
 
-# Source preparation only. Root review precedes any change to the false gate.
+# One read-only diagnostic after concrete review of 438b8457dda827572a0d647f89f5d27b7e9bc822.
 on:
   push:
     branches:
@@ -34,8 +34,8 @@ env:
 
 jobs:
   fixed-http-diagnostic:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-wheel-diagnostics-20261029' && false }}
-    name: Inactive fixed-artifact metadata and ZIP diagnostic
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-wheel-diagnostics-20261029' }}
+    name: Fixed-artifact metadata and ZIP diagnostic
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

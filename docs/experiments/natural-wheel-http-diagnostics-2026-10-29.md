@@ -1,10 +1,11 @@
 # Fixed-artifact HTTP diagnostics: source preparation
 
-Status: **inactive; no diagnostic request has run**. Preparation is isolated on
+Status: **one read-only diagnostic authorized; no result yet**. Preparation is isolated on
 `lead/cloud-natural-wheel-diagnostics-20261029`, based on study control
 `c699d9600ae16f955d523af1a3c303604b331743`. The study branch, both failed
 preflight runs, original local harness and metadata freeze remain unchanged.
-Root must review this concrete source before activating its separate workflow.
+Root concretely reviewed source `438b8457` before authorizing the separate
+single diagnostic activation recorded below.
 
 Study run 40804360782 passed 119 pure contracts, then its registered artifact
 helper raised `HTTPError`. Wheel installation, freeze and study execution were
@@ -80,3 +81,22 @@ retain incomplete positive attempts, restore ownership and emit safe negative
 records without repeating HTTP. These checks used no-native Python 3.13.5,
 CPU2, hash seed zero and thread caps one. No actual network probe, native
 installation/build, freeze or study execution occurred.
+
+## Single read-only activation
+
+Root reviewed helper transport, redaction and timer-finalization behavior,
+the complete workflow and both closed workflow states at source
+`438b8457dda827572a0d647f89f5d27b7e9bc822`. It authorized exactly one diagnostic
+push on this separate branch. Activation removes only the false gate and
+changes workflow names/comments and this record; helper, tests, scientific
+protocols, native policy and study runner remain byte-identical to that source.
+The final 153 guarded selection, actionlint and diff checks must pass against
+the activated workflow bytes before the single push.
+
+The fixed sequence remains metadata GET, then matching-metadata admission,
+then only if permitted the registered ZIP GET and its single Azure redirect.
+On 401/403/404 it must publish the sanitized result and stop; no route, host,
+token, scope, credential or retry change is authorized. The diagnostic cannot
+invoke installation, freeze, study execution or native builds. The study branch
+stays at `c699d960`, with both earlier failures retained. There is no automatic
+diagnostic or study rerun, and this activation claims no network outcome yet.
