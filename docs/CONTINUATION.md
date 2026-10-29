@@ -220,3 +220,19 @@ The original C76 research composition proof used fb20. Cloud 06db has saved
 default-output evidence, with research checkpoint/global-RNG qualification still
 separate before any prospective study activation. Science, samples and budgets
 are unchanged.
+
+## Inactive fixed-wheel HTTP diagnostics — 2026-10-29
+
+Study control `c699d960` passed 119 remote pure contracts but stopped on an
+HTTPError while fetching its registered official wheel. The status/substage
+were not logged; every native-install/freeze/study/readout step was skipped.
+The original negative ZIP/JUnit/log remain retained with zero study exposure.
+A separate [read-only diagnostic source](experiments/natural-wheel-http-diagnostics-2026-10-29.md)
+on `lead/cloud-natural-wheel-diagnostics-20261029` preserves that study branch.
+Its exact-branch/path workflow remains false-gated pending root review. The
+helper emits only closed HTTP stage/status/provider facts, strips credentials
+at redirects, never reads redirect/error bodies, and stops permission denials
+without another route. Diagnostic output cannot qualify wheel installation or
+research continuation. The final source passed 153 guarded contracts and
+actionlint; independent review cleared transport and timer-failure closure.
+No diagnostic network request or further study attempt has run.

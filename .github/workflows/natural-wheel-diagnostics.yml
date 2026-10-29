@@ -1,0 +1,112 @@
+name: Inactive registered wheel HTTP diagnostics
+
+# Source preparation only. Root review precedes any change to the false gate.
+on:
+  push:
+    branches:
+      - lead/cloud-natural-wheel-diagnostics-20261029
+    paths:
+      - .github/workflows/natural-wheel-diagnostics.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: natural-wheel-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONNOUSERSITE: "1"
+  PYTHONHASHSEED: "0"
+  PYTHON_CPU_COUNT: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  OPENBLAS_THREAD_TIMEOUT: "16"
+  MKL_NUM_THREADS: "1"
+  BLIS_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  GOTO_NUM_THREADS: "1"
+  RAYON_NUM_THREADS: "1"
+
+jobs:
+  fixed-http-diagnostic:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-natural-wheel-diagnostics-20261029' && false }}
+    name: Inactive fixed-artifact metadata and ZIP diagnostic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out reviewed diagnostic controls
+        uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - name: Check out the registered producer separately
+        uses: actions/checkout@v4
+        with:
+          ref: c76efe8552b4c6c288ebb1f813e2c0a58e5957b1
+          path: producer
+          persist-credentials: false
+      - name: Set up the registered Python patch
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+      - name: Define external diagnostic paths and one actual CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/natural-wheel-diagnostic-env" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          cpu = min(os.sched_getaffinity(0))
+          with Path(os.environ["GITHUB_ENV"]).open("a") as stream:
+              stream.write(f"DIAGNOSTIC_CPU={cpu}\n")
+          PY
+      - name: Prepare only locked Python test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$UV_PROJECT_ENVIRONMENT"
+          python -m pip install --only-binary=:all: uv==0.12.23
+          uv lock --project producer --check
+          uv sync --project producer --frozen --no-install-project --python "$(command -v python)"
+      - name: Run pure contracts before the registered HTTP diagnostic
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: ${{ github.workspace }}/control/scripts/testing:${{ github.workspace }}/producer/src
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/natural-wheel-diagnostic-contracts/guard.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$DIAGNOSTIC_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -p python_oracle_guard -p no:cacheprovider -q \
+            -o "pythonpath=$GITHUB_WORKSPACE/producer/src" \
+            --junitxml="$RUNNER_TEMP/natural-wheel-diagnostic-contracts/junit.xml" \
+            control/tests/test_research_natural_wheel.py \
+            control/tests/test_research_natural_runtime_policy.py \
+            control/tests/test_research_natural_continuation.py \
+            control/tests/test_research_natural_readout.py \
+            control/tests/test_research_natural_wheel_http_diagnostics.py \
+            control/tests/test_research_natural_wheel_diagnostic_workflow.py
+      - name: Diagnose the one registered metadata and optional ZIP request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          taskset -c "$DIAGNOSTIC_CPU" "$UV_PROJECT_ENVIRONMENT/bin/python" control/scripts/fetch_research_natural_wheel.py \
+            --diagnostic --source-root "$GITHUB_WORKSPACE/producer" \
+            --output-root "$RUNNER_TEMP/natural-wheel-diagnostic"
+      - name: Retain sanitized diagnostics and original pure test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-wheel-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/natural-wheel-diagnostic-contracts/
+            ${{ runner.temp }}/natural-wheel-diagnostic/
+          if-no-files-found: error
+          retention-days: 30

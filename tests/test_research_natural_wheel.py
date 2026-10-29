@@ -152,7 +152,7 @@ def test_streaming_reader_rejects_oversized_body_without_retaining_more_than_bou
             assert request.get_header("Authorization") == "Bearer synthetic"
             return Response(b"too large")
     with pytest.raises(helper.C.ContractError, match="exceeds bound"):
-        helper.fetch_bytes(Opener(), "https://api.github.com/fixed", "synthetic", 3, helper.time.monotonic() + 1)
+        helper.fetch_bytes(Opener(), helper.endpoint(), "synthetic", 3, helper.time.monotonic() + 1)
 
 
 def test_retained_receipt_rehashes_exact_payload_set(helper, tmp_path, monkeypatch):
