@@ -1,0 +1,148 @@
+{
+  "CI_root_qualification": "384415aab76a180370173e18918a640ab973c741b578fbe94ad01213e09dec77",
+  "actual_execution_approval": null,
+  "actual_new_schemas": null,
+  "artifacts": {
+    "12893517727": {
+      "created_at": "2026-10-29T11:35:11Z",
+      "digest": "sha256:a8be042cacdbc049c099738e89b90961492b724561963e30c30e843cb2a52fac",
+      "expires_at": "2026-11-12T11:35:09Z",
+      "id": 12893517727,
+      "name": "native-wheel-0900f3d203cc74102809bb871a1a057ba91a951f",
+      "size_in_bytes": 3850543
+    },
+    "12894166162": {
+      "created_at": "2026-10-29T11:35:09Z",
+      "digest": "sha256:992884c0bc8df0d5cda19a07418e384c1229fc9735262e0a678a44e81ef90db0",
+      "expires_at": "2026-11-12T11:35:08Z",
+      "id": 12894166162,
+      "name": "python-native-0900f3d203cc74102809bb871a1a057ba91a951f",
+      "size_in_bytes": 143055
+    }
+  },
+  "controls": {
+    "exact_near_screen_process.py": {
+      "bytes": 15495,
+      "sha256": "e0098e2cd7037a7269b23b7efcabadd1bd5c230dde57e21629d47f26910ea002"
+    },
+    "exact_near_screen_session.py": {
+      "bytes": 2951,
+      "sha256": "47192a0caa07151e20bc87ec3b5ce97beb683cf7ccfca184c7357568482e6ef3"
+    },
+    "wealth_floor_build_resources.py": {
+      "bytes": 7688,
+      "sha256": "44f1e1d23598283f0fa7b0580477e026bd3d13d515ec84202dab108cfb2db5b2"
+    },
+    "wealth_floor_hosted_deployment.py": {
+      "bytes": 4528,
+      "sha256": "d52b3c2b9269eb67ef154006fe06429645f79052d3dbcd4b28e6b1479f39bfb8"
+    }
+  },
+  "controls_root_qualification": "48fa0f4b4e804a7a81f7ae20d0409e4f6a97b29b2b0c085533987b973fa72b77",
+  "controls_source": "1421621b4393d08cedb0d3505ae26b96dfa6563c",
+  "core_sha256": "3ef91319a1e69470e2358774a9690c99f1e908890bb0bb6326ee2914a934e2aa",
+  "core_source": "c4b96aa83c206e228bbcac0f5018c86c4037054c",
+  "crate": "803c79c8d5c024cbb8d67c58af7ffa731d79c129",
+  "historical_probe": {
+    "artifact": 12904625572,
+    "bytes": 3565,
+    "independent_peer": "562d0c27fb7a5038d68b2bd789618834105733e00643bcca7ee1c6be89640181",
+    "member": "derived-metadata/probes/candidate-hybrid_s42-before.json",
+    "root_qualification": "530e1f31f61f7c59b3b96f5663c5a4d691d8aaabccdd4c858f630fe419f014d7",
+    "sha256": "7f01957ee22fea60e6a50ef4827d9a2691bb9e54de6b00bd3907861dab06c09b",
+    "zip_sha256": "9030d854bb8fc4f678f6ba821c6f8e8c087903e35f1fa185fb1b6011ebb6cec0"
+  },
+  "historical_schema_reference": {
+    "AgentSimulator": {
+      "fingerprint": "dcf0c34097c88451",
+      "schema_sha256": "0b792f3ec33ac68605caf7b6d66fa7462c919b52e6f489f0e3dd7fa42f9fba3b",
+      "version": 1
+    },
+    "EcologySimulator": {
+      "fingerprint": "4ab7f8c199b5e5f8",
+      "schema_sha256": "bf7daf59c53773518770b90f5a5dee5b71e63d2a62d2af6c756922a07a503aff",
+      "version": 1
+    },
+    "PoliticsSimulator": {
+      "fingerprint": "b1a710f3450f5015",
+      "schema_sha256": "48e27b42f817e0057ad5f15bf2c2e8d8cca072314a9ca666753f2c9341c47395",
+      "version": 1
+    }
+  },
+  "input_job": 123417559998,
+  "input_run": 40865043984,
+  "native": {
+    "bytes": 13693904,
+    "filename": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c",
+    "wheel_member_sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"
+  },
+  "outer_wheel_members": {
+    "chronicler-agents/target/wheels/chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl": {
+      "bytes": 3915587,
+      "compressed_bytes": 3849594,
+      "crc32": 185415169,
+      "sha256": "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532"
+    },
+    "ci-native-wheel/manifest.json": {
+      "bytes": 944,
+      "compressed_bytes": 499,
+      "crc32": 2804810453,
+      "sha256": "bce6e0e66dc561f0cfbe1bb216b28beade33d91ce022d55552a56339773f9fa8"
+    }
+  },
+  "package": "1f1c720880e45e0e835e033da216b3deee1f755a497b8e189abaf97c2fe9f656",
+  "packages": {
+    "arro3-core": "0.9.1",
+    "chronicler-agents": "0.1.0",
+    "numpy": "2.5.4",
+    "pyarrow": "26.0.0",
+    "pydantic": "2.12.5",
+    "scipy": "1.18.1"
+  },
+  "source": "0900f3d203cc74102809bb871a1a057ba91a951f",
+  "wheel": {
+    "bytes": 3915587,
+    "filename": "chronicler_agents-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl",
+    "native_member": "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "928db20c6cfbb6a79e2ad01469392d72093ebc1448c1b90d8c34f44f245b6532"
+  },
+  "wheel_members": {
+    "chronicler_agents-0.1.0.dist-info/METADATA": {
+      "bytes": 136,
+      "compressed_bytes": 119,
+      "crc32": 2187320448,
+      "sha256": "c0ea81cfe71247744407d9ec667f6f580e8baead15fe0d3c1945cfad5b98b658"
+    },
+    "chronicler_agents-0.1.0.dist-info/RECORD": {
+      "bytes": 580,
+      "compressed_bytes": 347,
+      "crc32": 3486914718,
+      "sha256": "df88cdbc8d2dd65a0fa3f99e2cabf9b5e7055bd327230f7120a2ee33fd8ae60c"
+    },
+    "chronicler_agents-0.1.0.dist-info/WHEEL": {
+      "bytes": 109,
+      "compressed_bytes": 113,
+      "crc32": 2414287998,
+      "sha256": "70fb3126c3e57d458654c3922254c03b2185abcc8eb80c9b4a4c37e89901e35b"
+    },
+    "chronicler_agents-0.1.0.dist-info/sboms/chronicler-agents.cyclonedx.json": {
+      "bytes": 139390,
+      "compressed_bytes": 16444,
+      "crc32": 2189138829,
+      "sha256": "03b365fffc147f78920f8126cb598a8ed52bdab34471b40c22d67b7ef459ce75"
+    },
+    "chronicler_agents/__init__.py": {
+      "bytes": 151,
+      "compressed_bytes": 92,
+      "crc32": 2323485228,
+      "sha256": "4f19f670edf2cf71a10ab2511c9033cae822f43ba8c4274833ac64c687907dd7"
+    },
+    "chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so": {
+      "bytes": 13693904,
+      "compressed_bytes": 3897416,
+      "crc32": 214188961,
+      "sha256": "14a67f283cf57dc738e05d43d7b86aeca9039821e453e70274dfc1bb42e70e8c"
+    }
+  }
+}

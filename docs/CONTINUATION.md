@@ -1,5 +1,10 @@
 # Recovered continuation — 2026-10-11
 
+## Current090 passive profiler: owned-caller source stage (2026-10-29)
+
+A separate tmp-store child adds a NULL-gated caller, authenticated selected 142 ownership/resource helpers, closed090 wheel/schema references, sanitized actual-flag checks and negative-first bounded metadata publication. Both new test modules own the dedicated 110-second current090-profile-metadata oracle chunk; hosted 164-case preflight must pass before input admission/native/World. The c4 core is unchanged. Six fresh 97-turn roles /582 ticks, their six final CP decodes and all profiles remain unexecuted. See [source scope and limits](performance/current090-passive-profile-owner-2026-10-29.md). No active workflow copy, push or execution approval.
+
+
 The [current090 passive-profile worker](performance/current090-passive-profile-worker-2026-10-29.md)
 is Stage 1 source only: six fixed 97-turn roles, passive closed windows and a
 strict decoded-state/RNG/output contract. Its original 9e source is preserved/rejected; the corrected 86-case tiny

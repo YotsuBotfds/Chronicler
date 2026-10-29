@@ -312,6 +312,10 @@ CHUNKS = {
         "tests/test_practice_growth_observer.py",
         "tests/test_practice_observer_runner.py",
     ],
+    "current090-profile-metadata": [
+        "tests/test_current090_passive_profile.py",
+        "tests/test_current090_profile_owner.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
