@@ -2007,6 +2007,9 @@ mod tests {
         let mut plain_movements = crate::movements::MovementRuntime::default();
         let mut observed_movements = crate::movements::MovementRuntime::default();
         for turn in 0..2 {
+            // Core callers refresh scratch after births, as the FFI does.
+            if plain_pct.len() < plain.capacity() { plain_pct.resize(plain.capacity(), 0.0); }
+            if observed_pct.len() < observed.capacity() { observed_pct.resize(observed.capacity(), 0.0); }
             let a = try_tick_agents_with_movements(&mut plain, &regions, &signals, [7u8; 32], turn,
                 &mut plain_pct, &mut plain_grids, &[], &mut crate::spatial::SpatialDiagnostics::default(),
                 &[], None, &[], crate::scale::TickOptions::default(), &mut plain_movements).unwrap();
