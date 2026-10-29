@@ -17,7 +17,7 @@ These are the unchanged descriptive post-CP rows. Parent stage counts equal acti
 | 2006 | 0 | 0 | 0 | 0 | 0/0 |
 | 2007 | 0 | 0 | 0 | 0 | 0/0 |
 
-All eight rows remain, including five zero-trial seeds. The original 53,760 selected slots include zero unavailable frames. Active 18 recipe-payment rows represent nine deduplicated group debits; pause 10 rows represent five. Bookkeeping 0 on a recipe does not mean no allowance or computed contribution. The four later-topic payments cover eight recipe rows but only three nonempty allocation-change event IDs; unchanged repeat payments need not emit a new event.
+All eight rows remain, including five seeds with zero new trials. The original 53,760 selected slots include zero unavailable frames. Active 18 recipe-payment rows represent nine deduplicated group debits; pause 10 rows represent five. Bookkeeping 0 on a recipe does not mean no allowance or computed contribution. The four later-topic payments cover eight recipe rows but only three nonempty allocation-change event IDs; unchanged repeat payments need not emit a new event.
 
 The already published seed 2004 / region 4 / source 167 irrigation witness had practice 0.982584, positive paid RHS `4.753523039999996e-05`, and final practice 0.982228. Masonry also had positive paid RHS despite bookkeeping 0. Positive contribution can accompany falling total practice. This audit reauthenticates those existing observations; it establishes no causal benefit or new discovery.
 

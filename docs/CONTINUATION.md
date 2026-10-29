@@ -73,7 +73,7 @@ or performance result.
 
 The [earlier SMALL publication](integration/practice-fresh-study-small-publication-2026-10-29.md)
 keeps its historical 12-member scope and unchanged JSON. All eight descriptive
-rows remain, including five zero-trial seeds; recipe payments 18/10 remain grouped
+rows remain, including five seeds with zero new trials; recipe payments 18/10 remain grouped
 debits 9/5, and positive paid RHS can coexist with falling total practice. The
 first `e625f6ce` audit remains a precollection dependency failure with zero cases,
 exit 3 and negative publication only. The successful changed-source operation
