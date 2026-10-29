@@ -1,0 +1,2782 @@
+{
+  "schema_version": 1,
+  "status": "COMPLETE",
+  "date": "2026-10-29",
+  "source": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+  "branch": "lead/decision-delivery-native-20261029",
+  "base_review": "82b3699b8fc75ca3ffcc7f3565f48a9c93d2e883",
+  "native_source_snapshot": "64ee3c6f246ed390b76a8b37c4866d511f6b334f",
+  "original_api_contract_snapshot": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+  "unchanged_workflow_git_blob": "26afaa1f92c7f7a5f4fcf87571bfd8b022255c56",
+  "schema_fingerprint_asserted": "dcf0c34097c88451",
+  "original_run": {
+    "capture_clock_after_api_reads": "2026-10-29 03:54:01 UTC",
+    "run": {
+      "id": 40813417246,
+      "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+      "head_branch": "lead/decision-delivery-native-20261029",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "path": ".github/workflows/tests.yml",
+      "workflow_id": 273982781,
+      "run_number": 159,
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-29T03:40:04Z",
+      "run_started_at": "2026-10-29T03:40:04Z",
+      "updated_at": "2026-10-29T03:52:07Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40813417246",
+      "creation_to_final_job_seconds": 722.0
+    },
+    "jobs": [
+      {
+        "id": 123248824777,
+        "name": "Python native execution",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:40:08Z",
+        "completed_at": "2026-10-29T03:52:00Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:40:08Z",
+            "completed_at": "2026-10-29T03:40:10Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:40:10Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:13Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Identify Rust compiler",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:40:13Z",
+            "completed_at": "2026-10-29T03:40:13Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:40:13Z",
+            "completed_at": "2026-10-29T03:40:13Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:40:13Z",
+            "completed_at": "2026-10-29T03:40:13Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-29T03:40:13Z",
+            "completed_at": "2026-10-29T03:40:21Z",
+            "wall_seconds": 8.0
+          },
+          {
+            "name": "Build Rust extension wheel",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-29T03:40:21Z",
+            "completed_at": "2026-10-29T03:43:03Z",
+            "wall_seconds": 162.0
+          },
+          {
+            "name": "Run Python tests with real native extension preloaded",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-29T03:43:03Z",
+            "completed_at": "2026-10-29T03:51:52Z",
+            "wall_seconds": 529.0
+          },
+          {
+            "name": "Retain native Python test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-29T03:51:52Z",
+            "completed_at": "2026-10-29T03:51:53Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-29T03:51:53Z",
+            "completed_at": "2026-10-29T03:51:56Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-29T03:51:56Z",
+            "completed_at": "2026-10-29T03:51:57Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 22,
+            "started_at": "2026-10-29T03:51:57Z",
+            "completed_at": "2026-10-29T03:51:58Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 23,
+            "started_at": "2026-10-29T03:51:58Z",
+            "completed_at": "2026-10-29T03:51:58Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24,
+            "started_at": "2026-10-29T03:51:58Z",
+            "completed_at": "2026-10-29T03:51:59Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 25,
+            "started_at": "2026-10-29T03:51:59Z",
+            "completed_at": "2026-10-29T03:51:59Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 712.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/job-123248824777.json",
+        "external_log_record_sha256": "1b896c804c5d887ac6f9feb69d9a8ae04f667e83aea86d1dd315d97a0b5acc1e",
+        "decoded_log_sha256": "cadc8de747926fb812b43428b0f720ee6ecc5f6c3b57eb1c4aaa65f4d50e80c8",
+        "counts": {
+          "parent_passed": 8099,
+          "skipped": 6,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 525.05
+      },
+      {
+        "id": 123248824876,
+        "name": "Viewer",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:40:08Z",
+        "completed_at": "2026-10-29T03:42:03Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:40:09Z",
+            "completed_at": "2026-10-29T03:40:09Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:40:09Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:14Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Install viewer dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:40:14Z",
+            "completed_at": "2026-10-29T03:40:19Z",
+            "wall_seconds": 5.0
+          },
+          {
+            "name": "Run viewer tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:40:19Z",
+            "completed_at": "2026-10-29T03:41:30Z",
+            "wall_seconds": 71.0
+          },
+          {
+            "name": "Lint viewer",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:41:30Z",
+            "completed_at": "2026-10-29T03:41:44Z",
+            "wall_seconds": 14.0
+          },
+          {
+            "name": "Build viewer for production",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:41:44Z",
+            "completed_at": "2026-10-29T03:42:00Z",
+            "wall_seconds": 16.0
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-29T03:42:00Z",
+            "completed_at": "2026-10-29T03:42:01Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:42:01Z",
+            "completed_at": "2026-10-29T03:42:01Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:42:01Z",
+            "completed_at": "2026-10-29T03:42:01Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 115.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/viewer-job-123248824876.json",
+        "external_log_record_sha256": "eb4d25fd2eef6ac50e1b35da8274a3729a44e590c19a8889a33faa61356b8da9",
+        "decoded_log_sha256": "0a1f95ae4db41948cff99c108599562e9b002a1d1a6097e749c5cb9613dd78e7",
+        "counts": {
+          "passed": 743,
+          "files": 69
+        },
+        "reported_vitest_seconds": 70.08
+      },
+      {
+        "id": 123248824897,
+        "name": "Rust",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:40:08Z",
+        "completed_at": "2026-10-29T03:41:10Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:40:08Z",
+            "completed_at": "2026-10-29T03:40:09Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:40:09Z",
+            "completed_at": "2026-10-29T03:40:11Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:40:11Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:13Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Run Rust tests",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 6,
+            "started_at": "2026-10-29T03:40:13Z",
+            "completed_at": "2026-10-29T03:41:07Z",
+            "wall_seconds": 54.0
+          },
+          {
+            "name": "Retain Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:41:07Z",
+            "completed_at": "2026-10-29T03:41:08Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 12,
+            "started_at": "2026-10-29T03:41:08Z",
+            "completed_at": "2026-10-29T03:41:08Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 13,
+            "started_at": "2026-10-29T03:41:08Z",
+            "completed_at": "2026-10-29T03:41:08Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:41:08Z",
+            "completed_at": "2026-10-29T03:41:08Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:41:08Z",
+            "completed_at": "2026-10-29T03:41:08Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 62.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/rust-job-123248824897.json",
+        "external_log_record_sha256": "9bfe49edc39deb03b2cff94cc378d1a41ddade48723b398a0b2a3a2503209047",
+        "decoded_log_sha256": "db2397cd7f4aa38e16e84487c424354a9ffac4f6482d2a7c670bd15b7fb19a82",
+        "harness_summaries": [
+          {
+            "status": "FAILED",
+            "passed": 561,
+            "failed": 1,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 2.23
+          }
+        ],
+        "counts": {
+          "passed": 561,
+          "failed": 1,
+          "ignored": 0,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "reported_harness_seconds_sum": 2.23
+      },
+      {
+        "id": 123248824904,
+        "name": "Python no-Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:40:08Z",
+        "completed_at": "2026-10-29T03:47:21Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:40:08Z",
+            "completed_at": "2026-10-29T03:40:09Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:40:09Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:18Z",
+            "wall_seconds": 6.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:40:18Z",
+            "completed_at": "2026-10-29T03:40:18Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run Python tests without Rust extension",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:40:18Z",
+            "completed_at": "2026-10-29T03:47:17Z",
+            "wall_seconds": 419.0
+          },
+          {
+            "name": "Retain no-Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:47:17Z",
+            "completed_at": "2026-10-29T03:47:18Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:47:18Z",
+            "completed_at": "2026-10-29T03:47:19Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:47:19Z",
+            "completed_at": "2026-10-29T03:47:19Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T03:47:19Z",
+            "completed_at": "2026-10-29T03:47:19Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T03:47:19Z",
+            "completed_at": "2026-10-29T03:47:19Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 433.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/job-123248824904.json",
+        "external_log_record_sha256": "237ea8ad67a54a6a1834d576f4e0d23050075c39156bffa0c41cd506db1ad5c0",
+        "decoded_log_sha256": "6c1a8d0172108c2ec21a4d9726b81272c2b289d572704b1124c2a072858fe2d7",
+        "counts": {
+          "parent_passed": 7780,
+          "skipped": 311,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 413.66
+      },
+      {
+        "id": 123248825194,
+        "name": "Python bounded offline",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:40:08Z",
+        "completed_at": "2026-10-29T03:44:18Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:40:09Z",
+            "completed_at": "2026-10-29T03:40:10Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:40:10Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:12Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:40:12Z",
+            "completed_at": "2026-10-29T03:40:17Z",
+            "wall_seconds": 5.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:40:17Z",
+            "completed_at": "2026-10-29T03:40:17Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run guarded offline chunks",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:40:17Z",
+            "completed_at": "2026-10-29T03:44:11Z",
+            "wall_seconds": 234.0
+          },
+          {
+            "name": "Retain bounded offline receipts and logs",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:44:11Z",
+            "completed_at": "2026-10-29T03:44:12Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:44:12Z",
+            "completed_at": "2026-10-29T03:44:16Z",
+            "wall_seconds": 4.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:44:16Z",
+            "completed_at": "2026-10-29T03:44:16Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T03:44:16Z",
+            "completed_at": "2026-10-29T03:44:16Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T03:44:16Z",
+            "completed_at": "2026-10-29T03:44:16Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 250.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/job-123248825194.json",
+        "external_log_record_sha256": "4fa92b12f29b9a163fd65d32643eb6a6bf31736ca2a915c1ed2bfe57fc76f0c5",
+        "decoded_log_sha256": "0830da534eaaf86e0e217c3f6f6ed9baf8e6ee4d64674e61d97bec5c00a38029",
+        "chunks": [
+          {
+            "name": "arc-event-types",
+            "printed_wall_seconds": 2.4,
+            "passed": 8,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "diagnostics",
+            "printed_wall_seconds": 2.5,
+            "passed": 74,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "core",
+            "printed_wall_seconds": 30.3,
+            "passed": 1131,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "governance",
+            "printed_wall_seconds": 19.0,
+            "passed": 575,
+            "skipped": 3,
+            "failed": 0
+          },
+          {
+            "name": "systems-1",
+            "printed_wall_seconds": 21.6,
+            "passed": 255,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "systems-2",
+            "printed_wall_seconds": 39.4,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "narration",
+            "printed_wall_seconds": 9.6,
+            "passed": 171,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "history-forensics",
+            "printed_wall_seconds": 2.0,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-audit",
+            "printed_wall_seconds": 2.1,
+            "passed": 69,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-receipts",
+            "printed_wall_seconds": 2.4,
+            "passed": 93,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-comparison",
+            "printed_wall_seconds": 2.7,
+            "passed": 52,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "proof-contracts",
+            "printed_wall_seconds": 2.3,
+            "passed": 28,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "qualification-tools",
+            "printed_wall_seconds": 5.1,
+            "passed": 112,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "turn-speed",
+            "printed_wall_seconds": 2.0,
+            "passed": 21,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "validation-tooling",
+            "printed_wall_seconds": 10.2,
+            "passed": 292,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "learning",
+            "printed_wall_seconds": 5.2,
+            "passed": 64,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "population",
+            "printed_wall_seconds": 2.4,
+            "passed": 27,
+            "skipped": 4,
+            "failed": 0
+          },
+          {
+            "name": "production-ledger",
+            "printed_wall_seconds": 2.8,
+            "passed": 17,
+            "skipped": 9,
+            "failed": 0
+          },
+          {
+            "name": "refugee-routing",
+            "printed_wall_seconds": 3.4,
+            "passed": 23,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "checkpoint",
+            "printed_wall_seconds": 5.8,
+            "passed": 20,
+            "skipped": 6,
+            "failed": 0
+          },
+          {
+            "name": "live-checkpoints",
+            "printed_wall_seconds": 19.5,
+            "passed": 13,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "interactive-checkpoints",
+            "printed_wall_seconds": 6.8,
+            "passed": 28,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "grain-reserves",
+            "printed_wall_seconds": 2.9,
+            "passed": 23,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "expansion-wiring",
+            "printed_wall_seconds": 3.7,
+            "passed": 118,
+            "skipped": 1,
+            "failed": 0
+          },
+          {
+            "name": "ritual-gatherings",
+            "printed_wall_seconds": 2.5,
+            "passed": 78,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-claims",
+            "printed_wall_seconds": 7.0,
+            "passed": 65,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-publication",
+            "printed_wall_seconds": 2.6,
+            "passed": 31,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-research",
+            "printed_wall_seconds": 4.9,
+            "passed": 126,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "transaction-receipts",
+            "printed_wall_seconds": 2.3,
+            "passed": 53,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-experiments",
+            "printed_wall_seconds": 2.7,
+            "passed": 30,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "domestic-credit",
+            "printed_wall_seconds": 2.7,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "faiths",
+            "printed_wall_seconds": 2.9,
+            "passed": 18,
+            "skipped": 0,
+            "failed": 0
+          }
+        ],
+        "counts": {
+          "passed": 3996,
+          "skipped": 65,
+          "failed": 0
+        },
+        "printed_chunk_wall_seconds_sum": 233.7,
+        "max_printed_chunk_seconds": 39.4
+      },
+      {
+        "id": 123252399096,
+        "name": "Python native",
+        "status": "completed",
+        "conclusion": "failure",
+        "head_sha": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "started_at": "2026-10-29T03:52:02Z",
+        "completed_at": "2026-10-29T03:52:06Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:52:03Z",
+            "completed_at": "2026-10-29T03:52:04Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Require complete native Python and Rust success",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 2,
+            "started_at": "2026-10-29T03:52:04Z",
+            "completed_at": "2026-10-29T03:52:04Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:52:04Z",
+            "completed_at": "2026-10-29T03:52:04Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 4.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/job-123252399096.json",
+        "external_log_record_sha256": "4a9269cf0c3f4a5154cbfc20e77d885ad9968b8cd8b1e948b567769207208afb",
+        "decoded_log_sha256": "12f008793136462675e598a44c89e8ff47b7047b951d14ab8f34e3cdd370dafa",
+        "upstream_native_python": "success",
+        "upstream_rust": "failure"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12871931344,
+        "name": "python-native-dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "size_in_bytes": 139044,
+        "digest": "sha256:2c874c1941e613e40f9b53a35b60fe42fd4ef5fbdaf57b82644c996080535890",
+        "created_at": "2026-10-29T03:51:53Z",
+        "updated_at": "2026-10-29T03:51:53Z",
+        "expires_at": "2026-11-12T03:51:52Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/artifact-12871931344/receipt.json",
+        "receipt_sha256": "1af661a4d8cf9343a6a0390869ee47b72b9a934076447fb52b3451c2e6d4cf7d",
+        "target_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.004,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.003,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "native-identity.json",
+            "bytes": 548,
+            "sha256": "bbe6cabfa211741109f87fb2cd173bae5ff1419c75c252d9df67473724dc0f19"
+          },
+          {
+            "name": "native.xml",
+            "bytes": 1063599,
+            "sha256": "587b9ce244905bb228846871984b36a473593e133fe2d4efe88513184fad831c"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "6",
+            "tests": "8631",
+            "time": "524.990",
+            "timestamp": "2026-10-29T03:43:05.836822+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ],
+        "producer_reported_native_identity": {
+          "source_commit": "dec950334e9d7fceb77e51b482b60931357ffbc5",
+          "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+          "compiled_extension_name": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "1bc7159ab4b4ae4dba386ffd9dc061ef355c785f6ebd0d97aa0fc75d6b1eca8e",
+          "classes": [
+            "AgentSimulator",
+            "EcologySimulator",
+            "PoliticsSimulator"
+          ]
+        }
+      },
+      {
+        "id": 12871910871,
+        "name": "python-no-rust-dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "size_in_bytes": 141632,
+        "digest": "sha256:63bd0a6133ae589c186c0e5acb8543f543e6131f0396f3e522e8baeea0e80746",
+        "created_at": "2026-10-29T03:47:17Z",
+        "updated_at": "2026-10-29T03:47:17Z",
+        "expires_at": "2026-11-12T03:47:17Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813417246/artifact-12871910871/receipt.json",
+        "receipt_sha256": "cf65563b1c3020dbae824854a76563b2e6ed314524372ff16b578ae199d563ab",
+        "target_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "no-rust.xml",
+            "bytes": 1137379,
+            "sha256": "7f5bf9dac9ae9d4b6c5105302e6ac257c690c909b1c9afe92681bbc927f21b5a"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "311",
+            "tests": "8617",
+            "time": "413.576",
+            "timestamp": "2026-10-29T03:40:20.995066+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ]
+      },
+      {
+        "id": 12871547251,
+        "name": "python-offline-dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "size_in_bytes": 41851,
+        "digest": "sha256:5141fa6c89cc558634692fbeb7602d7392e84a63e7c8dfb81afa6ad841317139",
+        "created_at": "2026-10-29T03:44:12Z",
+        "updated_at": "2026-10-29T03:44:12Z",
+        "expires_at": "2026-11-12T03:44:11Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      },
+      {
+        "id": 12870554208,
+        "name": "rust-dec950334e9d7fceb77e51b482b60931357ffbc5",
+        "size_in_bytes": 642,
+        "digest": "sha256:abaa85f6e8a1d9f854cfea9489ca159b7c3c52b885a0d13024d0e61925456196",
+        "created_at": "2026-10-29T03:41:08Z",
+        "updated_at": "2026-10-29T03:41:08Z",
+        "expires_at": "2026-11-12T03:41:07Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      }
+    ]
+  },
+  "corrected_run": {
+    "capture_clock_after_api_reads": "2026-10-29 03:54:01 UTC",
+    "run": {
+      "id": 40813775699,
+      "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+      "head_branch": "lead/decision-delivery-native-20261029",
+      "event": "workflow_dispatch",
+      "run_attempt": 1,
+      "path": ".github/workflows/tests.yml",
+      "workflow_id": 273982781,
+      "run_number": 160,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T03:43:48Z",
+      "run_started_at": "2026-10-29T03:43:48Z",
+      "updated_at": "2026-10-29T03:52:26Z",
+      "html_url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/40813775699",
+      "creation_to_final_job_seconds": 518.0
+    },
+    "jobs": [
+      {
+        "id": 123249975754,
+        "name": "Python native execution",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:43:51Z",
+        "completed_at": "2026-10-29T03:52:21Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:43:52Z",
+            "completed_at": "2026-10-29T03:43:53Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:43:53Z",
+            "completed_at": "2026-10-29T03:43:55Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:43:55Z",
+            "completed_at": "2026-10-29T03:43:55Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:43:55Z",
+            "completed_at": "2026-10-29T03:43:55Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:43:55Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Identify Rust compiler",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:44:06Z",
+            "wall_seconds": 10.0
+          },
+          {
+            "name": "Build Rust extension wheel",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-29T03:44:06Z",
+            "completed_at": "2026-10-29T03:45:59Z",
+            "wall_seconds": 113.0
+          },
+          {
+            "name": "Run Python tests with real native extension preloaded",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-29T03:45:59Z",
+            "completed_at": "2026-10-29T03:52:13Z",
+            "wall_seconds": 374.0
+          },
+          {
+            "name": "Retain native Python test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-29T03:52:13Z",
+            "completed_at": "2026-10-29T03:52:14Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore release build cache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-29T03:52:14Z",
+            "completed_at": "2026-10-29T03:52:17Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-29T03:52:17Z",
+            "completed_at": "2026-10-29T03:52:18Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 22,
+            "started_at": "2026-10-29T03:52:18Z",
+            "completed_at": "2026-10-29T03:52:18Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 23,
+            "started_at": "2026-10-29T03:52:18Z",
+            "completed_at": "2026-10-29T03:52:19Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24,
+            "started_at": "2026-10-29T03:52:19Z",
+            "completed_at": "2026-10-29T03:52:19Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 25,
+            "started_at": "2026-10-29T03:52:19Z",
+            "completed_at": "2026-10-29T03:52:19Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 510.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123249975754.json",
+        "external_log_record_sha256": "fc1f761d3695ddc8292c415262c201457c396f8c03d96637f32df1a4a7e8ef6a",
+        "decoded_log_sha256": "636f9f895cb5f33b40d8a97fee472286ac46036fcd2291e78cd73ff033a0b026",
+        "counts": {
+          "parent_passed": 8099,
+          "skipped": 6,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 368.6
+      },
+      {
+        "id": 123249975921,
+        "name": "Python no-Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:43:52Z",
+        "completed_at": "2026-10-29T03:49:58Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:43:52Z",
+            "completed_at": "2026-10-29T03:43:53Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:43:53Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:44:01Z",
+            "wall_seconds": 5.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:44:01Z",
+            "completed_at": "2026-10-29T03:44:01Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run Python tests without Rust extension",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:44:01Z",
+            "completed_at": "2026-10-29T03:49:53Z",
+            "wall_seconds": 352.0
+          },
+          {
+            "name": "Retain no-Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:49:53Z",
+            "completed_at": "2026-10-29T03:49:55Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:49:55Z",
+            "completed_at": "2026-10-29T03:49:56Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:49:56Z",
+            "completed_at": "2026-10-29T03:49:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T03:49:56Z",
+            "completed_at": "2026-10-29T03:49:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T03:49:56Z",
+            "completed_at": "2026-10-29T03:49:56Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 366.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123249975921.json",
+        "external_log_record_sha256": "0592ceee39c468ef67e37971e71dee22b12d43083b61ceced0609186ab12ecbf",
+        "decoded_log_sha256": "60dd9fb3720562b2426b7beb514783ab171f84e1df2da9f5cb7e4b344d150790",
+        "counts": {
+          "parent_passed": 7780,
+          "skipped": 311,
+          "successful_subtests": 526
+        },
+        "reported_pytest_seconds": 347.8
+      },
+      {
+        "id": 123249975930,
+        "name": "Viewer",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:43:51Z",
+        "completed_at": "2026-10-29T03:45:45Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:43:52Z",
+            "completed_at": "2026-10-29T03:43:53Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:43:53Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:58Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Install viewer dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:43:58Z",
+            "completed_at": "2026-10-29T03:44:03Z",
+            "wall_seconds": 5.0
+          },
+          {
+            "name": "Run viewer tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:44:03Z",
+            "completed_at": "2026-10-29T03:45:15Z",
+            "wall_seconds": 72.0
+          },
+          {
+            "name": "Lint viewer",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:45:15Z",
+            "completed_at": "2026-10-29T03:45:28Z",
+            "wall_seconds": 13.0
+          },
+          {
+            "name": "Build viewer for production",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:45:28Z",
+            "completed_at": "2026-10-29T03:45:43Z",
+            "wall_seconds": 15.0
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-29T03:45:43Z",
+            "completed_at": "2026-10-29T03:45:43Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:45:43Z",
+            "completed_at": "2026-10-29T03:45:44Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:45:44Z",
+            "completed_at": "2026-10-29T03:45:44Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 114.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123249975930.json",
+        "external_log_record_sha256": "37a1497522dd22115191180e5d57944ba3cb370208240054f4b2aa42caef2f0c",
+        "decoded_log_sha256": "789efd7093a306978cdd9860752a9c4c9a8f19a9e3d729a1c0d4a60981819596",
+        "counts": {
+          "passed": 743,
+          "files": 69
+        },
+        "reported_vitest_seconds": 70.77
+      },
+      {
+        "id": 123249975955,
+        "name": "Python bounded offline",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:43:52Z",
+        "completed_at": "2026-10-29T03:46:59Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:43:52Z",
+            "completed_at": "2026-10-29T03:43:53Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:43:53Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 3.0
+          },
+          {
+            "name": "Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Install Python dependencies from the lockfile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:44:02Z",
+            "wall_seconds": 6.0
+          },
+          {
+            "name": "Assert native extension is absent",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:44:02Z",
+            "completed_at": "2026-10-29T03:44:02Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Run guarded offline chunks",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:44:02Z",
+            "completed_at": "2026-10-29T03:46:54Z",
+            "wall_seconds": 172.0
+          },
+          {
+            "name": "Retain bounded offline receipts and logs",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-29T03:46:54Z",
+            "completed_at": "2026-10-29T03:46:55Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore uv artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:46:55Z",
+            "completed_at": "2026-10-29T03:46:56Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:46:56Z",
+            "completed_at": "2026-10-29T03:46:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-29T03:46:56Z",
+            "completed_at": "2026-10-29T03:46:57Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-29T03:46:57Z",
+            "completed_at": "2026-10-29T03:46:57Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 187.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123249975955.json",
+        "external_log_record_sha256": "62e02cf5e16a76d8259131fbea080f87917fb42dc215f85588f5fe3501755556",
+        "decoded_log_sha256": "95ccd12792939106fbe8842dbe4c3fdff24365a870767dcde4047ec0a3cd49be",
+        "chunks": [
+          {
+            "name": "arc-event-types",
+            "printed_wall_seconds": 2.1,
+            "passed": 8,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "diagnostics",
+            "printed_wall_seconds": 2.0,
+            "passed": 74,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "core",
+            "printed_wall_seconds": 22.1,
+            "passed": 1131,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "governance",
+            "printed_wall_seconds": 12.5,
+            "passed": 575,
+            "skipped": 3,
+            "failed": 0
+          },
+          {
+            "name": "systems-1",
+            "printed_wall_seconds": 15.2,
+            "passed": 255,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "systems-2",
+            "printed_wall_seconds": 28.7,
+            "passed": 313,
+            "skipped": 17,
+            "failed": 0
+          },
+          {
+            "name": "narration",
+            "printed_wall_seconds": 7.1,
+            "passed": 171,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "history-forensics",
+            "printed_wall_seconds": 1.5,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-audit",
+            "printed_wall_seconds": 1.5,
+            "passed": 69,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-receipts",
+            "printed_wall_seconds": 1.7,
+            "passed": 93,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-comparison",
+            "printed_wall_seconds": 2.0,
+            "passed": 52,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "proof-contracts",
+            "printed_wall_seconds": 1.8,
+            "passed": 28,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "qualification-tools",
+            "printed_wall_seconds": 3.9,
+            "passed": 112,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "turn-speed",
+            "printed_wall_seconds": 1.5,
+            "passed": 21,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "validation-tooling",
+            "printed_wall_seconds": 7.3,
+            "passed": 292,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "learning",
+            "printed_wall_seconds": 3.8,
+            "passed": 64,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "population",
+            "printed_wall_seconds": 1.7,
+            "passed": 27,
+            "skipped": 4,
+            "failed": 0
+          },
+          {
+            "name": "production-ledger",
+            "printed_wall_seconds": 2.0,
+            "passed": 17,
+            "skipped": 9,
+            "failed": 0
+          },
+          {
+            "name": "refugee-routing",
+            "printed_wall_seconds": 2.5,
+            "passed": 23,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "checkpoint",
+            "printed_wall_seconds": 4.1,
+            "passed": 20,
+            "skipped": 6,
+            "failed": 0
+          },
+          {
+            "name": "live-checkpoints",
+            "printed_wall_seconds": 17.5,
+            "passed": 13,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "interactive-checkpoints",
+            "printed_wall_seconds": 4.8,
+            "passed": 28,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "grain-reserves",
+            "printed_wall_seconds": 2.1,
+            "passed": 23,
+            "skipped": 2,
+            "failed": 0
+          },
+          {
+            "name": "expansion-wiring",
+            "printed_wall_seconds": 2.7,
+            "passed": 118,
+            "skipped": 1,
+            "failed": 0
+          },
+          {
+            "name": "ritual-gatherings",
+            "printed_wall_seconds": 1.8,
+            "passed": 78,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-claims",
+            "printed_wall_seconds": 4.9,
+            "passed": 65,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-publication",
+            "printed_wall_seconds": 1.9,
+            "passed": 31,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "scientific-research",
+            "printed_wall_seconds": 3.5,
+            "passed": 126,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "transaction-receipts",
+            "printed_wall_seconds": 1.6,
+            "passed": 53,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "expansion-experiments",
+            "printed_wall_seconds": 1.9,
+            "passed": 30,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "domestic-credit",
+            "printed_wall_seconds": 2.0,
+            "passed": 34,
+            "skipped": 0,
+            "failed": 0
+          },
+          {
+            "name": "faiths",
+            "printed_wall_seconds": 2.2,
+            "passed": 18,
+            "skipped": 0,
+            "failed": 0
+          }
+        ],
+        "counts": {
+          "passed": 3996,
+          "skipped": 65,
+          "failed": 0
+        },
+        "printed_chunk_wall_seconds_sum": 171.9,
+        "max_printed_chunk_seconds": 28.7
+      },
+      {
+        "id": 123249976030,
+        "name": "Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:43:51Z",
+        "completed_at": "2026-10-29T03:44:52Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:43:52Z",
+            "completed_at": "2026-10-29T03:43:54Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:43:54Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 2.0
+          },
+          {
+            "name": "Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:56Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-29T03:43:56Z",
+            "completed_at": "2026-10-29T03:43:57Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Run Rust tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-29T03:43:57Z",
+            "completed_at": "2026-10-29T03:44:47Z",
+            "wall_seconds": 50.0
+          },
+          {
+            "name": "Retain Rust test results",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-29T03:44:47Z",
+            "completed_at": "2026-10-29T03:44:48Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Restore Cargo downloads",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-29T03:44:48Z",
+            "completed_at": "2026-10-29T03:44:49Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Set up Python for PyO3 test linkage",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-29T03:44:49Z",
+            "completed_at": "2026-10-29T03:44:50Z",
+            "wall_seconds": 1.0
+          },
+          {
+            "name": "Post Check out repository",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-29T03:44:50Z",
+            "completed_at": "2026-10-29T03:44:50Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-29T03:44:50Z",
+            "completed_at": "2026-10-29T03:44:50Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 61.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123249976030.json",
+        "external_log_record_sha256": "01a8b1459729d14c00820f72c245805f9d1284df341826d1dc9054bf5ce4a185",
+        "decoded_log_sha256": "a6e1d6dcf4ba7da3b1eaba94242a3a00cd582efa4a2d98cc54ae58a57f213b19",
+        "harness_summaries": [
+          {
+            "status": "ok",
+            "passed": 562,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 2.26
+          },
+          {
+            "status": "ok",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.36
+          },
+          {
+            "status": "ok",
+            "passed": 2,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 0,
+            "failed": 0,
+            "ignored": 2,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.03
+          },
+          {
+            "status": "ok",
+            "passed": 8,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 2.55
+          },
+          {
+            "status": "ok",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.09
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.1
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.53
+          },
+          {
+            "status": "ok",
+            "passed": 57,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 33,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.06
+          },
+          {
+            "status": "ok",
+            "passed": 48,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.03
+          },
+          {
+            "status": "ok",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 2,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 23,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 22,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 6,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 50,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 46,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 21,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 56,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 12,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 10,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 31,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.01
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 7,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 12,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.0
+          },
+          {
+            "status": "ok",
+            "passed": 3,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.03
+          },
+          {
+            "status": "ok",
+            "passed": 0,
+            "failed": 0,
+            "ignored": 0,
+            "measured": 0,
+            "filtered_out": 0,
+            "reported_seconds": 0.03
+          }
+        ],
+        "counts": {
+          "passed": 1102,
+          "failed": 0,
+          "ignored": 2,
+          "measured": 0,
+          "filtered_out": 0
+        },
+        "reported_harness_seconds_sum": 6.1
+      },
+      {
+        "id": 123252498777,
+        "name": "Python native",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "started_at": "2026-10-29T03:52:23Z",
+        "completed_at": "2026-10-29T03:52:26Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-29T03:52:23Z",
+            "completed_at": "2026-10-29T03:52:23Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Require complete native Python and Rust success",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-29T03:52:23Z",
+            "completed_at": "2026-10-29T03:52:23Z",
+            "wall_seconds": 0.0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-29T03:52:23Z",
+            "completed_at": "2026-10-29T03:52:23Z",
+            "wall_seconds": 0.0
+          }
+        ],
+        "job_wall_seconds": 3.0,
+        "external_log_record": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/job-123252498777.json",
+        "external_log_record_sha256": "247fbbb6dc2775ec6f038d7bdab64187d254b5ac69f1af6d6d51a1453c9d17e0",
+        "decoded_log_sha256": "43d08dd4a52ba42c0ae8dde24acfd5a235cc759c0b000a7da17b0712895e223e",
+        "upstream_native_python": "success",
+        "upstream_rust": "success"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": 12872060517,
+        "name": "python-native-e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "size_in_bytes": 138169,
+        "digest": "sha256:ae71929341272a9cc54801a8f8262d089f6a68ce1bb187de6804075438d39363",
+        "created_at": "2026-10-29T03:52:14Z",
+        "updated_at": "2026-10-29T03:52:14Z",
+        "expires_at": "2026-11-12T03:52:13Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/artifact-12872060517/receipt.json",
+        "receipt_sha256": "565669de7a2afb03955fe9701cdfc39a2b7fe110b619b16427f0e1505d2726dc",
+        "target_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.002,
+            "status": "PASS",
+            "skip_reason": null
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "PASS",
+            "skip_reason": null
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "native-identity.json",
+            "bytes": 548,
+            "sha256": "a1f931649261e1ace7208101d5f53259b6d7d7f23efca5535e95ef98c9f7b31d"
+          },
+          {
+            "name": "native.xml",
+            "bytes": 1063596,
+            "sha256": "ea5b6a744f9a9c7eb0e3904ea3876a66a98afb3bf625c9a450c2fd5c7f7d18e5"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "6",
+            "tests": "8631",
+            "time": "368.544",
+            "timestamp": "2026-10-29T03:46:01.957920+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ],
+        "producer_reported_native_identity": {
+          "source_commit": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+          "python": "3.13.17 (main, Oct 22 2026, 02:40:32) [GCC 13.3.0]",
+          "compiled_extension_name": "chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+          "sha256": "1bc7159ab4b4ae4dba386ffd9dc061ef355c785f6ebd0d97aa0fc75d6b1eca8e",
+          "classes": [
+            "AgentSimulator",
+            "EcologySimulator",
+            "PoliticsSimulator"
+          ]
+        }
+      },
+      {
+        "id": 12871861535,
+        "name": "python-no-rust-e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "size_in_bytes": 141053,
+        "digest": "sha256:ebf8b9c5c55e5fde7d6746c99f033d9081a9d988a1b01d85a3f6f4ee8e3216a1",
+        "created_at": "2026-10-29T03:49:54Z",
+        "updated_at": "2026-10-29T03:49:54Z",
+        "expires_at": "2026-11-12T03:49:53Z",
+        "expired": false,
+        "verification": "Official ZIP bytes independently rehashed in RAM; selected JUnit/identity members retained and parsed without runtime imports.",
+        "receipt_path": "/workspace/chronicler-decision-delivery-ci-evidence/run-40813775699/artifact-12871861535/receipt.json",
+        "receipt_sha256": "ad33f167d0e672e4b55dd3c971799f92d7c3d073a70f8dd67c3cdc71de536edc",
+        "target_cases": [
+          {
+            "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.001,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.0,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.0,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.0,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          },
+          {
+            "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+            "classname": "tests.test_decision_delivery_native",
+            "seconds": 0.0,
+            "status": "SKIP",
+            "skip_reason": "native extension absent"
+          }
+        ],
+        "selected_members": [
+          {
+            "name": "no-rust.xml",
+            "bytes": 1137377,
+            "sha256": "cbdb16c5966154fdc3f083f1c8f12ae3e2bab1c607364ac8acf2ec61a946fc6b"
+          }
+        ],
+        "junit_suites": [
+          {
+            "name": "pytest",
+            "errors": "0",
+            "failures": "0",
+            "skipped": "311",
+            "tests": "8617",
+            "time": "347.728",
+            "timestamp": "2026-10-29T03:44:03.573068+00:00",
+            "hostname": "runnervm48cm3"
+          }
+        ]
+      },
+      {
+        "id": 12871228496,
+        "name": "rust-e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "size_in_bytes": 716,
+        "digest": "sha256:81ce6252ed3c3f9d08bfd5412ae852b7907c9b58a83b49a823d762b92017a1d6",
+        "created_at": "2026-10-29T03:44:47Z",
+        "updated_at": "2026-10-29T03:44:47Z",
+        "expires_at": "2026-11-12T03:44:47Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      },
+      {
+        "id": 12870944790,
+        "name": "python-offline-e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+        "size_in_bytes": 41866,
+        "digest": "sha256:6172a09a73c78ad3039d24e9a055ad119ac51d04e45de7cebcb5a275b33ae050",
+        "created_at": "2026-10-29T03:46:55Z",
+        "updated_at": "2026-10-29T03:46:55Z",
+        "expires_at": "2026-11-12T03:46:54Z",
+        "expired": false,
+        "verification": "Official current API publication metadata only; archive not downloaded/rehashed by this audit."
+      }
+    ]
+  },
+  "new_case_catalog": {
+    "source": "e99c0fd52f3839ba89dc0c65bf217542e42acbc4",
+    "rust_cases": [
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_quotas_bound_the_combined_rows",
+        "line": 371
+      },
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_configuration_rejects_aliases_and_unbounded_inputs",
+        "line": 377
+      },
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_empty_frame_is_stamped_and_truncation_is_explicit",
+        "line": 386
+      },
+      {
+        "path": "chronicler-agents/src/decision_delivery.rs",
+        "name": "decision_delivery_computed_zero_anchor_is_distinct_from_absence",
+        "line": 395
+      },
+      {
+        "path": "chronicler-agents/src/behavior.rs",
+        "name": "decision_delivery_observes_gross_roots_and_net_pull_before_target_selection",
+        "line": 2406
+      },
+      {
+        "path": "chronicler-agents/src/behavior.rs",
+        "name": "decision_delivery_preserves_decisions_rng_and_read_only_pool_bytes",
+        "line": 2836
+      },
+      {
+        "path": "chronicler-agents/src/behavior.rs",
+        "name": "decision_delivery_displacement_records_computed_but_unapplied_needs",
+        "line": 2864
+      },
+      {
+        "path": "chronicler-agents/src/needs.rs",
+        "name": "test_need_utility_trace_matches_ordinary_channel_bits",
+        "line": 910
+      },
+      {
+        "path": "chronicler-agents/src/needs.rs",
+        "name": "test_need_utility_trace_preserves_actual_raw_accumulation_order",
+        "line": 945
+      },
+      {
+        "path": "chronicler-agents/src/needs.rs",
+        "name": "test_need_utility_trace_retains_raw_push_shadowed_by_cap",
+        "line": 962
+      },
+      {
+        "path": "chronicler-agents/src/tick.rs",
+        "name": "decision_delivery_enabled_tick_preserves_events_pool_and_legacy_stats",
+        "line": 1996
+      },
+      {
+        "path": "chronicler-agents/src/tick.rs",
+        "name": "decision_delivery_capped_frames_are_identical_with_one_or_two_workers",
+        "line": 2028
+      },
+      {
+        "path": "chronicler-agents/src/ffi/mod.rs",
+        "name": "decision_delivery_configuration_and_frame_are_checkpoint_transient",
+        "line": 3659
+      },
+      {
+        "path": "chronicler-agents/src/ffi/mod.rs",
+        "name": "decision_delivery_reads_are_non_draining_and_disabling_clears_the_frame",
+        "line": 3676
+      }
+    ],
+    "python_api_cases": [
+      {
+        "path": "tests/test_decision_delivery_native.py",
+        "name": "test_decision_delivery_api_configuration_is_transient_and_keeps_recorded_schema",
+        "line": 68
+      },
+      {
+        "path": "tests/test_decision_delivery_native.py",
+        "name": "test_decision_delivery_api_preserves_events_payload_and_actual_tick_mask",
+        "line": 91
+      },
+      {
+        "path": "tests/test_decision_delivery_native.py",
+        "name": "test_decision_delivery_api_truncation_selection_disable_and_empty_turn",
+        "line": 116
+      },
+      {
+        "path": "tests/test_decision_delivery_native.py",
+        "name": "test_decision_delivery_api_restore_disables_observer_then_rebinds_fresh_frame",
+        "line": 138
+      },
+      {
+        "path": "tests/test_decision_delivery_native.py",
+        "name": "test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame",
+        "line": 156
+      }
+    ],
+    "rust_case_count": 14,
+    "python_api_case_count": 5,
+    "scope": "Source catalog only; executed status must be linked to original exact-source CI log and JUnit receipts."
+  },
+  "correction": "Three test-only lines refresh each percentile scratch vector to its own growing pool before each paired core tick; births and two-tick assertions remain. No runtime, workflow or Python source change.",
+  "original_failure": {
+    "job": 123248824897,
+    "test": "tick::tests::decision_delivery_enabled_tick_preserves_events_pool_and_legacy_stats",
+    "source_location": "chronicler-agents/src/tick.rs:1455",
+    "message": "index out of bounds: the len is 16 but the index is 16",
+    "library_passed": 561,
+    "library_failed": 1,
+    "reported_library_seconds": 2.23,
+    "subsequent_rust_harnesses_ran": false,
+    "combined_requirement_failed_from_rust": true,
+    "same_source_rerun": false
+  },
+  "scope": [
+    "Standard exact-source CI and tiny direct native API fixtures; overlapping lanes are not unique counts.",
+    "Fourteen new Rust cases are linked by source catalog and complete unfiltered 562-case library pass. Quiet Cargo output does not list individual passing names; no separate targeted invocation was launched.",
+    "Five compiled API cases pass, and the same five explicitly skip without the native extension.",
+    "Recorded old schema fingerprint and within-new-build on/off checkpoint equality pass. No old checkpoint was rebound to this binary and no old/new native default-output comparison is claimed.",
+    "Native .so SHA is producer-reported in independently verified identity ZIP bytes. The native binary and wheel were not separately downloaded/rehashed by this audit.",
+    "No new scientific cohort, large-agent, performance or outcome qualification. Frozen full-gate 2f9/d028/06db evidence remains separate.",
+    "Stage 1 only: actual decision/candidate observations. Applied household movement provenance and counterfactual winner/marginal fields remain explicitly incomplete; Python writer/CLI/harness not implemented.",
+    "All builds/tests ran remotely. Local work only read retained source/logs/JSON/XML using stdlib; no native/project imports, pools, worlds or replay.",
+    "Main and frozen source refs were not changed; source branch remains isolated."
+  ],
+  "evidence_reader": {
+    "path": "/workspace/chronicler-decision-delivery-ci-evidence/read_ci_artifact.py",
+    "sha256": "84a4f986abfb9ffdb6695dcd11ab0a50658aa2a7ce7aedef6a944faf8ffbc71b",
+    "zip_ram_only": true,
+    "per_read_ram_admission_bytes": 134217728,
+    "retained_disk_floor_bytes": 3221225472
+  }
+}

@@ -1,5 +1,16 @@
 # Recovered continuation — 2026-10-11
 
+October 29 separate native diagnostics source `e99c0fd5` passed all six
+unchanged standard CI jobs, including 1,102 Rust tests and 8,099 native Python
+parent tests. All five new real compiled API cases pass and skip explicitly
+without the extension. The [source-scoped record](integration/native-decision-delivery-ci-2026-10-29.md)
+preserves the original scratch-fixture failure, its test-only correction,
+artifact verification limits and separate clocks. This native API captures
+decision/candidate stages with bounded, transient observations; applied moves,
+counterfactual winners and whole-world old/new parity remain outside Stage 1.
+Its source is on a separate branch; current review runtime and frozen C76
+remain unchanged.
+
 October 29 natural finite-research result: all eight fixed parent/active/pause
 triples completed, 24 executions/3,360 ticks, with strict active-parent equality
 and archive-preserving pauses. The [curated record](integration/natural-research-continuation-results-2026-10-29.md)

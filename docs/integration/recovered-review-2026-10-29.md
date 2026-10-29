@@ -70,6 +70,34 @@ backend, public CLI option or gate forwarding in that commit. The separate
 tests, but ran no forks. Current-source content-codec engineering remains
 separate from qualification of the original timing experiment.
 
+## Native decision diagnostics, separate review branch
+
+The [native diagnostic implementation](native-decision-delivery-ci-2026-10-29.md)
+at `e99c0fd5` passed all six unchanged CI jobs: 1,102 Rust tests, 8,099 native
+Python parent tests, 7,780 no-Rust parents, 3,996 bounded offline tests, and
+743 viewer tests plus lint/build. The five new compiled API cases pass and
+explicitly skip when the extension is absent. Successful subtests and skips
+remain separate in the readout. This code is on
+`lead/decision-delivery-native-20261029`; it is not integrated into this
+review branch or the original C76 producer.
+
+It captures actual need values around caps, migration utility stages and
+destination candidates, with original float bits and explicit computed/valid
+flags. Fixed regional quotas bound capture and make truncation deterministic.
+Configuration and frames are transient: the recorded native schema and
+within-new-build on/off checkpoints match. The default path uses a
+monomorphized no-op observer. There is no Python writer, CLI activation,
+applied-household provenance or counterfactual-winner calculation in this
+qualified stage. Whole-world old/new output identity and larger-world timing
+still need separate evidence.
+
+The first run failed a new two-tick fixture after births enlarged its pool.
+The correction adds only the per-tick scratch resize already performed by
+production. Births and both-tick assertions remain; the original failure and
+its correctly failed combined requirement are preserved. The two native jobs
+report the same compiled binary hash; that identity is producer-reported
+inside independently rehashed evidence ZIPs.
+
 ## Intentional native correction, separate review branch
 
 `lead/cloud-household-wealth-floor-20261029` at `5030701` corrects a valid
@@ -197,6 +225,7 @@ continues to use its preserved producer instead of relabeling old checkpoints.
 | `lead/research-natural-continuation-harness-20261029` | Corrected, tested detached study adapter; metadata freeze only |
 | `lead/cloud-household-wealth-floor-20261029` | All six CI lanes pass; intentional native behavior correction awaits outcome qualification |
 | `lead/wealth-floor-admission-root-review-20261029` | Inactive dual-origin baseline reader, 71 guarded contracts and independent source review pass; effective cgroup deployment proof and all candidate proof pins remain unresolved |
+| `lead/decision-delivery-native-20261029` | Bounded transient native diagnostics; all six unchanged CI jobs pass at e99c; applied-movement provenance remains a separate next stage |
 
 The [independent export reinspection](completed-export-study-reader-2026-10-29.md)
 and [machine-readable result](completed-export-study-results-2026-10-29.json)
