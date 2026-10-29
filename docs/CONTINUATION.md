@@ -421,3 +421,19 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## 2026-10-29: pending four-header diagnostic source
+
+A new source-only header observer preserves the completed original 5f diagnostic,
+all failed-cohort evidence, old A/W limits and full authority NULL slots. Its own
+activation is NULL. It proposes a separately named 5.5-billion-byte staging
+contract for exactly two original failed-checkpoint ZIPs, observing only four
+bounded headers after selected full CRC/SHA checks. Inner checkpoint sections
+are never inflated/unpickled/restored. No acquisition, scientific fix, full
+qualification or recovery is granted by this source preparation.
+
+See `docs/experiments/wealth-floor-checkpoint-header-diagnostic-2026-10-29.md`
+for exact source/pure scope and `docs/workflows/wealth-floor-checkpoint-header-diagnostic.yml`
+for the dormant future workflow. Original cohort status remains INCOMPLETE_MECHANICS;
+the offending compound-predicate operand is still unobserved.
