@@ -23,7 +23,12 @@ allocations, without genealogy inference or native persistent fields. All 38
 new Python policy parents use models/fake bridges, including in the native lane;
 nine new Rust contracts are source-included in its successful unfiltered target.
 Actual per-class checkpoint-schema tuples and genuine Python execution of the
-new keyword remain unobserved. Enabled retained-Kin World/checkpoint, fresh
+new keyword remained unobserved in that CI. A separate later
+[empty API proof](integration/retained-kin-care-empty-api-2026-10-29.md), control
+`55817a50`/run40917339306, is independently/root-qualified using the exact23d
+wheel:three measured schema summaries, both call signatures, invalid-policy empty
+marker retention and six equal native-byte rows. It constructed one empty
+AgentSimulator, zero agents/Worlds/ticks/restores. Enabled retained-Kin World/checkpoint, fresh
 default-output/global-RNG, science and performance gates remain separate; no
 activation, adoption or current-candidate/main promotion is supplied by CI.
 Enabled Python pickle metadata may include the new declared default: old missing-

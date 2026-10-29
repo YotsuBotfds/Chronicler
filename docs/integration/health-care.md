@@ -168,11 +168,17 @@ performance qualification remain pending; no promotion is claimed.
 
 ## Optional retained-Kin source extension
 
-A separate [source-only extension](retained-kin-care-2026-10-29.md) adds explicit
+A separate [optional extension](retained-kin-care-2026-10-29.md) adds explicit
 `care_policy="retained_kin"`, retaining `spouse` as the omitted legacy value.
 It protects all existing spouse assignments before bounded reciprocal stored-Kin
 fallback and charges the same manual-work budget once. Health remains default-off.
 Native schema declarations are unchanged; an enabled Python model's default
-field may appear in pickle metadata even while legacy JSON omits it. Compilation,
-full CI and genuine old/new or enabled World/checkpoint qualification are pending
-for that new source; earlier evidence in this document keeps its original scope.
+field may appear in pickle metadata even while legacy JSON omits it. Exact23d
+now has [qualified all-nine-job CI](retained-kin-care-ci-2026-10-29.md). A separate
+later [empty API proof](retained-kin-care-empty-api-2026-10-29.md), control55817a50,
+reuses that wheel and qualifies three measured schema summaries and genuine
+Python execution of both signatures/invalid-policy empty-marker retention. Its
+one simulator has zero agents/Worlds/ticks/restores, with six equal native-byte
+rows. Genuine new-policy nonempty care, enabled World/checkpoint continuation,
+default-output/globalRNG, science and performance qualification remain separate;
+earlier evidence in this document keeps its original source/runtime scope.

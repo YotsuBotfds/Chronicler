@@ -49,7 +49,10 @@ before/after identity remains a source-pinned producer assertion. This curation
 reads retained metadata and seals, without importing or rerunning that code.
 
 Per-class checkpoint-schema tuples and genuine Python execution of the new
-keyword remain unobserved. There is no enabled retained-Kin World/checkpoint,
+keyword remain unobserved in that CI. A separate later independently/root-qualified
+[empty API proof](retained-kin-care-empty-api-2026-10-29.md), control55817a50 using
+the exact23d wheel, adds those specific observations for one empty native
+simulator only. The original CI JSON remains unchanged. There is no enabled retained-Kin World/checkpoint,
 default-output/global-RNG, efficacy/survival/welfare, performance or promotion
 qualification. Existing standard suites may execute normal Worlds; these
 limits concern the new enabled policy. Metadata-reader failures, the two-field

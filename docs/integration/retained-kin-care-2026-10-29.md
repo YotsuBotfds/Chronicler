@@ -79,7 +79,13 @@ path without running any pytest chunk. Subsequent hosted `23d4d246` CI passes
 all 38 policy parents in each full Python lane and 38 parents/97 successful
 subtests in the standard guarded offline chunk. These remain model/fake-bridge
 contracts: genuine Python execution of the new keyword and actual per-class
-checkpoint-schema tuples are unobserved. The original local result and the
+checkpoint-schema tuples were unobserved in that CI. The later independently/root-
+qualified [empty API proof](retained-kin-care-empty-api-2026-10-29.md) at control
+`55817a50` reuses the exact23d wheel and records all three schema summaries,
+both public call signatures and invalid-policy empty-marker retention, with six
+equal native persistent-byte rows. Its single simulator has zero agents, Worlds,
+physics ticks or restores; it adds no nonempty donor/care-cost or World integration
+result. The original local result and the
 first `2572d5b9` native-admission failure remain preserved separately; see the
 [qualified CI readout](retained-kin-care-ci-2026-10-29.md).
 The frozen design is `/tmp/chronicler-retained-kin-care-design-20261029/PLAN.md`,
