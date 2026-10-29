@@ -1,5 +1,11 @@
 # Recovered continuation — 2026-10-11
 
+The separate `lead/agent-scale-benchmark-inputs-20261029` follow-up fixes empty
+workloads reporting success, nonfinite work/timeout inputs and overwritten
+repeat profiles. The affected guarded chunk passes 52 cases with no native,
+factory or blocked-I/O activity. [Scope and compatibility](performance/agent-scale-benchmark-inputs-2026-10-29.md)
+are explicit; no benchmark world or simulation speed claim is included.
+
 October 29 applied-movement diagnostics: separate `feb98c0d` passes all six
 unchanged CI jobs on its first run. Bounded household proposal/cancellation
 provenance links to actual full native-event ordinals while preserving the
