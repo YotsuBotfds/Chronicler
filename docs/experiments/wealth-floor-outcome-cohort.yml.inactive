@@ -1,0 +1,229 @@
+# DORMANT: separate source/packet review and one explicit activation required.
+name: Wealth-floor fresh candidate outcome cohort
+
+on:
+  push:
+    branches: [lead/cloud-wealth-floor-outcome-cohort-20261029]
+    paths: [.github/workflows/wealth-floor-outcome-cohort.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wealth-floor-outcome-full
+  cancel-in-progress: false
+
+jobs:
+  cohort:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/lead/cloud-wealth-floor-outcome-cohort-20261029'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        worldgen: [template, procedural]
+    env:
+      OUTCOME_STAGE: full
+      WORLDGEN: ${{ matrix.worldgen }}
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHON_CPU_COUNT: "2"
+      PYTHONHASHSEED: "0"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      BLIS_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      GOTO_NUM_THREADS: "1"
+      RAYON_NUM_THREADS: "1"
+      CARGO_BUILD_JOBS: "1"
+      OPENBLAS_THREAD_TIMEOUT: "16"
+    steps:
+      - name: Check out reviewed control
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Set up exact registered interpreter
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13.17"
+
+      - name: Refuse all pending V2 pins before transfer or scientific installation
+        id: registration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python control/scripts/wealth_floor_outcome_qualification.py
+          python control/scripts/wealth_floor_outcome_qualification.py --registration --stage "$OUTCOME_STAGE" --worldgen "$WORLDGEN"
+
+      - name: Check out exact unchanged candidate source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 503070175e3e78d9014add158ead8f16ce940843
+          path: candidate
+          persist-credentials: false
+
+      - name: Read only the six closed official input publications
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/wealth-outcome-metadata"
+          python - <<'PLAN'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          plan=json.loads((root/'wealth-outcome-transport-plan.json').read_bytes())
+          with (root/'wealth-outcome-transport-plan.tsv').open('x') as stream:
+              for key,row in sorted(plan.items()):
+                  stream.write('\t'.join([key,*[str(row.get(k,'-')) for k in ('run_id','artifact_id','job_id')]])+'\n')
+          PLAN
+          while IFS=$'\t' read -r key run_id artifact_id job_id; do
+            if [[ "$run_id" != "-" ]]; then
+              timeout 30s gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/wealth-outcome-metadata/$key-run.json"
+              timeout 30s gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > "$RUNNER_TEMP/wealth-outcome-metadata/$key-jobs.json"
+            fi
+            if [[ "$artifact_id" != "-" ]]; then
+              timeout 30s gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id" > "$RUNNER_TEMP/wealth-outcome-metadata/$key-artifact.json"
+            fi
+            if [[ "$job_id" != "-" ]]; then
+              timeout 30s gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id" > "$RUNNER_TEMP/wealth-outcome-metadata/$key-job.json"
+            fi
+          done < "$RUNNER_TEMP/wealth-outcome-transport-plan.tsv"
+          python - <<'METADATA'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP']);folder=root/'wealth-outcome-metadata'
+          plan=json.loads((root/'wealth-outcome-transport-plan.json').read_bytes());result={}
+          def read(name):
+              with (folder/name).open('rb') as stream: raw=stream.read(2*1024**2+1)
+              if len(raw)>2*1024**2: raise SystemExit('bounded API metadata exceeded')
+              return json.loads(raw)
+          for key,row in plan.items():
+              if 'run_id' in row:
+                  result[key]={kind:read(key+'-'+kind+'.json') for kind in ('run','jobs','artifact')}
+              else:
+                  result[key]=read(key+('-artifact.json' if 'artifact_id' in row else '-job.json'))
+          raw=json.dumps(result,sort_keys=True).encode()
+          if len(raw)>2*1024**2: raise SystemExit('aggregate API metadata exceeded')
+          (root/'wealth-outcome-publication.json').write_bytes(raw)
+          METADATA
+          python control/scripts/wealth_floor_outcome_qualification.py --validate-publication --stage "$OUTCOME_STAGE" --worldgen "$WORLDGEN"
+
+      - name: Stage only the exact completed paired-build input
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ steps.registration.outputs.build_artifact_id }}
+          run-id: ${{ steps.registration.outputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/wealth-build-input
+          merge-multiple: true
+
+      - name: Install exact package manager
+        shell: bash
+        run: python -m pip install uv==0.13.6
+
+      - name: Complete guarded no-native source contracts before scientific installation
+        shell: bash
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/wealth-outcome-control-env
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          CHRONICLER_OFFLINE_GUARD_REPORT: ${{ runner.temp }}/wealth-outcome-contracts/guard.json
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/wealth-outcome-contracts"
+          uv sync --project "$GITHUB_WORKSPACE/control" --frozen --no-install-project --python "$(command -v python)"
+          "$UV_PROJECT_ENVIRONMENT/bin/python" -I -B - <<'ISOLATION'
+          import importlib.metadata,importlib.util
+          if importlib.util.find_spec('chronicler_agents') is not None: raise SystemExit('control native extension present')
+          try: importlib.metadata.distribution('chronicler-agents')
+          except importlib.metadata.PackageNotFoundError: pass
+          else: raise SystemExit('control native distribution present')
+          ISOLATION
+          export PYTHONPATH="$GITHUB_WORKSPACE/control/src:$GITHUB_WORKSPACE/control:$GITHUB_WORKSPACE/control/scripts/testing"
+          timeout 110s "$UV_PROJECT_ENVIRONMENT/bin/python" -B -m pytest -q \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_candidate_proof.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_production_primer.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_outcome_admission_v2.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_outcome_checkpoints.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_retained_outcome_driver.py" \
+            "$GITHUB_WORKSPACE/control/tests/test_wealth_floor_outcome_qualification.py" \
+            -p python_oracle_guard -p no:cacheprovider \
+            --basetemp="$RUNNER_TEMP/wealth-outcome-contract-fixtures" \
+            --junitxml="$RUNNER_TEMP/wealth-outcome-contracts/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/wealth-outcome-contracts/pytest.log"
+
+      - name: Run fixed fresh candidate outcome cohort with original science and captured checkpoints
+        id: outcome
+        shell: bash
+        run: |
+          set -euo pipefail
+          python control/scripts/wealth_floor_outcome_qualification.py --execute --stage "$OUTCOME_STAGE" --worldgen "$WORLDGEN" \
+            --source "$GITHUB_WORKSPACE/candidate" --output "$RUNNER_TEMP/wealth-outcome-$OUTCOME_STAGE-$WORLDGEN"
+
+      - name: Preserve bounded light reports first
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-outcome-full-${{ matrix.worldgen }}-light-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/light/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Preserve available real checkpoint metadata after any failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-outcome-full-${{ matrix.worldgen }}-failure-metadata-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/candidate-checkpoint-index.json
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/candidate-checkpoint-capture.jsonl
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/checkpoint-retirement.json
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/checkpoint-retirement.jsonl
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/failed-checkpoint-body-selection.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Preserve selected original failed checkpoint bodies without copying
+        if: always() && steps.outcome.outputs.failed_checkpoint_count != '' && steps.outcome.outputs.failed_checkpoint_count != '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-outcome-full-${{ matrix.worldgen }}-failed-checkpoints-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/failed-checkpoint-body-selection.json
+            ${{ steps.outcome.outputs.failed_checkpoint_paths }}
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
+
+      - name: Preserve original scientific and controller payloads
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-outcome-full-${{ matrix.worldgen }}-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/
+            !${{ runner.temp }}/wealth-outcome-full-${{ matrix.worldgen }}/raw/**/checkpoint_turn_*.ckpt
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
+
+      - name: Preserve pure preflight outcomes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wealth-outcome-full-${{ matrix.worldgen }}-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wealth-outcome-contracts/
+          if-no-files-found: warn
+          retention-days: 30
+
+# No builder/baseline execution, old CP, rebaseline, seed filtering, retries,
+# native source changes or hidden sampler. Separate failed-CP publication is
+# bounded selection from ORIGINAL bodies; omissions/publication stay explicit.
+# A9de/P13239 remain unchanged; V2 slots stay NULL in this SOURCE-ONLY proposal.

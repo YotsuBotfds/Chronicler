@@ -18,6 +18,16 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CHUNK_LIMIT_SECONDS = 110
 CHUNKS = {
+    "wealth-floor-outcome-admission": [
+        "tests/test_wealth_floor_outcome_admission_v2.py",
+    ],
+    "wealth-floor-outcome-checkpoint-retention": [
+        "tests/test_wealth_floor_outcome_checkpoints.py",
+    ],
+    "wealth-floor-outcome-controller": [
+        "tests/test_wealth_floor_retained_outcome_driver.py",
+        "tests/test_wealth_floor_outcome_qualification.py",
+    ],
     "wealth-floor-production-primer": [
         "tests/test_wealth_floor_production_primer.py",
     ],

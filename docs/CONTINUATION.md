@@ -1,5 +1,19 @@
 # Recovered continuation — 2026-10-11
 
+A [source-only unchanged503 outcome controller](experiments/wealth-floor-outcome-cohort-2026-10-29.md)
+now separates the prospective12-execution/668-tick real-worker schema smoke
+from the original3,700-execution/201,400-tick full cohort. New V2 typed proof
+registries remain NULL; original A/P/C/B/R/D/M bytes are preserved. Actual CP
+header/SHA/lineage capture and a durable index precede forks; all bodies are
+rechecked before successful retirement. Mechanical failures expose bounded
+original CP bodies to a separate best-effort artifact with explicit omissions.
+Every original C60 progress row is preserved in bounded ordered segments.
+Negative-first publication, exact active workflow copies and fixture-owned NULL
+refusals have pure coverage;230 affected contracts pass, alongside unchanged
+separate74 checkpoint contracts. The real typed root packet is an external
+proposal only. No new scientific installation, smoke, cohort or historical
+reuse has run or been granted; both workflows stay dormant outside `.github`.
+
 A separate [source-only production-runtime primer](experiments/wealth-floor-production-primer-2026-10-29.md)
 starts from frozen40db with P13239/C60bb/Bcb87/R44/D2/A9de unchanged. Its fixed
 seed42 matrix registers13 late candidate-owned checkpoints,15 continuation
