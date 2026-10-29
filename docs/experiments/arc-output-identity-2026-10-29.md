@@ -142,3 +142,16 @@ its retained unittest log SHA-256 is
 `fc1106da62038ee0b08addbad9f84549e8b2357b94f93826ed48c6cd21983811`.
 These checks qualify the control contracts only. The 18-world exported-output
 comparison remains unrun and inactive.
+
+
+## Activation standing
+
+Independent review cleared draft `4fe8b523`. Both reviewers verified the narrow
+source substitutions against the vetted helper; 22 pure contracts and actionlint
+passed before any worlds. Exact candidate `249a4e18` completed all six CI jobs
+in [run 40791763886](https://github.com/YotsuBotfds/Chronicler/actions/runs/40791763886).
+These are prerequisites, not this experiment's result. The active copy of the
+registered workflow on `lead/cloud-arc-identity-20261029` now repeats its pure
+contracts, builds one fresh shared wheel and executes only the fixed eighteen
+worlds. The exact control identity and all actual results come from its run.
+No recovered finite-research or household-wealth correction is in either source.
