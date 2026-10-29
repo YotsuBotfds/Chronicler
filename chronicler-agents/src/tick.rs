@@ -442,12 +442,14 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     // 0.75 Needs decay + restoration (M49)
     // -----------------------------------------------------------------------
-    crate::needs::update_needs(pool, regions, signals, wealth_percentiles);
+    let reusable_id_slots = crate::needs::update_needs_with_reusable_id_slots(
+        pool, regions, signals, wealth_percentiles,
+    );
 
     // -----------------------------------------------------------------------
     // 0.8 Relationship sentiment drift (M50a)
     // -----------------------------------------------------------------------
-    crate::relationships::drift_relationships(pool, turn);
+    crate::relationships::drift_relationships_with_lookup(pool, turn, reusable_id_slots.as_ref());
 
     // -----------------------------------------------------------------------
     // 0.9 Merchant mobility (M58a)
@@ -476,7 +478,9 @@ pub fn try_tick_agents_with_movements(
     // -----------------------------------------------------------------------
     // 0.95 Knowledge phase — packet decay, observation, propagation (M59a)
     // -----------------------------------------------------------------------
-    let mut knowledge_stats = crate::knowledge::knowledge_phase(pool, regions, &master_seed, turn);
+    let mut knowledge_stats = crate::knowledge::knowledge_phase_with_lookup(
+        pool, regions, &master_seed, turn, reusable_id_slots.as_ref(),
+    );
     // Agent movements: membership and spread, while merchants that delivered
     // are still in the market they reached (no-op unless a table was set).
     let movement_effects = crate::movements::movement_pass(pool, regions, movements, master_seed, turn);
@@ -532,9 +536,13 @@ pub fn try_tick_agents_with_movements(
 
     // -----------------------------------------------------------------------
     // M57b: Pre-decision id_to_slot map for household_effective_wealth and consolidation.
-    // Distinct from demographics-phase map (tick.rs ~line 455) — this one uses pre-decision alive set.
+    // Distinct from the fresh demographics-phase map below.
     // -----------------------------------------------------------------------
-    let pre_decision_id_to_slot = pool.build_id_slots();
+    // Needs, relationship drift, merchant/movement passes and knowledge change
+    // no ids or liveness. Reuse only the dense lookup from needs; the sparse
+    // path keeps this original constructor and the original lexical drop scope.
+    // The lookup's last use is household consolidation, before demographics.
+    let pre_decision_id_to_slot = reusable_id_slots.unwrap_or_else(|| pool.build_id_slots());
 
     // -----------------------------------------------------------------------
     // 3. Decisions — per-region parallel via rayon
@@ -1932,6 +1940,75 @@ mod tests {
                 })
                 .collect(),
             contested_regions: vec![false; num_regions],
+        }
+    }
+
+    /// Compare complete persisted phase state against the standalone APIs,
+    /// with both the retained dense table and the untouched sparse fallback.
+    #[test]
+    fn test_reusable_needs_lookup_matches_standalone_phase_state() {
+        use crate::persist::{Persist, Writer};
+        fn bytes<T: Persist>(value: &T) -> Vec<u8> {
+            let mut writer = Writer::new();
+            value.put(&mut writer);
+            writer.buf
+        }
+        for sparse in [false, true] {
+            let setup = || {
+                let mut pool = AgentPool::new(4);
+                let slots: Vec<_> = (0..4).map(|_| pool.spawn(0, 0, Occupation::Farmer,
+                    30, 0.0, 0.0, 0.0, 0, 1, 2, crate::agent::BELIEF_NONE)).collect();
+                pool.ids[slots[0]] = 0;
+                pool.kill(slots[1]); // The post-catastrophe identity set.
+                if sparse { pool.ids[slots[3]] = 3_000_000_000; }
+                // The first bond becomes positive only during drift. The
+                // reverse bond targets a live id zero through the same lookup.
+                for (source, target, sentiment) in [(slots[0], slots[2], 0), (slots[2], slots[0], 127)] {
+                    pool.rel_count[source] = 1;
+                    pool.rel_target_ids[source][0] = pool.ids[target];
+                    pool.rel_bond_types[source][0] = crate::relationships::BondType::Friend as u8;
+                    pool.rel_sentiments[source][0] = sentiment;
+                }
+                (pool, slots[0], slots[2])
+            };
+            let (mut reference, lead, target) = setup();
+            let (mut reused, _, _) = setup();
+            let mut regions = vec![make_healthy_region(0), make_healthy_region(1)];
+            regions[0].controller_changed_this_turn = true;
+            let signals = make_default_signals(1, 2);
+            let percentiles = vec![0.5; reference.capacity()];
+
+            crate::needs::update_needs(&mut reference, &regions, &signals, &percentiles);
+            let reusable = crate::needs::update_needs_with_reusable_id_slots(
+                &mut reused, &regions, &signals, &percentiles,
+            );
+            assert_eq!(reusable.is_some(), !sparse);
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 0);
+
+            crate::relationships::drift_relationships(&mut reference, 3);
+            crate::relationships::drift_relationships_with_lookup(&mut reused, 3, reusable.as_ref());
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 1);
+            // Merchant mobility can change location before knowledge without
+            // changing the lookup. Bond counts must read the new location.
+            for pool in [&mut reference, &mut reused] {
+                pool.regions[target] = 1;
+                pool.arrived_this_turn[target] = true;
+            }
+            assert_eq!(crate::needs::co_resident_counts(&reused, &[lead])[lead], 0);
+            let reference_stats = crate::knowledge::knowledge_phase(&mut reference, &regions, &[17; 32], 3);
+            let reused_stats = crate::knowledge::knowledge_phase_with_lookup(
+                &mut reused, &regions, &[17; 32], 3, reusable.as_ref(),
+            );
+            assert!(reference_stats.packets_created > 0);
+            assert_eq!(bytes(&reference_stats), bytes(&reused_stats));
+            assert_eq!(bytes(&reference), bytes(&reused));
+            assert!(!reused.arrived_this_turn[target]);
+            let pre_decision = reusable.unwrap_or_else(|| reused.build_id_slots());
+            assert_eq!(pre_decision.get(0), Some(lead));
+            assert_eq!(pre_decision.get(reused.ids[target]), Some(target));
+            assert_eq!(reused.regions[pre_decision.get(reused.ids[target]).unwrap()], 1);
         }
     }
 
