@@ -185,7 +185,7 @@ def test_standard_workflow_preserves_independent_bodies_and_public_gate_names():
     historical = _read("tests/fixtures/ci/standard-tests-cbf6e368.yml")
     historical_header = historical.split("jobs:\n", 1)[0]
     old_push = '    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029]\n'
-    new_push = '    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029, lead/simulation-staging004-tests-20261030]\n'
+    new_push = '    branches: [main, lead/cloud-continuation-20261028, lead/recovered-integration-20261029, lead/recovered-review-20261029, lead/batch-validation-input-set-20261029, lead/batch-manifest-reconciliation-20261029, lead/simulation-staging004-tests-20261030, lead/gp-context-sync-tests-20261030]\n'
     assert historical_header.count(old_push) == 1
     expected_header = historical_header.replace(old_push, new_push, 1)
     assert current.split("jobs:\n", 1)[0] == expected_header
