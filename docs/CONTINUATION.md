@@ -1,3 +1,19 @@
+# Named context workflow expression repair - source only, 2026-10-30
+
+Public9705 source publication produced run41000767288/1 with an invalid-workflow
+failure and zero jobs. GitHub identified line29: runner.temp is unavailable in
+job-level env. The separately dispatched Tests41000907858/1 has nine successful
+jobs in root's official metadata observation; no benchmark timing ran.
+
+This child derives the same private Cargo target from RUNNER_TEMP inside the
+admission step and exports it through GITHUB_ENV for later build steps. Driver,
+all27 pure contracts, matrix, resource limits, native09ec and the held run-ref
+trigger stay exact9705. No tests/build/measurement or publication ran on this
+child at freeze. The original9705 failure remains preserved. Its continuation
+follows unchanged.
+
+---
+
 # Compiled context API benchmark — source only, 2026-10-30
 
 This separate701-based branch adds an opt-in benchmark of the existing native

@@ -26,7 +26,6 @@ jobs:
       MKL_NUM_THREADS: "1"
       CARGO_BUILD_JOBS: "1"
       CARGO_INCREMENTAL: "0"
-      CARGO_TARGET_DIR: ${{ runner.temp }}/named-context-target
       PYTHONPATH: src:.
     steps:
       - name: Check out the measured source
@@ -41,7 +40,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse HEAD:chronicler-agents)" = 09ec301efc5c52a0a75f7a6edd9b99636d2953ff
           mkdir "$RUNNER_TEMP/context-build" "$RUNNER_TEMP/context-wheel" "$RUNNER_TEMP/context-owner"
-          test ! -e "$CARGO_TARGET_DIR"
+          context_target="$RUNNER_TEMP/named-context-target"
+          test ! -e "$context_target"
+          printf 'CARGO_TARGET_DIR=%s\n' "$context_target" >> "$GITHUB_ENV"
           python -B scripts/benchmark_named_context.py --plan-only --output "$RUNNER_TEMP/context-build/plan.json"
 
       - name: Set up Python
