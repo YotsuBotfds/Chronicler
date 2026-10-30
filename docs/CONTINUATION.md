@@ -1,3 +1,24 @@
+# Matched validation workflow proposal - source only, 2026-10-30
+
+This separate child of5122 adds exact-source/world-family selection to the
+existing validation controller, fixed maximum3 batch/fork workers and a bounded
+compact evidence artifact alongside the byte-exact original full raw uploader.
+Actual controller and checked-out source identities remain separate; every
+job builds and verifies its own wheel/native classes. No GitHub identity is
+spoofed. Four appended source-contract tests and all controller actions areUNRUN.
+
+The proposed matched science cells use701/native09ec before and5122/nativea840
+after, with the existing template200x500 and procedural subset/full families.
+Historical06d is not a current baseline. Seeds, horizons, thresholds, strictness
+defaults and full-profile ablation policy are unchanged. No dispatch, World,
+checkpoint, native build/import, frame analysis or scientific qualification ran.
+See [the concrete source/resource and paired-gate proposal](integration/matched-validation-families-2026-10-30.md).
+All actual scientific run/build/size results remainNULL, and root source,
+ordinary-contract and execution/resource decisions remain separate gates.
+The complete5122 continuation follows unchanged.
+
+---
+
 # Household migration damping correction — source only, 2026-10-30
 
 This separate child of `701bd3fe` intentionally corrects default native

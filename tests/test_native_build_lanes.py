@@ -298,3 +298,53 @@ def test_standard_push_does_not_duplicate_closed_qualification_workflows():
         assert closed["on"] == {"push": {"branches": [branch], "paths": [path]}, "workflow_dispatch": ""}
         assert branch not in ordinary
         assert all(f"github.ref == 'refs/heads/{branch}'" in job["if"] for job in closed["jobs"].values())
+
+
+def test_validation_workflow_selects_full_source_sha_and_world_family():
+    workflow = _read(".github/workflows/validation-gate.yml")
+    inputs = yaml.load(workflow, Loader=yaml.BaseLoader)["on"]["workflow_dispatch"]["inputs"]
+    assert inputs["source_sha"]["default"] == ""
+    assert inputs["worldgen"]["default"] == "template"
+    assert inputs["worldgen"]["options"] == ["template", "procedural"]
+    assert '^[0-9a-f]{40}$' in workflow
+    assert 'ref: ${{ steps.validation_source.outputs.sha }}' in workflow
+    assert '--worldgen "$WORLDGEN_INPUT"' in workflow and '--parallel 3' in workflow
+
+
+def test_validation_workflow_records_actual_source_and_own_compiled_wheel():
+    workflow = _read(".github/workflows/validation-gate.yml")
+    assert 'VALIDATION_CONTROLLER_SHA: ${{ github.workflow_sha }}' in workflow
+    assert '"checked_out_source_sha": source' in workflow and '"controller_sha":' in workflow
+    assert 'type(native.__spec__.loader) is ExtensionFileLoader' in workflow
+    assert 'getattr(package, name, None) is getattr(native, name)' in workflow
+    assert 'receipt = wheel_receipt(' in workflow
+    assert 'manifest["native"]["sha256"] == identity["wheel_receipt"]["installed_native"]["sha256"]' in workflow
+    assert 'GITHUB_SHA=' not in workflow and 'GITHUB_JOB=' not in workflow
+    assert 'native_ci_shards.py record-build' not in workflow
+
+
+def test_validation_workflow_keeps_raw_upload_and_bounded_compact_evidence():
+    workflow = _read(".github/workflows/validation-gate.yml")
+    steps = yaml.load(workflow, Loader=yaml.BaseLoader)["jobs"]["canonical-validation"]["steps"]
+    raw = next(step for step in steps if step["name"] == "Upload validation reports")
+    assert raw["if"] == "always()"
+    assert raw["with"]["path"] == 'output/github-validation/${{ github.run_id }}'
+    assert raw["with"]["retention-days"] == "30"
+    compact = next(step for step in steps if step["name"] == "Upload compact validation evidence")
+    assert compact["if"] == "always()" and compact["with"]["retention-days"] == "30"
+    assert 'MAX_COMPACT_BYTES = 7 * 1024 * 1024' in workflow
+    assert 'REFUSED_COMPACT_SIZE' in workflow and 'compact_manifest.json' in workflow
+    assert 'batch_manifest.json' in workflow and 'ablation_manifest.json' in workflow
+    assert 'frames' not in compact["with"]["path"]
+
+
+def test_validation_workflow_retains_profile_defaults_and_explicit_comparison_policy():
+    workflow = _read(".github/workflows/validation-gate.yml")
+    run = _read("scripts/m53b_run_validation.py")
+    assert '"full": {"seeds": 200, "turns": 500}' in run
+    assert '"full": {"seeds": 100, "turns": 300}' in run
+    assert '"regions": 32, "civs": 10' in run
+    assert '--seeds' not in workflow and '--turns' not in workflow
+    assert '--exploratory-comparison' not in workflow
+    assert 'baseline_report:' in workflow and '--baseline-report "$BASELINE_REPORT"' in workflow
+    assert '--require-strict-regression' in workflow and '--fail-on-regression' in workflow

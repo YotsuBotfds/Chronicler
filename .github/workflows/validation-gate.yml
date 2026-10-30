@@ -13,6 +13,19 @@ on:
           - full
           - determinism-off
           - determinism-hybrid
+      source_sha:
+        description: Exact full source commit to validate (empty uses this workflow commit)
+        required: false
+        default: ""
+        type: string
+      worldgen:
+        description: Existing validation world family
+        required: true
+        default: template
+        type: choice
+        options:
+          - template
+          - procedural
       require_strict_regression:
         description: Fail full-profile calibrated-floor regression passes
         required: false
@@ -41,8 +54,22 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
     steps:
+      - name: Resolve exact validation source
+        id: validation_source
+        env:
+          REQUESTED_SOURCE_SHA: ${{ github.event.inputs.source_sha || github.sha }}
+        shell: bash
+        run: |
+          if [[ ! "$REQUESTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be a full40-hex commit" >&2
+            exit 1
+          fi
+          printf '%s\n' "sha=$REQUESTED_SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.validation_source.outputs.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -83,9 +110,80 @@ jobs:
           python -m maturin build --release --locked
           uv pip install --python ../.venv/bin/python target/wheels/*.whl
 
+      - name: Record actual validation source and own compiled wheel
+        env:
+          VALIDATION_CHECKOUT_SHA: ${{ steps.validation_source.outputs.sha }}
+          VALIDATION_CONTROLLER_SHA: ${{ github.workflow_sha }}
+          VALIDATION_WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import importlib
+          from importlib.machinery import ExtensionFileLoader
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import shutil
+          import subprocess
+          import sys
+
+          def git(*args):
+              return subprocess.check_output(["git", "--no-replace-objects", *args], text=True).strip()
+
+          source = git("rev-parse", "HEAD")
+          assert source == os.environ["VALIDATION_CHECKOUT_SHA"]
+          assert not git("status", "--porcelain", "--untracked-files=no")
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from native_wheel_receipt import wheel_receipt
+          from chronicler.batch_manifest import source_identity, environment_identity
+          package = importlib.import_module("chronicler_agents")
+          native = importlib.import_module("chronicler_agents.chronicler_agents")
+          assert type(native.__spec__.loader) is ExtensionFileLoader
+          native_path = Path(native.__file__).resolve()
+          assert native_path.is_relative_to(Path(sys.prefix).resolve())
+          classes = ["AgentSimulator", "EcologySimulator", "PoliticsSimulator"]
+          assert all(isinstance(getattr(native, name, None), type) and
+                     getattr(package, name, None) is getattr(native, name) for name in classes)
+          receipt = wheel_receipt(Path("chronicler-agents/target/wheels"), native_path, source)
+          out = Path("output/github-validation") / os.environ["GITHUB_RUN_ID"]
+          build = out / "native-build"
+          build.mkdir(parents=True, exist_ok=False)
+          wheel = Path("chronicler-agents/target/wheels") / receipt["wheel"]["filename"]
+          shutil.copyfile(wheel, build / wheel.name)
+          identity = {
+              "schema": 1, "kind": "validation-own-source-build-identity",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "job": os.environ["GITHUB_JOB"],
+              "controller_sha": os.environ["VALIDATION_CONTROLLER_SHA"],
+              "workflow_ref": os.environ["VALIDATION_WORKFLOW_REF"],
+              "event_sha": os.environ["GITHUB_SHA"],
+              "checked_out_source_sha": source,
+              "source_tree": git("rev-parse", "HEAD^{tree}"),
+              "native_tree": git("rev-parse", "HEAD:chronicler-agents"),
+              "package_source": source_identity(), "environment": environment_identity(),
+              "native_module": str(native_path), "compiled_class_aliases": classes,
+              "wheel_receipt": receipt,
+              "wheel_receipt_helper_sha256": hashlib.sha256(Path("scripts/native_wheel_receipt.py").read_bytes()).hexdigest(),
+              "rustc": subprocess.check_output(["rustc", "--version", "--verbose"], text=True),
+              "cargo": subprocess.check_output(["cargo", "--version"], text=True),
+              "python": sys.version, "platform": platform.platform(),
+              "workspace_free_bytes": shutil.disk_usage(Path.cwd()).free,
+              "cpu_affinity": sorted(os.sched_getaffinity(0)),
+              "linux_memory_metadata": Path("/proc/meminfo").read_text(),
+              "scope": "Actual own wheel/native/class identity, no simulator construction or scientific pass."
+          }
+          with (out / "validation_identity.json").open("x") as stream:
+              json.dump(identity, stream, sort_keys=True, indent=2)
+              stream.write("\n")
+          PY
+
       - name: Run canonical validation gate
         env:
           PROFILE_INPUT: ${{ github.event.inputs.profile || 'full' }}
+          WORLDGEN_INPUT: ${{ github.event.inputs.worldgen || 'template' }}
           STRICT_REGRESSION_INPUT: ${{ github.event.inputs.require_strict_regression || 'false' }}
           BASELINE_REPORT_INPUT: ${{ github.event.inputs.baseline_report || '' }}
           FAIL_ON_REGRESSION_INPUT: ${{ github.event.inputs.fail_on_regression || 'false' }}
@@ -107,6 +205,8 @@ jobs:
           fi
           python scripts/m53b_run_validation.py \
             --profile "$PROFILE" \
+            --worldgen "$WORLDGEN_INPUT" \
+            --parallel 3 \
             --output-root "output/github-validation/${{ github.run_id }}" \
             "${EXTRA_ARGS[@]}"
 
@@ -124,6 +224,97 @@ jobs:
             cat "$summary" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
           done < <(if [ -d "output/github-validation/${{ github.run_id }}" ]; then find "output/github-validation/${{ github.run_id }}" -name 'compare_summary_*.md' -type f | sort; fi)
+
+      - name: Collect compact validation evidence
+        if: always()
+        env:
+          PROFILE_INPUT: ${{ github.event.inputs.profile || 'full' }}
+          WORLDGEN_INPUT: ${{ github.event.inputs.worldgen || 'template' }}
+          VALIDATION_CONTROLLER_SHA: ${{ github.workflow_sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import stat
+
+          profile = os.environ["PROFILE_INPUT"]
+          out = Path("output/github-validation") / os.environ["GITHUB_RUN_ID"]
+          compact = Path(os.environ["RUNNER_TEMP"]) / (
+              "validation-compact-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"])
+          compact.mkdir(parents=True, exist_ok=False)
+          layouts = {"full": "full_gate", "subset": "oracle_subset",
+                     "determinism-off": "determinism_off", "determinism-hybrid": "determinism_hybrid"}
+          batch = out / layouts[profile] / "batch_42"
+          report_name = "validate_report_" + profile.replace("-", "_") + ".json"
+          required = [out / "validation_identity.json", batch / "batch_manifest.json",
+                      batch / "run_manifest.json", batch / report_name,
+                      batch / ("gate_decision_" + profile + ".json"),
+                      batch / ("gate_summary_" + profile + ".md")]
+          optional = [batch / ("compare_decision_" + profile + ".json"),
+                      batch / ("compare_summary_" + profile + ".md")]
+          identity = None
+          if (out / "validation_identity.json").is_file():
+              identity = json.loads((out / "validation_identity.json").read_text())
+              required.append(out / "native-build" / identity["wheel_receipt"]["wheel"]["filename"])
+          if (batch / "run_manifest.json").is_file():
+              run = json.loads((batch / "run_manifest.json").read_text())
+              if run.get("ablation_oracles"):
+                  required.append(batch.parent / "ablation_42" / "ablation_manifest.json")
+          selected = required + [path for path in optional if path.exists()]
+          missing = [str(path.relative_to(out)) for path in required if not path.is_file()]
+          records = []
+          for path in selected:
+              if not path.is_file():
+                  continue
+              info = path.lstat()
+              assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and not path.is_symlink()
+              assert path.resolve().is_relative_to(out.resolve())
+              with path.open("rb") as stream:
+                  digest = hashlib.file_digest(stream, "sha256").hexdigest()
+              records.append({"path": path.relative_to(out).as_posix(), "bytes": info.st_size, "sha256": digest})
+          if identity is not None and (batch / "batch_manifest.json").is_file():
+              manifest = json.loads((batch / "batch_manifest.json").read_text())
+              assert manifest["source"]["git_sha"] == identity["checked_out_source_sha"]
+              assert manifest["source"]["package_digest"] == identity["package_source"]["package_digest"]
+              assert manifest["native"]["sha256"] == identity["wheel_receipt"]["installed_native"]["sha256"]
+          MAX_COMPACT_BYTES = 7 * 1024 * 1024  # Leaves packaging room inside the existing8MiB ZIP intake limit.
+          manifest = {"schema": 1, "kind": "validation-compact-evidence",
+                      "source": None if identity is None else identity["checked_out_source_sha"],
+                      "controller_sha": os.environ["VALIDATION_CONTROLLER_SHA"],
+                      "run_id": int(os.environ["GITHUB_RUN_ID"]), "attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                      "profile": profile, "worldgen": os.environ["WORLDGEN_INPUT"],
+                      "status": "INCOMPLETE" if missing else "EVIDENCE_COMPLETE",
+                      "missing_required": missing, "files": records,
+                      "body_budget_bytes": MAX_COMPACT_BYTES,
+                      "scope": "Exact selected bodies only. Completeness is not a scientific gate pass; full raw archive is retained separately."}
+          raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+          fits = sum(row["bytes"] for row in records) + len(raw) <= MAX_COMPACT_BYTES
+          if fits:
+              for row in records:
+                  target = compact / row["path"]
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(out / row["path"], target)
+          else:
+              manifest["status"] = "REFUSED_COMPACT_SIZE"
+              manifest["files_not_copied"] = True
+              raw = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+          with (compact / "compact_manifest.json").open("xb") as stream:
+              stream.write(raw)
+          if missing or not fits:
+              raise SystemExit("Incomplete or oversized compact evidence; raw archive remains independently retained")
+          PY
+
+      - name: Upload compact validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-gate-compact-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/validation-compact-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload validation reports
         if: always()
