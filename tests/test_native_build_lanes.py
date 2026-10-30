@@ -597,3 +597,135 @@ def test_validation_resource_mount_translation_refuses_masked_or_unproven_roots(
     assert 'for issue in translated["errors"]:' in workflow
     assert 'memory_headrooms.extend(translated["memory_headroom_bytes"])' in workflow
     assert 'cpu_limits.extend(translated["cpu_slot_limits"])' in workflow
+
+
+def _validation_compact_fixture_for_test(profile, wheel_bytes, missing_report=False):
+    from io import BytesIO
+    import hashlib
+    import json
+    from pathlib import PurePosixPath
+    import stat
+    from types import SimpleNamespace
+
+    steps = yaml.load(_read(".github/workflows/validation-gate.yml"), Loader=yaml.BaseLoader)["jobs"]["canonical-validation"]["steps"]
+    step = next(row for row in steps if row["name"] == "Collect compact validation evidence")
+    source = step["run"].split("python - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    parsed = ast.parse(source)
+    imports = [node for node in parsed.body if isinstance(node, (ast.Import, ast.ImportFrom))]
+    assert [ast.unparse(node) for node in imports] == ["import hashlib", "import json", "import os", "from pathlib import Path", "import shutil", "import stat"]
+    # Execute the actual collector with in-memory path/copy/environment objects.
+    # No candidate import, native runtime, World, subprocess or real FS is used.
+    files, directories, copied = {}, set(), []
+    class FakePath:
+        def __init__(self, value):
+            self.value = PurePosixPath(value.value if isinstance(value, FakePath) else value)
+        def __truediv__(self, value):
+            return FakePath(self.value / value)
+        def __str__(self):
+            return self.value.as_posix()
+        @property
+        def parent(self):
+            return FakePath(self.value.parent)
+        def mkdir(self, parents=False, exist_ok=False):
+            assert parents
+            assert str(self) not in directories or exist_ok
+            directories.add(str(self))
+        def is_file(self):
+            return str(self) in files
+        def exists(self):
+            return str(self) in files or str(self) in directories
+        def is_symlink(self):
+            return False
+        def lstat(self):
+            return SimpleNamespace(st_mode=stat.S_IFREG | 0o444, st_nlink=1, st_size=len(files[str(self)]))
+        def resolve(self):
+            return self
+        def is_relative_to(self, other):
+            return self.value.is_relative_to(other.value)
+        def relative_to(self, other):
+            return FakePath(self.value.relative_to(other.value))
+        def as_posix(self):
+            return str(self)
+        def read_bytes(self):
+            return files[str(self)]
+        def read_text(self):
+            return self.read_bytes().decode()
+        def open(self, mode):
+            if mode == "rb":
+                return BytesIO(files[str(self)])
+            assert mode == "xb" and str(self) not in files
+            path = str(self)
+            class Writer(BytesIO):
+                def __exit__(self, *exception):
+                    files[path] = self.getvalue()
+                    return super().__exit__(*exception)
+            return Writer()
+    def copyfile(source_path, target_path):
+        assert str(source_path) in files and str(target_path) not in files
+        copied.append((str(source_path), str(target_path)))
+        files[str(target_path)] = files[str(source_path)]
+    def put(path, value):
+        files[str(path)] = value if isinstance(value, bytes) else (json.dumps(value, sort_keys=True) + "\n").encode()
+    env = {"PROFILE_INPUT": profile, "WORLDGEN_INPUT": "template", "GITHUB_RUN_ID": "42",
+           "GITHUB_RUN_ATTEMPT": "1", "RUNNER_TEMP": "/runner", "VALIDATION_CONTROLLER_SHA": "c" * 40}
+    out = FakePath("output/github-validation/42")
+    layout = {"full": "full_gate", "subset": "oracle_subset", "determinism-off": "determinism_off", "determinism-hybrid": "determinism_hybrid"}[profile]
+    batch = out / layout / "batch_42"
+    identity = {"checked_out_source_sha": "a" * 40, "package_source": {"package_digest": "p" * 64},
+                "wheel_receipt": {"wheel": {"filename": "fixture.whl"}, "installed_native": {"sha256": "e" * 64}}}
+    put(out / "validation_identity.json", identity)
+    put(out / "resource_admission.json", {"decision": {"admitted": True}, "source": "a" * 40,
+        "controller_sha": "c" * 40, "build_identity_sha256": hashlib.sha256(files[str(out / "validation_identity.json")]).hexdigest()})
+    put(batch / "batch_manifest.json", {"source": {"git_sha": "a" * 40, "package_digest": "p" * 64}, "native": {"sha256": "e" * 64}})
+    put(batch / "run_manifest.json", {"ablation_oracles": profile == "full"})
+    if not missing_report:
+        put(batch / ("validate_report_" + profile.replace("-", "_") + ".json"), {"passed": False})
+    # A failed scientific decision is still evidence and must remain unchanged.
+    decision_path = batch / ("gate_decision_" + profile + ".json")
+    put(decision_path, {"passed": False, "decision": "FAIL"})
+    put(batch / ("gate_summary_" + profile + ".md"), b"Scientific gate failed.\n")
+    put(out / "native-build" / "fixture.whl", b"x" * wheel_bytes)
+    if profile == "full":
+        put(batch.parent / "ablation_42" / "ablation_manifest.json", {"forks": []})
+    originals = dict(files)
+    namespace = {"hashlib": hashlib, "json": json, "os": SimpleNamespace(environ=env), "Path": FakePath,
+                 "shutil": SimpleNamespace(copyfile=copyfile), "stat": stat}
+    exception = None
+    try:
+        exec(compile(ast.Module(body=[node for node in parsed.body if node not in imports], type_ignores=[]), "<compact-collector-fakes>", "exec"), namespace)
+    except SystemExit as exc:
+        exception = str(exc)
+    compact = "/runner/validation-compact-42-1/"
+    manifest = json.loads(files[compact + "compact_manifest.json"])
+    assert all(files[name] == body for name, body in originals.items())
+    return manifest, copied, files, originals, compact, str(decision_path), exception
+
+
+def test_validation_compact_body_allocation_is_full_only_and_refuses_overflow():
+    for profile in ("full", "subset", "determinism-off", "determinism-hybrid"):
+        manifest, copied, files, originals, compact, _, error = _validation_compact_fixture_for_test(profile, 10 * 1024**2)
+        assert manifest["body_budget_bytes"] == (16 if profile == "full" else 7) * 1024**2
+        if profile == "full":
+            assert error is None and manifest["status"] == "EVIDENCE_COMPLETE"
+            assert len(copied) == len(manifest["files"]) == len(originals)
+            assert sum(row["bytes"] for row in manifest["files"]) + len(files[compact + "compact_manifest.json"]) <= 16 * 1024**2
+            for row in manifest["files"]:
+                assert files[compact + row["path"]] == originals["output/github-validation/42/" + row["path"]]
+        else:
+            assert error and manifest["status"] == "REFUSED_COMPACT_SIZE" and manifest["files_not_copied"] is True
+            assert copied == []
+            assert [name for name in files if name.startswith(compact)] == [compact + "compact_manifest.json"]
+    manifest, copied, _, _, _, _, error = _validation_compact_fixture_for_test("full", 17 * 1024**2)
+    assert error and manifest["status"] == "REFUSED_COMPACT_SIZE" and copied == []
+
+
+def test_validation_compact_keeps_completeness_and_failed_science_separate():
+    manifest, copied, files, originals, compact, decision, error = _validation_compact_fixture_for_test("full", 1024)
+    assert error is None and manifest["status"] == "EVIDENCE_COMPLETE"
+    destination = compact + decision.removeprefix("output/github-validation/42/")
+    assert files[destination] == originals[decision] and b'"passed": false' in files[destination]
+    assert len(copied) == len(originals)
+    manifest, copied, _, _, _, _, error = _validation_compact_fixture_for_test("full", 1024, missing_report=True)
+    assert error and manifest["status"] == "INCOMPLETE"
+    assert any(name.endswith("validate_report_full.json") for name in manifest["missing_required"])
+    assert copied and not manifest.get("files_not_copied", False)

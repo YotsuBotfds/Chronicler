@@ -667,7 +667,9 @@ jobs:
               assert manifest["source"]["git_sha"] == identity["checked_out_source_sha"]
               assert manifest["source"]["package_digest"] == identity["package_source"]["package_digest"]
               assert manifest["native"]["sha256"] == identity["wheel_receipt"]["installed_native"]["sha256"]
-          MAX_COMPACT_BYTES = 7 * 1024 * 1024  # Leaves packaging room inside the existing8MiB ZIP intake limit.
+          MAX_COMPACT_BYTES = 7 * 1024 * 1024
+          if profile == "full":
+              MAX_COMPACT_BYTES = 16 * 1024 * 1024  # Newly reviewed body format; ZIP admission stays8MiB.
           manifest = {"schema": 1, "kind": "validation-compact-evidence",
                       "source": None if identity is None else identity["checked_out_source_sha"],
                       "controller_sha": os.environ["VALIDATION_CONTROLLER_SHA"],

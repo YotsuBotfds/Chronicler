@@ -1,3 +1,21 @@
+# Full-profile compact evidence allocation - source only, 2026-10-30
+
+This separate345-controller child proposes16MiB of selected uncompressed
+compact bodies for the full profile; subset and both determinism profiles
+retain7MiB. This is a newly reviewed evidence packaging allocation justified
+by mandatory manifest/wheel sizes, not a change to scientific acceptance.
+No current full packet or ZIP fit is claimed. A full-capable saved-data reader
+is still required; originalZIP<=8MiB, six originals<=48MiB and local wholepool
+<=60MiB remain separate bounds, with no extracted trees or raw-batch rehash.
+
+Two new in-memory collector contracts are UNRUN. All29 existing native-build
+lane test functions remain byte-exact, as do the scientific steps, source
+selection, three workers, seeds, horizons, windows, methods and thresholds.
+No full run, native build, World or scientific grant follows from this source.
+See the appended packaging note. The full345 continuation follows unchanged.
+
+---
+
 # Explicit cgroup observation states - source only, 2026-10-30
 
 This narrow child of902a repairs the unrun collector's independent B1 finding:

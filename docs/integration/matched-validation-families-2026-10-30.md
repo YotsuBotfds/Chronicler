@@ -1,3 +1,30 @@
+# Full-profile compact evidence body policy - new source proposal
+
+The full profile receives a separately reviewed16MiB uncompressed selected-body
+allocation. Subset and both determinism profiles keep7MiB. This adjusts the
+evidence format to mandatory body sizes; it changes no scientific inputs or
+acceptance thresholds. No selected body is omitted, rewritten or truncated to
+fit. Missing required evidence remains INCOMPLETE, and overflow still refuses
+all body copies. A failed scientific decision is retained unchanged and never
+becomes a scientific pass because packaging completed.
+
+Current-source structural lower bounds at the measured BEFOREsubset wheel are
+11,261,720B for template full and6,837,480B for procedural full, before other
+manifest fields, identity/resource records, reports and controls. The template
+bound alone exceeds7MiB. It is not an actual new full packet. Older measured
+template manifests/report plus that current wheel suggest12,209,677B, but that
+mixed-cohort planning sum supplies no current scientific or source-fit proof.
+Actual full/body and compressed ZIP fit remain unknown until their own bytes.
+
+The16MiB body policy does not enlarge original ZIP admission: each original
+still must be<=8MiB, all six originals<=48MiB, and the local whole pool<=60MiB.
+No extracted trees are retained. A separately reviewed full-capable data reader
+must support this body format before intake; ZIP compression is not preclaimed.
+No raw batch rehash, full scientific activation or reuse of an old native build
+is authorized. The original proposal follows as source-specific history.
+
+---
+
 # Matched scientific validation families — source proposal, 2026-10-30
 
 This isolated workflow child of5122 proposes a way to run the existing scientific gates against exact source commits. It executes no build, test, native import, World, checkpoint, frame analysis or GitHub action during preparation. Publication, ordinary source-contract tests and every scientific dispatch require separate root decisions.
