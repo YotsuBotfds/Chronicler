@@ -544,6 +544,7 @@ def test_disable_drain_dormancy_overdue_and_no_economy(world):
 
 @pytest.mark.parametrize("format", ["json", "exact"])
 def test_midtransit_roundtrip_resumes_once_without_repayment(world, tmp_path, format):
+    """Bare World/manual tick contract only; not Native/live integration."""
     dispatch(world)
     # Real complete-turn boundary: clear the optional diagnostic-only ledger.
     world.grain_reserves._ledger = None
@@ -785,3 +786,86 @@ def test_metrics_keep_edible_grain_separate_from_detached_cargo(world):
     world.grain_reserves.shipments = None
     metrics = G.extract_grain_reserve_metrics([{"world_state": world.model_dump(mode="json")}])
     assert "shipments" not in metrics
+
+
+@pytest.mark.parametrize("mode", ["demographics-only", "hybrid", "shadow"])
+@pytest.mark.parametrize("fresh", [True, False])
+def test_real_configure_admits_requested_mode_before_native_boundary(tmp_path, monkeypatch, mode, fresh):
+    """Actual parser/configure/setter; stop only at Native construction."""
+    from chronicler import main, agent_bridge
+    candidate = generate_world(seed=42)
+    if fresh:
+        assert candidate.agent_mode is None
+        grain_flags = ["--grain-reserves"]
+    else:
+        candidate.agent_mode = "off"  # intentionally differs from requested mode
+        G.set_grain_reserves_enabled(candidate, True)
+        grain_flags = []
+    args = main._build_parser().parse_args(["--agents", mode, "--simulate-only",
+        "--public-grain-shipments", *grain_flags])
+    calls = []
+    class ConfiguredBoundary(RuntimeError):
+        pass
+    class BridgeBoundary:
+        def __init__(self, actual_world, **kwargs):
+            calls.append((actual_world, kwargs))
+            assert actual_world.agent_mode == mode
+            assert actual_world.grain_reserves.shipments.accept_orders
+            raise ConfiguredBoundary("real configuration reached Native boundary")
+    monkeypatch.setattr(agent_bridge, "AgentBridge", BridgeBoundary)
+    monkeypatch.setattr(main, "_create_ecology_runtime", lambda world: pytest.fail("unexpected ecology factory"))
+    monkeypatch.setattr(main, "_create_politics_runtime", lambda world: pytest.fail("unexpected politics factory"))
+    with pytest.raises(ConfiguredBoundary):
+        main._configure_run(args, candidate, fresh, tmp_path / "chronicle.md")
+    assert len(calls) == 1 and calls[0][0] is candidate and calls[0][1]["mode"] == mode
+
+
+@pytest.mark.parametrize("saved_mode", ["demographics-only", "hybrid", "shadow"])
+def test_real_configure_refuses_requested_off_despite_saved_enabled_mode(tmp_path, monkeypatch, saved_mode):
+    from chronicler import main, agent_bridge
+    candidate = generate_world(seed=42)
+    candidate.agent_mode = saved_mode
+    G.set_grain_reserves_enabled(candidate, True)
+    S.set_public_grain_shipments_enabled(candidate, True)
+    saved = candidate.grain_reserves.shipments.model_dump_json()
+    args = main._build_parser().parse_args(["--agents", "off", "--public-grain-shipments"])
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid configuration reached a runtime factory")
+    monkeypatch.setattr(agent_bridge, "AgentBridge", forbidden)
+    monkeypatch.setattr(main, "_create_ecology_runtime", forbidden)
+    monkeypatch.setattr(main, "_create_politics_runtime", forbidden)
+    with pytest.raises(ValueError, match="agent-backed goods economy"):
+        main._configure_run(args, candidate, False, tmp_path / "chronicle.md")
+    assert candidate.grain_reserves.shipments.model_dump_json() == saved
+
+
+@pytest.mark.parametrize("decoder", ["model", "file"])
+def test_actual_old_world_json_decodes_absent_shipment_state_and_flow_field(tmp_path, decoder):
+    from chronicler.grain_reserves_state import ReserveFlow
+    candidate = generate_world(seed=42)
+    G.set_grain_reserves_enabled(candidate, True)
+    candidate.grain_reserves.flows.append(ReserveFlow(kind=BOUGHT, region=0, amount=2.0))
+    original = candidate.model_dump_json()
+    old = json.loads(original)
+    assert "shipments" not in old["grain_reserves"]
+    assert "shipment_order" not in old["grain_reserves"]["flows"][0]
+    if decoder == "model":
+        loaded = WorldState.model_validate_json(original)
+    else:
+        path = tmp_path / "old-world.json"
+        path.write_text(original, encoding="utf-8")
+        loaded = WorldState.load(path)
+    assert loaded.grain_reserves.shipments is None
+    assert loaded.grain_reserves.flows[0].shipment_order is None
+    assert loaded.model_dump_json() == original
+
+
+def test_actual_old_reserve_flow_pickle_fills_missing_optional_field():
+    from chronicler.grain_reserves_state import ReserveFlow
+    expected = ReserveFlow(kind=BOUGHT, region=0, amount=2.0).model_dump_json()
+    old = ReserveFlow(kind=BOUGHT, region=0, amount=2.0)
+    old.__dict__.pop("shipment_order", None)
+    old.__pydantic_fields_set__.discard("shipment_order")
+    loaded = pickle.loads(pickle.dumps(old))
+    assert loaded.shipment_order is None
+    assert loaded.model_dump_json() == expected

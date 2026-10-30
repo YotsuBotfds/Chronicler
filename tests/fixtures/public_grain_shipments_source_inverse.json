@@ -173,7 +173,7 @@
     "src/chronicler/main.py": {
       "patches": [
         {
-          "new": "    _shipments = getattr(args, \"public_grain_shipments\", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments)\n    # Community anchoring switch (persisted on the world): community ties\n",
+          "new": "    _shipments = getattr(args, \"public_grain_shipments\", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)\n    # Community anchoring switch (persisted on the world): community ties\n",
           "old": "    # Community anchoring switch (persisted on the world): community ties\n"
         },
         {
@@ -265,7 +265,7 @@
     }
   },
   "new_files": {
-    "src/chronicler/public_grain_shipments.py": "2981c245334e8d1d3efb7705e48509913aa059a6522a8b11bd1b4c115285f535",
+    "src/chronicler/public_grain_shipments.py": "2b90edbeb8e49dbfea46503758bc416f22a6c799ecdcf55032d7109547c877f4",
     "src/chronicler/public_grain_shipments_state.py": "65d32d0aa821becc23720378d4074f3b4778b191434a3214c2052348eb314c42"
   },
   "schema_version": 1

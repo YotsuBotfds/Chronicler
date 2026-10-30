@@ -1,3 +1,23 @@
+# Corrective public grain source child — source only, 2026-10-30
+
+Preserve frozen99c as BLOCKED. Its confirmed CLI ordering bug admitted against
+stored world mode before the requested mode was assigned. This child passes
+the requested mode only to the new shipment setter and retains all mechanics.
+It adds real configuration-boundary, old JSON/flow pickle and actual enabled
+hybrid live/Native midtransit checkpoint fixtures. The original80 pure case
+identities remain; the manual bare-World checkpoint proof remains narrow.
+
+All checks/builds/Native/World and publication are UNRUN. Native product,
+306 owners/44 chunks, six skips and623 care subreports remain unchanged; the
+new Native case extends existing owner0 test_live_checkpoints_native.py.
+Only care's current main whole-file pin is rebound. Historical pins/digest and
+the exact two-site source inverse stay strict. See the corrective section in
+[the integration contract](integration/public-grain-shipments.md).
+
+The complete blocked99c continuation follows unchanged.
+
+---
+
 # Source-only public grain shipments child — 2026-10-30
 
 This separate Stage005 child adds default-off public foreign grain transport:

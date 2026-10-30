@@ -1,5 +1,36 @@
 # Public grain shipments (experimental, default off)
 
+## Corrective source child: requested mode and real integration coverage
+
+Frozen source99c is BLOCKED: its new CLI setter used the saved world mode
+before _configure_run assigned the requested mode. Fresh enabled agent runs
+therefore rejected; a saved active mode could mask an explicit off request.
+This child passes only the new setter's requested-mode admission explicitly,
+preserving all transport/accounting mechanics and never-enabled behavior.
+The standalone setter still uses the recorded world mode when no override is
+given. Actual parser/configure/original-setter fixtures stop at the controlled
+Native-constructor boundary for fresh and saved modes, without mocking policy.
+
+The original80 pure cases remain, including the deliberately narrow manual
+bare-World serialization case. New cases actually decode old World JSON via
+model/file loaders and unpickle an old-shaped ReserveFlow. A separate Native
+case in the existing Native-owned live-checkpoint module uses real hybrid
+AgentBridge/economy/run_turn, actual StatAccumulator payment legs and the real
+live pause/writer/read_checkpoint/resume path. Only initial finite stocks and
+relationships are controlled. Read-only wrappers delegate each original once.
+It selects the earliest actual pending order within a fixed eight-turn run,
+checks native payload/Python state at that genuine pause, and compares ordinary
+outputs, viewer state and final Native bytes through one payment/delivery for
+that order. Other legitimate public orders may occur; none are manufactured.
+
+The local turn StatAccumulator is flushed before a checkpoint, not magically
+persisted as a live object. The case observes its real keep legs at dispatch,
+then verifies the saved applied payment and Native persistent continuation.
+It requires a fresh own-source hosted wheel. Every check remains UNRUN here;
+source review, pure focus and fresh Native integration are still required.
+No public/main merge, runtime gate, clock replacement or new normalization is
+introduced by this source correction.
+
 `--grain-reserves --public-grain-shipments` with an agent-backed goods economy
 gives foreign public grain a delivery date. Domestic purchasing retains its
 existing priced producer payment. Foreign delayed orders require one direct

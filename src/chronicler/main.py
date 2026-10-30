@@ -1754,7 +1754,7 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     _shipments = getattr(args, "public_grain_shipments", None)
     if _shipments is not None:
         from chronicler.public_grain_shipments import set_public_grain_shipments_enabled
-        set_public_grain_shipments_enabled(world, _shipments)
+        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)
     # Community anchoring switch (persisted on the world): community ties
     # hold agents back from moving. It acts in the native agent decision, so
     # an explicit --community-anchoring needs an agent pool; a saved setting

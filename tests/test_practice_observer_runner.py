@@ -73,7 +73,7 @@ def _main_without_reviewed_civ_admissions(source):
     return tree
 
 
-_PUBLIC_GRAIN_SETUP = '    _shipments = getattr(args, "public_grain_shipments", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments)\n'
+_PUBLIC_GRAIN_SETUP = '    _shipments = getattr(args, "public_grain_shipments", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)\n'
 _PUBLIC_GRAIN_PARSER = '    parser.add_argument("--public-grain-shipments", action=argparse.BooleanOptionalAction, default=None,\n                        help="Default-off public grain: foreign direct-neighbor orders arrive next Phase10, "\n                             "after its opening; requires --grain-reserves and agents. Disabling drains paid cargo.")\n'
 
 

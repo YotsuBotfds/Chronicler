@@ -26,13 +26,15 @@ def shipment_state(world):
     return state
 
 
-def set_public_grain_shipments_enabled(world, enabled: bool) -> None:
+def set_public_grain_shipments_enabled(world, enabled: bool, *, agent_mode: str | None = None) -> None:
     if not grain_reserves_on(world):
         if enabled:
             raise ValueError("public grain shipments require --grain-reserves")
         return
     state = shipment_state(world)
-    if enabled and world.agent_mode in (None, "off"):
+    # CLI configuration knows the requested mode before assigning it to world.
+    mode = world.agent_mode if agent_mode is None else agent_mode
+    if enabled and mode in (None, "off"):
         raise ValueError("public grain shipments require an agent-backed goods economy")
     if state is None:
         if enabled:
