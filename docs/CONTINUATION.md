@@ -1,3 +1,21 @@
+# Household migration damping correction — source only, 2026-10-30
+
+This separate child of `701bd3fe` intentionally corrects default native
+household wealth damping. The denominator's `0.01` numerical floor could make
+a poor household's computed ratio less than one and amplify migration utility.
+Flooring that ratio at one preserves the previous coefficients and all ratios
+already at least one. Six new Rust tests exercise actual decision-stage inputs,
+spouse lookup, utility products and boundary guards; all are UNRUN.
+
+See [the reachability audit, exact contract and held gates](integration/household-wealth-migration-damping-2026-10-30.md).
+This is not an optimization or scientific qualification. Fresh native/source
+review, standard CI and before/after template200-seed plus matching procedural
+gates remain held. Valid historical capture factors above one stay readable;
+old source/evidence/readers are not rewritten. The full701 continuation follows
+unchanged, including its historical source-specific UNRUN statements.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
