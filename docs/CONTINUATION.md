@@ -1,3 +1,289 @@
+# Simulation staging004 composition — source only, 2026-10-30
+
+This separate829-based branch preserves six real donor merges and composes
+the reviewed intersections in one final commit. All checks against this
+combined source are UNRUN. Main and original scientific cells are untouched.
+
+It includes native region-input validation and context early exit, filtered
+religion counts, call-local needs decoding, functional/Kin diagnostics,
+paired benchmark tools and pinned workflow semantics. Culture remains held.
+The 43 offline chunks keep all41 original chunks and their110-second limit.
+No combined speedup or causal scientific PASS follows from donor results.
+See [composition details](integration/simulation-staging004-composition-2026-10-30.md).
+
+Each donor-only continuation prefix follows once; then the entire qualified
+829 continuation remains byte-for-byte. Historical UNRUN/failure snapshots
+describe their original sources and are not the current combined verdict.
+
+---
+
+# Native region ingress correction — source only, 2026-10-30
+
+This separate ef716 child prevents a direct AgentSimulator constructor and its
+first Arrow batch from silently disagreeing on the region universe. Counts above
+65535 reject before allocation; zero/empty APIs remain valid. First batches must
+match the declared count and have dense, ordered, non-null region IDs. Required
+decoding and existing later count checks now precede cache/contested mutation.
+Valid normal bridge inputs, column ordering, later positional updates, persisted
+fields, schemas, context kernels and RNG operations retain their source contract.
+
+Six Rust tests and 22 native Python cases are prospective and UNRUN. The current
+whole-FFI care witness is rebound once; all ten care blocks, other nine pins,
+codecs/mechanics and historical bindings remain unchanged. No optimization,
+compiled-native, checkpoint, trajectory, population or scientific result is
+claimed. The distinct civilization lifetime-cap gap remains a later slice.
+See [the ingress contract and held gates](integration/native-region-ingress-2026-10-30.md).
+
+The complete ef716 continuation follows unchanged below.
+
+---
+
+# Care codec current-source binding repair - source only, 2026-10-30
+
+The first b32 offline health-care-policy chunk stopped at42 passes/1 failure,
+with61 subtests, because its strict whole-FFI digest still expected d9a4fe12
+rather than actual f2c517c6. The parent first standard CI finished FAIL. Other
+direct job failures are not attributed here without their saved evidence; the
+original failure and recovered offline archive remain preserved.
+
+Source review reverses only the five early-exit lines inside the context batch
+reader and recovers the complete reviewed829 FFI bytes. All ten care phase
+blocks, raw native schema/payload writer, Python codec/mechanics and the other
+nine pinned phase-witness files remain byte-exact to that parent. This child
+updates only the current whole-FFI test digest and clarifies its scope.
+Historical mechanics SOURCE_BINDINGS/native09ec remains unchanged and supplies
+no qualification of the current native tree or captured producer.
+
+Product/Rust, helpers, ownership, test parents/subtests, chunk selections and
+limits remain exactb32. No tests, build, native/World or push ran on this child
+at freeze. Its first focused check and full CI remain pending. The complete
+b32 continuation follows unchanged.
+
+---
+
+# Batch context lookup early completion - source only, 2026-10-30
+
+This separate child of staging829 stops the local slot search once every
+unique requested id has its first live match. Missing or dead ids still
+require the complete scan. Request order, repeated ids, id-zero semantics
+and payload bits remain governed by the scalar-equivalence contracts; no
+schema, RNG, persistent cache or production Python caller changes.
+
+One added native regression puts a duplicate pool id before a later requested
+id, then mixes missing/dead ids with that late match. The existing ten context
+contracts remain exact. All tests/builds on this child are UNRUN. No speedup or
+whole-turn effect is claimed; the separately frozen baseline benchmark remains
+unchanged. The full staging continuation follows unchanged.
+
+---
+
+# Religion import-order witness correction - source only, 2026-10-30
+
+First47f standard CI41013860177 had eight successful jobs and one no-Rust
+failure: the new subclass spy patched a reimported religion module but called
+a collection-time function alias from the original module. The retained
+no-native fallback test deliberately evicts/reimports that module. This child
+calls the same locally imported module that owns the spy, retaining both
+output comparisons, expected two groups and no-cache sentinel. Product/native
+bytes, test counts, owners,41chunks and caps are unchanged. All new checks are
+UNRUN; next focus is the original eviction node followed by this corrected
+node. Original130 local PASS, first5ae negative and first47f CI failure remain
+separate preserved evidence. No raw-native or performance claim is inferred.
+See [the precise correction](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete47f continuation follows unchanged.
+
+---
+
+# Religion fallback expectation correction — source-only child, 2026-10-30
+
+The first5ae focused run remains negative:129 passed, one boolean-test failure,
+one old native-case skip, exit1. No native module loaded; one native import was
+blocked, so no clean all-zero guard or complete qualification is claimed.
+The boolean test expected grouping although unchanged Arrow zero-copy decoding
+uses the original scalar fallback. This child fixes only that expectation and
+docs; religion/turn_artifacts product bytes and the raw-native test are exact5ae.
+
+Next focus is the same131 collected items with one exact old native node
+--deselected,130 selected/executed. Owners/default tests/41chunks/caps remain.
+The first negative is preserved; child checks remain UNRUN until peer/root
+approval, and raw-native activation still requires future fresh-wheel CI.
+See [the corrected plan](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete original5ae continuation follows unchanged.
+
+---
+
+# Religion filtered count reuse — source-only829 child, 2026-10-30
+
+Three Phase10 religion consumers demand the same filtered region/belief counts.
+This child adds one lazy, success-only per-AgentRows immutable summary and
+returns caller-private Counter copies. Filter-before-group order,255-inclusive
+full distribution, original gates/columns/errors, live policy, ties/events/RNG
+and all uncached/null/noninteger/duck/subclass fallbacks remain.
+
+The trusted Arrow gate recognizes exact declared batch classes and the pinned
+frozen raw C RecordBatch family by owned C descriptors; it calls no exporter.
+Eighteen pure cases append to existing views owner0/core. One existing native
+owner1 test requires actual RAW get_snapshot cache activation on a tiny seeded
+simulator without a tick. All are UNRUN; raw-native activation and performance
+must not be inferred from source or pure Arrow cases. Native Rust/bridge/
+simulation/workflows/defaults/owners/chunks/caps remain exact829.
+
+See [the proposed scope and costs](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete original829 continuation follows unchanged.
+
+---
+
+# Needs native activation fixture correction - source only, 2026-10-30
+
+First ccc9 CI41015577534/1 failed the new owner0 native test while pickling its
+own private-instance lambda. Setup/teardown passed; final native ownership and
+14-decode assertions were not reached. The complete first failure is preserved.
+
+This narrow child changes only that test's instrumentation teardown and this
+note/ledger. Both injected instance attributes must retain their exact identity
+after the actual write, then only those known observers are removed before the
+existing complete production-data comparison. All eight variants, original
+assertions/files and product/native/care witness bytes remain unchanged.
+This child's corrected native test and first CI remain UNRUN.
+See [the correction and held gates](performance/needs-sidecar-decode-reuse-2026-10-30.md).
+The complete ccc9 continuation follows unchanged below.
+
+---
+
+# Needs sidecar decode reuse — source-only child of829, 2026-10-30
+
+This separate branch reuses the writer's decoded14-column needs data only after
+a genuine already-loaded native getter and stock bridge/resolver/writer prove
+eligibility. The writer completes JSON and buffered rows before returning data
+privately; its public API still returns None. Foreign Arrow/CData, stateful duck
+inputs, subclasses and public/private/resolver overrides retain the old second
+decode. No native import, persistent cache, sampling/schema/default change or
+new World/bridge state is introduced.
+
+The bridge's whole-file care witness is deliberately rebound to its current
+SHA only; all care markers/mechanics/other nine witnesses and historical bindings
+remain unchanged. Eighteen pure cases append to the existing views owner/chunk;
+one native-only full-bridge test appends to the existing bridge owner. All new
+source, tests, native activation, output/performance and CI are UNRUN.
+See [scope, ownership and failure boundaries](performance/needs-sidecar-decode-reuse-2026-10-30.md).
+The complete829 continuation follows unchanged below.
+
+---
+
+## 2026-10-30: opt-in workflow semantic validation (source only)
+
+Added a small separate staging829 child with a pinned upstream actionlint
+v1.7.12 lane. It explicitly checks every tracked workflow YAML, including
+dormant workflows and itself, with ShellCheck/Pyflakes integrations disabled.
+Both release checksum-file and Linux archive SHA-256 pins are literal; the
+upstream source tag resolves to914e7df21a07ef503a81201c76d2b11c789d3fca.
+Read-only PR workflow/config paths validate normally. Source-ref publication
+is inert; root separately approves the same-SHA dedicated run-ref push for
+the first hosted lint, without a duplicate manual dispatch. Existing workflows,
+product/tests/default owners and main are unchanged. No local installation,
+lint, build/native/test operation, push or hosted job occurred in preparation;
+all-workflow semantic success remains unobserved until that first job.
+See `docs/integration/workflow-semantics-2026-10-30.md` for scope and limits.
+
+## 2026-10-30: trusted current Kin capture (source only)
+
+A small separate child of functional428 adds an ordinary hosted owner and
+dedicated workflow around the unchanged35aa/829driver and current nativea840.
+The normal interactive CLI requests horizon500/checkpoint101 and receives
+quit at its first101-turn pause; no bespoke World loop or turns101 horizon.
+Initial4civs need not remain current4, so the exact header gate may produce
+the first retained negative. Generation exit0 precedes one101-to102 capture.
+Verified496MiBdata/16MiBcontrol mounts separately bound declared outputs;
+ordinary exports and checkpoint temporaries do not fit the driver-only34MiB
+claim. Per-phase110wall/30CPU/oneCPU/2GiBAS acceptance is distinct from
+ordinary build/owner/upload overhead. Original large bodies stay remote;
+the selected artifact is at most1MiB and labels projections. Historical
+Kin causal FAIL, old32MiB lease design and scientific promotion stay held.
+No local native/build/World/decode/test/push or hosted job ran in preparation.
+See docs/integration/trusted-kin-capture-2026-10-30.md for the complete scope.
+
+# Trusted hosted native functional smoke — source only, 2026-10-30
+
+This small829 child adds a dedicated source/run-ref workflow, one observation
+script and a short note. The job builds its own locked wheel and uses existing
+lower-level wheel/real-class verification under its truthful custom job kind.
+Its bounded functional checks select two existing no-tick native contracts and
+one empty API instance, three simulators total. Standard workflows, default
+owners, product/native/test source and isolated scientific controls stay exact829.
+
+All new functional execution is UNRUN. Root source and hosted pipeline storage
+review precedes source publication and the separate same-SHA run-ref push.
+[The note](integration/hosted-native-functional-smoke-2026-10-30.md) records the
+110s/30CPU/oneCPU/2GiB-AS functional scope and separately bounded builder/smoke
+artifacts. No sandbox/read-lease/32MiB owner or World/science qualification is
+claimed. The complete829 continuation follows unchanged.
+
+---
+
+# Paired compiled context measurement — source only, 2026-10-30
+
+This fa5-based controller adds an opt-in comparison of exact829/nativea840 and
+ef716/native8e3. Actual controller/GitHub identity stays separate from each
+measured source. Two fresh own locked wheels build serially outside the shared
+comparison envelope; no driver is copied into a measured Git tree.
+
+The fixed21-case workload has252 planned samples from126 serial source/trial
+workers, with one fresh Native pool per trial. This differs from fa5's pool
+reuse across trials and does not replace that cohort. Source/helper order,
+20,000 records,200 warmups and three trials are registered unchanged.
+One600s/540CPU/2GiB/oneCPU envelope covers comparison, with128+1920MiB application
+partitions and512s whole-worker CPU credit. Owner-inclusive2MiB evidence and
+joint16MiB wheel caps retain refusals, regressions, failures and not_run states.
+
+Source publication and run-ref activation remain distinct; main is untouched.
+All new fake checks, builds and measurements are UNRUN at this source freeze.
+The prior40 chunks,27 legacy contracts and110-second caps remain. fa5's94×
+regression,9705's invalid workflow, b32's first care-pin failure and ef716's
+repair stay preserved. ef716 firstTests41004287197/1 reports nine successful
+jobs in root's official metadata; this supplies no paired timing qualification.
+See [the method](performance/paired-context-benchmark-2026-10-30.md).
+The complete fa5 continuation follows unchanged.
+
+---
+
+# Named context workflow expression repair - source only, 2026-10-30
+
+Public9705 source publication produced run41000767288/1 with an invalid-workflow
+failure and zero jobs. GitHub identified line29: runner.temp is unavailable in
+job-level env. The separately dispatched Tests41000907858/1 has nine successful
+jobs in root's official metadata observation; no benchmark timing ran.
+
+This child derives the same private Cargo target from RUNNER_TEMP inside the
+admission step and exports it through GITHUB_ENV for later build steps. Driver,
+all27 pure contracts, matrix, resource limits, native09ec and the held run-ref
+trigger stay exact9705. No tests/build/measurement or publication ran on this
+child at freeze. The original9705 failure remains preserved. Its continuation
+follows unchanged.
+
+---
+
+# Compiled context API benchmark — source only, 2026-10-30
+
+This separate701-based branch adds an opt-in benchmark of the existing native
+batch/scalar context APIs, with no product wiring, native or default change.
+The fixed21-condition method preserves prefix/spread/missing requests and all
+regressions, using three paired trials of20,000 context records per helper.
+Source work bounds and separate600wall/540CPU/2GiBAS/oneCPU comparison limits
+are explicit; build work is outside those limits. No timed-fit claim is made.
+
+Source publication and hosted execution use different branch refs. The source
+branch does not trigger the experiment; a separately approved exact run-branch
+push provides the first workflow activation without changing main. Fresh own
+locked wheel/installed native identities and partial/failure evidence are
+retained. One new pure-contract offline chunk keeps all old39 selections and
+110-second caps; its imported benchmark script receives a source pin. All new
+contracts/builds/measurements are UNRUN. No local native,
+World, checkpoint, whole-turn or scientific qualification is supplied. See
+[the bounded method and publication seam](performance/named-context-benchmark-2026-10-30.md).
+The exact701 continuation follows unchanged.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-

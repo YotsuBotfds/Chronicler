@@ -2,7 +2,7 @@ name: Workflow semantics
 
 on:
   push:
-    branches: [lead/workflow-semantics-20261030]
+    branches: [lead/workflow-semantics-20261030, lead/simulation-staging004-semantics-20261030]
   pull_request:
     paths:
       - .github/workflows/**
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   actionlint:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030' || github.ref == 'refs/heads/lead/simulation-staging004-semantics-20261030'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
