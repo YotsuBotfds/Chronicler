@@ -1,0 +1,175 @@
+name: GP full-sync benchmark
+
+on:
+  push:
+    branches: [lead/gp-fullsync-benchmark-run-20261030]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gp-fullsync:
+    if: github.ref == 'refs/heads/lead/gp-fullsync-benchmark-run-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      RAYON_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      ARROW_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Check out exact controller and measured source
+        uses: actions/checkout@v4
+        with:
+          path: controller
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Admit source and fresh paths without Native construction
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$GITHUB_REF" = refs/heads/lead/gp-fullsync-benchmark-run-20261030
+          test "$(git -C controller rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C controller merge-base --is-ancestor 0e2cf3b7427dc83993f5c3ed4c1712bd7bfb2f60 HEAD
+          test "$(git -C controller rev-parse HEAD:chronicler-agents)" = 0dca68c36baa2663c66dcf45bb4afd0c5696b18f
+          for suffix in evidence wheels target venv builder; do
+            test ! -e "$RUNNER_TEMP/gp-fullsync-$suffix"
+          done
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          fs=os.statvfs(root)
+          rows=[s.split() for s in Path('/proc/meminfo').read_text().splitlines() if s.startswith('MemAvailable:')]
+          if fs.f_bavail*fs.f_frsize < 3*1024**3 or len(rows)!=1 or int(rows[0][1])*1024 < (2*1024**3+128*1024**2):
+              raise SystemExit('host entry observation below registered floor; not a cgroup capacity guarantee')
+          PY
+          mkdir -m 0700 "$RUNNER_TEMP/gp-fullsync-evidence" "$RUNNER_TEMP/gp-fullsync-wheels"
+          mkdir -m 0700 "$RUNNER_TEMP/gp-fullsync-evidence/build"
+          printf 'GP_EVIDENCE=%s\nGP_WHEELS=%s\nPYTHONPATH=%s\n' \
+            "$RUNNER_TEMP/gp-fullsync-evidence" "$RUNNER_TEMP/gp-fullsync-wheels" \
+            "$GITHUB_WORKSPACE/controller/src" >> "$GITHUB_ENV"
+          python -B controller/scripts/benchmark_gp_context_sync.py --plan-only \
+            --output "$RUNNER_TEMP/gp-fullsync-evidence/plan.json"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install one fresh builder and the frozen own environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "uv>=0.5,<1"
+          python -m venv "$RUNNER_TEMP/gp-fullsync-builder"
+          uv pip install --python "$RUNNER_TEMP/gp-fullsync-builder/bin/python" "maturin>=1.5,<2"
+          uv lock --check --project controller
+          UV_PROJECT_ENVIRONMENT="$RUNNER_TEMP/gp-fullsync-venv" uv sync --frozen --project controller --python "$(command -v python)"
+          rustc --version --verbose > "$GP_EVIDENCE/build/rustc.txt"
+          cargo --version > "$GP_EVIDENCE/build/cargo.txt"
+          "$RUNNER_TEMP/gp-fullsync-builder/bin/python" -m maturin --version > "$GP_EVIDENCE/build/maturin.txt"
+          uv --version > "$GP_EVIDENCE/build/uv.txt"
+
+      - name: Build and install the one own-source locked release wheel
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/gp-fullsync-target" "$RUNNER_TEMP/gp-fullsync-builder/bin/python" -m maturin build --release --locked \
+            --manifest-path "$GITHUB_WORKSPACE/controller/chronicler-agents/Cargo.toml" \
+            --interpreter "$RUNNER_TEMP/gp-fullsync-venv/bin/python" --out "$GP_WHEELS"
+          uv pip install --python "$RUNNER_TEMP/gp-fullsync-venv/bin/python" "$GP_WHEELS/"*.whl
+
+      - name: Record own source, wheel and actual compiled exports
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_TARGET_DIR="$RUNNER_TEMP/gp-fullsync-target" "$RUNNER_TEMP/gp-fullsync-venv/bin/python" -B \
+            controller/scripts/benchmark_gp_context_sync.py --record-build --root "$GITHUB_WORKSPACE/controller" \
+            --wheel-dir "$GP_WHEELS" --output "$GP_EVIDENCE/build/build.json"
+
+      - name: Run exactly one jointly bounded full-sync comparison
+        id: comparison
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          gp_cpu="$(python -c 'import os; print(min(os.sched_getaffinity(0)))')"
+          /usr/bin/time -f 'wall=%e user=%U system=%S max_process_RSS_KiB=%M' -o "$GP_EVIDENCE/comparison.time" \
+            timeout --signal=KILL 600s taskset -c "$gp_cpu" \
+            prlimit --cpu=540:540 --as=2147483648:2147483648 --fsize=1572864:1572864 \
+            python -B controller/scripts/benchmark_gp_context_sync.py --execute \
+            --build "$GP_EVIDENCE/build/build.json" --output "$GP_EVIDENCE/comparison"
+          gp_exit=$?
+          printf 'exit_code=%s\n' "$gp_exit" >> "$GITHUB_OUTPUT"
+          exit "$gp_exit"
+
+      - name: Seal bounded evidence with explicit unknown-custody handling
+        id: owner
+        if: always()
+        shell: bash
+        env:
+          GP_COMPARISON_EXIT: ${{ steps.comparison.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          gp_evidence="${GP_EVIDENCE:-$RUNNER_TEMP/gp-fullsync-evidence}"
+          gp_wheels="${GP_WHEELS:-$RUNNER_TEMP/gp-fullsync-wheels}"
+          gp_exit="${GP_COMPARISON_EXIT:-255}"
+          if test -d "$gp_evidence" && test -f controller/scripts/benchmark_gp_context_sync.py; then
+            python -B controller/scripts/benchmark_gp_context_sync.py --owner --evidence "$gp_evidence" \
+              --wheel-dir "$gp_wheels" --comparison-exit "$gp_exit"
+          else
+            mkdir -p "$gp_evidence"
+            python -B - "$gp_evidence/owner.json" <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          row=dict(kind='GP_FULLSYNC_OWNER_UNAVAILABLE',source=os.environ['GITHUB_SHA'],
+              ref=os.environ['GITHUB_REF'],retention='refused',child_custody='UNKNOWN',
+              reason='controller/admission unavailable; no complete result or Native run claimed')
+          Path(sys.argv[1]).write_text(json.dumps(row,sort_keys=True)+'\n')
+          PY
+            exit 2
+          fi
+
+      - name: Publish the single bounded compact packet
+        if: always() && steps.owner.outcome == 'success' && steps.owner.outputs.compact_allowed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-fullsync-compact-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gp-fullsync-compact.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve bounded parent refusal only
+        if: always() && steps.owner.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-fullsync-refusal-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gp-fullsync-evidence/owner.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Retain the separately identified own wheel remotely
+        if: always() && steps.identity.outcome == 'success' && steps.owner.outputs.wheels_allowed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-fullsync-wheel-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gp-fullsync-wheels/*.whl
+          if-no-files-found: error
+          retention-days: 14

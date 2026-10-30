@@ -1,3 +1,14 @@
+# GP full-sync benchmark: source only, production unchanged (2026-10-30)
+
+Private same-binary full-helper experiment: fixed69conditions/414freshworkers/256calls,
+public Bridge/Native fixture APIs, full GP/persistentNative/strictRNG proof and
+bounded serial supervisor. All new checks/builds/measurements are UNRUN. Existing
+helper, scalar reference, bridge/models/native0dca, GP contracts/owners and defaults
+remain exact. One45th ordinary110-second chunk and additive isolated CI selectors;
+inert source, with semantic/Tests/runtime gates separately root-owned. No production
+wiring, crossover threshold, adoption or whole-turn/scientific qualification.
+Earlier continuation follows exactly.
+
 # GP context prototype: isolated CI routing (2026-10-30)
 
 Source-only child of f65. Add dedicated GP Tests/semantic push selectors and extend only the existing historical-header witness literal. Existing selectors/permissions/jobs/tool pins/fixture remain exact. First66 pure cases passed once under the standard guard; both Native cases and new routing/lint/full CI remain UNRUN. Production/default routing, private GP helper/scalar reference, native0dca, care bindings,66 pure+2Native cases and44 oracle chunks unchanged. Inert source branch; no API/push/runtime/Native/build execution.
