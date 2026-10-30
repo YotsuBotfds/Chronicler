@@ -82,6 +82,33 @@ A workflow-only edit would fail that contract. Any future scheduling change
 must deliberately preserve or review that contract; this patch edits neither
 workflow nor fixture and does not weaken the barrier.
 
+## Actual validation of the opt-in helper
+
+Tested source `3861d067d193a705f836f4fed116822548f1d3c3` passed its first
+focused selection: **33 passed, zero failed/skipped**, under the existing
+`python_oracle_guard`. Guard PASS retained zero native modules/import attempts,
+zero runtime-factory calls and zero blocked I/O. The saved flat JUnit contains
+33 cases; no detailed per-phase event stream was collected. These tests use
+synthetic metadata and leave default coverage and workflow bodies unchanged.
+
+A separate **single actual helper process** then loaded the three saved official
+metadata samples listed below, analyzed each and rendered JSON plus Markdown.
+All three outputs matched the previously independent arithmetic: equal-test-work
+scenario bounds **0.5 / 37 / 27 seconds**, and zero combined-build-step scenario
+bounds **93 / 127 / 145 seconds**, for 701 / 5122 / ca8 respectively. The six reports
+and receipt total 21,681 bytes. No API/network/artifact/log-body call, product or
+simulation-native import, job-body execution or test rerun occurred in this
+use. This validates the reporter on those samples; it does not demonstrate a
+workflow speedup or validate artifacts from the runs. The fixed V2 topology
+remains an explicit source-profile assumption. All helper and test bytes remain
+exactly the tested 3861 source in this docs-only child.
+
+Evidence stays outside Git; only the relevant summary is committed:
+
+- Focused 33-case root POST: SHA256 `e137f90e248e39daad20ef7f7bd8803fc8e12d277f5d1800a6c1ec12e62d203e`.
+- Actual three-sample receipt: SHA256 `8c495b3057f7b73e43733461e7f3d40b471279131e45396e30c8031c7436a0ed`.
+- Actual helper-process completion (exit 0): SHA256 `204d9f7fb77e0056366a6b3abf0ac1d6f611a85dae9ea94d17e40d8ccb6360be`.
+
 ## Optional offline analyzer
 
 `scripts/ci_critical_path.py` uses only the standard library and is opt-in:
@@ -108,9 +135,9 @@ are optimistic duration-only bounds under unchanged other-job durations.
 
 The nondefault `tests/ci_critical_path_contracts.py` selection checks these
 behaviors using synthetic metadata, including bottleneck migration to no-Rust.
-It adds no native/default owner, offline chunk, workflow registration or test
-selection. All preexisting test bytes and coverage remain unchanged. Focused
-execution under the existing offline guard is a separate root decision.
+Its first actual 33-case guarded run passed as recorded above. It adds no
+native/default owner, offline chunk, workflow registration or default test
+selection. All preexisting test bytes and coverage remain unchanged.
 
 ## Evidence scope
 

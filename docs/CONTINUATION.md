@@ -1,3 +1,26 @@
+# Offline CI analyzer: first focused pass and saved-data demonstration — 2026-10-30
+
+Source `3861d067d193a705f836f4fed116822548f1d3c3` passed all 33 explicit,
+nondefault contracts under the existing offline guard (zero native, factory or
+blocked-I/O observations). Saved JUnit retains 33 flat passing cases; no detailed
+per-phase stream was collected. One separate helper process then analyzed the
+three saved official 701 / 5122 / ca8 run/job metadata samples and produced 3 JSON
+and 3 Markdown reports plus a receipt (21,681 bytes total). All results matched
+the independent conditional bounds: 0.5 / 37 / 27 seconds for equal test work,
+and 93 / 127 / 145 seconds for a hypothetical zero-cost combined build step.
+These are metadata scenarios, not measured CI or simulation speedups.
+
+This child changes only this continuation and the
+[workflow timing note](performance/workflow-critical-path-2026-10-30.md).
+All code and tests stay byte-exact 3861; there is no rerun, workflow scheduling,
+module assignment, native, cache or scientific-gate change. The analyzer is
+opt-in, offline and explicit about its selected V2 DAG assumption. Publication
+and first standard CI remain separate root decisions. The following 3861
+source-freeze continuation is preserved as a historical exact suffix; its
+prospective statements describe the earlier point before actual validation.
+
+---
+
 # CI wall-clock attribution, without a scheduling change — 2026-10-30
 
 Fresh official 701 and 5122 run/job metadata puts the producer→native shards→
