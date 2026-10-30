@@ -1,3 +1,20 @@
+## 2026-10-30: trusted current Kin capture (source only)
+
+A small separate child of functional428 adds an ordinary hosted owner and
+dedicated workflow around the unchanged35aa/829driver and current nativea840.
+The normal interactive CLI requests horizon500/checkpoint101 and receives
+quit at its first101-turn pause; no bespoke World loop or turns101 horizon.
+Initial4civs need not remain current4, so the exact header gate may produce
+the first retained negative. Generation exit0 precedes one101-to102 capture.
+Verified496MiBdata/16MiBcontrol mounts separately bound declared outputs;
+ordinary exports and checkpoint temporaries do not fit the driver-only34MiB
+claim. Per-phase110wall/30CPU/oneCPU/2GiBAS acceptance is distinct from
+ordinary build/owner/upload overhead. Original large bodies stay remote;
+the selected artifact is at most1MiB and labels projections. Historical
+Kin causal FAIL, old32MiB lease design and scientific promotion stay held.
+No local native/build/World/decode/test/push or hosted job ran in preparation.
+See docs/integration/trusted-kin-capture-2026-10-30.md for the complete scope.
+
 # Trusted hosted native functional smoke — source only, 2026-10-30
 
 This small829 child adds a dedicated source/run-ref workflow, one observation
