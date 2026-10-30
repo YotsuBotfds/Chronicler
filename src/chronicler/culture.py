@@ -200,6 +200,11 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
     timer-based path.
     """
     _check_agent_rows(agent_snapshot, agent_rows)
+    # The coordinated turn's AgentRows owns one immutable historical batch.
+    # Keep legacy/scalar reads untouched; cache only bounded integer summaries
+    # after the original foreign-rule/guard/controller/column gates demand them.
+    histogram_regions = histogram_totals = None
+    histogram_holders = {}
     for region_idx, region in enumerate(world.regions):
         if region.controller is None:
             continue
@@ -242,11 +247,32 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
                               else batch_arrays(agent_snapshot, names))
                     if target_val_id is not None and arrays is not None:
                         # Count agents in this region holding the value
-                        in_region = arrays[0] == region_idx
-                        total = int(np.count_nonzero(in_region))
-                        holders = int(np.count_nonzero(in_region & (
-                            (arrays[1] == target_val_id) | (arrays[2] == target_val_id)
-                            | (arrays[3] == target_val_id))))
+                        cached_integers = (type(agent_rows) is AgentRows and type(target_val_id) is int
+                            and 0 <= target_val_id < 6 and len(arrays) == 4
+                            and all(type(a) is np.ndarray and a.ndim == 1
+                                    and a.dtype.kind in "iu" and len(a) == len(arrays[0])
+                                    for a in arrays))
+                        if cached_integers:
+                            if histogram_totals is None:
+                                # Filter in the original dtype: never cast a huge
+                                # uint64 id or size a histogram from an untrusted id.
+                                histogram_regions = ((arrays[0] >= 0)
+                                                     & (arrays[0] < len(world.regions)))
+                                bounded_ids = arrays[0][histogram_regions].astype(np.intp, copy=False)
+                                histogram_totals = np.bincount(bounded_ids, minlength=len(world.regions))
+                            if target_val_id not in histogram_holders:
+                                holds = ((arrays[1] == target_val_id) | (arrays[2] == target_val_id)
+                                         | (arrays[3] == target_val_id))
+                                histogram_holders[target_val_id] = np.bincount(
+                                    bounded_ids[holds[histogram_regions]], minlength=len(world.regions))
+                            total = int(histogram_totals[region_idx])
+                            holders = int(histogram_holders[target_val_id][region_idx])
+                        else:
+                            in_region = arrays[0] == region_idx
+                            total = int(np.count_nonzero(in_region))
+                            holders = int(np.count_nonzero(in_region & (
+                                (arrays[1] == target_val_id) | (arrays[2] == target_val_id)
+                                | (arrays[3] == target_val_id))))
                         if total > 0 and (holders / total) >= get_override(world, K_ASSIMILATION_AGENT_THRESHOLD, 0.60):
                             assimilated = True
                     elif target_val_id is not None:

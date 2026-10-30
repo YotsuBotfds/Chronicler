@@ -1,3 +1,24 @@
+# Culture assimilation count reuse — source-only candidate, 2026-10-30
+
+This isolated child of staging829 replaces repeated whole-agent region masks
+only for the coordinated turn's valid integer `AgentRows` path. Phase-local
+denominator and target-holder histograms retain one holder per agent across
+duplicate slots, every in-region agent in the denominator, and the original
+guard/column-demand/threshold/timer/event order. Legacy, nullable, noninteger
+and malformed fallbacks remain unchanged. Huge or negative region IDs are
+filtered before a bounded index cast; no persistent World cache is added.
+
+Fifteen new prospective cases append to the already-owned/selected turn-view
+module; all old tests, owners, chunks,110-second caps, experiments, nativea840,
+workflows and dependencies remain. All candidate tests and performance checks
+are UNRUN. Source review, root-focused culture/view checks and any controlled
+performance/World/checkpoint/RNG/scientific qualification remain separate.
+See [the candidate's limits](performance/culture-assimilation-counts-2026-10-30.md).
+
+The entire original staging829 continuation follows unchanged.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-

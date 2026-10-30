@@ -385,3 +385,256 @@ def test_missing_and_empty_batches_keep_return_and_zero_believer_behavior(availa
     events = check_pilgrimages([gp], [], batch, 7, **kw)
     assert [e.event_type for e in events] == ["pilgrimage_return"]
     assert gp.pilgrimage_return_turn is None
+
+
+class _HistogramNumericBatch:
+    """Real Arrow numerical views, with observable successful column decodes."""
+
+    def __init__(self, batch, unreadable_count=False):
+        self.batch = batch
+        self.schema = batch.schema
+        self.calls = Counter()
+        self.unreadable_count = unreadable_count
+
+    @property
+    def num_rows(self):
+        if self.unreadable_count:
+            raise AssertionError("the vector path must not read declared row metadata")
+        return self.batch.num_rows
+
+    def column(self, name):
+        column = self.batch.column(name)
+        owner = self
+
+        class Column:
+            null_count = column.null_count
+
+            def to_numpy(self):
+                owner.calls[name] += 1
+                return column.to_numpy()
+
+            def to_pylist(self):
+                return column.to_pylist()
+
+        return Column()
+
+
+def _histogram_world(world):
+    world = world.model_copy(deep=True)
+    for civ in world.civilizations:
+        civ.values = ["Order"]
+    for region in world.regions:
+        region.cultural_identity = "Other"
+        region.foreign_control_turns = 4
+    return world
+
+
+def _histogram_batch(regions, value0, value1=None, value2=None, *, region_type=None, value_type=None):
+    count = len(regions)
+    return pa.record_batch({
+        "region": pa.array(regions, type=region_type or pa.uint16()),
+        "cultural_value_0": pa.array(value0, type=value_type or pa.uint8()),
+        "cultural_value_1": pa.array(value1 if value1 is not None else [255] * count,
+                                      type=value_type or pa.uint8()),
+        "cultural_value_2": pa.array(value2 if value2 is not None else [255] * count,
+                                      type=value_type or pa.uint8()),
+    })
+
+
+def _histogram_parity(world, batch):
+    legacy = world.model_copy(deep=True)
+    cached = world.model_copy(deep=True)
+    tick_cultural_assimilation(legacy, agent_snapshot=batch)
+    tick_cultural_assimilation(cached, agent_snapshot=batch, agent_rows=rows_for(batch))
+    assert cached.model_dump(mode="json") == legacy.model_dump(mode="json")
+    assert [getattr(r, "_culture_investment_active", False) for r in cached.regions] == [
+        getattr(r, "_culture_investment_active", False) for r in legacy.regions
+    ]
+    assert cached.__pydantic_private__ == legacy.__pydantic_private__
+    return cached
+
+
+def test_assimilation_histogram_counts_agents_not_slots_and_keeps_255_denominator(drift_world):
+    world = _histogram_world(drift_world)
+    batch = _histogram_batch([0] * 5 + [1] * 5,
+        [1, 1, 255, 255, 255, 1, 1, 1, 255, 255],
+        [1, 1] + [255] * 8, [1, 1] + [255] * 8)
+    result = _histogram_parity(world, batch)
+    # R0 has two holders, not six; R1 reaches the original exact3/5 threshold.
+    assert [r.cultural_identity for r in result.regions] == ["Other", "CivB"]
+    assert [event.region for event in result.named_events] == ["R2"]
+
+
+@pytest.mark.parametrize("region_type,ids", [
+    ("signed", [-1, 0, 0, 1, 1, 1, 65535]),
+    ("unsigned", [2**64 - 1, 0, 0, 1, 1, 1, 2**63]),
+])
+def test_assimilation_histogram_filters_ids_before_bounded_cast(drift_world, monkeypatch, region_type, ids):
+    import chronicler.culture as culture
+    import numpy as np
+
+    world = _histogram_world(drift_world)
+    batch = _histogram_batch(ids, [1, 1, 255, 1, 1, 255, 1],
+        region_type=pa.int64() if region_type == "signed" else pa.uint64())
+    calls = []
+    original = np.bincount
+
+    def bounded(values, *, minlength):
+        assert values.dtype == np.dtype(np.intp)
+        assert minlength == 2
+        assert not len(values) or (int(values.min()) >= 0 and int(values.max()) < 2)
+        calls.append(len(values))
+        return original(values, minlength=minlength)
+
+    monkeypatch.setattr(culture.np, "bincount", bounded)
+    result = _histogram_parity(world, batch)
+    assert len(calls) == 2  # one denominator, one shared target
+    assert [r.cultural_identity for r in result.regions] == ["Other", "CivB"]
+
+
+def test_assimilation_histogram_has_one_total_and_at_most_six_target_counts(drift_world, monkeypatch):
+    import chronicler.culture as culture
+    import numpy as np
+
+    world = _histogram_world(drift_world)
+    values = ["Freedom", "Order", "Tradition", "Knowledge", "Honor", "Cunning"]
+    world.civilizations = [world.civilizations[0].model_copy(deep=True, update={
+        "name": f"C{i}", "values": [value], "regions": [f"H{i}"]}) for i, value in enumerate(values)]
+    world.regions = [world.regions[0].model_copy(deep=True, update={
+        "name": f"H{i}", "controller": f"C{i}"}) for i in range(6)]
+    batch = _histogram_batch([i for i in range(6) for _ in range(5)],
+        [v for i in range(6) for v in (i, i, 255, 255, 255)],
+        [v for i in range(6) for v in (i, i, 255, 255, 255)],
+        [v for i in range(6) for v in (i, i, 255, 255, 255)])
+    original, calls = np.bincount, []
+
+    def counted(ids, *, minlength):
+        calls.append(minlength)
+        return original(ids, minlength=minlength)
+
+    monkeypatch.setattr(culture.np, "bincount", counted)
+    result = _histogram_parity(world, batch)
+    assert calls == [6] * 7
+    assert [r.cultural_identity for r in result.regions] == ["Other"] * 6
+
+
+def test_assimilation_histogram_reuses_numeric_columns_and_does_not_read_row_count(drift_world):
+    world = _histogram_world(drift_world)
+    batch = _histogram_batch([0, 0, 1, 1], [1, 255, 1, 1])
+    legacy_batch = _HistogramNumericBatch(batch, unreadable_count=True)
+    cached_batch = _HistogramNumericBatch(batch, unreadable_count=True)
+    legacy = world.model_copy(deep=True)
+    tick_cultural_assimilation(legacy, agent_snapshot=legacy_batch)
+    tick_cultural_assimilation(world, agent_snapshot=cached_batch, agent_rows=rows_for(cached_batch))
+    assert world.model_dump(mode="json") == legacy.model_dump(mode="json")
+    names = ("region", "cultural_value_0", "cultural_value_1", "cultural_value_2")
+    assert cached_batch.calls == dict.fromkeys(names, 1)
+    assert legacy_batch.calls == dict.fromkeys(names, 2)
+
+
+@pytest.mark.parametrize("kind", ["float-regions", "float-values", "null-values", "boolean-values"])
+def test_assimilation_histogram_preserves_noninteger_and_null_fallback(drift_world, monkeypatch, kind):
+    import chronicler.culture as culture
+
+    def no_histogram(*args, **kwargs):
+        raise AssertionError("unsupported columns must retain the old path")
+
+    monkeypatch.setattr(culture.np, "bincount", no_histogram)
+    if kind == "float-regions":
+        batch = _histogram_batch([0.0, 0.5, 1.0, 1.5], [1, 1, 1, 255], region_type=pa.float64())
+    elif kind == "float-values":
+        batch = _histogram_batch([0, 0, 1, 1], [1.0, float("nan"), 1.0, 255.0],
+            [255.0] * 4, [255.0] * 4, value_type=pa.float64())
+    elif kind == "null-values":
+        batch = _histogram_batch([0, 0, 1, 1], [1, None, 1, 1])
+    else:
+        batch = _histogram_batch([0, 0, 1, 1], [True, False, True, True],
+            [False] * 4, [False] * 4, value_type=pa.bool_())
+    _histogram_parity(_histogram_world(drift_world), batch)
+
+
+def test_assimilation_histogram_empty_rows_keep_timer_fallback(drift_world):
+    world = _histogram_world(drift_world)
+    world.regions[0].foreign_control_turns = 14
+    batch = _histogram_batch([], [])
+    result = _histogram_parity(world, batch)
+    assert [r.cultural_identity for r in result.regions] == ["CivA", "Other"]
+    assert [r.foreign_control_turns for r in result.regions] == [0, 5]
+
+
+def test_assimilation_histogram_keeps_invalid_primary_column_demand(drift_world, monkeypatch):
+    import chronicler.culture as culture
+
+    world = _histogram_world(drift_world)
+    for civ in world.civilizations:
+        civ.values = ["Trade"]  # not in VALUE_TO_ID, but arrays are still requested
+    probe = _HistogramNumericBatch(_histogram_batch([0, 1], [1, 1]))
+    monkeypatch.setattr(culture.np, "bincount", lambda *a, **k: pytest.fail("invalid target histogram"))
+    tick_cultural_assimilation(world, agent_snapshot=probe, agent_rows=rows_for(probe))
+    assert set(probe.calls.values()) == {1} and len(probe.calls) == 4
+    assert all(r.foreign_control_turns == 5 and r._culture_investment_active for r in world.regions)
+
+
+def test_assimilation_histogram_is_call_local_and_tracks_new_primary_values(drift_world):
+    world = _histogram_world(drift_world)
+    batch = _histogram_batch([0, 0, 1, 1], [0, 0, 1, 1])
+    rows = rows_for(batch)
+    tick_cultural_assimilation(world, agent_snapshot=batch, agent_rows=rows)
+    for civ in world.civilizations:
+        civ.values = ["Freedom"]
+    for region in world.regions:
+        region.cultural_identity, region.foreign_control_turns = "Other", 4
+    expected = world.model_copy(deep=True)
+    tick_cultural_assimilation(expected, agent_snapshot=batch)
+    tick_cultural_assimilation(world, agent_snapshot=batch, agent_rows=rows)
+    assert world.model_dump(mode="json") == expected.model_dump(mode="json")
+    assert [r.cultural_identity for r in world.regions] == ["CivA", "Other"]
+
+
+@pytest.mark.parametrize("kind", ["broadcast", "mismatched", "rank-two"])
+def test_assimilation_histogram_keeps_malformed_cached_array_behavior(drift_world, monkeypatch, kind):
+    import chronicler.culture as culture
+    import numpy as np
+    from types import SimpleNamespace
+
+    values = {
+        "region": np.array([0, 0, 1, 1], dtype=np.int64),
+        "cultural_value_0": np.array([1], dtype=np.uint8),
+        "cultural_value_1": np.array([255], dtype=np.uint8),
+        "cultural_value_2": np.array([255], dtype=np.uint8),
+    }
+    if kind == "mismatched":
+        for name in tuple(values)[1:]:
+            values[name] = np.repeat(values[name], 3)
+    elif kind == "rank-two":
+        for name in tuple(values)[1:]:
+            values[name] = np.repeat(values[name], 4).reshape(4, 1)
+
+    class Batch:
+        schema = SimpleNamespace(names=tuple(values))
+        num_rows = 4
+
+        def column(self, name):
+            class Column:
+                null_count = 0
+
+                def to_numpy(self):
+                    return values[name]
+
+                def to_pylist(self):
+                    return values[name].tolist()
+
+            return Column()
+
+    monkeypatch.setattr(culture.np, "bincount", lambda *a, **k: pytest.fail("malformed histogram"))
+    world, batch = _histogram_world(drift_world), Batch()
+    if kind == "mismatched":
+        with pytest.raises(ValueError):
+            tick_cultural_assimilation(world, agent_snapshot=batch, agent_rows=rows_for(batch))
+        assert [r.foreign_control_turns for r in world.regions] == [5, 4]
+        assert [getattr(r, "_culture_investment_active", False) for r in world.regions] == [True, False]
+        assert not world.named_events
+    else:
+        tick_cultural_assimilation(world, agent_snapshot=batch, agent_rows=rows_for(batch))
+        expected = ["CivA", "CivB"] if kind == "broadcast" else ["Other", "Other"]
+        assert [r.cultural_identity for r in world.regions] == expected
