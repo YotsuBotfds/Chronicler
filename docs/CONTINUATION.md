@@ -1,3 +1,25 @@
+# GP full-sync untimed setup reuse — source only, 2026-10-30
+
+This child of local ee752920 (published93d89670, same exact tree) removes
+redundant setup work from the existing GP benchmark. A no-tick fixture keeps
+its first validated snapshot's decoded IDs and affinities. The post1 fixture
+still discards those lists before its setup tick and takes a fresh snapshot
+after that tick. Missing-ID checks reuse the set constructed at the original
+short-circuit validation site; query selection, order and collision refusal
+remain unchanged. Schema checks and all timed helper code stay byte-exact.
+
+Six appended pure cases cover empty/prefix/half-missing fixtures, changed
+post-tick IDs and affinities, query and relationship order, set reuse and
+missing-ID collisions. All82 earlier benchmark cases/assertions and the
+unchanged18 workflow cases remain intact: prospective focus106, allUNRUN.
+There is no production, Native, default route, workload, warmup, proof or
+resource-cap change and no runtime/benchmark activation.
+
+The original first GP69 run and its joint-resource-credit refusal remain
+immutable. Setup savings and full69 fit are unmeasured. This child does not
+authorize a replay, derive thresholds from its partial results, or create
+another collector, launcher or control framework.
+
 # GP parent-result float overflow correction - source only, 2026-10-30
 
 Preserve immutable951/e093 and their reviews. A local finite parse_float check

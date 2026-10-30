@@ -147,7 +147,7 @@ def plan():
 
 def query_rows(ids, civs, spec):
     n, p, layout = len(ids), spec["requests"], spec["layout"]
-    require(n >= p and len(civs) == n and len(set(ids)) == n
+    require(n >= p and len(civs) == n and len(id_set := set(ids)) == n
         and all(type(i) is int and 0 < i < 2**32 for i in ids), "snapshot_identity")
     require(all(type(c) is int and 0 <= c < 8 for c in civs), "snapshot_civ")
     positions = ([] if not p else list(range(p)) if layout == "prefix" else
@@ -156,7 +156,7 @@ def query_rows(ids, civs, spec):
     for i, pos in enumerate(positions):
         absent = layout == "all-missing" or layout == "half-missing" and i%2 == 1
         aid = 2**32-1-i if absent else ids[pos]
-        require(not absent or aid not in ids, "missing_id_collision")
+        require(not absent or aid not in id_set, "missing_id_collision")
         rows.append(dict(id=aid, position=None if absent else pos,
             precursor=pos, civ=i%8 if layout == "all-missing" else civs[pos]))
     return rows
@@ -178,10 +178,12 @@ def fixture(spec, api):
     sim, pa = bridge._sim, api["pa"]
     initial = pa.record_batch(sim.get_snapshot())
     require(initial.num_rows == n, "initial_population")
-    query_rows(initial.column("id").to_pylist(),initial.column("civ_affinity").to_pylist(),
-        dict(requests=0,layout="empty"))
+    ids = initial.column("id").to_pylist()
+    affinities = initial.column("civ_affinity").to_pylist()
+    query_rows(ids, affinities, dict(requests=0,layout="empty"))
     setup_ticks = int(spec["layout"] == "post1-spread")
     if setup_ticks:
+        del ids, affinities  # Keep the original post-tick setup lifetime.
         signals = pa.record_batch({
             "civ_id": pa.array(range(8), type=pa.uint8()),
             "stability": pa.array([50]*8, type=pa.uint8()),
@@ -192,9 +194,9 @@ def fixture(spec, api):
             "faction_cultural": pa.array([.34]*8, type=pa.float32()),
         })
         sim.tick(1, signals)
-    snapshot = pa.record_batch(sim.get_snapshot())
-    ids = snapshot.column("id").to_pylist()
-    affinities = snapshot.column("civ_affinity").to_pylist()
+        snapshot = pa.record_batch(sim.get_snapshot())
+        ids = snapshot.column("id").to_pylist()
+        affinities = snapshot.column("civ_affinity").to_pylist()
     rows = query_rows(ids, affinities, spec)
     if setup_ticks:
         edges = [(r["id"], ids[(r["precursor"]+k)%len(ids)]) for r in rows for k in range(1, 9)]

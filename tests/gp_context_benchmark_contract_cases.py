@@ -526,3 +526,93 @@ def test_safe_refusal_packet_upload_does_not_convert_failed_owner_to_success():
     assert compact["if"]=="always() && steps.owner.outputs.compact_allowed == 'true'"
     assert refusal["if"]=="always() && steps.owner.outputs.compact_allowed != 'true'"
     assert all("continue-on-error" not in s for s in steps)
+
+
+# Untimed fixture setup reuse only; all earlier contracts remain byte-exact.
+def _snapshot_observer_api(trace, snapshots, column_reads):
+    api = fake_api(trace)
+    original_bridge = api["AgentBridge"]
+    class Bridge(original_bridge):
+        def __init__(self, world, **kwargs):
+            super().__init__(world, **kwargs)
+            sim = self._sim
+            def snapshot():
+                ordinal = len(snapshots)
+                columns = dict(id=list(sim.ids), civ_affinity=list(sim.civs))
+                snapshots.append(columns)
+                trace.append(("snapshot", ordinal))
+                class Snapshot(Frame):
+                    def column(self, name):
+                        def to_pylist():
+                            column_reads.append((ordinal, name))
+                            return list(columns[name])
+                        return SimpleNamespace(to_pylist=to_pylist)
+                return Snapshot(columns)
+            sim.get_snapshot = snapshot
+    api["AgentBridge"] = Bridge
+    return api
+
+
+@pytest.mark.parametrize("layout,p", [("empty", 0), ("prefix", 10), ("half-missing", 2)])
+def test_no_tick_fixture_reuses_one_snapshot_and_each_decoded_column(layout, p):
+    trace, snapshots, reads = [], [], []
+    spec = dict(initial_agents=512, requests=p, layout=layout)
+    bridge, world, info = m.fixture(spec, _snapshot_observer_api(trace, snapshots, reads))
+    assert len(snapshots) == 1
+    assert reads == [(0, "id"), (0, "civ_affinity")]
+    assert [row[0] for row in trace] == ["public_bridge_constructor", "snapshot"]
+    expected = m.query_rows(snapshots[0]["id"], snapshots[0]["civ_affinity"], spec)
+    expected = [row for civ in range(8) for row in expected if row["civ"] == civ]
+    assert [row for _, row in info["rows"]] == expected
+    assert [gp.agent_id for gp, _ in info["rows"]] == [row["id"] for row in expected]
+    assert info["setup_ticks"] == 0 and info["alive"] == len(bridge._sim.ids) == 512
+    assert len(info["controls"]) == 20 and len(world.civilizations) == 8
+
+
+def test_post_tick_fixture_reloads_changed_ids_affinities_and_preserves_query_order():
+    trace, snapshots, reads = [], [], []
+    spec = dict(initial_agents=512, requests=10, layout="post1-spread")
+    bridge, world, info = m.fixture(spec, _snapshot_observer_api(trace, snapshots, reads))
+    assert len(snapshots) == 2
+    assert reads == [(0, "id"), (0, "civ_affinity"), (1, "id"), (1, "civ_affinity")]
+    assert [row[0] for row in trace] == [
+        "public_bridge_constructor", "snapshot", "tick", "snapshot", "relationships"]
+    assert snapshots[0]["id"][0] == 1000 and snapshots[1]["id"][-1] == 900001
+    assert snapshots[0]["id"] != snapshots[1]["id"]
+    assert snapshots[0]["civ_affinity"] != snapshots[1]["civ_affinity"]
+    expected = m.query_rows(snapshots[1]["id"], snapshots[1]["civ_affinity"], spec)
+    grouped = [row for civ in range(8) for row in expected if row["civ"] == civ]
+    assert [row for _, row in info["rows"]] == grouped
+    assert 900001 in [gp.agent_id for gp, _ in info["rows"]]
+    ops = next(row[1] for row in trace if row[0] == "relationships")
+    assert ops.column("agent_a").to_pylist() == [row["id"] for row in expected for _ in range(8)]
+    assert ops.column("agent_b").to_pylist() == [
+        snapshots[1]["id"][(row["precursor"] + k) % 512]
+        for row in expected for k in range(1, 9)]
+    assert info["setup_ticks"] == 1 and info["alive"] == 512
+
+
+@pytest.mark.parametrize("layout", ["all-missing", "half-missing"])
+def test_missing_queries_reuse_the_validated_id_set_and_still_refuse_collisions(monkeypatch, layout):
+    ids = [1000 + 3*i for i in range(512)]
+    civs = [i//64 for i in range(512)]
+    built, checked = [], []
+    class WitnessSet(set):
+        def __contains__(self, value):
+            checked.append(value)
+            return super().__contains__(value)
+    def build(values):
+        built.append(tuple(values))
+        return WitnessSet(values)
+    monkeypatch.setattr(m, "set", build, raising=False)
+    spec = dict(requests=2, layout=layout)
+    rows = m.query_rows(ids, civs, spec)
+    absent = [row["id"] for row in rows if row["position"] is None]
+    assert built == [tuple(ids)] and checked == absent
+    collision = 2**32 - (1 if layout == "all-missing" else 2)
+    changed = ids.copy()
+    changed[-1] = collision
+    with pytest.raises(ValueError, match="missing_id_collision"):
+        m.query_rows(changed, civs, spec)
+    assert built == [tuple(ids), tuple(changed)]
+    assert checked[-1] == collision
