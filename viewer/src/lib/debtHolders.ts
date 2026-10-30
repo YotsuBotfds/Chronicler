@@ -101,6 +101,8 @@ export interface HolderRow {
   /** The lender: a region (merchants), city, guild or civilization name, or the group's label. */
   label: string;
   amount: number;
+  /** A recorded individual lender, even when its name equals a group label. */
+  named: boolean;
   /** Rate per turn of the line it holds, when the bundle records it. */
   rate: number | null;
   /** Interest due per turn at that rate. */
@@ -164,7 +166,8 @@ export function civDebtHolders(snapshot: TurnSnapshot | null, civ: string, detai
   const push = (group: HolderGroup, label: string, amount: number, rate: number | null, extra: Partial<HolderRow> = {}) => {
     if (amount > 0) {
       rows.push({
-        id: `${group}:${label}`, group, label, amount, rate, interest: rate == null ? null : amount * rate, ...extra,
+        id: `${group}:${extra.named ? "named" : "aggregate"}:${label}`, group, label, amount, named: false,
+        rate, interest: rate == null ? null : amount * rate, ...extra,
       });
     }
   };
@@ -187,7 +190,7 @@ export function civDebtHolders(snapshot: TurnSnapshot | null, civ: string, detai
         continue;
       }
       for (const [name, part] of Object.entries(parts)) {
-        push(group, name, part, rate, group === "merchants" ? { region: name } : {});
+        push(group, name, part, rate, { named: true, ...(group === "merchants" ? { region: name } : {}) });
       }
       // A claim the breakdown does not name (none is expected) stays visible.
       push(group, `${HOLDER_LABELS[group]}, not named`, amount - sum(Object.values(parts)), rate);
@@ -195,7 +198,7 @@ export function civDebtHolders(snapshot: TurnSnapshot | null, civ: string, detai
     push("domestic", `${HOLDER_LABELS.domestic}, not attributed`, domestic - attributed, rate);
     if (held?.foreign) {
       for (const [lender, [principal, lenderRate]] of Object.entries(held.foreign)) {
-        push("foreign", lender, principal, lenderRate, { civ: lender });
+        push("foreign", lender, principal, lenderRate, { civ: lender, named: true });
       }
       push("foreign", `${HOLDER_LABELS.foreign}, not named`,
         foreign - sum(Object.values(held.foreign).map(([principal]) => principal)), null);
@@ -234,7 +237,7 @@ export function realmsInDebt(snapshot: TurnSnapshot | null, civs: string[], deta
 }
 
 /** Civilizations that owed anything in some snapshot, largest peak debt first. */
-export function borrowers(history: TurnSnapshot[], civs: string[]): string[] {
+export function borrowers(history: TurnSnapshot[], civs: string[], eventBorrowers: string[] = []): string[] {
   const peak = new Map<string, number>();
   for (const snapshot of history) {
     for (const [civ, row] of Object.entries(snapshot.finance?.civs ?? {})) {
@@ -243,7 +246,9 @@ export function borrowers(history: TurnSnapshot[], civs: string[]): string[] {
       }
     }
   }
-  return civs.filter((civ) => peak.has(civ)).sort((left, right) => (peak.get(right) ?? 0) - (peak.get(left) ?? 0));
+  const eventNames = new Set(eventBorrowers);
+  return civs.filter((civ) => peak.has(civ) || eventNames.has(civ))
+    .sort((left, right) => (peak.get(right) ?? 0) - (peak.get(left) ?? 0));
 }
 
 /**
@@ -294,9 +299,9 @@ export function foreignLenderSeries(
 }
 
 export interface WriteOff {
-  /** Snapshot turn by which it was recorded. */
+  /** Snapshot boundary, or the event turn when no counter row represents it. */
   turn: number;
-  /** Debt written off since the snapshot before (lenders detail; null otherwise). */
+  /** Recorded counter increase; null when the amount is unavailable. */
   amount: number | null;
   /** A default was recorded since the snapshot before. */
   defaulted: boolean;
@@ -307,13 +312,51 @@ export interface WriteOff {
 const WRITE_OFF_EVENTS = new Set(["state_default", "debt_written_off"]);
 
 /**
+ * New event-only attribution requires one unambiguous world civilization.
+ * Use the full permanent world list, including fallen realms, and its real
+ * indices: index zero is valid. A name collision cannot establish identity.
+ */
+export function eventOnlyBorrowers(
+  events: Event[], worldCivs: readonly { name: string }[], currentTurn: number,
+): string[] {
+  const indices = new Map<string, number | null>();
+  worldCivs.forEach((civ, index) => {
+    indices.set(civ.name, indices.has(civ.name) ? null : index);
+  });
+  const names = new Set<string>();
+  for (const event of events) {
+    const name = event.actors[0];
+    if (event.turn <= currentTurn && WRITE_OFF_EVENTS.has(event.event_type)
+      && name !== undefined && indices.has(name) && indices.get(name) !== null) {
+      names.add(name);
+    }
+  }
+  return [...names];
+}
+
+/**
  * Defaults and write-offs on a civ's debt, snapshot by snapshot: a rise of
  * its default count or of the debt written off on it. A snapshot records the
  * fiscal tick of the turn before it, so the events counted are those after
  * the previous snapshot's tick, up to this one's.
  */
-export function writeOffs(history: TurnSnapshot[], civ: string, events: Event[], detail: HolderDetail): WriteOff[] {
+export function writeOffs(
+  history: TurnSnapshot[], civ: string, events: Event[], detail: HolderDetail, includeEventOnly = false,
+): WriteOff[] {
   const out: WriteOff[] = [];
+  const seen = new Set<string | Event>();
+  const lossEvents = events.filter((event) => {
+    if (!WRITE_OFF_EVENTS.has(event.event_type) || event.actors[0] !== civ) {
+      return false;
+    }
+    const key = event.event_id ?? event;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+  const represented = new Set<Event>();
   let previousTurn: number | null = null;
   let defaults = 0;
   let written = 0;
@@ -322,23 +365,33 @@ export function writeOffs(history: TurnSnapshot[], civ: string, events: Event[],
     if (!entry) {
       continue;
     }
-    const amount = entry.writtenOff == null ? null : entry.writtenOff - written;
+    const delta = entry.writtenOff == null ? null : entry.writtenOff - written;
+    const amount = delta != null && delta >= 0 ? delta : null;
     const defaulted = entry.defaults > defaults;
     if (defaulted || (amount ?? 0) > 0) {
       const from = previousTurn == null ? Number.NEGATIVE_INFINITY : previousTurn - 1;
-      out.push({
-        turn: snapshot.turn,
-        amount,
-        defaulted,
-        events: events.filter((event) => WRITE_OFF_EVENTS.has(event.event_type) && event.actors[0] === civ
-          && event.turn > from && event.turn <= snapshot.turn - 1),
-      });
+      const matched = lossEvents.filter((event) => event.turn > from && event.turn <= snapshot.turn - 1);
+      matched.forEach((event) => represented.add(event));
+      out.push({ turn: snapshot.turn, amount, defaulted, events: matched });
     }
     previousTurn = snapshot.turn;
     defaults = entry.defaults;
     written = entry.writtenOff ?? written;
   }
-  return out;
+  if (includeEventOnly) {
+    const byTurn = new Map<number, Event[]>();
+    for (const event of lossEvents) {
+      if (!represented.has(event)) {
+        const atTurn = byTurn.get(event.turn) ?? [];
+        atTurn.push(event);
+        byTurn.set(event.turn, atTurn);
+      }
+    }
+    for (const [turn, atTurn] of byTurn) {
+      out.push({ turn, amount: null, defaulted: atTurn.some((event) => event.event_type === "state_default"), events: atTurn });
+    }
+  }
+  return out.sort((left, right) => left.turn - right.turn);
 }
 
 /** Strip rows for a civ: turns in arrears, defaults, and (lenders detail) write-offs. */

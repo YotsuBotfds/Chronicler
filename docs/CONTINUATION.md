@@ -131,3 +131,30 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+## Viewer debt evidence correction — 2026-10-30
+
+This source-only child of PR #68 preserves its parent branch. The debt panel
+retains structured default/write-off events that lack a corresponding finance
+counter row, including a fallen borrower's final loss. Such rows say “Not
+recorded” for the amount; event prose does not supply numbers or identities.
+Only the first structured actor identifies the borrower, and new event-only
+attribution requires exactly one matching name in the complete world civilization
+array, including fallen entries. Ambiguous names remain in the global event
+list; existing name-keyed snapshot rows do not establish a distinct identity.
+
+At a scrubbed turn, the loss table uses only snapshots and events recorded by
+that turn. A later counter can replace an unknown event amount once it is
+available, without counting the event twice; a counter reset supplies no negative
+loss. Named lenders carry explicit identity separate from aggregate labels, so a
+civilization called “Foreign lenders”, or a city/guild matching a group label,
+remains visible. Debt bars remove fixed minima and gaps; separators paint inside
+shares to preserve their common scale.
+
+Twelve added regression cases and the full viewer test/lint/build suite are
+UNRUN at source preparation. The separate exact-ref
+`lead/viewer-debt-holders-qa-20261030` workflow uses Node 22 and the existing npm
+lock, captures Vitest's real exit status immediately, and always retains its
+source lock, available JUnit and exit record. Missing or cancelled test evidence
+is incomplete. No dependency, simulation, Native, existing workflow or default
+feature change is included.

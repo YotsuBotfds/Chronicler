@@ -475,15 +475,19 @@ button.systems-strip-label:hover {
 
 .debt-realm-bar {
   display: flex;
-  gap: 2px;
   height: 100%;
-  min-width: 4px;
+  min-width: 0;
 }
 
 .debt-realm-bar span {
   flex-basis: 0;
-  min-width: 2px;
+  min-width: 0;
   height: 100%;
+}
+
+/* Paint separators inside each share without adding width to the scale. */
+.debt-realm-bar span:not(:last-child) {
+  box-shadow: inset -1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .debt-realm-bar span:first-child {

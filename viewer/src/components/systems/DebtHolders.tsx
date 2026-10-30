@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { factionColor } from "../../lib/colors";
 import {
-  borrowers, civDebtHolders, creditEventsOf, DETAIL_NOTES, foreignLenderSeries, groupsInSeries, HOLDER_COLORS,
+  borrowers, civDebtHolders, creditEventsOf, DETAIL_NOTES, eventOnlyBorrowers, foreignLenderSeries, groupsInSeries, HOLDER_COLORS,
   HOLDER_GROUPS, HOLDER_LABELS, holderDetail, holderSeries, realmsInDebt, troubleRows, writeOffs,
   type CivDebtHolders, type HolderGroup, type HolderRow,
 } from "../../lib/debtHolders";
@@ -44,7 +44,7 @@ function groupRows(entry: CivDebtHolders, group: HolderGroup): { total: number; 
   return {
     total: rows.reduce((sum, row) => sum + row.amount, 0),
     interest,
-    named: rows.filter((row) => row.label !== HOLDER_LABELS[group]),
+    named: rows.filter((row) => row.named),
   };
 }
 
@@ -61,7 +61,12 @@ export function DebtHolders({
 }: SystemPanelProps & { civs: string[] }) {
   const history = bundle.history;
   const detail = useMemo(() => holderDetail(history), [history]);
-  const candidates = useMemo(() => borrowers(history, civs), [history, civs]);
+  const eventBorrowers = useMemo(
+    () => eventOnlyBorrowers(bundle.events_timeline, bundle.world_state.civilizations, currentTurn),
+    [bundle.events_timeline, bundle.world_state.civilizations, currentTurn]);
+  const candidates = useMemo(
+    () => borrowers(history, [...new Set([...civs, ...eventBorrowers])], eventBorrowers),
+    [history, civs, eventBorrowers]);
   const isCandidate = (name: string | null | undefined): name is string => !!name && candidates.includes(name);
   const [chosen, setChosen] = useState<string | null>(isCandidate(selectedCivilization) ? selectedCivilization : null);
   const [seenSelection, setSeenSelection] = useState(selectedCivilization ?? null);
@@ -80,8 +85,13 @@ export function DebtHolders({
     () => (civ && level === "lenders" ? foreignLenderSeries(history, civ, civs) : { lenders: [], data: [] }),
     [history, civ, civs, level]);
   const trouble = useMemo(() => (civ ? troubleRows(history, civ, level) : []), [history, civ, level]);
+  const uniqueCiv = civ != null && bundle.world_state.civilizations.filter((entry) => entry.name === civ).length === 1;
   const losses = useMemo(
-    () => (civ ? writeOffs(history, civ, bundle.events_timeline, level) : []), [history, civ, bundle.events_timeline, level]);
+    () => (civ ? writeOffs(
+      history.filter((row) => row.turn <= currentTurn), civ,
+      uniqueCiv ? bundle.events_timeline.filter((event) => event.turn <= currentTurn) : [],
+      level, eventBorrowers.includes(civ),
+    ) : []), [history, civ, bundle.events_timeline, level, currentTurn, eventBorrowers, uniqueCiv]);
 
   if (!detail) {
     return null;
@@ -93,7 +103,7 @@ export function DebtHolders({
   const current = civ ? civDebtHolders(snapshot, civ, detail) : null;
   const { first, end } = recordedSpan(history);
   const lossesSoFar = losses.filter((loss) => loss.turn <= currentTurn).reverse();
-  const events = civ
+  const events = civ && uniqueCiv
     ? creditEventsOf(eventsOfTypes(bundle.events_timeline, SYSTEM_EVENT_TYPES.finance, currentTurn), civ)
     : [];
   const lenders = detail === "lenders";
@@ -272,10 +282,10 @@ export function DebtHolders({
                       <tr><th>Turn</th><th>Written off</th><th>What</th></tr>
                     </thead>
                     <tbody>
-                      {lossesSoFar.map((loss) => (
-                        <tr key={loss.turn}>
+                      {lossesSoFar.map((loss, index) => (
+                        <tr key={`${loss.turn}:${index}`}>
                           <td>{loss.events.length > 0 ? loss.events[0].turn : `by ${loss.turn}`}</td>
-                          <td>{loss.amount ?? "-"}</td>
+                          <td>{loss.amount ?? "Not recorded"}</td>
                           <td>
                             {loss.events.length > 0 ? loss.events.map((event, index) => (
                               <button

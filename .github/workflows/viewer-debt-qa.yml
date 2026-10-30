@@ -1,0 +1,68 @@
+name: Viewer debt holders QA
+
+on:
+  push:
+    branches:
+      - lead/viewer-debt-holders-qa-20261030
+
+permissions:
+  contents: read
+
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lead/viewer-debt-holders-qa-20261030
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p viewer/qa-evidence
+          {
+            printf 'commit=%s\n' "$GITHUB_SHA"
+            printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')"
+            sha256sum viewer/package.json viewer/package-lock.json
+          } > viewer/qa-evidence/source-lock.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - name: Install locked dependencies
+        id: install
+        working-directory: viewer
+        run: npm ci
+      - name: Run viewer tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: viewer
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          set +e
+          npm test -- --maxWorkers=2 --reporter=default --reporter=junit --outputFile=qa-evidence/junit.xml
+          test_status=$?
+          printf 'VIEWER_TEST_EXIT_CODE=%s\n' "$test_status"
+          printf '%s\n' "$test_status" > qa-evidence/test-exit-code.txt
+          exit "$test_status"
+      - name: Lint viewer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: viewer
+        run: npm run lint
+      - name: Build viewer
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: viewer
+        run: npm run build
+      - name: Preserve QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewer-debt-qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: viewer/qa-evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -8,7 +8,9 @@ import learningFixture from "../../../__fixtures__/learning_bundle.json";
 import faithsFixture from "../../../__fixtures__/faiths_bundle.json";
 import faithsLegacyFixture from "../../../__fixtures__/faiths_legacy_bundle.json";
 import debtFixture from "../../../__fixtures__/debt_holders_bundle.json";
-import type { Bundle, TurnSnapshot } from "../../../types";
+import type { Bundle, Event, TurnSnapshot } from "../../../types";
+import { writeOffs } from "../../../lib/debtHolders";
+import systemsCss from "../systems.css?raw";
 import type { SystemPanelProps } from "../../../lib/systems";
 import { AgendasPanel } from "../AgendasPanel";
 import { CitiesPanel } from "../CitiesPanel";
@@ -179,6 +181,216 @@ describe("FinancePanel debt holders (--domestic-credit)", () => {
     expect(within(credit).getAllByRole("listitem").length).toBeGreaterThan(2);
     fireEvent.change(screen.getByRole("combobox", { name: "Borrower" }), { target: { value: "Saqeduni Empire" } });
     expect(screen.getByRole("region", { name: "Creditors of Saqeduni Empire" })).toBeInTheDocument();
+  });
+});
+
+
+describe("FinancePanel debt evidence boundaries", () => {
+  const CIV = "Khidutain Clans";
+
+  function lossEvent(overrides: Partial<Event> = {}): Event {
+    return {
+      turn: 2, event_type: "debt_written_off", actors: [CIV],
+      description: "Final structured claim loss", consequences: [], importance: 6,
+      event_id: "loss:2", ...overrides,
+    };
+  }
+
+  function lossBundle(keepFinance = true): Bundle {
+    const bundle = structuredClone(debtFixture) as unknown as Bundle;
+    const first = structuredClone(bundle.history.find((entry) => entry.turn === 54)!);
+    first.turn = 1;
+    first.finance!.civs[CIV].defaults = 0;
+    first.finance!.domestic_credit!.holders![CIV].written_off = 0;
+    const last = structuredClone(first);
+    last.turn = 3;
+    delete last.finance!.civs[CIV];
+    delete last.finance!.domestic_credit!.civs[CIV];
+    delete last.finance!.domestic_credit!.holders![CIV];
+    if (!keepFinance) {
+      delete first.finance!.civs[CIV];
+      delete first.finance!.domestic_credit!.civs[CIV];
+      delete first.finance!.domestic_credit!.holders![CIV];
+    }
+    const index = bundle.world_state.civilizations.findIndex((entry) => entry.name === CIV);
+    // Exercise the real first array slot; zero must not mean "no identity".
+    bundle.world_state.civilizations = [
+      bundle.world_state.civilizations[index],
+      ...bundle.world_state.civilizations.filter((_, i) => i !== index),
+    ];
+    bundle.history = [first, last];
+    bundle.events_timeline = [];
+    return bundle;
+  }
+
+  function withCounter(bundle: Bundle, written: number, defaults: number): TurnSnapshot {
+    const last = structuredClone(bundle.history[0]);
+    last.turn = 3;
+    last.finance!.civs[CIV].defaults = defaults;
+    last.finance!.domestic_credit!.holders![CIV].written_off = written;
+    bundle.history[1] = last;
+    return last;
+  }
+
+  it("keeps an extinct borrower's final event selectable with an explicitly unrecorded amount", () => {
+    const bundle = lossBundle();
+    bundle.events_timeline = [lossEvent()];
+    const p = { ...props(bundle, bundle.history[1]), selectedCivilization: CIV };
+    render(<FinancePanel {...p} />);
+    const table = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
+    expect(within(table).getByText("Not recorded")).toBeInTheDocument();
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    fireEvent.click(within(table).getByRole("button", { name: "Final structured claim loss" }));
+    expect(p.onSelectEvent).toHaveBeenCalledWith(bundle.events_timeline[0]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrower" }), { target: { value: "Saqeduni Empire" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Borrower" }), { target: { value: CIV } });
+    expect(screen.getByRole("region", { name: `Creditors of ${CIV}` })).toBeInTheDocument();
+  });
+
+  it("attributes a loss only to the first structured actor, never prose or secondary names", () => {
+    const bundle = lossBundle();
+    bundle.events_timeline = [
+      lossEvent({ actors: ["Sylenen Kingdom", CIV], civs: [CIV], description: `${CIV} is mentioned` }),
+      lossEvent({ event_id: "unknown", actors: ["Unknown borrower"], description: `${CIV} lost claims` }),
+    ];
+    render(<FinancePanel {...props(bundle, bundle.history[1])} selectedCivilization={CIV} />);
+    expect(screen.queryByRole("table", { name: `Defaults and write-offs of ${CIV}` })).not.toBeInTheDocument();
+  });
+
+  it("does not duplicate a structured event already represented by a snapshot counter", () => {
+    const bundle = lossBundle();
+    const last = withCounter(bundle, 20, 1);
+    const event = lossEvent({ event_type: "state_default" });
+    bundle.events_timeline = [event, { ...event }];
+    render(<FinancePanel {...props(bundle, last)} selectedCivilization={CIV} />);
+    const table = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    expect(within(table).getAllByRole("button", { name: event.description })).toHaveLength(1);
+    expect(within(table).getByText("20")).toBeInTheDocument();
+  });
+
+  it("reveals the event at its turn but takes an amount only from an already-recorded snapshot", () => {
+    const bundle = lossBundle();
+    const last = withCounter(bundle, 20, 1);
+    bundle.events_timeline = [lossEvent(), lossEvent({ turn: 4, event_id: "future", description: "Future loss" })];
+    const view = render(<FinancePanel {...props(bundle, bundle.history[0])} selectedCivilization={CIV} />);
+    expect(screen.queryByRole("table", { name: `Defaults and write-offs of ${CIV}` })).not.toBeInTheDocument();
+    view.rerender(<FinancePanel {...props(bundle, bundle.history[0])} currentTurn={2} selectedCivilization={CIV} />);
+    const early = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
+    expect(within(early).getByText("Not recorded")).toBeInTheDocument();
+    expect(within(early).queryByText("20")).not.toBeInTheDocument();
+    expect(within(early).queryByRole("button", { name: "Future loss" })).not.toBeInTheDocument();
+    view.rerender(<FinancePanel {...props(bundle, last)} selectedCivilization={CIV} />);
+    const recorded = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
+    expect(within(recorded).getByText("20")).toBeInTheDocument();
+    expect(within(recorded).queryByText("Not recorded")).not.toBeInTheDocument();
+    expect(within(recorded).getAllByRole("row")).toHaveLength(2);
+  });
+
+  it("does not mistake a cumulative-counter reset for another loss", () => {
+    const bundle = lossBundle();
+    bundle.history[0].finance!.domestic_credit!.holders![CIV].written_off = 20;
+    bundle.history[0].finance!.civs[CIV].defaults = 2;
+    withCounter(bundle, 0, 0);
+    const losses = writeOffs(bundle.history, CIV, [], "lenders", true);
+    expect(losses.map((loss) => [loss.turn, loss.amount])).toEqual([[1, 20]]);
+  });
+
+  it("retains a structured loss across a counter reset without displaying a negative amount", () => {
+    const bundle = lossBundle();
+    bundle.history[0].finance!.domestic_credit!.holders![CIV].written_off = 20;
+    bundle.history[0].finance!.civs[CIV].defaults = 2;
+    withCounter(bundle, 0, 0);
+    const losses = writeOffs(bundle.history, CIV, [lossEvent()], "lenders", true);
+    expect(losses.map((loss) => [loss.turn, loss.amount])).toEqual([[1, 20], [2, null]]);
+  });
+
+  it("includes a uniquely named event-only borrower with no stored finance row, including world index zero", () => {
+    const bundle = lossBundle(false);
+    bundle.events_timeline = [lossEvent()];
+    expect(bundle.world_state.civilizations[0].name).toBe(CIV);
+    render(<FinancePanel {...props(bundle, bundle.history[1])} selectedCivilization={CIV} />);
+    expect(screen.getByRole("region", { name: `Creditors of ${CIV}` })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` })).toHaveTextContent("Not recorded");
+    expect(screen.getByText(`${CIV} has no finance record at turn 3.`)).toBeInTheDocument();
+  });
+
+  it("keeps name-keyed counter losses but leaves ambiguous events global even with a positive counter", () => {
+    const bundle = lossBundle();
+    const last = withCounter(bundle, 20, 1);
+    bundle.world_state.civilizations.push({ ...bundle.world_state.civilizations[0], regions: [], population: 0 });
+    bundle.events_timeline = [lossEvent({ event_type: "state_default" })];
+    render(<FinancePanel {...props(bundle, last)} selectedCivilization={CIV} />);
+    expect(screen.getByRole("region", { name: `Creditors of ${CIV}` })).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: `Defaults and write-offs of ${CIV}` });
+    expect(within(table).getByText("20")).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: "Final structured claim loss" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: `Credit events of ${CIV}` })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Final structured claim loss")).toHaveLength(1);
+  });
+
+  it("does not invent a borrower from two matching world names without any finance history", () => {
+    const bundle = lossBundle(false);
+    bundle.world_state.civilizations.push({ ...bundle.world_state.civilizations[0], regions: [], population: 0 });
+    bundle.events_timeline = [lossEvent()];
+    render(<FinancePanel {...props(bundle, bundle.history[1])} selectedCivilization={CIV} />);
+    expect(screen.queryByRole("region", { name: `Creditors of ${CIV}` })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: CIV })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Final structured claim loss")).toHaveLength(1);
+  });
+
+  it("keeps a named civilization called Foreign lenders visible and inspectable", () => {
+    const bundle = lossBundle();
+    const snapshot = bundle.history[0];
+    snapshot.finance!.domestic_credit!.holders![CIV].foreign = { "Foreign lenders": [180, 0.05] };
+    const p = { ...props(bundle, snapshot), selectedCivilization: CIV };
+    render(<FinancePanel {...p} />);
+    const table = screen.getByRole("table", { name: `Holders of the debt of ${CIV} at turn 1` });
+    const button = within(table).getByRole("button", { name: "Foreign lenders" });
+    expect(button.closest("tr")).toHaveTextContent("180");
+    fireEvent.click(button);
+    expect(p.onSelectCivilization).toHaveBeenCalledWith("Foreign lenders");
+  });
+
+  it("keeps named cities and guilds whose names equal their group labels", () => {
+    const bundle = lossBundle();
+    const snapshot = bundle.history[0];
+    const held = snapshot.finance!.domestic_credit!.holders![CIV];
+    held.cities = { Cities: Object.values(held.cities!).reduce((sum, n) => sum + n, 0) };
+    held.guilds = { Guilds: Object.values(held.guilds!).reduce((sum, n) => sum + n, 0) };
+    render(<FinancePanel {...props(bundle, snapshot)} selectedCivilization={CIV} />);
+    const table = screen.getByRole("table", { name: `Holders of the debt of ${CIV} at turn 1` });
+    expect(within(table).getAllByText("Cities")).toHaveLength(2);
+    expect(within(table).getAllByText("Guilds")).toHaveLength(2);
+  });
+
+  it("keeps tiny diversified debts on the shared scale without fixed-width inflation", () => {
+    const bundle = lossBundle();
+    const snapshot = bundle.history[0];
+    for (const row of Object.values(snapshot.finance!.civs)) {
+      row.debt = 100;
+      row.foreign_debt = 0;
+    }
+    snapshot.finance!.civs[CIV].debt = 1;
+    snapshot.finance!.civs[CIV].foreign_debt = 0.4;
+    delete snapshot.finance!.domestic_credit;
+    const sheet = document.createElement("style");
+    sheet.textContent = systemsCss;
+    document.head.append(sheet);
+    try {
+      render(<FinancePanel {...props(bundle, snapshot)} selectedCivilization={CIV} />);
+      const track = screen.getByRole("img", { name: /^Khidutain Clans owes 1:/ });
+      const bar = track.querySelector<HTMLElement>(".debt-realm-bar")!;
+      expect(bar.style.width).toBe("1%");
+      expect(Number.parseFloat(getComputedStyle(bar).minWidth) || 0).toBe(0);
+      expect(Number.parseFloat(getComputedStyle(bar).gap) || 0).toBe(0);
+      expect(bar.children).toHaveLength(2);
+      for (const segment of bar.children) {
+        expect(Number.parseFloat(getComputedStyle(segment).minWidth) || 0).toBe(0);
+      }
+    } finally {
+      sheet.remove();
+    }
   });
 });
 
