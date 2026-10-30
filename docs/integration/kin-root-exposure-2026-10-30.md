@@ -125,7 +125,21 @@ scientific thresholds remain unchanged.
 
 `scripts/capture_kin_root_exposure.py` prepares the next distinct measurement.
 Its default invocation is disabled and imports no simulation runtime. The source
-and fake-driver cases are UNRUN at this freeze; no actual acquisition is claimed.
+and fake-driver cases were UNRUN at the original `8919f03d` freeze.
+
+That source's first focused execution subsequently passed all 30 pure fake-driver
+cases, with no failures or skips. The existing offline guard passed with no
+native imports, ecology/politics factory calls or blocked I/O attempts. The
+retained flat JUnit contains 30 cases; no detailed per-phase event stream is
+claimed. This docs-only child keeps the driver, all 30 cases, the original 99
+reader cases and all 40 chunk selections byte-exact to the tested source. The
+full standard Tests workflow remains a separate pending check.
+
+The focused result covers synthetic checkpoint/readout stand-ins, membership
+selection, argument/call-order contracts for the ordinary APIs and failure handling. Actual checkpoint
+decode, native or World execution, saved-frame acquisition and the proposed
+102-tick experiment remain held until separate whole-worker/native/resource
+admission. No temporal effect or scientific qualification follows from this pass.
 
 The input is one fresh current-source/native exact checkpoint: template seed42,
 8regions/4civilizations, world turn101 and the original500-turn configured

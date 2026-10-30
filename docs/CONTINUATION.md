@@ -1,3 +1,20 @@
+# Kin-root acquisition driver — first focused 30-case pass, 2026-10-30
+
+Source `8919f03d` passed its first focused execution of all 30 pure fake-driver
+cases, with no failures or skips. The existing offline guard passed with no
+native imports, ecology/politics factory calls or blocked I/O attempts. Flat
+JUnit retains 30 cases; no detailed per-phase event stream is claimed.
+This docs-only child preserves the driver, all 30 cases, the original 99 reader
+cases and all 40 chunk selections exactly. Full standard Tests CI is pending.
+
+Actual checkpoint/native/World execution, saved-frame acquisition and the
+proposed 102-tick experiment remain held until whole-worker/native/resource
+admission. No temporal effect or scientific qualification follows. See
+[the scoped result](integration/kin-root-exposure-2026-10-30.md).
+The exact preceding continuation follows unchanged.
+
+---
+
 # Kin-root first-fork acquisition driver — source only, 2026-10-30
 
 An explicit script can strict-load a current seed42/template first-fork
