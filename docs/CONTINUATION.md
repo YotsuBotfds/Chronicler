@@ -1,3 +1,26 @@
+# CI wall-clock attribution, without a scheduling change — 2026-10-30
+
+Fresh official 701 and 5122 run/job metadata puts the producer→native shards→
+aggregate→final chain on the critical path (520 and 574 seconds created→updated).
+Job creation→start was 1–3 seconds. Test-step shard imbalance was 1 second in 701
+but 74 in 5122, so no arbitrary repartition or workflow/cache change is justified.
+An ideal equal-work split saves at most 0.5 versus 37 seconds on these fixed
+measurements; these are bounds, not a controlled speedup.
+
+The [timing evidence/options note](performance/workflow-critical-path-2026-10-30.md)
+records parallel lanes and bottleneck migration. A compact opt-in stdlib helper
+analyzes saved official run/jobs JSON with an explicitly selected V2 topology,
+strict source/attempt/timestamp checks and truthful partial reports. It makes
+no network call or environment/secret discovery and runs no job body. Its
+nondefault contracts do not enter the existing 305-owner/default selection or
+39 offline chunks. No existing source/test/workflow/native bytes change except
+this documentation prefix; the new helper has no product or CI caller.
+
+Focused tests and use of the helper remain prospective at this source freeze.
+The full 701 continuation follows as an unchanged historical suffix.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
