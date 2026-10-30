@@ -1,3 +1,7 @@
+# GP prototype corrective gates - source only (2026-10-30)
+
+Child of frozen a86: genuine AgentBridge.tick_agents qualname/owner accepted; relevant class/MRO guards and World/Civ/GP read fields use static lookup without foreign descriptor callbacks. Exact scalar/reference/production bridge/native0dca remain unchanged and unwired. Old44pure+2Native bodies preserved,22new pure guard regressions; all68 authored UNRUN. No adoption threshold, source runtime, tests, Native, build, World, network or push. Original blocked source/review remain in history.
+
 # Private GP context sync prototype - source only, 2026-10-30
 
 The normal staging004 hybrid loop remains unchanged. A private, explicitly

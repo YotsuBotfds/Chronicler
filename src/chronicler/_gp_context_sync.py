@@ -19,40 +19,59 @@ from pydantic.main import _SIMPLE_SETATTR_HANDLERS
 from chronicler import agent_bridge as _bridge
 from chronicler import models as _models
 
+
+def _raw_class_member(cls, name):
+    """Resolve a relevant guard/field owner without descriptor invocation."""
+    for owner in type.__getattribute__(cls, "__mro__"):
+        fields = type.__getattribute__(owner, "__dict__")
+        if name in fields:
+            return owner, fields[name]
+    return None, None
+
+
 _MAX_REQUESTS = 50
 _CONTEXT_NODES = 512
 _CONTEXT_DEPTH = 16
 _METHODS = ("get_agent_context_batch", "get_agent_memories",
             "get_agent_needs", "get_agent_relationships")
-_STOCK_BRIDGE = _bridge.AgentBridge
-_STOCK_MEMORY = _bridge._get_agent_memory_records
-_STOCK_DECODE = _bridge._decode_agent_memory_row
-_STOCK_RECORD = _bridge.AgentMemoryRecord
-_MODEL_SETATTR = BaseModel.__setattr__
-_MODEL_GETATTR = BaseModel.__getattr__
+_STOCK_BRIDGE = vars(_bridge).get("AgentBridge")
+_STOCK_MEMORY = vars(_bridge).get("_get_agent_memory_records")
+_STOCK_DECODE = vars(_bridge).get("_decode_agent_memory_row")
+_STOCK_RECORD = vars(_bridge).get("AgentMemoryRecord")
+_MODEL_SETATTR = _raw_class_member(BaseModel, "__setattr__")[1]
+_MODEL_GETATTR = _raw_class_member(BaseModel, "__getattr__")[1]
 _MODEL_FIELD_HANDLER = (dict.get(_SIMPLE_SETATTR_HANDLERS, "model_field")
-                        if type(_SIMPLE_SETATTR_HANDLERS) is dict else None)
+                        if type(_SIMPLE_SETATTR_HANDLERS) is dict
+                        and all(type(key) is str for key in _SIMPLE_SETATTR_HANDLERS) else None)
 
 
-def _bridge_function(function, name):
+def _bridge_function(function, name, qualified=None):
     return (type(function) is FunctionType and function.__globals__ is vars(_bridge)
             and type(function.__module__) is str
-            and function.__module__ == _bridge.__name__ and function.__qualname__ == name
+            and type(function.__qualname__) is str
+            and function.__module__ == _bridge.__name__
+            and function.__qualname__ == (name if qualified is None else qualified)
             and function.__code__.co_name == name
             and function.__code__.co_filename == _bridge.__file__)
 
 
 def _model_runtime_stock():
+    if (vars(_pydantic_main).get("_SIMPLE_SETATTR_HANDLERS") is not _SIMPLE_SETATTR_HANDLERS
+            or type(_SIMPLE_SETATTR_HANDLERS) is not dict
+            or any(type(key) is not str for key in _SIMPLE_SETATTR_HANDLERS)):
+        return False
     for function, name, qualified in (
         (_MODEL_SETATTR, "__setattr__", "BaseModel.__setattr__"),
         (_MODEL_GETATTR, "__getattr__", "BaseModel.__getattr__"),
         (_MODEL_FIELD_HANDLER, "_model_field_setattr_handler", "_model_field_setattr_handler"),
     ):
         if (type(function) is not FunctionType or function.__globals__ is not vars(_pydantic_main)
+                or type(function.__module__) is not str or type(function.__qualname__) is not str
                 or function.__module__ != _pydantic_main.__name__ or function.__qualname__ != qualified
                 or function.__code__.co_name != name or function.__code__.co_filename != _pydantic_main.__file__):
             return False
-    return (BaseModel.__setattr__ is _MODEL_SETATTR and BaseModel.__getattr__ is _MODEL_GETATTR
+    return (_raw_class_member(BaseModel, "__setattr__")[1] is _MODEL_SETATTR
+            and _raw_class_member(BaseModel, "__getattr__")[1] is _MODEL_GETATTR
             and _SIMPLE_SETATTR_HANDLERS.get("model_field") is _MODEL_FIELD_HANDLER)
 
 
@@ -78,7 +97,7 @@ def _native_batch_getter(sim):
             or type(spec.origin) is not str or not spec.origin.endswith(tuple(EXTENSION_SUFFIXES))):
         return None
     if (type.__getattribute__(cls, "__dictoffset__") != 0
-            or type.__getattribute__(cls, "__getattribute__") is not object.__getattribute__):
+            or _raw_class_member(cls, "__getattribute__")[1] is not object.__getattribute__):
         return None
     owned = type.__getattribute__(cls, "__dict__")
     methods = []
@@ -98,11 +117,13 @@ def _native_batch_getter(sim):
 def _stock_model(value, cls):
     if type(value) is not cls or type(cls) is not type(BaseModel):
         return False
-    if (type(cls.__module__) is not str or cls.__module__ != "chronicler.models"
-            or cls.__getattribute__ is not object.__getattribute__
-            or cls.__setattr__ is not _MODEL_SETATTR or cls.__getattr__ is not _MODEL_GETATTR):
+    module = _raw_class_member(cls, "__module__")[1]
+    if (type(module) is not str or module != "chronicler.models"
+            or _raw_class_member(cls, "__getattribute__")[1] is not object.__getattribute__
+            or _raw_class_member(cls, "__setattr__")[1] is not _MODEL_SETATTR
+            or _raw_class_member(cls, "__getattr__")[1] is not _MODEL_GETATTR):
         return False
-    config = cls.model_config
+    config = _raw_class_member(cls, "model_config")[1]
     return (type(config) is dict and all(type(key) is str for key in config)
             and (config.get("frozen") is None or config.get("frozen") is False)
             and (config.get("validate_assignment") is None or config.get("validate_assignment") is False)
@@ -133,29 +154,53 @@ def _plain_context(value, remaining, active, depth=0):
 
 
 def _gp_assignment_stock():
-    gp_class = _models.GreatPerson
-    handlers = gp_class.__pydantic_setattr_handlers__
+    gp_class = vars(_models).get("GreatPerson")
+    if type(gp_class) is not type(BaseModel):
+        return False
+    handlers = _raw_class_member(gp_class, "__pydantic_setattr_handlers__")[1]
     if type(handlers) is not dict or any(type(key) is not str for key in handlers):
         return False
     for name in ("memories", "needs", "agent_bonds"):
         handler = handlers.get(name)
-        if name in vars(gp_class) or handler is not None and handler is not _MODEL_FIELD_HANDLER:
+        if _raw_class_member(gp_class, name)[0] is not None or handler is not None and handler is not _MODEL_FIELD_HANDLER:
             return False
     return True
 
 
+def _memory_record_stock():
+    if type(_STOCK_RECORD) is not type:
+        return False
+    module = _raw_class_member(_STOCK_RECORD, "__module__")[1]
+    # Exact metaclass type supplies this fixed data-descriptor metadata;
+    # __qualname__ is not an ordinary entry in a Python class's own dict.
+    qualified = type.__getattribute__(_STOCK_RECORD, "__qualname__")
+    slots = _raw_class_member(_STOCK_RECORD, "__slots__")[1]
+    return (type(module) is str and module == _bridge.__name__
+            and type(qualified) is str and qualified == "AgentMemoryRecord"
+            and type(slots) is tuple and all(type(name) is str for name in slots)
+            and slots == ("event_type", "source_civ", "turn", "intensity", "decay_factor", "is_legacy"))
+
+
 def _collect_targets(world):
     """Pure stock-model admission; no simulator lookup or field mutation."""
-    if (not _model_runtime_stock() or not _stock_model(world, _models.WorldState)
+    world_class = vars(_models).get("WorldState")
+    civ_class = vars(_models).get("Civilization")
+    gp_class = vars(_models).get("GreatPerson")
+    if (not _model_runtime_stock() or not _stock_model(world, world_class)
             or not _gp_assignment_stock()):
         return None
-    gp_class = _models.GreatPerson
+    # These are the exact scalar loop reads. Any effective class/MRO member
+    # selects scalar before raw-dict collection; never evaluate its descriptor.
+    for cls, names in ((world_class, ("civilizations",)), (civ_class, ("great_persons",)),
+                       (gp_class, ("active", "agent_id"))):
+        if type(cls) is not type(BaseModel) or any(_raw_class_member(cls, name)[0] is not None for name in names):
+            return None
     civs = object.__getattribute__(world, "__dict__").get("civilizations")
     if type(civs) is not list:
         return None
     targets = []
     for civ in civs:
-        if not _stock_model(civ, _models.Civilization):
+        if not _stock_model(civ, civ_class):
             return None
         persons = object.__getattribute__(civ, "__dict__").get("great_persons")
         if type(persons) is not list:
@@ -188,12 +233,16 @@ def _prepare_native_sync(self, world):
     Unsupported/edited inputs choose the original loop before batch reads/writes.
     Private/extras metadata is preserved rather than projected out.
     """
-    if (type(self) is not _STOCK_BRIDGE or _bridge.AgentBridge is not _STOCK_BRIDGE
-            or type(_STOCK_BRIDGE.__module__) is not str
-            or _STOCK_BRIDGE.__module__ != _bridge.__name__
-            or _STOCK_BRIDGE.__getattribute__ is not object.__getattribute__
-            or "_sim" in vars(_STOCK_BRIDGE)
-            or not _bridge_function(_STOCK_BRIDGE.tick_agents, "tick_agents")):
+    if (type(self) is not _STOCK_BRIDGE or type(_STOCK_BRIDGE) is not type
+            or vars(_bridge).get("AgentBridge") is not _STOCK_BRIDGE):
+        return None
+    module = _raw_class_member(_STOCK_BRIDGE, "__module__")[1]
+    tick_owner, tick = _raw_class_member(_STOCK_BRIDGE, "tick_agents")
+    if (type(module) is not str or module != _bridge.__name__
+            or _raw_class_member(_STOCK_BRIDGE, "__getattribute__")[1] is not object.__getattribute__
+            or _raw_class_member(_STOCK_BRIDGE, "_sim")[0] is not None
+            or tick_owner is not _STOCK_BRIDGE
+            or not _bridge_function(tick, "tick_agents", "AgentBridge.tick_agents")):
         return None
     bridge_fields = object.__getattribute__(self, "__dict__")
     if type(bridge_fields) is not dict or "tick_agents" in bridge_fields:
@@ -202,15 +251,12 @@ def _prepare_native_sync(self, world):
     getter = _native_batch_getter(sim)
     if getter is None:
         return None
-    if (_bridge._get_agent_memory_records is not _STOCK_MEMORY
-            or _bridge._decode_agent_memory_row is not _STOCK_DECODE
-            or _bridge.AgentMemoryRecord is not _STOCK_RECORD
+    if (vars(_bridge).get("_get_agent_memory_records") is not _STOCK_MEMORY
+            or vars(_bridge).get("_decode_agent_memory_row") is not _STOCK_DECODE
+            or vars(_bridge).get("AgentMemoryRecord") is not _STOCK_RECORD
             or not _bridge_function(_STOCK_MEMORY, "_get_agent_memory_records")
             or not _bridge_function(_STOCK_DECODE, "_decode_agent_memory_row")
-            or type(_STOCK_RECORD) is not type
-            or _STOCK_RECORD.__module__ != _bridge.__name__
-            or _STOCK_RECORD.__qualname__ != "AgentMemoryRecord"
-            or _STOCK_RECORD.__slots__ != ("event_type", "source_civ", "turn", "intensity", "decay_factor", "is_legacy")):
+            or not _memory_record_stock()):
         return None
     targets = _collect_targets(world)
     return None if targets is None else (sim, targets, getter)

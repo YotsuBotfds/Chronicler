@@ -352,3 +352,141 @@ def test_repeated_GP_occurrences_receive_ordered_replacements():
     sync._apply_rows([(gp, 7), (gp, 7)], rows)
     assert [row[2] for row in trace] == ["memories", "memories"]
     assert gp.memories[0]["event_type"] == 2
+
+
+# Corrective gate regressions. The Python API seam below deliberately replaces
+# only Native provenance in these pure cases; it is not C-method attestation.
+class GateAPI:
+    def __init__(self, trace):
+        self.trace=trace
+
+    def get_agent_memories(self, aid):
+        self.trace.append(("memories",aid))
+        return [(aid,0,1,-1,99)]
+
+    def get_agent_needs(self, aid):
+        self.trace.append(("needs",aid))
+        return (0.0,-0.0,0.25,0.5,0.75,1.0)
+
+    def get_agent_relationships(self, aid):
+        self.trace.append(("bonds",aid))
+        return []
+
+    def get_agent_context_batch(self, ids):
+        self.trace.append(("batch",tuple(ids)))
+        return [(aid,[(aid,0,1,-1,99)],(0.0,-0.0,0.25,0.5,0.75,1.0),[]) for aid in ids]
+
+
+def gate_fixture():
+    trace=[]
+    world=model_world([person(7)])
+    instance=bridge.AgentBridge.__new__(bridge.AgentBridge)
+    instance._sim=GateAPI(trace)
+    return instance,world,trace
+
+
+def gate_module(monkeypatch, before_import):
+    if before_import:
+        spec=importlib.util.spec_from_file_location("_gp_corrective_guard_probe",Path(sync.__file__))
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    else:
+        module=sync
+    monkeypatch.setattr(module,"_native_batch_getter",lambda sim:sim.get_agent_context_batch)
+    return module
+
+
+def test_stock_class_method_guard_admits_the_genuine_python_route_with_explicit_fake_API(monkeypatch):
+    instance,world,trace=gate_fixture()
+    module=gate_module(monkeypatch,False)
+    owner,method=module._raw_class_member(bridge.AgentBridge,"tick_agents")
+    assert owner is bridge.AgentBridge and method.__qualname__=="AgentBridge.tick_agents"
+    assert module._bridge_function(method,"tick_agents","AgentBridge.tick_agents")
+    prepared=module._prepare_native_sync(instance,world)
+    assert prepared is not None and prepared[0] is instance._sim and trace==[]
+    assert module._sync_batch_prototype(instance,world) is None
+    assert trace==[("batch",(7,))]
+    assert world.civilizations[0].great_persons[0].memories[0]["event_type"]==7
+
+
+@pytest.mark.parametrize("before_import",[False,True])
+@pytest.mark.parametrize("field",["civilizations","great_persons","active","agent_id"])
+def test_effective_read_field_property_refuses_without_callback_then_preserves_scalar_trace(monkeypatch,before_import,field):
+    admission=gate_fixture(); scalar=gate_fixture(); candidate=gate_fixture()
+    traces={}; counters={}
+    for instance,world,trace in (admission,scalar,candidate):
+        traces[id(world)]=trace
+        for civ in world.civilizations:
+            traces[id(civ)]=trace
+            for gp in civ.great_persons: traces[id(gp)]=trace
+    cls={"civilizations":WorldState,"great_persons":Civilization,"active":GreatPerson,"agent_id":GreatPerson}[field]
+    def read(obj):
+        trace=traces[id(obj)]
+        if field=="agent_id":
+            counters[id(obj)]=counters.get(id(obj),0)+1
+            trace.append(("read",field,counters[id(obj)]))
+            return counters[id(obj)]
+        trace.append(("read",field))
+        return False if field=="active" else object.__getattribute__(obj,"__dict__")[field]
+    monkeypatch.setattr(cls,field,property(read),raising=False)
+    module=gate_module(monkeypatch,before_import)
+    assert module._prepare_native_sync(admission[0],admission[1]) is None and admission[2]==[]
+    assert module._sync_scalar_reference(scalar[0],scalar[1]) is None
+    assert module._sync_batch_prototype(candidate[0],candidate[1]) is None
+    assert candidate[2]==scalar[2] and all(row[0]!="batch" for row in candidate[2])
+    left=object.__getattribute__(scalar[1],"__dict__")["civilizations"][0].__dict__["great_persons"][0]
+    right=object.__getattribute__(candidate[1],"__dict__")["civilizations"][0].__dict__["great_persons"][0]
+    assert bits((left.memories,left.needs,left.agent_bonds))==bits((right.memories,right.needs,right.agent_bonds))
+    if field=="agent_id":
+        assert [row for row in candidate[2] if row[0] in ("memories","needs","bonds")]==[("memories",2),("needs",3),("bonds",4)]
+
+
+@pytest.mark.parametrize("before_import",[False,True])
+@pytest.mark.parametrize("behavior",["return_original","raise"])
+def test_tick_method_descriptor_never_runs_during_guard_or_scalar_fallback(monkeypatch,before_import,behavior):
+    admission=gate_fixture(); scalar=gate_fixture(); candidate=gate_fixture(); callbacks=[]
+    original=bridge.AgentBridge.tick_agents
+    class Descriptor:
+        def __get__(self,obj,owner):
+            callbacks.append("foreign tick descriptor")
+            if behavior=="raise": raise AssertionError("guard invoked foreign descriptor")
+            return original
+    monkeypatch.setattr(bridge.AgentBridge,"tick_agents",Descriptor())
+    module=gate_module(monkeypatch,before_import)
+    assert module._prepare_native_sync(admission[0],admission[1]) is None
+    module._sync_scalar_reference(scalar[0],scalar[1])
+    module._sync_batch_prototype(candidate[0],candidate[1])
+    assert callbacks==[] and admission[2]==[] and candidate[2]==scalar[2]
+    assert all(row[0]!="batch" for row in candidate[2])
+
+
+@pytest.mark.parametrize("before_import",[False,True])
+@pytest.mark.parametrize("target",["gp_handlers","gp_config","record_slots","base_setattr"])
+def test_actual_guard_metadata_descriptors_are_rejected_statically(monkeypatch,before_import,target):
+    instance,world,trace=gate_fixture(); callbacks=[]
+    class Descriptor:
+        def __get__(self,obj,owner):
+            callbacks.append("get")
+            raise AssertionError("foreign metadata descriptor")
+        def __eq__(self,other):
+            callbacks.append("eq")
+            raise AssertionError("foreign metadata equality")
+        def __bool__(self):
+            callbacks.append("bool")
+            raise AssertionError("foreign metadata truth")
+    owner,name={"gp_handlers":(GreatPerson,"__pydantic_setattr_handlers__"),
+        "gp_config":(GreatPerson,"model_config"),"record_slots":(bridge.AgentMemoryRecord,"__slots__"),
+        "base_setattr":(BaseModel,"__setattr__")}[target]
+    monkeypatch.setattr(owner,name,Descriptor())
+    module=gate_module(monkeypatch,before_import)
+    assert module._prepare_native_sync(instance,world) is None
+    assert callbacks==[] and trace==[]
+
+
+def test_rebound_pydantic_handler_map_refuses_before_batch(monkeypatch):
+    import pydantic.main
+    instance,world,trace=gate_fixture(); module=gate_module(monkeypatch,False)
+    replacement=dict(pydantic.main._SIMPLE_SETATTR_HANDLERS)
+    replacement["model_field"]=lambda *args:pytest.fail("foreign field handler")
+    monkeypatch.setattr(pydantic.main,"_SIMPLE_SETATTR_HANDLERS",replacement)
+    assert module._prepare_native_sync(instance,world) is None and trace==[]

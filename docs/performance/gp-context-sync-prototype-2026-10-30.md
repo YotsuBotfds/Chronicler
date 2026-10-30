@@ -93,3 +93,11 @@ its own frozen variant and validation. Only subsequent matched ordinary
 whole-turn evidence can establish simulation throughput. No publication, first
 Native execution, performance run or production activation follows from this
 source packet alone.
+
+## Corrective source child
+
+The first independent full-source review blocked three guard issues: a top-level-only qualname check rejected the genuine `AgentBridge.tick_agents`; raw-dictionary collection missed effective read-field descriptors; and ordinary class lookup could invoke a foreign `tick_agents.__get__` before fallback. The corrective child resolves only relevant guard/field owners through raw class/MRO dictionaries, then checks the actual class-method qualname. Relevant field reads are World.civilizations, Civilization.great_persons and GreatPerson.active/agent_id; any effective class member on them selects scalar without evaluating it. Existing context writes and assignment handlers are guarded through the same static mechanism. Bridge metadata, Pydantic accessor/config/handler machinery and memory-record metadata are checked without foreign descriptor or equality calls; exact metaclass `type` supplies its own fixed qualname metadata. Rebinding the Pydantic field-handler map also selects scalar. This is a small compatibility gate, not generic descriptor or adversarial-code attestation.
+
+All44 original pure cases and both original Native cases remain byte-exact. Twenty-two new pure cases exercise positive stock-class admission, pre/post-import read-field fallback traces, tick descriptors that return the old method or raise, actual guard metadata descriptors and handler-map rebinding. The positive pure control explicitly injects a Python API seam only; it does not counterfeit or qualify compiled C provenance. Actual Native admission/state equivalence still requires the two unchanged guarded cases. No Native/PyArrow objects or performance experiment is created by these new cases. All68 prospective cases are authored UNRUN.
+
+The production bridge/scalar loop, exact scalar reference/global binding, native tree, care pins, default routes, flags,43 earlier chunks plus the existing44th prototype chunk,110-second caps and305 native owner registry remain unchanged. There is no performance threshold, activation or new runtime grant.
