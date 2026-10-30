@@ -205,6 +205,7 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
     # after the original foreign-rule/guard/controller/column gates demand them.
     histogram_regions = histogram_totals = None
     histogram_holders = {}
+    histogram_requests = {}
     for region_idx, region in enumerate(world.regions):
         if region.controller is None:
             continue
@@ -252,7 +253,17 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
                             and all(type(a) is np.ndarray and a.ndim == 1
                                     and a.dtype.kind in "iu" and len(a) == len(arrays[0])
                                     for a in arrays))
+                        use_histogram = False
                         if cached_integers:
+                            # Rent the unchanged vector scan for eight requests
+                            # per value. Build only when this value is demanded a
+                            # ninth time; each new value earns its own window.
+                            requests = histogram_requests.get(target_val_id, 0)
+                            if requests < 9:
+                                requests += 1
+                                histogram_requests[target_val_id] = requests
+                            use_histogram = requests == 9
+                        if use_histogram:
                             if histogram_totals is None:
                                 # Filter in the original dtype: never cast a huge
                                 # uint64 id or size a histogram from an untrusted id.

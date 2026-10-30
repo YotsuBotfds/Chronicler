@@ -1,3 +1,24 @@
+# Culture assimilation demand deferral — source-only child, 2026-10-30
+
+This separate219 child rents the exact vector scan for eight valid cached-integer
+requests per target, then builds on the ninth; regional totals are shared once,
+each of at most six holder targets earns its own window, and no state persists.
+All old guards, malformed/null/legacy fallback, denominator255/OR counts,
+column-demand, threshold, timer, private-signal and event order remain.
+
+Parent219's109 focused cases and first nine-job Tests run41004377008 passed.
+Its first complete576-call benchmark retained state/input/RNG parity and clean
+source guard but its registered joint clock verdict exited2 with44 CPU zeros.
+Positive wall observations remain descriptive, including the severe one-query
+indexing regression; no performance PASS or merge is claimed. This new child's
+tests and distinct planned wall-primary12+6fixture method2 are UNRUN.
+Eight is fixed before successor measurements, not tuned after seeing them.
+See [the updated scope and tradeoffs](performance/culture-assimilation-counts-2026-10-30.md).
+
+The complete original219 continuation follows unchanged.
+
+---
+
 # Culture assimilation count reuse — source-only candidate, 2026-10-30
 
 This isolated child of staging829 replaces repeated whole-agent region masks

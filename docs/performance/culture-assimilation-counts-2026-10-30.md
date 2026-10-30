@@ -48,3 +48,42 @@ after source review. Controlled complete-function timing/allocation and broader
 default-output/World/checkpoint/RNG/scientific comparisons remain unrun. This
 candidate neither changes nor replaces the original isolated701/5122 scientific
 sources, their first before-subset failure, seeds, horizons, arms or thresholds.
+
+
+## Demand-deferred child, 2026-10-30 — source only
+
+The first complete benchmark of219 retained576 calls with state/input/RNG parity,
+all positive wall intervals and a clean source guard. Its registered joint
+wall+CPU protocol exited2: INVALID_NONPOSITIVE_CLOCK, with44 short CPU zeros.
+That attempt is preserved at/tmp/chronicler-culture-phase-benchmark-run-20261030-ysurdksl;
+root completion660fe6 recorded77.065s elapsed,76.955593s CPU and167,308KiB
+maximum-child RSS. These are resource observations, not a performance PASS.
+Descriptive wall data showed the one-query250,000-row histogram condition about
+7.25times slower, while dense256-region/six-value conditions were about5–6times
+faster. The first registered verdict is not promoted and no condition is dropped.
+The219 branch's109 focused cases passed, followed by all nine first Tests jobs
+in run41004377008; those results do not qualify this new child.
+
+This child keeps the exact vector scan for the first eight valid cached-integer
+requests for each target value. The ninth builds regional totals once and that
+value's holder histogram; later requests reuse it. Every new target pays its own
+eight-query rental window even after shared totals exist. Counts are phase-local,
+capped at nine per target, and limited to the existing six integer targets.
+No world lookahead, persistent cache, RNG call, schema, tuning knob or feature
+activation is added. Unsupported/null/malformed/legacy paths and all original
+guard, column demand, private signal, threshold, timer and event ordering remain.
+
+Eight is fixed before any successor measurement. It protects one/two/eight-query
+conditions from N-sized indexing scratch; it does not claim an empirical optimal
+crossover. Ninth-request construction still costs O(N+R), long demand pays eight
+prior O(N) scans per target, and medium-demand regressions must remain visible.
+Worst-case scratch is still O(N) plus at most seven R-sized count arrays. New
+activation fixtures place decisive values at requests nine/ten, cover signed and
+huge uint64 IDs, exercise all six targets over60regions, and test independent
+per-target deferral, original gates, state/private/RNG parity and decode sharing.
+All new-candidate tests and performance measurements are UNRUN.
+
+Root plans a distinct wall-primary method2 for this source: the same original12
+fixtures plus six preregistered uniform crossover fixtures. The first joint
+negative and all44 CPU zeros remain unchanged; no old harness rerun, adaptive
+calibration, threshold retuning or performance claim is authorized by this note.
