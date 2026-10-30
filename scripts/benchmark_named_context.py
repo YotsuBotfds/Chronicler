@@ -174,6 +174,10 @@ def real_runtime(build, wheel_dir):
     require(wheel_receipt(wheel_dir, path, build["source_commit"]) == build["wheel_receipt"],
             "installed_wheel_changed")
 
+    return fixture_factory(native, pa)
+
+
+def fixture_factory(native, pa):
     def pool(spec):
         n = spec["slots"]
         sim = native.AgentSimulator(num_regions=8, seed=42)
@@ -272,7 +276,7 @@ def append_sample(stream, value):
     stream.flush()  # Preserve the row before numerical acceptance/refusal.
 
 
-def condition_result(spec, sim, ids, journal, wall, cpu):
+def _condition_result(spec, sim, ids, journal, wall, cpu, trials):
     queries, positions = query_ids(ids, spec)
     expected = scalar_rows(sim, queries)
     expected_digest = fingerprint(expected)
@@ -292,7 +296,7 @@ def condition_result(spec, sim, ids, journal, wall, cpu):
     batch_kernel(sim, queries, warmup)
     samples = []
     refused = False
-    for trial in range(PAIRS):
+    for trial in trials:
         order = ("scalar", "batch") if (spec["case"]+trial) % 2 == 0 else ("batch", "scalar")
         for side in order:
             sample = timed_sample(scalar_kernel if side == "scalar" else batch_kernel,
@@ -318,6 +322,22 @@ def condition_result(spec, sim, ids, journal, wall, cpu):
             wall_ratio_scalar_over_batch=wall_medians["scalar"]/wall_medians["batch"],
             CPU_ratio_scalar_over_batch=cpu_medians["scalar"]/cpu_medians["batch"],
             batch_wall_change_percent=(wall_medians["batch"]/wall_medians["scalar"]-1)*100)
+    return result
+
+
+def condition_result(spec, sim, ids, journal, wall, cpu):
+    return _condition_result(spec, sim, ids, journal, wall, cpu, range(PAIRS))
+
+
+def condition_trial(spec, sim, ids, journal, wall, cpu, trial):
+    require(type(trial) is int and 0 <= trial < PAIRS, "registered_trial")
+    result = _condition_result(spec, sim, ids, journal, wall, cpu, (trial,))
+    result["trial"] = trial
+    result["control_payload_sha256"] = fingerprint(
+        sim.get_agent_context_batch([ids[0], ids[0], 0, 2**32-1]))
+    for key in ("median_wall_ns", "median_process_CPU_ns", "wall_ratio_scalar_over_batch",
+                "CPU_ratio_scalar_over_batch", "batch_wall_change_percent"):
+        result.pop(key, None)
     return result
 
 

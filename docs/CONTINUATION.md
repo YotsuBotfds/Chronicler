@@ -1,3 +1,29 @@
+# Paired compiled context measurement — source only, 2026-10-30
+
+This fa5-based controller adds an opt-in comparison of exact829/nativea840 and
+ef716/native8e3. Actual controller/GitHub identity stays separate from each
+measured source. Two fresh own locked wheels build serially outside the shared
+comparison envelope; no driver is copied into a measured Git tree.
+
+The fixed21-case workload has252 planned samples from126 serial source/trial
+workers, with one fresh Native pool per trial. This differs from fa5's pool
+reuse across trials and does not replace that cohort. Source/helper order,
+20,000 records,200 warmups and three trials are registered unchanged.
+One600s/540CPU/2GiB/oneCPU envelope covers comparison, with128+1920MiB application
+partitions and512s whole-worker CPU credit. Owner-inclusive2MiB evidence and
+joint16MiB wheel caps retain refusals, regressions, failures and not_run states.
+
+Source publication and run-ref activation remain distinct; main is untouched.
+All new fake checks, builds and measurements are UNRUN at this source freeze.
+The prior40 chunks,27 legacy contracts and110-second caps remain. fa5's94×
+regression,9705's invalid workflow, b32's first care-pin failure and ef716's
+repair stay preserved. ef716 firstTests41004287197/1 reports nine successful
+jobs in root's official metadata; this supplies no paired timing qualification.
+See [the method](performance/paired-context-benchmark-2026-10-30.md).
+The complete fa5 continuation follows unchanged.
+
+---
+
 # Named context workflow expression repair - source only, 2026-10-30
 
 Public9705 source publication produced run41000767288/1 with an invalid-workflow
