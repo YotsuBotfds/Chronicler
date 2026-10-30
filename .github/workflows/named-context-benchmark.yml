@@ -1,0 +1,192 @@
+name: Named context API benchmark
+
+# A new dispatch-only file may not be registered on default. The first hosted
+# measurement is an explicitly approved normal push to this dedicated run ref.
+# Publishing lead/named-context-benchmark-source-20261030 does not activate it.
+on:
+  push:
+    branches: [lead/named-context-benchmark-run-20261030]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    if: github.ref == 'refs/heads/lead/named-context-benchmark-run-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      RAYON_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_INCREMENTAL: "0"
+      PYTHONPATH: src:.
+    steps:
+      - name: Check out the measured source
+        uses: actions/checkout@v4
+
+      - name: Admit this first run attempt and private output paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$GITHUB_REF" = refs/heads/lead/named-context-benchmark-run-20261030
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD:chronicler-agents)" = 09ec301efc5c52a0a75f7a6edd9b99636d2953ff
+          mkdir "$RUNNER_TEMP/context-build" "$RUNNER_TEMP/context-wheel" "$RUNNER_TEMP/context-owner"
+          context_target="$RUNNER_TEMP/named-context-target"
+          test ! -e "$context_target"
+          printf 'CARGO_TARGET_DIR=%s\n' "$context_target" >> "$GITHUB_ENV"
+          python -B scripts/benchmark_named_context.py --plan-only --output "$RUNNER_TEMP/context-build/plan.json"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install locked Python dependencies and the wheel builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+          rustc --version --verbose > "$RUNNER_TEMP/context-build/rustc.txt"
+          cargo --version > "$RUNNER_TEMP/context-build/cargo.txt"
+          .venv/bin/python -m maturin --version > "$RUNNER_TEMP/context-build/maturin.txt"
+          uv --version > "$RUNNER_TEMP/context-build/uv.txt"
+
+      - name: Build and install this source's fresh locked release wheel
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m maturin build --release --locked \
+            --manifest-path chronicler-agents/Cargo.toml --interpreter .venv/bin/python \
+            --out "$RUNNER_TEMP/context-wheel"
+          uv pip install --python .venv/bin/python "$RUNNER_TEMP/context-wheel/"*.whl
+
+      - name: Link current source, wheel and real compiled exports
+        id: identity
+        run: .venv/bin/python -B scripts/benchmark_named_context.py --record-build --root "$PWD" --wheel-dir "$RUNNER_TEMP/context-wheel" --build "$RUNNER_TEMP/context-build/build.json"
+
+      - name: Run the fixed compiled comparison under separate limits
+        id: comparison
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          context_cpu="$(.venv/bin/python -c 'import os; print(min(os.sched_getaffinity(0)))')"
+          (
+            ulimit -v 2097152
+            ulimit -t 540
+            exec timeout --signal=KILL 600s taskset -c "$context_cpu" \
+              .venv/bin/python -B scripts/benchmark_named_context.py --execute \
+              --wheel-dir "$RUNNER_TEMP/context-wheel" \
+              --build "$RUNNER_TEMP/context-build/build.json" \
+              --output "$RUNNER_TEMP/context-results"
+          )
+          context_exit=$?
+          echo "exit_code=$context_exit" >> "$GITHUB_OUTPUT"
+          exit "$context_exit"
+
+      - name: Retain bounded owner and structured evidence inventory
+        id: inventory
+        if: always()
+        shell: bash
+        env:
+          CONTEXT_COMPARISON_EXIT: ${{ steps.comparison.outputs.exit_code }}
+          CONTEXT_IDENTITY_OUTCOME: ${{ steps.identity.outcome }}
+        run: |
+          python -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          def encode_owner(value, file_bytes, body_cap, file_cap):
+              def encode(row):
+                  return (json.dumps(row, sort_keys=True, indent=2)+"\n").encode()
+              body = encode(value)
+              if len(body) > file_cap or file_bytes+len(body) > body_cap:
+                  value = dict(value, evidence_retention="refused", refusal=value.get("refusal")
+                      or "structured evidence including owner exceeds the fixed body cap")
+                  body = encode(value)
+                  if len(body) > file_cap:
+                      value = dict(value, files=[],
+                          refusal="owner inventory exceeds per-file cap; member list omitted")
+                      body = encode(value)
+              if len(body) > min(body_cap, file_cap):
+                  raise ValueError("bounded owner metadata exceeds the fixed body cap")
+              return value, body
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          paths = [*(root/"context-build").glob("*.json"), *(root/"context-build").glob("*.txt"),
+                   *(root/"context-results").glob("*.json"), *(root/"context-results").glob("*.jsonl")]
+          records = []
+          total = 0
+          refusal = None
+          for path in sorted(paths):
+              size = path.stat().st_size
+              total += size
+              if size > 512*1024 or total > 2*1024*1024:
+                  refusal = "structured context evidence exceeds the fixed 2MiB body cap"
+                  break
+              records.append(dict(path=str(path.relative_to(root)), bytes=size,
+                                  sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+          value = dict(kind="CONTEXT_BENCHMARK_HOSTED_OWNER_ASOF",
+              source=os.environ["GITHUB_SHA"], ref=os.environ["GITHUB_REF"],
+              run_id=os.environ["GITHUB_RUN_ID"], run_attempt=os.environ["GITHUB_RUN_ATTEMPT"],
+              comparison_exit=os.environ.get("CONTEXT_COMPARISON_EXIT") or None,
+              identity_outcome=os.environ.get("CONTEXT_IDENTITY_OUTCOME"), files=records,
+              evidence_retention="refused" if refusal else "within_body_cap", refusal=refusal,
+              build_inside_comparison_limits=False,
+              comparison_limits=dict(wall_seconds=600, CPU_seconds=540, address_space_bytes=2147483648, CPUs=1),
+              whole_turn_or_complete_Python_sync_measured=False)
+          value, body = encode_owner(value, total, 2*1024*1024, 512*1024)
+          destination=root/"context-owner/owner.json"
+          destination.parent.mkdir(exist_ok=True)
+          destination.write_bytes(body)
+          if value["refusal"]:
+              raise SystemExit(value["refusal"])
+          PY
+
+      - name: Publish structured evidence, including incomplete attempts
+        if: always() && steps.inventory.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: named-context-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/context-build/*.json
+            ${{ runner.temp }}/context-build/*.txt
+            ${{ runner.temp }}/context-results/*.json
+            ${{ runner.temp }}/context-results/*.jsonl
+            ${{ runner.temp }}/context-owner/owner.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish owner failure or refusal metadata
+        if: always() && steps.inventory.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: named-context-owner-failure-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/context-owner/owner.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish the separately bounded own wheel
+        if: always() && steps.identity.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: named-context-wheel-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/context-wheel/*.whl
+          if-no-files-found: error
+          retention-days: 14

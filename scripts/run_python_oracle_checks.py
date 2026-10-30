@@ -327,12 +327,11 @@ CHUNKS = {
     "ci-artifact-intake-pure-contracts": [
         "tests/ci_artifact_intake_contracts.py",
     ],
-    "kin-root-exposure-contracts": [
-        "tests/kin_root_exposure_contract_cases.py",
-        "tests/kin_capture_driver_contract_cases.py",
+    "named-context-benchmark-contracts": [
+        "tests/named_context_benchmark_contract_cases.py",
     ],
-    "ci-critical-path-contracts": [
-        "tests/ci_critical_path_contracts.py",
+    "paired-context-benchmark-contracts": [
+        "tests/paired_context_benchmark_contract_cases.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
@@ -367,7 +366,7 @@ for selected in TESTS:
     path = ROOT / selected.split("::", 1)[0]
     sources[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
 for helper in ("scripts/native_release_cache.py", "scripts/ci_artifact_intake.py",
-               "scripts/capture_kin_root_exposure.py", "scripts/ci_critical_path.py"):
+               "scripts/benchmark_named_context.py", "scripts/paired_context_benchmark.py"):
     sources[helper] = hashlib.sha256((ROOT / helper).read_bytes()).hexdigest()
 git = ["git", "-c", f"safe.directory={ROOT.as_posix()}", "-C", str(ROOT)]
 head = subprocess.check_output(git + ["rev-parse", "HEAD"], timeout=10).decode().strip()
