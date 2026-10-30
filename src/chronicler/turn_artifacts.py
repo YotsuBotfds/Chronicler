@@ -6,21 +6,49 @@ them. Arrow's batch is borrowed unchanged, while named-agent membership is copie
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
-from types import MappingProxyType
+from types import MappingProxyType, MethodDescriptorType
 from typing import TYPE_CHECKING, Literal, Mapping, cast
 
 import numpy as np
 import pyarrow as pa
+from arro3.core import RecordBatch as Arro3RecordBatch
 
 from chronicler.bridge_contract import FloatColumn, IntColumn
-from chronicler.columnar import numeric_array, pylist, schema_names
+from chronicler.columnar import numeric_array, ordered_counts, pylist, schema_names
 
 if TYPE_CHECKING:
     from chronicler.economy import EconomyResult
     from chronicler.models import AgentEventRecord
 
 Stage = Literal["phase10_entry"]
+
+# Closed immutable Arrow batch classes; names/protocols do not admit duck batches.
+_IMMUTABLE_RECORD_BATCH_TYPES = (pa.RecordBatch, Arro3RecordBatch)
+
+
+def _immutable_record_batch(batch) -> bool:
+    """Known Arrow classes or the source-verified frozen raw PyO3 Arrow class.
+
+    This is the trusted Arrow data contract, not arbitrary-extension attestation.
+    Owned C descriptors reject Python name/module spoofs, borrowed methods and
+    subclasses without calling an exporter or an instance metadata getter.
+    """
+    cls = type(batch)
+    if any(cls is known for known in _IMMUTABLE_RECORD_BATCH_TYPES):
+        return True
+    if type(cls) is not type:
+        return False
+    namespace = type.__getattribute__(cls, "__dict__")
+    module = type.__getattribute__(cls, "__module__")
+    if (type(module) is not str or module != "arro3.core._core"
+            or type.__getattribute__(cls, "__name__") != "RecordBatch"
+            or type.__getattribute__(cls, "__base__") is not object):
+        return False
+    return all(type(namespace.get(name)) is MethodDescriptorType
+               and namespace[name].__objclass__ is cls
+               for name in ("__arrow_c_array__", "column"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +78,35 @@ class AgentRows:
     __arrays: dict[str, np.ndarray | None] = field(
         default_factory=dict, init=False, repr=False, compare=False,
     )
+
+    # One successful filtered region/belief summary. Tuples own their order and
+    # counts; every caller receives fresh mutable dicts/Counters as before.
+    __religion_region_counts: list[tuple[tuple[int, tuple[tuple[int, int], ...]], ...]] = field(
+        default_factory=list, init=False, repr=False, compare=False,
+    )
+
+    def _region_faith_counts(self) -> dict[int, Counter] | None:
+        """Private belief!=255 grouping for the immutable historical region rows.
+
+        Keep column demand before cache lookup. Only exact integer arrays of a
+        declared immutable batch retain a successful summary; all other shapes,
+        nulls, numeric coercions and errors preserve the original grouping path.
+        """
+        arrays = self.arrays("region", "belief")
+        if arrays is None:
+            return None
+        keys, beliefs = arrays
+        cacheable = (_immutable_record_batch(self.batch)
+            and all(type(a) is np.ndarray and a.ndim == 1 and a.dtype.kind in "iu"
+                    for a in arrays) and len(keys) == len(beliefs))
+        if cacheable and self.__religion_region_counts:
+            return {key: Counter(dict(items)) for key, items in self.__religion_region_counts[0]}
+        has_faith = beliefs != 0xFF
+        counts = ordered_counts(keys[has_faith], beliefs[has_faith])
+        if cacheable:
+            self.__religion_region_counts.append(tuple(
+                (key, tuple(values.items())) for key, values in counts.items()))
+        return counts
 
     def has(self, name: str) -> bool:
         return name in schema_names(self.batch)

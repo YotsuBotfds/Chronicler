@@ -169,3 +169,45 @@ def test_decision_delivery_api_failed_tick_cannot_publish_an_old_frame():
     assert decisions.num_rows == candidates.num_rows == 0
     sim.tick(1, _signals())
     assert _frame(sim)[0]["source_turn"] == 1
+
+
+# Raw pyo3-arrow classes may differ from the runtime arro3 class by identity.
+# This first-hosted-CI contract must exercise actual raw snapshot reuse, no tick.
+def test_raw_native_snapshot_reuses_filtered_religion_counts_without_tick(monkeypatch):
+    import pyarrow as pa
+    import chronicler.turn_artifacts as artifacts
+    from chronicler.religion import compute_majority_belief
+
+    native = _native()
+    sim = native.AgentSimulator(num_regions=2, seed=42)
+    sim.set_region_state(pa.record_batch({
+        "region_id": pa.array([0, 1], type=pa.uint16()),
+        "terrain": pa.array([0, 0], type=pa.uint8()),
+        "carrying_capacity": pa.array([40, 40], type=pa.uint16()),
+        "population": pa.array([8, 8], type=pa.uint16()),
+        "soil": pa.array([0.8, 0.8], type=pa.float32()),
+        "water": pa.array([0.6, 0.6], type=pa.float32()),
+        "forest_cover": pa.array([0.3, 0.3], type=pa.float32()),
+        "controller_civ": pa.array([0, 0], type=pa.uint8()),
+        "food_sufficiency": pa.array([1.0, 1.0], type=pa.float32()),
+        "adjacency_mask": pa.array([2, 1], type=pa.uint32()),
+        "initial_belief": pa.array([0, 1], type=pa.uint8()),
+    }))
+    raw = sim.get_snapshot()  # retain the real returned type; no normalization
+    assert raw.num_rows > 0 and artifacts._immutable_record_batch(raw)
+    before = bytes(sim.checkpoint_state())
+    expected = compute_majority_belief(raw)
+    assert expected == {0: 0, 1: 1}
+    rows = artifacts.AgentRows(artifacts.Stamp(0, "phase10_entry"), raw)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    assert compute_majority_belief(raw, agent_rows=rows) == expected
+    assert compute_majority_belief(raw, agent_rows=rows) == expected
+    assert compute_majority_belief(raw, agent_rows=rows) == expected
+    assert len(calls) == 1
+    assert bytes(sim.checkpoint_state()) == before

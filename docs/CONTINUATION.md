@@ -1,3 +1,24 @@
+# Religion filtered count reuse — source-only829 child, 2026-10-30
+
+Three Phase10 religion consumers demand the same filtered region/belief counts.
+This child adds one lazy, success-only per-AgentRows immutable summary and
+returns caller-private Counter copies. Filter-before-group order,255-inclusive
+full distribution, original gates/columns/errors, live policy, ties/events/RNG
+and all uncached/null/noninteger/duck/subclass fallbacks remain.
+
+The trusted Arrow gate recognizes exact declared batch classes and the pinned
+frozen raw C RecordBatch family by owned C descriptors; it calls no exporter.
+Eighteen pure cases append to existing views owner0/core. One existing native
+owner1 test requires actual RAW get_snapshot cache activation on a tiny seeded
+simulator without a tick. All are UNRUN; raw-native activation and performance
+must not be inferred from source or pure Arrow cases. Native Rust/bridge/
+simulation/workflows/defaults/owners/chunks/caps remain exact829.
+
+See [the proposed scope and costs](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete original829 continuation follows unchanged.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-

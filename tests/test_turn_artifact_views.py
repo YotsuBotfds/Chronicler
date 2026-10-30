@@ -385,3 +385,301 @@ def test_missing_and_empty_batches_keep_return_and_zero_believer_behavior(availa
     events = check_pilgrimages([gp], [], batch, 7, **kw)
     assert [e.event_type for e in events] == ["pilgrimage_return"]
     assert gp.pilgrimage_return_turn is None
+
+
+# Religion reuse is a derived-count cache, separate from the existing column cache.
+def _faith_batch(kind="pyarrow"):
+    batch = consumer_batch()
+    if kind == "arro3":
+        from arro3.core import RecordBatch
+        batch = RecordBatch.from_arrow(batch)
+    return batch
+
+
+def _faith_chain_state(batch, rows=None):
+    from copy import deepcopy
+
+    regions, civs, beliefs = religion_inputs()
+    kw = {"agent_rows": rows} if rows is not None else {}
+    seen = set()
+    rng = random.getstate()
+    before = pa.record_batch(batch).to_pydict()
+    majority = compute_majority_belief(batch, **kw)
+    persecution = compute_persecution(regions, civs, beliefs, batch, 7, seen, **kw)
+    schisms = detect_schisms(regions, civs, beliefs, batch, 7, **kw)
+    assert random.getstate() == rng
+    assert pa.record_batch(batch).to_pydict() == before
+    return (list(majority.items()), [e.model_dump(mode="json") for e in persecution + schisms],
+            deepcopy([(m.model_dump(mode="json"), m.__pydantic_private__)
+                      for m in [*regions, *civs, *beliefs]]), seen)
+
+
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+def test_religion_counts_reused_by_all_three_actual_consumers(kind, monkeypatch):
+    import chronicler.turn_artifacts as artifacts
+
+    batch = _faith_batch(kind)
+    expected = _faith_chain_state(batch)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append((keys.tolist(), values.tolist()))
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    rows = rows_for(batch, 7)
+    actual = _faith_chain_state(batch, rows)
+    assert actual == expected
+    assert len(calls) == 1
+    assert [e["event_type"] for e in actual[1]] == ["Persecution", "Mass Migration", "Schism"]
+    # Reusing snapshot counts must not freeze the ruler's live faith/policy.
+    regions, civs, beliefs = religion_inputs()
+    compute_persecution(regions, civs, beliefs, batch, 7, set(), agent_rows=rows)
+    assert any(r.persecution_intensity > 0 for r in regions)
+    civs[0].civ_majority_faith = 1  # this existing faith is peaceful
+    expected_regions = [r.model_copy(deep=True) for r in regions]
+    expected_events = compute_persecution(expected_regions, civs, beliefs, batch, 7, set())
+    actual_events = compute_persecution(regions, civs, beliefs, batch, 7, set(), agent_rows=rows)
+    assert [e.model_dump() for e in actual_events] == [e.model_dump() for e in expected_events]
+    assert [r.model_dump() for r in regions] == [r.model_dump() for r in expected_regions]
+    assert all(r.persecution_intensity == 0 and r.persecuting_faith is None for r in regions)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+def test_religion_counts_filter_before_grouping_and_return_private_counters(kind, monkeypatch):
+    from collections import Counter
+    import chronicler.religion as religion
+    import chronicler.turn_artifacts as artifacts
+    from chronicler.columnar import ordered_counts
+
+    batch = pa.record_batch({"region": [0, 1, 0, 1, 1, 0],
+                             "belief": [255, 2, 1, 0, 2, 0]})
+    if kind == "arro3":
+        from arro3.core import RecordBatch
+        batch = RecordBatch.from_arrow(batch)
+    rows = rows_for(batch, 7)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    first = religion._faith_counts_by(batch, rows, "region")
+    assert list(first) == [1, 0]
+    assert list(first[1].items()) == [(2, 2), (0, 1)]
+    assert list(first[0].items()) == [(1, 1), (0, 1)]
+    # Full255-inclusive counts have a different outer order and remain separate.
+    full = ordered_counts(*rows.arrays("region", "belief"))
+    assert list(full) == [0, 1] and list(full[0]) == [255, 1, 0]
+    first[1].clear()
+    first[0][1] = 999
+    first[7] = Counter({7: 7})
+    again = religion._faith_counts_by(batch, rows, "region")
+    assert list(again) == [1, 0] and list(again[1].items()) == [(2, 2), (0, 1)]
+    assert list(again[0].items()) == [(1, 1), (0, 1)]
+    third = religion._faith_counts_by(batch, rows, "region")
+    assert third == again and third is not again and third[1] is not again[1]
+    assert compute_majority_belief(batch, agent_rows=rows) == {1: 2, 0: 0}
+    assert len(calls) == 1
+
+
+def test_religion_region_counts_do_not_reuse_civ_key_or_other_view(monkeypatch):
+    import chronicler.religion as religion
+    import chronicler.turn_artifacts as artifacts
+
+    batch = pa.record_batch({"region": [0, 1, 0], "civ_affinity": [4, 4, 3], "belief": [255, 2, 1]})
+    rows = rows_for(batch, 7)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    assert list(religion._faith_counts_by(batch, rows, "region")) == [1, 0]
+    assert list(religion._faith_counts_by(batch, rows, "civ_affinity")) == [4, 3]
+    assert list(religion._faith_counts_by(batch, rows_for(batch, 8), "region")) == [1, 0]
+    assert len(calls) == 2  # separate view/stamp, not a global batch memo
+
+
+@pytest.mark.parametrize("mismatch", ["batch", "persecution-turn", "schism-turn"])
+def test_religion_warm_summary_does_not_bypass_identity_checks(mismatch, monkeypatch):
+    import chronicler.turn_artifacts as artifacts
+
+    batch = _faith_batch()
+    rows = rows_for(batch, 7)
+    compute_majority_belief(batch, agent_rows=rows)
+    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("identity failure grouped"))
+    regions, civs, beliefs = religion_inputs()
+    before = [r.model_dump() for r in regions]
+    with pytest.raises(ValueError):
+        if mismatch == "batch":
+            compute_majority_belief(_faith_batch(), agent_rows=rows)
+        elif mismatch == "persecution-turn":
+            compute_persecution(regions, civs, beliefs, batch, 8, set(), agent_rows=rows)
+        else:
+            detect_schisms(regions, civs, beliefs, batch, 8, agent_rows=rows)
+    assert [r.model_dump() for r in regions] == before
+
+
+@pytest.mark.parametrize("kind", ["float", "boolean", "null"])
+def test_religion_unsupported_arrays_keep_original_uncached_fallback(kind, monkeypatch):
+    import chronicler.turn_artifacts as artifacts
+
+    values = ([1.0, 1.0, 2.0] if kind == "float" else
+              [True, True, False] if kind == "boolean" else [None, 1, 1])
+    batch = pa.record_batch({"region": [0, 0, 0], "belief": values})
+    expected = compute_majority_belief(batch)
+    rows = rows_for(batch)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    assert compute_majority_belief(batch, agent_rows=rows) == expected
+    assert compute_majority_belief(batch, agent_rows=rows) == expected
+    assert len(calls) == (0 if kind == "null" else 2)
+
+
+class _FaithMutableBatch:
+    def __init__(self):
+        from types import SimpleNamespace
+        import numpy as np
+        self.values = {"region": np.array([0, 0, 0], dtype=np.uint16),
+                       "belief": np.array([1, 1, 2], dtype=np.uint8)}
+        self.schema = SimpleNamespace(names=tuple(self.values))
+        self.num_rows = 3
+
+    def column(self, name):
+        values = self.values[name]
+
+        class Column:
+            null_count = 0
+
+            def to_numpy(self):
+                # A readonly decoded view does not freeze the external owner.
+                return values.view()
+
+            def to_pylist(self):
+                return values.tolist()
+
+        return Column()
+
+
+def test_religion_numeric_duck_batch_recomputes_after_external_alias_change():
+    batch = _FaithMutableBatch()
+    rows = rows_for(batch)
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 1}
+    batch.values["belief"][:2] = 2
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 2}
+    assert compute_majority_belief(batch) == {0: 2}
+
+
+@pytest.mark.parametrize("kind", ["python", "borrowed-C"])
+def test_religion_arrow_name_spoofs_and_borrowed_descriptors_fall_back(kind):
+    import chronicler.turn_artifacts as artifacts
+    from arro3.core import RecordBatch as ArrowRecordBatch
+
+    class RecordBatch:
+        __module__ = "arro3.core._core"
+        __arrow_c_array__ = ArrowRecordBatch.__arrow_c_array__
+        column = ArrowRecordBatch.column
+
+        def __init__(self, inner):
+            self.inner = inner
+
+        def __getattribute__(self, name):
+            if name in ("column", "schema", "num_rows"):
+                return getattr(object.__getattribute__(self, "inner"), name)
+            return object.__getattribute__(self, name)
+
+    if kind == "python":
+        def no_export(self, *args):
+            raise AssertionError("fallback must not invoke an exporter")
+        RecordBatch.__arrow_c_array__ = no_export
+    inner = _FaithMutableBatch()
+    batch = RecordBatch(inner)
+    assert not artifacts._immutable_record_batch(batch)
+    rows = rows_for(batch)
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 1}
+    inner.values["belief"][:2] = 2
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 2}
+
+
+def test_religion_exact_view_subclass_keeps_original_grouping(monkeypatch):
+    import chronicler.religion as religion
+    import chronicler.turn_artifacts as artifacts
+
+    class DerivedRows(AgentRows):
+        pass
+
+    batch = _faith_batch()
+    rows = DerivedRows(Stamp(7, "phase10_entry"), batch)
+    original, calls = religion.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(religion, "ordered_counts", grouped)
+    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("subclass retained summary"))
+    first = compute_majority_belief(batch, agent_rows=rows)
+    assert compute_majority_belief(batch, agent_rows=rows) == first
+    assert len(calls) == 2
+
+
+def test_religion_failed_grouping_is_retried_without_retaining_partial_summary(monkeypatch):
+    import chronicler.turn_artifacts as artifacts
+
+    batch = _faith_batch()
+    rows = rows_for(batch)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        if len(calls) == 1:
+            raise RuntimeError("injected grouping failure")
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    with pytest.raises(RuntimeError, match="injected grouping failure"):
+        compute_majority_belief(batch, agent_rows=rows)
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 0, 1: 0}
+    assert compute_majority_belief(batch, agent_rows=rows) == {0: 0, 1: 0}
+    assert len(calls) == 2
+
+
+def test_religion_original_empty_capacity_and_missing_gates_remain_lazy(monkeypatch):
+    import chronicler.turn_artifacts as artifacts
+
+    missing = CountingBatch(consumer_batch().select(["id"]))
+    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("gate grouped"))
+    assert detect_schisms([], [], [None] * MAX_FAITHS, missing, 7, agent_rows=rows_for(missing, 7)) == []
+    assert not missing.accesses
+    empty = pa.record_batch({"region": pa.array([], type=pa.uint16())})
+    assert compute_majority_belief(empty, agent_rows=rows_for(empty)) == {}
+    assert compute_persecution([], [], [], empty, 7, set(), agent_rows=rows_for(empty, 7)) == []
+    with pytest.raises(KeyError):
+        compute_majority_belief(missing, agent_rows=rows_for(missing))
+
+
+def test_religion_all_255_keeps_an_empty_successful_summary(monkeypatch):
+    import chronicler.religion as religion
+    import chronicler.turn_artifacts as artifacts
+
+    batch = pa.record_batch({"region": [0, 1, 0], "belief": [255, 255, 255]})
+    rows = rows_for(batch)
+    original, calls = artifacts.ordered_counts, []
+
+    def grouped(keys, values):
+        calls.append(True)
+        return original(keys, values)
+
+    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
+    assert religion._faith_counts_by(batch, rows, "region") == {}
+    assert religion._faith_counts_by(batch, rows, "region") == {}
+    assert len(calls) == 1
