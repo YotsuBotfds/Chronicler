@@ -1,3 +1,26 @@
+# Care codec current-source binding repair - source only, 2026-10-30
+
+The first b32 offline health-care-policy chunk stopped at42 passes/1 failure,
+with61 subtests, because its strict whole-FFI digest still expected d9a4fe12
+rather than actual f2c517c6. The parent first standard CI finished FAIL. Other
+direct job failures are not attributed here without their saved evidence; the
+original failure and recovered offline archive remain preserved.
+
+Source review reverses only the five early-exit lines inside the context batch
+reader and recovers the complete reviewed829 FFI bytes. All ten care phase
+blocks, raw native schema/payload writer, Python codec/mechanics and the other
+nine pinned phase-witness files remain byte-exact to that parent. This child
+updates only the current whole-FFI test digest and clarifies its scope.
+Historical mechanics SOURCE_BINDINGS/native09ec remains unchanged and supplies
+no qualification of the current native tree or captured producer.
+
+Product/Rust, helpers, ownership, test parents/subtests, chunk selections and
+limits remain exactb32. No tests, build, native/World or push ran on this child
+at freeze. Its first focused check and full CI remain pending. The complete
+b32 continuation follows unchanged.
+
+---
+
 # Batch context lookup early completion - source only, 2026-10-30
 
 This separate child of staging829 stops the local slot search once every
