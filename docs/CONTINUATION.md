@@ -1384,3 +1384,10 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+
+## 2026-10-30: passive grain census002 source correction
+
+The first dedicated diagnostic run41094784721/1 stopped in the parent's resource observer and retained only controls. It established no Native case outcome. The next source child corrects the census's incompatibility with pytest *current symlinks: descriptor-relative nofollow directory traversal charges only each symlink's own bytes, never its target, and still refuses special files and directory replacement. A bounded first parent observer error is retained without messages or paths. Historical negative evidence remains intact.
+
+Only the diagnostic driver/contracts/protocol, its dedicated workflow/semantic selectors and this guide/ledger change. Of81 prior cases,80 bodies are exact and one obsolete symlink rejection becomes opaque accounting;13 new decisions make94 cases/57 functions, UNRUN. Seed42,8regions,4civs,8turns, existing checkpoint/resume path, the828 protected product/test/helper/UV files and Native tree remain fixed. New source002/semantics002/run002 refs require independent source review, actual pure94 and exact-source semantic evidence before a separate run grant. No feature, checkpoint, performance or scientific qualification follows. See [the diagnostic guide](integration/grain-eligibility-diagnostic.md).

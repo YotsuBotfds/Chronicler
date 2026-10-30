@@ -139,12 +139,15 @@ def test_write_once_preserves_first_bytes_and_cap(tmp_path):
         write_once(tmp_path / "over", b"123456", 5)
     assert not (tmp_path / "over").exists()
 
-def test_no_follow_charge_refuses_symlinks(tmp_path):
+def test_no_follow_charge_counts_symlink_own_bytes(tmp_path):
     (tmp_path / "a").write_bytes(b"x")
-    assert tree_charge(tmp_path) >= 1
-    (tmp_path / "link").symlink_to(tmp_path / "a")
-    with pytest.raises(Refused):
-        tree_charge(tmp_path)
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path / "a")
+    expected = tmp_path.lstat().st_blocks * 512
+    for path in (tmp_path / "a", link):
+        st = path.lstat()
+        expected += max(st.st_size, st.st_blocks * 512)
+    assert tree_charge(tmp_path) == expected
 
 def test_package_namespace_duplicate_is_refused(monkeypatch):
     import grain_eligibility_driver as driver
@@ -339,7 +342,7 @@ def test_current_future_and_existing_python_threads_restore_none(tmp_path):
     assert trace.hooks_restored and trace.complete
 
 
-# Corrective B1/B2/B3 decisions; original complete FIRST49 module above is exact.
+# Corrective B1/B2/B3 decisions; census002 corrects one obsolete FIRST49 symlink case.
 # Injected faults below are decision contracts, not an OS-containment claim.
 
 def _reserved_endpoint():
@@ -624,3 +627,137 @@ def test_first_failure_survives_secondary_pin_errors():
     assert endpoint["refusal"] == "PRIMARY"
     assert endpoint["first_failure"] == {"label": "PRIMARY", "stage": "command"}
     assert endpoint["secondary_failures"][0]["label"] == "SECONDARY_PIN"
+
+
+# Census002 decision contracts. Synthetic files/faults only; no Native execution.
+
+@pytest.mark.parametrize("target_kind", ["file", "directory", "dangling", "self_loop"])
+def test_census_symlink_targets_are_never_observed(tmp_path, monkeypatch, target_kind):
+    import grain_eligibility_driver as driver
+    root = tmp_path / "owned"
+    root.mkdir()
+    target = tmp_path / "external"
+    if target_kind == "file":
+        target.write_bytes(b"x" * 8192)
+    elif target_kind == "directory":
+        target.mkdir()
+        (target / "must-not-be-counted").write_bytes(b"x" * 8192)
+    link = root / "pytest-current"
+    link.symlink_to(link if target_kind == "self_loop" else target,
+                    target_is_directory=target_kind == "directory")
+    before, own = root.lstat(), link.lstat()
+    expected = before.st_blocks * 512 + max(own.st_size, own.st_blocks * 512)
+    original_stat, original_open = driver.os.stat, driver.os.open
+    def nofollow_stat(name, *args, **kwargs):
+        assert kwargs.get("follow_symlinks") is False
+        assert name in (root, "pytest-current")
+        return original_stat(name, *args, **kwargs)
+    def directory_open(name, flags, *args, **kwargs):
+        assert name == root and flags & os.O_DIRECTORY and flags & os.O_NOFOLLOW
+        return original_open(name, flags, *args, **kwargs)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("symlink target observation")
+    with monkeypatch.context() as scoped:
+        scoped.setattr(driver.os, "stat", nofollow_stat)
+        scoped.setattr(driver.os, "open", directory_open)
+        scoped.setattr(driver.os, "readlink", forbidden)
+        assert tree_charge(root) == expected
+
+@pytest.mark.parametrize("entry_type", ["fifo", "socket", "character", "block"])
+def test_census_refuses_special_entries_without_opening_them(tmp_path, monkeypatch, entry_type):
+    import stat
+    import grain_eligibility_driver as driver
+    path = tmp_path / "special"
+    path.write_bytes(b"")
+    original_stat, original_open = driver.os.stat, driver.os.open
+    modes = {"fifo": stat.S_IFIFO, "socket": stat.S_IFSOCK,
+             "character": stat.S_IFCHR, "block": stat.S_IFBLK}
+    def special_stat(name, *args, **kwargs):
+        actual = original_stat(name, *args, **kwargs)
+        if name == "special" and "dir_fd" in kwargs:
+            assert kwargs["follow_symlinks"] is False
+            return types.SimpleNamespace(st_mode=modes[entry_type] | 0o600)
+        return actual
+    def directory_open(name, flags, *args, **kwargs):
+        assert name != "special", "nonregular entry must not be opened"
+        return original_open(name, flags, *args, **kwargs)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(driver.os, "stat", special_stat)
+        scoped.setattr(driver.os, "open", directory_open)
+        with pytest.raises(driver.CensusRefused, match="ENTRY_NOT_REGULAR_OR_LINK"):
+            tree_charge(tmp_path)
+
+@pytest.mark.parametrize("replacement", ["symlink", "directory"])
+def test_census_directory_replacement_between_stat_and_open_is_refused(tmp_path, monkeypatch, replacement):
+    import grain_eligibility_driver as driver
+    root, outside = tmp_path / "owned", tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    child = root / "child"
+    child.mkdir()
+    original_open = driver.os.open
+    replaced = []
+    def swap_then_open(name, flags, *args, **kwargs):
+        if name == "child" and "dir_fd" in kwargs and not replaced:
+            assert flags & os.O_DIRECTORY and flags & os.O_NOFOLLOW
+            child.rename(outside / "original-child")
+            if replacement == "symlink":
+                child.symlink_to(outside, target_is_directory=True)
+            else:
+                child.mkdir()
+            replaced.append(True)
+        return original_open(name, flags, *args, **kwargs)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(driver.os, "open", swap_then_open)
+        with pytest.raises((OSError, driver.CensusRefused)):
+            tree_charge(root)
+    assert replaced == [True]
+
+@pytest.mark.parametrize("error_kind", ["refusal", "os_error"])
+def test_parent_resource_failure_is_bounded_and_first_error_is_retained(tmp_path, monkeypatch, error_kind):
+    import errno
+    import grain_eligibility_driver as driver
+    failure = driver.CensusRefused("ENTRY_NOT_REGULAR_OR_LINK") if error_kind == "refusal" else OSError(errno.EACCES, "secret-path-" * 10000)
+    records = []
+    def fail(path):
+        raise failure
+    with monkeypatch.context() as scoped:
+        scoped.setattr(driver, "tree_charge", fail)
+        with pytest.raises(type(failure)):
+            driver.observed_resource_charge([tmp_path], "live_private_tmp", records)
+        first = canonical(records)
+        with pytest.raises(type(failure)):
+            driver.observed_resource_charge([tmp_path], "closed_private_tmp", records)
+        assert canonical(records) == first
+    assert len(records) == 1 and set(records[0]) == {"site", "type", "errno", "reason"}
+    assert records[0] == {"site": "live_private_tmp", "type": type(failure).__name__,
+                          "errno": errno.EACCES if error_kind == "os_error" else None,
+                          "reason": "OS_ERROR" if error_kind == "os_error" else "ENTRY_NOT_REGULAR_OR_LINK"}
+    assert len(canonical(records)) < 256 and b"secret-path" not in canonical(records)
+
+def test_census_enumeration_failure_closes_every_owned_descriptor(tmp_path, monkeypatch):
+    import errno
+    import grain_eligibility_driver as driver
+    root = tmp_path / "owned"
+    root.mkdir()
+    (root / "child").mkdir()
+    original_open, original_close, original_scandir = driver.os.open, driver.os.close, driver.os.scandir
+    opened, closed = [], []
+    def tracked_open(*args, **kwargs):
+        fd = original_open(*args, **kwargs)
+        opened.append(fd)
+        return fd
+    def tracked_close(fd):
+        closed.append(fd)
+        original_close(fd)
+    def fail_child(fd):
+        if len(opened) == 2:
+            raise OSError(errno.EACCES, "synthetic child scan")
+        return original_scandir(fd)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(driver.os, "open", tracked_open)
+        scoped.setattr(driver.os, "close", tracked_close)
+        scoped.setattr(driver.os, "scandir", fail_child)
+        with pytest.raises(OSError):
+            tree_charge(root)
+    assert len(opened) == 2 and sorted(closed) == sorted(opened)

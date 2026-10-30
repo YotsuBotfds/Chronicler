@@ -2,7 +2,7 @@ name: Passive grain eligibility diagnostic
 
 on:
   push:
-    branches: [lead/grain-eligibility-diagnostic-run-20261030]
+    branches: [lead/grain-eligibility-diagnostic-run002-20261030]
 
 permissions:
   contents: read
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   grain-eligibility-diagnostic:
-    if: github.ref == 'refs/heads/lead/grain-eligibility-diagnostic-run-20261030'
+    if: github.ref == 'refs/heads/lead/grain-eligibility-diagnostic-run002-20261030'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

@@ -1,6 +1,6 @@
 """Opt-in custody controller for one passive historical-wheel diagnostic.
 
-This protocol is UNREADY in source. No runtime flag bypasses that state.
+Readiness binds to the committed protocol. No runtime flag bypasses that state.
 It never calls the ordinary current-own-wheel helper with historical metadata.
 """
 from __future__ import annotations
@@ -76,19 +76,72 @@ def file_sha(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
+CENSUS_REASONS = frozenset(("ROOT_NOT_DIRECTORY", "DIRECTORY_IDENTITY_CHANGED",
+                            "ENTRY_NOT_REGULAR_OR_LINK"))
+CENSUS_SITES = frozenset(("live_private_tmp", "live_output", "closed_private_tmp"))
+
+class CensusRefused(Refused):
+    def __init__(self, reason):
+        require(reason in CENSUS_REASONS, "registered census reason")
+        self.reason = reason
+        super().__init__(reason)
+
+def resource_observer_failure(site, error):
+    """Bounded parent metadata only: never retain exception messages or paths."""
+    require(site in CENSUS_SITES, "registered resource observer site")
+    number = getattr(error, "errno", None)
+    return {"site": site, "type": type(error).__name__[:64],
+            "errno": number if type(number) is int and 0 <= number < 2**31 else None,
+            "reason": error.reason if type(error) is CensusRefused else
+                      "OS_ERROR" if isinstance(error, OSError) else "OBSERVER_ERROR"}
+
+def observed_resource_charge(paths, site, failures):
+    try:
+        return sum(tree_charge(path) for path in paths)
+    except BaseException as error:
+        if not failures:
+            failures.append(resource_observer_failure(site, error))
+        raise
+
 def tree_charge(path):
-    """No-follow max(logical, allocated) plus allocated directories."""
-    total = 0
-    for base, dirs, files in os.walk(path, followlinks=False):
-        total += os.lstat(base).st_blocks * 512
-        for name in dirs + files:
-            p = Path(base) / name
-            st = p.lstat()
-            require(not stat.S_ISLNK(st.st_mode), "private tree symlink")
-            if not stat.S_ISDIR(st.st_mode):
-                require(stat.S_ISREG(st.st_mode), "private tree nonregular entry")
-                total += max(st.st_size, st.st_blocks * 512)
-    return total
+    """Descriptor-relative nofollow census under a trusted owned private root.
+
+    Symlinks count only their own logical/allocated bytes. Their target is never
+    opened, statted, readlinked or traversed. Directory identities are checked
+    after nofollow opens; disappearance and replacement fail closed.
+    """
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    def identity(st):
+        return st.st_dev, st.st_ino, stat.S_IFMT(st.st_mode)
+    def same_directory(before, opened):
+        if not stat.S_ISDIR(opened.st_mode) or identity(before) != identity(opened):
+            raise CensusRefused("DIRECTORY_IDENTITY_CHANGED")
+    def visit(fd):
+        total = os.fstat(fd).st_blocks * 512
+        with os.scandir(fd) as entries:
+            for entry in entries:
+                before = os.stat(entry.name, dir_fd=fd, follow_symlinks=False)
+                if stat.S_ISDIR(before.st_mode):
+                    child = os.open(entry.name, flags, dir_fd=fd)
+                    try:
+                        same_directory(before, os.fstat(child))
+                        total += visit(child)
+                    finally:
+                        os.close(child)
+                elif stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                    total += max(before.st_size, before.st_blocks * 512)
+                else:
+                    raise CensusRefused("ENTRY_NOT_REGULAR_OR_LINK")
+        return total
+    before = os.stat(path, follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode):
+        raise CensusRefused("ROOT_NOT_DIRECTORY")
+    fd = os.open(path, flags)
+    try:
+        same_directory(before, os.fstat(fd))
+        return visit(fd)
+    finally:
+        os.close(fd)
 
 def package_map():
     result = {}
@@ -487,11 +540,12 @@ def run(protocol, path):
                 "TMPDIR": str(work / "tmp"), "PD_EVIDENCE_DIR": str(work / "pd"),
                 "R007_EVIDENCE_DIR": str(work / "r007"), "Q009_EVIDENCE_DIR": str(work / "q009")})
     watched = [work / n for n in ("tmp", "pd", "r007", "q009", "pycache", "negative")]
+    resource_failures = []
     info, streams = stream_command([sys.executable, "-B", str(Path(__file__).resolve()), "worker", "--work", str(work)],
                                   env, (16 * 1024, 16 * 1024), 120, cpu_limit=60, as_limit=2 * 1024**3,
                                   control=control / "worker", stage="native-worker", identity=source,
-                                  watch=lambda: sum(tree_charge(p) for p in watched) <= 64 * 1024**2
-                                  and tree_charge(work / "output") <= OUTPUT_CAP)
+                                  watch=lambda: observed_resource_charge(watched, "live_private_tmp", resource_failures) <= 64 * 1024**2
+                                  and observed_resource_charge([work / "output"], "live_output", resource_failures) <= OUTPUT_CAP)
     # These are parent-owned pipe prefixes, never child filesystem reads.
     write_once(work / "pipes/stdout.log", streams[0], 16 * 1024 + 1)
     write_once(work / "pipes/stderr.log", streams[1], 16 * 1024 + 1)
@@ -501,7 +555,7 @@ def run(protocol, path):
     if capture_allowed(info):
         # Every child lookup/read/hash below follows positive waited closure.
         try:
-            info["temporary_charged_bytes_at_close"] = sum(tree_charge(p) for p in watched)
+            info["temporary_charged_bytes_at_close"] = observed_resource_charge(watched, "closed_private_tmp", resource_failures)
         except BaseException as error:
             errors.append({"stage": "closed_resource_census", "type": type(error).__name__})
             info["temporary_charged_bytes_at_close"] = "UNOBSERVED_CENSUS_ERROR"
@@ -523,6 +577,8 @@ def run(protocol, path):
         info["diagnostic_state"] = "UNKNOWN"
         info["test_result_state"] = "UNOBSERVED_CUSTODY"
         info["temporary_charged_bytes_at_close"] = "UNOBSERVED_CUSTODY"
+    if resource_failures:
+        info["resource_observer_failure"] = resource_failures[0]
     info["pin_errors"] = errors
     if errors:
         remember_failure(info, "CHILD_CAPTURE_INCOMPLETE", "capture")
