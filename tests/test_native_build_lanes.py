@@ -183,7 +183,10 @@ def _workflow_jobs(path):
 def test_standard_workflow_preserves_independent_bodies_and_public_gate_names():
     current = _read(".github/workflows/tests.yml")
     historical = _read("tests/fixtures/ci/standard-tests-cbf6e368.yml")
-    assert current.split("jobs:\n", 1)[0] == historical.split("jobs:\n", 1)[0]
+    current_header = current.split("jobs:\n", 1)[0]
+    added = ", lead/wholeturn-staging-tests-20261030"
+    assert current_header.count(added) == 1
+    assert current_header.replace(added, "", 1) == historical.split("jobs:\n", 1)[0]
     def blocks(text):
         return dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", text.split("jobs:\n", 1)[1]))
     old_blocks, current_blocks = blocks(historical), blocks(current)

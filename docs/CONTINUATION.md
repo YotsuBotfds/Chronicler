@@ -1,3 +1,7 @@
+# Whole-turn READY source; runtime held (2026-10-30)
+
+Child of11a9 pins actual643/native0dca and exact reviewed source/live-proof decision. Harness method/helpers/caps and baseline829/a840 stay unchanged. All62 old case assertions retain explicit fake-UNREADY inputs; one current-binding case gives63 wholeturn cases. Dedicated lint-FIRST then Tests refs are separate from inert source and held benchmark ref. Actual five parent workflows plus readonly semantic template makes six; old plan count remains preserved/corrected. Prospective first focus81 is UNRUN, and no Native/build/World/API/publication/runtime action is granted by source. Earlier history follows exactly.
+
 # Whole-turn corrective source review (2026-10-30)
 
 Child of frozen b387; strict global-RNG joins and measured-end proof binding, durable intent/unknown-exit records, bounded post-kill quiescence and jointly gated archive/inventory/compact child reads/raw upload. Readonly Arrow interface does not attest an external writable owner; simulate-only narrator is a no-op. Exact12 roles/8+32/200/seeds/caps and deferred candidate pins remain unchanged. All42 original cases retained with explicit witness adaptations, plus20 corrective cases =62 authored UNRUN. No helper/test/Native/World/build/network/push execution.

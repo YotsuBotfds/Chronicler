@@ -16,7 +16,10 @@ import wholeturn_records as records
 
 @pytest.fixture
 def registration():
-    return p.read_json(ROOT/p.REGISTRATION)
+    value = p.read_json(ROOT/p.REGISTRATION)
+    value["candidate"] = {"source_commit": None, "native_tree": None}
+    value["root_decision"] = None
+    return value
 
 
 def ready(value):
@@ -345,3 +348,47 @@ def test_corrective_raw_artifact_workflow_requires_explicit_quiescence_output():
     for step in uploads:
         assert "steps.compact.outcome == 'success'" in step["if"]
         assert "steps.compact.outputs.raw_upload_allowed == 'true'" in step["if"]
+
+
+def test_current_ready_candidate_reviews_and_exact_activation_inventory():
+    import yaml
+
+    actual = p.read_json(ROOT/p.REGISTRATION)
+    assert p.validate_registration(actual) is actual
+    assert actual["candidate"] == {
+        "source_commit":"643cda4d73edd9cfdfe83c619932906c579f7473",
+        "native_tree":"0dca68c36baa2663c66dcf45bb4afd0c5696b18f",
+    }
+    assert actual["root_decision"] == {
+        "kind":"ROOT_REVIEWED_WHOLETURN_CANDIDATE", "protocol":p.PROTOCOL,
+        "candidate_source":"643cda4d73edd9cfdfe83c619932906c579f7473",
+        "candidate_native_tree":"0dca68c36baa2663c66dcf45bb4afd0c5696b18f",
+        "source_review_sha256":"29e1d8bcf02a5a0a07fe580665bd7d5ec6fb34019eb3d7d4199192d1db1c0503",
+        "live_proof_review_sha256":"161ff1198de1345e40aeb1e5d46b408331652c4bc501d6181588a51ee08501a3",
+        "approval_id":"root-wholeturn-ready-643cda4d-20261030",
+    }
+    workflows = sorted(path.relative_to(ROOT).as_posix()
+        for path in (ROOT/".github/workflows").rglob("*") if path.suffix in (".yml",".yaml"))
+    assert workflows == [
+        ".github/workflows/matched-wholeturn.yml",
+        ".github/workflows/native-two-shards-v2.yml",
+        ".github/workflows/native-two-shards.yml",
+        ".github/workflows/tests.yml",
+        ".github/workflows/validation-gate.yml",
+        ".github/workflows/workflow-semantics.yml",
+    ]
+    tests = yaml.load((ROOT/".github/workflows/tests.yml").read_text(),Loader=yaml.BaseLoader)
+    branches = tests["on"]["push"]["branches"]
+    assert branches.count("lead/wholeturn-staging-tests-20261030") == 1
+    assert not set(branches) & {"lead/wholeturn-staging-ready-source-20261030",
+        "lead/wholeturn-staging-semantics-20261030","lead/wholeturn-staging-run-20261030"}
+    semantic = yaml.load((ROOT/".github/workflows/workflow-semantics.yml").read_text(),Loader=yaml.BaseLoader)
+    assert semantic["on"]["push"]["branches"] == ["lead/workflow-semantics-20261030",
+        "lead/simulation-staging004-semantics-20261030","lead/wholeturn-staging-semantics-20261030"]
+    assert semantic["jobs"]["actionlint"]["if"] == (
+        "github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030'"
+        " || github.ref == 'refs/heads/lead/simulation-staging004-semantics-20261030'"
+        " || github.ref == 'refs/heads/lead/wholeturn-staging-semantics-20261030'")
+    benchmark = yaml.load((ROOT/".github/workflows/matched-wholeturn.yml").read_text(),Loader=yaml.BaseLoader)
+    assert benchmark["on"]["push"]["branches"] == ["lead/wholeturn-staging-run-20261030"]
+    assert benchmark["jobs"]["wholeturn"]["if"] == "github.ref == 'refs/heads/lead/wholeturn-staging-run-20261030'"
