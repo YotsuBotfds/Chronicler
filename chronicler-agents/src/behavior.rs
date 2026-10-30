@@ -1060,9 +1060,9 @@ fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObs
             let eff_wealth = crate::household::household_effective_wealth(pool, slot, id_to_slot);
             let personal_wealth = pool.wealth[slot];
             if eff_wealth > personal_wealth {
-                // Married with pooled wealth: dampen migration utility slightly
-                // Ratio > 1.0 means spouse has wealth; damp migration by inverse power.
-                let ratio = eff_wealth / personal_wealth.max(0.01);
+                // The denominator floor can exceed a poor household's pooled wealth.
+                // Keep that numerical guard from turning damping into amplification.
+                let ratio = (eff_wealth / personal_wealth.max(0.01)).max(1.0);
                 let wealth_factor = HOUSEHOLD_MIGRATION_MARRIED_FACTOR
                     * (1.0 / ratio.powf(HOUSEHOLD_MIGRATION_WEALTH_DAMP_EXPONENT));
                 migrate_util *= wealth_factor;
@@ -3050,6 +3050,186 @@ mod ablation_tests {
         let (plain, _) = decide_with(&pool, &regions, &slots, DecisionOptions::default());
         assert_eq!(none, plain.migrations.len());
         assert!(calibrated < none && strong <= calibrated);
+    }
+}
+
+/// Regression coverage for the actual pooled-wealth decision stage, not a
+/// second implementation of the multiplier. These fixtures never tick a World.
+#[cfg(test)]
+mod household_wealth_damping_tests {
+    use super::*;
+    use crate::agent::{Occupation, MAX_WEALTH};
+    use crate::relationships::{self, BondType};
+    use rand::SeedableRng;
+
+    #[derive(Default)]
+    struct WealthProbe {
+        wealth: Option<(f32, f32, f32, bool)>,
+        stages: [f32; 6],
+    }
+
+    impl DecisionObserver for WealthProbe {
+        const ENABLED: bool = true;
+
+        fn wealth(&mut self, personal: f32, effective: f32, factor: f32, applied: bool) {
+            assert!(self.wealth.is_none(), "one subject must have one wealth observation");
+            self.wealth = Some((personal, effective, factor, applied));
+        }
+
+        fn stage(&mut self, stage: usize, value: f32) {
+            self.stages[stage] = value;
+        }
+    }
+
+    fn fixture(personal: f32, spouse: Option<f32>)
+        -> (AgentPool, Vec<RegionState>, usize, Option<usize>)
+    {
+        let mut regions = vec![RegionState::new(0), RegionState::new(1)];
+        for region in &mut regions {
+            region.controller_civ = 0;
+            region.carrying_capacity = 100;
+            region.food_sufficiency = 1.0;
+        }
+        regions[0].adjacency = vec![1];
+        regions[1].adjacency = vec![0];
+        let mut pool = AgentPool::new(4);
+        let subject = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.wealth[subject] = personal;
+        pool.set_satisfaction(subject, 0.1);
+        pool.set_loyalty(subject, 0.9);
+        pool.need_safety[subject] = 1.0;
+        pool.need_material[subject] = 1.0;
+        pool.need_social[subject] = 1.0;
+        pool.need_spiritual[subject] = 1.0;
+        pool.need_autonomy[subject] = 1.0;
+        pool.need_purpose[subject] = 1.0;
+        let spouse_slot = spouse.map(|wealth| {
+            let slot = pool.spawn(0, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+                0, 1, 2, crate::agent::BELIEF_NONE);
+            pool.wealth[slot] = wealth;
+            assert!(relationships::upsert_symmetric(&mut pool, subject, slot,
+                BondType::Marriage as u8, 100, 0));
+            slot
+        });
+        // A fed, satisfied neighbour gives the subject an actual destination.
+        let resident = pool.spawn(1, 0, Occupation::Farmer, 25, 0.0, 0.0, 0.0,
+            0, 1, 2, crate::agent::BELIEF_NONE);
+        pool.set_satisfaction(resident, 0.95);
+        (pool, regions, subject, spouse_slot)
+    }
+
+    fn observe(pool: &AgentPool, regions: &[RegionState], subject: usize) -> WealthProbe {
+        let signals = TickSignals { civs: vec![], contested_regions: vec![false; 2] };
+        let stats = compute_region_stats(pool, regions, &signals);
+        let mut rng = rand_chacha::ChaCha8Rng::from_seed([7u8; 32]);
+        let mut probe = WealthProbe::default();
+        evaluate_region_decisions_observer(pool, &[subject], regions, &regions[0],
+            &stats, 0, &mut rng, &pool.build_id_slots(), DecisionOptions::default(), &mut probe);
+        probe
+    }
+
+    fn assert_stage_product(probe: &WealthProbe, factor: f32) {
+        assert!(probe.stages[3].is_finite() && probe.stages[3] > 0.0);
+        assert_eq!(probe.stages[4].to_bits(), (probe.stages[3] * factor).to_bits());
+        assert!(probe.stages[4].is_finite() && probe.stages[4] <= probe.stages[3]);
+    }
+
+    #[test]
+    fn below_floor_pooled_wealth_never_amplifies_migration() {
+        for (personal, spouse) in [
+            (0.0, 0.005), (0.001, 0.001), (0.006, 0.003),
+            (0.0, f32::MIN_POSITIVE), (0.0, f32::from_bits(1)),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (observed_personal, effective, factor, applied) = probe.wealth.unwrap();
+            assert_eq!(observed_personal.to_bits(), personal.to_bits());
+            assert_eq!(effective.to_bits(), (personal + spouse).to_bits());
+            assert!(applied && effective > personal && effective < 0.01);
+            assert_eq!(factor.to_bits(), 0.88_f32.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn ratios_at_or_above_one_preserve_the_old_multiplier_bits() {
+        for (personal, spouse) in [
+            (0.0, 0.01), (0.0, f32::from_bits(0.01_f32.to_bits() + 1)),
+            (0.005, 0.005), (0.005, 0.006), (0.01, 0.001), (0.01, 0.01),
+            (0.5, 0.5), (50.0, MAX_WEALTH), (MAX_WEALTH, MAX_WEALTH),
+            (0.0, MAX_WEALTH), (f32::from_bits(1), MAX_WEALTH),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            let old_ratio = effective / personal.max(0.01);
+            assert!(applied && old_ratio >= 1.0);
+            // Deliberately retain the previous coefficients and operation order.
+            let old_factor = 0.88_f32 * (1.0 / old_ratio.powf(1.20));
+            assert_eq!(factor.to_bits(), old_factor.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn zero_added_wealth_and_unmarried_agents_keep_the_identity_factor() {
+        for (personal, spouse) in [
+            (0.0, Some(0.0)), (0.5, Some(0.0)), (0.0, None),
+            (0.005, None), (0.01, None), (MAX_WEALTH, None),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, spouse);
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            assert!(!applied);
+            assert_eq!(effective.to_bits(), personal.to_bits());
+            assert_eq!(factor.to_bits(), 1.0_f32.to_bits());
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn dead_spouses_and_displacement_keep_the_existing_wealth_guards() {
+        let (mut pool, regions, subject, spouse) = fixture(0.0, Some(0.005));
+        pool.kill(spouse.unwrap());
+        let probe = observe(&pool, &regions, subject);
+        let (_, effective, factor, applied) = probe.wealth.unwrap();
+        assert!(!applied && effective == 0.0 && factor == 1.0);
+        assert_stage_product(&probe, factor);
+
+        let (mut pool, regions, subject, _) = fixture(0.0, Some(0.005));
+        pool.displacement_turns[subject] = 1;
+        let probe = observe(&pool, &regions, subject);
+        assert!(probe.wealth.is_none());
+        assert_eq!(probe.stages[4].to_bits(), probe.stages[3].to_bits());
+    }
+
+    #[test]
+    fn finite_wealth_extremes_produce_finite_nonnegative_damping() {
+        for (personal, spouse) in [
+            (0.0, f32::from_bits(1)), (f32::from_bits(1), f32::from_bits(1)),
+            (f32::MIN_POSITIVE, f32::MIN_POSITIVE), (0.0, MAX_WEALTH),
+            (f32::from_bits(1), MAX_WEALTH), (MAX_WEALTH, MAX_WEALTH),
+        ] {
+            let (pool, regions, subject, _) = fixture(personal, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, effective, factor, applied) = probe.wealth.unwrap();
+            assert!(applied && effective.is_finite());
+            assert!(factor.is_finite() && (0.0..=0.88).contains(&factor));
+            assert_stage_product(&probe, factor);
+        }
+    }
+
+    #[test]
+    fn increasing_pooled_wealth_never_increases_the_multiplier() {
+        let mut previous = 0.88_f32;
+        for spouse in [0.001, 0.003, 0.008, 0.009, 0.01, 0.1, 1.0, MAX_WEALTH] {
+            let (pool, regions, subject, _) = fixture(0.001, Some(spouse));
+            let probe = observe(&pool, &regions, subject);
+            let (_, _, factor, applied) = probe.wealth.unwrap();
+            assert!(applied && factor.is_finite() && factor <= previous);
+            previous = factor;
+        }
     }
 }
 
