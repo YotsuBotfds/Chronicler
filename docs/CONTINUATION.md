@@ -1,3 +1,24 @@
+# Private GP context sync prototype - source only, 2026-10-30
+
+The normal staging004 hybrid loop remains unchanged. A private, explicitly
+called candidate and exact old-loop reference prepare real Python-sync
+evaluation of the existing compiled API. Closed Native/model ownership,
+bounded plain contexts, ordered legacy/float/container semantics and an exact
+scalar fallback are covered by authored contracts. All checks are UNRUN.
+
+One new44th guarded chunk retains all43 existing chunks and110-second caps;
+two Native cases extend existing owner0. No World schema/cache/user flag,
+Native code or automatic production wireup is added. Batch allocation failure
+can precede old partial progress; universal exception equivalence is not
+claimed. No speed threshold or full-turn gain is inferred from the earlier
+mixed kernel benchmark. Source review, focused checks, fresh Native execution
+and the prospective69-condition full Python-sync study precede activation.
+See [the prototype note](performance/gp-context-sync-prototype-2026-10-30.md).
+Local parent4dd has exact published643 tree88848; future API publication must
+bind actual remote identities separately. The complete parent ledger follows.
+
+---
+
 # Simulation staging004 composition — source only, 2026-10-30
 
 This separate829-based branch preserves six real donor merges and composes

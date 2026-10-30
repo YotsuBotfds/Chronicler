@@ -1985,3 +1985,239 @@ def test_native_region_ingress_does_not_add_later_row_id_order_restrictions():
     reference.set_region_state(good)
     assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
     assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
+
+
+# Opt-in private GP context prototype: these real-native tests do not wire the
+# production route or execute a Python World turn. The one native setup tick is
+# explicit; read-only checkpoint/profile assertions start only after that tick.
+def _gp_context_native_fixture():
+    from chronicler.ffi_constants import BOND_FRIEND
+
+    sim = AgentSimulator(num_regions=2, seed=31337)
+    sim.set_region_state(_make_region_batch(
+        num_regions=2, capacity=60, populations=[6, 6], controllers=[0, 1],
+    ))
+    before = sim.get_snapshot().column("id").to_pylist()
+    dead_id = before[-1]
+    sim.queue_targeted_deaths([dead_id])
+    sim.tick(1, _make_dummy_signals(num_civs=2))  # exactly ONE native setup tick
+    alive_ids = sim.get_snapshot().column("id").to_pylist()
+    assert dead_id not in alive_ids and len(alive_ids) >= 2
+    first, other = alive_ids[0], alive_ids[-1]
+    sim.apply_relationship_ops(pa.record_batch({
+        "op_type": pa.array([0], type=pa.uint8()),
+        "agent_a": pa.array([first], type=pa.uint32()),
+        "agent_b": pa.array([other], type=pa.uint32()),
+        "bond_type": pa.array([BOND_FRIEND], type=pa.uint8()),
+        "sentiment": pa.array([7], type=pa.int8()),
+        "formed_turn": pa.array([1], type=pa.uint16()),
+    }))
+    assert sim.get_agent_relationships(first)
+    return sim, first, other, dead_id
+
+
+def _gp_context_native_world(first, other, dead_id, *, empty=False):
+    from chronicler.models import Civilization, Leader, Region, WorldState
+
+    shared = {"signed_zero": -0.0, "value": 1.25}
+    stale_memories = [{"event_type": 9, "intensity": -0.0, "keep": "old"}]
+    stale_needs = {name: -0.0 for name in (
+        "safety", "material", "social", "spiritual", "autonomy", "purpose",
+    )}
+    stale_bonds = [{"target_id": 999, "sentiment": -3,
+                    "bond_type": 6, "formed_turn": 0}]
+
+    def person(name, agent_id, active=True):
+        gp = GreatPerson(
+            name=name, role="merchant", trait="bold", civilization="C0",
+            origin_civilization="C0", born_turn=1, source="agent",
+            agent_id=agent_id, active=active,
+        )
+        gp.memories, gp.needs, gp.agent_bonds = stale_memories, stale_needs, stale_bonds
+        gp.utility_overrides["context_test_shared"] = shared
+        object.__setattr__(gp, "__pydantic_private__", {"context_test_private": shared})
+        object.__setattr__(gp, "__pydantic_extra__", {"context_test_extra": shared})
+        return gp
+
+    repeated = person("Repeated", first)
+    twin = person("SameIdOtherPerson", first)
+    inactive = person("Inactive", other, False)
+    aggregate = person("NoAgent", None)
+    other_gp = person("Other", other)
+    dead = person("DeadId", dead_id)
+    missing = person("Missing", 2**32 - 1)
+    zero = person("Zero", 0)
+    civs = [Civilization(
+        name=f"C{i}", population=6, military=20, economy=20, culture=20,
+        stability=50, leader=Leader(name=f"L{i}", trait="bold", reign_start=0),
+        regions=[f"R{i}"], capital_region=f"R{i}",
+    ) for i in range(2)]
+    civs[0].great_persons = [inactive, aggregate] if empty else [
+        repeated, twin, repeated, inactive, aggregate,
+    ]
+    civs[1].great_persons = [] if empty else [other_gp, dead, missing, zero]
+    world = WorldState(
+        name="context-native", seed=31337, turn=1, civilizations=civs,
+        regions=[Region(name=f"R{i}", terrain="plains", resources="fertile",
+                        population=6, carrying_capacity=60, controller=f"C{i}")
+                 for i in range(2)],
+    )
+    if not empty:
+        assert world.civilizations[0].great_persons[0] is repeated
+        assert world.civilizations[0].great_persons[2] is repeated
+        assert repeated is not twin and repeated.needs is twin.needs
+    return world
+
+
+def _gp_context_complete_state(world):
+    """Compare all GP state, signed float bits and cross-roster alias topology."""
+    import struct
+    from pydantic import BaseModel
+
+    seen = {}
+
+    def freeze(value):
+        if type(value) is float:
+            return ("float64", struct.pack("!d", value).hex())
+        if value is None or type(value) in (bool, int, str, bytes):
+            return (type(value).__name__, value)
+        token = id(value)
+        if token in seen:
+            return ("alias", seen[token])
+        seen[token] = len(seen)
+        if isinstance(value, BaseModel):
+            return (type(value).__qualname__, freeze(value.__dict__),
+                    freeze(value.__pydantic_extra__), freeze(value.__pydantic_private__),
+                    freeze(value.__pydantic_fields_set__))
+        if type(value) is dict:
+            return ("dict", tuple((freeze(k), freeze(v)) for k, v in value.items()))
+        if type(value) in (list, tuple):
+            return (type(value).__name__, tuple(freeze(v) for v in value))
+        if type(value) is set:
+            return ("set", tuple(sorted(freeze(v) for v in value)))
+        raise AssertionError(f"unhandled GP test-state type: {type(value)}")
+
+    return tuple(freeze(civ.great_persons) for civ in world.civilizations)
+
+
+def _gp_context_original_c_calls(sim, action):
+    """Observe original bound C methods passively; never replace a getter."""
+    import sys
+    import types
+
+    names = {"get_agent_memories", "get_agent_needs", "get_agent_relationships",
+             "get_agent_context_batch"}
+    for name in names:
+        assert isinstance(getattr(sim, name), types.BuiltinMethodType)
+    previous = sys.getprofile()
+    calls = []
+
+    def profile(frame, event, arg):
+        if event == "c_call" and getattr(arg, "__self__", None) is sim:
+            name = getattr(arg, "__name__", None)
+            if name in names:
+                calls.append(name)
+        if previous is not None:
+            previous(frame, event, arg)
+
+    try:
+        sys.setprofile(profile)
+        result = action()
+    finally:
+        sys.setprofile(previous)
+    assert sys.getprofile() is previous
+    return result, calls
+
+
+def _gp_context_global_rng_state():
+    import random
+    import struct
+    import numpy as np
+
+    def bits(value):
+        return None if value is None else struct.pack("!d", value).hex()
+
+    py = random.getstate()
+    numpy = np.random.get_state()
+    return ((py[0], py[1], bits(py[2])),
+            (numpy[0], numpy[1].dtype.str, numpy[1].shape, numpy[1].strides,
+             numpy[1].tobytes(order="C"), numpy[2], numpy[3], bits(numpy[4])))
+
+
+@requires_chronicler_agents
+def test_native_gp_context_prototype_full_state_alias_and_original_call_parity():
+    from chronicler._gp_context_sync import (
+        _prepare_native_sync, _sync_batch_prototype, _sync_scalar_reference,
+    )
+
+    sim, first, other, dead_id = _gp_context_native_fixture()
+    scalar = _gp_context_native_world(first, other, dead_id)
+    batch = _gp_context_native_world(first, other, dead_id)
+    scalar_bridge = _bare_agent_bridge(sim=sim, mode="hybrid")
+    batch_bridge = _bare_agent_bridge(sim=sim, mode="hybrid")
+    before = _gp_context_complete_state(batch)
+    assert _gp_context_complete_state(scalar) == before
+    checkpoint = bytes(sim.checkpoint_state())
+    schema = AgentSimulator.checkpoint_schema()
+    rng_state = _gp_context_global_rng_state()
+    prepared = _prepare_native_sync(batch_bridge, batch)
+    assert prepared is not None
+    owned_sim, targets, getter = prepared
+    expected = [(gp, gp.agent_id) for civ in batch.civilizations
+                for gp in civ.great_persons if gp.active and gp.agent_id is not None]
+    assert owned_sim is sim and len(targets) == len(expected) == 7
+    assert all(gp is wanted and aid == wanted_id
+               for (gp, aid), (wanted, wanted_id) in zip(targets, expected))
+    assert getter.__self__ is sim and getter.__name__ == "get_agent_context_batch"
+    assert _gp_context_complete_state(batch) == before
+    assert _gp_context_global_rng_state() == rng_state
+    scalar_result, scalar_calls = _gp_context_original_c_calls(
+        sim, lambda: _sync_scalar_reference(scalar_bridge, scalar),
+    )
+    assert scalar_result is None
+    assert scalar_calls == ["get_agent_memories", "get_agent_needs",
+                            "get_agent_relationships"] * 7
+    assert bytes(sim.checkpoint_state()) == checkpoint
+    assert _gp_context_global_rng_state() == rng_state
+    batch_result, batch_calls = _gp_context_original_c_calls(
+        sim, lambda: _sync_batch_prototype(batch_bridge, batch),
+    )
+    assert batch_result is None and batch_calls == ["get_agent_context_batch"]
+    assert _gp_context_complete_state(batch) == _gp_context_complete_state(scalar)
+    assert bytes(sim.checkpoint_state()) == checkpoint
+    assert AgentSimulator.checkpoint_schema() == schema
+    assert _gp_context_global_rng_state() == rng_state
+    a, twin, repeated, inactive, aggregate = batch.civilizations[0].great_persons
+    assert a is repeated and a is not twin
+    assert a.memories is not twin.memories and a.needs is not twin.needs
+    assert a.agent_bonds is not twin.agent_bonds and a.agent_bonds
+    assert inactive.needs is aggregate.needs
+    for gp in batch.civilizations[1].great_persons[1:]:
+        assert gp.memories == []  # dead, missing and ordinary zero-id controls
+        assert gp.needs is inactive.needs and gp.agent_bonds is inactive.agent_bonds
+    # This fixture does not fabricate a live id0 or legacy-memory payload.
+    # Existing Rust/pure contracts retain those distinct public-API cases.
+
+
+@requires_chronicler_agents
+def test_native_gp_context_empty_cohort_is_a_noop_without_getter_calls():
+    from chronicler._gp_context_sync import _sync_batch_prototype, _sync_scalar_reference
+
+    sim = AgentSimulator(num_regions=2, seed=31337)
+    sim.set_region_state(_make_region_batch(
+        num_regions=2, capacity=60, populations=[2, 2], controllers=[0, 1],
+    ))
+    # No setup tick is needed: both roster entries are excluded by the old loop.
+    scalar = _gp_context_native_world(1, 2, 999, empty=True)
+    batch = _gp_context_native_world(1, 2, 999, empty=True)
+    before = _gp_context_complete_state(batch)
+    checkpoint = bytes(sim.checkpoint_state())
+    rng_state = _gp_context_global_rng_state()
+    for function, world in ((_sync_scalar_reference, scalar), (_sync_batch_prototype, batch)):
+        result, calls = _gp_context_original_c_calls(
+            sim, lambda: function(_bare_agent_bridge(sim=sim, mode="hybrid"), world),
+        )
+        assert result is None and calls == []
+        assert _gp_context_complete_state(world) == before
+        assert bytes(sim.checkpoint_state()) == checkpoint
+        assert _gp_context_global_rng_state() == rng_state

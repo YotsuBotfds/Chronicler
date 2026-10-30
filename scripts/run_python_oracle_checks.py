@@ -340,6 +340,9 @@ CHUNKS = {
     "paired-context-benchmark-contracts": [
         "tests/paired_context_benchmark_contract_cases.py",
     ],
+    "gp-context-sync-prototype-contracts": [
+        "tests/gp_context_sync_contract_cases.py",
+    ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):
