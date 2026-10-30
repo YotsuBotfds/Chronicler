@@ -1,3 +1,49 @@
+# Simulation staging005 - source-only civilization closure, 2026-10-30
+
+This child retains the complete Stage004 ledger and one genuine donor merge.
+Its first parent is frozen local4dd623bd819a2e4ad4297820ce51536fa19c9b94;
+that tree was published through the separately recorded remote643cda4d mapping.
+Remote Git metadata is not reconstructed here. The second merge parent is
+4705415a2356501e98b655c573a73da6cb30c3b5, retaining source-blocked5ec and its
+c50 ancestry. There is no redundant c50/ingress merge or repeated old ledger.
+
+The final composition preserves Stage004 religion/needs/tools and adds only
+the reviewed civilization lifetime/restoration closure. Current care witnesses
+retain FFI425133 and needs bridge153197, updating only whole-main/simulation
+pins. Owners305, six native skips,623 required subreports and all43 old chunks
+and caps remain. Dedicated Tests005 and semantics005 refs extend existing004
+selectors without weakening the historical fixture/current-header witness.
+
+All Stage005 checks are UNRUN. The intended guarded focus is112 cases: Stage004
+70 plus civ43 with the shared care witness selected once. New native/Rust and
+full fresh CI evidence are still required; donor and prior Stage004 results do
+not qualify this new nativeaa32 source. Root's reported Stage004 official9-job
+and semantics success remain separate evidence, not transferred qualification.
+Main, experiments and the original scientific cohorts are untouched.
+See [the composition](integration/simulation-staging005-composition-2026-10-30.md).
+
+The exact470+5ec donor-only entries and complete Stage004 history follow.
+
+---
+
+# 2026-10-30 — source-only ordered restoration closure child
+
+Preserve frozen5ec and its independent source B1 negative: duplicate original exile rows could yield Existing→New restoration bundles, while Python's first remove-all erased the second creator's required exile, causing a late unresolved New reference after effects. This separate child admits only one successful restoration per original/pass in native and pure paths, consumes all accepted original exile rows, and preflights actual ordered exile append/remove and creator identity before application. Failed attempts do not consume an identity. Native collapse-protection semantics stay separate. Unknown pending breakaway-name exile routes refuse; current native exile producers use Existing refs. See `docs/integration/civilization-restoration-closure-2026-10-30.md`.
+
+All ten care current bindings/marker blocks/historical witnesses, main/simulation/FFI425133/agent bridge and the254 lifetime admission remain unchanged. New12 pure+4native parents and2Rust tests are UNRUN; one older Rust capacity fixture now uses distinct originals. No imports, candidate execution, test, compiler, Native/World, timing, network, push or CI occurred. Staging004 remains independent; this is a prospective staging005 donor after review and qualification.
+
+---
+
+# 2026-10-30 — source-only civilization lifetime capacity admission
+
+New separate `lead/civ-lifetime-capacity-20261030` donor descends from c50 region ingress; it is intended for staging005 and does not delay or modify staging004. Enforce the existing 254 total lifetime-record budget before Python political births or native New-operation bundles. Count dead records and queued births, preserve existing dead-record restoration, commit earlier accepted secessions, and retain city/movement four-slot headroom/fallback. Whole-list identity/capacity preflight rejects malformed or overbooked native apply batches before effects, including hybrid shock flushing; missing New refs cannot alias Existing ids. Oversized historical worlds remain readable but active entry points refuse clearly.
+
+See `docs/integration/civilization-lifetime-capacity-2026-10-30.md` for mutation order, narrow preflight limits and unrun test scope. Only care's current main/simulation whole-file literals are rebound; other eight current witnesses, ten care blocks, historical mechanics bindings, c50 FFI425133 and original agent bridge stay exact. Historical default-main AST digest stays immutable, with exact-site admission projection and negative mutations. All new Python/native/Rust tests are authored UNRUN. No build, native/World execution, test, timing, network, push or CI qualification follows from this handoff.
+
+Preparation observations are retained separately: the first Python author stopped on a nonunique `_secede` text anchor before editing that file, then a new exact-function-anchored author continued; the first projection metadata author used the default Python AST dump without CPython3.13 `show_empty`, failed before writes, then a new author used the pinned3.13 metadata interpreter. The native coauthor preserved its missing-directory copy and one-LF inverse-check assumptions. These are metadata preparation negatives, not product/test outcomes.
+
+---
+
 # Simulation staging004 composition — source only, 2026-10-30
 
 This separate829-based branch preserves six real donor merges and composes
