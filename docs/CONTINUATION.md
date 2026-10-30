@@ -1,3 +1,27 @@
+## 2026-10-30: bind the first cache-identity diagnostic pilot
+
+This controller-only child binds ROOT-CACHE-IDENTITY-PILOT-FIRST-20261030 after the
+root observed the c5 controller's 133 pure passes, saved seven-workflow lint and
+all nine jobs of Tests run41078264944 succeed. Its local parent dd0 maps to
+published c5ae67adbd66a62b345b2c869c4a493776eb598b at the same60731503 tree.
+The source review is the final dd0 witness closure; the corrected b8e proof/RNG
+review supplements the preserved original98ed clearance miss. Both exact review
+digests are committed in the registration, not inferred from historical approval.
+
+The measured pair remains829/a840 then643/0dca, template8/4 seed42, two unprofiled
+200-turn roles. Protocol, all seven workflow bodies, product/Native, strict proof
+and resource caps stay exact. Runtime, performance and scientific qualification
+remain null. Actual proof/body/resource fit is unobserved; complete-or-refuse
+limits remain binding. No historical failed run is reclassified.
+
+The existing UNREADY admission test now validates the committed READY record,
+then writes a temporary copy with only root_decision cleared and exercises the
+same refusal before Git/HTTP. All old assertions and42/133 case counts remain.
+Source publication grants no execution: only a separate root action creating the
+exact previously absent run ref at this reviewed READY controller may start its
+one first attempt. No run, Native build or World result is asserted here.
+The complete previous continuation follows byte-exact.
+
 ## 2026-10-30: cache-pilot focused negative and current-workflow witnesses
 
 The first 133-case guarded attempt stopped after 42 fake/pure passes and one legacy fixture setup error. Its preparation aliased the unchanged legacy registration, while the unchanged reader requires a unique regular file. The failed view, logs, JUnit and guard report remain preserved; the future preparation must materialize that registration. This source child does not change the file reader or fix that packaging in product code.

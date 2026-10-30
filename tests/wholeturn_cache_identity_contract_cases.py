@@ -281,13 +281,17 @@ def test_first_capture_failure_keeps_old_hash_progress_and_no_replay(failure, mo
 
 def test_unready_registration_blocks_collection_and_fixed_pilot_is_two_roles(monkeypatch, tmp_path):
     reg = p.read_json(ROOT / p.REGISTRATION)
+    p.validate_registration(reg)
+    reg = {**reg, "root_decision": None}
     assert reg["root_decision"] is None
+    controller = tmp_path / "unready-controller"
+    p.write_new(controller / p.REGISTRATION, reg)
     q = p.schedule(reg)
     assert [(r["regions"], r["civilizations"], r["seed"], r["turns"], r["profiled"], r["arm"]) for r in q] == [(8, 4, 42, 200, False, "baseline"), (8, 4, 42, 200, False, "candidate")]
     assert sum(r["turns"] for r in q) == 400
     monkeypatch.setattr(owner.build, "github_context", lambda *_: pytest.fail("UNREADY reached Git/context"))
     monkeypatch.setattr(owner, "official_metadata", lambda *_: pytest.fail("UNREADY reached HTTP"))
-    with pytest.raises(p.Refused, match="DEFERRED"): owner.admission(ROOT, tmp_path / "runtime")
+    with pytest.raises(p.Refused, match="DEFERRED"): owner.admission(controller, tmp_path / "runtime")
     assert not (tmp_path / "runtime").exists()
 
 

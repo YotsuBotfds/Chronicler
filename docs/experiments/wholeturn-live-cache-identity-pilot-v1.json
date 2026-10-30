@@ -76,7 +76,15 @@
     "runtime": null,
     "scientific": null
   },
-  "root_decision": null,
+  "root_decision": {
+    "kind": "ROOT_REVIEWED_CACHE_IDENTITY_PILOT",
+    "protocol": "matched-wholeturn-cache-identity-pilot-v1",
+    "candidate_source": "643cda4d73edd9cfdfe83c619932906c579f7473",
+    "candidate_native_tree": "0dca68c36baa2663c66dcf45bb4afd0c5696b18f",
+    "source_review_sha256": "a7155996bcd68745432bbf83cf9a092c21bc6f31789fc0b75f3b75fc832315a0",
+    "live_proof_review_sha256": "bf3c7712b5a0c56d3ea37390f52dd11dc77132fa0ce3e8f86463b2c72c83f2ad",
+    "approval_id": "ROOT-CACHE-IDENTITY-PILOT-FIRST-20261030"
+  },
   "run_ref": "refs/heads/lead/wholeturn-cache-identity-pilot-run-20261030",
   "windows": [
     [
