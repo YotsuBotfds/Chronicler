@@ -798,11 +798,15 @@ def read_parent_record(path, cap):
         return value
     def nonfinite(value):
         raise ValueError("nonfinite_parent_value")
+    def finite_float(text):
+        value=float(text)
+        require(math.isfinite(value),"nonfinite_parent_float")
+        return value
     try:
         require(not path.is_symlink() and path.is_file() and path.stat().st_size<=cap,"parent_record_file_bound")
         raw=path.read_bytes();require(len(raw)<=cap,"parent_record_read_bound")
         observed=dict(bytes=len(raw),sha256=sha(raw))
-        value=json.loads(raw,object_pairs_hook=closed_object,parse_constant=nonfinite)
+        value=json.loads(raw,object_pairs_hook=closed_object,parse_constant=nonfinite,parse_float=finite_float)
         require(type(value) is dict,"parent_record_not_object")
         return value,observed,None
     except Exception as exc:

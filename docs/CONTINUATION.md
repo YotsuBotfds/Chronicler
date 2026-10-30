@@ -1,3 +1,13 @@
+# GP parent-result float overflow correction - source only, 2026-10-30
+
+Preserve immutable951/e093 and their reviews. A local finite parse_float check
+now refuses JSON exponent overflow as well as explicit NaN/Infinity tokens.
+Two nested positive/negative1e999 cases carry complete otherwise-valid failed
+result headers, retaining exact original bytes/pins, UNKNOWN counts and no
+active-child read. All80 existing assertions/cases remain unchanged;82 pure
+cases plus unchanged NativeBuild18 make prospective FIRST100, all UNRUN.
+No method/dose/cap/Native/product/owner/routing/default changes or runtime grant.
+
 # GP full-sync pre-data evidence correction — source only, 2026-10-30
 
 Preserve frozen e093 and its NOT_CLEAR review. This corrective child changes

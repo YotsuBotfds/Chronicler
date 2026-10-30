@@ -441,7 +441,9 @@ def write_final_custody(root,proven=True):
 
 
 @pytest.mark.parametrize("raw",[b"",b"{",b'{"status":',b"[]",b"null",b"{}",
-    b'{"status":"complete"}',b'{"x":1,"x":2}',b'{"x":NaN}'])
+    b'{"status":"complete"}',b'{"x":1,"x":2}',b'{"x":NaN}',
+    b'{"kind":"GP_FULLSYNC_RESULT","planned_workers":414,"method":"named-gp-fullsync-v1-69x3x2-256","actual_source":"cccccccccccccccccccccccccccccccccccccccc","status":"failed","child_namespaces_quiescent":true,"completed_workers":0,"retained_timing_rows":0,"case_summaries":[{"nested":{"value":1e999}}]}',
+    b'{"kind":"GP_FULLSYNC_RESULT","planned_workers":414,"method":"named-gp-fullsync-v1-69x3x2-256","actual_source":"cccccccccccccccccccccccccccccccccccccccc","status":"failed","child_namespaces_quiescent":true,"completed_workers":0,"retained_timing_rows":0,"case_summaries":[{"nested":{"value":-1e999}}]}'])
 def test_partial_parent_results_keep_bounded_refusal_without_synthetic_rows(tmp_path,monkeypatch,context,raw):
     root=tmp_path/"evidence";(root/"comparison").mkdir(parents=True)
     write_final_custody(root)

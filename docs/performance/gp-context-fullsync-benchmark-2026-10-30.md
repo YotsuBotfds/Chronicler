@@ -141,8 +141,8 @@ this experiment are UNRUN at source freeze.
 The immutable e093 draft is preserved with its NOT_CLEAR review. This successor
 repairs evidence representation and recovery before any benchmark data exist;
 the69 conditions,414 workers,256 calls, all clocks/seeds/caps and product code
-remain unchanged. Its source-only contracts are80 cases; adding the unchanged
-18 NativeBuildLanes cases gives a prospective FIRST98, all UNRUN.
+remain unchanged. Its source-only contracts are82 cases; adding the unchanged
+18 NativeBuildLanes cases gives a prospective FIRST100, all UNRUN.
 
 Native returns `(version, sixteen-hex FNV fingerprint, full recursive schema)`.
 The build records that exact raw Agent schema once within its existing64KiB
@@ -179,7 +179,15 @@ step and the job still fail. Unsafe child namespaces never become upload paths.
 The listed body subcaps sum1836KiB (plus the small custody record inside2MiB),
 not1936KiB. No cap was increased. Original57 contracts keep every assertion;
 only the inaccurate worker fixture schema/header and three parser calls adapt
-to the corrected wire identity. Twenty-three new cases cover complete-schema/
+to the corrected wire identity. Twenty-five new cases cover complete-schema/
 P50 sizes, schema/package mismatches and duplicate names, bounded partial-result
 recovery, missing custody fields, unknown custody and failed-owner upload gates.
 All source/runtime qualification gates above still apply; fit remains UNKNOWN.
+
+The immutable951 child remains preserved. A further pre-data correction adds a
+local finite parse_float callback: JSON exponent overflow such as positive or
+negative1e999 now refuses at any nesting depth. Both new cases include every
+required result-header field and exercise the existing bounded refusal path:
+exact raw bytes/digest retained, counts UNKNOWN, no active child data read or
+uploaded. All80 previous assertions remain intact. No run has occurred and no
+workload, timing, resource, retention, production or qualification policy changed.
