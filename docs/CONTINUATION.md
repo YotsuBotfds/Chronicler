@@ -1,3 +1,31 @@
+# Settlement cell reuse: focused correctness and measured kernel gates — 2026-10-30
+
+Tested source `8aeea77a33a09be0cb06a2ca8a73f26de03d0424` passed all 95 focused
+settlement module tests (56 old + 39 new) under the existing offline guard,
+with zero native/runtime-factory/blocked-I/O observations. Its separate
+benchmark002 passed registered extracted-kernel gates on 12 fixed synthetic
+float datasets: 36 alternating pairs / 72 validated samples. Large clustered
+candidate/legacy median ratios were 0.600000–0.799570 CPU and
+0.626605–0.805373 wall. This is no World or full-simulation speed claim.
+
+The costs stay visible: no-dense 1,000-row CPU +0.032036% and wall +9.445527%,
+no-dense 10,000-row wall +4.734864%, and about 2 MB additional peak traced Python
+allocation at 250,000 rows. Traced allocations are not RSS. The first001
+protocol stopped at an unsaved nonpositive-clock interval with 0 saved samples;
+its cause remains UNKNOWN and all evidence is preserved, without rerunning it.
+002 used distinct fixed 100/10/1/1 batches with raw clocks saved before checks;
+large calls, input digests, thresholds and caps remained unchanged.
+
+This child updates only two documentation paths. All product/test bytes remain
+exact 8aee; no test or benchmark is repeated. The
+[performance note](performance/settlement-cell-reuse-2026-10-30.md) records the
+six large cases, every small regression, memory model and evidence hashes.
+Normal publication and first standard CI remain separate root decisions.
+The following source-only continuation is retained as its historical 8aee
+freeze record; its UNRUN statements describe that earlier point in time.
+
+---
+
 # Settlement cell reuse candidate — source only, 2026-10-30
 
 This isolated child of exact701 changes only the live detector's
