@@ -155,7 +155,8 @@ def test_job_body_fields_are_unused_data():
     assert analyze(run, jobs) == expected
 
 
-@pytest.mark.parametrize('text', ['{"id":1,"id":2}', 'not JSON', '['*2000, ' '* (2*1024*1024+1)])
+@pytest.mark.parametrize('text', ['{"id":1,"id":2}', 'not JSON', '['*2000, ' '* (2*1024*1024+1)],
+                         ids=['duplicate', 'invalid', 'too-deep', 'oversized'])
 def test_invalid_duplicate_deep_or_oversized_json_refuses(text):
     with pytest.raises(MetadataError): loads(text)
 
