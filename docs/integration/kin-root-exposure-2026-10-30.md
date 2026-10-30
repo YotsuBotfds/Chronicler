@@ -120,3 +120,64 @@ The99-case result qualifies synthetic row validation and arithmetic only. No
 actual saved frame was analyzed, and no native, World, checkpoint, full-study or
 twenty-turn efficacy qualification follows. The retained cohort results and all
 scientific thresholds remain unchanged.
+
+## Opt-in first-fork acquisition driver
+
+`scripts/capture_kin_root_exposure.py` prepares the next distinct measurement.
+Its default invocation is disabled and imports no simulation runtime. The source
+and fake-driver cases are UNRUN at this freeze; no actual acquisition is claimed.
+
+The input is one fresh current-source/native exact checkpoint: template seed42,
+8regions/4civilizations, world turn101 and the original500-turn configured
+horizon, local simulation-only hybrid mode with validation sidecars and no decision ablation. The
+existing strict loader keeps mismatch overrides disabled. The checkpoint's own
+retained `SidecarWriter` rows supply fork100 membership through existing
+community method2/cohort method6, intersected with that snapshot's living IDs.
+This binds membership to the same checkpoint instead of trusting unrelated
+sidecar files. Identity and run configuration are retained in the output context.
+No historical member IDs are recovered by this current-source acquisition.
+
+After separate whole-worker and native admission, invocation is explicit:
+
+```sh
+PYTHONPATH=src:. python scripts/capture_kin_root_exposure.py \
+  --enable-acquisition --checkpoint /absolute/current/checkpoint_turn_101.ckpt \
+  --output /absolute/fresh/kin-capture
+```
+
+Checkpoint generation remains a separate dependency. Reuse the full chosen
+validation profile's flags, keep its500-turn horizon and request checkpoint101.
+The existing `execute_run(..., quit_check=...)` can stop after101 completed ticks:
+the scheduled checkpoint is written before that callback. Setting `--turns101`
+would force final settlement detection on tick100 and create a different prefix.
+This driver accepts the checkpoint and resumes exactly one ordinary turn with
+the original500-turn horizon, stopping through `quit_check` after that turn.
+
+Native `selected_agent_ids` receives the fixed member IDs, including members
+with zero root dose. The original five captured batches pass unchanged to the
+reader. `cohort.json` keeps the fixed cohort size separate from current selected
+living counts; nonmembers have a fork count but no captured decision rows.
+An empty valid community set stays empty. An unavailable graph snapshot refuses
+instead of claiming an empty cohort. Partial captures, adapter refusals, reader
+refusals and cleanup failures stay visible in `receipt.json`; captured wire rows
+are retained before the reader runs. The existing reader's membership flag stays
+false because the cohort evidence is carried separately by this driver.
+
+Input caps are64MiB compressed checkpoint,128MiB declared raw sections,
+262,144 checkpoint sidecar rows scanned and65,536 projected fork rows. Observer
+limits remain4,096 agents/16,384 candidates/16,384 move rows and8MiB Arrow
+retention. Driver artifacts have individual caps: wire32MiB+64KiB, cohort1MiB,
+and context/exposure/receipt64KiB each. An unavailable readout's retained headers
+have a separate64KiB cap. Combined driver artifacts stay below34MiB. These limits do not
+bound total process RSS or the ordinary resume's exports. Existing
+`ArtifactBudget` rejects exact resumes/checkpoints; the driver adds no bypass.
+Whole-worker disk/RSS/wall admission remains required before execution. The
+3GiB `/tmp` floor is checked before acquisition, before stepping and afterward;
+it is not a continuous disk reservation.
+
+The ordinary resume retargets outputs into the fresh capture directory before
+observer attachment. Failure cleanup cannot flush restored sidecars into the
+parent directory. No new simulation hook, native capture schema, checkpoint
+format, scientific threshold or calibrated effect is introduced. A future
+paired20-turn experiment must retain the original window101–120 and its21
+executed ticks. This one-turn acquisition cannot establish that temporal effect.

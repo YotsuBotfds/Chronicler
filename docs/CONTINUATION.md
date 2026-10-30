@@ -1,3 +1,21 @@
+# Kin-root first-fork acquisition driver — source only, 2026-10-30
+
+An explicit script can strict-load a current seed42/template first-fork
+checkpoint and capture source turn101 through existing observer/reader APIs.
+It preserves the500-turn horizon, selects method6 members from checkpoint-carried
+fork100 sidecars and retains zero-dose, empty, partial and refused outcomes.
+Restored outputs are retargeted before attachment so failure cleanup cannot
+flush the parent directory. The script is disabled by default. New fake-driver
+contracts join the existing final offline chunk; all40 chunks and110-second
+caps remain. Reader code and its previously passed99 cases remain unchanged.
+The new script/contracts are UNRUN; no actual frame/native/World execution or
+temporal effect follows. Whole-worker resource/native admission is still needed:
+driver artifact caps do not bound ordinary resume exports or total RSS. See
+[the input/output scope](integration/kin-root-exposure-2026-10-30.md).
+The exact preceding continuation follows unchanged.
+
+---
+
 # Kin-root exposure reader — first focused99 pass, 2026-10-30
 
 Source `90e4a1b4` passed its first focused execution of99 synthetic current-wire-

@@ -329,6 +329,7 @@ CHUNKS = {
     ],
     "kin-root-exposure-contracts": [
         "tests/kin_root_exposure_contract_cases.py",
+        "tests/kin_capture_driver_contract_cases.py",
     ],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
