@@ -1,3 +1,21 @@
+# Religion fallback expectation correction — source-only child, 2026-10-30
+
+The first5ae focused run remains negative:129 passed, one boolean-test failure,
+one old native-case skip, exit1. No native module loaded; one native import was
+blocked, so no clean all-zero guard or complete qualification is claimed.
+The boolean test expected grouping although unchanged Arrow zero-copy decoding
+uses the original scalar fallback. This child fixes only that expectation and
+docs; religion/turn_artifacts product bytes and the raw-native test are exact5ae.
+
+Next focus is the same131 collected items with one exact old native node
+--deselected,130 selected/executed. Owners/default tests/41chunks/caps remain.
+The first negative is preserved; child checks remain UNRUN until peer/root
+approval, and raw-native activation still requires future fresh-wheel CI.
+See [the corrected plan](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete original5ae continuation follows unchanged.
+
+---
+
 # Religion filtered count reuse — source-only829 child, 2026-10-30
 
 Three Phase10 religion consumers demand the same filtered region/belief counts.

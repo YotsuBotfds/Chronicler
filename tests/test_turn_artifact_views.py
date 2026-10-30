@@ -542,7 +542,9 @@ def test_religion_unsupported_arrays_keep_original_uncached_fallback(kind, monke
     monkeypatch.setattr(artifacts, "ordered_counts", grouped)
     assert compute_majority_belief(batch, agent_rows=rows) == expected
     assert compute_majority_belief(batch, agent_rows=rows) == expected
-    assert len(calls) == (0 if kind == "null" else 2)
+    # This PyArrow bit-packed bool column cannot expose a zero-copy NumPy view.
+    # Like nulls, it retains the original scalar fallback and makes no groups.
+    assert len(calls) == (0 if kind in ("boolean", "null") else 2)
 
 
 class _FaithMutableBatch:
