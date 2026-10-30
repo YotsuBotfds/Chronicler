@@ -71,7 +71,7 @@ aggregate/community code remain byte-exact.
 ## Prospective checks and source witnesses
 
 Eighteen pure cases append to the existing test_turn_artifact_views module,
-which already belongs to native owner1 and the existing offline core chunk.
+which already belongs to native owner0 and the existing offline core chunk.
 They use genuinely immutable bytes-backed14-column PyArrow/arro3 batches,
 including empty input, UInt8 affinity, signed zeros and raw signed NaN payloads.
 They compare the old bridge pylist route with writer decoding by Python types
