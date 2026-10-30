@@ -1,3 +1,17 @@
+# Kin-root captured exposure reader domain repair — source only, 2026-10-30
+
+First sourcefcd616c4 remains UNRUN and source-blocked: its finite wealth factor
+domain incorrectly excluded amplification below the personal-wealth denominator
+floor. This successor accepts historical finite nonnegative recorded factors,
+reports attenuation/amplification separately, and closes field-name, bucket,
+applied-origin flag and header-counter joins. All old72 cases stay byte-exact
+and ordered;24 new source-grounded cases are appended. No native mechanics,
+simulation, study result, threshold, chunk selection or110-second cap changes.
+Source-only readiness and focused execution remain separate gates. The exact
+first-source continuation follows unchanged.
+
+---
+
 # Kin-root captured exposure reader — source only, 2026-10-30
 
 A bounded pure reader decomposes existing decision-delivery rows into

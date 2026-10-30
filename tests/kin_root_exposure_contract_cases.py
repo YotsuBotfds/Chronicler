@@ -360,3 +360,119 @@ def test_model_constants_match_the_native_arithmetic_source():
     for key, name, source in pairs:
         found = re.search(r"pub const " + name + r": (?:f32|u16) = ([0-9.]+);", source)
         assert found is not None and float(found.group(1)) == exposure.MODEL_ARITHMETIC[key]
+
+
+@pytest.mark.parametrize("personal,spouse,amplifies", [(0.0, .005, True),
+    (.001, .001, True), (.005, .005, False), (.01, .01, False),
+    (0.0, 0.0, False), (.005, 0.0, False)])
+def test_low_and_zero_wealth_source_branches_preserve_recorded_factor_domain(personal, spouse, amplifies):
+    # Source-arithmetic synthetic frame, never a compiled-capture attestation.
+    personal, spouse = f32(personal), f32(spouse)
+    effective = f32(personal + spouse)
+    applied = effective > personal
+    factor = f32(.88 * (1 / (f32(effective / max(personal, f32(.01))) ** 1.2))) if applied else 1.0
+    row = decision(personal_wealth_bits=bits(personal), effective_wealth_bits=bits(effective),
+        wealth_multiplier_applied=applied, wealth_factor_bits=bits(factor),
+        migration_post_wealth_bits=bits(f32(f32(.54) * factor) if applied else f32(.54)))
+    result = exposure.summarize_kin_root_exposure(**frames([row]))
+    assert (factor > 1) is amplifies
+    assert result["decisions"]["wealth_factor_above_one"] == int(amplifies)
+    assert result["decisions"]["wealth_amplifies_dose"] == int(amplifies)
+    assert result["same_destination_arithmetic"]["post_wealth_migrate_delta_sum"] == pytest.approx(.06 * factor, rel=2e-6, abs=2e-7)
+    assert result["twenty_turn_effect_estimate"] is None
+
+
+def test_negative_recorded_wealth_factor_refuses_even_when_marked_applied():
+    row = decision(wealth_multiplier_applied=True, wealth_factor_bits=bits(-.5))
+    with pytest.raises(ValueError, match="wealth_factor"):
+        exposure.summarize_kin_root_exposure(**frames([row]))
+
+
+@pytest.mark.parametrize("part", ["decision_header", "move_header", "decision_rows", "candidate_rows", "move_rows"])
+def test_str_subclass_wire_field_names_refuse(part):
+    class Alias(str):
+        pass
+    inputs = frames(moves=move_pair(0))
+    row = inputs[part] if part.endswith("header") else inputs[part][0]
+    key = next(iter(row))
+    value = row.pop(key)
+    row[Alias(key)] = value
+    with pytest.raises(ValueError, match="field_name_type"):
+        exposure.summarize_kin_root_exposure(**inputs)
+
+
+def test_key_equality_callbacks_are_not_invoked_before_alias_refusal():
+    comparisons = []
+    class Alias(str):
+        __hash__ = str.__hash__
+        def __eq__(self, other):
+            comparisons.append(other)
+            return super().__eq__(other)
+    inputs = frames()
+    row = inputs["decision_rows"][0]
+    value = row.pop("agent_id")
+    row[Alias("agent_id")] = value
+    comparisons.clear()
+    with pytest.raises(ValueError, match="field_name_type"):
+        exposure.summarize_kin_root_exposure(**inputs)
+    assert comparisons == []
+
+
+def test_applied_move_cannot_borrow_an_origin_from_another_bucket():
+    moves = move_pair(0)
+    moves[-1]["bucket"] = 1
+    with pytest.raises(ValueError, match="move_origin_join"):
+        exposure.summarize_kin_root_exposure(**frames(moves=moves))
+
+
+@pytest.mark.parametrize("change", ["invalid_known_role", "valid_missing_ordinal",
+    "unknown_with_valid_origin", "invalid_with_ordinal"])
+def test_partial_capture_does_not_override_applied_origin_flags(change):
+    moves = move_pair(0)
+    applied = moves[-1]
+    if change == "invalid_known_role": applied["origin_valid"] = False
+    elif change == "valid_missing_ordinal": applied["origin_operation_ordinal"] = None
+    elif change == "unknown_with_valid_origin": applied["role"] = 255
+    else: applied.update(origin_valid=False, role=255)
+    inputs = frames(moves=moves)
+    inputs["move_header"].update(applied_move_provenance_complete=False, missing_applied_origins=1)
+    with pytest.raises(ValueError, match="missing_move_origin"):
+        exposure.summarize_kin_root_exposure(**inputs)
+
+
+def test_explicit_selection_cannot_retain_more_living_agents_than_requested():
+    inputs = frames()
+    for header in ("decision_header", "move_header"):
+        inputs[header].update(selection_is_explicit=True, selected_ids_requested=0)
+    with pytest.raises(ValueError, match="selected_population_count"):
+        exposure.summarize_kin_root_exposure(**inputs)
+
+
+@pytest.mark.parametrize("kind", ["trip", "evaluated", "displaced", "mobility"])
+def test_retained_decision_categories_cannot_exceed_global_counters(kind):
+    if kind == "trip":
+        row = decision(status=1, mobility_eligible=False, roots_bits=0, home_bonds_bits=0)
+        inputs = frames([row], [])
+        inputs["decision_header"].update(trip_skipped_all=0, evaluated_all=1)
+    elif kind == "displaced":
+        row = decision(displacement=1, selected_target=0, mobility_eligible=False, roots_bits=0, home_bonds_bits=0)
+        inputs = frames([row], [])
+        inputs["decision_header"]["displaced_all"] = 0
+    else:
+        inputs = frames()
+        inputs["decision_header"]["mobility_eligible_all"] = 0
+        if kind == "evaluated":
+            inputs["decision_header"].update(evaluated_all=0, trip_skipped_all=1)
+    with pytest.raises(ValueError, match="retained_decision_counts"):
+        exposure.summarize_kin_root_exposure(**inputs)
+
+
+def test_complete_unselected_capture_must_reconcile_global_eligibility():
+    row = decision(mobility_eligible=False, roots_bits=0, home_bonds_bits=0,
+        voluntary_pull_bits=0, migration_post_pull_bits=bits(.1), migration_post_wealth_bits=bits(.1))
+    target = candidate(mobility_eligible=False, roots_bits=0, gross_frontier_bits=0,
+        net_frontier_bits=0, post_roots_pull_bits=0, applied_pull_bits=0)
+    inputs = frames([row], [target])
+    inputs["decision_header"]["mobility_eligible_all"] = 1
+    with pytest.raises(ValueError, match="complete_decision_counts"):
+        exposure.summarize_kin_root_exposure(**inputs)

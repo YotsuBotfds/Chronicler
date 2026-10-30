@@ -71,7 +71,10 @@ class _Budget:
         self.bytes = 0
 
     def row(self, value, schema):
-        _require(type(value) is dict and set(value) == {name for name, _, _ in schema}, "row_fields")
+        _require(type(value) is dict, "row_fields")
+        _require(len(value) == len(schema), "row_fields")
+        _require(all(type(name) is str for name in value), "field_name_type")
+        _require(set(value) == {name for name, _, _ in schema}, "row_fields")
         result = value.copy()
         for name, kind, nullable in schema:
             item = result[name]
@@ -127,6 +130,8 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
     if not dh["selection_is_explicit"]:
         _require(dh["selected_ids_requested"] == 0
                  and dh["selected_alive_seen"] == dh["alive_seen_all"], "unselected_header")
+    else:
+        _require(dh["selected_alive_seen"] <= dh["selected_ids_requested"], "selected_population_count")
     for actual, limit in ((len(decision_rows), dh["agent_limit"]),
                           (len(candidate_rows), dh["candidate_limit"]),
                           (len(move_rows), mh["move_limit"])):
@@ -155,7 +160,7 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
     dc = dict.fromkeys(("captured", "trip", "evaluated", "displaced", "mobility_eligible",
         "relationship_root_present", "selected_home", "selected_outward", "selected_target_missing",
         "selected_positive_pull", "selected_root_sensitive_pull", "positive_post_wealth_dose",
-        "wealth_attenuates_dose"), 0)
+        "wealth_factor_above_one", "wealth_attenuates_dose", "wealth_amplifies_dose"), 0)
     for row in budget.rows(decision_rows, _DECISIONS):
         key = row["agent_id"]
         _require(key not in agents, "duplicate_agent")
@@ -178,7 +183,7 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
         else:
             _require(roots == home == 0, "ineligible_roots")
         factor = _float(row["wealth_factor_bits"])
-        _require(0 <= factor <= 1, "wealth_factor")
+        _require(factor >= 0, "wealth_factor")
         _require(not row["wealth_multiplier_applied"] or row["wealth_computed"], "wealth_validity")
         if not row["wealth_multiplier_applied"]:
             _require(factor == 1, "unapplied_wealth_factor")
@@ -187,8 +192,16 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
         dc["displaced"] += not trip and bool(row["displacement"])
         dc["mobility_eligible"] += row["mobility_eligible"]
         dc["relationship_root_present"] += row["mobility_eligible"] and roots > age_roots
+        dc["wealth_factor_above_one"] += factor > 1
         dc["selected_home" if row["selected_target"] == row["region"] else "selected_outward"] += not trip
         agents[key] = {"row": row, "age_roots": age_roots, "selected_seen": False}
+    retained = (("trip", "trip_skipped_all"), ("evaluated", "evaluated_all"),
+                ("displaced", "displaced_all"), ("mobility_eligible", "mobility_eligible_all"))
+    _require(all(dc[local] <= dh[global_name] for local, global_name in retained),
+             "retained_decision_counts")
+    if dh["decision_capture_complete"] and not dh["selection_is_explicit"]:
+        _require(all(dc[local] == dh[global_name] for local, global_name in retained),
+                 "complete_decision_counts")
 
     cc = dict.fromkeys(("captured", "positive_gross", "root_sensitive_before_hysteresis",
         "root_sensitive_after_hysteresis", "unselected_root_sensitive"), 0)
@@ -240,7 +253,8 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
         dc["selected_positive_pull"] += applied > 0
         dc["selected_root_sensitive_pull"] += delta > 0
         dc["positive_post_wealth_dose"] += post_delta > 0
-        dc["wealth_attenuates_dose"] += delta > 0 and post_delta < delta
+        dc["wealth_attenuates_dose"] += factor < 1 and delta > 0 and post_delta < delta
+        dc["wealth_amplifies_dose"] += factor > 1 and delta > 0 and post_delta > delta
         dose["pull_delta_sum"] += delta
         dose["post_wealth_migrate_delta_sum"] += post_delta
         dose["post_wealth_migrate_delta_max"] = max(dose["post_wealth_migrate_delta_max"], post_delta)
@@ -268,6 +282,13 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
                      and row["origin_valid"], "follower_write_role")
         if row["applied"] and row["role"] != 255:
             _require((row["role"] == 0) == (row["lead_agent_id"] is None), "applied_lead_role")
+        if row["applied"]:
+            if row["origin_valid"]:
+                _require(row["role"] in (0, 1, 2) and row["origin_operation_ordinal"] is not None,
+                         "missing_move_origin")
+            else:
+                _require(row["role"] == 255 and row["lead_agent_id"] is None
+                         and row["origin_operation_ordinal"] is None, "missing_move_origin")
         operations[ordinal] = row
         mc["captured_operations"] += 1
         if not row["applied"]:
@@ -283,7 +304,7 @@ def summarize_kin_root_exposure(*, decision_header, decision_rows, candidate_row
         else:
             _require(origin["operation"] in (1, 3) and origin["operation_ordinal"] < ordinal
                      and all(origin[name] == row[name] for name in
-                         ("agent_id", "from_region", "to_region", "role", "lead_agent_id")), "move_origin_join")
+                         ("bucket", "agent_id", "from_region", "to_region", "role", "lead_agent_id")), "move_origin_join")
     applied = sum(mc["applied_" + role] for role in ("own", "spouse", "dependent", "unknown"))
     _require(applied <= mh["applied_selected"] <= mh["applied_all"], "applied_count")
     if mh["dropped_move_rows"] == 0:

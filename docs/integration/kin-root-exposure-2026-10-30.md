@@ -8,19 +8,28 @@ most0.85 with a one-sided upper below1. No report, metric or threshold changes.
 See [the retained full study](full-population-gates-2026-10-29.md).
 
 The roots switch reaches the decision code. It removes marriage/home-bond roots
-from voluntary destination pulls, with at most0.06 removed under the current
+from voluntary destination pulls, with a nominal maximum0.06 before f32 rounding under the current
 constants. It leaves age roots, distress and need pushes, household wealth
 damping, and household followers. The saved reports establish a weak effect
 under this narrow intervention; they do not establish an unused-switch defect.
 
-The unchanged wealth damper further reduces delivered dose. For equal-wealth
-spouses its source formula is `0.88 * 2**-1.2`, about0.383. Even a maximum0.06
-removed root term then changes post-wealth utility by about0.023 when destination
-and other terms stay fixed, against a decision temperature of0.3. This arithmetic
+The recorded wealth multiplier can attenuate or amplify delivered dose. For
+equal-wealth spouses with personal wealth at least0.01, its source formula is
+`0.88 * 2**-1.2`, about0.383. A nominal0.06 removed root term then changes
+post-wealth utility by about0.023 when destination and other terms stay fixed,
+against a decision temperature of0.3. This arithmetic
 example is not a twenty-turn effect bound: target changes, gates, followers,
 cooldowns and later catch-up matter. The separate default-off community-anchor
 mechanism has already been tried and also did not reproduce the15–30% endpoint.
 Another coefficient is not the first missing implementation.
+
+Below that floor the same formula can amplify instead. `behavior.rs` divides
+effective wealth by `personal.max(0.01)`, while `tick.rs` clamps actual wealth
+to `[0, MAX_WEALTH]`. Personal wealth0 plus spouse wealth0.005 gives ratio0.5
+and a multiplier greater than1. This is a source-domain finding, not an observed
+frequency or an explanation established for the full study. The reader accepts
+finite nonnegative recorded factors and reports amplification separately;
+historical records are not rewritten to match a later mechanics correction.
 
 ## Existing frames, one bounded reader
 
@@ -32,6 +41,8 @@ native package, constructs no simulator and draws no random numbers.
 After an explicit observer capture, use the already retained data:
 
 ```python
+from chronicler.kin_root_exposure import summarize_kin_root_exposure
+
 readout = observer.read_latest(expected_source_turn=turn)
 if readout.status == "captured":
     report = summarize_kin_root_exposure(
@@ -56,7 +67,10 @@ root dose before and after the recorded wealth multiplier. Age roots remain in
 the relationship-root removal. Source operations replay f32 rounding and check
 gross/net and utility-stage joins before projecting a dose at that destination.
 
-Explicit selection keeps a selected denominator. Truncation stays
+Explicit selection keeps a selected denominator, whose retained living count
+cannot exceed the number of requested IDs. Retained trip/evaluated/displaced/
+mobility counts reconcile with global header counters when capture is complete
+and unselected, and never exceed those counters in a subset. Truncation stays
 `partial_capture`; missing selected candidates and move origins remain visible.
 No unseen rows silently receive zero exposure. Invalid fields, scalar aliases,
 NaN, positive infinity, nongated negative infinity, inconsistent joins and active kin ablation refuse with
@@ -64,6 +78,12 @@ NaN, positive infinity, nongated negative infinity, inconsistent joins and activ
 membership, search for a new target, replay random draws or estimate a temporal
 migration effect. Caller-supplied metadata attests no compiled execution. Native
 event linkage remains the existing observer's responsibility.
+
+Applied origin joins include `(bucket, agent_id)`, matching native tracking.
+An applied row with no valid origin retains unknown role255, null lead and null
+origin ordinal; a valid applied origin has a known role and nonnull ordinal.
+These flags stay consistent even in a partial capture. A missing partial-frame
+ordinal is reported as unavailable rather than invented from another row.
 
 ## Next distinct measurement
 
