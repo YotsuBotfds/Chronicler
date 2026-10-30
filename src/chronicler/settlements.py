@@ -107,26 +107,40 @@ def extract_clusters(
     if not agent_positions:
         return []
 
-    grid = build_density_grid(agent_positions)
-    dense = find_dense_cells(grid, region_agent_count=len(agent_positions))
+    # Share each occupied cell's [count, component_id] record between its rows.
+    # Keeping row references avoids a second assignment without regrouping the
+    # floating-point additions that determine the centroids below.
+    cell_records: dict[tuple[int, int], list[int]] = {}
+    row_records: list[list[int]] = []
+    for x, y in agent_positions:
+        cell = assign_cell(x, y)
+        record = cell_records.get(cell)
+        if record is None:
+            record = [0, -1]
+            cell_records[cell] = record
+        record[0] += 1
+        row_records.append(record)
+
+    dense = find_dense_cells(
+        {cell: record[0] for cell, record in cell_records.items()},
+        region_agent_count=len(agent_positions),
+    )
     if not dense:
         return []
 
     components = find_connected_components(dense)
 
-    cell_to_component: dict[tuple[int, int], int] = {}
     for comp_id, cells in enumerate(components):
         for cell in cells:
-            cell_to_component[cell] = comp_id
+            cell_records[cell][1] = comp_id
 
     comp_sum_x: list[float] = [0.0] * len(components)
     comp_sum_y: list[float] = [0.0] * len(components)
     comp_pop: list[int] = [0] * len(components)
 
-    for x, y in agent_positions:
-        cell = assign_cell(x, y)
-        comp_id = cell_to_component.get(cell)
-        if comp_id is not None:
+    for (x, y), record in zip(agent_positions, row_records):
+        comp_id = record[1]
+        if comp_id != -1:
             comp_sum_x[comp_id] += x
             comp_sum_y[comp_id] += y
             comp_pop[comp_id] += 1

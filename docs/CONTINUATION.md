@@ -1,3 +1,22 @@
+# Settlement cell reuse candidate — source only, 2026-10-30
+
+This isolated child of exact701 changes only the live detector's
+`extract_clusters`: one cell classification per input row, shared cell records,
+and unchanged original-order centroid additions. All other product/native,
+call sites, RNG, schemas, helper bodies, dependencies, workflows and offline
+chunk selections remain exact. The existing settlement test file is an exact
+prefix;39 appended prospective cases retain the parent's complete algorithm
+as an oracle and check values/types/centroid bits, traces and exceptions.
+
+All tests and performance comparisons on this child are UNRUN. A dated
+[scope, memory analysis and bounded comparison proposal](performance/settlement-cell-reuse-2026-10-30.md)
+records the no-dense overhead risk and required clustered/no-dense comparison.
+No speedup or runtime qualification is claimed. The allocator/intake proposal
+was dropped after finding no production caller, so no dormant layer was added.
+The complete701 continuation follows byte-for-byte unchanged.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
