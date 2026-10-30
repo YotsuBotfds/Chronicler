@@ -1682,6 +1682,7 @@ impl AgentSimulator {
         requested.sort_unstable();
         requested.dedup();
         let mut slots = vec![None; requested.len()];
+        let mut remaining = requested.len();
         let pool = &self.pool;
         for slot in 0..pool.capacity() {
             if !pool.alive[slot] {
@@ -1690,6 +1691,10 @@ impl AgentSimulator {
             if let Ok(index) = requested.binary_search(&pool.ids[slot]) {
                 if slots[index].is_none() {
                     slots[index] = Some(slot);
+                    remaining -= 1;
+                    if remaining == 0 {
+                        break;
+                    }
                 }
             }
         }

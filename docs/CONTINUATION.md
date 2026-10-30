@@ -1,3 +1,19 @@
+# Batch context lookup early completion - source only, 2026-10-30
+
+This separate child of staging829 stops the local slot search once every
+unique requested id has its first live match. Missing or dead ids still
+require the complete scan. Request order, repeated ids, id-zero semantics
+and payload bits remain governed by the scalar-equivalence contracts; no
+schema, RNG, persistent cache or production Python caller changes.
+
+One added native regression puts a duplicate pool id before a later requested
+id, then mixes missing/dead ids with that late match. The existing ten context
+contracts remain exact. All tests/builds on this child are UNRUN. No speedup or
+whole-turn effect is claimed; the separately frozen baseline benchmark remains
+unchanged. The full staging continuation follows unchanged.
+
+---
+
 # Simulation staging integration — source only, 2026-10-30
 
 This separate701-based staging branch composes the exact reviewed5122 household-
