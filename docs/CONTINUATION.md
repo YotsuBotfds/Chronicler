@@ -1,3 +1,17 @@
+# Relay lint-policy correction - source only, 2026-10-30
+
+Frozen cf0b04c7 source review found only a scope mismatch: the reused lint
+workflow had removed qualified read-only PR/manual/original-push policy.
+This child restores those exact triggers/guard, adding only the new lint
+push/attempt1 selector. The same existing fake now witnesses that policy;
+all23 parents remain UNRUN. Dispatch helper/request/relay workflow and all
+original88 product/native/physics bytes stay exact. Parent source/review/
+packing negatives are preserved; no relay or scientific gate is claimed.
+See [the correction](integration/after-procedural-dispatch-relay-2026-10-30.md).
+The complete cf0 continuation follows unchanged.
+
+---
+
 # Original AFTER procedural dispatch relay — source only, 2026-10-30
 
 This separate88-controller child proposes one opt-in hosted relay for the exact

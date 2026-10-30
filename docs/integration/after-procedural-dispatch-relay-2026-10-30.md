@@ -28,7 +28,9 @@ Only a NEW push to lead/after-procedural-dispatch-relay-run-20261030 activates
 the relay, and only run_attempt1 passes its job/helper guards. A separate NEW
 lead/after-procedural-relay-semantics-20261030 push activates only the reused
 read-only actionlint workflow. Its exact qualified tool/archive/action pins and
-execution limits are retained. No PR/manual/schedule trigger is added. Root
+execution limits are retained. The relay itself has no PR/manual/schedule trigger. The reused read-only lint
+workflow preserves its qualified PR/manual and original push policy, adding
+only the exact new relay-semantics push/attempt1 selector. Root
 reviews source and pure fakes, then observes actual all-workflow lint before a
 separate one-time relay activation. None of these gates is complete here.
 
@@ -55,3 +57,15 @@ They have not run. The receipt is current status, not a saved phase event stream
 After any accepted or ambiguous dispatch, root reconciles a unique new original
 workflow_dispatch run against the relay timestamp and exact source/request;
 the older template run must not be relabeled. No automatic resend/cancel/rerun.
+
+## Lint-policy scope correction
+
+Independent source review of frozen cf0b04c7 found one scope mismatch: its
+reused lint template had dropped the qualified read-only PR/manual triggers
+and original push selector/guard. No helper defect or live dispatch was
+observed. This child restores that policy and adds only the new exact lint
+selector. The existing workflow fake now witnesses the complete header and
+guard; all23 fake parents remain present and UNRUN. Parent source, review
+and packing negatives stay preserved. Helper,295B request, opt-in relay
+workflow and original88 physics/controller bytes remain exact. Source review,
+first fakes, hosted lint and separate root activation remain required.

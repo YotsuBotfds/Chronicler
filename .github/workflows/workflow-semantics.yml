@@ -2,14 +2,20 @@ name: Workflow semantics
 
 on:
   push:
-    branches: [lead/after-procedural-relay-semantics-20261030]
+    branches: [lead/workflow-semantics-20261030, lead/after-procedural-relay-semantics-20261030]
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - .github/actionlint.yaml
+      - .github/actionlint.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   actionlint:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/lead/after-procedural-relay-semantics-20261030' && github.run_attempt == 1
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030' || (github.event_name == 'push' && github.ref == 'refs/heads/lead/after-procedural-relay-semantics-20261030' && github.run_attempt == 1)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
