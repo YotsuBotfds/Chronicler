@@ -168,6 +168,10 @@ def test_compact_failure_keeps_all_slots_and_raw_negative_clocks(registration,tm
     p.write_new(root/p.REGISTRATION,registration)
     saved = tmp_path/"saved"
     p.write_new(saved/"raw/roles/0/timing.jsonl", b'{"kind":"WINDOW_RAW","CPU_start_ns":9,"CPU_end_ns":2}\n')
+    requests=p.schedule(registration)
+    p.write_new(saved/"raw/owner.json", {"roles":[{"request":q,"status":"NOT_ATTEMPTED"} for q in requests],
+        "comparisons":[],"status":"FIRST_FAILURE_NO_REPLAY","raw_custody_proven":True,"raw_upload_allowed":True,
+        "final_raw_inventory":controller.inventory(saved/"raw",maximum_bytes=p.MIB,hash_bodies=False)})
     selected = records.selected_records(root,saved,"failure")
     output=tmp_path/"original.zip"
     records.pack(selected,output)
@@ -195,7 +199,7 @@ def test_first_owned_failure_preserves_partial_output_and_prevents_replay(regist
             ordinary=Path(argv[argv.index("--ordinary")+1])
             (ordinary/"partial.json").write_bytes(b'{"partial":true}')
             p.write_new(log,b"first negative\n")
-            return {"actual_exit":7,"refusal":None,"wall_seconds":0,"command_tree_CPU_seconds":0}
+            return {"actual_exit":7,"refusal":None,"quiescent":True,"wall_seconds":0,"command_tree_CPU_seconds":0}
     backend=Backend()
     builds={arm:{"worker_python":"NEVER_EXECUTED"} for arm in ("baseline","candidate")}
     assert controller.run_schedule(value,builds,backend,root,tmp_path,observe=lambda *a,**k:{}) == 2
@@ -203,3 +207,141 @@ def test_first_owned_failure_preserves_partial_output_and_prevents_replay(regist
     assert backend.calls == 1 and saved["roles"][0]["actual"]["actual_exit"] == 7
     assert all(row["status"] == "NOT_ATTEMPTED" for row in saved["roles"][1:])
     assert (root/"raw/roles/0/ordinary-partial/partial.json").read_bytes() == b'{"partial":true}'
+
+
+# Corrective source contracts: strict global RNG and incomplete custody.
+import wholeturn_state_proof as exact_proof
+import wholeturn_live_proof as live_proof
+
+
+def actual_rng_fixture():
+    return {"python":[3,[0]*624+[0],0.0],"numpy":["MT19937",[0]*624,0,0,0.0]}
+
+
+@pytest.mark.parametrize("join",[worker.require_matching_inputs,controller.require_profile_plain])
+@pytest.mark.parametrize("field",["initial_rng","final_rng"])
+@pytest.mark.parametrize("cache",["python","numpy"])
+def test_corrective_signed_zero_global_cache_mismatch_refuses_both_actual_joins(join,field,cache):
+    left={"run_config":{},"effective_flags":{},"proof":{},"initial_rng":actual_rng_fixture(),"final_rng":actual_rng_fixture()}
+    right=deepcopy(left)
+    right[field][cache][2 if cache=="python" else 4]=-0.0
+    assert left[field] == right[field]  # the old ordinary-equality blind spot
+    with pytest.raises(p.Refused,match="RNG"):
+        join(left,right)
+
+
+@pytest.mark.parametrize("join",[worker.require_matching_inputs,controller.require_profile_plain])
+def test_corrective_equal_actual_rng_states_remain_admitted(join):
+    left={"run_config":{},"effective_flags":{},"proof":{},"initial_rng":actual_rng_fixture(),"final_rng":actual_rng_fixture()}
+    join(left,deepcopy(left))
+
+
+def test_corrective_measured_end_to_proof_gap_uses_strict_rng(monkeypatch,tmp_path):
+    measured=actual_rng_fixture(); at_proof=deepcopy(measured); at_proof["numpy"][4]=-0.0
+    calls=[]
+    rc=SimpleNamespace(write_checkpoint=lambda *args:calls.append("writer"))
+    monkeypatch.setattr(exact_proof,"capture_rng",lambda np:at_proof)
+    with pytest.raises(exact_proof.Refused,match="measured-end to proof"):
+        live_proof.capture_terminal(lambda path:calls.append("save"),tmp_path/"never.ckpt",rc,(),None,expected_rng=measured)
+    assert calls == []
+
+
+@pytest.mark.parametrize("state",["eventually_quiet","members_remain","leader_not_terminal","membership_unreadable"])
+def test_corrective_postkill_group_observation_is_bounded_and_requires_quiescence(state):
+    clock=[0.0]; observations=[]; kills=[]
+    def members(group,leader):
+        observations.append((group,leader))
+        if state=="membership_unreadable": raise PermissionError("proc observation unavailable")
+        return [] if state=="leader_not_terminal" or state=="eventually_quiet" and len(observations)>1 else [71]
+    result=controller.settle_owned_group(70,70,.05,terminal=lambda:state!="leader_not_terminal",
+        members=members,kill=lambda *args:kills.append(args),now=lambda:clock[0],pause=lambda seconds:clock.__setitem__(0,clock[0]+seconds))
+    assert result["proven"] is (state=="eventually_quiet")
+    assert len(kills)==1 and len(observations)<=4 and clock[0]<=.05
+
+
+def test_corrective_raising_backend_keeps_unknown_exit_and_never_archives_or_inventories(registration,tmp_path,monkeypatch):
+    value=ready(registration); root=tmp_path/"raising-owner"
+    for name in ("ordinary","raw/roles","raw/comparisons","raw/shared-rng"): (root/name).mkdir(parents=True,exist_ok=True)
+    observed=[]
+    monkeypatch.setattr(controller,"inventory",lambda *a,**k:observed.append("UNSAFE_INVENTORY"))
+    class Backend:
+        calls=0
+        def run(self,argv,log,**bounds):
+            self.calls+=1
+            (Path(argv[argv.index("--ordinary")+1])/"still-owned.json").write_bytes(b"partial")
+            raise OSError("backend after possible launch")
+    backend=Backend(); builds={arm:{"worker_python":"NEVER_EXECUTED"} for arm in ("baseline","candidate")}
+    assert controller.run_schedule(value,builds,backend,root,tmp_path,observe=lambda *a,**k:{})==2
+    saved=p.read_json(root/"raw/owner.json",2*p.MIB)
+    assert backend.calls==1 and saved["roles"][0]["status"]=="FAILED_UNKNOWN_EXIT"
+    assert saved["roles"][0]["actual_exit"] is None and not saved["raw_upload_allowed"]
+    assert not saved["raw_custody_proven"] and "final_raw_inventory" not in saved and observed==[]
+    assert (root/"ordinary/current/still-owned.json").exists()
+    assert not (root/"raw/roles/0/ordinary-partial").exists()
+    intent=p.read_json(root/"raw/roles/0/launch-intent.json")
+    assert not intent["process_started_proven"]
+
+
+@pytest.mark.parametrize("owner_exists",[False,True])
+def test_corrective_unknown_custody_packer_reads_parent_intents_only(registration,tmp_path,monkeypatch,owner_exists):
+    ctrl=tmp_path/"ctrl"; p.write_new(ctrl/p.REGISTRATION,registration)
+    root=tmp_path/"unsafe"
+    request=p.schedule(registration)[0]
+    controller.launch_intent(root/"raw/roles/0/launch-intent.json",request,"ROLE_LAUNCH_INTENT")
+    p.write_new(root/"raw/roles/0/result.json",b"possibly active child data")
+    if owner_exists:
+        p.write_new(root/"raw/owner.json",{"status":"FIRST_FAILURE_NO_REPLAY","roles":[{"request":q,"status":"FAILED_UNKNOWN_EXIT" if q["index"]==0 else "NOT_ATTEMPTED"} for q in p.schedule(registration)],
+            "comparisons":[],"raw_custody_proven":False,"raw_upload_allowed":False})
+    original=records.optional_json
+    def only_parent(path,*args):
+        assert Path(path).name not in ("result.json","profile-functions.json","timing.jsonl")
+        return original(path,*args)
+    monkeypatch.setattr(records,"optional_json",only_parent)
+    monkeypatch.setattr(records,"profile_projection",lambda *a:pytest.fail("unsafe profile read"))
+    selected=records.selected_records(ctrl,root,"failure")
+    summary=p.strict_json(selected["summary.json"]); roles=p.strict_json(selected["roles.json"])
+    assert not summary["raw_upload_allowed"] and not summary["child_body_reads_allowed"]
+    assert roles[0]["role_data"] is None and not roles[0]["parent_launch_intent"]["process_started_proven"]
+
+
+def test_corrective_comparison_backend_exception_is_durable_attempt_with_unknown_exit(registration,tmp_path,monkeypatch):
+    value=ready(registration); root=tmp_path/"pair-failure"
+    for name in ("ordinary","raw/roles","raw/comparisons","raw/shared-rng"): (root/name).mkdir(parents=True,exist_ok=True)
+    unsafe_inventory=[]; original=controller.inventory
+    class Backend:
+        calls=0; failed=False
+        def run(self,argv,log,**bounds):
+            self.calls+=1
+            if "compare" in argv:
+                self.failed=True
+                Path(argv[argv.index("--output")+1]).write_bytes(b"partial comparison")
+                raise OSError("possible comparison writer")
+            index=int(argv[argv.index("--index")+1]); request=p.schedule(value)[index]
+            out=Path(argv[argv.index("--output")+1]); ordinary=Path(argv[argv.index("--ordinary")+1])
+            (ordinary/"state.json").write_bytes(b"equal")
+            p.write_new(log,b"fake-role-only\n")
+            p.write_new(out/"result.json",{"request":request,"proof_complete":True,"run_config":{},"effective_flags":{},"proof":{},
+                "initial_rng":actual_rng_fixture(),"final_rng":actual_rng_fixture()})
+            return {"actual_exit":0,"refusal":None,"quiescent":True}
+    backend=Backend()
+    def observed_inventory(*args,**kwargs):
+        if backend.failed: unsafe_inventory.append(str(args[0]))
+        return original(*args,**kwargs)
+    monkeypatch.setattr(controller,"inventory",observed_inventory)
+    builds={arm:{"worker_python":"NEVER_EXECUTED"} for arm in ("baseline","candidate")}
+    assert controller.run_schedule(value,builds,backend,root,tmp_path,observe=lambda *a,**k:{})==2
+    saved=p.read_json(root/"raw/owner.json",2*p.MIB)
+    assert backend.calls==3 and len(saved["comparisons"])==1
+    assert saved["comparisons"][0]["status"]=="FAILED_UNKNOWN_EXIT"
+    assert (root/"raw/comparisons/template-plain-42/launch-intent.json").exists()
+    assert unsafe_inventory==[] and not saved["raw_upload_allowed"]
+
+
+def test_corrective_raw_artifact_workflow_requires_explicit_quiescence_output():
+    import yaml
+    workflow=yaml.safe_load((ROOT/".github/workflows/matched-wholeturn.yml").read_text())
+    uploads=[step for step in workflow["jobs"]["wholeturn"]["steps"] if "/matched-wholeturn/raw/" in str(step.get("with",{}).get("path",""))]
+    assert uploads
+    for step in uploads:
+        assert "steps.compact.outcome == 'success'" in step["if"]
+        assert "steps.compact.outputs.raw_upload_allowed == 'true'" in step["if"]

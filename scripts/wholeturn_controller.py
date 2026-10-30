@@ -24,6 +24,7 @@ import urllib.request
 
 import wholeturn_build as build
 import wholeturn_protocol as p
+import wholeturn_state_proof as proof
 
 REPOSITORY = "YotsuBotfds/Chronicler"
 REPOSITORY_ID = 1187468861
@@ -163,6 +164,45 @@ def group_members(group, exclude):
     return members
 
 
+def settle_owned_group(group, leader, deadline, *, terminal, members=group_members,
+                       kill=os.killpg, now=time.monotonic, pause=time.sleep):
+    """Bounded trusted-session observation while leader PID remains reserved.
+
+    A kill request is not quiescence. Unknown/remaining members or an unended
+    leader refuse archive/hash/upload; no unsafe namespace is normalized away.
+    """
+    observations, sent, ended, remaining, error = 0, False, False, None, None
+    while True:
+        try:
+            ended = terminal()
+            remaining = members(group, leader)
+            observations += 1
+            if ended and remaining == []:
+                return {"proven": True, "leader_terminal": True, "remaining_members": [],
+                        "observations": observations, "kill_requested": sent}
+            if not sent:
+                try:
+                    kill(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                sent = True
+        except BaseException as exc:
+            error = type(exc).__name__
+            if not sent:
+                try:
+                    kill(group, signal.SIGKILL)
+                    sent = True
+                except (ProcessLookupError, OSError):
+                    pass
+            break
+        if now() >= deadline:
+            break
+        pause(min(.02, max(0, deadline-now())))
+    return {"proven": False, "leader_terminal": ended, "remaining_members": remaining,
+            "observations": observations, "kill_requested": sent, "error": error,
+            "scope": "Quiescence UNKNOWN; do not read/move/hash/upload child namespaces."}
+
+
 class SystemBackend:
     def __init__(self, registration, owner_deadline_ns, output_root):
         self.reg, self.deadline, self.root = registration, owner_deadline_ns, output_root
@@ -170,7 +210,10 @@ class SystemBackend:
     def run(self, argv, log, *, wall, cpu):
         maximum = self.reg["limits"]["joint_role_log_bytes"]
         start = time.monotonic()
-        reason, count, process, usage, status = None, 0, None, None, None
+        end = min(start+wall, self.deadline/1_000_000_000)
+        reason, count, process, usage, actual_exit = None, 0, None, None, None
+        custody = {"proven": True, "leader_terminal": True, "remaining_members": [],
+                   "scope": "No successful Popen return; no owned process established."}
         next_floor_check = 0
         def limits():
             resource.setrlimit(resource.RLIMIT_AS, (4*p.GIB, 4*p.GIB))
@@ -186,16 +229,17 @@ class SystemBackend:
             try:
                 process = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True, preexec_fn=limits)
+                custody = {"proven": False, "scope": "Popen returned; terminal/group observation pending."}
                 os.set_blocking(process.stdout.fileno(), False)
                 with selectors.DefaultSelector() as selector:
                     selector.register(process.stdout, selectors.EVENT_READ)
                     while True:
-                        if time.monotonic()-start >= wall or time.monotonic_ns() >= self.deadline:
-                            reason = "owned_deadline"
+                        # Cleanup is inside the same wall allowance, with up to
+                        # two seconds reserved for observed post-kill closure.
+                        if time.monotonic() >= end-2:
+                            reason = "owned_deadline_cleanup_reserve"
                             break
                         if time.monotonic() >= next_floor_check:
-                            # Same bounded owner observation in every role. It
-                            # is sampled protection, not a kernel quota claim.
                             memory = memory_observation()
                             spaces = [os.statvfs(self.root), os.statvfs("/tmp")]
                             if memory["available_bytes"] < p.GIB or any(
@@ -216,40 +260,40 @@ class SystemBackend:
                                 break
                         if reason:
                             break
-                        # Keep child PID reserved until group inspection, avoiding PID-reuse kills.
                         ended = os.waitid(os.P_PID, process.pid, os.WEXITED|os.WNOHANG|os.WNOWAIT)
                         if ended is not None and not selector.get_map():
                             break
-                if reason is not None:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass  # exited leader still stays reserved until wait4
-                while os.waitid(os.P_PID, process.pid, os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:
-                    time.sleep(.01)
-                remaining = group_members(process.pid, process.pid)
-                if remaining:
-                    reason = reason or "owned_group_not_quiescent"
-                    os.killpg(process.pid, signal.SIGKILL)
-                _, status, usage = os.wait4(process.pid, 0)
-                process.returncode = os.waitstatus_to_exitcode(status)
+            except BaseException as exc:
+                reason = reason or "backend_exception:"+type(exc).__name__
             finally:
-                if process is not None and process.returncode is None:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    _, status, usage = os.wait4(process.pid, 0)
-                    process.returncode = os.waitstatus_to_exitcode(status)
-                if process is not None and process.stdout is not None:
-                    process.stdout.close()
+                if process is not None:
+                    custody = settle_owned_group(process.pid, process.pid, min(end,time.monotonic()+2),
+                        terminal=lambda:os.waitid(os.P_PID,process.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None)
+                    if custody.get("kill_requested"):
+                        reason = reason or "owned_session_required_cleanup"
+                    # Never block wait4 on a leader whose exit is unproved.
+                    # PID remains reserved until the group observation ends.
+                    if custody["leader_terminal"]:
+                        try:
+                            _, status, usage = os.wait4(process.pid, 0)
+                            actual_exit = os.waitstatus_to_exitcode(status)
+                            process.returncode = actual_exit
+                        except (ChildProcessError, OSError) as exc:
+                            custody["proven"] = False
+                            reason = reason or "leader_reap_unknown:"+type(exc).__name__
+                    if process.stdout is not None:
+                        process.stdout.close()
                 stream.flush()
                 os.fsync(stream.fileno())
-        return {"actual_exit": process.returncode, "refusal": reason,
+        if not custody["proven"]:
+            reason = reason or "owned_group_quiescence_unknown"
+        return {"actual_exit": actual_exit, "refusal": reason,
+                "quiescent": custody["proven"], "custody": custody,
                 "wall_seconds": time.monotonic()-start,
-                "command_tree_CPU_seconds": usage.ru_utime+usage.ru_stime,
-                "command_tree_max_RSS_KiB": usage.ru_maxrss, "log_bytes": count,
-                "log": p.pin(log, maximum), "process_group_scope": "owned trusted session; no sandbox claim"}
+                "command_tree_CPU_seconds": usage.ru_utime+usage.ru_stime if usage is not None else None,
+                "command_tree_max_RSS_KiB": usage.ru_maxrss if usage is not None else None,
+                "log_bytes": count, "log": p.pin(log,maximum) if custody["proven"] else None,
+                "process_group_scope": "owned trusted session; no sandbox claim"}
 
 
 def resources_before(reg, root, *, roles_left, first=False):
@@ -295,6 +339,19 @@ def execute(controller_root, root, baseline_file, candidate_file):
     return run_schedule(reg, builds, backend, root, controller_root)
 
 
+def require_profile_plain(prior, summary):
+    for field in ("run_config", "effective_flags", "proof"):
+        p.require(summary[field] == prior[field], "profile/plain same-source semantic mismatch: "+field)
+    for field in ("initial_rng", "final_rng"):
+        p.require(proof.same_rng(summary[field], prior[field]), "profile/plain exact RNG mismatch: "+field)
+
+
+def launch_intent(path, request, kind):
+    return p.write_new(path, {"kind":kind,"protocol":p.PROTOCOL,"request":request,
+        "status":"CONTROLLER_LAUNCH_INTENT","process_started_proven":False,
+        "scope":"Intent precedes backend invocation; proves no process start, ticks or completion."}, 65536)
+
+
 def run_schedule(reg, builds, backend, root, controller_root, *, observe=resources_before):
     """Injectable orchestration seam; fake contracts never create a process."""
     root, controller_root = Path(root), Path(controller_root)
@@ -302,6 +359,7 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
     result = {"kind": "MATCHED_WHOLETURN_OWNER", "protocol": p.PROTOCOL,
               "status": "STARTED", "roles": [{"request": q, "status": "NOT_ATTEMPTED"} for q in requests],
               "comparisons": [], "source_pair": {k: reg[k] for k in ("baseline", "candidate")},
+              "raw_custody_proven": True,
               "performance_qualification": None, "scientific_qualification": None}
     start, pairs, hashes, current_ordinary, current_out = time.monotonic(), {}, 0, None, None
     plain42 = {}
@@ -327,9 +385,21 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
                 "--controller-root", str(controller_root), "--build", str(build_file), "--index", str(index),
                 "--ordinary", str(ordinary), "--output", str(out),
                 "--shared-rng", str(root/"raw/shared-rng"/(request["pair"]+".json"))]
-            actual = backend.run(command, out/"combined.log", wall=300, cpu=240)
+            intent = launch_intent(out/"launch-intent.json", request, "ROLE_LAUNCH_INTENT")
+            result["roles"][index] = {"request":request,"status":"ATTEMPTED","launch_intent":intent}
+            result["raw_custody_proven"] = False
+            try:
+                actual = backend.run(command, out/"combined.log", wall=300, cpu=240)
+            except BaseException as exc:
+                result["roles"][index].update(status="FAILED_UNKNOWN_EXIT",actual_exit=None,
+                    backend_error={"type":type(exc).__name__,"message":str(exc)[:256]})
+                raise
+            result["raw_custody_proven"] = actual.get("quiescent") is True
             result["roles"][index] = {"request": request, "actual": actual,
-                "status": "RETURNED" if actual["actual_exit"] == 0 and actual["refusal"] is None else "FAILED"}
+                "launch_intent":intent,
+                "status": "FAILED_UNKNOWN_EXIT" if actual["actual_exit"] is None else
+                    ("RETURNED" if actual["actual_exit"] == 0 and actual["refusal"] is None else "FAILED")}
+            p.require(result["raw_custody_proven"], "worker custody UNKNOWN; no child-namespace archive/hash/upload")
             p.require(actual["actual_exit"] == 0 and actual["refusal"] is None, "first worker failure")
             summary = p.read_json(out/"result.json", 512*1024)
             p.require(summary["request"] == request and summary["proof_complete"], "complete exact role join")
@@ -337,10 +407,7 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
                 key = (request["family"], arm)
                 if request["profiled"]:
                     prior = plain42[key]
-                    for field in ("run_config", "initial_rng", "final_rng", "effective_flags", "proof"):
-                        # Proof timings and raw checkpoint pickle bytes are not
-                        # in these graph results. All live/decoded fields stay.
-                        p.require(summary[field] == prior[field], "profile/plain same-source semantic mismatch: "+field)
+                    require_profile_plain(prior, summary)
                 else:
                     plain42[key] = summary
             owned = inventory(out, maximum_bytes=512*p.MIB, hash_bodies=False)
@@ -372,9 +439,20 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
                     "--right", str(root/"raw/roles"/str(right)/"result.json"),
                     "--left-ordinary", str(root/"raw/roles"/str(left)/"ordinary"),
                     "--right-ordinary", str(root/"raw/roles"/str(right)/"ordinary"), "--output", str(output)]
-                actual = backend.run(command, compare_dir/"combined.log", wall=60, cpu=40)
-                result["comparisons"].append({"pair": key, "actual": actual,
-                    "result": p.pin(output, p.MIB) if output.exists() else None})
+                intent = launch_intent(compare_dir/"launch-intent.json", {"pair":key,"left":left,"right":right}, "PAIR_LAUNCH_INTENT")
+                comparison={"pair":key,"status":"ATTEMPTED","launch_intent":intent}
+                result["comparisons"].append(comparison)
+                result["raw_custody_proven"] = False
+                try:
+                    actual = backend.run(command, compare_dir/"combined.log", wall=60, cpu=40)
+                except BaseException as exc:
+                    comparison.update(status="FAILED_UNKNOWN_EXIT",actual_exit=None,
+                        backend_error={"type":type(exc).__name__,"message":str(exc)[:256]})
+                    raise
+                result["raw_custody_proven"] = actual.get("quiescent") is True
+                comparison.update(actual=actual,status="RETURNED" if actual["actual_exit"] is not None else "FAILED_UNKNOWN_EXIT")
+                p.require(result["raw_custody_proven"], "comparison custody UNKNOWN; no child-namespace archive/hash/upload")
+                comparison["result"] = p.pin(output, p.MIB) if output.exists() else None
                 p.require(actual["actual_exit"] == 0 and actual["refusal"] is None, "first comparison failure")
             inventory(root/"raw", maximum_bytes=reg["limits"]["aggregate_output_bytes"], hash_bodies=False)
         p.require(len(result["comparisons"]) == 6, "complete fixed comparisons")
@@ -385,7 +463,10 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
     finally:
         # Retain the first incomplete ordinary tree too; it must not vanish
         # merely because the producer exited before its normal inventory.
-        if current_ordinary is not None and current_ordinary.exists():
+        if not result["raw_custody_proven"]:
+            result["custody_scope"] = "UNKNOWN: child namespaces remain in place, unread/unhashed; raw upload refused. Parent owner/intents only."
+            result["unsafe_namespaces"] = ["raw/roles", "raw/comparisons", "raw/shared-rng", "ordinary"]
+        elif current_ordinary is not None and current_ordinary.exists():
             try:
                 current_ordinary.rename(current_out/"ordinary-partial")
                 result["partial_ordinary_retained"] = str(current_out.relative_to(root/"raw"))+"/ordinary-partial"
@@ -399,11 +480,19 @@ def run_schedule(reg, builds, backend, root, controller_root, *, observe=resourc
         result["controller_native_modules"] = [n for n in sys.modules if n == "chronicler_agents" or n.startswith("chronicler_agents.")]
         if result["controller_native_modules"] or result["owner_self_plus_waited_CPU_seconds"] > 3300 or result["owner_wall_seconds"] > 4200:
             result["status"] = "FIRST_FAILURE_NO_REPLAY"
-        try:
-            result["final_raw_inventory"] = inventory(root/"raw", maximum_bytes=reg["limits"]["aggregate_output_bytes"]-2*p.MIB, hash_bodies=False)
-        except BaseException as exc:
-            result["final_inventory_error"] = {"type": type(exc).__name__, "message": str(exc)[:256]}
-            result["status"] = "FIRST_FAILURE_NO_REPLAY"
+        if result["raw_custody_proven"]:
+            try:
+                p.require(not (root/"ordinary/current").exists(), "unarchived ordinary namespace; upload refused")
+                for role in result["roles"]:
+                    path=root/"raw/roles"/str(role["request"]["index"])
+                    if path.exists():
+                        inventory(path,maximum_bytes=512*p.MIB,hash_bodies=False)
+                result["final_raw_inventory"] = inventory(root/"raw", maximum_bytes=reg["limits"]["aggregate_output_bytes"]-2*p.MIB, hash_bodies=False)
+                result["final_retained_inventory"] = inventory(root, maximum_bytes=reg["limits"]["aggregate_output_bytes"]-2*p.MIB, hash_bodies=False)
+            except BaseException as exc:
+                result["final_inventory_error"] = {"type": type(exc).__name__, "message": str(exc)[:256]}
+                result["status"] = "FIRST_FAILURE_NO_REPLAY"
+        result["raw_upload_allowed"] = result["raw_custody_proven"] and "final_retained_inventory" in result and "final_inventory_error" not in result
         p.write_new(root/"raw/owner.json", result, 2*p.MIB)
     return 0 if result["status"] == "COMPLETE_DATA_WITH_ALL_REGRESSIONS" else 2
 

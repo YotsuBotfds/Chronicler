@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import os
 from pathlib import Path, PurePosixPath
 import stat
 import zipfile
@@ -51,6 +52,8 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
     reg = p.load_registration(controller_root, ready=False)
     admission = optional_json(root/"admission.json")
     owner = optional_json(root/"raw/owner.json", 2*p.MIB)
+    child_bodies_allowed = (owner is not None and owner.get("raw_custody_proven") is True
+                            and owner.get("raw_upload_allowed") is True)
     summary = {"kind": "MATCHED_WHOLETURN_COMPACT", "protocol": p.PROTOCOL,
         "registration": reg, "registration_pin": p.pin(Path(controller_root)/p.REGISTRATION),
         "actual_step_outcome": actual_step_outcome,
@@ -58,9 +61,12 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
         "status": owner["status"] if owner is not None else "NO_COMPLETE_OWNER_RECORD",
         "admission": admission,
         "owner": None if owner is None else {k: v for k, v in owner.items()
-            if k not in ("roles", "comparisons", "final_raw_inventory")},
+            if k not in ("roles", "comparisons", "final_raw_inventory", "final_retained_inventory")},
         "owner_original": p.pin(root/"raw/owner.json", 2*p.MIB) if owner is not None else None,
         "comparison_outcomes": owner["comparisons"] if owner is not None else [],
+        "child_body_reads_allowed": child_bodies_allowed,
+        "raw_upload_allowed": child_bodies_allowed,
+        "custody_scope": "Parent owner/builds/launch intents only until observed quiescence and bounded final inventory; intents prove no process start.",
         "raw_inventory": None if owner is None else {k: v for k, v in owner.get("final_raw_inventory", {}).items() if k != "files"},
         "raw_inventory_digest": hashlib.sha256(p.canonical(owner.get("final_raw_inventory"))).hexdigest() if owner else None,
         "builds": {arm: build_projection(root/(arm+"-build.json")) for arm in ("baseline", "candidate")},
@@ -70,12 +76,13 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
     for request in p.schedule(reg):
         path = root/"raw/roles"/str(request["index"])
         outcome = owner["roles"][request["index"]] if owner is not None else {"request": request, "status": "NOT_RECORDED"}
-        value = optional_json(path/"result.json")
+        value = optional_json(path/"result.json") if child_bodies_allowed else None
         row = {"request": request, "owner_outcome": outcome, "role_data": value,
                "role_original": p.pin(path/"result.json", 512*1024) if value is not None else None,
-               "profile_display": profile_projection(path/"profile-functions.json")}
+               "profile_display": profile_projection(path/"profile-functions.json") if child_bodies_allowed else None,
+               "parent_launch_intent": optional_json(path/"launch-intent.json",65536)}
         journal = path/"timing.jsonl"
-        if journal.exists():
+        if child_bodies_allowed and journal.exists():
             original = p.pin(journal, 65536)
             body = journal.read_bytes()
             p.require(original == {"bytes": len(body), "sha256": hashlib.sha256(body).hexdigest()}, "whole role clock journal changed")
@@ -86,9 +93,10 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
     pairs = []
     for pair in dict.fromkeys(q["pair"] for q in p.schedule(reg)):
         path = root/"raw/comparisons"/pair/"result.json"
-        value = optional_json(path, p.MIB)
+        value = optional_json(path, p.MIB) if child_bodies_allowed else None
         pairs.append({"pair": pair, "data": value,
-                      "original": p.pin(path, p.MIB) if value is not None else None})
+                      "original": p.pin(path, p.MIB) if value is not None else None,
+                      "parent_launch_intent": optional_json(path.parent/"launch-intent.json",65536)})
     return {"summary.json": p.canonical(summary), "roles.json": p.canonical(roles), "pairs.json": p.canonical(pairs)}
 
 
@@ -154,7 +162,13 @@ def main(argv=None):
         if steps is not None:
             p.require(type(steps) is dict and set(steps) == {"admission", "environments", "baseline", "candidate", "owner"}
                       and all(value in ("success", "failure", "cancelled", "skipped") for value in steps.values()), "closed actual hosted step outcomes")
-        print(p.canonical(pack(selected_records(args.controller_root, args.root, args.actual_step_outcome, steps), args.output)).decode(), end="")
+        selected = selected_records(args.controller_root, args.root, args.actual_step_outcome, steps)
+        allowed = p.strict_json(selected["summary.json"])["raw_upload_allowed"]
+        result = pack(selected,args.output)
+        if os.environ.get("GITHUB_OUTPUT"):
+            with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+                stream.write("raw_upload_allowed="+("true" if allowed else "false")+"\n")
+        print(p.canonical(result).decode(), end="")
 
 
 if __name__ == "__main__":

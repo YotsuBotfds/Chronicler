@@ -2,9 +2,9 @@
 
 The frozen090 proof covers the decoded graph. This layer separately captures
 the terminal live RunState because checkpoint reducers intentionally omit live
-HistoryIndex, sidecar, historian/language and bridge caches. Exact immutable
-Arrow batch values have a closed logical-buffer adapter. Internal C Arrow
-storage aliases are explicitly unobserved, never presented as generic alias
+HistoryIndex, sidecar, historian/language and bridge caches. Exact trusted Arrow
+batches have a readonly-interface logical-buffer adapter. External writable
+owner/internal C storage aliases are unobserved, never generic alias
 attestation. Root's source-owned decision must review this coverage boundary.
 """
 from __future__ import annotations
@@ -37,9 +37,11 @@ def arrow_adapter(pa, arro3_type):
     """Build after admission; exact primitive schema/buffer contents, no coercion.
 
     This is the pinned trusted Arrow contract, not arbitrary C attestation.
-    No external writable Arrow buffers, nested arrays or dictionary encoding
-    are accepted. Offsets, null counts, field/schema metadata and float bits
-    remain visible; no value to_pylist()/float normalization is used.
+    Only readonly exported buffer interfaces are accepted. A readonly interface
+    does not attest an external owner's mutability: external writable-owner
+    aliases and internal C storage aliases remain UNOBSERVED under this fixed
+    trusted Native producer. Nested/dictionary arrays refuse. Offsets, nulls,
+    schema metadata and float bits remain visible without value normalization.
     """
     def inspect(value):
         if not trusted_raw_batch(value, pa, arro3_type):
@@ -88,7 +90,7 @@ class LiveFingerprint(old.StateFingerprint):
         self.memo[ident] = len(self.objects)
         self.objects.append(value)
         self.arrow_batches += 1
-        self.emit("immutable-arrow-logical-value")
+        self.emit("readonly-arrow-interface-value")
         self.visit(arrow)
         self.emit("end")
 
@@ -98,7 +100,7 @@ class LiveFingerprint(old.StateFingerprint):
         return result
 
 
-def capture_terminal(save, checkpoint, rc, classes, np, *, inspect_arrow=None):
+def capture_terminal(save, checkpoint, rc, classes, np, *, expected_rng, inspect_arrow=None):
     """Intercept one existing terminal save, after run clocks have stopped.
 
     The fresh diagnostic carrier's markers are set exactly as the stock writer
@@ -108,6 +110,7 @@ def capture_terminal(save, checkpoint, rc, classes, np, *, inspect_arrow=None):
     """
     original = rc.write_checkpoint
     before_rng = old.capture_rng(np)
+    old.require(old.same_rng(expected_rng, before_rng), "measured-end to proof RNG changed")
     captured = {}
     calls = 0
 
@@ -141,6 +144,7 @@ def capture_terminal(save, checkpoint, rc, classes, np, *, inspect_arrow=None):
     return {
         "live": captured["after"], "decoded": decoded,
         "own_live_write_invariance": True, "global_RNG_read_invariance": True,
+        "measured_end_to_proof_RNG_invariance": True,
         "checkpoint_header": loaded.header, "actual_final_native": population,
         "proof_loads": 1, "save_calls": calls, "extra_physics_runs": 0,
         "native_objects_loaded": sum(s["name"].startswith("native.")
@@ -149,7 +153,8 @@ def capture_terminal(save, checkpoint, rc, classes, np, *, inspect_arrow=None):
         "coverage": {
             "live_python_private_extras_slots_and_container_aliases": True,
             "decoded_persistent_graph_native_and_memory_identity": True,
-            "immutable_Arrow_schema_offsets_nulls_primitive_buffer_bits": True,
+            "readonly_Arrow_interface_schema_offsets_nulls_primitive_buffer_bits": True,
+            "external_writable_owner_Arrow_aliases": "UNOBSERVED",
             "internal_C_Arrow_storage_aliases": "UNOBSERVED",
             "native_transient_caches": "not native checkpoint payload; no byte-identity claim",
             "unsupported_types": "REFUSE",

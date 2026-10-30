@@ -119,7 +119,7 @@ def test_terminal_capture_observes_live_cache_separately_from_reduced_graph(monk
           header={"sections":[{"name":"native.agents"}]}))
     monkeypatch.setattr(proof,"capture_rng",lambda np:{"unchanged":True})
     monkeypatch.setattr(proof,"same_rng",lambda a,b:a==b)
-    result=live.capture_terminal(lambda path:rc.write_checkpoint(path,value),tmp_path/"state.ckpt",rc,(Native,),None)
+    result=live.capture_terminal(lambda path:rc.write_checkpoint(path,value),tmp_path/"state.ckpt",rc,(Native,),None,expected_rng=proof.capture_rng(None))
     assert len(original_calls)==1 and rc.write_checkpoint is original
     assert result["live"]["sha256"] != result["decoded"]["sha256"]
     assert result["live_equals_decoded_claim"] is False and result["extra_physics_runs"] == 0
@@ -132,8 +132,9 @@ def test_live_writer_mutation_refuses_and_restores_original_binding(monkeypatch,
     def original(path,observed): observed.agent_bridge._private_cache.append("mutation"); return path
     rc=SimpleNamespace(write_checkpoint=original,_markers=lambda s:{"war_roster_bound":True})
     monkeypatch.setattr(proof,"capture_rng",lambda np:{})
+    monkeypatch.setattr(proof,"same_rng",lambda a,b:a==b)
     with pytest.raises(proof.Refused,match="mutated live"):
-        live.capture_terminal(lambda path:rc.write_checkpoint(path,value),tmp_path/"state.ckpt",rc,(Native,),None)
+        live.capture_terminal(lambda path:rc.write_checkpoint(path,value),tmp_path/"state.ckpt",rc,(Native,),None,expected_rng=proof.capture_rng(None))
     assert rc.write_checkpoint is original
 
 

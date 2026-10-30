@@ -1,3 +1,7 @@
+# Whole-turn corrective source review (2026-10-30)
+
+Child of frozen b387; strict global-RNG joins and measured-end proof binding, durable intent/unknown-exit records, bounded post-kill quiescence and jointly gated archive/inventory/compact child reads/raw upload. Readonly Arrow interface does not attest an external writable owner; simulate-only narrator is a no-op. Exact12 roles/8+32/200/seeds/caps and deferred candidate pins remain unchanged. All42 original cases retained with explicit witness adaptations, plus20 corrective cases =62 authored UNRUN. No helper/test/Native/World/build/network/push execution.
+
 # Matched whole-turn controller source preparation (2026-10-30)
 
 Separate source-only experiment `matched-wholeturn-staging-v1`: baseline829/nativea840 versus an exact future staging candidate whose source/native/root-decision pins remain null. This branch cannot run before a separately reviewed source successor fills those values. Normal8-template/4civ and32-procedural/10civ,200 turns;2 plain pairs+1 diagnostic pair each,12 fresh roles. Held79d/090 and the original six scientific cells remain unchanged.

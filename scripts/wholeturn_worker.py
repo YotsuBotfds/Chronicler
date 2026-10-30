@@ -249,6 +249,7 @@ def execute_role(controller_root, build_file, index, ordinary, output, shared_rn
         from wholeturn_live_proof import capture_terminal, arrow_adapter
         proof_start = (p.sample_ns(time.process_time_ns), p.sample_ns(time.perf_counter_ns))
         outcome = capture_terminal(observer.save, output/"terminal.ckpt", rc, classes, np,
+                                   expected_rng=summary["final_rng"],
                                    inspect_arrow=arrow_adapter(pa, arro3))
         header = outcome.pop("checkpoint_header")
         identity = header["identity"]
@@ -290,6 +291,13 @@ def execute_role(controller_root, build_file, index, ordinary, output, shared_rn
     return 0 if summary["status"] == "COMPLETE_ROLE_PENDING_PAIR_COMPARISON" else 2
 
 
+def require_matching_inputs(left, right):
+    for field in ("run_config", "effective_flags"):
+        p.require(left[field] == right[field], "paired configuration mismatch: "+field)
+    for field in ("initial_rng", "final_rng"):
+        p.require(proof.same_rng(left[field], right[field]), "paired exact RNG mismatch: "+field)
+
+
 def compare_roles(controller_root, baseline_build, left, right, left_ordinary, right_ordinary, output):
     reg = p.load_registration(controller_root)
     context = build.github_context(controller_root)
@@ -310,8 +318,7 @@ def compare_roles(controller_root, baseline_build, left, right, left_ordinary, r
                   and x["checkpoint_identity"] == x["runtime_identity"], "comparison source/runtime/controller joins")
     p.require({a["request"]["arm"], b["request"]["arm"]} == {"baseline", "candidate"}
               and a["request"]["pair"] == b["request"]["pair"], "exact measured pair")
-    for field in ("run_config", "initial_rng", "final_rng", "effective_flags"):
-        p.require(a[field] == b[field], "paired configuration/RNG mismatch: "+field)
+    require_matching_inputs(a, b)
     p.require(a["runtime_identity"]["environment"] == b["runtime_identity"]["environment"]
               and a["runtime_identity"]["native"]["state_layouts"] == b["runtime_identity"]["native"]["state_layouts"],
               "paired actual environment/state layouts")

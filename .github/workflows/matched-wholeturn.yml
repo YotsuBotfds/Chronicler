@@ -131,7 +131,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Retain raw data remotely including incomplete roles
-        if: always() && steps.admission.outcome == 'success'
+        if: always() && steps.admission.outcome == 'success' && steps.compact.outcome == 'success' && steps.compact.outputs.raw_upload_allowed == 'true'
         timeout-minutes: 10
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
