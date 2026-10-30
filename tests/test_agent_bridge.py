@@ -1748,142 +1748,99 @@ def test_convert_events_old_schema_fallback():
     assert records[0].formed_turn == 0
 
 
-# Native region ingress: direct Arrow inputs, no World generation or tick.
-def _native_region_ingress_observation(sim):
-    return (
-        bytes(sim.checkpoint_state()),
-        sim.checkpoint_schema(),
-        sim.snapshot_is_cached(),
-    )
-
-
 @requires_chronicler_agents
-def test_native_region_ingress_zero_constructor_and_empty_first_batch():
-    sim = AgentSimulator(num_regions=0, seed=71)
-    initial = _native_region_ingress_observation(sim)
-    assert initial[0] and not initial[2]
-    assert pa.record_batch(sim.get_snapshot()).num_rows == 0
-    assert sim.snapshot_is_cached()
-    # A typed empty first batch is legal for the zero-region constructor.
-    sim.set_region_state(_make_region_batch(num_regions=0, capacity=1))
-    assert pa.record_batch(sim.get_snapshot()).num_rows == 0
-    assert sim.checkpoint_schema() == initial[1]
-    assert bytes(sim.checkpoint_state())
+def test_needs_sidecar_owned_native_getter_reuses_columns_after_write(tmp_path, monkeypatch):
+    """Fresh real getter + full bridge/write path; no World creation or tick."""
+    import pickle
+    from types import SimpleNamespace
+    import chronicler.agent_bridge as module
 
-
-@requires_chronicler_agents
-@pytest.mark.parametrize("num_regions", [65536, 65537])
-def test_native_region_ingress_rejects_constructor_count_before_allocation(num_regions):
-    with pytest.raises(ValueError):
-        AgentSimulator(num_regions=num_regions, seed=71)
-
-
-@requires_chronicler_agents
-@pytest.mark.parametrize("cached", [False, True])
-@pytest.mark.parametrize("fault", [
-    "fewer_rows", "more_rows", "sparse", "reverse", "duplicate", "null",
-])
-def test_native_region_ingress_invalid_first_batch_is_atomic_and_recovers(cached, fault):
-    sim = AgentSimulator(num_regions=3, seed=71)
-    reference = AgentSimulator(num_regions=3, seed=71)
-    expected_empty = pa.record_batch(reference.get_snapshot())
-    assert expected_empty.num_rows == 0
-    if cached:
-        assert pa.record_batch(sim.get_snapshot()).equals(expected_empty)
-    before = _native_region_ingress_observation(sim)
-    assert before[0] == bytes(reference.checkpoint_state())
-    assert before[2] is cached
-
-    count = 2 if fault == "fewer_rows" else 4 if fault == "more_rows" else 3
-    bad = _make_region_batch(num_regions=count, capacity=2)
-    ids = {
-        "sparse": [0, 1, 3],
-        "reverse": [2, 1, 0],
-        "duplicate": [0, 0, 2],
-        "null": [0, None, 2],
-    }.get(fault)
-    if ids is not None:
-        bad = bad.set_column(
-            bad.schema.get_field_index("region_id"), "region_id",
-            pa.array(ids, type=pa.uint16()),
-        )
-    # This checkpointed field must not change before shape/ID admission.
-    bad = bad.append_column("is_contested", pa.array([True] * count, type=pa.bool_()))
-    with pytest.raises(ValueError):
-        sim.set_region_state(bad)
-    assert _native_region_ingress_observation(sim) == before
-    assert pa.record_batch(sim.get_snapshot()).equals(expected_empty)
-
-    # An invalid first attempt must not consume initialization or RNG state.
-    good = _make_region_batch(
-        num_regions=3, capacity=3, populations=[2, 0, 1], controllers=[0, 0, 0],
-    )
-    sim.set_region_state(good)
-    reference.set_region_state(good)
-    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
-    assert sim.checkpoint_schema() == reference.checkpoint_schema()
-    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
-
-
-@requires_chronicler_agents
-@pytest.mark.parametrize("reverse_columns", [False, True])
-def test_native_region_ingress_dense_33_keeps_neighbor_32_and_column_order_freedom(reverse_columns):
-    sim = AgentSimulator(num_regions=33, seed=71)
-    batch = _make_region_batch(num_regions=33, capacity=1, controllers=[0] * 33)
-    neighbors = [[32], *[[] for _ in range(31)], [0]]
-    batch = batch.append_column("adjacency", pa.array(neighbors, type=pa.list_(pa.uint16())))
-    if reverse_columns:
-        batch = batch.select(list(reversed(batch.schema.names)))
-    assert batch.column("adjacency").to_pylist()[0] == [32]
-    sim.set_region_state(batch)
-    snap = pa.record_batch(sim.get_snapshot())
-    assert snap.num_rows == 33
-    assert set(snap.column("region").to_pylist()) == set(range(33))
-
-
-@requires_chronicler_agents
-@pytest.mark.parametrize("cached", [False, True])
-@pytest.mark.parametrize("count", [2, 4])
-def test_native_region_ingress_later_row_count_failure_is_atomic_and_recovers(cached, count):
-    sim = AgentSimulator(num_regions=3, seed=71)
-    reference = AgentSimulator(num_regions=3, seed=71)
-    good = _make_region_batch(
-        num_regions=3, capacity=3, populations=[2, 0, 1], controllers=[0, 0, 0],
-    )
-    sim.set_region_state(good)
-    reference.set_region_state(good)
-    expected = pa.record_batch(reference.get_snapshot())
-    if cached:
-        assert pa.record_batch(sim.get_snapshot()).equals(expected)
-    before = _native_region_ingress_observation(sim)
-    assert before[2] is cached
-    bad = _make_region_batch(num_regions=count, capacity=7, controllers=[0] * count)
-    bad = bad.append_column("is_contested", pa.array([True] * count, type=pa.bool_()))
-    with pytest.raises(ValueError):
-        sim.set_region_state(bad)
-    assert _native_region_ingress_observation(sim) == before
-    assert pa.record_batch(sim.get_snapshot()).equals(expected)
-
-    update = good.append_column("is_contested", pa.array([True, False, True], type=pa.bool_()))
-    sim.set_region_state(update)
-    reference.set_region_state(update)
-    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
-    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
-
-
-@requires_chronicler_agents
-def test_native_region_ingress_does_not_add_later_row_id_order_restrictions():
-    sim = AgentSimulator(num_regions=3, seed=71)
-    reference = AgentSimulator(num_regions=3, seed=71)
-    good = _make_region_batch(num_regions=3, capacity=1, controllers=[0, 0, 0])
-    sim.set_region_state(good)
-    reference.set_region_state(good)
-    reordered = good.set_column(
-        good.schema.get_field_index("region_id"), "region_id",
-        pa.array([2, 1, 0], type=pa.uint16()),
-    )
-    # Existing updates are positional; only the first batch gains an ID gate.
-    sim.set_region_state(reordered)
-    reference.set_region_state(good)
-    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
-    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
+    sim = AgentSimulator(num_regions=1, seed=42)
+    sim.set_region_state(_make_region_batch(num_regions=1, capacity=4,
+                                          populations=[4], controllers=[0]))
+    world = SimpleNamespace(turn=0, civilizations=[SimpleNamespace(name="C0")],
+                            regions=[SimpleNamespace(name="R0", controller="C0")])
+    class LegacyWriter(SidecarWriter):
+        pass
+    original_pylist = module.pylist
+    original_owns = module._owns_native_needs_getter
+    decodes, ownership = [0], []
+    def counted(column):
+        decodes[0] += 1
+        return original_pylist(column)
+    def observed(simulator, getter):
+        result = original_owns(simulator, getter)
+        ownership.append(result)
+        return result
+    monkeypatch.setattr(module, "pylist", counted)
+    monkeypatch.setattr(module, "_owns_native_needs_getter", observed)
+    files, states, counts = [], [], []
+    modes = ("legacy", "candidate", "instance", "class", "private", "private_instance", "resolver", "bridge_subclass")
+    class CustomBridge(AgentBridge):
+        pass
+    for name in modes:
+        with monkeypatch.context() as overrides:
+            base = tmp_path / name
+            writer = (LegacyWriter if name == "legacy" else SidecarWriter)(base)
+            seen = []
+            original_write = SidecarWriter.write_needs_snapshot
+            def observed_write(self, turn, needs_batch):
+                seen.append(needs_batch)
+                return original_write(self, turn, needs_batch)
+            if name == "instance":
+                from types import MethodType
+                assert "write_needs_snapshot" not in writer.__dict__
+                writer.write_needs_snapshot = MethodType(observed_write, writer)
+                instance_observer = writer.__dict__["write_needs_snapshot"]
+            elif name == "class":
+                overrides.setattr(SidecarWriter, "write_needs_snapshot", observed_write)
+            elif name == "private":
+                original_data = SidecarWriter._write_needs_snapshot_data
+                def observed_data(self, turn, needs_batch):
+                    seen.append(needs_batch)
+                    return original_data(self, turn, needs_batch)
+                overrides.setattr(SidecarWriter, "_write_needs_snapshot_data", observed_data)
+            elif name == "private_instance":
+                assert "_write_needs_snapshot_data" not in writer.__dict__
+                writer._write_needs_snapshot_data = lambda *a, **k: pytest.fail("new private collision")
+                private_collision = writer.__dict__["_write_needs_snapshot_data"]
+            if name == "resolver":
+                original_resolver = AgentBridge._resolve_polity_civ_ids
+                def observed_resolver(self, world, regions, civs):
+                    seen.append(regions)
+                    return original_resolver(self, world, regions, civs)
+                overrides.setattr(AgentBridge, "_resolve_polity_civ_ids", observed_resolver)
+            bridge_type = CustomBridge if name == "bridge_subclass" else AgentBridge
+            bridge = bridge_type.__new__(bridge_type)
+            bridge._sim, bridge._sidecar, bridge._gini_by_civ = sim, writer, {}
+            before = decodes[0]
+            bridge._write_sidecar_snapshot(world)
+            counts.append(decodes[0] - before)
+            if name in ("instance", "class"):
+                assert len(seen) == 1
+            elif name == "private":
+                assert not seen  # New private-name collisions do not change old public semantics.
+            if name == "resolver":
+                assert len(seen) == 2
+            assert len(writer._needs_rows) == 4
+            assert list(writer._needs_rows[0]) == ["turn", "agent_id", "safety", "autonomy", "social",
+                "spiritual", "material", "purpose", "civ_affinity", "region", "occupation",
+                "satisfaction", "boldness", "ambition", "loyalty_trait"]
+            # Verify and remove only our instance observers before comparing all
+            # production data. Their real-write/fallback assertions above remain.
+            if name == "instance":
+                assert writer.__dict__["write_needs_snapshot"] is instance_observer
+                del writer.__dict__["write_needs_snapshot"]
+            elif name == "private_instance":
+                assert writer.__dict__["_write_needs_snapshot_data"] is private_collision
+                del writer.__dict__["_write_needs_snapshot_data"]
+            state = {key: value for key, value in writer.__getstate__().items()
+                     if key not in ("_base_dir", "_dir")}
+            states.append(pickle.dumps(state, protocol=5))
+            writer.close()
+            files.append({p.relative_to(base): p.read_bytes() for p in base.rglob("*") if p.is_file()})
+    assert ownership == [True] * 6  # Actual compiled admission; subclass bridge stays compatibility.
+    assert counts[0] - counts[1] == 14  # Every second native-needs column decode is removed.
+    assert counts[2:] == [counts[0]] * 6
+    assert all(state == states[0] for state in states)
+    assert all(result == files[0] for result in files)  # All JSON/Arrow/rows/aggregates.

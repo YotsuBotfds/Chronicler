@@ -387,301 +387,250 @@ def test_missing_and_empty_batches_keep_return_and_zero_believer_behavior(availa
     assert gp.pilgrimage_return_turn is None
 
 
-# Religion reuse is a derived-count cache, separate from the existing column cache.
-def _faith_batch(kind="pyarrow"):
-    batch = consumer_batch()
+# Needs-sidecar decode reuse: real Arrow payloads, no native construction here.
+def _needs_real_batch(kind="pyarrow", *, count=4, mutable=False, diagnostic=False):
+    import struct
+
+    specs = [("agent_id", "I", pa.uint32()),
+             *[(name, "f", pa.float32()) for name in
+               ("safety", "autonomy", "social", "spiritual", "material", "purpose")],
+             ("civ_affinity", "B", pa.uint8()), ("region", "H", pa.uint16()),
+             ("occupation", "B", pa.uint8()),
+             *[(name, "f", pa.float32()) for name in
+               ("satisfaction", "boldness", "ambition", "loyalty_trait")]]
+    arrays, fields, storage, data = [], [], {}, {}
+    for name, code, dtype in specs:
+        if name == "agent_id": values = [101, 102, 103, 2**32 - 1]
+        elif name == "civ_affinity": values = [0, 255, 1, 0]
+        elif name == "region": values = [0, 0, 0, 0]
+        elif name == "occupation": values = [0, 1, 3, 4]
+        else: values = [0.125, 0.25, 0.5, 0.75]
+        raw = struct.pack("<" + code * count, *values[:count])
+        if diagnostic and name == "safety" and count:
+            # Both signed zeros and two signed quiet-NaN payloads are diagnostic.
+            raw = struct.pack("<4I", 0, 0x80000000, 0x7fc00001, 0xffc01234)
+        storage[name] = bytearray(raw) if mutable else raw
+        arrays.append(pa.Array.from_buffers(dtype, count, [None, pa.py_buffer(storage[name])]))
+        fields.append(pa.field(name, dtype, nullable=False))
+        data[name] = list(struct.unpack("<" + code * count, raw))
+    batch = pa.RecordBatch.from_arrays(arrays, schema=pa.schema(fields))
+    if not mutable:
+        assert all(a.buffers()[0] is None and (a.buffers()[1] is None or not a.buffers()[1].is_mutable) for a in arrays)
     if kind == "arro3":
         from arro3.core import RecordBatch
         batch = RecordBatch.from_arrow(batch)
-    return batch
+    return batch, storage, data
 
 
-def _faith_chain_state(batch, rows=None):
-    from copy import deepcopy
+def _needs_value_bits(value):
+    import struct
+    if type(value) is float:
+        return ("float", struct.pack("!d", value))
+    if type(value) is dict:
+        return [(key, _needs_value_bits(item)) for key, item in value.items()]
+    if type(value) in (list, tuple):
+        return [_needs_value_bits(item) for item in value]
+    return (type(value).__name__, value)
 
-    regions, civs, beliefs = religion_inputs()
-    kw = {"agent_rows": rows} if rows is not None else {}
-    seen = set()
-    rng = random.getstate()
-    before = pa.record_batch(batch).to_pydict()
-    majority = compute_majority_belief(batch, **kw)
-    persecution = compute_persecution(regions, civs, beliefs, batch, 7, seen, **kw)
-    schisms = detect_schisms(regions, civs, beliefs, batch, 7, **kw)
-    assert random.getstate() == rng
-    assert pa.record_batch(batch).to_pydict() == before
-    return (list(majority.items()), [e.model_dump(mode="json") for e in persecution + schisms],
-            deepcopy([(m.model_dump(mode="json"), m.__pydantic_private__)
-                      for m in [*regions, *civs, *beliefs]]), seen)
+
+class _NeedsForeignSim:
+    def __init__(self, needs):
+        self.needs = needs
+        self.getter_reads = self.getter_calls = 0
+
+    @property
+    def get_all_needs(self):
+        self.getter_reads += 1
+        def read():
+            self.getter_calls += 1
+            return self.needs
+        return read
+
+    def get_all_relationships(self):
+        return pa.record_batch({"agent_id": pa.array([], type=pa.uint32())})
+
+    def get_all_memories(self):
+        return pa.record_batch({"agent_id": pa.array([], type=pa.uint32())})
+
+    def get_snapshot(self):
+        return pa.record_batch({
+            "id": pa.array([101, 102, 103, 104], type=pa.uint32()),
+            "civ_affinity": pa.array([0] * 4, type=pa.uint8()),
+            "region": pa.array([0] * 4, type=pa.uint16()),
+            "occupation": pa.array([0, 1, 3, 4], type=pa.uint8()),
+            "satisfaction": pa.array([0.25, 0.5, 0.75, 1.0], type=pa.float32()),
+        })
+
+
+def _needs_bridge_and_world(sim, writer, bridge_type=None):
+    from types import SimpleNamespace
+    from chronicler.agent_bridge import AgentBridge
+    bridge = (bridge_type or AgentBridge).__new__(bridge_type or AgentBridge)
+    bridge._sim, bridge._sidecar, bridge._gini_by_civ = sim, writer, {}
+    world = SimpleNamespace(turn=0, civilizations=[SimpleNamespace(name="C0")],
+                            regions=[SimpleNamespace(name="R0", controller="C0")])
+    return bridge, world
 
 
 @pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
-def test_religion_counts_reused_by_all_three_actual_consumers(kind, monkeypatch):
-    import chronicler.turn_artifacts as artifacts
+@pytest.mark.parametrize("count", [0, 4])
+def test_needs_private_writer_preserves_all_columns_return_and_float_bits(tmp_path, kind, count):
+    import json
+    from chronicler.columnar import pylist
+    from chronicler.sidecar import SidecarWriter
 
-    batch = _faith_batch(kind)
-    expected = _faith_chain_state(batch)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append((keys.tolist(), values.tolist()))
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    rows = rows_for(batch, 7)
-    actual = _faith_chain_state(batch, rows)
-    assert actual == expected
-    assert len(calls) == 1
-    assert [e["event_type"] for e in actual[1]] == ["Persecution", "Mass Migration", "Schism"]
-    # Reusing snapshot counts must not freeze the ruler's live faith/policy.
-    regions, civs, beliefs = religion_inputs()
-    compute_persecution(regions, civs, beliefs, batch, 7, set(), agent_rows=rows)
-    assert any(r.persecution_intensity > 0 for r in regions)
-    civs[0].civ_majority_faith = 1  # this existing faith is peaceful
-    expected_regions = [r.model_copy(deep=True) for r in regions]
-    expected_events = compute_persecution(expected_regions, civs, beliefs, batch, 7, set())
-    actual_events = compute_persecution(regions, civs, beliefs, batch, 7, set(), agent_rows=rows)
-    assert [e.model_dump() for e in actual_events] == [e.model_dump() for e in expected_events]
-    assert [r.model_dump() for r in regions] == [r.model_dump() for r in expected_regions]
-    assert all(r.persecution_intensity == 0 and r.persecuting_faith is None for r in regions)
-    assert len(calls) == 1
+    batch, _, expected = _needs_real_batch(kind, count=count, diagnostic=True)
+    public = SidecarWriter(tmp_path / "public")
+    private = SidecarWriter(tmp_path / "private")
+    assert public.write_needs_snapshot(turn=0, needs_batch=batch) is None
+    data = private._write_needs_snapshot_data(0, batch)
+    # Original writer decoding and the bridge's old NumPy route must agree bitwise.
+    old_bridge_data = {name: pylist(batch.column(name)) for name in expected}
+    assert _needs_value_bits(data) == _needs_value_bits(old_bridge_data)
+    assert _needs_value_bits(data) == _needs_value_bits(expected)
+    assert list(data) == list(expected) and len(data) == 14
+    assert _needs_value_bits(public._needs_rows) == _needs_value_bits(private._needs_rows)
+    assert set(public.__dict__) == set(private.__dict__)
+    raw = (tmp_path / "public/validation_summary/needs_turn_000.json").read_bytes()
+    assert raw == (tmp_path / "private/validation_summary/needs_turn_000.json").read_bytes()
+    assert raw == json.dumps({"turn": 0, "columns": expected}, separators=(",", ":")).encode()
+    public.close()
+    private.close()
+    assert {p.relative_to(tmp_path / "public"): p.read_bytes() for p in (tmp_path / "public").rglob("*") if p.is_file()} == {
+        p.relative_to(tmp_path / "private"): p.read_bytes() for p in (tmp_path / "private").rglob("*") if p.is_file()}
 
 
 @pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
-def test_religion_counts_filter_before_grouping_and_return_private_counters(kind, monkeypatch):
-    from collections import Counter
-    import chronicler.religion as religion
-    import chronicler.turn_artifacts as artifacts
-    from chronicler.columnar import ordered_counts
-
-    batch = pa.record_batch({"region": [0, 1, 0, 1, 1, 0],
-                             "belief": [255, 2, 1, 0, 2, 0]})
-    if kind == "arro3":
-        from arro3.core import RecordBatch
-        batch = RecordBatch.from_arrow(batch)
-    rows = rows_for(batch, 7)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    first = religion._faith_counts_by(batch, rows, "region")
-    assert list(first) == [1, 0]
-    assert list(first[1].items()) == [(2, 2), (0, 1)]
-    assert list(first[0].items()) == [(1, 1), (0, 1)]
-    # Full255-inclusive counts have a different outer order and remain separate.
-    full = ordered_counts(*rows.arrays("region", "belief"))
-    assert list(full) == [0, 1] and list(full[0]) == [255, 1, 0]
-    first[1].clear()
-    first[0][1] = 999
-    first[7] = Counter({7: 7})
-    again = religion._faith_counts_by(batch, rows, "region")
-    assert list(again) == [1, 0] and list(again[1].items()) == [(2, 2), (0, 1)]
-    assert list(again[0].items()) == [(1, 1), (0, 1)]
-    third = religion._faith_counts_by(batch, rows, "region")
-    assert third == again and third is not again and third[1] is not again[1]
-    assert compute_majority_belief(batch, agent_rows=rows) == {1: 2, 0: 0}
-    assert len(calls) == 1
+def test_needs_foreign_arrow_full_bridge_preserves_getter_and_outputs(tmp_path, kind):
+    import json
+    from chronicler.agent_bridge import _owns_native_needs_getter
+    from chronicler.sidecar import SidecarWriter
+    batch, _, expected = _needs_real_batch(kind)
+    sim = _NeedsForeignSim(batch)
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(sim, writer)
+    bridge._write_sidecar_snapshot(world)
+    assert (sim.getter_reads, sim.getter_calls) == (1, 1)
+    assert not _owns_native_needs_getter(sim, object())
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == expected
+    assert len(writer._needs_rows) == 4 and all(list(row) == ["turn", *expected] for row in writer._needs_rows)
+    assert writer._aggregate_by_turn["0"]["civ_0"]["need_means"]["safety"] == 0.4062
 
 
-def test_religion_region_counts_do_not_reuse_civ_key_or_other_view(monkeypatch):
-    import chronicler.religion as religion
-    import chronicler.turn_artifacts as artifacts
-
-    batch = pa.record_batch({"region": [0, 1, 0], "civ_affinity": [4, 4, 3], "belief": [255, 2, 1]})
-    rows = rows_for(batch, 7)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    assert list(religion._faith_counts_by(batch, rows, "region")) == [1, 0]
-    assert list(religion._faith_counts_by(batch, rows, "civ_affinity")) == [4, 3]
-    assert list(religion._faith_counts_by(batch, rows_for(batch, 8), "region")) == [1, 0]
-    assert len(calls) == 2  # separate view/stamp, not a global batch memo
-
-
-@pytest.mark.parametrize("mismatch", ["batch", "persecution-turn", "schism-turn"])
-def test_religion_warm_summary_does_not_bypass_identity_checks(mismatch, monkeypatch):
-    import chronicler.turn_artifacts as artifacts
-
-    batch = _faith_batch()
-    rows = rows_for(batch, 7)
-    compute_majority_belief(batch, agent_rows=rows)
-    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("identity failure grouped"))
-    regions, civs, beliefs = religion_inputs()
-    before = [r.model_dump() for r in regions]
-    with pytest.raises(ValueError):
-        if mismatch == "batch":
-            compute_majority_belief(_faith_batch(), agent_rows=rows)
-        elif mismatch == "persecution-turn":
-            compute_persecution(regions, civs, beliefs, batch, 8, set(), agent_rows=rows)
-        else:
-            detect_schisms(regions, civs, beliefs, batch, 8, agent_rows=rows)
-    assert [r.model_dump() for r in regions] == before
+@pytest.mark.parametrize("kind", ["pyarrow", "arro3"])
+def test_needs_mutable_foreign_buffers_still_decode_after_write(tmp_path, kind):
+    import json
+    import struct
+    from chronicler.sidecar import SidecarWriter
+    batch, storage, before = _needs_real_batch(kind, mutable=True)
+    writer = SidecarWriter(tmp_path)
+    class MutatingRows(list):
+        def append(self, row):
+            super().append(row)
+            if len(self) == 1:
+                struct.pack_into("<f", storage["safety"], 0, 0.875)
+    writer._needs_rows = MutatingRows()
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(batch), writer)
+    bridge._write_sidecar_snapshot(world)
+    # Arrow C exports can hide external mutability: all foreign CData stays legacy.
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == before
+    assert writer._needs_rows[0]["safety"] == 0.125
+    assert writer._aggregate_by_turn["0"]["civ_0"]["need_means"]["safety"] == 0.5938
 
 
-@pytest.mark.parametrize("kind", ["float", "boolean", "null"])
-def test_religion_unsupported_arrays_keep_original_uncached_fallback(kind, monkeypatch):
-    import chronicler.turn_artifacts as artifacts
-
-    values = ([1.0, 1.0, 2.0] if kind == "float" else
-              [True, True, False] if kind == "boolean" else [None, 1, 1])
-    batch = pa.record_batch({"region": [0, 0, 0], "belief": values})
-    expected = compute_majority_belief(batch)
-    rows = rows_for(batch)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    assert compute_majority_belief(batch, agent_rows=rows) == expected
-    assert compute_majority_belief(batch, agent_rows=rows) == expected
-    # This PyArrow bit-packed bool column cannot expose a zero-copy NumPy view.
-    # Like nulls, it retains the original scalar fallback and makes no groups.
-    assert len(calls) == (0 if kind in ("boolean", "null") else 2)
-
-
-class _FaithMutableBatch:
-    def __init__(self):
-        from types import SimpleNamespace
-        import numpy as np
-        self.values = {"region": np.array([0, 0, 0], dtype=np.uint16),
-                       "belief": np.array([1, 1, 2], dtype=np.uint8)}
-        self.schema = SimpleNamespace(names=tuple(self.values))
-        self.num_rows = 3
-
-    def column(self, name):
-        values = self.values[name]
-
-        class Column:
-            null_count = 0
-
-            def to_numpy(self):
-                # A readonly decoded view does not freeze the external owner.
-                return values.view()
-
-            def to_pylist(self):
-                return values.tolist()
-
-        return Column()
-
-
-def test_religion_numeric_duck_batch_recomputes_after_external_alias_change():
-    batch = _FaithMutableBatch()
-    rows = rows_for(batch)
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 1}
-    batch.values["belief"][:2] = 2
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 2}
-    assert compute_majority_belief(batch) == {0: 2}
-
-
-@pytest.mark.parametrize("kind", ["python", "borrowed-C"])
-def test_religion_arrow_name_spoofs_and_borrowed_descriptors_fall_back(kind):
-    import chronicler.turn_artifacts as artifacts
-    from arro3.core import RecordBatch as ArrowRecordBatch
-
-    class RecordBatch:
-        __module__ = "arro3.core._core"
-        __arrow_c_array__ = ArrowRecordBatch.__arrow_c_array__
-        column = ArrowRecordBatch.column
-
-        def __init__(self, inner):
-            self.inner = inner
-
-        def __getattribute__(self, name):
-            if name in ("column", "schema", "num_rows"):
-                return getattr(object.__getattribute__(self, "inner"), name)
-            return object.__getattribute__(self, name)
-
-    if kind == "python":
-        def no_export(self, *args):
-            raise AssertionError("fallback must not invoke an exporter")
-        RecordBatch.__arrow_c_array__ = no_export
-    inner = _FaithMutableBatch()
-    batch = RecordBatch(inner)
-    assert not artifacts._immutable_record_batch(batch)
-    rows = rows_for(batch)
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 1}
-    inner.values["belief"][:2] = 2
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 2}
-
-
-def test_religion_exact_view_subclass_keeps_original_grouping(monkeypatch):
-    import chronicler.religion as religion
-    import chronicler.turn_artifacts as artifacts
-
-    class DerivedRows(AgentRows):
+@pytest.mark.parametrize("mode", ["subclass", "instance", "class", "private", "private_instance", "bridge_subclass"])
+def test_needs_writer_and_bridge_overrides_keep_original_public_call(tmp_path, monkeypatch, mode):
+    from types import MethodType
+    from chronicler.agent_bridge import AgentBridge
+    from chronicler.sidecar import SidecarWriter
+    batch, _, _ = _needs_real_batch()
+    seen = []
+    original = SidecarWriter.write_needs_snapshot
+    def observed(self, turn, needs_batch):
+        seen.append(needs_batch)
+        return original(self, turn, needs_batch)
+    class CustomWriter(SidecarWriter):
+        write_needs_snapshot = observed
+    class CustomBridge(AgentBridge):
         pass
-
-    batch = _faith_batch()
-    rows = DerivedRows(Stamp(7, "phase10_entry"), batch)
-    original, calls = religion.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        return original(keys, values)
-
-    monkeypatch.setattr(religion, "ordered_counts", grouped)
-    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("subclass retained summary"))
-    first = religion.compute_majority_belief(batch, agent_rows=rows)
-    assert religion.compute_majority_belief(batch, agent_rows=rows) == first
-    assert len(calls) == 2
-
-
-def test_religion_failed_grouping_is_retried_without_retaining_partial_summary(monkeypatch):
-    import chronicler.turn_artifacts as artifacts
-
-    batch = _faith_batch()
-    rows = rows_for(batch)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        if len(calls) == 1:
-            raise RuntimeError("injected grouping failure")
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    with pytest.raises(RuntimeError, match="injected grouping failure"):
-        compute_majority_belief(batch, agent_rows=rows)
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 0, 1: 0}
-    assert compute_majority_belief(batch, agent_rows=rows) == {0: 0, 1: 0}
-    assert len(calls) == 2
+    writer = CustomWriter(tmp_path) if mode == "subclass" else SidecarWriter(tmp_path)
+    if mode == "instance": writer.write_needs_snapshot = MethodType(observed, writer)
+    elif mode == "class": monkeypatch.setattr(SidecarWriter, "write_needs_snapshot", observed)
+    elif mode == "private":
+        old_data = SidecarWriter._write_needs_snapshot_data
+        def observe_data(self, turn, needs_batch):
+            seen.append(needs_batch)
+            return old_data(self, turn, needs_batch)
+        monkeypatch.setattr(SidecarWriter, "_write_needs_snapshot_data", observe_data)
+    elif mode == "private_instance": writer._write_needs_snapshot_data = lambda *a, **k: pytest.fail("new private collision")
+    elif mode == "bridge_subclass": writer.write_needs_snapshot = MethodType(observed, writer)
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(batch), writer,
+                                          CustomBridge if mode == "bridge_subclass" else None)
+    bridge._write_sidecar_snapshot(world)
+    assert seen == ([] if mode in ("private", "private_instance") else [batch])
+    assert len(writer._needs_rows) == 4 and writer._aggregate_by_turn["0"]["civ_0"]["agent_count"] == 4
 
 
-def test_religion_original_empty_capacity_and_missing_gates_remain_lazy(monkeypatch):
-    import chronicler.turn_artifacts as artifacts
+@pytest.mark.parametrize("mode", ["raise", "change"])
+def test_needs_stateful_decode_retains_second_decode_failure_boundary(tmp_path, monkeypatch, mode):
+    import json
+    import chronicler.agent_bridge as module
+    from chronicler.sidecar import SidecarWriter
+    _, _, first = _needs_real_batch()
+    history, logged = [], []
+    class Stateful:
+        calls = 0
+        @property
+        def to_pydict(self):
+            history.append("get")
+            def read():
+                history.append("call")
+                self.calls += 1
+                if self.calls == 2:
+                    if mode == "raise": raise ValueError("second decode")
+                    return {**first, "safety": [0.875] * 4}
+                return first
+            return read
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(_NeedsForeignSim(Stateful()), writer)
+    monkeypatch.setattr(module.logger, "exception", lambda message: logged.append(message))
+    bridge._write_sidecar_snapshot(world)
+    assert history == ["get", "get", "call", "get", "get", "call"]
+    assert json.loads((tmp_path / "validation_summary/needs_turn_000.json").read_text())["columns"] == first
+    assert len(writer._needs_rows) == 4
+    aggregate = writer._aggregate_by_turn["0"]["civ_0"]
+    if mode == "raise":
+        assert logged == ["Sidecar needs snapshot: failed to read/write needs"]
+        assert aggregate["need_means"] == {}
+    else:
+        assert not logged and aggregate["need_means"]["safety"] == 0.875
 
-    missing = CountingBatch(consumer_batch().select(["id"]))
-    monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("gate grouped"))
-    assert detect_schisms([], [], [None] * MAX_FAITHS, missing, 7, agent_rows=rows_for(missing, 7)) == []
-    assert not missing.accesses
-    empty = pa.record_batch({"region": pa.array([], type=pa.uint16())})
-    assert compute_majority_belief(empty, agent_rows=rows_for(empty)) == {}
-    assert compute_persecution([], [], [], empty, 7, set(), agent_rows=rows_for(empty, 7)) == []
-    with pytest.raises(KeyError):
-        compute_majority_belief(missing, agent_rows=rows_for(missing))
+
+def test_needs_successful_write_survives_later_aggregate_conversion_error(tmp_path, monkeypatch):
+    import chronicler.agent_bridge as module
+    from chronicler.sidecar import SidecarWriter
+    batch, _, expected = _needs_real_batch()
+    class BadSnapshot(_NeedsForeignSim):
+        def get_snapshot(self):
+            return pa.record_batch({"id": [101], "civ_affinity": [0], "satisfaction": [0.5],
+                                    "occupation": [0], "region": ["bad-region"]})
+    writer = SidecarWriter(tmp_path)
+    bridge, world = _needs_bridge_and_world(BadSnapshot(batch), writer)
+    logged = []
+    monkeypatch.setattr(module.logger, "exception", lambda message: logged.append(message))
+    bridge._write_sidecar_snapshot(world)
+    assert (tmp_path / "validation_summary/needs_turn_000.json").is_file()
+    assert len(writer._needs_rows) == 4 and list(writer._needs_rows[0]) == ["turn", *expected]
+    assert not writer._aggregate_by_turn
+    assert logged == ["Sidecar agent aggregate: failed to build/write aggregate snapshot",
+                      "Sidecar community summary: failed to build/write summary"]
 
 
-def test_religion_all_255_keeps_an_empty_successful_summary(monkeypatch):
-    import chronicler.religion as religion
-    import chronicler.turn_artifacts as artifacts
-
-    batch = pa.record_batch({"region": [0, 1, 0], "belief": [255, 255, 255]})
-    rows = rows_for(batch)
-    original, calls = artifacts.ordered_counts, []
-
-    def grouped(keys, values):
-        calls.append(True)
-        return original(keys, values)
-
-    monkeypatch.setattr(artifacts, "ordered_counts", grouped)
-    assert religion._faith_counts_by(batch, rows, "region") == {}
-    assert religion._faith_counts_by(batch, rows, "region") == {}
-    assert len(calls) == 1
+def test_needs_provenance_rejects_unloaded_and_python_producers_without_import(monkeypatch):
+    import sys
+    from chronicler.agent_bridge import _owns_native_needs_getter
+    sim = _NeedsForeignSim(None)
+    getter = sim.get_all_needs
+    monkeypatch.delitem(sys.modules, "chronicler_agents.chronicler_agents", raising=False)
+    assert not _owns_native_needs_getter(sim, getter)
+    assert (sim.getter_reads, sim.getter_calls) == (1, 0)

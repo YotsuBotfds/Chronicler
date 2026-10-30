@@ -2,6 +2,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import logging
+import sys
+from importlib.machinery import ExtensionFileLoader
+from types import BuiltinFunctionType, MethodDescriptorType, ModuleType
 from collections import Counter, deque
 from itertools import repeat, starmap
 import math
@@ -41,6 +44,39 @@ def _load_agent_simulator_class():
     if not isinstance(AgentSimulator, type):
         raise RuntimeError("chronicler_agents AgentSimulator is not a real native extension class")
     return AgentSimulator
+
+
+def _owns_native_needs_getter(sim, getter) -> bool:
+    """Recognize the already-loaded compiled producer's original owned C getter.
+
+    No native import or getter call occurs here. Rust get_all_needs constructs
+    fresh primitive arrays; foreign Arrow/CData alone proves no such ownership.
+    """
+    try:
+        module = sys.modules.get("chronicler_agents.chronicler_agents")
+        if type(module) is not ModuleType:
+            return False
+        namespace = vars(module)
+        spec = namespace.get("__spec__")
+        if (spec is None or type(spec.loader) is not ExtensionFileLoader
+                or namespace.get("__loader__") is not spec.loader
+                or spec.name != "chronicler_agents.chronicler_agents"):
+            return False
+        cls = namespace.get("AgentSimulator")
+        if type(sim) is not cls:
+            return False
+        instance = getattr(sim, "__dict__", None)
+        if isinstance(instance, dict) and "get_all_needs" in instance:
+            return False
+        descriptor = vars(cls).get("get_all_needs")
+        return (type(descriptor) is MethodDescriptorType
+                and descriptor.__objclass__ is cls
+                and type(getter) is BuiltinFunctionType
+                and getter.__self__ is sim
+                and getter.__name__ == "get_all_needs"
+                and getter == descriptor.__get__(sim, cls))
+    except Exception:
+        return False
 
 
 logger = logging.getLogger(__name__)
@@ -1784,15 +1820,24 @@ class AgentBridge:
 
         # Needs snapshot
         try:
-            needs_batch = self._sim.get_all_needs()
-            self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
-            if hasattr(needs_batch, "to_pydict"):
-                needs_data = needs_batch.to_pydict()
-            elif hasattr(needs_batch, "column_names"):
-                needs_data = {
-                    name: pylist(needs_batch.column(name))
-                    for name in needs_batch.column_names
-                }
+            sim = self._sim
+            needs_getter = sim.get_all_needs
+            needs_batch = needs_getter()
+            if (type(self) is AgentBridge
+                    and "_resolve_polity_civ_ids" not in self.__dict__
+                    and AgentBridge._resolve_polity_civ_ids is _NEEDS_POLITY_RESOLVER
+                    and _owns_native_needs_getter(sim, needs_getter)):
+                from chronicler.sidecar import _write_needs_snapshot_reusing_data
+                needs_data = _write_needs_snapshot_reusing_data(self._sidecar, turn, needs_batch)
+            if needs_data is None:
+                self._sidecar.write_needs_snapshot(turn=turn, needs_batch=needs_batch)
+                if hasattr(needs_batch, "to_pydict"):
+                    needs_data = needs_batch.to_pydict()
+                elif hasattr(needs_batch, "column_names"):
+                    needs_data = {
+                        name: pylist(needs_batch.column(name))
+                        for name in needs_batch.column_names
+                    }
         except Exception:
             if "_artifact_budget" in self.__dict__:
                 self._artifact_budget.fail("io")
@@ -3103,3 +3148,7 @@ class AgentBridge:
             "op_type", "agent_a", "agent_b", "bond_type", "sentiment", "formed_turn"
         ])
         self._sim.apply_relationship_ops(batch)
+
+
+# Reusing boxed columns must not change a custom resolver's alias observations.
+_NEEDS_POLITY_RESOLVER = AgentBridge._resolve_polity_civ_ids
