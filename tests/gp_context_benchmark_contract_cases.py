@@ -384,6 +384,17 @@ def test_optin_workflow_selectors_preserve_standard_and_semantic_gate_separation
     semantic=yaml.load((ROOT/".github/workflows/workflow-semantics.yml").read_text(),Loader=yaml.BaseLoader)
     assert "lead/gp-fullsync-semantics-20261030" in semantic["on"]["push"]["branches"]
     assert "lead/gp-fullsync-semantics-20261030" in semantic["jobs"]["actionlint"]["if"]
+    new_tests="lead/gp-untimed-fixture-tests-20261030"
+    new_semantic="lead/gp-untimed-fixture-semantics-20261030"
+    source_ref="lead/gp-untimed-fixture-source-20261030"
+    assert new_tests in standard["on"]["push"]["branches"]
+    assert new_semantic in semantic["on"]["push"]["branches"]
+    assert f"github.ref == 'refs/heads/{new_semantic}'" in semantic["jobs"]["actionlint"]["if"]
+    assert new_semantic not in standard["on"]["push"]["branches"]
+    assert new_tests not in semantic["on"]["push"]["branches"]
+    assert source_ref not in standard["on"]["push"]["branches"]
+    assert source_ref not in semantic["on"]["push"]["branches"]
+    assert m.RUN_REF.removeprefix("refs/heads/") not in semantic["on"]["push"]["branches"]
 
 
 def test_full_observed_schema_stays_in_build_and_P50_wires_remain_bounded():

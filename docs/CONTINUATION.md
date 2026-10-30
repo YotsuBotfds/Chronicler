@@ -1,3 +1,26 @@
+# GP untimed fixture: separate CI activation source only (2026-10-30)
+
+Add exact NEW semantic and Tests branch selectors for the reviewed untimed
+fixture child. The semantic job guard admits only its matching new selector;
+the inert source and original GP69 run selectors remain outside both gates.
+Every existing selector, permission, job body, tool pin and native cache
+default stays unchanged. The historical Tests-header witness is extended
+with the same one literal; the existing GP selector contract retains all old
+assertions and also checks the new gates and their separation.
+
+ROOT's completed106-case focus belongs to frozen6b0 source and unchanged
+benchmark/Native code. This CI-only child changes two workflow contracts, so
+its one selector case plus18 NativeBuildLanes cases are prospective19 and
+UNRUN here. The other87 GP case bodies, six untimed-fixture additions,
+45 oracle chunks and native shard registry remain exact. Fresh saved lint
+and all9 current-source Tests still precede any separately approved study.
+
+No simulation, benchmark driver, measured helper, Native, package, clock,
+schedule, proof, dose, resource cap or production default changes. Original
+414-process CPU-credit failure and partial regressions stay preserved;
+setup savings and full69 fit remain unmeasured. No old ref is moved and
+no GP69 run is created by this source preparation.
+
 # GP full-sync untimed setup reuse — source only, 2026-10-30
 
 This child of local ee752920 (published93d89670, same exact tree) removes
