@@ -16,6 +16,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 /// Secession grace period: civs younger than this many turns skip secession.
 const SECESSION_GRACE_TURNS: u32 = 50;
 
+/// All lifetime records count, including dead civs; identities are never recycled.
+const CIV_LIFETIME_CAPACITY: usize = 254;
+
 /// M38b: Schism secession modifier (from religion.py SCHISM_SECESSION_MODIFIER = 10).
 const SCHISM_SECESSION_MODIFIER: f32 = 10.0;
 
@@ -537,10 +540,33 @@ pub struct PoliticsResult {
 }
 
 impl PoliticsResult {
-    fn alloc_new_civ(&mut self) -> CivRef {
+    fn alloc_new_civ(&mut self, original_civ_count: usize) -> Option<CivRef> {
+        if original_civ_count.checked_add(usize::from(self.next_new_civ_id))?
+            >= CIV_LIFETIME_CAPACITY
+        {
+            return None;
+        }
         let id = self.next_new_civ_id;
         self.next_new_civ_id += 1;
-        CivRef::New(id)
+        Some(CivRef::New(id))
+    }
+
+    fn record_capacity_refusal(&mut self, step: u8, seq: &mut SeqCounter, actor: u16) {
+        if self.events.iter().any(|event| {
+            event.step == step && event.event_type == "polity_capacity_refused"
+        }) {
+            return;
+        }
+        // civilization lifetime capacity 254 reached; no new identity allocated
+        self.events.push(EventTrigger {
+            step,
+            seq: seq.next(),
+            event_type: "polity_capacity_refused",
+            actors: vec![CivRef::Existing(actor)],
+            importance: 5,
+            context_regions: Vec::new(),
+            context_seed: 0,
+        });
     }
 
     fn alloc_new_fed(&mut self) -> FedRef {
@@ -1430,7 +1456,10 @@ fn step_secession(
             })
             .sum();
 
-        let new_civ_ref = result.alloc_new_civ();
+        let Some(new_civ_ref) = result.alloc_new_civ(civs.len()) else {
+            result.record_capacity_refusal(step, &mut seq, civ.civ_idx);
+            continue;
+        };
 
         // Severity multiplier
         let mult = get_severity_multiplier(civ.civ_stress, config);
@@ -2427,7 +2456,15 @@ fn step_restoration(
         let restored_civ_ref = if restored_is_existing {
             CivRef::Existing(exile.original_civ)
         } else {
-            result.alloc_new_civ()
+            let Some(new_civ_ref) = result.alloc_new_civ(civs.len()) else {
+                result.record_capacity_refusal(
+                    step,
+                    &mut seq,
+                    civs[exile.original_civ as usize].civ_idx,
+                );
+                continue;
+            };
+            new_civ_ref
         };
 
         // Restore op
@@ -3299,6 +3336,363 @@ mod tests {
             10,
         );
         assert_eq!(perceived_treasury, Some(16));
+    }
+
+    fn capacity_civs(count: usize) -> Vec<CivInput> {
+        (0..count).map(|idx| CivInput::new(idx as u16)).collect()
+    }
+
+    fn capacity_secession_fixture(count: usize) -> (Vec<CivInput>, Vec<RegionInput>) {
+        let mut civs = capacity_civs(count);
+        let mut regions: Vec<RegionInput> = (0..6).map(RegionInput::new).collect();
+        for ci in 0..2 {
+            let start = ci * 3;
+            civs[ci].regions = (start..start + 3).map(|r| r as u16).collect();
+            civs[ci].capital_region = start as u16;
+            civs[ci].stability = 0;
+            for ri in start..start + 3 {
+                regions[ri].controller = ci as u16;
+                regions[ri].adjacencies = (start..start + 3)
+                    .filter(|&other| other != ri)
+                    .map(|other| other as u16)
+                    .collect();
+            }
+        }
+        // The first region has the highest capacity, so score ties cannot
+        // obscure the exact ordered bundle expected below.
+        regions[0].effective_capacity = 100;
+        regions[3].effective_capacity = 100;
+        (civs, regions)
+    }
+
+    fn capacity_live_regions(regions: &[RegionInput]) -> Vec<LiveRegion> {
+        regions.iter().map(|r| LiveRegion { controller: r.controller }).collect()
+    }
+
+    fn capacity_secession(
+        civs: &[CivInput],
+        regions: &[RegionInput],
+        hybrid_mode: bool,
+        result: &mut PoliticsResult,
+    ) -> (Vec<LiveCiv>, Vec<LiveRegion>, LiveRelationships) {
+        let mut live_civs: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+        let mut live_regions = capacity_live_regions(regions);
+        let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+        let mut config = make_config();
+        config.secession_likelihood_multiplier = 100.0;
+        step_secession(
+            civs, regions, &mut live_civs, &mut live_regions, &mut rels,
+            &LiveProxyWars { entries: Vec::new() }, &config, 42, 100,
+            hybrid_mode, result,
+        );
+        (live_civs, live_regions, rels)
+    }
+
+    fn assert_capacity_refusal(event: &EventTrigger, step: u8, actor: u16) {
+        assert_eq!(event.step, step);
+        assert_eq!(event.event_type, "polity_capacity_refused");
+        assert_eq!(event.actors, vec![CivRef::Existing(actor)]);
+        assert_eq!(event.importance, 5);
+        assert!(event.context_regions.is_empty());
+        assert_eq!(event.context_seed, 0);
+    }
+
+    fn assert_allocated_new_refs(result: &PoliticsResult) {
+        let mut creators = HashMap::new();
+        for op in &result.civ_ops {
+            if matches!(op.op_type, CivOpType::CreateBreakaway | CivOpType::Restore) {
+                if let CivRef::New(id) = op.target_civ {
+                    assert!(creators.insert(id, (op.step, op.seq)).is_none());
+                }
+            }
+        }
+        assert_eq!(creators.len(), usize::from(result.next_new_civ_id));
+        let check = |reference: CivRef, step: u8, seq: u16| {
+            if let CivRef::New(id) = reference {
+                assert!(id < result.next_new_civ_id, "unallocated New({id})");
+                assert!(creators[&id] < (step, seq), "New({id}) used before creation");
+            }
+        };
+        for op in &result.civ_ops {
+            check(op.source_civ, op.step, op.seq);
+            if !matches!(op.op_type, CivOpType::CreateBreakaway | CivOpType::Restore) {
+                check(op.target_civ, op.step, op.seq);
+            }
+        }
+        for op in &result.region_ops { check(op.controller, op.step, op.seq); }
+        for op in &result.relationship_ops {
+            check(op.civ_a, op.step, op.seq);
+            check(op.civ_b, op.step, op.seq);
+        }
+        for op in &result.federation_ops {
+            check(op.civ, op.step, op.seq);
+            for &member in &op.members { check(member, op.step, op.seq); }
+        }
+        for op in &result.vassal_ops {
+            check(op.vassal, op.step, op.seq);
+            check(op.overlord, op.step, op.seq);
+        }
+        for op in &result.exile_ops {
+            check(op.original_civ, op.step, op.seq);
+            check(op.absorber_civ, op.step, op.seq);
+        }
+        for op in &result.proxy_war_ops {
+            check(op.sponsor, op.step, op.seq);
+            check(op.target_civ, op.step, op.seq);
+        }
+        for op in &result.civ_effects { check(op.civ, op.step, op.seq); }
+        for op in &result.bookkeeping { check(op.civ, op.step, op.seq); }
+        for op in &result.artifact_intents {
+            check(op.losing_civ, op.step, op.seq);
+            check(op.gaining_civ, op.step, op.seq);
+        }
+        for op in &result.bridge_transitions {
+            check(op.source_civ, op.step, op.seq);
+            check(op.target_civ, op.step, op.seq);
+        }
+        for event in &result.events {
+            for &actor in &event.actors { check(actor, event.step, event.seq); }
+        }
+    }
+
+    #[test]
+    fn test_civ_lifetime_allocator_counts_records_and_pending_without_recycling() {
+        let mut result = PoliticsResult::default();
+        assert_eq!(result.alloc_new_civ(253), Some(CivRef::New(0)));
+        assert_eq!(result.alloc_new_civ(253), None);
+        assert_eq!(result.next_new_civ_id, 1);
+        let mut full = PoliticsResult::default();
+        for original_count in [254, 255, usize::MAX] {
+            assert_eq!(full.alloc_new_civ(original_count), None);
+            assert_eq!(full.next_new_civ_id, 0);
+        }
+        full.next_new_civ_id = u16::MAX;
+        assert_eq!(full.alloc_new_civ(0), None);
+        assert_eq!(full.next_new_civ_id, u16::MAX);
+    }
+
+    #[test]
+    fn test_civ_lifetime_secession_253_accepts_first_complete_bundle_only() {
+        for hybrid_mode in [false, true] {
+            let (civs, regions) = capacity_secession_fixture(253);
+            let before_second = format!("{:?}", LiveCiv::from_input(&civs[1]));
+            let mut result = PoliticsResult::default();
+            let (live, live_regions, _) = capacity_secession(&civs, &regions, hybrid_mode, &mut result);
+            assert_eq!(result.next_new_civ_id, 1);
+            assert_eq!(result.civ_ops.len(), 1);
+            assert_eq!(result.civ_ops[0].source_civ, CivRef::Existing(0));
+            assert_eq!(result.civ_ops[0].target_civ, CivRef::New(0));
+            assert_eq!(result.civ_ops[0].regions, vec![0]);
+            assert_eq!(live.len(), 254);
+            assert_eq!(format!("{:?}", live[1]), before_second);
+            assert_eq!(live_regions[0].controller, 253);
+            for ri in 3..6 { assert_eq!(live_regions[ri].controller, 1); }
+            assert_eq!(result.events.len(), 2);
+            assert_eq!(result.events[0].event_type, "secession");
+            assert_capacity_refusal(&result.events[1], 2, 1);
+            assert_allocated_new_refs(&result);
+        }
+    }
+
+    #[test]
+    fn test_civ_lifetime_secession_254_refuses_before_all_effects() {
+        for hybrid_mode in [false, true] {
+            let (civs, regions) = capacity_secession_fixture(254);
+            let before = format!("{:?}", civs.iter().map(LiveCiv::from_input).collect::<Vec<_>>());
+            let mut result = PoliticsResult::default();
+            let (live, live_regions, rels) = capacity_secession(&civs, &regions, hybrid_mode, &mut result);
+            assert_eq!(format!("{live:?}"), before);
+            assert_eq!(live_regions.iter().map(|r| r.controller).collect::<Vec<_>>(),
+                       regions.iter().map(|r| r.controller).collect::<Vec<_>>());
+            assert!(rels.disposition.is_empty());
+            assert!(rels.allied_turns.is_empty());
+            assert_eq!(result.events.len(), 1);
+            let refusal = result.events.pop().unwrap();
+            assert_capacity_refusal(&refusal, 2, 0);
+            assert_eq!(refusal.seq, 0);
+            assert_eq!(format!("{result:?}"), format!("{:?}", PoliticsResult::default()));
+        }
+    }
+
+    #[test]
+    fn test_civ_lifetime_below_capacity_keeps_ordered_secession_effects() {
+        let (mut civs, regions) = capacity_secession_fixture(2);
+        civs[1].stability = 50;
+        for hybrid_mode in [false, true] {
+            let mut result = PoliticsResult::default();
+            let (live, live_regions, _) = capacity_secession(&civs, &regions, hybrid_mode, &mut result);
+            let op = &result.civ_ops[0];
+            assert_eq!((op.step, op.seq), (2, 0));
+            assert_eq!(op.op_type, CivOpType::CreateBreakaway);
+            assert_eq!((op.source_civ, op.target_civ), (CivRef::Existing(0), CivRef::New(0)));
+            assert_eq!(op.regions, vec![0]);
+            assert_eq!((op.stat_military, op.stat_economy, op.stat_treasury), (16, 16, 16));
+            assert_eq!((op.stat_culture, op.stat_stability, op.stat_population), (50, 40, 30));
+            assert_eq!(op.stat_asabiya, 0.7);
+            assert_eq!(op.founded_turn, 100);
+            assert_eq!(live[0].regions, vec![1, 2]);
+            assert_eq!(live[0].treasury, 34);
+            assert_eq!(live[0].population, 70);
+            assert_eq!(live[0].military, if hybrid_mode { 50 } else { 34 });
+            assert_eq!(live[0].economy, if hybrid_mode { 50 } else { 34 });
+            assert_eq!(live_regions[0].controller, 2);
+            assert_eq!(result.region_ops.iter().map(|op| op.seq).collect::<Vec<_>>(), vec![1, 2]);
+            assert_eq!(result.civ_effects.iter().map(|op| (op.seq, op.field, op.delta_i)).collect::<Vec<_>>(),
+                       vec![(3, "military", -16), (4, "economy", -16), (5, "stability", -10), (6, "treasury", -16)]);
+            assert_eq!(result.relationship_ops.len(), 4);
+            assert_eq!(result.bridge_transitions.len(), if hybrid_mode { 1 } else { 0 });
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(result.events[0].event_type, "secession");
+            assert_eq!(result.events[0].seq, if hybrid_mode { 12 } else { 11 });
+            assert_allocated_new_refs(&result);
+        }
+    }
+
+    fn capacity_restoration_fixture(count: usize, original_dead: bool)
+        -> (Vec<CivInput>, Vec<RegionInput>, LiveExiles)
+    {
+        let mut civs = capacity_civs(count);
+        civs[0].regions = vec![0, 2];
+        civs[0].capital_region = 0;
+        civs[0].stability = 0;
+        if !original_dead { civs[1].regions = vec![1]; }
+        let mut regions: Vec<RegionInput> = (0..3).map(RegionInput::new).collect();
+        regions[0].controller = 0;
+        regions[1].controller = if original_dead { CIV_NONE } else { 1 };
+        regions[2].controller = 0;
+        let exiles = LiveExiles { entries: vec![ExileEntry {
+            original_civ: 1, absorber_civ: 0, conquered_regions: vec![2],
+            turns_remaining: 10, recognized_by: Vec::new(),
+        }] };
+        (civs, regions, exiles)
+    }
+
+    #[test]
+    fn test_civ_lifetime_restoration_254_refuses_entire_new_bundle() {
+        for hybrid_mode in [false, true] {
+            let (civs, regions, mut exiles) = capacity_restoration_fixture(254, false);
+            exiles.entries.push(exiles.entries[0].clone());
+            let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+            let before = format!("{live:?}");
+            let before_exiles = format!("{:?}", exiles.entries);
+            let mut live_regions = capacity_live_regions(&regions);
+            let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+            let mut restored = HashSet::new();
+            let mut result = PoliticsResult::default();
+            let mut config = make_config();
+            config.restoration_base_prob = 1.0;
+            step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+                &mut rels, &config, 42, 100, hybrid_mode, &mut restored, &mut result);
+            assert_eq!(format!("{live:?}"), before);
+            assert_eq!(format!("{:?}", exiles.entries), before_exiles);
+            assert_eq!(live_regions.iter().map(|r| r.controller).collect::<Vec<_>>(), vec![0, 1, 0]);
+            assert!(rels.disposition.is_empty());
+            assert!(restored.is_empty());
+            assert_eq!(result.events.len(), 1);
+            let refusal = result.events.pop().unwrap();
+            assert_capacity_refusal(&refusal, 8, 1);
+            assert_eq!(refusal.seq, 0);
+            assert_eq!(format!("{result:?}"), format!("{:?}", PoliticsResult::default()));
+        }
+    }
+
+    #[test]
+    fn test_civ_lifetime_restoration_reuses_dead_record_at_254() {
+        for hybrid_mode in [false, true] {
+            let (civs, regions, mut exiles) = capacity_restoration_fixture(254, true);
+            let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+            let mut live_regions = capacity_live_regions(&regions);
+            let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+            let mut restored = HashSet::new();
+            let mut result = PoliticsResult::default();
+            let mut config = make_config();
+            config.restoration_base_prob = 1.0;
+            step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+                &mut rels, &config, 42, 100, hybrid_mode, &mut restored, &mut result);
+            assert_eq!(result.next_new_civ_id, 0);
+            assert_eq!(result.civ_ops.len(), 1);
+            assert_eq!(result.civ_ops[0].op_type, CivOpType::Restore);
+            assert_eq!(result.civ_ops[0].target_civ, CivRef::Existing(1));
+            assert_eq!(live.len(), 254);
+            assert_eq!(live[0].regions, vec![0]);
+            assert_eq!(live[1].regions, vec![2]);
+            assert!(live[1].alive);
+            assert_eq!(live[1].population, 30);
+            assert_eq!(live_regions[2].controller, 1);
+            assert!(exiles.entries.is_empty());
+            assert_eq!(restored, HashSet::from([1]));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(result.events[0].event_type, "restoration");
+            assert_allocated_new_refs(&result);
+        }
+    }
+
+    #[test]
+    fn test_civ_lifetime_restoration_253_reserves_in_exile_order() {
+        let (mut civs, mut regions, mut exiles) = capacity_restoration_fixture(253, false);
+        civs[0].regions.push(3);
+        let mut region3 = RegionInput::new(3);
+        region3.controller = 0;
+        regions.push(region3);
+        let mut second = exiles.entries[0].clone();
+        second.conquered_regions = vec![3];
+        exiles.entries.push(second);
+        let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+        let before_original = format!("{:?}", live[1]);
+        let mut live_regions = capacity_live_regions(&regions);
+        let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+        let mut restored = HashSet::new();
+        let mut result = PoliticsResult::default();
+        let mut config = make_config();
+        config.restoration_base_prob = 1.0;
+        step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+            &mut rels, &config, 42, 100, true, &mut restored, &mut result);
+        assert_eq!(result.next_new_civ_id, 1);
+        assert_eq!(result.civ_ops.len(), 1);
+        assert_eq!(result.civ_ops[0].target_civ, CivRef::New(0));
+        assert_eq!(result.civ_ops[0].regions, vec![2]);
+        assert_eq!(result.exile_ops.len(), 1);
+        assert_eq!(result.bridge_transitions.len(), 1);
+        assert_eq!(live[0].regions, vec![0, 3]);
+        assert_eq!(live_regions[3].controller, 0);
+        assert_eq!(format!("{:?}", live[1]), before_original);
+        assert_eq!(exiles.entries.len(), 1);
+        assert_eq!(exiles.entries[0].conquered_regions, vec![3]);
+        assert!(restored.is_empty());
+        assert_eq!(result.events.len(), 2);
+        assert_eq!(result.events[0].event_type, "restoration");
+        assert_capacity_refusal(&result.events[1], 8, 1);
+        assert_allocated_new_refs(&result);
+    }
+
+    #[test]
+    fn test_civ_lifetime_secession_reservation_is_shared_with_restoration() {
+        let (civs, regions) = capacity_secession_fixture(253);
+        let mut result = PoliticsResult::default();
+        let (mut live, mut live_regions, mut rels) = capacity_secession(&civs, &regions, true, &mut result);
+        let before = format!("{live:?}");
+        let before_regions = live_regions.iter().map(|r| r.controller).collect::<Vec<_>>();
+        let before_result = format!("{result:?}");
+        let before_disposition = rels.disposition.clone();
+        let mut exiles = LiveExiles { entries: vec![ExileEntry {
+            original_civ: 0, absorber_civ: 1, conquered_regions: vec![4],
+            turns_remaining: 10, recognized_by: Vec::new(),
+        }] };
+        let mut restored = HashSet::new();
+        let mut config = make_config();
+        config.restoration_base_prob = 1.0;
+        step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+            &mut rels, &config, 42, 100, true, &mut restored, &mut result);
+        assert_eq!(result.next_new_civ_id, 1);
+        let refusal = result.events.pop().unwrap();
+        assert_capacity_refusal(&refusal, 8, 0);
+        assert_eq!(format!("{result:?}"), before_result);
+        assert_eq!(format!("{live:?}"), before);
+        assert_eq!(live_regions.iter().map(|r| r.controller).collect::<Vec<_>>(), before_regions);
+        assert_eq!(rels.disposition, before_disposition);
+        assert_eq!(exiles.entries.len(), 1);
+        assert!(restored.is_empty());
+        assert_allocated_new_refs(&result);
     }
 }
 

@@ -167,8 +167,19 @@ _TRAIT_POOL = [
 ]
 
 
+def _record_civ_capacity_refusal(world: WorldState, events: list[Event], actor: str) -> None:
+    from chronicler.ffi_constants import CIV_CAPACITY_REFUSAL
+    if not any(event.event_type == "polity_capacity_refused" for event in events):
+        events.append(Event(
+            turn=world.turn, event_type="polity_capacity_refused", actors=[actor],
+            description=CIV_CAPACITY_REFUSAL, importance=3,
+        ))
+
+
 def check_secession(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check for civil war / secession in unstable empires."""
+    from chronicler.ffi_constants import check_civ_capacity, has_civ_capacity
+    check_civ_capacity(world)
     _require_acc_for_hybrid(world, acc, "check_secession()")
     events: list[Event] = []
     new_civs: list[Civilization] = []
@@ -217,6 +228,12 @@ def check_secession(world: WorldState, acc=None) -> list[Event]:
             stable_hash_int("secession", world.seed, world.turn, civ.name)
         )
         if rng.random() >= prob:
+            continue
+
+        # Earlier accepted creations are queued until the loop ends. Reserve
+        # their identities too; refusing a later birth must not abandon them.
+        if not has_civ_capacity(world, len(new_civs)):
+            _record_civ_capacity_refusal(world, events, civ.name)
             continue
 
         # Secession fires
@@ -419,6 +436,8 @@ def transfer_regions_to_new_civ(
     hostility with the old lord and neutrality with everyone else. Used by
     the cities' free cities and the agent movements' secessions. Returns the
     agent-transition events."""
+    from chronicler.ffi_constants import require_new_civ_capacity
+    require_new_civ_capacity(world)
     lord_idx = civ_index(world, lord.name)
     new_idx = len(world.civilizations)
     add_stat(lord, "military", -split_military, "guard")
@@ -1145,6 +1164,8 @@ def apply_exile_effects(world: WorldState, acc=None) -> list[Event]:
 
 def check_restoration(world: WorldState, acc=None) -> list[Event]:
     """Phase 10: Check if any exiled civs can be restored."""
+    from chronicler.ffi_constants import check_civ_capacity, has_civ_capacity
+    check_civ_capacity(world)
     events: list[Event] = []
     civ_map = world.civ_map
     region_map = world.region_map
@@ -1172,6 +1193,17 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
         if rng.random() >= prob:
             continue
 
+        restored_civ = next(
+            (
+                civ for civ in world.civilizations
+                if civ.name == exile.original_civ_name and len(civ.regions) == 0
+            ),
+            None,
+        )
+        if restored_civ is None and not has_civ_capacity(world):
+            _record_civ_capacity_refusal(world, events, exile.original_civ_name)
+            continue
+
         # Restoration fires
         from chronicler.ecology import effective_capacity as _eff_cap
         target_region = max(available,
@@ -1194,13 +1226,6 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
             from chronicler.utils import set_region_pop
             set_region_pop(region_map[target_region], 30)
         restored_leader = Leader(name="Placeholder", trait=new_trait, reign_start=world.turn)
-        restored_civ = next(
-            (
-                civ for civ in world.civilizations
-                if civ.name == exile.original_civ_name and len(civ.regions) == 0
-            ),
-            None,
-        )
         if restored_civ is None:
             restored_civ = Civilization(
                 name=exile.original_civ_name,

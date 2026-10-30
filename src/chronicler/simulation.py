@@ -1186,6 +1186,8 @@ def phase_consequences(
     world: WorldState, acc=None, politics_runtime=None, *, phase10: Phase10Inputs | None = None,
 ) -> list[Event]:
     """Resolve cascading effects and tick condition durations. Returns collapse events."""
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
     if phase10 is not None:
         if phase10.source_turn != world.turn:
             raise ValueError("Phase 10 inputs belong to a different source turn")
@@ -1908,6 +1910,8 @@ def run_turn_result(
         AgentRows, Phase10Inputs, Stamp, TurnArtifacts, TurnObservation, TurnResult,
     )
 
+    from chronicler.ffi_constants import check_civ_capacity
+    check_civ_capacity(world)
     artifacts = TurnArtifacts(source_turn=world.turn)
     # Permanent faith ids (chronicler.faiths): a world built or loaded without
     # its table gets one; in a recorded run this changes nothing.

@@ -1,3 +1,13 @@
+# 2026-10-30 — source-only civilization lifetime capacity admission
+
+New separate `lead/civ-lifetime-capacity-20261030` donor descends from c50 region ingress; it is intended for staging005 and does not delay or modify staging004. Enforce the existing 254 total lifetime-record budget before Python political births or native New-operation bundles. Count dead records and queued births, preserve existing dead-record restoration, commit earlier accepted secessions, and retain city/movement four-slot headroom/fallback. Whole-list identity/capacity preflight rejects malformed or overbooked native apply batches before effects, including hybrid shock flushing; missing New refs cannot alias Existing ids. Oversized historical worlds remain readable but active entry points refuse clearly.
+
+See `docs/integration/civilization-lifetime-capacity-2026-10-30.md` for mutation order, narrow preflight limits and unrun test scope. Only care's current main/simulation whole-file literals are rebound; other eight current witnesses, ten care blocks, historical mechanics bindings, c50 FFI425133 and original agent bridge stay exact. Historical default-main AST digest stays immutable, with exact-site admission projection and negative mutations. All new Python/native/Rust tests are authored UNRUN. No build, native/World execution, test, timing, network, push or CI qualification follows from this handoff.
+
+Preparation observations are retained separately: the first Python author stopped on a nonunique `_secede` text anchor before editing that file, then a new exact-function-anchored author continued; the first projection metadata author used the default Python AST dump without CPython3.13 `show_empty`, failed before writes, then a new author used the pinned3.13 metadata interpreter. The native coauthor preserved its missing-directory copy and one-LF inverse-check assumptions. These are metadata preparation negatives, not product/test outcomes.
+
+---
+
 # Native region ingress correction — source only, 2026-10-30
 
 This separate ef716 child prevents a direct AgentSimulator constructor and its

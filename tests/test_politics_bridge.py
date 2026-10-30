@@ -1936,3 +1936,244 @@ class TestPhase10RuntimeRouting:
             assert dying.regions == []
             # Absorber got the regions
             assert len(absorber.regions) > 2
+
+
+# Lifetime identity admission: dead records reserve ids just like live records.
+def _lifetime_capacity_world(count):
+    world = _make_world(num_civs=2, num_regions=6)
+    for i in range(2, count):
+        world.civilizations.append(Civilization(
+            name=f"Dead{i}", population=0, military=0, economy=0, culture=0,
+            stability=0, leader=_make_leader(f"DeadLeader{i}"), regions=[],
+        ))
+    return world
+
+
+def _lifetime_breakaway(source=0, local_id=0, region=2):
+    return (2, local_id, "civ_op", {
+        "op_type": CIV_OP_CREATE_BREAKAWAY,
+        "source_ref_kind": REF_EXISTING, "source_ref_id": source,
+        "target_ref_kind": REF_NEW, "target_ref_id": local_id,
+        "region_indices": [region],
+    })
+
+
+@pytest.mark.parametrize("count,available", [(253, True), (254, False)])
+def test_lifetime_capacity_counts_dead_records_and_ordered_pending(count, available):
+    from chronicler.ffi_constants import has_civ_capacity
+    world = _lifetime_capacity_world(count)
+    assert has_civ_capacity(world) is available
+    assert not has_civ_capacity(world, pending=1)
+    assert len([c for c in world.civilizations if c.regions]) == 2
+
+
+@pytest.mark.parametrize("count,expected_new", [(252, 2), (253, 1), (254, 0)])
+def test_python_secession_reserves_queued_identities_without_losing_earlier_births(count, expected_new):
+    from chronicler.politics import check_secession
+    from chronicler.tuning import K_SECESSION_LIKELIHOOD
+    world = _lifetime_capacity_world(count)
+    world.tuning_overrides[K_SECESSION_LIKELIHOOD] = 100.0
+    for civ in world.civilizations[:2]:
+        civ.stability = 0
+    second_before = world.civilizations[1].model_dump()
+    events = check_secession(world)
+    assert len(world.civilizations) == count + expected_new
+    assert sum(e.event_type == "secession" for e in events) == expected_new
+    assert sum(e.event_type == "polity_capacity_refused" for e in events) == (count >= 253)
+    if count >= 253:
+        assert world.civilizations[1].model_dump() == second_before
+        assert all(world.region_map[r].controller == "Civ1" for r in second_before["regions"])
+    if count == 253:
+        child = world.civilizations[-1]
+        assert child.regions and all(world.region_map[r].controller == child.name for r in child.regions)
+        assert len(world.civilizations[0].regions) == 2
+
+
+@pytest.mark.parametrize("existing_dead", [False, True])
+def test_python_restoration_reuses_dead_identity_at_full_capacity(existing_dead):
+    from chronicler.politics import check_restoration
+    from chronicler.tuning import K_RESTORATION_BASE_PROB
+    world = _lifetime_capacity_world(254)
+    absorber = world.civilizations[0]
+    absorber.stability = 0
+    name = world.civilizations[2].name if existing_dead else "AbsentHistoricalCiv"
+    old_record = world.civilizations[2]
+    world.exile_modifiers = [ExileModifier(
+        original_civ_name=name, absorber_civ=absorber.name,
+        conquered_regions=["C"], turns_remaining=5,
+    )]
+    world.tuning_overrides[K_RESTORATION_BASE_PROB] = 1.0
+    before = world.model_dump()
+    events = check_restoration(world)
+    assert len(world.civilizations) == 254
+    if existing_dead:
+        assert world.civilizations[2] is old_record
+        assert old_record.regions == ["C"] and world.regions[2].controller == name
+        assert any(e.event_type == "restoration" for e in events)
+    else:
+        assert world.model_dump() == before
+        assert [e.event_type for e in events] == ["polity_capacity_refused"]
+        assert "no new identity allocated" in events[0].description
+
+
+def test_direct_shared_creator_refuses_before_stat_or_bridge_callbacks():
+    from chronicler.politics import transfer_regions_to_new_civ
+    world = _lifetime_capacity_world(254)
+    before = world.model_dump()
+    calls = []
+    class Bridge:
+        def apply_secession_transitions(self, *args, **kwargs):
+            calls.append((args, kwargs))
+    with pytest.raises(ValueError, match="lifetime capacity 254"):
+        transfer_regions_to_new_civ(
+            world, world.civilizations[0], None, ["C"],
+            add_stat=lambda *args: calls.append(args), split_military=5,
+            split_economy=5, lord_stability_loss=5, bridge=Bridge(),
+        )
+    assert not calls and world.model_dump() == before
+
+
+@pytest.mark.parametrize("creator", ["free_city", "movement"])
+def test_private_creators_refuse_before_local_purse_or_asabiya_access(creator):
+    from types import SimpleNamespace
+    world = _lifetime_capacity_world(254)
+    before = world.model_dump()
+    t = SimpleNamespace(world=world)
+    with pytest.raises(ValueError, match="lifetime capacity 254"):
+        if creator == "free_city":
+            from chronicler.cities import _free_city
+            _free_city(t, None, None, None, None)
+        else:
+            from chronicler.agent_movements import _secede
+            _secede(t, 0, None, None, None)
+    assert world.model_dump() == before
+
+
+def test_native_apply_rejects_overbooked_batch_before_stat_shock_or_map_effects(monkeypatch):
+    import chronicler.politics_bridge as bridge
+    world = _lifetime_capacity_world(253)
+    world.agent_mode = "hybrid"
+    mapping = {}
+    before = world.model_dump()
+    calls = []
+    monkeypatch.setattr(bridge, "_apply_civ_op", lambda *args: calls.append(args))
+    ops = [(1, 0, "civ_effect", {
+        "civ_ref_kind": REF_EXISTING, "civ_ref_id": 0,
+        "field": "military", "delta": -0.25, "routing": ROUTING_HYBRID_SHOCK,
+    }), _lifetime_breakaway(), _lifetime_breakaway(1, 1, 5)]
+    with pytest.raises(ValueError, match="lifetime capacity 254"):
+        apply_politics_ops(world, ops, new_civ_map=mapping)
+    assert not calls and not mapping and world.model_dump() == before
+
+
+@pytest.mark.parametrize("bad_case", ["forward", "duplicate", "negative", "bad_kind", "bool_kind", "bad_region", "missing_exile"])
+def test_native_apply_rejects_malformed_identity_graph_before_any_effect(bad_case):
+    world = _lifetime_capacity_world(2)
+    create = _lifetime_breakaway()
+    if bad_case == "forward":
+        tail = [(2, 0, "civ_effect", {"civ_ref_kind": REF_NEW, "civ_ref_id": 0})]
+    elif bad_case == "duplicate":
+        tail = [create, _lifetime_breakaway(1, 0, 5)]
+    else:
+        payload = dict(create[3])
+        if bad_case == "negative":
+            payload["target_ref_id"] = -1
+        elif bad_case == "bad_kind":
+            payload["target_ref_kind"] = 2
+        elif bad_case == "bool_kind":
+            payload["target_ref_kind"] = True
+        elif bad_case == "bad_region":
+            payload["region_indices"] = [len(world.regions)]
+        else:
+            payload["op_type"] = CIV_OP_RESTORE
+        tail = [(2, 1, "civ_op", payload)]
+    before = world.model_dump()
+    effect = (1, 0, "civ_effect", {
+        "civ_ref_kind": REF_EXISTING, "civ_ref_id": 0,
+        "field": "military", "delta": -7, "routing": ROUTING_DIRECT_ONLY,
+    })
+    with pytest.raises(ValueError):
+        apply_politics_ops(world, [effect, *tail])
+    assert world.model_dump() == before
+
+
+def test_native_apply_one_remaining_slot_and_new_reference_materialize_in_order():
+    world = _lifetime_capacity_world(253)
+    mapping = {}
+    apply_politics_ops(world, [
+        _lifetime_breakaway(),
+        (2, 1, "region_op", {"op_type": REGION_OP_SET_CONTROLLER, "region": 2,
+                              "controller_ref_kind": REF_NEW, "controller_ref_id": 0}),
+    ], new_civ_map=mapping)
+    assert mapping == {0: 253} and len(world.civilizations) == 254
+    assert world.regions[2].controller == world.civilizations[253].name
+    assert "C" not in world.civilizations[0].regions
+
+
+def test_native_apply_existing_dead_restore_does_not_reserve_a_new_slot():
+    world = _lifetime_capacity_world(254)
+    dead = world.civilizations[2]
+    payload = {"op_type": CIV_OP_RESTORE, "source_ref_kind": REF_EXISTING,
+               "source_ref_id": 0, "target_ref_kind": REF_EXISTING,
+               "target_ref_id": 2, "region_indices": [2]}
+    apply_politics_ops(world, [(8, 0, "civ_op", payload)])
+    assert len(world.civilizations) == 254 and world.civilizations[2] is dead
+    assert dead.regions == ["C"]
+
+
+def test_unmaterialized_new_reference_never_aliases_an_existing_index():
+    from chronicler.politics_bridge import _resolve_civ_ref
+    world = _lifetime_capacity_world(2)
+    with pytest.raises(ValueError, match="no materialized creator"):
+        _resolve_civ_ref(world, REF_NEW, 0, {})
+    assert _resolve_civ_ref(world, REF_NEW, 7, {7: 1}) == 1
+
+
+@pytest.mark.parametrize("entry", ["turn", "consequences", "native_input", "secession", "restoration"])
+def test_oversized_historical_world_is_readable_but_cannot_start_active_mutation(entry):
+    from chronicler.politics import check_secession, check_restoration
+    from chronicler.simulation import run_turn_result, phase_consequences
+    world = _lifetime_capacity_world(255)
+    # Parsing a historical payload remains available; admission is an active-use boundary.
+    restored = WorldState.model_validate_json(world.model_dump_json())
+    before = restored.model_dump()
+    def forbidden(*args, **kwargs):
+        pytest.fail("active callback ran before civilization capacity admission")
+    with pytest.raises(ValueError, match="World has 255 civilization records"):
+        if entry == "turn":
+            run_turn_result(restored, forbidden, forbidden)
+        elif entry == "consequences":
+            phase_consequences(restored)
+        elif entry == "native_input":
+            build_politics_civ_input_batch(restored)
+        elif entry == "secession":
+            check_secession(restored)
+        else:
+            check_restoration(restored)
+    assert restored.model_dump() == before
+
+
+@pytest.mark.parametrize("count,expected_new", [(253, 1), (254, 0)])
+def test_real_native_planner_limits_new_bundles_and_preserves_checkpoint_state(count, expected_new):
+    native = pytest.importorskip("chronicler_agents")
+    from chronicler.politics import call_rust_politics, configure_politics_runtime
+    from chronicler.tuning import K_SECESSION_LIKELIHOOD
+    world = _lifetime_capacity_world(count)
+    world.tuning_overrides[K_SECESSION_LIKELIHOOD] = 100.0
+    for civ in world.civilizations[:2]:
+        civ.stability = 0
+    simulator = native.PoliticsSimulator()
+    configure_politics_runtime(simulator, world)
+    before = bytes(simulator.checkpoint_state())
+    schemas = native.PoliticsSimulator.checkpoint_schema()
+    ops = call_rust_politics(simulator, world, hybrid_mode=False)
+    creations = [p for _, _, family, p in ops if family == "civ_op"
+                 and p["op_type"] == CIV_OP_CREATE_BREAKAWAY]
+    assert len(creations) == expected_new
+    assert sum(f == "event_trigger" and p["event_type"] == "polity_capacity_refused"
+               for _, _, f, p in ops) == 1
+    assert bytes(simulator.checkpoint_state()) == before
+    assert native.PoliticsSimulator.checkpoint_schema() == schemas
+    # Other politics steps may emit valid effects; every New ref still closes.
+    apply_politics_ops(world, [op for op in ops if op[0] != 11])
+    assert len(world.civilizations) == 254

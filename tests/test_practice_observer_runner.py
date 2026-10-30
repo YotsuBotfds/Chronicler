@@ -22,6 +22,56 @@ def ast_dump(node):
                     indent=None, show_empty=True)
 
 
+
+# Intentional active-world admission is outside the historical observer/budget
+# projection. Keep its exact two source/AST witnesses and precise setup sites;
+# the immutable default-main digest below continues to cover every other node.
+_CIV_ADMISSION_SOURCE = "from chronicler.ffi_constants import check_civ_capacity\ncheck_civ_capacity(world)\n"
+_CIV_ADMISSION_RAW_SHA256 = "b8f4b0ece297d14642981b8c9c35aca29eb4b0194a6c01ece1f0190292e3590e"
+_CIV_ADMISSION_AST_SHA256 = "57c08d72d627264c720f794adee0f952714e2f147019742f6e233468626004e5"
+
+
+def _main_without_reviewed_civ_admissions(source):
+    assert hashlib.sha256(_CIV_ADMISSION_SOURCE.encode()).hexdigest() == _CIV_ADMISSION_RAW_SHA256
+    pair = ast.parse(_CIV_ADMISSION_SOURCE).body
+    assert hashlib.sha256(ast_dump(ast.Module(body=pair, type_ignores=[])).encode()).hexdigest() == _CIV_ADMISSION_AST_SHA256
+    # Exactly two unmodified import/call pairs, at the approved indentation.
+    for indent in ("        ", "    "):
+        raw = "".join(indent + line + "\n" for line in _CIV_ADMISSION_SOURCE.splitlines())
+        assert source.count(raw) == 1, "reviewed capacity admission source changed"
+    tree = ast.parse(source)
+    owner = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "execute_run"]
+    assert len(owner) == 1
+    body = owner[0].body
+    setup = [(i, n) for i, n in enumerate(body) if isinstance(n, ast.If)
+             and ast_dump(n.test) == ast_dump(ast.parse("_resume_state is not None", mode="eval").body)
+             and n.body and ast_dump(n.body[0]) == ast_dump(ast.parse("world = _resume_state.world").body[0])]
+    assert len(setup) == 1
+    setup_index, setup_node = setup[0]
+    provided = setup_node.orelse
+    assert len(provided) == 1 and isinstance(provided[0], ast.If)
+    assert ast_dump(provided[0].test) == ast_dump(ast.parse("world is not None", mode="eval").body)
+    resume = provided[0].orelse
+    assert len(resume) == 1 and isinstance(resume[0], ast.If)
+    assert ast_dump(resume[0].test) == ast_dump(ast.Name(id="resume_path", ctx=ast.Load()))
+    fresh = resume[0].orelse
+    sites = [(i, n) for i, n in enumerate(fresh) if isinstance(n, ast.If)
+             and ast_dump(n.test) == ast_dump(ast.Name(id="scenario_config", ctx=ast.Load()))]
+    assert len(sites) == 1
+    fresh_index = sites[0][0] + 1
+    for statements, index, next_test in (
+        (fresh, fresh_index, "sim_client"),
+        (body, setup_index + 1, "checkpoint_resume is None"),
+    ):
+        assert [ast_dump(n) for n in statements[index:index + 2]] == [ast_dump(n) for n in pair], "capacity admission moved or changed"
+        following = statements[index + 2]
+        assert isinstance(following, ast.If)
+        assert ast_dump(following.test) == ast_dump(ast.parse(next_test, mode="eval").body)
+    # Delete only the two witnessed pairs after both locations were checked.
+    del fresh[fresh_index:fresh_index + 2]
+    del body[setup_index + 1:setup_index + 3]
+    return tree
+
 def invoke(mode, observer, *args, **kwargs):
     if mode == "omitted":
         return M._run_turn_deferring_sigint(*args, **kwargs)
@@ -339,7 +389,7 @@ def test_entire_default_main_AST_matches_qualified_parent():
             return retained
 
     projector = Defaults()
-    projected = projector.visit(module_tree())
+    projected = projector.visit(_main_without_reviewed_civ_admissions(Path(M.__file__).read_text()))
     assert projector.functions == set(parameters)
     assert projector.parameters == {"artifact_budget": 4, "practice_observer": 2}
     assert projector.branches == {scope: len(expected) for scope, expected in branches.items()}
@@ -356,3 +406,23 @@ def test_entire_default_main_AST_matches_qualified_parent():
                     literal.replace("physics(41)", "physics(42)")):
         assert changed != literal
         assert ast_dump(Defaults().visit(ast.parse(changed))) != untouched
+
+
+@pytest.mark.parametrize("mutation", ["wrong_helper", "wrong_location", "between_pair", "extra_effect"])
+def test_capacity_admission_projection_refuses_changed_shape_or_location(mutation):
+    source = Path(M.__file__).read_text()
+    pair = "".join("        " + line + "\n" for line in _CIV_ADMISSION_SOURCE.splitlines())
+    assert source.count(pair) == 1
+    if mutation == "wrong_helper":
+        changed = source.replace(pair, pair.replace("check_civ_capacity(world)", "has_civ_capacity(world)"), 1)
+    elif mutation == "wrong_location":
+        changed = source.replace(pair, "", 1)
+        marker = "        # Apply scenario overrides if provided\n"
+        assert changed.count(marker) == 1
+        changed = changed.replace(marker, pair + marker, 1)
+    elif mutation == "between_pair":
+        changed = source.replace(pair, pair.replace("        check_civ_capacity(world)", "        world.turn += 1\n        check_civ_capacity(world)"), 1)
+    else:
+        changed = source.replace(pair, pair + "        world.turn += 1\n", 1)
+    with pytest.raises(AssertionError):
+        _main_without_reviewed_civ_admissions(changed)

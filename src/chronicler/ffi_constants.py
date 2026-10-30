@@ -90,6 +90,25 @@ def check_civ_capacity(world) -> None:
         )
 
 
+CIV_CAPACITY_REFUSAL = (
+    "civilization lifetime capacity 254 reached; no new identity allocated"
+)
+
+
+def has_civ_capacity(world, pending: int = 0) -> bool:
+    """Whether one further identity fits, counting dead records and queued births."""
+    check_civ_capacity(world)
+    if type(pending) is not int or pending < 0:
+        raise ValueError("pending civilization reservations must be a nonnegative integer")
+    return len(world.civilizations) + pending < MAX_CIV_RECORDS
+
+
+def require_new_civ_capacity(world) -> None:
+    """Reject a direct creator before callbacks or mutations, without recycling ids."""
+    if not has_civ_capacity(world):
+        raise ValueError(CIV_CAPACITY_REFUSAL)
+
+
 def river_ids_from_mask(mask: int) -> list[int]:
     """Ascending river ids encoded in a Python ``Region.river_mask`` int."""
     ids: list[int] = []
