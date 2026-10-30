@@ -1,3 +1,22 @@
+## 2026-10-30: bind first passive grain diagnostic readiness
+
+This two-path child of local4b1442 / published80cf changes only the protocol's
+typed state to READY and activation_allowed to true, plus this entry. Root's
+81-case pure PASS carries by unchanged code and reviewed DOC equivalence; the
+current saved ten-workflow lint qualification is6d138ef43133d1786e228fa0312d2e284f6049af53a5443689b22df0765276aa.
+
+All seven code/document pins,828 protected files, Nativeaa32 and original
+8-region/4-civilization seed42 eight-turn fixture with its existing up-to-seven
+resume path remain exact. Pure.state and source_author_executions remain the
+historical source-phase records. The original Native failure and its observed
+no-pending checkpoints1..7 remain unresolved; no new Native result is asserted.
+
+Publication on a new inert readiness-source ref does not execute the diagnostic.
+Separate READY-delta review and the root first-run grant precede creation of the
+previously absent registered grain-eligibility-diagnostic-run ref. Old refs,
+negative evidence, all assertions and runtime/resource limits stay unchanged.
+The entire previous continuation follows byte-exact.
+
 ## 2026-10-30 — passive grain diagnostic custody correction, SOURCE ONLY
 
 Immutable18f2bed3/tree923bf3 is BLOCKED_B1_B2_B3 before any49 cases or runtime: closed pipes did not prove owned-session closure and cleanup lacked finally; protocol READY was not HEAD-byte-bound; the claimed durable launch marker lacked file/directory fsync. The independent5d858a86 receipt and original metadata negative stay preserved.
