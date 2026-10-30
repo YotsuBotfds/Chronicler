@@ -52,21 +52,27 @@ jobs:
           mkdir -m 0700 "$TMPDIR" || exit 2
           # This owner and all waited compiler/probe descendants are measured.
           # The two metadata phases each get <=0.5 wall seconds on the same CPU.
-          /usr/bin/timeout --signal=KILL 0.5s /usr/bin/prlimit --fsize=7168:7168 -- \
-            /bin/bash --noprofile --norc -c '
-              set -euo pipefail
-              printf "kind=C_ONLY_HOSTED_KERNEL_PREFLIGHT\nrevision=%s\nrun=%s\nattempt=%s\n" "$REVISION" "$RUN_ID" "$ATTEMPT"
-              uname -a
-              printf "compiler_path="; readlink -f /usr/bin/gcc
-              /usr/bin/gcc --version
-              sha256sum "$(readlink -f /usr/bin/gcc)" "$SRC" "$WORKFLOW"
-              stat -Lc "input=%n mode=%a links=%h bytes=%s device=%d inode=%i" /usr/bin/gcc "$SRC" "$WORKFLOW"
-              grep -E "^(CapEff|NoNewPrivs|Seccomp|Cpus_allowed_list):" /proc/self/status
-              printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$SRC" | sha256sum -c -
-              cp --no-clobber -- "$SRC" "$E/source.c"
-              chmod 0444 "$E/source.c"
-              printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$E/source.c" | sha256sum -c -
-            ' > "$E/metadata.txt" 2>&1
+          # The whole prefix keeps its0.5s bound and owner760KiB file ceiling.
+          # Only metadata writers get7KiB; the20KiB source copy must not inherit it.
+          /usr/bin/timeout --signal=KILL 0.5s /bin/bash --noprofile --norc -s <<'PREFIX'
+          set -euo pipefail
+          /usr/bin/prlimit --fsize=7168:7168 -- /bin/bash --noprofile --norc -s \
+            > "$E/metadata.txt" 2>&1 <<'METADATA'
+          set -euo pipefail
+          printf "kind=C_ONLY_HOSTED_KERNEL_PREFLIGHT\nrevision=%s\nrun=%s\nattempt=%s\n" "$REVISION" "$RUN_ID" "$ATTEMPT"
+          uname -a
+          printf "compiler_path="; readlink -f /usr/bin/gcc
+          /usr/bin/gcc --version
+          sha256sum "$(readlink -f /usr/bin/gcc)" "$SRC" "$WORKFLOW"
+          stat -Lc "input=%n mode=%a links=%h bytes=%s device=%d inode=%i" /usr/bin/gcc "$SRC" "$WORKFLOW"
+          grep -E "^(CapEff|NoNewPrivs|Seccomp|Cpus_allowed_list):" /proc/self/status
+          printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$SRC" | sha256sum -c -
+          METADATA
+          cp --no-clobber -- "$SRC" "$E/source.c"
+          chmod 0444 "$E/source.c"
+          printf "%s  %s\n" 2945cbff027bede245c0b56cb0a89faac3c2bbbfb62f02b0681741fce836e0cd "$E/source.c" | \
+            /usr/bin/prlimit --fsize=7168:7168 -- sha256sum -c - >> "$E/metadata.txt" 2>&1
+          PREFIX
           prefix_exit=$?
           if [ "$prefix_exit" -ne 0 ]; then exit "$prefix_exit"; fi
           # Trusted build, no Python/compiler plugins/project build system.
