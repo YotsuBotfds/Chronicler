@@ -1,3 +1,29 @@
+# Original AFTER procedural dispatch relay — source only, 2026-10-30
+
+This separate88-controller child proposes one opt-in hosted relay for the exact
+already-approved295B AFTER full/procedural request. The original CLI401 failed
+before an accepted physics run and remains preserved. Original88 validation
+workflow/source, selected5122/nativea840, seeds, horizons, arms, methods, thresholds
+and scientific evidence budgets remain unchanged. No relay source is substituted
+for either the validation controller or the simulation.
+
+The relay only activates on its exact new push ref/attempt1. A different new
+push ref runs the qualified read-only actionlint gate; it cannot activate the
+relay. Normal job-scoped GITHUB_TOKEN contents-read/actions-write permission
+supports one raw-byte POST after source/head/workflow/native/request checks and
+a durable uncertain-attempt receipt. No retries, redirects, CLI auth changes,
+token export/logging, arbitrary inputs or automatic scientific continuation.
+
+Twenty-three pure fake cases and all hosted checks are prospective and UNRUN.
+Source peer, first pure cases and actual actionlint precede a separate root relay
+activation decision.204 means API acceptance, not scientific success. Unknown
+acceptance requires official-run reconciliation before any further decision.
+See [the fixed relay contract](integration/after-procedural-dispatch-relay-2026-10-30.md).
+
+The full88 continuation follows byte-exact below.
+
+---
+
 # Full-profile compact evidence allocation - source only, 2026-10-30
 
 This separate345-controller child proposes16MiB of selected uncompressed

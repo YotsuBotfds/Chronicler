@@ -1,0 +1,36 @@
+name: Original AFTER procedural dispatch relay
+
+on:
+  push:
+    branches: [lead/after-procedural-dispatch-relay-run-20261030]
+
+permissions: {}
+
+jobs:
+  relay:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/lead/after-procedural-dispatch-relay-run-20261030' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check out the exact reviewed relay source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Send only the unchanged original procedural request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -I -B scripts/relay_after_procedural_dispatch.py
+
+      - name: Retain sanitized intent and first response
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: after-procedural-relay-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/after-procedural-relay/
+          if-no-files-found: error
+          retention-days: 7

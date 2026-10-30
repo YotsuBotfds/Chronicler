@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "baseline_report": "",
+    "fail_on_regression": "false",
+    "profile": "full",
+    "require_strict_regression": "false",
+    "source_sha": "5122fad852535f1f70a281c5b0fbfef06dfa8f69",
+    "worldgen": "procedural"
+  },
+  "ref": "lead/validation-full-compact-body-20261030"
+}
