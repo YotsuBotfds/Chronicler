@@ -1,3 +1,17 @@
+# Minimal public grain Native-test binding correction — source only, 2026-10-30
+
+Preserve c88d as BLOCKED/UNRUN: both source peers found its new Native case
+used json.loads without a json import. This child adds only that local import,
+and states the accepted observations precisely: World JSON/native payload at
+load, ordinary outputs/views/final Native and tracked dispatch/payment/T+1
+arrival. Existing pure T+2 coverage stays. Product/Native, all assertions and
+92pure/99purefocus+1Native counts remain exact; every runtime gate stays held.
+No tests/imports/World/Native/build/API/publication occurred in this source role.
+
+The complete blocked c88d continuation follows unchanged.
+
+---
+
 # Corrective public grain source child — source only, 2026-10-30
 
 Preserve frozen99c as BLOCKED. Its confirmed CLI ordering bug admitted against

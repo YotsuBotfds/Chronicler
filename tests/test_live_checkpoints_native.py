@@ -78,6 +78,7 @@ def test_enabled_public_grain_live_midtransit_native_checkpoint_is_exact(tmp_pat
     producer delegates once to the original, without changing its result.
     """
     import hashlib
+    import json
     import importlib.machinery
     import chronicler_agents as package
     import chronicler_agents.chronicler_agents as compiled

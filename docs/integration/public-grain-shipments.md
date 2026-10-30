@@ -19,9 +19,12 @@ AgentBridge/economy/run_turn, actual StatAccumulator payment legs and the real
 live pause/writer/read_checkpoint/resume path. Only initial finite stocks and
 relationships are controlled. Read-only wrappers delegate each original once.
 It selects the earliest actual pending order within a fixed eight-turn run,
-checks native payload/Python state at that genuine pause, and compares ordinary
-outputs, viewer state and final Native bytes through one payment/delivery for
-that order. Other legitimate public orders may occur; none are manufactured.
+checks World model JSON and the native payload at load from that genuine pause,
+then complete ordinary outputs, live views and final Native bytes, with one
+tracked dispatch/payment and T+1 arrival. Other legitimate public orders may
+occur; none are manufactured. The retained pure mechanics case carries the
+T+2 release timing proof. Full private RunState and global Python RNG equality
+are outside this new Native case's observations.
 
 The local turn StatAccumulator is flushed before a checkpoint, not magically
 persisted as a live object. The case observes its real keep legs at dispatch,
