@@ -1012,7 +1012,7 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         "chronicler-agents/src/health_care_observation.rs": "9c617fa6a252db0d2367053c466ee77560727af90825c16cab4b58b2e6791ed9",
         "chronicler-agents/src/pool.rs": "91ef1ae2eb802b75759ef1e018d930113179b767d34183d8fa637191a8b2fa1e",
         "chronicler-agents/src/tick.rs": "b2614e33e7feedab6726aa0b51f3285032873f8db4c7909e5b8821a0c83274fb",
-        "chronicler-agents/src/ffi/mod.rs": "f2c517c67ce52f3962760f22cdcdc3f15d0c7235706e5b3c0a84159f7b2f1d4e",
+        "chronicler-agents/src/ffi/mod.rs": "42513302f4d089fb0b769b480e5c685804cc738a50bf01b645763f192ad21677",
         "src/chronicler/health_care.py": "fc96d7c2f859865fc95023201c4c5c436cde0b8b39f53def02beb6f8557cd8ff",
         "src/chronicler/health_care_state.py": "43ea4162dd65e2a59fde602be5b670b3d4699dfe2bb4580f8402d88760a04ec8",
         "src/chronicler/agent_bridge.py": "0ad61ddadf43e1a52b55559a9708e4a5d7b90350f7a6979c192534a9d3f32e18",

@@ -1,3 +1,24 @@
+# Native region ingress correction — source only, 2026-10-30
+
+This separate ef716 child prevents a direct AgentSimulator constructor and its
+first Arrow batch from silently disagreeing on the region universe. Counts above
+65535 reject before allocation; zero/empty APIs remain valid. First batches must
+match the declared count and have dense, ordered, non-null region IDs. Required
+decoding and existing later count checks now precede cache/contested mutation.
+Valid normal bridge inputs, column ordering, later positional updates, persisted
+fields, schemas, context kernels and RNG operations retain their source contract.
+
+Six Rust tests and 22 native Python cases are prospective and UNRUN. The current
+whole-FFI care witness is rebound once; all ten care blocks, other nine pins,
+codecs/mechanics and historical bindings remain unchanged. No optimization,
+compiled-native, checkpoint, trajectory, population or scientific result is
+claimed. The distinct civilization lifetime-cap gap remains a later slice.
+See [the ingress contract and held gates](integration/native-region-ingress-2026-10-30.md).
+
+The complete ef716 continuation follows unchanged below.
+
+---
+
 # Care codec current-source binding repair - source only, 2026-10-30
 
 The first b32 offline health-care-policy chunk stopped at42 passes/1 failure,
