@@ -1,10 +1,22 @@
-# Manual C-only kernel capability preflight — source only
+# Reviewed C-only kernel capability preflight — source only
 
-This separate701-based branch asks whether a hosted Linux environment can
-install Landlock ABI >=3 and an x86_64 seccomp filter and enforce the sampled
-fixture permissions. The workflow is **manual only**, branch restricted and
-UNRUN. Publication and the first hosted dispatch require separate root review.
-There is no Python setup, package installation, native extension, wheel,
+This701-based proposal uses two separate refs without merging main:
+`lead/kernel-capability-source-20261030` publishes reviewed source, while only
+`lead/kernel-capability-preflight-20261030` has a push trigger for execution.
+Root first reviews/publishes the source branch, then separately decides whether
+to push the **same exact SHA** to the run branch for the first C-only attempt.
+No duplicate manual dispatch follows that push. The workflow_dispatch entry is
+retained for future separately reviewed operations after registration; it is
+not used to bootstrap this new workflow. Hosted compilation/probing is UNRUN.
+
+GitHub documents that push workflows include files not merged into the default
+branch, whereas first manual dispatch has a default-branch/registration seam.
+See [push](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#push)
+and [workflow_dispatch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch).
+The exact push branch filter and job ref guard prevent the source-branch push
+from running this C workflow. Every later run-branch push is another execution
+choice and needs separate review. Source publication and first-run approval
+remain distinct; no speculative dispatch or main update is needed. There is no Python setup, package installation, native extension, wheel,
 simulation, World, campaign, profiler or application network operation. The
 trusted pre-jail socket baseline only creates/closes an unconnected socket.
 Checkout and evidence upload are platform workflow operations.
@@ -22,6 +34,14 @@ Those are local-context results, not proof of the kernel build configuration or
 an external interception cause. Compiler aggregate CPU and combined external
 compile/probe CPU/wall were not measured. The C report measures only its own
 probe parent/worker. No local retry is proposed.
+
+The first09f hosted-source proposal also had a static file-limit blocker: its
+7KiB metadata subtree attempted to copy the20,911-byte C source. It was never
+run. The7d successor moved copying to the same0.5s prefix parent with760KiB,
+leaving only metadata writers under7KiB. C and all other owner bytes stayed
+exact. This event-trigger child retains that correction and changes no owner
+or C operation. All earlier source proposals and the local negative remain
+preserved.
 
 The hosted C successor changes only the temporary fixture prefix and stricter
 worker CPU20s, parent wait100s and per-file760KiB output bounds. The Landlock,

@@ -1,6 +1,8 @@
-name: Manual C-only kernel capability preflight
+name: Reviewed C-only kernel capability preflight
 
 on:
+  push:
+    branches: [lead/kernel-capability-preflight-20261030]
   workflow_dispatch:
 
 permissions:

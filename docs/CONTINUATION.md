@@ -1,7 +1,9 @@
-# Manual hosted C kernel capability preflight — source only, 2026-10-30
+# Source/run-branch C kernel capability preflight — source only, 2026-10-30
 
-This separate701 child adds only a manual branch-restricted workflow, its trusted
-C fixture guard, a dated note and this continuation prefix. Product/native,
+This701 child publishes reviewed code on a separate source branch; a later
+root-approved push of the same exact SHA to the dedicated run branch starts
+its first C-only attempt. The branch-restricted push workflow retains a future
+manual entry, its trusted C fixture guard, a dated note and this prefix. Product/native,
 Python/tests, dependencies and existing workflows remain exact701. The local
 predecessor's positive compile and first ENOSYS Landlock query remain preserved;
 no local retry or hosted operation has run on this source.
@@ -12,8 +14,8 @@ source/ELF identities, and uses stricter internal splits under110wall/30CPU/
 [The scope note](integration/kernel-capability-preflight-2026-10-30.md) records
 the negative, unmeasured wrapper costs and still-held runtime leases/installed
 owner/32MiB fit. A positive fixture would answer only kernel enforcement in that
-environment. Root source review, publication and first manual dispatch are
-separate decisions. The complete701 continuation follows unchanged.
+environment. Root source review, source publication and first run-branch push are
+separate decisions. No duplicate manual dispatch follows the first run push. The complete701 continuation follows unchanged.
 
 ---
 
