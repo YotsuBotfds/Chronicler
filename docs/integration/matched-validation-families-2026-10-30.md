@@ -37,3 +37,57 @@ The profile's3 workers also bound concurrent ablation fork workers to3 through t
 Root should first finish source review/ordinary source-contract verification of this controller and current701/5122 standard-CI provenance, then approve exact dispatch inputs/resources for each cell. Before World execution, require the fresh own build/classes and actual source/native identity; after execution require verified complete batch manifests, original reports/decisions and exact compact transport identities. A full gate pass validates the existing population/oracle contract, not targeted wealth efficacy, conservation, performance, actual saved Kin frames or a new twenty-turn causal effect. No main merge follows automatically.
 
 Only the workflow, four appended source-contract tests, this dated note and a continuation prepend change. All old test bodies/parametrizations, `tests.yml`,185 Python product files, the entire nativea840 tree, ownership, offline chunk selections/caps, simulation profiles, seeds/horizons, validators/comparator and dependencies remain exact5122. All new tests and workflow/controller actions areUNRUN at this source freeze.
+
+## Pre-World resource admission hardening
+
+This child adds an inline admission step after the own-build identity and before
+the canonical gate. It records the observed counters and fixed bounds, writes
+`resource_admission.json` exclusively, fsyncs it and makes it0444, then refuses
+before World when any requirement fails. A record-write failure also stops the
+job before World. This is an admission policy, **not measured new-source fit**
+or an assurance that resources stay available throughout a run.
+
+The policy requires effective available RAM of at least8GiB, output-volume free
+space after the build of at least16GiB,100000 available inodes, and at least3
+effective CPU slots. RAM is the minimum of Linux `MemAvailable` and applicable
+visible process/ancestor cgroup memory headrooms. Finite v2 `memory.high` and
+positive v1 soft ceilings are conservatively included. CPU reuses the existing
+`cpu_budget._cgroup_limits()` from the selected source, then combines visible,
+process and affinity counts with audited v1/v2 quota floors. Unknown,
+unreadable, malformed or unsupported required observations refuse. Conventional
+visible Linux cgroup hierarchies are supported; hidden host constraints are not
+claimed as measured. The snapshot is bounded to128KiB and records its scope.
+
+The resource record links the exact own-build identity SHA256. Compact evidence
+now requires that record, links its raw SHA256 and cannot be complete when
+admission is absent, negative or joined to a different build. The old full raw
+uploader remains byte-exact. The360-minute timeout, three workers, selected
+source/controller distinction, scientific seeds/horizons/maps, oracle policy,
+strictness defaults and thresholds do not change.
+
+Three new singleton contract tests check source placement/custody plus the
+exact pure policy with fake counters, including exact boundaries and nine
+low/unknown/cgroup/affinity/type/error variants. They extract only the pure
+function AST; no observation, filesystem, native or World collector executes
+in those fakes. The whole f808 test prefix, including its four source contracts,
+is preserved. All tests and controller actions remainUNRUN at this freeze.
+
+## Aggregate local scientific evidence plan
+
+The separately proposed local plan is a single80MiB aggregate envelope: six
+original compact ZIPs at most8MiB each (48MiB), at most512KiB API/packet metadata
+per cell (3MiB), at most2MiB derived review per cell (12MiB), one active extraction
+lease of at most7MiB, and10MiB margin. This totals80MiB; scientific job logs are
+not mandatory inputs. The existing24MiB per-cell ceiling is not reserved six
+times simultaneously. No cap is increased and no multiGiB raw archive is
+downloaded locally.
+
+Original ZIPs remain immutable evidence. At most one extraction lease is live;
+load a baseline report, release its temporary extraction, then load the matched
+current report for the existing in-memory comparator API. Original ZIPs preserve
+both exact report bodies. Any derived output exceeding its2MiB review budget
+refuses that export rather than truncating evidence or changing gates. Root
+must still check actual free space above the existing3GiB floor and every
+actual artifact size before transfer. This plan and the inline admission do
+not grant a dispatch or establish measured fit; all six scientific cells stay
+held pending separate source, ordinary-test, build/API and execution decisions.

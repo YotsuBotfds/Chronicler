@@ -348,3 +348,72 @@ def test_validation_workflow_retains_profile_defaults_and_explicit_comparison_po
     assert '--exploratory-comparison' not in workflow
     assert 'baseline_report:' in workflow and '--baseline-report "$BASELINE_REPORT"' in workflow
     assert '--require-strict-regression' in workflow and '--fail-on-regression' in workflow
+
+
+def _validation_resource_policy_for_test():
+    steps = yaml.load(_read(".github/workflows/validation-gate.yml"), Loader=yaml.BaseLoader)["jobs"]["canonical-validation"]["steps"]
+    step = next(row for row in steps if row["name"] == "Admit resources before World")
+    source = step["run"].split("python - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    parsed = ast.parse(source)
+    function = next(node for node in parsed.body if isinstance(node, ast.FunctionDef) and node.name == "assess_resource_policy")
+    # Execute only the pure counter policy with fakes. None of the inline OS,
+    # native, file, build or World collection statements are in this module.
+    namespace = {}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "<validation-resource-policy>", "exec"), namespace)
+    return namespace["assess_resource_policy"]
+
+
+def _validation_resource_fake_counters():
+    return {"host_available_memory_bytes": 16 * 1024**3,
+            "memory_headroom_bytes": [8 * 1024**3],
+            "cpu_slot_limits": [8, 8, 3], "output_free_bytes": 16 * 1024**3,
+            "output_free_inodes": 100000, "errors": []}
+
+
+def test_validation_resource_policy_accepts_exact_boundaries_without_measuring_fit():
+    policy = _validation_resource_policy_for_test()
+    counters = _validation_resource_fake_counters()
+    before = repr(counters)
+    result = policy(counters)
+    assert result["admitted"] and all(result["checks"].values())
+    assert result["effective_counters"]["available_memory_bytes"] == 8 * 1024**3
+    assert result["effective_counters"]["effective_cpu_slots"] == 3
+    assert result["bounds"] == {"available_memory_bytes": 8 * 1024**3,
+        "output_free_bytes": 16 * 1024**3, "output_free_inodes": 100000, "effective_cpu_slots": 3}
+    assert result["measured_source_fit"] is False and repr(counters) == before
+
+
+def test_validation_resource_policy_refuses_low_unknown_and_cgroup_limited_counters():
+    policy = _validation_resource_policy_for_test()
+    # Each literal exercises a different policy boundary without an OS probe.
+    changes = [
+        ("host", {"host_available_memory_bytes": 8 * 1024**3 - 1}),
+        ("ancestor-headroom", {"memory_headroom_bytes": [64 * 1024**3, 8 * 1024**3 - 1]}),
+        ("quota", {"cpu_slot_limits": [16, 16, 2]}),
+        ("affinity", {"cpu_slot_limits": [16, 2, 16]}),
+        ("disk", {"output_free_bytes": 16 * 1024**3 - 1}),
+        ("inodes", {"output_free_inodes": 99999}),
+        ("unknown", {"host_available_memory_bytes": None}),
+        ("boolean", {"output_free_inodes": True}),
+        ("unreadable", {"errors": ["cgroup-read-denied"]}),
+    ]
+    for name, changed in changes:
+        counters = _validation_resource_fake_counters()
+        counters.update(changed)
+        result = policy(counters)
+        assert not result["admitted"], name
+        assert result["measured_source_fit"] is False, name
+
+
+def test_validation_resource_admission_is_before_world_and_bound_to_compact_evidence():
+    workflow = _read(".github/workflows/validation-gate.yml")
+    steps = yaml.load(workflow, Loader=yaml.BaseLoader)["jobs"]["canonical-validation"]["steps"]
+    names = [step["name"] for step in steps]
+    assert names.index("Record actual validation source and own compiled wheel") < names.index("Admit resources before World") < names.index("Run canonical validation gate")
+    resource = next(step for step in steps if step["name"] == "Admit resources before World")
+    assert "continue-on-error" not in resource
+    assert 'from chronicler.cpu_budget import _cgroup_limits' in resource["run"]
+    assert 'os.O_EXCL | os.O_NOFOLLOW' in resource["run"] and 'os.fsync' in resource["run"]
+    assert resource["run"].index('os.fchmod(stream.fileno(), 0o444)') < resource["run"].index('if not decision["admitted"]:')
+    assert '"resource_admission.json"' in workflow and '"resource_admission_sha256"' in workflow
+    assert '"build_identity_sha256"' in resource["run"]

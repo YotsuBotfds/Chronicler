@@ -180,6 +180,203 @@ jobs:
               stream.write("\n")
           PY
 
+      - name: Admit resources before World
+        env:
+          VALIDATION_CHECKOUT_SHA: ${{ steps.validation_source.outputs.sha }}
+          VALIDATION_CONTROLLER_SHA: ${{ github.workflow_sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+
+          def assess_resource_policy(counters):
+              bounds = {"available_memory_bytes": 8 * 1024**3,
+                        "output_free_bytes": 16 * 1024**3,
+                        "output_free_inodes": 100000, "effective_cpu_slots": 3}
+              errors = list(counters["errors"])
+              host = counters["host_available_memory_bytes"]
+              memory = counters["memory_headroom_bytes"]
+              cpus = counters["cpu_slot_limits"]
+              disk, inodes = counters["output_free_bytes"], counters["output_free_inodes"]
+              integer = lambda value: type(value) is int and value >= 0
+              if not integer(host) or type(memory) is not list or not all(integer(v) for v in memory):
+                  errors.append("unknown-or-invalid-memory")
+                  available = None
+              else:
+                  available = min([host, *memory])
+              if type(cpus) is not list or not cpus or not all(integer(v) for v in cpus):
+                  errors.append("unknown-or-invalid-cpu")
+                  cpu = None
+              else:
+                  cpu = min(cpus)
+              values = {"available_memory_bytes": available, "effective_cpu_slots": cpu,
+                        "output_free_bytes": disk, "output_free_inodes": inodes}
+              checks = {key: integer(value) and value >= bounds[key] for key, value in values.items()}
+              return {"bounds": bounds, "effective_counters": values, "checks": checks,
+                      "observation_errors": errors, "admitted": not errors and all(checks.values()),
+                      "measured_source_fit": False,
+                      "scope": "Point-in-time admission policy, not measured fit or a runtime resource guarantee."}
+
+          errors = []
+          def problem(message):
+              if len(errors) < 16:
+                  errors.append(message[:240])
+          def small(path, required=False):
+              try:
+                  with path.open("r", encoding="ascii") as stream:
+                      text = stream.read(16385)
+                  if len(text) > 16384:
+                      raise ValueError("metadata bound")
+                  return text.strip()
+              except FileNotFoundError:
+                  if required:
+                      problem("missing:" + str(path))
+              except (OSError, UnicodeError, ValueError) as exc:
+                  problem("unreadable:" + str(path) + ":" + type(exc).__name__)
+              return None
+
+          host_available = None
+          meminfo = small(Path("/proc/meminfo"), True)
+          try:
+              rows = [line.split() for line in (meminfo or "").splitlines() if line.startswith("MemAvailable:")]
+              assert len(rows) == 1 and len(rows[0]) == 3 and rows[0][2] == "kB"
+              host_available = int(rows[0][1]) * 1024
+          except (ValueError, AssertionError):
+              problem("MemAvailable-unavailable")
+
+          cpu_limits, cpu_observations = [], {}
+          try:
+              from chronicler.cpu_budget import _cgroup_limits
+              cpu_limits.extend(_cgroup_limits())
+              cpu_observations["existing_cgroup_slot_limits"] = list(cpu_limits)
+          except Exception as exc:
+              problem("cpu_budget-unavailable:" + type(exc).__name__)
+          for name, call in (("visible", os.cpu_count),
+                             ("process", getattr(os, "process_cpu_count", lambda: None)),
+                             ("affinity", lambda: len(os.sched_getaffinity(0)))):
+              try:
+                  value = call()
+                  cpu_observations[name] = value
+                  if type(value) is int and value > 0:
+                      cpu_limits.append(value)
+                  elif name != "process":
+                      problem("cpu-counter-unavailable:" + name)
+              except (OSError, AttributeError, NotImplementedError) as exc:
+                  problem("cpu-counter-unavailable:" + name + ":" + type(exc).__name__)
+
+          membership = small(Path("/proc/self/cgroup"), True)
+          locations = {}
+          recognized = False
+          for line in (membership or "").splitlines():
+              fields = line.split(":", 2)
+              if len(fields) != 3:
+                  problem("malformed-cgroup-membership")
+                  continue
+              hierarchy, controllers, member = fields
+              relative = PurePosixPath(member)
+              if not relative.is_absolute() or ".." in relative.parts or len(member) > 1024:
+                  problem("unsupported-cgroup-membership-path")
+                  continue
+              roots = []
+              if hierarchy == "0" and not controllers:
+                  roots = [(Path("/sys/fs/cgroup"), 2, "cpu-memory")]
+              else:
+                  kinds = controllers.split(",")
+                  if "memory" in kinds:
+                      roots.append((Path("/sys/fs/cgroup/memory"), 1, "memory"))
+                  if "cpu" in kinds:
+                      candidates = [Path("/sys/fs/cgroup/cpu"), Path("/sys/fs/cgroup/cpu,cpuacct")]
+                      roots.extend((path, 1, "cpu") for path in candidates if path.is_dir())
+                      if not any(path.is_dir() for path in candidates):
+                          problem("unsupported-cgroup-cpu-mount")
+              for root, version, kind in roots:
+                  recognized = True
+                  directory = root.joinpath(*relative.parts[1:])
+                  if not directory.is_dir():
+                      problem("unsupported-cgroup-directory:" + str(directory))
+                      continue
+                  while True:
+                      locations[(str(directory), version, kind)] = directory
+                      if directory == root:
+                          break
+                      directory = directory.parent
+          if not recognized:
+              problem("no-supported-cgroup-hierarchy")
+          if len(locations) > 64:
+              problem("cgroup-observation-count-bound")
+          memory_headrooms, cgroups = [], []
+          for (name, version, kind), directory in sorted(locations.items())[:64]:
+              row = {"path": name, "version": version, "kind": kind}
+              if "memory" in kind:
+                  maximum = small(directory / ("memory.max" if version == 2 else "memory.limit_in_bytes"))
+                  soft = small(directory / ("memory.high" if version == 2 else "memory.soft_limit_in_bytes"))
+                  usage = small(directory / ("memory.current" if version == 2 else "memory.usage_in_bytes"))
+                  row.update(memory_limit=maximum, memory_soft_limit=soft, memory_usage=usage)
+                  limits = [maximum, soft] if version == 2 else [maximum, None if soft == "0" else soft]
+                  for bound in limits:
+                      if bound in (None, "max"):
+                          continue
+                      try:
+                          limit, used = int(bound), int(usage)
+                          assert limit >= 0 and used >= 0
+                          memory_headrooms.append(max(0, limit - used))
+                      except (ValueError, TypeError, AssertionError):
+                          problem("invalid-cgroup-memory-headroom:" + name)
+              if "cpu" in kind:
+                  if version == 2:
+                      text = small(directory / "cpu.max")
+                      fields = None if text is None else text.split()
+                  else:
+                      q, p = small(directory / "cpu.cfs_quota_us"), small(directory / "cpu.cfs_period_us")
+                      fields = None if q is None and p is None else [q, p]
+                  row["cpu_quota_period"] = fields
+                  if fields is not None:
+                      try:
+                          assert len(fields) == 2 and int(fields[1]) > 0
+                          if fields[0] not in ("max", "-1"):
+                              quota = int(fields[0])
+                              assert quota > 0
+                              cpu_limits.append(quota // int(fields[1]))
+                      except (ValueError, TypeError, AssertionError):
+                          problem("invalid-cgroup-cpu-quota:" + name)
+              cgroups.append(row)
+
+          out = Path("output/github-validation") / os.environ["GITHUB_RUN_ID"]
+          free_bytes = free_inodes = None
+          try:
+              volume = os.statvfs(out)
+              free_bytes, free_inodes = volume.f_bavail * volume.f_frsize, volume.f_favail
+          except OSError as exc:
+              problem("output-statvfs-unavailable:" + type(exc).__name__)
+          counters = {"host_available_memory_bytes": host_available,
+                      "memory_headroom_bytes": memory_headrooms, "cpu_slot_limits": cpu_limits,
+                      "output_free_bytes": free_bytes, "output_free_inodes": free_inodes, "errors": errors}
+          decision = assess_resource_policy(counters)
+          build_raw = (out / "validation_identity.json").read_bytes()
+          build = json.loads(build_raw)
+          assert build["checked_out_source_sha"] == os.environ["VALIDATION_CHECKOUT_SHA"]
+          record = {"schema": 1, "kind": "validation-pre-World-resource-admission",
+                    "source": build["checked_out_source_sha"], "controller_sha": os.environ["VALIDATION_CONTROLLER_SHA"],
+                    "run_id": int(os.environ["GITHUB_RUN_ID"]), "attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                    "build_identity_sha256": hashlib.sha256(build_raw).hexdigest(),
+                    "counters": counters, "cpu_observations": cpu_observations,
+                    "cgroup_observations": cgroups, "decision": decision,
+                    "cgroup_scope": "Conventional visible Linux process hierarchy and ancestors; unreadable/unsupported observations refuse.",
+                    "scope": "Admission policy after own build and before World; not measured new-source fit."}
+          raw = (json.dumps(record, sort_keys=True, indent=2) + "\n").encode()
+          assert len(raw) <= 131072, "resource record bound"
+          fd = os.open(out / "resource_admission.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+          with os.fdopen(fd, "wb") as stream:
+              assert stream.write(raw) == len(raw)
+              stream.flush()
+              os.fsync(stream.fileno())
+              os.fchmod(stream.fileno(), 0o444)
+          if not decision["admitted"]:
+              raise SystemExit("Resource admission policy refused before World; resource_admission.json preserved")
+          PY
+
       - name: Run canonical validation gate
         env:
           PROFILE_INPUT: ${{ github.event.inputs.profile || 'full' }}
@@ -249,7 +446,7 @@ jobs:
                      "determinism-off": "determinism_off", "determinism-hybrid": "determinism_hybrid"}
           batch = out / layouts[profile] / "batch_42"
           report_name = "validate_report_" + profile.replace("-", "_") + ".json"
-          required = [out / "validation_identity.json", batch / "batch_manifest.json",
+          required = [out / "validation_identity.json", out / "resource_admission.json", batch / "batch_manifest.json",
                       batch / "run_manifest.json", batch / report_name,
                       batch / ("gate_decision_" + profile + ".json"),
                       batch / ("gate_summary_" + profile + ".md")]
@@ -259,12 +456,25 @@ jobs:
           if (out / "validation_identity.json").is_file():
               identity = json.loads((out / "validation_identity.json").read_text())
               required.append(out / "native-build" / identity["wheel_receipt"]["wheel"]["filename"])
+          resource = None
+          resource_sha = None
+          if (out / "resource_admission.json").is_file():
+              resource_raw = (out / "resource_admission.json").read_bytes()
+              resource = json.loads(resource_raw)
+              resource_sha = hashlib.sha256(resource_raw).hexdigest()
           if (batch / "run_manifest.json").is_file():
               run = json.loads((batch / "run_manifest.json").read_text())
               if run.get("ablation_oracles"):
                   required.append(batch.parent / "ablation_42" / "ablation_manifest.json")
           selected = required + [path for path in optional if path.exists()]
           missing = [str(path.relative_to(out)) for path in required if not path.is_file()]
+          if resource is not None:
+              if resource["decision"]["admitted"] is not True:
+                  missing.append("resource_admission:not_admitted")
+              if (identity is None or resource["source"] != identity["checked_out_source_sha"]
+                      or resource["build_identity_sha256"] != hashlib.sha256((out / "validation_identity.json").read_bytes()).hexdigest()
+                      or resource["controller_sha"] != os.environ["VALIDATION_CONTROLLER_SHA"]):
+                  missing.append("resource_admission:build_identity_mismatch")
           records = []
           for path in selected:
               if not path.is_file():
@@ -286,6 +496,8 @@ jobs:
                       "controller_sha": os.environ["VALIDATION_CONTROLLER_SHA"],
                       "run_id": int(os.environ["GITHUB_RUN_ID"]), "attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                       "profile": profile, "worldgen": os.environ["WORLDGEN_INPUT"],
+                      "resource_admission_sha256": resource_sha,
+                      "resource_admitted": None if resource is None else resource["decision"]["admitted"],
                       "status": "INCOMPLETE" if missing else "EVIDENCE_COMPLETE",
                       "missing_required": missing, "files": records,
                       "body_budget_bytes": MAX_COMPACT_BYTES,

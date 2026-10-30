@@ -1,3 +1,19 @@
+# Pre-World resource admission - source only, 2026-10-30
+
+This small child of f808 adds a recorded admission policy after the own build
+and before any World command: effective available RAM>=8GiB, output free>=16GiB,
+free inodes>=100000 and effective CPU slots>=3, including visible cgroup and
+affinity limits. The exclusive/fsynced/0444 resource record precedes refusal and
+is linked into compact evidence. This is policy, not measured new-source fit.
+Three new singleton cases cover the pure policy with fake counters and source
+placement/custody; all cases and controller actions are UNRUN. Runtime worker,
+timeout, seeds/horizons, strictness and scientific thresholds remain unchanged.
+The separate local study plan uses one80MiB aggregate envelope, not six full
+24MiB reservations. Root review, ordinary tests and all scientific grants remain
+held. The full f808 continuation follows byte-exact.
+
+---
+
 # Matched validation workflow proposal - source only, 2026-10-30
 
 This separate child of5122 adds exact-source/world-family selection to the
