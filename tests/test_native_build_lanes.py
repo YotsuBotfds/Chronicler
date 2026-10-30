@@ -217,10 +217,43 @@ def test_standard_native_graph_requires_both_shards_and_rust_without_failure_all
             assert "continue-on-error" not in step, (name, step["name"])
 
 
+def _project_only_reviewed_disabled_native_cache(text):
+    """Remove only four exact reviewed flag0 additions inside the builder job."""
+    from hashlib import sha256
+
+    assert text.count("  python-native-build:\n") == 1
+    prefix, tail = text.split("  python-native-build:\n", 1)
+    following = re.search(r"(?m)^  [\w-]+:\n", tail)
+    assert following is not None
+    builder, suffix = tail[:following.start()], tail[following.start():]
+    assert "NATIVE_RELEASE_CACHE_" not in prefix + suffix
+    assert builder.count('CHRONICLER_NATIVE_RELEASE_CACHE: "0"') == 1
+    reviewed = {'DEFAULT': '2500c4489fea62d1116a5cb520d35d87ec178212a1451662e68e38a4dfbf5286', 'OLD_RESTORE': '78a91fb4e9b26fd61ec1c305dbb4e89d4ab9d1528133f27e3e432179ce354751', 'PREPARE': 'dbae689b85d8ac5b04f57cd75679e9daafe696e005f13b0e218276ef32dc356c', 'SEAL': '742f236f6e54dc43c6c9b46604467ec2e31b61ca17724a42cd50ac63f56db810'}
+    lines = builder.splitlines(keepends=True)
+    for marker, expected in reviewed.items():
+        begin = "# NATIVE_RELEASE_CACHE_" + marker + "_BEGIN"
+        end = "# NATIVE_RELEASE_CACHE_" + marker + "_END"
+        starts = [i for i, line in enumerate(lines) if line.strip() == begin]
+        ends = [i for i, line in enumerate(lines) if line.strip() == end]
+        assert len(starts) == len(ends) == 1 and starts[0] < ends[0]
+        stop = ends[0] + 1
+        if marker in ("PREPARE", "SEAL"):
+            assert lines[stop] == "\n"
+            stop += 1
+        block = "".join(lines[starts[0]:stop])
+        assert sha256(block.encode("utf-8")).hexdigest() == expected
+        del lines[starts[0]:stop]
+    projected = "".join(lines)
+    assert "CHRONICLER_NATIVE_RELEASE_CACHE" not in projected
+    return prefix + "  python-native-build:\n" + projected + suffix
+
+
 def test_standard_native_delegation_keeps_the_qualified_v2_bodies():
     from copy import deepcopy
 
-    jobs = _workflow_jobs(".github/workflows/tests.yml")
+    current = _read(".github/workflows/tests.yml")
+    projected = _project_only_reviewed_disabled_native_cache(current)
+    jobs = yaml.load(projected, Loader=yaml.BaseLoader)["jobs"]
     qualified = _workflow_jobs("docs/workflows/native-two-shards-v2.yml.in")
     for name in ("python-native-build", "python-native-tests", "python-native-shard-aggregate", "python-native"):
         expected = deepcopy(qualified[name])
@@ -233,6 +266,23 @@ def test_standard_native_delegation_keeps_the_qualified_v2_bodies():
         assert jobs[name] == expected, name
     builder_names = [s["name"] for s in jobs["python-native-build"]["steps"]]
     assert builder_names.index("Check turn-wrapper contracts before the full suite") < builder_names.index("Build Rust extension wheel") < builder_names.index("Record the verified current-producer native wheel")
+
+    # Unrelated legacy mutations remain visible after the exact projection.
+    mutated = current.replace("Build Rust extension wheel", "Unrelated mutated build step", 1)
+    assert mutated != current
+    changed_jobs = yaml.load(_project_only_reviewed_disabled_native_cache(mutated), Loader=yaml.BaseLoader)["jobs"]
+    assert changed_jobs["python-native-build"] != jobs["python-native-build"]
+    for changed in (
+        current.replace('CHRONICLER_NATIVE_RELEASE_CACHE: "0"', 'CHRONICLER_NATIVE_RELEASE_CACHE: "1"', 1),
+        current.replace("Prepare dormant exact native cache context", "Unreviewed dormant cache context", 1),
+    ):
+        assert changed != current
+        try:
+            _project_only_reviewed_disabled_native_cache(changed)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("unreviewed cache shape was projected away")
 
 
 def test_standard_push_does_not_duplicate_closed_qualification_workflows():

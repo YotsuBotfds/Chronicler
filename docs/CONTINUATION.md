@@ -1,3 +1,17 @@
+# Disabled cache workflow regression composition — 2026-10-30
+
+First94cafa CI failed the old whole-builder shape comparison after58+16 passing
+offline parents. A narrow test-only repair preserves the qualified V2 expected
+bodies and specializes only four exact reviewed flag0 cache blocks. Allworkflow,
+helpers, product/native, owner/chunk/cap/dependency source remains exact94cafa;
+inline rejection/mutation checks add no test parents. See
+[the repair note](integration/disabled-cache-workflow-contract-2026-10-30.md).
+All tests against this child are UNRUN. The earlier first failure and diagnostic
+log remain preserved; source review and this child's first CI are separate gates.
+The full94cafa continuation follows unchanged.
+
+---
+
 # Dormant cache + inactive intake composition — source only (2026-10-29)
 
 This child starts from exact public18f550754817f865accafd75b92cf184bdcf9ee1.
