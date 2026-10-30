@@ -834,6 +834,70 @@ def owner_fake(tmp_path, monkeypatch):
     h.original_inventory = records.inventory
     h.original_stat = records.stat_inventory
 
+    # Pure-only adaptation for the new held binding seam. These labels are
+    # invented metadata, never an authentication/environment/custody witness.
+    # No new fixture files, real admission reads or runtime imports are added.
+    fake_pin = {"bytes": 1, "sha256": "4" * 64}
+    fake_envelope_pin = {"bytes": 1, "sha256": "5" * 64}
+    args.root_grant = tmp_path / "synthetic-root-grant.json"
+    args.root_grant_sha256 = fake_pin["sha256"]
+    args.runtime_binding = tmp_path / "synthetic-runtime-binding.json"
+    args.runtime_binding_sha256 = fake_envelope_pin["sha256"]
+    args.environment_admission = tmp_path / "synthetic-environment-admission.json"
+    fake_runtime = {
+        "reference": {
+            "kind": "TIMING_ONLY_EXTERNAL_BINDING_REFERENCE_V1",
+            "static": {"control_source": args.control_source,
+                       "registration": dict(fake_pin), "policy": dict(fake_pin)},
+            "roots": {"control_root": str(control), "producer_root": str(source),
+                      "native_prefix": str(prefix), "output_root": str(args.output),
+                      "admission_root": str(tmp_path / "synthetic-admissions"),
+                      "input_root": str(tmp_path / "synthetic-inputs")},
+            "run": {"run_id": 123, "job_id": 456, "attempt": 1, "nonce": "1" * 64},
+            "grant": dict(fake_pin), "envelope": dict(fake_envelope_pin),
+            "receipts": {name: dict(fake_pin) for name in ("input", "environment", "job_clock")},
+            "baseline_fake_qualification": dict(fake_pin),
+            "binding_fake_qualification": dict(fake_pin),
+            "external_authentication_qualification": None,
+            "environment_body_qualification": None, "quota_enforcement": None,
+            "ordinary_original_custody": None},
+        "snapshot": {"synthetic": True}}
+
+    def fake_runtime_binding(actual_args, registration):
+        records.require(registration == {"synthetic_registration": True},
+                        "only the retained invented registration fixture")
+        # The old child-budget cases intentionally construct their minimal old
+        # argument shape. Fill only the explicit new shared handoff fields.
+        for name in ("root_grant", "root_grant_sha256", "runtime_binding",
+                     "runtime_binding_sha256", "environment_admission",
+                     "job_clock", "control_source", "output"):
+            expected = getattr(args, name)
+            if not hasattr(actual_args, name):
+                setattr(actual_args, name, expected)
+            records.require(getattr(actual_args, name) == expected,
+                            "same explicit invented handoff argument")
+        return copy.deepcopy(fake_runtime)
+
+    original_control_snapshot = h.real_control_snapshot
+    def retained_control_snapshot(registration):
+        # Exercise the real current snapshot implementation with both new
+        # static pins, then remove only this scaffolding from its return. The
+        # old four-pin assertions and source/helper/escape mutations stay exact.
+        adapted = copy.deepcopy(registration)
+        added = ("scripts/current6a2_timing_binding.py",
+                 "docs/experiments/current6a2-timing-binding-policy.json")
+        for name in added:
+            records.require(name not in adapted["control_file_pins"],
+                            "only the retained original control-pin scaffold")
+            adapted["control_file_pins"][name] = dict(fake_pin)
+        result = original_control_snapshot(adapted)
+        for name in added:
+            records.require(result["files"].pop(name) == fake_pin,
+                            "new synthetic static control pin was checked")
+        return result
+    h.real_control_snapshot = retained_control_snapshot
+
+
     class FakeContext:
         def __init__(self, name): self.name = name
         def __enter__(self):
@@ -926,13 +990,15 @@ def owner_fake(tmp_path, monkeypatch):
     monkeypatch.setattr(owner, "datetime", SimpleNamespace(
         now=lambda _tz: h.now, fromisoformat=DateTime.fromisoformat))
     monkeypatch.setattr(owner, "os", SimpleNamespace(
-        environ=dict(core.CAPS), pathsep=os.pathsep,
+        environ=dict(core.CAPS, GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1",
+                     GITHUB_SHA=args.control_source), pathsep=os.pathsep,
         sched_getaffinity=lambda _pid: {7},
         sched_setaffinity=lambda pid, cpus: h.events.append(("fake_affinity", pid, cpus)),
         rename=lambda left, right: Path(left).rename(right)))
     monkeypatch.setattr(core, "require_approval", lambda: None)
     monkeypatch.setattr(core, "verify_producer", verify)
     monkeypatch.setattr(owner, "load_registration", lambda: {"synthetic_registration": True})
+    monkeypatch.setattr(owner, "runtime_binding", fake_runtime_binding)
     monkeypatch.setattr(owner, "input_admission", admit)
     monkeypatch.setattr(owner, "load_controls", lambda _registration: controls)
     monkeypatch.setattr(owner, "job_deadline", lambda *_a: 1000000.0)

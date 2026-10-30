@@ -303,7 +303,8 @@ def job_deadline(path, registration, control_source, runtime=None, *, now=time.m
 
 def child_environment(source, prefix):
     # Credentials and inherited PYTHONPATH/loader/preload variables are not forwarded.
-    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TZ", "SYSTEMROOT")
+    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TZ", "SYSTEMROOT",
+                                                    "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_SHA")
            if key in os.environ}
     env.update(core.CAPS)
     env["PYTHONPATH"] = os.pathsep.join((str(source / "src"), str(ROOT / "scripts")))

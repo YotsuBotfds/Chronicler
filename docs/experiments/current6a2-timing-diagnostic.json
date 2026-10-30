@@ -33,8 +33,8 @@
       "sha256": "e3a9921b605d3a7293512b2fae5c74a89dc58ff17f77a1921d1761d7f512612f"
     },
     "scripts/current6a2_timing_owner.py": {
-      "bytes": 36709,
-      "sha256": "f4a0ba072a76658c48f7c11274b1b59aea4906635981308deb48a141891b4dde"
+      "bytes": 36814,
+      "sha256": "319f3b0bd87cb7e765ed1a0821f606f687a7ff3a9986fe2c9fea60c15eff9f57"
     },
     "scripts/current6a2_timing_records.py": {
       "bytes": 33179,
@@ -53,8 +53,8 @@
       "sha256": "02924f40e94bf2865d39f392047fb9df08dc669909d42ede617ee9ccab6e399f"
     },
     "tests/current6a2_timing_fake_cases.py": {
-      "bytes": 65854,
-      "sha256": "2b63986b2b48c6e3bc9659008432687490f0dd8c22ed34d8ec058dafc7bde532"
+      "bytes": 69815,
+      "sha256": "fec07ed09a30d7238097b25af09009beb81868e9a7e397646f8c9100c8e32a0e"
     },
     "scripts/current6a2_timing_controls/exact_near_screen_process.py": {
       "bytes": 15495,

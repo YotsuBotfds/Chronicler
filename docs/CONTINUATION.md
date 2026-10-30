@@ -1,3 +1,18 @@
+## 2026-10-30 — held timing child identity and retained fixture repair
+
+The source-only child repairs both full0bd-review integration findings: the
+shared child environment forwards exactly three required official identity
+variables, and only the retained165 owner fixture scaffolding adapts to the new
+held binding seam/control pins. Every old165 test body/assertion/parameter and
+all115 seam case bytes stay exact; all280 cases/840 phases remain UNRUN. The
+old165 file bytes intentionally change only in its fixture; old source/evidence
+and the rejected0bd review stay preserved and qualification does not transfer.
+Actual authentication still refuses; all five activation values and every
+runtime/environment/quota/input/clock/API/campaign result remain NULL or held.
+See performance/current6a2-binding-handoff-fixture-repair-2026-10-30.md. Original
+core/settings/caps/floors/quotas/selected leaves/workflow/deps/product/native are
+exact0bd. The complete parent continuation follows unchanged.
+
 ## 2026-10-29 — held timing external runtime binding source
 
 Static policy pins and future runtime receipt hashes are now separate: the clean
