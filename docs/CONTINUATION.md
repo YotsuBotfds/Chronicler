@@ -1,3 +1,19 @@
+# Kin-root captured exposure reader — source only, 2026-10-30
+
+A bounded pure reader decomposes existing decision-delivery rows into
+voluntary/root/hysteresis/wealth exposure and applied own/follower roles. It
+keeps the recorded destination fixed and supplies no causal efficacy or native
+execution claim. Joint-needs causality in the retained full study passed all
+four cohorts; the causal-required failure is kin roots in all four. Original
+cohorts, results and thresholds remain unchanged. See
+[the input/output contract](integration/kin-root-exposure-2026-10-30.md).
+One final offline chunk covers the new synthetic module; all old39 selections
+and110-second limits remain. New tests and actual frames are UNRUN at freeze.
+
+The exact701 continuation follows unchanged.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
