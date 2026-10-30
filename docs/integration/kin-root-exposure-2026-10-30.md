@@ -103,6 +103,20 @@ delay and later catch-up can be separate prospective diagnostics. Community
 membership needs its own joined data; a root term does not imply membership.
 
 Contract cases use synthetic builtin rows and the existing offline guard. A new
-final chunk retains all old39 entries, their order and110-second caps. At source
-freeze, new tests and actual frame analysis are UNRUN. No native, World,
-checkpoint, full-study or efficacy qualification follows.
+final chunk retains all old39 entries, their order and110-second caps. The first
+focused execution of source `90e4a1b4` passed all99 synthetic current-wire-format
+cases, with no failures or skips. JUnit recorded99 cases and the existing offline
+guard passed: no native modules loaded, no native import attempts blocked, no
+ecology/politics factory calls and no blocked I/O attempts. This docs-only child
+keeps the reader, cases and all40 chunk selections byte-exact to that tested
+source. The full standard CI run remains a separate pending check.
+
+Earlier sources `fcd616c4` and `ace9ae8a` remain unexecuted and source-blocked in
+their preserved packets. The first excluded valid historical wealth factors
+above1; the second missed origin ordering when an origin was absent from a
+partial capture. Their source-review negatives remain evidence of those drafts.
+
+The99-case result qualifies synthetic row validation and arithmetic only. No
+actual saved frame was analyzed, and no native, World, checkpoint, full-study or
+twenty-turn efficacy qualification follows. The retained cohort results and all
+scientific thresholds remain unchanged.

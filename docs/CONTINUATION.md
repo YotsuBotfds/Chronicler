@@ -1,3 +1,21 @@
+# Kin-root exposure reader — first focused99 pass, 2026-10-30
+
+Source `90e4a1b4` passed its first focused execution of99 synthetic current-wire-
+format cases, with99 JUnit cases and no failures or skips. The existing offline
+guard passed with no native modules, native import attempts, ecology/politics
+factory calls or blocked I/O attempts. This docs-only child preserves that
+reader, all cases and all40 offline chunks exactly. Full standard CI is pending.
+
+Sources `fcd616c4` and `ace9ae8a` remain source-blocked and unexecuted in their
+original packets; their preparation and source-review negatives are preserved.
+No actual saved-frame analysis, native or World execution, checkpoint,
+twenty-turn effect or new full-study claim follows from the synthetic pass.
+Original results, seeds, horizons and thresholds remain unchanged. See
+[the scoped result](integration/kin-root-exposure-2026-10-30.md).
+The exact preceding continuation follows unchanged.
+
+---
+
 # Kin-root partial origin ordering — source only, 2026-10-30
 
 A valid applied move origin must precede the applied row even when its origin
