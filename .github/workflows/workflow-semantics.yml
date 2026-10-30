@@ -1,0 +1,103 @@
+name: Workflow semantics
+
+on:
+  push:
+    branches: [lead/workflow-semantics-20261030]
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - .github/actionlint.yaml
+      - .github/actionlint.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/lead/workflow-semantics-20261030'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GOMAXPROCS: "1"
+    steps:
+      - name: Check out the event's exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Download and verify the pinned upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          tool="$RUNNER_TEMP/workflow-semantics-tool"
+          evidence="$RUNNER_TEMP/workflow-semantics-evidence"
+          mkdir -m 0700 "$tool" "$evidence"
+          base=https://github.com/rhysd/actionlint/releases/download/v1.7.12
+          curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+            --connect-timeout 10 --max-time 45 --max-filesize 1130 \
+            "$base/actionlint_1.7.12_checksums.txt" -o "$tool/checksums.txt"
+          printf '%s  %s\n' \
+            433028cf0ba3c42163ea1a668dedce30fcdbe84fe912b1a5e288c006eab8a4f5 \
+            "$tool/checksums.txt" | sha256sum --check --strict -
+          curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+            --connect-timeout 10 --max-time 45 --max-filesize 2353908 \
+            "$base/actionlint_1.7.12_linux_amd64.tar.gz" -o "$tool/actionlint.tar.gz"
+          printf '%s  %s\n' \
+            8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 \
+            "$tool/actionlint.tar.gz" | sha256sum --check --strict -
+          grep -Fx '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz' \
+            "$tool/checksums.txt" > "$evidence/upstream-archive-checksum.txt"
+          tar --extract --gzip --file "$tool/actionlint.tar.gz" --directory "$tool" \
+            --no-same-owner --no-same-permissions actionlint
+          chmod 0500 "$tool/actionlint"
+          /usr/bin/timeout --signal=KILL 5s "$tool/actionlint" -version \
+            > "$evidence/actionlint-version.txt" 2>&1
+          sha256sum "$tool/actionlint" > "$evidence/actionlint-binary.sha256"
+          printf 'upstream_source_commit=%s\nrelease=%s\nsource_commit=%s\n' \
+            914e7df21a07ef503a81201c76d2b11c789d3fca v1.7.12 "$GITHUB_SHA" \
+            > "$evidence/identity.txt"
+
+      - name: Check every tracked workflow YAML without external script linters
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/workflow-semantics-evidence"
+          tool="$RUNNER_TEMP/workflow-semantics-tool"
+          git ls-files -z -- .github/workflows > "$evidence/tracked-workflow-paths.nul"
+          mapfile -d '' -t tracked < "$evidence/tracked-workflow-paths.nul"
+          workflows=()
+          for path in "${tracked[@]}"; do
+            case "$path" in *.yml|*.yaml) workflows+=("$path");; esac
+          done
+          test "${#workflows[@]}" -gt 0
+          printf '%s\0' "${workflows[@]}" > "$evidence/selected-workflows.nul"
+          sha256sum -- "${workflows[@]}" > "$evidence/selected-workflows.sha256"
+          for config in .github/actionlint.yaml .github/actionlint.yml; do
+            if [ -f "$config" ]; then sha256sum -- "$config"; fi
+          done > "$evidence/actionlint-config.sha256"
+          cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+          cpu=${cpu_list%%[-,]*}
+          [[ "$cpu" =~ ^[0-9]+$ ]]
+          set +e
+          /usr/bin/taskset --cpu-list "$cpu" \
+            /usr/bin/timeout --signal=KILL 60s \
+            /usr/bin/prlimit --cpu=20:20 --as=2147483648:2147483648 --fsize=2097152:2097152 --core=0:0 -- \
+            "$tool/actionlint" -shellcheck='' -pyflakes='' "${workflows[@]}" \
+            > "$evidence/actionlint.log" 2>&1
+          actual_exit=$?
+          set -e
+          printf 'actual_exit_code=%s\nworkflow_count=%s\nsource_commit=%s\nshellcheck=disabled\npyflakes=disabled\n' \
+            "$actual_exit" "${#workflows[@]}" "$GITHUB_SHA" > "$evidence/result.txt"
+          cat "$evidence/actionlint.log"
+          exit "$actual_exit"
+
+      - name: Retain exact lint diagnostics and checked source identities
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: workflow-semantics-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/workflow-semantics-evidence/
+          if-no-files-found: error
+          retention-days: 7
