@@ -111,6 +111,47 @@ fn context_batch_chooses_first_live_duplicate_pool_id() {
 }
 
 #[test]
+fn context_batch_duplicate_pool_id_does_not_hide_later_requested_id() {
+    let mut sim = AgentSimulator::new(1, 42);
+    let first = spawn(&mut sim);
+    let duplicate = spawn(&mut sim);
+    let dead = spawn(&mut sim);
+    let later = spawn(&mut sim);
+    let first_id = sim.pool.ids[first];
+    let dead_id = sim.pool.ids[dead];
+    let later_id = sim.pool.ids[later];
+    sim.pool.ids[duplicate] = first_id;
+    sim.pool.kill(dead);
+    sim.pool.need_safety[first] = 0.125;
+    sim.pool.need_safety[duplicate] = 0.875;
+    sim.pool.need_safety[later] = 0.625;
+    sim.pool.memory_count[first] = 1;
+    sim.pool.memory_intensities[first][0] = -7;
+    sim.pool.memory_count[duplicate] = 1;
+    sim.pool.memory_intensities[duplicate][0] = 7;
+
+    // The later unique id must still be found after a second live occurrence
+    // of the first id. Repeated requests retain order and the first payload.
+    let rows = assert_scalar_equivalent(&sim, &[later_id, first_id, first_id]);
+    assert_eq!(rows[0].2.unwrap().0.to_bits(), 0.625f32.to_bits());
+    assert_eq!(rows[1].2.unwrap().0.to_bits(), 0.125f32.to_bits());
+    assert_eq!(rows[1].1[0].3, -7);
+    assert_eq!(rows[2], rows[1]);
+
+    // Missing and dead ids never satisfy a requested live lookup. Their
+    // placeholders must not prevent the final live slot from being read.
+    let rows = assert_scalar_equivalent(&sim,
+        &[dead_id, u32::MAX, later_id, first_id, later_id]);
+    for index in [0, 1] {
+        assert_eq!(rows[index], (rows[index].0, vec![], None, None));
+    }
+    assert_eq!(rows[2].2.unwrap().0.to_bits(), 0.625f32.to_bits());
+    assert_eq!(rows[3].1[0].3, -7);
+    assert_eq!(rows[4], rows[2]);
+}
+
+
+#[test]
 fn context_batch_preserves_zero_id_scalar_split() {
     let mut sim = AgentSimulator::new(1, 42);
     let slot = spawn(&mut sim);

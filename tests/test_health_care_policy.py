@@ -1003,13 +1003,16 @@ def test_care_codec_stdlib_only_source_and_sentinel_objects_forbid_external_runt
 
 
 def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_witnesses():
+    # Strict current whole-file witnesses include b32's unrelated context-reader
+    # early exit. Care bodies remain exact829; mechanics.SOURCE_BINDINGS keeps
+    # its historical native09ec witness. These pins claim no native qualification.
     root = _care_codec_Path(__file__).resolve().parents[1]
     pins = {
         "chronicler-agents/src/health_care.rs": "d853edb7b7d4b584e22aa919dde02696580ffaa5b10f49127007102cc7aabac7",
         "chronicler-agents/src/health_care_observation.rs": "9c617fa6a252db0d2367053c466ee77560727af90825c16cab4b58b2e6791ed9",
         "chronicler-agents/src/pool.rs": "91ef1ae2eb802b75759ef1e018d930113179b767d34183d8fa637191a8b2fa1e",
         "chronicler-agents/src/tick.rs": "b2614e33e7feedab6726aa0b51f3285032873f8db4c7909e5b8821a0c83274fb",
-        "chronicler-agents/src/ffi/mod.rs": "d9a4fe1206e7ced41ab7dba7a1bfa60fe62ab1b8265cd76e490ad6e51e6b301e",
+        "chronicler-agents/src/ffi/mod.rs": "42513302f4d089fb0b769b480e5c685804cc738a50bf01b645763f192ad21677",
         "src/chronicler/health_care.py": "fc96d7c2f859865fc95023201c4c5c436cde0b8b39f53def02beb6f8557cd8ff",
         "src/chronicler/health_care_state.py": "43ea4162dd65e2a59fde602be5b670b3d4699dfe2bb4580f8402d88760a04ec8",
         "src/chronicler/agent_bridge.py": "0ad61ddadf43e1a52b55559a9708e4a5d7b90350f7a6979c192534a9d3f32e18",

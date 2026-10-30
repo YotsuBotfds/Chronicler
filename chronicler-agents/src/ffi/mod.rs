@@ -42,6 +42,17 @@ use crate::pool::AgentPool;
 use crate::region::{mask_to_ids, normalize_ids, RegionState};
 use crate::politics::PoliticsConfig;
 
+// Match the Python bridge's count limit; region id 65535 remains a sentinel.
+const MAX_NATIVE_REGIONS: usize = u16::MAX as usize;
+
+fn validate_native_region_count(num_regions: usize) -> Result<(), &'static str> {
+    if num_regions > MAX_NATIVE_REGIONS {
+        Err("AgentSimulator supports at most 65535 regions")
+    } else {
+        Ok(())
+    }
+}
+
 /// Geography 2.0: read one sorted region/river id list per row.
 ///
 /// Prefers the `List<UInt16>` column `list_name`; falls back to the legacy
@@ -185,13 +196,12 @@ pub struct AgentSimulator {
     decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
 }
 
-#[pymethods]
 impl AgentSimulator {
-    /// Create a new simulator.
+    /// Create a new simulator through the existing Rust API.
     ///
     /// `seed` is zero-extended to a 32-byte master seed.
-    #[new]
     pub fn new(num_regions: usize, seed: u64) -> Self {
+        validate_native_region_count(num_regions).expect("invalid native region count");
         let mut master_seed = [0u8; 32];
         master_seed[..8].copy_from_slice(&seed.to_le_bytes());
         Self {
@@ -240,6 +250,16 @@ impl AgentSimulator {
             decision_delivery_config: None,
             decision_delivery_frame: None,
         }
+    }
+}
+
+#[pymethods]
+impl AgentSimulator {
+    /// Create a simulator, preserving zero-region/empty getter support.
+    #[new]
+    fn py_new(num_regions: usize, seed: u64) -> PyResult<Self> {
+        validate_native_region_count(num_regions).map_err(PyValueError::new_err)?;
+        Ok(Self::new(num_regions, seed))
     }
 
     // CAREOBS_SOURCE_BEGIN: configure and immutable export
@@ -569,9 +589,23 @@ impl AgentSimulator {
     /// population column (60% farmer, 15% soldier, 10% merchant, 10%
     /// scholar, ~5% priest). Subsequent calls update ecology fields only.
     pub fn set_region_state(&mut self, batch: PyRecordBatch) -> PyResult<()> {
-        self.snapshot_cache = None; // pool may change: drop the cached snapshot
         let rb: RecordBatch = batch.into_inner();
         let n = rb.num_rows();
+
+        // Refuse shape changes before invalidating caches or changing any state.
+        if !self.initialized {
+            validate_native_region_count(self.num_regions).map_err(PyValueError::new_err)?;
+            if n != self.num_regions {
+                return Err(PyValueError::new_err(format!(
+                    "set_region_state: expected {} initial region rows (at most 65535), got {n}",
+                    self.num_regions,
+                )));
+            }
+        } else if self.regions.len() != n {
+            return Err(PyValueError::new_err(
+                "set_region_state: row count changed between calls",
+            ));
+        }
 
         // Helper macros to extract typed columns.
         macro_rules! col_u16 {
@@ -603,6 +637,11 @@ impl AgentSimulator {
         }
 
         let region_ids = col_u16!("region_id");
+        if !self.initialized && region_ids.iter().enumerate().any(|(i, id)| id != Some(i as u16)) {
+            return Err(PyValueError::new_err(
+                "set_region_state: initial region_id values must be non-null and ordered 0..num_regions",
+            ));
+        }
         let terrains = col_u8!("terrain");
         let capacities = col_u16!("carrying_capacity");
         let populations = col_u16!("population");
@@ -901,6 +940,8 @@ impl AgentSimulator {
             })
             .collect();
 
+        // All fallible input validation above completes before persistent mutation.
+        self.snapshot_cache = None; // a valid update may change the pool
         // Store contested_regions.
         self.contested_regions = (0..n)
             .map(|i| is_contested_col.map_or(false, |arr| arr.value(i)))
@@ -1124,11 +1165,6 @@ impl AgentSimulator {
             self.initialized = true;
         } else {
             // Subsequent calls: update all fields.
-            if self.regions.len() != n {
-                return Err(PyValueError::new_err(
-                    "set_region_state: row count changed between calls",
-                ));
-            }
             for i in 0..n {
                 let r = &mut self.regions[i];
                 r.terrain = terrains.value(i);
@@ -1682,6 +1718,7 @@ impl AgentSimulator {
         requested.sort_unstable();
         requested.dedup();
         let mut slots = vec![None; requested.len()];
+        let mut remaining = requested.len();
         let pool = &self.pool;
         for slot in 0..pool.capacity() {
             if !pool.alive[slot] {
@@ -1690,6 +1727,10 @@ impl AgentSimulator {
             if let Ok(index) = requested.binary_search(&pool.ids[slot]) {
                 if slots[index].is_none() {
                     slots[index] = Some(slot);
+                    remaining -= 1;
+                    if remaining == 0 {
+                        break;
+                    }
                 }
             }
         }
@@ -3831,6 +3872,118 @@ mod tests {
     use arrow::array::{Int8Array, UInt8Array, UInt16Array, UInt32Array};
     use arrow::datatypes::{DataType, Field, Schema};
     use pyo3_arrow::PyRecordBatch;
+
+    fn region_ingress_batch(ids: Vec<Option<u16>>) -> PyRecordBatch {
+        let n = ids.len();
+        let columns: Vec<arrow::array::ArrayRef> = vec![
+            Arc::new(UInt16Array::from(ids)),
+            Arc::new(UInt8Array::from(vec![0; n])),
+            Arc::new(UInt16Array::from(vec![80; n])),
+            Arc::new(UInt16Array::from(vec![2; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.8; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.6; n])),
+            Arc::new(arrow::array::Float32Array::from(vec![0.3; n])),
+        ];
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("region_id", DataType::UInt16, true),
+            Field::new("terrain", DataType::UInt8, false),
+            Field::new("carrying_capacity", DataType::UInt16, false),
+            Field::new("population", DataType::UInt16, false),
+            Field::new("soil", DataType::Float32, false),
+            Field::new("water", DataType::Float32, false),
+            Field::new("forest_cover", DataType::Float32, false),
+        ]));
+        PyRecordBatch::new(RecordBatch::try_new(schema, columns).unwrap())
+    }
+
+    #[test]
+    fn native_region_count_admission_keeps_empty_and_exact_upper_boundary() {
+        // The maximum is admitted without allocating millions of reserve slots.
+        for n in [0, 1, 33, 65535] {
+            assert!(validate_native_region_count(n).is_ok());
+        }
+        for n in [65536, usize::MAX] {
+            assert!(validate_native_region_count(n).is_err());
+            assert!(AgentSimulator::py_new(n, 42).is_err());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid native region count")]
+    fn rust_region_constructor_refuses_before_reserve_size_multiplication() {
+        let _ = AgentSimulator::new(usize::MAX, 42);
+    }
+
+    #[test]
+    fn native_zero_region_constructor_and_empty_initialization_stay_valid() {
+        let mut sim = AgentSimulator::py_new(0, 42).unwrap();
+        assert_eq!(sim.get_snapshot().unwrap().into_inner().num_rows(), 0);
+        assert!(sim.snapshot_is_cached());
+        sim.set_region_state(region_ingress_batch(vec![])).unwrap();
+        assert!(sim.initialized);
+        assert!(sim.regions.is_empty());
+        assert_eq!(sim.get_region_populations().unwrap().into_inner().num_rows(), 0);
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        sim.set_region_state(region_ingress_batch(vec![])).unwrap();
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+    }
+
+    #[test]
+    fn native_first_region_refusals_preserve_checkpoint_and_held_snapshot() {
+        let invalid = [
+            vec![Some(0)],
+            vec![Some(0), Some(1), Some(2)],
+            vec![Some(0), Some(2)],
+            vec![Some(1), Some(0)],
+            vec![Some(0), Some(0)],
+            vec![Some(0), None],
+        ];
+        for ids in invalid {
+            let mut sim = AgentSimulator::new(2, 42);
+            sim.get_snapshot().unwrap();
+            let held = sim.snapshot_cache.as_ref().unwrap().clone();
+            let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+            assert!(sim.set_region_state(region_ingress_batch(ids)).is_err());
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+            assert!(sim.snapshot_is_cached());
+            assert!(Arc::ptr_eq(held.column(0), sim.snapshot_cache.as_ref().unwrap().column(0)));
+            assert!(!sim.initialized);
+            // Rejection draws nothing and does not poison later valid initialization.
+            sim.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+            let mut fresh = AgentSimulator::new(2, 42);
+            fresh.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+            assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim),
+                crate::persist::encode(crate::persist::KIND_AGENT, &fresh));
+        }
+    }
+
+    #[test]
+    fn native_later_region_shape_refusal_precedes_state_and_cache_changes() {
+        let mut sim = AgentSimulator::new(2, 42);
+        sim.set_region_state(region_ingress_batch(vec![Some(0), Some(1)])).unwrap();
+        sim.get_snapshot().unwrap();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let held = sim.snapshot_cache.as_ref().unwrap().clone();
+        assert!(sim.set_region_state(region_ingress_batch(vec![Some(0)])).is_err());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert!(Arc::ptr_eq(held.column(0), sim.snapshot_cache.as_ref().unwrap().column(0)));
+        let counts = sim.get_region_populations().unwrap().into_inner();
+        let alive = counts.column_by_name("alive_count").unwrap().as_any()
+            .downcast_ref::<UInt32Array>().unwrap();
+        assert_eq!(alive.values().as_ref(), &[2, 2]);
+    }
+
+    #[test]
+    fn native_missing_column_refusal_keeps_existing_state_and_snapshot() {
+        let mut sim = AgentSimulator::new(2, 42);
+        sim.get_snapshot().unwrap();
+        let before = crate::persist::encode(crate::persist::KIND_AGENT, &sim);
+        let mut batch = region_ingress_batch(vec![Some(0), Some(1)]).into_inner();
+        batch.remove_column(4); // soil
+        assert!(sim.set_region_state(PyRecordBatch::new(batch)).is_err());
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT, &sim), before);
+        assert!(sim.snapshot_is_cached());
+    }
 
     #[test]
     fn decision_delivery_configuration_and_frame_are_checkpoint_transient() {

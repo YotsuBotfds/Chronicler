@@ -1746,3 +1746,144 @@ def test_convert_events_old_schema_fallback():
     assert len(records) == 1
     assert records[0].target_agent_id == 0
     assert records[0].formed_turn == 0
+
+
+# Native region ingress: direct Arrow inputs, no World generation or tick.
+def _native_region_ingress_observation(sim):
+    return (
+        bytes(sim.checkpoint_state()),
+        sim.checkpoint_schema(),
+        sim.snapshot_is_cached(),
+    )
+
+
+@requires_chronicler_agents
+def test_native_region_ingress_zero_constructor_and_empty_first_batch():
+    sim = AgentSimulator(num_regions=0, seed=71)
+    initial = _native_region_ingress_observation(sim)
+    assert initial[0] and not initial[2]
+    assert pa.record_batch(sim.get_snapshot()).num_rows == 0
+    assert sim.snapshot_is_cached()
+    # A typed empty first batch is legal for the zero-region constructor.
+    sim.set_region_state(_make_region_batch(num_regions=0, capacity=1))
+    assert pa.record_batch(sim.get_snapshot()).num_rows == 0
+    assert sim.checkpoint_schema() == initial[1]
+    assert bytes(sim.checkpoint_state())
+
+
+@requires_chronicler_agents
+@pytest.mark.parametrize("num_regions", [65536, 65537])
+def test_native_region_ingress_rejects_constructor_count_before_allocation(num_regions):
+    with pytest.raises(ValueError):
+        AgentSimulator(num_regions=num_regions, seed=71)
+
+
+@requires_chronicler_agents
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("fault", [
+    "fewer_rows", "more_rows", "sparse", "reverse", "duplicate", "null",
+])
+def test_native_region_ingress_invalid_first_batch_is_atomic_and_recovers(cached, fault):
+    sim = AgentSimulator(num_regions=3, seed=71)
+    reference = AgentSimulator(num_regions=3, seed=71)
+    expected_empty = pa.record_batch(reference.get_snapshot())
+    assert expected_empty.num_rows == 0
+    if cached:
+        assert pa.record_batch(sim.get_snapshot()).equals(expected_empty)
+    before = _native_region_ingress_observation(sim)
+    assert before[0] == bytes(reference.checkpoint_state())
+    assert before[2] is cached
+
+    count = 2 if fault == "fewer_rows" else 4 if fault == "more_rows" else 3
+    bad = _make_region_batch(num_regions=count, capacity=2)
+    ids = {
+        "sparse": [0, 1, 3],
+        "reverse": [2, 1, 0],
+        "duplicate": [0, 0, 2],
+        "null": [0, None, 2],
+    }.get(fault)
+    if ids is not None:
+        bad = bad.set_column(
+            bad.schema.get_field_index("region_id"), "region_id",
+            pa.array(ids, type=pa.uint16()),
+        )
+    # This checkpointed field must not change before shape/ID admission.
+    bad = bad.append_column("is_contested", pa.array([True] * count, type=pa.bool_()))
+    with pytest.raises(ValueError):
+        sim.set_region_state(bad)
+    assert _native_region_ingress_observation(sim) == before
+    assert pa.record_batch(sim.get_snapshot()).equals(expected_empty)
+
+    # An invalid first attempt must not consume initialization or RNG state.
+    good = _make_region_batch(
+        num_regions=3, capacity=3, populations=[2, 0, 1], controllers=[0, 0, 0],
+    )
+    sim.set_region_state(good)
+    reference.set_region_state(good)
+    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
+    assert sim.checkpoint_schema() == reference.checkpoint_schema()
+    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
+
+
+@requires_chronicler_agents
+@pytest.mark.parametrize("reverse_columns", [False, True])
+def test_native_region_ingress_dense_33_keeps_neighbor_32_and_column_order_freedom(reverse_columns):
+    sim = AgentSimulator(num_regions=33, seed=71)
+    batch = _make_region_batch(num_regions=33, capacity=1, controllers=[0] * 33)
+    neighbors = [[32], *[[] for _ in range(31)], [0]]
+    batch = batch.append_column("adjacency", pa.array(neighbors, type=pa.list_(pa.uint16())))
+    if reverse_columns:
+        batch = batch.select(list(reversed(batch.schema.names)))
+    assert batch.column("adjacency").to_pylist()[0] == [32]
+    sim.set_region_state(batch)
+    snap = pa.record_batch(sim.get_snapshot())
+    assert snap.num_rows == 33
+    assert set(snap.column("region").to_pylist()) == set(range(33))
+
+
+@requires_chronicler_agents
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("count", [2, 4])
+def test_native_region_ingress_later_row_count_failure_is_atomic_and_recovers(cached, count):
+    sim = AgentSimulator(num_regions=3, seed=71)
+    reference = AgentSimulator(num_regions=3, seed=71)
+    good = _make_region_batch(
+        num_regions=3, capacity=3, populations=[2, 0, 1], controllers=[0, 0, 0],
+    )
+    sim.set_region_state(good)
+    reference.set_region_state(good)
+    expected = pa.record_batch(reference.get_snapshot())
+    if cached:
+        assert pa.record_batch(sim.get_snapshot()).equals(expected)
+    before = _native_region_ingress_observation(sim)
+    assert before[2] is cached
+    bad = _make_region_batch(num_regions=count, capacity=7, controllers=[0] * count)
+    bad = bad.append_column("is_contested", pa.array([True] * count, type=pa.bool_()))
+    with pytest.raises(ValueError):
+        sim.set_region_state(bad)
+    assert _native_region_ingress_observation(sim) == before
+    assert pa.record_batch(sim.get_snapshot()).equals(expected)
+
+    update = good.append_column("is_contested", pa.array([True, False, True], type=pa.bool_()))
+    sim.set_region_state(update)
+    reference.set_region_state(update)
+    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
+    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
+
+
+@requires_chronicler_agents
+def test_native_region_ingress_does_not_add_later_row_id_order_restrictions():
+    sim = AgentSimulator(num_regions=3, seed=71)
+    reference = AgentSimulator(num_regions=3, seed=71)
+    good = _make_region_batch(num_regions=3, capacity=1, controllers=[0, 0, 0])
+    sim.set_region_state(good)
+    reference.set_region_state(good)
+    reordered = good.set_column(
+        good.schema.get_field_index("region_id"), "region_id",
+        pa.array([2, 1, 0], type=pa.uint16()),
+    )
+    # Existing updates are positional; only the first batch gains an ID gate.
+    sim.set_region_state(reordered)
+    reference.set_region_state(good)
+    assert bytes(sim.checkpoint_state()) == bytes(reference.checkpoint_state())
+    assert pa.record_batch(sim.get_snapshot()).equals(pa.record_batch(reference.get_snapshot()))
