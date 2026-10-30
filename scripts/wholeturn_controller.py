@@ -316,26 +316,46 @@ def execute(controller_root, root, baseline_file, candidate_file):
     root = Path(root).resolve(strict=True)
     admission_record = p.read_json(root/"admission.json", 512*1024)
     p.require(admission_record["github"] == context and admission_record["root"] == str(root)
-              and admission_record["registration"] == p.pin(Path(controller_root)/p.REGISTRATION)
-              and admission_record["drivers"] == build.driver_pins(controller_root), "same admitted source/root")
-    now = time.monotonic_ns()
-    p.require(admission_record["job_clock"]["deadline_monotonic_ns"]-now >= (4200+660)*10**9,
-              "complete owner/publication reservation")
-    deadline = now+4200*10**9
-    builds = {"baseline": p.read_json(baseline_file, 512*1024), "candidate": p.read_json(candidate_file, 512*1024)}
-    build.validate_builds(reg, builds, context, admission_record["drivers"])
-    for value in builds.values():
-        build.recheck_build(value)
-    os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    resource.setrlimit(resource.RLIMIT_AS, (4*p.GIB, 4*p.GIB))
-    resource.setrlimit(resource.RLIMIT_CPU, (3300, 3300))
-    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    def terminate_owned(signum, _frame):
-        signal.signal(signum, signal.SIG_IGN)
-        raise TimeoutError("owner termination signal; stop and reap owned session")
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(signum, terminate_owned)
-    backend = SystemBackend(reg, deadline, root)
+              and admission_record["registration"] == p.pin(Path(controller_root)/p.REGISTRATION),
+              "same admitted source/root")
+    # Only this authenticated parent namespace may receive a preflight record.
+    stage, arm = "controller_drivers", None
+    try:
+        p.require(admission_record["drivers"] == build.driver_pins(controller_root), "same admitted source/root")
+        stage = "owner_reservation"
+        now = time.monotonic_ns()
+        p.require(admission_record["job_clock"]["deadline_monotonic_ns"]-now >= (4200+660)*10**9,
+                  "complete owner/publication reservation")
+        deadline = now+4200*10**9
+        stage = "build_records"
+        builds = {"baseline": p.read_json(baseline_file, 512*1024), "candidate": p.read_json(candidate_file, 512*1024)}
+        stage = "paired_builds"
+        build.validate_builds(reg, builds, context, admission_record["drivers"])
+        stage = "recheck_build"
+        for arm, value in builds.items():
+            build.recheck_build(value)
+        stage, arm = "owner_setup", None
+        os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
+        resource.setrlimit(resource.RLIMIT_AS, (4*p.GIB, 4*p.GIB))
+        resource.setrlimit(resource.RLIMIT_CPU, (3300, 3300))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        def terminate_owned(signum, _frame):
+            signal.signal(signum, signal.SIG_IGN)
+            raise TimeoutError("owner termination signal; stop and reap owned session")
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(signum, terminate_owned)
+        stage = "backend_prepare"
+        backend = SystemBackend(reg, deadline, root)
+    except Exception as exc:
+        failure = {"kind": "MATCHED_WHOLETURN_EXECUTE_PREFLIGHT_FAILURE", "protocol": p.PROTOCOL,
+            "status": "PRE_RUN_SCHEDULE_FAILURE", "github": context,
+            "registration": admission_record["registration"], "stage": stage, "arm": arm,
+            "build_recheck_stage": getattr(exc, "build_recheck_stage", None),
+            "error": {"type": type(exc).__name__, "reason": str(exc)[:512]},
+            "pin_failure": getattr(exc, "pin_failure", None), "child_launch_attempted": False,
+            "scope": "Admitted parent preflight only; no owner/child custody or role outcome claim."}
+        p.write_new(root/"metadata/execute-preflight-failure.json", failure, 65536)
+        raise
     return run_schedule(reg, builds, backend, root, controller_root)
 
 
@@ -521,4 +541,6 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except p.Refused as exc:
         print("WHOLETURN_REFUSED: "+str(exc), file=sys.stderr)
+        if getattr(exc, "pin_failure", None) is not None:
+            print("WHOLETURN_PIN_FAILURE: "+p.canonical(exc.pin_failure).decode().rstrip("\n"), file=sys.stderr)
         raise SystemExit(2)

@@ -52,6 +52,7 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
     reg = p.load_registration(controller_root, ready=False)
     admission = optional_json(root/"admission.json")
     owner = optional_json(root/"raw/owner.json", 2*p.MIB)
+    preflight = optional_json(root/"metadata/execute-preflight-failure.json", 65536)
     child_bodies_allowed = (owner is not None and owner.get("raw_custody_proven") is True
                             and owner.get("raw_upload_allowed") is True)
     summary = {"kind": "MATCHED_WHOLETURN_COMPACT", "protocol": p.PROTOCOL,
@@ -63,13 +64,15 @@ def selected_records(controller_root, root, actual_step_outcome, step_outcomes=N
         "owner": None if owner is None else {k: v for k, v in owner.items()
             if k not in ("roles", "comparisons", "final_raw_inventory", "final_retained_inventory")},
         "owner_original": p.pin(root/"raw/owner.json", 2*p.MIB) if owner is not None else None,
+        "preflight_failure": preflight,
+        "preflight_failure_original": p.pin(root/"metadata/execute-preflight-failure.json", 65536) if preflight is not None else None,
         "comparison_outcomes": owner["comparisons"] if owner is not None else [],
         "child_body_reads_allowed": child_bodies_allowed,
         "raw_upload_allowed": child_bodies_allowed,
         "custody_scope": "Parent owner/builds/launch intents only until observed quiescence and bounded final inventory; intents prove no process start.",
         "raw_inventory": None if owner is None else {k: v for k, v in owner.get("final_raw_inventory", {}).items() if k != "files"},
         "raw_inventory_digest": hashlib.sha256(p.canonical(owner.get("final_raw_inventory"))).hexdigest() if owner else None,
-        "builds": {arm: build_projection(root/(arm+"-build.json")) for arm in ("baseline", "candidate")},
+        "builds": {arm: build_projection(root/"metadata"/arm/"build.json") for arm in ("baseline", "candidate")},
         "performance_qualification": None, "scientific_qualification": None,
         "scope": "Saved selected producer data; full raw journals/checkpoints/ordinary output/profile tables remain remote. No replay/raw rehash claim."}
     roles = []

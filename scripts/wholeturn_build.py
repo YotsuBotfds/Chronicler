@@ -88,6 +88,9 @@ def record_build(controller_root, measured_root, arm, wheel_dir, output):
     from native_wheel_receipt import wheel_receipt
     wheel = wheel_receipt(wheel_dir, native_path, expected["source_commit"])
     p.require(wheel["wheel"]["bytes"] <= 8*p.MIB, "own wheel byte bound")
+    p.require(p.pin(native_path, 64*p.MIB) == {
+        k: wheel["installed_native"][k] for k in ("bytes", "sha256")},
+        "installed native changed before own build record")
     schemas = {}
     for name in CLASSES:
         row = getattr(package, name).checkpoint_schema()
@@ -148,14 +151,21 @@ def validate_builds(registration, builds, context, drivers):
 
 
 def recheck_build(value):
-    p.require(source_manifest(value["measured_root"], value) == value["sealed_source"],
-              "measured source changed")
-    p.require(p.pin(value["native_file"], 64*p.MIB) == {
-        k: value["wheel_receipt"]["installed_native"][k] for k in ("bytes", "sha256")},
-        "installed native changed")
-    wheel = value["wheel_receipt"]["wheel"]
-    p.require(p.pin(Path(value["wheel_dir"])/wheel["filename"], 8*p.MIB) == {
-        k: wheel[k] for k in ("bytes", "sha256")}, "own wheel changed")
+    stage = "source"
+    try:
+        p.require(source_manifest(value["measured_root"], value) == value["sealed_source"],
+                  "measured source changed")
+        stage = "installed_native"
+        p.require(p.pin(value["native_file"], 64*p.MIB) == {
+            k: value["wheel_receipt"]["installed_native"][k] for k in ("bytes", "sha256")},
+            "installed native changed")
+        stage = "wheel"
+        wheel = value["wheel_receipt"]["wheel"]
+        p.require(p.pin(Path(value["wheel_dir"])/wheel["filename"], 8*p.MIB) == {
+            k: wheel[k] for k in ("bytes", "sha256")}, "own wheel changed")
+    except Exception as exc:
+        exc.build_recheck_stage = stage
+        raise
 
 
 def recheck_files(value):

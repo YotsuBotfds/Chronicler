@@ -17,7 +17,7 @@ import struct
 PROTOCOL = "matched-wholeturn-staging-v1"
 BASELINE = "82902b85a94ebb008168cb06195b031c6ee1eb92"
 BASE_NATIVE = "a840fd12462deedf92b256878d474404eeac892d"
-RUN_REF = "refs/heads/lead/wholeturn-staging-run-20261030"
+RUN_REF = "refs/heads/lead/wholeturn-staging-run002-20261030"
 REGISTRATION = "docs/experiments/matched-wholeturn-staging-v1.json"
 MIB = 1024**2
 GIB = 1024**3
@@ -50,22 +50,31 @@ def strict_json(body):
 
 def pin(path, maximum=16*MIB):
     path = Path(path)
-    before = path.lstat()
-    require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
-            and 0 <= before.st_size <= maximum, "bounded unique regular file")
-    digest = hashlib.sha256()
-    count = 0
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(MIB), b""):
-            count += len(block)
-            require(count <= maximum, "file grew beyond bound")
-            digest.update(block)
-    after = path.lstat()
-    identity = lambda s: (s.st_mode, s.st_dev, s.st_ino, s.st_nlink, s.st_size,
-                          s.st_mtime_ns, s.st_ctime_ns)
-    require(identity(before) == identity(after) and count == before.st_size,
-            "file changed while hashing")
-    return {"bytes": count, "sha256": digest.hexdigest()}
+    before = None
+    try:
+        before = path.lstat()
+        require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
+                and 0 <= before.st_size <= maximum, "bounded unique regular file")
+        digest = hashlib.sha256()
+        count = 0
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(MIB), b""):
+                count += len(block)
+                require(count <= maximum, "file grew beyond bound")
+                digest.update(block)
+        after = path.lstat()
+        identity = lambda s: (s.st_mode, s.st_dev, s.st_ino, s.st_nlink, s.st_size,
+                              s.st_mtime_ns, s.st_ctime_ns)
+        require(identity(before) == identity(after) and count == before.st_size,
+                "file changed while hashing")
+        return {"bytes": count, "sha256": digest.hexdigest()}
+    except Exception as exc:
+        # Preserve the original exception/reason and every ownership predicate.
+        name = str(path)
+        exc.pin_failure = {"path": name[:1024], "path_truncated": len(name) > 1024,
+            "lstat": None if before is None else {"mode": before.st_mode,
+                "nlink": before.st_nlink, "bytes": before.st_size}, "maximum": maximum}
+        raise
 
 
 def read_json(path, maximum=MIB):

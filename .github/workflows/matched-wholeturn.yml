@@ -1,17 +1,17 @@
 name: Matched whole-turn staging study
 
-# Source publication is inert. Candidate/root-decision nulls refuse before
-# measured checkouts/builds; a reviewed successor and one run-ref action follow.
+# Source publication is inert. Run002 requires this child's independent
+# source/current gates and a separate root decision; the first failure stays failed.
 on:
   push:
-    branches: [lead/wholeturn-staging-run-20261030]
+    branches: [lead/wholeturn-staging-run002-20261030]
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 jobs:
   wholeturn:
-    if: github.ref == 'refs/heads/lead/wholeturn-staging-run-20261030'
+    if: github.ref == 'refs/heads/lead/wholeturn-staging-run002-20261030'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -93,7 +93,7 @@ jobs:
           set -euo pipefail
           export CARGO_TARGET_DIR="$RUNNER_TEMP/wholeturn-target-baseline"
           "$RUNNER_TEMP/wholeturn-builder/bin/python" -m maturin build --release --locked --manifest-path measured-baseline/chronicler-agents/Cargo.toml --interpreter "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" --out "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels"
-          uv pip install --python "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels/"*.whl
+          uv pip install --link-mode copy --python "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels/"*.whl
           "$RUNNER_TEMP/wholeturn-venv-baseline/bin/python" -B controller/scripts/wholeturn_worker.py record-build --controller-root "$GITHUB_WORKSPACE/controller" --measured-root "$GITHUB_WORKSPACE/measured-baseline" --arm baseline --wheel-dir "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/wheels" --output "$RUNNER_TEMP/matched-wholeturn/metadata/baseline/build.json"
       - name: Build and record candidate own release wheel
         id: candidate
@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           export CARGO_TARGET_DIR="$RUNNER_TEMP/wholeturn-target-candidate"
           "$RUNNER_TEMP/wholeturn-builder/bin/python" -m maturin build --release --locked --manifest-path measured-candidate/chronicler-agents/Cargo.toml --interpreter "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" --out "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels"
-          uv pip install --python "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels/"*.whl
+          uv pip install --link-mode copy --python "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels/"*.whl
           "$RUNNER_TEMP/wholeturn-venv-candidate/bin/python" -B controller/scripts/wholeturn_worker.py record-build --controller-root "$GITHUB_WORKSPACE/controller" --measured-root "$GITHUB_WORKSPACE/measured-candidate" --arm candidate --wheel-dir "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/wheels" --output "$RUNNER_TEMP/matched-wholeturn/metadata/candidate/build.json"
       - name: Run fixed serial roles and comparisons once
         id: owner

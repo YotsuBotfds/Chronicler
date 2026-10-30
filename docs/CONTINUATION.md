@@ -1,3 +1,16 @@
+# Whole-turn file-integrity child — source only (2026-10-30)
+
+The first d642 trial41037130961/1 failed with a bounded-unique-file refusal after
+both builds. Its offending path remains UNKNOWN; no owner/role result is captured.
+This child makes both own-wheel installs explicit-copy, keeps nlink1/hash limits,
+attests installed ownership earlier and retains admitted preflight diagnostics.
+Compact build projections use canonical metadata paths and keep parent failures
+without relaxing child custody. Measured829/643, proofs/caps/physics stay exact.
+New run002 is held behind separate source/current-focus/lint/all9CI and root
+decision. Only two old current-ref witness literals refresh; other79 parent
+cases stay exact, with ten new pure cases (91 prospective focus), all UNRUN.
+See integration/wholeturn-file-integrity-2026-10-30.md. Entire parent follows.
+
 # Whole-turn READY source; runtime held (2026-10-30)
 
 Child of11a9 pins actual643/native0dca and exact reviewed source/live-proof decision. Harness method/helpers/caps and baseline829/a840 stay unchanged. All62 old case assertions retain explicit fake-UNREADY inputs; one current-binding case gives63 wholeturn cases. Dedicated lint-FIRST then Tests refs are separate from inert source and held benchmark ref. Actual five parent workflows plus readonly semantic template makes six; old plan count remains preserved/corrected. Prospective first focus81 is UNRUN, and no Native/build/World/API/publication/runtime action is granted by source. Earlier history follows exactly.
