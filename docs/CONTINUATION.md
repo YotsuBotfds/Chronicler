@@ -1,3 +1,20 @@
+# Religion import-order witness correction - source only, 2026-10-30
+
+First47f standard CI41013860177 had eight successful jobs and one no-Rust
+failure: the new subclass spy patched a reimported religion module but called
+a collection-time function alias from the original module. The retained
+no-native fallback test deliberately evicts/reimports that module. This child
+calls the same locally imported module that owns the spy, retaining both
+output comparisons, expected two groups and no-cache sentinel. Product/native
+bytes, test counts, owners,41chunks and caps are unchanged. All new checks are
+UNRUN; next focus is the original eviction node followed by this corrected
+node. Original130 local PASS, first5ae negative and first47f CI failure remain
+separate preserved evidence. No raw-native or performance claim is inferred.
+See [the precise correction](performance/religion-phase-count-reuse-2026-10-30.md).
+The complete47f continuation follows unchanged.
+
+---
+
 # Religion fallback expectation correction — source-only child, 2026-10-30
 
 The first5ae focused run remains negative:129 passed, one boolean-test failure,

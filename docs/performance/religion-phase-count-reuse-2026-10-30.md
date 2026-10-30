@@ -1,3 +1,34 @@
+# Religion import-order test correction - source-only successor, 2026-10-30
+
+The published47f source first passed130 selected local cases with an all-zero
+ordinary guard. Its first standard CI41013860177 then completed with eight
+successful jobs and one failed no-Rust job. The original156,273-byte no-Rust
+archive is preserved with verified SHA256; exactly one test failed, the new
+subclass grouping spy. Native shard success alone is not raw-native activation
+proof, and this source-only child adds no performance or scientific claim.
+
+The retained no-native fallback test removes `chronicler.religion` from
+`sys.modules` and imports a replacement. The views module's collection-time
+`compute_majority_belief` alias retains the original function globals, while
+the subclass test patches `ordered_counts` on the replacement module. Calling
+the old alias therefore bypasses that spy; both output-equality checks passed
+but the spy observed0 instead of2. The correction calls the locally imported
+`religion.compute_majority_belief` for both queries. The two-group assertion and
+the refusal of the derived-count cache remain intact. Other new cache spies
+target the unchanged turn_artifacts module, which that fallback test does not
+evict. No historical test is changed.
+
+This child changes only those two calls and docs/CONT. Both product modules,
+the actual raw-native case, all case parameters, owners,41offline chunks and
+caps remain exact47f. Every check on this new source is UNRUN. The next proposed
+ordinary guarded focus selects, in order, the original module-eviction test
+then the corrected subclass test; the new source is not a rerun of failed CI.
+The first5ae focused negative and first47f CI negative remain immutable.
+
+The previous source-scoped proposal and correction history follow unchanged.
+
+---
+
 # Religion phase count reuse — source-only candidate, 2026-10-30
 
 This isolated child of829 reuses only the successful `region` / `belief !=255`

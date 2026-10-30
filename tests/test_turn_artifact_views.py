@@ -629,8 +629,8 @@ def test_religion_exact_view_subclass_keeps_original_grouping(monkeypatch):
 
     monkeypatch.setattr(religion, "ordered_counts", grouped)
     monkeypatch.setattr(artifacts, "ordered_counts", lambda *a: pytest.fail("subclass retained summary"))
-    first = compute_majority_belief(batch, agent_rows=rows)
-    assert compute_majority_belief(batch, agent_rows=rows) == first
+    first = religion.compute_majority_belief(batch, agent_rows=rows)
+    assert religion.compute_majority_belief(batch, agent_rows=rows) == first
     assert len(calls) == 2
 
 
