@@ -1,3 +1,27 @@
+# Warm trade-route membership optimization — measured kernel, 2026-10-30
+
+This separate 701 child avoids copying the complete current-turn route set for
+one membership query when the private cache is an exact built-in set. The
+public getter keeps its defensive copy. Pair normalization, perception
+arithmetic, RNG use and simulation phases are unchanged in source. The admitted
+contract uses stable primitive world turn/cache fields; arbitrary stateful
+descriptor access-order equivalence is not claimed.
+
+The first ordinary offline-guard attempt passed **64 cases**. Distinct fixed
+method002 then qualified all 192 timing samples across all 16 conditions:
+built-in-set kernel wall ratios were **1.226–29.005×**, including 1.905× for the
+60-civilization ring. Every set-subclass fallback was slower, by **3.99–25.76%**.
+The first method001 producer exited 0 but its CPU qualification was refused for
+two zero samples; that evidence remains retained without a rerun or cause claim.
+
+See [the complete 16-condition table, contracts and evidence](performance/warm-trade-route-membership-2026-10-30.md).
+The namespace kernel does not measure production WorldState/Pydantic attribute
+costs, whole-turn performance, RSS or simulation trajectory identity. Full CI
+and scientific/production gates remain open. No push or CI has been performed
+for this branch. The complete 701 continuation follows unchanged.
+
+---
+
 # Disabled cache workflow regression composition — 2026-10-30
 
 First94cafa CI failed the old whole-builder shape comparison after58+16 passing
