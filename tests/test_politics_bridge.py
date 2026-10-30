@@ -2177,3 +2177,139 @@ def test_real_native_planner_limits_new_bundles_and_preserves_checkpoint_state(c
     # Other politics steps may emit valid effects; every New ref still closes.
     apply_politics_ops(world, [op for op in ops if op[0] != 11])
     assert len(world.civilizations) == 254
+
+
+# Duplicate original identities are legal input rows; accept only one successful
+# restoration for that identity, and consume all its exile modifiers together.
+def _ordered_restoration_world(count=253, same_original=True, original_dead=True):
+    world = _lifetime_capacity_world(count)
+    absorber = world.civilizations[0]
+    absorber.regions = ["A", "C", "D"]
+    absorber.capital_region = "A"
+    absorber.stability = 0
+    world.civilizations[1].regions = [] if original_dead else ["B"]
+    for region in world.regions:
+        region.controller = absorber.name if region.name in absorber.regions else None
+    if not original_dead:
+        world.regions[1].controller = world.civilizations[1].name
+    world.exile_modifiers = [ExileModifier(
+        original_civ_name=world.civilizations[original].name,
+        absorber_civ=absorber.name, conquered_regions=[region], turns_remaining=5,
+    ) for original, region in [(1, "C"), (1 if same_original else 2, "D")]]
+    return world
+
+
+def _ordered_restoration_op(target_kind, target_id, region=2, seq=0):
+    return (8, seq, "civ_op", {
+        "op_type": CIV_OP_RESTORE, "source_ref_kind": REF_EXISTING,
+        "source_ref_id": 0, "target_ref_kind": target_kind,
+        "target_ref_id": target_id, "region_indices": [region],
+    })
+
+
+@pytest.mark.parametrize("first_new", [False, True])
+@pytest.mark.parametrize("remove_between", [False, True])
+def test_ordered_exile_preflight_refuses_duplicate_restore_before_all_effects(first_new, remove_between):
+    world = _ordered_restoration_world(original_dead=not first_new)
+    before = world.model_dump()
+    mapping = {}
+    ops = [_ordered_restoration_op(REF_NEW if first_new else REF_EXISTING,
+                                   0 if first_new else 1)]
+    if remove_between:
+        ops.append((8, 1, "exile_op", {
+            "op_type": EXILE_OP_REMOVE, "original_civ_ref_kind": REF_EXISTING,
+            "original_civ_ref_id": 1,
+        }))
+    ops.extend([_ordered_restoration_op(REF_NEW, 1 if first_new else 0, region=3, seq=2),
+                (8, 3, "region_op", {"op_type": REGION_OP_SET_CONTROLLER,
+                 "region": 3, "controller_ref_kind": REF_NEW,
+                 "controller_ref_id": 1 if first_new else 0})])
+    with pytest.raises(ValueError, match="duplicate restoration|no matching exile"):
+        apply_politics_ops(world, ops, new_civ_map=mapping)
+    assert not mapping and world.model_dump() == before
+
+
+def test_ordered_exile_append_then_new_restore_materializes_at_that_position():
+    world = _ordered_restoration_world(count=252, original_dead=False)
+    world.exile_modifiers = []
+    mapping = {}
+    apply_politics_ops(world, [
+        (7, 0, "exile_op", {"op_type": EXILE_OP_APPEND,
+         "original_civ_ref_kind": REF_EXISTING, "original_civ_ref_id": 1,
+         "absorber_civ_ref_kind": REF_EXISTING, "absorber_civ_ref_id": 0,
+         "region_indices": [2], "turns_remaining": 5}),
+        _ordered_restoration_op(REF_NEW, 0),
+        (8, 1, "region_op", {"op_type": REGION_OP_SET_CONTROLLER, "region": 2,
+         "controller_ref_kind": REF_NEW, "controller_ref_id": 0}),
+    ], new_civ_map=mapping)
+    assert mapping == {0: 252} and len(world.civilizations) == 253
+    assert world.civilizations[252].regions == ["C"]
+    assert world.regions[2].controller == world.civilizations[252].name
+
+
+@pytest.mark.parametrize("count", [253, 254])
+@pytest.mark.parametrize("same_original", [False, True])
+def test_pure_restoration_first_success_consumes_only_accepted_originals(count, same_original):
+    from chronicler.politics import check_restoration
+    from chronicler.tuning import K_RESTORATION_BASE_PROB
+    world = _ordered_restoration_world(count, same_original)
+    identities = tuple(world.civilizations)
+    world.tuning_overrides[K_RESTORATION_BASE_PROB] = 1.0
+    events = check_restoration(world)
+    assert len(world.civilizations) == count
+    assert all(a is b for a, b in zip(identities, world.civilizations))
+    assert not world.exile_modifiers
+    assert [e.event_type for e in events] == ["restoration"] * (1 if same_original else 2)
+    assert world.civilizations[1].regions == ["C"]
+    assert world.regions[3].controller == ("Civ0" if same_original else "Dead2")
+
+
+def test_pure_restoration_failed_earlier_row_does_not_consume_the_identity():
+    from chronicler.politics import check_restoration
+    from chronicler.tuning import K_RESTORATION_BASE_PROB
+    world = _ordered_restoration_world(254)
+    world.regions[2].controller = None  # first row has no available region
+    world.tuning_overrides[K_RESTORATION_BASE_PROB] = 1.0
+    events = check_restoration(world)
+    assert [e.event_type for e in events] == ["restoration"]
+    assert world.civilizations[1].regions == ["D"]
+    assert not world.exile_modifiers and len(world.civilizations) == 254
+
+
+@pytest.mark.parametrize("count", [253, 254])
+@pytest.mark.parametrize("original_dead", [False, True])
+def test_real_native_duplicate_original_does_not_publish_an_unmaterializable_bundle(count, original_dead):
+    native = pytest.importorskip("chronicler_agents")
+    from chronicler.politics import call_rust_politics, configure_politics_runtime
+    from chronicler.tuning import K_RESTORATION_BASE_PROB, K_SECESSION_LIKELIHOOD
+    world = _ordered_restoration_world(count, original_dead=original_dead)
+    world.tuning_overrides[K_RESTORATION_BASE_PROB] = 1.0
+    world.tuning_overrides[K_SECESSION_LIKELIHOOD] = 0.0
+    simulator = native.PoliticsSimulator()
+    configure_politics_runtime(simulator, world)
+    before = bytes(simulator.checkpoint_state())
+    ops = call_rust_politics(simulator, world, hybrid_mode=False, absorption_eligible=frozenset())
+    restorations = [p for _, _, f, p in ops if f == "civ_op" and p["op_type"] == CIV_OP_RESTORE]
+    accepted = original_dead or count == 253
+    assert len(restorations) == int(accepted)
+    if accepted:
+        assert restorations[0]["target_ref_kind"] == (REF_EXISTING if original_dead else REF_NEW)
+    assert bytes(simulator.checkpoint_state()) == before
+    apply_politics_ops(world, [op for op in ops if op[0] != 11])
+    assert len(world.civilizations) == count + int(accepted and not original_dead)
+    assert len(world.exile_modifiers) == (0 if accepted else 2)
+    assert world.regions[3].controller == "Civ0"
+
+
+@pytest.mark.parametrize("exile_type", [EXILE_OP_REMOVE, EXILE_OP_APPEND])
+def test_pending_breakaway_name_is_not_guessed_for_unsupported_exile_routes(exile_type):
+    world = _lifetime_capacity_world(2)
+    before = world.model_dump()
+    ops = [_lifetime_breakaway(), (7, 1, "exile_op", {
+        "op_type": exile_type, "original_civ_ref_kind": REF_NEW,
+        "original_civ_ref_id": 0, "absorber_civ_ref_kind": REF_EXISTING,
+        "absorber_civ_ref_id": 1, "region_indices": [2],
+    })]
+    with pytest.raises(ValueError, match="pending breakaway names are unsupported"):
+        apply_politics_ops(world, ops)
+    assert world.model_dump() == before

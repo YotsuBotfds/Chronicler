@@ -552,6 +552,13 @@ def _preflight_civ_creations(world: WorldState, ops: list[tuple], new_civ_map: d
            for k, v in known.items()) or len(set(known.values())) != len(known):
         raise ValueError("invalid existing New civilization mapping")
     reserved = 0
+    # Only identity/region membership is needed to mirror exile append/remove.
+    # A breakaway's not-yet-materialized unique name is an opaque local token;
+    # New restorations already have the historical name carried by their exile.
+    identity_names = {i: civ.name for i, civ in enumerate(world.civilizations)}
+    exiles = [(e.original_civ_name, e.absorber_civ, tuple(e.conquered_regions))
+              for e in world.exile_modifiers]
+    restored_originals = set()
     refs_by_family = {
         "civ_op": ("source", "target"),
         "region_op": ("controller",),
@@ -602,6 +609,26 @@ def _preflight_civ_creations(world: WorldState, ops: list[tuple], new_civ_map: d
             if prefix + "_ref_kind" in payload or prefix + "_ref_id" in payload:
                 resolve(payload.get(prefix + "_ref_kind", REF_EXISTING),
                         payload.get(prefix + "_ref_id", CIV_NONE))
+        if family == "exile_op":
+            original_idx = resolve(payload.get("original_civ_ref_kind", REF_EXISTING),
+                                   payload.get("original_civ_ref_id", 0))
+            if original_idx is not None and type(identity_names[original_idx]) is not str:
+                raise ValueError("pending breakaway names are unsupported in exile identity ops")
+            if payload.get("op_type") == EXILE_OP_REMOVE and original_idx is not None:
+                original_name = identity_names[original_idx]
+                exiles = [e for e in exiles if e[0] != original_name]
+            elif payload.get("op_type") == EXILE_OP_APPEND:
+                absorber_idx = resolve(payload.get("absorber_civ_ref_kind", REF_EXISTING),
+                                       payload.get("absorber_civ_ref_id", 0))
+                if absorber_idx is not None and type(identity_names[absorber_idx]) is not str:
+                    raise ValueError("pending breakaway names are unsupported in exile identity ops")
+                if original_idx is not None and absorber_idx is not None:
+                    indices = payload.get("region_indices", [])
+                    if (type(indices) is not list or any(type(ri) is not int
+                            or not 0 <= ri < len(world.regions) for ri in indices)):
+                        raise ValueError("exile identity view requires valid region indices")
+                    exiles.append((identity_names[original_idx], identity_names[absorber_idx],
+                                   tuple(world.regions[ri].name for ri in indices)))
         if not creator:
             continue
         source_idx = resolve(payload.get("source_ref_kind", REF_EXISTING),
@@ -611,10 +638,16 @@ def _preflight_civ_creations(world: WorldState, ops: list[tuple], new_civ_map: d
                 or any(type(ri) is not int or not 0 <= ri < len(world.regions) for ri in regions)
                 or len(set(regions)) != len(regions)):
             raise ValueError("civilization creation requires a source and valid unique regions")
+        restored_name = None
         if not creates_new:
             # Restoration of a known identity does not allocate or refund a slot.
-            if resolve(target_kind, payload.get("target_ref_id", 0)) is None:
+            target_idx = resolve(target_kind, payload.get("target_ref_id", 0))
+            if target_idx is None:
                 raise ValueError("restoration requires an existing or New target")
+            restored_name = identity_names[target_idx]
+            if restored_name in restored_originals:
+                raise ValueError("duplicate restoration identity in one politics pass")
+            restored_originals.add(restored_name)
             continue
         local_id = payload.get("target_ref_id", 0)
         if type(local_id) is not int or not 0 <= local_id < CIV_NONE or local_id in known:
@@ -623,15 +656,21 @@ def _preflight_civ_creations(world: WorldState, ops: list[tuple], new_civ_map: d
             # Current native restoration sources are original input records.
             # Refuse an unmaterializable declaration rather than reserve a ghost
             # identity whose following New references could alias another civ.
-            if source_idx >= original_count or not any(
-                exile.absorber_civ == world.civilizations[source_idx].name
-                and world.regions[regions[0]].name in exile.conquered_regions
-                for exile in world.exile_modifiers
-            ):
-                raise ValueError("New restoration has no matching original exile")
+            matching = next((e for e in exiles
+                             if e[1] == identity_names[source_idx]
+                             and world.regions[regions[0]].name in e[2]), None)
+            if source_idx >= original_count or matching is None:
+                raise ValueError("New restoration has no matching exile at its operation position")
+            restored_name = matching[0]
+            if restored_name in restored_originals:
+                raise ValueError("duplicate restoration identity in one politics pass")
+            restored_originals.add(restored_name)
         if original_count + reserved >= MAX_CIV_RECORDS:
             raise ValueError(CIV_CAPACITY_REFUSAL)
         known[local_id] = original_count + reserved
+        identity_names[original_count + reserved] = (
+            restored_name if restored_name is not None else ("New", original_count + reserved)
+        )
         reserved += 1
 
 

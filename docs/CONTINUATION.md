@@ -1,3 +1,11 @@
+# 2026-10-30 — source-only ordered restoration closure child
+
+Preserve frozen5ec and its independent source B1 negative: duplicate original exile rows could yield Existing→New restoration bundles, while Python's first remove-all erased the second creator's required exile, causing a late unresolved New reference after effects. This separate child admits only one successful restoration per original/pass in native and pure paths, consumes all accepted original exile rows, and preflights actual ordered exile append/remove and creator identity before application. Failed attempts do not consume an identity. Native collapse-protection semantics stay separate. Unknown pending breakaway-name exile routes refuse; current native exile producers use Existing refs. See `docs/integration/civilization-restoration-closure-2026-10-30.md`.
+
+All ten care current bindings/marker blocks/historical witnesses, main/simulation/FFI425133/agent bridge and the254 lifetime admission remain unchanged. New12 pure+4native parents and2Rust tests are UNRUN; one older Rust capacity fixture now uses distinct originals. No imports, candidate execution, test, compiler, Native/World, timing, network, push or CI occurred. Staging004 remains independent; this is a prospective staging005 donor after review and qualification.
+
+---
+
 # 2026-10-30 — source-only civilization lifetime capacity admission
 
 New separate `lead/civ-lifetime-capacity-20261030` donor descends from c50 region ingress; it is intended for staging005 and does not delay or modify staging004. Enforce the existing 254 total lifetime-record budget before Python political births or native New-operation bundles. Count dead records and queued births, preserve existing dead-record restoration, commit earlier accepted secessions, and retain city/movement four-slot headroom/fallback. Whole-list identity/capacity preflight rejects malformed or overbooked native apply batches before effects, including hybrid shock flushing; missing New refs cannot alias Existing ids. Oversized historical worlds remain readable but active entry points refuse clearly.

@@ -1169,9 +1169,11 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
     events: list[Event] = []
     civ_map = world.civ_map
     region_map = world.region_map
-    to_remove = []
+    restored_originals: set[str] = set()
 
     for exile in world.exile_modifiers:
+        if exile.original_civ_name in restored_originals:
+            continue
         absorber = civ_map.get(exile.absorber_civ)
         if absorber is None or absorber.stability >= 20 or exile.turns_remaining <= 0:
             continue
@@ -1326,7 +1328,7 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
                 world.relationships[c.name] = {}
             world.relationships[c.name][exile.original_civ_name] = Relationship(disposition=disp)
 
-        to_remove.append(exile)
+        restored_originals.add(exile.original_civ_name)
         events.append(Event(
             turn=world.turn, event_type="restoration",
             actors=[exile.original_civ_name, exile.absorber_civ],
@@ -1334,8 +1336,9 @@ def check_restoration(world: WorldState, acc=None) -> list[Event]:
             importance=9,
         ))
 
-    for exile in to_remove:
-        world.exile_modifiers.remove(exile)
+    for exile in list(world.exile_modifiers):
+        if exile.original_civ_name in restored_originals:
+            world.exile_modifiers.remove(exile)
     return events
 
 

@@ -2378,9 +2378,12 @@ fn step_restoration(
 ) {
     let step: u8 = 8;
     let mut seq = SeqCounter::new();
-    let mut to_remove: Vec<usize> = Vec::new();
+    let mut restored_originals: HashSet<u16> = HashSet::new();
 
-    for (ei, exile) in live_exiles.entries.iter().enumerate() {
+    for exile in live_exiles.entries.iter() {
+        if restored_originals.contains(&exile.original_civ) {
+            continue;
+        }
         let absorber_idx = exile.absorber_civ;
         if (absorber_idx as usize) >= live_civs.len() {
             continue;
@@ -2558,7 +2561,7 @@ fn step_restoration(
             context_seed: 0,
         });
 
-        to_remove.push(ei);
+        restored_originals.insert(exile.original_civ);
 
         // Update live state: remove region from absorber
         live_civs[absorber_idx as usize]
@@ -2597,12 +2600,8 @@ fn step_restoration(
         }
     }
 
-    // Remove processed exiles (reverse order)
-    for &ei in to_remove.iter().rev() {
-        if ei < live_exiles.entries.len() {
-            live_exiles.entries.remove(ei);
-        }
-    }
+    // Python's ExileOp::Remove consumes every row for this original identity.
+    live_exiles.entries.retain(|exile| !restored_originals.contains(&exile.original_civ));
 }
 
 /// Step 9: Check twilight absorption.
@@ -3634,7 +3633,12 @@ mod tests {
         let mut region3 = RegionInput::new(3);
         region3.controller = 0;
         regions.push(region3);
+        civs[2].regions = vec![4];
+        let mut region4 = RegionInput::new(4);
+        region4.controller = 2;
+        regions.push(region4);
         let mut second = exiles.entries[0].clone();
+        second.original_civ = 2;
         second.conquered_regions = vec![3];
         exiles.entries.push(second);
         let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
@@ -3661,7 +3665,7 @@ mod tests {
         assert!(restored.is_empty());
         assert_eq!(result.events.len(), 2);
         assert_eq!(result.events[0].event_type, "restoration");
-        assert_capacity_refusal(&result.events[1], 8, 1);
+        assert_capacity_refusal(&result.events[1], 8, 2);
         assert_allocated_new_refs(&result);
     }
 
@@ -3694,6 +3698,77 @@ mod tests {
         assert!(restored.is_empty());
         assert_allocated_new_refs(&result);
     }
+    #[test]
+    fn test_restoration_duplicate_original_consumes_once_before_any_second_bundle() {
+        for count in [253, 254] {
+            for original_dead in [false, true] {
+                for hybrid_mode in [false, true] {
+                    let (mut civs, mut regions, mut exiles) = capacity_restoration_fixture(count, original_dead);
+                    civs[0].regions.push(3);
+                    let mut region3 = RegionInput::new(3);
+                    region3.controller = 0;
+                    regions.push(region3);
+                    let mut second = exiles.entries[0].clone();
+                    second.conquered_regions = vec![3];
+                    exiles.entries.push(second);
+                    let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+                    let mut live_regions = capacity_live_regions(&regions);
+                    let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+                    let mut restored = HashSet::new();
+                    let mut result = PoliticsResult::default();
+                    let mut config = make_config();
+                    config.restoration_base_prob = 1.0;
+                    step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+                        &mut rels, &config, 42, 100, hybrid_mode, &mut restored, &mut result);
+                    let accepted = original_dead || count == 253;
+                    assert_eq!(result.civ_ops.len(), usize::from(accepted));
+                    assert_eq!(result.next_new_civ_id, u16::from(accepted && !original_dead));
+                    assert_eq!(result.exile_ops.len(), usize::from(accepted));
+                    assert_eq!(exiles.entries.len(), if accepted { 0 } else { 2 });
+                    assert_eq!(live_regions[3].controller, 0);
+                    assert_eq!(live[0].regions.contains(&3), true);
+                    assert_eq!(restored.contains(&1), accepted && original_dead);
+                    assert_eq!(result.bridge_transitions.len(), usize::from(accepted && hybrid_mode));
+                    assert_allocated_new_refs(&result);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_restoration_distinct_dead_originals_and_failed_first_row_stay_eligible() {
+        for failed_first in [false, true] {
+            let (mut civs, mut regions, mut exiles) = capacity_restoration_fixture(254, true);
+            civs[0].regions.push(3);
+            let mut region3 = RegionInput::new(3);
+            region3.controller = 0;
+            regions.push(region3);
+            let mut second = exiles.entries[0].clone();
+            second.conquered_regions = vec![3];
+            if failed_first {
+                regions[2].controller = CIV_NONE;
+            } else {
+                second.original_civ = 2;
+            }
+            exiles.entries.push(second);
+            let mut live: Vec<LiveCiv> = civs.iter().map(LiveCiv::from_input).collect();
+            let mut live_regions = capacity_live_regions(&regions);
+            let mut rels = LiveRelationships::from_topology(&PoliticsTopology::default());
+            let mut restored = HashSet::new();
+            let mut result = PoliticsResult::default();
+            let mut config = make_config();
+            config.restoration_base_prob = 1.0;
+            step_restoration(&civs, &regions, &mut live, &mut live_regions, &mut exiles,
+                &mut rels, &config, 42, 100, false, &mut restored, &mut result);
+            assert_eq!(result.civ_ops.len(), if failed_first { 1 } else { 2 });
+            assert_eq!(result.next_new_civ_id, 0);
+            assert!(exiles.entries.is_empty());
+            assert!(restored.contains(&1));
+            assert_eq!(restored.contains(&2), !failed_first);
+            assert_allocated_new_refs(&result);
+        }
+    }
+
 }
 
 // ---------------------------------------------------------------------------
