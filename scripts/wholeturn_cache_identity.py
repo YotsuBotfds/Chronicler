@@ -500,3 +500,6 @@ def capture_terminal(save, checkpoint, rc, classes, np, *, expected_rng,
             progress["final_RNG_observation_error"] = {"type": type(exc).__name__, "message": str(exc)[:512]}
             if "failure" not in progress:
                 raise
+        if "failure" not in progress:
+            old.require(progress.get("final_RNG_read_invariance") is True,
+                        "final proof RNG observation differs")

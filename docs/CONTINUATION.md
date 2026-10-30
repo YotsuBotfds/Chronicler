@@ -1,3 +1,13 @@
+# Pilot final RNG closure — SOURCE ONLY (2026-10-30)
+
+A narrow child of54f makes the final untimed RNG observation mandatory on an
+otherwise successful capture. Earlier write failures stay primary when a late
+observation differs or raises. Three appended pure cases give42new/133focused
+prospective cases, all UNRUN. The earlier source clearance missed this check;
+54f, its clearance and all historical failures remain preserved. No legacy
+proof/product/Native/method/budget/workflow/UNREADY registration change.
+The complete previous continuation follows byte-exact.
+
 # Distinct cache-identity whole-turn pilot — SOURCE ONLY (2026-10-30)
 
 New fixed template8/4 seed42 two-role400turn diagnostic retains old/raw hashes

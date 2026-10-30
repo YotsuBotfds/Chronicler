@@ -335,3 +335,41 @@ def test_pair_failure_writes_structured_diagnostic_before_ordinary_comparison(mo
     assert value["proof_differences"][0]["component"] == "live"
     assert value["proof_differences"][-1]["first_recorded_field_segment_difference"]
     assert value["old_raw_live"] == [r["proof"]["old_raw_live"] for r in rows]
+
+
+@pytest.mark.parametrize("mode", ["success_late_change", "write_failure_late_change", "write_failure_late_error"])
+def test_final_rng_is_required_only_without_an_earlier_failure(mode, monkeypatch):
+    failed_write = mode != "success_late_change"
+    root, counts, rng, rc, save, original, clock = fake_capture(monkeypatch, fail_write=failed_write)
+    calls = []
+    late_index = 2 if failed_write else 3
+    def observe(np):
+        calls.append(len(calls) + 1)
+        value = deepcopy(rng)
+        if len(calls) == late_index:
+            if mode == "write_failure_late_error":
+                raise RuntimeError("fake late RNG observation")
+            value["numpy"][4] = -0.0
+        return value
+    monkeypatch.setattr(old, "capture_rng", observe)
+    progress = {}
+    expected_error = OSError if failed_write else old.Refused
+    with pytest.raises(expected_error) as error:
+        cache.capture_terminal(save, "fake.ckpt", rc, (NativeBytes,), None, expected_rng=rng,
+            bridge_class=Bridge, progress=progress, cpu=clock, wall=clock)
+    assert counts == {"save": 1, "write": 1, "load": 0 if failed_write else 1}
+    assert rc.write_checkpoint is original and len(calls) == late_index
+    assert progress["extra_physics_runs"] == 0
+    if failed_write:
+        assert str(error.value) == "fake first write failure"
+        assert progress["failure"] == {"type": "OSError", "message": "fake first write failure"}
+    else:
+        assert str(error.value) == "final proof RNG observation differs"
+        assert progress["global_RNG_read_invariance"] is True
+        assert "failure" not in progress
+    if mode == "write_failure_late_error":
+        assert progress["final_RNG_observation_error"] == {"type": "RuntimeError", "message": "fake late RNG observation"}
+        assert "final_RNG_read_invariance" not in progress
+    else:
+        assert progress["final_RNG_read_invariance"] is False
+        assert "final_RNG_observation_error" not in progress

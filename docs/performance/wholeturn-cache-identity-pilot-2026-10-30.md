@@ -71,8 +71,8 @@ storage aliases are UNOBSERVED; no native transient-cache byte claim.
 
 ## Prospective source gates
 
-39 new explicit fake/pure cases +58 original controller +15 original state
-+18 NativeBuildLanes =130 prospective FIRST focus, all UNRUN on this source.
+42 new explicit fake/pure cases +58 original controller +15 original state
++18 NativeBuildLanes =133 prospective FIRST focus, all UNRUN on this source.
 No real Native/PyArrow/World/process/network cases. Original two wholeturn case
 files are byte-exact; NativeBuild current Tests header witness changes only its
 literal inverse selector, preserving all18 bodies/assertions and historical
